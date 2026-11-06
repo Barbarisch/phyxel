@@ -15,7 +15,11 @@
 namespace Phyxel::Core::MatSim {
 
 struct ParticleConfig {
-    int iterations = 4;            ///< density-constraint iterations per substep (0 = no pressure: the control)
+    /// Density-constraint iterations per substep (0 = no pressure: the control). 8 (measured, 6h):
+    /// at 4 the 1/9 m U-tube gains energy in bursts (KE to 3.4 J/kg, the arms' surface 1.5 m
+    /// wavy, 3 of 3 runs) while 8, 12, 16 iterations or half the CFL step all stay calm (KE <= 0.09).
+    /// The water column is 3x deeper in cells at 1/9 m; 4 Jacobi iterations do not hold it.
+    int iterations = 8;
     float kernelCells = 2.0f;      ///< kernel radius h, in cells
     float relaxation = 1e-3f;      ///< epsilon in lambda's denominator (dimensionless here: density is normalised)
     /// XSPH c. 0.1 (measured, 6f): the slosh period is unchanged from 0.01 (4.4 vs 4.3 s, theory
@@ -46,6 +50,10 @@ struct ParticleConfig {
     /// E2: a group settles only if its free surface (3 x 3-column averages) is level to within this
     /// many cells; keep it below wakeHeadCells so deposited water is not woken straight back.
     float settleLevelCells = 0.8f;
+    /// E2: the free surface for that test is each column's volume averaged over a patch this many
+    /// metres wide (6h): 1 m = the 3 x 3 cells fitted at 1/3 m. A patch fixed in cells (3 x 3) read
+    /// a level 1/9 m U-tube as 4-8 cells uneven, so it never settled.
+    float settlePatchM = 1.0f;
     /// E2: wake() lifts cell water whose head excess over a neighbour exceeds this many cells. 0 = off.
     float wakeHeadCells = 0.0f;
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
@@ -59,6 +67,8 @@ struct Particle {
     float ax = 0.f, ay = 0.f, az = 0.f;   ///< time-averaged velocity (EMA, settleTau), cells/s: in-place swirl cancels
     float age = 0.f;     ///< seconds as a particle; settle() needs age >= settleTau (the average starts at 0)
 };
+
+class MatSimParticlesGpu;
 
 class MatSimParticles {
 public:
@@ -83,6 +93,13 @@ public:
     size_t wake(MatSimCore& core);
     struct WakeStats { size_t contact = 0, falling = 0, pressure = 0; };   ///< trigger cells in the last wake()
     const WakeStats& lastWakeStats() const { return wakeStats_; }
+    /// Why groups did not settle in the last settle(): groups by blocker, and the largest group.
+    struct SettleStats {
+        size_t groups = 0, busySpeed = 0, busyLevel = 0, settled = 0;
+        size_t bigMembers = 0, bigSlow = 0;      ///< the largest group: members, slow members
+        float bigSpread = -1.f;                  ///< its surface spread (cells; < 0 = not measured: busy on speed)
+    };
+    const SettleStats& lastSettleStats() const { return settleStats_; }
     /// Diagnostics: particles slow and old enough to settle, and the groups still busy.
     void settleBlockers(const MatSimCore& core, size_t& slow, size_t& groupsBusy);
 
@@ -95,6 +112,16 @@ public:
     float maxSpeed() const;          ///< cells per second
     int lastSubsteps() const { return lastSubsteps_; }
     ParticleConfig& config() { return cfg_; }
+    /// 6h: route step() to a GPU stepper (nullptr = the CPU reference). Wake, settle and deposit
+    /// stay on the CPU; the stepper uploads the particles and the box cells on each call.
+    void setGpu(MatSimParticlesGpu* gpu) { gpu_ = gpu; }
+
+    // 6h: shared by the CPU step and the GPU stepper.
+    float restDensity();                                             ///< rho0 (lattice sum), computed once
+    int substepsFor(const MatSimCore& core, double dtFrame) const;   ///< CFL substeps for a frame
+    void endFrame(double dtFrame);                                   ///< averaged velocity + age update
+    std::vector<Particle>& mutableParticles() { return p_; }
+    void setLastSubsteps(int n) { lastSubsteps_ = n; }
 
 private:
     void buildGrid(const MatSimCore& core);
@@ -102,9 +129,11 @@ private:
     bool solidAt(const MatSimCore& core, float x, float y, float z) const;
 
     ParticleConfig cfg_;
+    MatSimParticlesGpu* gpu_ = nullptr;
     std::vector<Particle> p_;
     int lastSubsteps_ = 0;
     WakeStats wakeStats_;
+    SettleStats settleStats_;
     // Work arrays (per substep).
     std::vector<float> px_, py_, pz_, lambda_, rho_;
     std::vector<uint32_t> cellStart_, cellCount_, sorted_;

@@ -1,0 +1,277 @@
+#version 450
+// docs/MaterialSimPlan.md §6h — MatSim E1/E2 on the GPU: one substep of MatSimParticles::step
+// (engine/src/core/matsim/MatSimParticles.cpp, the source of truth), one kernel per stage selected
+// by pc.origin.w (the mode). The host (MatSimParticlesGpu) records the stages in the CPU's order.
+//
+// The CPU's summation order is kept: neighbour bins are visited dy, dz, dx; each bin holds its
+// particles in ascending index (the counting sort's scatter is atomic, so SORT_BINS restores the
+// order); boundary cells follow, y, z, x. Float results still differ in the last bits (FMA
+// contraction, the driver's division), so parity is measured, not bit-exact.
+layout(local_size_x = 256) in;
+
+struct P {            // per particle, host-visible through staging
+    vec4 pos;         // xyz world cells, w = mass (units / FULL)
+    vec4 vel;         // xyz cells/s
+};
+struct Wk {           // per particle work
+    vec4 pred;        // xyz predicted position, w = lambda
+    vec4 v;           // xyz velocity from positions, w = kappa (divergence solve)
+    vec4 d;           // xyz correction (positions or velocities)
+    vec4 aux;         // x = rho, y = denominator
+};
+
+layout(std430, binding = 0) buffer Parts { P parts[]; };
+layout(std430, binding = 1) buffer Work { Wk wk[]; };
+layout(std430, binding = 2) buffer Keys { uint keyOf[]; };
+layout(std430, binding = 3) buffer Sorted { uint sorted[]; };
+layout(std430, binding = 4) buffer Count { uint binCount[]; };
+layout(std430, binding = 5) buffer Start { uint binStart[]; };   // nbins + 1
+layout(std430, binding = 6) buffer Blocks { uint blockSum[]; };
+layout(std430, binding = 7) readonly buffer Cells { uint cells[]; };
+layout(std430, binding = 8) readonly buffer Mat { uvec4 mat[]; };   // .x = phase
+
+layout(push_constant) uniform PC {
+    ivec4 origin;   // box origin (world cells); w = mode
+    ivec4 size;     // box size (cells); w = particle count
+    ivec4 gLo;      // neighbour grid origin (bins); w = bin count
+    ivec4 gDim;     // neighbour grid size (bins); w = FULL units
+    vec4 k0;        // h, h^2, poly6, spiky
+    vec4 k1;        // rho0, relaxation, dt, gravity (cells/s^2)
+    vec4 k2;        // omega, viscosity, minC, R (boundary reach, cells)
+} pc;
+
+const int M_PREDICT = 0, M_COUNT = 1, M_SCAN_LOCAL = 2, M_SCAN_BLOCKS = 3, M_SCAN_ADD = 4, M_SCATTER = 5,
+          M_SORT_BINS = 6, M_LAMBDA = 7, M_DELTA = 8, M_APPLY_DELTA = 9, M_VELOCITY = 10, M_KAPPA = 11,
+          M_DV = 12, M_APPLY_DV = 13, M_COMMIT = 14;
+const uint PH_LIQUID = 1u;
+
+shared uint sScan[256];
+
+uint invocation() {
+    return (gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x) * 256u + gl_LocalInvocationID.x;
+}
+
+int floorI(float v) { return int(floor(v)); }
+
+uint cellAt(int x, int y, int z) {   // SOLID outside the box
+    int lx = x - pc.origin.x, ly = y - pc.origin.y, lz = z - pc.origin.z;
+    if (lx < 0 || ly < 0 || lz < 0 || lx >= pc.size.x || ly >= pc.size.y || lz >= pc.size.z) return 0xFF000000u;
+    return cells[uint(lx) + uint(pc.size.x) * (uint(lz) + uint(pc.size.z) * uint(ly))];
+}
+bool solidAt(vec3 p) { return (cellAt(floorI(p.x), floorI(p.y), floorI(p.z)) >> 24) == 255u; }
+
+float Wpoly(float r2) {
+    if (r2 >= pc.k0.y) return 0.0;
+    float d = pc.k0.y - r2;
+    return pc.k0.z * d * d * d;
+}
+vec3 gradW(vec3 e, float r2) {
+    float h = pc.k0.x;
+    float r = sqrt(r2);
+    if (r <= 1e-6 || r >= h) return vec3(0.0);
+    float d = h - r, s = pc.k0.w * d * d / r;
+    return vec3(s * e.x, s * e.y, s * e.z);
+}
+
+// Move from o toward t, stopping at solid cell faces, axis by axis (MatSimParticles collide).
+vec3 collide(vec3 o, vec3 t) {
+    const float eps = 1e-3;
+    vec3 c = o;
+    for (int a = 0; a < 3; ++a) {
+        vec3 cand = c;
+        cand[a] = t[a];
+        if (solidAt(cand)) {
+            float cell = floor(c[a]);
+            cand[a] = t[a] > c[a] ? cell + 1.0 - eps : cell + eps;
+            if (solidAt(cand)) cand[a] = c[a];
+        }
+        c[a] = cand[a];
+    }
+    return c;
+}
+
+uint binKey(vec3 p) {
+    float h = pc.k0.x;
+    int gx = clamp(floorI(p.x / h) - pc.gLo.x, 0, pc.gDim.x - 1);
+    int gy = clamp(floorI(p.y / h) - pc.gLo.y, 0, pc.gDim.y - 1);
+    int gz = clamp(floorI(p.z / h) - pc.gLo.z, 0, pc.gDim.z - 1);
+    return uint(gx + pc.gDim.x * (gz + pc.gDim.z * gy));
+}
+
+// Accumulators of one gather.
+float aRho, aSum2, aS;
+vec3 aG, aV;
+
+// One neighbour j (j < 0: a boundary particle of mass bm) at offset e = x_i - x_j.
+void visit(int mode, uint i, int j, vec3 e, float r2, float bm) {
+    float rho0 = pc.k1.x;
+    float F = float(pc.gDim.w);
+    float mj = j < 0 ? bm : parts[uint(j)].pos.w;
+    if (mode == M_LAMBDA) {
+        aRho += mj * Wpoly(r2);
+        if (j == int(i)) return;
+        vec3 gw = gradW(e, r2);
+        aG += mj * gw;
+        if (j >= 0) aSum2 += (mj * mj) * (gw.x * gw.x + gw.y * gw.y + gw.z * gw.z) / (rho0 * rho0);
+        return;
+    }
+    if (j == int(i)) return;
+    vec3 gw = gradW(e, r2);
+    if (mode == M_DELTA) {
+        float li = wk[i].pred.w;
+        float lj = j < 0 ? li : wk[uint(j)].pred.w;
+        float k = mj * (li + lj) / rho0;
+        aV += k * gw;
+    } else if (mode == M_KAPPA) {
+        vec3 vi = wk[i].v.xyz;
+        vec3 rv = j < 0 ? vi : vi - wk[uint(j)].v.xyz;
+        aS += mj * (rv.x * gw.x + rv.y * gw.y + rv.z * gw.z);
+    } else if (mode == M_DV) {
+        float ki = wk[i].v.w;
+        float kj = j < 0 ? ki : wk[uint(j)].v.w;
+        float k = mj * (ki + kj) / rho0;
+        aV += k * gw;
+    } else if (mode == M_COMMIT) {
+        if (j < 0) return;
+        float w = Wpoly(r2) / rho0;
+        aV += (wk[uint(j)].v.xyz - wk[i].v.xyz) * w;
+    }
+}
+
+// Every fluid neighbour within h (bins dy, dz, dx; ascending index per bin), then every boundary
+// cell within h (y, z, x): a solid (mass 1) or cell liquid (mass fill / FULL).
+void gather(int mode, uint i) {
+    aRho = 0.0; aSum2 = 0.0; aS = 0.0; aG = vec3(0.0); aV = vec3(0.0);
+    float h = pc.k0.x, h2 = pc.k0.y;
+    vec3 xi = wk[i].pred.xyz;
+    int gx = floorI(xi.x / h) - pc.gLo.x, gy = floorI(xi.y / h) - pc.gLo.y, gz = floorI(xi.z / h) - pc.gLo.z;
+    for (int dy = -1; dy <= 1; ++dy)
+        for (int dz = -1; dz <= 1; ++dz)
+            for (int dx = -1; dx <= 1; ++dx) {
+                int cx = gx + dx, cy = gy + dy, cz = gz + dz;
+                if (cx < 0 || cy < 0 || cz < 0 || cx >= pc.gDim.x || cy >= pc.gDim.y || cz >= pc.gDim.z) continue;
+                uint c = uint(cx) + uint(pc.gDim.x) * (uint(cz) + uint(pc.gDim.z) * uint(cy));
+                for (uint k = binStart[c]; k < binStart[c + 1u]; ++k) {
+                    uint j = sorted[k];
+                    vec3 e = xi - wk[j].pred.xyz;
+                    float r2 = e.x * e.x + e.y * e.y + e.z * e.z;
+                    if (r2 < h2) visit(mode, i, int(j), e, r2, 0.0);
+                }
+            }
+    if (mode == M_COMMIT) return;   // viscosity: fluid neighbours only
+    int R = int(pc.k2.w);
+    int ix = floorI(xi.x), iy = floorI(xi.y), iz = floorI(xi.z);
+    float F = float(pc.gDim.w);
+    for (int y = iy - R; y <= iy + R; ++y)
+        for (int z = iz - R; z <= iz + R; ++z)
+            for (int x = ix - R; x <= ix + R; ++x) {
+                vec3 e = vec3(xi.x - (float(x) + 0.5), xi.y - (float(y) + 0.5), xi.z - (float(z) + 0.5));
+                float r2 = e.x * e.x + e.y * e.y + e.z * e.z;
+                if (r2 >= h2) continue;
+                uint bc = cellAt(x, y, z);
+                uint bmat = bc >> 24, bfill = bc & 0x00FFFFFFu;
+                float bm;
+                if (bmat == 255u) bm = 1.0;
+                else if (bmat != 0u && mat[bmat].x == PH_LIQUID && bfill > 0u) bm = float(bfill) / F;
+                else continue;
+                visit(mode, i, -1, e, r2, bm);
+            }
+}
+
+void main() {
+    int mode = pc.origin.w;
+    uint i = invocation();
+    uint n = uint(pc.size.w), nb = uint(pc.gLo.w);
+    float dt = pc.k1.z;
+
+    if (mode == M_SCAN_LOCAL) {   // exclusive scan of 256 bin counts per workgroup
+        uint l = gl_LocalInvocationID.x;
+        uint v = i < nb ? binCount[i] : 0u;
+        sScan[l] = v;
+        barrier();
+        for (uint off = 1u; off < 256u; off <<= 1) {
+            uint t = l >= off ? sScan[l - off] : 0u;
+            barrier();
+            sScan[l] += t;
+            barrier();
+        }
+        if (i < nb) binStart[i] = sScan[l] - v;
+        if (l == 255u) blockSum[gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x] = sScan[255];
+        return;
+    }
+    if (mode == M_SCAN_BLOCKS) {   // one invocation: exclusive scan of the block sums
+        if (i != 0u) return;
+        uint blocks = (nb + 255u) / 256u, run = 0u;
+        for (uint b = 0u; b < blocks; ++b) { uint s = blockSum[b]; blockSum[b] = run; run += s; }
+        binStart[nb] = run;
+        return;
+    }
+    if (mode == M_SCAN_ADD) {
+        if (i >= nb) return;
+        binStart[i] += blockSum[i / 256u];
+        binCount[i] = 0u;   // reused as the scatter cursor
+        return;
+    }
+    if (mode == M_SORT_BINS) {   // insertion sort: ascending particle index per bin (the CPU's order)
+        if (i >= nb) return;
+        uint a = binStart[i], b = binStart[i + 1u];
+        for (uint k = a + 1u; k < b; ++k) {
+            uint v = sorted[k];
+            uint m = k;
+            while (m > a && sorted[m - 1u] > v) { sorted[m] = sorted[m - 1u]; --m; }
+            sorted[m] = v;
+        }
+        return;
+    }
+
+    if (i >= n) return;
+    if (mode == M_PREDICT) {
+        P q = parts[i];
+        q.vel.y -= pc.k1.w * dt;
+        vec3 t = vec3(q.pos.x + q.vel.x * dt, q.pos.y + q.vel.y * dt, q.pos.z + q.vel.z * dt);
+        parts[i].vel = q.vel;
+        wk[i].pred = vec4(collide(q.pos.xyz, t), 0.0);
+        wk[i].aux = vec4(0.0, 1.0, 0.0, 0.0);   // the CPU's denominator starts at 1 each step
+    } else if (mode == M_COUNT) {
+        uint k = binKey(wk[i].pred.xyz);
+        keyOf[i] = k;
+        atomicAdd(binCount[k], 1u);
+    } else if (mode == M_SCATTER) {
+        uint k = keyOf[i];
+        sorted[binStart[k] + atomicAdd(binCount[k], 1u)] = i;
+    } else if (mode == M_LAMBDA) {
+        gather(mode, i);
+        float rho0 = pc.k1.x;
+        float C = max(aRho / rho0 - 1.0, pc.k2.z);
+        float sum2 = aSum2 + (aG.x * aG.x + aG.y * aG.y + aG.z * aG.z) / (rho0 * rho0);
+        float den = sum2 + pc.k1.y;
+        wk[i].aux.x = aRho;
+        wk[i].aux.y = den;
+        wk[i].pred.w = -C / den;
+    } else if (mode == M_DELTA || mode == M_DV) {
+        gather(mode, i);
+        wk[i].d.xyz = aV;
+    } else if (mode == M_APPLY_DELTA) {
+        vec3 p = wk[i].pred.xyz;
+        float w = pc.k2.x;
+        vec3 t = vec3(p.x + w * wk[i].d.x, p.y + w * wk[i].d.y, p.z + w * wk[i].d.z);
+        wk[i].pred.xyz = collide(p, t);
+    } else if (mode == M_VELOCITY) {
+        vec3 p = wk[i].pred.xyz, o = parts[i].pos.xyz;
+        wk[i].v.xyz = vec3((p.x - o.x) / dt, (p.y - o.y) / dt, (p.z - o.z) / dt);
+    } else if (mode == M_KAPPA) {
+        gather(mode, i);
+        float D = aS / pc.k1.x;
+        if (wk[i].aux.x < pc.k1.x) D = max(D, 0.0);
+        wk[i].v.w = -D / wk[i].aux.y;
+    } else if (mode == M_APPLY_DV) {
+        wk[i].v.xyz += wk[i].d.xyz;
+    } else if (mode == M_COMMIT) {
+        vec3 a = vec3(0.0);
+        if (pc.k2.y > 0.0) { gather(mode, i); a = aV; }
+        vec3 v = wk[i].v.xyz;
+        float c = pc.k2.y;
+        parts[i].vel = vec4(v.x + c * a.x, v.y + c * a.y, v.z + c * a.z, 0.0);
+        parts[i].pos.xyz = wk[i].pred.xyz;
+    }
+}

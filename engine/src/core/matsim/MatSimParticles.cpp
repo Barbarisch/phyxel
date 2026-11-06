@@ -1,9 +1,13 @@
 // MatSimParticles — docs/MaterialSimPlan.md §6f (experiment E1). See the header.
 
 #include "core/matsim/MatSimParticles.h"
+#include "core/matsim/MatSimParticlesGpu.h"
 
 #include <algorithm>
 #include <cmath>
+#include <climits>
+#include <cstdio>
+#include <string>
 #include <deque>
 #include <map>
 #include <tuple>
@@ -76,28 +80,55 @@ void MatSimParticles::buildGrid(const MatSimCore& core) {
     for (size_t i = 0; i < n; ++i) sorted_[fillPos[key[i]]++] = uint32_t(i);   // stable: ascending i per cell
 }
 
+float MatSimParticles::restDensity() {
+    if (rho0_ == 0.f) {
+        const float h = cfg_.kernelCells, h2 = h * h;
+        const float poly6 = 315.f / (64.f * kPi * std::pow(h, 9.f));
+        const int R = int(std::ceil(h));
+        for (int a = -R; a <= R; ++a)
+            for (int b = -R; b <= R; ++b)
+                for (int c = -R; c <= R; ++c) {
+                    const float r2 = float(a * a + b * b + c * c);
+                    if (r2 >= h2) continue;
+                    const float d = h2 - r2;
+                    rho0_ += poly6 * d * d * d;
+                }
+    }
+    return rho0_;
+}
+
+int MatSimParticles::substepsFor(const MatSimCore& core, double dtFrame) const {
+    const float g = cfg_.gravity * float(core.cellsPerM());
+    const float vmax = maxSpeed() + g * float(dtFrame);
+    const int ns = int(std::ceil(vmax * float(dtFrame) / cfg_.cflCells));
+    return std::clamp(ns, 1, cfg_.maxSubsteps);
+}
+
+void MatSimParticles::endFrame(double dtFrame) {
+    const float k = std::min(1.f, float(dtFrame) / std::max(1e-3f, cfg_.settleTau));
+    for (Particle& q : p_) { q.ax += (q.vx - q.ax) * k; q.ay += (q.vy - q.ay) * k; q.az += (q.vz - q.az) * k; q.age += float(dtFrame); }
+}
+
 void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
     const size_t n = p_.size();
     if (!n || dtFrame <= 0) { lastSubsteps_ = 0; return; }
     if (!full_) full_ = core.full();
+    if (gpu_) {
+        std::string err;
+        if (gpu_->step(*this, core, dtFrame, &err)) return;
+        std::fprintf(stderr, "[MatSimParticles] GPU step refused (%s); stepping on the CPU\n", err.c_str());
+    }
     const float h = cfg_.kernelCells, h2 = h * h;
     const float poly6 = 315.f / (64.f * kPi * std::pow(h, 9.f));
     const float spiky = -45.f / (kPi * std::pow(h, 6.f));
     auto W = [&](float r2) { if (r2 >= h2) return 0.f; const float d = h2 - r2; return poly6 * d * d * d; };
     // Rest density: a particle inside a perfect lattice of unit-mass particles one cell apart.
-    if (rho0_ == 0.f) {
-        const int R = int(std::ceil(h));
-        for (int a = -R; a <= R; ++a)
-            for (int b = -R; b <= R; ++b)
-                for (int c = -R; c <= R; ++c) rho0_ += W(float(a * a + b * b + c * c));
-    }
+    restDensity();
     const float g = cfg_.gravity * float(core.cellsPerM());   // cells / s^2
     const float wdq = W(0.04f * h2);                    // s_corr reference: dq = 0.2 h
 
     // CFL substeps from the speed after this frame's gravity.
-    const float vmax = maxSpeed() + g * float(dtFrame);
-    int ns = int(std::ceil(vmax * float(dtFrame) / cfg_.cflCells));
-    ns = std::clamp(ns, 1, cfg_.maxSubsteps);
+    const int ns = substepsFor(core, dtFrame);
     lastSubsteps_ = ns;
     const float dt = float(dtFrame) / float(ns);
 
@@ -272,9 +303,7 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
             q.x = px_[i]; q.y = py_[i]; q.z = pz_[i];
         }
     }
-    // Time-averaged velocity (one update per frame).
-    const float k = std::min(1.f, float(dtFrame) / std::max(1e-3f, cfg_.settleTau));
-    for (Particle& q : p_) { q.ax += (q.vx - q.ax) * k; q.ay += (q.vy - q.ay) * k; q.az += (q.vz - q.az) * k; q.age += float(dtFrame); }
+    endFrame(dtFrame);   // time-averaged velocity (one update per frame)
 }
 
 void MatSimParticles::densityError(const MatSimCore& core, float& meanAbsC, float& maxC) {
@@ -391,6 +420,7 @@ std::vector<uint32_t> MatSimParticles::groups(const MatSimCore& core) {
 size_t MatSimParticles::settle(MatSimCore& core) {
     // A GROUP settles when every member is at least settleTau old and slower than settleSpeed
     // (time-averaged): all its particles deposit, lowest first, integer-exact.
+    settleStats_ = {};
     if (cfg_.settleSpeed <= 0.f || p_.empty()) return 0;
     const float vs = cfg_.settleSpeed * float(core.cellsPerM());
     const std::vector<uint32_t> g = groups(core);
@@ -406,6 +436,15 @@ size_t MatSimParticles::settle(MatSimCore& core) {
     std::vector<uint8_t> groupBusy(n, 0);
     for (size_t r = 0; r < n; ++r)
         if (members[r] && float(slowCount[r]) < cfg_.settleFraction * float(members[r])) groupBusy[r] = 1;
+    size_t big = 0;
+    for (size_t r = 0; r < n; ++r) {
+        if (!members[r]) continue;
+        ++settleStats_.groups;
+        if (groupBusy[r]) ++settleStats_.busySpeed;
+        if (members[r] > members[big] || !members[big]) big = r;
+    }
+    settleStats_.bigMembers = members[big];
+    settleStats_.bigSlow = slowCount[big];
     // Agree with wake(): a group settles only if its free surface is level to within
     // settleLevelCells (below the wake threshold), or the deposited cells are woken straight back (measured: a U-tube settled
     // at a slosh turning point with the arms ~0.3 m apart, woke, ... 390 particles at 40 s).
@@ -437,25 +476,52 @@ size_t MatSimParticles::settle(MatSimCore& core) {
             if (capped) continue;
             surfOf[key] = surf;
         }
-        // A single column gains or loses whole particles (+-1 cell); average each over the open
-        // columns of its group in the 3 x 3 patch around it.
-        for (const auto& [key, sv] : surfOf) {
-            const int x = int(key.second >> 32), z = int(int32_t(uint32_t(key.second & 0xFFFFFFFFu)));
-            float sum = 0.f;
-            int cnt = 0;
-            for (int dz = -1; dz <= 1; ++dz)
-                for (int dx = -1; dx <= 1; ++dx) {
-                    const int64_t c2 = (int64_t(x + dx) << 32) ^ int64_t(uint32_t(z + dz));
-                    auto it = surfOf.find({key.first, c2});
-                    if (it != surfOf.end()) { sum += it->second; ++cnt; }
+        // One column's volume is noisy: it counts a whole vertical line of particles, and the
+        // packing is not a unit lattice, so some columns hold systematically more (measured at 1/9 m:
+        // 22-32 cells across one x slice of a level 27-cell-deep arm; the noise grows with depth in
+        // cells). Average each column over the group's open columns in a patch of settlePatchM
+        // metres (3 x 3 cells at 1/3 m, as fitted there; 9 x 9 at 1/9 m), by summed-area tables.
+        const int k = std::max(1, int(std::lround((cfg_.settlePatchM * float(core.cellsPerM()) - 1.f) * 0.5f)));
+        for (auto it = surfOf.begin(); it != surfOf.end();) {
+            const uint32_t r = it->first.first;
+            auto end = it;
+            int x0 = INT32_MAX, x1 = INT32_MIN, z0 = INT32_MAX, z1 = INT32_MIN;
+            for (; end != surfOf.end() && end->first.first == r; ++end) {
+                const int x = int(end->first.second >> 32), z = int(int32_t(uint32_t(end->first.second & 0xFFFFFFFFu)));
+                x0 = std::min(x0, x); x1 = std::max(x1, x); z0 = std::min(z0, z); z1 = std::max(z1, z);
+            }
+            const int W = x1 - x0 + 1, D = z1 - z0 + 1;
+            std::vector<double> sat(size_t(W + 1) * size_t(D + 1), 0.0), cat(size_t(W + 1) * size_t(D + 1), 0.0);
+            auto at2 = [&](int i, int j) { return size_t(i) + size_t(W + 1) * size_t(j); };
+            for (auto e = it; e != end; ++e) {
+                const int x = int(e->first.second >> 32), z = int(int32_t(uint32_t(e->first.second & 0xFFFFFFFFu)));
+                sat[at2(x - x0 + 1, z - z0 + 1)] = e->second;
+                cat[at2(x - x0 + 1, z - z0 + 1)] = 1.0;
+            }
+            for (int j = 1; j <= D; ++j)
+                for (int i = 1; i <= W; ++i) {
+                    sat[at2(i, j)] += sat[at2(i - 1, j)] + sat[at2(i, j - 1)] - sat[at2(i - 1, j - 1)];
+                    cat[at2(i, j)] += cat[at2(i - 1, j)] + cat[at2(i, j - 1)] - cat[at2(i - 1, j - 1)];
                 }
-            const float avg = sum / float(cnt);
-            lo[key.first] = std::min(lo[key.first], avg);
-            hi[key.first] = std::max(hi[key.first], avg);
-            (void)sv;
+            auto box = [&](const std::vector<double>& t, int i0, int j0, int i1, int j1) {   // inclusive, 1-based
+                return t[at2(i1, j1)] - t[at2(i0 - 1, j1)] - t[at2(i1, j0 - 1)] + t[at2(i0 - 1, j0 - 1)];
+            };
+            for (auto e = it; e != end; ++e) {
+                const int x = int(e->first.second >> 32), z = int(int32_t(uint32_t(e->first.second & 0xFFFFFFFFu)));
+                const int i = x - x0 + 1, j = z - z0 + 1;
+                const int i0 = std::max(1, i - k), i1 = std::min(W, i + k), j0 = std::max(1, j - k), j1 = std::min(D, j + k);
+                const float avg = float(box(sat, i0, j0, i1, j1) / box(cat, i0, j0, i1, j1));
+                lo[r] = std::min(lo[r], avg);
+                hi[r] = std::max(hi[r], avg);
+            }
+            it = end;
         }
         for (size_t r = 0; r < n; ++r)
-            if (!groupBusy[r] && members[r] && hi[r] > lo[r] && hi[r] - lo[r] > cfg_.settleLevelCells) groupBusy[r] = 1;
+            if (!groupBusy[r] && members[r] && hi[r] > lo[r] && hi[r] - lo[r] > cfg_.settleLevelCells) {
+                groupBusy[r] = 1;
+                ++settleStats_.busyLevel;
+            }
+        if (!groupBusy[big] || hi[big] >= lo[big]) settleStats_.bigSpread = hi[big] >= lo[big] ? hi[big] - lo[big] : 0.f;
     }
     // Level deposit: each settling group's water (its particles plus any cell water already in its
     // space) is laid down as resting water would sit: filled bottom-up, layer by layer, over the
@@ -548,6 +614,7 @@ size_t MatSimParticles::settle(MatSimCore& core) {
         }
         for (size_t i = 0; i < n; ++i) if (g[i] == r) gone[i] = 1;
     }
+    settleStats_.settled = settleStats_.groups - settleStats_.busySpeed - settleStats_.busyLevel;
     size_t k = 0;
     for (size_t i = 0; i < n; ++i) { if (gone[i]) { ++removed; continue; } p_[k++] = p_[i]; }
     p_.resize(k);

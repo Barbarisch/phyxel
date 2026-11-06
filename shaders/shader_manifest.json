@@ -171,6 +171,11 @@
       "sources": "3896e0d47d94f1968ebacb163e7e92215d589dc00991839e0b952a0f4072088e",
       "spv_present": true
     },
+    "matsim_pbf.comp": {
+      "built": true,
+      "sources": "6ee07e795662a96e854c75375c5c96fd588ee224b1e5099e5cd71edbb6c0cf40",
+      "spv_present": true
+    },
     "matsim_pressure.comp": {
       "built": true,
       "sources": "a0403a96bae3e1f416d245b91d2c05d8a29200cf0bd7533c82e42cc822134690",

@@ -209,7 +209,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     - **§6g E2 (2026-11-05), the hybrid:** resting water is cells, moving water is particles, and a body is always all one or
       all the other. Whole-body wake and settle, with a level deposit. A U-tube starting as cells wakes, sloshes, settles and
       ends at 2.000 / 2.000 m; the ledger is exact. Tested at 1/3 m only. Limit: a disturbance wakes its whole body.
-    - **Next:** the GPU port of the particle step (needed for 1/9 m and for live runs), then a region-limited wake.
+    - **§6h (2026-11-05), GPU:** `MatSimParticlesGpu` + `shaders/matsim_pbf.comp` run the particle step on the device
+      (`MatSimParticles::setGpu`); it tracks the CPU (2e-6 cells after a frame) and reproduces the U-tube and dam break at
+      1/3 and 1/9 m; the 1/9 m frame drops from 4,000+ ms (CPU, Debug) to 7-12 ms. E2 now works at 1/9 m (all cells at 33.5 s,
+      level). At 1/9 m, 4 density iterations gained energy (bursts to 3.4 J/kg), so the default is now 8. The settle patch is now metric (1 m).
+      Negative control: `MATSIM_GPU_STUB=1` must make `MatSimParticlesGpuTest` fail.
+    - **Next:** settle/wake cost (59 ms a frame at 1/9 m on the CPU), the particles live in the lab rig, a region-limited wake.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
     - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then

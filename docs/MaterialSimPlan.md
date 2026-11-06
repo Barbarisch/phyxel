@@ -6,7 +6,8 @@ GPU bit-exact. Plan re-audited against Noita's principles + realism (§0b): new 
 decision), P4 density/viscosity, P4b world-as-material, P8 reactions. P2 not started. 2026-11-04: §6e
 shows the CA cannot carry pressure at physical speed (routing never converges); §6f experiment E1, MatSim's
 own particle fluid (PBF), levels the U-tube at physical speed and period at 1/3 and 1/9 m. 2026-11-05: §6g
-experiment E2, the hybrid (resting cells, moving particles, whole-body wake/settle) works at 1/3 m.** Supersedes the same-day `LiquidCaLab.md`
+experiment E2, the hybrid (resting cells, moving particles, whole-body wake/settle) works at 1/3 m. 2026-11-05:
+§6h the particle step runs on the GPU (1/9 m at 7-12 ms a frame) and E2 works at 1/9 m too.** Supersedes the same-day `LiquidCaLab.md`
 note, folded in here and deleted. Context: [`NoitaGapAnalysis.md`](NoitaGapAnalysis.md) (why: N1–N4,
 Tiers 2–3) and [`WaterCore.md`](WaterCore.md) (the water system this must live beside: §4.2 method
 choice, §30.0b locality, §51 levels).
@@ -1142,8 +1143,74 @@ split along a moving seam:
 - Only 1/3 m is tested for E2. 1/9 m (CPU Debug ~1.4 s a frame) waits for the GPU port.
 - Whole-box scans per frame (wake, groups): O(cells + particles), CPU only.
 
-**Next:** the GPU port of the particle step (the cost is the blocker for 1/9 m and for live
+**Next:** ~~the GPU port of the particle step~~ (done, §6h) (the cost is the blocker for 1/9 m and for live
 runs), then E2 at 1/9 m and live in the lab rig; region-limited wake.
+
+### 6h. The particle step on the GPU; E2 at 1/9 m (2026-11-05)
+
+**Built.** `MatSimParticlesGpu` (engine/{include,src}/core/matsim/MatSimParticlesGpu.*) runs one
+frame of `MatSimParticles::step` on the device: `shaders/matsim_pbf.comp`, one kernel per stage
+picked by a mode push constant (predict + collide; the neighbour grid as a counting sort: count,
+3-pass scan, scatter, then a per-bin insertion sort back to ascending index; density lambda /
+correction / apply; velocity; divergence kappa / correction / apply; viscosity + commit). One
+submission per frame; the particles and the box cells are uploaded each call, positions and
+velocities downloaded. `MatSimParticles::setGpu()` routes `step()` there; lift, wake, settle,
+deposit and the averaged velocity stay on the CPU (the CPU stays the owner). The CPU summation
+order is kept (bins dy, dz, dx; ascending index per bin; boundary y, z, x), so the port tracks the
+CPU closely, but it is float and not bit-exact: it is accepted on the measured physics.
+
+**Red first.** `MATSIM_GPU_STUB=1` records no substeps (the particles freeze), a permanent negative
+control: with it the tracking and dam-break tests fail (front -1, tracking 4.3 cells off at 30
+frames). Then green, `tests/integration/MatSimParticlesGpuTest.cpp` (this laptop's GPU, Debug host build):
+
+| test | GPU result | CPU reference / prediction |
+|---|---|---|
+| tracking, 1/3 m U-tube | 2.4e-6 cells after 1 frame (the CPU moved 0.008), 1e-3 to 7e-3 after 30 | predicted < 1e-3 and < 0.1 |
+| U-tube 1/3 m | t90 1.13 s, period 4.35 s, level, ledger exact | CPU 1.2 s, 4.23-4.35 s |
+| U-tube 1/9 m (9,477 particles) | t90 1.08 s, period 4.22 s, level, ledger exact | CPU 1.1 s |
+| dam break 1/3 and 1/9 m | 8.18 / 8.18 m/s (75 % of Ritter) | CPU 8.18 / 8.18 |
+| hybrid U-tube 1/3 m | wake 0.3 s, far arm 2.74 m at 3 s, all cells at 11.5 s, 2.000 / 2.000 m, no re-wake | §6g: 8 s on the CPU |
+| **hybrid U-tube 1/9 m** (first run ever) | wake 0.8 s, far arm 3.13 m at 3 s, **all cells at 33.5 s, 2.000 / 2.000 m, no re-wake to 40 s, ledger exact** | §6g prediction: may fail, thresholds fitted at 1/3 m |
+| cost, 1/9 m U-tube | 7-12 ms a frame wall (5-10 ms device) | CPU Debug 4,000+ ms (Release not measured) |
+
+**What 1/9 m showed, in order (each measured):**
+1. **The hybrid did not settle at 1/9 m** (10,056 particles at 40 s, arms level to 1 cm). Settle
+   statistics (`lastSettleStats()`): the speed test passed (93 % slow), the surface test failed
+   (spread 4-8 cells against 0.8).
+2. **Single-column volume is noisy.** A column counts a whole vertical line of particles over a
+   non-lattice packing: 22-32 cells within one x slice of a level 27-cell arm. The 3 x 3 patch was
+   fixed in cells (1 m at 1/3 m, 1/3 m at 1/9 m). Fix kept: the patch is metric,
+   `settlePatchM = 1 m` (still 3 x 3 at 1/3 m; 9 x 9 at 1/9 m), by summed-area tables. Not
+   enough alone: the spread stayed 2-8 cells.
+3. **The averaged profile showed a real wave**: a hump mid-arm in both arms (0.3 m), with its
+   period (~1.1 s for a 2 m arm) about the 1 s averaging window, so the oscillation cancelled in
+   the averaged velocity and only the surface test could see it.
+4. **The fluid gained energy at 1/9 m** (`DISABLED_SloshDecay`): 1/3 m decays to ~0.05 J/kg; 1/9 m
+   keeps bursting (0.05 to 0.26 J/kg at 48 s; with viscosity 0.3 to 2.75 J/kg, both arms 0.15 m
+   high at once: the whole body breathing).
+5. **It is the solve's convergence** (`DISABLED_EnergyVsSolve`, 60 s, after 20 s): 4 iterations at
+   CFL 0.4: KE max 3.40 J/kg, waviness 1.46 m. 8 / 12 / 16 iterations: 0.087 / 0.086 / 0.089, under
+   0.025 m. CFL 0.2: 0.091. No divergence solve: 0.103. The column is 3x deeper in cells at 1/9 m;
+   4 Jacobi iterations do not hold it. **Default changed to 8 iterations**, cheaper than the bursting
+   4 (6.7 vs 8.1 ms a frame; the bursts forced extra substeps). One run per calm variant, 3 of 3
+   runs bursting at 4.
+   CPU suite re-run at 8 (`MatSimParticles.*`, 7/7 pass): U-tube t90 1.13 s, period 4.48 s
+   (was 4.23-4.35 at 4; theory 4.49), dam break 8.18 m/s, hybrid U-tube far arm 2.70 m at 3 s and
+   2.000 / 2.000 m, still tank all cells at 1.02 s.
+
+**Limits, stated:**
+- The iteration count is empirical (stable at 8 for a 27-cell column). A deeper body in cells (a
+  lake, or 1/27 m) may need more; the principled form (iterate to a density-error tolerance, or
+  scale with depth in cells) is open.
+- Settle is now the cost at 1/9 m: 59 ms a frame (CPU, std::map columns and union-find), against 6 ms for the
+  GPU step. The wake scan is 4 ms, the CA 11 ms.
+- Particles still cling to the divider faces (seen at y up to 43 cells, 1/9 m, 4 iterations; not
+  re-measured at 8).
+- Whole-box uploads each frame (cells 4 bytes each): fine for these rigs, not for a world.
+- No live engine run yet (the lab rig does not use the particles).
+
+**Next:** settle and wake on the GPU (or at least cheap on the CPU), then the particles live in the
+lab rig (L4), then a region-limited wake.
 
 ## 7. Working alongside the other sessions
 

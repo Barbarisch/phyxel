@@ -286,6 +286,7 @@ echo Compiling MatSim GPU kernels (docs/MaterialSimPlan.md P1b/6d: block rules +
 %GLSLANG% -V -Ishaders shaders\matsim_block.comp -o shaders\matsim_block.comp.spv || goto :shader_error
 %GLSLANG% -V -Ishaders shaders\matsim_dilate.comp -o shaders\matsim_dilate.comp.spv || goto :shader_error
 %GLSLANG% -V -Ishaders shaders\matsim_pressure.comp -o shaders\matsim_pressure.comp.spv || goto :shader_error
+%GLSLANG% -V -Ishaders shaders\matsim_pbf.comp -o shaders\matsim_pbf.comp.spv || goto :shader_error
 echo Compiling water surface mesh shaders...
 %GLSLANG% -V -I. shaders\water_surface.vert -o shaders\water_surface.vert.spv || goto :shader_error
 %GLSLANG% -V -Ishaders shaders\water_surface_pull.vert -o shaders\water_surface_pull.vert.spv || goto :shader_error
