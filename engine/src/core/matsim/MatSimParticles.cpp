@@ -11,6 +11,7 @@
 #include <string>
 #include <deque>
 #include <map>
+#include <set>
 #include <tuple>
 
 namespace Phyxel::Core::MatSim {
@@ -484,11 +485,15 @@ size_t MatSimParticles::settle(MatSimCore& core) {
     {
         const uint32_t F = core.full();
         std::map<std::pair<uint32_t, int64_t>, uint64_t> vol;   // (group, column) -> units
+        std::map<std::pair<uint32_t, int64_t>, float> top;      // (group, column) -> highest particle y
         for (size_t i = 0; i < n; ++i) {
             if (groupBusy[g[i]]) continue;
             const Particle& q = p_[i];
             const int64_t col = (int64_t(floorI(q.x)) << 32) ^ int64_t(uint32_t(floorI(q.z)));
             vol[{g[i], col}] += q.units;
+            auto t = top.find({g[i], col});
+            if (t == top.end()) top[{g[i], col}] = q.y;
+            else t->second = std::max(t->second, q.y);
         }
         std::vector<float> lo(n, 1e30f), hi(n, -1e30f);
         const int y0 = core.origin().y, y1 = core.origin().y + core.size().y;
@@ -504,7 +509,12 @@ size_t MatSimParticles::settle(MatSimCore& core) {
             bool capped = false;
             for (int y = int(std::floor(surf)) + 1; y < y1 && !capped; ++y) capped = cellMaterial(core.at({x, y, z})) == kSolid;
             if (capped) continue;
-            surfOf[key] = surf;
+            // 6i: the surface for the level test is GEOMETRIC, the column's top particle (averaged over
+            // the patch below). Volume per column read 1-2 cells low within ~h of every wall (particles
+            // pack thinner there) in the live rig at 1/3 m, so a level body never settled; the top of
+            // the water does not depend on how densely it packs.
+            surfOf[key] = top[key] + 0.5f;
+
         }
         // One column's volume is noisy: it counts a whole vertical line of particles, and the
         // packing is not a unit lattice, so some columns hold systematically more (measured at 1/9 m:
@@ -541,6 +551,8 @@ size_t MatSimParticles::settle(MatSimCore& core) {
                 const int i = x - x0 + 1, j = z - z0 + 1;
                 const int i0 = std::max(1, i - k), i1 = std::min(W, i + k), j0 = std::max(1, j - k), j1 = std::min(D, j + k);
                 const float avg = float(box(sat, i0, j0, i1, j1) / box(cat, i0, j0, i1, j1));
+                if (r == big && avg < lo[r]) { settleStats_.loCol[0] = x; settleStats_.loCol[1] = z; settleStats_.loCol[2] = avg; }
+                if (r == big && avg > hi[r]) { settleStats_.hiCol[0] = x; settleStats_.hiCol[1] = z; settleStats_.hiCol[2] = avg; }
                 lo[r] = std::min(lo[r], avg);
                 hi[r] = std::max(hi[r], avg);
             }

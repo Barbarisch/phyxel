@@ -182,6 +182,91 @@ def run_size(api, cpm, ev):
     print(json.dumps({k: v for k, v in out.items() if k not in ("dam_break_front", "u_tube_levels", "final_ledger")}, indent=1))
 
 
+def run_hybrid(api, cpm, shot_dir_note):
+    """6i: experiment E2 live. The same rig, a box created with "particles":"hybrid". Predictions (6i, before the
+    run): with the dam in place the resting water stays cells (0 particles after 30 ticks); after the break the front
+    runs 70-105 % of Ritter (the library hybrid: 74 %); the U-tube arms end within max(1/2 cell, 3 cm) of each other;
+    every particle settles back into cells; the ledger is exact at every sample."""
+    out = {"cells_per_m": cpm, "mode": "hybrid"}
+    fill(api, DAM); wait_occupancy()
+    r = must(ms(api, "create", {"min": BOX_MIN, "size": BOX_SIZE, "cells_per_m": cpm, "particles": "hybrid"}), f"create hybrid cpm {cpm}")
+    out["backend"], out["particles_backend"], out["cells"] = r["backend"], r.get("particles_backend"), r["box"]["cell_count"]
+    must(ms(api, "fill_box", {"material": "Water", "min": {"x": 8, "y": 16, "z": 8}, "size": {"x": 3, "y": 3, "z": 8}, "fraction": 1.0}), "reservoir")
+    must(ms(api, "fill_box", {"material": "Water", "min": {"x": 8, "y": 16, "z": 17}, "size": {"x": 8, "y": 5, "z": 7}, "fraction": 1.0}), "U-tube arm")
+    exact = True
+    # Before the break: the reservoir rests against the dam; the U-tube arm is NOT at rest (it wakes at once).
+    def stats_when_free():
+        for _ in range(600):
+            st = ms(api, "stats")
+            if "error" not in st: return st
+            time.sleep(1.0)
+        raise SystemExit("stats: the game loop stayed busy for 10 min")
+    def step(n):
+        """n ticks, toward a target tick. The API waits 5 s for the game loop; a slow tick (1/9 m: 0.2-0.5 s)
+        can outlast it. A timed-out step still runs (only the reply is lost), so on a timeout wait for the loop and
+        continue from the tick the lab reports. Ledger checked on every reply that arrives."""
+        nonlocal exact
+        target = stats_when_free()["tick"] + n
+        c = n if cpm < 9 else min(n, 6)
+        r, timeouts = None, 0
+        while True:
+            tick = stats_when_free()["tick"]
+            if tick >= target: break
+            r = ms(api, "step", {"n": min(c, target - tick)})
+            if "error" in r:
+                if "timed out" not in r["error"]: raise SystemExit(f"step: {r['error']}")
+                timeouts += 1
+                continue
+            exact &= ledger_ok(r)
+        out["step_timeouts"] = out.get("step_timeouts", 0) + timeouts
+        return r if r is not None and "error" not in r else must(ms(api, "ledger"), "ledger")
+    r = step(30)
+    x0, h, tot, _ = slices(api, "x", {"x": 8, "y": 16, "z": 8}, {"x": 16, "y": 8, "z": 8})
+    out["dam_holds_m3_past_wall"] = sum(v for i, v in enumerate(tot) if x0 + i * h >= 12.0)
+    st = ms(api, "stats")
+    out["before_break"] = {"particles": st.get("particles"), "last_wake": st.get("last_wake")}
+    world_job(api, "/api/world/clear", DAM); wait_occupancy()
+    r = must(ms(api, "resolidify"), "resolidify"); exact &= ledger_ok(r)
+    front, t, peak = [], 30, 0
+    tick_ms = []
+    while t < 30 + 240:
+        r = step(3); exact &= ledger_ok(r); t += 3
+        st = ms(api, "stats"); peak = max(peak, st.get("particles", 0)); tick_ms.append(r.get("wall_ms_per_tick"))
+        x0, h, tot, _ = slices(api, "x", {"x": 8, "y": 16, "z": 8}, {"x": 16, "y": 8, "z": 8})
+        fx = max((x0 + (i + 1) * h for i, v in enumerate(tot) if v > 0.01 * 8 * h), default=x0)
+        front.append(((t - 30) * TICK, fx))
+        if fx >= 20.0: break
+    a = next((p for p in front if p[1] >= 12.5), None)
+    b = next((p for p in reversed(front) if p[1] <= 20.0), None)
+    out["front_speed_mps"] = (b[1] - a[1]) / (b[0] - a[0]) if a and b and b[0] > a[0] else None
+    out["ritter_mps"] = RITTER
+    out["dam_break_front"] = front
+    # Then until every particle has settled (or 120 s of sim).
+    def arms():
+        x0, h, tot, _ = slices(api, "x", {"x": 8, "y": 16, "z": 17}, {"x": 16, "y": 8, "z": 7})
+        return (sum(v for i, v in enumerate(tot) if x0 + i * h < 16.0) / (8 * 7),
+                sum(v for i, v in enumerate(tot) if x0 + i * h >= 17.0) / (7 * 7))
+    series, all_cells_at = [], None
+    while t < 120 * 60:
+        r = step(60); t += 60
+        st = ms(api, "stats"); n = st.get("particles", 0); peak = max(peak, n); tick_ms.append(r.get("wall_ms_per_tick"))
+        left, right = arms()
+        series.append({"t": t * TICK, "particles": n, "left": left, "right": right, "tick_ms": st.get("last_tick_ms"),
+                       "settle": st.get("last_settle")})
+        if n == 0 and all_cells_at is None: all_cells_at = t * TICK
+        if all_cells_at is not None and t * TICK >= all_cells_at + 5: break   # 5 s more: does it re-wake?
+    out["series"] = series
+    out["all_cells_at_s"] = all_cells_at
+    out["peak_particles"] = peak
+    out["u_tube_final_m"] = {"left": series[-1]["left"], "right": series[-1]["right"]} if series else None
+    out["particles_at_end"] = series[-1]["particles"] if series else None
+    out["wall_ms_per_tick_max"] = max(x for x in tick_ms if x is not None) if tick_ms else None
+    out["ledger_exact_at_every_sample"] = exact
+    out["final_ledger"] = r["ledger"]
+    print(json.dumps({k: v for k, v in out.items() if k not in ("dam_break_front", "series", "final_ledger")}, indent=1))
+    return out
+
+
 def refusals(api, ev):
     cases = {
         "unknown_space": ("create", {"min": {"x": 8, "y": 600, "z": 8}, "size": {"x": 4, "y": 4, "z": 4}, "cells_per_m": 3}),
@@ -239,8 +324,20 @@ def main():
     ap.add_argument("--cpm", type=int, default=3)
     ap.add_argument("--sizes", default="3,1,9")
     ap.add_argument("--pressure", choices=("on", "off"), default="on")
+    ap.add_argument("--hybrid", action="store_true", help="6i: experiment E2 live (particles hybrid), --sizes")
     a = ap.parse_args()
     global PRESSURE, EVIDENCE
+    if a.hybrid:
+        api = Api(a.url)
+        api.wait_status(120)
+        ev = {"rig": "hand-placed (tools/matsim_lab.py --build), MatSimLab project, chunk (0,0,0)", "mode": "hybrid", "sizes": []}
+        path = EVIDENCE.with_name("matsim_e2_hybrid_live.json")
+        for cpm in [int(s) for s in a.sizes.split(",")]:
+            ev["sizes"].append(run_hybrid(api, cpm, None))
+            path.write_text(json.dumps(ev, indent=1))
+        ms(api, "clear"); fill(api, DAM)
+        print("evidence:", path)
+        return
     PRESSURE = a.pressure == "on"
     if not PRESSURE: EVIDENCE = EVIDENCE.with_name("matsim_p1c_live_nopressure.json")
     api = Api(a.url)

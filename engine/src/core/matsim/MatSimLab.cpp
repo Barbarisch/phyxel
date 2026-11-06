@@ -1,6 +1,8 @@
 // docs/MaterialSimPlan.md §6a/§6c — MatSim P1b lab service. See the header.
 #include "core/matsim/MatSimLab.h"
 #include "core/matsim/MatSimGpu.h"
+#include "core/matsim/MatSimParticles.h"
+#include "core/matsim/MatSimParticlesGpu.h"
 #include "core/MaterialRegistry.h"
 
 #include <algorithm>
@@ -32,6 +34,8 @@ const std::vector<std::string>& MatSimLab::actions() {
 
 bool MatSimLab::initGpu(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t family,
                         const std::string& shaderDir, std::string* err) {
+    pgpu_ = std::make_unique<MatSimParticlesGpu>();   // 6i: the particle step; independent of the CA kernels
+    if (!pgpu_->init(device, physical, queue, family, shaderDir, &pgpuError_)) pgpu_.reset();
     gpu_ = std::make_unique<MatSimGpu>();
     if (!gpu_->init(device, physical, queue, family, shaderDir, err)) {
         gpuError_ = err ? *err : "init failed";
@@ -66,9 +70,49 @@ bool MatSimLab::ensureGpu() {
     return true;
 }
 
+StepStats MatSimLab::hybridStep(int n) {
+    // 6i: the frame order of MatSimParticlesGpuTest.HybridUTubeAtOneNinthMetre. The CA steps on the
+    // host here: the particle step uploads the host cells every tick anyway.
+    StepStats st;
+    using Clock = std::chrono::steady_clock;
+    auto ms = [](Clock::time_point a, Clock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    const Ledger e0 = core_.expectedLedger();
+    for (int t = 0; t < n; ++t) {
+        const auto t0 = Clock::now();
+        lifted_ += parts_->wake(core_);
+        const auto t1 = Clock::now();
+        parts_->step(core_, kTick);
+        const auto t2 = Clock::now();
+        settledParticles_ += parts_->settle(core_);
+        const auto t3 = Clock::now();
+        const StepStats s1 = core_.step(1);
+        const auto t4 = Clock::now();
+        hms_ = {ms(t0, t1), ms(t1, t2), ms(t2, t3), ms(t3, t4)};
+        st.ticks += s1.ticks;
+        st.eligibleBlocks += s1.eligibleBlocks;
+        st.evaluatedBlocks += s1.evaluatedBlocks;
+        st.headChanges += s1.headChanges;
+        st.lastTickEligible = s1.lastTickEligible;
+        st.lastTickHeadChanges = s1.lastTickHeadChanges;
+    }
+    const Ledger e1 = core_.expectedLedger();
+    for (int m = 0; m < 256; ++m) transferShift_[m] += int64_t(e1[m]) - int64_t(e0[m]);
+    return st;
+}
+
 StepStats MatSimLab::doStep(int n) {
     StepStats st;
     if (!core_.created() || n <= 0) return st;
+    if (parts_) {   // 6i: hybrid boxes step on the host CA + the particle stepper
+        const auto t0 = std::chrono::steady_clock::now();
+        st = hybridStep(n);
+        lastGpuMsPerTick_ = pgpu_ && parts_->particles().size() ? pgpu_->lastGpuMs() : -1.0;
+        lastWallMsPerTick_ = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / n;
+        lastEligible_ = st.lastTickEligible;
+        lastHeadChanges_ = st.lastTickHeadChanges;
+        facesDirty_ = true;
+        return st;
+    }
     const auto t0 = std::chrono::steady_clock::now();
     if (ensureGpu()) {
         st = gpu_->step(n);
@@ -88,7 +132,11 @@ StepStats MatSimLab::doStep(int n) {
 }
 
 void MatSimLab::update(double dt) {
-    if (!core_.created() || !realtime_) return;
+    if (!core_.created()) return;
+    if (!realtime_) {   // 6i: a box stepped by the API redraws too (it kept its create-time faces before)
+        if (view_ && facesDirty_ && ensureHost()) rebuildFaces();
+        return;
+    }
     acc_ += std::max(0.0, dt);
     int ticks = static_cast<int>(acc_ / kTick);
     acc_ -= ticks * kTick;
@@ -102,14 +150,23 @@ void MatSimLab::update(double dt) {
 
 Json MatSimLab::ledgerJson() const {
     Json units = Json::object(), expected = Json::object();
-    const Ledger l = core_.ledger();
+    Ledger l = core_.ledger();
+    if (parts_)   // 6i: matter in flight counts
+        for (const Particle& q : parts_->particles()) l[q.mat] += q.units;
     bool exact = true;
     for (int m = 1; m < 255; ++m) {
         if (l[m]) units[materialTable()[m].name] = l[m];
-        if (core_.expectedLedger()[m]) expected[materialTable()[m].name] = core_.expectedLedger()[m];
-        if (l[m] != core_.expectedLedger()[m]) exact = false;
+        const int64_t e = int64_t(core_.expectedLedger()[m]) - transferShift_[m];   // 6i: API edits only
+        if (e) expected[materialTable()[m].name] = e;
+        if (int64_t(l[m]) != e) exact = false;
     }
-    return {{"units", units}, {"expected", expected}, {"exact", exact}, {"full_units", core_.full()}};
+    Json out = {{"units", units}, {"expected", expected}, {"exact", exact}, {"full_units", core_.full()}};
+    if (parts_) {
+        uint64_t pu = 0;
+        for (const Particle& q : parts_->particles()) pu += q.units;
+        out["particle_units"] = pu;
+    }
+    return out;
 }
 
 Json MatSimLab::boxJson() const {
@@ -168,6 +225,14 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         cfg.seed = p.value("seed", 1u);
         cfg.sleep = p.value("sleep", true);
         cfg.pressure = p.value("pressure", true);   // §6d; false = the P1 rules (A/B control)
+        const std::string particles = p.value("particles", std::string("off"));   // 6i
+        if (particles != "off" && particles != "hybrid") return refuse("particles must be \"off\" or \"hybrid\"");
+        ParticleConfig pcfg;
+        pcfg.settleSpeed = p.value("settle_speed", 0.35f);        // m/s, as the E2 tests
+        pcfg.wakeHeadCells = p.value("wake_head_cells", 1.0f);    // cells of head excess
+        if (particles == "hybrid" && (!(pcfg.settleSpeed > 0.f) || !(pcfg.wakeHeadCells > 0.f)))
+            return refuse("settle_speed and wake_head_cells must be positive for a hybrid box");
+        if (particles == "hybrid" && !cfg.pressure) return refuse("a hybrid box needs pressure on (wake reads the head field)");
         const std::string backend = p.value("backend", std::string(gpu_ ? "gpu" : "cpu"));
         if (backend != "gpu" && backend != "cpu") return refuse("backend must be \"gpu\" or \"cpu\"");
         if (backend == "gpu" && !gpu_) return refuse("backend gpu unavailable: " + (gpuError_.empty() ? std::string("no device") : gpuError_));
@@ -178,7 +243,15 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
             return refuse(why);   // no partial create: the old box (if any) is untouched
         if (gpu_) gpu_->release();
         core_ = std::move(fresh);
-        useGpu_ = backend == "gpu";
+        useGpu_ = backend == "gpu" && particles == "off";   // a hybrid box steps its CA on the host
+        parts_.reset();
+        transferShift_ = {};
+        lifted_ = settledParticles_ = 0;
+        hms_ = {};
+        if (particles == "hybrid") {
+            parts_ = std::make_unique<MatSimParticles>(pcfg);
+            parts_->setGpu(pgpu_.get());   // nullptr = the CPU reference (slow above 1/3 m; reported)
+        }
         hostCurrent_ = true;
         gpuCurrent_ = false;
         realtime_ = false;
@@ -189,7 +262,13 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         facesDirty_ = true;
         gpuError_.clear();
         out["created"] = true;
-        out["backend"] = useGpu_ ? "gpu" : "cpu";
+        out["backend"] = parts_ ? "hybrid" : useGpu_ ? "gpu" : "cpu";
+        if (parts_) {
+            out["particles_backend"] = pgpu_ ? "gpu" : "cpu";
+            if (!pgpu_ && !pgpuError_.empty()) out["particles_gpu_error"] = pgpuError_;
+            out["settle_speed"] = pcfg.settleSpeed;
+            out["wake_head_cells"] = pcfg.wakeHeadCells;
+        }
         out["seed"] = cfg.seed;
         out["sleep"] = cfg.sleep;
         out["pressure"] = cfg.pressure;
@@ -236,6 +315,8 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         out["realtime"] = realtime_;
     } else if (action == "set_cell_size") {
         if (!p.contains("cells_per_m") || !p["cells_per_m"].is_number_integer()) return refuse("cells_per_m (1, 3 or 9) is required");
+        if (parts_ && !parts_->particles().empty())
+            return refuse("water is in flight as particles; step until it settles (stats.particles == 0) first");
         if (!ensureHost()) return refuse("the device state could not be read back: " + gpuError_);
         const Json before = ledgerJson();
         std::string why;
@@ -246,6 +327,7 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         }
         gpuCurrent_ = false;
         facesDirty_ = true;
+        transferShift_ = {};   // 6i: nothing is in flight (refused otherwise); FULL changed, the core rescaled its expected
         const Json after = ledgerJson();
         out["ledger_before"] = before;
         out["ledger_after"] = after;
@@ -262,7 +344,23 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
     } else if (action == "stats") {
         if (core_.created()) ensureHost();
         out["created"] = core_.created();
-        out["backend"] = core_.created() ? (useGpu_ ? "gpu" : "cpu") : (gpu_ ? "gpu available" : "cpu only");
+        out["backend"] = core_.created() ? (parts_ ? "hybrid" : useGpu_ ? "gpu" : "cpu") : (gpu_ ? "gpu available" : "cpu only");
+        if (parts_) {
+            const auto& ss = parts_->lastSettleStats();
+            const auto& ws = parts_->lastWakeStats();
+            out["particles"] = parts_->particles().size();
+            out["particles_backend"] = pgpu_ ? "gpu" : "cpu";
+            out["particle_max_speed_mps"] = parts_->maxSpeed() / float(core_.cellsPerM());
+            out["particle_substeps"] = parts_->lastSubsteps();
+            out["cells_lifted_total"] = lifted_;
+            out["particles_settled_total"] = settledParticles_;
+            out["last_wake"] = {{"contact", ws.contact}, {"falling", ws.falling}, {"pressure", ws.pressure}};
+            out["last_settle"] = {{"groups", ss.groups}, {"busy_speed", ss.busySpeed}, {"busy_level", ss.busyLevel},
+                                  {"largest", ss.bigMembers}, {"largest_slow", ss.bigSlow}, {"largest_spread_cells", ss.bigSpread},
+                                  {"largest_low_column", {ss.loCol[0], ss.loCol[1], ss.loCol[2]}},
+                                  {"largest_high_column", {ss.hiCol[0], ss.hiCol[1], ss.hiCol[2]}}};
+            out["last_tick_ms"] = {{"wake", hms_.wake}, {"step", hms_.step}, {"settle", hms_.settle}, {"ca", hms_.ca}};
+        }
         out["tick"] = core_.tick();
         out["sim_seconds"] = double(core_.tick()) * kTick;
         out["last_tick_eligible"] = lastEligible_;
@@ -290,6 +388,8 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         out["view_faces_cut"] = facesCut_;
     } else if (action == "clear") {
         core_.clear();
+        parts_.reset();
+        transferShift_ = {};
         if (gpu_) gpu_->release();
         hostCurrent_ = true;
         gpuCurrent_ = false;
@@ -325,6 +425,13 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
                     const int k = (ax == 0 ? x : ax == 1 ? y : z) - a0;
                     per[m][size_t(k)] += cellFill(c) * cellM3;
                 }
+        if (parts_)   // 6i: particles inside the sub-box, by the cell they are in
+            for (const Particle& q : parts_->particles()) {
+                const int x = int(std::floor(q.x)), y = int(std::floor(q.y)), z = int(std::floor(q.z));
+                if (x < lo.x || y < lo.y || z < lo.z || x >= hi.x || y >= hi.y || z >= hi.z || q.mat > 4 || q.mat == 0) continue;
+                const int k = (ax == 0 ? x : ax == 1 ? y : z) - a0;
+                per[q.mat][size_t(k)] += q.units * cellM3;
+            }
         Json sl = Json::object();
         for (int m = 1; m <= 4; ++m) {
             double sum = 0;
@@ -337,6 +444,7 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         out["m3"] = sl;
     } else if (action == "parity") {
         // Live L4 check: the same ticks on the CPU reference and on the device, compared cell by cell.
+        if (parts_) return refuse("parity compares the CA kernels; a hybrid box steps its CA on the host");
         if (!useGpu_ || !gpu_) return refuse("parity needs the gpu backend");
         if (!p.contains("n") || !p["n"].is_number_integer()) return refuse("n (1-5000) is required");
         const int n = p["n"].get<int>();
@@ -429,6 +537,23 @@ void MatSimLab::rebuildFaces() {
                     faces_.push_back(d);
                 }
             }
+    if (!parts_) return;
+    // 6i: each particle a cube of its volume (side h * cbrt(units / FULL)), all six faces.
+    for (const Particle& q : parts_->particles()) {
+        const float side = float(h * std::cbrt(double(q.units) / double(F)));
+        for (int f = 0; f < 6; ++f) {
+            if (faces_.size() >= kMaxFaces) { ++facesCut_; continue; }
+            DynamicSubcubeInstanceData d{};
+            d.worldPosition = glm::vec3(float(q.x * h), float(q.y * h), float(q.z * h));
+            d.textureIndex = reg.getTextureIndex(texName(q.mat), f);
+            d.faceID = uint32_t(f);
+            d.scale = glm::vec3(side, side, side);
+            d.rotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+            d.localPosition = glm::ivec3(0);
+            d.reserved2 = 3u;
+            faces_.push_back(d);
+        }
+    }
 }
 
 } // namespace Phyxel::Core::MatSim

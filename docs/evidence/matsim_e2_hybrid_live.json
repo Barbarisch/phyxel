@@ -1,0 +1,1233 @@
+{
+ "rig": "hand-placed (tools/matsim_lab.py --build), MatSimLab project, chunk (0,0,0)",
+ "mode": "hybrid",
+ "sizes": [
+  {
+   "cells_per_m": 9,
+   "mode": "hybrid",
+   "backend": "hybrid",
+   "particles_backend": "gpu",
+   "cells": 1492992,
+   "step_timeouts": 0,
+   "dam_holds_m3_past_wall": 0.0,
+   "before_break": {
+    "particles": 204183,
+    "last_wake": {
+     "contact": 0,
+     "falling": 0,
+     "pressure": 0
+    }
+   },
+   "front_speed_mps": 8.611111111111107,
+   "ritter_mps": 10.849884792015075,
+   "dam_break_front": [
+    [
+     0.05,
+     11.0
+    ],
+    [
+     0.1,
+     11.11111111111111
+    ],
+    [
+     0.15,
+     11.222222222222221
+    ],
+    [
+     0.2,
+     11.444444444444445
+    ],
+    [
+     0.25,
+     11.666666666666666
+    ],
+    [
+     0.3,
+     11.88888888888889
+    ],
+    [
+     0.35,
+     12.222222222222221
+    ],
+    [
+     0.4,
+     12.444444444444445
+    ],
+    [
+     0.45,
+     12.777777777777779
+    ],
+    [
+     0.5,
+     13.11111111111111
+    ],
+    [
+     0.55,
+     13.555555555555555
+    ],
+    [
+     0.6,
+     13.88888888888889
+    ],
+    [
+     0.65,
+     14.333333333333332
+    ],
+    [
+     0.7,
+     14.666666666666666
+    ],
+    [
+     0.75,
+     15.11111111111111
+    ],
+    [
+     0.8,
+     15.555555555555555
+    ],
+    [
+     0.85,
+     16.0
+    ],
+    [
+     0.9,
+     16.333333333333332
+    ],
+    [
+     0.95,
+     16.77777777777778
+    ],
+    [
+     1.0,
+     17.22222222222222
+    ],
+    [
+     1.05,
+     17.77777777777778
+    ],
+    [
+     1.1,
+     18.22222222222222
+    ],
+    [
+     1.15,
+     18.666666666666664
+    ],
+    [
+     1.2,
+     19.11111111111111
+    ],
+    [
+     1.25,
+     19.666666666666664
+    ],
+    [
+     1.3,
+     20.11111111111111
+    ]
+   ],
+   "series": [
+    {
+     "t": 2.8,
+     "particles": 256748,
+     "left": 3.317264354301311,
+     "right": 1.8125472411186612,
+     "tick_ms": {
+      "ca": 71.1449,
+      "settle": 37.0588,
+      "step": 161.1071,
+      "wake": 24.5887
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 630,
+      "groups": 634,
+      "largest": 203654,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 10412,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 3.8,
+     "particles": 257057,
+     "left": 2.7842690574171423,
+     "right": 2.4043839758124954,
+     "tick_ms": {
+      "ca": 69.7029,
+      "settle": 37.9792,
+      "step": 262.6209,
+      "wake": 23.5277
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 607,
+      "groups": 607,
+      "largest": 204233,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 18455,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 4.8,
+     "particles": 257166,
+     "left": 2.522192827748328,
+     "right": 2.687578735197747,
+     "tick_ms": {
+      "ca": 70.3802,
+      "settle": 36.7322,
+      "step": 202.8566,
+      "wake": 23.5181
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 988,
+      "groups": 989,
+      "largest": 203659,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 31798,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 5.8,
+     "particles": 257592,
+     "left": 2.501322751322697,
+     "right": 2.711766187956602,
+     "tick_ms": {
+      "ca": 67.8549,
+      "settle": 33.7404,
+      "step": 215.3671,
+      "wake": 23.2297
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 531,
+      "groups": 531,
+      "largest": 204708,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 89478,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 6.8,
+     "particles": 257668,
+     "left": 2.563516558886873,
+     "right": 2.640729542845885,
+     "tick_ms": {
+      "ca": 72.3484,
+      "settle": 36.5684,
+      "step": 140.2892,
+      "wake": 23.5951
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 449,
+      "groups": 451,
+      "largest": 204506,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 110334,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 7.8,
+     "particles": 257910,
+     "left": 2.582108563589988,
+     "right": 2.619040729717756,
+     "tick_ms": {
+      "ca": 67.4426,
+      "settle": 34.385,
+      "step": 181.5892,
+      "wake": 21.0646
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 195,
+      "groups": 197,
+      "largest": 205007,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 117406,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 8.8,
+     "particles": 258131,
+     "left": 2.6975982265333514,
+     "right": 2.4883833870481826,
+     "tick_ms": {
+      "ca": 66.6626,
+      "settle": 33.4636,
+      "step": 142.6973,
+      "wake": 21.4386
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 145,
+      "groups": 146,
+      "largest": 205065,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 117265,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 9.8,
+     "particles": 258422,
+     "left": 2.74667475014691,
+     "right": 2.431022170956807,
+     "tick_ms": {
+      "ca": 66.4662,
+      "settle": 32.9951,
+      "step": 100.8713,
+      "wake": 21.18
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 71,
+      "groups": 72,
+      "largest": 205088,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 127710,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 10.8,
+     "particles": 258791,
+     "left": 2.6256878804440436,
+     "right": 2.5690945102320213,
+     "tick_ms": {
+      "ca": 65.7437,
+      "settle": 33.0154,
+      "step": 147.2598,
+      "wake": 21.0214
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 38,
+      "groups": 38,
+      "largest": 205103,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 154450,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 11.8,
+     "particles": 258196,
+     "left": 2.5817553897522947,
+     "right": 2.6195352305016093,
+     "tick_ms": {
+      "ca": 66.2606,
+      "settle": 81.9452,
+      "step": 148.0941,
+      "wake": 20.988
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 68,
+      "groups": 69,
+      "largest": 205103,
+      "largest_high_column": [
+       153.0,
+       202.0,
+       172.64109802246094
+      ],
+      "largest_low_column": [
+       197.0,
+       183.0,
+       165.06251525878906
+      ],
+      "largest_slow": 164168,
+      "largest_spread_cells": 7.578582763671875
+     }
+    },
+    {
+     "t": 12.8,
+     "particles": 258225,
+     "left": 2.5780320897326985,
+     "right": 2.6234614923643758,
+     "tick_ms": {
+      "ca": 68.1572,
+      "settle": 32.332,
+      "step": 151.7168,
+      "wake": 20.9812
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 20,
+      "groups": 20,
+      "largest": 205103,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 150093,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 13.799999999999999,
+     "particles": 258231,
+     "left": 2.50433357981819,
+     "right": 2.707753645439595,
+     "tick_ms": {
+      "ca": 65.8434,
+      "settle": 81.4459,
+      "step": 104.9689,
+      "wake": 20.9148
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 5,
+      "groups": 6,
+      "largest": 205103,
+      "largest_high_column": [
+       213.0,
+       162.0,
+       169.09913635253906
+      ],
+      "largest_low_column": [
+       143.0,
+       215.0,
+       164.1723175048828
+      ],
+      "largest_slow": 171456,
+      "largest_spread_cells": 4.92681884765625
+     }
+    },
+    {
+     "t": 14.799999999999999,
+     "particles": 258231,
+     "left": 2.536957331318532,
+     "right": 2.6708635807717562,
+     "tick_ms": {
+      "ca": 66.4112,
+      "settle": 82.4329,
+      "step": 107.6599,
+      "wake": 21.1061
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 5,
+      "groups": 6,
+      "largest": 205103,
+      "largest_high_column": [
+       159.0,
+       185.0,
+       169.49534606933594
+      ],
+      "largest_low_column": [
+       215.0,
+       215.0,
+       164.1904296875
+      ],
+      "largest_slow": 191962,
+      "largest_spread_cells": 5.3049163818359375
+     }
+    },
+    {
+     "t": 15.799999999999999,
+     "particles": 258231,
+     "left": 2.6306053309633453,
+     "right": 2.5633695865176773,
+     "tick_ms": {
+      "ca": 65.7359,
+      "settle": 82.2808,
+      "step": 109.7995,
+      "wake": 21.0195
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 2,
+      "groups": 3,
+      "largest": 205103,
+      "largest_high_column": [
+       215.0,
+       211.0,
+       169.57745361328125
+      ],
+      "largest_low_column": [
+       73.0,
+       153.0,
+       164.1654052734375
+      ],
+      "largest_slow": 170794,
+      "largest_spread_cells": 5.41204833984375
+     }
+    },
+    {
+     "t": 16.8,
+     "particles": 258231,
+     "left": 2.627543406605125,
+     "right": 2.5663195319279417,
+     "tick_ms": {
+      "ca": 66.6028,
+      "settle": 82.6192,
+      "step": 110.0196,
+      "wake": 20.9908
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 1,
+      "groups": 2,
+      "largest": 205103,
+      "largest_high_column": [
+       72.0,
+       153.0,
+       168.26417541503906
+      ],
+      "largest_low_column": [
+       215.0,
+       214.0,
+       165.29286193847656
+      ],
+      "largest_slow": 185797,
+      "largest_spread_cells": 2.9713134765625
+     }
+    },
+    {
+     "t": 17.8,
+     "particles": 258232,
+     "left": 2.6163367634540378,
+     "right": 2.577657400408668,
+     "tick_ms": {
+      "ca": 67.5418,
+      "settle": 83.2905,
+      "step": 112.3321,
+      "wake": 21.3135
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 1,
+      "groups": 2,
+      "largest": 205104,
+      "largest_high_column": [
+       80.0,
+       170.0,
+       168.81192016601562
+      ],
+      "largest_low_column": [
+       141.0,
+       215.0,
+       164.47914123535156
+      ],
+      "largest_slow": 191522,
+      "largest_spread_cells": 4.3327789306640625
+     }
+    },
+    {
+     "t": 18.8,
+     "particles": 258232,
+     "left": 2.652063296865755,
+     "right": 2.5433988410178316,
+     "tick_ms": {
+      "ca": 66.3583,
+      "settle": 84.2167,
+      "step": 59.6736,
+      "wake": 20.981
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 1,
+      "groups": 2,
+      "largest": 205104,
+      "largest_high_column": [
+       138.0,
+       202.0,
+       169.2725372314453
+      ],
+      "largest_low_column": [
+       153.0,
+       215.0,
+       165.08596801757812
+      ],
+      "largest_slow": 184612,
+      "largest_spread_cells": 4.1865692138671875
+     }
+    },
+    {
+     "t": 19.8,
+     "particles": 258237,
+     "left": 2.6083328931816494,
+     "right": 2.5888774941560406,
+     "tick_ms": {
+      "ca": 66.7049,
+      "settle": 83.5345,
+      "step": 113.3347,
+      "wake": 21.065
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 5,
+      "groups": 6,
+      "largest": 205105,
+      "largest_high_column": [
+       133.0,
+       168.0,
+       167.84619140625
+      ],
+      "largest_low_column": [
+       72.0,
+       210.0,
+       165.56358337402344
+      ],
+      "largest_slow": 192767,
+      "largest_spread_cells": 2.2826080322265625
+     }
+    },
+    {
+     "t": 20.8,
+     "particles": 258243,
+     "left": 2.564094210054079,
+     "right": 2.638242713494805,
+     "tick_ms": {
+      "ca": 66.2561,
+      "settle": 81.7317,
+      "step": 63.6005,
+      "wake": 20.9864
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 1,
+      "groups": 2,
+      "largest": 205115,
+      "largest_high_column": [
+       164.0,
+       188.0,
+       168.076171875
+      ],
+      "largest_low_column": [
+       134.0,
+       215.0,
+       164.99652099609375
+      ],
+      "largest_slow": 191973,
+      "largest_spread_cells": 3.07965087890625
+     }
+    },
+    {
+     "t": 21.8,
+     "particles": 258259,
+     "left": 2.5871137573791807,
+     "right": 2.6170367002252983,
+     "tick_ms": {
+      "ca": 67.7736,
+      "settle": 86.4299,
+      "step": 115.6713,
+      "wake": 23.6592
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 6,
+      "groups": 8,
+      "largest": 205124,
+      "largest_high_column": [
+       214.0,
+       155.0,
+       168.6748046875
+      ],
+      "largest_low_column": [
+       153.0,
+       177.0,
+       166.10910034179688
+      ],
+      "largest_slow": 193648,
+      "largest_spread_cells": 2.565704345703125
+     }
+    },
+    {
+     "t": 22.8,
+     "particles": 258290,
+     "left": 2.58740770211757,
+     "right": 2.612581162866322,
+     "tick_ms": {
+      "ca": 66.2789,
+      "settle": 83.1423,
+      "step": 116.3283,
+      "wake": 21.3263
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 1,
+      "groups": 2,
+      "largest": 205162,
+      "largest_high_column": [
+       132.0,
+       183.0,
+       167.7553253173828
+      ],
+      "largest_low_column": [
+       72.0,
+       215.0,
+       165.2696075439453
+      ],
+      "largest_slow": 194967,
+      "largest_spread_cells": 2.4857177734375
+     }
+    },
+    {
+     "t": 23.8,
+     "particles": 258293,
+     "left": 2.5851541257899195,
+     "right": 2.621771966245289,
+     "tick_ms": {
+      "ca": 67.335,
+      "settle": 84.3635,
+      "step": 117.5286,
+      "wake": 21.1802
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 1,
+      "groups": 3,
+      "largest": 205165,
+      "largest_high_column": [
+       153.0,
+       210.0,
+       168.45848083496094
+      ],
+      "largest_low_column": [
+       215.0,
+       178.0,
+       166.19711303710938
+      ],
+      "largest_slow": 195257,
+      "largest_spread_cells": 2.2613677978515625
+     }
+    },
+    {
+     "t": 24.8,
+     "particles": 258310,
+     "left": 2.609704635294132,
+     "right": 2.5925425082583886,
+     "tick_ms": {
+      "ca": 65.6796,
+      "settle": 116.6376,
+      "step": 121.9769,
+      "wake": 21.178
+     },
+     "settle": {
+      "busy_level": 2,
+      "busy_speed": 1,
+      "groups": 3,
+      "largest": 205181,
+      "largest_high_column": [
+       208.0,
+       168.0,
+       168.14913940429688
+      ],
+      "largest_low_column": [
+       158.0,
+       215.0,
+       165.9667510986328
+      ],
+      "largest_slow": 195112,
+      "largest_spread_cells": 2.1823883056640625
+     }
+    },
+    {
+     "t": 25.8,
+     "particles": 258323,
+     "left": 2.6216338925937595,
+     "right": 2.5837955745569254,
+     "tick_ms": {
+      "ca": 66.4555,
+      "settle": 83.5017,
+      "step": 63.3545,
+      "wake": 20.9599
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 1,
+      "groups": 2,
+      "largest": 205195,
+      "largest_high_column": [
+       140.0,
+       205.0,
+       168.24951171875
+      ],
+      "largest_low_column": [
+       177.0,
+       215.0,
+       166.5795440673828
+      ],
+      "largest_slow": 195208,
+      "largest_spread_cells": 1.6699676513671875
+     }
+    },
+    {
+     "t": 26.8,
+     "particles": 258330,
+     "left": 2.605417941192623,
+     "right": 2.5923129732859667,
+     "tick_ms": {
+      "ca": 66.8966,
+      "settle": 83.5702,
+      "step": 63.7242,
+      "wake": 21.4262
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 2,
+      "groups": 3,
+      "largest": 205201,
+      "largest_high_column": [
+       160.0,
+       194.0,
+       167.8511505126953
+      ],
+      "largest_low_column": [
+       214.0,
+       215.0,
+       165.45050048828125
+      ],
+      "largest_slow": 194397,
+      "largest_spread_cells": 2.4006500244140625
+     }
+    },
+    {
+     "t": 27.8,
+     "particles": 262351,
+     "left": 2.5999887665649615,
+     "right": 2.5999008592634087,
+     "tick_ms": {
+      "ca": 66.4643,
+      "settle": 22.5669,
+      "step": 45.9862,
+      "wake": 21.0976
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 2,
+      "groups": 2,
+      "largest": 209223,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 0,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 28.8,
+     "particles": 53128,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 98.9952,
+      "settle": 38.9004,
+      "step": 40.0047,
+      "wake": 28.5032
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 0,
+      "groups": 1,
+      "largest": 53128,
+      "largest_high_column": [
+       203.0,
+       137.0,
+       150.56272888183594
+      ],
+      "largest_low_column": [
+       72.0,
+       143.0,
+       148.10641479492188
+      ],
+      "largest_slow": 44637,
+      "largest_spread_cells": 2.4563140869140625
+     }
+    },
+    {
+     "t": 29.8,
+     "particles": 53128,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 81.9461,
+      "settle": 36.6386,
+      "step": 29.92,
+      "wake": 28.811
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 0,
+      "groups": 1,
+      "largest": 53128,
+      "largest_high_column": [
+       182.0,
+       135.0,
+       150.33180236816406
+      ],
+      "largest_low_column": [
+       93.0,
+       72.0,
+       147.93031311035156
+      ],
+      "largest_slow": 47453,
+      "largest_spread_cells": 2.4014892578125
+     }
+    },
+    {
+     "t": 30.8,
+     "particles": 53128,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 80.8625,
+      "settle": 36.8004,
+      "step": 28.3378,
+      "wake": 28.8487
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 0,
+      "groups": 1,
+      "largest": 53128,
+      "largest_high_column": [
+       155.0,
+       138.0,
+       150.1710205078125
+      ],
+      "largest_low_column": [
+       72.0,
+       74.0,
+       147.68331909179688
+      ],
+      "largest_slow": 52142,
+      "largest_spread_cells": 2.487701416015625
+     }
+    },
+    {
+     "t": 31.8,
+     "particles": 53128,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 81.7056,
+      "settle": 36.8324,
+      "step": 38.7075,
+      "wake": 29.3931
+     },
+     "settle": {
+      "busy_level": 1,
+      "busy_speed": 0,
+      "groups": 1,
+      "largest": 53128,
+      "largest_high_column": [
+       207.0,
+       130.0,
+       149.60205078125
+      ],
+      "largest_low_column": [
+       73.0,
+       72.0,
+       148.131591796875
+      ],
+      "largest_slow": 53045,
+      "largest_spread_cells": 1.470458984375
+     }
+    },
+    {
+     "t": 32.8,
+     "particles": 0,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 88.1819,
+      "settle": 0.0003,
+      "step": 0.0009,
+      "wake": 30.9602
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 0,
+      "groups": 0,
+      "largest": 0,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 0,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 33.8,
+     "particles": 0,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 85.4087,
+      "settle": 0.0008,
+      "step": 0.0007,
+      "wake": 31.2322
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 0,
+      "groups": 0,
+      "largest": 0,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 0,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 34.8,
+     "particles": 0,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 87.0169,
+      "settle": 0.0003,
+      "step": 0.0009,
+      "wake": 31.449
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 0,
+      "groups": 0,
+      "largest": 0,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 0,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 35.8,
+     "particles": 0,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 84.5427,
+      "settle": 0.0003,
+      "step": 0.0003,
+      "wake": 30.984
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 0,
+      "groups": 0,
+      "largest": 0,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 0,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 36.8,
+     "particles": 0,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 85.3251,
+      "settle": 0.0003,
+      "step": 0.0005,
+      "wake": 30.9867
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 0,
+      "groups": 0,
+      "largest": 0,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 0,
+      "largest_spread_cells": -1.0
+     }
+    },
+    {
+     "t": 37.8,
+     "particles": 0,
+     "left": 2.6000012056326667,
+     "right": 2.5999986221339895,
+     "tick_ms": {
+      "ca": 84.9625,
+      "settle": 0.0004,
+      "step": 0.0003,
+      "wake": 30.7209
+     },
+     "settle": {
+      "busy_level": 0,
+      "busy_speed": 0,
+      "groups": 0,
+      "largest": 0,
+      "largest_high_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_low_column": [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      "largest_slow": 0,
+      "largest_spread_cells": -1.0
+     }
+    }
+   ],
+   "all_cells_at_s": 32.8,
+   "peak_particles": 262351,
+   "u_tube_final_m": {
+    "left": 2.6000012056326667,
+    "right": 2.5999986221339895
+   },
+   "particles_at_end": 0,
+   "wall_ms_per_tick_max": 397.75053333333335,
+   "ledger_exact_at_every_sample": true,
+   "final_ledger": {
+    "exact": true,
+    "expected": {
+     "Water": 65691648
+    },
+    "full_units": 256,
+    "particle_units": 0,
+    "units": {
+     "Water": 65691648
+    }
+   }
+  }
+ ]
+}

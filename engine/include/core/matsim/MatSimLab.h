@@ -6,6 +6,11 @@
 // The two copies are kept honest by two flags: an edit or a read on the host first downloads a
 // GPU-stepped state; a step on the GPU first uploads a host-edited one.
 //
+// 6i: a box created with "particles":"hybrid" runs experiment E2 live: each tick wakes moving cell
+// water into particles, steps them (MatSimParticlesGpu when the device is there, else the CPU
+// reference), settles resting groups back into cells and steps the CA on the host. The ledger,
+// slices, stats and the view count the particles. Default "off": no change to the CA lab.
+//
 // Inert until `create` (MatSimDefaults.InertUntilCreated): update() and the view do nothing.
 // No existing engine default changes. Solids come from the micro occupancy pool (Unknown =
 // solid and counted; create refuses an unknown box).
@@ -14,6 +19,7 @@
 #include "core/Types.h"
 #include <nlohmann/json.hpp>
 #include <vulkan/vulkan.h>
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -21,6 +27,8 @@
 namespace Phyxel::Core::MatSim {
 
 class MatSimGpu;
+class MatSimParticles;
+class MatSimParticlesGpu;
 
 class MatSimLab {
 public:
@@ -51,6 +59,7 @@ private:
     bool ensureHost();   ///< the host core holds the latest state (false: a download failed, the host is stale)
     bool ensureGpu();    ///< the device holds the latest state (false: CPU stepping)
     StepStats doStep(int n);
+    StepStats hybridStep(int n);   ///< 6i: wake -> particles -> settle -> CA, n ticks
     void rebuildFaces();
     Json ledgerJson() const;
     Json boxJson() const;
@@ -60,6 +69,15 @@ private:
     MicroSolidFn occ_;
     MatSimCore core_;
     std::unique_ptr<MatSimGpu> gpu_;
+    std::unique_ptr<MatSimParticlesGpu> pgpu_;    ///< 6i
+    std::unique_ptr<MatSimParticles> parts_;      ///< 6i: non-null = a hybrid box
+    std::string pgpuError_;
+    struct HybridMs { double wake = 0, step = 0, settle = 0, ca = 0; } hms_;   ///< last tick, ms
+    uint64_t lifted_ = 0, settledParticles_ = 0;
+    /// 6i: how far the hybrid's own transfers (lift / deposit go through MatSimCore::setCell, which
+    /// books them as edits) moved the core's expected ledger. The lab's expected = core expected -
+    /// this, so it changes only with API edits and a unit lost in a transfer shows as inexact.
+    std::array<int64_t, 256> transferShift_{};
     bool useGpu_ = false;
     bool hostCurrent_ = true;
     bool gpuCurrent_ = false;

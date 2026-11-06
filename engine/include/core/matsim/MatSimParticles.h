@@ -47,9 +47,13 @@ struct ParticleConfig {
     /// 0.35 m/s (measured, 6f): a resting U-tube's averaged speed has p90 0.34 m/s, a sloshing one at
     /// 5 s p90 0.44 m/s. Empirical; a body's centre-of-mass height going still would be principled.
     float settleFraction = 0.8f;
-    /// E2: a group settles only if its free surface (3 x 3-column averages) is level to within this
-    /// many cells; keep it below wakeHeadCells so deposited water is not woken straight back.
-    float settleLevelCells = 0.8f;
+    /// E2: a group settles only if its free surface (the top particle per column, averaged over a
+    /// settlePatchM patch) is level to within this many cells: what stops a body settling at a
+    /// slosh's turning point. 1.25 (6i, fitted): the top of the water is resolved to one particle
+    /// layer, and a resting sheet 1.6 cells thick reads 0.97-0.99 cells uneven (1 or 2 layers per
+    /// column). The level deposit lays the water flat, so the old "below wakeHeadCells" bound (from
+    /// the per-particle deposit) no longer applies; one cell is also the resolution of the cells.
+    float settleLevelCells = 1.25f;
     /// E2: the free surface for that test is each column's volume averaged over a patch this many
     /// metres wide (6h): 1 m = the 3 x 3 cells fitted at 1/3 m. A patch fixed in cells (3 x 3) read
     /// a level 1/9 m U-tube as 4-8 cells uneven, so it never settled.
@@ -99,6 +103,7 @@ public:
         size_t bigMembers = 0, bigSlow = 0;      ///< the largest group: members, slow members
         float bigSpread = -1.f;                  ///< its surface spread (cells; < 0 = not measured: busy on speed)
         double msGroups = 0, msSurface = 0, msDeposit = 0;   ///< wall time of the three parts
+        float loCol[3] = {0, 0, -1}, hiCol[3] = {0, 0, -1};   ///< the largest group: (x, z, patch surface) of its lowest / highest column
     };
     const SettleStats& lastSettleStats() const { return settleStats_; }
     /// Diagnostics: particles slow and old enough to settle, and the groups still busy.

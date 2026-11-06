@@ -1,0 +1,45 @@
+{
+ "pose_asked": {
+  "x": 16.0,
+  "y": 34.0,
+  "z": -6.0,
+  "yaw": 90.0,
+  "pitch": -45.0
+ },
+ "pose_got": {
+  "x": 16.0,
+  "y": 34.0,
+  "z": -6.0,
+  "yaw": 90.0,
+  "pitch": -45.0
+ },
+ "shots": [
+  {
+   "tag": "before break: reservoir as cells, U-tube arm woken",
+   "path": "screenshots/screenshot_20261105_221428_036.png",
+   "tick": 1,
+   "particles": 0,
+   "view_faces": 783,
+   "view_faces_cut": 0,
+   "ledger_exact": true
+  },
+  {
+   "tag": "0.5 s after the break: the front as particles",
+   "path": "screenshots/screenshot_20261105_221431_096.png",
+   "tick": 31,
+   "particles": 9579,
+   "view_faces": 57474,
+   "view_faces_cut": 0,
+   "ledger_exact": true
+  },
+  {
+   "tag": "40 s: settled back into cells",
+   "path": "screenshots/screenshot_20261105_221458_921.png",
+   "tick": 2431,
+   "particles": 0,
+   "view_faces": 2219,
+   "view_faces_cut": 0,
+   "ledger_exact": true
+  }
+ ]
+}

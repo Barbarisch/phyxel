@@ -16,6 +16,7 @@
 #include "core/matsim/MatSimCore.h"
 #include "core/matsim/MatSimParticles.h"
 #include "core/matsim/MatSimParticlesGpu.h"
+#include "core/matsim/MatSimLab.h"
 
 #include <algorithm>
 #include <chrono>
@@ -406,6 +407,114 @@ TEST_F(MatSimParticlesGpuTest, DISABLED_EnergyVsSolve) {
         std::printf("[solve] 1/%d m iters %2d div %d cfl %.1f: after 20 s KE max %.3f last %.3f J/kg, waviness max %.3f m, "
                     "breathing max %+.3f m; density |C| mean %.4f max %.4f; substeps max %d, %.1f ms/frame\n",
                     v.cpm, v.iters, v.div, v.cfl, keMax, keLast, wavMax, breathMax, meanC, maxC, subMax, ms);
+    }
+}
+
+// 6i: the lab service (POST /api/matsim/*) with "particles":"hybrid": a dam break created and
+// read back only through MatSimLab::handle, the calls the live route makes. Predictions: the front
+// (from the slices action, which counts particles) within 10 % of the library's hybrid 8.04 m/s at
+// 1/3 m and of 8.18 at 1/9 m (never run hybrid before); ledger exact at every read; the view draws
+// the particles; set_cell_size refused while particles fly; control "particles":"off" (the CA) slower.
+TEST_F(MatSimParticlesGpuTest, LabHybridDamBreak) {
+    for (int cpm : {3, 9}) {
+        for (bool hybrid : {true, false}) {
+            MatSimLab lab([](int, int, int) { return Occ::Empty; });
+            std::string err;
+            ASSERT_TRUE(lab.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+            MatSimLab::Json out;
+            lab.handle("create", {{"min", {{"x", 0}, {"y", 0}, {"z", 0}}}, {"size", {{"x", 16}, {"y", 8}, {"z", 1}}},
+                                  {"cells_per_m", cpm}, {"particles", hybrid ? "hybrid" : "off"}}, out);
+            ASSERT_TRUE(out.value("created", false)) << out.dump();
+            if (hybrid) ASSERT_EQ(out.value("particles_backend", std::string()), "gpu") << out.dump();
+            lab.handle("fill_box", {{"material", "Water"}, {"min", {{"x", 0}, {"y", 0}, {"z", 0}}},
+                                    {"size", {{"x", 3}, {"y", 3}, {"z", 1}}}, {"fraction", 1.0}}, out);
+            ASSERT_FALSE(out.contains("error")) << out.dump();
+            const double thr = 0.01 * 8.0 * 1.0 / cpm;   // m^3 in 1 % of an x slice
+            double ta = -1, tb = -1;
+            bool exact = true, refusedCellSize = false;
+            size_t maxParticles = 0, maxFaces = 0, npAtView = 0;
+            for (int k = 0; k < 40 && tb < 0; ++k) {
+                lab.handle("step", {{"n", 6}}, out);
+                ASSERT_FALSE(out.contains("error")) << out.dump();
+                if (!out["ledger"].value("exact", false)) {
+                    if (exact) std::printf("[lab] first inexact ledger at step call %d: %s\n", k, out["ledger"].dump().c_str());
+                    exact = false;
+                }
+                MatSimLab::Json st;
+                lab.handle("stats", MatSimLab::Json::object(), st);
+                const size_t np = st.value("particles", size_t(0));
+                maxParticles = std::max(maxParticles, np);
+                if (hybrid && np > 0 && !refusedCellSize) {
+                    MatSimLab::Json r;
+                    lab.handle("set_cell_size", {{"cells_per_m", 1}}, r);
+                    refusedCellSize = r.contains("error");
+                    lab.handle("view", {{"on", true}}, r);
+                    maxFaces = r.value("view_faces", size_t(0));
+                    npAtView = np;
+                    lab.handle("view", {{"on", false}}, r);
+                }
+                MatSimLab::Json sl;
+                lab.handle("slices", {{"axis", "x"}}, sl);
+                const auto& w = sl["m3"]["Water"];
+                int front = 0;
+                for (size_t c = 0; c < w.size(); ++c) if (w[c].get<double>() > thr) front = int(c) + 1;
+                const double fx = double(front) / cpm, t = 6.0 * (k + 1) / 60.0;
+                if (ta < 0 && fx >= 4.5) ta = t;
+                if (tb < 0 && fx >= 12.0) tb = t;
+            }
+            const double v = (ta > 0 && tb > ta) ? 7.5 / (tb - ta) : -1.0;
+            std::printf("[MatSimParticlesGpu] lab dam break 1/%d m particles %s: front %.2f m/s (sampled every 0.1 s), "
+                        "peak %zu particles, view %zu faces with particles, set_cell_size refused in flight %s, ledger %s\n",
+                        cpm, hybrid ? "hybrid" : "off", v, maxParticles, maxFaces, refusedCellSize ? "yes" : "no",
+                        exact ? "exact" : "BROKEN");
+            EXPECT_TRUE(exact) << cpm;
+            if (hybrid) {
+                EXPECT_NEAR(v, cpm == 3 ? 8.04 : 8.18, 0.1 * (cpm == 3 ? 8.04 : 8.18)) << cpm;
+                EXPECT_TRUE(refusedCellSize) << cpm;
+                EXPECT_GE(maxFaces, 6 * npAtView) << cpm << ": the view must draw the particles";
+            } else {
+                EXPECT_LT(v, 0.7 * 8.18) << cpm << ": control, the CA alone";
+            }
+        }
+    }
+}
+
+// The live rig's geometry (tools/matsim_lab.py), metres: a 16 x 8 x 16 m box at (8, 16, 8); a
+// separation wall z = 16; a ledge x 21-23, y 16-17, z 8-10; the U-tube divider x = 16, y 17-23,
+// z 17-23 (1 m gap under it); the dam is open from the start (the reservoir 3 x 3 x 8 m at x 8-10).
+Occ liveRig(int mx, int my, int mz) {
+    const int x = mx >= 0 ? mx / 9 : -1, y = my >= 0 ? my / 9 : -1, z = mz >= 0 ? mz / 9 : -1;
+    if (y < 16) return Occ::Solid;
+    if (z == 16 && x >= 8 && x <= 23 && y <= 23) return Occ::Solid;
+    if (x >= 21 && x <= 23 && y <= 17 && z >= 8 && z <= 10) return Occ::Solid;
+    if (x == 16 && y >= 17 && y <= 23 && z >= 17 && z <= 23) return Occ::Solid;
+    return Occ::Empty;
+}
+
+TEST_F(MatSimParticlesGpuTest, DISABLED_LiveRigReplica) {
+    const int cpm = 3;
+    MatSimCore s;
+    std::string why;
+    ASSERT_TRUE(s.create({8 * cpm, 16 * cpm, 8 * cpm}, {16 * cpm, 8 * cpm, 16 * cpm}, cpm, liveRig, &why)) << why;
+    s.fillBox(Mat::Water, {8 * cpm, 16 * cpm, 8 * cpm}, {3 * cpm, 3 * cpm, 8 * cpm}, 1.0);
+    s.fillBox(Mat::Water, {8 * cpm, 16 * cpm, 17 * cpm}, {8 * cpm, 5 * cpm, 7 * cpm}, 1.0);
+    ParticleConfig pc;
+    pc.settleSpeed = 0.35f;
+    pc.wakeHeadCells = 1.0f;
+    MatSimParticles ps(pc);
+    ps.setGpu(&gpu);
+    for (int f = 0; f < 60 * 60; ++f) {
+        ps.wake(s);
+        ps.step(s, 1.0 / 60.0);
+        ps.settle(s);
+        s.step(1);
+        if ((f + 1) % 600) continue;
+        const auto& st = ps.lastSettleStats();
+        std::printf("[replica] t %2d s: %zu particles, groups %zu (speed %zu level %zu), largest %zu, spread %.2f; "
+                    "low column (%g, %g) %.2f, high column (%g, %g) %.2f (cells; box x %d-%d z %d-%d)\n",
+                    (f + 1) / 60, ps.particles().size(), st.groups, st.busySpeed, st.busyLevel, st.bigMembers, st.bigSpread,
+                    st.loCol[0], st.loCol[1], st.loCol[2], st.hiCol[0], st.hiCol[1], st.hiCol[2], 8 * cpm, 24 * cpm - 1,
+                    8 * cpm, 24 * cpm - 1);
     }
 }
 

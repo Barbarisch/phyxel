@@ -7,7 +7,8 @@ decision), P4 density/viscosity, P4b world-as-material, P8 reactions. P2 not sta
 shows the CA cannot carry pressure at physical speed (routing never converges); §6f experiment E1, MatSim's
 own particle fluid (PBF), levels the U-tube at physical speed and period at 1/3 and 1/9 m. 2026-11-05: §6g
 experiment E2, the hybrid (resting cells, moving particles, whole-body wake/settle) works at 1/3 m. 2026-11-05:
-§6h the particle step runs on the GPU (1/9 m at 7-12 ms a frame) and E2 works at 1/9 m too.** Supersedes the same-day `LiquidCaLab.md`
+§6h the particle step runs on the GPU (1/9 m at 7-12 ms a frame) and E2 works at 1/9 m too. §6i: E2 runs
+live in the lab rig (L4) at 1/3 and 1/9 m.** Supersedes the same-day `LiquidCaLab.md`
 note, folded in here and deleted. Context: [`NoitaGapAnalysis.md`](NoitaGapAnalysis.md) (why: N1–N4,
 Tiers 2–3) and [`WaterCore.md`](WaterCore.md) (the water system this must live beside: §4.2 method
 choice, §30.0b locality, §51 levels).
@@ -1217,7 +1218,83 @@ same to the frame (1/9 m hybrid all cells at 33.5 s, 2.000 / 2.000 m; CPU suite 
 **A 1/9 m hybrid frame is ~8.3 ms** (wake 0.7, step 5.0, settle 1.1, CA 1.5). The Release CPU
 particle step is 899 ms a frame at 1/9 m, the GPU 11.6 ms (77x).
 
-**Next:** the particles live in the lab rig (L4), then a region-limited wake.
+**Next:** ~~the particles live in the lab rig (L4)~~ (§6i), then a region-limited wake.
+
+### 6i. E2 live in the lab rig (L4), 2026-11-05
+
+**Built.** `POST /api/matsim/create` takes `"particles":"hybrid"` (default `"off"`, the CA lab
+unchanged), with optional `settle_speed` (m/s, 0.35) and `wake_head_cells` (1.0). A hybrid box
+steps wake -> particles (`MatSimParticlesGpu`, else the CPU reference, reported as
+`particles_backend`) -> settle -> CA (on the host) per 60 Hz tick. The ledger, `slices`, `stats`
+(particle count, wake triggers, settle blockers with the lowest/highest surface column, per-part
+ms) and the raw-cell view (each particle a cube of its volume) count the particles.
+`set_cell_size` is refused while water is in flight; `parity` is refused for a hybrid box.
+- **Ledger, a bug found and fixed:** lift and deposit go through `MatSimCore::setCell`, which books
+  each one as an edit, so the core's expected ledger followed the transfers and the first lab
+  ledger read "inexact" (expected empty). Adding the particles back would make the check
+  tautological (a unit dropped in a deposit would move both sides). The lab records how far its
+  own transfers moved the expected ledger and subtracts it: expected changes only with API edits.
+- Contract test (`MatSimParticlesGpuTest.LabHybridDamBreak`, through `MatSimLab::handle` only):
+  front 8.33 m/s at 1/3 and 1/9 m (control, particles off: 2.34 m/s and never reaching 12 m),
+  ledger exact at every read, 6 faces per particle in the view, set_cell_size refused in flight.
+
+**Live (Release, the MatSimLab project, port 8120; the rig is hand-placed, `tools/matsim_lab.py
+--hybrid`; evidence `docs/evidence/matsim_e2_hybrid_live{_third,}.json`).** The engine was
+started from a shell with the Python runtime on PATH: `launch_engine` (MCP) started a process
+that died at once with `python312.dll` missing.
+
+First run, 1/3 m: the dam held (0 m3 past the wall), the front ran 7.72 m/s (71 % of Ritter), the
+U-tube arms levelled (2.6005 / 2.6017 m), the ledger was exact at every sample, **but nothing
+settled in 120 s** (11,547 particles). An offline replica of the rig's geometry
+(`DISABLED_LiveRigReplica`) reproduced it; the new stats showed why:
+1. **Wall columns read low.** Per-column volume was 1-2 cells low within ~2 cells of every wall
+   (particles pack thinner there; the interior packs denser) while the arms were level to 2 mm.
+   Every earlier rig was 1 m deep, all columns against a wall, so it cancelled. Leaving out the
+   wall-adjacent column was not enough (the band is ~h wide).
+2. **Fix kept: the level test is geometric.** A column's surface is its top particle (+0.5),
+   averaged over the 1 m patch: it does not depend on how densely the water packs. The U-tube
+   body then settled.
+3. **A thin sheet reads one particle layer uneven.** The dam-side water spread to a 1.6-cell sheet:
+   columns hold 1 or 2 layers, spread 0.97-0.99 cells against the 0.8 limit. **settleLevelCells
+   0.8 -> 1.25** (fitted): one particle layer plus margin; the level deposit lays the water flat,
+   and one cell is the cells' own resolution. The old "below wakeHeadCells" bound came from the
+   per-particle deposit.
+
+After the fix (CPU 34/34, GPU 9/9 incl. the replica: all cells at 20 s):
+
+| live rig, hybrid | 1/3 m | 1/9 m |
+|---|---|---|
+| cells / water particles at peak | 55,296 / 10,373 | 1.49 M / 262,351 |
+| dam holds before the break | 0 m3 past the wall, reservoir stays cells (7,581 woken = the U-tube arm) | 0 m3 past the wall, reservoir stays cells (204,183 woken = the U-tube arm) |
+| front (Ritter 10.85 m/s) | 7.72 m/s (71 %) | 8.61 m/s (79 %) |
+| all cells again | 32.9 s, no re-wake in the next 5 s | 32.8 s, no re-wake in the next 5 s |
+| U-tube arms (volume level 2.600 m) | 2.6000 / 2.6000 m | 2.6000 / 2.6000 m |
+| ledger exact at every sample | yes | yes (0 step timeouts) |
+| worst wall ms per tick | 28 | 398 |
+
+**Visual** (`docs/evidence/matsim_e2_hybrid_view.json`, pose (16, 34, -6) yaw 90 pitch -45, the
+raw-cell view at 1/3 m, camera looking north over the dam half; the separation wall hides the
+U-tube): `screenshots/screenshot_20261105_221431_096.png`, 0.5 s after the break, the reservoir as
+particle cubes collapsing (9,579 particles, 57,474 faces); `screenshot_20261105_221458_921.png`,
+40 s, a flat sheet of cells over the dam half and a patch on the ledge where the surge climbed it
+(0 particles). **A lab bug found on the way:** the view was rebuilt only under realtime, so a box
+stepped by the API kept its create-time faces (783 at every capture); `update()` now redraws a
+dirty view either way.
+
+**Cost at 1/9 m, live, per tick (204,183 particles, 5 substeps):** particle step ~100 ms (89 ms on
+the device), CA 72 ms (1.49 M cells on the host: a hybrid box does not use the GPU CA), wake 25,
+settle 24: ~225 ms a tick, ~14x slower than real time. The 1/9 m rig steps in 10-tick calls (the
+API waits 5 s for the game loop).
+
+**Limits, stated:**
+- settleLevelCells 1.25 is fitted; a body may settle with up to ~1 cell of slosh left (0.33 m at
+  1/3 m) and the deposit flattens it (a small, bounded loss of slosh energy).
+- The CA of a hybrid box runs on the CPU, and every tick uploads the whole box's cells: the 1/9 m
+  cost is the box, not the water. The GPU CA and the particles should share the device copy.
+- Whole-body wake: the 1/9 m U-tube woke 204 k particles at once.
+
+**Next:** keep the hybrid on the device (the CA on the GPU, no per-tick upload), then a
+region-limited wake.
 
 ## 7. Working alongside the other sessions
 
