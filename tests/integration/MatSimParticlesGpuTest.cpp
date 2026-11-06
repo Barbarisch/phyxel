@@ -225,7 +225,7 @@ TEST_F(MatSimParticlesGpuTest, HybridUTubeAtOneNinthMetre) {
         bool exact = true;
         double at3 = -1, allCellsAt = -1, firstWake = -1;
         size_t peak = 0, rewakes = 0;
-        double wakeMs = 0, stepMs = 0, settleMs = 0, caMs = 0;
+        double wakeMs = 0, stepMs = 0, settleMs = 0, caMs = 0, sGroups = 0, sSurface = 0, sDeposit = 0;
         const int frames = 40 * 60;
         for (int f = 0; f < frames; ++f) {
             auto t0 = std::chrono::steady_clock::now();
@@ -235,6 +235,9 @@ TEST_F(MatSimParticlesGpuTest, HybridUTubeAtOneNinthMetre) {
             auto t2 = std::chrono::steady_clock::now();
             ps.settle(s);
             auto t3 = std::chrono::steady_clock::now();
+            sGroups += ps.lastSettleStats().msGroups / frames;
+            sSurface += ps.lastSettleStats().msSurface / frames;
+            sDeposit += ps.lastSettleStats().msDeposit / frames;
             s.step(1);
             auto t4 = std::chrono::steady_clock::now();
             wakeMs += std::chrono::duration<double, std::milli>(t1 - t0).count() / frames;
@@ -305,9 +308,9 @@ TEST_F(MatSimParticlesGpuTest, HybridUTubeAtOneNinthMetre) {
         const double hr = armCells(s, 3 * cpm, 5 * cpm) + armParticles(ps, cpm, s.full(), 3 * cpm, 5 * cpm);
         std::printf("[MatSimParticlesGpu] hybrid U-tube 1/%d m: first wake %.2f s, right %.3f m at 3 s, all cells at %.2f s, "
                     "%zu re-wake frames after, at 40 s arms %.3f / %.3f m, %zu particles left (peak %zu), ledger %s; "
-                    "ms/frame wake %.2f step %.2f settle %.2f CA %.2f\n",
+                    "ms/frame wake %.2f step %.2f settle %.2f (groups %.2f surface %.2f deposit %.2f) CA %.2f\n",
                     cpm, firstWake, at3, allCellsAt, rewakes, hl, hr, ps.particles().size(), peak, exact ? "exact" : "BROKEN",
-                    wakeMs, stepMs, settleMs, caMs);
+                    wakeMs, stepMs, settleMs, sGroups, sSurface, sDeposit, caMs);
         const double tol = std::max(0.5 / cpm, 0.03);
         EXPECT_TRUE(exact) << cpm;
         EXPECT_GE(at3, 1.8) << cpm;

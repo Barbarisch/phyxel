@@ -1209,8 +1209,15 @@ frames). Then green, `tests/integration/MatSimParticlesGpuTest.cpp` (this laptop
 - Whole-box uploads each frame (cells 4 bytes each): fine for these rigs, not for a world.
 - No live engine run yet (the lab rig does not use the particles).
 
-**Next:** settle and wake on the GPU (or at least cheap on the CPU), then the particles live in the
-lab rig (L4), then a region-limited wake.
+**Settle cost, fixed (Release, the honest build; Debug overstated std::map 6x):** the 1/9 m
+hybrid frame measured wake 0.6, GPU step 5.0, settle 9.5, CA 1.4 ms; settle's 9.5 was 9.3 ms of
+`groups()` (union-find over particle pairs within h). Groups are now the 26-connected components
+of the cells holding a particle (linear in occupied cells): **settle 1.1 ms**, every result the
+same to the frame (1/9 m hybrid all cells at 33.5 s, 2.000 / 2.000 m; CPU suite 34/34, GPU 5/5).
+**A 1/9 m hybrid frame is ~8.3 ms** (wake 0.7, step 5.0, settle 1.1, CA 1.5). The Release CPU
+particle step is 899 ms a frame at 1/9 m, the GPU 11.6 ms (77x).
+
+**Next:** the particles live in the lab rig (L4), then a region-limited wake.
 
 ## 7. Working alongside the other sessions
 

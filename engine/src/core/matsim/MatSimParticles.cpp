@@ -4,6 +4,7 @@
 #include "core/matsim/MatSimParticlesGpu.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <climits>
 #include <cstdio>
@@ -385,35 +386,60 @@ static uint64_t putUnits(MatSimCore& core, IVec3 w0, uint8_t m, uint64_t u) {
     return u;
 }
 
-// Connected particle groups: particles closer than the kernel radius are joined (union-find).
+// Connected particle groups (6h): the face-, edge- and corner-connected components of the cells
+// that hold a particle; a group is labelled by its lowest particle index (settle() keeps a
+// remainder in that particle). Linear in occupied cells. It replaced union-find over particle
+// pairs within h (9.3 of settle's 9.5 ms a frame at 1/9 m, Release); a liquid body packs ~1 cell
+// apart, so bodies join the same way; only sparse spray splits finer (and spray is busy anyway).
 std::vector<uint32_t> MatSimParticles::groups(const MatSimCore& core) {
     const size_t n = p_.size();
-    std::vector<uint32_t> parent(n);
-    for (size_t i = 0; i < n; ++i) parent[i] = uint32_t(i);
-    auto find = [&](uint32_t a) { while (parent[a] != a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
-    px_.resize(n); py_.resize(n); pz_.resize(n);
-    for (size_t i = 0; i < n; ++i) { px_[i] = p_[i].x; py_[i] = p_[i].y; pz_[i] = p_[i].z; }
-    buildGrid(core);
-    const float h = cfg_.kernelCells, h2 = h * h;
+    const IVec3 o = core.origin(), sz = core.size();
+    const size_t N = size_t(sz.x) * sz.y * sz.z;
+    auto cellOf = [&](const Particle& q) {
+        const int x = std::clamp(floorI(q.x) - o.x, 0, sz.x - 1), y = std::clamp(floorI(q.y) - o.y, 0, sz.y - 1),
+                  z = std::clamp(floorI(q.z) - o.z, 0, sz.z - 1);
+        return uint32_t(size_t(x) + size_t(sz.x) * (size_t(z) + size_t(sz.z) * size_t(y)));
+    };
+    constexpr uint32_t kNone = UINT32_MAX;
+    gCell_.assign(N, kNone);   // per box cell: lowest particle index in it, then its component's label
+    std::vector<uint32_t> cellOfP(n);
+    std::vector<uint32_t> occupied;
     for (size_t i = 0; i < n; ++i) {
-        const int gx = floorI(px_[i] / h) - gLo_.x, gy = floorI(py_[i] / h) - gLo_.y, gz = floorI(pz_[i] / h) - gLo_.z;
-        for (int dy = -1; dy <= 1; ++dy)
-            for (int dz = -1; dz <= 1; ++dz)
-                for (int dx = -1; dx <= 1; ++dx) {
-                    const int cx = gx + dx, cy = gy + dy, cz = gz + dz;
-                    if (cx < 0 || cy < 0 || cz < 0 || cx >= gDim_.x || cy >= gDim_.y || cz >= gDim_.z) continue;
-                    const size_t c = size_t(cx) + gDim_.x * (size_t(cz) + gDim_.z * size_t(cy));
-                    for (uint32_t k = cellStart_[c]; k < cellStart_[c + 1]; ++k) {
-                        const uint32_t j = sorted_[k];
-                        const float ex = px_[i] - px_[j], ey = py_[i] - py_[j], ez = pz_[i] - pz_[j];
-                        if (ex * ex + ey * ey + ez * ez < h2) {
-                            const uint32_t a = find(uint32_t(i)), b = find(j);
-                            if (a != b) parent[std::max(a, b)] = std::min(a, b);
-                        }
-                    }
-                }
+        const uint32_t c = cellOf(p_[i]);
+        cellOfP[i] = c;
+        if (gCell_[c] == kNone) { gCell_[c] = uint32_t(i); occupied.push_back(c); }
     }
-    for (size_t i = 0; i < n; ++i) parent[i] = find(uint32_t(i));
+    // Flood each component; its label is the lowest particle index among its cells.
+    std::vector<uint8_t> seen(N, 0);
+    std::vector<uint32_t> comp, stack;
+    for (uint32_t c0 : occupied) {
+        if (seen[c0]) continue;
+        comp.clear();
+        stack.assign(1, c0);
+        seen[c0] = 1;
+        uint32_t label = gCell_[c0];
+        while (!stack.empty()) {
+            const uint32_t c = stack.back();
+            stack.pop_back();
+            comp.push_back(c);
+            label = std::min(label, gCell_[c]);
+            const int x = int(c % uint32_t(sz.x)), z = int((c / uint32_t(sz.x)) % uint32_t(sz.z)),
+                      y = int(c / (uint32_t(sz.x) * uint32_t(sz.z)));
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dz = -1; dz <= 1; ++dz)
+                    for (int dx = -1; dx <= 1; ++dx) {
+                        const int X = x + dx, Y = y + dy, Z = z + dz;
+                        if (X < 0 || Y < 0 || Z < 0 || X >= sz.x || Y >= sz.y || Z >= sz.z) continue;
+                        const uint32_t nc = uint32_t(size_t(X) + size_t(sz.x) * (size_t(Z) + size_t(sz.z) * size_t(Y)));
+                        if (seen[nc] || gCell_[nc] == kNone) continue;
+                        seen[nc] = 1;
+                        stack.push_back(nc);
+                    }
+        }
+        for (uint32_t c : comp) gCell_[c] = label;
+    }
+    std::vector<uint32_t> parent(n);
+    for (size_t i = 0; i < n; ++i) parent[i] = gCell_[cellOfP[i]];
     return parent;
 }
 
@@ -423,7 +449,11 @@ size_t MatSimParticles::settle(MatSimCore& core) {
     settleStats_ = {};
     if (cfg_.settleSpeed <= 0.f || p_.empty()) return 0;
     const float vs = cfg_.settleSpeed * float(core.cellsPerM());
+    using Clock = std::chrono::steady_clock;
+    auto tA = Clock::now();
     const std::vector<uint32_t> g = groups(core);
+    settleStats_.msGroups = std::chrono::duration<double, std::milli>(Clock::now() - tA).count();
+    tA = Clock::now();
     const size_t n = p_.size();
     // A group is at rest when at least settleFraction of its members are slow: the resting residual
     // keeps a tail at ~0.3 m/s (p99), so "every member" never held (299 of 354 slow, 40 s busy).
@@ -523,6 +553,8 @@ size_t MatSimParticles::settle(MatSimCore& core) {
             }
         if (!groupBusy[big] || hi[big] >= lo[big]) settleStats_.bigSpread = hi[big] >= lo[big] ? hi[big] - lo[big] : 0.f;
     }
+    settleStats_.msSurface = std::chrono::duration<double, std::milli>(Clock::now() - tA).count();
+    tA = Clock::now();
     // Level deposit: each settling group's water (its particles plus any cell water already in its
     // space) is laid down as resting water would sit: filled bottom-up, layer by layer, over the
     // cells its particles occupy and the open cells beneath them, so the surface is flat to one
@@ -615,6 +647,7 @@ size_t MatSimParticles::settle(MatSimCore& core) {
         for (size_t i = 0; i < n; ++i) if (g[i] == r) gone[i] = 1;
     }
     settleStats_.settled = settleStats_.groups - settleStats_.busySpeed - settleStats_.busyLevel;
+    settleStats_.msDeposit = std::chrono::duration<double, std::milli>(Clock::now() - tA).count();
     size_t k = 0;
     for (size_t i = 0; i < n; ++i) { if (gone[i]) { ++removed; continue; } p_[k++] = p_[i]; }
     p_.resize(k);

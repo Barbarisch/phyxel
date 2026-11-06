@@ -98,6 +98,7 @@ public:
         size_t groups = 0, busySpeed = 0, busyLevel = 0, settled = 0;
         size_t bigMembers = 0, bigSlow = 0;      ///< the largest group: members, slow members
         float bigSpread = -1.f;                  ///< its surface spread (cells; < 0 = not measured: busy on speed)
+        double msGroups = 0, msSurface = 0, msDeposit = 0;   ///< wall time of the three parts
     };
     const SettleStats& lastSettleStats() const { return settleStats_; }
     /// Diagnostics: particles slow and old enough to settle, and the groups still busy.
@@ -137,6 +138,7 @@ private:
     // Work arrays (per substep).
     std::vector<float> px_, py_, pz_, lambda_, rho_;
     std::vector<uint32_t> cellStart_, cellCount_, sorted_;
+    std::vector<uint32_t> gCell_;   ///< groups(): per box cell
     IVec3 gLo_{}, gDim_{};
     float rho0_ = 0.0f;
     uint32_t full_ = 0;
