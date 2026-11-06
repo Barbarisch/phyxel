@@ -1,0 +1,3 @@
+START 2026-11-05 16:04:00 SettlementBuildService.cpp 3ec3997dfa25a5f7 SettlementWalkability.cpp af43a3a4e42ae063 StructureBuildService.cpp 7a0888a825ba1a8d
+BUILD EXIT 0 2026-11-05 16:05:17 errors: 0
+exe 2026-11-05_16:05:17

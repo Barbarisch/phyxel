@@ -1,0 +1,256 @@
+{
+ "areas": [],
+ "bake_ms": 10.122599601745605,
+ "dropped_lots": 0,
+ "entry_node": 1,
+ "era": "medieval",
+ "lots": [
+  {
+   "footprint": [
+    14,
+    1,
+    6,
+    8
+   ],
+   "ground": "graded",
+   "id": 0,
+   "interest": 1.0,
+   "orientation": 3,
+   "rect": [
+    13,
+    0,
+    10,
+    10
+   ],
+   "setback": 1,
+   "stories": 1,
+   "typology": "croft",
+   "way": 0
+  },
+  {
+   "footprint": [
+    10,
+    13,
+    8,
+    6
+   ],
+   "ground": "graded",
+   "id": 1,
+   "interest": 0.9594631195068359,
+   "orientation": 2,
+   "rect": [
+    8,
+    11,
+    12,
+    10
+   ],
+   "setback": 2,
+   "stories": 1,
+   "typology": "croft",
+   "way": 1
+  },
+  {
+   "footprint": [
+    27,
+    6,
+    6,
+    8
+   ],
+   "ground": "graded",
+   "id": 2,
+   "interest": 0.8303223848342896,
+   "orientation": 3,
+   "rect": [
+    24,
+    3,
+    10,
+    14
+   ],
+   "setback": 3,
+   "stories": 1,
+   "typology": "croft",
+   "way": 2
+  },
+  {
+   "footprint": [
+    3,
+    1,
+    6,
+    8
+   ],
+   "ground": "graded",
+   "id": 3,
+   "interest": 0.8857538104057312,
+   "orientation": 1,
+   "rect": [
+    0,
+    0,
+    10,
+    10
+   ],
+   "setback": 1,
+   "stories": 1,
+   "typology": "croft",
+   "way": 3
+  },
+  {
+   "footprint": [
+    23,
+    20,
+    8,
+    6
+   ],
+   "ground": "graded",
+   "id": 4,
+   "interest": 0.8605191111564636,
+   "orientation": 2,
+   "rect": [
+    21,
+    18,
+    12,
+    10
+   ],
+   "setback": 2,
+   "stories": 1,
+   "typology": "croft",
+   "way": 4
+  }
+ ],
+ "morphology": "cluster",
+ "nodes": [
+  {
+   "id": 0,
+   "x": 12,
+   "y": 53,
+   "z": 5
+  },
+  {
+   "id": 1,
+   "x": 12,
+   "y": 53,
+   "z": 2
+  },
+  {
+   "id": 2,
+   "x": 14,
+   "y": 53,
+   "z": 10
+  },
+  {
+   "id": 3,
+   "x": 13,
+   "y": 53,
+   "z": 10
+  },
+  {
+   "id": 4,
+   "x": 12,
+   "y": 53,
+   "z": 9
+  },
+  {
+   "id": 5,
+   "x": 23,
+   "y": 53,
+   "z": 10
+  },
+  {
+   "id": 6,
+   "x": 10,
+   "y": 53,
+   "z": 5
+  },
+  {
+   "id": 7,
+   "x": 27,
+   "y": 53,
+   "z": 17
+  },
+  {
+   "id": 8,
+   "x": 24,
+   "y": 53,
+   "z": 17
+  },
+  {
+   "id": 9,
+   "x": 23,
+   "y": 53,
+   "z": 16
+  }
+ ],
+ "origin": {
+  "x": -7996,
+  "y": 54,
+  "z": 2264
+ },
+ "refusal": "",
+ "seed": 939730262,
+ "size": {
+  "d": 32,
+  "w": 40
+ },
+ "target_lots": 5,
+ "tier": "hamlet",
+ "ways": [
+  {
+   "cls": 0,
+   "grade": 0.0,
+   "highway": "path",
+   "id": 0,
+   "nodes": [
+    0,
+    1
+   ],
+   "width": 1.0
+  },
+  {
+   "cls": 0,
+   "grade": 0.0,
+   "highway": "path",
+   "id": 1,
+   "nodes": [
+    2,
+    3,
+    4,
+    0
+   ],
+   "width": 1.0
+  },
+  {
+   "cls": 0,
+   "grade": 0.0,
+   "highway": "path",
+   "id": 2,
+   "nodes": [
+    5,
+    2
+   ],
+   "width": 1.0
+  },
+  {
+   "cls": 0,
+   "grade": 0.0,
+   "highway": "path",
+   "id": 3,
+   "nodes": [
+    6,
+    0
+   ],
+   "width": 1.0
+  },
+  {
+   "cls": 0,
+   "grade": 0.0,
+   "highway": "path",
+   "id": 4,
+   "nodes": [
+    7,
+    8,
+    9,
+    5
+   ],
+   "width": 1.0
+  }
+ ]
+}

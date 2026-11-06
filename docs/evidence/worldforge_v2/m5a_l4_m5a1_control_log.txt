@@ -1,0 +1,7 @@
+[16:07:29.821] [INFO] [Settlement] [M5A-WATER-CHECK] (legacy branch: a COPY of the planner's predicate vs the realizer's waterAt) 40 x 32: planner wet 0, realizer wet 0, cells that disagree 0
+[16:07:38.693] [INFO] [Settlement] terrain analyse 40x32: buildable=1 -> 3 plots
+[16:07:38.694] [INFO] [Settlement] build_settlement: 3 plots, 3 buildings queued (0 streets)
+[16:07:46.173] [INFO] [Settlement] paths: 2/2 edges graded, 0 too steep
+[16:07:46.209] [INFO] [Settlement] paths: paved 1474 microcubes (1112 level caps, 362 fill), 111 cut cells owed; stamp 34 ms
+[16:07:46.325] [INFO] [Settlement] fences: 3 parcels fenced, 0 unfenced by policy, 0 runs dropped (alley < 2 cells to a neighbour wall), 7244 micros (picket, 8-micro tall, posts @16)
+[16:08:05.233] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors of 3 built, 0 skipped)

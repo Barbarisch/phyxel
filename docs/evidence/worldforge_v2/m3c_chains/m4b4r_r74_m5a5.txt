@@ -1,0 +1,781 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementMapLiveSiteTest.*
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from SettlementMapLiveSiteTest
+[ RUN      ] SettlementMapLiveSiteTest.TheLegacyControlBuildsHamletThree
+[14:38:54.002] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[14:38:54.636] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies
+[14:38:54.636] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+[14:38:54.638] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)
+[14:38:54.676] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 3360702379361611432); meso tiles 256 @ 32 u, apron 6, LRU 64
+[14:39:10.555] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 13194 bodies
+[14:39:10.555] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 23670 source entries, warp inversions beyond 1 u: 43
+[14:39:10.555] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 3 over 1112 carved reaches, reaches moved per round [152,7,0], cumulative lowering max 2.30532 u, sum 25.2876 u, 0 reaches lowered by more than 8 u; band columns 410327, bank reads 112716, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 5, deepest END lowering 2.30532 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0
+[14:39:10.555] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.305,2.305]
+[14:39:10.555] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 356734 base by round [18.808,18.808] natural stations [21.113,20.692,20.272,19.851,19.430,19.009,18.589,18.168,17.747] final [18.808,18.808,17.948,17.614,17.604,17.604,17.604,17.604,17.604]
+[14:39:10.555] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 356734 bank (-4140,-5251) local rim 20.6848 at t 0.321503 | winner 355710 env 18.6022 rim 18.2569 perp 12.9949 behind 0.493293 floor 14.6225 penalty 0 | deficit 2.08264
+[14:39:10.555] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 787840 base by round [45.030,45.030] natural stations [47.166,46.899,46.632,46.365,46.098,45.831,45.564,45.297,45.030] final [45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030]
+[14:39:10.555] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 787840 bank (-4074,8232) local rim 47.5043 at t 0.120338 | winner 787841 env 45.6254 rim 45.6254 perp 13.1417 behind 0 floor 13.7045 penalty 0 | deficit 1.87895
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 902804 base by round [15.039,15.039] natural stations [16.626,16.329,16.032,15.735,15.438,15.140,14.843,14.546,14.249] final [15.039,15.039,14.283,14.249,14.249,14.249,14.249,14.249,14.249]
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 902804 bank (4763,11821) local rim 16.4229 at t 0.334412 | winner 902805 env 14.8746 rim 14.8409 perp 13.6592 behind 0 floor 13.611 penalty 0 | deficit 1.5483
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 372112 base by round [45.159,45.159] natural stations [46.728,46.568,46.408,46.249,46.089,45.929,45.769,45.610,45.450] final [45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159]
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 372112 bank (-3571,-4762) local rim 47.1834 at t 0.136734 | winner 371088 env 45.8016 rim 45.8016 perp 12.5242 behind 0 floor 13.3642 penalty 0 | deficit 1.38176
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 777639 base by round [25.603,25.603] natural stations [26.625,26.521,26.417,26.313,26.209,26.105,26.001,25.897,25.793] final [25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603]
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 777639 bank (-2821,7905) local rim 27.2661 at t 0 | winner 776615 env 26.2437 rim 26.2437 perp 12.6994 behind 0 floor 14.0183 penalty 0 | deficit 1.02241
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 356734 (382,348) lowered 2.30532 u over 1 rounds, last driven by source 355710 (382,347) folded 0 deficit 2.08264 u
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 787840 (384,769) lowered 2.13599 u over 1 rounds, last driven by source 787841 (385,769) folded 0 deficit 1.87895 u
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 902804 (660,881) lowered 1.58697 u over 1 rounds, last driven by source 902805 (661,881) folded 0 deficit 1.5483 u
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 372112 (400,363) lowered 1.56827 u over 1 rounds, last driven by source 371088 (400,362) folded 0 deficit 1.38176 u
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 777639 (423,759) lowered 1.02241 u over 1 rounds, last driven by source 776615 (423,758) folded 0 deficit 1.02241 u
+[14:39:10.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1
+[14:39:10.689] [INFO] [CivPlan] [M3C-LATTICE] basis (14,0) (7,12) for s0 13.67: level-0 shortest 13.89 (96 % of the hex ceiling)
+[14:39:10.698] [INFO] [CivPlan] [M3C-LATTICE] city: s 121.09 cells (s0 13.67, level 4, level shortest 125.03), phase (0,8): 2 points, 0 taken, 1 off, 0 no viable cell, 0 blocked by spacing, 2 seated of 2 needed
+[14:39:10.698] [INFO] [CivPlan] [M3C-LATTICE] town: s 70.31 cells (s0 13.67, level 3, level shortest 72.00), phase (0,8): 4 points, 2 taken, 2 off, 0 no viable cell, 0 blocked by spacing, 4 seated of 4 needed
+[14:39:10.698] [INFO] [CivPlan] [M3C-LATTICE] village: s 41.02 cells (s0 13.67, level 2, level shortest 41.68), phase (0,8): 14 points, 6 taken, 14 off, 0 no viable cell, 0 blocked by spacing, 14 seated of 14 needed
+[14:39:10.698] [INFO] [CivPlan] [M3C-LATTICE] hamlet: s 23.44 cells (s0 13.67, level 1, level shortest 24.00), phase (0,8): 50 points, 20 taken, 67 off, 3 no viable cell, 5 blocked by spacing, 42 seated of 42 needed
+[14:39:10.699] [INFO] [CivPlan] [M3C-LATTICE] outpost: s 13.67 cells (s0 13.67, level 0, level shortest 13.89), phase (0,8): 183 points, 62 taken, 247 off, 6 no viable cell, 57 blocked by spacing, 120 seated of 120 needed
+[14:39:10.729] [INFO] [WorldGenerator] [CIV] continent plan: 182 sites over 7750.29 km2 of land in 168.769 ms; refusals 0
+[14:39:11.223] [INFO] [WorldGenerator] [CORRIDORS] 180 routes, 8818.41 km, shared cells 1712, junction cells 419, unroutable 2 in 494.273 ms
+[14:39:11.224] [INFO] [WorldGenerator] [CORRIDORS] box demand: 78 edges from 180 corridors
+[14:39:59.910] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:40:00.019] [INFO] [WorldForge] [CROSSINGS] demand 0 -> -1 refused at (14388.6,-9546.05): a line crosses standing water at (14388.599609,-9546.052734): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:40:01.069] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:40:01.168] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:40:02.182] [INFO] [WorldForge] [CROSSINGS] demand 2 -> 0 refused at (9404.77,270.534): a line crosses standing water at (9404.774414,270.534271): 4 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:02.537] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:40:03.119] [INFO] [WorldForge] [CROSSINGS] demand 3 -> -1 refused at (-3714.53,-4064.41): a line crosses standing water at (-3714.532227,-4064.410889): 165 columns under a level of 55.900002 u - a fine detour inside the band
+[14:40:04.116] [INFO] [WorldForge] [CROSSINGS] demand 4 -> 0 refused at (9405.69,270.793): a line crosses standing water at (9405.690430,270.792908): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:05.042] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:05.830] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:06.658] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:07.399] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:08.420] [INFO] [WorldForge] [CROSSINGS] demand -1 -> -1 refused at (-3714.86,-4064.25): a line crosses standing water at (-3714.856201,-4064.248779): 167 columns under a level of 55.900002 u - a fine detour inside the band
+[14:40:09.680] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9405.76,270.8): a line crosses standing water at (9405.756836,270.799805): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:10.575] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 40 columns under a level of 90.910789 u - a fine detour inside the band
+[14:40:11.203] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.65,13118.5): a line crosses standing water at (-9309.646484,13118.500000): 14 columns under a level of 40.307476 u - routing again
+[14:40:11.895] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 27 columns under a level of 90.910789 u - routing again
+[14:40:14.090] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.5,270.855): a line crosses standing water at (9406.500000,270.854889): 2 columns under a level of 96.468163 u - routing again
+[14:40:15.597] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:16.288] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:17.118] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:40:17.781] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:40:18.790] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:19.546] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:20.471] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:40:21.133] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:40:22.235] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:40:22.897] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:40:23.898] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:24.822] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:40:25.487] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:40:26.590] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:40:27.261] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:40:28.373] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:40:29.049] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:40:30.049] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:30.738] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:31.379] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:32.021] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:32.811] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:33.551] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:34.233] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:34.869] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:40:35.266] [INFO] [WorldForge] [CROSSINGS] fords 326, bridges 3, crossings refused and re-routed 43, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 43 (34 by a fine detour inside the band), demands refused for it 0
+[14:40:35.266] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[14:41:49.836] [INFO] [WorldForge] [WORLDFORGE] plan baked: 6 sites, 78 roads, 3 bridges, 80937 segments in 97322 ms (hash 3980644565422672701)
+[14:41:49.837] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)
+[14:41:49.918] [INFO] [ObjectTemplateManager] Loaded template: burgomaster with 1023 cubes, 5688 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.150] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_furnished with 2778 cubes, 15695 subcubes, 1192 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.387] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_grand with 2778 cubes, 15695 subcubes, 1192 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.476] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_v2 with 1165 cubes, 3540 subcubes, 2136 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.498] [INFO] [ObjectTemplateManager] Loaded template: door_grand with 0 cubes, 8 subcubes, 1242 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.504] [INFO] [ObjectTemplateManager] Loaded template: door_iron with 0 cubes, 6 subcubes, 324 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.505] [WARN] [ObjectTemplateManager] Failed to parse interaction_point line: # interaction_point: handle_0 door_handle 0.5 1.0 1.0 0.0
+[14:41:50.505] [INFO] [ObjectTemplateManager] Loaded template: door_metal with 2 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 2 parts
+[14:41:50.511] [INFO] [ObjectTemplateManager] Loaded template: door_plank with 0 cubes, 4 subcubes, 350 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.511] [INFO] [ObjectTemplateManager] Loaded template: door_wood with 0 cubes, 18 subcubes, 2 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:41:50.512] [INFO] [ObjectTemplateManager] Loaded template: door_wood_wide with 0 cubes, 36 subcubes, 2 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:41:50.524] [INFO] [ObjectTemplateManager] Loaded template: gate_timber with 0 cubes, 80 subcubes, 633 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.550] [INFO] [ObjectTemplateManager] Loaded template: house2 with 359 cubes, 1881 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.597] [INFO] [ObjectTemplateManager] Loaded template: houseL with 392 cubes, 1739 subcubes, 1339 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.624] [INFO] [ObjectTemplateManager] Loaded template: house_2story with 359 cubes, 1881 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.625] [INFO] [ObjectTemplateManager] Loaded template: iron_bars with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.626] [INFO] [ObjectTemplateManager] Loaded template: ladder with 0 cubes, 14 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.689] [INFO] [ObjectTemplateManager] Loaded template: manor_gen with 315 cubes, 3056 subcubes, 1447 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.703] [INFO] [ObjectTemplateManager] Loaded template: market_stall with 0 cubes, 0 subcubes, 840 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.704] [INFO] [ObjectTemplateManager] Loaded template: pillar_stone with 0 cubes, 23 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.735] [INFO] [ObjectTemplateManager] Loaded template: shop_detailed with 284 cubes, 2328 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.777] [INFO] [ObjectTemplateManager] Loaded template: statue_hero with 0 cubes, 0 subcubes, 2530 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.780] [INFO] [ObjectTemplateManager] Loaded template: trapdoor with 0 cubes, 0 subcubes, 121 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.780] [INFO] [ObjectTemplateManager] Loaded template: waystone with 0 cubes, 5 subcubes, 10 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.788] [INFO] [ObjectTemplateManager] Loaded template: well with 0 cubes, 0 subcubes, 453 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.789] [INFO] [ObjectTemplateManager] Loaded template: altar with 0 cubes, 23 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.791] [INFO] [ObjectTemplateManager] Loaded template: anvil with 0 cubes, 0 subcubes, 48 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.794] [INFO] [ObjectTemplateManager] Loaded template: armchair with 0 cubes, 0 subcubes, 175 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.806] [INFO] [ObjectTemplateManager] Loaded template: back_bar with 0 cubes, 0 subcubes, 696 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.809] [INFO] [ObjectTemplateManager] Loaded template: barrel with 0 cubes, 0 subcubes, 168 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.810] [INFO] [ObjectTemplateManager] Loaded template: bar_stool with 0 cubes, 0 subcubes, 48 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:41:50.818] [INFO] [ObjectTemplateManager] Loaded template: bed_single with 0 cubes, 0 subcubes, 438 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.820] [INFO] [ObjectTemplateManager] Loaded template: bellows with 0 cubes, 0 subcubes, 70 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.821] [INFO] [ObjectTemplateManager] Loaded template: bench_great with 0 cubes, 96 subcubes, 0 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:41:50.823] [INFO] [ObjectTemplateManager] Loaded template: bench_wood with 0 cubes, 0 subcubes, 64 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:41:50.832] [INFO] [ObjectTemplateManager] Loaded template: bookshelf with 0 cubes, 0 subcubes, 525 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.834] [INFO] [ObjectTemplateManager] Loaded template: book_stack with 0 cubes, 0 subcubes, 126 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.835] [INFO] [ObjectTemplateManager] Loaded template: bottle with 0 cubes, 0 subcubes, 3 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.836] [INFO] [ObjectTemplateManager] Loaded template: brazier with 0 cubes, 13 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.836] [INFO] [ObjectTemplateManager] Loaded template: campfire with 0 cubes, 11 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.837] [INFO] [ObjectTemplateManager] Loaded template: candelabra with 0 cubes, 0 subcubes, 16 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.837] [INFO] [ObjectTemplateManager] Loaded template: candle_holder with 0 cubes, 7 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.838] [INFO] [ObjectTemplateManager] Loaded template: candle_stand with 0 cubes, 0 subcubes, 36 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.839] [INFO] [ObjectTemplateManager] Loaded template: chair with 0 cubes, 0 subcubes, 40 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:41:50.842] [INFO] [ObjectTemplateManager] Loaded template: chair_wood with 0 cubes, 0 subcubes, 138 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:41:50.843] [INFO] [ObjectTemplateManager] Loaded template: chandelier with 0 cubes, 0 subcubes, 37 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.848] [INFO] [ObjectTemplateManager] Loaded template: chest_closed with 0 cubes, 0 subcubes, 249 microcubes, 0 fine voxels, 0 interaction points, 3 parts
+[14:41:50.848] [INFO] [ObjectTemplateManager] Loaded template: chest_open with 0 cubes, 21 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.850] [INFO] [ObjectTemplateManager] Loaded template: chopping_block with 0 cubes, 0 subcubes, 95 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.854] [INFO] [ObjectTemplateManager] Loaded template: counter with 0 cubes, 0 subcubes, 210 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.855] [INFO] [ObjectTemplateManager] Loaded template: crate_wood with 1 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.859] [INFO] [ObjectTemplateManager] Loaded template: desk with 0 cubes, 4 subcubes, 212 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.862] [INFO] [ObjectTemplateManager] Loaded template: dresser with 0 cubes, 0 subcubes, 171 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.872] [INFO] [ObjectTemplateManager] Loaded template: fireplace with 0 cubes, 0 subcubes, 596 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.881] [INFO] [ObjectTemplateManager] Loaded template: forge_hearth with 0 cubes, 0 subcubes, 528 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.899] [INFO] [ObjectTemplateManager] Loaded template: four_poster with 0 cubes, 0 subcubes, 1102 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.906] [INFO] [ObjectTemplateManager] Loaded template: garden_bed with 0 cubes, 0 subcubes, 382 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.907] [INFO] [ObjectTemplateManager] Loaded template: hanging_sign with 0 cubes, 0 subcubes, 40 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.909] [INFO] [ObjectTemplateManager] Loaded template: keg with 0 cubes, 0 subcubes, 76 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.916] [INFO] [ObjectTemplateManager] Loaded template: long_table with 0 cubes, 0 subcubes, 455 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.918] [INFO] [ObjectTemplateManager] Loaded template: meat_rail with 0 cubes, 0 subcubes, 70 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.918] [INFO] [ObjectTemplateManager] Loaded template: mug with 0 cubes, 0 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.920] [INFO] [ObjectTemplateManager] Loaded template: nightstand with 0 cubes, 0 subcubes, 98 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.951] [INFO] [ObjectTemplateManager] Loaded template: oven_bread with 0 cubes, 0 subcubes, 1908 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.952] [INFO] [ObjectTemplateManager] Loaded template: pot_iron with 0 cubes, 19 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.957] [INFO] [ObjectTemplateManager] Loaded template: rug with 0 cubes, 0 subcubes, 234 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.957] [INFO] [ObjectTemplateManager] Loaded template: sconce with 0 cubes, 0 subcubes, 7 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.965] [INFO] [ObjectTemplateManager] Loaded template: sideboard with 0 cubes, 0 subcubes, 436 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.969] [INFO] [ObjectTemplateManager] Loaded template: simple_table with 0 cubes, 0 subcubes, 263 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.970] [INFO] [ObjectTemplateManager] Loaded template: stool with 0 cubes, 0 subcubes, 21 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:41:50.971] [INFO] [ObjectTemplateManager] Loaded template: stool_low with 0 cubes, 4 subcubes, 0 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:41:50.973] [INFO] [ObjectTemplateManager] Loaded template: table_wood with 0 cubes, 0 subcubes, 128 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.982] [INFO] [ObjectTemplateManager] Loaded template: tavern_bar with 0 cubes, 0 subcubes, 529 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.985] [INFO] [ObjectTemplateManager] Loaded template: tavern_table with 0 cubes, 0 subcubes, 143 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.987] [INFO] [ObjectTemplateManager] Loaded template: tool_rack with 0 cubes, 0 subcubes, 75 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.987] [INFO] [ObjectTemplateManager] Loaded template: torch_wall with 0 cubes, 5 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.988] [INFO] [ObjectTemplateManager] Loaded template: wall_lantern with 0 cubes, 0 subcubes, 24 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:50.993] [INFO] [ObjectTemplateManager] Loaded template: wall_shelf with 0 cubes, 0 subcubes, 276 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.000] [INFO] [ObjectTemplateManager] Loaded template: wardrobe with 0 cubes, 0 subcubes, 437 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.003] [INFO] [ObjectTemplateManager] Loaded template: wooden_throne with 0 cubes, 168 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.014] [INFO] [ObjectTemplateManager] Loaded template: woodpile with 0 cubes, 0 subcubes, 660 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.014] [INFO] [ObjectTemplateManager] Loaded template: workbench with 0 cubes, 18 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.015] [INFO] [ObjectTemplateManager] Loaded template: barony_apple with 0 cubes, 0 subcubes, 22 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.017] [INFO] [ObjectTemplateManager] Loaded template: barony_arcanechair with 0 cubes, 0 subcubes, 62 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.018] [INFO] [ObjectTemplateManager] Loaded template: barony_bomb with 0 cubes, 0 subcubes, 56 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.019] [INFO] [ObjectTemplateManager] Loaded template: barony_bread with 0 cubes, 0 subcubes, 35 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.039] [INFO] [ObjectTemplateManager] Loaded template: barony_bunkbed with 0 cubes, 0 subcubes, 1036 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.041] [INFO] [ObjectTemplateManager] Loaded template: barony_campfire with 0 cubes, 0 subcubes, 90 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.043] [INFO] [ObjectTemplateManager] Loaded template: barony_chair with 0 cubes, 0 subcubes, 70 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.046] [INFO] [ObjectTemplateManager] Loaded template: barony_chest with 0 cubes, 0 subcubes, 185 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.085] [INFO] [ObjectTemplateManager] Loaded template: barony_column with 0 cubes, 0 subcubes, 2080 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.093] [INFO] [ObjectTemplateManager] Loaded template: barony_fountain with 0 cubes, 0 subcubes, 438 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.095] [INFO] [ObjectTemplateManager] Loaded template: bottle_wine with 0 cubes, 0 subcubes, 0 microcubes, 188 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.097] [INFO] [ObjectTemplateManager] Loaded template: bowl with 0 cubes, 0 subcubes, 0 microcubes, 133 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.098] [INFO] [ObjectTemplateManager] Loaded template: candle with 0 cubes, 0 subcubes, 0 microcubes, 55 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.100] [INFO] [ObjectTemplateManager] Loaded template: candlestick with 0 cubes, 0 subcubes, 0 microcubes, 122 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.108] [INFO] [ObjectTemplateManager] Loaded template: firewood with 0 cubes, 0 subcubes, 0 microcubes, 812 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.117] [INFO] [ObjectTemplateManager] Loaded template: flaming_log with 0 cubes, 0 subcubes, 0 microcubes, 812 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.118] [INFO] [ObjectTemplateManager] Loaded template: fork with 0 cubes, 0 subcubes, 0 microcubes, 21 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.120] [INFO] [ObjectTemplateManager] Loaded template: frying_pan with 0 cubes, 0 subcubes, 0 microcubes, 167 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.121] [INFO] [ObjectTemplateManager] Loaded template: goblet with 0 cubes, 0 subcubes, 0 microcubes, 116 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.133] [INFO] [ObjectTemplateManager] Loaded template: jug with 0 cubes, 0 subcubes, 0 microcubes, 1110 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.133] [INFO] [ObjectTemplateManager] Loaded template: knife_table with 0 cubes, 0 subcubes, 0 microcubes, 21 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.134] [INFO] [ObjectTemplateManager] Loaded template: ladle with 0 cubes, 0 subcubes, 0 microcubes, 47 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.136] [INFO] [ObjectTemplateManager] Loaded template: lantern with 0 cubes, 0 subcubes, 0 microcubes, 162 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.142] [INFO] [ObjectTemplateManager] Loaded template: oil_lamp with 0 cubes, 0 subcubes, 0 microcubes, 532 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.147] [INFO] [ObjectTemplateManager] Loaded template: plate with 0 cubes, 0 subcubes, 0 microcubes, 457 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.148] [INFO] [ObjectTemplateManager] Loaded template: potion with 0 cubes, 0 subcubes, 0 microcubes, 134 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.177] [INFO] [ObjectTemplateManager] Loaded template: rug_oriental with 0 cubes, 0 subcubes, 0 microcubes, 2916 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.199] [INFO] [ObjectTemplateManager] Loaded template: rug_woven with 0 cubes, 0 subcubes, 0 microcubes, 2160 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.202] [INFO] [ObjectTemplateManager] Loaded template: scroll with 0 cubes, 0 subcubes, 0 microcubes, 254 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.219] [INFO] [ObjectTemplateManager] Loaded template: sign_apothecary with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.235] [INFO] [ObjectTemplateManager] Loaded template: sign_bakery with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.251] [INFO] [ObjectTemplateManager] Loaded template: sign_blacksmith with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.268] [INFO] [ObjectTemplateManager] Loaded template: sign_butcher with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.284] [INFO] [ObjectTemplateManager] Loaded template: sign_general_store with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.308] [INFO] [ObjectTemplateManager] Loaded template: sign_prancing_pony with 0 cubes, 0 subcubes, 0 microcubes, 2160 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.309] [INFO] [ObjectTemplateManager] Loaded template: spoon with 0 cubes, 0 subcubes, 0 microcubes, 35 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.312] [INFO] [ObjectTemplateManager] Loaded template: tankard with 0 cubes, 0 subcubes, 0 microcubes, 240 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.337] [INFO] [ObjectTemplateManager] Loaded template: tome with 0 cubes, 0 subcubes, 0 microcubes, 2530 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.355] [INFO] [ObjectTemplateManager] Loaded template: tome_arcane with 0 cubes, 0 subcubes, 0 microcubes, 1714 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.373] [INFO] [ObjectTemplateManager] Loaded template: tome_fire with 0 cubes, 0 subcubes, 0 microcubes, 1714 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.390] [INFO] [ObjectTemplateManager] Loaded template: tome_necromantic with 0 cubes, 0 subcubes, 0 microcubes, 1714 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.393] [INFO] [ObjectTemplateManager] Loaded template: torch with 0 cubes, 0 subcubes, 0 microcubes, 236 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:41:51.394] [INFO] [ObjectTemplateManager] Loaded template: bush_flower with 0 cubes, 18 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.399] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_blue with 3 cubes, 366 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.405] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_green with 1 cubes, 494 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.416] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_m with 21 cubes, 788 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.424] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_s with 9 cubes, 634 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.430] [INFO] [ObjectTemplateManager] Loaded template: bush_round with 8 cubes, 506 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.431] [INFO] [ObjectTemplateManager] Loaded template: fern with 0 cubes, 11 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.628] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_l with 17 cubes, 6791 subcubes, 7074 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:51.769] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_m with 9 cubes, 4028 subcubes, 5562 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.065] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_l with 23 cubes, 9275 subcubes, 10937 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.352] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_m with 10 cubes, 5388 subcubes, 13347 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.554] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_l with 18 cubes, 6473 subcubes, 7074 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.751] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_m with 8 cubes, 3491 subcubes, 9307 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.775] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_blue with 0 cubes, 321 subcubes, 1138 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.798] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_green with 0 cubes, 356 subcubes, 1134 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.837] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_m with 0 cubes, 625 subcubes, 1890 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.865] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_s with 0 cubes, 371 subcubes, 1404 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.891] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_m with 6 cubes, 827 subcubes, 965 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:52.908] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_s with 6 cubes, 589 subcubes, 567 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:53.872] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xl with 4491 cubes, 30928 subcubes, 33213 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:55.531] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xxl with 13788 cubes, 57981 subcubes, 50494 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:56.178] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak with 2142 cubes, 20403 subcubes, 22610 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:56.535] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak_s with 585 cubes, 9306 subcubes, 14376 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:56.657] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_l with 16 cubes, 2522 subcubes, 5422 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:56.725] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_m with 4 cubes, 1236 subcubes, 3206 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:57.178] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_l with 84 cubes, 16978 subcubes, 14405 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:57.453] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_m with 31 cubes, 7400 subcubes, 10866 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:57.946] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_hero with 27 cubes, 13693 subcubes, 20095 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:58.234] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_l with 29 cubes, 10898 subcubes, 9600 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:58.529] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_m with 10 cubes, 5289 subcubes, 14261 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:58.681] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_sparse with 9 cubes, 4051 subcubes, 6345 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:58.711] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_l with 0 cubes, 114 subcubes, 1636 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:58.731] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_m with 0 cubes, 128 subcubes, 1125 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:58.927] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_l with 30 cubes, 5832 subcubes, 7496 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:41:59.041] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_m with 5 cubes, 2571 subcubes, 4883 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:00.174] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xl with 6730 cubes, 40818 subcubes, 34983 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:02.286] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xxl with 21549 cubes, 79410 subcubes, 59079 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:02.412] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_l with 8 cubes, 3119 subcubes, 4980 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:02.515] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_m with 5 cubes, 1484 subcubes, 5093 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:02.559] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_s with 4 cubes, 744 subcubes, 2126 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:02.994] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_l with 20 cubes, 15241 subcubes, 15417 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.401] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_m with 5 cubes, 8624 subcubes, 18414 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.402] [INFO] [ObjectTemplateManager] Loaded template: hedge_section with 1 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.403] [INFO] [ObjectTemplateManager] Loaded template: mushroom with 0 cubes, 16 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.413] [INFO] [ObjectTemplateManager] Loaded template: shrub_flat with 0 cubes, 25 subcubes, 583 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.428] [INFO] [ObjectTemplateManager] Loaded template: shrub_round with 0 cubes, 62 subcubes, 877 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.466] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_l with 0 cubes, 3149 subcubes, 4 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.484] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_m with 0 cubes, 1475 subcubes, 2 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.485] [INFO] [ObjectTemplateManager] Loaded template: tree_apple with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.544] [INFO] [ObjectTemplateManager] Loaded template: tree_autumn_m with 11 cubes, 4675 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.545] [INFO] [ObjectTemplateManager] Loaded template: tree_birch with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.561] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_l with 4 cubes, 1213 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.575] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_m with 3 cubes, 1117 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.588] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_sparse with 3 cubes, 992 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.588] [INFO] [ObjectTemplateManager] Loaded template: tree_dead with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.590] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_m with 3 cubes, 116 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.592] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_s with 2 cubes, 116 subcubes, 2 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:03.881] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak with 35730 cubes, 19 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.231] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak_xl with 42041 cubes, 5 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.250] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_l with 40 cubes, 1391 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.260] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_m with 11 cubes, 784 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.287] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_m with 85 cubes, 2141 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.339] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_xl with 218 cubes, 3909 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.340] [INFO] [ObjectTemplateManager] Loaded template: tree_oak with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.419] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_l with 19 cubes, 6503 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.470] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_lush with 10 cubes, 4176 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.530] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_m with 11 cubes, 5009 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.555] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_s with 7 cubes, 1978 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.601] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_sparse with 6 cubes, 3780 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.602] [INFO] [ObjectTemplateManager] Loaded template: tree_palm with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.604] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_l with 0 cubes, 120 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.606] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_m with 0 cubes, 96 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.606] [INFO] [ObjectTemplateManager] Loaded template: tree_pine with 0 cubes, 27 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.628] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_l with 8 cubes, 1696 subcubes, 28 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.636] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_m with 5 cubes, 506 subcubes, 20 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.640] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_s with 4 cubes, 291 subcubes, 16 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:04.852] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_l with 26550 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.162] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_xl with 38336 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.198] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_l with 183 cubes, 2578 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.212] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_m with 38 cubes, 1012 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.250] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_l with 163 cubes, 2894 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.265] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_m with 32 cubes, 1130 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.271] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_s with 7 cubes, 464 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.272] [INFO] [ObjectTemplateManager] Loaded template: tree_stump with 0 cubes, 14 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.301] [INFO] [ObjectTemplateManager] Loaded template: tree_willow_l with 80 cubes, 2303 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.301] [INFO] [ObjectTemplateManager] Loaded template: bedroll_test with 0 cubes, 6 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.302] [INFO] [ObjectTemplateManager] Loaded template: chest_test with 18 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 3 parts
+[14:42:05.302] [INFO] [ObjectTemplateManager] Loaded template: drawer_test with 6 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 2 parts
+[14:42:05.303] [INFO] [ObjectTemplateManager] Loaded template: ladder_test with 0 cubes, 8 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.303] [INFO] [ObjectTemplateManager] Loaded template: lever_test with 0 cubes, 3 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 3 parts
+[14:42:05.320] [INFO] [ObjectTemplateManager] Loaded template: rug_test with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.329] [INFO] [ObjectTemplateManager] Loaded template: tavern_test with 1168 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.332] [INFO] [ObjectTemplateManager] Loaded template: test_chair with 0 cubes, 0 subcubes, 99 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:42:05.333] [INFO] [ObjectTemplateManager] Loaded template: axe with 0 cubes, 0 subcubes, 25 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.347] [INFO] [ObjectTemplateManager] Loaded template: axe_battle with 0 cubes, 0 subcubes, 0 microcubes, 1438 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.353] [INFO] [ObjectTemplateManager] Loaded template: axe_hand with 0 cubes, 0 subcubes, 0 microcubes, 492 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.356] [INFO] [ObjectTemplateManager] Loaded template: bow with 0 cubes, 0 subcubes, 0 microcubes, 307 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.361] [INFO] [ObjectTemplateManager] Loaded template: crossbow with 0 cubes, 0 subcubes, 0 microcubes, 487 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.364] [INFO] [ObjectTemplateManager] Loaded template: dagger with 0 cubes, 0 subcubes, 0 microcubes, 234 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.370] [INFO] [ObjectTemplateManager] Loaded template: mace with 0 cubes, 0 subcubes, 0 microcubes, 536 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.411] [INFO] [ObjectTemplateManager] Loaded template: maul with 0 cubes, 0 subcubes, 0 microcubes, 4102 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.415] [INFO] [ObjectTemplateManager] Loaded template: pickaxe with 0 cubes, 0 subcubes, 0 microcubes, 304 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.424] [INFO] [ObjectTemplateManager] Loaded template: quiver with 0 cubes, 0 subcubes, 0 microcubes, 836 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.430] [INFO] [ObjectTemplateManager] Loaded template: spear with 0 cubes, 0 subcubes, 0 microcubes, 637 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.437] [INFO] [ObjectTemplateManager] Loaded template: staff_arcane with 0 cubes, 0 subcubes, 0 microcubes, 589 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.443] [INFO] [ObjectTemplateManager] Loaded template: staff_fire with 0 cubes, 0 subcubes, 0 microcubes, 589 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.449] [INFO] [ObjectTemplateManager] Loaded template: staff_frost with 0 cubes, 0 subcubes, 0 microcubes, 589 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.454] [INFO] [ObjectTemplateManager] Loaded template: staff_nature with 0 cubes, 0 subcubes, 0 microcubes, 589 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.455] [INFO] [ObjectTemplateManager] Loaded template: sword with 5 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.456] [INFO] [ObjectTemplateManager] Loaded template: sword_fine with 0 cubes, 0 subcubes, 17 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:42:05.465] [INFO] [ObjectTemplateManager] Loaded template: sword_long with 0 cubes, 0 subcubes, 0 microcubes, 931 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.471] [INFO] [ObjectTemplateManager] Loaded template: sword_short with 0 cubes, 0 subcubes, 0 microcubes, 567 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.472] [INFO] [ObjectTemplateManager] Loaded template: throwing_knife with 0 cubes, 0 subcubes, 0 microcubes, 19 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.473] [INFO] [ObjectTemplateManager] Loaded template: wand with 0 cubes, 0 subcubes, 0 microcubes, 52 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.486] [INFO] [ObjectTemplateManager] Loaded template: warhammer with 0 cubes, 0 subcubes, 0 microcubes, 1239 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:42:05.486] [INFO] [ObjectTemplateManager] Template scan: 238 loaded from resources/templates
+[ M5a-1 ] rig: site 3 (hamlet) centre (-7976, 2280) 40 x 32 seed 939730262 surfaceY 54.1; margin 24 u, surface 53..54, 36 chunks generated (recipe + plan + templates 191.5 s, chunks 11.1 s)
+[ M5a-1 ] params (the layout as built, the CONTROL): {"async":false,"depth":32,"entries":[{"cls":1,"x":12,"z":2}],"era":"medieval","legacy_layout":true,"position":{"x":-7996,"y":54,"z":2264},"residents":false,"route_reuse":0.5,"seed":939730262,"street_axis":"z","street_offset":12,"terrain":true,"tier":"hamlet","width":40}
+[14:42:16.614] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[14:42:16.619] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:42:54.832] [INFO] [Settlement] terrain analyse 40x32: buildable=1 -> 3 plots
+[14:42:54.833] [INFO] [Settlement] build_settlement: 3 plots, 3 buildings queued (0 streets)
+[ M5a-1 ] planned in 38.3 s: 3 buildings queued, 14 units, morphology cluster
+[14:42:54.987] [INFO] [Settlement] parcel clearing: 22320 cells over 1860 columns (margin 9)
+[ M5a-1 ]   unit clearing parcels                0.2 s
+[14:42:55.015] [INFO] [Settlement] terrace: parcel graded (cut 0, fill 0)
+[ M5a-1 ]   unit terracing parcel 1/3            0.0 s
+[14:42:55.044] [INFO] [Settlement] terrace: parcel graded (cut 0, fill 0)
+[ M5a-1 ]   unit terracing parcel 2/3            0.0 s
+[14:42:55.076] [INFO] [Settlement] terrace: parcel graded (cut 40, fill 40)
+[ M5a-1 ]   unit terracing parcel 3/3            0.0 s
+[ M5a-1 ]   unit terrace physics                 0.0 s
+[14:42:55.081] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:42:55.083] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[14:42:55.083] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology longhouse]
+[14:42:55.084] [INFO] [StructureBuild] program validation: OK [typology longhouse]
+[14:42:55.354] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=53 (cut 48, fill 48)
+[14:42:55.662] [INFO] [StructureGenerator] Placing 38108 voxels in 2 steps
+[14:42:56.148] [INFO] [StructureGenerator]   step 1: 25000/38108 (25000 placed, 0 failed)
+[14:42:56.627] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=92 realize=128 pad=48 excav=298 place+register=973 (place=964 grass=0 nav=0) fixtures=0 TOTAL=1547
+[ M5a-1 ]   unit building 1/3                    1.6 s
+[14:42:56.665] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:42:56.666] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[14:42:56.667] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology longhouse]
+[14:42:56.667] [INFO] [StructureBuild] program validation: OK [typology longhouse]
+[14:42:56.989] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=53 (cut 48, fill 48)
+[14:42:57.274] [INFO] [StructureGenerator] Placing 27536 voxels in 2 steps
+[14:42:58.941] [INFO] [StructureGenerator]   step 1: 25000/27536 (25000 placed, 0 failed)
+[14:42:59.260] [INFO] [StructureBuild] [perf] phases ms: setup=7 overlap=153 realize=117 pad=50 excav=279 place+register=1991 (place=1985 grass=0 nav=0) fixtures=0 TOTAL=2597
+[ M5a-1 ]   unit building 2/3                    2.6 s
+[14:42:59.296] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:42:59.297] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[14:42:59.298] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[14:42:59.298] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[14:42:59.298] [INFO] [StructureBuild] program validation: OK [typology croft]
+[14:42:59.397] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)
+[14:42:59.483] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=54 (cut 48, fill 48)
+[14:42:59.758] [INFO] [StructureGenerator] Placing 30859 voxels in 2 steps
+[14:43:01.778] [INFO] [StructureGenerator]   step 1: 25000/30859 (25000 placed, 0 failed)
+[14:43:02.416] [INFO] [StructureBuild] [perf] phases ms: setup=7 overlap=3 realize=98 pad=82 excav=267 place+register=2665 (place=2658 grass=0 nav=0) fixtures=0 TOTAL=3122
+[ M5a-1 ]   unit building 3/3                    3.1 s
+[14:43:02.440] [INFO] [Settlement] paths: 0 realized door(s) - no network to grade
+[ M5a-1 ]   unit grading + paving paths          0.0 s
+[14:43:02.445] [INFO] [DimensionCanon] Loaded 46 object archetypes from resources/object_dimensions.json
+[14:43:03.431] [INFO] [Settlement] fences: 3 parcels fenced, 0 unfenced by policy, 0 runs dropped (alley < 2 cells to a neighbour wall), 7476 micros (picket, 8-micro tall, posts @16)
+[ M5a-1 ]   unit fencing parcels                 1.0 s
+[ M5a-1 ]   unit street sweep                    0.0 s
+[14:43:08.215] [INFO] [Settlement] orphaned canopy: 0 cells found, 0 cleared
+[ M5a-1 ]   unit clearing orphaned canopy        4.8 s
+[14:43:08.215] [INFO] [Settlement] walkability gate: 0 walkable, 0 blocked over 0 routes (0 front doors, 0 skipped)
+[ M5a-1 ]   unit walkability gate                0.0 s
+[ M5a-1 ]   unit nav rebuild                     0.0 s
+[ M5a-1 ] gate: passed - 0 walkable, 0 blocked, 0 skipped; 0 lot failures; 51.6 s in all
+[       OK ] SettlementMapLiveSiteTest.TheLegacyControlBuildsHamletThree (254431 ms)
+[ RUN      ] SettlementMapLiveSiteTest.HamletThreeBuildsFromItsMap
+[14:43:08.439] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[14:43:08.439] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)
+[14:43:08.571] [INFO] [CivPlan] [M3C-LATTICE] basis (14,0) (7,12) for s0 13.67: level-0 shortest 13.89 (96 % of the hex ceiling)
+[14:43:08.580] [INFO] [CivPlan] [M3C-LATTICE] city: s 121.09 cells (s0 13.67, level 4, level shortest 125.03), phase (0,8): 2 points, 0 taken, 1 off, 0 no viable cell, 0 blocked by spacing, 2 seated of 2 needed
+[14:43:08.580] [INFO] [CivPlan] [M3C-LATTICE] town: s 70.31 cells (s0 13.67, level 3, level shortest 72.00), phase (0,8): 4 points, 2 taken, 2 off, 0 no viable cell, 0 blocked by spacing, 4 seated of 4 needed
+[14:43:08.580] [INFO] [CivPlan] [M3C-LATTICE] village: s 41.02 cells (s0 13.67, level 2, level shortest 41.68), phase (0,8): 14 points, 6 taken, 14 off, 0 no viable cell, 0 blocked by spacing, 14 seated of 14 needed
+[14:43:08.580] [INFO] [CivPlan] [M3C-LATTICE] hamlet: s 23.44 cells (s0 13.67, level 1, level shortest 24.00), phase (0,8): 50 points, 20 taken, 67 off, 3 no viable cell, 5 blocked by spacing, 42 seated of 42 needed
+[14:43:08.581] [INFO] [CivPlan] [M3C-LATTICE] outpost: s 13.67 cells (s0 13.67, level 0, level shortest 13.89), phase (0,8): 183 points, 62 taken, 247 off, 6 no viable cell, 57 blocked by spacing, 120 seated of 120 needed
+[14:43:08.610] [INFO] [WorldGenerator] [CIV] continent plan: 182 sites over 7750.29 km2 of land in 167.391 ms; refusals 0
+[14:43:09.114] [INFO] [WorldGenerator] [CORRIDORS] 180 routes, 8818.41 km, shared cells 1712, junction cells 419, unroutable 2 in 503.11 ms
+[14:43:09.114] [INFO] [WorldGenerator] [CORRIDORS] box demand: 78 edges from 180 corridors
+[14:43:25.387] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:43:25.486] [INFO] [WorldForge] [CROSSINGS] demand 0 -> -1 refused at (14388.6,-9546.05): a line crosses standing water at (14388.599609,-9546.052734): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:43:25.935] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:43:26.036] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:43:26.387] [INFO] [WorldForge] [CROSSINGS] demand 2 -> 0 refused at (9404.77,270.534): a line crosses standing water at (9404.774414,270.534271): 4 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:26.743] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[14:43:27.156] [INFO] [WorldForge] [CROSSINGS] demand 3 -> -1 refused at (-3714.53,-4064.41): a line crosses standing water at (-3714.532227,-4064.410889): 165 columns under a level of 55.900002 u - a fine detour inside the band
+[14:43:27.845] [INFO] [WorldForge] [CROSSINGS] demand 4 -> 0 refused at (9405.69,270.793): a line crosses standing water at (9405.690430,270.792908): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:28.594] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:29.326] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:30.151] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:30.896] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:31.925] [INFO] [WorldForge] [CROSSINGS] demand -1 -> -1 refused at (-3714.86,-4064.25): a line crosses standing water at (-3714.856201,-4064.248779): 167 columns under a level of 55.900002 u - a fine detour inside the band
+[14:43:33.133] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9405.76,270.8): a line crosses standing water at (9405.756836,270.799805): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:33.934] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 40 columns under a level of 90.910789 u - a fine detour inside the band
+[14:43:34.434] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.65,13118.5): a line crosses standing water at (-9309.646484,13118.500000): 14 columns under a level of 40.307476 u - routing again
+[14:43:35.106] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 27 columns under a level of 90.910789 u - routing again
+[14:43:35.940] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.5,270.855): a line crosses standing water at (9406.500000,270.854889): 2 columns under a level of 96.468163 u - routing again
+[14:43:37.392] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:38.079] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:38.908] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:43:39.569] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:43:40.570] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:41.309] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:42.237] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:43:42.904] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:43:43.998] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:43:44.660] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:43:45.670] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:46.599] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:43:47.264] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:43:48.365] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:43:49.028] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:43:50.132] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[14:43:50.797] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[14:43:51.802] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:52.493] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:53.130] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:53.769] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:54.542] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:55.288] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:55.981] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:56.621] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[14:43:57.018] [INFO] [WorldForge] [CROSSINGS] fords 326, bridges 3, crossings refused and re-routed 43, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 43 (34 by a fine detour inside the band), demands refused for it 0
+[14:43:57.018] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[14:45:10.907] [INFO] [WorldForge] [WORLDFORGE] plan baked: 6 sites, 78 roads, 3 bridges, 80937 segments in 61115 ms (hash 3980644565422672701)
+[14:45:10.907] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)
+[14:45:10.986] [INFO] [ObjectTemplateManager] Loaded template: burgomaster with 1023 cubes, 5688 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.222] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_furnished with 2778 cubes, 15695 subcubes, 1192 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.458] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_grand with 2778 cubes, 15695 subcubes, 1192 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.547] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_v2 with 1165 cubes, 3540 subcubes, 2136 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.568] [INFO] [ObjectTemplateManager] Loaded template: door_grand with 0 cubes, 8 subcubes, 1242 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.574] [INFO] [ObjectTemplateManager] Loaded template: door_iron with 0 cubes, 6 subcubes, 324 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.574] [WARN] [ObjectTemplateManager] Failed to parse interaction_point line: # interaction_point: handle_0 door_handle 0.5 1.0 1.0 0.0
+[14:45:11.574] [INFO] [ObjectTemplateManager] Loaded template: door_metal with 2 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 2 parts
+[14:45:11.580] [INFO] [ObjectTemplateManager] Loaded template: door_plank with 0 cubes, 4 subcubes, 350 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.581] [INFO] [ObjectTemplateManager] Loaded template: door_wood with 0 cubes, 18 subcubes, 2 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:11.582] [INFO] [ObjectTemplateManager] Loaded template: door_wood_wide with 0 cubes, 36 subcubes, 2 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:11.593] [INFO] [ObjectTemplateManager] Loaded template: gate_timber with 0 cubes, 80 subcubes, 633 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.619] [INFO] [ObjectTemplateManager] Loaded template: house2 with 359 cubes, 1881 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.666] [INFO] [ObjectTemplateManager] Loaded template: houseL with 392 cubes, 1739 subcubes, 1339 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.692] [INFO] [ObjectTemplateManager] Loaded template: house_2story with 359 cubes, 1881 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.693] [INFO] [ObjectTemplateManager] Loaded template: iron_bars with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.694] [INFO] [ObjectTemplateManager] Loaded template: ladder with 0 cubes, 14 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.757] [INFO] [ObjectTemplateManager] Loaded template: manor_gen with 315 cubes, 3056 subcubes, 1447 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.770] [INFO] [ObjectTemplateManager] Loaded template: market_stall with 0 cubes, 0 subcubes, 840 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.771] [INFO] [ObjectTemplateManager] Loaded template: pillar_stone with 0 cubes, 23 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.800] [INFO] [ObjectTemplateManager] Loaded template: shop_detailed with 284 cubes, 2328 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.841] [INFO] [ObjectTemplateManager] Loaded template: statue_hero with 0 cubes, 0 subcubes, 2530 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.843] [INFO] [ObjectTemplateManager] Loaded template: trapdoor with 0 cubes, 0 subcubes, 121 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.844] [INFO] [ObjectTemplateManager] Loaded template: waystone with 0 cubes, 5 subcubes, 10 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.851] [INFO] [ObjectTemplateManager] Loaded template: well with 0 cubes, 0 subcubes, 453 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.852] [INFO] [ObjectTemplateManager] Loaded template: altar with 0 cubes, 23 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.854] [INFO] [ObjectTemplateManager] Loaded template: anvil with 0 cubes, 0 subcubes, 48 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.857] [INFO] [ObjectTemplateManager] Loaded template: armchair with 0 cubes, 0 subcubes, 175 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.869] [INFO] [ObjectTemplateManager] Loaded template: back_bar with 0 cubes, 0 subcubes, 696 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.872] [INFO] [ObjectTemplateManager] Loaded template: barrel with 0 cubes, 0 subcubes, 168 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.874] [INFO] [ObjectTemplateManager] Loaded template: bar_stool with 0 cubes, 0 subcubes, 48 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:11.881] [INFO] [ObjectTemplateManager] Loaded template: bed_single with 0 cubes, 0 subcubes, 438 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.883] [INFO] [ObjectTemplateManager] Loaded template: bellows with 0 cubes, 0 subcubes, 70 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.884] [INFO] [ObjectTemplateManager] Loaded template: bench_great with 0 cubes, 96 subcubes, 0 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:11.886] [INFO] [ObjectTemplateManager] Loaded template: bench_wood with 0 cubes, 0 subcubes, 64 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:11.895] [INFO] [ObjectTemplateManager] Loaded template: bookshelf with 0 cubes, 0 subcubes, 525 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.897] [INFO] [ObjectTemplateManager] Loaded template: book_stack with 0 cubes, 0 subcubes, 126 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.898] [INFO] [ObjectTemplateManager] Loaded template: bottle with 0 cubes, 0 subcubes, 3 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.899] [INFO] [ObjectTemplateManager] Loaded template: brazier with 0 cubes, 13 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.899] [INFO] [ObjectTemplateManager] Loaded template: campfire with 0 cubes, 11 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.900] [INFO] [ObjectTemplateManager] Loaded template: candelabra with 0 cubes, 0 subcubes, 16 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.900] [INFO] [ObjectTemplateManager] Loaded template: candle_holder with 0 cubes, 7 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.901] [INFO] [ObjectTemplateManager] Loaded template: candle_stand with 0 cubes, 0 subcubes, 36 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.903] [INFO] [ObjectTemplateManager] Loaded template: chair with 0 cubes, 0 subcubes, 40 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:11.905] [INFO] [ObjectTemplateManager] Loaded template: chair_wood with 0 cubes, 0 subcubes, 138 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:11.906] [INFO] [ObjectTemplateManager] Loaded template: chandelier with 0 cubes, 0 subcubes, 37 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.911] [INFO] [ObjectTemplateManager] Loaded template: chest_closed with 0 cubes, 0 subcubes, 249 microcubes, 0 fine voxels, 0 interaction points, 3 parts
+[14:45:11.912] [INFO] [ObjectTemplateManager] Loaded template: chest_open with 0 cubes, 21 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.914] [INFO] [ObjectTemplateManager] Loaded template: chopping_block with 0 cubes, 0 subcubes, 95 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.918] [INFO] [ObjectTemplateManager] Loaded template: counter with 0 cubes, 0 subcubes, 210 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.918] [INFO] [ObjectTemplateManager] Loaded template: crate_wood with 1 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.922] [INFO] [ObjectTemplateManager] Loaded template: desk with 0 cubes, 4 subcubes, 212 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.925] [INFO] [ObjectTemplateManager] Loaded template: dresser with 0 cubes, 0 subcubes, 171 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.935] [INFO] [ObjectTemplateManager] Loaded template: fireplace with 0 cubes, 0 subcubes, 596 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.944] [INFO] [ObjectTemplateManager] Loaded template: forge_hearth with 0 cubes, 0 subcubes, 528 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.962] [INFO] [ObjectTemplateManager] Loaded template: four_poster with 0 cubes, 0 subcubes, 1102 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.969] [INFO] [ObjectTemplateManager] Loaded template: garden_bed with 0 cubes, 0 subcubes, 382 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.970] [INFO] [ObjectTemplateManager] Loaded template: hanging_sign with 0 cubes, 0 subcubes, 40 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.972] [INFO] [ObjectTemplateManager] Loaded template: keg with 0 cubes, 0 subcubes, 76 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.980] [INFO] [ObjectTemplateManager] Loaded template: long_table with 0 cubes, 0 subcubes, 455 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.981] [INFO] [ObjectTemplateManager] Loaded template: meat_rail with 0 cubes, 0 subcubes, 70 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.981] [INFO] [ObjectTemplateManager] Loaded template: mug with 0 cubes, 0 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:11.984] [INFO] [ObjectTemplateManager] Loaded template: nightstand with 0 cubes, 0 subcubes, 98 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.015] [INFO] [ObjectTemplateManager] Loaded template: oven_bread with 0 cubes, 0 subcubes, 1908 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.015] [INFO] [ObjectTemplateManager] Loaded template: pot_iron with 0 cubes, 19 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.020] [INFO] [ObjectTemplateManager] Loaded template: rug with 0 cubes, 0 subcubes, 234 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.020] [INFO] [ObjectTemplateManager] Loaded template: sconce with 0 cubes, 0 subcubes, 7 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.028] [INFO] [ObjectTemplateManager] Loaded template: sideboard with 0 cubes, 0 subcubes, 436 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.033] [INFO] [ObjectTemplateManager] Loaded template: simple_table with 0 cubes, 0 subcubes, 263 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.034] [INFO] [ObjectTemplateManager] Loaded template: stool with 0 cubes, 0 subcubes, 21 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:12.034] [INFO] [ObjectTemplateManager] Loaded template: stool_low with 0 cubes, 4 subcubes, 0 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:12.037] [INFO] [ObjectTemplateManager] Loaded template: table_wood with 0 cubes, 0 subcubes, 128 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.046] [INFO] [ObjectTemplateManager] Loaded template: tavern_bar with 0 cubes, 0 subcubes, 529 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.048] [INFO] [ObjectTemplateManager] Loaded template: tavern_table with 0 cubes, 0 subcubes, 143 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.050] [INFO] [ObjectTemplateManager] Loaded template: tool_rack with 0 cubes, 0 subcubes, 75 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.051] [INFO] [ObjectTemplateManager] Loaded template: torch_wall with 0 cubes, 5 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.051] [INFO] [ObjectTemplateManager] Loaded template: wall_lantern with 0 cubes, 0 subcubes, 24 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.056] [INFO] [ObjectTemplateManager] Loaded template: wall_shelf with 0 cubes, 0 subcubes, 276 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.064] [INFO] [ObjectTemplateManager] Loaded template: wardrobe with 0 cubes, 0 subcubes, 437 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.066] [INFO] [ObjectTemplateManager] Loaded template: wooden_throne with 0 cubes, 168 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.077] [INFO] [ObjectTemplateManager] Loaded template: woodpile with 0 cubes, 0 subcubes, 660 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.078] [INFO] [ObjectTemplateManager] Loaded template: workbench with 0 cubes, 18 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.079] [INFO] [ObjectTemplateManager] Loaded template: barony_apple with 0 cubes, 0 subcubes, 22 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.080] [INFO] [ObjectTemplateManager] Loaded template: barony_arcanechair with 0 cubes, 0 subcubes, 62 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.082] [INFO] [ObjectTemplateManager] Loaded template: barony_bomb with 0 cubes, 0 subcubes, 56 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.083] [INFO] [ObjectTemplateManager] Loaded template: barony_bread with 0 cubes, 0 subcubes, 35 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.102] [INFO] [ObjectTemplateManager] Loaded template: barony_bunkbed with 0 cubes, 0 subcubes, 1036 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.104] [INFO] [ObjectTemplateManager] Loaded template: barony_campfire with 0 cubes, 0 subcubes, 90 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.105] [INFO] [ObjectTemplateManager] Loaded template: barony_chair with 0 cubes, 0 subcubes, 70 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.109] [INFO] [ObjectTemplateManager] Loaded template: barony_chest with 0 cubes, 0 subcubes, 185 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.147] [INFO] [ObjectTemplateManager] Loaded template: barony_column with 0 cubes, 0 subcubes, 2080 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.156] [INFO] [ObjectTemplateManager] Loaded template: barony_fountain with 0 cubes, 0 subcubes, 438 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.158] [INFO] [ObjectTemplateManager] Loaded template: bottle_wine with 0 cubes, 0 subcubes, 0 microcubes, 188 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.160] [INFO] [ObjectTemplateManager] Loaded template: bowl with 0 cubes, 0 subcubes, 0 microcubes, 133 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.161] [INFO] [ObjectTemplateManager] Loaded template: candle with 0 cubes, 0 subcubes, 0 microcubes, 55 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.162] [INFO] [ObjectTemplateManager] Loaded template: candlestick with 0 cubes, 0 subcubes, 0 microcubes, 122 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.170] [INFO] [ObjectTemplateManager] Loaded template: firewood with 0 cubes, 0 subcubes, 0 microcubes, 812 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.178] [INFO] [ObjectTemplateManager] Loaded template: flaming_log with 0 cubes, 0 subcubes, 0 microcubes, 812 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.179] [INFO] [ObjectTemplateManager] Loaded template: fork with 0 cubes, 0 subcubes, 0 microcubes, 21 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.181] [INFO] [ObjectTemplateManager] Loaded template: frying_pan with 0 cubes, 0 subcubes, 0 microcubes, 167 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.183] [INFO] [ObjectTemplateManager] Loaded template: goblet with 0 cubes, 0 subcubes, 0 microcubes, 116 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.194] [INFO] [ObjectTemplateManager] Loaded template: jug with 0 cubes, 0 subcubes, 0 microcubes, 1110 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.194] [INFO] [ObjectTemplateManager] Loaded template: knife_table with 0 cubes, 0 subcubes, 0 microcubes, 21 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.195] [INFO] [ObjectTemplateManager] Loaded template: ladle with 0 cubes, 0 subcubes, 0 microcubes, 47 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.197] [INFO] [ObjectTemplateManager] Loaded template: lantern with 0 cubes, 0 subcubes, 0 microcubes, 162 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.203] [INFO] [ObjectTemplateManager] Loaded template: oil_lamp with 0 cubes, 0 subcubes, 0 microcubes, 532 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.208] [INFO] [ObjectTemplateManager] Loaded template: plate with 0 cubes, 0 subcubes, 0 microcubes, 457 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.209] [INFO] [ObjectTemplateManager] Loaded template: potion with 0 cubes, 0 subcubes, 0 microcubes, 134 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.238] [INFO] [ObjectTemplateManager] Loaded template: rug_oriental with 0 cubes, 0 subcubes, 0 microcubes, 2916 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.259] [INFO] [ObjectTemplateManager] Loaded template: rug_woven with 0 cubes, 0 subcubes, 0 microcubes, 2160 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.262] [INFO] [ObjectTemplateManager] Loaded template: scroll with 0 cubes, 0 subcubes, 0 microcubes, 254 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.279] [INFO] [ObjectTemplateManager] Loaded template: sign_apothecary with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.295] [INFO] [ObjectTemplateManager] Loaded template: sign_bakery with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.311] [INFO] [ObjectTemplateManager] Loaded template: sign_blacksmith with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.328] [INFO] [ObjectTemplateManager] Loaded template: sign_butcher with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.344] [INFO] [ObjectTemplateManager] Loaded template: sign_general_store with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.366] [INFO] [ObjectTemplateManager] Loaded template: sign_prancing_pony with 0 cubes, 0 subcubes, 0 microcubes, 2160 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.367] [INFO] [ObjectTemplateManager] Loaded template: spoon with 0 cubes, 0 subcubes, 0 microcubes, 35 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.369] [INFO] [ObjectTemplateManager] Loaded template: tankard with 0 cubes, 0 subcubes, 0 microcubes, 240 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.394] [INFO] [ObjectTemplateManager] Loaded template: tome with 0 cubes, 0 subcubes, 0 microcubes, 2530 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.412] [INFO] [ObjectTemplateManager] Loaded template: tome_arcane with 0 cubes, 0 subcubes, 0 microcubes, 1714 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.429] [INFO] [ObjectTemplateManager] Loaded template: tome_fire with 0 cubes, 0 subcubes, 0 microcubes, 1714 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.446] [INFO] [ObjectTemplateManager] Loaded template: tome_necromantic with 0 cubes, 0 subcubes, 0 microcubes, 1714 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.449] [INFO] [ObjectTemplateManager] Loaded template: torch with 0 cubes, 0 subcubes, 0 microcubes, 236 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:12.450] [INFO] [ObjectTemplateManager] Loaded template: bush_flower with 0 cubes, 18 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.454] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_blue with 3 cubes, 366 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.461] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_green with 1 cubes, 494 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.472] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_m with 21 cubes, 788 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.480] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_s with 9 cubes, 634 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.486] [INFO] [ObjectTemplateManager] Loaded template: bush_round with 8 cubes, 506 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.487] [INFO] [ObjectTemplateManager] Loaded template: fern with 0 cubes, 11 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.683] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_l with 17 cubes, 6791 subcubes, 7074 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:12.823] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_m with 9 cubes, 4028 subcubes, 5562 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.118] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_l with 23 cubes, 9275 subcubes, 10937 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.404] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_m with 10 cubes, 5388 subcubes, 13347 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.598] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_l with 18 cubes, 6473 subcubes, 7074 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.792] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_m with 8 cubes, 3491 subcubes, 9307 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.815] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_blue with 0 cubes, 321 subcubes, 1138 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.839] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_green with 0 cubes, 356 subcubes, 1134 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.878] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_m with 0 cubes, 625 subcubes, 1890 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.905] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_s with 0 cubes, 371 subcubes, 1404 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.931] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_m with 6 cubes, 827 subcubes, 965 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:13.947] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_s with 6 cubes, 589 subcubes, 567 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:14.891] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xl with 4491 cubes, 30928 subcubes, 33213 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:16.554] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xxl with 13788 cubes, 57981 subcubes, 50494 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:17.197] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak with 2142 cubes, 20403 subcubes, 22610 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:17.544] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak_s with 585 cubes, 9306 subcubes, 14376 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:17.667] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_l with 16 cubes, 2522 subcubes, 5422 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:17.735] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_m with 4 cubes, 1236 subcubes, 3206 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:18.186] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_l with 84 cubes, 16978 subcubes, 14405 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:18.455] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_m with 31 cubes, 7400 subcubes, 10866 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:18.947] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_hero with 27 cubes, 13693 subcubes, 20095 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:19.236] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_l with 29 cubes, 10898 subcubes, 9600 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:19.533] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_m with 10 cubes, 5289 subcubes, 14261 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:19.687] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_sparse with 9 cubes, 4051 subcubes, 6345 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:19.716] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_l with 0 cubes, 114 subcubes, 1636 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:19.736] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_m with 0 cubes, 128 subcubes, 1125 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:19.931] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_l with 30 cubes, 5832 subcubes, 7496 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:20.044] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_m with 5 cubes, 2571 subcubes, 4883 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:21.164] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xl with 6730 cubes, 40818 subcubes, 34983 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:23.295] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xxl with 21549 cubes, 79410 subcubes, 59079 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:23.423] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_l with 8 cubes, 3119 subcubes, 4980 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:23.525] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_m with 5 cubes, 1484 subcubes, 5093 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:23.570] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_s with 4 cubes, 744 subcubes, 2126 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:23.986] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_l with 20 cubes, 15241 subcubes, 15417 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.389] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_m with 5 cubes, 8624 subcubes, 18414 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.390] [INFO] [ObjectTemplateManager] Loaded template: hedge_section with 1 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.391] [INFO] [ObjectTemplateManager] Loaded template: mushroom with 0 cubes, 16 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.401] [INFO] [ObjectTemplateManager] Loaded template: shrub_flat with 0 cubes, 25 subcubes, 583 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.416] [INFO] [ObjectTemplateManager] Loaded template: shrub_round with 0 cubes, 62 subcubes, 877 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.453] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_l with 0 cubes, 3149 subcubes, 4 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.470] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_m with 0 cubes, 1475 subcubes, 2 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.471] [INFO] [ObjectTemplateManager] Loaded template: tree_apple with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.526] [INFO] [ObjectTemplateManager] Loaded template: tree_autumn_m with 11 cubes, 4675 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.528] [INFO] [ObjectTemplateManager] Loaded template: tree_birch with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.542] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_l with 4 cubes, 1213 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.556] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_m with 3 cubes, 1117 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.568] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_sparse with 3 cubes, 992 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.569] [INFO] [ObjectTemplateManager] Loaded template: tree_dead with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.571] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_m with 3 cubes, 116 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.572] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_s with 2 cubes, 116 subcubes, 2 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:24.851] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak with 35730 cubes, 19 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.190] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak_xl with 42041 cubes, 5 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.210] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_l with 40 cubes, 1391 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.220] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_m with 11 cubes, 784 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.248] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_m with 85 cubes, 2141 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.298] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_xl with 218 cubes, 3909 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.299] [INFO] [ObjectTemplateManager] Loaded template: tree_oak with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.377] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_l with 19 cubes, 6503 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.428] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_lush with 10 cubes, 4176 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.486] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_m with 11 cubes, 5009 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.509] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_s with 7 cubes, 1978 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.553] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_sparse with 6 cubes, 3780 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.554] [INFO] [ObjectTemplateManager] Loaded template: tree_palm with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.556] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_l with 0 cubes, 120 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.557] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_m with 0 cubes, 96 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.558] [INFO] [ObjectTemplateManager] Loaded template: tree_pine with 0 cubes, 27 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.581] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_l with 8 cubes, 1696 subcubes, 28 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.588] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_m with 5 cubes, 506 subcubes, 20 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.592] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_s with 4 cubes, 291 subcubes, 16 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:25.795] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_l with 26550 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.091] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_xl with 38336 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.125] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_l with 183 cubes, 2578 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.138] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_m with 38 cubes, 1012 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.174] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_l with 163 cubes, 2894 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.188] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_m with 32 cubes, 1130 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.194] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_s with 7 cubes, 464 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.195] [INFO] [ObjectTemplateManager] Loaded template: tree_stump with 0 cubes, 14 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.222] [INFO] [ObjectTemplateManager] Loaded template: tree_willow_l with 80 cubes, 2303 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.223] [INFO] [ObjectTemplateManager] Loaded template: bedroll_test with 0 cubes, 6 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.223] [INFO] [ObjectTemplateManager] Loaded template: chest_test with 18 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 3 parts
+[14:45:26.223] [INFO] [ObjectTemplateManager] Loaded template: drawer_test with 6 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 2 parts
+[14:45:26.224] [INFO] [ObjectTemplateManager] Loaded template: ladder_test with 0 cubes, 8 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.224] [INFO] [ObjectTemplateManager] Loaded template: lever_test with 0 cubes, 3 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 3 parts
+[14:45:26.241] [INFO] [ObjectTemplateManager] Loaded template: rug_test with 0 cubes, 0 subcubes, 0 microcubes, 1600 fine voxels (grid 27, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.251] [INFO] [ObjectTemplateManager] Loaded template: tavern_test with 1168 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.253] [INFO] [ObjectTemplateManager] Loaded template: test_chair with 0 cubes, 0 subcubes, 99 microcubes, 0 fine voxels, 1 interaction points, 1 parts
+[14:45:26.254] [INFO] [ObjectTemplateManager] Loaded template: axe with 0 cubes, 0 subcubes, 25 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.269] [INFO] [ObjectTemplateManager] Loaded template: axe_battle with 0 cubes, 0 subcubes, 0 microcubes, 1438 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.275] [INFO] [ObjectTemplateManager] Loaded template: axe_hand with 0 cubes, 0 subcubes, 0 microcubes, 492 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.278] [INFO] [ObjectTemplateManager] Loaded template: bow with 0 cubes, 0 subcubes, 0 microcubes, 307 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.283] [INFO] [ObjectTemplateManager] Loaded template: crossbow with 0 cubes, 0 subcubes, 0 microcubes, 487 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.286] [INFO] [ObjectTemplateManager] Loaded template: dagger with 0 cubes, 0 subcubes, 0 microcubes, 234 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.292] [INFO] [ObjectTemplateManager] Loaded template: mace with 0 cubes, 0 subcubes, 0 microcubes, 536 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.333] [INFO] [ObjectTemplateManager] Loaded template: maul with 0 cubes, 0 subcubes, 0 microcubes, 4102 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.336] [INFO] [ObjectTemplateManager] Loaded template: pickaxe with 0 cubes, 0 subcubes, 0 microcubes, 304 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.345] [INFO] [ObjectTemplateManager] Loaded template: quiver with 0 cubes, 0 subcubes, 0 microcubes, 836 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.351] [INFO] [ObjectTemplateManager] Loaded template: spear with 0 cubes, 0 subcubes, 0 microcubes, 637 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.357] [INFO] [ObjectTemplateManager] Loaded template: staff_arcane with 0 cubes, 0 subcubes, 0 microcubes, 589 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.363] [INFO] [ObjectTemplateManager] Loaded template: staff_fire with 0 cubes, 0 subcubes, 0 microcubes, 589 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.369] [INFO] [ObjectTemplateManager] Loaded template: staff_frost with 0 cubes, 0 subcubes, 0 microcubes, 589 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.376] [INFO] [ObjectTemplateManager] Loaded template: staff_nature with 0 cubes, 0 subcubes, 0 microcubes, 589 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.376] [INFO] [ObjectTemplateManager] Loaded template: sword with 5 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.377] [INFO] [ObjectTemplateManager] Loaded template: sword_fine with 0 cubes, 0 subcubes, 17 microcubes, 0 fine voxels, 0 interaction points, 1 parts
+[14:45:26.386] [INFO] [ObjectTemplateManager] Loaded template: sword_long with 0 cubes, 0 subcubes, 0 microcubes, 931 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.392] [INFO] [ObjectTemplateManager] Loaded template: sword_short with 0 cubes, 0 subcubes, 0 microcubes, 567 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.392] [INFO] [ObjectTemplateManager] Loaded template: throwing_knife with 0 cubes, 0 subcubes, 0 microcubes, 19 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.393] [INFO] [ObjectTemplateManager] Loaded template: wand with 0 cubes, 0 subcubes, 0 microcubes, 52 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.406] [INFO] [ObjectTemplateManager] Loaded template: warhammer with 0 cubes, 0 subcubes, 0 microcubes, 1239 fine voxels (grid 81, kinematic-only), 0 interaction points, 1 parts
+[14:45:26.406] [INFO] [ObjectTemplateManager] Template scan: 238 loaded from resources/templates
+[ M5a-1 ] rig: site 3 (hamlet) centre (-7976, 2280) 40 x 32 seed 939730262 surfaceY 54.1; margin 24 u, surface 53..54, 36 chunks generated (recipe + plan + templates 138.0 s, chunks 10.9 s)
+[ M5a-1 ] params (the MAP): {"async":false,"depth":32,"entries":[{"cls":1,"x":12,"z":2}],"era":"medieval","position":{"x":-7996,"y":54,"z":2264},"residents":false,"route_reuse":0.5,"seed":939730262,"street_axis":"z","street_offset":12,"terrain":true,"tier":"hamlet","width":40}
+[14:45:37.314] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[14:45:37.319] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:45:37.339] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 939730262: 5 lots, 5 ways, 10 nodes, entry 1, sampler generator, 0 dropped, bake 18.7892 ms
+[14:45:37.341] [INFO] [Settlement] build_settlement: 5 plots, 5 buildings queued (3 streets)
+[ M5a-1 ] planned in 0.1 s: 5 buildings queued, 18 units, morphology cluster
+[ M5a-1 ]   map: 5 lots, 5 ways, 10 nodes, entry 1, bake 18.79 ms, target 5, dropped 1
+[ M5a-1 ]   lot 0: croft rect [13,0,10,10] footprint [14,1,6,8] orientation 3 setback 1 stories 1 ground graded way 0
+[ M5a-1 ]   lot 1: croft rect [8,11,12,10] footprint [10,13,8,6] orientation 2 setback 2 stories 1 ground graded way 1
+[ M5a-1 ]   lot 2: croft rect [24,3,10,14] footprint [27,6,6,8] orientation 3 setback 3 stories 1 ground graded way 2
+[ M5a-1 ]   lot 3: croft rect [0,0,10,10] footprint [3,1,6,8] orientation 1 setback 1 stories 1 ground graded way 3
+[ M5a-1 ]   lot 4: croft rect [21,18,12,10] footprint [23,20,8,6] orientation 2 setback 2 stories 1 ground graded way 4
+[14:45:37.518] [INFO] [Settlement] parcel clearing: 25356 cells over 2113 columns (margin 9)
+[ M5a-1 ]   unit clearing parcels                0.2 s
+[14:45:37.540] [INFO] [Settlement] terrace: parcel graded (cut 0, fill 0)
+[ M5a-1 ]   unit terracing parcel 1/5            0.0 s
+[14:45:37.566] [INFO] [Settlement] terrace: parcel graded (cut 0, fill 0)
+[ M5a-1 ]   unit terracing parcel 2/5            0.0 s
+[14:45:37.594] [INFO] [Settlement] terrace: parcel graded (cut 0, fill 0)
+[ M5a-1 ]   unit terracing parcel 3/5            0.0 s
+[14:45:37.620] [INFO] [Settlement] terrace: parcel graded (cut 12, fill 12)
+[ M5a-1 ]   unit terracing parcel 4/5            0.0 s
+[14:45:37.645] [INFO] [Settlement] terrace: parcel graded (cut 0, fill 0)
+[ M5a-1 ]   unit terracing parcel 5/5            0.0 s
+[ M5a-1 ]   unit terrace physics                 0.0 s
+[14:45:37.650] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:45:37.652] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[14:45:37.652] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[14:45:37.653] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[14:45:37.653] [INFO] [StructureBuild] program validation: OK [typology croft]
+[14:45:37.772] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 39 -> cap 45 (micro)
+[14:45:37.825] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=53 (cut 48, fill 48)
+[14:45:38.103] [INFO] [StructureGenerator] Placing 34376 voxels in 2 steps
+[14:45:38.567] [INFO] [StructureGenerator]   step 1: 25000/34376 (25000 placed, 0 failed)
+[14:45:38.869] [INFO] [StructureBuild] [perf] phases ms: setup=7 overlap=5 realize=118 pad=47 excav=271 place+register=772 (place=765 grass=0 nav=0) fixtures=0 TOTAL=1220
+[ M5a-1 ]   unit building 1/5                    1.3 s
+[14:45:38.903] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:45:38.904] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[14:45:38.905] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[14:45:38.905] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[14:45:38.905] [INFO] [StructureBuild] program validation: OK [typology croft]
+[14:45:39.014] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 59 -> cap 65 (micro)
+[14:45:39.069] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=53 (cut 48, fill 48)
+[14:45:41.101] [INFO] [StructureBuild] [perf] phases ms: setup=7 overlap=4 realize=108 pad=50 excav=253 place+register=1777 (place=1772 grass=0 nav=0) fixtures=0 TOTAL=2199
+[ M5a-1 ]   unit building 2/5                    2.2 s
+[14:45:41.136] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:45:41.138] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[14:45:41.138] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[14:45:41.138] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[14:45:41.139] [INFO] [StructureBuild] program validation: OK [typology croft]
+[14:45:41.237] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)
+[14:45:41.325] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=53 (cut 48, fill 48)
+[14:45:41.605] [INFO] [StructureGenerator] Placing 30671 voxels in 2 steps
+[14:45:42.752] [INFO] [StructureGenerator]   step 1: 25000/30671 (25000 placed, 0 failed)
+[14:45:43.031] [INFO] [StructureBuild] [perf] phases ms: setup=7 overlap=3 realize=99 pad=84 excav=273 place+register=1432 (place=1425 grass=0 nav=0) fixtures=0 TOTAL=1898
+[ M5a-1 ]   unit building 3/5                    1.9 s
+[14:45:43.059] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:45:43.061] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[14:45:43.061] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[14:45:43.062] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[14:45:43.062] [INFO] [StructureBuild] program validation: OK [typology croft]
+[14:45:43.171] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 59 -> cap 65 (micro)
+[14:45:43.259] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=54 (cut 48, fill 48)
+[14:45:46.027] [INFO] [StructureBuild] [perf] phases ms: setup=7 overlap=4 realize=109 pad=82 excav=270 place+register=2497 (place=2492 grass=0 nav=0) fixtures=0 TOTAL=2969
+[ M5a-1 ]   unit building 4/5                    3.0 s
+[14:45:46.057] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[14:45:46.059] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[14:45:46.059] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[14:45:46.060] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[14:45:46.060] [INFO] [StructureBuild] program validation: OK [typology croft]
+[14:45:46.166] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)
+[14:45:46.253] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=53 (cut 48, fill 48)
+[14:45:46.541] [INFO] [StructureGenerator] Placing 30859 voxels in 2 steps
+[14:45:50.360] [INFO] [StructureGenerator]   step 1: 25000/30859 (25000 placed, 0 failed)
+[14:45:50.855] [INFO] [StructureBuild] [perf] phases ms: setup=7 overlap=4 realize=106 pad=82 excav=280 place+register=4320 (place=4313 grass=0 nav=0) fixtures=0 TOTAL=4799
+[ M5a-1 ]   unit building 5/5                    4.8 s
+[14:45:50.892] [INFO] [Settlement] paths: 9/9 edges graded, 0 too steep
+[14:45:51.245] [INFO] [Settlement] paths: paved 1295 microcubes (1295 level caps, 0 fill), 0 cut cells owed; stamp 296 ms
+[ M5a-1 ]   unit grading + paving paths          0.4 s
+[14:45:51.251] [INFO] [DimensionCanon] Loaded 46 object archetypes from resources/object_dimensions.json
+[14:45:52.963] [INFO] [Settlement] fences: 5 parcels fenced, 0 unfenced by policy, 0 runs dropped (alley < 2 cells to a neighbour wall), 10364 micros (picket, 8-micro tall, posts @16)
+[ M5a-1 ]   unit fencing parcels                 1.7 s
+[ M5a-1 ]   unit street sweep                    0.0 s
+[14:45:58.057] [INFO] [Settlement] orphaned canopy: 0 cells found, 0 cleared
+[ M5a-1 ]   unit clearing orphaned canopy        5.1 s
+[14:45:58.057] [INFO] [Settlement] walkability gate: 0 walkable, 0 blocked over 0 routes (0 front doors, 0 skipped)
+[ M5a-1 ]   unit walkability gate                0.0 s
+[ M5a-1 ]   unit nav rebuild                     0.0 s
+[ M5a-1 ] gate: passed - 0 walkable, 0 blocked, 0 skipped; 0 lot failures; 20.8 s in all
+[       OK ] SettlementMapLiveSiteTest.HamletThreeBuildsFromItsMap (169878 ms)
+[----------] 2 tests from SettlementMapLiveSiteTest (424310 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (424310 ms total)
+[  PASSED  ] 2 tests.
+EXIT 0 2026-11-05 14:45:58

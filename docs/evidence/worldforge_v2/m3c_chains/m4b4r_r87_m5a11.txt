@@ -1,0 +1,270 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = StructureLocationsTest.*:SettlementWalkabilityTest.*:StructureGroundingTest.*
+[==========] Running 22 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 10 tests from SettlementWalkabilityTest
+[ RUN      ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage
+[09:47:31.025] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[09:47:31.031] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:47:31.033] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage (11624 ms)
+[ RUN      ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed
+[09:47:42.649] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[09:47:42.654] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:47:42.655] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed (14751 ms)
+[ RUN      ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding
+[09:47:57.400] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[09:47:57.405] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:47:57.406] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:48:08.809] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[09:48:08.814] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:48:08.816] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding (30399 ms)
+[ RUN      ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze
+[       OK ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze (40 ms)
+[ RUN      ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn
+[09:48:27.839] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[09:48:27.845] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:48:27.847] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn (52451 ms)
+[ RUN      ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell
+[09:49:20.289] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[09:49:20.294] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:49:20.296] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell (36035 ms)
+[ RUN      ] SettlementWalkabilityTest.AOneWayDropIsNotWalkable
+[       OK ] SettlementWalkabilityTest.AOneWayDropIsNotWalkable (870 ms)
+[ RUN      ] SettlementWalkabilityTest.TheWayBackStartsWhereTheWalkerArrived
+[       OK ] SettlementWalkabilityTest.TheWayBackStartsWhereTheWalkerArrived (67 ms)
+[ RUN      ] SettlementWalkabilityTest.ARoomIsReachedAnywhereInsideItsInnerArea
+[       OK ] SettlementWalkabilityTest.ARoomIsReachedAnywhereInsideItsInnerArea (1055 ms)
+[ RUN      ] SettlementWalkabilityTest.TheInnerAreaGoalPassesWheneverAnInnerColumnIsReachable
+[ M5a-1 ] partition sweep (px: P = centre goal walkable, A = inner-area goal walkable): 0:-- 1:-- 2:-- 3:-- 4:-- 5:-- 6:-- 7:-- 8:-- 9:-- 10:-- 11:-- 12:-A 13:-A 14:-A 15:-A 16:-A 17:PA 18:PA 19:PA 20:PA 21:PA 22:PA 23:PA 24:PA 25:PA 26:PA 27:PA 28:PA 29:PA 30:PA 31:PA 32:PA 33:PA 34:PA 35:PA 36:PA
+[ M5a-1 ] the inner-area goal first passes at px 12, the centre goal at px 17: the loosening is the band px 12..16
+[       OK ] SettlementWalkabilityTest.TheInnerAreaGoalPassesWheneverAnInnerColumnIsReachable (2799 ms)
+[----------] 10 tests from SettlementWalkabilityTest (150096 ms total)
+
+[----------] 4 tests from StructureGroundingTest
+[ RUN      ] StructureGroundingTest.RefusesAirBuildsByDefault
+[09:50:01.119] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:01.121] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:01.121] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[09:50:01.123] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:01.123] [INFO] [StructureBuild] program validation: OK [typology croft]
+[09:50:01.132] [WARN] [StructureBuild] REFUSING ungrounded build at (500,500): 48/48 footprint columns have no terrain (allow_ungrounded overrides)
+[09:50:01.137] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:01.139] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:01.139] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[09:50:01.140] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:01.140] [INFO] [StructureBuild] program validation: OK [typology croft]
+[09:50:01.167] [WARN] [StructureBuild] REFUSING ungrounded build at (106,200): 12/48 footprint columns have no terrain (allow_ungrounded overrides)
+[       OK ] StructureGroundingTest.RefusesAirBuildsByDefault (54 ms)
+[ RUN      ] StructureGroundingTest.ARefusalLeavesNoRemovalsBehind
+[09:50:01.168] [INFO] [PlacedObjectManager] Registered structure 'croft' as 'croft_1' bbox (498,16,498)-(505,20,505)
+[09:50:01.173] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:01.175] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:01.176] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[09:50:01.177] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:01.177] [INFO] [StructureBuild] program validation: OK [typology croft]
+[09:50:01.186] [WARN] [StructureBuild] REFUSING ungrounded build at (500,500): 48/48 footprint columns have no terrain (allow_ungrounded overrides)
+[       OK ] StructureGroundingTest.ARefusalLeavesNoRemovalsBehind (18 ms)
+[ RUN      ] StructureGroundingTest.PlacementIntoUngeneratedTerrainIsRefused
+[09:50:01.190] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[09:50:01.856] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies
+[09:50:01.856] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+[09:50:01.856] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)
+[09:50:01.902] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:01.903] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:01.904] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[09:50:01.905] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:01.906] [INFO] [StructureBuild] program validation: OK [typology croft]
+[09:50:01.969] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)
+[09:50:01.984] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=28 (cut 48, fill 48)
+[09:50:02.249] [WARN] [StructureBuild] REFUSING placement: 3 target chunk(s) are un-generated terrain (would materialize empty)
+[09:50:02.320] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:02.322] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:02.322] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[09:50:02.323] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:02.324] [INFO] [StructureBuild] program validation: OK [typology croft]
+[09:50:02.386] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)
+[09:50:02.402] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=28 (cut 48, fill 48)
+[09:50:02.660] [INFO] [StructureGenerator] Placing 30859 voxels in 2 steps
+[09:50:02.761] [INFO] [ChunkManager] Created new chunk at (64, 0, 32) for placement
+[09:50:02.867] [INFO] [ChunkManager] Created new chunk at (64, 32, 32) for placement
+[09:50:02.964] [INFO] [ChunkManager] Created new chunk at (64, 32, 64) for placement
+[09:50:03.505] [INFO] [StructureGenerator]   step 1: 25000/30859 (25000 placed, 0 failed)
+[09:50:03.763] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=3 realize=62 pad=11 excav=256 place+register=1104 (place=1102 grass=0 nav=0) fixtures=0 TOTAL=1444
+[       OK ] StructureGroundingTest.PlacementIntoUngeneratedTerrainIsRefused (2618 ms)
+[ RUN      ] StructureGroundingTest.MissingRoomProgramRefusesTheBuild
+[09:50:03.805] [WARN] [RoomProgram] room_program not found at resources/does_not_exist_room_program.json
+[       OK ] StructureGroundingTest.MissingRoomProgramRefusesTheBuild (0 ms)
+[----------] 4 tests from StructureGroundingTest (2692 ms total)
+
+[----------] 8 tests from StructureLocationsTest
+[ RUN      ] StructureLocationsTest.TavernEmitsTavernMarkerOutsideDoor
+[09:50:03.811] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] StructureLocationsTest.TavernEmitsTavernMarkerOutsideDoor (232 ms)
+[ RUN      ] StructureLocationsTest.TypologyMapsToLocationType
+[09:50:04.043] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] StructureLocationsTest.TypologyMapsToLocationType (173 ms)
+[ RUN      ] StructureLocationsTest.PrefersFrontWallDoor
+[09:50:04.217] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] StructureLocationsTest.PrefersFrontWallDoor (329 ms)
+[ RUN      ] StructureLocationsTest.DoorlessShellFallsBackToCentre
+[       OK ] StructureLocationsTest.DoorlessShellFallsBackToCentre (36 ms)
+[ RUN      ] StructureLocationsTest.SnapToStandableFixesDeadAnchor
+[       OK ] StructureLocationsTest.SnapToStandableFixesDeadAnchor (0 ms)
+[ RUN      ] StructureLocationsTest.DeterministicAndOriginRelative
+[09:50:04.583] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] StructureLocationsTest.DeterministicAndOriginRelative (60 ms)
+[ RUN      ] StructureLocationsTest.BuildReportsItsLocationsWithOrWithoutARegistry
+[09:50:04.729] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:04.730] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:04.731] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[09:50:04.732] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:04.732] [INFO] [StructureBuild] program validation: OK [typology croft]
+[09:50:04.829] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)
+[09:50:04.885] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 48, fill 48)
+[09:50:05.699] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=3 realize=96 pad=53 excav=166 place+register=647 (place=646 grass=0 nav=0) fixtures=0 TOTAL=974
+[09:50:05.813] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:05.815] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:05.815] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[09:50:05.817] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:05.817] [INFO] [StructureBuild] program validation: OK [typology croft]
+[09:50:05.910] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)
+[09:50:05.965] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 48, fill 48)
+[09:50:06.772] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=3 realize=93 pad=51 excav=161 place+register=646 (place=645 grass=0 nav=0) fixtures=0 TOTAL=962
+[       OK ] StructureLocationsTest.BuildReportsItsLocationsWithOrWithoutARegistry (2159 ms)
+[ RUN      ] StructureLocationsTest.EveryShippedTypologyReportsOneLocation
+[09:50:06.802] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:06.891] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:06.893] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:06.893] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology apothecary]
+[09:50:06.895] [INFO] [StructureBuild] program validation: OK [typology apothecary]
+[09:50:07.150] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 48, fill 48)
+[09:50:08.021] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=112 realize=91 pad=50 excav=164 place+register=706 (place=706 grass=0 nav=0) fixtures=0 TOTAL=1131
+[ locations ] apothecary      8 x  6: 1 location(s) (Work), floor top micro 147
+[09:50:08.139] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:08.140] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:08.141] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology bakery]
+[09:50:08.143] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:08.143] [INFO] [StructureBuild] program validation: OK [typology bakery]
+[09:50:08.242] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)
+[09:50:08.386] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 48, fill 48)
+[09:50:09.311] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=90 realize=99 pad=54 excav=177 place+register=747 (place=746 grass=0 nav=0) fixtures=0 TOTAL=1175
+[ locations ] bakery          8 x  6: 1 location(s) (Work), floor top micro 147
+[09:50:09.427] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:09.429] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:09.429] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology blacksmith]
+[09:50:09.431] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:09.431] [INFO] [StructureBuild] program validation: OK [typology blacksmith]
+[09:50:09.529] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)
+[09:50:09.679] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 48, fill 48)
+[09:50:10.579] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=97 realize=97 pad=51 excav=169 place+register=730 (place=730 grass=0 nav=0) fixtures=0 TOTAL=1152
+[ locations ] blacksmith      8 x  6: 1 location(s) (Work), floor top micro 147
+[09:50:10.697] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:10.699] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:10.699] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology butcher]
+[09:50:10.701] [INFO] [StructureBuild] program validation: OK [typology butcher]
+[09:50:10.958] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 48, fill 48)
+[09:50:11.847] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=112 realize=92 pad=52 excav=173 place+register=714 (place=714 grass=0 nav=0) fixtures=0 TOTAL=1151
+[ locations ] butcher         8 x  6: 1 location(s) (Work), floor top micro 147
+[09:50:11.961] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:11.963] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:11.963] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[09:50:11.965] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:11.965] [INFO] [StructureBuild] program validation: OK [typology croft]
+[09:50:12.054] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)
+[09:50:12.109] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 48, fill 48)
+[09:50:12.927] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=2 realize=89 pad=52 excav=169 place+register=648 (place=647 grass=0 nav=0) fixtures=0 TOTAL=969
+[ locations ] croft           8 x  6: 1 location(s) (Home), floor top micro 147
+[09:50:13.042] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:13.044] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:13.044] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology general_store]
+[09:50:13.046] [INFO] [StructureBuild] program validation: OK [typology general_store]
+[09:50:13.299] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 48, fill 48)
+[09:50:14.183] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=110 realize=90 pad=52 excav=165 place+register=718 (place=717 grass=0 nav=0) fixtures=0 TOTAL=1143
+[ locations ] general_store   8 x  6: 1 location(s) (Work), floor top micro 147
+[09:50:14.297] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:14.299] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:14.299] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology hall_house]
+[09:50:14.301] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:14.301] [INFO] [StructureBuild] program validation: OK [typology hall_house]
+[09:50:14.577] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 53 -> cap 59 (micro)
+[09:50:15.519] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 128, fill 128)
+[09:50:15.991] [INFO] [StructureGenerator] Placing 43201 voxels in 2 steps
+[09:50:17.698] [INFO] [StructureGenerator]   step 1: 25000/43201 (25000 placed, 0 failed)
+[09:50:20.609] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=805 realize=275 pad=137 excav=470 place+register=4620 (place=4618 grass=0 nav=0) fixtures=0 TOTAL=6315
+[ locations ] hall_house     16 x  8: 1 location(s) (Home), floor top micro 147
+[09:50:20.767] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:20.768] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:20.769] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology longhouse]
+[09:50:20.770] [WARN] [StructureBuild] place_hearths: hearth 'fireplace' in 'hall' displaced 1 window(s) on its wall
+[09:50:20.770] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:20.771] [INFO] [StructureBuild] program validation: OK [typology longhouse]
+[09:50:20.962] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)
+[09:50:21.540] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 96, fill 96)
+[09:50:21.902] [INFO] [StructureGenerator] Placing 29310 voxels in 2 steps
+[09:50:23.561] [INFO] [StructureGenerator]   step 1: 25000/29310 (25000 placed, 0 failed)
+[09:50:24.230] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=477 realize=191 pad=100 excav=361 place+register=2328 (place=2327 grass=0 nav=0) fixtures=0 TOTAL=3466
+[ locations ] longhouse      16 x  6: 1 location(s) (Home), floor top micro 147
+[09:50:24.370] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:24.371] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:24.372] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology manor_hall]
+[09:50:24.376] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:24.377] [INFO] [StructureBuild] program validation: OK [typology manor_hall]
+[09:50:24.928] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 68 -> cap 74 (micro)
+[09:50:25.518] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 260, fill 260)
+[09:50:26.503] [INFO] [StructureGenerator] Placing 85193 voxels in 4 steps
+[09:50:28.574] [INFO] [StructureGenerator]   step 1: 25000/85193 (25000 placed, 0 failed)
+[09:50:33.087] [INFO] [StructureGenerator]   step 2: 50000/85193 (50000 placed, 0 failed)
+[09:50:40.603] [INFO] [StructureGenerator]   step 3: 75000/85193 (75000 placed, 0 failed)
+[09:50:44.699] [INFO] [StructureBuild] [perf] phases ms: setup=12 overlap=319 realize=551 pad=271 excav=981 place+register=18199 (place=18196 grass=0 nav=0) fixtures=0 TOTAL=20333
+[ locations ] manor_hall     20 x 13: 1 location(s) (Home), floor top micro 147
+[09:50:44.946] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:44.947] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:44.948] [INFO] [StructureBuild] generate_room_layout: auto-filled 2 story(ies) -> 7 rooms total [typology tavern]
+[09:50:44.951] [INFO] [StructureBuild] place_hearths: sited 2 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:44.951] [INFO] [StructureBuild] program validation: OK [typology tavern]
+[09:50:45.234] [INFO] [StructureRealizer] place_chimney: 2 stack(s) painted into the shell, apex 80 -> cap 86 (micro)
+[09:50:49.044] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 112, fill 112)
+[09:50:49.672] [INFO] [StructureGenerator] Placing 53289 voxels in 3 steps
+[09:50:51.481] [INFO] [StructureGenerator]   step 1: 25000/53289 (25000 placed, 0 failed)
+[09:50:55.983] [INFO] [StructureGenerator]   step 2: 50000/53289 (50000 placed, 0 failed)
+[09:50:56.949] [INFO] [StructureBuild] [perf] phases ms: setup=11 overlap=3691 realize=282 pad=119 excav=626 place+register=7278 (place=7276 grass=0 nav=0) fixtures=0 TOTAL=12007
+[ locations ] tavern         16 x  7: 1 location(s) (Tavern), floor top micro 147
+[09:50:57.138] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:57.140] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:57.140] [INFO] [StructureBuild] generate_room_layout: auto-filled 2 story(ies) -> 4 rooms total [typology tenement]
+[09:50:57.142] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[09:50:57.142] [INFO] [StructureBuild] program validation: OK [typology tenement]
+[09:50:57.246] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 74 -> cap 80 (micro)
+[09:50:58.091] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 40, fill 40)
+[09:50:59.379] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=802 realize=103 pad=42 excav=224 place+register=1063 (place=1062 grass=0 nav=0) fixtures=0 TOTAL=2243
+[ locations ] tenement        8 x  5: 1 location(s) (Home), floor top micro 147
+[09:50:59.504] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:50:59.506] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:50:59.506] [INFO] [StructureBuild] generate_room_layout: auto-filled 3 story(ies) -> 3 rooms total [typology tower_house]
+[09:50:59.509] [INFO] [StructureBuild] program validation: OK [typology tower_house]
+[09:51:01.033] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 64, fill 64)
+[09:51:01.447] [INFO] [StructureGenerator] Placing 27392 voxels in 2 steps
+[09:51:04.201] [INFO] [StructureGenerator]   step 1: 25000/27392 (25000 placed, 0 failed)
+[09:51:04.799] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=1258 realize=196 pad=68 excav=413 place+register=3352 (place=3351 grass=0 nav=0) fixtures=0 TOTAL=5296
+[ locations ] tower_house     8 x  8: 1 location(s) (Custom), floor top micro 147
+[09:51:04.951] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[09:51:04.953] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[09:51:04.953] [INFO] [StructureBuild] generate_room_layout: auto-filled 2 story(ies) -> 7 rooms total [typology town_hall]
+[09:51:04.955] [INFO] [StructureBuild] program validation: OK [typology town_hall]
+[09:51:09.117] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 112, fill 112)
+[09:51:09.723] [INFO] [StructureGenerator] Placing 49832 voxels in 2 steps
+[09:51:11.647] [INFO] [StructureGenerator]   step 1: 25000/49832 (25000 placed, 0 failed)
+[09:51:16.633] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=3765 realize=277 pad=119 excav=604 place+register=6911 (place=6910 grass=0 nav=0) fixtures=0 TOTAL=11685
+[ locations ] town_hall      16 x  7: 1 location(s) (Work), floor top micro 147
+[       OK ] StructureLocationsTest.EveryShippedTypologyReportsOneLocation (69928 ms)
+[----------] 8 tests from StructureLocationsTest (72920 ms total)
+
+[----------] Global test environment tear-down
+[==========] 22 tests from 3 test suites ran. (225711 ms total)
+[  PASSED  ] 22 tests.
+EXIT 0 2026-11-06 09:51:16

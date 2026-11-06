@@ -225,6 +225,7 @@ TEST(SettlementMapTest, MapInvariantsHoldOnEveryTier) {
 // cross none; the village / town / city maps are the main-street scenario AS BUILT (chooseStreetAxis + planMainStreetLayout /
 // planCityLayout) whose spine and lanes run straight across the hill rig's creek (town 2 segments, city 3) - the layout drops
 // PLOTS on water but not its streets. The pin as written stands so the finding stays visible; M5b grows the street tiers.
+// RULED 2026-11-05 (owner): stays red, as written, until M5b grows the street tiers from the map.
 TEST(SettlementMapTest, WaysStayOutOfWater) {
     ASSERT_TRUE(rigs().programOk);
     struct Site { const char* tier; int W, D; };

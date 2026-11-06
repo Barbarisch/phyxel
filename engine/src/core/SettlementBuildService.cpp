@@ -677,6 +677,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             nlohmann::json rooms;    ///< [{story, purpose, rect:[x,z,w,d]}] building-local cubes
         };
         auto sharedFrontDoors = std::make_shared<std::vector<FrontDoor>>();
+        // M5a-1 (chain 74): the buildings that realized, so the gate can tell "no door recorded" from "nothing built"
+        auto sharedBuilt = std::make_shared<int>(0);
         // Per-micro-column pavement stamp ({x, startRow, z, surface}, micro coords) so the
         // sweep can re-stamp the paving it clears along with the debris.
         auto sharedStamp = std::make_shared<std::vector<glm::ivec4>>();
@@ -935,7 +937,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
                                           lotIndex = static_cast<int>(i),
                                           typ1 = var.typology, typ2 = var2.typology,
-                                          sharedFrontDoors]() mutable {
+                                          sharedFrontDoors, sharedBuilt]() mutable {
                 if (!chunkManager) return;
                 auto seat = [&](nlohmann::json& p, int w, int d) {
                     if (!seatInUnit) return;
@@ -963,12 +965,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 };
                 seat(bp, bw, bd);
                 const auto res1 = Core::StructureBuildService::buildV2(bp, deps);
-                if (!res1.contains("error")) { recordDoor(res1, bp, bw, bd); return; }
+                if (!res1.contains("error")) { ++*sharedBuilt; recordDoor(res1, bp, bw, bd); return; }
                 LOG_WARN_FMT("Settlement", "lot " << lotIndex << " (" << typ1 << ") refused: "
                              << res1["error"].dump() << " — re-rolling the variant");
                 seat(bp2, bw2, bd2);
                 const auto res2 = Core::StructureBuildService::buildV2(bp2, deps);
-                if (!res2.contains("error")) { recordDoor(res2, bp2, bw2, bd2); return; }
+                if (!res2.contains("error")) { ++*sharedBuilt; recordDoor(res2, bp2, bw2, bd2); return; }
                 LOG_WARN_FMT("Settlement", "lot " << lotIndex << " re-roll (" << typ2
                              << ") ALSO refused: " << res2["error"].dump()
                              << " — lot left EMPTY (recorded)");
@@ -1869,7 +1871,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager) {
             units.push_back({"walkability gate",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 sharedFrontDoors, pathsJsonP, walkJsonP]() {
+                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP]() {
             if (!chunkManager) return;
             const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
                 return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
@@ -1936,10 +1938,22 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     r.from = in.to;
                     const int rcx = rx + rw / 2, rcz = rz + rd / 2;
                     const int roomFeet = seatFeet(rcx, rcz, fd.thresholdMicro);
-                    // A room centre that does not seat is itself a finding (a fixture on the
-                    // centre cell is normal - the goal box is 9 micro wide and a story tall).
                     r.to = glm::ivec3(rcx * 9 + 4, roomFeet == INT_MIN ? fd.thresholdMicro : roomFeet, rcz * 9 + 4);
                     r.goalRadiusMicro = 4;
+                    // M5a-1 (2026-11-05, chains 78-80 on the live hamlet 3 headless): the goal is the room's
+                    // INNER FLOOR AREA - the rect shrunk by one cube on each side where it is wider than two
+                    // (the ring against the walls is where the furniture stands), the whole rect otherwise -
+                    // at the passage's feet level with a story of slack. The point goal (the centre within 4
+                    // micro) refused a croft whose centre cube the furnisher covered with a table: a walker
+                    // cannot be within 4 micro of a point under an 18-micro table without standing on it, and
+                    // the comment that stood here ("a fixture on the centre cell is normal - the goal box is 9
+                    // micro wide and a story tall") assumed a climb the 4-micro step-up does not allow. The
+                    // centre stays `to` for the record and the way back; a room whose inner area is wholly
+                    // furnished is still refused - the walker must reach some cell of it.
+                    const auto gb = roomGoalBox(rx, rz, rw, rd, passFeet);
+                    r.goalIsBox = true;
+                    r.goalLo = gb.first;
+                    r.goalHi = gb.second;
                     routes.push_back(r);
                 }
                 // The band's floor must sit BELOW every endpoint: a threshold two cubes above
@@ -1962,8 +1976,15 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 const glm::ivec3 hi(bandHi.x + 6 * 9, bandHi.y + 30, bandHi.z + 6 * 9);
                 const auto rep = Core::checkRoutes(occ, box, routes, lo, hi, /*diagnose=*/true);
                 walkable += rep.walkable; blocked += rep.blocked;
-                for (const auto& rr : rep.routes) {
-                    nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}};
+                for (size_t ri = 0; ri < rep.routes.size(); ++ri) {   // rep.routes is one per route, in order
+                    const auto& rr = rep.routes[ri];
+                    const auto& rin = routes[ri];
+                    // M5a-1 (chain 79): the endpoints and the goal box travel with the record, so a blocked
+                    // route can be re-walked and its goal inspected outside the gate
+                    nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable},
+                                        {"from", {rin.from.x, rin.from.y, rin.from.z}}, {"to", {rin.to.x, rin.to.y, rin.to.z}},
+                                        {"goal_radius", rin.goalRadiusMicro}, {"goal_height", rin.goalHeightMicro}};
+                    if (rin.goalIsBox) j["goal_box"] = {rin.goalLo.x, rin.goalLo.y, rin.goalLo.z, rin.goalHi.x, rin.goalHi.y, rin.goalHi.z};
                     if (!rr.walkable) {
                         // A 1-cell start set is either a sealed start or a probe artefact:
                         // record the first-step verdicts (fits/supported per direction and
@@ -2005,9 +2026,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             }
             LOG_INFO_FMT("Settlement", "walkability gate: " << walkable << " walkable, " << blocked
                          << " blocked over " << (walkable + blocked) << " routes ("
-                         << sharedFrontDoors->size() << " front doors, " << skipped << " skipped)");
+                         << sharedFrontDoors->size() << " front doors of " << *sharedBuilt << " built, " << skipped << " skipped)");
             (*pathsJsonP)["walkability"] = {{"routes", routesJ}, {"walkable", walkable},
-                                            {"blocked", blocked}, {"failed", blocked}, {"skipped", skipped}};
+                                            {"blocked", blocked}, {"failed", blocked}, {"skipped", skipped},
+                                            {"doors", sharedFrontDoors->size()}, {"built", *sharedBuilt}};
             *walkJsonP = (*pathsJsonP)["walkability"];
             }});
         }
@@ -2138,6 +2160,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     return res;
 }
 
+std::pair<glm::ivec3, glm::ivec3> SettlementBuildService::roomGoalBox(int rx, int rz, int rw, int rd, int feetMicro) {
+    const int ix0 = (rw > 2) ? rx + 1 : rx, ix1 = (rw > 2) ? rx + rw - 1 : rx + rw;
+    const int iz0 = (rd > 2) ? rz + 1 : rz, iz1 = (rd > 2) ? rz + rd - 1 : rz + rd;
+    return {glm::ivec3(ix0 * 9, feetMicro - 9, iz0 * 9), glm::ivec3(ix1 * 9 - 1, feetMicro + 9, iz1 * 9 - 1)};
+}
+
 nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkability,
                                                    bool allowUnwalkable) {
     // Pure: the verdict is a function of the gate's result and the override, nothing
@@ -2152,20 +2180,36 @@ nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkabi
     // pass (the town's tavern: "5 front doors, 1 skipped" shipped). It now fails the build
     // like a blocked route ("unseated"), with the same override.
     const int skipped  = ran ? walkability.value("skipped", 0) : 0;
+    // M5a-1 (chain 74): a gate that measured NO door of a built building is not a pass - the
+    // headless rig built 3 and 5 buildings whose doors were never recorded and "passed" on 0 routes.
+    // The gate unit records how many buildings realized and how many front doors it saw; a
+    // shortfall fails the build like a blocked route ("doorless"), with the same override. A
+    // built count of 0 (every lot refused) is not doorless - the lot failures carry that; a
+    // result without the counts (an older record) keeps its old reading.
+    const int doors = ran ? walkability.value("doors", -1) : -1;
+    const int built = ran ? walkability.value("built", -1) : -1;
+    const bool doorless = ran && built > 0 && doors >= 0 && doors < built;
     std::string gate = "not_run";
     bool failsBuild = false;
     if (ran) {
-        if (blocked <= 0 && skipped <= 0) gate = "passed";
+        if (blocked <= 0 && skipped <= 0 && !doorless) gate = "passed";
         else if (allowUnwalkable)         gate = "overridden";
         else if (blocked > 0) { gate = "blocked";  failsBuild = true; }
-        else                  { gate = "unseated"; failsBuild = true; }
+        else if (skipped > 0) { gate = "unseated"; failsBuild = true; }
+        else                  { gate = "doorless"; failsBuild = true; }
     }
     nlohmann::json out = {{"gate", gate}, {"walkable", walkable}, {"blocked", blocked},
                           {"skipped", skipped}, {"fails_build", failsBuild}};
-    if (failsBuild)   // ONE wording for the editor response, the job result and the ledger
+    if (doors >= 0) out["doors"] = doors;
+    if (built >= 0) out["built"] = built;
+    if (failsBuild) {   // ONE wording for the editor response, the job result and the ledger
         out["error"] = "unwalkable: " + std::to_string(blocked) + " of " + std::to_string(blocked + walkable)
                        + " street->door routes blocked, " + std::to_string(skipped)
                        + " front door(s) unseated (walkability gate)";
+        if (doorless)
+            out["error"] = out["error"].get<std::string>() + "; doorless: " + std::to_string(built - doors) + " of "
+                           + std::to_string(built) + " built building(s) recorded no front door - the gate measured nothing for them";
+    }
     return out;
 }
 

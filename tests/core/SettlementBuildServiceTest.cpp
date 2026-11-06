@@ -535,3 +535,71 @@ TEST(SettlementBuildServiceTest, MissingRoomProgramRefuses) {
     EXPECT_NE(err.find("room program"), std::string::npos) << err;
     EXPECT_NE(err.find("does_not_exist_room_program.json"), std::string::npos) << "the refusal must name the file: " << err;
 }
+
+// M5a-1 (chain 74, m5a_red_green.txt): the headless live-site rig built 3 and then 5 buildings whose front doors were
+// never recorded - the door record rides on the OPTIONAL LocationRegistry (StructureBuildService emits "locations" only
+// when one is wired) - and the gate "passed" on 0 routes over 0 doors, both arms. A gate that measured nothing is not a
+// pass; the result must carry how many buildings were built and how many doors it saw, and a shortfall fails the build
+// like a blocked route (the same override). RED: today {walkable 0, blocked 0, skipped 0, doors 0, built 3} reads "passed".
+TEST(SettlementBuildServiceTest, AGateThatMeasuredNoDoorOfABuiltBuildingDoesNotPass) {
+    const nlohmann::json doorless = {{"walkable", 0}, {"blocked", 0}, {"skipped", 0}, {"doors", 0}, {"built", 3}};
+    auto o = SettlementBuildService::gateOutcome(doorless, false);
+    EXPECT_EQ(o.value("gate", ""), "doorless");
+    EXPECT_TRUE(o.value("fails_build", false)) << "3 built buildings, 0 front doors: the gate measured nothing and passed";
+    EXPECT_EQ(o.value("doors", -1), 0);
+    EXPECT_EQ(o.value("built", -1), 3);
+    o = SettlementBuildService::gateOutcome(doorless, true);
+    EXPECT_EQ(o.value("gate", ""), "overridden");
+    EXPECT_FALSE(o.value("fails_build", true));
+    // one door short of the built count fails the same way (one building the gate never measured)
+    const nlohmann::json oneShort = {{"walkable", 6}, {"blocked", 0}, {"skipped", 0}, {"doors", 2}, {"built", 3}};
+    o = SettlementBuildService::gateOutcome(oneShort, false);
+    EXPECT_EQ(o.value("gate", ""), "doorless");
+    EXPECT_TRUE(o.value("fails_build", false));
+    // a blocked route outranks the shortfall in the verdict's name (both fail)
+    const nlohmann::json both = {{"walkable", 5}, {"blocked", 1}, {"skipped", 0}, {"doors", 2}, {"built", 3}};
+    EXPECT_EQ(SettlementBuildService::gateOutcome(both, false).value("gate", ""), "blocked");
+    // every built building with a door: passed as before
+    const nlohmann::json full = {{"walkable", 9}, {"blocked", 0}, {"skipped", 0}, {"doors", 3}, {"built", 3}};
+    EXPECT_EQ(SettlementBuildService::gateOutcome(full, false).value("gate", ""), "passed");
+    // nothing built at all (every lot refused twice): no door to measure is not a doorless building - the lot failures
+    // carry that outcome; and a result without the counts (an older record) keeps its old reading
+    const nlohmann::json nothing = {{"walkable", 0}, {"blocked", 0}, {"skipped", 0}, {"doors", 0}, {"built", 0}};
+    EXPECT_EQ(SettlementBuildService::gateOutcome(nothing, false).value("gate", ""), "passed");
+    const nlohmann::json legacy = {{"walkable", 0}, {"blocked", 0}, {"skipped", 0}};
+    EXPECT_EQ(SettlementBuildService::gateOutcome(legacy, false).value("gate", ""), "passed");
+}
+
+// M5a-1 (audit 16, F7): the gate's room goal box is a pure function, pinned here on the hamlet croft's room, on rooms
+// two cubes or narrower on a side (the whole rect - nothing to shrink), and on a 3 x 3 room (a single inner cube).
+TEST(SettlementBuildServiceTest, RoomGoalBoxIsTheInnerFloorArea) {
+    // the croft of the live hamlet 3: a 4 x 6 room at (0, 0), feet 489 -> the inner 2 x 4 cubes, x 9..26 z 9..44
+    auto gb = SettlementBuildService::roomGoalBox(0, 0, 4, 6, 489);
+    EXPECT_EQ(gb.first, glm::ivec3(9, 480, 9));
+    EXPECT_EQ(gb.second, glm::ivec3(26, 498, 44));
+    // world placement: the same room at cube (-7968, 2271) is the live croft's - x -71703..-71686, z 20448..20483
+    gb = SettlementBuildService::roomGoalBox(-7968, 2271, 4, 6, 489);
+    EXPECT_EQ(gb.first, glm::ivec3(-71703, 480, 20448));
+    EXPECT_EQ(gb.second, glm::ivec3(-71686, 498, 20483));
+    // two cubes wide: the whole width (shrinking would leave nothing), the depth shrunk
+    gb = SettlementBuildService::roomGoalBox(10, 20, 2, 6, 0);
+    EXPECT_EQ(gb.first, glm::ivec3(90, -9, 189));
+    EXPECT_EQ(gb.second, glm::ivec3(107, 9, 224));
+    // one cube square: that cube
+    gb = SettlementBuildService::roomGoalBox(0, 0, 1, 1, 5);
+    EXPECT_EQ(gb.first, glm::ivec3(0, -4, 0));
+    EXPECT_EQ(gb.second, glm::ivec3(8, 14, 8));
+    // three by three: the single inner cube
+    gb = SettlementBuildService::roomGoalBox(3, 3, 3, 3, 0);
+    EXPECT_EQ(gb.first, glm::ivec3(36, -9, 36));
+    EXPECT_EQ(gb.second, glm::ivec3(44, 9, 44));
+    // the box is never empty
+    for (int w = 1; w <= 8; ++w)
+        for (int d = 1; d <= 8; ++d) {
+            gb = SettlementBuildService::roomGoalBox(5, 7, w, d, 100);
+            EXPECT_LE(gb.first.x, gb.second.x) << w << "x" << d;
+            EXPECT_LE(gb.first.z, gb.second.z) << w << "x" << d;
+            EXPECT_GE(gb.first.x, 45); EXPECT_LE(gb.second.x, (5 + w) * 9 - 1);
+            EXPECT_GE(gb.first.z, 63); EXPECT_LE(gb.second.z, (7 + d) * 9 - 1);
+        }
+}

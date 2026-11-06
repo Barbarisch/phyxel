@@ -144,13 +144,23 @@ public:
 
     /// The gate's verdict as a pure function of its result (shared by the editor's
     /// build_settlement response, the WorldForge checkpoint and the post-gate units):
-    ///   {"gate": "not_run" | "passed" | "blocked" | "overridden",
-    ///    "walkable": N, "blocked": N, "fails_build": bool}
-    /// not_run  = the gate never produced a result (no world / no front doors)
-    /// passed   = 0 blocked routes
+    ///   {"gate": "not_run" | "passed" | "blocked" | "unseated" | "doorless" | "overridden",
+    ///    "walkable": N, "blocked": N, "skipped": N, "doors": N, "built": N, "fails_build": bool}
+    /// not_run  = the gate never produced a result (no world)
+    /// passed   = 0 blocked routes, 0 unseated doors, a door recorded for every built building
     /// blocked  = >0 blocked and allow_unwalkable is false  -> fails_build = true
-    /// overridden = >0 blocked and allow_unwalkable is true -> fails_build = false
+    /// unseated = a front door whose endpoint does not seat (M0 row 2d)   -> fails_build = true
+    /// doorless = fewer doors recorded than buildings built (M5a-1: the gate measured nothing for
+    ///            them; a built count of 0 is not doorless - the lot failures carry it) -> fails_build
+    /// overridden = any of the three and allow_unwalkable is true -> fails_build = false
     static nlohmann::json gateOutcome(const nlohmann::json& walkability, bool allowUnwalkable);
+
+    /// M5a-1: the goal box of a "door -> room" route - the room's INNER FLOOR AREA in world micro
+    /// (inclusive): the room rect (world cubes) shrunk by one cube on each side where it is wider
+    /// than two cubes, the whole rect otherwise, at `feetMicro` +/- 9. Pure; unit-pinned
+    /// (SettlementBuildServiceTest.RoomGoalBoxIsTheInnerFloorArea) and checked against every route
+    /// the gate records on the live-site rig.
+    static std::pair<glm::ivec3, glm::ivec3> roomGoalBox(int rx, int rz, int rw, int rd, int feetMicro);
 
     /// M0 ("site prep reordered"): the plots whose building REFUSED (both the lot and its
     /// re-roll), as plot indices. `lotFailures` is Plan::lotFailures' array ({lot, ...});

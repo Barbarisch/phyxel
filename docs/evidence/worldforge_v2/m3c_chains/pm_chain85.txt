@@ -1,0 +1,14 @@
+PREDICTIONS for chain 85 (mode m5a9: SettlementMapLiveSiteTest.* : SettlementBuildServiceTest.* : SettlementWalkabilityTest.* :
+TraversalProbeTest.* : StructureLocationsTest.* : StructureGroundingTest.*), the audit-17 answers, written BEFORE the launch
+and hashed by the chain's START line.
+  PM5a1.36 BuildReportsItsLocationsWithOrWithoutARegistry GREEN: one location reported without a registry and with one;
+    locations_registered 0 then 1; the registry holds one.
+  PM5a1.37 EveryShippedTypologyReportsOneLocation: every one of the 13 programs that BUILDS on the 2 x 2 x 2 chunk pad at its
+    natural footprint reports exactly one location with a floor top. UNCERTAIN whether all 13 build on that pad: the tall or
+    long ones (tenement, tower_house, manor_hall, town_hall) may refuse on the pad's extent or a proportion check - a refusal
+    is recorded as a finding about the pad or the typology, and the test is red on it.
+  PM5a1.38 the partition sweep GREEN at every px 0..36: the inner-area goal walkable iff px >= 12, the centre goal iff px >= 17
+    (first passes 12 and 17).
+  PM5a1.39 the rig's three arms as chain 83: 7 / 5 / 9 boxes checked, 0 wrong; 10 / 10, 10 / 10 over 5 of 5, 14 / 14 over 5 of 5.
+  PM5a1.40 the rest of the set green (RoomGoalBoxIsTheInnerFloorArea, the verdict pins, the earlier locations and grounding
+    tests, TraversalProbeTest); under 25 min.

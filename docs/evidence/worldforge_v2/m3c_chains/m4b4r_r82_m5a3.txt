@@ -1,0 +1,828 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementMapTest.*:SettlementBuildServiceTest.*:WorldForgeBuildFlowTest.*:SettlementProgramTest.*:SettlementLayoutTest.*:MainStreetLayoutTest.*:CityLayoutTest.*:SettlementWalkabilityTest.*:WorldForgeStressTest.*:CivHistoryTest.EpochsZeroMatchesTheReleaseEngineRecord:RouteGraphTest.DeterministicAcrossGenerators:WorldForgePlanTest.*
+[==========] Running 125 tests from 12 test suites.
+[----------] Global test environment set-up.
+[----------] 13 tests from CityLayoutTest
+[ RUN      ] CityLayoutTest.CrossroadsAxesMeetAtTheMarketSquare
+[16:13:01.796] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:13:01.803] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.CrossroadsAxesMeetAtTheMarketSquare (12 ms)
+[ RUN      ] CityLayoutTest.SecondaryStreetsSliceJitteredBlocks
+[16:13:01.808] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:13:01.813] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.SecondaryStreetsSliceJitteredBlocks (9 ms)
+[ RUN      ] CityLayoutTest.PlotsFrontStreetsNoOverlapsConnectedNetwork
+[16:13:01.817] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:13:01.822] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.PlotsFrontStreetsNoOverlapsConnectedNetwork (9 ms)
+[ RUN      ] CityLayoutTest.PlotAreasAreNotUniform
+[16:13:01.827] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:13:01.832] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.PlotAreasAreNotUniform (9 ms)
+[ RUN      ] CityLayoutTest.TradesClusterInsideTheCoreRing
+[16:13:01.837] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:13:01.841] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.TradesClusterInsideTheCoreRing (9 ms)
+[ RUN      ] CityLayoutTest.ProbeWalksSquareToStreetEndAndCrossRow
+[16:13:01.846] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:13:01.851] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.ProbeWalksSquareToStreetEndAndCrossRow (144666 ms)
+[ RUN      ] CityLayoutTest.SecondaryLanesMeander
+[16:15:26.514] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:15:26.519] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.SecondaryLanesMeander (16 ms)
+[ RUN      ] CityLayoutTest.DensityRaisesTheBuildingCount
+[16:15:26.530] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:15:26.536] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.DensityRaisesTheBuildingCount (14 ms)
+[ RUN      ] CityLayoutTest.TypologyCapsBoundTheServiceGlut
+[16:15:26.544] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:15:26.550] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.TypologyCapsBoundTheServiceGlut (16 ms)
+[ RUN      ] CityLayoutTest.TheCityHasOneTownHallAndItStandsByTheMarket
+[16:15:26.561] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:15:26.566] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.TheCityHasOneTownHallAndItStandsByTheMarket (14 ms)
+[ RUN      ] CityLayoutTest.DeterministicInSeed
+[16:15:26.576] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:15:26.581] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.DeterministicInSeed (13 ms)
+[ RUN      ] CityLayoutTest.TheBuildingCapGrowsWithTheSite
+[16:15:26.590] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:15:26.595] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.TheBuildingCapGrowsWithTheSite (11 ms)
+[ RUN      ] CityLayoutTest.SitesAtOrBelowTheReferenceKeepTheTunedCap
+[16:15:26.602] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:15:26.606] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] CityLayoutTest.SitesAtOrBelowTheReferenceKeepTheTunedCap (8 ms)
+[----------] 13 tests from CityLayoutTest (144813 ms total)
+
+[----------] 1 test from CivHistoryTest
+[ RUN      ] CivHistoryTest.EpochsZeroMatchesTheReleaseEngineRecord
+[16:15:26.787] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:15:27.446] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies
+[16:15:27.446] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+[16:15:27.485] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 3360702379361611432); meso tiles 256 @ 32 u, apron 6, LRU 64
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 13194 bodies
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 23670 source entries, warp inversions beyond 1 u: 43
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 3 over 1112 carved reaches, reaches moved per round [152,7,0], cumulative lowering max 2.30532 u, sum 25.2876 u, 0 reaches lowered by more than 8 u; band columns 410327, bank reads 112716, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 5, deepest END lowering 2.30532 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.305,2.305]
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 356734 base by round [18.808,18.808] natural stations [21.113,20.692,20.272,19.851,19.430,19.009,18.589,18.168,17.747] final [18.808,18.808,17.948,17.614,17.604,17.604,17.604,17.604,17.604]
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 356734 bank (-4140,-5251) local rim 20.6848 at t 0.321503 | winner 355710 env 18.6022 rim 18.2569 perp 12.9949 behind 0.493293 floor 14.6225 penalty 0 | deficit 2.08264
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 787840 base by round [45.030,45.030] natural stations [47.166,46.899,46.632,46.365,46.098,45.831,45.564,45.297,45.030] final [45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030]
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 787840 bank (-4074,8232) local rim 47.5043 at t 0.120338 | winner 787841 env 45.6254 rim 45.6254 perp 13.1417 behind 0 floor 13.7045 penalty 0 | deficit 1.87895
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 902804 base by round [15.039,15.039] natural stations [16.626,16.329,16.032,15.735,15.438,15.140,14.843,14.546,14.249] final [15.039,15.039,14.283,14.249,14.249,14.249,14.249,14.249,14.249]
+[16:15:43.980] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 902804 bank (4763,11821) local rim 16.4229 at t 0.334412 | winner 902805 env 14.8746 rim 14.8409 perp 13.6592 behind 0 floor 13.611 penalty 0 | deficit 1.5483
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 372112 base by round [45.159,45.159] natural stations [46.728,46.568,46.408,46.249,46.089,45.929,45.769,45.610,45.450] final [45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159]
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 372112 bank (-3571,-4762) local rim 47.1834 at t 0.136734 | winner 371088 env 45.8016 rim 45.8016 perp 12.5242 behind 0 floor 13.3642 penalty 0 | deficit 1.38176
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 777639 base by round [25.603,25.603] natural stations [26.625,26.521,26.417,26.313,26.209,26.105,26.001,25.897,25.793] final [25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603]
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 777639 bank (-2821,7905) local rim 27.2661 at t 0 | winner 776615 env 26.2437 rim 26.2437 perp 12.6994 behind 0 floor 14.0183 penalty 0 | deficit 1.02241
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 356734 (382,348) lowered 2.30532 u over 1 rounds, last driven by source 355710 (382,347) folded 0 deficit 2.08264 u
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 787840 (384,769) lowered 2.13599 u over 1 rounds, last driven by source 787841 (385,769) folded 0 deficit 1.87895 u
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 902804 (660,881) lowered 1.58697 u over 1 rounds, last driven by source 902805 (661,881) folded 0 deficit 1.5483 u
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 372112 (400,363) lowered 1.56827 u over 1 rounds, last driven by source 371088 (400,362) folded 0 deficit 1.38176 u
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 777639 (423,759) lowered 1.02241 u over 1 rounds, last driven by source 776615 (423,758) folded 0 deficit 1.02241 u
+[16:15:43.981] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1
+[16:15:44.119] [INFO] [CivPlan] [M3C-LATTICE] basis (14,0) (7,12) for s0 13.67: level-0 shortest 13.89 (96 % of the hex ceiling)
+[16:15:44.129] [INFO] [CivPlan] [M3C-LATTICE] city: s 121.09 cells (s0 13.67, level 4, level shortest 125.03), phase (0,8): 2 points, 0 taken, 1 off, 0 no viable cell, 0 blocked by spacing, 2 seated of 2 needed
+[16:15:44.129] [INFO] [CivPlan] [M3C-LATTICE] town: s 70.31 cells (s0 13.67, level 3, level shortest 72.00), phase (0,8): 4 points, 2 taken, 2 off, 0 no viable cell, 0 blocked by spacing, 4 seated of 4 needed
+[16:15:44.129] [INFO] [CivPlan] [M3C-LATTICE] village: s 41.02 cells (s0 13.67, level 2, level shortest 41.68), phase (0,8): 14 points, 6 taken, 14 off, 0 no viable cell, 0 blocked by spacing, 14 seated of 14 needed
+[16:15:44.129] [INFO] [CivPlan] [M3C-LATTICE] hamlet: s 23.44 cells (s0 13.67, level 1, level shortest 24.00), phase (0,8): 50 points, 20 taken, 67 off, 3 no viable cell, 5 blocked by spacing, 42 seated of 42 needed
+[16:15:44.130] [INFO] [CivPlan] [M3C-LATTICE] outpost: s 13.67 cells (s0 13.67, level 0, level shortest 13.89), phase (0,8): 183 points, 62 taken, 247 off, 6 no viable cell, 57 blocked by spacing, 120 seated of 120 needed
+[16:15:44.161] [INFO] [WorldGenerator] [CIV] continent plan: 182 sites over 7750.29 km2 of land in 176.296 ms; refusals 0
+[16:15:44.675] [INFO] [WorldGenerator] [CORRIDORS] 180 routes, 8818.41 km, shared cells 1712, junction cells 419, unroutable 2 in 513.763 ms
+[16:15:44.676] [INFO] [WorldGenerator] [CORRIDORS] box demand: 78 edges from 180 corridors
+[16:16:36.178] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:16:36.292] [INFO] [WorldForge] [CROSSINGS] demand 0 -> -1 refused at (14388.6,-9546.05): a line crosses standing water at (14388.599609,-9546.052734): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:16:37.406] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:16:37.510] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:16:38.595] [INFO] [WorldForge] [CROSSINGS] demand 2 -> 0 refused at (9404.77,270.534): a line crosses standing water at (9404.774414,270.534271): 4 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:38.975] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:16:39.601] [INFO] [WorldForge] [CROSSINGS] demand 3 -> -1 refused at (-3714.53,-4064.41): a line crosses standing water at (-3714.532227,-4064.410889): 165 columns under a level of 55.900002 u - a fine detour inside the band
+[16:16:40.671] [INFO] [WorldForge] [CROSSINGS] demand 4 -> 0 refused at (9405.69,270.793): a line crosses standing water at (9405.690430,270.792908): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:41.655] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:42.496] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:43.380] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:44.169] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:45.253] [INFO] [WorldForge] [CROSSINGS] demand -1 -> -1 refused at (-3714.86,-4064.25): a line crosses standing water at (-3714.856201,-4064.248779): 167 columns under a level of 55.900002 u - a fine detour inside the band
+[16:16:46.594] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9405.76,270.8): a line crosses standing water at (9405.756836,270.799805): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:47.576] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 40 columns under a level of 90.910789 u - a fine detour inside the band
+[16:16:48.292] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.65,13118.5): a line crosses standing water at (-9309.646484,13118.500000): 14 columns under a level of 40.307476 u - routing again
+[16:16:49.028] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 27 columns under a level of 90.910789 u - routing again
+[16:16:51.396] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.5,270.855): a line crosses standing water at (9406.500000,270.854889): 2 columns under a level of 96.468163 u - routing again
+[16:16:53.014] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:53.757] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:54.652] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:16:55.357] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:16:56.419] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:57.214] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:16:58.205] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:16:58.918] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:17:00.099] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:17:00.808] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:17:01.881] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:17:02.878] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:17:03.591] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:17:04.769] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:17:05.473] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:17:06.661] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:17:07.375] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:17:08.441] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:17:09.181] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:17:09.862] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:17:10.546] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:17:11.381] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:17:12.185] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:17:12.922] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:17:13.602] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:17:14.039] [INFO] [WorldForge] [CROSSINGS] fords 326, bridges 3, crossings refused and re-routed 43, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 43 (34 by a fine detour inside the band), demands refused for it 0
+[16:17:14.039] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[16:18:34.636] [INFO] [WorldForge] [WORLDFORGE] plan baked: 6 sites, 78 roads, 3 bridges, 80937 segments in 103613 ms (hash 3980644565422672701)
+[16:18:34.636] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)
+[ M3b ] civEpochs 0 vs the Release engine record: 182 sites, 0 mismatches
+[       OK ] CivHistoryTest.EpochsZeroMatchesTheReleaseEngineRecord (188066 ms)
+[----------] 1 test from CivHistoryTest (188067 ms total)
+
+[----------] 12 tests from MainStreetLayoutTest
+[ RUN      ] MainStreetLayoutTest.PlotsOnBothSidesAndAbutTheSpine
+[16:18:34.678] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:18:34.683] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] MainStreetLayoutTest.PlotsOnBothSidesAndAbutTheSpine (8 ms)
+[ RUN      ] MainStreetLayoutTest.NoPlotOverlapsAStreetOrAnotherPlot
+[16:18:34.686] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:18:34.691] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] MainStreetLayoutTest.NoPlotOverlapsAStreetOrAnotherPlot (8 ms)
+[ RUN      ] MainStreetLayoutTest.PlotFrontageIsSizedFromItsTypology
+[16:18:34.694] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:18:34.699] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] MainStreetLayoutTest.PlotFrontageIsSizedFromItsTypology (8 ms)
+[ RUN      ] MainStreetLayoutTest.BuildingOrientationAndNaturalSizeFollowTheTypology
+[16:18:34.704] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:18:34.709] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] MainStreetLayoutTest.BuildingOrientationAndNaturalSizeFollowTheTypology (9 ms)
+[ RUN      ] MainStreetLayoutTest.WeightedDrawCoversThePaletteAndIsDeterministic
+[16:18:34.712] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:18:34.717] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] MainStreetLayoutTest.WeightedDrawCoversThePaletteAndIsDeterministic (7 ms)
+[ RUN      ] MainStreetLayoutTest.DeterministicInSeedAndRespectsBuildingCap
+[16:18:34.720] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:18:34.725] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] MainStreetLayoutTest.DeterministicInSeedAndRespectsBuildingCap (8 ms)
+[ RUN      ] MainStreetLayoutTest.TooSmallFootprintReturnsNotOk
+[16:18:34.729] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:18:34.734] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] MainStreetLayoutTest.TooSmallFootprintReturnsNotOk (7 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisFindsTheFlatValley
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisFindsTheFlatValley (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisHonorsRoadPreference
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisHonorsRoadPreference (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisHonorsArrivalOffset
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisHonorsArrivalOffset (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisIsNotBiasedTowardTheShortAxis
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisIsNotBiasedTowardTheShortAxis (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisLeavesPlotRoomOnBothSides
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisLeavesPlotRoomOnBothSides (0 ms)
+[----------] 12 tests from MainStreetLayoutTest (60 ms total)
+
+[----------] 1 test from RouteGraphTest
+[ RUN      ] RouteGraphTest.DeterministicAcrossGenerators
+[16:18:34.740] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:18:34.744] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:18:34.881] [INFO] [CivPlan] [M3C-LATTICE] basis (14,0) (7,12) for s0 13.67: level-0 shortest 13.89 (96 % of the hex ceiling)
+[16:18:34.890] [INFO] [CivPlan] [M3C-LATTICE] city: s 121.09 cells (s0 13.67, level 4, level shortest 125.03), phase (0,8): 2 points, 0 taken, 1 off, 0 no viable cell, 0 blocked by spacing, 2 seated of 2 needed
+[16:18:34.890] [INFO] [CivPlan] [M3C-LATTICE] town: s 70.31 cells (s0 13.67, level 3, level shortest 72.00), phase (0,8): 4 points, 2 taken, 2 off, 0 no viable cell, 0 blocked by spacing, 4 seated of 4 needed
+[16:18:34.890] [INFO] [CivPlan] [M3C-LATTICE] village: s 41.02 cells (s0 13.67, level 2, level shortest 41.68), phase (0,8): 14 points, 6 taken, 14 off, 0 no viable cell, 0 blocked by spacing, 14 seated of 14 needed
+[16:18:34.891] [INFO] [CivPlan] [M3C-LATTICE] hamlet: s 23.44 cells (s0 13.67, level 1, level shortest 24.00), phase (0,8): 50 points, 20 taken, 67 off, 3 no viable cell, 5 blocked by spacing, 42 seated of 42 needed
+[16:18:34.891] [INFO] [CivPlan] [M3C-LATTICE] outpost: s 13.67 cells (s0 13.67, level 0, level shortest 13.89), phase (0,8): 183 points, 62 taken, 247 off, 6 no viable cell, 57 blocked by spacing, 120 seated of 120 needed
+[16:18:34.921] [INFO] [WorldGenerator] [CIV] continent plan: 182 sites over 7750.29 km2 of land in 172.827 ms; refusals 0
+[16:18:35.422] [INFO] [WorldGenerator] [CORRIDORS] 180 routes, 8818.41 km, shared cells 1712, junction cells 419, unroutable 2 in 500.925 ms
+[16:18:35.423] [INFO] [WorldGenerator] [CORRIDORS] box demand: 78 edges from 180 corridors
+[16:18:52.081] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:18:52.186] [INFO] [WorldForge] [CROSSINGS] demand 0 -> -1 refused at (14388.6,-9546.05): a line crosses standing water at (14388.599609,-9546.052734): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:18:52.672] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:18:52.778] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:18:53.175] [INFO] [WorldForge] [CROSSINGS] demand 2 -> 0 refused at (9404.77,270.534): a line crosses standing water at (9404.774414,270.534271): 4 columns under a level of 96.468163 u - a fine detour inside the band
+[16:18:53.564] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:18:54.043] [INFO] [WorldForge] [CROSSINGS] demand 3 -> -1 refused at (-3714.53,-4064.41): a line crosses standing water at (-3714.532227,-4064.410889): 165 columns under a level of 55.900002 u - a fine detour inside the band
+[16:18:54.745] [INFO] [WorldForge] [CROSSINGS] demand 4 -> 0 refused at (9405.69,270.793): a line crosses standing water at (9405.690430,270.792908): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:18:55.555] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:18:56.348] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:18:57.221] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:18:57.967] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:18:59.004] [INFO] [WorldForge] [CROSSINGS] demand -1 -> -1 refused at (-3714.86,-4064.25): a line crosses standing water at (-3714.856201,-4064.248779): 167 columns under a level of 55.900002 u - a fine detour inside the band
+[16:19:00.228] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9405.76,270.8): a line crosses standing water at (9405.756836,270.799805): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:01.069] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 40 columns under a level of 90.910789 u - a fine detour inside the band
+[16:19:01.570] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.65,13118.5): a line crosses standing water at (-9309.646484,13118.500000): 14 columns under a level of 40.307476 u - routing again
+[16:19:02.250] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 27 columns under a level of 90.910789 u - routing again
+[16:19:03.087] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.5,270.855): a line crosses standing water at (9406.500000,270.854889): 2 columns under a level of 96.468163 u - routing again
+[16:19:04.589] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:05.287] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:06.117] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:19:06.790] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:19:07.808] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:08.562] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:09.502] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:19:10.168] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:19:11.285] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:19:11.962] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:19:12.980] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:13.923] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:19:14.598] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:19:15.721] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:19:16.392] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:19:17.507] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:19:18.179] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:19:19.192] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:19.897] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:20.542] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:21.185] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:21.967] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:22.719] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:23.417] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:24.062] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:19:24.473] [INFO] [WorldForge] [CROSSINGS] fords 326, bridges 3, crossings refused and re-routed 43, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 43 (34 by a fine detour inside the band), demands refused for it 0
+[16:19:24.473] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[16:20:40.303] [INFO] [WorldForge] [WORLDFORGE] plan baked: 6 sites, 78 roads, 3 bridges, 80937 segments in 62584 ms (hash 3980644565422672701)
+[16:20:40.304] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)
+[16:20:40.438] [INFO] [CivPlan] [M3C-LATTICE] basis (14,0) (7,12) for s0 13.67: level-0 shortest 13.89 (96 % of the hex ceiling)
+[16:20:40.446] [INFO] [CivPlan] [M3C-LATTICE] city: s 121.09 cells (s0 13.67, level 4, level shortest 125.03), phase (0,8): 2 points, 0 taken, 1 off, 0 no viable cell, 0 blocked by spacing, 2 seated of 2 needed
+[16:20:40.446] [INFO] [CivPlan] [M3C-LATTICE] town: s 70.31 cells (s0 13.67, level 3, level shortest 72.00), phase (0,8): 4 points, 2 taken, 2 off, 0 no viable cell, 0 blocked by spacing, 4 seated of 4 needed
+[16:20:40.447] [INFO] [CivPlan] [M3C-LATTICE] village: s 41.02 cells (s0 13.67, level 2, level shortest 41.68), phase (0,8): 14 points, 6 taken, 14 off, 0 no viable cell, 0 blocked by spacing, 14 seated of 14 needed
+[16:20:40.447] [INFO] [CivPlan] [M3C-LATTICE] hamlet: s 23.44 cells (s0 13.67, level 1, level shortest 24.00), phase (0,8): 50 points, 20 taken, 67 off, 3 no viable cell, 5 blocked by spacing, 42 seated of 42 needed
+[16:20:40.447] [INFO] [CivPlan] [M3C-LATTICE] outpost: s 13.67 cells (s0 13.67, level 0, level shortest 13.89), phase (0,8): 183 points, 62 taken, 247 off, 6 no viable cell, 57 blocked by spacing, 120 seated of 120 needed
+[16:20:40.477] [INFO] [WorldGenerator] [CIV] continent plan: 182 sites over 7750.29 km2 of land in 169.611 ms; refusals 0
+[16:20:40.993] [INFO] [WorldGenerator] [CORRIDORS] 180 routes, 8818.41 km, shared cells 1712, junction cells 419, unroutable 2 in 515.984 ms
+[16:20:40.994] [INFO] [WorldGenerator] [CORRIDORS] box demand: 78 edges from 180 corridors
+[16:20:57.406] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:20:57.508] [INFO] [WorldForge] [CROSSINGS] demand 0 -> -1 refused at (14388.6,-9546.05): a line crosses standing water at (14388.599609,-9546.052734): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:20:57.970] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:20:58.069] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:20:58.428] [INFO] [WorldForge] [CROSSINGS] demand 2 -> 0 refused at (9404.77,270.534): a line crosses standing water at (9404.774414,270.534271): 4 columns under a level of 96.468163 u - a fine detour inside the band
+[16:20:58.789] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band
+[16:20:59.218] [INFO] [WorldForge] [CROSSINGS] demand 3 -> -1 refused at (-3714.53,-4064.41): a line crosses standing water at (-3714.532227,-4064.410889): 165 columns under a level of 55.900002 u - a fine detour inside the band
+[16:20:59.938] [INFO] [WorldForge] [CROSSINGS] demand 4 -> 0 refused at (9405.69,270.793): a line crosses standing water at (9405.690430,270.792908): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:00.719] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:01.468] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:02.322] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:03.080] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:04.124] [INFO] [WorldForge] [CROSSINGS] demand -1 -> -1 refused at (-3714.86,-4064.25): a line crosses standing water at (-3714.856201,-4064.248779): 167 columns under a level of 55.900002 u - a fine detour inside the band
+[16:21:05.347] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9405.76,270.8): a line crosses standing water at (9405.756836,270.799805): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:06.170] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 40 columns under a level of 90.910789 u - a fine detour inside the band
+[16:21:06.680] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.65,13118.5): a line crosses standing water at (-9309.646484,13118.500000): 14 columns under a level of 40.307476 u - routing again
+[16:21:07.371] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 27 columns under a level of 90.910789 u - routing again
+[16:21:08.221] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.5,270.855): a line crosses standing water at (9406.500000,270.854889): 2 columns under a level of 96.468163 u - routing again
+[16:21:09.709] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:10.419] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:11.267] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:21:11.950] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:21:12.957] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:13.708] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:14.692] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:21:15.367] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:21:16.480] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:21:17.158] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:21:18.176] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:19.139] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:21:19.826] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:21:20.984] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:21:21.700] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:21:22.838] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band
+[16:21:23.516] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again
+[16:21:24.548] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:25.256] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:25.912] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:26.559] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:27.355] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:28.107] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:28.811] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:29.474] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band
+[16:21:29.884] [INFO] [WorldForge] [CROSSINGS] fords 326, bridges 3, crossings refused and re-routed 43, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 43 (34 by a fine detour inside the band), demands refused for it 0
+[16:21:29.884] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[16:22:45.393] [INFO] [WorldForge] [WORLDFORGE] plan baked: 6 sites, 78 roads, 3 bridges, 80937 segments in 62290 ms (hash 3980644565422672701)
+[16:22:45.393] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)
+[       OK ] RouteGraphTest.DeterministicAcrossGenerators (250680 ms)
+[----------] 1 test from RouteGraphTest (250680 ms total)
+
+[----------] 21 tests from SettlementBuildServiceTest
+[ RUN      ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan
+[16:22:45.421] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.427] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.475] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 8 nodes, entry 1, sampler flat, 0 dropped, bake 47.9783 ms
+[16:22:45.477] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (5 streets)
+[16:22:45.481] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.486] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.490] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.9254 ms
+[16:22:45.492] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)
+[16:22:45.496] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.501] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.505] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3: 8 lots, 8 ways, 16 nodes, entry -1, sampler flat, 0 dropped, bake 3.8858 ms
+[16:22:45.507] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (8 streets)
+[16:22:45.512] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.516] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.521] [INFO] [Settlement] [M5A-MAP] medieval/city seed 3: 12 lots, 3 ways, 6 nodes, entry -1, sampler flat, 0 dropped, bake 3.8514 ms
+[16:22:45.523] [INFO] [Settlement] build_settlement: 12 plots, 12 buildings queued (3 streets)
+[       OK ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan (108 ms)
+[ RUN      ] SettlementBuildServiceTest.EveryProgramTierPlansFromTheSettlementMap
+[16:22:45.529] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.533] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.579] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 8 nodes, entry 1, sampler flat, 0 dropped, bake 45.0249 ms
+[16:22:45.580] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (5 streets)
+[ M5a ] hamlet headless: 6 lots, 6 ways (sampler flat)
+[16:22:45.585] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.590] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.594] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.9149 ms
+[16:22:45.596] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)
+[ M5a ] village headless: 9 lots, 1 ways (sampler flat)
+[16:22:45.601] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.606] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.611] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3: 8 lots, 8 ways, 16 nodes, entry -1, sampler flat, 0 dropped, bake 4.1881 ms
+[16:22:45.613] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (8 streets)
+[ M5a ] town headless: 8 lots, 8 ways (sampler flat)
+[16:22:45.619] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.625] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.629] [INFO] [Settlement] [M5A-MAP] medieval/city seed 3: 12 lots, 3 ways, 6 nodes, entry -1, sampler flat, 0 dropped, bake 4.035 ms
+[16:22:45.632] [INFO] [Settlement] build_settlement: 12 plots, 12 buildings queued (3 streets)
+[ M5a ] city headless: 12 lots, 3 ways (sampler flat)
+[16:22:45.640] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.641] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)
+[       OK ] SettlementBuildServiceTest.EveryProgramTierPlansFromTheSettlementMap (115 ms)
+[ RUN      ] SettlementBuildServiceTest.TheQueuedBuildingsAreTheMapsLots
+[16:22:45.644] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.649] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.696] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 8 nodes, entry 1, sampler flat, 0 dropped, bake 46.2008 ms
+[16:22:45.697] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (5 streets)
+[ M5a ] hamlet: 6 lots - typology mismatches 0, footprint 0, position 0
+[16:22:45.701] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.706] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.711] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.8523 ms
+[16:22:45.713] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)
+[ M5a ] village: 9 lots - typology mismatches 0, footprint 0, position 0
+[16:22:45.717] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.722] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.726] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3: 8 lots, 8 ways, 16 nodes, entry -1, sampler flat, 0 dropped, bake 3.8514 ms
+[16:22:45.728] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (8 streets)
+[ M5a ] town: 8 lots - typology mismatches 0, footprint 0, position 0
+[16:22:45.733] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.738] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.744] [INFO] [Settlement] [M5A-MAP] medieval/city seed 3: 12 lots, 3 ways, 6 nodes, entry -1, sampler flat, 0 dropped, bake 5.5627 ms
+[16:22:45.747] [INFO] [Settlement] build_settlement: 12 plots, 12 buildings queued (3 streets)
+[ M5a ] city: 12 lots - typology mismatches 0, footprint 0, position 0
+[       OK ] SettlementBuildServiceTest.TheQueuedBuildingsAreTheMapsLots (108 ms)
+[ RUN      ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans
+[16:22:45.755] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.756] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)
+[       OK ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans (7 ms)
+[ RUN      ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist
+[16:22:45.760] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.766] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.770] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.8416 ms
+[16:22:45.772] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)
+[       OK ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist (16 ms)
+[ RUN      ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped
+[16:22:45.776] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.781] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.785] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.7623 ms
+[16:22:45.788] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)
+[       OK ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped (15 ms)
+[ RUN      ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty
+[16:22:45.792] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.797] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.801] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.7009 ms
+[16:22:45.803] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)
+[       OK ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty (15 ms)
+[ RUN      ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted
+[16:22:45.807] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.810] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[       OK ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted (5 ms)
+[ RUN      ] SettlementBuildServiceTest.AKnownEraWithoutARoomProgramPackIsRefusedNamingThePack
+[16:22:45.845] [INFO] [SettlementProgram] Loaded 5 settlement tiers from test_georgian_settlement_program.json
+[16:22:45.850] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] SettlementBuildServiceTest.AKnownEraWithoutARoomProgramPackIsRefusedNamingThePack (42 ms)
+[ RUN      ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused
+[16:22:45.855] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.860] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused (8 ms)
+[ RUN      ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused
+[16:22:45.864] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.869] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused (8 ms)
+[ RUN      ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed
+[16:22:45.872] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.877] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.881] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.7572 ms
+[16:22:45.883] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)
+[16:22:45.887] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.892] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.896] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.882 ms
+[16:22:45.898] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)
+[16:22:45.902] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.907] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.911] [INFO] [Settlement] [M5A-MAP] medieval/village seed 4: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.7896 ms
+[16:22:45.913] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)
+[       OK ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed (46 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav
+[16:22:45.918] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.923] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:45.928] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 10 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.9712 ms
+[16:22:45.931] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (1 streets)
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav (17 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology
+[16:22:45.935] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:45.944] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:46.366] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 7: 6 lots, 6 ways, 15 nodes, entry 1, sampler flat, 0 dropped, bake 422.011 ms
+[16:22:46.368] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (2 streets)
+[16:22:46.372] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:46.377] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:46.404] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 14 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 26.3963 ms
+[16:22:46.408] [INFO] [Settlement] build_settlement: 14 plots, 14 buildings queued (1 streets)
+[16:22:46.413] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:46.418] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:46.445] [INFO] [Settlement] [M5A-MAP] medieval/town seed 7: 28 lots, 8 ways, 16 nodes, entry -1, sampler flat, 0 dropped, bake 26.1659 ms
+[16:22:46.451] [INFO] [Settlement] build_settlement: 28 plots, 28 buildings queued (8 streets)
+[16:22:46.458] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:46.463] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:46.491] [INFO] [Settlement] [M5A-MAP] medieval/city seed 7: 48 lots, 17 ways, 34 nodes, entry -1, sampler flat, 0 dropped, bake 27.6024 ms
+[16:22:46.503] [INFO] [Settlement] build_settlement: 48 plots, 48 buildings queued (17 streets)
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology (577 ms)
+[ RUN      ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden
+[       OK ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden (0 ms)
+[ RUN      ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology
+[16:22:46.514] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:46.518] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:48.068] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 7: 6 lots, 6 ways, 15 nodes, entry 1, sampler chunks, 0 dropped, bake 1548.95 ms
+[16:22:48.070] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (2 streets)
+[16:22:48.075] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:48.081] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:49.226] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 14 lots, 1 ways, 2 nodes, entry -1, sampler chunks, 0 dropped, bake 1143.93 ms
+[16:22:49.230] [INFO] [Settlement] build_settlement: 14 plots, 14 buildings queued (1 streets)
+[16:22:49.235] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:49.240] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:50.380] [INFO] [Settlement] [M5A-MAP] medieval/town seed 7: 28 lots, 8 ways, 16 nodes, entry -1, sampler chunks, 0 dropped, bake 1138.72 ms
+[16:22:50.387] [INFO] [Settlement] build_settlement: 28 plots, 28 buildings queued (8 streets)
+[16:22:50.395] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:50.400] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:51.549] [INFO] [Settlement] [M5A-MAP] medieval/city seed 7: 48 lots, 17 ways, 34 nodes, entry -1, sampler chunks, 0 dropped, bake 1147.61 ms
+[16:22:51.561] [INFO] [Settlement] build_settlement: 48 plots, 48 buildings queued (17 streets)
+[       OK ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology (5058 ms)
+[ RUN      ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices
+[       OK ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices (0 ms)
+[ RUN      ] SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall
+[       OK ] SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall (1 ms)
+[ RUN      ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod
+[16:22:51.573] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:51.579] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:22:51.583] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 10 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.7112 ms
+[16:22:51.585] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (1 streets)
+[       OK ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod (16 ms)
+[ RUN      ] SettlementBuildServiceTest.MissingRoomProgramRefuses
+[16:22:51.590] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:51.590] [WARN] [RoomProgram] room_program not found at resources/does_not_exist_room_program.json
+[       OK ] SettlementBuildServiceTest.MissingRoomProgramRefuses (2 ms)
+[ RUN      ] SettlementBuildServiceTest.AGateThatMeasuredNoDoorOfABuiltBuildingDoesNotPass
+[       OK ] SettlementBuildServiceTest.AGateThatMeasuredNoDoorOfABuiltBuildingDoesNotPass (0 ms)
+[----------] 21 tests from SettlementBuildServiceTest (6172 ms total)
+
+[----------] 16 tests from SettlementLayoutTest
+[ RUN      ] SettlementLayoutTest.AdjacentPlotsSeparatedByStreet
+[       OK ] SettlementLayoutTest.AdjacentPlotsSeparatedByStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.EveryPlotMeetsMinSize
+[       OK ] SettlementLayoutTest.EveryPlotMeetsMinSize (0 ms)
+[ RUN      ] SettlementLayoutTest.PlotsFitTheFootprint
+[       OK ] SettlementLayoutTest.PlotsFitTheFootprint (0 ms)
+[ RUN      ] SettlementLayoutTest.StreetsCoverTheGapsAndDontOverlapPlots
+[       OK ] SettlementLayoutTest.StreetsCoverTheGapsAndDontOverlapPlots (0 ms)
+[ RUN      ] SettlementLayoutTest.TooDenseReturnsEmpty
+[       OK ] SettlementLayoutTest.TooDenseReturnsEmpty (0 ms)
+[ RUN      ] SettlementLayoutTest.BuildingInsetFromPlotByYard
+[       OK ] SettlementLayoutTest.BuildingInsetFromPlotByYard (0 ms)
+[ RUN      ] SettlementLayoutTest.BuildingsFitDontOverlapAndCarryTypology
+[       OK ] SettlementLayoutTest.BuildingsFitDontOverlapAndCarryTypology (0 ms)
+[ RUN      ] SettlementLayoutTest.TinyPlotSkipped
+[       OK ] SettlementLayoutTest.TinyPlotSkipped (0 ms)
+[ RUN      ] SettlementLayoutTest.TerrainPlotsLandOnlyOnBuildable
+[       OK ] SettlementLayoutTest.TerrainPlotsLandOnlyOnBuildable (0 ms)
+[ RUN      ] SettlementLayoutTest.SteepMountainYieldsNoPlots
+[       OK ] SettlementLayoutTest.SteepMountainYieldsNoPlots (0 ms)
+[ RUN      ] SettlementLayoutTest.TerrainPlotsDontOverlapAndAreSpaced
+[       OK ] SettlementLayoutTest.TerrainPlotsDontOverlapAndAreSpaced (0 ms)
+[ RUN      ] SettlementLayoutTest.ScaleSixBySixAllInvariantsHold
+[       OK ] SettlementLayoutTest.ScaleSixBySixAllInvariantsHold (0 ms)
+[ RUN      ] SettlementLayoutTest.ZeroSetbackFlushButClearOfStreet
+[       OK ] SettlementLayoutTest.ZeroSetbackFlushButClearOfStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.ComposedWorldFootprintsDontOverlap
+[       OK ] SettlementLayoutTest.ComposedWorldFootprintsDontOverlap (0 ms)
+[ RUN      ] SettlementLayoutTest.EveryGridPlotFrontsAStreet
+[       OK ] SettlementLayoutTest.EveryGridPlotFrontsAStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.PlotsFrontTheSharedStreetFacingEachOther
+[       OK ] SettlementLayoutTest.PlotsFrontTheSharedStreetFacingEachOther (0 ms)
+[----------] 16 tests from SettlementLayoutTest (1 ms total)
+
+[----------] 8 tests from SettlementMapTest
+[ RUN      ] SettlementMapTest.EveryLotTouchesAWay
+[16:22:51.595] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:22:51.600] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[ M5a ] CONTROL (as built): hamlet/cluster (as built) 4 lots, 0 ways, 0 nodes, entry -1, bake 0.00 ms | no way 4, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] planner: hamlet/cluster 3 lots, 3 ways, 15 nodes, entry 1, bake 7.93 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hamlet hill: target 6, seated 3 (seated under the target is silent above the minimum - reported)
+[       OK ] SettlementMapTest.EveryLotTouchesAWay (18 ms)
+[ RUN      ] SettlementMapTest.MapInvariantsHoldOnEveryTier
+[ M5a ] hill: hamlet/cluster 3 lots, 3 ways, 15 nodes, entry 1, bake 7.83 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: hamlet/cluster 4 lots, 4 ways, 15 nodes, entry 1, bake 10.03 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: village/main_street 9 lots, 1 ways, 2 nodes, entry 0, bake 4.14 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: village/main_street 10 lots, 1 ways, 2 nodes, entry 0, bake 3.70 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: town/main_street 23 lots, 8 ways, 16 nodes, entry 0, bake 9.33 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: 2 way segments cross water
+[ M5a ] flat: town/main_street 25 lots, 8 ways, 16 nodes, entry 0, bake 8.96 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: city/semi_organic 42 lots, 14 ways, 29 nodes, entry 28, bake 22.53 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: 3 way segments cross water
+[ M5a ] flat: city/semi_organic 48 lots, 14 ways, 29 nodes, entry 28, bake 20.77 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[       OK ] SettlementMapTest.MapInvariantsHoldOnEveryTier (89 ms)
+[ RUN      ] SettlementMapTest.WaysStayOutOfWater
+[ M5a ] water: hamlet 3 ways, 0 segments cross the creek
+[ M5a ] water: village 1 ways, 0 segments cross the creek
+[ M5a ] water: town 8 ways, 2 segments cross the creek
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(239): error: Expected equality of these values:
+  v.wayInWater
+    Which is: 2
+  0
+town: a way crosses water
+
+[ M5a ] water: city 14 ways, 3 segments cross the creek
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(239): error: Expected equality of these values:
+  v.wayInWater
+    Which is: 3
+  0
+city: a way crosses water
+
+[  FAILED  ] SettlementMapTest.WaysStayOutOfWater (46 ms)
+[ RUN      ] SettlementMapTest.MapIsIdenticalFromPlanTwice
+[       OK ] SettlementMapTest.MapIsIdenticalFromPlanTwice (50 ms)
+[ RUN      ] SettlementMapTest.MapIsOrderIndependentOfItsSamplers
+[ M5a ] two samplers: 3 lots / 3 ways each; the tiled cache touched 20 tiles
+[       OK ] SettlementMapTest.MapIsOrderIndependentOfItsSamplers (18 ms)
+[ RUN      ] SettlementMapTest.WaysAvoidTheSteepBand
+[ M5a ] band: hamlet/cluster 4 lots, 4 ways, 12 nodes, entry 1, bake 10.09 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] band: 4 lots (2 east of the bench), 4 ways; steepest cube step along the ways 0, along the straight door -> entry lines 4 (the control)
+[ M5a ] band CONTROL (slope aversion 0): 4 lots, 4 ways, steepest cube step along the ways 4
+[       OK ] SettlementMapTest.WaysAvoidTheSteepBand (20 ms)
+[ RUN      ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn
+[ M5a ] stand-in: 3 walkable, 0 blocked of 3 lots (entry node 1)
+[ M5a ] stand-in CONTROL (sealed): 1 walkable, 3 blocked
+[       OK ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn (10789 ms)
+[ RUN      ] SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots
+[ M5a ] hamlet bake 8.17 ms (3 lots)
+[ M5a ] stress (200 x 160 flat, target 400): 136 lots, 136 ways in 7097.3 ms (no buildable, connectable lot for the tier's minimum (136 of 400 seated))
+[       OK ] SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots (7107 ms)
+[----------] 8 tests from SettlementMapTest (18140 ms total)
+
+[----------] 6 tests from SettlementProgramTest
+[ RUN      ] SettlementProgramTest.ShippedFileLoadsAllMedievalTiers
+[16:23:09.735] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[       OK ] SettlementProgramTest.ShippedFileLoadsAllMedievalTiers (4 ms)
+[ RUN      ] SettlementProgramTest.UnknownEraOrTierRejected
+[16:23:09.739] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[       OK ] SettlementProgramTest.UnknownEraOrTierRejected (2 ms)
+[ RUN      ] SettlementProgramTest.EveryTierTypologyExistsInRoomProgram
+[16:23:09.742] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:23:09.748] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[       OK ] SettlementProgramTest.EveryTierTypologyExistsInRoomProgram (8 ms)
+[ RUN      ] SettlementProgramTest.EveryTierIsSourced
+[16:23:09.751] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[       OK ] SettlementProgramTest.EveryTierIsSourced (2 ms)
+[ RUN      ] SettlementProgramTest.MalformedJsonRejected
+[       OK ] SettlementProgramTest.MalformedJsonRejected (0 ms)
+[ RUN      ] SettlementProgramTest.DensityScalesThePreset
+[16:23:09.753] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[       OK ] SettlementProgramTest.DensityScalesThePreset (3 ms)
+[----------] 6 tests from SettlementProgramTest (21 ms total)
+
+[----------] 9 tests from SettlementWalkabilityTest
+[ RUN      ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage
+[16:23:09.757] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:23:09.762] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:23:09.764] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage (12084 ms)
+[ RUN      ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed
+[16:23:21.842] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:23:21.847] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:23:21.849] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed (15453 ms)
+[ RUN      ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding
+[16:23:37.296] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:23:37.302] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:23:37.304] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[16:23:49.171] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:23:49.176] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:23:49.178] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding (31614 ms)
+[ RUN      ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze
+[       OK ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze (40 ms)
+[ RUN      ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn
+[16:24:08.951] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:24:08.956] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:24:08.958] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn (52843 ms)
+[ RUN      ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell
+[16:25:01.795] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[16:25:01.800] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[16:25:01.802] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[       OK ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell (36589 ms)
+[ RUN      ] SettlementWalkabilityTest.AOneWayDropIsNotWalkable
+[       OK ] SettlementWalkabilityTest.AOneWayDropIsNotWalkable (849 ms)
+[ RUN      ] SettlementWalkabilityTest.TheWayBackStartsWhereTheWalkerArrived
+[       OK ] SettlementWalkabilityTest.TheWayBackStartsWhereTheWalkerArrived (64 ms)
+[ RUN      ] SettlementWalkabilityTest.ARoomIsReachedAnywhereInsideItsInnerArea
+[       OK ] SettlementWalkabilityTest.ARoomIsReachedAnywhereInsideItsInnerArea (692 ms)
+[----------] 9 tests from SettlementWalkabilityTest (150232 ms total)
+
+[----------] 11 tests from WorldForgeBuildFlowTest
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite
+[16:25:40.005] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite (17 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis
+[16:25:40.019] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis (12 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RealizationOrderTownFirst
+[16:25:40.032] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)
+[       OK ] WorldForgeBuildFlowTest.RealizationOrderTownFirst (13 ms)
+[ RUN      ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger
+[16:25:40.045] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 10 ms (hash 18364600777176986354)
+[16:25:40.051] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites
+[16:25:40.053] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 4 buildings, 2 residents, 0 lot failures
+[16:25:40.053] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures
+[16:25:40.054] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 2 residents, 0 lot failures
+[16:25:40.054] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)
+[       OK ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger (23 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues
+[16:25:40.069] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)
+[16:25:40.070] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites
+[16:25:40.070] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: terrain too steep - no buildable plot
+[16:25:40.070] [WARN] [WorldForge] [WORLDFORGE] site 1 (village) REFUSED: terrain too steep - no buildable plot
+[16:25:40.071] [WARN] [WorldForge] [WORLDFORGE] site 2 (village) REFUSED: terrain too steep - no buildable plot
+[16:25:40.071] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (7 units)
+[       OK ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues (15 ms)
+[ RUN      ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite
+[16:25:40.084] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)
+[16:25:40.085] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites
+[16:25:40.085] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: residency_timeout
+[16:25:40.086] [WARN] [WorldForge] [WORLDFORGE] site 1 (village) REFUSED: residency_timeout
+[16:25:40.086] [WARN] [WorldForge] [WORLDFORGE] site 2 (village) REFUSED: residency_timeout
+[16:25:40.086] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (16 units)
+[       OK ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite (15 ms)
+[ RUN      ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun
+[16:25:40.100] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)
+[16:25:40.102] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites
+[16:25:40.102] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 4 buildings, 2 residents, 0 lot failures
+[16:25:40.103] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures
+[16:25:40.104] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 2 residents, 0 lot failures
+[16:25:40.104] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)
+[16:25:40.106] [INFO] [MainThreadJobs] job 1000001 started: worldforge: 0 sites
+[16:25:40.106] [INFO] [MainThreadJobs] job 1000001 complete: worldforge: 0 sites (1 units)
+[       OK ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun (18 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun
+[16:25:40.119] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)
+[16:25:40.121] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 1 sites
+[16:25:40.121] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures
+[16:25:40.121] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 1 sites (5 units)
+[       OK ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun (15 ms)
+[ RUN      ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed
+[16:25:40.134] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)
+[16:25:40.135] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites
+[16:25:40.136] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: unwalkable: 1 of 28 street->door routes blocked, 0 front door(s) unseated (walkability gate) - not checkpointed
+[16:25:40.136] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 0 residents, 0 lot failures
+[16:25:40.137] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 0 residents, 0 lot failures
+[16:25:40.137] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)
+[       OK ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed (16 ms)
+[ RUN      ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled
+[16:25:40.152] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 12 ms (hash 18364600777176986354)
+[16:25:40.153] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites
+[16:25:40.153] [INFO] [MainThreadJobs] job 1000000 cancelled (20/21 units done)
+[       OK ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled (15 ms)
+[ RUN      ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely
+[       OK ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely (0 ms)
+[----------] 11 tests from WorldForgeBuildFlowTest (165 ms total)
+
+[----------] 20 tests from WorldForgePlanTest
+[ RUN      ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable
+[       OK ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable (7 ms)
+[ RUN      ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount
+[16:25:40.344] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 169 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount (183 ms)
+[ RUN      ] WorldForgePlanTest.TierMixIsOneTownTwoVillages
+[16:25:40.527] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 169 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.TierMixIsOneTownTwoVillages (181 ms)
+[ RUN      ] WorldForgePlanTest.SitesNotInWater
+[16:25:40.709] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 171 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.SitesNotInWater (182 ms)
+[ RUN      ] WorldForgePlanTest.SitesRespectMinSpacing
+[16:25:40.894] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 171 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.SitesRespectMinSpacing (184 ms)
+[ RUN      ] WorldForgePlanTest.SitesWithinRegion
+[16:25:41.079] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 172 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.SitesWithinRegion (185 ms)
+[ RUN      ] WorldForgePlanTest.SiteCountClamped
+[16:25:41.356] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 20 roads, 4 bridges, 1158 segments in 257 ms (hash 10626291692739442491)
+[       OK ] WorldForgePlanTest.SiteCountClamped (277 ms)
+[ RUN      ] WorldForgePlanTest.RoadsConnectAllSites
+[16:25:41.540] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 171 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.RoadsConnectAllSites (183 ms)
+[ RUN      ] WorldForgePlanTest.RoadsAvoidStandingWater
+[16:25:41.749] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 193 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.RoadsAvoidStandingWater (209 ms)
+[ RUN      ] WorldForgePlanTest.RoadCenterlinesContinuous
+[16:25:41.967] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 203 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.RoadCenterlinesContinuous (217 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsMarkedWhereOrder3
+[16:25:42.123] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 1 bridges, 52 segments in 146 ms (hash 5394667485311540574)
+[       OK ] WorldForgePlanTest.CrossingsMarkedWhereOrder3 (155 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsGetBridgeSpans
+[16:25:42.276] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 1 bridges, 52 segments in 144 ms (hash 5394667485311540574)
+[       OK ] WorldForgePlanTest.CrossingsGetBridgeSpans (153 ms)
+[ RUN      ] WorldForgePlanTest.SitePinsSeatedVerbatim
+[16:25:42.436] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 3 roads, 1 bridges, 120 segments in 149 ms (hash 9500444297633199528)
+[       OK ] WorldForgePlanTest.SitePinsSeatedVerbatim (159 ms)
+[ RUN      ] WorldForgePlanTest.RoadsReachTheFootprintEdge
+[16:25:42.620] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 171 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.RoadsReachTheFootprintEdge (184 ms)
+[ RUN      ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar
+[16:25:42.810] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 177 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar (189 ms)
+[ RUN      ] WorldForgePlanTest.RoadQueryPerf
+[16:25:42.994] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 171 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.RoadQueryPerf (218 ms)
+[ RUN      ] WorldForgePlanTest.PlanDeterminism
+[16:25:43.257] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 199 ms (hash 7792085882321095912)
+[16:25:43.434] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 172 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.PlanDeterminism (421 ms)
+[ RUN      ] WorldForgePlanTest.SiteSeedDerivation
+[16:25:43.635] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 171 ms (hash 7792085882321095912)
+[16:25:43.810] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 170 ms (hash 7792085882321095912)
+[16:25:43.989] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 174 ms (hash 15177877851190361490)
+[       OK ] WorldForgePlanTest.SiteSeedDerivation (539 ms)
+[ RUN      ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly
+[       OK ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly (1 ms)
+[ RUN      ] WorldForgePlanTest.RasterCapSurfaces
+[16:25:44.174] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 169 ms (hash 7792085882321095912)
+[16:25:44.343] [WARN] [WorldForge] [WORLDFORGE] road raster segment cap (20) reached: 399 segment(s) are NOT indexed - roads past the cap are invisible to roadAt (fewer roads, or a wider raster index, before this plan is used)
+[16:25:44.349] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 20 segments in 156 ms (hash 7792085882321095912)
+[       OK ] WorldForgePlanTest.RasterCapSurfaces (368 ms)
+[----------] 20 tests from WorldForgePlanTest (4206 ms total)
+
+[----------] 7 tests from WorldForgeStressTest
+[ RUN      ] WorldForgeStressTest.EightSitesOverFullRegion
+[16:25:44.365] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:25:44.925] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 544 ms (hash 9693137997320541182)
+[16:25:44.925] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[       OK ] WorldForgeStressTest.EightSitesOverFullRegion (566 ms)
+[ RUN      ] WorldForgeStressTest.MountainWorldDegradesHonestly
+[16:25:44.931] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:25:45.576] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies
+[16:25:45.576] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1
+[16:25:46.058] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 475 ms (hash 18197215997962677593)
+[16:25:46.058] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[       OK ] WorldForgeStressTest.MountainWorldDegradesHonestly (1131 ms)
+[ RUN      ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators
+[16:25:46.063] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:25:46.614] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 536 ms (hash 9693137997320541182)
+[16:25:46.614] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[16:25:46.618] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:25:47.161] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 528 ms (hash 9693137997320541182)
+[16:25:47.161] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[       OK ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators (1156 ms)
+[ RUN      ] WorldForgeStressTest.RoadStepProfileMostlyWalkable
+[16:25:47.220] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:25:47.276] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 53 ms (hash 390629209938214499)
+[16:25:47.276] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[WORLDFORGE] canonical road steep-step fraction: 0.000694444 (1/1440)
+[       OK ] WorldForgeStressTest.RoadStepProfileMostlyWalkable (121 ms)
+[ RUN      ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains
+[16:25:47.341] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:25:47.822] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 475 ms (hash 18197215997962677593)
+[16:25:47.823] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[WORLDFORGE] mountain road steep-step fraction: 0.00461172 (31/6722)
+[       OK ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains (798 ms)
+[ RUN      ] WorldForgeStressTest.PlanHashIgnoresTheEarthworkCensus
+[16:25:48.141] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:25:48.689] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 532 ms (hash 9693137997320541182)
+[16:25:48.689] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[       OK ] WorldForgeStressTest.PlanHashIgnoresTheEarthworkCensus (608 ms)
+[ RUN      ] WorldForgeStressTest.VersionOnePlanHashesArePinned
+[16:25:48.749] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:25:49.299] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 535 ms (hash 9693137997320541182)
+[16:25:49.300] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[16:25:49.331] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[16:25:49.815] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 477 ms (hash 18197215997962677593)
+[16:25:49.815] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1080 ms)
+[----------] 7 tests from WorldForgeStressTest (5464 ms total)
+
+[----------] Global test environment tear-down
+[==========] 125 tests from 12 test suites ran. (768029 ms total)
+[  PASSED  ] 124 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] SettlementMapTest.WaysStayOutOfWater
+
+ 1 FAILED TEST
+EXIT 1 2026-11-05 16:25:49

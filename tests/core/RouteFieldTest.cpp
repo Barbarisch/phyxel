@@ -483,7 +483,8 @@ TEST(RouteFieldTest, BankWalkReadsTheRiseOverTheRun) {
 // blends the road grade into the natural across the shoulder), so on the uphill side the absolute slope is repose plus the
 // natural's own: four baseline banks read raw 0.83 (5 cubes over the 6 u window = the 3.9 u cut plus the natural's climb of
 // ~1) - a physical slope the bound cannot see on 6 u, and 0.73 over the 5.5 u design shoulder (they pass only on the 6 u
-// run and the 1-cube allowance). Absolute or relative repose is the owner's call; an earthwork item under the hold.
+// run and the 1-cube allowance). Absolute or relative repose: RULED RELATIVE 2026-11-05 (owner, WorldForgeV2Plan D42) - the
+// design as built stands and the bound as measured stands; item (a) was not put to the owner and stays stated.
 // The measure was corrected five times after runs (chains 53, 55, 57, 58, 59) and its array control twice (chains 60-61),
 // each stated post-hoc and recorded. Chains 59-61 on the baseline: 0 of 69 banks over the bound (worst 0.67), 4 banks
 // raw-over-repose (0.83), largest step 1 everywhere, 12 sides beside a falling natural (reported apart).

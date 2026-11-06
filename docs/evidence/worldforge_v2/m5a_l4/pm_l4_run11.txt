@@ -1,0 +1,10 @@
+PREDICTIONS for L4 RUN 11 (m5a_l4.sh Release m5a1b on a Release exe built from the FINAL tree - the build log hashes
+SettlementBuildService.cpp/.h, SettlementWalkability.cpp, StructureBuildService.cpp, GameDefinitionLoader.cpp and this
+file), written BEFORE the Release build and the run.
+  PM5a1.41 the CONTROL on a fresh world (hamlet 3 through the legacy layout): "10 walkable, 0 blocked over 10 routes (3 front
+    doors of 3 built, 0 skipped)" - as run 10.
+  PM5a1.42 the three-hamlet job on a fresh engine and DB: hamlet 3 BUILT from its map, 5 buildings, "10 walkable, 0 blocked
+    over 10 routes (5 front doors of 5 built, 0 skipped)", its map in the ledger (5 lots / 5 ways / 10 nodes); hamlet 4 BUILT
+    (3 buildings, 10 / 10 over 3 of 3); hamlet 5 refused by the planner (2 of 3 seated) - as run 10: the refactor moved the
+    formula into a function and added a response field, neither changes a verdict.
+  PM5a1.43 the job's built-site records still carry no gate object (M0's record shape, reported in run 10, unchanged).

@@ -52,10 +52,12 @@ WalkabilityReport checkRoutes(const std::function<bool(int, int, int)>& occupied
         RouteResult res;
         res.label = r.label;
 
-        const glm::ivec3 goalLo(r.to.x - r.goalRadiusMicro, r.to.y - r.goalHeightMicro,
-                                r.to.z - r.goalRadiusMicro);
-        const glm::ivec3 goalHi(r.to.x + r.goalRadiusMicro, r.to.y + r.goalHeightMicro,
-                                r.to.z + r.goalRadiusMicro);
+        const glm::ivec3 goalLo = r.goalIsBox ? r.goalLo
+                                              : glm::ivec3(r.to.x - r.goalRadiusMicro, r.to.y - r.goalHeightMicro,
+                                                           r.to.z - r.goalRadiusMicro);
+        const glm::ivec3 goalHi = r.goalIsBox ? r.goalHi
+                                              : glm::ivec3(r.to.x + r.goalRadiusMicro, r.to.y + r.goalHeightMicro,
+                                                           r.to.z + r.goalRadiusMicro);
 
         // M0 row 2c: BOTH WAYS. The probe free-falls after every step with no drop limit, so
         // a one-way reachable() accepts any cliff in the walking direction (M0 L4 run 2: the

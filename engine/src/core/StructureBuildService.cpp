@@ -168,9 +168,13 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
         return out;
     }
 
-    // Auto-register locations
+    // The structure's locations (its front door among them), snapped and REPORTED whether or not a
+    // LocationRegistry is wired - the settlement's walkability gate reads every building's front door
+    // from this list (M5a-1, chain 74: a headless build without a registry recorded no door, and the
+    // gate passed on 0 routes over 0 doors). Registration in the registry stays optional.
     nlohmann::json locationsJson = nlohmann::json::array();
-    if (locationRegistry) {
+    int locationsRegistered = 0;   // the ones a registry took (0 without one) - "locations_registered"
+    {
         auto locations = placement.locations;
         // Snap each anchor to a standable cell BEFORE registering: derived anchors
         // can land in dead columns (eave overhang, fence line) where the NavGraph
@@ -202,13 +206,16 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
                 loc.id = stype + "_" + std::to_string(static_cast<int>(loc.position.x)) +
                          "_" + std::to_string(static_cast<int>(loc.position.z));
             }
-            Location regLoc;
-            regLoc.id = loc.id;
-            regLoc.name = loc.name;
-            regLoc.position = loc.position;
-            regLoc.radius = loc.radius;
-            regLoc.type = loc.type;
-            locationRegistry->addLocation(regLoc);
+            if (locationRegistry) {
+                Location regLoc;
+                regLoc.id = loc.id;
+                regLoc.name = loc.name;
+                regLoc.position = loc.position;
+                regLoc.radius = loc.radius;
+                regLoc.type = loc.type;
+                locationRegistry->addLocation(regLoc);
+                ++locationsRegistered;
+            }
             locationsJson.push_back({
                 {"id", loc.id}, {"name", loc.name},
                 {"position", {{"x", loc.position.x}, {"y", loc.position.y}, {"z", loc.position.z}}},
@@ -219,7 +226,7 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
 
     out.response = {{"success", true}, {"placed", placement.placed},
                     {"failed", placement.failed}, {"voxels_generated", structure.voxels.size()},
-                    {"locations", locationsJson}};
+                    {"locations", locationsJson}, {"locations_registered", locationsRegistered}};
 
     // Register with PlacedObjectManager for tracking
     if (placedObjectManager) {

@@ -1,0 +1,9 @@
+PREDICTIONS for chain 84 (mode m5a3: the broad settlement set - SettlementMapTest.* : SettlementBuildServiceTest.* :
+WorldForgeBuildFlowTest.* : SettlementProgramTest.* : SettlementLayoutTest.* : MainStreetLayoutTest.* : CityLayoutTest.* :
+SettlementWalkabilityTest.* : WorldForgeStressTest.* : CivHistoryTest.EpochsZeroMatchesTheReleaseEngineRecord :
+RouteGraphTest.DeterministicAcrossGenerators : WorldForgePlanTest.*), on the FINAL tree (the audit-16 patch + the corrected
+partition clause), written BEFORE the launch and hashed by the chain's START line.
+  PM5a1.34 126 tests: 125 ok, 1 failed - the one red WaysStayOutOfWater (owner-ruled, as written); the version-1 plan hash
+    9693137997320541182 baked; RoomGoalBoxIsTheInnerFloorArea and AGateThatMeasuredNoDoorOfABuiltBuildingDoesNotPass green.
+  PM5a1.35 ARoomIsReachedAnywhereInsideItsInnerArea green on all six clauses with the partition at x 12..16: the point goal
+    BLOCKED (its window x 14..22 beyond the partition), the area goal WALKABLE (the inner strip at x 9 reached).

@@ -1,0 +1,5 @@
+PREDICTIONS for chain 87 (mode m5a11: StructureLocationsTest.* : SettlementWalkabilityTest.* : StructureGroundingTest.*), the pad
+keeping the forge's proportion (the short side at most length / proportion_min), written BEFORE the launch and hashed by the
+START line.
+  PM5a1.47 EveryShippedTypologyReportsOneLocation GREEN: all 13 programs build (manor_hall at 20 x 13) and each reports exactly
+    one location with a floor top; the rest of the set as chain 86 (21 green).

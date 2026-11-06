@@ -56,6 +56,14 @@ struct WalkRoute {
     glm::ivec3  to{0};
     int goalRadiusMicro = 4;      ///< goal half-extent in x/z
     int goalHeightMicro = 9;      ///< goal half-extent in y (a story of slack)
+    /// M5a-1 (2026-11-05): an EXPLICIT goal box (world micro, inclusive) that replaces `to` +/- the
+    /// radii for the forward walk when set - the way back still returns to `from` +/- the radii.
+    /// A room's goal is its inner floor AREA, not a point: the point goal refused the live hamlet 3
+    /// whenever furnishing covered a room's centre cube (a table 18 micro wide over a 9-micro window
+    /// the walker cannot enter without standing on it).
+    bool goalIsBox = false;
+    glm::ivec3  goalLo{0};
+    glm::ivec3  goalHi{0};
 };
 
 struct RouteResult {

@@ -675,7 +675,8 @@ std::vector<std::pair<int, size_t>> hairpinApexes(const WorldForgePlan& box) {
 // control - 13 of them on both (control-only 1, shipped-only 2; worst 3 vs 4). The steps are not the hint blind spot:
 // at road 0 vertex 401 side -1 the blend weight falls from 0.50 to 0 between d 10 and 11 (emitted 166 -> natural 169) -
 // the shoulder's outer reach ends 3 u short of the natural on a three-road bundle. An earthwork item under the owner's
-// hold (nothing retuned; the pin as written stands so the finding stays visible).
+// hold (nothing retuned; the pin as written stands so the finding stays visible). RULED 2026-11-05 (owner): stays red
+// as written - not an M5 concern.
 TEST(EarthworkTest, HairpinBankHasNoCliffStepWithItsControl) {
     WorldGenerator& g = mountainsWorld();
     const WorldForgePlan* box = g.worldForge();

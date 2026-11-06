@@ -1,0 +1,6 @@
+START 2026-11-06 09:42:23 shas: RouteFieldTest.cpp b19c2f6e22539dbd WorldForgePlan.cpp 3e810dfeec34452d WorldForgePlan.h 6ef3fd952699bb65 WorldGenerator.cpp c8cf858f830b936d EarthworkTest.cpp ad74225696594cee SettlementMapPlanner.cpp 977a8a00849c8d67 SettlementBuildService.cpp 3df12a374273742c SettlementMapTest.cpp d07725c51ba91224 SettlementBuildServiceTest.cpp 1a977f107444ad1b SettlementMap.cpp 152a0b2962de389b WorldForgeBuildService.cpp 4dc40622df1f89f9 SettlementMapLiveSiteTest.cpp 943326cd21b00bd2 SettlementWalkability.cpp af43a3a4e42ae063 StructureBuildService.cpp ba9dfaac92c74918 SettlementWalkabilityTest.cpp cd919ecd80d77b44 GameDefinitionLoader.cpp 41caf2025a7bc9e5 SettlementBuildService.h 032638a3b943b52d SettlementWalkability.h 2f0cd68a27b66a1b StructureRealizer.cpp 371a6775e9cde05f StructureForge.cpp 26289ad083005b14 StructureLocationsTest.cpp 95134f72b5aca261 pm_chain86.txt 0d95287e2c0e7941
+BUILD EXIT 0 2026-11-06 09:42:34 errors: 0
+exe 2026-11-06_09:42:30
+RUN r86_m5a11 START 2026-11-06 09:42:34
+RUN r86_m5a11 EXIT 1 2026-11-06 09:45:59 21 ok, 1 failed
+CHAIN DONE 2026-11-06 09:45:59

@@ -1,0 +1,16 @@
+PREDICTIONS for chain 83 (mode m5a9: SettlementMapLiveSiteTest.* : SettlementBuildServiceTest.* : SettlementWalkabilityTest.* :
+TraversalProbeTest.* : StructureLocationsTest.* : StructureGroundingTest.*), written BEFORE the launch; the chain's START line
+hashes this file so the order is provable (audit 16, F10).
+  PM5a1.28 RoomGoalBoxIsTheInnerFloorArea GREEN (the formula moved into a function, not changed - the rig's hamlet map arm
+    stays 10 walkable over 5 doors of 5 built).
+  PM5a1.29 the pure pin's two new clauses GREEN: the table moved off the centre with the POINT goal -> walkable (the
+    controlled proof); the partition at x 18..20 -> the point goal BLOCKED, the area goal WALKABLE (the boundary, stated).
+  PM5a1.30 the hamlet arms: the control 7 door -> room routes checked (the longhouses' 3 rooms x 2 + the croft's 1), the map
+    arm 5 (one living room per croft), 0 wrong on both; the gates as chain 81 (10 / 10 each); fixtures 23 / 45.
+  PM5a1.31 the VILLAGE arm: the planner plans the baseline world's first village (80 x 48; the as-built main-street map);
+    every built building records a door (doors == built), the gate not doorless, 0 goal boxes wrong; the gate's verdict
+    UNCERTAIN - L4 never covered a village through its map: "passed" if the as-built village layout realizes walkable on
+    this terrain, else the blocked routes recorded as a finding for M5b (either outcome recorded, nothing retuned).
+  PM5a1.32 StructureLocationsTest.* (DoorlessShellFallsBackToCentre among them), StructureGroundingTest.*,
+    TraversalProbeTest.* GREEN; the structure response carries "locations_registered" (0 on the rig, no registry).
+  PM5a1.33 the whole run under 25 min Debug (three rig arms at ~4-5 min each plus the pure sets).

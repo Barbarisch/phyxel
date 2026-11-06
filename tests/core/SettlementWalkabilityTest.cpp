@@ -655,3 +655,154 @@ TEST(SettlementWalkabilityTest, TheWayBackStartsWhereTheWalkerArrived) {
     EXPECT_FALSE(rep.routes[0].oneWay);
     EXPECT_EQ(rep.blocked, 0);
 }
+
+// ── M5a-1 (2026-11-05; m5a_red_green.txt chains 78-80): the ROOM goal is an AREA, not a point ──────
+// The live hamlet 3 was refused on "croft @-7969,2270: door -> living" with every cell of the route open air:
+// the route's goal was the room CENTRE within 4 micro, and the furnisher had put an 18-micro table on the
+// centre cube - a walker cannot be within 4 micro of a point under a table without standing on it (an 8-micro
+// climb against the 4-micro step-up). The point goal is pinned here as the defect it is; the gate now hands the
+// probe the room's inner floor area as an explicit goal box, and a room furnished wall to wall still refuses.
+TEST(SettlementWalkabilityTest, ARoomIsReachedAnywhereInsideItsInnerArea) {
+    // flat floor at y < 0; a room 4 x 6 cubes (x 0..35, z 0..53) walled on four sides with a doorway on the
+    // west wall at z 22..31 (the box needs 5 of them); a table 2 x 2 cubes over the room's centre cube
+    // (x 9..26, z 18..35 - the centre cube (1..2, 2..3) and its neighbours), 8 micro tall
+    auto occ = [](int x, int y, int z) {
+        if (y < 0) return true;
+        if (y >= 30) return false;                                           // the ceiling is above the box
+        const bool wallX = (x >= -3 && x < 0) || (x >= 36 && x < 39);
+        const bool wallZ = (z >= -3 && z < 0) || (z >= 54 && z < 57);
+        const bool inSpan = x >= -3 && x < 39 && z >= -3 && z < 57;
+        const bool doorway = x >= -3 && x < 0 && z >= 22 && z < 32;
+        if (inSpan && (wallX || wallZ) && !doorway) return true;
+        if (x >= 9 && x < 27 && z >= 18 && z < 36 && y < 8) return true;    // the table
+        return false;
+    };
+    AgentBox box;
+    WalkRoute point;
+    point.label = "door -> living (the centre within 4 micro)";
+    point.from = {3, 0, 26};          // one cell inside the doorway
+    point.to = {18, 0, 27};           // the room centre: under the table
+    point.goalRadiusMicro = 4;
+    const auto asBuilt = checkRoutes(occ, box, {point}, {-30, -5, -30}, {70, 60, 90}, true);
+    ASSERT_EQ(asBuilt.routes.size(), 1u);
+    EXPECT_FALSE(asBuilt.routes[0].walkable)
+        << "(the record) the point goal under an 18-micro table cannot be entered - the live refusal";
+    // the same route with the room's inner area as the goal (the rect shrunk a cube each side: x 9..26, z 9..44)
+    WalkRoute area = point;
+    area.label = "door -> living (anywhere in the inner area)";
+    area.goalIsBox = true;
+    area.goalLo = {9, -9, 9};
+    area.goalHi = {26, 9, 44};
+    const auto fixed = checkRoutes(occ, box, {area}, {-30, -5, -30}, {70, 60, 90}, true);
+    ASSERT_EQ(fixed.routes.size(), 1u);
+    EXPECT_TRUE(fixed.routes[0].walkable) << "the room is walkable around its table: " << fixed.summary();
+    EXPECT_FALSE(fixed.routes[0].oneWay);
+    // control: the inner area furnished wall to wall (solids over x 9..26, z 9..44, 8 micro tall) - the walker
+    // reaches the ring against the walls only, and the room is refused as before
+    auto packed = [&](int x, int y, int z) {
+        if (occ(x, y, z)) return true;
+        return x >= 9 && x < 27 && z >= 9 && z < 45 && y < 8;
+    };
+    const auto refused = checkRoutes(packed, box, {area}, {-30, -5, -30}, {70, 60, 90}, true);
+    ASSERT_EQ(refused.routes.size(), 1u);
+    EXPECT_FALSE(refused.routes[0].walkable) << "a room whose inner area is wholly furnished must still refuse";
+    // control: no table at all - both goals walkable
+    auto empty = [](int x, int y, int z) {
+        if (y < 0) return true;
+        if (y >= 30) return false;
+        const bool wallX = (x >= -3 && x < 0) || (x >= 36 && x < 39);
+        const bool wallZ = (z >= -3 && z < 0) || (z >= 54 && z < 57);
+        const bool inSpan = x >= -3 && x < 39 && z >= -3 && z < 57;
+        const bool doorway = x >= -3 && x < 0 && z >= 22 && z < 32;
+        return inSpan && (wallX || wallZ) && !doorway;
+    };
+    const auto bare = checkRoutes(empty, box, {point, area}, {-30, -5, -30}, {70, 60, 90}, true);
+    ASSERT_EQ(bare.routes.size(), 2u);
+    EXPECT_TRUE(bare.routes[0].walkable);
+    EXPECT_TRUE(bare.routes[1].walkable);
+    // THE CONTROLLED PROOF (audit 16, F5): the same table moved OFF the centre (to x 27..35, the east ring, z 18..35)
+    // with the POINT goal unchanged - walkable. The goal under the table was the only thing wrong.
+    auto aside = [](int x, int y, int z) {
+        if (y < 0) return true;
+        if (y >= 30) return false;
+        const bool wallX = (x >= -3 && x < 0) || (x >= 36 && x < 39);
+        const bool wallZ = (z >= -3 && z < 0) || (z >= 54 && z < 57);
+        const bool inSpan = x >= -3 && x < 39 && z >= -3 && z < 57;
+        const bool doorway = x >= -3 && x < 0 && z >= 22 && z < 32;
+        if (inSpan && (wallX || wallZ) && !doorway) return true;
+        return x >= 27 && x < 36 && z >= 18 && z < 36 && y < 8;
+    };
+    const auto moved = checkRoutes(aside, box, {point}, {-30, -5, -30}, {70, 60, 90}, true);
+    ASSERT_EQ(moved.routes.size(), 1u);
+    EXPECT_TRUE(moved.routes[0].walkable) << "the point goal passes once the table is off the centre: " << moved.summary();
+    // THE BOUNDARY OF THE MEASURE, stated (audit 16, F6): a partition across the inner area at x 12..16 (full depth,
+    // 20 micro tall, no table) leaves only the door-side strip of the inner area (x 9) reachable and the rest sealed.
+    // The AREA goal PASSES - the contract is "the walker reaches some cell of the room's inner floor"; the POINT goal
+    // (the centre at x 18, its window x 14..22 beyond the partition) is blocked. A stricter contract (a fraction of
+    // the inner area, or its far side) is the owner's call; this clause records what the gate accepts today.
+    // (Chain 83, recorded miss: the partition first stood at x 18..20 and the POINT goal passed too - its window
+    // reaches x 14, west of that partition, where the walker stands; the rig moved, the measure did not.)
+    auto split = [](int x, int y, int z) {
+        if (y < 0) return true;
+        if (y >= 30) return false;
+        const bool wallX = (x >= -3 && x < 0) || (x >= 36 && x < 39);
+        const bool wallZ = (z >= -3 && z < 0) || (z >= 54 && z < 57);
+        const bool inSpan = x >= -3 && x < 39 && z >= -3 && z < 57;
+        const bool doorway = x >= -3 && x < 0 && z >= 22 && z < 32;
+        if (inSpan && (wallX || wallZ) && !doorway) return true;
+        return x >= 12 && x < 17 && z >= 0 && z < 54 && y < 20;
+    };
+    const auto half = checkRoutes(split, box, {point, area}, {-30, -5, -30}, {70, 60, 90}, true);
+    ASSERT_EQ(half.routes.size(), 2u);
+    EXPECT_FALSE(half.routes[0].walkable) << "the centre's window lies beyond the partition";
+    EXPECT_TRUE(half.routes[1].walkable) << "(the boundary, stated) the door-side strip of the inner area is reached";
+}
+
+// ── M5a-1 (audit 17): the loosening quantified - a sweep of the partition across the room ────────────────
+// The same 4 x 6 room (x 0..35, z 0..53, the doorway on the west wall), a 5-micro partition at x px..px+4 across
+// the full depth, 20 micro tall, for every px 0..36. The walker starts at x 3 (its box x 1..5); with the
+// partition at px its centre reaches x <= px - 3. The AREA goal (x 9..26) is reached iff px - 3 >= 9, i.e.
+// px >= 12; the POINT goal (the centre's window x 14..22) iff px >= 17. The band px 12..16 is exactly where the
+// inner-area goal passes and the centre goal does not: a reachable strip of one to five micro columns at the
+// room's west edge. That is the contract as built ("the walker reaches some cell of the inner floor"), stated
+// in numbers; a stricter contract is the owner's call.
+TEST(SettlementWalkabilityTest, TheInnerAreaGoalPassesWheneverAnInnerColumnIsReachable) {
+    AgentBox box;
+    WalkRoute point;
+    point.label = "door -> centre";
+    point.from = {3, 0, 26};
+    point.to = {18, 0, 27};
+    point.goalRadiusMicro = 4;
+    WalkRoute area = point;
+    area.label = "door -> inner area";
+    area.goalIsBox = true;
+    area.goalLo = {9, -9, 9};
+    area.goalHi = {26, 9, 44};
+    std::string table;
+    int firstArea = -1, firstPoint = -1;
+    for (int px = 0; px <= 36; ++px) {
+        auto occ = [px](int x, int y, int z) {
+            if (y < 0) return true;
+            if (y >= 30) return false;
+            const bool wallX = (x >= -3 && x < 0) || (x >= 36 && x < 39);
+            const bool wallZ = (z >= -3 && z < 0) || (z >= 54 && z < 57);
+            const bool inSpan = x >= -3 && x < 39 && z >= -3 && z < 57;
+            const bool doorway = x >= -3 && x < 0 && z >= 22 && z < 32;
+            if (inSpan && (wallX || wallZ) && !doorway) return true;
+            return x >= px && x < px + 5 && z >= 0 && z < 54 && y < 20;
+        };
+        const auto rep = checkRoutes(occ, box, {point, area}, {-30, -5, -30}, {70, 60, 90}, false);
+        ASSERT_EQ(rep.routes.size(), 2u);
+        const bool p = rep.routes[0].walkable, a = rep.routes[1].walkable;
+        if (a && firstArea < 0) firstArea = px;
+        if (p && firstPoint < 0) firstPoint = px;
+        table += " " + std::to_string(px) + ":" + (p ? "P" : "-") + (a ? "A" : "-");
+        EXPECT_EQ(a, px >= 12) << "partition at x " << px << ": the inner area is reached iff px >= 12";
+        EXPECT_EQ(p, px >= 17) << "partition at x " << px << ": the centre's window is reached iff px >= 17";
+    }
+    std::printf("[ M5a-1 ] partition sweep (px: P = centre goal walkable, A = inner-area goal walkable):%s\n", table.c_str());
+    std::printf("[ M5a-1 ] the inner-area goal first passes at px %d, the centre goal at px %d: the loosening is the band px %d..%d\n",
+                firstArea, firstPoint, firstArea, firstPoint - 1);
+    EXPECT_EQ(firstArea, 12);
+    EXPECT_EQ(firstPoint, 17);
+}

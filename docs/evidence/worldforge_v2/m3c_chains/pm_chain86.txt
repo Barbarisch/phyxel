@@ -1,0 +1,9 @@
+PREDICTIONS for chain 86 (mode m5a11: StructureLocationsTest.* : SettlementWalkabilityTest.* : StructureGroundingTest.*), the
+pad params corrected (one story of 3 cubes per program story), written BEFORE the launch and hashed by the START line.
+  PM5a1.44 BuildReportsItsLocationsWithOrWithoutARegistry GREEN: the croft builds on the pad; one location reported without
+    a registry and with one; locations_registered 0 then 1; the registry holds one.
+  PM5a1.45 EveryShippedTypologyReportsOneLocation: every one of the 13 programs builds on the 2 x 2 x 2 chunk pad at its
+    natural footprint with its story count, and each reports exactly one location with a floor top - GREEN. UNCERTAIN on
+    the biggest (manor_hall 20 x 17, the 2- and 3-story tenement and tower_house): a refusal there is a finding about the
+    pad's extent or a program check, recorded, and the test red on it.
+  PM5a1.46 SettlementWalkabilityTest.* (the sweep and the pin included) and StructureGroundingTest.* green, unchanged.

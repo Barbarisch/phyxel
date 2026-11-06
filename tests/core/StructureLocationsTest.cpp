@@ -9,6 +9,11 @@
 #include "core/StructureBuildService.h"
 #include "core/StyleProfile.h"
 #include "core/LocationRegistry.h"
+#include "core/ChunkManager.h"
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <memory>
 
 #include <set>
 
@@ -232,4 +237,107 @@ TEST(StructureLocationsTest, DeterministicAndOriginRelative) {
     EXPECT_EQ(a[0].position.x, a2[0].position.x);
     EXPECT_EQ(glm::ivec3(b[0].position) - glm::ivec3(a[0].position), o2 - o1);
     EXPECT_NE(a[0].id, b[0].id);
+}
+
+// ── M5a-1 (audits 16-17): the locations a BUILD reports, measured through buildV2 ──────────────────
+// The settlement gate reads every building's front door from the build response's "locations"; chain 74 of the
+// M5a-1 leg measured a headless build (no LocationRegistry) reporting none, so the gate passed on 0 routes. The
+// response now reports the list with or without a registry and says how many a registry took.
+namespace {
+// A flat pad: 2 x 2 x 2 resident chunks, the lower row solid to y 15 (a building at y 16 and its roof stay inside
+// resident chunks - the M0 placement rule refuses a target chunk that is not resident).
+struct PadWorld {
+    Phyxel::ChunkManager cm;
+    PadWorld() {
+        cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+        for (int cx = 0; cx < 2; ++cx)
+            for (int cy = 0; cy < 2; ++cy)
+                for (int cz = 0; cz < 2; ++cz) {
+                    auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(cx, cy, cz) * 32);
+                    owned->initializeForLoading();
+                    if (cy == 0)
+                        for (int x = 0; x < 32; ++x)
+                            for (int z = 0; z < 32; ++z)
+                                for (int y = 0; y < 16; ++y) owned->addCube(glm::ivec3(x, y, z));
+                    cm.chunkMap[glm::ivec3(cx, cy, cz)] = owned.get();
+                    cm.chunks.push_back(std::move(owned));
+                }
+    }
+};
+// chain 85: every typology refused "no_stories" - a direct v2 build names its stories (the settlement realizer
+// derives them from the program); one story of 3 cubes per program story, as StructureGroundingTest's croft
+nlohmann::json padParams(const std::string& typology, int w, int d, int stories = 1) {
+    nlohmann::json st = nlohmann::json::array();
+    for (int i = 0; i < std::max(1, stories); ++i) st.push_back(nlohmann::json{{"height", 3}});
+    return {{"schema", "v2"}, {"type", "house"}, {"typology", typology},
+            {"position", {{"x", 2}, {"y", 16}, {"z", 2}}},
+            {"footprint", nlohmann::json::array({w, d})},
+            {"substructure", "slab"}, {"stories", st}};
+}
+}  // namespace
+
+// Without a registry the list is REPORTED (the gate's input) and none is registered; with one, the same list and
+// one registered. The red form of the first half is chain 74 (m5a_red_green.txt): the list was empty without a
+// registry and the gate measured nothing; the count field is new (red by construction).
+TEST(StructureLocationsTest, BuildReportsItsLocationsWithOrWithoutARegistry) {
+    {
+        PadWorld w;
+        StructureBuildService::Deps deps;
+        deps.chunkManager = &w.cm;
+        const auto resp = StructureBuildService::buildV2(padParams("croft", 8, 6), deps);
+        ASSERT_TRUE(resp.value("success", false)) << resp.dump();
+        ASSERT_TRUE(resp.contains("locations")) << resp.dump();
+        EXPECT_EQ(resp["locations"].size(), 1u) << "the front door is reported with no registry: " << resp["locations"].dump();
+        EXPECT_EQ(resp.value("locations_registered", -1), 0) << "nothing can be registered without a registry";
+    }
+    {
+        PadWorld w;
+        LocationRegistry reg;
+        StructureBuildService::Deps deps;
+        deps.chunkManager = &w.cm;
+        deps.locations = &reg;
+        const auto resp = StructureBuildService::buildV2(padParams("croft", 8, 6), deps);
+        ASSERT_TRUE(resp.value("success", false)) << resp.dump();
+        EXPECT_EQ(resp["locations"].size(), 1u);
+        EXPECT_EQ(resp.value("locations_registered", -1), 1);
+        EXPECT_EQ(reg.getAllLocations().size(), 1u) << "the registry took the one location";
+    }
+}
+
+// Every shipped typology, built headless at its natural footprint (bays x bay length along, the program's width
+// across - the planner's and the realizer's derivation), reports exactly ONE location: the gate's "doorless"
+// verdict (doors < built) can therefore not fire on a typology - measured, not inferred from deriveLocations.
+TEST(StructureLocationsTest, EveryShippedTypologyReportsOneLocation) {
+    RoomProgramRegistry reg;
+    ASSERT_TRUE(loadShippedCanon(reg));
+    int built = 0;
+    for (const auto& name : reg.programs()) {
+        const RoomProgram* rp = reg.get(name);
+        ASSERT_NE(rp, nullptr) << name;
+        const int natLong = std::max(1, static_cast<int>(std::lround(rp->bays * rp->bayLength)));
+        int natShort = std::max(1, static_cast<int>(std::lround(rp->widthMax > 0 ? rp->widthMax : rp->widthMin)));
+        // chain 86 (a FINDING, m5a_red_green.txt): the planner's and the legacy realizer's natural footprint take
+        // width_max for the short side, and the manor_hall's 20 x 17 is refused by the forge's own proportion check
+        // (length:width 1.18 below its min 1.50) - a lot of that typology cannot realize as derived. This pin is about
+        // the LOCATIONS, so the pad keeps the forge's proportion: the short side at most length / proportion_min.
+        if (rp->proportionMin > 0.0)
+            natShort = std::max(std::max(1, static_cast<int>(std::lround(rp->widthMin))),
+                                std::min(natShort, static_cast<int>(std::floor(natLong / rp->proportionMin))));
+        PadWorld w;
+        StructureBuildService::Deps deps;
+        deps.chunkManager = &w.cm;
+        const auto resp = StructureBuildService::buildV2(padParams(name, natLong, natShort, rp->stories), deps);
+        if (!resp.value("success", false)) {
+            ADD_FAILURE() << name << " (" << natLong << " x " << natShort << ") did not build on the flat pad: "
+                          << resp.value("error", std::string("?")) << " - a finding about the pad or the typology, not the gate";
+            continue;
+        }
+        ++built;
+        const auto locs = resp.value("locations", nlohmann::json::array());
+        EXPECT_EQ(locs.size(), 1u) << name << " reported " << locs.size() << " locations: " << locs.dump();
+        EXPECT_GE(resp.value("floor_top_micro", -1), 0) << name << " reported no floor top";
+        std::printf("[ locations ] %-14s %2d x %2d: %zu location(s) (%s), floor top micro %d\n", name.c_str(), natLong, natShort,
+                    locs.size(), locs.empty() ? "-" : locs[0].value("type", std::string("?")).c_str(), resp.value("floor_top_micro", -1));
+    }
+    EXPECT_EQ(built, static_cast<int>(reg.programs().size())) << "every shipped typology must build on the pad for this pin to cover it";
 }

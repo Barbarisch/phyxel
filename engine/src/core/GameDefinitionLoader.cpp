@@ -898,8 +898,9 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                 LOG_INFO("GameDefinitionLoader", stype + " (v2): placed " +
                          std::to_string(resp.value("placed", 0)) + " voxels, " +
                          std::to_string(resp.value("fixtures_spawned", 0)) + " fixtures");
-                if (resp.contains("locations"))
-                    result.locationsRegistered += static_cast<int>(resp["locations"].size());
+                // M5a-1: "locations" is REPORTED with or without a registry (the settlement gate reads the
+                // front door from it); the count a registry actually took is "locations_registered"
+                result.locationsRegistered += resp.value("locations_registered", 0);
             } else {
                 LOG_WARN("GameDefinitionLoader", "Failed to build " + stype + " (v2): " +
                          resp.value("error", std::string("unknown error")));
