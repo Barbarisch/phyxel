@@ -218,6 +218,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       + U-tube at 1/3 and 1/9 m: front 71 / 79 % of Ritter, all cells again at ~33 s, arms 2.6000 / 2.6000 m, ledger exact.
       Settle judges level by the top particle now (wall columns read 1-2 cells low by volume), tolerance 1.25 cells.
       Start the engine from a shell with the uv Python dir on PATH (`launch_engine` died on python312.dll missing).
+      Videos at sim speed: `tools/matsim_hybrid_video.py --cpm 3|9` -> `docs/evidence/matsim_video/hybrid_{3,9}.mp4`.
+      Each frame = 2 API-stepped ticks + an engine screenshot. Read `view_faces_cut` (`tools/matsim_view_cut_probe.py`): the view cap (393,216 faces) silently
+      dropped 1/9 m particles until the particle faces were culled against neighbouring particle cells.
     - **Next:** keep the hybrid on the device (1/9 m live ~225 ms a tick: CA 72 on the CPU, step 100), then a region-limited wake.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
     - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.

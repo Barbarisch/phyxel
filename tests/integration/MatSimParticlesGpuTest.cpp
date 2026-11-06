@@ -432,7 +432,7 @@ TEST_F(MatSimParticlesGpuTest, LabHybridDamBreak) {
             const double thr = 0.01 * 8.0 * 1.0 / cpm;   // m^3 in 1 % of an x slice
             double ta = -1, tb = -1;
             bool exact = true, refusedCellSize = false;
-            size_t maxParticles = 0, maxFaces = 0, npAtView = 0;
+            size_t maxParticles = 0, maxFaces = 0, npAtView = 0, viewCut = 1;
             for (int k = 0; k < 40 && tb < 0; ++k) {
                 lab.handle("step", {{"n", 6}}, out);
                 ASSERT_FALSE(out.contains("error")) << out.dump();
@@ -450,6 +450,7 @@ TEST_F(MatSimParticlesGpuTest, LabHybridDamBreak) {
                     refusedCellSize = r.contains("error");
                     lab.handle("view", {{"on", true}}, r);
                     maxFaces = r.value("view_faces", size_t(0));
+                    viewCut = r.value("view_faces_cut", size_t(1));
                     npAtView = np;
                     lab.handle("view", {{"on", false}}, r);
                 }
@@ -471,7 +472,11 @@ TEST_F(MatSimParticlesGpuTest, LabHybridDamBreak) {
             if (hybrid) {
                 EXPECT_NEAR(v, cpm == 3 ? 8.04 : 8.18, 0.1 * (cpm == 3 ? 8.04 : 8.18)) << cpm;
                 EXPECT_TRUE(refusedCellSize) << cpm;
-                EXPECT_GE(maxFaces, 6 * npAtView) << cpm << ": the view must draw the particles";
+                // 6i video: particle faces are culled against neighbouring particle cells, so a clump draws its surface,
+                // not 6 faces a particle; the invariant is that the view drops nothing (the cap used to cut 1/9 m).
+                EXPECT_GT(npAtView, 0u) << cpm;
+                EXPECT_GT(maxFaces, 0u) << cpm;
+                EXPECT_EQ(viewCut, 0u) << cpm << ": the view must draw every particle (none cut at the face cap)";
             } else {
                 EXPECT_LT(v, 0.7 * 8.18) << cpm << ": control, the CA alone";
             }

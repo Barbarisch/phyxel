@@ -1293,6 +1293,35 @@ API waits 5 s for the game loop).
   cost is the box, not the water. The GPU CA and the particles should share the device copy.
 - Whole-body wake: the 1/9 m U-tube woke 204 k particles at once.
 
+**Video (2026-11-06), `docs/evidence/matsim_video/hybrid_3.mp4` and `hybrid_9.mp4`** (+ `.srt`,
+`.json`), made by `tools/matsim_hybrid_video.py`:
+- **What it shows:** the same rig and fills as above, in the raw-cell view (cells and particles as
+  cubes; Water is textured with the Ice stand-in). The crop is the viewport, at pose (0, 38, 16),
+  yaw 0, pitch -60, with the reservoir front-left and the U-tube's filled arm back-right.
+- **Timing:** the sim is stepped by the API 2 ticks per frame and the engine screenshot is taken
+  after each step, so every frame is exactly 1/30 s of sim time. Both videos play at real speed,
+  though 1/9 m took 1,519 s of wall time for 37 s of sim.
+- **Captions:** sim time, particles in flight, and the ledger state (every 5th frame).
+
+| | 1/3 m | 1/9 m |
+|---|---|---|
+| peak particles | 10,271 | 258,829 |
+| ledger | exact at every sample | exact at every sample |
+| first 0-particle sample after the break | 33.0 s | 31.5 s |
+
+The U-tube arm was filled one-sided, so it sloshes from frame 0.
+
+**A view bug found by the 1/9 m video:**
+- **Symptom:** the dam half was missing from the first take.
+- **Cause:** each particle was drawn with six faces against a cap of 393,216 faces. At 1/9 m that
+  cut 1,147,674 faces and dropped every particle past the first ~65 k, the U-tube's (red: `tools/matsim_view_cut_probe.py 9`
+  at tick 30, 256,815 particles, `view_faces_cut` 1,147,674).
+- **Fix:** a particle face is now skipped when the cell beside the particle's own cell holds a
+  particle, a wall, or a full cell. Green, same probe and same particle count: 161,095 faces,
+  0 cut. At 1/3 m it went from 57,438 faces to 5,150, with 0 cut before and after.
+- **Not a physics change:** the probe's particle count is identical before and after.
+- **What the camera sees:** a clump's surface is now drawn per cell, not per particle.
+
 **Next:** keep the hybrid on the device (the CA on the GPU, no per-tick upload), then a
 region-limited wake.
 

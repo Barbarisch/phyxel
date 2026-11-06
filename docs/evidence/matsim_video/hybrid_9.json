@@ -1,0 +1,3131 @@
+{
+ "cpm": 9,
+ "pose_asked": {
+  "x": 0.0,
+  "y": 38.0,
+  "z": 16.0,
+  "yaw": 0.0,
+  "pitch": -60.0
+ },
+ "pose_got": {
+  "x": 0.0,
+  "y": 38.0,
+  "z": 16.0,
+  "yaw": 0.0,
+  "pitch": -60.0
+ },
+ "fps": 30,
+ "ticks_per_frame": 2,
+ "frames": 1110,
+ "wall_s": 1519.0,
+ "rows": [
+  {
+   "frame": 0,
+   "phase": "before",
+   "t_sim": -0.967,
+   "tick": 2,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 125.487,
+    "settle": 0.0006,
+    "step": 0.0011,
+    "wake": 16.8997
+   }
+  },
+  {
+   "frame": 5,
+   "phase": "before",
+   "t_sim": -0.8,
+   "tick": 12,
+   "particles": 204183,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 71.7075,
+    "settle": 16.8,
+    "step": 64.064,
+    "wake": 21.6209
+   }
+  },
+  {
+   "frame": 10,
+   "phase": "before",
+   "t_sim": -0.633,
+   "tick": 22,
+   "particles": 204183,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 74.9321,
+    "settle": 20.9708,
+    "step": 68.1837,
+    "wake": 22.0968
+   }
+  },
+  {
+   "frame": 15,
+   "phase": "before",
+   "t_sim": -0.467,
+   "tick": 32,
+   "particles": 204183,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.9776,
+    "settle": 20.7736,
+    "step": 79.8977,
+    "wake": 22.8851
+   }
+  },
+  {
+   "frame": 20,
+   "phase": "before",
+   "t_sim": -0.3,
+   "tick": 42,
+   "particles": 204183,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 69.2485,
+    "settle": 22.3187,
+    "step": 57.2013,
+    "wake": 23.1154
+   }
+  },
+  {
+   "frame": 25,
+   "phase": "before",
+   "t_sim": -0.133,
+   "tick": 52,
+   "particles": 204183,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.1879,
+    "settle": 22.3799,
+    "step": 72.7796,
+    "wake": 22.8502
+   }
+  },
+  {
+   "frame": 30,
+   "phase": "after",
+   "t_sim": 0.033,
+   "tick": 62,
+   "particles": 256671,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 117.8948,
+    "settle": 29.6435,
+    "step": 98.9846,
+    "wake": 20.8869
+   }
+  },
+  {
+   "frame": 35,
+   "phase": "after",
+   "t_sim": 0.2,
+   "tick": 72,
+   "particles": 256671,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.8712,
+    "settle": 29.8109,
+    "step": 78.6646,
+    "wake": 20.7404
+   }
+  },
+  {
+   "frame": 40,
+   "phase": "after",
+   "t_sim": 0.367,
+   "tick": 82,
+   "particles": 256671,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.7926,
+    "settle": 30.5144,
+    "step": 86.2526,
+    "wake": 20.4357
+   }
+  },
+  {
+   "frame": 45,
+   "phase": "after",
+   "t_sim": 0.533,
+   "tick": 92,
+   "particles": 256671,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.356,
+    "settle": 31.9924,
+    "step": 77.7304,
+    "wake": 20.7625
+   }
+  },
+  {
+   "frame": 50,
+   "phase": "after",
+   "t_sim": 0.7,
+   "tick": 102,
+   "particles": 256671,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.7177,
+    "settle": 32.8391,
+    "step": 86.4577,
+    "wake": 20.9699
+   }
+  },
+  {
+   "frame": 55,
+   "phase": "after",
+   "t_sim": 0.867,
+   "tick": 112,
+   "particles": 256671,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.9676,
+    "settle": 32.2688,
+    "step": 94.6595,
+    "wake": 20.771
+   }
+  },
+  {
+   "frame": 60,
+   "phase": "after",
+   "t_sim": 1.033,
+   "tick": 122,
+   "particles": 256671,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.9721,
+    "settle": 35.3768,
+    "step": 102.7436,
+    "wake": 21.0497
+   }
+  },
+  {
+   "frame": 65,
+   "phase": "after",
+   "t_sim": 1.2,
+   "tick": 132,
+   "particles": 256674,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.5585,
+    "settle": 33.4373,
+    "step": 104.5016,
+    "wake": 20.6427
+   }
+  },
+  {
+   "frame": 70,
+   "phase": "after",
+   "t_sim": 1.367,
+   "tick": 142,
+   "particles": 256677,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.6938,
+    "settle": 32.5361,
+    "step": 109.5137,
+    "wake": 23.2399
+   }
+  },
+  {
+   "frame": 75,
+   "phase": "after",
+   "t_sim": 1.533,
+   "tick": 152,
+   "particles": 256697,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.6678,
+    "settle": 32.8865,
+    "step": 137.4807,
+    "wake": 21.14
+   }
+  },
+  {
+   "frame": 80,
+   "phase": "after",
+   "t_sim": 1.7,
+   "tick": 162,
+   "particles": 256728,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.5106,
+    "settle": 33.0521,
+    "step": 142.9102,
+    "wake": 23.424
+   }
+  },
+  {
+   "frame": 85,
+   "phase": "after",
+   "t_sim": 1.867,
+   "tick": 172,
+   "particles": 256814,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 70.9333,
+    "settle": 36.5663,
+    "step": 146.5594,
+    "wake": 23.0436
+   }
+  },
+  {
+   "frame": 90,
+   "phase": "after",
+   "t_sim": 2.033,
+   "tick": 182,
+   "particles": 256984,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.4392,
+    "settle": 36.9011,
+    "step": 150.7173,
+    "wake": 23.2975
+   }
+  },
+  {
+   "frame": 95,
+   "phase": "after",
+   "t_sim": 2.2,
+   "tick": 192,
+   "particles": 257021,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.8421,
+    "settle": 33.5983,
+    "step": 156.5879,
+    "wake": 23.6434
+   }
+  },
+  {
+   "frame": 100,
+   "phase": "after",
+   "t_sim": 2.367,
+   "tick": 202,
+   "particles": 257021,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.2532,
+    "settle": 32.9639,
+    "step": 193.0195,
+    "wake": 20.6765
+   }
+  },
+  {
+   "frame": 105,
+   "phase": "after",
+   "t_sim": 2.533,
+   "tick": 212,
+   "particles": 257021,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.2045,
+    "settle": 33.6385,
+    "step": 199.5072,
+    "wake": 20.9645
+   }
+  },
+  {
+   "frame": 110,
+   "phase": "after",
+   "t_sim": 2.7,
+   "tick": 222,
+   "particles": 257021,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.7086,
+    "settle": 35.5796,
+    "step": 242.0316,
+    "wake": 21.0598
+   }
+  },
+  {
+   "frame": 115,
+   "phase": "after",
+   "t_sim": 2.867,
+   "tick": 232,
+   "particles": 257021,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0899,
+    "settle": 34.3689,
+    "step": 214.2977,
+    "wake": 20.9331
+   }
+  },
+  {
+   "frame": 120,
+   "phase": "after",
+   "t_sim": 3.033,
+   "tick": 242,
+   "particles": 257032,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.4951,
+    "settle": 35.1638,
+    "step": 186.6326,
+    "wake": 23.1737
+   }
+  },
+  {
+   "frame": 125,
+   "phase": "after",
+   "t_sim": 3.2,
+   "tick": 252,
+   "particles": 257060,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.8412,
+    "settle": 34.7812,
+    "step": 186.6366,
+    "wake": 23.6123
+   }
+  },
+  {
+   "frame": 130,
+   "phase": "after",
+   "t_sim": 3.367,
+   "tick": 262,
+   "particles": 257108,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.0986,
+    "settle": 35.4258,
+    "step": 189.6405,
+    "wake": 20.8434
+   }
+  },
+  {
+   "frame": 135,
+   "phase": "after",
+   "t_sim": 3.533,
+   "tick": 272,
+   "particles": 257119,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 69.2496,
+    "settle": 35.2556,
+    "step": 229.8141,
+    "wake": 23.4317
+   }
+  },
+  {
+   "frame": 140,
+   "phase": "after",
+   "t_sim": 3.7,
+   "tick": 282,
+   "particles": 257148,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.2102,
+    "settle": 33.8245,
+    "step": 195.4133,
+    "wake": 20.7964
+   }
+  },
+  {
+   "frame": 145,
+   "phase": "after",
+   "t_sim": 3.867,
+   "tick": 292,
+   "particles": 257180,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 69.873,
+    "settle": 36.005,
+    "step": 200.9211,
+    "wake": 23.3074
+   }
+  },
+  {
+   "frame": 150,
+   "phase": "after",
+   "t_sim": 4.033,
+   "tick": 302,
+   "particles": 257258,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 69.0392,
+    "settle": 34.1211,
+    "step": 202.545,
+    "wake": 23.5809
+   }
+  },
+  {
+   "frame": 155,
+   "phase": "after",
+   "t_sim": 4.2,
+   "tick": 312,
+   "particles": 257371,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 71.3642,
+    "settle": 35.6674,
+    "step": 205.1638,
+    "wake": 23.0795
+   }
+  },
+  {
+   "frame": 160,
+   "phase": "after",
+   "t_sim": 4.367,
+   "tick": 322,
+   "particles": 257453,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.8971,
+    "settle": 35.139,
+    "step": 208.3738,
+    "wake": 23.7049
+   }
+  },
+  {
+   "frame": 165,
+   "phase": "after",
+   "t_sim": 4.533,
+   "tick": 332,
+   "particles": 257470,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.7528,
+    "settle": 35.1839,
+    "step": 211.6077,
+    "wake": 21.3454
+   }
+  },
+  {
+   "frame": 170,
+   "phase": "after",
+   "t_sim": 4.7,
+   "tick": 342,
+   "particles": 257525,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.6891,
+    "settle": 34.555,
+    "step": 253.0059,
+    "wake": 20.9625
+   }
+  },
+  {
+   "frame": 175,
+   "phase": "after",
+   "t_sim": 4.867,
+   "tick": 352,
+   "particles": 257599,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 69.2557,
+    "settle": 35.1603,
+    "step": 255.9014,
+    "wake": 23.3411
+   }
+  },
+  {
+   "frame": 180,
+   "phase": "after",
+   "t_sim": 5.033,
+   "tick": 362,
+   "particles": 257607,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.8491,
+    "settle": 33.3829,
+    "step": 175.2087,
+    "wake": 20.9294
+   }
+  },
+  {
+   "frame": 185,
+   "phase": "after",
+   "t_sim": 5.2,
+   "tick": 372,
+   "particles": 257644,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.6991,
+    "settle": 33.0443,
+    "step": 174.9196,
+    "wake": 23.2095
+   }
+  },
+  {
+   "frame": 190,
+   "phase": "after",
+   "t_sim": 5.367,
+   "tick": 382,
+   "particles": 257656,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.2657,
+    "settle": 32.9592,
+    "step": 133.424,
+    "wake": 20.8704
+   }
+  },
+  {
+   "frame": 195,
+   "phase": "after",
+   "t_sim": 5.533,
+   "tick": 392,
+   "particles": 257660,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.4071,
+    "settle": 34.436,
+    "step": 136.7707,
+    "wake": 23.9816
+   }
+  },
+  {
+   "frame": 200,
+   "phase": "after",
+   "t_sim": 5.7,
+   "tick": 402,
+   "particles": 257677,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.2932,
+    "settle": 33.9928,
+    "step": 136.0286,
+    "wake": 23.6637
+   }
+  },
+  {
+   "frame": 205,
+   "phase": "after",
+   "t_sim": 5.867,
+   "tick": 412,
+   "particles": 257698,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.2001,
+    "settle": 34.4336,
+    "step": 220.3245,
+    "wake": 23.8525
+   }
+  },
+  {
+   "frame": 210,
+   "phase": "after",
+   "t_sim": 6.033,
+   "tick": 422,
+   "particles": 257730,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.3336,
+    "settle": 34.5874,
+    "step": 221.7888,
+    "wake": 23.3372
+   }
+  },
+  {
+   "frame": 215,
+   "phase": "after",
+   "t_sim": 6.2,
+   "tick": 432,
+   "particles": 257815,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.883,
+    "settle": 34.6714,
+    "step": 222.612,
+    "wake": 21.0487
+   }
+  },
+  {
+   "frame": 220,
+   "phase": "after",
+   "t_sim": 6.367,
+   "tick": 442,
+   "particles": 257929,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.5045,
+    "settle": 33.181,
+    "step": 180.0154,
+    "wake": 20.9554
+   }
+  },
+  {
+   "frame": 225,
+   "phase": "after",
+   "t_sim": 6.533,
+   "tick": 452,
+   "particles": 257947,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.3696,
+    "settle": 33.3896,
+    "step": 181.5582,
+    "wake": 21.4317
+   }
+  },
+  {
+   "frame": 230,
+   "phase": "after",
+   "t_sim": 6.7,
+   "tick": 462,
+   "particles": 257952,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.2206,
+    "settle": 33.7145,
+    "step": 182.1768,
+    "wake": 20.8418
+   }
+  },
+  {
+   "frame": 235,
+   "phase": "after",
+   "t_sim": 6.867,
+   "tick": 472,
+   "particles": 257972,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.0495,
+    "settle": 32.9309,
+    "step": 226.4026,
+    "wake": 23.6224
+   }
+  },
+  {
+   "frame": 240,
+   "phase": "after",
+   "t_sim": 7.033,
+   "tick": 482,
+   "particles": 257995,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.8654,
+    "settle": 32.9972,
+    "step": 139.9955,
+    "wake": 23.6405
+   }
+  },
+  {
+   "frame": 245,
+   "phase": "after",
+   "t_sim": 7.2,
+   "tick": 492,
+   "particles": 258019,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.55,
+    "settle": 32.3747,
+    "step": 141.0608,
+    "wake": 25.7378
+   }
+  },
+  {
+   "frame": 250,
+   "phase": "after",
+   "t_sim": 7.367,
+   "tick": 502,
+   "particles": 258020,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.2064,
+    "settle": 33.5875,
+    "step": 140.2385,
+    "wake": 23.0832
+   }
+  },
+  {
+   "frame": 255,
+   "phase": "after",
+   "t_sim": 7.533,
+   "tick": 512,
+   "particles": 258062,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.1199,
+    "settle": 33.3024,
+    "step": 140.1513,
+    "wake": 20.9235
+   }
+  },
+  {
+   "frame": 260,
+   "phase": "after",
+   "t_sim": 7.7,
+   "tick": 522,
+   "particles": 258121,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.7037,
+    "settle": 32.708,
+    "step": 140.3299,
+    "wake": 21.0679
+   }
+  },
+  {
+   "frame": 265,
+   "phase": "after",
+   "t_sim": 7.867,
+   "tick": 532,
+   "particles": 258135,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.6309,
+    "settle": 32.8456,
+    "step": 140.6988,
+    "wake": 20.9947
+   }
+  },
+  {
+   "frame": 270,
+   "phase": "after",
+   "t_sim": 8.033,
+   "tick": 542,
+   "particles": 258154,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0991,
+    "settle": 31.8467,
+    "step": 140.8451,
+    "wake": 23.0105
+   }
+  },
+  {
+   "frame": 275,
+   "phase": "after",
+   "t_sim": 8.2,
+   "tick": 552,
+   "particles": 258171,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.1872,
+    "settle": 32.7145,
+    "step": 140.4326,
+    "wake": 20.8964
+   }
+  },
+  {
+   "frame": 280,
+   "phase": "after",
+   "t_sim": 8.367,
+   "tick": 562,
+   "particles": 258178,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.9924,
+    "settle": 33.3938,
+    "step": 141.5213,
+    "wake": 22.5243
+   }
+  },
+  {
+   "frame": 285,
+   "phase": "after",
+   "t_sim": 8.533,
+   "tick": 572,
+   "particles": 258204,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.3443,
+    "settle": 32.9363,
+    "step": 142.666,
+    "wake": 20.9322
+   }
+  },
+  {
+   "frame": 290,
+   "phase": "after",
+   "t_sim": 8.7,
+   "tick": 582,
+   "particles": 258259,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.4267,
+    "settle": 32.3807,
+    "step": 142.447,
+    "wake": 25.6495
+   }
+  },
+  {
+   "frame": 295,
+   "phase": "after",
+   "t_sim": 8.867,
+   "tick": 592,
+   "particles": 258297,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.5462,
+    "settle": 33.0342,
+    "step": 144.2952,
+    "wake": 23.7353
+   }
+  },
+  {
+   "frame": 300,
+   "phase": "after",
+   "t_sim": 9.033,
+   "tick": 602,
+   "particles": 258303,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.9251,
+    "settle": 32.0235,
+    "step": 146.8118,
+    "wake": 23.4254
+   }
+  },
+  {
+   "frame": 305,
+   "phase": "after",
+   "t_sim": 9.2,
+   "tick": 612,
+   "particles": 258324,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.5986,
+    "settle": 33.325,
+    "step": 237.6267,
+    "wake": 21.1635
+   }
+  },
+  {
+   "frame": 310,
+   "phase": "after",
+   "t_sim": 9.367,
+   "tick": 622,
+   "particles": 258340,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.9457,
+    "settle": 83.9995,
+    "step": 236.7158,
+    "wake": 23.5466
+   }
+  },
+  {
+   "frame": 315,
+   "phase": "after",
+   "t_sim": 9.533,
+   "tick": 632,
+   "particles": 258386,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.1246,
+    "settle": 84.3695,
+    "step": 192.8801,
+    "wake": 20.7649
+   }
+  },
+  {
+   "frame": 320,
+   "phase": "after",
+   "t_sim": 9.7,
+   "tick": 642,
+   "particles": 258388,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.299,
+    "settle": 33.4857,
+    "step": 238.696,
+    "wake": 23.821
+   }
+  },
+  {
+   "frame": 325,
+   "phase": "after",
+   "t_sim": 9.867,
+   "tick": 652,
+   "particles": 258455,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.236,
+    "settle": 32.9416,
+    "step": 240.5915,
+    "wake": 20.8302
+   }
+  },
+  {
+   "frame": 330,
+   "phase": "after",
+   "t_sim": 10.033,
+   "tick": 662,
+   "particles": 258457,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.175,
+    "settle": 32.7352,
+    "step": 194.7584,
+    "wake": 21.2002
+   }
+  },
+  {
+   "frame": 335,
+   "phase": "after",
+   "t_sim": 10.2,
+   "tick": 672,
+   "particles": 258476,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.7826,
+    "settle": 32.7957,
+    "step": 147.7991,
+    "wake": 21.06
+   }
+  },
+  {
+   "frame": 340,
+   "phase": "after",
+   "t_sim": 10.367,
+   "tick": 682,
+   "particles": 258480,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.4163,
+    "settle": 33.1268,
+    "step": 148.4493,
+    "wake": 20.7826
+   }
+  },
+  {
+   "frame": 345,
+   "phase": "after",
+   "t_sim": 10.533,
+   "tick": 692,
+   "particles": 258817,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.9477,
+    "settle": 33.2885,
+    "step": 196.0679,
+    "wake": 20.8189
+   }
+  },
+  {
+   "frame": 350,
+   "phase": "after",
+   "t_sim": 10.7,
+   "tick": 702,
+   "particles": 258817,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.4205,
+    "settle": 84.4322,
+    "step": 194.6523,
+    "wake": 20.5297
+   }
+  },
+  {
+   "frame": 355,
+   "phase": "after",
+   "t_sim": 10.867,
+   "tick": 712,
+   "particles": 258826,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.9954,
+    "settle": 83.196,
+    "step": 195.0077,
+    "wake": 20.6648
+   }
+  },
+  {
+   "frame": 360,
+   "phase": "after",
+   "t_sim": 11.033,
+   "tick": 722,
+   "particles": 258829,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.1918,
+    "settle": 32.7855,
+    "step": 245.6028,
+    "wake": 20.8856
+   }
+  },
+  {
+   "frame": 365,
+   "phase": "after",
+   "t_sim": 11.2,
+   "tick": 732,
+   "particles": 258829,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.8341,
+    "settle": 32.3801,
+    "step": 198.3804,
+    "wake": 21.0696
+   }
+  },
+  {
+   "frame": 370,
+   "phase": "after",
+   "t_sim": 11.367,
+   "tick": 742,
+   "particles": 258829,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.3718,
+    "settle": 32.5751,
+    "step": 152.0085,
+    "wake": 21.1168
+   }
+  },
+  {
+   "frame": 375,
+   "phase": "after",
+   "t_sim": 11.533,
+   "tick": 752,
+   "particles": 258313,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.6677,
+    "settle": 31.6311,
+    "step": 293.581,
+    "wake": 23.4148
+   }
+  },
+  {
+   "frame": 380,
+   "phase": "after",
+   "t_sim": 11.7,
+   "tick": 762,
+   "particles": 258347,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.3854,
+    "settle": 32.5239,
+    "step": 295.0521,
+    "wake": 23.53
+   }
+  },
+  {
+   "frame": 385,
+   "phase": "after",
+   "t_sim": 11.867,
+   "tick": 772,
+   "particles": 258369,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.4082,
+    "settle": 31.9323,
+    "step": 246.8563,
+    "wake": 20.9222
+   }
+  },
+  {
+   "frame": 390,
+   "phase": "after",
+   "t_sim": 12.033,
+   "tick": 782,
+   "particles": 258390,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.3651,
+    "settle": 32.5256,
+    "step": 294.913,
+    "wake": 20.8558
+   }
+  },
+  {
+   "frame": 395,
+   "phase": "after",
+   "t_sim": 12.2,
+   "tick": 792,
+   "particles": 258398,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.7772,
+    "settle": 85.6451,
+    "step": 199.2642,
+    "wake": 23.6605
+   }
+  },
+  {
+   "frame": 400,
+   "phase": "after",
+   "t_sim": 12.367,
+   "tick": 802,
+   "particles": 258415,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.5375,
+    "settle": 85.8621,
+    "step": 248.1169,
+    "wake": 23.2614
+   }
+  },
+  {
+   "frame": 405,
+   "phase": "after",
+   "t_sim": 12.533,
+   "tick": 812,
+   "particles": 258421,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.0973,
+    "settle": 83.7525,
+    "step": 248.012,
+    "wake": 21.2267
+   }
+  },
+  {
+   "frame": 410,
+   "phase": "after",
+   "t_sim": 12.7,
+   "tick": 822,
+   "particles": 258432,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.4708,
+    "settle": 83.7923,
+    "step": 295.5125,
+    "wake": 21.0806
+   }
+  },
+  {
+   "frame": 415,
+   "phase": "after",
+   "t_sim": 12.867,
+   "tick": 832,
+   "particles": 258435,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.5234,
+    "settle": 84.7322,
+    "step": 248.4404,
+    "wake": 20.9726
+   }
+  },
+  {
+   "frame": 420,
+   "phase": "after",
+   "t_sim": 13.033,
+   "tick": 842,
+   "particles": 258437,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.3958,
+    "settle": 83.1593,
+    "step": 249.487,
+    "wake": 21.0187
+   }
+  },
+  {
+   "frame": 425,
+   "phase": "after",
+   "t_sim": 13.2,
+   "tick": 852,
+   "particles": 258447,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.9603,
+    "settle": 86.0073,
+    "step": 251.6135,
+    "wake": 21.1958
+   }
+  },
+  {
+   "frame": 430,
+   "phase": "after",
+   "t_sim": 13.367,
+   "tick": 862,
+   "particles": 258450,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.3846,
+    "settle": 83.7026,
+    "step": 251.7183,
+    "wake": 20.9203
+   }
+  },
+  {
+   "frame": 435,
+   "phase": "after",
+   "t_sim": 13.533,
+   "tick": 872,
+   "particles": 258459,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.7681,
+    "settle": 83.0091,
+    "step": 251.4981,
+    "wake": 20.9174
+   }
+  },
+  {
+   "frame": 440,
+   "phase": "after",
+   "t_sim": 13.7,
+   "tick": 882,
+   "particles": 258462,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.8017,
+    "settle": 84.7346,
+    "step": 252.2085,
+    "wake": 20.871
+   }
+  },
+  {
+   "frame": 445,
+   "phase": "after",
+   "t_sim": 13.867,
+   "tick": 892,
+   "particles": 258465,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.6429,
+    "settle": 83.762,
+    "step": 398.1323,
+    "wake": 21.0441
+   }
+  },
+  {
+   "frame": 450,
+   "phase": "after",
+   "t_sim": 14.033,
+   "tick": 902,
+   "particles": 258470,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.1272,
+    "settle": 84.114,
+    "step": 397.3204,
+    "wake": 23.5436
+   }
+  },
+  {
+   "frame": 455,
+   "phase": "after",
+   "t_sim": 14.2,
+   "tick": 912,
+   "particles": 258472,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.6311,
+    "settle": 84.1753,
+    "step": 398.5358,
+    "wake": 23.9299
+   }
+  },
+  {
+   "frame": 460,
+   "phase": "after",
+   "t_sim": 14.367,
+   "tick": 922,
+   "particles": 258479,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.9992,
+    "settle": 84.5272,
+    "step": 254.957,
+    "wake": 20.9807
+   }
+  },
+  {
+   "frame": 465,
+   "phase": "after",
+   "t_sim": 14.533,
+   "tick": 932,
+   "particles": 258485,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0999,
+    "settle": 83.1078,
+    "step": 255.4214,
+    "wake": 21.0777
+   }
+  },
+  {
+   "frame": 470,
+   "phase": "after",
+   "t_sim": 14.7,
+   "tick": 942,
+   "particles": 258488,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.1703,
+    "settle": 83.3127,
+    "step": 256.0409,
+    "wake": 21.0228
+   }
+  },
+  {
+   "frame": 475,
+   "phase": "after",
+   "t_sim": 14.867,
+   "tick": 952,
+   "particles": 258491,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.4923,
+    "settle": 83.0677,
+    "step": 157.779,
+    "wake": 21.0054
+   }
+  },
+  {
+   "frame": 480,
+   "phase": "after",
+   "t_sim": 15.033,
+   "tick": 962,
+   "particles": 258493,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.5636,
+    "settle": 83.2116,
+    "step": 157.5859,
+    "wake": 21.0307
+   }
+  },
+  {
+   "frame": 485,
+   "phase": "after",
+   "t_sim": 15.2,
+   "tick": 972,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0311,
+    "settle": 82.8807,
+    "step": 157.4834,
+    "wake": 21.0587
+   }
+  },
+  {
+   "frame": 490,
+   "phase": "after",
+   "t_sim": 15.367,
+   "tick": 982,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.239,
+    "settle": 84.5527,
+    "step": 158.1708,
+    "wake": 20.617
+   }
+  },
+  {
+   "frame": 495,
+   "phase": "after",
+   "t_sim": 15.533,
+   "tick": 992,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.6967,
+    "settle": 83.795,
+    "step": 157.6976,
+    "wake": 21.1933
+   }
+  },
+  {
+   "frame": 500,
+   "phase": "after",
+   "t_sim": 15.7,
+   "tick": 1002,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.8397,
+    "settle": 84.2223,
+    "step": 157.8013,
+    "wake": 20.9352
+   }
+  },
+  {
+   "frame": 505,
+   "phase": "after",
+   "t_sim": 15.867,
+   "tick": 1012,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.3187,
+    "settle": 84.008,
+    "step": 208.931,
+    "wake": 20.9443
+   }
+  },
+  {
+   "frame": 510,
+   "phase": "after",
+   "t_sim": 16.033,
+   "tick": 1022,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0323,
+    "settle": 83.0789,
+    "step": 208.3656,
+    "wake": 20.9836
+   }
+  },
+  {
+   "frame": 515,
+   "phase": "after",
+   "t_sim": 16.2,
+   "tick": 1032,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.9507,
+    "settle": 83.4239,
+    "step": 159.5668,
+    "wake": 20.9875
+   }
+  },
+  {
+   "frame": 520,
+   "phase": "after",
+   "t_sim": 16.367,
+   "tick": 1042,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0123,
+    "settle": 82.2925,
+    "step": 109.5199,
+    "wake": 20.7485
+   }
+  },
+  {
+   "frame": 525,
+   "phase": "after",
+   "t_sim": 16.533,
+   "tick": 1052,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.9293,
+    "settle": 83.8604,
+    "step": 109.5261,
+    "wake": 20.8821
+   }
+  },
+  {
+   "frame": 530,
+   "phase": "after",
+   "t_sim": 16.7,
+   "tick": 1062,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.1301,
+    "settle": 83.6752,
+    "step": 109.8512,
+    "wake": 22.55
+   }
+  },
+  {
+   "frame": 535,
+   "phase": "after",
+   "t_sim": 16.867,
+   "tick": 1072,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0122,
+    "settle": 83.3497,
+    "step": 109.4907,
+    "wake": 23.0419
+   }
+  },
+  {
+   "frame": 540,
+   "phase": "after",
+   "t_sim": 17.033,
+   "tick": 1082,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.0215,
+    "settle": 81.1824,
+    "step": 110.8427,
+    "wake": 20.7784
+   }
+  },
+  {
+   "frame": 545,
+   "phase": "after",
+   "t_sim": 17.2,
+   "tick": 1092,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.7342,
+    "settle": 82.8642,
+    "step": 110.3421,
+    "wake": 20.8913
+   }
+  },
+  {
+   "frame": 550,
+   "phase": "after",
+   "t_sim": 17.367,
+   "tick": 1102,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0508,
+    "settle": 82.6561,
+    "step": 109.4495,
+    "wake": 20.9807
+   }
+  },
+  {
+   "frame": 555,
+   "phase": "after",
+   "t_sim": 17.533,
+   "tick": 1112,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.2843,
+    "settle": 83.5325,
+    "step": 111.0621,
+    "wake": 22.2979
+   }
+  },
+  {
+   "frame": 560,
+   "phase": "after",
+   "t_sim": 17.7,
+   "tick": 1122,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.8742,
+    "settle": 83.1965,
+    "step": 110.5976,
+    "wake": 20.734
+   }
+  },
+  {
+   "frame": 565,
+   "phase": "after",
+   "t_sim": 17.867,
+   "tick": 1132,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.9851,
+    "settle": 114.8288,
+    "step": 110.8502,
+    "wake": 20.865
+   }
+  },
+  {
+   "frame": 570,
+   "phase": "after",
+   "t_sim": 18.033,
+   "tick": 1142,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.8288,
+    "settle": 116.6458,
+    "step": 111.2342,
+    "wake": 21.3443
+   }
+  },
+  {
+   "frame": 575,
+   "phase": "after",
+   "t_sim": 18.2,
+   "tick": 1152,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.5263,
+    "settle": 114.1484,
+    "step": 111.1916,
+    "wake": 20.6553
+   }
+  },
+  {
+   "frame": 580,
+   "phase": "after",
+   "t_sim": 18.367,
+   "tick": 1162,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.1578,
+    "settle": 82.1315,
+    "step": 111.3969,
+    "wake": 20.9855
+   }
+  },
+  {
+   "frame": 585,
+   "phase": "after",
+   "t_sim": 18.533,
+   "tick": 1172,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.101,
+    "settle": 82.7185,
+    "step": 59.4691,
+    "wake": 22.4658
+   }
+  },
+  {
+   "frame": 590,
+   "phase": "after",
+   "t_sim": 18.7,
+   "tick": 1182,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.3231,
+    "settle": 83.7714,
+    "step": 110.281,
+    "wake": 20.4448
+   }
+  },
+  {
+   "frame": 595,
+   "phase": "after",
+   "t_sim": 18.867,
+   "tick": 1192,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.1705,
+    "settle": 85.5384,
+    "step": 161.8833,
+    "wake": 21.1203
+   }
+  },
+  {
+   "frame": 600,
+   "phase": "after",
+   "t_sim": 19.033,
+   "tick": 1202,
+   "particles": 258495,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.465,
+    "settle": 84.3779,
+    "step": 109.877,
+    "wake": 20.8367
+   }
+  },
+  {
+   "frame": 605,
+   "phase": "after",
+   "t_sim": 19.2,
+   "tick": 1212,
+   "particles": 258498,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 69.3824,
+    "settle": 89.3589,
+    "step": 111.3724,
+    "wake": 20.7011
+   }
+  },
+  {
+   "frame": 610,
+   "phase": "after",
+   "t_sim": 19.367,
+   "tick": 1222,
+   "particles": 258502,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.4973,
+    "settle": 81.3717,
+    "step": 111.6312,
+    "wake": 20.5542
+   }
+  },
+  {
+   "frame": 615,
+   "phase": "after",
+   "t_sim": 19.533,
+   "tick": 1232,
+   "particles": 258502,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0042,
+    "settle": 81.5727,
+    "step": 215.3031,
+    "wake": 20.8251
+   }
+  },
+  {
+   "frame": 620,
+   "phase": "after",
+   "t_sim": 19.7,
+   "tick": 1242,
+   "particles": 258502,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.2809,
+    "settle": 83.39,
+    "step": 73.2235,
+    "wake": 22.4347
+   }
+  },
+  {
+   "frame": 625,
+   "phase": "after",
+   "t_sim": 19.867,
+   "tick": 1252,
+   "particles": 258502,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.975,
+    "settle": 85.391,
+    "step": 163.9332,
+    "wake": 20.8303
+   }
+  },
+  {
+   "frame": 630,
+   "phase": "after",
+   "t_sim": 20.033,
+   "tick": 1262,
+   "particles": 258502,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.993,
+    "settle": 82.0753,
+    "step": 112.831,
+    "wake": 20.809
+   }
+  },
+  {
+   "frame": 635,
+   "phase": "after",
+   "t_sim": 20.2,
+   "tick": 1272,
+   "particles": 258505,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.1473,
+    "settle": 83.3445,
+    "step": 113.2897,
+    "wake": 21.467
+   }
+  },
+  {
+   "frame": 640,
+   "phase": "after",
+   "t_sim": 20.367,
+   "tick": 1282,
+   "particles": 258505,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 71.7159,
+    "settle": 89.5298,
+    "step": 60.9628,
+    "wake": 20.5757
+   }
+  },
+  {
+   "frame": 645,
+   "phase": "after",
+   "t_sim": 20.533,
+   "tick": 1292,
+   "particles": 258505,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.1865,
+    "settle": 87.5209,
+    "step": 60.6141,
+    "wake": 22.039
+   }
+  },
+  {
+   "frame": 650,
+   "phase": "after",
+   "t_sim": 20.7,
+   "tick": 1302,
+   "particles": 258505,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.2094,
+    "settle": 82.4019,
+    "step": 112.1054,
+    "wake": 20.7632
+   }
+  },
+  {
+   "frame": 655,
+   "phase": "after",
+   "t_sim": 20.867,
+   "tick": 1312,
+   "particles": 258506,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.9513,
+    "settle": 82.7362,
+    "step": 165.036,
+    "wake": 23.7472
+   }
+  },
+  {
+   "frame": 660,
+   "phase": "after",
+   "t_sim": 21.033,
+   "tick": 1322,
+   "particles": 258509,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.5189,
+    "settle": 85.5085,
+    "step": 112.4213,
+    "wake": 24.1487
+   }
+  },
+  {
+   "frame": 665,
+   "phase": "after",
+   "t_sim": 21.2,
+   "tick": 1332,
+   "particles": 258519,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.2263,
+    "settle": 85.0603,
+    "step": 113.6776,
+    "wake": 21.1253
+   }
+  },
+  {
+   "frame": 670,
+   "phase": "after",
+   "t_sim": 21.367,
+   "tick": 1342,
+   "particles": 258530,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.4102,
+    "settle": 83.5811,
+    "step": 113.6088,
+    "wake": 23.5538
+   }
+  },
+  {
+   "frame": 675,
+   "phase": "after",
+   "t_sim": 21.533,
+   "tick": 1352,
+   "particles": 258536,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.4813,
+    "settle": 83.0979,
+    "step": 60.5547,
+    "wake": 20.9443
+   }
+  },
+  {
+   "frame": 680,
+   "phase": "after",
+   "t_sim": 21.7,
+   "tick": 1362,
+   "particles": 258536,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.7382,
+    "settle": 87.9877,
+    "step": 114.5138,
+    "wake": 21.6821
+   }
+  },
+  {
+   "frame": 685,
+   "phase": "after",
+   "t_sim": 21.867,
+   "tick": 1372,
+   "particles": 258543,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.9775,
+    "settle": 91.0465,
+    "step": 61.9237,
+    "wake": 21.5098
+   }
+  },
+  {
+   "frame": 690,
+   "phase": "after",
+   "t_sim": 22.033,
+   "tick": 1382,
+   "particles": 258546,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.9336,
+    "settle": 83.8952,
+    "step": 61.8502,
+    "wake": 23.5506
+   }
+  },
+  {
+   "frame": 695,
+   "phase": "after",
+   "t_sim": 22.2,
+   "tick": 1392,
+   "particles": 258546,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.1678,
+    "settle": 86.2286,
+    "step": 61.0617,
+    "wake": 21.3936
+   }
+  },
+  {
+   "frame": 700,
+   "phase": "after",
+   "t_sim": 22.367,
+   "tick": 1402,
+   "particles": 258546,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.282,
+    "settle": 81.0804,
+    "step": 115.2327,
+    "wake": 20.6102
+   }
+  },
+  {
+   "frame": 705,
+   "phase": "after",
+   "t_sim": 22.533,
+   "tick": 1412,
+   "particles": 258547,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.5049,
+    "settle": 83.0093,
+    "step": 62.1495,
+    "wake": 21.1051
+   }
+  },
+  {
+   "frame": 710,
+   "phase": "after",
+   "t_sim": 22.7,
+   "tick": 1422,
+   "particles": 258550,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.9024,
+    "settle": 91.1347,
+    "step": 115.0779,
+    "wake": 20.6889
+   }
+  },
+  {
+   "frame": 715,
+   "phase": "after",
+   "t_sim": 22.867,
+   "tick": 1432,
+   "particles": 258559,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.3885,
+    "settle": 81.5945,
+    "step": 62.8147,
+    "wake": 23.567
+   }
+  },
+  {
+   "frame": 720,
+   "phase": "after",
+   "t_sim": 23.033,
+   "tick": 1442,
+   "particles": 258562,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.9898,
+    "settle": 85.4184,
+    "step": 166.6692,
+    "wake": 21.1256
+   }
+  },
+  {
+   "frame": 725,
+   "phase": "after",
+   "t_sim": 23.2,
+   "tick": 1452,
+   "particles": 258570,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.5211,
+    "settle": 116.8196,
+    "step": 168.2291,
+    "wake": 24.4038
+   }
+  },
+  {
+   "frame": 730,
+   "phase": "after",
+   "t_sim": 23.367,
+   "tick": 1462,
+   "particles": 258609,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.1679,
+    "settle": 116.9701,
+    "step": 117.4596,
+    "wake": 21.0016
+   }
+  },
+  {
+   "frame": 735,
+   "phase": "after",
+   "t_sim": 23.533,
+   "tick": 1472,
+   "particles": 258652,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.3825,
+    "settle": 116.8081,
+    "step": 116.9124,
+    "wake": 23.2844
+   }
+  },
+  {
+   "frame": 740,
+   "phase": "after",
+   "t_sim": 23.7,
+   "tick": 1482,
+   "particles": 258670,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.1474,
+    "settle": 115.8258,
+    "step": 116.7113,
+    "wake": 24.0832
+   }
+  },
+  {
+   "frame": 745,
+   "phase": "after",
+   "t_sim": 23.867,
+   "tick": 1492,
+   "particles": 258680,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.0479,
+    "settle": 115.0643,
+    "step": 116.0595,
+    "wake": 20.4779
+   }
+  },
+  {
+   "frame": 750,
+   "phase": "after",
+   "t_sim": 24.033,
+   "tick": 1502,
+   "particles": 258684,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.4706,
+    "settle": 114.088,
+    "step": 170.338,
+    "wake": 20.7276
+   }
+  },
+  {
+   "frame": 755,
+   "phase": "after",
+   "t_sim": 24.2,
+   "tick": 1512,
+   "particles": 258684,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.9001,
+    "settle": 114.3269,
+    "step": 116.8421,
+    "wake": 21.0829
+   }
+  },
+  {
+   "frame": 760,
+   "phase": "after",
+   "t_sim": 24.367,
+   "tick": 1522,
+   "particles": 258684,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 64.4742,
+    "settle": 113.6945,
+    "step": 62.4576,
+    "wake": 20.7637
+   }
+  },
+  {
+   "frame": 765,
+   "phase": "after",
+   "t_sim": 24.533,
+   "tick": 1532,
+   "particles": 258684,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.7276,
+    "settle": 116.3597,
+    "step": 116.1678,
+    "wake": 21.0245
+   }
+  },
+  {
+   "frame": 770,
+   "phase": "after",
+   "t_sim": 24.7,
+   "tick": 1542,
+   "particles": 258684,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 68.8246,
+    "settle": 121.0431,
+    "step": 83.9335,
+    "wake": 21.9137
+   }
+  },
+  {
+   "frame": 775,
+   "phase": "after",
+   "t_sim": 24.867,
+   "tick": 1552,
+   "particles": 258684,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0117,
+    "settle": 115.9454,
+    "step": 61.7162,
+    "wake": 20.951
+   }
+  },
+  {
+   "frame": 780,
+   "phase": "after",
+   "t_sim": 25.033,
+   "tick": 1562,
+   "particles": 258684,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 63.8892,
+    "settle": 112.5067,
+    "step": 82.7156,
+    "wake": 20.6424
+   }
+  },
+  {
+   "frame": 785,
+   "phase": "after",
+   "t_sim": 25.2,
+   "tick": 1572,
+   "particles": 258684,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0822,
+    "settle": 115.9318,
+    "step": 115.8608,
+    "wake": 20.9226
+   }
+  },
+  {
+   "frame": 790,
+   "phase": "after",
+   "t_sim": 25.367,
+   "tick": 1582,
+   "particles": 258687,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.0319,
+    "settle": 83.7387,
+    "step": 118.0889,
+    "wake": 21.2908
+   }
+  },
+  {
+   "frame": 795,
+   "phase": "after",
+   "t_sim": 25.533,
+   "tick": 1592,
+   "particles": 258687,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 63.935,
+    "settle": 79.6658,
+    "step": 117.4796,
+    "wake": 21.0097
+   }
+  },
+  {
+   "frame": 800,
+   "phase": "after",
+   "t_sim": 25.7,
+   "tick": 1602,
+   "particles": 258687,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.1807,
+    "settle": 83.359,
+    "step": 117.7488,
+    "wake": 20.9737
+   }
+  },
+  {
+   "frame": 805,
+   "phase": "after",
+   "t_sim": 25.867,
+   "tick": 1612,
+   "particles": 258687,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 65.1366,
+    "settle": 82.7476,
+    "step": 63.3595,
+    "wake": 22.9341
+   }
+  },
+  {
+   "frame": 810,
+   "phase": "after",
+   "t_sim": 26.033,
+   "tick": 1622,
+   "particles": 258687,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 67.9436,
+    "settle": 87.4246,
+    "step": 117.6386,
+    "wake": 22.1469
+   }
+  },
+  {
+   "frame": 815,
+   "phase": "after",
+   "t_sim": 26.2,
+   "tick": 1632,
+   "particles": 258687,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 66.2053,
+    "settle": 84.8804,
+    "step": 117.1187,
+    "wake": 21.1283
+   }
+  },
+  {
+   "frame": 820,
+   "phase": "after",
+   "t_sim": 26.367,
+   "tick": 1642,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 78.3074,
+    "settle": 6.1579,
+    "step": 19.0575,
+    "wake": 18.8052
+   }
+  },
+  {
+   "frame": 825,
+   "phase": "after",
+   "t_sim": 26.533,
+   "tick": 1652,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.9497,
+    "settle": 6.0134,
+    "step": 25.8671,
+    "wake": 23.7533
+   }
+  },
+  {
+   "frame": 830,
+   "phase": "after",
+   "t_sim": 26.7,
+   "tick": 1662,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 91.6981,
+    "settle": 6.4221,
+    "step": 31.5327,
+    "wake": 28.9215
+   }
+  },
+  {
+   "frame": 835,
+   "phase": "after",
+   "t_sim": 26.867,
+   "tick": 1672,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 93.1182,
+    "settle": 6.7719,
+    "step": 28.3405,
+    "wake": 31.4178
+   }
+  },
+  {
+   "frame": 840,
+   "phase": "after",
+   "t_sim": 27.033,
+   "tick": 1682,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 87.5188,
+    "settle": 6.2896,
+    "step": 38.4397,
+    "wake": 32.4165
+   }
+  },
+  {
+   "frame": 845,
+   "phase": "after",
+   "t_sim": 27.2,
+   "tick": 1692,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 83.057,
+    "settle": 6.1604,
+    "step": 31.3415,
+    "wake": 28.923
+   }
+  },
+  {
+   "frame": 850,
+   "phase": "after",
+   "t_sim": 27.367,
+   "tick": 1702,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 79.3541,
+    "settle": 5.9292,
+    "step": 30.7229,
+    "wake": 28.3773
+   }
+  },
+  {
+   "frame": 855,
+   "phase": "after",
+   "t_sim": 27.533,
+   "tick": 1712,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.2928,
+    "settle": 6.4285,
+    "step": 32.5428,
+    "wake": 30.1189
+   }
+  },
+  {
+   "frame": 860,
+   "phase": "after",
+   "t_sim": 27.7,
+   "tick": 1722,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.5396,
+    "settle": 6.5493,
+    "step": 29.8707,
+    "wake": 30.3313
+   }
+  },
+  {
+   "frame": 865,
+   "phase": "after",
+   "t_sim": 27.867,
+   "tick": 1732,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 80.3779,
+    "settle": 6.0705,
+    "step": 38.2206,
+    "wake": 31.3378
+   }
+  },
+  {
+   "frame": 870,
+   "phase": "after",
+   "t_sim": 28.033,
+   "tick": 1742,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.8008,
+    "settle": 38.9826,
+    "step": 40.7798,
+    "wake": 30.3124
+   }
+  },
+  {
+   "frame": 875,
+   "phase": "after",
+   "t_sim": 28.2,
+   "tick": 1752,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 85.0728,
+    "settle": 39.1323,
+    "step": 31.0915,
+    "wake": 29.9395
+   }
+  },
+  {
+   "frame": 880,
+   "phase": "after",
+   "t_sim": 28.367,
+   "tick": 1762,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 81.018,
+    "settle": 37.3951,
+    "step": 57.4207,
+    "wake": 29.7122
+   }
+  },
+  {
+   "frame": 885,
+   "phase": "after",
+   "t_sim": 28.533,
+   "tick": 1772,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 88.3606,
+    "settle": 40.6629,
+    "step": 30.6656,
+    "wake": 28.7826
+   }
+  },
+  {
+   "frame": 890,
+   "phase": "after",
+   "t_sim": 28.7,
+   "tick": 1782,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 80.4666,
+    "settle": 37.5066,
+    "step": 28.2277,
+    "wake": 28.8946
+   }
+  },
+  {
+   "frame": 895,
+   "phase": "after",
+   "t_sim": 28.867,
+   "tick": 1792,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 80.6236,
+    "settle": 37.5835,
+    "step": 38.2974,
+    "wake": 28.9299
+   }
+  },
+  {
+   "frame": 900,
+   "phase": "after",
+   "t_sim": 29.033,
+   "tick": 1802,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 79.6684,
+    "settle": 37.3281,
+    "step": 38.4028,
+    "wake": 31.4974
+   }
+  },
+  {
+   "frame": 905,
+   "phase": "after",
+   "t_sim": 29.2,
+   "tick": 1812,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 79.9216,
+    "settle": 36.8413,
+    "step": 38.2726,
+    "wake": 28.9112
+   }
+  },
+  {
+   "frame": 910,
+   "phase": "after",
+   "t_sim": 29.367,
+   "tick": 1822,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 81.1814,
+    "settle": 38.2032,
+    "step": 38.3059,
+    "wake": 29.3331
+   }
+  },
+  {
+   "frame": 915,
+   "phase": "after",
+   "t_sim": 29.533,
+   "tick": 1832,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 80.8848,
+    "settle": 36.0403,
+    "step": 38.2508,
+    "wake": 32.4369
+   }
+  },
+  {
+   "frame": 920,
+   "phase": "after",
+   "t_sim": 29.7,
+   "tick": 1842,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 79.1632,
+    "settle": 36.7369,
+    "step": 38.2171,
+    "wake": 28.822
+   }
+  },
+  {
+   "frame": 925,
+   "phase": "after",
+   "t_sim": 29.867,
+   "tick": 1852,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 80.3957,
+    "settle": 37.0825,
+    "step": 30.289,
+    "wake": 29.0972
+   }
+  },
+  {
+   "frame": 930,
+   "phase": "after",
+   "t_sim": 30.033,
+   "tick": 1862,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 81.4453,
+    "settle": 37.5029,
+    "step": 32.3187,
+    "wake": 29.0738
+   }
+  },
+  {
+   "frame": 935,
+   "phase": "after",
+   "t_sim": 30.2,
+   "tick": 1872,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 80.0881,
+    "settle": 37.0682,
+    "step": 38.2365,
+    "wake": 31.0278
+   }
+  },
+  {
+   "frame": 940,
+   "phase": "after",
+   "t_sim": 30.367,
+   "tick": 1882,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 79.3494,
+    "settle": 36.8111,
+    "step": 24.7332,
+    "wake": 28.9024
+   }
+  },
+  {
+   "frame": 945,
+   "phase": "after",
+   "t_sim": 30.533,
+   "tick": 1892,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 80.3823,
+    "settle": 36.8305,
+    "step": 30.8414,
+    "wake": 29.23
+   }
+  },
+  {
+   "frame": 950,
+   "phase": "after",
+   "t_sim": 30.7,
+   "tick": 1902,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 80.0669,
+    "settle": 37.4897,
+    "step": 37.983,
+    "wake": 29.4965
+   }
+  },
+  {
+   "frame": 955,
+   "phase": "after",
+   "t_sim": 30.867,
+   "tick": 1912,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 79.7417,
+    "settle": 36.954,
+    "step": 32.3111,
+    "wake": 29.0935
+   }
+  },
+  {
+   "frame": 960,
+   "phase": "after",
+   "t_sim": 31.033,
+   "tick": 1922,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 79.5459,
+    "settle": 37.4262,
+    "step": 39.1432,
+    "wake": 28.9424
+   }
+  },
+  {
+   "frame": 965,
+   "phase": "after",
+   "t_sim": 31.2,
+   "tick": 1932,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 81.298,
+    "settle": 38.5161,
+    "step": 32.2088,
+    "wake": 29.3219
+   }
+  },
+  {
+   "frame": 970,
+   "phase": "after",
+   "t_sim": 31.367,
+   "tick": 1942,
+   "particles": 53387,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 81.0626,
+    "settle": 37.8091,
+    "step": 55.6197,
+    "wake": 29.1721
+   }
+  },
+  {
+   "frame": 975,
+   "phase": "after",
+   "t_sim": 31.533,
+   "tick": 1952,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 88.4111,
+    "settle": 0.0005,
+    "step": 0.0007,
+    "wake": 28.7956
+   }
+  },
+  {
+   "frame": 980,
+   "phase": "after",
+   "t_sim": 31.7,
+   "tick": 1962,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.9366,
+    "settle": 0.0009,
+    "step": 0.0006,
+    "wake": 30.9401
+   }
+  },
+  {
+   "frame": 985,
+   "phase": "after",
+   "t_sim": 31.867,
+   "tick": 1972,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 85.9806,
+    "settle": 0.0004,
+    "step": 0.0005,
+    "wake": 31.273
+   }
+  },
+  {
+   "frame": 990,
+   "phase": "after",
+   "t_sim": 32.033,
+   "tick": 1982,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.8391,
+    "settle": 0.0004,
+    "step": 0.0006,
+    "wake": 31.4349
+   }
+  },
+  {
+   "frame": 995,
+   "phase": "after",
+   "t_sim": 32.2,
+   "tick": 1992,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 86.6106,
+    "settle": 0.0006,
+    "step": 0.0007,
+    "wake": 31.2218
+   }
+  },
+  {
+   "frame": 1000,
+   "phase": "after",
+   "t_sim": 32.367,
+   "tick": 2002,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 85.6019,
+    "settle": 0.0004,
+    "step": 0.0005,
+    "wake": 31.3487
+   }
+  },
+  {
+   "frame": 1005,
+   "phase": "after",
+   "t_sim": 32.533,
+   "tick": 2012,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 87.786,
+    "settle": 0.0004,
+    "step": 0.0006,
+    "wake": 31.4102
+   }
+  },
+  {
+   "frame": 1010,
+   "phase": "after",
+   "t_sim": 32.7,
+   "tick": 2022,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 93.4332,
+    "settle": 0.0003,
+    "step": 0.0004,
+    "wake": 33.9177
+   }
+  },
+  {
+   "frame": 1015,
+   "phase": "after",
+   "t_sim": 32.867,
+   "tick": 2032,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.6561,
+    "settle": 0.0009,
+    "step": 0.0007,
+    "wake": 31.1106
+   }
+  },
+  {
+   "frame": 1020,
+   "phase": "after",
+   "t_sim": 33.033,
+   "tick": 2042,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 83.3861,
+    "settle": 0.0004,
+    "step": 0.0006,
+    "wake": 31.0135
+   }
+  },
+  {
+   "frame": 1025,
+   "phase": "after",
+   "t_sim": 33.2,
+   "tick": 2052,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 83.4264,
+    "settle": 0.0003,
+    "step": 0.0005,
+    "wake": 31.1938
+   }
+  },
+  {
+   "frame": 1030,
+   "phase": "after",
+   "t_sim": 33.367,
+   "tick": 2062,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.4137,
+    "settle": 0.0003,
+    "step": 0.0007,
+    "wake": 31.3983
+   }
+  },
+  {
+   "frame": 1035,
+   "phase": "after",
+   "t_sim": 33.533,
+   "tick": 2072,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 91.7666,
+    "settle": 0.0003,
+    "step": 0.0005,
+    "wake": 34.3462
+   }
+  },
+  {
+   "frame": 1040,
+   "phase": "after",
+   "t_sim": 33.7,
+   "tick": 2082,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 82.9648,
+    "settle": 0.0009,
+    "step": 0.0005,
+    "wake": 31.2471
+   }
+  },
+  {
+   "frame": 1045,
+   "phase": "after",
+   "t_sim": 33.867,
+   "tick": 2092,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 87.5784,
+    "settle": 0.0003,
+    "step": 0.0006,
+    "wake": 34.3345
+   }
+  },
+  {
+   "frame": 1050,
+   "phase": "after",
+   "t_sim": 34.033,
+   "tick": 2102,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 83.0384,
+    "settle": 0.0003,
+    "step": 0.0007,
+    "wake": 31.3902
+   }
+  },
+  {
+   "frame": 1055,
+   "phase": "after",
+   "t_sim": 34.2,
+   "tick": 2112,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.4012,
+    "settle": 0.0002,
+    "step": 0.0005,
+    "wake": 31.5145
+   }
+  },
+  {
+   "frame": 1060,
+   "phase": "after",
+   "t_sim": 34.367,
+   "tick": 2122,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 83.2286,
+    "settle": 0.0004,
+    "step": 0.0011,
+    "wake": 30.9175
+   }
+  },
+  {
+   "frame": 1065,
+   "phase": "after",
+   "t_sim": 34.533,
+   "tick": 2132,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 90.7732,
+    "settle": 0.0004,
+    "step": 0.0041,
+    "wake": 34.78
+   }
+  },
+  {
+   "frame": 1070,
+   "phase": "after",
+   "t_sim": 34.7,
+   "tick": 2142,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 84.6689,
+    "settle": 0.0004,
+    "step": 0.0005,
+    "wake": 31.5016
+   }
+  },
+  {
+   "frame": 1075,
+   "phase": "after",
+   "t_sim": 34.867,
+   "tick": 2152,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 86.1313,
+    "settle": 0.0003,
+    "step": 0.0011,
+    "wake": 33.1249
+   }
+  },
+  {
+   "frame": 1080,
+   "phase": "after",
+   "t_sim": 35.033,
+   "tick": 2162,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 83.8618,
+    "settle": 0.0007,
+    "step": 0.0006,
+    "wake": 31.2041
+   }
+  },
+  {
+   "frame": 1085,
+   "phase": "after",
+   "t_sim": 35.2,
+   "tick": 2172,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 83.441,
+    "settle": 0.0008,
+    "step": 0.0007,
+    "wake": 31.4084
+   }
+  },
+  {
+   "frame": 1090,
+   "phase": "after",
+   "t_sim": 35.367,
+   "tick": 2182,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 82.777,
+    "settle": 0.0004,
+    "step": 0.0005,
+    "wake": 31.1492
+   }
+  },
+  {
+   "frame": 1095,
+   "phase": "after",
+   "t_sim": 35.533,
+   "tick": 2192,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 83.4194,
+    "settle": 0.0008,
+    "step": 0.0004,
+    "wake": 31.4701
+   }
+  },
+  {
+   "frame": 1100,
+   "phase": "after",
+   "t_sim": 35.7,
+   "tick": 2202,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 83.4605,
+    "settle": 0.0003,
+    "step": 0.0006,
+    "wake": 30.9858
+   }
+  },
+  {
+   "frame": 1105,
+   "phase": "after",
+   "t_sim": 35.867,
+   "tick": 2212,
+   "particles": 0,
+   "ledger_exact": true,
+   "last_tick_ms": {
+    "ca": 90.81,
+    "settle": 0.0003,
+    "step": 0.0005,
+    "wake": 34.184
+   }
+  }
+ ]
+}

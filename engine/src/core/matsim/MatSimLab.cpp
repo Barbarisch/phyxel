@@ -538,10 +538,31 @@ void MatSimLab::rebuildFaces() {
                 }
             }
     if (!parts_) return;
-    // 6i: each particle a cube of its volume (side h * cbrt(units / FULL)), all six faces.
-    for (const Particle& q : parts_->particles()) {
+    // 6i: each particle a cube of its volume (side h * cbrt(units / FULL)). A face is skipped when the cell beside the
+    // particle's own cell holds a particle, a wall or a full cell (the cut at 1/9 m was 1.5 M faces of which the
+    // interior of the clump is never seen; drawing all six capped the view at the first ~65 k particles).
+    const auto& P = parts_->particles();
+    std::vector<uint8_t> occ(size_t(s.x) * s.y * s.z, 0);
+    auto boxIdx = [&](int x, int y, int z) -> long long {
+        if (x < 0 || y < 0 || z < 0 || x >= s.x || y >= s.y || z >= s.z) return -1;
+        return x + (long long)s.x * (z + (long long)s.z * y);
+    };
+    auto cellOf = [&](const Particle& q, int& x, int& y, int& z) {
+        x = int(std::floor(q.x)) - o.x; y = int(std::floor(q.y)) - o.y; z = int(std::floor(q.z)) - o.z;
+    };
+    for (const Particle& q : P) {
+        int x, y, z; cellOf(q, x, y, z);
+        if (long long i = boxIdx(x, y, z); i >= 0) occ[size_t(i)] = 1;
+    }
+    for (const Particle& q : P) {
         const float side = float(h * std::cbrt(double(q.units) / double(F)));
+        int x, y, z; cellOf(q, x, y, z);
         for (int f = 0; f < 6; ++f) {
+            const int nx = x + kN[f][0], ny = y + kN[f][1], nz = z + kN[f][2];
+            const long long ni = boxIdx(nx, ny, nz);
+            if (ni >= 0 && occ[size_t(ni)]) continue;
+            const Cell nb = core_.at({o.x + nx, o.y + ny, o.z + nz});
+            if (cellMaterial(nb) == kSolid || cellFill(nb) == F) continue;
             if (faces_.size() >= kMaxFaces) { ++facesCut_; continue; }
             DynamicSubcubeInstanceData d{};
             d.worldPosition = glm::vec3(float(q.x * h), float(q.y * h), float(q.z * h));
