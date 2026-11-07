@@ -60,6 +60,16 @@ struct ParticleConfig {
     float settlePatchM = 1.0f;
     /// E2: wake() lifts cell water whose head excess over a neighbour exceeds this many cells. 0 = off.
     float wakeHeadCells = 0.0f;
+    /// 6i video (2026-11-07), REJECTED as a default, kept as a knob: contact wakes a cell only if it is at least this
+    /// fraction full, so a drop joins a thin film instead of lifting it as a grid of specks. Measured on the live-rig
+    /// replica at 1/3 m: at 0.5 the films stay cells, the CA spreads them wide and thin, and a later wake lifts them
+    /// whole as thousands of near-empty particles. It had not settled at 36 s (5.6 k particles, 2.5 k+ under a
+    /// quarter cell); with liftAtCentroid it blew up (34 k particles, 675 cells/s). At 0 it settles by 18 s.
+    float wakeContactMinFill = 0.0f;
+    /// 6i video, REJECTED as a default, kept as a knob: a lifted cell's particle starts at its water's centroid
+    /// (y + fill / 2), not the cell centre. Near-empty cells then start on the floor's boundary particles and get
+    /// thrown (see wakeContactMinFill).
+    bool liftAtCentroid = false;
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
 };
 

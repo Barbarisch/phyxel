@@ -506,13 +506,25 @@ TEST_F(MatSimParticlesGpuTest, DISABLED_LiveRigReplica) {
     ParticleConfig pc;
     pc.settleSpeed = 0.35f;
     pc.wakeHeadCells = 1.0f;
+    // 6i video A/B: MATSIM_CONTACT_MIN (fraction, default the config's) and MATSIM_LIFT_CENTRE=1 (cell-centre lift).
+    if (const char* e = std::getenv("MATSIM_CONTACT_MIN")) pc.wakeContactMinFill = float(std::atof(e));
+    if (std::getenv("MATSIM_LIFT_CENTRE")) pc.liftAtCentroid = false;
+    const uint32_t F = s.full();
     MatSimParticles ps(pc);
     ps.setGpu(&gpu);
-    for (int f = 0; f < 60 * 60; ++f) {
+    std::printf("[replica] contact min fill %.2f, lift at %s\n", pc.wakeContactMinFill, pc.liftAtCentroid ? "centroid" : "cell centre");
+    for (int f = 0; f < 36 * 60; ++f) {
         ps.wake(s);
         ps.step(s, 1.0 / 60.0);
         ps.settle(s);
         s.step(1);
+        if ((f + 1) % 120 == 0) {
+            uint32_t umin = F;
+            size_t small = 0;
+            for (const Particle& q : ps.particles()) { umin = std::min(umin, q.units); if (q.units < F / 4) ++small; }
+            std::printf("[replica-ab] t %2d s: %zu particles (%zu under a quarter cell, min %.3f cell), max speed %.1f cells/s, substeps %d\n",
+                        (f + 1) / 60, ps.particles().size(), small, double(umin) / F, ps.maxSpeed(), ps.lastSubsteps());
+        }
         if ((f + 1) % 600) continue;
         const auto& st = ps.lastSettleStats();
         std::printf("[replica] t %2d s: %zu particles, groups %zu (speed %zu level %zu), largest %zu, spread %.2f; "

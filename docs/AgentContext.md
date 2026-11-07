@@ -221,7 +221,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Videos at sim speed: `tools/matsim_hybrid_video.py --cpm 3|9` -> `docs/evidence/matsim_video/hybrid_{3,9}.mp4`.
       Each frame = 2 API-stepped ticks + an engine screenshot. Read `view_faces_cut` (`tools/matsim_view_cut_probe.py`): the view cap (393,216 faces) silently
       dropped 1/9 m particles until the particle faces were culled against neighbouring particle cells.
-    - **Next:** keep the hybrid on the device (1/9 m live ~225 ms a tick: CA 72 on the CPU, step 100), then a region-limited wake.
+    - **Live fps (2026-11-07, `tools/matsim_hybrid_fps.py`):** 1/3 m hybrid runs at real time, worst frame ~15 ms;
+      1/9 m is ~1 fps, sim at 0.067x. Report the worst frame per window, not `fps` (frames with no tick read ~700).
+      Ledge "specks" = a thin film lifted one particle per cell. Both quick fixes (`wakeContactMinFill`, `liftAtCentroid`)
+      are REJECTED as defaults: near-empty particles blew up or never settled on `DISABLED_LiveRigReplica`, though the
+      unit and GPU tests passed. Run the replica A/B on any wake or lift change.
+    - **Next:** keep the hybrid on the device (1/9 m live ~241 ms a tick: CA ~80 on the CPU), a mass-packing lift for thin
+      cells, then a region-limited wake.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
     - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then

@@ -1322,8 +1322,59 @@ The U-tube arm was filled one-sided, so it sloshes from frame 0.
 - **Not a physics change:** the probe's particle count is identical before and after.
 - **What the camera sees:** a clump's surface is now drawn per cell, not per particle.
 
-**Next:** keep the hybrid on the device (the CA on the GPU, no per-tick upload), then a
-region-limited wake.
+**Live frame rate (2026-11-07), `tools/matsim_hybrid_fps.py` → `docs/evidence/matsim_video/fps_{3,9}.json`:**
+- **Setup:** the same rig, the box in realtime mode (the game loop steps it, at most 4 ticks a
+  frame, the rest dropped), the raw-cell view on, the video's camera, Release, the committed
+  6bfd479f code.
+- **Measured:** sampled every 0.5 s. The engine's `fps` field is misleading here, because frames
+  with no tick run at about 700 fps. So the worst frame in each window is the number reported.
+
+| | 1/3 m | 1/9 m |
+|---|---|---|
+| sim speed while particles fly (1.0 = real time) | 1.00 (min 0.994, 0 ticks dropped) | 0.067 (3,345 ticks dropped in 60 s) |
+| worst frame per 0.5 s, median / max | 15.1 / 21.1 ms (~60 fps with a hitch) | 979 / 1,757 ms (~1 fps) |
+| hybrid tick, median | 10.2 ms | 241 ms |
+| control: the same view, no box | 781 fps | 661 fps |
+
+1/3 m runs live at real time near 60 fps. 1/9 m is about 1 fps and 15x slower than real time:
+the device-resident hybrid (the CA on the GPU, no per-tick upload) is the lever.
+
+**The ledge "specks" (owner, from the videos at video-time ~7 s at 1/3 m and ~9 s at 1/9 m):**
+- **What the owner saw:** a few particle cubes on the raised ledge snap into a grid of small,
+  evenly spaced cubes.
+- **Cause:** spray lands on the ledge, settles, and the CA spreads it into a film a fraction of
+  a cell deep. The next splash touches the film, and the contact wake lifts the whole body one
+  particle per cell, at the cell centre, carrying that cell's fill. That is a lattice of specks
+  of side h·cbrt(fill), floating half a cell up. The video stats show it: +30, then +74
+  particles at those moments.
+- **Two fixes tried, both REJECTED as defaults and kept as knobs (off):**
+  - `wakeContactMinFill`: contact wakes only a cell at least this full.
+  - `liftAtCentroid`: a lifted particle starts at y + fill/2.
+  - Red first: `ThinFilmTouchedByADrop...` lifted 324 of 324 film cells, and the half-cell
+    particle sat at 1.5 rather than 1.25. Green on the unit tests, and the CPU suite (36/36) and
+    GPU suite (8/8) passed.
+- **The 1/3 m video caught it:** it did not settle; particles grew to 35,635 at 35 s. The
+  live-rig replica A/B (`DISABLED_LiveRigReplica`, `MATSIM_CONTACT_MIN`, `MATSIM_LIFT_CENTRE`)
+  at 1/3 m, 36 s:
+
+| contact wakes | lift at | result |
+|---|---|---|
+| any contact (the default) | cell centre (the default) | 0 particles by 18 s |
+| any contact | centroid | 0 particles by 18 s |
+| half-full cells only | cell centre | 5,601 particles at 30 s (3,618 under a quarter cell); 0 only at 36 s |
+| half-full cells only | centroid | blew up: 34,127 particles, up to 675 cells/s, 16 substeps |
+
+- **Mechanism:** a film the drops cannot wake stays cells. The CA spreads it wide and thin, and
+  a later trigger lifts it whole through a connected deeper cell, as thousands of near-empty
+  particles. Starting those at the centroid puts them on the floor's boundary particles, which
+  throw them.
+- **Lesson:** near-empty particles are the fragile part. The unit tests passed and the GPU tests
+  passed; only the video, and then the replica, showed it.
+- **Next for the specks:** a mass-conserving lift that packs a body's thin cells into particles
+  of about one cell's water each, placed at their centroid. No near-empty particles, no lattice.
+
+**Next:** keep the hybrid on the device (the CA on the GPU, no per-tick upload); the lift
+that packs thin cells; then a region-limited wake.
 
 ## 7. Working alongside the other sessions
 

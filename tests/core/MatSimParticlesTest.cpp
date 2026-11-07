@@ -653,3 +653,55 @@ TEST(MatSimParticles, WakeUTubeFromCells) {
         }
     }
 }
+
+// 6i video (owner, 2026-11-07): spray settled on the ledge as a thin film. The next splash touched it, and the contact wake
+// lifted it whole, one particle per cell at the cell centre: a grid of evenly spaced specks that snapped into view.
+// Two knobs were tried. Both are REJECTED as defaults: the live-rig replica at 1/3 m did not settle in 36 s, or blew up
+// (MaterialSimPlan 6i). These tests pin the default behaviour and what each knob does.
+TEST(MatSimParticles, ThinFilmTouchedByADropLiftsUnlessTheContactKnobIsSet) {
+    const int cpm = 3;
+    for (float minFill : {0.0f, 0.5f}) {
+        std::string why;
+        MatSimCore s;
+        ASSERT_TRUE(s.create({0, 0, 0}, {6 * cpm, 2 * cpm, 6 * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+        const uint32_t F = s.full();
+        s.fillBox(Mat::Water, {0, 0, 0}, {6 * cpm, 1, 6 * cpm}, 0.125);   // a film an eighth of a cell deep
+        ParticleConfig pc = hybridConfig(true);
+        pc.wakeContactMinFill = minFill;
+        MatSimParticles ps(pc);
+        ps.mutableParticles().push_back({9.5f, 1.5f, 9.5f, 0.f, -3.f, 0.f, F, Mat::Water});   // a drop just above it
+        const uint64_t total = s.ledger()[Mat::Water] + ps.units(Mat::Water);
+        const size_t lifted = ps.wake(s);
+        std::printf("[MatSimParticles] film 1/8 cell over %d cells, a drop touching it, contact min fill %.2f: lifted %zu cells\n",
+                    36 * cpm * cpm, minFill, lifted);
+        EXPECT_EQ(lifted, minFill > 0.f ? 0u : size_t(36 * cpm * cpm)) << minFill;
+        EXPECT_EQ(s.ledger()[Mat::Water] + ps.units(Mat::Water), total);
+    }
+}
+
+TEST(MatSimParticles, LiftHeightCellCentreByDefaultCentroidUnderTheKnob) {
+    const int cpm = 3;
+    for (bool centroid : {false, true}) {
+        std::string why;
+        MatSimCore s;
+        ASSERT_TRUE(s.create({0, 0, 0}, {6 * cpm, 2 * cpm, 6 * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+        const uint32_t F = s.full();
+        s.fillBox(Mat::Water, {0, 0, 0}, {6 * cpm, 1, 6 * cpm}, 1.0);   // a full layer...
+        s.fillBox(Mat::Water, {0, 1, 0}, {6 * cpm, 1, 6 * cpm}, 0.5);   // ...under a half-full one
+        ParticleConfig pc = hybridConfig(true);
+        pc.liftAtCentroid = centroid;
+        MatSimParticles ps(pc);
+        ps.mutableParticles().push_back({9.5f, 2.5f, 9.5f, 0.f, -3.f, 0.f, F, Mat::Water});
+        const uint64_t total = s.ledger()[Mat::Water] + ps.units(Mat::Water);
+        const size_t lifted = ps.wake(s);
+        float yHalf = -1.f, yFull = -1.f;
+        for (const Particle& q : ps.particles()) {
+            if (q.units == F / 2 && yHalf < 0) yHalf = q.y;
+            if (q.units == F && q.y < 1.f && yFull < 0) yFull = q.y;
+        }
+        EXPECT_EQ(lifted, size_t(2 * 36 * cpm * cpm)) << "a body deep enough to move wakes whole";
+        EXPECT_FLOAT_EQ(yFull, 0.5f);
+        EXPECT_FLOAT_EQ(yHalf, centroid ? 1.25f : 1.5f);
+        EXPECT_EQ(s.ledger()[Mat::Water] + ps.units(Mat::Water), total);
+    }
+}

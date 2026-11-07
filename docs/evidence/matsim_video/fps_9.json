@@ -1,0 +1,1042 @@
+{
+ "summary": {
+  "cpm": 9,
+  "control_fps_no_box": 661.2007444607467,
+  "busy_samples": 57,
+  "fps_median_busy": 1.0324222059545325,
+  "fps_min_busy": 0.5692504225129418,
+  "sim_speed_median_busy": 0.06738255035713457,
+  "fps_median_settled": null,
+  "sim_s_reached": 3.8,
+  "wall_s": 60.0,
+  "ledger_exact_every_sample": true
+ },
+ "rows": [
+  {
+   "wall_s": 1.22,
+   "fps": 11.962037045866927,
+   "frame_ms_max": 682.176411151886,
+   "tick": 8,
+   "sim_speed": 0.1232061895901253,
+   "particles": 256815,
+   "dropped": 37,
+   "view_faces": 18127,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.0179,
+    "settle": 22.1961,
+    "step": 16.6423,
+    "wake": 20.9612
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 1.82,
+   "fps": 1.4658964802248944,
+   "frame_ms_max": 541.3209795951843,
+   "tick": 12,
+   "sim_speed": 0.11116930687886432,
+   "particles": 256815,
+   "dropped": 66,
+   "view_faces": 28784,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 72.531,
+    "settle": 24.4544,
+    "step": 34.1995,
+    "wake": 21.0041
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 2.5,
+   "fps": 1.8473327982740098,
+   "frame_ms_max": 599.2699265480042,
+   "tick": 16,
+   "sim_speed": 0.09868018350736983,
+   "particles": 256815,
+   "dropped": 98,
+   "view_faces": 53020,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.4211,
+    "settle": 25.624,
+    "step": 56.3594,
+    "wake": 20.8885
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 3.23,
+   "fps": 1.6686971191101405,
+   "frame_ms_max": 675.6128072738647,
+   "tick": 20,
+   "sim_speed": 0.09158118944294331,
+   "particles": 256815,
+   "dropped": 134,
+   "view_faces": 81855,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.0305,
+    "settle": 25.4615,
+    "step": 61.4153,
+    "wake": 21.0541
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 3.98,
+   "fps": 1.4801377197614942,
+   "frame_ms_max": 728.0634045600891,
+   "tick": 24,
+   "sim_speed": 0.08807275954120652,
+   "particles": 256815,
+   "dropped": 174,
+   "view_faces": 118975,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.9118,
+    "settle": 27.3784,
+    "step": 66.5409,
+    "wake": 21.3728
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 4.8,
+   "fps": 1.373506749187896,
+   "frame_ms_max": 756.8774223327637,
+   "tick": 28,
+   "sim_speed": 0.08170237964795918,
+   "particles": 256815,
+   "dropped": 216,
+   "view_faces": 143732,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.1326,
+    "settle": 28.1104,
+    "step": 79.7702,
+    "wake": 21.2557
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 5.62,
+   "fps": 1.3212179019925192,
+   "frame_ms_max": 816.0526156425476,
+   "tick": 32,
+   "sim_speed": 0.08178123545254025,
+   "particles": 256815,
+   "dropped": 260,
+   "view_faces": 173928,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.4051,
+    "settle": 29.3116,
+    "step": 79.835,
+    "wake": 21.1008
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 6.44,
+   "fps": 1.2254111816216837,
+   "frame_ms_max": 814.9722814559937,
+   "tick": 36,
+   "sim_speed": 0.08129746308855829,
+   "particles": 256815,
+   "dropped": 305,
+   "view_faces": 192324,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.4145,
+    "settle": 30.9333,
+    "step": 79.8129,
+    "wake": 21.3575
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 7.24,
+   "fps": 1.2270355971045346,
+   "frame_ms_max": 819.8689818382263,
+   "tick": 40,
+   "sim_speed": 0.08328885724909536,
+   "particles": 256815,
+   "dropped": 351,
+   "view_faces": 202264,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.1106,
+    "settle": 30.4005,
+    "step": 71.7489,
+    "wake": 21.3423
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 8.05,
+   "fps": 1.2197070777795525,
+   "frame_ms_max": 800.5750179290771,
+   "tick": 44,
+   "sim_speed": 0.08204519102634636,
+   "particles": 256815,
+   "dropped": 395,
+   "view_faces": 211969,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.2015,
+    "settle": 30.1585,
+    "step": 74.6317,
+    "wake": 21.2449
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 8.87,
+   "fps": 1.2491021798141968,
+   "frame_ms_max": 812.706470489502,
+   "tick": 48,
+   "sim_speed": 0.08103772550508453,
+   "particles": 256815,
+   "dropped": 439,
+   "view_faces": 221084,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 69.6609,
+    "settle": 31.3566,
+    "step": 77.0351,
+    "wake": 21.3115
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 9.7,
+   "fps": 1.2304565501954097,
+   "frame_ms_max": 822.1731781959534,
+   "tick": 52,
+   "sim_speed": 0.080676230935034,
+   "particles": 256815,
+   "dropped": 485,
+   "view_faces": 228871,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.5594,
+    "settle": 30.9139,
+    "step": 79.5891,
+    "wake": 21.0606
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 10.54,
+   "fps": 1.2162887655788548,
+   "frame_ms_max": 826.8126249313354,
+   "tick": 56,
+   "sim_speed": 0.07944782272107444,
+   "particles": 256815,
+   "dropped": 530,
+   "view_faces": 237827,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.7124,
+    "settle": 31.953,
+    "step": 82.0815,
+    "wake": 21.1831
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 11.45,
+   "fps": 1.209463873490136,
+   "frame_ms_max": 839.1407132148743,
+   "tick": 60,
+   "sim_speed": 0.07282642591585528,
+   "particles": 256815,
+   "dropped": 577,
+   "view_faces": 249250,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.2602,
+    "settle": 32.4258,
+    "step": 99.8969,
+    "wake": 21.1445
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 12.37,
+   "fps": 1.1916952475930402,
+   "frame_ms_max": 915.2135848999023,
+   "tick": 64,
+   "sim_speed": 0.07236819039494916,
+   "particles": 256815,
+   "dropped": 628,
+   "view_faces": 252144,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.3885,
+    "settle": 31.4835,
+    "step": 102.6944,
+    "wake": 21.1648
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 13.26,
+   "fps": 1.0926411238851648,
+   "frame_ms_max": 921.5794205665588,
+   "tick": 68,
+   "sim_speed": 0.0752721193183001,
+   "particles": 256815,
+   "dropped": 679,
+   "view_faces": 258951,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 69.409,
+    "settle": 33.011,
+    "step": 88.0376,
+    "wake": 21.1011
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 14.14,
+   "fps": 1.0850936747103475,
+   "frame_ms_max": 885.0898146629333,
+   "tick": 72,
+   "sim_speed": 0.07605353897125915,
+   "particles": 256815,
+   "dropped": 728,
+   "view_faces": 266422,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.802,
+    "settle": 31.9016,
+    "step": 89.6678,
+    "wake": 21.0218
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 15.01,
+   "fps": 1.129828841585786,
+   "frame_ms_max": 876.6469955444336,
+   "tick": 76,
+   "sim_speed": 0.0761715267897218,
+   "particles": 256815,
+   "dropped": 777,
+   "view_faces": 268326,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.9126,
+    "settle": 31.8384,
+    "step": 90.554,
+    "wake": 20.7475
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 15.9,
+   "fps": 1.1407100065163163,
+   "frame_ms_max": 875.6501078605652,
+   "tick": 80,
+   "sim_speed": 0.07464373059908642,
+   "particles": 256815,
+   "dropped": 825,
+   "view_faces": 275230,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.9036,
+    "settle": 32.8597,
+    "step": 94.0426,
+    "wake": 21.1646
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 16.81,
+   "fps": 1.1420086527976945,
+   "frame_ms_max": 892.9824829101562,
+   "tick": 84,
+   "sim_speed": 0.07396349934854589,
+   "particles": 256815,
+   "dropped": 875,
+   "view_faces": 276709,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.4884,
+    "settle": 31.6564,
+    "step": 98.1505,
+    "wake": 20.7052
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 17.76,
+   "fps": 1.119842795506002,
+   "frame_ms_max": 901.4912247657776,
+   "tick": 88,
+   "sim_speed": 0.06995489203852111,
+   "particles": 256815,
+   "dropped": 925,
+   "view_faces": 283737,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.8358,
+    "settle": 32.1917,
+    "step": 119.7732,
+    "wake": 20.6913
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 18.76,
+   "fps": 1.1092731382491456,
+   "frame_ms_max": 952.3776173591614,
+   "tick": 92,
+   "sim_speed": 0.06626496639990394,
+   "particles": 256815,
+   "dropped": 978,
+   "view_faces": 286686,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.1844,
+    "settle": 31.773,
+    "step": 123.5352,
+    "wake": 21.1131
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 19.71,
+   "fps": 1.0500036768744,
+   "frame_ms_max": 1006.4197778701782,
+   "tick": 96,
+   "sim_speed": 0.07065064290120306,
+   "particles": 256815,
+   "dropped": 1034,
+   "view_faces": 292286,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.3,
+    "settle": 32.9142,
+    "step": 107.584,
+    "wake": 21.438
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 20.67,
+   "fps": 0.9936211727836232,
+   "frame_ms_max": 943.8194036483765,
+   "tick": 100,
+   "sim_speed": 0.06916886782200318,
+   "particles": 256815,
+   "dropped": 1087,
+   "view_faces": 296952,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.8322,
+    "settle": 33.4089,
+    "step": 112.1315,
+    "wake": 21.3156
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 21.69,
+   "fps": 1.0595247312509732,
+   "frame_ms_max": 963.7721180915833,
+   "tick": 104,
+   "sim_speed": 0.06536656781352211,
+   "particles": 256815,
+   "dropped": 1141,
+   "view_faces": 298902,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.8172,
+    "settle": 32.4037,
+    "step": 136.9116,
+    "wake": 21.0005
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 22.77,
+   "fps": 1.0375896762609749,
+   "frame_ms_max": 1020.1021432876587,
+   "tick": 108,
+   "sim_speed": 0.061799614612884565,
+   "particles": 256815,
+   "dropped": 1198,
+   "view_faces": 300843,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.294,
+    "settle": 33.6538,
+    "step": 141.0266,
+    "wake": 20.9949
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 23.84,
+   "fps": 0.9802939897539358,
+   "frame_ms_max": 1078.2368183135986,
+   "tick": 112,
+   "sim_speed": 0.06213489598529373,
+   "particles": 256815,
+   "dropped": 1259,
+   "view_faces": 305153,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.589,
+    "settle": 33.0828,
+    "step": 121.2719,
+    "wake": 21.389
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 24.86,
+   "fps": 0.9274400419418399,
+   "frame_ms_max": 1073.1871128082275,
+   "tick": 116,
+   "sim_speed": 0.06556946604075346,
+   "particles": 256815,
+   "dropped": 1319,
+   "view_faces": 310090,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.8437,
+    "settle": 33.7528,
+    "step": 123.6299,
+    "wake": 21.2815
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 25.89,
+   "fps": 0.9318039585690537,
+   "frame_ms_max": 1016.1645412445068,
+   "tick": 120,
+   "sim_speed": 0.06453861619170981,
+   "particles": 256815,
+   "dropped": 1376,
+   "view_faces": 312933,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.3245,
+    "settle": 34.0142,
+    "step": 126.6541,
+    "wake": 21.2857
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 26.93,
+   "fps": 0.9840925946651219,
+   "frame_ms_max": 1033.528447151184,
+   "tick": 124,
+   "sim_speed": 0.06401211166663615,
+   "particles": 256815,
+   "dropped": 1434,
+   "view_faces": 313042,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.9708,
+    "settle": 33.5684,
+    "step": 129.6234,
+    "wake": 21.0615
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 28.0,
+   "fps": 0.967559241118518,
+   "frame_ms_max": 1041.8392419815063,
+   "tick": 128,
+   "sim_speed": 0.06269069934896228,
+   "particles": 256815,
+   "dropped": 1493,
+   "view_faces": 314697,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.7498,
+    "settle": 33.8678,
+    "step": 132.3408,
+    "wake": 21.3113
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 28.96,
+   "fps": 0.9598409809348983,
+   "frame_ms_max": 1063.0881786346436,
+   "tick": 132,
+   "sim_speed": 0.06957221579325777,
+   "particles": 256815,
+   "dropped": 1552,
+   "view_faces": 315415,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.2804,
+    "settle": 33.8288,
+    "step": 109.7485,
+    "wake": 21.0938
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 29.93,
+   "fps": 0.9406557424844385,
+   "frame_ms_max": 958.4577083587646,
+   "tick": 136,
+   "sim_speed": 0.06879786817518926,
+   "particles": 256815,
+   "dropped": 1606,
+   "view_faces": 315876,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.1012,
+    "settle": 34.9347,
+    "step": 111.0252,
+    "wake": 21.0834
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 30.9,
+   "fps": 1.0433428530846407,
+   "frame_ms_max": 968.5959815979004,
+   "tick": 140,
+   "sim_speed": 0.06813297898305173,
+   "particles": 256815,
+   "dropped": 1660,
+   "view_faces": 320332,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.2357,
+    "settle": 34.3199,
+    "step": 113.1115,
+    "wake": 21.1586
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 31.89,
+   "fps": 1.0324222059545325,
+   "frame_ms_max": 978.748619556427,
+   "tick": 144,
+   "sim_speed": 0.06738255035713457,
+   "particles": 256815,
+   "dropped": 1715,
+   "view_faces": 319797,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.9015,
+    "settle": 35.0935,
+    "step": 115.7134,
+    "wake": 21.4322
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 32.81,
+   "fps": 1.0217128075779092,
+   "frame_ms_max": 989.4207715988159,
+   "tick": 148,
+   "sim_speed": 0.07292551382984984,
+   "particles": 256815,
+   "dropped": 1770,
+   "view_faces": 322754,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.2765,
+    "settle": 36.0314,
+    "step": 116.1631,
+    "wake": 20.977
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 33.74,
+   "fps": 1.0106923451628056,
+   "frame_ms_max": 914.3009185791016,
+   "tick": 152,
+   "sim_speed": 0.07185804251052844,
+   "particles": 256814,
+   "dropped": 1821,
+   "view_faces": 321658,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.1268,
+    "settle": 35.8758,
+    "step": 119.5317,
+    "wake": 21.0875
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 34.74,
+   "fps": 1.0937318115725858,
+   "frame_ms_max": 927.5401830673218,
+   "tick": 156,
+   "sim_speed": 0.0665309178999136,
+   "particles": 256827,
+   "dropped": 1873,
+   "view_faces": 324119,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.2162,
+    "settle": 33.9018,
+    "step": 122.4047,
+    "wake": 23.8612
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 35.74,
+   "fps": 1.0781204073478066,
+   "frame_ms_max": 1002.34055519104,
+   "tick": 160,
+   "sim_speed": 0.06660357729293867,
+   "particles": 256829,
+   "dropped": 1929,
+   "view_faces": 324362,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 67.2514,
+    "settle": 34.9706,
+    "step": 123.4644,
+    "wake": 21.2167
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 36.77,
+   "fps": 0.9976649102154767,
+   "frame_ms_max": 1000.6041526794434,
+   "tick": 164,
+   "sim_speed": 0.06462560695748855,
+   "particles": 256832,
+   "dropped": 1985,
+   "view_faces": 328412,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.2229,
+    "settle": 34.4066,
+    "step": 125.5312,
+    "wake": 21.0005
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 37.81,
+   "fps": 0.9993962121006339,
+   "frame_ms_max": 1031.5061807632446,
+   "tick": 168,
+   "sim_speed": 0.06386949517671031,
+   "particles": 256842,
+   "dropped": 2043,
+   "view_faces": 331266,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.7908,
+    "settle": 34.453,
+    "step": 127.9756,
+    "wake": 20.9062
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 38.91,
+   "fps": 0.9694561396230005,
+   "frame_ms_max": 1043.9380407333374,
+   "tick": 172,
+   "sim_speed": 0.06069503512539295,
+   "particles": 256860,
+   "dropped": 2101,
+   "view_faces": 329848,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 69.3222,
+    "settle": 35.4404,
+    "step": 130.1822,
+    "wake": 23.7354
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 40.05,
+   "fps": 0.9579112562059027,
+   "frame_ms_max": 1098.4086990356445,
+   "tick": 176,
+   "sim_speed": 0.05861160649281214,
+   "particles": 257013,
+   "dropped": 2163,
+   "view_faces": 330067,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 70.7158,
+    "settle": 37.9623,
+    "step": 162.6901,
+    "wake": 23.9487
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 41.4,
+   "fps": 0.9104079391195252,
+   "frame_ms_max": 1137.4485492706299,
+   "tick": 180,
+   "sim_speed": 0.04935227480847228,
+   "particles": 257130,
+   "dropped": 2227,
+   "view_faces": 333247,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 70.4738,
+    "settle": 35.9462,
+    "step": 165.5669,
+    "wake": 23.6787
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 42.62,
+   "fps": 0.8791606447968424,
+   "frame_ms_max": 1350.4095077514648,
+   "tick": 184,
+   "sim_speed": 0.05479112625748212,
+   "particles": 257142,
+   "dropped": 2304,
+   "view_faces": 332462,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 68.6202,
+    "settle": 35.25,
+    "step": 166.4456,
+    "wake": 23.8259
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 43.92,
+   "fps": 0.7405161132678016,
+   "frame_ms_max": 1217.28515625,
+   "tick": 188,
+   "sim_speed": 0.05110254833860526,
+   "particles": 257180,
+   "dropped": 2373,
+   "view_faces": 333879,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.8817,
+    "settle": 34.7306,
+    "step": 164.6129,
+    "wake": 21.4267
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 45.39,
+   "fps": 0.8215002005615724,
+   "frame_ms_max": 1304.23903465271,
+   "tick": 192,
+   "sim_speed": 0.04539298149179596,
+   "particles": 257195,
+   "dropped": 2448,
+   "view_faces": 337534,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 67.8649,
+    "settle": 34.9767,
+    "step": 262.853,
+    "wake": 23.5601
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 46.65,
+   "fps": 0.7667306171880356,
+   "frame_ms_max": 1468.9127206802368,
+   "tick": 196,
+   "sim_speed": 0.0531200276801902,
+   "particles": 257211,
+   "dropped": 2532,
+   "view_faces": 338177,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 67.7605,
+    "settle": 34.564,
+    "step": 202.7442,
+    "wake": 24.0032
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 48.06,
+   "fps": 0.6807756416847635,
+   "frame_ms_max": 1255.1501989364624,
+   "tick": 200,
+   "sim_speed": 0.047026712241374634,
+   "particles": 257244,
+   "dropped": 2603,
+   "view_faces": 339923,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 67.8292,
+    "settle": 35.2161,
+    "step": 242.3494,
+    "wake": 24.7291
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 49.59,
+   "fps": 0.7967173975252834,
+   "frame_ms_max": 1417.4609184265137,
+   "tick": 204,
+   "sim_speed": 0.04368670755879415,
+   "particles": 257246,
+   "dropped": 2684,
+   "view_faces": 336948,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 67.3696,
+    "settle": 34.5457,
+    "step": 248.5395,
+    "wake": 20.8224
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 51.07,
+   "fps": 0.705486822952462,
+   "frame_ms_max": 1526.1069536209106,
+   "tick": 208,
+   "sim_speed": 0.045099133754023774,
+   "particles": 257255,
+   "dropped": 2772,
+   "view_faces": 336881,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 67.0884,
+    "settle": 34.0439,
+    "step": 219.1635,
+    "wake": 23.8663
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 52.71,
+   "fps": 0.6552620690360886,
+   "frame_ms_max": 1478.2634973526,
+   "tick": 212,
+   "sim_speed": 0.040627924249039646,
+   "particles": 257262,
+   "dropped": 2856,
+   "view_faces": 336280,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 65.5358,
+    "settle": 34.2681,
+    "step": 292.4734,
+    "wake": 21.1626
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 54.44,
+   "fps": 0.6764693857291917,
+   "frame_ms_max": 1640.5413150787354,
+   "tick": 216,
+   "sim_speed": 0.03849268646078886,
+   "particles": 257278,
+   "dropped": 2951,
+   "view_faces": 336527,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 68.9239,
+    "settle": 34.8706,
+    "step": 298.176,
+    "wake": 23.7983
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 56.2,
+   "fps": 0.6095549016709808,
+   "frame_ms_max": 1731.720209121704,
+   "tick": 220,
+   "sim_speed": 0.037962148760741984,
+   "particles": 257285,
+   "dropped": 3051,
+   "view_faces": 339562,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.3254,
+    "settle": 34.1775,
+    "step": 304.3983,
+    "wake": 21.7133
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 57.91,
+   "fps": 0.577460489709929,
+   "frame_ms_max": 1756.696105003357,
+   "tick": 224,
+   "sim_speed": 0.03888218573612043,
+   "particles": 257285,
+   "dropped": 3152,
+   "view_faces": 340909,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 64.9371,
+    "settle": 34.6288,
+    "step": 270.6882,
+    "wake": 21.1784
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 59.54,
+   "fps": 0.5692504225129418,
+   "frame_ms_max": 1714.2046689987183,
+   "tick": 228,
+   "sim_speed": 0.040884668799943076,
+   "particles": 257287,
+   "dropped": 3251,
+   "view_faces": 343835,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 67.3648,
+    "settle": 35.8138,
+    "step": 273.9043,
+    "wake": 21.2422
+   },
+   "ledger_exact": true
+  },
+  {
+   "wall_s": 61.2,
+   "fps": 0.5833609125473381,
+   "frame_ms_max": 1630.5694580078125,
+   "tick": 232,
+   "sim_speed": 0.04027449002906534,
+   "particles": 257296,
+   "dropped": 3345,
+   "view_faces": 345107,
+   "view_faces_cut": 0,
+   "tick_ms": {
+    "ca": 66.5988,
+    "settle": 35.0066,
+    "step": 278.2464,
+    "wake": 24.2033
+   },
+   "ledger_exact": true
+  }
+ ]
+}

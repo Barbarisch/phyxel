@@ -34,7 +34,7 @@ size_t MatSimParticles::lift(MatSimCore& core, IVec3 lo, IVec3 size) {
                 const Cell c = core.at({x, y, z});
                 const uint8_t m = cellMaterial(c);
                 if (!isLiquid(m) || cellFill(c) == 0) continue;
-                p_.push_back({x + 0.5f, y + 0.5f, z + 0.5f, 0.f, 0.f, 0.f, cellFill(c), m, 0.f, 0.f, 0.f, 0.f});
+                p_.push_back({x + 0.5f, y + (cfg_.liftAtCentroid ? 0.5f * float(cellFill(c)) / float(full_) : 0.5f), z + 0.5f, 0.f, 0.f, 0.f, cellFill(c), m, 0.f, 0.f, 0.f, 0.f});
                 core.setCell({x, y, z}, kEmpty, 0);
                 ++n;
             }
@@ -714,7 +714,8 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                 const Cell c = core.at(w);
                 const uint8_t m = cellMaterial(c);
                 if (!isLiquid(m) || cellFill(c) == 0) continue;
-                bool go = nearP[idx(lx, ly, lz)] != 0;
+                // Contact wakes a cell at least wakeContactMinFill full (default 0: any contact; see the config).
+                bool go = nearP[idx(lx, ly, lz)] != 0 && double(cellFill(c)) >= double(cfg_.wakeContactMinFill) * F;
                 if (go) ++wakeStats_.contact;
                 const Cell b = core.at({w.x, w.y - 1, w.z});
                 // Falling: at least half a cell over an EMPTY cell. A cell over a part-filled one is
@@ -771,7 +772,9 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                 if (!lift[idx(lx, ly, lz)]) continue;
                 const IVec3 w{o.x + lx, o.y + ly, o.z + lz};
                 const Cell c = core.at(w);
-                p_.push_back({w.x + 0.5f, w.y + 0.5f, w.z + 0.5f, 0.f, 0.f, 0.f, cellFill(c), cellMaterial(c), 0.f, 0.f, 0.f, 0.f});
+                // At the cell centre, or the water's centroid under liftAtCentroid (rejected as a default; see the config).
+                p_.push_back({w.x + 0.5f, w.y + (cfg_.liftAtCentroid ? 0.5f * float(cellFill(c)) / float(F) : 0.5f), w.z + 0.5f, 0.f, 0.f, 0.f, cellFill(c), cellMaterial(c),
+                              0.f, 0.f, 0.f, 0.f});
                 core.setCell(w, kEmpty, 0);
                 ++lifted;
             }
