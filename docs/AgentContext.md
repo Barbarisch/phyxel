@@ -248,11 +248,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       `sponge_tau`), the pressure trigger ignores voids under half a cell. 1/9 m drop into a 104,976-cell pool: **1,632
       particles (control 105,003), all cells at 1.5 s, ledger exact**. Two settle bugs found on the way, fixed for all
       modes (overwrote cell water; one-column spike over the head field); they also cured the control's re-wake cycle.
-      The tick did NOT get cheaper (~300 ms Debug): the full-box pressure pass (~220) and wake scan (~47) run at rest.
+      Then two EXACT skips made rest cheap: wake scans only changed bricks + particle bricks (`wakeSkipQuiet`, lab default
+      on; lockstep-equality test, mutation-checked), and the core skips the pressure pass after a quiet tick (under
+      `sleep`; dense==sleep incl. heads). 1/9 m at rest: ~300 ms -> <1 ms a tick. While anything moves, one changing
+      brick still costs the full-box pressure pass (~300 ms Debug) — the next lever (per-body pressure pass).
       Diagnostics: `MatSimParticles.DISABLED_RegionalWakeTrace` (CPU), `MatSimParticlesGpuTest.DISABLED_PoolDropPhases`
       (GPU, ledger per phase, `MATSIM_SPONGE`/`MATSIM_MINROOM`/`MATSIM_RADIUS`).
-    - **Next:** make the cells cheap at rest (pressure pass + wake scan skip sleeping bricks; Release numbers; the CA on
-      the device), the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
+    - **Next:** make the cells cheap while something moves (a pressure pass limited to changed bodies; Release
+      numbers; the CA on the device), the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
       floor+absorb pair at 1/3 m, the pressure-rule cycle.
     - ⚠️ GPU MatSim tests find `shaders/*.spv` relative to the working directory: run them from the repo root.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).

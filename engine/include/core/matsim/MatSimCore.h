@@ -88,6 +88,7 @@ struct StepStats {
     uint64_t lastTickEligible = 0; ///< eligible blocks on the final tick
     uint64_t headChanges = 0;      ///< §6d: cells whose head word changed, summed over the ticks
     uint64_t lastTickHeadChanges = 0;
+    uint64_t pressurePassesSkipped = 0;   ///< 6k: ticks whose head field was provably unchanged (quiet last tick), so not rebuilt
     /// At rest on the final tick: nothing moved and no head changed.
     bool lastTickQuiet() const { return lastTickEligible == 0 && lastTickHeadChanges == 0; }
 };

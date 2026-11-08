@@ -457,6 +457,11 @@ TEST(MatSimLabApi, WakeRadiusIsPassedAndChecked) {
     EXPECT_NEAR(a.value("sponge_tau", -1.0), 0.1, 1e-6) << a.dump();
     EXPECT_NEAR(a.value("wake_pressure_min_room", -1.0), 0.5, 1e-6) << a.dump();
     EXPECT_EQ(d.value("sponge_tau", -1.0), 0.0) << d.dump();
+    // wakeSkipQuiet: exact (WakeSkipQuietEqualsTheFullScan), so on by default in the lab; false = the full scan (control).
+    EXPECT_TRUE(d.value("wake_skip_quiet", false)) << d.dump();
+    MatSimLab::Json full = create({{"wake_skip_quiet", false}});
+    ASSERT_TRUE(full.value("created", false)) << full.dump();
+    EXPECT_FALSE(full.value("wake_skip_quiet", true)) << full.dump();
     MatSimLab::Json b = create({{"wake_radius_m", 2.0}, {"wake_contact_min_speed", 0.8}});
     ASSERT_TRUE(b.value("created", false)) << b.dump();
     EXPECT_NEAR(b.value("wake_contact_min_speed", -1.0), 0.8, 1e-6) << b.dump();

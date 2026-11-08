@@ -1057,3 +1057,87 @@ TEST(MatSimParticles, SettleSpreadsTheTopLayerOverTheFootprint) {
     EXPECT_LE(top, (F / 2) / 4 + 1) << "the half cell over the footprint must spread over its 4 columns";
 }
 
+// 6k cost: wakeSkipQuiet scans for triggers only where the core changed in the last two ticks or particles are. Claim:
+// identical to the full scan. Two runs in lockstep, one each way, must lift the same cells with the same trigger counts
+// and hold the same cells and particles on every frame: the regional pool drop, the whole-body U-tube, and a particle
+// drop onto a pool that has gone to sleep (whole-body: only the particle-brick rule can find that contact; removing the
+// rule left rigs 0 and 1 identical, so rig 2 is the one that pins it), 1/3 m.
+namespace {
+uint64_t cellHash(const MatSimCore& s) {
+    uint64_t h = 1469598103934665603ull;
+    for (int y = 0; y < s.size().y; ++y)
+        for (int z = 0; z < s.size().z; ++z)
+            for (int x = 0; x < s.size().x; ++x) {
+                h ^= uint64_t(s.at({s.origin().x + x, s.origin().y + y, s.origin().z + z}));
+                h *= 1099511628211ull;
+            }
+    return h;
+}
+} // namespace
+
+TEST(MatSimParticles, WakeSkipQuietEqualsTheFullScan) {
+    const int cpm = 3;
+    for (int rig = 0; rig < 3; ++rig) {
+        MatSimCore s[2];
+        MatSimParticles* ps[2] = {nullptr, nullptr};
+        std::vector<MatSimParticles> own;
+        own.reserve(2);
+        for (int k = 0; k < 2; ++k) {
+            ParticleConfig pc = hybridConfig(true);
+            if (rig == 0) {   // the regional bundle, pool drop
+                std::string why;
+                ASSERT_TRUE(s[k].create({0, 0, 0}, {12 * cpm, 3 * cpm, 12 * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+                s[k].fillBox(Mat::Water, {0, 0, 0}, {12 * cpm, cpm, 12 * cpm}, 1.0);
+                s[k].fillBox(Mat::Water, {17, 6, 17}, {2, 2, 2}, 1.0);   // a cell drop, 1 m above
+                pc.wakeRadiusM = 1.0f;
+                pc.wakeContactMinSpeed = 0.5f;
+                pc.caSeesParticles = pc.wakeContactAveraged = true;
+                pc.spongeTau = 0.1f;
+                pc.wakePressureMinRoom = 0.5f;
+            } else if (rig == 1) {   // whole-body wake, the U-tube from cells
+                s[k] = uTube(cpm);
+                s[k].config().pressure = true;
+            } else {                 // whole-body wake, a particle drop onto a sleeping pool
+                std::string why;
+                ASSERT_TRUE(s[k].create({0, 0, 0}, {12 * cpm, 3 * cpm, 12 * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+                s[k].fillBox(Mat::Water, {0, 0, 0}, {12 * cpm, cpm, 12 * cpm}, 1.0);
+                s[k].step(10);   // at rest: every brick quiet
+            }
+            pc.wakeSkipQuiet = k == 1;
+            own.emplace_back(pc);
+            if (rig == 2)
+                for (int a = 0; a < 2; ++a)
+                    for (int b = 0; b < 2; ++b)
+                        for (int c = 0; c < 2; ++c)
+                            own.back().mutableParticles().push_back({17.5f + a, 6.5f + b, 17.5f + c, 0.f, 0.f, 0.f, s[k].full(), Mat::Water});
+        }
+        if (rig == 2) {
+            size_t quiet = 0;
+            for (size_t i = 0; i < s[0].marksTick1().size(); ++i) quiet += !(s[0].marksTick1()[i] | s[0].marksTick2()[i]);
+            EXPECT_EQ(quiet, s[0].marksTick1().size()) << "rig 2 must start with every brick quiet";
+        }
+        ps[0] = &own[0];
+        ps[1] = &own[1];
+        size_t lifted = 0, frames = 0;
+        for (int f = 0; f < 4 * 60; ++f) {
+            const size_t a = ps[0]->wake(s[0]), b = ps[1]->wake(s[1]);
+            ASSERT_EQ(a, b) << "rig " << rig << " frame " << f;
+            const auto &wa = ps[0]->lastWakeStats(), &wb = ps[1]->lastWakeStats();
+            ASSERT_EQ(wa.contact, wb.contact) << "rig " << rig << " frame " << f;
+            ASSERT_EQ(wa.falling, wb.falling) << "rig " << rig << " frame " << f;
+            ASSERT_EQ(wa.pressure, wb.pressure) << "rig " << rig << " frame " << f;
+            lifted += a;
+            for (int k = 0; k < 2; ++k) {
+                ps[k]->step(s[k], 1.0 / 60.0);
+                ps[k]->settle(s[k]);
+                ps[k]->stepCells(s[k]);
+            }
+            ASSERT_EQ(ps[0]->particles().size(), ps[1]->particles().size()) << "rig " << rig << " frame " << f;
+            ASSERT_EQ(cellHash(s[0]), cellHash(s[1])) << "rig " << rig << " frame " << f;
+            ++frames;
+        }
+        std::printf("[MatSimParticles] wake skip-quiet vs full scan, rig %s: %zu frames identical, %zu cells lifted\n",
+                    rig == 0 ? "regional pool drop" : rig == 1 ? "whole-body U-tube" : "particle drop on a sleeping pool", frames, lifted);
+        EXPECT_GT(lifted, 0u) << "the rig must exercise the wake";
+    }
+}

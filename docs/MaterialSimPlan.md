@@ -1665,6 +1665,27 @@ suite run 2026-11-08): regional **peak 168 particles, 160 cells lifted, all cell
 spread 0.003 cells, ledger exact; the whole-body control now lifts the pool once (3,888) and rests
 at 1.10 s (it never rested before the settle fixes). Suites: CPU MatSim 49/49, GPU 19/19.
 
+**Cost at rest, two exact skips (2026-11-08).** Both are proven equal to the full computation, so
+they change cost and never outcomes:
+- **Wake scans only where something changed** (`wakeSkipQuiet`, lab `wake_skip_quiet`, default on
+  in the lab): falling and pressure triggers are tested only in bricks the core marked in its last
+  two ticks (cells or heads) or that hold a particle, dilated by one brick. A trigger that survives
+  two quiet ticks would already have fired. `WakeSkipQuietEqualsTheFullScan` runs both scans in
+  lockstep (regional pool drop, whole-body U-tube, a particle drop onto a sleeping pool) and
+  compares lifts, trigger counts, cells and particles every frame: 240/240 identical on each.
+  Mutation check: with the particle-brick rule removed, rigs 1 and 2 still passed; rig 3 (only the
+  particle rule can see that contact) failed at frame 25 (3,888 vs 0 lifted). Rig 3 was added for that.
+- **The pressure pass is skipped on a tick after a quiet tick** (core, under `sleep`): no move, no
+  head change and no edit last tick means the field's inputs are unchanged. Two quiet ticks also
+  skip the block loop (every block would only be copied). `QuietTicksSkipThePressurePassExactly`:
+  dense vs sleep, to rest, an edit, and back, cells + heads + head pointers equal every tick, 1,197
+  passes skipped (red first: 0).
+
+1/9 m lab pool drop with both (Debug): **at rest the tick went from ~300 ms to under 1 ms** (wake
+0.1-0.3 ms, CA 0.0 ms; before: wake ~50, CA ~260). Not yet cheap: while anything moves, one
+changing brick costs the full-box pressure pass (~290-340 ms in the regional run until the CA has
+levelled the deposit, ~5.5 s). Next lever: a pressure pass limited to the bodies that changed.
+
 Still open: N = 1 rig per cell size, one drop. Not yet measured: 1/9 m (where the cost was), the live
 rig's dam break with the regional rule (does a big real flow still wake what it should?), and
 what it looks like.

@@ -800,13 +800,11 @@ size_t MatSimParticles::wake(MatSimCore& core) {
     };
     std::vector<uint8_t> trig(N, 0);
     bool any = false;
-    for (int ly = 0; ly < n.y; ++ly)
-        for (int lz = 0; lz < n.z; ++lz)
-            for (int lx = 0; lx < n.x; ++lx) {
+    auto testCell = [&](int lx, int ly, int lz) {
                 const IVec3 w{o.x + lx, o.y + ly, o.z + lz};
                 const Cell c = core.at(w);
                 const uint8_t m = cellMaterial(c);
-                if (!isLiquid(m) || cellFill(c) == 0) continue;
+                if (!isLiquid(m) || cellFill(c) == 0) return;
                 // Contact wakes a cell at least wakeContactMinFill full (default 0: any contact; see the config).
                 bool go = nearP[idx(lx, ly, lz)] != 0 && double(cellFill(c)) >= double(cfg_.wakeContactMinFill) * F;
                 if (go) ++wakeStats_.contact;
@@ -840,7 +838,47 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                         }
                     }
                 if (go) { trig[idx(lx, ly, lz)] = 1; any = true; }
-            }
+    };
+    if (!cfg_.wakeSkipQuiet) {
+        for (int ly = 0; ly < n.y; ++ly)
+            for (int lz = 0; lz < n.z; ++lz)
+                for (int lx = 0; lx < n.x; ++lx) testCell(lx, ly, lz);
+    } else {
+        // 6k: only bricks that changed in the last two ticks or hold a particle, dilated by one brick.
+        const IVec3 bd = core.brickDim(), bl = core.brickLo();
+        const auto& m1 = core.marksTick1();
+        const auto& m2 = core.marksTick2();
+        auto bidx = [&](int X, int Y, int Z) { return size_t(X) + size_t(bd.x) * (size_t(Z) + size_t(bd.z) * size_t(Y)); };
+        std::vector<uint8_t> act(m1.size(), 0), scan(m1.size(), 0);
+        for (size_t i = 0; i < act.size(); ++i) act[i] = uint8_t(m1[i] | m2[i]);
+        auto fdiv8 = [](int v) { return v >= 0 ? v / 8 : -((-v + 7) / 8); };
+        for (const Particle& q : p_) {
+            const int X = fdiv8(floorI(q.x)) - bl.x, Y = fdiv8(floorI(q.y)) - bl.y, Z = fdiv8(floorI(q.z)) - bl.z;
+            if (X >= 0 && Y >= 0 && Z >= 0 && X < bd.x && Y < bd.y && Z < bd.z) act[bidx(X, Y, Z)] = 1;
+        }
+        for (int Y = 0; Y < bd.y; ++Y)
+            for (int Z = 0; Z < bd.z; ++Z)
+                for (int X = 0; X < bd.x; ++X) {
+                    if (!act[bidx(X, Y, Z)]) continue;
+                    for (int dy = -1; dy <= 1; ++dy)
+                        for (int dz = -1; dz <= 1; ++dz)
+                            for (int dx = -1; dx <= 1; ++dx) {
+                                const int x = X + dx, y = Y + dy, z = Z + dz;
+                                if (x >= 0 && y >= 0 && z >= 0 && x < bd.x && y < bd.y && z < bd.z) scan[bidx(x, y, z)] = 1;
+                            }
+                }
+        for (int Y = 0; Y < bd.y; ++Y)
+            for (int Z = 0; Z < bd.z; ++Z)
+                for (int X = 0; X < bd.x; ++X) {
+                    if (!scan[bidx(X, Y, Z)]) continue;
+                    const int x0 = std::max(o.x, (bl.x + X) * 8), x1 = std::min(o.x + n.x, (bl.x + X) * 8 + 8);
+                    const int y0 = std::max(o.y, (bl.y + Y) * 8), y1 = std::min(o.y + n.y, (bl.y + Y) * 8 + 8);
+                    const int z0 = std::max(o.z, (bl.z + Z) * 8), z1 = std::min(o.z + n.z, (bl.z + Z) * 8 + 8);
+                    for (int y = y0; y < y1; ++y)
+                        for (int z = z0; z < z1; ++z)
+                            for (int x = x0; x < x1; ++x) testCell(x - o.x, y - o.y, z - o.z);
+                }
+    }
     if (!any) return 0;
     // Flood each triggered body (face-connected, same liquid) and lift all of it, in index order.
     std::vector<uint8_t> lift(N, 0);

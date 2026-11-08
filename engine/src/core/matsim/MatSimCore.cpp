@@ -967,7 +967,24 @@ StepStats MatSimCore::step(int n) {
         const int p = int(tick_ & 1u);
         // §6d: the head field first; a cell whose head changed marks its brick in this tick's set.
         std::fill(fresh.begin(), fresh.end(), uint8_t(0));
-        const uint64_t headChanged = cfg_.pressure ? pressurePass(fresh) : 0;
+        // 6k: quiet last tick (no move, no head change, no edit: marks1_ all clear) means the head field's inputs are
+        // what the last pass read, so it would rebuild the same field. Skip it (exact: QuietTicksSkipThePressurePassExactly).
+        auto clear = [](const std::vector<uint8_t>& v) { return std::all_of(v.begin(), v.end(), [](uint8_t m) { return m == 0; }); };
+        const bool quiet1 = cfg_.sleep && clear(marks1_);
+        const bool quiet2 = quiet1 && clear(marks2_);
+        uint64_t headChanged = 0;
+        if (cfg_.pressure && !quiet1) headChanged = pressurePass(fresh);
+        else if (cfg_.pressure) ++st.pressurePassesSkipped;
+        if (quiet2) {
+            // Quiet for two ticks: every brick sleeps and every block would be copied unchanged. Same tick bookkeeping.
+            marks2_.swap(marks1_);
+            marks1_.swap(fresh);
+            ++tick_;
+            ++st.ticks;
+            st.lastTickEligible = 0;
+            st.lastTickHeadChanges = 0;
+            continue;
+        }
         // Process mask: bricks with a moved brick (tick-1, tick-2, or a head change now) in their
         // 3^3 neighbourhood.
         if (cfg_.sleep) {

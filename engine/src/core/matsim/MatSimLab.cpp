@@ -256,6 +256,8 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         pcfg.spongeTau = p.value("sponge_tau", radius > 0.f ? 0.1f : 0.0f);
         if (!(pcfg.spongeTau >= 0.f && pcfg.spongeTau <= 100.f)) return refuse("sponge_tau must be in [0, 100] seconds (0 = off)");
         pcfg.wakePressureMinRoom = radius > 0.f ? 0.5f : 0.0f;
+        // 6k: scan for wake triggers only where the core changed or particles are (exact: WakeSkipQuietEqualsTheFullScan).
+        pcfg.wakeSkipQuiet = p.value("wake_skip_quiet", true);
         if (particles == "hybrid" && !cfg.pressure) return refuse("a hybrid box needs pressure on (wake reads the head field)");
         const std::string backend = p.value("backend", std::string(gpu_ ? "gpu" : "cpu"));
         if (backend != "gpu" && backend != "cpu") return refuse("backend must be \"gpu\" or \"cpu\"");
@@ -300,6 +302,7 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
             out["ca_sees_particles"] = pcfg.caSeesParticles;
             out["sponge_tau"] = pcfg.spongeTau;
             out["wake_pressure_min_room"] = pcfg.wakePressureMinRoom;
+            out["wake_skip_quiet"] = pcfg.wakeSkipQuiet;
         }
         out["seed"] = cfg.seed;
         out["sleep"] = cfg.sleep;

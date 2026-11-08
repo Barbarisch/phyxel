@@ -1362,3 +1362,33 @@ TEST(MatSimDiag, DISABLED_FilmWideUTubeMoves) {
                     (unsigned long long)st.lastTickEligible, (unsigned long long)st.lastTickHeadChanges);
     }
 }
+
+// 6k cost: when nothing changed anywhere on the last tick (no move, no head change, no edit), the head field's inputs are
+// unchanged, so the pressure pass would rebuild the same field: sleep skips it (and, quiet for two ticks, the block loop).
+// Measured: at 1/9 m the pressure pass is most of a resting box's ~260 ms Debug tick. Dense and sleeping runs must agree
+// on cells, heads and head pointers every tick: to rest, through an edit that wakes it, and back to rest.
+TEST(MatSimSleep, QuietTicksSkipThePressurePassExactly) {
+    Config dense;
+    dense.sleep = false;
+    MatSimCore a = unevenBasin(dense), b = unevenBasin();
+    const IVec3 lo{0, 0, 0};
+    const IVec3 hi{a.size().x - 1, a.size().y - 1, a.size().z - 1};
+    uint64_t skippedA = 0, skippedB = 0;
+    for (int t = 1; t <= 1500; ++t) {
+        if (t == 900) {   // the edit: a cell dropped into the sleeping basin
+            ASSERT_TRUE(a.setCell({6, 5, 6}, Mat::Water, a.full()));
+            ASSERT_TRUE(b.setCell({6, 5, 6}, Mat::Water, b.full()));
+        }
+        const StepStats sa = a.step(1), sb = b.step(1);
+        skippedA += sa.pressurePassesSkipped;
+        skippedB += sb.pressurePassesSkipped;
+        IVec3 w;
+        ASSERT_FALSE(firstDiff(a, b, lo, hi, w)) << "tick " << t << " world cell (" << w.x << "," << w.y << "," << w.z << ")";
+        ASSERT_EQ(a.headPtr(), b.headPtr()) << "head pointers differ at tick " << t;
+        ASSERT_EQ(a.head(), b.head()) << "heads differ at tick " << t;
+    }
+    std::printf("[MatSimSleep] quiet-tick skip: dense == sleep for 1500 ticks; pressure passes skipped %llu (dense %llu)\n",
+                (unsigned long long)skippedB, (unsigned long long)skippedA);
+    EXPECT_EQ(skippedA, 0u) << "the dense run must never skip";
+    EXPECT_GT(skippedB, 100u) << "the sleeping basin must skip the pass once at rest";
+}

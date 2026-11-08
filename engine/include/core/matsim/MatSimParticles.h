@@ -115,6 +115,11 @@ struct ParticleConfig {
     /// void of 2-4 % of a cell two cells under the surface read as 1.07 cells of head and woke ~1,000 cells to fill it
     /// (PoolDropPhases, 1/9 m); the CA's pressure rule fills such voids itself. 0 = any room (the old rule).
     float wakePressureMinRoom = 0.0f;
+    /// 6k cost: wake() scans for falling and pressure triggers only in bricks (8^3 cells) that changed in the core's last
+    /// two ticks (cells or heads), or hold a particle, dilated by one brick. A trigger that persisted through two quiet
+    /// ticks would have fired already and been lifted, so the result equals the full scan (pinned per tick by
+    /// WakeSkipQuietEqualsTheFullScan). Measured: the full scan cost ~47 ms a tick at 1/9 m (Debug), at rest too. false = full scan.
+    bool wakeSkipQuiet = false;
     int spongeCells = 2;
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
 };
