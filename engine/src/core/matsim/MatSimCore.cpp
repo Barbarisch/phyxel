@@ -298,6 +298,29 @@ bool MatSimCore::setCell(IVec3 w, uint8_t material, uint32_t fill) {
     return true;
 }
 
+size_t MatSimCore::blockEmpty(const std::vector<IVec3>& ws) {
+    size_t n = 0;
+    for (const IVec3& w : ws) {
+        if (!inBox(w)) continue;
+        Cell& c = cur_[index(w.x - origin_.x, w.y - origin_.y, w.z - origin_.z)];
+        if (cellMaterial(c) != kEmpty) continue;   // also skips a cell already blocked (now solid)
+        c = makeCell(kSolid, 0);
+        blocked_.push_back(w);
+        wakeCells(w, w);
+        ++n;
+    }
+    return n;
+}
+
+void MatSimCore::unblockAll() {
+    for (const IVec3& w : blocked_) {
+        Cell& c = cur_[index(w.x - origin_.x, w.y - origin_.y, w.z - origin_.z)];
+        c = makeCell(kEmpty, 0);   // stepping never writes a solid cell, so it is still the wall we made
+        wakeCells(w, w);
+    }
+    blocked_.clear();
+}
+
 void MatSimCore::resolidify(const MicroSolidFn& fn) {
     if (!created_ || !fn) return;
     unknownCells_ = 0;

@@ -94,6 +94,28 @@ struct ParticleConfig {
     /// under real head fills its cell. Replica, 1/3 m: a film hanging down the ledge wall, connected to the film on top,
     /// read as one cell+ of head and was lifted every 2 frames for seconds (659 sliver particles). 0 = any cell.
     float wakePressureMinFill = 0.0f;
+    /// 6k (owner, 2026-11-08): the region-limited wake. > 0: a trigger cell lifts only the cells of its body within
+    /// this many metres of it (face-connected steps through the body), not the whole body. 0 = off (whole body).
+    float wakeRadiusM = 0.0f;
+    /// 6k: stepCells() makes the empty cells that hold a particle walls to the CA for the step (restored after; they
+    /// hold nothing, so the ledger is untouched), and wake() counts them as full for its pressure and falling triggers.
+    /// Without it cell water pours into a woken hole through its particles. false = off (the CA ignores particles).
+    bool caSeesParticles = false;
+    /// 6k: wakeContactMinSpeed compares the particle's time-averaged velocity (the settleTau EMA, bias-corrected for
+    /// its age) instead of the instantaneous one. Measured (RegionalWakeTrace, 1/3 m): ~10 of 3,000 woken particles
+    /// jitter past 0.5 m/s at any instant, and each touch lifted another ball of the pool. false = instantaneous.
+    bool wakeContactAveraged = false;
+    /// 6k: a sponge at the particle/cell interface. Cell water is water at rest, so a wave that reaches it should leave the
+    /// simulation (it would run on across the lake as ripples the CA does not have), not reflect. A particle with cell
+    /// water of its liquid within spongeCells cells has its velocity multiplied by exp(-dt / spongeTau) each frame.
+    /// Measured (PoolDropPhases, 1/9 m, no sponge): the woken region sloshed against its cell wall, its motion woke more
+    /// wall by contact and pressure, and it grew from 1.6 k to 50 k particles in 10 s. 0 = off.
+    float spongeTau = 0.0f;
+    /// 6k: the pressure trigger counts a part-filled neighbour only if it has at least this fraction of a cell of room. A
+    /// void of 2-4 % of a cell two cells under the surface read as 1.07 cells of head and woke ~1,000 cells to fill it
+    /// (PoolDropPhases, 1/9 m); the CA's pressure rule fills such voids itself. 0 = any room (the old rule).
+    float wakePressureMinRoom = 0.0f;
+    int spongeCells = 2;
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
 };
 
@@ -129,7 +151,11 @@ public:
     /// or at least a quarter cell over a non-full space) or touches a particle. Uses the core's head
     /// field (pressure must be on). Returns the number of cells lifted.
     size_t wake(MatSimCore& core);
-    struct WakeStats { size_t contact = 0, falling = 0, pressure = 0, particles = 0, packed = 0; };   ///< trigger cells in the last wake(); particles made; of them packed from thin cells
+    /// Step the cells one CA tick (core.step(1)); with caSeesParticles the cells held by particles are walls for it.
+    StepStats stepCells(MatSimCore& core);
+    /// 6k diagnostics: the first pressure trigger cells of the last wake (cell, its neighbour, head and the neighbour's level, units).
+    struct PressureTrigger { IVec3 cell, nb; uint32_t head, ex, fill, nbFill; };
+    struct WakeStats { size_t contact = 0, falling = 0, pressure = 0, particles = 0, packed = 0; std::vector<PressureTrigger> firstPressure; };   ///< trigger cells in the last wake(); particles made; of them packed from thin cells
     const WakeStats& lastWakeStats() const { return wakeStats_; }
     /// Why groups did not settle in the last settle(): groups by blocker, and the largest group.
     struct SettleStats {
@@ -167,6 +193,7 @@ private:
     void buildGrid(const MatSimCore& core);
     std::vector<uint32_t> groups(const MatSimCore& core);   ///< group root per particle (within h)
     bool solidAt(const MatSimCore& core, float x, float y, float z) const;
+    void sponge(const MatSimCore& core, double dtFrame);   ///< 6k: damp particles next to cell water
 
     ParticleConfig cfg_;
     MatSimParticlesGpu* gpu_ = nullptr;

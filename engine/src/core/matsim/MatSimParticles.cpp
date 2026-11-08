@@ -106,6 +106,25 @@ int MatSimParticles::substepsFor(const MatSimCore& core, double dtFrame) const {
     return std::clamp(ns, 1, cfg_.maxSubsteps);
 }
 
+void MatSimParticles::sponge(const MatSimCore& core, double dtFrame) {
+    if (!(cfg_.spongeTau > 0.f) || p_.empty()) return;
+    const float k = std::exp(-float(dtFrame) / cfg_.spongeTau);
+    const int W = std::max(1, cfg_.spongeCells);
+    for (Particle& q : p_) {
+        const int cx = floorI(q.x), cy = floorI(q.y), cz = floorI(q.z);
+        bool near = false;
+        for (int dy = -W; dy <= W && !near; ++dy)
+            for (int dz = -W; dz <= W && !near; ++dz)
+                for (int dx = -W; dx <= W && !near; ++dx) {
+                    const IVec3 w{cx + dx, cy + dy, cz + dz};
+                    if (!core.inBox(w)) continue;
+                    const Cell c = core.at(w);
+                    near = cellMaterial(c) == q.mat && cellFill(c) > 0;
+                }
+        if (near) { q.vx *= k; q.vy *= k; q.vz *= k; }
+    }
+}
+
 void MatSimParticles::endFrame(double dtFrame) {
     const float k = std::min(1.f, float(dtFrame) / std::max(1e-3f, cfg_.settleTau));
     for (Particle& q : p_) { q.ax += (q.vx - q.ax) * k; q.ay += (q.vy - q.ay) * k; q.az += (q.vz - q.az) * k; q.age += float(dtFrame); }
@@ -117,7 +136,7 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
     if (!full_) full_ = core.full();
     if (gpu_) {
         std::string err;
-        if (gpu_->step(*this, core, dtFrame, &err)) return;
+        if (gpu_->step(*this, core, dtFrame, &err)) { sponge(core, dtFrame); return; }
         std::fprintf(stderr, "[MatSimParticles] GPU step refused (%s); stepping on the CPU\n", err.c_str());
     }
     const float h = cfg_.kernelCells, h2 = h * h;
@@ -306,6 +325,7 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
         }
     }
     endFrame(dtFrame);   // time-averaged velocity (one update per frame)
+    sponge(core, dtFrame);
 }
 
 void MatSimParticles::densityError(const MatSimCore& core, float& meanAbsC, float& maxC) {
@@ -633,7 +653,9 @@ size_t MatSimParticles::settle(MatSimCore& core) {
             if (cellMaterial(c) == mat) total += cellFill(c);
             (void)v;
         }
-        // Room: add cells above each column's top until the space holds the water.
+        // Room: add a cell above EVERY column's top (a whole layer, so the fill below shares it evenly) until the space
+        // holds the water. 6k: stopping at the first column that made room left the remainder as one nearly full cell a
+        // cell above the rest; the head field read it as the body's surface and woke the pool (PoolDropPhases, 1/9 m).
         while (uint64_t(T.size()) * Fd < total) {
             bool added = false;
             for (auto& [col, top] : colTop) {
@@ -641,10 +663,11 @@ size_t MatSimParticles::settle(MatSimCore& core) {
                 if (y >= yTop) continue;
                 const Cell c = core.at({col.first, y, col.second});
                 if (cellMaterial(c) == kSolid || (cellMaterial(c) != kEmpty && cellMaterial(c) != mat)) continue;
-                T.emplace(std::make_tuple(y, col.second, col.first), true);
+                // 6k: a cell that already holds water joins with its water (it was overwritten: -256 units at 1/9 m,
+                // PoolDropPhases; under the whole-body wake no cell water ever sat above a settling group).
+                if (T.emplace(std::make_tuple(y, col.second, col.first), true).second && cellMaterial(c) == mat) total += cellFill(c);
                 top = y;
                 added = true;
-                if (uint64_t(T.size()) * Fd >= total) break;
             }
             if (!added) break;
         }
@@ -699,6 +722,20 @@ void MatSimParticles::settleBlockers(const MatSimCore& core, size_t& slow, size_
         if (members[r] && float(sl[r]) < cfg_.settleFraction * float(members[r])) ++groupsBusy;
 }
 
+StepStats MatSimParticles::stepCells(MatSimCore& core) {
+    if (!cfg_.caSeesParticles || p_.empty()) return core.step(1);
+    std::vector<IVec3> held;
+    held.reserve(p_.size());
+    for (const Particle& q : p_)   // the cell of each particle and its neighbours (as wake's held mask)
+        for (int dy = -1; dy <= 1; ++dy)
+            for (int dz = -1; dz <= 1; ++dz)
+                for (int dx = -1; dx <= 1; ++dx) held.push_back({floorI(q.x) + dx, floorI(q.y) + dy, floorI(q.z) + dz});
+    core.blockEmpty(held);
+    const StepStats st = core.step(1);
+    core.unblockAll();
+    return st;
+}
+
 size_t MatSimParticles::wake(MatSimCore& core) {
     // A cell-water BODY (face-connected cells of one liquid) wakes whole when any of its cells is
     // about to move (head excess over an open / part-empty neighbour > wakeHeadCells, or at least a
@@ -725,7 +762,14 @@ size_t MatSimParticles::wake(MatSimCore& core) {
     }
     for (size_t qi = 0; qi < p_.size(); ++qi) {
         const Particle& q = p_[qi];
-        if (vMin > 0.f && q.vx * q.vx + q.vy * q.vy + q.vz * q.vz < vMin * vMin) continue;   // at rest: it settles itself
+        if (vMin > 0.f) {
+            float v2 = q.vx * q.vx + q.vy * q.vy + q.vz * q.vz;
+            if (cfg_.wakeContactAveraged) {   // 6k: the EMA, de-biased for a young particle (its average starts at 0)
+                const float b = 1.f - std::exp(-q.age / std::max(1e-3f, cfg_.settleTau));
+                v2 = b > 1e-4f ? (q.ax * q.ax + q.ay * q.ay + q.az * q.az) / (b * b) : v2;
+            }
+            if (v2 < vMin * vMin) continue;   // at rest: it settles itself
+        }
         if (!grp.empty() && gsz[grp[qi]] <= uint32_t(cfg_.absorbGroupMax)) continue;          // a drop: absorbed, not a wake
         const int cx = floorI(q.x) - o.x, cy = floorI(q.y) - o.y, cz = floorI(q.z) - o.z;
         for (int dy = -1; dy <= 1; ++dy)
@@ -735,6 +779,25 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                     if (x >= 0 && y >= 0 && z >= 0 && x < n.x && y < n.y && z < n.z) nearP[idx(x, y, z)] = 1;
                 }
     }
+    // 6k: cells held by a particle (caSeesParticles): full for the falling and pressure triggers.
+    std::vector<uint8_t> heldP;
+    if (cfg_.caSeesParticles) {
+        heldP.assign(N, 0);
+        // A cell is held if a particle is within one cell of it: particles sit about a cell apart, so cells inside a
+        // woken region often hold no particle centre, and the pool edge read them as an open hole (RegionalWakeTrace).
+        for (const Particle& q : p_) {
+            const int cx = floorI(q.x) - o.x, cy = floorI(q.y) - o.y, cz = floorI(q.z) - o.z;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dz = -1; dz <= 1; ++dz)
+                    for (int dx = -1; dx <= 1; ++dx) {
+                        const int x = cx + dx, y = cy + dy, z = cz + dz;
+                        if (x >= 0 && y >= 0 && z >= 0 && x < n.x && y < n.y && z < n.z) heldP[idx(x, y, z)] = 1;
+                    }
+        }
+    }
+    auto held = [&](const IVec3& w) {
+        return !heldP.empty() && heldP[idx(w.x - o.x, w.y - o.y, w.z - o.z)] != 0;
+    };
     std::vector<uint8_t> trig(N, 0);
     bool any = false;
     for (int ly = 0; ly < n.y; ++ly)
@@ -751,7 +814,7 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                 // Falling: at least half a cell over an EMPTY cell. A cell over a part-filled one is
                 // the CA's one-tick gravity job; counting it re-woke settled bodies every ~1 s
                 // (4-18 trigger cells per cycle, WakeUTubeFromCells timeline).
-                if (!go && cellFill(c) >= F / 2 && cellMaterial(b) == kEmpty) {
+                if (!go && cellFill(c) >= F / 2 && cellMaterial(b) == kEmpty && !(core.inBox({w.x, w.y - 1, w.z}) && held({w.x, w.y - 1, w.z}))) {
                     go = true;
                     ++wakeStats_.falling;
                 }
@@ -763,11 +826,18 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                         const Cell x = core.at(nw);
                         const uint8_t xm = cellMaterial(x);
                         if (xm == kSolid || (xm != kEmpty && xm != m) || cellFill(x) >= F) continue;
+                        if (xm == kEmpty && held(nw)) continue;   // 6k: a particle holds it
+                        if (double(F - cellFill(x)) < double(cfg_.wakePressureMinRoom) * F) continue;   // 6k: a small void: the CA fills it
                         // An EMPTY neighbour counts from its top: a one-cell step in a settled surface
                         // is the CA level rule's job, and reading it as a cell of excess re-woke
                         // settled bodies (1-12 trigger cells a cycle, WakeUTubeFromCells timeline).
                         const uint32_t ex = uint32_t(nw.y - o.y) * F + (xm == kEmpty ? F : cellFill(x));
-                        if (hw - 1 > ex + thr) { go = true; ++wakeStats_.pressure; break; }
+                        if (hw - 1 > ex + thr) {
+                            go = true;
+                            ++wakeStats_.pressure;
+                            if (wakeStats_.firstPressure.size() < 8) wakeStats_.firstPressure.push_back({w, nw, hw, ex, cellFill(c), cellFill(x)});
+                            break;
+                        }
                     }
                 if (go) { trig[idx(lx, ly, lz)] = 1; any = true; }
             }
@@ -775,7 +845,46 @@ size_t MatSimParticles::wake(MatSimCore& core) {
     // Flood each triggered body (face-connected, same liquid) and lift all of it, in index order.
     std::vector<uint8_t> lift(N, 0);
     std::vector<IVec3> stack;
-    for (int ly = 0; ly < n.y; ++ly)
+    const int radius = cfg_.wakeRadiusM > 0.f ? std::max(1, int(std::lround(cfg_.wakeRadiusM * float(core.cellsPerM())))) : 0;
+    if (radius > 0) {
+        // 6k: only the cells within `radius` face-connected steps (through the same liquid) of a trigger cell.
+        // Multi-source breadth-first, all triggers at distance 0, in index order: deterministic.
+        std::vector<uint16_t> dist(N, 0xFFFF);
+        std::vector<size_t> q;
+        for (size_t i = 0; i < N; ++i) if (trig[i]) { dist[i] = 0; lift[i] = 1; q.push_back(i); }
+        for (size_t h = 0; h < q.size(); ++h) {
+            const size_t i = q[h];
+            if (dist[i] >= radius) continue;
+            const int lx = int(i % size_t(n.x)), lz = int((i / size_t(n.x)) % size_t(n.z)), ly = int(i / (size_t(n.x) * size_t(n.z)));
+            const uint8_t m = cellMaterial(core.at({o.x + lx, o.y + ly, o.z + lz}));
+            for (const auto& d : kD) {
+                const int x = lx + d[0], y = ly + d[1], z = lz + d[2];
+                if (x < 0 || y < 0 || z < 0 || x >= n.x || y >= n.y || z >= n.z) continue;
+                const size_t j = idx(x, y, z);
+                if (dist[j] != 0xFFFF) continue;
+                const Cell c = core.at({o.x + x, o.y + y, o.z + z});
+                if (cellMaterial(c) != m || cellFill(c) == 0) continue;
+                dist[j] = uint16_t(dist[i] + 1);
+                lift[j] = 1;
+                q.push_back(j);
+            }
+        }
+        // Whole columns: a lifted cell also lifts the same liquid stacked above it. Otherwise the rim of the region
+        // (reached low, through the body) leaves cell water resting on the particles, held up by the CA walls, and the
+        // settle level test reads those columns' particles as a surface 1.7 cells low (RegionalWakeTrace, 1/3 m).
+        for (int lz = 0; lz < n.z; ++lz)
+            for (int lx = 0; lx < n.x; ++lx)
+                for (int ly = 0; ly < n.y; ++ly) {
+                    if (!lift[idx(lx, ly, lz)]) continue;
+                    const uint8_t m = cellMaterial(core.at({o.x + lx, o.y + ly, o.z + lz}));
+                    for (int y = ly + 1; y < n.y; ++y) {
+                        const Cell c = core.at({o.x + lx, o.y + y, o.z + lz});
+                        if (cellMaterial(c) != m || cellFill(c) == 0) break;
+                        lift[idx(lx, y, lz)] = 1;
+                    }
+                }
+    }
+    for (int ly = 0; ly < n.y && radius == 0; ++ly)
         for (int lz = 0; lz < n.z; ++lz)
             for (int lx = 0; lx < n.x; ++lx) {
                 if (!trig[idx(lx, ly, lz)] || lift[idx(lx, ly, lz)]) continue;

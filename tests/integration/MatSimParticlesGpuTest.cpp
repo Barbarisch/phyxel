@@ -433,6 +433,103 @@ TEST(MatSimLabApi, AbsorbGroupMaxIsPassedAndChecked) {
     EXPECT_TRUE(bad.contains("error")) << bad.dump();
 }
 
+// 6k: the region-limited wake through the lab. wake_radius_m > 0 turns on the bundle measured in
+// MatSimParticles.RegionalWakeDropIntoStillPool (CA sees particles, contact by averaged speed, default 0.5 m/s).
+TEST(MatSimLabApi, WakeRadiusIsPassedAndChecked) {
+    MatSimLab lab([](int, int, int) { return Occ::Empty; });
+    auto create = [&](MatSimLab::Json extra) {
+        MatSimLab::Json p = {{"min", {{"x", 0}, {"y", 0}, {"z", 0}}}, {"size", {{"x", 4}, {"y", 4}, {"z", 1}}},
+                             {"cells_per_m", 3}, {"particles", "hybrid"}, {"backend", "cpu"}};
+        for (auto it = extra.begin(); it != extra.end(); ++it) p[it.key()] = it.value();
+        MatSimLab::Json out;
+        lab.handle("create", p, out);
+        return out;
+    };
+    MatSimLab::Json d = create(MatSimLab::Json::object());
+    ASSERT_TRUE(d.value("created", false)) << d.dump();
+    EXPECT_EQ(d.value("wake_radius_m", -1.0), 0.0) << d.dump();
+    EXPECT_EQ(d.value("wake_contact_min_speed", -1.0), 0.0) << d.dump();
+    MatSimLab::Json a = create({{"wake_radius_m", 1.0}});
+    ASSERT_TRUE(a.value("created", false)) << a.dump();
+    EXPECT_EQ(a.value("wake_radius_m", -1.0), 1.0) << a.dump();
+    EXPECT_EQ(a.value("wake_contact_min_speed", -1.0), 0.5) << a.dump();
+    EXPECT_TRUE(a.value("ca_sees_particles", false)) << a.dump();
+    EXPECT_NEAR(a.value("sponge_tau", -1.0), 0.1, 1e-6) << a.dump();
+    EXPECT_NEAR(a.value("wake_pressure_min_room", -1.0), 0.5, 1e-6) << a.dump();
+    EXPECT_EQ(d.value("sponge_tau", -1.0), 0.0) << d.dump();
+    MatSimLab::Json b = create({{"wake_radius_m", 2.0}, {"wake_contact_min_speed", 0.8}});
+    ASSERT_TRUE(b.value("created", false)) << b.dump();
+    EXPECT_NEAR(b.value("wake_contact_min_speed", -1.0), 0.8, 1e-6) << b.dump();
+    for (MatSimLab::Json bad : {MatSimLab::Json{{"wake_radius_m", -1.0}},
+                                MatSimLab::Json{{"wake_radius_m", 1.0}, {"wake_contact_min_speed", 0.0}},
+                                MatSimLab::Json{{"wake_radius_m", 1.0}, {"sponge_tau", -0.1}}}) {
+        MatSimLab::Json r = create(bad);
+        EXPECT_FALSE(r.value("created", false)) << r.dump();
+        EXPECT_TRUE(r.contains("error")) << r.dump();
+    }
+}
+
+// 6k at 1/9 m through the lab (GPU particle step, host CA): a 1/3 m cube of water dropped into a still pool 1 m deep
+// (12 x 12 m, 104,976 cells). Prediction (MaterialSimPlan 6k, written first): whole-body wake lifts the pool (peak >=
+// 104,976 particles); the regional wake (R = 1 m) peaks at <= 10,500 (10 %), is all cells again within 10 s, ledger
+// exact at every read, and its mean particle-step time during the splash is at least 5x lower than the control's.
+TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
+    struct Run { size_t peak = 0; double cellsAt = -1, stepMs = 0, wakeMs = 0, settleMs = 0, caMs = 0; int busy = 0; bool exact = true; size_t left = 0; };
+    auto run = [&](double radius) {
+        Run r;
+        MatSimLab lab([](int, int, int) { return Occ::Empty; });
+        std::string err;
+        EXPECT_TRUE(lab.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        MatSimLab::Json out;
+        lab.handle("create", {{"min", {{"x", 0}, {"y", 0}, {"z", 0}}}, {"size", {{"x", 12}, {"y", 4}, {"z", 12}}},
+                              {"cells_per_m", 9}, {"particles", "hybrid"}, {"wake_radius_m", radius}}, out);
+        EXPECT_TRUE(out.value("created", false)) << out.dump();
+        lab.handle("fill_box", {{"material", "Water"}, {"min", {{"x", 0}, {"y", 0}, {"z", 0}}}, {"size", {{"x", 12}, {"y", 1}, {"z", 12}}},
+                                {"fraction", 1.0}}, out);
+        const double c = 1.0 / 3.0;
+        lab.handle("fill_box", {{"material", "Water"}, {"min", {{"x", 6 - c / 2 - 1.0 / 18}, {"y", 2.0}, {"z", 6 - c / 2 - 1.0 / 18}}},
+                                {"size", {{"x", c}, {"y", c}, {"z", c}}}, {"fraction", 1.0}}, out);
+        EXPECT_FALSE(out.contains("error")) << out.dump();
+        for (int k = 0; k < 100; ++k) {   // 10 s, read every 0.1 s
+            lab.handle("step", {{"n", 6}}, out);
+            if (!out["ledger"].value("exact", false)) r.exact = false;
+            MatSimLab::Json st;
+            lab.handle("stats", MatSimLab::Json::object(), st);
+            const size_t np = st.value("particles", size_t(0));
+            r.peak = std::max(r.peak, np);
+            if (np) {
+                r.cellsAt = -1;
+                const auto& ms = st["last_tick_ms"];
+                r.stepMs += ms.value("step", 0.0); r.wakeMs += ms.value("wake", 0.0); r.settleMs += ms.value("settle", 0.0); r.caMs += ms.value("ca", 0.0);
+                ++r.busy;
+            } else if (r.cellsAt < 0 && k > 3) r.cellsAt = 0.6 * (k + 1) / 6.0;
+            if (k % 10 == 9) std::printf("[pool drop 1/9 m R %.1f] t %.1f s: %zu particles, last tick ms wake %.1f step %.1f settle %.1f ca %.1f\n",
+                                         radius, (k + 1) / 10.0, np, st["last_tick_ms"].value("wake", 0.0), st["last_tick_ms"].value("step", 0.0),
+                                         st["last_tick_ms"].value("settle", 0.0), st["last_tick_ms"].value("ca", 0.0));
+            r.left = np;
+        }
+        if (r.busy) { r.stepMs /= r.busy; r.wakeMs /= r.busy; r.settleMs /= r.busy; r.caMs /= r.busy; }
+        return r;
+    };
+    const Run w = run(0.0), g = run(1.0);
+    for (const Run* r : {&w, &g})
+        std::printf("[MatSimParticlesGpu] pool drop 1/9 m, %s: peak %zu particles, all cells at %.1f s (%zu left at 10 s), mean ms while "
+                    "particles fly (sampled each 0.1 s, %d samples): wake %.1f step %.1f settle %.1f ca %.1f; ledger %s\n",
+                    r == &w ? "whole-body wake" : "regional wake R 1 m", r->peak, r->cellsAt, r->left, r->busy, r->wakeMs, r->stepMs,
+                    r->settleMs, r->caMs, r->exact ? "exact" : "BROKEN");
+    EXPECT_TRUE(w.exact);
+    EXPECT_TRUE(g.exact);
+    EXPECT_GE(w.peak, 104976u) << "control: the whole-body wake lifts the pool";
+    EXPECT_LE(g.peak, 10500u);
+    EXPECT_GT(g.cellsAt, 0.0);
+    EXPECT_EQ(g.left, 0u);
+    // Predicted >= 5x cheaper; MEASURED 2x (10.4 vs 20.1 ms, 2026-11-08): the GPU step uploads the whole box's cells every
+    // tick, a floor that does not shrink with the particle count. The tick is dominated by the full-box CA (~220 ms Debug)
+    // and wake scan (~47 ms) either way (MaterialSimPlan 6k). Pinned: cheaper, not 5x.
+    EXPECT_LT(g.stepMs, w.stepMs);
+    EXPECT_LT(g.settleMs * 10.0, w.settleMs) << "settle scales with the particles (measured 1.4 vs 51.2 ms)";
+}
+
 // 6i: the lab service (POST /api/matsim/*) with "particles":"hybrid": a dam break created and
 // read back only through MatSimLab::handle, the calls the live route makes. Predictions: the front
 // (from the slices action, which counts particles) within 10 % of the library's hybrid 8.04 m/s at
@@ -517,6 +614,78 @@ Occ liveRig(int mx, int my, int mz) {
     if (x >= 21 && x <= 23 && y <= 17 && z >= 8 && z <= 10) return Occ::Solid;
     if (x == 16 && y >= 17 && y <= 23 && z >= 17 && z <= 23) return Occ::Solid;
     return Occ::Empty;
+}
+
+// 6k diagnostic: LabPoolDropNinthMetre's regional run with the library (GPU particle step) and the ledger checked after
+// every phase; per-wake triggers. MATSIM_SIZE_M (12), MATSIM_SECONDS (10).
+TEST_F(MatSimParticlesGpuTest, DISABLED_PoolDropPhases) {
+    auto env = [](const char* k, double d) { return std::getenv(k) ? std::atof(std::getenv(k)) : d; };
+    const int cpm = 9, sizeM = int(env("MATSIM_SIZE_M", 12));
+    MatSimCore s;
+    std::string why;
+    ASSERT_TRUE(s.create({0, 0, 0}, {sizeM * cpm, 4 * cpm, sizeM * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+    s.fillBox(Mat::Water, {0, 0, 0}, {sizeM * cpm, cpm, sizeM * cpm}, 1.0);
+    const int c0 = sizeM * cpm / 2 - 2;
+    s.fillBox(Mat::Water, {c0, 2 * cpm, c0}, {3, 3, 3}, 1.0);   // a 1/3 m cube, 1 m above the pool
+    ParticleConfig pc;
+    pc.settleSpeed = 0.35f;
+    pc.wakeHeadCells = 1.0f;
+    pc.wakeRadiusM = float(env("MATSIM_RADIUS", 1.0));
+    pc.wakeContactMinSpeed = 0.5f;
+    pc.caSeesParticles = pc.wakeContactAveraged = true;
+    pc.spongeTau = float(env("MATSIM_SPONGE", 0.0));
+    pc.wakePressureMinRoom = float(env("MATSIM_MINROOM", 0.0));
+    MatSimParticles ps(pc);
+    ps.setGpu(&gpu);
+    std::printf("[phases] radius %.1f m, sponge tau %.2f s\n", pc.wakeRadiusM, pc.spongeTau);
+    const uint64_t total = s.ledger()[Mat::Water];
+    bool exact = true;
+    size_t peak = 0;
+    for (int f = 0; f < int(env("MATSIM_SECONDS", 10) * 60); ++f) {
+        auto check = [&](const char* phase) {
+            const long long d = (long long)(s.ledger()[Mat::Water] + ps.units(Mat::Water)) - (long long)total;
+            if (d && exact) { std::printf("[phases] LEDGER first broken after %s at frame %d: %lld units\n", phase, f, d); exact = false; }
+        };
+        const size_t lf = ps.wake(s);
+        check("wake");
+        if (lf) {
+            const auto& ws = ps.lastWakeStats();
+            std::printf("[phases] f %d lifted %zu: trigger contact %zu falling %zu pressure %zu; particles %zu\n", f, lf, ws.contact,
+                        ws.falling, ws.pressure, ps.particles().size());
+            for (const auto& pt : ws.firstPressure)
+                std::printf("[phases]   pressure cell (%d,%d,%d) fill %.2f head %.2f cells -> neighbour (%d,%d,%d) fill %.2f, level %.2f cells\n",
+                            pt.cell.x, pt.cell.y, pt.cell.z, double(pt.fill) / s.full(), double(pt.head) / s.full(), pt.nb.x, pt.nb.y, pt.nb.z,
+                            double(pt.nbFill) / s.full(), double(pt.ex) / s.full());
+        }
+        ps.step(s, 1.0 / 60.0);
+        check("particle step");
+        const size_t before = ps.particles().size();
+        ps.settle(s);
+        check("settle");
+        auto holes = [&](const char* when) {   // empty cells under the pool surface (y < cpm), by column
+            size_t cols = 0, deep = 0, cells = 0;
+            for (int x = 0; x < sizeM * cpm; ++x)
+                for (int z = 0; z < sizeM * cpm; ++z) {
+                    int e = 0;
+                    for (int y = 0; y < cpm; ++y) if (cellMaterial(s.at({x, y, z})) == kEmpty) ++e;
+                    cells += size_t(e);
+                    if (e) ++cols;
+                    if (e >= 2) ++deep;
+                }
+            std::printf("[phases] f %d %s: %zu empty cells under the pool surface, in %zu columns (%zu with 2+)\n", f, when, cells, cols, deep);
+        };
+        if (before && ps.particles().empty()) holes("all settled");
+        ps.stepCells(s);
+        check("CA step");
+        if (before && ps.particles().empty()) holes("after one CA step");
+        peak = std::max(peak, ps.particles().size());
+        if ((f + 1) % 60 == 0) {
+            const auto& ss = ps.lastSettleStats();
+            std::printf("[phases] t %d s: %zu particles; settle %zu groups, busy speed %zu level %zu, biggest %zu (%zu slow) spread %.2f\n",
+                        (f + 1) / 60, ps.particles().size(), ss.groups, ss.busySpeed, ss.busyLevel, ss.bigMembers, ss.bigSlow, ss.bigSpread);
+        }
+    }
+    std::printf("[phases] peak %zu, ledger %s\n", peak, exact ? "exact" : "BROKEN");
 }
 
 TEST_F(MatSimParticlesGpuTest, DISABLED_LiveRigReplica) {

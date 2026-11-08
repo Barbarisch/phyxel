@@ -1534,6 +1534,141 @@ It would also remove the speck problem at its root (a resting body is never draw
 **not** a frame-rate fix: at 1/9 m the frame is the simulation (§6i: 240 ms tick vs 18-53 k faces;
 the same view without the box renders at 661 fps).
 
+### 6k. The region-limited wake (2026-11-08)
+
+**Why now (owner, 2026-11-08):** "damping on particles could be smartly applied ... unless the only
+way to get accurate looking water is to wake up half a million particles instead of a small subset
+near the disturbance, then i am questioning whether this is doable at all?" The whole-body wake is
+§6g's stated shortcut ("a pebble in a lake would lift the lake"), not a requirement. Moved ahead of
+the GPU CA work: it decides whether the hybrid can scale at all.
+
+**Design.** Two knobs, both default OFF (the old rules exactly):
+- `wakeRadiusM` (> 0): a trigger cell lifts only the cells of its body within this many metres
+  (face-connected steps through the body), not the whole body.
+- `caSeesParticles`: for each CA step, empty cells that hold a particle are walls to the CA (made
+  solid for the step, restored after; they hold nothing, so the ledger is untouched). Particles
+  already feel cell water (it is boundary mass in the density sum, §6g). Without this the cell
+  water around a woken hole pours into it through the particles, and the hole edge reads as head
+  over an empty cell, which the pressure trigger wakes: the region would grow by R every tick.
+  The wake's pressure and falling triggers count particle cells as full for the same reason.
+- With a radius, contact wakes only from particles faster than `wakeContactMinSpeed` (§6i knob):
+  particles at rest in the hole touch its cell wall forever. Motion that reaches the wall grows the
+  region; motion that has died out does not (the owner's damping, as a rule: the woken region is
+  where the energy is).
+Mass crosses the interface only through wake (cells -> particles) and settle (particles -> cells),
+both integer-exact, as before.
+
+**Known loss, stated up front:** ripples do not travel past the woken region (the CA has no
+waves). A real drop's rings would cross the lake; here they stop at about R. §4's appearance layer
+(waves drawn on the surface) is where those belong.
+
+**Rig (CPU, 1/3 m, `RegionalWakeDropIntoStillPool`):** a 12 x 3 x 12 m box, a still pool 1 m deep
+(3,888 cells), a 2 x 2 x 2-cell drop (8 particles, 2 m/s down) over its centre; absorb off. 20 s.
+**Control:** today's whole-body wake, same rig.
+
+**Prediction, written before the code:**
+- control: the first contact lifts the whole pool (>= 3,888 cells); peak particles >= 3,888.
+- regional (R = 1 m, contact speed >= 0.5 m/s, CA sees particles): peak particles <= 400 (about 10 %
+  of the pool), all back in cells by 10 s, final surface spread <= 1 cell, ledger exact every frame.
+- the risk: the region creeps outward (every tick a new edge) and ends as the whole pool. The test
+  reports peak particles and total cells lifted, so creep shows.
+
+**Result (CPU, Debug, 1/3 m, 20 s; raw lines from the test's printout).**
+
+| | peak particles | cells lifted in total | back in cells | end state |
+|---|---|---|---|---|
+| control, whole-body wake | 3,908 | 78,140 | **never** (re-wakes the whole pool every ~1 s) | still 3,908 particles at 20 s |
+| regional, first build (R + CA walls + instantaneous contact) | 4,353 | 8,180 | 6.45 s | it **crept** over the whole pool twice |
+| regional, final | **608** | **1,315** | **3.52 s**, at rest to the end | level, ledger exact |
+
+The prediction of peak <= 400 **missed** (608, 16 % of the pool); the claim that matters held: a
+drop woke a sixth of the pool, not the pool, and the pool came back to rest, while today's rule
+never rests in this rig. Three things the per-wake trace (`DISABLED_RegionalWakeTrace`,
+`MATSIM_TRACE=1`) found, each now part of the knob set:
+1. **Contact creep:** ~10 of ~3,000 woken particles jitter past 0.5 m/s at any instant, and each
+   touch of the cell wall lifted another 1 m ball. Fix (`wakeContactAveraged`): contact compares
+   the particle's *time-averaged* velocity (the settle EMA, bias-corrected for a young particle).
+   Jitter averages out; an inflow does not. This is the owner's damping, applied to the wake.
+2. **Pressure creep:** cells inside the woken hole that hold no particle centre (particles sit
+   about a cell apart) read as an open hole 2+ cells below the pool surface (52 trigger cells
+   with no fast particle). Fix: a cell is *held* if a particle is within one cell of it; held
+   cells are CA walls and count as full for the pressure and falling triggers.
+3. **Never settled (438 particles, all slow, for 12 s+):** the radius walks through the body, so
+   the rim of the region was lifted low and cell water stayed on top of it, held up by the CA
+   walls; the level test read those columns as a surface 1.7 cells low. Fix: the region is whole
+   columns (a lifted cell lifts the same liquid stacked above it).
+After the deposit, two short pressure re-wakes (27 and 6 trigger cells) level the region against
+the pool; each is radius-limited too.
+
+**1/9 m through the lab (prediction, written before the run; `LabPoolDropNinthMetre`, GPU particle
+step, host CA):** a 1/3 m cube of water dropped from 1 m above a still pool 1 m deep, 12 x 12 m
+(104,976 cells). The lab takes `wake_radius_m` (0 = whole body, the default; > 0 turns on the
+bundle above, contact speed `wake_contact_min_speed` default 0.5 m/s; negative, or a radius with
+contact speed 0, refused; red-first `MatSimLabApi.WakeRadiusIsPassedAndChecked`). Predicted:
+control peaks >= 104,976 particles; regional (R 1 m) peaks <= 10,500, is all cells within 10 s,
+ledger exact at every read, and its particle step while water flies is >= 5x cheaper.
+
+**1/9 m, first run: FAILED on every count** (raw, `LabPoolDropNinthMetre`): control 105,198
+particles, never rests; regional started at 1,632 particles and **crept to 50,322** by 10 s, never
+rested, and **the ledger broke**; the CA got dearer (188 -> 300-430 ms: blocking costs 27 cells a
+particle). The library replica with the ledger checked after every phase
+(`DISABLED_PoolDropPhases`, GPU particle step) reproduced it and found four things, each fixed in
+turn with the run repeated:
+1. **Ledger: settle overwrote cell water** (-256 units = one 1/9 m cell, after settle at frame 442).
+   Settle's room loop grew a column up into a cell that already held water and did not count it.
+   Unreachable under the whole-body wake (no cell water ever sat by a settling group). Fixed
+   for all modes; red-first `SettleKeepsCellWaterItGrowsInto` (lost exactly one cell).
+2. **Creep: the region had no way to lose energy.** The splash crater dipped > 2 cells below the
+   pool (pressure trigger, +1 m of pool), the bigger region sloshed against its cell wall, which
+   reflected every wave, and its moving particles woke more by contact. Fix, the owner's damping:
+   a **sponge** (`spongeTau`, `spongeCells` 2): a particle with cell water of its liquid within 2
+   cells has its velocity scaled by exp(-dt / 0.1 s) each frame. The cells are water at rest; a
+   wave that reaches them should leave the simulation (in a lake it would run on as ripples the CA
+   does not have), not bounce back. Result: no creep (peak 1,794), ledger exact, but a ~1 s cycle.
+3. **The cycle, part 1: a one-cell spike.** The room loop stopped at the first column that made
+   room, so the drop's extra water came back as one nearly full cell a cell above the pool. The
+   head field takes the highest free surface of a body, read 10.00 cells over a 8.93-cell pool,
+   and every top cell showed > 1 cell of excess (24 trigger cells, every ~1 s). Fix, all modes:
+   the room loop adds a whole layer over the footprint; red-first
+   `SettleSpreadsTheTopLayerOverTheFootprint` (3,456 units in one cell, wanted <= 865).
+4. **The cycle, part 2: a 2 % void.** Full cells two cells down sat next to an interior cell 0.96-0.98
+   full; its level (7.98) under the head (9.05) read as 1.07 cells of excess and woke ~1,000 cells to
+   fill 0.02 of a cell. Fix (`wakePressureMinRoom` 0.5): the pressure trigger counts a neighbour only
+   if it has at least half a cell of room (the falling trigger's scale). The CA fills small voids.
+After all four (`MATSIM_SPONGE=0.1 MATSIM_MINROOM=0.5`): **the drop woke 1,632 cells (1.6 % of the
+pool), all back in cells at 1.45 s, at rest to 10 s, ledger exact.** The lab's `wake_radius_m` now
+turns on the whole bundle (sponge 0.1 s, settable as `sponge_tau`; min room 0.5; both echoed).
+
+**1/9 m lab result with the bundle** (`LabPoolDropNinthMetre`, Debug, GPU particle step, host CA;
+mean ms per tick while water flies, sampled every 0.1 s):
+
+| | peak particles | back in cells | ledger | wake / step / settle / CA ms |
+|---|---|---|---|---|
+| whole-body (control) | 105,003 | 1.5 s | exact | 39.6 / 20.1 / 51.2 / 203.0 |
+| regional, R 1 m | **1,632** | 1.5 s | exact | 45.6 / 10.4 / **1.4** / 241.1 |
+
+Against the prediction: peak <= 10,500 **held** (1.6 % of the pool); all cells within 10 s
+**held**; ledger exact **held**; particle step >= 5x cheaper **missed** (2x: the GPU step uploads
+the whole box's cells every tick, a floor independent of the particle count). Two findings that
+change the picture:
+- **The settle fixes (1, 3) also cured the control**: the whole-body run now rests at 1.5 s too
+  (before the fixes it re-woke the pool every ~1 s and never rested, at 1/3 and 1/9 m).
+- **The tick did not get cheaper** (~300 ms Debug either way). It is the cells, not the
+  particles: the CA's pressure pass gathers over every cell of the box every tick (~220 ms for
+  420 k cells, Debug, even at rest), and wake() scans the whole box every tick (~47 ms). The
+  regional wake fixes *what moves* (a local splash, 1.6 k particles, instead of the whole pool
+  turning to particles); the cost at rest is the next lever: a pressure pass and wake scan that
+  skip sleeping bricks, the CA on the device, and measuring in Release.
+
+**1/3 m rerun with the final bundle and the settle fixes** (`RegionalWakeDropIntoStillPool`, CPU
+suite run 2026-11-08): regional **peak 168 particles, 160 cells lifted, all cells at 1.12 s**,
+spread 0.003 cells, ledger exact; the whole-body control now lifts the pool once (3,888) and rests
+at 1.10 s (it never rested before the settle fixes). Suites: CPU MatSim 49/49, GPU 19/19.
+
+Still open: N = 1 rig per cell size, one drop. Not yet measured: 1/9 m (where the cost was), the live
+rig's dam break with the regional rule (does a big real flow still wake what it should?), and
+what it looks like.
+
 ## 7. Working alongside the other sessions
 
 - **Code lives in a separate git worktree and branch** (`feat/matsim-lab`, off `main`), with its

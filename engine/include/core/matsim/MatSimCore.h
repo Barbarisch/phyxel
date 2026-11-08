@@ -140,6 +140,10 @@ public:
     bool setCell(IVec3 worldCell, uint8_t material, uint32_t fill);
 
     StepStats step(int n = 1);
+    /// 6k: make the listed EMPTY cells walls (solid) until unblockAll(). Other cells are skipped; they hold nothing,
+    /// so the ledger is untouched. Returns the number blocked. Used to let the CA see cells held by particles.
+    size_t blockEmpty(const std::vector<IVec3>& worldCells);
+    void unblockAll();
 
     /// Re-read the solid mask. A cell turning solid while holding fill keeps it TRAPPED (frozen,
     /// in the ledger); a trapped cell turning open gets its contents back.
@@ -214,6 +218,7 @@ private:
     void markBricksOfBlock(int bx, int by, int bz, std::vector<uint8_t>& marks) const;
     int brickOf(int wx, int wy, int wz) const;            ///< index into brick arrays
     void wakeAll();
+    std::vector<IVec3> blocked_;                          ///< 6k: cells made solid by blockEmpty()
     void wakeCells(IVec3 lo, IVec3 hi);                   ///< inclusive world-cell range
     bool solidCell(const MicroSolidFn& fn, int wx, int wy, int wz, int cpm, bool& unknown) const;
 

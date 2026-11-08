@@ -241,8 +241,20 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       `absorb_group_max`, video `--absorb`) stops it: 3/3 replica seeds and live (rest 31.7 s, 0 after). The pair is
       the candidate; floor never ships without the guard. Owner idea logged: draw resting water as a smooth surface
       (a look fix, not fps; at 1/9 m the frame is the sim, not the faces).
-    - **Next:** the floor+absorb pair at 1/3 m, the pressure-rule cycle, keep the hybrid on the device (1/9 m live
-      ~241 ms a tick: CA ~80 on the CPU), then a region-limited wake.
+    - **§6k (2026-11-08): the region-limited wake** (owner: "wake a small subset near the disturbance, with damping").
+      Lab `wake_radius_m` (0 = whole body, default) turns on a bundle of knobs, all default off: lift only the body within
+      R (whole columns), the CA sees particle cells as walls (`MatSimParticles::stepCells`, `MatSimCore::blockEmpty`),
+      contact wakes by *averaged* speed >= 0.5 m/s, a **sponge** damps particles within 2 cells of cell water (tau 0.1 s,
+      `sponge_tau`), the pressure trigger ignores voids under half a cell. 1/9 m drop into a 104,976-cell pool: **1,632
+      particles (control 105,003), all cells at 1.5 s, ledger exact**. Two settle bugs found on the way, fixed for all
+      modes (overwrote cell water; one-column spike over the head field); they also cured the control's re-wake cycle.
+      The tick did NOT get cheaper (~300 ms Debug): the full-box pressure pass (~220) and wake scan (~47) run at rest.
+      Diagnostics: `MatSimParticles.DISABLED_RegionalWakeTrace` (CPU), `MatSimParticlesGpuTest.DISABLED_PoolDropPhases`
+      (GPU, ledger per phase, `MATSIM_SPONGE`/`MATSIM_MINROOM`/`MATSIM_RADIUS`).
+    - **Next:** make the cells cheap at rest (pressure pass + wake scan skip sleeping bricks; Release numbers; the CA on
+      the device), the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
+      floor+absorb pair at 1/3 m, the pressure-rule cycle.
+    - ⚠️ GPU MatSim tests find `shaders/*.spv` relative to the working directory: run them from the repo root.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
     - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then

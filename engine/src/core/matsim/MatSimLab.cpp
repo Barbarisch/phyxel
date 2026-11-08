@@ -85,7 +85,7 @@ StepStats MatSimLab::hybridStep(int n) {
         const auto t2 = Clock::now();
         settledParticles_ += parts_->settle(core_);
         const auto t3 = Clock::now();
-        const StepStats s1 = core_.step(1);
+        const StepStats s1 = parts_->stepCells(core_);   // §6k: core_.step(1), with particle cells as walls if asked
         const auto t4 = Clock::now();
         hms_ = {ms(t0, t1), ms(t1, t2), ms(t2, t3), ms(t3, t4)};
         st.ticks += s1.ticks;
@@ -238,6 +238,24 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         const int absorb = p.value("absorb_group_max", pcfg.absorbGroupMax);
         if (absorb < 0) return refuse("absorb_group_max must be >= 0 (0 = off)");
         pcfg.absorbGroupMax = absorb;
+        // §6k: the region-limited wake. wake_radius_m > 0 turns on the bundle measured in
+        // MatSimParticles.RegionalWakeDropIntoStillPool: the CA sees particle cells as walls, and contact wakes only
+        // from particles whose averaged speed is >= wake_contact_min_speed (default 0.5 m/s with a radius).
+        const float radius = p.value("wake_radius_m", 0.0f);
+        if (!(radius >= 0.f && radius <= 64.f)) return refuse("wake_radius_m must be in [0, 64] metres (0 = wake the whole body)");
+        const float vmin = p.value("wake_contact_min_speed", radius > 0.f ? 0.5f : 0.0f);
+        if (!(vmin >= 0.f && vmin <= 100.f)) return refuse("wake_contact_min_speed must be in [0, 100] m/s");
+        if (radius > 0.f && !(vmin > 0.f))
+            return refuse("wake_radius_m needs wake_contact_min_speed > 0 (particles at rest touch the region wall forever)");
+        pcfg.wakeRadiusM = radius;
+        pcfg.wakeContactMinSpeed = vmin;
+        pcfg.caSeesParticles = radius > 0.f;
+        pcfg.wakeContactAveraged = radius > 0.f;
+        // The sponge at the particle/cell interface and the pressure trigger's minimum room (both measured in
+        // PoolDropPhases at 1/9 m; without them the region grew to 50 k particles, or re-woke every ~1 s).
+        pcfg.spongeTau = p.value("sponge_tau", radius > 0.f ? 0.1f : 0.0f);
+        if (!(pcfg.spongeTau >= 0.f && pcfg.spongeTau <= 100.f)) return refuse("sponge_tau must be in [0, 100] seconds (0 = off)");
+        pcfg.wakePressureMinRoom = radius > 0.f ? 0.5f : 0.0f;
         if (particles == "hybrid" && !cfg.pressure) return refuse("a hybrid box needs pressure on (wake reads the head field)");
         const std::string backend = p.value("backend", std::string(gpu_ ? "gpu" : "cpu"));
         if (backend != "gpu" && backend != "cpu") return refuse("backend must be \"gpu\" or \"cpu\"");
@@ -277,6 +295,11 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
             out["settle_speed"] = pcfg.settleSpeed;
             out["wake_head_cells"] = pcfg.wakeHeadCells;
             out["absorb_group_max"] = pcfg.absorbGroupMax;
+            out["wake_radius_m"] = pcfg.wakeRadiusM;
+            out["wake_contact_min_speed"] = pcfg.wakeContactMinSpeed;
+            out["ca_sees_particles"] = pcfg.caSeesParticles;
+            out["sponge_tau"] = pcfg.spongeTau;
+            out["wake_pressure_min_room"] = pcfg.wakePressureMinRoom;
         }
         out["seed"] = cfg.seed;
         out["sleep"] = cfg.sleep;
