@@ -1779,7 +1779,44 @@ Two findings:
   0.26 mm tall. The whole-body run lays it flat at settle and is done by 3 s. Candidate knob
   (looks, not outcomes): let the level rule leave differences below a visible threshold.
 
-Still open: the upload floor; the levelling tail; the limit cycle.
+**The GPU step's floor is dispatch latency, not the upload.** Device timestamps (Release): 4.10 ms
+for 1,632 particles, 3.44 ms for 105,003. The cell upload is 1.3 MB (< 1 ms). Each substep records
+~40 dispatches, each followed by a barrier: prediction, grid build and sort (8), 8 solver
+iterations x 3, the velocity pass, 2 divergence iterations x 3, and the commit. At 1-2 substeps
+that is ~50-80 us per dispatch on this laptop GPU, whatever the count. Levers (not taken):
+fused kernels; iterations as a tier knob for small particle counts.
+
+**The CA of a hybrid box on the device (`hybrid_ca`, 2026-11-08).** The device CA (P1b, parity-
+exact) costs 0.11 ms a tick at 1/9 m on a 1.49 M-cell box with every block awake
+(`MatSimGpuParity.TimingAwakeVsAsleep`, Release). The host CA cost 32-64 ms in the levelling tail.
+A hybrid box now steps its CA through `MatSimParticles::stepCells(core, stepOne)`, with the lab
+passing a device stepper:
+- it uploads the core (with the particles' walls already placed by `blockEmpty`), steps 1 tick,
+  and downloads;
+- on any device error it steps the host instead and reports `hybrid_ca_error`, so no tick is lost.
+
+Lab knob `hybrid_ca`:
+- `cpu`: the host CA, which costs ~0 ms at rest thanks to the skips.
+- `gpu`: the device CA every tick.
+- `auto` (the default when the device CA is available and `film_floor` is 0): the device CA when
+  the last tick marked more than 16 bricks, else the host.
+
+`film_floor > 0` forces `cpu` (the port has no film rule). Stats: `hybrid_ca`, `ca_ticks_gpu`,
+`ca_ticks_cpu`.
+
+Exactness: `MatSimParticlesGpuTest.DeviceCaEqualsHostCaInTheHybrid`. On a 1/3 m regional pool
+drop, every frame a copy of the core takes the host step and the core the device step through
+the same `stepCells`. Cells, tick, heads, both head pointers, both mark sets and eligible counts
+were equal for 300/300 frames (66 with particle walls, 213 with cells moving). Control: a 2-tick
+device step against a 1-tick host step differs.
+
+Lab pool drop 1/9 m, regional, Release, with `auto`: CA in the levelling tail **7-13 ms**
+(was 32-64 ms), mostly the transfers. Same outcomes (peak 1,632, all water back to cells at 1.5 s,
+ledger exact); the test's wall time went from 17.8 s to 9.0 s. The wake scan (10-16 ms a tick
+while the pool levels) is now the largest cost of the tail.
+
+Still open: the wake scan while the pool levels; the transfers of the device CA (heads and
+pointers go both ways every tick); the limit cycle.
 
 ## 7. Working alongside the other sessions
 

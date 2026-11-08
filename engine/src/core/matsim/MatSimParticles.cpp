@@ -722,8 +722,9 @@ void MatSimParticles::settleBlockers(const MatSimCore& core, size_t& slow, size_
         if (members[r] && float(sl[r]) < cfg_.settleFraction * float(members[r])) ++groupsBusy;
 }
 
-StepStats MatSimParticles::stepCells(MatSimCore& core) {
-    if (!cfg_.caSeesParticles || p_.empty()) return core.step(1);
+StepStats MatSimParticles::stepCells(MatSimCore& core, const std::function<StepStats(MatSimCore&)>& stepOne) {
+    auto one = [&]() { return stepOne ? stepOne(core) : core.step(1); };
+    if (!cfg_.caSeesParticles || p_.empty()) return one();
     std::vector<IVec3> held;
     held.reserve(p_.size());
     for (const Particle& q : p_)   // the cell of each particle and its neighbours (as wake's held mask)
@@ -731,7 +732,7 @@ StepStats MatSimParticles::stepCells(MatSimCore& core) {
             for (int dz = -1; dz <= 1; ++dz)
                 for (int dx = -1; dx <= 1; ++dx) held.push_back({floorI(q.x) + dx, floorI(q.y) + dy, floorI(q.z) + dz});
     core.blockEmpty(held);
-    const StepStats st = core.step(1);
+    const StepStats st = one();
     core.unblockAll();
     return st;
 }

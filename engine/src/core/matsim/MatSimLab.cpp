@@ -85,7 +85,27 @@ StepStats MatSimLab::hybridStep(int n) {
         const auto t2 = Clock::now();
         settledParticles_ += parts_->settle(core_);
         const auto t3 = Clock::now();
-        const StepStats s1 = parts_->stepCells(core_);   // §6k: core_.step(1), with particle cells as walls if asked
+        // 6l: the device CA (parity-exact with the host), when asked or (auto) when the host tick would be dear.
+        bool onGpu = gpu_ && hybridCa_ == HybridCa::Gpu;
+        if (gpu_ && hybridCa_ == HybridCa::Auto) {
+            const auto& m = core_.marksTick1();
+            onGpu = size_t(std::count_if(m.begin(), m.end(), [](uint8_t v) { return v != 0; })) > kAutoGpuBricks;
+        }
+        auto deviceStep = [this](MatSimCore& c) {
+            std::string err;
+            if (gpu_->upload(c, &err)) {
+                const StepStats s = gpu_->step(1);
+                if (gpu_->download(c, &err)) { ++caGpuTicks_; return s; }
+                err = "download: " + err;   // the host is still the pre-step state: step it there instead
+            } else err = "upload: " + err;
+            caGpuError_ = err;
+            hybridCa_ = HybridCa::Cpu;   // loudly (stats.hybrid_ca_error), never a lost tick
+            ++caCpuTicks_;
+            return c.step(1);
+        };
+        if (!onGpu) ++caCpuTicks_;
+        // 6k: core_.step(1) with particle cells as walls if asked; 6l: on the device if chosen above.
+        const StepStats s1 = onGpu ? parts_->stepCells(core_, deviceStep) : parts_->stepCells(core_);
         const auto t4 = Clock::now();
         hms_ = {ms(t0, t1), ms(t1, t2), ms(t2, t3), ms(t3, t4)};
         st.ticks += s1.ticks;
@@ -264,6 +284,12 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         if (backend == "gpu" && particles == "off" && cfg.filmFloor > 0.f)
             return refuse("film_floor is host-CA only: use backend cpu or particles hybrid (the GPU port has no film rule)");
         if (backend == "gpu" && !gpu_) return refuse("backend gpu unavailable: " + (gpuError_.empty() ? std::string("no device") : gpuError_));
+        // 6l: where a hybrid box steps its CA (cost only: the device CA equals the host's tick for tick).
+        const std::string hca = p.value("hybrid_ca", std::string(gpu_ && cfg.filmFloor == 0.f ? "auto" : "cpu"));
+        if (hca != "cpu" && hca != "gpu" && hca != "auto") return refuse("hybrid_ca must be \"cpu\", \"gpu\" or \"auto\"");
+        if (hca != "cpu" && !gpu_)
+            return refuse("hybrid_ca " + hca + " needs the device CA: " + (gpuError_.empty() ? std::string("no device") : gpuError_));
+        if (hca != "cpu" && cfg.filmFloor > 0.f) return refuse("hybrid_ca " + hca + ": film_floor is host-CA only");
         MatSimCore fresh;
         std::string why;
         if (!fresh.createMetres(num("min", "x"), num("min", "y"), num("min", "z"), num("size", "x"), num("size", "y"),
@@ -276,6 +302,9 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         transferShift_ = {};
         lifted_ = settledParticles_ = 0;
         hms_ = {};
+        hybridCa_ = hca == "gpu" ? HybridCa::Gpu : hca == "auto" ? HybridCa::Auto : HybridCa::Cpu;
+        caGpuTicks_ = caCpuTicks_ = 0;
+        caGpuError_.clear();
         if (particles == "hybrid") {
             parts_ = std::make_unique<MatSimParticles>(pcfg);
             parts_->setGpu(pgpu_.get());   // nullptr = the CPU reference (slow above 1/3 m; reported)
@@ -303,6 +332,7 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
             out["sponge_tau"] = pcfg.spongeTau;
             out["wake_pressure_min_room"] = pcfg.wakePressureMinRoom;
             out["wake_skip_quiet"] = pcfg.wakeSkipQuiet;
+            out["hybrid_ca"] = hca;
         }
         out["seed"] = cfg.seed;
         out["sleep"] = cfg.sleep;
@@ -396,6 +426,10 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
                                   {"largest_low_column", {ss.loCol[0], ss.loCol[1], ss.loCol[2]}},
                                   {"largest_high_column", {ss.hiCol[0], ss.hiCol[1], ss.hiCol[2]}}};
             out["last_tick_ms"] = {{"wake", hms_.wake}, {"step", hms_.step}, {"settle", hms_.settle}, {"ca", hms_.ca}};
+            out["hybrid_ca"] = hybridCa_ == HybridCa::Gpu ? "gpu" : hybridCa_ == HybridCa::Auto ? "auto" : "cpu";
+            out["ca_ticks_gpu"] = caGpuTicks_;
+            out["ca_ticks_cpu"] = caCpuTicks_;
+            if (!caGpuError_.empty()) out["hybrid_ca_error"] = caGpuError_;
         }
         out["tick"] = core_.tick();
         out["sim_seconds"] = double(core_.tick()) * kTick;

@@ -16,6 +16,7 @@
 #include "core/matsim/MatSimCore.h"
 #include "core/matsim/MatSimParticles.h"
 #include "core/matsim/MatSimParticlesGpu.h"
+#include "core/matsim/MatSimGpu.h"
 #include "core/matsim/MatSimLab.h"
 
 #include <algorithm>
@@ -459,6 +460,7 @@ TEST(MatSimLabApi, WakeRadiusIsPassedAndChecked) {
     EXPECT_EQ(d.value("sponge_tau", -1.0), 0.0) << d.dump();
     // wakeSkipQuiet: exact (WakeSkipQuietEqualsTheFullScan), so on by default in the lab; false = the full scan (control).
     EXPECT_TRUE(d.value("wake_skip_quiet", false)) << d.dump();
+    EXPECT_EQ(d.value("hybrid_ca", std::string()), "cpu") << "no device CA: the host CA" << d.dump();
     MatSimLab::Json full = create({{"wake_skip_quiet", false}});
     ASSERT_TRUE(full.value("created", false)) << full.dump();
     EXPECT_FALSE(full.value("wake_skip_quiet", true)) << full.dump();
@@ -467,7 +469,10 @@ TEST(MatSimLabApi, WakeRadiusIsPassedAndChecked) {
     EXPECT_NEAR(b.value("wake_contact_min_speed", -1.0), 0.8, 1e-6) << b.dump();
     for (MatSimLab::Json bad : {MatSimLab::Json{{"wake_radius_m", -1.0}},
                                 MatSimLab::Json{{"wake_radius_m", 1.0}, {"wake_contact_min_speed", 0.0}},
-                                MatSimLab::Json{{"wake_radius_m", 1.0}, {"sponge_tau", -0.1}}}) {
+                                MatSimLab::Json{{"wake_radius_m", 1.0}, {"sponge_tau", -0.1}},
+                                // 6l: no device CA in this lab, so only the host CA; and a value not in the set.
+                                MatSimLab::Json{{"hybrid_ca", "gpu"}}, MatSimLab::Json{{"hybrid_ca", "auto"}},
+                                MatSimLab::Json{{"hybrid_ca", "fast"}}}) {
         MatSimLab::Json r = create(bad);
         EXPECT_FALSE(r.value("created", false)) << r.dump();
         EXPECT_TRUE(r.contains("error")) << r.dump();
@@ -479,7 +484,7 @@ TEST(MatSimLabApi, WakeRadiusIsPassedAndChecked) {
 // 104,976 particles); the regional wake (R = 1 m) peaks at <= 10,500 (10 %), is all cells again within 10 s, ledger
 // exact at every read, and its mean particle-step time during the splash is at least 5x lower than the control's.
 TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
-    struct Run { size_t peak = 0; double cellsAt = -1, stepMs = 0, wakeMs = 0, settleMs = 0, caMs = 0; int busy = 0; bool exact = true; size_t left = 0; };
+    struct Run { size_t peak = 0; double cellsAt = -1, stepMs = 0, wakeMs = 0, settleMs = 0, caMs = 0, gpuMs = 0; int busy = 0; bool exact = true; size_t left = 0; };
     auto run = [&](double radius) {
         Run r;
         MatSimLab lab([](int, int, int) { return Occ::Empty; });
@@ -506,6 +511,7 @@ TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
                 r.cellsAt = -1;
                 const auto& ms = st["last_tick_ms"];
                 r.stepMs += ms.value("step", 0.0); r.wakeMs += ms.value("wake", 0.0); r.settleMs += ms.value("settle", 0.0); r.caMs += ms.value("ca", 0.0);
+                r.gpuMs += st.value("gpu_ms_per_tick", 0.0);
                 ++r.busy;
             } else if (r.cellsAt < 0 && k > 3) r.cellsAt = 0.6 * (k + 1) / 6.0;
             if (k % 10 == 9) std::printf("[pool drop 1/9 m R %.1f] t %.1f s: %zu particles, last tick ms wake %.1f step %.1f settle %.1f ca %.1f\n",
@@ -513,14 +519,14 @@ TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
                                          st["last_tick_ms"].value("settle", 0.0), st["last_tick_ms"].value("ca", 0.0));
             r.left = np;
         }
-        if (r.busy) { r.stepMs /= r.busy; r.wakeMs /= r.busy; r.settleMs /= r.busy; r.caMs /= r.busy; }
+        if (r.busy) { r.stepMs /= r.busy; r.wakeMs /= r.busy; r.settleMs /= r.busy; r.caMs /= r.busy; r.gpuMs /= r.busy; }
         return r;
     };
     const Run w = run(0.0), g = run(1.0);
     for (const Run* r : {&w, &g})
         std::printf("[MatSimParticlesGpu] pool drop 1/9 m, %s: peak %zu particles, all cells at %.1f s (%zu left at 10 s), mean ms while "
-                    "particles fly (sampled each 0.1 s, %d samples): wake %.1f step %.1f settle %.1f ca %.1f; ledger %s\n",
-                    r == &w ? "whole-body wake" : "regional wake R 1 m", r->peak, r->cellsAt, r->left, r->busy, r->wakeMs, r->stepMs,
+                    "particles fly (sampled each 0.1 s, %d samples): wake %.1f step %.1f (device %.2f) settle %.1f ca %.1f; ledger %s\n",
+                    r == &w ? "whole-body wake" : "regional wake R 1 m", r->peak, r->cellsAt, r->left, r->busy, r->wakeMs, r->stepMs, r->gpuMs,
                     r->settleMs, r->caMs, r->exact ? "exact" : "BROKEN");
     EXPECT_TRUE(w.exact);
     EXPECT_TRUE(g.exact);
@@ -544,6 +550,78 @@ TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
 // (from the slices action, which counts particles) within 10 % of the library's hybrid 8.04 m/s at
 // 1/3 m and of 8.18 at 1/9 m (never run hybrid before); ledger exact at every read; the view draws
 // the particles; set_cell_size refused while particles fly; control "particles":"off" (the CA) slower.
+// 6l: a hybrid box may step its CA on the device (lab hybrid_ca). Lockstep: every frame, a copy of the core takes the
+// host step and the core takes the device step (upload, step, download) through the same stepCells, with the particles'
+// cells as walls. Cells, tick, heads, both head pointers and the sleep marks must agree on every frame. Control: a device
+// stepper that steps 2 ticks must disagree (the comparison has teeth).
+TEST_F(MatSimParticlesGpuTest, DeviceCaEqualsHostCaInTheHybrid) {
+    MatSimGpu ca;
+    std::string err;
+    ASSERT_TRUE(ca.init(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    const int cpm = 3, W = 12 * cpm;
+    MatSimCore s;
+    ASSERT_TRUE(s.create({0, 0, 0}, {W, 3 * cpm, W}, cpm, [](int, int, int) { return Occ::Empty; }, &err)) << err;
+    const uint32_t F = s.full();
+    s.fillBox(Mat::Water, {0, 0, 0}, {W, cpm, W}, 1.0);
+    ParticleConfig pc;
+    pc.settleSpeed = 0.35f;
+    pc.wakeHeadCells = 1.0f;
+    pc.wakeRadiusM = 1.0f;   // the regional bundle, as the lab's wake_radius_m turns it on
+    pc.wakeContactMinSpeed = 0.5f;
+    pc.caSeesParticles = true;
+    pc.wakeContactAveraged = true;
+    pc.spongeTau = 0.1f;
+    pc.wakePressureMinRoom = 0.5f;
+    pc.wakeSkipQuiet = true;
+    MatSimParticles ps(pc);
+    ps.setGpu(&gpu);
+    for (int a = 0; a < 2; ++a)
+        for (int b = 0; b < 2; ++b)
+            for (int c = 0; c < 2; ++c)
+                ps.mutableParticles().push_back({float(W / 2) - 0.5f + a, float(cpm) + 1.5f + b, float(W / 2) - 0.5f + c, 0.f, -2.f * cpm, 0.f, F, Mat::Water});
+    int stepsTicks = 2;
+    bool deviceFailed = false;
+    auto device = [&](MatSimCore& c) {
+        std::string e;
+        if (!ca.upload(c, &e)) { deviceFailed = true; return StepStats{}; }
+        const StepStats st = ca.step(stepsTicks);
+        if (!ca.download(c, &e)) deviceFailed = true;
+        return st;
+    };
+    auto same = [](const MatSimCore& a, const MatSimCore& b) {
+        return a.cells() == b.cells() && a.tick() == b.tick() && a.head() == b.head() && a.headPtr() == b.headPtr() &&
+               a.headMaxPtr() == b.headMaxPtr() && a.marksTick1() == b.marksTick1() && a.marksTick2() == b.marksTick2();
+    };
+    // Control first: two device ticks against one host tick.
+    {
+        MatSimCore host = s, dev = s;
+        ps.stepCells(host);
+        ps.stepCells(dev, device);
+        ASSERT_FALSE(deviceFailed);
+        EXPECT_FALSE(same(host, dev)) << "control: a 2-tick device step must differ from a 1-tick host step";
+    }
+    stepsTicks = 1;
+    int framesWithParticles = 0, framesMoving = 0;
+    for (int f = 0; f < 300; ++f) {
+        ps.wake(s);
+        ps.step(s, 1.0 / 60.0);
+        ps.settle(s);
+        if (!ps.particles().empty()) ++framesWithParticles;
+        MatSimCore host = s;
+        const StepStats hs = ps.stepCells(host);
+        const StepStats ds = ps.stepCells(s, device);
+        ASSERT_FALSE(deviceFailed) << "frame " << f;
+        if (hs.lastTickEligible) ++framesMoving;
+        ASSERT_TRUE(same(host, s)) << "device CA differs from the host CA at frame " << f;
+        ASSERT_EQ(hs.lastTickEligible, ds.lastTickEligible) << "frame " << f;
+    }
+    std::printf("[MatSimParticlesGpu] device CA == host CA in the hybrid for 300 frames (%d with particles, %d with cells "
+                "moving)\n", framesWithParticles, framesMoving);
+    EXPECT_GT(framesWithParticles, 10) << "the particles' walls must have been exercised";
+    EXPECT_GT(framesMoving, 30);
+    ca.shutdown();
+}
+
 TEST_F(MatSimParticlesGpuTest, LabHybridDamBreak) {
     for (int cpm : {3, 9}) {
         for (bool hybrid : {true, false}) {

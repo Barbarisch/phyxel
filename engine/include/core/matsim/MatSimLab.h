@@ -79,6 +79,13 @@ private:
     /// this, so it changes only with API edits and a unit lost in a transfer shows as inexact.
     std::array<int64_t, 256> transferShift_{};
     bool useGpu_ = false;
+    /// 6l: where a hybrid box steps its CA. Cpu = the host core (sleep + skips; ~0 ms at rest). Gpu = the device CA
+    /// each tick (upload, step, download; parity-exact). Auto = the device when the last tick marked more than
+    /// kAutoGpuBricks bricks, else the host.
+    enum class HybridCa { Cpu, Gpu, Auto } hybridCa_ = HybridCa::Cpu;
+    static constexpr size_t kAutoGpuBricks = 16;
+    uint64_t caGpuTicks_ = 0, caCpuTicks_ = 0;
+    std::string caGpuError_;
     bool hostCurrent_ = true;
     bool gpuCurrent_ = false;
     bool realtime_ = false;

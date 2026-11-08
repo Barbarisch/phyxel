@@ -263,8 +263,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Release: pass 24-29 -> 3.5-3.8 ms while particles fly. GPU particle step has a ~6 ms floor at 1/9 m (whole-box
       cell upload each tick) regardless of particle count. The regional run's cost is now the 2-5 s tail: CA spreads a
       0.26 mm deposit over the whole pool (CA 32-64 ms + wake 8-15 ms a tick, Release).
-    - **Next:** the levelling tail (a visible-threshold deadband for level, a looks knob); upload only changed bricks to
-      the GPU step; the CA on the device; the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
+      The GPU particle step's floor is dispatch latency (~40 dispatches + barriers a substep), not the upload.
+    - **6l: a hybrid box's CA can step on the device** (lab `hybrid_ca` cpu|gpu|auto; default auto when the device CA
+      exists and film_floor is 0: device when the last tick marked > 16 bricks). Parity-exact: lockstep test
+      `DeviceCaEqualsHostCaInTheHybrid` (300/300 frames, with a 2-tick control). 1/9 m levelling tail CA 32-64 -> 7-13 ms.
+    - **Next:** the wake scan while the pool levels (10-16 ms Release); device CA transfers; fused particle kernels;
+      the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
       floor+absorb pair at 1/3 m, the pressure-rule cycle.
     - ⚠️ GPU MatSim tests find `shaders/*.spv` relative to the working directory: run them from the repo root.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).

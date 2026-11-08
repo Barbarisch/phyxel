@@ -8,6 +8,7 @@
 // spans [i, i+1) etc.); time is in seconds.
 
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "core/matsim/MatSimCore.h"
@@ -157,7 +158,9 @@ public:
     /// field (pressure must be on). Returns the number of cells lifted.
     size_t wake(MatSimCore& core);
     /// Step the cells one CA tick (core.step(1)); with caSeesParticles the cells held by particles are walls for it.
-    StepStats stepCells(MatSimCore& core);
+    /// 6l: `stepOne`, if given, steps the core one tick in place of core.step(1) (the lab's device CA: upload, step,
+    /// download). It must leave the core as core.step(1) would.
+    StepStats stepCells(MatSimCore& core, const std::function<StepStats(MatSimCore&)>& stepOne = nullptr);
     /// 6k diagnostics: the first pressure trigger cells of the last wake (cell, its neighbour, head and the neighbour's level, units).
     struct PressureTrigger { IVec3 cell, nb; uint32_t head, ex, fill, nbFill; };
     struct WakeStats { size_t contact = 0, falling = 0, pressure = 0, particles = 0, packed = 0; std::vector<PressureTrigger> firstPressure; };   ///< trigger cells in the last wake(); particles made; of them packed from thin cells
