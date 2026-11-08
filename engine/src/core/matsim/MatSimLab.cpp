@@ -225,6 +225,8 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         cfg.seed = p.value("seed", 1u);
         cfg.sleep = p.value("sleep", true);
         cfg.pressure = p.value("pressure", true);   // §6d; false = the P1 rules (A/B control)
+        cfg.filmFloor = p.value("film_floor", 0.0f);   // §6j; fraction of a cell, 0 = off
+        if (!(cfg.filmFloor >= 0.f && cfg.filmFloor <= 1.f)) return refuse("film_floor must be in [0, 1] (a fraction of a cell)");
         const std::string particles = p.value("particles", std::string("off"));   // 6i
         if (particles != "off" && particles != "hybrid") return refuse("particles must be \"off\" or \"hybrid\"");
         ParticleConfig pcfg;
@@ -235,6 +237,8 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         if (particles == "hybrid" && !cfg.pressure) return refuse("a hybrid box needs pressure on (wake reads the head field)");
         const std::string backend = p.value("backend", std::string(gpu_ ? "gpu" : "cpu"));
         if (backend != "gpu" && backend != "cpu") return refuse("backend must be \"gpu\" or \"cpu\"");
+        if (backend == "gpu" && particles == "off" && cfg.filmFloor > 0.f)
+            return refuse("film_floor is host-CA only: use backend cpu or particles hybrid (the GPU port has no film rule)");
         if (backend == "gpu" && !gpu_) return refuse("backend gpu unavailable: " + (gpuError_.empty() ? std::string("no device") : gpuError_));
         MatSimCore fresh;
         std::string why;
@@ -272,6 +276,7 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         out["seed"] = cfg.seed;
         out["sleep"] = cfg.sleep;
         out["pressure"] = cfg.pressure;
+        out["film_floor"] = cfg.filmFloor;
     } else if (action == "fill_box") {
         uint8_t mat = 0;
         const std::string name = p.value("material", std::string());

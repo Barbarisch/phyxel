@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -1131,6 +1132,233 @@ TEST(MatSimDiag, DISABLED_WhatStillMoves) {
                             s.head()[i] & kHeadMask, uint32_t(y) * F + cellFill(c));
         }
         std::printf("[moves] tick %d: %d cells changed, eligible %llu, head changes %llu\n", 9001 + t, changed,
+                    (unsigned long long)st.lastTickEligible, (unsigned long long)st.lastTickHeadChanges);
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// 6j — the thin-film floor (docs/MaterialSimPlan.md §6j). Water on a solid surface does not spread
+// thinner than Config::filmFloor (fraction of a full cell): a film below it coalesces into beads of
+// at least the floor instead of tiling the surface. The ledge "specks" of §6i were a uniform CA film
+// lifted one particle per cell.
+
+namespace {
+struct FilmScan {
+    int wet = 0;
+    uint32_t minFill = 0xFFFFFFFFu;
+};
+FilmScan scanWater(const MatSimCore& s) {
+    FilmScan r;
+    for (int y = 0; y < s.size().y; ++y)
+        for (int z = 0; z < s.size().z; ++z)
+            for (int x = 0; x < s.size().x; ++x) {
+                const Cell c = s.at({x, y, z});
+                if (cellMaterial(c) != Mat::Water || !cellFill(c)) continue;
+                ++r.wet;
+                r.minFill = std::min(r.minFill, cellFill(c));
+            }
+    return r;
+}
+} // namespace
+
+TEST(MatSimFilm, SpillStopsAtTheFilmFloor) {
+    // A 5 x 0.67 x 5 m flat box at 1/3 m, one full cell of water on the floor in the middle.
+    // Prediction: with no floor it spreads over many cells to a sliver depth (the control); with a
+    // 1/4-cell floor it stops at 4 cells of exactly 1/4 (one 2x2 level, then nothing is allowed).
+    for (float floorF : {0.0f, 0.25f}) {
+        Config cfg;
+        cfg.filmFloor = floorF;
+        MatSimCore s;
+        std::string why;
+        ASSERT_TRUE(s.create({0, 0, 0}, {15, 2, 15}, 3, openAir, &why, cfg)) << why;
+        ASSERT_TRUE(s.setCell({7, 0, 7}, Mat::Water, s.full()));
+        s.step(900);
+        const FilmScan r = scanWater(s);
+        std::printf("[MatSimFilm] floor %.2f: %d wet cells, thinnest %.4f of a cell\n", floorF, r.wet,
+                    double(r.minFill) / double(s.full()));
+        EXPECT_EQ(s.ledger(), s.expectedLedger());
+        if (floorF == 0.0f) {
+            EXPECT_GT(r.wet, 4) << "control: the unfloored CA should spread the cell thin";
+            EXPECT_LT(r.minFill, s.full() / 4) << "control";
+        } else {
+            EXPECT_LE(r.wet, 4);
+            EXPECT_GE(r.minFill, uint32_t(floorF * s.full())) << "a film thinner than the floor";
+        }
+    }
+}
+
+TEST(MatSimFilm, AThinFilmBeadsUp) {
+    // A uniform film already laid down (as a settle deposit can): 1/20 of a cell over a 3 x 3 m patch
+    // of floor at 1/3 m. Prediction: with a 1/4-cell floor it coalesces (no level is allowed below
+    // the floor) into at most a third of the cells; the CA conserves every unit; the control leaves
+    // it alone.
+    for (float floorF : {0.0f, 0.25f}) {
+        Config cfg;
+        cfg.filmFloor = floorF;
+        MatSimCore s;
+        std::string why;
+        ASSERT_TRUE(s.create({0, 0, 0}, {9, 2, 9}, 3, openAir, &why, cfg)) << why;
+        s.fillBox(Mat::Water, {0, 0, 0}, {9, 1, 9}, 0.05);
+        s.step(600);
+        const FilmScan r = scanWater(s);
+        std::printf("[MatSimFilm] film 0.05 on a 9x9 floor, floor %.2f: %d wet cells, thinnest %.4f\n", floorF, r.wet,
+                    double(r.minFill) / double(s.full()));
+        EXPECT_EQ(s.ledger(), s.expectedLedger());
+        if (floorF == 0.0f) EXPECT_EQ(r.wet, 81) << "control";
+        else EXPECT_LE(r.wet, 81 / 3) << "the film did not bead";
+    }
+}
+
+TEST(MatSimFilm, LedgeDripsAreNotSlivers) {
+    // PoursOffLedge's scene: 2 cells of water on a 1 m ledge at 1/3 m. Count, every tick, the
+    // airborne slivers (water cells under 1/4 full with empty air below). Prediction: the floor
+    // run makes under 1/10 of the control's sliver-cell-ticks and still pours most water off.
+    auto ledge = [](int mx, int my, int) { return (mx < 9 && my < 9) ? Occ::Solid : Occ::Empty; };
+    long long slivers[2] = {};
+    for (int run = 0; run < 2; ++run) {
+        Config cfg;
+        cfg.filmFloor = run ? 0.25f : 0.0f;
+        MatSimCore s;
+        std::string why;
+        ASSERT_TRUE(s.create({0, 0, 0}, {9, 9, 6}, 3, ledge, &why, cfg)) << why;
+        s.fillBox(Mat::Water, {0, 3, 0}, {3, 2, 6}, 1.0);
+        const uint32_t q = s.full() / 4;
+        uint64_t below = 0, onLedge = 0;
+        for (int t = 0; t < 600; ++t) {
+            s.step(1);
+            for (int y = 1; y < 9; ++y)
+                for (int z = 0; z < 6; ++z)
+                    for (int x = 0; x < 9; ++x) {
+                        const Cell c = s.at({x, y, z});
+                        if (cellMaterial(c) != Mat::Water || !cellFill(c) || cellFill(c) >= q) continue;
+                        if (cellMaterial(s.at({x, y - 1, z})) == kEmpty) {
+                            if (run && slivers[run] < 40 && std::getenv("MATSIM_FILM_TRACE"))
+                                std::printf("  sliver t%d (%d,%d,%d) %.3f\n", t, x, y, z, double(cellFill(c)) / s.full());
+                            ++slivers[run];
+                        }
+                    }
+        }
+        for (int y = 0; y < 9; ++y)
+            for (int z = 0; z < 6; ++z)
+                for (int x = 0; x < 9; ++x) {
+                    const Cell c = s.at({x, y, z});
+                    if (cellMaterial(c) == Mat::Water) (y < 3 ? below : onLedge) += cellFill(c);
+                }
+        std::printf("[MatSimFilm] ledge, floor %.2f: %lld airborne sliver-cell-ticks, %.1f%% below the ledge\n",
+                    cfg.filmFloor, slivers[run], 100.0 * double(below) / double(below + onLedge));
+        EXPECT_GT(below, onLedge);
+        EXPECT_EQ(s.ledger(), s.expectedLedger());
+    }
+    EXPECT_GT(slivers[0], 0) << "control: the unfloored ledge should drip slivers";
+    EXPECT_LT(slivers[1] * 10, slivers[0]);
+}
+
+TEST(MatSimFilm, UTubesStillLevelWithTheFloor) {
+    // The floor must not touch a body of water: only a layer resting on solid with a mean under the
+    // floor is gathered. Prediction: the 2|2 and 1|3 U-tubes and the wide U-tube rest level to the
+    // same tolerances as without it, at 1 and 1/3 m, ledger exact.
+    Config cfg;
+    cfg.filmFloor = 0.25f;
+    const UTube tubes[] = {{2, 2}, {1, 3}};
+    for (const UTube& u : tubes)
+        for (int cpm : {1, 3}) {
+            MatSimCore s = uTube(u, cpm, 4.0, cfg);
+            const double want = 4.0 * u.leftW / double(u.leftW + u.rightW);
+            const int restAt = runToRest(s, 9000);
+            const double hl = armHeight(s, 0, u.leftW * cpm), hr = armHeight(s, (u.leftW + 1) * cpm, u.totalW() * cpm);
+            const double tol = std::max(0.25 / cpm, 0.03);
+            std::printf("[MatSimFilm] U-tube %d|%d at 1/%d m with the floor: left %.3f, right %.3f (level %.3f), rest %d\n",
+                        u.leftW, u.rightW, cpm, hl, hr, want, restAt);
+            EXPECT_NE(restAt, -1);
+            EXPECT_NEAR(hl, hr, tol);
+            EXPECT_NEAR(hr, want, tol);
+            EXPECT_EQ(s.ledger(), s.expectedLedger());
+        }
+    auto world = [](int mx, int my, int) { return (mx >= 72 && mx < 81 && my >= 9) ? Occ::Solid : Occ::Empty; };
+    for (int cpm : {1, 3}) {
+        MatSimCore s;
+        std::string why;
+        ASSERT_TRUE(s.create({0, 0, 0}, {16 * cpm, 8 * cpm, 7 * cpm}, cpm, world, &why, cfg)) << why;
+        s.fillBox(Mat::Water, {0, 0, 0}, {8 * cpm, 5 * cpm, 7 * cpm}, 1.0);
+        const int restAt = runToRest(s, 12000);
+        // The floor's invariant: once the arms have levelled it never acts again. Rest itself is the
+        // old rules' (seed 1 at 1/3 m lands in a pressure-rule cycle that a fresh head field breaks
+        // with or without the floor: MatSimDiag.DISABLED_FilmWideUTubeMoves, plan §6j).
+        const uint64_t g0 = s.filmGathers(), h0 = s.filmHeld();
+        s.step(4000);
+        const double hl = armHeight(s, 0, 8 * cpm) / 7.0 + 1.0, hr = armHeight(s, 9 * cpm, 16 * cpm) / 7.0 + 1.0;
+        const double want = (8.0 * 5.0 * 7.0 - 7.0) / (15.0 * 7.0);
+        const double tol = 1.0 / (32.0 * cpm) + 0.003;
+        std::printf("[MatSimFilm] wide U-tube at 1/%d m with the floor: left %.3f, right %.3f (level %.3f), rest %d, "
+                    "film acts after: %llu\n", cpm, hl, hr, want, restAt,
+                    (unsigned long long)(s.filmGathers() - g0 + s.filmHeld() - h0));
+        EXPECT_EQ(s.filmGathers(), g0) << "the floor gathered a layer of a levelled body";
+        EXPECT_EQ(s.filmHeld(), h0) << "the floor held a slide in a levelled body";
+        EXPECT_NEAR(hl, hr, tol);
+        EXPECT_NEAR(hr, want, tol);
+        EXPECT_EQ(s.ledger(), s.expectedLedger());
+    }
+}
+
+TEST(MatSimDiag, DISABLED_FilmWideUTubeMoves) {
+    // 6j diagnosis: the wide U-tube at 1/3 m with a 1/4 floor; every cell that changes over 4 ticks after 24000.
+    Config cfg;
+    cfg.filmFloor = 0.25f;
+    if (const char* e = std::getenv("MATSIM_FILM")) cfg.filmFloor = float(std::atof(e));
+    if (const char* e = std::getenv("MATSIM_SEED")) cfg.seed = uint32_t(std::atoi(e));
+    auto world = [](int mx, int my, int) { return (mx >= 72 && mx < 81 && my >= 9) ? Occ::Solid : Occ::Empty; };
+    const int cpm = 3;
+    if (std::getenv("MATSIM_REST_ONLY")) {
+        MatSimCore r;
+        std::string w;
+        ASSERT_TRUE(r.create({0, 0, 0}, {16 * cpm, 8 * cpm, 7 * cpm}, cpm, world, &w, cfg)) << w;
+        r.fillBox(Mat::Water, {0, 0, 0}, {8 * cpm, 5 * cpm, 7 * cpm}, 1.0);
+        const int restAt = runToRest(r, 12000);
+        const uint64_t g0 = r.filmGathers(), h0 = r.filmHeld();
+        r.step(12000);
+        std::printf("[film-moves] floor %.2f seed %u: rest at %d; film gathers %llu then %llu more, held %llu then %llu more\n",
+                    cfg.filmFloor, cfg.seed, restAt, (unsigned long long)g0, (unsigned long long)(r.filmGathers() - g0),
+                    (unsigned long long)h0, (unsigned long long)(r.filmHeld() - h0));
+        // Hand the final state to a core WITHOUT the floor: does the old rule set rest from here?
+        // Control: the same handoff WITH the floor (a fresh core resets the head field and the tick).
+        for (float fl : {0.f, cfg.filmFloor}) {
+            Config off = cfg;
+            off.filmFloor = fl;
+            MatSimCore o;
+            ASSERT_TRUE(o.create({0, 0, 0}, {16 * cpm, 8 * cpm, 7 * cpm}, cpm, world, &w, off)) << w;
+            for (int y = 0; y < r.size().y; ++y)
+                for (int z = 0; z < r.size().z; ++z)
+                    for (int x = 0; x < r.size().x; ++x) {
+                        const Cell c = r.at({x, y, z});
+                        if (cellMaterial(c) != kSolid) o.setCell({x, y, z}, cellMaterial(c), cellFill(c));
+                    }
+            std::printf("[film-moves] the same state handed to a fresh core, floor %.2f: rest at %d\n", fl, runToRest(o, 12000));
+        }
+        return;
+    }
+    MatSimCore s;
+    std::string why;
+    ASSERT_TRUE(s.create({0, 0, 0}, {16 * cpm, 8 * cpm, 7 * cpm}, cpm, world, &why, cfg)) << why;
+    s.fillBox(Mat::Water, {0, 0, 0}, {8 * cpm, 5 * cpm, 7 * cpm}, 1.0);
+    s.step(24000);
+    const IVec3 n = s.size();
+    const uint32_t F = s.full();
+    for (int t = 0; t < 4; ++t) {
+        std::vector<Cell> before(size_t(n.x) * n.y * n.z);
+        for (int y = 0; y < n.y; ++y) for (int z = 0; z < n.z; ++z) for (int x = 0; x < n.x; ++x)
+            before[size_t(x) + size_t(n.x) * (size_t(z) + size_t(n.z) * size_t(y))] = s.at({x, y, z});
+        const StepStats st = s.step(1);
+        int shown = 0, changed = 0;
+        for (int y = 0; y < n.y; ++y) for (int z = 0; z < n.z; ++z) for (int x = 0; x < n.x; ++x) {
+            const size_t i = size_t(x) + size_t(n.x) * (size_t(z) + size_t(n.z) * size_t(y));
+            const Cell c = s.at({x, y, z});
+            if (c == before[i]) continue;
+            ++changed;
+            if (shown++ < 16)
+                std::printf("[film-moves] tick %d x%d y%d z%d fill %u -> %u /%u below %s\n", t, x, y, z, cellFill(before[i]),
+                            cellFill(c), F, cellStr(s.at({x, y - 1, z})).c_str());
+        }
+        std::printf("[film-moves] tick %d: %d cells changed, eligible %llu, head changes %llu\n", t, changed,
                     (unsigned long long)st.lastTickEligible, (unsigned long long)st.lastTickHeadChanges);
     }
 }

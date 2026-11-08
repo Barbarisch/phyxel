@@ -692,8 +692,11 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
     // 2. Liquid level, per layer, over supported cells of one liquid (or empty), deadband 1 unit.
     //    Cells level only with cells they are FACE-connected to through the group: two cells that
     //    touch only at an edge (a staircased diagonal wall) are separate pools (MatSimWalls test).
+    // §6j: the thin-film floor in fill units (0 = off).
+    const uint32_t fu = cfg_.filmFloor > 0.f ? std::min<uint32_t>(F, uint32_t(double(cfg_.filmFloor) * F)) : 0u;
     for (int dy = 0; dy < 2; ++dy) {
         bool cand[2][2] = {};
+        bool onSolid[2][2] = {};
         for (int dz = 0; dz < 2; ++dz)
             for (int dx = 0; dx < 2; ++dx) {
                 const Cell cell = c[dy][dz][dx];
@@ -701,6 +704,7 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
                 const uint8_t m = cellMaterial(cell);
                 if (m != kEmpty && phaseOf(m) != Phase::Liquid) continue;
                 const Cell below = dy ? c[0][dz][dx] : readPrev(bx + dx, by - 1, bz + dz);
+                onSolid[dz][dx] = isSolid(below);
                 if (!(isSolid(below) || cellFill(below) == F)) continue;   // unsupported
                 const int bi = dx + 2 * dz + 4 * dy;
                 if (cellFill(cell) < F && pressurised(bi, elev(bi))) continue;   // §6d: a hole under pressure
@@ -736,9 +740,35 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
                 if (mixed || liquid == kEmpty || n < 2) continue;
                 uint32_t mn = F, mx = 0;
                 uint64_t total = 0;
+                bool film = fu > 0;
                 for (int i = 0; i < n; ++i) {
                     const uint32_t f = cellFill(*group[i]);
                     mn = std::min(mn, f); mx = std::max(mx, f); total += f;
+                    film = film && onSolid[gz[i]][gx[i]];
+                }
+                // §6j: a layer resting on solid whose level would fall below the floor gathers into
+                // its k = total / floor fullest cells (at least one) instead: a bead, not a film.
+                // Fullest first, ties by hash: once gathered it is a fixed point (no jitter).
+                if (film && total < uint64_t(fu) * uint64_t(n)) {
+                    const int k = std::max(1, int(total / fu));
+                    int order[4] = {0, 1, 2, 3};
+                    uint32_t f[4] = {}, h[4] = {};
+                    for (int i = 0; i < n; ++i) {
+                        f[i] = cellFill(*group[i]);
+                        h[i] = cellHash(bx + gx[i], by + dy, bz + gz[i], tick_, cfg_.seed);
+                    }
+                    std::sort(order, order + n, [&](int a, int b) {
+                        return f[a] != f[b] ? f[a] > f[b] : h[a] != h[b] ? h[a] > h[b] : a < b;
+                    });
+                    const uint32_t q = uint32_t(total / uint64_t(k)), rem = uint32_t(total % uint64_t(k));
+                    bool moved = false;
+                    for (int j = 0; j < n; ++j) {
+                        const uint32_t want = j < k ? q + (uint32_t(j) < rem ? 1u : 0u) : 0u;
+                        moved = moved || cellFill(*group[order[j]]) != want;
+                        setc(*group[order[j]], liquid, want);
+                    }
+                    if (moved) ++filmGathers_;
+                    continue;
                 }
                 if (mx - mn <= 1) continue;
                 const uint32_t q = uint32_t(total / uint64_t(n)), rem = uint32_t(total % uint64_t(n));
@@ -820,6 +850,15 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
         mv = std::min<uint64_t>(mv, cellFill(c[sy][az][ax]));
         mv = std::min<uint64_t>(mv, F - cellFill(c[ty][bzz][bxx]));
         if (!mv) continue;
+        // §6j: a slide never makes a new liquid cell thinner than the floor (no creep onto a
+        // surface, no fan of slivers off a falling cell), and never splits a falling cell into a
+        // remnant thinner than the floor.
+        if (fu && phaseOf(m) == Phase::Liquid) {
+            if (cellFill(c[ty][bzz][bxx]) == 0 && mv < fu) { ++filmHeld_; continue; }
+            const Cell under = sy ? c[0][az][ax] : readPrev(bx + ax, by - 1, bz + az);
+            const uint64_t left = cellFill(c[sy][az][ax]) - mv;
+            if (cellMaterial(under) == kEmpty && left && left < fu) { ++filmHeld_; continue; }
+        }
         Cell& src = c[sy][az][ax];
         Cell& dst = c[ty][bzz][bxx];
         setc(dst, m, cellFill(dst) + uint32_t(mv));

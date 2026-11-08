@@ -106,6 +106,12 @@ struct Config {
     bool pressure = true;
     /// Ticks per second the box is stepped at; only the orifice flow cap (Torricelli) uses it.
     uint32_t tickHz = 60;
+    /// §6j: the thin-film floor, a fraction of a full cell (0 = off, the old rules exactly). Liquid
+    /// on a solid surface does not spread thinner than this: the level rule over a 2x2 layer that
+    /// rests on solid gathers the water into the fullest cells instead (a bead), and the slide rule
+    /// moves nothing into an empty cell on solid unless it brings at least this much. Falls, the
+    /// pressure rule and water over water are untouched. Host CA only (the GPU port refuses it).
+    float filmFloor = 0.0f;
     /// TEST-ONLY control: the first gravity move after arming drops exactly one unit, so the
     /// ledger test can prove it sees a loss. Never set outside tests.
     bool testLeakOneUnit = false;
@@ -195,6 +201,12 @@ private:
                (static_cast<size_t>(lz) + static_cast<size_t>(size_.z) * static_cast<size_t>(ly));
     }
     Cell readPrev(int wx, int wy, int wz) const;
+    /// §6j diagnostics: film gathers that changed a layer, and slides the floor held back (since create).
+    uint64_t filmGathers_ = 0, filmHeld_ = 0;
+public:
+    uint64_t filmGathers() const { return filmGathers_; }
+    uint64_t filmHeld() const { return filmHeld_; }
+private:
     bool evalBlock(int bx, int by, int bz, int parity);   ///< reads cur_, writes nxt_; returns eligible
     uint64_t pressurePass(std::vector<uint8_t>& fresh);   ///< q_/h_ for this tick; marks changed bricks; returns changed cells
     void resetPressure();

@@ -231,8 +231,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       grid, now of bigger cubes (`docs/evidence/matsim_video/speckfix_ledge_old_vs_packed.png`). The replica settled
       later (24 vs 16 s) with more slivers (692 vs 60). The lattice comes from the CA spreading films to a uniform depth;
       the fix is a CA thin-film rule. See MaterialSimPlan 6i.
-    - **Next:** a CA thin-film rule (minimum film depth), keep the hybrid on the device (1/9 m live ~241 ms a tick: CA ~80
-      on the CPU), then a region-limited wake.
+    - **CA thin-film floor (2026-11-07), WORKS, default off:** `Config::filmFloor` (lab `film_floor`, host CA only). Water
+      on solid beads instead of spreading under the floor; slides never make sub-floor cells or split a falling cell
+      into one. At 0.25: replica slivers 60 -> 0 (settled 16 s both); live video settled 14.5 s (was 33 s) and the
+      ledge lattice is gone (`docs/evidence/matsim_video/filmfloor_ledge_old_vs_film.png`). Open: the wide U-tube at
+      1/3 m doesn't rest on 2/12 seeds with it, a pressure-rule head-field cycle the floor steers into (MaterialSimPlan 6j).
+    - **Next:** the 1/9 m video with `--film 0.25`, the pressure-rule cycle, keep the hybrid on the device (1/9 m live
+      ~241 ms a tick: CA ~80 on the CPU), then a region-limited wake.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
     - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then

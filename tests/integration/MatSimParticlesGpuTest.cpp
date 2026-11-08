@@ -501,7 +501,9 @@ TEST_F(MatSimParticlesGpuTest, DISABLED_LiveRigReplica) {
     const int cpm = ce ? std::atoi(ce) : 3;
     MatSimCore s;
     std::string why;
-    ASSERT_TRUE(s.create({8 * cpm, 16 * cpm, 8 * cpm}, {16 * cpm, 8 * cpm, 16 * cpm}, cpm, liveRig, &why)) << why;
+    Config ccfg;   // 6j: MATSIM_FILM = the CA's thin-film floor (fraction of a cell; 0 = off)
+    if (const char* e = std::getenv("MATSIM_FILM")) ccfg.filmFloor = float(std::atof(e));
+    ASSERT_TRUE(s.create({8 * cpm, 16 * cpm, 8 * cpm}, {16 * cpm, 8 * cpm, 16 * cpm}, cpm, liveRig, &why, ccfg)) << why;
     s.fillBox(Mat::Water, {8 * cpm, 16 * cpm, 8 * cpm}, {3 * cpm, 3 * cpm, 8 * cpm}, 1.0);
     s.fillBox(Mat::Water, {8 * cpm, 16 * cpm, 17 * cpm}, {8 * cpm, 5 * cpm, 7 * cpm}, 1.0);
     ParticleConfig pc;

@@ -30,17 +30,19 @@ def main():
     ap.add_argument("--before", type=float, default=1.0, help="sim seconds shown before the dam is removed")
     ap.add_argument("--pose", default="0,38,16,0,-60", help="x,y,z,yaw,pitch")
     ap.add_argument("--still", action="store_true", help="framing check: one frame, no run")
+    ap.add_argument("--film", type=float, default=0.0, help="6j: the CA thin-film floor (fraction of a cell; 0 = off)")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
+    stem = f"hybrid_{a.cpm}" + (f"_film{a.film:g}" if a.film > 0 else "")
     api = Api(a.url); api.wait_status(120)
     EV.mkdir(parents=True, exist_ok=True)
-    frames = EV / f"frames_{a.cpm}"
+    frames = EV / f"frames_{stem}"
     if frames.exists(): shutil.rmtree(frames)
     frames.mkdir()
     try: api.debug("editor_panels", {"item_equipper": False, "tool_panels": False})
     except Exception as e: print("editor_panels:", e)
     L.fill(api, L.DAM); L.wait_occupancy()
-    L.must(L.ms(api, "create", {"min": L.BOX_MIN, "size": L.BOX_SIZE, "cells_per_m": a.cpm, "particles": "hybrid"}), "create")
+    L.must(L.ms(api, "create", {"min": L.BOX_MIN, "size": L.BOX_SIZE, "cells_per_m": a.cpm, "particles": "hybrid", "film_floor": a.film}), "create")
     L.must(L.ms(api, "fill_box", {"material": "Water", "min": {"x": 8, "y": 16, "z": 8}, "size": {"x": 3, "y": 3, "z": 8}, "fraction": 1.0}), "fill")
     L.must(L.ms(api, "fill_box", {"material": "Water", "min": {"x": 8, "y": 16, "z": 17}, "size": {"x": 8, "y": 5, "z": 7}, "fraction": 1.0}), "fill")
     p = [float(v) for v in a.pose.split(",")]
@@ -79,22 +81,23 @@ def main():
     L.ms(api, "view", {"on": False})
     L.fill(api, L.DAM)
     label = {3: "1/3 m cells", 9: "1/9 m cells"}.get(a.cpm, f"1/{a.cpm} m")
+    if a.film > 0: label += f", film floor {a.film:g} cell"
     lines = []
     for k, r in enumerate(rows):
         t1 = rows[k + 1]["frame"] / FPS if k + 1 < len(rows) else (n) / FPS
         when = "dam in place" if r["phase"] == "before" else f"{r['t_sim']:5.2f} s after the dam is removed"
         lines.append(f"{k + 1}\n{srt_time(r['frame'] / FPS)} --> {srt_time(t1)}\nMatSim hybrid, {label}  |  {when}  (sim time, real speed)\n"
                      f"{r['particles']:,} particles in flight  |  water ledger {'exact' if r['ledger_exact'] else 'NOT EXACT'}\n")
-    srt = EV / f"hybrid_{a.cpm}.srt"
+    srt = EV / f"{stem}.srt"
     srt.write_text("\n".join(lines), encoding="utf-8")
-    (EV / f"hybrid_{a.cpm}.json").write_text(json.dumps({"cpm": a.cpm, "pose_asked": pose, "pose_got": got, "fps": FPS, "ticks_per_frame": TPF,
+    (EV / f"{stem}.json").write_text(json.dumps({"cpm": a.cpm, "pose_asked": pose, "pose_got": got, "fps": FPS, "ticks_per_frame": TPF,
                                                          "frames": n, "wall_s": round(time.time() - t0, 1), "rows": rows}, indent=1))
     style = "FontName=Arial,FontSize=14,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1,Alignment=2,MarginV=8"
-    subprocess.run([ff, "-y", "-loglevel", "error", "-framerate", str(FPS), "-i", f"frames_{a.cpm}/f%05d.png",
-                    "-vf", f"crop=956:470:241:60,scale=1280:-2,subtitles=hybrid_{a.cpm}.srt:force_style='{style}'",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "22", f"hybrid_{a.cpm}.mp4"], check=True, cwd=str(EV))
+    subprocess.run([ff, "-y", "-loglevel", "error", "-framerate", str(FPS), "-i", f"frames_{stem}/f%05d.png",
+                    "-vf", f"crop=956:470:241:60,scale=1280:-2,subtitles={stem}.srt:force_style='{style}'",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "22", f"{stem}.mp4"], check=True, cwd=str(EV))
     shutil.rmtree(frames)
-    print("wrote", EV / f"hybrid_{a.cpm}.mp4")
+    print("wrote", EV / f"{stem}.mp4")
 
 
 if __name__ == "__main__":

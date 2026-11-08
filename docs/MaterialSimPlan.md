@@ -1411,10 +1411,81 @@ Ledger exact in every run; the dam-break fronts, U-tubes and lab tests unchanged
   the falling trigger's half cell), and the moving pool below touches them.
 - **The fix belongs in the CA:** water should not spread thinner than a droplet. A minimum
   film depth (a lateral spread only above a fill floor, the remainder held as a puddle or
-  bead), measured against the U-tube and dam-break levels. Not started.
+  bead), measured against the U-tube and dam-break levels. Built in §6j.
 
-**Next:** the CA's thin-film rule (above), then re-record; keep the hybrid on the device (the CA
-on the GPU, no per-tick upload); then a region-limited wake.
+**Next:** ~~the CA's thin-film rule~~ (§6j); keep the hybrid on the device (the CA on the GPU, no
+per-tick upload); then a region-limited wake.
+
+### 6j. The CA thin-film floor (2026-11-07)
+
+**The rule** (`Config::filmFloor`, a fraction of a full cell; 0 = off and the old rules exactly;
+lab `create {"film_floor": f}`, host CA only, a GPU CA box refuses it):
+- **Level rule:** a 2x2 layer group that rests entirely on solid and whose level would fall under
+  the floor gathers its water into its `k = total / floor` fullest cells (at least one; fullest
+  first, ties by hash), levelled among them; the rest go empty. Once gathered it is a fixed point.
+  A body of water (cells over full water) is never touched.
+- **Slide rule (liquids):** a slide never makes a new liquid cell thinner than the floor, and
+  never splits a falling cell (empty below) into a remnant thinner than the floor.
+- Falls and the pressure rule are untouched. Mass-conserving by construction (every move is a
+  pair of `setc`s); diagnostic counters `filmGathers()` / `filmHeld()`.
+
+A cell fraction, not metres, on purpose: the specks are a render-scale problem (a particle draws
+as a cube of side `h * cbrt(units / F)`), and a physical 5 mm puddle depth is 0.015 of a 1/3 m
+cell, which would lift as specks again. The floor is a voxel-aesthetic knob; at 0.25 the
+smallest bead draws 0.63 of a cell wide at any cell size.
+
+**Red first** (each failed on the unimplemented knob with its control passing; `MatSimFilm.*`):
+
+| test | control (floor 0) | floor 0.25 |
+|---|---|---|
+| `SpillStopsAtTheFilmFloor`: one full cell on a 5x5 m floor, 1/3 m | 225 cells, thinnest 0.0036 | 4 cells, all exactly 0.25 |
+| `AThinFilmBeadsUp`: a 0.05 film over 9x9 cells | 81 cells | 17 cells, thinnest 0.10 |
+| `LedgeDripsAreNotSlivers`: PoursOffLedge's scene, airborne cells under 1/4, summed per tick | 79 | 0 (88.6 % still pours off) |
+
+The first ledge prediction failed (84 vs 79 sliver-cell-ticks with only the creep rule): the
+slivers were not film creep but **the slide rule fanning a falling cell sideways in mid-air**
+(trace: 0.125, then 0.188 / 0.094 / 0.062 pieces off one falling sheet). Hence the second slide
+clause (no sub-floor new cell anywhere, no sub-floor remnant of a falling cell).
+
+**Stress, the U-tubes** (`UTubesStillLevelWithTheFloor`, floor 0.25): 2|2 and 1|3 at 1 and
+1/3 m level within the old tolerances and rest (196 / 1,720 / 152 / 1,214 ticks); the wide U-tube
+levels (2.601 / 2.598 m against 2.600 at 1/3 m). **Open finding:** the wide U-tube at 1/3 m
+does not come to rest on 2 of 12 seeds with the floor (seeds 1 and 5; 0 of 12 without). The
+cells still moving are over full water (a 213-unit hole swapping between x 0 and 1 under the
+surface, and 1-2 unit surface wobble), the film rule fires **0 times** after tick 12,000, and the
+same cells handed to a fresh core rest in 75 / 78 ticks **with or without** the floor: the cycle
+lives in the pressure rule's head field, and the floor only steers the spill into it
+(`MatSimDiag.DISABLED_FilmWideUTubeMoves`, env `MATSIM_REST_ONLY`, `MATSIM_SEED`, `MATSIM_FILM`).
+The test asserts what the floor owns (levels, ledger, no film act after levelling) and prints rest.
+A pressure-rule limit cycle is now a known base-rule issue to hunt separately.
+
+**The replica** (`DISABLED_LiveRigReplica`, `MATSIM_FILM`, 1/3 m):
+
+| | floor 0 | floor 0.25 |
+|---|---|---|
+| woken particles under 1/4 cell | 60 | **0** |
+| smallest particle in flight, 6-12 s | 0.031 cell | 0.25 cell |
+| woken in all | 11,801 | 11,750 |
+| all settled by | 16 s | 16 s |
+
+Ledger exact on every sample of both runs.
+
+**Live (L4), 1/3 m** (`python tools/matsim_hybrid_video.py --cpm 3 --film 0.25` ->
+`docs/evidence/matsim_video/hybrid_3_film0.25.{mp4,srt,json}`, the same pose and rig as `hybrid_3.mp4`):
+all particles settled by **14.5 s** (old rules 33 s), ledger exact on every sampled frame, CA ~3 ms
+and wake ~1.1 ms a tick at rest. The ledge at 8.5 and 9.5 s (`filmfloor_ledge_old_vs_film.png`:
+top row 8.5 s, bottom 9.5 s; left old, right floor 0.25; a crop of the same frames of each video):
+the old run shows ~40 specks in a regular 6x7 lattice plus a row down the ledge wall; the floor run
+shows ~5 irregular beads of about 2/3 of a cell, **no lattice**. Water on the ledge now beads.
+
+**Status:** the rule is built, tested red-first and default OFF (`filmFloor = 0`, lab
+`film_floor` 0). Every existing test is unchanged (CPU MatSim 46/46, GPU 16/16, dam-break fronts
+8.18 / 8.33 m/s). Candidate to become the hybrid's default once the 1/9 m video is checked and the
+pressure-rule cycle above is understood.
+
+**Next:** the 1/9 m video with `--film 0.25`; the pressure-rule limit cycle (seeds 1 and 5 of the
+wide U-tube at 1/3 m); keep the hybrid on the device (the CA on the GPU, which then needs the film
+rule ported); then a region-limited wake.
 
 ## 7. Working alongside the other sessions
 
