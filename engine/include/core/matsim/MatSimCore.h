@@ -89,6 +89,11 @@ struct StepStats {
     uint64_t headChanges = 0;      ///< §6d: cells whose head word changed, summed over the ticks
     uint64_t lastTickHeadChanges = 0;
     uint64_t pressurePassesSkipped = 0;   ///< 6k: ticks whose head field was provably unchanged (quiet last tick), so not rebuilt
+    uint64_t lastTickHeadBricks = 0;      ///< 6l diagnostic: bricks holding a head change on the final tick
+    uint64_t lastTickMovedBricks = 0;     ///< 6l diagnostic: bricks marked (moved or head change) on the final tick
+    uint64_t bricks = 0;                  ///< bricks in the box
+    uint64_t lastTickPressureBricks = 0;  ///< 6l: bricks the pressure pass computed on the final tick (0 = skipped)
+    double pressureMs = 0.0;              ///< 6l diagnostic: wall time in the pressure pass, summed over the ticks
     /// At rest on the final tick: nothing moved and no head changed.
     bool lastTickQuiet() const { return lastTickEligible == 0 && lastTickHeadChanges == 0; }
 };
@@ -105,6 +110,9 @@ struct Config {
     /// §6d: the hydrostatic pressure rule (head field + pressure-driven flow). Off reproduces the
     /// P1 rules exactly (the A/B control: a U-tube never levels without it).
     bool pressure = true;
+    /// 6l: under `sleep`, rebuild the head field only in bricks whose inputs changed since the last pass (exact; off =
+    /// the whole box every tick, the A/B control).
+    bool pressureIncremental = true;
     /// Ticks per second the box is stepped at; only the orifice flow cap (Torricelli) uses it.
     uint32_t tickHz = 60;
     /// §6j: the thin-film floor, a fraction of a full cell (0 = off, the old rules exactly). Liquid
@@ -219,6 +227,8 @@ private:
     void markBricksOfBlock(int bx, int by, int bz, std::vector<uint8_t>& marks) const;
     int brickOf(int wx, int wy, int wz) const;            ///< index into brick arrays
     void wakeAll();
+    size_t lastPressureBricks_ = 0;                       ///< 6l: bricks computed by the last pressure pass
+    std::vector<std::vector<uint32_t>> srcBricks_;        ///< 6l: per brick, the bricks its cells' head pointers name
     std::vector<IVec3> blocked_;                          ///< 6k: cells made solid by blockEmpty()
     void wakeCells(IVec3 lo, IVec3 hi);                   ///< inclusive world-cell range
     bool solidCell(const MicroSolidFn& fn, int wx, int wy, int wz, int cpm, bool& unknown) const;

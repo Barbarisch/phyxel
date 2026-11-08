@@ -1392,3 +1392,80 @@ TEST(MatSimSleep, QuietTicksSkipThePressurePassExactly) {
     EXPECT_EQ(skippedA, 0u) << "the dense run must never skip";
     EXPECT_GT(skippedB, 100u) << "the sleeping basin must skip the pass once at rest";
 }
+
+// 6l: the pressure pass rebuilds only bricks whose inputs changed since the last pass (a marked brick, or a pointer into
+// one, dilated by a face). It must equal the full pass on every tick: cells, heads and head pointers. Three rigs: a
+// U-tube (heads read from a far surface), the uneven basin with an edit, and a pool churned the way the hybrid churns it
+// (cells blocked around moving "particles" before each step and unblocked after, cells dropped in).
+TEST(MatSimSleep, PressureIncrementalEqualsTheFullPass) {
+    Config full;
+    full.pressureIncremental = false;
+    auto pool = [](Config cfg) {
+        MatSimCore s;
+        std::string why;
+        EXPECT_TRUE(s.create({0, 0, 0}, {36, 9, 36}, 3, [](int, int, int) { return Occ::Empty; }, &why, cfg)) << why;
+        s.fillBox(Mat::Water, {0, 0, 0}, {36, 3, 36}, 1.0);
+        return s;
+    };
+    // A lidded pipe 7 bricks long open to the air at x < 8: the pipe's cells point at that open surface, far outside any
+    // face dilation, so a change of its fill changes their heads at once (the pointer rule; with it removed this rig
+    // fails). Filled above the lid, this rig never rests at 1/3 m: sub-deadband deficits wander the pipe (MaterialSimPlan 6l).
+    auto pipe = [](Config cfg) {
+        MatSimCore s;
+        std::string why;
+        auto world = [](int mx, int my, int) { return (mx >= 24 && my >= 9 && my < 12) ? Occ::Solid : Occ::Empty; };
+        EXPECT_TRUE(s.create({0, 0, 0}, {64, 12, 3}, 3, world, &why, cfg)) << why;
+        s.fillBox(Mat::Water, {0, 0, 0}, {64, 3, 3}, 1.0);   // level with the lid: no excess head, so it rests
+        return s;
+    };
+    struct Rig { const char* name; MatSimCore a, b; int ticks; };
+    Rig rigs[] = {{"U-tube", uTube({2, 2}, 3, 4.0, full), uTube({2, 2}, 3, 4.0), 2400},
+                  {"basin", unevenBasin(full), unevenBasin(), 1500},
+                  {"churned pool", pool(full), pool({}), 600},
+                  {"long pipe", pipe(full), pipe({}), 900}};
+    for (Rig& r : rigs) {
+        const IVec3 lo{0, 0, 0};
+        const IVec3 hi{r.a.size().x - 1, r.a.size().y - 1, r.a.size().z - 1};
+        const bool churn = std::string(r.name) == "churned pool";
+        uint64_t computedA = 0, computedB = 0, passesB = 0;
+        for (int t = 1; t <= r.ticks; ++t) {
+            if (std::string(r.name) == "basin" && t == 900) {
+                ASSERT_TRUE(r.a.setCell({6, 5, 6}, Mat::Water, r.a.full()));
+                ASSERT_TRUE(r.b.setCell({6, 5, 6}, Mat::Water, r.b.full()));
+            }
+            if (std::string(r.name) == "long pipe" && (t == 300 || t == 600))   // the open surface drops, then refills
+                for (MatSimCore* s : {&r.a, &r.b})
+                    for (int z = 0; z < 3; ++z)
+                        for (int x = 0; x < 8; ++x) ASSERT_TRUE(s->setCell({x, 2, z}, Mat::Water, t == 300 ? s->full() - 200 : s->full()));
+            std::vector<IVec3> held;
+            if (churn) {
+                if (t % 50 == 1)   // a cell dropped in at a moving spot
+                    for (MatSimCore* s : {&r.a, &r.b}) ASSERT_TRUE(s->setCell({4 + (t / 50) * 2, 6, 10 + t / 50}, Mat::Water, s->full()));
+                if (t < 400) {   // a "particle" sweeping over the surface: its 3x3x3 cells are walls during the step
+                    const int px = 3 + (t / 4) % 30, pz = 18 + int(6.0 * std::sin(t * 0.05));
+                    for (int dy = -1; dy <= 1; ++dy)
+                        for (int dz = -1; dz <= 1; ++dz)
+                            for (int dx = -1; dx <= 1; ++dx) held.push_back({px + dx, 4 + dy, pz + dz});
+                }
+                r.a.blockEmpty(held);
+                r.b.blockEmpty(held);
+            }
+            const StepStats sa = r.a.step(1), sb = r.b.step(1);
+            if (churn) {
+                r.a.unblockAll();
+                r.b.unblockAll();
+            }
+            computedA += sa.lastTickPressureBricks;
+            computedB += sb.lastTickPressureBricks;
+            passesB += sb.lastTickPressureBricks ? 1 : 0;
+            IVec3 w;
+            ASSERT_FALSE(firstDiff(r.a, r.b, lo, hi, w)) << r.name << " tick " << t << " world cell (" << w.x << "," << w.y << "," << w.z << ")";
+            ASSERT_EQ(r.a.headPtr(), r.b.headPtr()) << r.name << ": head pointers differ at tick " << t;
+            ASSERT_EQ(r.a.head(), r.b.head()) << r.name << ": heads differ at tick " << t;
+        }
+        std::printf("[MatSimSleep] incremental pressure == full on the %s for %d ticks; bricks computed %llu vs %llu (%.1f%%), "
+                    "%llu passes\n", r.name, r.ticks, (unsigned long long)computedB, (unsigned long long)computedA,
+                    100.0 * double(computedB) / double(std::max<uint64_t>(1, computedA)), (unsigned long long)passesB);
+        EXPECT_LT(computedB, computedA) << r.name << ": the incremental pass must compute fewer bricks";
+    }
+}

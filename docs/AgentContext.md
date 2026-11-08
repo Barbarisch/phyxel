@@ -251,11 +251,16 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Then two EXACT skips made rest cheap: wake scans only changed bricks + particle bricks (`wakeSkipQuiet`, lab default
       on; lockstep-equality test, mutation-checked), and the core skips the pressure pass after a quiet tick (under
       `sleep`; dense==sleep incl. heads). 1/9 m at rest: ~300 ms -> <1 ms a tick. While anything moves, one changing
-      brick still costs the full-box pressure pass (~300 ms Debug) — the next lever (per-body pressure pass).
+      brick still cost the full-box pressure pass (~300 ms Debug) — fixed in §6l.
       Diagnostics: `MatSimParticles.DISABLED_RegionalWakeTrace` (CPU), `MatSimParticlesGpuTest.DISABLED_PoolDropPhases`
       (GPU, ledger per phase, `MATSIM_SPONGE`/`MATSIM_MINROOM`/`MATSIM_RADIUS`).
-    - **Next:** make the cells cheap while something moves (a pressure pass limited to changed bodies; Release
-      numbers; the CA on the device), the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
+    - **§6l (2026-11-08): the pressure pass only where its inputs changed** (`Config::pressureIncremental`, default on
+      under `sleep`; exact). Recompute bricks face-adjacent to a marked brick or to a brick whose head pointers name a
+      marked brick (`srcBricks_`, per-brick source lists rebuilt only when computed). Equality vs the full pass on 4 rigs
+      every tick; the mutation (pointer rule off) fails only on the long-pipe rig, which was added for that. 1/9 m drop
+      while particles fly: pass ~200 ms -> ~32 ms Debug (65/1,125 bricks). The trace showed the head field barely changes
+      (0-4 bricks a tick); the old cost was the un-skippable full pass. New never-resting rig: a pipe under head at 1/3 m.
+    - **Next:** Release numbers; the block loop + wake while moving; the CA on the device; the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
       floor+absorb pair at 1/3 m, the pressure-rule cycle.
     - ⚠️ GPU MatSim tests find `shaders/*.spv` relative to the working directory: run them from the repo root.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).

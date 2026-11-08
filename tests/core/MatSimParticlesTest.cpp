@@ -962,8 +962,13 @@ PoolDropRun poolDrop(bool regional, double seconds, int cpm = 3, int sizeM = 12)
         check("particle step");
         ps.settle(s);
         check("settle");
-        ps.stepCells(s);
+        const StepStats cs = ps.stepCells(s);
         check("CA step");
+        if (std::getenv("MATSIM_TRACE") && f % 6 == 0)
+            std::printf("[trace ca] f %d: pressure %.1f ms, head-changed bricks %llu / %llu (cells %llu), moved+head bricks %llu, blocks evaluated %llu, pressure bricks computed %llu\n",
+                        f, cs.pressureMs, (unsigned long long)cs.lastTickHeadBricks, (unsigned long long)cs.bricks,
+                        (unsigned long long)cs.lastTickHeadChanges, (unsigned long long)cs.lastTickMovedBricks,
+                        (unsigned long long)cs.evaluatedBlocks, (unsigned long long)cs.lastTickPressureBricks);
         r.peak = std::max(r.peak, ps.particles().size());
         if (s.ledger()[Mat::Water] + ps.units(Mat::Water) != total) r.exact = false;
         if (r.allCellsAt < 0 && f > 10 && ps.particles().empty()) r.allCellsAt = (f + 1) / 60.0;

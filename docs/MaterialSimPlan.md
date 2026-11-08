@@ -1690,6 +1690,68 @@ Still open: N = 1 rig per cell size, one drop. Not yet measured: 1/9 m (where th
 rig's dam break with the regional rule (does a big real flow still wake what it should?), and
 what it looks like.
 
+### 6l. The pressure pass only where its inputs changed (2026-11-08)
+
+**Measured first.** The 1/9 m regional pool drop (CPU, Debug, `MATSIM_TRACE=1 MATSIM_CPM=9
+DISABLED_RegionalWakeTrace`), with two new diagnostics per tick: the bricks whose head words
+changed, and the pass's wall time. Prediction written before the run: the head field churns
+across the pool while the surface moves, so a dirty-brick pass would save little. **Wrong.** On
+frames 18-60, 0-4 of 1,125 bricks changed a head word. At the peak (frame 108), 201 bricks
+changed. The pass still cost ~190-250 ms every tick. It could not be skipped: the particles'
+block/unblock (6k) marks bricks every tick, so no tick is "quiet".
+
+**The rule (exact).** A cell's words (`q`, `m`, `h`) are a function of:
+- its own cell and its 6 face neighbours (cells and pointers);
+- the source cells those neighbours' pointers name, and those sources' own pointers.
+
+`marks1_` already holds every brick changed since the last pass: cells moved in the block step,
+head words changed by the pass, and every edit (`wakeCells`). So recompute only:
+- bricks face-adjacent to a marked brick;
+- bricks face-adjacent to a brick whose cells point into a marked brick.
+
+Every other brick would write what it holds. `Config::pressureIncremental` (default on, used
+only under `sleep`; off gives the whole-box pass as the A/B control).
+
+The pointer half needs to know which bricks each brick's cells point into. The first version
+scanned every cell's two pointers each tick. That computed 65 of 1,125 bricks but still cost
+~120 ms in Debug: the scan and the copy of clean bricks dominated. The second version keeps
+`srcBricks_`: per brick, the list of bricks its pointers name. The list is rebuilt only when that
+brick is computed (a clean brick's pointers cannot change). It is dropped on reset, `clear`,
+`adoptStepped` (pointers from the GPU) and any full pass, so the next pass starts full. Dirty
+bricks are computed into `qn_/mn_` from the old `q_/m_` (Jacobi, as before), then copied back.
+Clean bricks are not touched.
+
+**Equality test, red first.** `MatSimSleep.PressureIncrementalEqualsTheFullPass` compares, every
+tick, cells + heads + head pointers against the full pass on four rigs:
+
+| rig | ticks | bricks computed vs full |
+|---|---|---|
+| U-tube 2\|2 m, 1/3 m | 2,400 | 23.0 % |
+| uneven basin + an edit at t 900 | 1,500 | 21.9 % |
+| pool churned like the hybrid (3³ blocked cells sweeping the surface, cells dropped in) | 600 | 45.3 % |
+| lidded pipe 7 bricks long, open at one end; that open surface drops 200 units at t 300, refills at t 600 | 900 | 22.5 % |
+
+Mutation check: with the pointer rule removed, the first three rigs still passed, because they
+are a few bricks across and the face dilation covers every pointer. Only then was the long pipe
+added. It fails at tick 300 (heads differ) without the rule, and passes with it. This held for
+both versions of the rule.
+
+**Result, 1/9 m pool drop (Debug, CPU, the same run as above).** Once the drop's particles are
+in flight, the pressure pass goes from ~190-250 ms to **~30-35 ms** a tick (65 bricks computed).
+The first frames, when the wake lifts the region, still compute 400-800 bricks (~165 ms).
+Release not measured yet.
+
+**Found on the way: another rig that never rests.** The same pipe, filled above the lid (an open
+reservoir 5 cells higher than the pipe's top), never rests at 1/3 m. Cells within the deadband
+of full (F 6,912, deadband 108) trade 1-11 units back and forth along the pipe every tick: 304
+cells differ between t 300 and t 302, ~80 eligible blocks a tick. Small deficits wander out of
+the reservoir (cells at 6,519-6,740 near x 5-7). This is the pressure-rule limit cycle already
+open (wide U-tube at 1/3 m), in a simpler rig. The test uses the resting variant (filled level
+with the lid).
+
+Still open: Release numbers; the block loop and wake while moving (block evaluation ~6k-30k
+blocks a tick here); the limit cycle.
+
 ## 7. Working alongside the other sessions
 
 - **Code lives in a separate git worktree and branch** (`feat/matsim-lab`, off `main`), with its

@@ -3,6 +3,7 @@
 #include "core/matsim/MatSimCore.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 
@@ -128,6 +129,7 @@ bool MatSimCore::adoptStepped(std::vector<Cell> cells, uint64_t tick, std::vecto
     q_ = std::move(q);
     h_ = std::move(h);
     m_ = std::move(mx);
+    srcBricks_.clear();   // 6l: the pointers came from elsewhere; the next incremental pass starts full
     return true;
 }
 
@@ -137,6 +139,7 @@ void MatSimCore::resetPressure() {
     m_.assign(cur_.size(), kNoHead);
     mn_.assign(cur_.size(), kNoHead);
     h_.assign(cur_.size(), 0u);
+    srcBricks_.clear();
     orificeK_ = orificeConstant(full_, cpm_, cfg_.tickHz);
 }
 
@@ -241,6 +244,7 @@ void MatSimCore::clear() {
     m_.clear();
     mn_.clear();
     h_.clear();
+    srcBricks_.clear();
     orificeK_ = 0;
 }
 
@@ -566,9 +570,7 @@ uint64_t MatSimCore::pressurePass(std::vector<uint8_t>& fresh) {
         return m != kSolid && m != kEmpty && phaseOf(m) == Phase::Liquid && cellFill(c) > 0;
     };
     static const int kD[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-    for (int ly = 0; ly < size_.y; ++ly)
-        for (int lz = 0; lz < size_.z; ++lz)
-            for (int lx = 0; lx < size_.x; ++lx) {
+    auto cellPass = [&](int lx, int ly, int lz) {
                 const size_t i = index(lx, ly, lz);
                 const IVec3 w{origin_.x + lx, origin_.y + ly, origin_.z + lz};
                 const Cell c = cur_[i];
@@ -648,9 +650,90 @@ uint64_t MatSimCore::pressurePass(std::vector<uint8_t>& fresh) {
                 mn_[i] = mv;
                 if (qv != q_[i] || mv != m_[i] || hv != h_[i]) { fresh[brickOf(w.x, w.y, w.z)] = 1; ++changedCells; }
                 h_[i] = hv;   // no other cell reads h_ in this pass
+    };
+    // 6l: a cell's words are a function of its own cell and its 6 face neighbours (cells, q_, m_), and of the cells and
+    // words of the sources its neighbours point at. If none of those changed since the last pass, it would write what it
+    // holds. "Changed since the last pass" = marks1_: the bricks the last pass changed heads in, the last block step
+    // moved cells in, and every edit since (wakeCells). So recompute only bricks face-adjacent to a marked brick, or
+    // face-adjacent to a cell pointing into one; copy the rest. Exact (PressureIncrementalEqualsTheFullPass).
+    const bool incremental = cfg_.sleep && cfg_.pressureIncremental && marks1_.size() == fresh.size();
+    if (!incremental) {
+        for (int ly = 0; ly < size_.y; ++ly)
+            for (int lz = 0; lz < size_.z; ++lz)
+                for (int lx = 0; lx < size_.x; ++lx) cellPass(lx, ly, lz);
+        lastPressureBricks_ = marks1_.size();
+        srcBricks_.clear();   // stale once the incremental pass runs again: it starts with a full pass
+        q_.swap(qn_);
+        m_.swap(mn_);
+        return changedCells;
+    }
+    const IVec3 bd = brickDim_;
+    const size_t nb = marks1_.size();
+    auto bidx = [&](int x, int y, int z) { return size_t(x) + size_t(bd.x) * (size_t(z) + size_t(bd.z) * size_t(y)); };
+    std::vector<uint8_t> dirty(nb, 0);
+    auto dilate = [&](size_t B) {
+        const int x = int(B % size_t(bd.x)), z = int((B / size_t(bd.x)) % size_t(bd.z)), y = int(B / (size_t(bd.x) * size_t(bd.z)));
+        dirty[B] = 1;
+        if (x > 0) dirty[bidx(x - 1, y, z)] = 1;
+        if (x + 1 < bd.x) dirty[bidx(x + 1, y, z)] = 1;
+        if (y > 0) dirty[bidx(x, y - 1, z)] = 1;
+        if (y + 1 < bd.y) dirty[bidx(x, y + 1, z)] = 1;
+        if (z > 0) dirty[bidx(x, y, z - 1)] = 1;
+        if (z + 1 < bd.z) dirty[bidx(x, y, z + 1)] = 1;
+    };
+    // srcBricks_[B]: the bricks the q_/m_ pointers of B's cells name. A clean brick's pointers do not change, so its
+    // list stays valid; a computed brick rebuilds its list below. No list yet (first pass, resized box): everything.
+    const bool haveLists = srcBricks_.size() == nb;
+    if (!haveLists) std::fill(dirty.begin(), dirty.end(), uint8_t(1));
+    else
+        for (size_t B = 0; B < nb; ++B) {
+            if (marks1_[B]) { dilate(B); continue; }
+            for (const uint32_t S : srcBricks_[B])
+                if (marks1_[S]) { dilate(B); break; }
+        }
+    srcBricks_.resize(nb);
+    auto brickRange = [&](size_t B, int& lx0, int& lx1, int& ly0, int& ly1, int& lz0, int& lz1) {
+        const int x = int(B % size_t(bd.x)), z = int((B / size_t(bd.x)) % size_t(bd.z)), y = int(B / (size_t(bd.x) * size_t(bd.z)));
+        const int wx0 = (brickLo_.x + x) * 8, wy0 = (brickLo_.y + y) * 8, wz0 = (brickLo_.z + z) * 8;
+        lx0 = std::max(0, wx0 - origin_.x); lx1 = std::min(size_.x, wx0 + 8 - origin_.x);
+        ly0 = std::max(0, wy0 - origin_.y); ly1 = std::min(size_.y, wy0 + 8 - origin_.y);
+        lz0 = std::max(0, wz0 - origin_.z); lz1 = std::min(size_.z, wz0 + 8 - origin_.z);
+        return lx0 < lx1 && ly0 < ly1 && lz0 < lz1;
+    };
+    // Jacobi: compute every dirty brick into qn_/mn_ from the old q_/m_ first, then publish them. Clean bricks keep q_/m_.
+    size_t computed = 0;
+    int lx0, lx1, ly0, ly1, lz0, lz1;
+    for (size_t B = 0; B < nb; ++B) {
+        if (!dirty[B] || !brickRange(B, lx0, lx1, ly0, ly1, lz0, lz1)) continue;
+        ++computed;
+        for (int ly = ly0; ly < ly1; ++ly)
+            for (int lz = lz0; lz < lz1; ++lz)
+                for (int lx = lx0; lx < lx1; ++lx) cellPass(lx, ly, lz);
+    }
+    const size_t sx = size_t(size_.x), sz = size_t(size_.z);
+    for (size_t B = 0; B < nb; ++B) {
+        if (!dirty[B]) continue;
+        std::vector<uint32_t>& list = srcBricks_[B];
+        list.clear();
+        if (!brickRange(B, lx0, lx1, ly0, ly1, lz0, lz1)) continue;
+        uint32_t lastSrc = 0xFFFFFFFFu;
+        for (int ly = ly0; ly < ly1; ++ly)
+            for (int lz = lz0; lz < lz1; ++lz) {
+                const size_t i0 = index(lx0, ly, lz);
+                for (size_t i = i0; i < i0 + size_t(lx1 - lx0); ++i) {
+                    q_[i] = qn_[i];
+                    m_[i] = mn_[i];
+                    for (const uint32_t p : {q_[i], m_[i]}) {
+                        if (p == kNoHead || (p >> 8) == lastSrc) continue;
+                        lastSrc = p >> 8;
+                        const int x = int(lastSrc % sx), z = int((lastSrc / sx) % sz), y = int(lastSrc / (sx * sz));
+                        const uint32_t S = uint32_t(brickOf(origin_.x + x, origin_.y + y, origin_.z + z));
+                        if (std::find(list.begin(), list.end(), S) == list.end()) list.push_back(S);
+                    }
+                }
             }
-    q_.swap(qn_);
-    m_.swap(mn_);
+    }
+    lastPressureBricks_ = computed;
     return changedCells;
 }
 
@@ -973,8 +1056,17 @@ StepStats MatSimCore::step(int n) {
         const bool quiet1 = cfg_.sleep && clear(marks1_);
         const bool quiet2 = quiet1 && clear(marks2_);
         uint64_t headChanged = 0;
-        if (cfg_.pressure && !quiet1) headChanged = pressurePass(fresh);
-        else if (cfg_.pressure) ++st.pressurePassesSkipped;
+        if (cfg_.pressure && !quiet1) {
+            const auto t0 = std::chrono::steady_clock::now();
+            headChanged = pressurePass(fresh);
+            st.lastTickPressureBricks = lastPressureBricks_;
+            st.pressureMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        } else {
+            if (cfg_.pressure) ++st.pressurePassesSkipped;
+            st.lastTickPressureBricks = 0;
+        }
+        st.bricks = nb;
+        st.lastTickHeadBricks = uint64_t(std::count_if(fresh.begin(), fresh.end(), [](uint8_t m) { return m != 0; }));
         if (quiet2) {
             // Quiet for two ticks: every brick sleeps and every block would be copied unchanged. Same tick bookkeeping.
             marks2_.swap(marks1_);
@@ -1027,6 +1119,7 @@ StepStats MatSimCore::step(int n) {
         st.lastTickEligible = eligible;
         st.headChanges += headChanged;
         st.lastTickHeadChanges = headChanged;
+        st.lastTickMovedBricks = uint64_t(std::count_if(marks1_.begin(), marks1_.end(), [](uint8_t m) { return m != 0; }));
     }
     return st;
 }
