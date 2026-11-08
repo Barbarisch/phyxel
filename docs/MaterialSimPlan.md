@@ -1749,8 +1749,37 @@ the reservoir (cells at 6,519-6,740 near x 5-7). This is the pressure-rule limit
 open (wide U-tube at 1/3 m), in a simpler rig. The test uses the resting variant (filled level
 with the lid).
 
-Still open: Release numbers; the block loop and wake while moving (block evaluation ~6k-30k
-blocks a tick here); the limit cycle.
+**Release (2026-11-08).** Same CPU trace, `MATSIM_FULL_PRESSURE=1` as the A/B (whole-box pass);
+identical outcomes (peak 1,352 particles, all water back to cells at 1.05 s):
+
+| phase | full pass | incremental |
+|---|---|---|
+| particles in flight (frames 12-60) | 24-29 ms | **3.5-3.8 ms** |
+| the deposit levelling across the pool (frames 66-180) | 26-41 ms | 2-32 ms |
+| at rest (frame 186 on) | 0 (skipped) | 0 |
+
+GPU lab rig, Release (`LabPoolDropNinthMetre`), mean ms while particles fly:
+
+| | wake | particle step | settle | CA |
+|---|---|---|---|---|
+| whole-body (105,003 particles) | 8.9 | 5.6-6.0 | 6.5-9.2 | 2.0 |
+| regional R 1 m (1,632 particles) | 2.5 | 6.2-6.6 | 0.4 | 9.6 |
+
+Two findings:
+- **The GPU particle step has a floor of ~6 ms at 1/9 m** that does not shrink with the
+  particle count: it uploads the whole box's cells every tick. In Debug the regional step looked
+  2x cheaper; in Release it is the same. The test's `stepMs` assertion claimed "cheaper" and failed
+  in Release. It now pins "no dearer than 1.25x" plus the wake scan cheaper (which does scale).
+  Lever: upload only the bricks that changed.
+- **The dominant cost of the regional run is now after the particles are gone.** From 2 to 5 s,
+  wake + CA cost 40-80 ms a tick (CA 32-64 ms) while the CA spreads the deposited water across the
+  whole 12 m pool. The extra volume is a 1/3 m cube over 144 m²: a 0.26 mm rise, about 16 units a
+  cell (F = 6,912), invisible, yet the level rule carries it to every column over ~3 s. That
+  speed is about right physically (a 1 m deep shallow-water wave travels ~3 m/s), but the wave is
+  0.26 mm tall. The whole-body run lays it flat at settle and is done by 3 s. Candidate knob
+  (looks, not outcomes): let the level rule leave differences below a visible threshold.
+
+Still open: the upload floor; the levelling tail; the limit cycle.
 
 ## 7. Working alongside the other sessions
 

@@ -531,7 +531,11 @@ TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
     // Predicted >= 5x cheaper; MEASURED 2x (10.4 vs 20.1 ms, 2026-11-08): the GPU step uploads the whole box's cells every
     // tick, a floor that does not shrink with the particle count. The tick is dominated by the full-box CA (~220 ms Debug)
     // and wake scan (~47 ms) either way (MaterialSimPlan 6k). Pinned: cheaper, not 5x.
-    EXPECT_LT(g.stepMs, w.stepMs);
+    // 6l, Release (2026-11-08): 6.2 vs 6.0 ms. The upload floor is the whole step at this size, so the regional step is
+    // NOT cheaper there; "cheaper" was a Debug artefact. Pinned instead: no dearer than the floor allows, and the wake
+    // scan (which does scale) cheaper (Release 2.5 vs 8.9 ms, Debug 12.8 vs 46.6 ms).
+    EXPECT_LE(g.stepMs, w.stepMs * 1.25);
+    EXPECT_LT(g.wakeMs, w.wakeMs);
     EXPECT_LT(g.settleMs * 10.0, w.settleMs) << "settle scales with the particles (measured 1.4 vs 51.2 ms)";
 }
 

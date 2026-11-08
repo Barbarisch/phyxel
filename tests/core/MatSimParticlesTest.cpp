@@ -914,7 +914,9 @@ struct PoolDropRun {
 PoolDropRun poolDrop(bool regional, double seconds, int cpm = 3, int sizeM = 12) {
     std::string why;
     MatSimCore s;
-    EXPECT_TRUE(s.create({0, 0, 0}, {sizeM * cpm, 3 * cpm, sizeM * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+    Config cc;
+    cc.pressureIncremental = std::getenv("MATSIM_FULL_PRESSURE") == nullptr;   // 6l A/B: the whole-box pass
+    EXPECT_TRUE(s.create({0, 0, 0}, {sizeM * cpm, 3 * cpm, sizeM * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why, cc)) << why;
     const uint32_t F = s.full();
     s.fillBox(Mat::Water, {0, 0, 0}, {sizeM * cpm, cpm, sizeM * cpm}, 1.0);   // 1 m deep, at rest
     ParticleConfig pc = hybridConfig(true);

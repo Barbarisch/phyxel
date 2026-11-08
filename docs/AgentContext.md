@@ -260,7 +260,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       every tick; the mutation (pointer rule off) fails only on the long-pipe rig, which was added for that. 1/9 m drop
       while particles fly: pass ~200 ms -> ~32 ms Debug (65/1,125 bricks). The trace showed the head field barely changes
       (0-4 bricks a tick); the old cost was the un-skippable full pass. New never-resting rig: a pipe under head at 1/3 m.
-    - **Next:** Release numbers; the block loop + wake while moving; the CA on the device; the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
+      Release: pass 24-29 -> 3.5-3.8 ms while particles fly. GPU particle step has a ~6 ms floor at 1/9 m (whole-box
+      cell upload each tick) regardless of particle count. The regional run's cost is now the 2-5 s tail: CA spreads a
+      0.26 mm deposit over the whole pool (CA 32-64 ms + wake 8-15 ms a tick, Release).
+    - **Next:** the levelling tail (a visible-threshold deadband for level, a looks knob); upload only changed bricks to
+      the GPU step; the CA on the device; the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
       floor+absorb pair at 1/3 m, the pressure-rule cycle.
     - ⚠️ GPU MatSim tests find `shaders/*.spv` relative to the working directory: run them from the repo root.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
