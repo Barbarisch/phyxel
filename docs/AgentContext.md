@@ -236,7 +236,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       into one. At 0.25: replica slivers 60 -> 0 (settled 16 s both); live video settled 14.5 s (was 33 s) and the
       ledge lattice is gone (`docs/evidence/matsim_video/filmfloor_ledge_old_vs_film.png`). Open: the wide U-tube at
       1/3 m doesn't rest on 2/12 seeds with it, a pressure-rule head-field cycle the floor steers into (MaterialSimPlan 6j).
-    - **Next:** the 1/9 m video with `--film 0.25`, the pressure-rule cycle, keep the hybrid on the device (1/9 m live
+    - **1/9 m (2026-11-08): the floor alone RE-WAKES the pool after rest** (live + 2/4 replica seeds; 0/4 without it):
+      ledge beads drip, one drip's contact lifts the whole ~58k-cell pool, ~1.2 s cycle. `absorbGroupMax` 4 (lab
+      `absorb_group_max`, video `--absorb`) stops it: 3/3 replica seeds and live (rest 31.7 s, 0 after). The pair is
+      the candidate; floor never ships without the guard. Owner idea logged: draw resting water as a smooth surface
+      (a look fix, not fps; at 1/9 m the frame is the sim, not the faces).
+    - **Next:** the floor+absorb pair at 1/3 m, the pressure-rule cycle, keep the hybrid on the device (1/9 m live
       ~241 ms a tick: CA ~80 on the CPU), then a region-limited wake.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
     - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.

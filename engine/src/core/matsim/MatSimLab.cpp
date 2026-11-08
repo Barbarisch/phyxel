@@ -234,6 +234,10 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         pcfg.wakeHeadCells = p.value("wake_head_cells", 1.0f);    // cells of head excess
         if (particles == "hybrid" && (!(pcfg.settleSpeed > 0.f) || !(pcfg.wakeHeadCells > 0.f)))
             return refuse("settle_speed and wake_head_cells must be positive for a hybrid box");
+        // §6j: a group of <= N particles at cell water deposits into it instead of waking it (0 = off).
+        const int absorb = p.value("absorb_group_max", pcfg.absorbGroupMax);
+        if (absorb < 0) return refuse("absorb_group_max must be >= 0 (0 = off)");
+        pcfg.absorbGroupMax = absorb;
         if (particles == "hybrid" && !cfg.pressure) return refuse("a hybrid box needs pressure on (wake reads the head field)");
         const std::string backend = p.value("backend", std::string(gpu_ ? "gpu" : "cpu"));
         if (backend != "gpu" && backend != "cpu") return refuse("backend must be \"gpu\" or \"cpu\"");
@@ -272,6 +276,7 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
             if (!pgpu_ && !pgpuError_.empty()) out["particles_gpu_error"] = pgpuError_;
             out["settle_speed"] = pcfg.settleSpeed;
             out["wake_head_cells"] = pcfg.wakeHeadCells;
+            out["absorb_group_max"] = pcfg.absorbGroupMax;
         }
         out["seed"] = cfg.seed;
         out["sleep"] = cfg.sleep;

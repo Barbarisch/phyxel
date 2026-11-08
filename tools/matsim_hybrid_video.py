@@ -31,9 +31,10 @@ def main():
     ap.add_argument("--pose", default="0,38,16,0,-60", help="x,y,z,yaw,pitch")
     ap.add_argument("--still", action="store_true", help="framing check: one frame, no run")
     ap.add_argument("--film", type=float, default=0.0, help="6j: the CA thin-film floor (fraction of a cell; 0 = off)")
+    ap.add_argument("--absorb", type=int, default=0, help="6j: absorb_group_max (a drop of <= N particles joins cell water instead of waking it; 0 = off)")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
-    stem = f"hybrid_{a.cpm}" + (f"_film{a.film:g}" if a.film > 0 else "")
+    stem = f"hybrid_{a.cpm}" + (f"_film{a.film:g}" if a.film > 0 else "") + (f"_absorb{a.absorb}" if a.absorb > 0 else "")
     api = Api(a.url); api.wait_status(120)
     EV.mkdir(parents=True, exist_ok=True)
     frames = EV / f"frames_{stem}"
@@ -42,7 +43,7 @@ def main():
     try: api.debug("editor_panels", {"item_equipper": False, "tool_panels": False})
     except Exception as e: print("editor_panels:", e)
     L.fill(api, L.DAM); L.wait_occupancy()
-    L.must(L.ms(api, "create", {"min": L.BOX_MIN, "size": L.BOX_SIZE, "cells_per_m": a.cpm, "particles": "hybrid", "film_floor": a.film}), "create")
+    L.must(L.ms(api, "create", {"min": L.BOX_MIN, "size": L.BOX_SIZE, "cells_per_m": a.cpm, "particles": "hybrid", "film_floor": a.film, "absorb_group_max": a.absorb}), "create")
     L.must(L.ms(api, "fill_box", {"material": "Water", "min": {"x": 8, "y": 16, "z": 8}, "size": {"x": 3, "y": 3, "z": 8}, "fraction": 1.0}), "fill")
     L.must(L.ms(api, "fill_box", {"material": "Water", "min": {"x": 8, "y": 16, "z": 17}, "size": {"x": 8, "y": 5, "z": 7}, "fraction": 1.0}), "fill")
     p = [float(v) for v in a.pose.split(",")]
@@ -82,6 +83,7 @@ def main():
     L.fill(api, L.DAM)
     label = {3: "1/3 m cells", 9: "1/9 m cells"}.get(a.cpm, f"1/{a.cpm} m")
     if a.film > 0: label += f", film floor {a.film:g} cell"
+    if a.absorb > 0: label += f", absorb drops <= {a.absorb}"
     lines = []
     for k, r in enumerate(rows):
         t1 = rows[k + 1]["frame"] / FPS if k + 1 < len(rows) else (n) / FPS

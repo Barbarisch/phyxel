@@ -1483,9 +1483,56 @@ shows ~5 irregular beads of about 2/3 of a cell, **no lattice**. Water on the le
 8.18 / 8.33 m/s). Candidate to become the hybrid's default once the 1/9 m video is checked and the
 pressure-rule cycle above is understood.
 
-**Next:** the 1/9 m video with `--film 0.25`; the pressure-rule limit cycle (seeds 1 and 5 of the
-wide U-tube at 1/3 m); keep the hybrid on the device (the CA on the GPU, which then needs the film
-rule ported); then a region-limited wake.
+**Live (L4), 1/9 m (2026-11-08)** (`--cpm 9 --film 0.25` -> `hybrid_9_film0.25.{mp4,srt,json}`, same
+pose and rig as `hybrid_9.mp4`). The ledge, crops of the same frames (left old, right floor):
+- `filmfloor_ledge_old_vs_film_9.png` (video 9 s top, 10 s bottom): spray landing, irregular specks
+  in **both**; at 10 s the floor run's ledge is partly joined patches.
+- `filmfloor_ledge_old_vs_film_9_late.png` (12 s top, 16 s bottom): at 12 s the old run shows the
+  fine **regular lattice**, the floor run irregular larger beads; at 16 s the old ledge looks empty
+  (its film is too thin to draw) and the floor run keeps a maze of beads at least 1/4 cell deep.
+
+**A regression the 1/9 m video found: the floor run never stays at rest.** Old: all settled at
+31.5 s, 0 particles after. Floor: 52,995 -> 132 particles at 31.7 s, then ~58,000 again, cycling
+every ~1.2 s to the end (35.9 s); ledger exact throughout. The replica (`MATSIM_CPM=9`, new env
+`MATSIM_SEED`, trace `MATSIM_TRACE_LATE`) reproduces it on some seeds, so it is not chance:
+
+| 1/9 m, rest after 30 s | seed 1 | seed 2 | seed 3 | seed 4 |
+|---|---|---|---|---|
+| floor 0 | rests (live) | rests | rests | rests |
+| floor 0.25 | **cycles (live)**; rests (replica) | rests | **cycles** | **cycles** |
+| floor 0.25 + `absorbGroupMax` 4 | rests (replica) | - | rests | rests |
+
+(The GPU particle step is not bit-reproducible, so the live run and the replica of one seed diverge.)
+The cycle, traced on seed 3: the big settle leaves 69-169 particles of ~0.3 cell on the raised
+ledge (y 162, solid below), drifting at 0.2-1.4 cells/s; one drips off the ledge edge (falling at
+19-37 cells/s); its contact wakes the whole connected pool (57,835 cells from ~10 contact cells);
+the pool settles in ~1 s, the ledge beads stay, repeat. It is §6i's "drips off the ledge re-wake the
+pool" again: the floor turns the ledge film into beads big enough to keep moving and drip. §6i's
+`absorbGroupMax` (a group of <= N particles at cell water deposits into it and never wakes it by
+contact) stops it on all 3 replica seeds tried. The lab now takes `absorb_group_max` (create;
+echoed; negative refused; red-first `MatSimLabApi.AbsorbGroupMaxIsPassedAndChecked`) and the video
+script `--absorb N`.
+
+**Live with the guard (L4, 1/9 m, seed 1 = the live cycler)** (`--cpm 9 --film 0.25 --absorb 4` ->
+`hybrid_9_film0.25_absorb4.{mp4,srt,json}`): all settled at **31.7 s and 0 particles to the end
+(35.9 s)**, ledger exact on every frame (old rules: 31.5 s). `filmfloor_9_end_old_film_absorb.png`
+(video 35 s; left old, middle floor, right floor + absorb): the old ledge looks dry (its film is
+too thin to draw), the floor run's ledge holds moving particle beads, the guarded run's ledge holds
+settled cell beads; the pool is flat in all three. N = 1 live, 3 replica seeds.
+
+**Status:** the floor is still default OFF; at 1/9 m it must not ship without the drip guard
+(`absorbGroupMax`). Floor 0.25 + absorb 4 is the candidate pair, not yet measured at 1/3 m live.
+
+**Next:** the pair at 1/3 m (replica + video); the pressure-rule limit cycle (seeds 1 and 5 of the wide U-tube at 1/3 m); keep the hybrid on the
+device (the CA on the GPU, which then needs the film rule ported); then a region-limited wake (a
+single drip should never lift a 58,000-cell pool).
+
+**Owner idea (2026-11-08), recorded for later: draw settled water as a smooth surface.** Noita's
+water shows its pixels only where it moves (the surface, splashes, bubbles). Here: the CA drives
+behaviour, and a body at rest renders as one smoothed surface, with particles drawn only in motion.
+It would also remove the speck problem at its root (a resting body is never drawn as cubes). It is
+**not** a frame-rate fix: at 1/9 m the frame is the simulation (§6i: 240 ms tick vs 18-53 k faces;
+the same view without the box renders at 661 fps).
 
 ## 7. Working alongside the other sessions
 

@@ -410,6 +410,29 @@ TEST_F(MatSimParticlesGpuTest, DISABLED_EnergyVsSolve) {
     }
 }
 
+// 6j: the lab passes absorb_group_max to a hybrid box (the 1/9 m re-wake fix candidate) and echoes
+// it; a negative value is refused, and a box made without it reports the library default (0 = off).
+TEST(MatSimLabApi, AbsorbGroupMaxIsPassedAndChecked) {
+    MatSimLab lab([](int, int, int) { return Occ::Empty; });
+    auto create = [&](MatSimLab::Json extra) {
+        MatSimLab::Json p = {{"min", {{"x", 0}, {"y", 0}, {"z", 0}}}, {"size", {{"x", 4}, {"y", 4}, {"z", 1}}},
+                             {"cells_per_m", 3}, {"particles", "hybrid"}, {"backend", "cpu"}};
+        for (auto it = extra.begin(); it != extra.end(); ++it) p[it.key()] = it.value();
+        MatSimLab::Json out;
+        lab.handle("create", p, out);
+        return out;
+    };
+    MatSimLab::Json a = create({{"absorb_group_max", 4}});
+    ASSERT_TRUE(a.value("created", false)) << a.dump();
+    EXPECT_EQ(a.value("absorb_group_max", -1), 4) << a.dump();
+    MatSimLab::Json d = create(MatSimLab::Json::object());
+    ASSERT_TRUE(d.value("created", false)) << d.dump();
+    EXPECT_EQ(d.value("absorb_group_max", -1), 0) << d.dump();
+    MatSimLab::Json bad = create({{"absorb_group_max", -1}});
+    EXPECT_FALSE(bad.value("created", false)) << bad.dump();
+    EXPECT_TRUE(bad.contains("error")) << bad.dump();
+}
+
 // 6i: the lab service (POST /api/matsim/*) with "particles":"hybrid": a dam break created and
 // read back only through MatSimLab::handle, the calls the live route makes. Predictions: the front
 // (from the slices action, which counts particles) within 10 % of the library's hybrid 8.04 m/s at
@@ -503,6 +526,7 @@ TEST_F(MatSimParticlesGpuTest, DISABLED_LiveRigReplica) {
     std::string why;
     Config ccfg;   // 6j: MATSIM_FILM = the CA's thin-film floor (fraction of a cell; 0 = off)
     if (const char* e = std::getenv("MATSIM_FILM")) ccfg.filmFloor = float(std::atof(e));
+    if (const char* e = std::getenv("MATSIM_SEED")) ccfg.seed = uint32_t(std::atoi(e));   // 6j: sample the 1/9 m re-wake
     ASSERT_TRUE(s.create({8 * cpm, 16 * cpm, 8 * cpm}, {16 * cpm, 8 * cpm, 16 * cpm}, cpm, liveRig, &why, ccfg)) << why;
     s.fillBox(Mat::Water, {8 * cpm, 16 * cpm, 8 * cpm}, {3 * cpm, 3 * cpm, 8 * cpm}, 1.0);
     s.fillBox(Mat::Water, {8 * cpm, 16 * cpm, 17 * cpm}, {8 * cpm, 5 * cpm, 7 * cpm}, 1.0);
@@ -563,9 +587,32 @@ TEST_F(MatSimParticlesGpuTest, DISABLED_LiveRigReplica) {
                 std::printf(" (%.2f %.2f %.2f %.3f)", ps.particles()[i].x, ps.particles()[i].y, ps.particles()[i].z, double(ps.particles()[i].units) / F);
             std::printf("\n");
         }
+        // 6j at 1/9 m: after the body rests, does it re-wake? Every large wake / settle after 28 s.
+        const bool late = std::getenv("MATSIM_TRACE_LATE") && f >= 28 * 60;
+        if (late && liftedCells > 100) {
+            const auto& w = ps.lastWakeStats();
+            std::printf("[replica-late] f %d wake: %zu cells (contact %zu falling %zu pressure %zu) -> %zu particles; CA filmGathers %llu filmHeld %llu\n",
+                        f, liftedCells, w.contact, w.falling, w.pressure, ps.particles().size(),
+                        (unsigned long long)s.filmGathers(), (unsigned long long)s.filmHeld());
+        }
         ps.step(s, 1.0 / 60.0);
         const size_t npBefore = ps.particles().size();
         ps.settle(s);
+        if (late && npBefore > ps.particles().size() + 100) {
+            const auto& st = ps.lastSettleStats();
+            std::printf("[replica-late] f %d settle: %zu -> %zu particles; groups %zu (busy speed %zu level %zu), settled %zu absorbed %zu\n",
+                        f, npBefore, ps.particles().size(), st.groups, st.busySpeed, st.busyLevel, st.settled, st.absorbed);
+            // The stragglers: where they are, how fast, how big, and what is under them.
+            size_t shown = 0;
+            for (const Particle& q : ps.particles()) {
+                if (shown++ >= 12) break;
+                const IVec3 b{int(std::floor(q.x)), int(std::floor(q.y)) - 1, int(std::floor(q.z))};
+                const Cell cb = s.at(b);
+                std::printf("    p (%.2f %.2f %.2f) v (%.2f %.2f %.2f) |avg v| %.2f age %.2f units %.3f; below %s %.3f\n", q.x, q.y, q.z,
+                            q.vx, q.vy, q.vz, std::sqrt(q.ax * q.ax + q.ay * q.ay + q.az * q.az), q.age, double(q.units) / F, cellMaterial(cb) == kSolid ? "solid" : (cellMaterial(cb) == kEmpty ? "air" : "water"),
+                            double(cellFill(cb)) / F);
+            }
+        }
         if (std::getenv("MATSIM_TRACE") && f >= 13 * 60 && f < 23 * 60 && npBefore > ps.particles().size() + (std::getenv("MATSIM_TRACE_BIG") ? 50u : 0u))
             std::printf("[replica-settle] f %d: %zu -> %zu particles\n", f, npBefore, ps.particles().size());
         s.step(1);
