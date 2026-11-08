@@ -1373,8 +1373,48 @@ the device-resident hybrid (the CA on the GPU, no per-tick upload) is the lever.
 - **Next for the specks:** a mass-conserving lift that packs a body's thin cells into particles
   of about one cell's water each, placed at their centroid. No near-empty particles, no lattice.
 
-**Next:** keep the hybrid on the device (the CA on the GPU, no per-tick upload); the lift
-that packs thin cells; then a region-limited wake.
+**The packing lift, tried 2026-11-07 (owner: "do the speck fix first"): REJECTED as a default.**
+Four rules were built, each red first, all kept as knobs (off by default) with their tests:
+
+| knob (`ParticleConfig`) | rule | red test (shown failing first) |
+|---|---|---|
+| `packThinBelow` | wake() packs cells under this fill into face-connected clusters of >= one cell, bounded to 2 cells from the seed; the particle starts inside the member cell nearest the centroid | `WokenThinFilmIsPackedIntoCellSizedParticles` (324 slivers -> 44 particles, smallest 1/4 cell), `PackedParticlesNeverStartInsideSolid` |
+| `wakeContactMinSpeed` | only a particle at least this fast wakes by contact | `RestingParticleDoesNotWakeAFilmItTouches` |
+| `absorbGroupMax` | a group of <= N particles in or right above cell water of its liquid deposits into it, and never wakes by contact | `DropJoinsAPoolButAnInflowWakesIt` |
+| `wakePressureMinFill` | the pressure trigger reads only cells at least this full | `ThinCellsDoNotTriggerThePressureWake` (12 triggers -> 0) |
+
+Each rule answered a failure the previous one exposed on the replica (`DISABLED_LiveRigReplica`, new
+env knobs `MATSIM_PACK`, `MATSIM_CONTACT_SPEED`, `MATSIM_ABSORB`, `MATSIM_CPM`; traces
+`MATSIM_TRACE`, `MATSIM_TRACE_SLIVER`, `MATSIM_TRACE_COL`):
+- packing alone: two packed films on the ledge woke each other in turn forever (a resting
+  particle counts as contact) -> the speed gate;
+- with the gate: drips off the ledge film re-woke the 2,142-cell pool by contact every ~1 s to
+  36 s (whole-body wake) -> absorb;
+- an unbounded cluster followed a film down the ledge wall and put its particle inside the ledge
+  (y 53.5), re-lifted every 2 frames -> bounded clusters, in-cell placement;
+- a film draining over the ledge edge read as under head -> the pressure fill floor.
+
+**Result, all four on, 1/3 m:**
+
+| | old rules | all four on |
+|---|---|---|
+| replica: all particles settled by | 16 s | 24 s |
+| replica: woken particles under 1/4 cell | 60 | 692 |
+| live video (`hybrid_3_speckfix_rejected.mp4`): settled by | 33 s | 20 s |
+| the ledge at 7.5-9.5 s (`speckfix_ledge_old_vs_packed.png`) | ~40 tiny specks in a grid | 9 bigger cubes, **still a grid**, static 7.5-9.5 s |
+
+Ledger exact in every run; the dam-break fronts, U-tubes and lab tests unchanged.
+
+- **What the video showed:** the lattice is not a lift artifact. The CA spreads a film to a
+  uniform depth, and any deterministic lift of a uniform film tiles. The rest of the slivers are
+  CA drips: a thin film creeps over the ledge edge and falls as cells of 0.02-0.08 fill (under
+  the falling trigger's half cell), and the moving pool below touches them.
+- **The fix belongs in the CA:** water should not spread thinner than a droplet. A minimum
+  film depth (a lateral spread only above a fill floor, the remainder held as a puddle or
+  bead), measured against the U-tube and dam-break levels. Not started.
+
+**Next:** the CA's thin-film rule (above), then re-record; keep the hybrid on the device (the CA
+on the GPU, no per-tick upload); then a region-limited wake.
 
 ## 7. Working alongside the other sessions
 

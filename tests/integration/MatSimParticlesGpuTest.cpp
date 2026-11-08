@@ -497,7 +497,8 @@ Occ liveRig(int mx, int my, int mz) {
 }
 
 TEST_F(MatSimParticlesGpuTest, DISABLED_LiveRigReplica) {
-    const int cpm = 3;
+    const char* ce = std::getenv("MATSIM_CPM");
+    const int cpm = ce ? std::atoi(ce) : 3;
     MatSimCore s;
     std::string why;
     ASSERT_TRUE(s.create({8 * cpm, 16 * cpm, 8 * cpm}, {16 * cpm, 8 * cpm, 16 * cpm}, cpm, liveRig, &why)) << why;
@@ -509,22 +510,78 @@ TEST_F(MatSimParticlesGpuTest, DISABLED_LiveRigReplica) {
     // 6i video A/B: MATSIM_CONTACT_MIN (fraction, default the config's) and MATSIM_LIFT_CENTRE=1 (cell-centre lift).
     if (const char* e = std::getenv("MATSIM_CONTACT_MIN")) pc.wakeContactMinFill = float(std::atof(e));
     if (std::getenv("MATSIM_LIFT_CENTRE")) pc.liftAtCentroid = false;
+    // 6i speck fix A/B: MATSIM_PACK (fraction; 0 = one particle per cell), MATSIM_CPM (3 or 9).
+    if (const char* e = std::getenv("MATSIM_PACK")) pc.packThinBelow = float(std::atof(e));
+    if (const char* e = std::getenv("MATSIM_CONTACT_SPEED")) pc.wakeContactMinSpeed = float(std::atof(e));
+    if (const char* e = std::getenv("MATSIM_ABSORB")) pc.absorbGroupMax = std::atoi(e);
+    const uint64_t total0 = s.ledger()[Mat::Water];
+    size_t slivers = 0, made = 0;   // particles a wake made, and of them under a quarter cell: the "specks"
     const uint32_t F = s.full();
     MatSimParticles ps(pc);
     ps.setGpu(&gpu);
-    std::printf("[replica] contact min fill %.2f, lift at %s\n", pc.wakeContactMinFill, pc.liftAtCentroid ? "centroid" : "cell centre");
+    std::printf("[replica] 1/%d m, contact min fill %.2f, lift at %s, pack below %.2f\n", cpm, pc.wakeContactMinFill,
+                pc.liftAtCentroid ? "centroid" : "cell centre", pc.packThinBelow);
+    std::printf("[replica] contact min speed %.2f m/s, absorb groups <= %d\n", pc.wakeContactMinSpeed, pc.absorbGroupMax);
     for (int f = 0; f < 36 * 60; ++f) {
-        ps.wake(s);
+        if (std::getenv("MATSIM_TRACE_COL") && f >= 296 && f <= 304) {
+            std::printf("[replica-col] f %d x 61..64, z 25, y 47..55 (fill/F, S solid):", f);
+            for (int x = 61; x <= 64; ++x) {
+                std::printf(" | x%d", x);
+                for (int y = 47; y <= 55; ++y) {
+                    const Cell c = s.at({x, y, 25});
+                    if (cellMaterial(c) == kSolid) std::printf(" S"); else std::printf(" %.3f", double(cellFill(c)) / F);
+                }
+            }
+            std::printf(" | particles near: ");
+            for (const Particle& q : ps.particles())
+                if (q.x > 59 && q.x < 66 && q.z > 23 && q.z < 28 && q.y > 46 && q.y < 58) std::printf("(%.1f %.1f %.1f v %.1f %.1f %.1f u %.2f) ", q.x, q.y, q.z, q.vx, q.vy, q.vz, double(q.units) / F);
+            std::printf("\n");
+        }
+        const size_t before = ps.particles().size();
+        const size_t liftedCells = ps.wake(s);
+        for (size_t i = before; i < ps.particles().size(); ++i) { ++made; if (ps.particles()[i].units < F / 4) ++slivers; }
+        if (std::getenv("MATSIM_TRACE_SLIVER") && f < 20 * 60) {
+            size_t sl = 0;
+            for (size_t i = before; i < ps.particles().size(); ++i) sl += ps.particles()[i].units < F / 4;
+            if (sl) {
+                const auto& w = ps.lastWakeStats();
+                std::printf("[replica-sliver] f %d: %zu cells (contact %zu falling %zu pressure %zu) -> %zu particles, %zu slivers:", f, liftedCells,
+                            w.contact, w.falling, w.pressure, ps.particles().size() - before, sl);
+                size_t shown = 0;
+                for (size_t i = before; i < ps.particles().size() && shown < 4; ++i)
+                    if (ps.particles()[i].units < F / 4) { ++shown; std::printf(" (%.2f %.2f %.2f %.4f)", ps.particles()[i].x, ps.particles()[i].y, ps.particles()[i].z, double(ps.particles()[i].units) / F); }
+                std::printf("\n");
+            }
+        }
+        if (std::getenv("MATSIM_TRACE") && f >= 13 * 60 && f < 23 * 60 && liftedCells > (std::getenv("MATSIM_TRACE_BIG") ? 50u : 0u)) {
+            const auto& w = ps.lastWakeStats();
+            std::printf("[replica-wake] f %d: %zu cells (trigger contact %zu falling %zu pressure %zu) -> %zu particles:", f, liftedCells,
+                        w.contact, w.falling, w.pressure, w.particles);
+            for (size_t i = before; i < ps.particles().size() && i < before + 6; ++i)
+                std::printf(" (%.2f %.2f %.2f %.3f)", ps.particles()[i].x, ps.particles()[i].y, ps.particles()[i].z, double(ps.particles()[i].units) / F);
+            std::printf("\n");
+        }
         ps.step(s, 1.0 / 60.0);
+        const size_t npBefore = ps.particles().size();
         ps.settle(s);
+        if (std::getenv("MATSIM_TRACE") && f >= 13 * 60 && f < 23 * 60 && npBefore > ps.particles().size() + (std::getenv("MATSIM_TRACE_BIG") ? 50u : 0u))
+            std::printf("[replica-settle] f %d: %zu -> %zu particles\n", f, npBefore, ps.particles().size());
         s.step(1);
         if ((f + 1) % 120 == 0) {
             uint32_t umin = F;
             size_t small = 0;
             for (const Particle& q : ps.particles()) { umin = std::min(umin, q.units); if (q.units < F / 4) ++small; }
-            std::printf("[replica-ab] t %2d s: %zu particles (%zu under a quarter cell, min %.3f cell), max speed %.1f cells/s, substeps %d\n",
-                        (f + 1) / 60, ps.particles().size(), small, double(umin) / F, ps.maxSpeed(), ps.lastSubsteps());
+            std::printf("[replica-ab] t %2d s: %zu particles (%zu under a quarter cell, min %.3f cell), max speed %.1f cells/s, substeps %d; "
+                        "woken so far %zu particles, %zu of them slivers; ledger %s\n",
+                        (f + 1) / 60, ps.particles().size(), small, double(umin) / F, ps.maxSpeed(), ps.lastSubsteps(), made, slivers,
+                        s.ledger()[Mat::Water] + ps.units(Mat::Water) == total0 ? "exact" : "DRIFT");
         }
+        if (std::getenv("MATSIM_TRACE") && f >= 15 * 60 && (f % 30) == 0 && !ps.particles().empty() && ps.particles().size() <= 4)
+            for (const Particle& q : ps.particles())
+                std::printf("[replica-trace] f %d: p (%.2f %.2f %.2f) v (%.2f %.2f %.2f) avg (%.2f %.2f %.2f) units %.3f; cell below %u/%u fill, mat %u\n", f,
+                            q.x, q.y, q.z, q.vx, q.vy, q.vz, q.ax, q.ay, q.az, double(q.units) / F,
+                            cellFill(s.at({int(std::floor(q.x)), int(std::floor(q.y)) - 1, int(std::floor(q.z))})), F,
+                            unsigned(cellMaterial(s.at({int(std::floor(q.x)), int(std::floor(q.y)) - 1, int(std::floor(q.z))}))));
         if ((f + 1) % 600) continue;
         const auto& st = ps.lastSettleStats();
         std::printf("[replica] t %2d s: %zu particles, groups %zu (speed %zu level %zu), largest %zu, spread %.2f; "

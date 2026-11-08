@@ -667,6 +667,7 @@ TEST(MatSimParticles, ThinFilmTouchedByADropLiftsUnlessTheContactKnobIsSet) {
         const uint32_t F = s.full();
         s.fillBox(Mat::Water, {0, 0, 0}, {6 * cpm, 1, 6 * cpm}, 0.125);   // a film an eighth of a cell deep
         ParticleConfig pc = hybridConfig(true);
+        pc.absorbGroupMax = 0;   // a lone drop would be absorbed; this test is about the lift
         pc.wakeContactMinFill = minFill;
         MatSimParticles ps(pc);
         ps.mutableParticles().push_back({9.5f, 1.5f, 9.5f, 0.f, -3.f, 0.f, F, Mat::Water});   // a drop just above it
@@ -689,6 +690,7 @@ TEST(MatSimParticles, LiftHeightCellCentreByDefaultCentroidUnderTheKnob) {
         s.fillBox(Mat::Water, {0, 0, 0}, {6 * cpm, 1, 6 * cpm}, 1.0);   // a full layer...
         s.fillBox(Mat::Water, {0, 1, 0}, {6 * cpm, 1, 6 * cpm}, 0.5);   // ...under a half-full one
         ParticleConfig pc = hybridConfig(true);
+        pc.absorbGroupMax = 0;   // a lone drop would be absorbed; this test is about the lift
         pc.liftAtCentroid = centroid;
         MatSimParticles ps(pc);
         ps.mutableParticles().push_back({9.5f, 2.5f, 9.5f, 0.f, -3.f, 0.f, F, Mat::Water});
@@ -704,4 +706,195 @@ TEST(MatSimParticles, LiftHeightCellCentreByDefaultCentroidUnderTheKnob) {
         EXPECT_FLOAT_EQ(yHalf, centroid ? 1.25f : 1.5f);
         EXPECT_EQ(s.ledger()[Mat::Water] + ps.units(Mat::Water), total);
     }
+}
+
+// 6i speck fix: a woken thin film is packed into particles of about one cell's water each (at the
+// water's horizontal centroid, at the cell centre's height), not one sliver particle per cell.
+TEST(MatSimParticles, WokenThinFilmIsPackedIntoCellSizedParticles) {
+    const int cpm = 3;
+    for (float pack : {0.0f, 0.5f}) {
+        std::string why;
+        MatSimCore s;
+        ASSERT_TRUE(s.create({0, 0, 0}, {6 * cpm, 2 * cpm, 6 * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+        const uint32_t F = s.full();
+        s.fillBox(Mat::Water, {0, 0, 0}, {6 * cpm, 1, 6 * cpm}, 0.125);   // a film an eighth of a cell deep
+        ParticleConfig pc = hybridConfig(true);
+        pc.absorbGroupMax = 0;   // a lone drop would be absorbed; this test is about the lift
+        pc.packThinBelow = pack;
+        MatSimParticles ps(pc);
+        ps.mutableParticles().push_back({9.5f, 1.5f, 9.5f, 0.f, -3.f, 0.f, F, Mat::Water});   // a drop just above it
+        const uint64_t total = s.ledger()[Mat::Water] + ps.units(Mat::Water);
+        const size_t lifted = ps.wake(s);
+        const size_t made = ps.particles().size() - 1;
+        uint32_t minU = ~0u, maxU = 0;
+        bool heightOk = true, insideOk = true;
+        for (size_t i = 1; i < ps.particles().size(); ++i) {
+            const Particle& q = ps.particles()[i];
+            minU = std::min(minU, q.units); maxU = std::max(maxU, q.units);
+            heightOk = heightOk && std::fabs(q.y - 0.5f) < 1e-4f;
+            insideOk = insideOk && q.x > 0.f && q.x < 6.f * cpm && q.z > 0.f && q.z < 6.f * cpm;
+        }
+        std::printf("[MatSimParticles] film 1/8 cell over %d cells woken, pack below %.2f: %zu cells -> %zu particles, units %.3f..%.3f cell\n",
+                    36 * cpm * cpm, pack, lifted, made, double(minU) / F, double(maxU) / F);
+        EXPECT_EQ(lifted, size_t(36 * cpm * cpm));
+        EXPECT_EQ(s.ledger()[Mat::Water] + ps.units(Mat::Water), total);
+        EXPECT_TRUE(heightOk);
+        EXPECT_TRUE(insideOk);
+        if (pack > 0.f) {
+            // Clusters are bounded to 2 cells from their seed (no particle inside a solid, PackedParticlesNeverStartInsideSolid),
+            // so a few leftover pieces stay under a cell: measured 44 particles, smallest a quarter cell.
+            EXPECT_LE(made, size_t(36 * cpm * cpm / 8 * 12 / 10)) << "about one particle per cell of water";
+            EXPECT_GE(minU, F / 4) << "no sliver particles (under a quarter cell)";
+            EXPECT_LE(maxU, 2 * F);
+        } else {
+            EXPECT_EQ(made, size_t(36 * cpm * cpm));   // the control: one sliver per cell
+        }
+    }
+}
+
+// A lone thin cell has nothing to pack with: it lifts as itself, mass exact.
+TEST(MatSimParticles, LoneThinCellLiftsAsItself) {
+    const int cpm = 3;
+    std::string why;
+    MatSimCore s;
+    ASSERT_TRUE(s.create({0, 0, 0}, {6 * cpm, 2 * cpm, 6 * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+    const uint32_t F = s.full();
+    s.fillBox(Mat::Water, {9, 0, 9}, {1, 1, 1}, 0.125);
+    ParticleConfig pc = hybridConfig(true);
+    pc.absorbGroupMax = 0;   // a lone drop would be absorbed; this test is about the lift
+    MatSimParticles ps(pc);
+    ps.mutableParticles().push_back({9.5f, 1.5f, 9.5f, 0.f, -3.f, 0.f, F, Mat::Water});
+    const uint64_t total = s.ledger()[Mat::Water] + ps.units(Mat::Water);
+    EXPECT_EQ(ps.wake(s), 1u);
+    ASSERT_EQ(ps.particles().size(), 2u);
+    EXPECT_EQ(ps.particles()[1].units, F / 8);
+    EXPECT_EQ(s.ledger()[Mat::Water] + ps.units(Mat::Water), total);
+}
+
+// 6i: a particle at rest on a film does not lift it (it settles into it itself); a moving one does.
+// Without the gate, two packed films on the live-rig ledge lifted each other in turn forever.
+TEST(MatSimParticles, RestingParticleDoesNotWakeAFilmItTouches) {
+    const int cpm = 3;
+    for (float minSpeed : {0.35f, 0.0f}) {
+        std::string why;
+        MatSimCore s;
+        ASSERT_TRUE(s.create({0, 0, 0}, {6 * cpm, 2 * cpm, 6 * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+        const uint32_t F = s.full();
+        s.fillBox(Mat::Water, {0, 0, 0}, {6 * cpm, 1, 6 * cpm}, 0.125);
+        ParticleConfig pc = hybridConfig(true);
+        pc.absorbGroupMax = 0;   // a lone drop would be absorbed; this test is about the lift
+        pc.wakeContactMinSpeed = minSpeed;
+        MatSimParticles ps(pc);
+        ps.mutableParticles().push_back({9.5f, 1.5f, 9.5f, 0.f, 0.3f, 0.f, F, Mat::Water});   // at rest (0.1 m/s)
+        EXPECT_EQ(ps.wake(s), minSpeed > 0.f ? 0u : size_t(36 * cpm * cpm)) << minSpeed;
+    }
+}
+
+// 6i: a drop landing on resting cell water joins it (absorbGroupMax) instead of waking the whole body;
+// a real inflow (a group bigger than the limit) still wakes it.
+TEST(MatSimParticles, DropJoinsAPoolButAnInflowWakesIt) {
+    const int cpm = 3;
+    for (int absorb : {8, 0}) {
+        for (int side : {1, 3}) {   // a 1-particle drop, a 3 x 3 x 3 inflow
+            std::string why;
+            MatSimCore s;
+            ASSERT_TRUE(s.create({0, 0, 0}, {6 * cpm, 3 * cpm, 6 * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+            const uint32_t F = s.full();
+            s.fillBox(Mat::Water, {0, 0, 0}, {6 * cpm, 2, 6 * cpm}, 1.0);   // a pool two cells deep, at rest
+            ParticleConfig pc = hybridConfig(true);
+            pc.absorbGroupMax = absorb;
+            MatSimParticles ps(pc);
+            for (int a = 0; a < side; ++a)
+                for (int b = 0; b < side; ++b)
+                    for (int c = 0; c < side; ++c)
+                        ps.mutableParticles().push_back({8.5f + a, 2.5f + b, 8.5f + c, 0.f, -6.f, 0.f, F, Mat::Water});   // 2 m/s down
+            const uint64_t total = s.ledger()[Mat::Water] + ps.units(Mat::Water);
+            const size_t lifted = ps.wake(s);
+            const bool expectWake = absorb == 0 || side * side * side > absorb;
+            EXPECT_EQ(lifted, expectWake ? size_t(2 * 36 * cpm * cpm) : 0u) << "absorb " << absorb << " side " << side;
+            if (!expectWake) {
+                ps.settle(s);
+                EXPECT_EQ(ps.particles().size(), 0u) << "the drop joined the pool";
+                EXPECT_EQ(ps.lastSettleStats().absorbed, 1u);
+            }
+            EXPECT_EQ(s.ledger()[Mat::Water] + ps.units(Mat::Water), total);
+        }
+    }
+}
+
+// 6i: a packed particle starts inside a cell its water came from, never inside a solid. Unbounded clusters followed a
+// film from a ledge top down its wall and put the centroid inside the ledge (live-rig replica, y 53.5).
+TEST(MatSimParticles, PackedParticlesNeverStartInsideSolid) {
+    const int cpm = 3;
+    std::string why;
+    MatSimCore s;
+    // A 6 x 6 x 6-cell solid block in a 24 x 12 x 24-cell box (micro coords: 1 cell = 3 micro at 1/3 m).
+    auto occ = [](int mx, int my, int mz) {
+        const int x = mx / 3, y = my / 3, z = mz / 3;
+        return (x >= 6 && x < 12 && y < 6 && z >= 6 && z < 12) ? Occ::Solid : Occ::Empty;
+    };
+    ASSERT_TRUE(s.create({0, 0, 0}, {24, 12, 24}, cpm, occ, &why)) << why;
+    const uint32_t F = s.full();
+    const double thin = 1.0 / 64.0;
+    s.fillBox(Mat::Water, {6, 6, 6}, {6, 1, 6}, thin);       // on the block's top
+    s.fillBox(Mat::Water, {12, 0, 6}, {1, 7, 6}, thin);      // down its +x wall
+    s.fillBox(Mat::Water, {13, 0, 6}, {6, 1, 6}, thin);      // out over the floor
+    std::vector<uint8_t> wasWater(24 * 12 * 24, 0);
+    for (int y = 0; y < 12; ++y) for (int z = 0; z < 24; ++z) for (int x = 0; x < 24; ++x)
+        wasWater[size_t(x) + 24 * (size_t(z) + 24 * size_t(y))] = cellFill(s.at({x, y, z})) > 0;
+    ParticleConfig pc = hybridConfig(true);
+    pc.absorbGroupMax = 0;   // a lone drop would be absorbed; this test is about the lift
+    pc.packThinBelow = 0.5f;   // the knob under test (off by default)
+    MatSimParticles ps(pc);
+    ps.mutableParticles().push_back({9.5f, 7.5f, 9.5f, 0.f, -6.f, 0.f, F, Mat::Water});
+    ps.mutableParticles().push_back({9.5f, 8.5f, 9.5f, 0.f, -6.f, 0.f, F, Mat::Water});
+    for (int k = 0; k < 8; ++k) ps.mutableParticles().push_back({8.5f + k % 3, 9.5f + k / 3, 8.5f, 0.f, -6.f, 0.f, F, Mat::Water});   // a 10-particle inflow
+    const uint64_t total = s.ledger()[Mat::Water] + ps.units(Mat::Water);
+    const size_t before = ps.particles().size();
+    const size_t lifted = ps.wake(s);
+    EXPECT_GT(lifted, 0u);
+    size_t bad = 0;
+    for (size_t i = before; i < ps.particles().size(); ++i) {
+        const Particle& q = ps.particles()[i];
+        const int x = int(std::floor(q.x)), y = int(std::floor(q.y)), z = int(std::floor(q.z));
+        const bool ok = x >= 0 && y >= 0 && z >= 0 && x < 24 && y < 12 && z < 24 && wasWater[size_t(x) + 24 * (size_t(z) + 24 * size_t(y))];
+        if (!ok) { ++bad; std::printf("[MatSimParticles] packed particle at (%.2f %.2f %.2f) is not in a cell its water came from\n", q.x, q.y, q.z); }
+    }
+    std::printf("[MatSimParticles] film 1/64 cell over a block and down its wall: %zu cells -> %zu particles, %zu misplaced\n",
+                lifted, ps.particles().size() - before, bad);
+    EXPECT_EQ(bad, 0u);
+    EXPECT_EQ(s.ledger()[Mat::Water] + ps.units(Mat::Water), total);
+}
+
+// 6i: only cells at least wakePressureMinFill full trigger the pressure wake: a part-filled cell is a free surface.
+// Rig: a 2 x 8 x 2-cell column released on an empty floor, 3 CA ticks: its base spreads as a thin film whose cells
+// still read the column's head. Control (knob 0): thin cells trigger too. Full cells at the base trigger in both.
+TEST(MatSimParticles, ThinCellsDoNotTriggerThePressureWake) {
+    const int cpm = 3;
+    size_t trig[2] = {0, 0}, thinCells = 0;
+    for (int k = 0; k < 2; ++k) {
+        std::string why;
+        MatSimCore s;
+        ASSERT_TRUE(s.create({0, 0, 0}, {18, 12, 18}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+        const uint32_t F = s.full();
+        s.fillBox(Mat::Water, {8, 0, 8}, {2, 8, 2}, 1.0);
+        for (int t = 0; t < 3; ++t) s.step(1);
+        if (k == 0)
+            for (int z = 0; z < 18; ++z) for (int x = 0; x < 18; ++x) {
+                const uint32_t f = cellFill(s.at({x, 0, z}));
+                thinCells += f > 0 && f < F / 2;
+            }
+        ParticleConfig pc = hybridConfig(true);
+        pc.wakePressureMinFill = k == 0 ? 0.5f : 0.0f;
+        pc.absorbGroupMax = 0;
+        MatSimParticles ps(pc);
+        const uint64_t total = s.ledger()[Mat::Water];
+        ps.wake(s);
+        trig[k] = ps.lastWakeStats().pressure;
+        EXPECT_EQ(s.ledger()[Mat::Water] + ps.units(Mat::Water), total);
+    }
+    std::printf("[MatSimParticles] column released 3 ticks: %zu thin floor cells; pressure triggers %zu (min fill 0.5) vs %zu (any cell)\n",
+                thinCells, trig[0], trig[1]);
+    ASSERT_GT(thinCells, 0u) << "the rig must have a thin film";
+    EXPECT_LT(trig[0], trig[1]) << "thin cells no longer trigger";
 }

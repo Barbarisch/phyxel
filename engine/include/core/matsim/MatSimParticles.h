@@ -70,6 +70,30 @@ struct ParticleConfig {
     /// (y + fill / 2), not the cell centre. Near-empty cells then start on the floor's boundary particles and get
     /// thrown (see wakeContactMinFill).
     bool liftAtCentroid = false;
+    /// --- 6i speck-fix knobs (2026-11-07): all four REJECTED as defaults (off), kept with their tests. ---
+    /// Measured together on the live-rig replica at 1/3 m vs the old rules: settles by 24 s (old 16 s) and woke 692
+    /// particles under a quarter cell (old 60); in the 1/3 m video the ledge still shows a lattice, of 9 bigger cubes
+    /// instead of ~40 specks. The lattice comes from the CA spreading the film to a uniform depth: any deterministic
+    /// packing of a uniform film tiles. See MaterialSimPlan 6i.
+    /// 6i speck fix: wake() packs a body's cells under this fraction full into particles of about
+    /// one cell's water each (face-connected clusters, at most 2 cells from their seed, grown to >= one cell; a leftover joins the nearest
+    /// particle within 2 cells), placed at the water's horizontal centroid, inside the member cell nearest it, at its centre height.
+    /// 0 = off (one particle per cell: a woken film becomes a grid of sliver particles).
+    float packThinBelow = 0.0f;
+    /// 6i speck fix: only a particle at least this fast (m/s, instantaneous) wakes cell water by contact. A particle at
+    /// rest will settle into the cells itself; letting it wake them made two films on the live-rig ledge lift each other
+    /// in turn forever once packed (replica, 1/3 m: a packed particle resting on the ledge lifted the neighbouring film
+    /// every ~0.5 s from 19 s to the end). 0 = any particle.
+    float wakeContactMinSpeed = 0.0f;
+    /// 6i: a particle GROUP of at most this many members whose particle sits in, or right above, cell water of its
+    /// liquid is absorbed into it (deposited by settle() whatever its speed) and never wakes that body by contact. A drop
+    /// joins a pool or film; whole-body wake stays for real inflows. Replica, 1/3 m, packing on: drips off the ledge
+    /// film re-woke the 2,142-cell pool by contact every ~1 s to the end. 0 = off.
+    int absorbGroupMax = 0;
+    /// 6i: the pressure trigger reads only cells at least this fraction full. A part-filled cell is a free surface: water
+    /// under real head fills its cell. Replica, 1/3 m: a film hanging down the ledge wall, connected to the film on top,
+    /// read as one cell+ of head and was lifted every 2 frames for seconds (659 sliver particles). 0 = any cell.
+    float wakePressureMinFill = 0.0f;
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
 };
 
@@ -105,11 +129,11 @@ public:
     /// or at least a quarter cell over a non-full space) or touches a particle. Uses the core's head
     /// field (pressure must be on). Returns the number of cells lifted.
     size_t wake(MatSimCore& core);
-    struct WakeStats { size_t contact = 0, falling = 0, pressure = 0; };   ///< trigger cells in the last wake()
+    struct WakeStats { size_t contact = 0, falling = 0, pressure = 0, particles = 0, packed = 0; };   ///< trigger cells in the last wake(); particles made; of them packed from thin cells
     const WakeStats& lastWakeStats() const { return wakeStats_; }
     /// Why groups did not settle in the last settle(): groups by blocker, and the largest group.
     struct SettleStats {
-        size_t groups = 0, busySpeed = 0, busyLevel = 0, settled = 0;
+        size_t groups = 0, busySpeed = 0, busyLevel = 0, settled = 0, absorbed = 0;
         size_t bigMembers = 0, bigSlow = 0;      ///< the largest group: members, slow members
         float bigSpread = -1.f;                  ///< its surface spread (cells; < 0 = not measured: busy on speed)
         double msGroups = 0, msSurface = 0, msDeposit = 0;   ///< wall time of the three parts

@@ -226,8 +226,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Ledge "specks" = a thin film lifted one particle per cell. Both quick fixes (`wakeContactMinFill`, `liftAtCentroid`)
       are REJECTED as defaults: near-empty particles blew up or never settled on `DISABLED_LiveRigReplica`, though the
       unit and GPU tests passed. Run the replica A/B on any wake or lift change.
-    - **Next:** keep the hybrid on the device (1/9 m live ~241 ms a tick: CA ~80 on the CPU), a mass-packing lift for thin
-      cells, then a region-limited wake.
+    - **Packing lift (2026-11-07), REJECTED as a default:** four knobs, all off (`packThinBelow`, `wakeContactMinSpeed`,
+      `absorbGroupMax`, `wakePressureMinFill`), each with a red-first test. All on at 1/3 m, the ledge still shows a
+      grid, now of bigger cubes (`docs/evidence/matsim_video/speckfix_ledge_old_vs_packed.png`). The replica settled
+      later (24 vs 16 s) with more slivers (692 vs 60). The lattice comes from the CA spreading films to a uniform depth;
+      the fix is a CA thin-film rule. See MaterialSimPlan 6i.
+    - **Next:** a CA thin-film rule (minimum film depth), keep the hybrid on the device (1/9 m live ~241 ms a tick: CA ~80
+      on the CPU), then a region-limited wake.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
     - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then

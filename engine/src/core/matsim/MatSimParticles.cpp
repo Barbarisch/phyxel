@@ -565,6 +565,23 @@ size_t MatSimParticles::settle(MatSimCore& core) {
             }
         if (!groupBusy[big] || hi[big] >= lo[big]) settleStats_.bigSpread = hi[big] >= lo[big] ? hi[big] - lo[big] : 0.f;
     }
+    // Absorb: a small group with a particle in, or right above, cell water of its liquid deposits now (absorbGroupMax).
+    if (cfg_.absorbGroupMax > 0)
+        for (size_t i = 0; i < n; ++i) {
+            const uint32_t r = g[i];
+            if (!groupBusy[r] || members[r] > uint32_t(cfg_.absorbGroupMax)) continue;
+            const Particle& q = p_[i];
+            const int x = floorI(q.x), y = floorI(q.y), z = floorI(q.z);
+            bool wet = false;
+            for (int yy = y; yy >= y - 1 && !wet; --yy) {
+                if (!core.inBox({x, yy, z})) continue;
+                const Cell c = core.at({x, yy, z});
+                wet = cellMaterial(c) == q.mat && cellFill(c) > 0;
+            }
+            if (!wet) continue;
+            groupBusy[r] = 0;
+            ++settleStats_.absorbed;
+        }
     settleStats_.msSurface = std::chrono::duration<double, std::milli>(Clock::now() - tA).count();
     tA = Clock::now();
     // Level deposit: each settling group's water (its particles plus any cell water already in its
@@ -658,7 +675,8 @@ size_t MatSimParticles::settle(MatSimCore& core) {
         }
         for (size_t i = 0; i < n; ++i) if (g[i] == r) gone[i] = 1;
     }
-    settleStats_.settled = settleStats_.groups - settleStats_.busySpeed - settleStats_.busyLevel;
+    settleStats_.settled = 0;
+    for (size_t r = 0; r < n; ++r) if (members[r] && !groupBusy[r]) ++settleStats_.settled;
     settleStats_.msDeposit = std::chrono::duration<double, std::milli>(Clock::now() - tA).count();
     size_t k = 0;
     for (size_t i = 0; i < n; ++i) { if (gone[i]) { ++removed; continue; } p_[k++] = p_[i]; }
@@ -696,7 +714,19 @@ size_t MatSimParticles::wake(MatSimCore& core) {
     const size_t N = size_t(n.x) * n.y * n.z;
     static const int kD[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
     std::vector<uint8_t> nearP(N, 0);
-    for (const Particle& q : p_) {
+    const float vMin = cfg_.wakeContactMinSpeed * float(core.cellsPerM());
+    // Small groups (drops) are absorbed by settle() instead of waking what they touch (absorbGroupMax).
+    std::vector<uint32_t> gsz;
+    std::vector<uint32_t> grp;
+    if (cfg_.absorbGroupMax > 0 && !p_.empty()) {
+        grp = groups(core);
+        gsz.assign(p_.size(), 0);
+        for (uint32_t r : grp) ++gsz[r];
+    }
+    for (size_t qi = 0; qi < p_.size(); ++qi) {
+        const Particle& q = p_[qi];
+        if (vMin > 0.f && q.vx * q.vx + q.vy * q.vy + q.vz * q.vz < vMin * vMin) continue;   // at rest: it settles itself
+        if (!grp.empty() && gsz[grp[qi]] <= uint32_t(cfg_.absorbGroupMax)) continue;          // a drop: absorbed, not a wake
         const int cx = floorI(q.x) - o.x, cy = floorI(q.y) - o.y, cz = floorI(q.z) - o.z;
         for (int dy = -1; dy <= 1; ++dy)
             for (int dz = -1; dz <= 1; ++dz)
@@ -726,7 +756,7 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                     ++wakeStats_.falling;
                 }
                 const uint32_t hw = head.empty() ? 0u : (head[idx(lx, ly, lz)] & kHeadMask);
-                if (!go && hw != 0)
+                if (!go && hw != 0 && double(cellFill(c)) >= double(cfg_.wakePressureMinFill) * F)
                     for (const auto& d : kD) {
                         const IVec3 nw{w.x + d[0], w.y + d[1], w.z + d[2]};
                         if (!core.inBox(nw)) continue;
@@ -766,18 +796,102 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                 }
             }
     size_t lifted = 0;
+    const size_t first = p_.size();
+    const uint32_t thin = uint32_t(double(cfg_.packThinBelow) * F);
+    // Cells at least packThinBelow full: one particle each (at the cell centre, or the water's
+    // centroid under liftAtCentroid, rejected as a default; see the config).
     for (int ly = 0; ly < n.y; ++ly)
         for (int lz = 0; lz < n.z; ++lz)
             for (int lx = 0; lx < n.x; ++lx) {
                 if (!lift[idx(lx, ly, lz)]) continue;
                 const IVec3 w{o.x + lx, o.y + ly, o.z + lz};
                 const Cell c = core.at(w);
-                // At the cell centre, or the water's centroid under liftAtCentroid (rejected as a default; see the config).
+                if (cellFill(c) < thin) continue;
                 p_.push_back({w.x + 0.5f, w.y + (cfg_.liftAtCentroid ? 0.5f * float(cellFill(c)) / float(F) : 0.5f), w.z + 0.5f, 0.f, 0.f, 0.f, cellFill(c), cellMaterial(c),
                               0.f, 0.f, 0.f, 0.f});
                 core.setCell(w, kEmpty, 0);
+                lift[idx(lx, ly, lz)] = 0;
                 ++lifted;
             }
+    // Thin cells (the rest of the mask): packed into particles of about one cell's water. A cluster grows
+    // breadth-first through face-connected thin cells of one liquid until it holds >= F units; it becomes one
+    // particle at the units-weighted mean of its cells' centres (a film's particle sits at the cell centre
+    // height, its rest height on the floor). A leftover under F joins the nearest particle of this wake within
+    // 2 cells if that keeps it <= 2F, else lifts as itself. Deterministic: seeds in index order.
+    constexpr int kPackR = 2;           // cluster radius (cells, Chebyshev) around its seed
+    std::vector<uint8_t> state(N, 0);   // 0 free, 1 queued, 2 taken
+    std::vector<size_t> queue, members;
+    for (int ly = 0; ly < n.y; ++ly)
+        for (int lz = 0; lz < n.z; ++lz)
+            for (int lx = 0; lx < n.x; ++lx) {
+                const size_t s0 = idx(lx, ly, lz);
+                if (!lift[s0] || state[s0] == 2) continue;
+                const uint8_t m = cellMaterial(core.at({o.x + lx, o.y + ly, o.z + lz}));
+                queue.assign(1, s0);
+                members.clear();
+                state[s0] = 1;
+                uint64_t u = 0;
+                double sx = 0, sy = 0, sz = 0;
+                size_t head = 0;
+                while (head < queue.size() && u < F) {
+                    const size_t q = queue[head++];
+                    const int qx = int(q % size_t(n.x)), qz = int((q / size_t(n.x)) % size_t(n.z)), qy = int(q / (size_t(n.x) * size_t(n.z)));
+                    const IVec3 w{o.x + qx, o.y + qy, o.z + qz};
+                    const uint32_t f = cellFill(core.at(w));
+                    state[q] = 2;
+                    members.push_back(q);
+                    u += f;
+                    sx += double(f) * (w.x + 0.5); sy += double(f) * (w.y + 0.5); sz += double(f) * (w.z + 0.5);
+                    core.setCell(w, kEmpty, 0);
+                    ++lifted;
+                    for (const auto& d : kD) {
+                        const int x = qx + d[0], y = qy + d[1], z = qz + d[2];
+                        if (x < 0 || y < 0 || z < 0 || x >= n.x || y >= n.y || z >= n.z) continue;
+                        const size_t j = idx(x, y, z);
+                        if (!lift[j] || state[j] != 0 || cellMaterial(core.at({o.x + x, o.y + y, o.z + z})) != m) continue;
+                        // Bounded: within packRadius cells of the seed, so a cluster cannot follow a film down a wall
+                        // and put its centroid inside the solid it runs over (measured: the live-rig ledge, y 53.5).
+                        if (std::abs(x - lx) > kPackR || std::abs(y - ly) > kPackR || std::abs(z - lz) > kPackR) continue;
+                        state[j] = 1;
+                        queue.push_back(j);
+                    }
+                }
+                for (size_t k = head; k < queue.size(); ++k) state[queue[k]] = 0;   // not taken: free again
+                if (u == 0) continue;
+                float cx = float(sx / double(u)), cy = float(sy / double(u)), cz = float(sz / double(u));
+                {   // the particle starts inside one of its own cells (the one nearest the centroid), at its centre height
+                    size_t bm = members[0];
+                    float bd2 = 1e30f;
+                    for (size_t q : members) {
+                        const float mx = float(o.x + int(q % size_t(n.x))) + 0.5f, my = float(o.y + int(q / (size_t(n.x) * size_t(n.z)))) + 0.5f,
+                                    mz = float(o.z + int((q / size_t(n.x)) % size_t(n.z))) + 0.5f;
+                        const float d2 = (mx - cx) * (mx - cx) + (my - cy) * (my - cy) + (mz - cz) * (mz - cz);
+                        if (d2 < bd2) { bd2 = d2; bm = q; }
+                    }
+                    const float bx = float(o.x + int(bm % size_t(n.x))), by = float(o.y + int(bm / (size_t(n.x) * size_t(n.z)))),
+                                bz = float(o.z + int((bm / size_t(n.x)) % size_t(n.z)));
+                    cx = std::clamp(cx, bx + 0.05f, bx + 0.95f);
+                    cz = std::clamp(cz, bz + 0.05f, bz + 0.95f);
+                    cy = by + 0.5f;
+                }
+                if (u < F) {
+                    size_t best = SIZE_MAX;
+                    float bd = 4.0f;   // (2 cells)^2
+                    for (size_t i = first; i < p_.size(); ++i) {
+                        const Particle& t = p_[i];
+                        if (t.mat != m || uint64_t(t.units) + u > 2ull * F) continue;
+                        const float dx = t.x - cx, dy = t.y - cy, dz = t.z - cz, d2 = dx * dx + dy * dy + dz * dz;
+                        if (d2 <= bd) { bd = d2; best = i; }
+                    }
+                    if (best != SIZE_MAX) {
+                        p_[best].units += uint32_t(u);
+                        continue;
+                    }
+                }
+                p_.push_back({cx, cy, cz, 0.f, 0.f, 0.f, uint32_t(u), m, 0.f, 0.f, 0.f, 0.f});
+                ++wakeStats_.packed;
+            }
+    wakeStats_.particles = p_.size() - first;
     return lifted;
 }
 
