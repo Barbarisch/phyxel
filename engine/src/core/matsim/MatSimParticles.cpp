@@ -9,6 +9,10 @@
 #include <climits>
 #include <cstdio>
 #include <string>
+#include <thread>
+#include <functional>
+#include <condition_variable>
+#include <mutex>
 #include <deque>
 #include <map>
 #include <set>
@@ -17,6 +21,64 @@
 namespace Phyxel::Core::MatSim {
 
 namespace {
+
+// 6l: a persistent pool for the wake scan (spawning 15 threads a wake cost ~2 ms, more than the scan). run(k, fn)
+// calls fn(0..k-1), task 0 on the caller, and returns when all are done. One caller at a time (the mutex).
+class ScanPool {
+public:
+    static ScanPool& get() { static ScanPool p; return p; }
+    size_t workers() const { return threads_.size(); }
+    void run(size_t k, const std::function<void(size_t)>& fn) {
+        std::lock_guard<std::mutex> one(callerMu_);
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            fn_ = &fn;
+            tasks_ = k;
+            next_ = 1;
+            left_ = k - 1;
+            ++gen_;
+        }
+        cv_.notify_all();
+        fn(0);
+        std::unique_lock<std::mutex> lk(mu_);
+        done_.wait(lk, [&] { return left_ == 0; });
+        fn_ = nullptr;
+    }
+private:
+    ScanPool() {
+        const unsigned hw = std::max(1u, std::thread::hardware_concurrency());
+        for (unsigned i = 1; i < std::min(hw, 16u); ++i) threads_.emplace_back([this] { loop(); });
+    }
+    ~ScanPool() {
+        { std::lock_guard<std::mutex> lk(mu_); stop_ = true; }
+        cv_.notify_all();
+        for (std::thread& t : threads_) t.join();
+    }
+    void loop() {
+        uint64_t seen = 0;
+        std::unique_lock<std::mutex> lk(mu_);
+        for (;;) {
+            cv_.wait(lk, [&] { return stop_ || (gen_ != seen && next_ < tasks_); });
+            if (stop_) return;
+            while (next_ < tasks_) {
+                const size_t t = next_++;
+                const std::function<void(size_t)>* fn = fn_;
+                lk.unlock();
+                (*fn)(t);
+                lk.lock();
+                if (--left_ == 0) done_.notify_one();
+            }
+            seen = gen_;
+        }
+    }
+    std::vector<std::thread> threads_;
+    std::mutex callerMu_, mu_;
+    std::condition_variable cv_, done_;
+    const std::function<void(size_t)>* fn_ = nullptr;
+    size_t tasks_ = 0, next_ = 0, left_ = 0;
+    uint64_t gen_ = 0;
+    bool stop_ = false;
+};
 constexpr float kPi = 3.14159265358979f;
 
 bool isLiquid(uint8_t m) {
@@ -809,8 +871,16 @@ size_t MatSimParticles::wake(MatSimCore& core) {
     const size_t strideY = size_t(n.x) * size_t(n.z), strideZ = size_t(n.x);
     const double contactMin = double(cfg_.wakeContactMinFill) * F, pressMin = double(cfg_.wakePressureMinFill) * F,
                  roomMin = double(cfg_.wakePressureMinRoom) * F;
-    auto testCell = [&](int lx, int ly, int lz) {
-                ++wakeStats_.scannedCells;
+    // 6l: the scan runs on threads when it is large. Each thread takes a contiguous run of scan units (in scan
+    // order) and its own accumulator; the accumulators merge in order, so counts and the first-8 pressure list
+    // equal the serial scan's (testCell writes only its own trig[i]).
+    struct ScanAcc {
+        size_t contact = 0, falling = 0, pressure = 0, scanned = 0;
+        std::vector<PressureTrigger> first;
+        bool any = false;
+    };
+    auto testCell = [&](ScanAcc& a, int lx, int ly, int lz) {
+                ++a.scanned;
                 const size_t i = idx(lx, ly, lz);
                 const Cell c = C[i];
                 const uint8_t m = cellMaterial(c);
@@ -818,13 +888,13 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                 if (!isLiquid(m) || cf == 0) return;
                 // Contact wakes a cell at least wakeContactMinFill full (default 0: any contact; see the config).
                 bool go = nearP[i] != 0 && double(cf) >= contactMin;
-                if (go) ++wakeStats_.contact;
+                if (go) ++a.contact;
                 // Falling: at least half a cell over an EMPTY cell (outside the box reads SOLID). A cell over a
                 // part-filled one is the CA's one-tick gravity job; counting it re-woke settled bodies every ~1 s
                 // (4-18 trigger cells per cycle, WakeUTubeFromCells timeline).
                 if (!go && ly > 0 && cf >= F / 2 && cellMaterial(C[i - strideY]) == kEmpty && !(!heldP.empty() && heldP[i - strideY])) {
                     go = true;
-                    ++wakeStats_.falling;
+                    ++a.falling;
                 }
                 const uint32_t hw = head.empty() ? 0u : (head[i] & kHeadMask);
                 if (!go && hw != 0 && double(cf) >= pressMin)
@@ -843,19 +913,19 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                         const uint32_t ex = uint32_t(ny) * F + (xm == kEmpty ? F : cellFill(x));
                         if (hw - 1 > ex + thr) {
                             go = true;
-                            ++wakeStats_.pressure;
+                            ++a.pressure;
                             const IVec3 w{o.x + lx, o.y + ly, o.z + lz};
-                            if (wakeStats_.firstPressure.size() < 8)
-                                wakeStats_.firstPressure.push_back({w, {o.x + nx, o.y + ny, o.z + nz}, hw, ex, cf, cellFill(x)});
+                            if (a.first.size() < 8) a.first.push_back({w, {o.x + nx, o.y + ny, o.z + nz}, hw, ex, cf, cellFill(x)});
                             break;
                         }
                     }
-                if (go) { trig[i] = 1; any = true; }
+                if (go) { trig[i] = 1; a.any = true; }
     };
+    // Scan units, in scan order: local boxes [lo, hi). Full scan: one per layer; skip-quiet: one per scanned brick.
+    struct Unit { int x0, y0, z0, x1, y1, z1; };
+    std::vector<Unit> units;
     if (!cfg_.wakeSkipQuiet) {
-        for (int ly = 0; ly < n.y; ++ly)
-            for (int lz = 0; lz < n.z; ++lz)
-                for (int lx = 0; lx < n.x; ++lx) testCell(lx, ly, lz);
+        for (int ly = 0; ly < n.y; ++ly) units.push_back({0, ly, 0, n.x, ly + 1, n.z});
     } else {
         // 6k: only bricks that changed in the last two ticks or hold a particle, dilated by one brick.
         const IVec3 bd = core.brickDim(), bl = core.brickLo();
@@ -887,10 +957,47 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                     const int x0 = std::max(o.x, (bl.x + X) * 8), x1 = std::min(o.x + n.x, (bl.x + X) * 8 + 8);
                     const int y0 = std::max(o.y, (bl.y + Y) * 8), y1 = std::min(o.y + n.y, (bl.y + Y) * 8 + 8);
                     const int z0 = std::max(o.z, (bl.z + Z) * 8), z1 = std::min(o.z + n.z, (bl.z + Z) * 8 + 8);
-                    for (int y = y0; y < y1; ++y)
-                        for (int z = z0; z < z1; ++z)
-                            for (int x = x0; x < x1; ++x) testCell(x - o.x, y - o.y, z - o.z);
+                    if (x0 < x1 && y0 < y1 && z0 < z1) units.push_back({x0 - o.x, y0 - o.y, z0 - o.z, x1 - o.x, y1 - o.y, z1 - o.z});
                 }
+    }
+    auto runUnits = [&](ScanAcc& a, size_t u0, size_t u1) {
+        for (size_t u = u0; u < u1; ++u) {
+            const Unit& b = units[u];
+            for (int y = b.y0; y < b.y1; ++y)
+                for (int z = b.z0; z < b.z1; ++z)
+                    for (int x = b.x0; x < b.x1; ++x) testCell(a, x, y, z);
+        }
+    };
+    size_t cellsToScan = 0;
+    for (const Unit& b : units) cellsToScan += size_t(b.x1 - b.x0) * size_t(b.y1 - b.y0) * size_t(b.z1 - b.z0);
+    size_t threads = cfg_.wakeScanThreads > 0 ? size_t(cfg_.wakeScanThreads) : ScanPool::get().workers() + 1;
+    threads = std::min<size_t>({threads, 16, units.size()});
+    if (cellsToScan < cfg_.wakeScanParallelMin) threads = 1;
+    std::vector<ScanAcc> accs(std::max<size_t>(1, threads));
+    if (threads <= 1) {
+        runUnits(accs[0], 0, units.size());
+    } else {
+        // Contiguous runs of about equal cell counts.
+        std::vector<size_t> cut(threads + 1, units.size());
+        cut[0] = 0;
+        size_t acc = 0, k = 1;
+        for (size_t u = 0; u < units.size() && k < threads; ++u) {
+            const Unit& b = units[u];
+            acc += size_t(b.x1 - b.x0) * size_t(b.y1 - b.y0) * size_t(b.z1 - b.z0);
+            if (acc * threads >= cellsToScan * k) cut[k++] = u + 1;
+        }
+        // Tasks are the runs; the pool may run several on one worker (fewer workers than runs): still exact.
+        ScanPool::get().run(threads, [&](size_t t) { runUnits(accs[t], cut[t], cut[t + 1]); });
+    }
+    wakeStats_.scanThreads = threads;
+    for (const ScanAcc& a : accs) {
+        wakeStats_.contact += a.contact;
+        wakeStats_.falling += a.falling;
+        wakeStats_.pressure += a.pressure;
+        wakeStats_.scannedCells += a.scanned;
+        for (const PressureTrigger& t : a.first)
+            if (wakeStats_.firstPressure.size() < 8) wakeStats_.firstPressure.push_back(t);
+        any = any || a.any;
     }
     auto wt2 = WClock::now();
     wakeStats_.scanMs = wms(wt1, wt2);

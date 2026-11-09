@@ -1148,3 +1148,107 @@ TEST(MatSimParticles, WakeSkipQuietEqualsTheFullScan) {
         EXPECT_GT(lifted, 0u) << "the rig must exercise the wake";
     }
 }
+
+// 6l cost: the wake scan on threads (wakeScanThreads). Claim: identical to the serial scan, counts, the first-8
+// pressure list and so every lift, on both scan paths (full, skip-quiet). Two runs in lockstep, serial vs 7 threads
+// (an odd count: uneven runs), threads forced on with wakeScanParallelMin 0: the regional pool drop and the
+// whole-body U-tube, 1/3 m.
+TEST(MatSimParticles, WakeScanThreadsEqualSerial) {
+    const int cpm = 3;
+    for (int skipQuiet = 0; skipQuiet < 2; ++skipQuiet)
+        for (int rig = 0; rig < 2; ++rig) {
+            MatSimCore s[2];
+            std::vector<MatSimParticles> own;
+            own.reserve(2);
+            for (int k = 0; k < 2; ++k) {
+                ParticleConfig pc = hybridConfig(true);
+                if (rig == 0) {
+                    std::string why;
+                    ASSERT_TRUE(s[k].create({0, 0, 0}, {12 * cpm, 3 * cpm, 12 * cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+                    s[k].fillBox(Mat::Water, {0, 0, 0}, {12 * cpm, cpm, 12 * cpm}, 1.0);
+                    s[k].fillBox(Mat::Water, {17, 6, 17}, {2, 2, 2}, 1.0);
+                    pc.wakeRadiusM = 1.0f;
+                    pc.wakeContactMinSpeed = 0.5f;
+                    pc.caSeesParticles = pc.wakeContactAveraged = true;
+                    pc.spongeTau = 0.1f;
+                    pc.wakePressureMinRoom = 0.5f;
+                } else {
+                    s[k] = uTube(cpm);
+                    s[k].config().pressure = true;
+                }
+                pc.wakeSkipQuiet = skipQuiet != 0;
+                pc.wakeScanThreads = k == 0 ? 1 : 7;
+                pc.wakeScanParallelMin = 0;
+                own.emplace_back(pc);
+            }
+            size_t lifted = 0, threadedFrames = 0, pressureSeen = 0;
+            for (int f = 0; f < 4 * 60; ++f) {
+                const size_t a = own[0].wake(s[0]), b = own[1].wake(s[1]);
+                ASSERT_EQ(a, b) << "skipQuiet " << skipQuiet << " rig " << rig << " frame " << f;
+                const auto &wa = own[0].lastWakeStats(), &wb = own[1].lastWakeStats();
+                ASSERT_EQ(wa.contact, wb.contact) << "frame " << f;
+                ASSERT_EQ(wa.falling, wb.falling) << "frame " << f;
+                ASSERT_EQ(wa.pressure, wb.pressure) << "frame " << f;
+                ASSERT_EQ(wa.scannedCells, wb.scannedCells) << "frame " << f;
+                ASSERT_EQ(wa.firstPressure.size(), wb.firstPressure.size()) << "frame " << f;
+                for (size_t i = 0; i < wa.firstPressure.size(); ++i) {
+                    ASSERT_TRUE(wa.firstPressure[i].cell == wb.firstPressure[i].cell) << "frame " << f << " entry " << i;
+                    ASSERT_TRUE(wa.firstPressure[i].nb == wb.firstPressure[i].nb) << "frame " << f << " entry " << i;
+                }
+                if (wb.scanThreads > 1) ++threadedFrames;
+                pressureSeen += wa.pressure;
+                lifted += a;
+                for (int k = 0; k < 2; ++k) {
+                    own[k].step(s[k], 1.0 / 60.0);
+                    own[k].settle(s[k]);
+                    own[k].stepCells(s[k]);
+                }
+                ASSERT_EQ(own[0].particles().size(), own[1].particles().size()) << "frame " << f;
+                ASSERT_EQ(cellHash(s[0]), cellHash(s[1])) << "frame " << f;
+            }
+            std::printf("[MatSimParticles] wake scan 7 threads vs serial, %s, rig %s: 240 frames identical (%zu threaded), "
+                        "%zu cells lifted, %zu pressure triggers\n", skipQuiet ? "skip-quiet" : "full scan",
+                        rig == 0 ? "regional pool drop" : "whole-body U-tube", threadedFrames, lifted, pressureSeen);
+            EXPECT_GT(lifted, 0u) << "the rig must exercise the wake";
+            EXPECT_GT(threadedFrames, 10u) << "control: the threaded scan must have run";
+        }
+    // The order of the first-8 pressure list: the rigs above never put pressure triggers in two threads' runs in one
+    // frame (merging the runs in reverse passed them). Here a lidded water layer 3 cells deep is fed by a chimney 12
+    // cells tall in one corner, and empty holes punched at y 0, 1 and 2 under the lid each trigger their full
+    // neighbours in one frame, in different runs (full scan: one unit per layer).
+    {
+        std::string why;
+        MatSimCore base;
+        auto solid = [](int mx, int my, int mz) { return (my >= 9 && my < 12 && !(mx < 9 && mz < 9)) ? Occ::Solid : Occ::Empty; };
+        ASSERT_TRUE(base.create({0, 0, 0}, {36, 14, 36}, cpm, solid, &why)) << why;
+        base.config().pressure = true;
+        base.fillBox(Mat::Water, {0, 0, 0}, {36, 3, 36}, 1.0);
+        base.fillBox(Mat::Water, {0, 3, 0}, {3, 9, 3}, 1.0);
+        base.step(120);   // heads reach the far corner under the lid
+        for (int y = 0; y < 3; ++y)
+            for (int h = 0; h < 2; ++h) base.setCell({10 + 12 * h, y, 10 + 8 * y}, kEmpty, 0);
+        uint64_t got[2] = {0, 0};
+        std::vector<MatSimParticles::PressureTrigger> first[2];
+        for (int k = 0; k < 2; ++k) {
+            MatSimCore c = base;
+            ParticleConfig pc = hybridConfig(true);
+            pc.wakeScanThreads = k == 0 ? 1 : 7;
+            pc.wakeScanParallelMin = 0;
+            MatSimParticles ps(pc);
+            got[k] = ps.wake(c);
+            first[k] = ps.lastWakeStats().firstPressure;
+            if (k == 1) {
+                EXPECT_GT(ps.lastWakeStats().scanThreads, 1u);
+                std::printf("[MatSimParticles] wake scan threads, lidded holes: %zu pressure triggers, first %d,%d,%d\n",
+                            ps.lastWakeStats().pressure, first[k].empty() ? -1 : first[k][0].cell.x,
+                            first[k].empty() ? -1 : first[k][0].cell.y, first[k].empty() ? -1 : first[k][0].cell.z);
+                EXPECT_GE(ps.lastWakeStats().pressure, 12u) << "the holes must trigger at several heights";
+            }
+        }
+        EXPECT_EQ(got[0], got[1]);
+        ASSERT_EQ(first[0].size(), first[1].size());
+        EXPECT_EQ(first[0].size(), 8u);
+        for (size_t i = 0; i < first[0].size(); ++i)
+            EXPECT_TRUE(first[0][i].cell == first[1][i].cell && first[0][i].nb == first[1][i].nb) << "first-8 entry " << i;
+    }
+}

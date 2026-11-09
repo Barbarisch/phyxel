@@ -1850,7 +1850,41 @@ next upload, so that upload re-sends what the device holds.
 - Release, levelling tail: CA 5.6-7.1 -> 3.8-4.5 ms (upload 0). Outcomes unchanged (peak
   1,632, all cells at 1.5 s, ledger exact).
 
-Still open: the download (~3.5 ms: copy, the host copies out of staging, `adoptStepped`'s moves);
+**The download in place (2026-11-08).** `MatSimCore::adoptSteppedFrom` takes raw arrays (validates
+the pointers first, then copies into the core's own storage); `MatSimGpu::download` hands it the
+staging memory, so no vectors are allocated. The pool-drop test now averages the tail over every
+sample whose 6 ticks all stepped on the device (a sample with a host tick in it is counted as
+"mixed" and left out: the earlier whole-body "10 ms" was such samples, a host tick timed as the
+device's). A/B, Release, 3 runs each, regional, levelling tail:
+
+| download | host+adopt ms | tail CA ms |
+|---|---|---|
+| vectors + `adoptStepped` (before) | 2.6-3.0 | 5.7-6.4 |
+| in place (`adoptSteppedFrom`) | 1.15-1.4 | 3.4-4.1 |
+
+The tail tick is now wake ~4.2 + CA ~3.4-4.1 ms (download copy ~2, host+adopt ~1.2, upload 0,
+device step 0.05).
+
+**The wake scan on threads (2026-11-08).** `ParticleConfig::wakeScanThreads` (0 = auto) and
+`wakeScanParallelMin` (65,536 cells). The scan is cut into units in scan order (a layer for the
+full scan, a brick for skip-quiet), contiguous runs of about equal cell counts go to a persistent
+pool (`ScanPool`, up to 15 workers + the caller), each with its own accumulator, merged in run order:
+counts, the first-8 pressure list and every lift equal the serial scan's.
+
+- `WakeScanThreadsEqualSerial`: serial vs 7 threads in lockstep, both scan paths x (regional pool
+  drop, whole-body U-tube), 240 frames each, all identical; plus a lidded layer under a chimney
+  with holes at three heights (28 pressure triggers in one frame across runs). Mutation: merging
+  the runs in reverse passed the four lockstep rigs (their triggers never span two runs in a
+  frame) and failed the lidded rig on all 8 entries, which is why it exists.
+- First version spawned threads each wake: scan 2.1-2.6 ms whatever its size (15 spawns + joins
+  were the cost). The pool: scan 0.4-0.9 ms for 100-280k cells (32 hardware threads here).
+- Release, levelling tail, 3 runs: wake 4.1-4.3 -> 0.92-0.96 ms (regional), 1.7 -> 0.5 ms
+  (whole-body); CA 2.1-2.4 ms (download copy 1.2, host+adopt 0.8-1.0).
+
+**Where 6l's cost work leaves the 1/9 m levelling tail tick (Release): ~19 ms -> ~3.3 ms** (wake
+13.7 -> 0.9, CA 6 -> 2.3; pressure pass on the host only when the box is quiet).
+
+Still open: the download copy (~1.2 ms);
 the wake only needs cells, heads and marks, the pointers only before a host step. An exact scan
 skip while the ripple runs; the whole-body wake's `groups()` (6 ms at 105k particles); the limit
 cycle.

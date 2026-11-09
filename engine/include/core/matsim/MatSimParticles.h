@@ -121,6 +121,11 @@ struct ParticleConfig {
     /// ticks would have fired already and been lifted, so the result equals the full scan (pinned per tick by
     /// WakeSkipQuietEqualsTheFullScan). Measured: the full scan cost ~47 ms a tick at 1/9 m (Debug), at rest too. false = full scan.
     bool wakeSkipQuiet = false;
+    /// 6l cost: the wake scan's threads (0 = hardware_concurrency, capped at 16; 1 = serial) and the fewest cells to
+    /// scan before threads are used. Exact either way: contiguous runs in scan order, merged in order
+    /// (WakeScanThreadsEqualSerial).
+    int wakeScanThreads = 0;
+    size_t wakeScanParallelMin = 65536;
     int spongeCells = 2;
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
 };
@@ -167,6 +172,7 @@ public:
         size_t contact = 0, falling = 0, pressure = 0, particles = 0, packed = 0;
         std::vector<PressureTrigger> firstPressure;
         size_t scannedCells = 0;                                   ///< 6l: cells testCell visited
+        size_t scanThreads = 0;                                    ///< 6l: threads the scan ran on
         double prepMs = 0, scanMs = 0, liftMs = 0, packMs = 0;     ///< 6l: wall time by phase (prep = contact/held masks, groups)
     };   ///< trigger cells in the last wake(); particles made; of them packed from thin cells
     const WakeStats& lastWakeStats() const { return wakeStats_; }

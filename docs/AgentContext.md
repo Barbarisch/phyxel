@@ -272,7 +272,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     - **6l: the device CA skips a current upload** (`MatSimCore::generation()`, globally unique; `MatSimGpu` records it
       at download, forgets it at step). The device step is 0.05 ms; the rest was transfer. Tail CA 5.6-7.1 -> 3.8-4.5 ms.
       Lockstep test covers it (233 skips) + two mutations caught.
-    - **Next:** the device CA download (~3.5 ms; pointers only needed before a host step); fused particle kernels;
+    - **6l: download in place** (`MatSimCore::adoptSteppedFrom`, no allocation): host+adopt 2.6-3.0 -> 1.2 ms; tail CA 3.4-4.1 ms.
+      Tail tick now ~wake 4.2 + CA ~3.8 ms (was ~19 ms at the start of 6l's cost work).
+    - **6l: the wake scan on a persistent thread pool** (`wakeScanThreads`, exact: merged in scan order, lidded-holes rig
+      pins the order). Tail wake 4.2 -> 0.9 ms. **1/9 m levelling tail tick ~19 -> ~3.3 ms (Release).**
+    - **Next:** the 1/9 m tail is no longer the bottleneck; the moving phase is (particle step floor ~3.5 ms, the
+      whole-body wake's groups() 6 ms at 105k particles); fused particle kernels; download copy (~1.2 ms);
       the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
       floor+absorb pair at 1/3 m, the pressure-rule cycle.
     - ⚠️ GPU MatSim tests find `shaders/*.spv` relative to the working directory: run them from the repo root.
