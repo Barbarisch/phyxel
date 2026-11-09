@@ -12791,7 +12791,7 @@ with like (the bisect ran both sides with the bench up).
   The stall is cut 1.3-2.5x live but **not gone**, and the MEAN while a patch lives fell: the cost is now spread over its first ~4 s -
   traced live on the 150 m lake: the margin's tile wakes (up to 42 ms a call), the record tiles' surfaces rebuilt round each woken tile
   (up to 27.5 ms), the command recording (up to 10 ms); 4-20 s after, the water's CPU is ~1.5 ms a frame at ~240 fps. 51.2's problem
-  (3) - ~20 ms of CPU after a big patch sleeps - was the patch still asleep-ing inside that window: at rest the 150 m lake costs 0.03 ms.
+  (3) - ~20 ms of CPU after a big patch sleeps - was the patch still going back to sleep inside that window: at rest the 150 m lake costs 0.03 ms.
   **Next:** the tile wake's cost (one tile ~10-20 ms: its seed's residency and pool grows, the record surfaces it rebuilds) - then the
   owner's clip.
 
