@@ -1889,6 +1889,24 @@ the wake only needs cells, heads and marks, the pointers only before a host step
 skip while the ripple runs; the whole-body wake's `groups()` (6 ms at 105k particles); the limit
 cycle.
 
+**The live rig's dam break, filmed (2026-11-09; Release, MatSimLab project, port 8120; the rig is hand-placed,
+`tools/matsim_hybrid_video.py --cpm 9 --wake-radius 1 --hybrid-ca auto`; video + per-frame stats
+`docs/evidence/matsim_video/hybrid_9_wakeR1_caauto.{mp4,json,srt}`).** Prediction: the regional wake keeps the lift
+near the disturbance. Result: it does not, here, because the whole rig moves. The U-tube is filled with uneven arms
+on purpose, so it lifts before the dam goes. With R = 1 m the lift grows over a second (50 k -> 204 k particles,
+-0.8 -> -0.13 s) instead of at once, and then matches the whole-body videos:
+- particles in flight, sim time: 0.03 s 224 k; 5 s 257 k; 20 s 262 k; 25 s 59 k; 35 s 0.9 k.
+  Whole-body `hybrid_9.json`: 257 k, 258 k, 259 k, 53 k at 30 s, 0 at 35 s. Same two-stage return.
+- The ledger is exact at every sample. The CA ran on the device for 2,206 ticks and on the host for 6.
+- Control: the same rig with `hybrid_ca cpu` for 1 s gives the same counts, to the particle (223,610 at 0.033 s).
+  The device CA changes cost only.
+- Release tick while about 260 k particles are in flight: step 300-490 ms, CA 130-150 ms, settle 30-80 ms,
+  wake 25-38 ms. The 3.3 ms levelling tail (pool drop) is not this scene's cost. Wall time was 1,985 s for 37 s of
+  sim; the whole-body video took 1,519 s. That is one run each, with screenshots included, so it is not a measured
+  regression.
+- The water looks calm by about 20 s (frames), but particles return to cells only at about 23 s and 33 s. In a scene
+  where everything moves, **settling, not the wake, decides the cost**.
+
 ## 7. Working alongside the other sessions
 
 - **Code lives in a separate git worktree and branch** (`feat/matsim-lab`, off `main`), with its

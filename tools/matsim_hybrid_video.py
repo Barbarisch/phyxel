@@ -33,9 +33,10 @@ def main():
     ap.add_argument("--film", type=float, default=0.0, help="6j: the CA thin-film floor (fraction of a cell; 0 = off)")
     ap.add_argument("--absorb", type=int, default=0, help="6j: absorb_group_max (a drop of <= N particles joins cell water instead of waking it; 0 = off)")
     ap.add_argument("--wake-radius", type=float, default=0.0, help="6k: wake_radius_m (a disturbance wakes only its body within R metres; 0 = whole body)")
+    ap.add_argument("--hybrid-ca", default="", help="6l: cpu|gpu|auto (where the box's CA steps; '' = the lab default)")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
-    stem = f"hybrid_{a.cpm}" + (f"_film{a.film:g}" if a.film > 0 else "") + (f"_absorb{a.absorb}" if a.absorb > 0 else "") + (f"_wakeR{a.wake_radius:g}" if a.wake_radius > 0 else "")
+    stem = f"hybrid_{a.cpm}" + (f"_film{a.film:g}" if a.film > 0 else "") + (f"_absorb{a.absorb}" if a.absorb > 0 else "") + (f"_wakeR{a.wake_radius:g}" if a.wake_radius > 0 else "") + (f"_ca{a.hybrid_ca}" if a.hybrid_ca else "")
     api = Api(a.url); api.wait_status(120)
     EV.mkdir(parents=True, exist_ok=True)
     frames = EV / f"frames_{stem}"
@@ -44,7 +45,7 @@ def main():
     try: api.debug("editor_panels", {"item_equipper": False, "tool_panels": False})
     except Exception as e: print("editor_panels:", e)
     L.fill(api, L.DAM); L.wait_occupancy()
-    L.must(L.ms(api, "create", {"min": L.BOX_MIN, "size": L.BOX_SIZE, "cells_per_m": a.cpm, "particles": "hybrid", "film_floor": a.film, "absorb_group_max": a.absorb, "wake_radius_m": a.wake_radius}), "create")
+    L.must(L.ms(api, "create", {"min": L.BOX_MIN, "size": L.BOX_SIZE, "cells_per_m": a.cpm, "particles": "hybrid", "film_floor": a.film, "absorb_group_max": a.absorb, "wake_radius_m": a.wake_radius, **({"hybrid_ca": a.hybrid_ca} if a.hybrid_ca else {})}), "create")
     L.must(L.ms(api, "fill_box", {"material": "Water", "min": {"x": 8, "y": 16, "z": 8}, "size": {"x": 3, "y": 3, "z": 8}, "fraction": 1.0}), "fill")
     L.must(L.ms(api, "fill_box", {"material": "Water", "min": {"x": 8, "y": 16, "z": 17}, "size": {"x": 8, "y": 5, "z": 7}, "fraction": 1.0}), "fill")
     p = [float(v) for v in a.pose.split(",")]
@@ -64,7 +65,8 @@ def main():
         st = L.ms(api, "stats") if n % 5 == 0 or not rows else None
         if st is not None:
             rows.append({"frame": n, "phase": phase, "t_sim": round(t_sim, 3), "tick": st["tick"], "particles": st.get("particles", 0),
-                         "ledger_exact": st["ledger"]["exact"], "last_tick_ms": st.get("last_tick_ms")})
+                         "ledger_exact": st["ledger"]["exact"], "last_tick_ms": st.get("last_tick_ms"),
+                         "ca_ticks_gpu": st.get("ca_ticks_gpu"), "ca_ticks_cpu": st.get("ca_ticks_cpu")})
         n += 1
 
     if a.still:
@@ -86,6 +88,7 @@ def main():
     if a.film > 0: label += f", film floor {a.film:g} cell"
     if a.absorb > 0: label += f", absorb drops <= {a.absorb}"
     if a.wake_radius > 0: label += f", wake radius {a.wake_radius:g} m"
+    if a.hybrid_ca: label += f", CA on {a.hybrid_ca}"
     lines = []
     for k, r in enumerate(rows):
         t1 = rows[k + 1]["frame"] / FPS if k + 1 < len(rows) else (n) / FPS

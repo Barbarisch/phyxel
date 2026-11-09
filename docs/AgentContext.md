@@ -278,7 +278,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       pins the order). Tail wake 4.2 -> 0.9 ms. **1/9 m levelling tail tick ~19 -> ~3.3 ms (Release).**
     - **Next:** the 1/9 m tail is no longer the bottleneck; the moving phase is (particle step floor ~3.5 ms, the
       whole-body wake's groups() 6 ms at 105k particles); fused particle kernels; download copy (~1.2 ms);
-      the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
+      **live dam break filmed 2026-11-09** (`hybrid_9_wakeR1_caauto.mp4`): the whole rig moves, so R = 1 m only staggers the lift; about 260 k particles for about 20 s, step about 400 ms/tick; settling (cells back only at about 23 s and 33 s although calm at about 20 s) is that scene's lever; the
       floor+absorb pair at 1/3 m, the pressure-rule cycle.
     - ⚠️ GPU MatSim tests find `shaders/*.spv` relative to the working directory: run them from the repo root.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
