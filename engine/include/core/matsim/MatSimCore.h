@@ -195,6 +195,11 @@ public:
     bool adoptStepped(std::vector<Cell> cells, uint64_t tick, std::vector<uint8_t> marks1,
                       std::vector<uint8_t> marks2, std::vector<uint32_t> headPtr,
                       std::vector<uint32_t> head, std::vector<uint32_t> maxPtr);
+    /// 6l: the same from raw arrays of this box's sizes (cells, head, pointers: one word per cell; marks: one word
+    /// per brick, nonzero = marked), copied into the core's own storage with no allocation. Validates first:
+    /// false and no change on a bad pointer.
+    bool adoptSteppedFrom(const Cell* cells, uint64_t tick, const uint32_t* marks1, const uint32_t* marks2,
+                          const uint32_t* headPtr, const uint32_t* head, const uint32_t* maxPtr);
 
     // --- §6d: the pressure field (three words per cell, recomputed every tick). ---
     /// ROUTE pointer: (source box index << 8) | hops, or kNoHead. The nearest free surface this

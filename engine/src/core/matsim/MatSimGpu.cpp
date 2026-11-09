@@ -479,20 +479,11 @@ bool MatSimGpu::download(MatSimCore& core, std::string* err) {
     submitAndWait(cmd);
     const auto d1 = XClock::now();
     const auto* base = static_cast<const uint8_t*>(m_staging.mapped);
-    std::vector<Cell> cells(m_cells);
-    std::memcpy(cells.data(), base + l.cells, m_cells * 4);
-    std::vector<uint8_t> m1(m_bricks), m2(m_bricks);
-    const auto* a = reinterpret_cast<const uint32_t*>(base + l.m1);
-    const auto* b = reinterpret_cast<const uint32_t*>(base + l.m2);
-    for (size_t i = 0; i < m_bricks; ++i) { m1[i] = a[i] ? 1 : 0; m2[i] = b[i] ? 1 : 0; }
-    std::vector<uint32_t> q(m_cells), h(m_cells);
-    std::memcpy(q.data(), base + l.q, m_cells * 4);
-    std::memcpy(h.data(), base + l.head, m_cells * 4);
-    std::vector<uint32_t> mx(m_cells);
-    std::memcpy(mx.data(), base + l.mx, m_cells * 4);
+    // 6l: straight from staging into the core's own arrays (was: new vectors, then moved in).
+    auto u32 = [&](VkDeviceSize off) { return reinterpret_cast<const uint32_t*>(base + off); };
     const auto d2 = XClock::now();
-    if (!core.adoptStepped(std::move(cells), m_tick, std::move(m1), std::move(m2), std::move(q), std::move(h),
-                           std::move(mx))) {
+    if (!core.adoptSteppedFrom(reinterpret_cast<const Cell*>(base + l.cells), m_tick, u32(l.m1), u32(l.m2), u32(l.q),
+                               u32(l.head), u32(l.mx))) {
         if (err) *err = "MatSimGpu: the core refused the stepped state";
         return false;
     }

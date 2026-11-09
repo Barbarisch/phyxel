@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <cmath>
 #include <cstdio>
 
@@ -129,6 +130,25 @@ bool MatSimCore::adoptStepped(std::vector<Cell> cells, uint64_t tick, std::vecto
     q_ = std::move(q);
     h_ = std::move(h);
     m_ = std::move(mx);
+    srcBricks_.clear();   // 6l: the pointers came from elsewhere; the next incremental pass starts full
+    bumpGen();
+    return true;
+}
+
+bool MatSimCore::adoptSteppedFrom(const Cell* cells, uint64_t tick, const uint32_t* m1, const uint32_t* m2,
+                                  const uint32_t* q, const uint32_t* h, const uint32_t* mx) {
+    if (!created_ || !cells || !m1 || !m2 || !q || !h || !mx) return false;
+    const size_t n = cur_.size();
+    for (const uint32_t* v : {q, mx})   // audit R3: a pointer from elsewhere must name a cell of this box
+        for (size_t i = 0; i < n; ++i)
+            if (v[i] != kNoHead && ((v[i] >> 8) >= n || (v[i] & 0xFFu) >= 255u)) return false;
+    std::memcpy(cur_.data(), cells, n * sizeof(Cell));
+    std::memcpy(nxt_.data(), cells, n * sizeof(Cell));
+    std::memcpy(q_.data(), q, n * 4);
+    std::memcpy(h_.data(), h, n * 4);
+    std::memcpy(m_.data(), mx, n * 4);
+    for (size_t i = 0; i < marks1_.size(); ++i) { marks1_[i] = m1[i] ? 1 : 0; marks2_[i] = m2[i] ? 1 : 0; }
+    tick_ = tick;
     srcBricks_.clear();   // 6l: the pointers came from elsewhere; the next incremental pass starts full
     bumpGen();
     return true;

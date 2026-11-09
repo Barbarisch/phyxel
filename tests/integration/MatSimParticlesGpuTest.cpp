@@ -484,7 +484,8 @@ TEST(MatSimLabApi, WakeRadiusIsPassedAndChecked) {
 // 104,976 particles); the regional wake (R = 1 m) peaks at <= 10,500 (10 %), is all cells again within 10 s, ledger
 // exact at every read, and its mean particle-step time during the splash is at least 5x lower than the control's.
 TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
-    struct Run { size_t peak = 0; double cellsAt = -1, stepMs = 0, wakeMs = 0, settleMs = 0, caMs = 0, gpuMs = 0; int busy = 0; bool exact = true; size_t left = 0; };
+    struct Run { size_t peak = 0; double cellsAt = -1, stepMs = 0, wakeMs = 0, settleMs = 0, caMs = 0, gpuMs = 0; int busy = 0; bool exact = true; size_t left = 0;
+                 double tWake = 0, tCa = 0, tUp = 0, tDownCopy = 0, tDownHost = 0; int tail = 0, tailMixed = 0; uint64_t gpuTicks = 0, cpuTicks = 0; };
     auto run = [&](double radius) {
         Run r;
         MatSimLab lab([](int, int, int) { return Occ::Empty; });
@@ -514,6 +515,18 @@ TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
                 r.gpuMs += st.value("gpu_ms_per_tick", 0.0);
                 ++r.busy;
             } else if (r.cellsAt < 0 && k > 3) r.cellsAt = 0.6 * (k + 1) / 6.0;
+            // 6l: the levelling tail (no particles), samples whose last tick stepped the CA on the device.
+            const uint64_t gt = st.value("ca_ticks_gpu", uint64_t(0)), ct = st.value("ca_ticks_cpu", uint64_t(0));
+            if (!np && gt > r.gpuTicks && ct > r.cpuTicks) ++r.tailMixed;   // some ticks on the host: not timed here
+            if (!np && gt > r.gpuTicks && ct == r.cpuTicks && st.contains("ca_gpu_last_ms")) {
+                const auto& x = st["ca_gpu_last_ms"];
+                r.tWake += st["last_tick_ms"].value("wake", 0.0); r.tCa += st["last_tick_ms"].value("ca", 0.0);
+                r.tDownCopy += x.value("down_copy", 0.0); r.tDownHost += x.value("down_host", 0.0) + x.value("down_adopt", 0.0);
+                r.tUp += x.value("up_host", 0.0) + x.value("up_copy", 0.0);
+                ++r.tail;
+            }
+            r.gpuTicks = gt;
+            r.cpuTicks = ct;
             if (k % 10 == 9) std::printf("[pool drop 1/9 m R %.1f] t %.1f s: %zu particles, last tick ms wake %.1f step %.1f settle %.1f ca %.1f\n",
                                          radius, (k + 1) / 10.0, np, st["last_tick_ms"].value("wake", 0.0), st["last_tick_ms"].value("step", 0.0),
                                          st["last_tick_ms"].value("settle", 0.0), st["last_tick_ms"].value("ca", 0.0));
@@ -539,6 +552,11 @@ TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
                     "particles fly (sampled each 0.1 s, %d samples): wake %.1f step %.1f (device %.2f) settle %.1f ca %.1f; ledger %s\n",
                     r == &w ? "whole-body wake" : "regional wake R 1 m", r->peak, r->cellsAt, r->left, r->busy, r->wakeMs, r->stepMs, r->gpuMs,
                     r->settleMs, r->caMs, r->exact ? "exact" : "BROKEN");
+    for (const Run* r : {&w, &g})
+        if (r->tail)
+            std::printf("[MatSimParticlesGpu] pool drop 1/9 m, %s: levelling tail on the device CA (%d samples, %d mixed skipped): wake %.2f ca %.2f up %.2f "
+                        "(download copy %.2f, host+adopt %.2f) ms\n", r == &w ? "whole-body" : "regional", r->tail, r->tailMixed, r->tWake / r->tail,
+                        r->tCa / r->tail, r->tUp / r->tail, r->tDownCopy / r->tail, r->tDownHost / r->tail);
     EXPECT_TRUE(w.exact);
     EXPECT_TRUE(g.exact);
     EXPECT_GE(w.peak, 104976u) << "control: the whole-body wake lifts the pool";
