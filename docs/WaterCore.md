@@ -12772,12 +12772,15 @@ profile by phase). What it was and what each fix took:
 | the first tile's pool grow | 512 -> **28,352 slots, 665 MB** | 512 -> 2,048 | `ensureCapacity` counted every brick of a RECORDED column (mapped to the ground sentinel, `need` 1) - bricks `applyResidency` never stores. It now counts only what the residency stores |
 | the frame after: the CPU surface fallback | 41 ms | 0 | a patch's field is sized at its wake and whole from the start (the record tiles' marks + the woken tile's seed) |
 | tall cells: a false "the water changed" | off, then an expand + a pool grow (~31 ms) | gone | the device's water is one collected call behind the record's share: the check waits until a call submitted after a tile's wake / record is collected (`tileMassMovedCall`) |
-| tall cells: collapse on the seed, expand at the trough | ~31 ms + a grow | gone | a patch is not at rest while its disturbance is live (`captureTallRest`) - its tall cells form after the splash, not before it. Tall cells stay ON (the owner's call) |
+| tall cells: collapse on the seed, expand at the trough | ~31 ms + a grow | gone | a patch is not at rest in its first 2 s, its no-sleep window (`captureTallRest`) - its tall cells form after the splash reaches the surface, not on the seed before it. Tall cells stay ON (the owner's call). Holding them off for the disturbance's whole life instead settled the patch 2.4x later (37.8 s) - caught by the S2 test's settle time and bisected |
 | the crash this exposed | - | - | `updatePartialWake` sized `colFrozen` only with `colQuiet`; `seedColumns` sizes `colQuiet` alone - a patch seeded before its first step indexed an empty `colFrozen` |
 
-**The result (test, Release):** the wake **~250 ms + a 260-280 ms frame after -> 110-125 ms, the worst frame after 71 ms**, the rest
-15-35 ms settling to 3-16 ms. The 71 ms is the pool growing (to 16 k slots, ~418 MB of device memory) as the tiles the waves reach
-wake - left as is: reserving it at the wake would only move it into the wake's frame. **Not measured yet:** live (below).
+**The result (test, Release, the GPU idle otherwise):** the wake **~250 ms + a 260-280 ms frame after -> 104-115 ms, the worst frame
+after 59 ms**, the rest 15-31 ms settling to 3-16 ms. The 59 ms is the pool growing (to 16 k slots, ~418 MB of device memory) as
+the tiles the waves reach wake - left as is: reserving it at the wake would only move it into the wake's frame. The S2 test: GPU while
+the patch lived 3.5 -> **2.7 s** (60 m) and 2.9 s (200 m, 1.06x); back in the record 15.8 -> **17.7 s** (60 m), 16.3 -> 19.4 s (200 m) -
+**2-3 s later** (the tall cells start 2 s later). A GPU shared with a running engine reads ~10 s for the same runs - compare only like
+with like (the bisect ran both sides with the bench up).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

@@ -896,10 +896,11 @@ static double fieldWater(const WaterSurfaceField& f) {
 bool WaterCoreManager::captureTallRest(Av& av) {
     const WaterSurfaceField& fld = av.field;
     if (fld.cols.size() != static_cast<size_t>(fld.nx) * fld.nz) return false;
-    // 51.3: a PATCH is not at rest while its disturbance is live - it was woken for one. Its seed reads flat for the call or two before
-    // the splash reaches the surface the device reports: the tall cells collapsed there, the trough expanded them again at once (31 ms
-    // and a pool grow to 16 k slots, every splash - DiagPatchWakeStall). They collapse once the disturbance has expired.
-    if (av.isPatch && av.gpuVol && !av.gpuVol->discCentres.empty()) return false;
+    // 51.3: a PATCH is not at rest in its first seconds (its no-sleep window) - it was woken for a splash, and its seed reads flat for
+    // the call or two before the splash reaches the surface the device reports: the tall cells collapsed there and the trough
+    // expanded them again at once (31 ms and a pool grow to 16 k slots, every splash - DiagPatchWakeStall). Waiting for the whole
+    // disturbance to expire instead held the tall cells off its whole life and it settled 2.4x later (15.8 -> 37.8 s, the S2 test).
+    if (av.isPatch && std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() < av.noSleepBefore) return false;
     std::vector<float> tops;
     for (const SurfaceColumn& c : fld.cols) { const int runs = static_cast<int>(c.runs + 0.5f); if (runs >= 1) tops.push_back(c.top[std::min(runs, kSurfaceMaxRuns) - 1]); }
     if (tops.empty()) return false;
