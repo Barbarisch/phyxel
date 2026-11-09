@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <chrono>
 #include <map>
 #include <set>
 #include <vector>
@@ -918,6 +919,88 @@ static LakeSplash runRecordedLake(VkDevice device, VkPhysicalDevice pd, VkQueue 
     o.sleptBoxes = static_cast<int>(mgr.sleptVolumes().size());
     o.books = (o.slept ? record.total() : record.total() + mgr.totalMass()) - placed;
     return o;
+}
+
+// 51.3: the occupancy read by CUBE (a uniform cube asked once) equals the read cell by cell, in a world with full cubes, empty ones,
+// MIXED ones (sub-voxel detail: some micro cells solid) and a region not resident (unknown). CONTROL: a cube query that calls a mixed
+// cube empty must differ (else the comparison cannot fail).
+TEST_F(WaterRecordTilesTest, TheCubeOccupancyReadEqualsTheMicroRead) {
+    auto micro = [](const glm::ivec3& m) -> int {
+        const glm::ivec3 c(m.x >= 0 ? m.x / 9 : -((-m.x + 8) / 9), m.y >= 0 ? m.y / 9 : -((-m.y + 8) / 9), m.z >= 0 ? m.z / 9 : -((-m.z + 8) / 9));
+        if (c.z >= 4) return 2;                                      // not resident
+        if (c.y < 0) return 1;                                       // the ground
+        if ((c.x + c.z) % 3 == 0 && c.y == 0) return 1;              // full cubes on the bed
+        if ((c.x * 7 + c.z) % 5 == 1 && c.y == 0) {                  // mixed: a 3-micro floor and a 2-micro wall
+            const int lx = m.x - c.x * 9, ly = m.y - c.y * 9;
+            return (ly < 3 || lx < 2) ? 1 : 0;
+        }
+        return 0;
+    };
+    auto cubeOf = [&](const glm::ivec3& c, bool mixedAsEmpty) -> int {
+        int first = -1; bool uniform = true;
+        for (int z = 0; z < 9 && uniform; ++z) for (int y = 0; y < 9 && uniform; ++y) for (int x = 0; x < 9; ++x) {
+            const int s = micro(c * 9 + glm::ivec3(x, y, z));
+            if (first < 0) first = s; else if (s != first) { uniform = false; break; }
+        }
+        return uniform ? first : (mixedAsEmpty ? 0 : 3);
+    };
+    auto read = [&](int mode) {   // 0 cell by cell, 1 by cube, 2 by a WRONG cube query (the control)
+        WaterCoreManager mgr(micro);
+        if (mode >= 1) mgr.setCubeStateQuery([&, mode](const glm::ivec3& c) { return cubeOf(c, mode == 2); });
+        std::string err;
+        const int id = mgr.create(glm::ivec3(-2, -1, -2), glm::ivec3(3, 1, 5), 1.0f / 9.0f, "eulerian", &err, "cpu", 0);
+        std::vector<int> occ;
+        if (const WaterGrid* g = mgr.gridForTest(id)) for (int z = 0; z < g->nz(); ++z) for (int y = 0; y < g->ny(); ++y) for (int x = 0; x < g->nx(); ++x) occ.push_back(static_cast<int>(g->occ(x, y, z)));
+        return occ;
+    };
+    const std::vector<int> ref = read(0), cube = read(1), wrong = read(2);
+    ASSERT_FALSE(ref.empty());
+    long diff = 0, diffWrong = 0, solid = 0, unknown = 0;
+    for (size_t i = 0; i < ref.size(); ++i) { diff += ref[i] != cube[i]; diffWrong += ref[i] != wrong[i]; solid += ref[i] == static_cast<int>(Occ::Solid); unknown += ref[i] == static_cast<int>(Occ::Unknown); }
+    std::printf("  %zu cells (%ld solid, %ld unknown): by cube %ld differ | CONTROL (a mixed cube called empty) %ld differ\n", ref.size(), solid, unknown, diff, diffWrong);
+    EXPECT_GT(solid, 0); EXPECT_GT(unknown, 0);
+    EXPECT_EQ(diff, 0) << "the cube read is not the micro read";
+    EXPECT_GT(diffWrong, 0) << "CONTROL: a wrong cube query went unseen";
+}
+
+// DIAGNOSTIC (51.3): where a patch's wake spends its time - a 200 m lake in the record, one blast, the wake's parts (A2f's split)
+TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchWakeStall) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });   // as live: the cube read (51.3)
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 200;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", WaterCoreManager::s_tallBandDefault}};
+    ASSERT_TRUE(mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump()));
+    for (int rep = 0; rep < 3; ++rep) {
+        const auto t0 = std::chrono::steady_clock::now();
+        const std::vector<int> ids = mgr.wakeSleptNear(glm::vec3(100.0f + 50.0f * rep - 50.0f, 1.9f, 100.0f), 2.0f);
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        const auto& w = mgr.sleptWakeStats();
+        std::printf("  wake %d: %.1f ms total | create: alloc %.1f occupancy %.1f solids %.1f gpu %.1f (occ copy %.1f, create volume %.1f, upload %.1f) | seed: span read %.1f occupancy %.1f seed %.1f | cells %ld\n",
+                    rep, ms, w.allocMs, w.occMs, w.solidsMs, w.gpuMs, w.gpuOccCopyMs, w.gpuCreateVolumeMs, w.gpuUploadMs, w.spanReadMs, w.seedOccMs, w.seedMs, w.cells);
+        ASSERT_FALSE(ids.empty());
+        mgr.addImpulse(glm::vec3(100.0f + 50.0f * rep - 50.0f, 1.9f, 100.0f), 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        for (int k = 0; k < 8; ++k) {   // the frames after the wake: each one's total and its three slowest phases
+            WaterHostProfile::reset();
+            const auto f0 = std::chrono::steady_clock::now();
+            mgr.update(1.0f / 60.0f);
+            const double fms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - f0).count();
+            std::vector<std::pair<double, std::string>> ph; for (const auto& [key, v] : WaterHostProfile::maxMs) ph.push_back({v, key});
+            std::sort(ph.rbegin(), ph.rend());
+            std::printf("    frame %d: %.1f ms |", k, fms);
+            for (size_t j = 0; j < std::min<size_t>(4, ph.size()); ++j) std::printf(" %s %.1f;", ph[j].second.c_str(), ph[j].first);
+            std::printf("\n");
+        }
+        for (int id : ids) mgr.destroy(id);
+    }
 }
 
 TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {

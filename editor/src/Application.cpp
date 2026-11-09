@@ -455,6 +455,15 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
             return occ ? occ->packRevision() : 0;
         });
+    // 51.3: the cube at once - unknown (not resident: per chunk, so the whole cube) from the micro query at its corner, else the pool's
+    // cube state (empty / solid / mixed). Reads the same packed pool as the micro query (thread-safe on the same terms).
+    waterCore->setCubeStateQuery([this](const glm::ivec3& cube) -> int {
+        const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
+        if (!occ) return 2;
+        if (occ->stateAtMicro(cube * 9) == Graphics::OccupancyState::Unknown) return 2;
+        const Graphics::CubeOccupancy c = occ->cubeOccupancy(cube);
+        return c == Graphics::CubeOccupancy::Solid ? 1 : (c == Graphics::CubeOccupancy::Empty ? 0 : 3);
+    });
     // 39 (A2f step 1b): the state query only reads the packed pool, which only VoxelLightOccupancyGpu::flushIfDirty rewrites - on
     // this (the main) thread, never while a water refresh runs (its workers are joined before it returns)
     waterCore->setStateQueryThreadSafe(true);

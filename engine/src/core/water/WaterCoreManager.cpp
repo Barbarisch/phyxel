@@ -331,19 +331,37 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
     if (!av.occDirty) return;
     const auto tOcc = std::chrono::steady_clock::now();   // 26.18: measured - it runs on every world change
     const WaterGrid& g = *av.grid;
+    // 51.3: at 1/9 m a cell IS a micro cell and a world cube is 9 x 9 x 9 of them - with the cube query, a uniform cube (empty, solid,
+    // or in a chunk not resident) is asked once, a mixed one cell by cell. The volume's grid starts on a cube (its box is in voxels).
+    const int per = av.per;
+    const bool byCube = m_cubeState && !s_cubeOccupancyOffForTest && per == kMicroPerVoxel && av.h <= 1.0f / kMicroPerVoxel + 1e-6f;
     auto slab = [&](int z0, int z1) {
+        if (byCube) {   // z0, z1 in cube rows
+            const glm::ivec3 o = g.spec().origin;   // cells = micro units, a multiple of per
+            for (int cz = z0; cz < z1; ++cz) for (int cy = 0; cy < (g.ny() + per - 1) / per; ++cy) for (int cx = 0; cx < (g.nx() + per - 1) / per; ++cx) {
+                const glm::ivec3 cube((o.x / per) + cx, (o.y / per) + cy, (o.z / per) + cz);
+                const int q = m_cubeState(cube);
+                const int x0 = cx * per, y0 = cy * per, zc0 = cz * per;
+                const int x1 = std::min(g.nx(), x0 + per), y1 = std::min(g.ny(), y0 + per), zc1 = std::min(g.nz(), zc0 + per);
+                if (q == 3) { for (int z = zc0; z < zc1; ++z) for (int y = y0; y < y1; ++y) for (int x = x0; x < x1; ++x) av.occCache[g.idx(x, y, z)] = sampleOccupancy(av, glm::ivec3(x, y, z)); continue; }
+                const Occ v = q == 1 ? Occ::Solid : (q == 2 ? Occ::Unknown : Occ::Air);
+                for (int z = zc0; z < zc1; ++z) for (int y = y0; y < y1; ++y) for (int x = x0; x < x1; ++x) av.occCache[g.idx(x, y, z)] = v;
+            }
+            return;
+        }
         for (int z = z0; z < z1; ++z)
             for (int y = 0; y < g.ny(); ++y)
                 for (int x = 0; x < g.nx(); ++x)
                     av.occCache[g.idx(x, y, z)] = sampleOccupancy(av, glm::ivec3(x, y, z));
     };
     // 39 (A2f step 1b): split by z slabs over the workers (each cell its own slot - the same result); a small box stays on this thread
-    const int workers = (m_occThreads > 1 && g.cellCount() >= 32768) ? std::min(m_occThreads, g.nz()) : 1;
-    if (workers == 1) slab(0, g.nz());
+    const int rows = byCube ? (g.nz() + per - 1) / per : g.nz();
+    const int workers = (m_occThreads > 1 && g.cellCount() >= 32768) ? std::min(m_occThreads, rows) : 1;
+    if (workers == 1) slab(0, rows);
     else {
         std::vector<std::thread> pool;
-        for (int i = 1; i < workers; ++i) pool.emplace_back(slab, g.nz() * i / workers, g.nz() * (i + 1) / workers);
-        slab(0, g.nz() / workers);
+        for (int i = 1; i < workers; ++i) pool.emplace_back(slab, rows * i / workers, rows * (i + 1) / workers);
+        slab(0, rows / workers);
         for (auto& t : pool) t.join();
     }
     av.occDirty = false;
@@ -878,6 +896,10 @@ static double fieldWater(const WaterSurfaceField& f) {
 bool WaterCoreManager::captureTallRest(Av& av) {
     const WaterSurfaceField& fld = av.field;
     if (fld.cols.size() != static_cast<size_t>(fld.nx) * fld.nz) return false;
+    // 51.3: a PATCH is not at rest while its disturbance is live - it was woken for one. Its seed reads flat for the call or two before
+    // the splash reaches the surface the device reports: the tall cells collapsed there, the trough expanded them again at once (31 ms
+    // and a pool grow to 16 k slots, every splash - DiagPatchWakeStall). They collapse once the disturbance has expired.
+    if (av.isPatch && av.gpuVol && !av.gpuVol->discCentres.empty()) return false;
     std::vector<float> tops;
     for (const SurfaceColumn& c : fld.cols) { const int runs = static_cast<int>(c.runs + 0.5f); if (runs >= 1) tops.push_back(c.top[std::min(runs, kSurfaceMaxRuns) - 1]); }
     if (tops.empty()) return false;
@@ -935,7 +957,11 @@ void WaterCoreManager::updateTall(Av& av) {
     // fills a pond in layers: the first layer is flat, and a 2 m pond got the floor of a 1 m one)
     if (!std::isnan(av.tallRestY) && fld.cols.size() == static_cast<size_t>(fld.nx) * fld.nz) {
         const double area = av.tallRestArea;   // 49 item 2: the water's own area, not the box's (a wider box re-read later)
-        if (std::abs((dev ? devWater : fieldWater(fld)) + av.recordedM3 - av.tallRestMass) > 0.5 * av.h * area) { off("the water changed - a new rest level"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); }
+        // 51.3: the device's water is the last COLLECTED call's, the record's share is now - until a call submitted after a tile's wake
+        // (or record) is collected, the tile's water is counted in neither or both: a false "changed" (a patch's tall cells went off, then
+        // the expand grew its pool to 16 k slots, the frame after every splash - DiagPatchWakeStall)
+        const bool lagging = dev && m_gpu->surfaceCallId(vol) <= av.tileMassMovedCall;
+        if (!lagging && std::abs((dev ? devWater : fieldWater(fld)) + av.recordedM3 - av.tallRestMass) > 0.5 * av.h * area) { off("the water changed - a new rest level"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); }
     }
     // the rest level is read while the volume SLEEPS (WaterCoreManager::update -> captureTallRest): a sleeping volume is never stepped,
     // and the call that decides it sleeps returns before the decision (26.16) - so rarely here
@@ -1315,21 +1341,39 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
         }
     }
     std::string err;
-    m_createKeepsSlept = true; m_createLeavesUploadToStep = true;
+    // 51.3: made EMPTY - its tiles taken as recorded (the record keeps the water, counted once) and only the disturbance's own tile
+    // woken (one tile's seed and upload); the waves' margin wakes the next tiles as they spread (s_tileWakesPerCall a call). The whole
+    // box seeded and uploaded at once cost 110-120 ms + 260-280 ms the next frame (DiagPatchWakeStall); recording is ON in a patch
+    // (its tiles record back as they freeze - the patch's own way back to the record)
+    m_createKeepsSlept = true;
     const int id = create(lo, hi, sv.cellSize, sv.transport.empty() ? "eulerian" : sv.transport, &err, sv.backend.empty() ? "auto" : sv.backend, sv.sweeps);
-    m_createKeepsSlept = false; m_createLeavesUploadToStep = false;
+    m_createKeepsSlept = false;
     if (!id) { ++m_sleptWake.refused; m_sleptWake.lastError = err; return 0; }
-    setPartialWake(id, sv.partialWake);
+    setPartialWake(id, true);
     setTallBand(id, sv.tallBandM);
-    if (sv.recordTiles) setRecordTiles(id, true);
-    const double seeded = seedFromSpans(id);
-    if (seeded <= 0.0) { destroy(id); ++m_sleptWake.wokenEmpty; return 0; }   // nothing recorded under the patch: dry ground at the pond's edge
+    setRecordTiles(id, true);
+    bool woke = false;
     for (auto& av : m_avs) if (av->id == id) {
         av->isPatch = true; av->patchParentLo = sv.lo; av->patchParentHi = sv.hi;
         av->noSleepBefore = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kWokenNoSleepS;
         if (av->gpuVol && m_gpu) m_gpu->noteDisturbance(*av->gpuVol, c);
+        {   // 51.3: the patch's field sized now - every column is a recorded tile's (adopt marks it the record's) or a woken tile's
+            // (wakeTile writes its seed), so the field is whole before the first read and the CPU fallback is skipped (surfaceFields)
+            WaterSurfaceField& f = av->field;
+            f.origin = av->grid->spec().origin; f.nx = av->grid->nx(); f.nz = av->grid->nz(); f.h = av->h; f.source = av->id;
+            f.cols.assign(static_cast<size_t>(f.nx) * f.nz, SurfaceColumn{});
+        }
+        adoptRecordedTiles(*av);
+        auto fd = [](int v, int b) { return v >= 0 ? v / b : -((-v + b - 1) / b); };
+        woke = wakeTile(*av, fd(static_cast<int>(std::floor(c.x)), kRecordTile), fd(static_cast<int>(std::floor(c.z)), kRecordTile), 'M');
     }
+    if (!woke) { destroy(id); ++m_sleptWake.wokenEmpty; return 0; }   // nothing recorded at the disturbance (dry ground at the pond's edge)
     ++m_sleptWake.woken; ++m_patchesWoken;
+    // the wake's parts, as wakeSlept records them (A2f) - the patch's stall measured by the same split
+    m_sleptWake.allocMs = m_createSplit.allocMs; m_sleptWake.occMs = m_createSplit.occMs; m_sleptWake.solidsMs = m_createSplit.solidsMs;
+    m_sleptWake.gpuMs = m_createSplit.gpuMs; m_sleptWake.cells = m_createSplit.cells;
+    m_sleptWake.gpuOccCopyMs = m_createGpuSplit.occCopyMs; m_sleptWake.gpuCreateVolumeMs = m_createGpuSplit.createVolumeMs; m_sleptWake.gpuUploadMs = m_createGpuSplit.uploadMs;
+    m_sleptWake.spanReadMs = m_seedSplit.spanReadMs; m_sleptWake.seedOccMs = m_seedSplit.occMs; m_sleptWake.seedMs = m_seedSplit.seedMs;
     return id;
 }
 
@@ -1760,12 +1804,26 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds) {
         std::set<std::pair<int, int>> tiles(av.pendingTileWakes.begin(), av.pendingTileWakes.end());   // + the droplets' landings (deferred)
         const std::set<std::pair<int, int>> deferredTiles = tiles;   // §50 W1g measurement: the cause ('L' deferred, 'M' the margin)
         for (int c : wakes) tiles.insert({floorDivI(c % vol.bn.x + offX, kTileBricks), floorDivI(c / vol.bn.x + offZ, kTileBricks)});
-        for (const auto& [tx, tz] : tiles)
-            if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) != av.recordedTileList.end()) {
-                if (s_noMarginWakeForTest && !deferredTiles.count({tx, tz})) continue;
-                wakeTile(av, tx, tz, deferredTiles.count({tx, tz}) ? 'L' : 'M');
+        // 51.3: nearest a live disturbance first, at most s_tileWakesPerCall a call - the rest wait (pendingTileWakes) for the next
+        std::vector<std::pair<float, std::pair<int, int>>> order;
+        for (const auto& t : tiles) {
+            if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), t) == av.recordedTileList.end()) continue;
+            if (s_noMarginWakeForTest && !deferredTiles.count(t)) continue;
+            float d2 = 0.0f;
+            if (!vol.discCentres.empty()) {
+                d2 = 1e30f;
+                const glm::vec2 mid((t.first + 0.5f) * kTileVoxels * av.per - so.x, (t.second + 0.5f) * kTileVoxels * av.per - so.z);   // volume-local cells
+                for (const glm::vec2& c : vol.discCentres) { const glm::vec2 q = mid - c; d2 = std::min(d2, glm::dot(q, q)); }
             }
+            order.push_back({d2, t});
+        }
+        std::sort(order.begin(), order.end());
         av.pendingTileWakes.clear();
+        int woke = 0;
+        for (const auto& [d2, t] : order) {
+            if (woke >= std::max(1, s_tileWakesPerCall)) { av.pendingTileWakes.push_back(t); continue; }
+            if (wakeTile(av, t.first, t.second, deferredTiles.count(t) ? 'L' : 'M')) ++woke;
+        }
     }
     if (!av.recordTiles || !vol.partialWake || !m_spanWriter || !m_spanReader) return;
     // 2. tiles frozen long enough record - never with droplets in flight for this volume (they land into cells)
@@ -1843,6 +1901,30 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds) {
     av.tilesHeldByNeighbours = held;
 }
 
+void WaterCoreManager::adoptRecordedTiles(Av& av) {
+    if (!av.gpuVol || !m_gpu || !m_spanReader) return;
+    auto& vol = *av.gpuVol;
+    const int tx0 = floorDivI(av.minVoxel.x, kTileVoxels), tx1 = floorDivI(av.maxVoxel.x, kTileVoxels);
+    const int tz0 = floorDivI(av.minVoxel.z, kTileVoxels), tz1 = floorDivI(av.maxVoxel.z, kTileVoxels);
+    const bool fieldOk = av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz;
+    for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
+        glm::ivec2 bLo, bHi;
+        if (!tileBricks(av, tx, tz, bLo, bHi)) continue;
+        if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) != av.recordedTileList.end()) continue;
+        const glm::ivec3 vLo(std::max(av.minVoxel.x, tx * kTileVoxels), av.minVoxel.y, std::max(av.minVoxel.z, tz * kTileVoxels));
+        const glm::ivec3 vHi(std::min(av.maxVoxel.x, tx * kTileVoxels + kTileVoxels - 1), av.maxVoxel.y, std::min(av.maxVoxel.z, tz * kTileVoxels + kTileVoxels - 1));
+        std::vector<ColumnRuns> runs;
+        m_spanReader(vLo, vHi, runs);
+        double m = 0.0;
+        for (const auto& c : runs) for (const auto& r : c.runs) m += static_cast<double>(r.topY - r.bottomY);
+        m_gpu->setColumnsRecorded(vol, bLo, bHi);
+        av.recordedTileList.push_back({tx, tz});
+        av.recordedM3 += m;
+        if (fieldOk) { markRecordedColumns(av, tx, tz); queueTileSurface(av, tx, tz); }
+    }
+    av.field.version = (1ull << 62) + (++m_fieldBumps);
+}
+
 bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     auto& vol = *av.gpuVol;
     const auto t0 = std::chrono::steady_clock::now();
@@ -1895,6 +1977,7 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     lap(P.rec, P.recMax, 3);
     av.recordedTileList.push_back({tx, tz});
     av.recordedM3 += stored;
+    av.tileMassMovedCall = m_gpu->callsSubmitted(vol);   // 51.3
     ++av.tilesRecorded;
     av.gpuStale = true;   // the grid mirror re-reads: the tile's cells are gone from the volume
     // the volume stops drawing the tile's columns: the record draws them (built here, this frame) - 27.16: marked the record's
@@ -1991,6 +2074,7 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz, char cause) {
     m_bodies.credit(written, before, m_bakeBodyAt);
     av.recordedTileList.erase(std::remove(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)), av.recordedTileList.end());
     av.recordedM3 -= back;
+    av.tileMassMovedCall = m_gpu->callsSubmitted(vol);   // 51.3
     ++av.tilesWoken;
     av.gpuStale = true;
     lap(P.wake, P.wakeMax, 4);
@@ -2248,7 +2332,11 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
             WaterHostProfile::lap("surf.2 seed patches", hp);
             // 39.10: the first frame after an upload (a wake) reads no device surface - 12 ms on an 8 m pit on one thread; the
             // extraction only reads the grid, so it takes the occupancy read's worker count (the same field, pinned)
-            if (!got) {
+            // 51.3: a PATCH's field is already whole before its first surface read - the record tiles' surfaces (adoptRecordedTiles) and
+            // each woken tile's seed (wakeTile) - so the fallback (a whole-grid read back + extract: 41 ms on a 40 m patch) is skipped
+            const bool patchFieldWhole = av->isPatch && av->field.nx == av->grid->nx() && av->field.nz == av->grid->nz()
+                                         && av->field.cols.size() == static_cast<size_t>(av->field.nx) * av->field.nz;
+            if (!got && !patchFieldWhole) {
                 // 39.10: in the frame after an upload (a wake, an edit) the device has no surface yet - the one call since the upload
                 // is still in flight. Every other frame draws the last COLLECTED call, one call behind; the CPU grid is the uploaded
                 // state, which is exactly one call behind here too. The download waited for the call in flight and read the whole

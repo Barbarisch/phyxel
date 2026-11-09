@@ -793,8 +793,20 @@ std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<cha
 void WaterCoreGpu::ensureCapacity(Volume& vol, const std::vector<char>& need) {
     if (!vol.growable || need.size() != vol.mapCount) return;
     const bool ground = vol.groundOn && vol.allSolid.size() == vol.mapCount;
+    // 51.3: only what applyResidency would store - a RECORDED column's bricks never are (they read the ground sentinel), nor the bricks
+    // under the tall layer. Counting them grew a patch's pool from 512 to its whole box (28,352 slots, 665 MB) for its first tile,
+    // whose seed marks every ground-mapped brick need 1 (DiagPatchWakeStall)
+    const size_t ncol = static_cast<size_t>(vol.bn.x) * vol.bn.z;
+    const bool anyRec = vol.anyRecorded && vol.colRecorded.size() == ncol && !s_recordedOpenForTest;
+    const int tallBrick = (vol.tallY >= 0) ? (vol.tallY + vol.o.y) / vol.by : -1;
+    const bool tallCut = vol.tallActive && vol.tallPending != 2 && tallBrick > 0;
     size_t want = 0;
-    for (size_t m = 0; m < vol.mapCount; ++m) if (need[m] >= 1 && !(ground && need[m] == 1 && vol.allSolid[m])) ++want;
+    for (size_t m = 0; m < vol.mapCount; ++m) {
+        if (need[m] < 1 || (ground && need[m] == 1 && vol.allSolid[m])) continue;
+        if (anyRec && vol.colRecorded[m % static_cast<size_t>(vol.bn.x) + static_cast<size_t>(vol.bn.x) * (m / (static_cast<size_t>(vol.bn.x) * vol.bn.y))]) continue;
+        if (tallCut && static_cast<int>((m / static_cast<size_t>(vol.bn.x)) % vol.bn.y) < tallBrick) continue;
+        ++want;
+    }
     if (want + kFirstSlot > vol.capacity) growPool(vol, want + want / 4);
 }
 
@@ -898,7 +910,8 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
     vol.listsSized = false;
     ++vol.poolGrows;
     {   const VolumeBytes vb = volumeBytes(vol);
-        m_lastGrowSplit = {gms(g0, g1), gms(g1, g2), gms(g2, g3), gms(g3, g4), gms(g4, GClock::now()), vb.device + vb.host, m_lastGrowSplit.grows + 1}; }
+        m_lastGrowSplit = {gms(g0, g1), gms(g1, g2), gms(g2, g3), gms(g3, g4), gms(g4, GClock::now()), vb.device + vb.host, m_lastGrowSplit.grows + 1};
+    }
     return true;
 }
 
@@ -1164,7 +1177,9 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
         vol.awakeCols = vol.movingCols = vol.colCount; vol.frozenCols = 0;
         return;
     }
-    if (vol.colQuiet.size() != nc) { vol.colQuiet.assign(nc, 0); vol.colFrozen.assign(nc, 0); vol.anyFrozen = false; }
+    // 51.3: each sized on its own - seedColumns sizes colQuiet alone (a patch's first tile is seeded before its first step)
+    if (vol.colQuiet.size() != nc) vol.colQuiet.assign(nc, 0);
+    if (vol.colFrozen.size() != nc) { vol.colFrozen.assign(nc, 0); vol.anyFrozen = false; }
     if (vol.colWake.size() != nc) vol.colWake.assign(nc, 0);
     if (vol.unitsFresh && vol.hostUnits.size() == nc * vol.nuy) {
         for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
@@ -1501,12 +1516,17 @@ void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
             vol.allSolid.assign(vol.mapCount, 1);
             const glm::ivec3 n = vol.spec.dims;
             // 39.10: split by rows of BRICKS (bz) - every cell of a brick is in one range, so no two threads write one entry
+            // 51.3: brick by brick, stopping at its first open cell (an air brick costs one cell, not 512): the cell-by-cell pass cost
+            // 60 ms on a patch's 3.5 M cells (DiagPatchWakeStall). The same answer - a brick is all ground iff no in-box cell is open.
+            const glm::ivec3 bs = vol.bs();
             forRanges(vol.bn.z, ht, [&](int bz0, int bz1) {
-                const int z0 = std::max(0, bz0 * kB - vol.o.z), z1 = std::min(n.z, bz1 * kB - vol.o.z);
-                for (int z = z0; z < z1; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
-                    if (vol.hostOcc[g.idx(x, y, z)] == static_cast<uint32_t>(Occ::Solid)) continue;
-                    const glm::ivec3 b = (glm::ivec3(x, y, z) + vol.o) / vol.bs();
-                    vol.allSolid[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 0;
+                for (int bz = bz0; bz < bz1; ++bz) for (int by = 0; by < vol.bn.y; ++by) for (int bx = 0; bx < vol.bn.x; ++bx) {
+                    const glm::ivec3 c0 = glm::max(glm::ivec3(bx, by, bz) * bs - vol.o, glm::ivec3(0));
+                    const glm::ivec3 c1 = glm::min(glm::ivec3(bx + 1, by + 1, bz + 1) * bs - vol.o, n);
+                    bool open = false;
+                    for (int y = c0.y; y < c1.y && !open; ++y) for (int z = c0.z; z < c1.z && !open; ++z) for (int x = c0.x; x < c1.x; ++x)
+                        if (vol.hostOcc[g.idx(x, y, z)] != static_cast<uint32_t>(Occ::Solid)) { open = true; break; }
+                    if (open) vol.allSolid[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)] = 0;
                 }
             });
         }

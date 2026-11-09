@@ -33,6 +33,9 @@ namespace Water {
 
 /// 0 = Empty (known air), 1 = Solid, 2 = Unknown — mirrors Graphics::OccupancyState.
 using MicroStateQuery = std::function<int(const glm::ivec3& worldMicro)>;
+/// 51.3: one WORLD CUBE (1 m) at once - 0 every micro cell empty, 1 every one solid, 2 every one unknown (its chunk not resident),
+/// 3 mixed (sub-voxel detail: ask the micro query cell by cell). Optional: without it every cell is asked alone.
+using CubeStateQuery = std::function<int(const glm::ivec3& worldCube)>;
 /// The occupancy pool's pack revision (any monotonic counter that changes when solids change).
 using SolidsRevisionQuery = std::function<uint64_t()>;
 /// 26.19: an inclusive box of WORLD voxels (cubes) whose solids may have changed.
@@ -176,6 +179,11 @@ public:
     /// less two, 1..8; clamped 1..16). Off (the default, one thread): a query that is not safe to share is never shared. The result is
     /// the same cell for cell either way: each cell is read on its own and written to its own slot (WaterWakeSame pins it).
     void setStateQueryThreadSafe(bool on, int threads = 0);
+    /// 51.3: the cube-at-once query (CubeStateQuery). A 1/9 m volume's occupancy read then asks once per uniform cube instead of 729
+    /// times (a patch's 3.5 M cells: 61 ms of its ~120 ms wake in a test world, measured; far more against the real pool). Must agree
+    /// with the micro query everywhere - pinned by WaterCubeOccupancy.TheCubeReadEqualsTheMicroRead.
+    void setCubeStateQuery(CubeStateQuery q) { m_cubeState = std::move(q); }
+    static inline bool s_cubeOccupancyOffForTest = false;   ///< TEST: every cell asked alone (the equality test's reference)
     int occupancyThreads() const { return m_occThreads; }
 
     /// Create a volume over an inclusive world voxel box. `cellSize` must be a power-of-three
@@ -598,6 +606,9 @@ public:
     static inline bool s_patchWake = true;
     static constexpr float kPatchMarginM = 2.0f;   ///< the patch's box reaches this far past the disturbance radius (the band ends inside it)
     static constexpr int kPatchMaxM = 64;          ///< two overlapping patches merge into one no wider than this; past it they are clipped apart
+    /// 51.3: recorded tiles a volume wakes in one call (the margin's asks; nearest a live disturbance first, the rest the next call). A
+    /// tile wake is one tile's span read, seed and upload (8-19 ms on the host, 27.19); the margin runs metres ahead of the waves
+    static inline int s_tileWakesPerCall = 2;
     static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
     /// 39.4 (A2f look preview) TEST: a touched slept pond wakes this many seconds after the first touch, not at once - what step 2's
     /// wake built across frames would look like (the body reads the record meanwhile). The wake still runs whole when it fires (the
@@ -815,6 +826,7 @@ private:
         long tallOffs = 0;               // 27.22d: times the rules turned the tall cells off (with the reason)
         long writesInPlace = 0, writesRoundTrip = 0;   // 27.23 W1d.2: impulses / blasts applied on the device vs through the CPU mirror
         double tallRestArea = 0.0;       // 49 item 2: the WET area (m^2) at the rest read - the re-read tolerance is half a cell over it
+        uint64_t tileMassMovedCall = 0;  // 51.3: the call count when a tile last woke / recorded (its water moved between the record and the cells)
         double tallRestMass = 0.0;       // 27.22d: the water (m^3) when the rest level was read - a change of more than half a cell over
                                          // the surface (water added or taken) means a new rest level
         float tallDrop = 0.0f;           // 27.22d: metres the floor sits below rest - B after troughs (back to 0 at the next rest)
@@ -896,6 +908,7 @@ private:
     const Av* volumeAtVoxel(int x, int y, int z) const;
 
     MicroStateQuery m_state;
+    CubeStateQuery m_cubeState;   // 51.3
     int m_occThreads = 1;   ///< 39: setStateQueryThreadSafe
     bool m_createLeavesUploadToStep = false;   ///< 39.7: set by wakeSlept around its create (the seed follows)
     struct KeptEntry { glm::ivec3 lo{0}, hi{0}; int handle = 0; };   ///< L3 (41): a slept box's kept GPU set (WaterCoreGpu handle)
@@ -1020,6 +1033,10 @@ private:
     /// 29 S2: the tall floor reads the field's lowest wet top and its water from the device. TEST ONLY: the host's scan (the control)
     static inline bool s_tallHostScanForTest = false;
     bool wakeTile(Av& av, int tx, int tz, char cause = 'M');
+    /// 51.3: every tile of a new (empty) volume taken as RECORDED - the state recordTile leaves: the record holds the water, the volume
+    /// no cells, its columns walls (setColumnsRecorded), drawn by the record. A patch is made this way and wakes only the tiles its
+    /// disturbance reaches (wakeTile: one tile's seed and upload) - never the whole box's seed and upload (260-280 ms, measured).
+    void adoptRecordedTiles(Av& av);
     void logTileEvent(Av& av, int tx, int tz, char cause, double ms);   ///< §50 W1g measurement (s_tileEventLog)
     /// wake the recorded tiles a write at `world` touches (+ s_writeWakeReachM); deferred = before the next call (a write that
     /// lands then too - a droplet's deposit), not now (a collect between two calls breaks the freeze test, 27.13)

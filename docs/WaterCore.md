@@ -12760,6 +12760,25 @@ The W rows (W1-W6, §27 / §50) fold into S1-S4: W1's remaining items serve S1-S
   a frame (not yet traced - likely the record tiles rebuilt over the lake). Next: (1) first.
 - Tests: water unit 369 / 369; integration water all pass but the known two.
 
+**51.3 (2026-11-09) BUILT - the patch's wake stall, cut** (51.2's live problem 1; S2's own step, no drift). Measured part by part
+(`DISABLED_DiagPatchWakeStall`: a 200 m lake in the record, three splashes, each wake's parts and the 8 frames after; host
+profile by phase). What it was and what each fix took:
+
+| part | before | after | the fix |
+|---|---|---|---|
+| the occupancy read (3.5 M cells) | 60 ms | 12.5 ms | **a cube-at-once query** (`CubeStateQuery`, `setCubeStateQuery`; live: the light occupancy pool's `cubeOccupancy`, unknown from its micro query): a uniform 1 m cube asked once, not 729 times; pinned equal to the micro read (`TheCubeOccupancyReadEqualsTheMicroRead`, a wrong cube query as control) |
+| the seed + the upload of the whole patch (the wake, then the next frame) | ~120 ms + **260-280 ms** | one tile, ~25 ms | **the patch is made EMPTY** and every tile taken as recorded (`adoptRecordedTiles`): only the disturbance's own tile is woken (`wakeTile`); the waves' margin wakes the next ones, nearest a live centre first, `s_tileWakesPerCall` = 2 a call |
+| the upload's all-ground pass | 60 ms | 0.8 ms | brick by brick, stopping at the first open cell (the same answer) |
+| the first tile's pool grow | 512 -> **28,352 slots, 665 MB** | 512 -> 2,048 | `ensureCapacity` counted every brick of a RECORDED column (mapped to the ground sentinel, `need` 1) - bricks `applyResidency` never stores. It now counts only what the residency stores |
+| the frame after: the CPU surface fallback | 41 ms | 0 | a patch's field is sized at its wake and whole from the start (the record tiles' marks + the woken tile's seed) |
+| tall cells: a false "the water changed" | off, then an expand + a pool grow (~31 ms) | gone | the device's water is one collected call behind the record's share: the check waits until a call submitted after a tile's wake / record is collected (`tileMassMovedCall`) |
+| tall cells: collapse on the seed, expand at the trough | ~31 ms + a grow | gone | a patch is not at rest while its disturbance is live (`captureTallRest`) - its tall cells form after the splash, not before it. Tall cells stay ON (the owner's call) |
+| the crash this exposed | - | - | `updatePartialWake` sized `colFrozen` only with `colQuiet`; `seedColumns` sizes `colQuiet` alone - a patch seeded before its first step indexed an empty `colFrozen` |
+
+**The result (test, Release):** the wake **~250 ms + a 260-280 ms frame after -> 110-125 ms, the worst frame after 71 ms**, the rest
+15-35 ms settling to 3-16 ms. The 71 ms is the pool growing (to 16 k slots, ~418 MB of device memory) as the tiles the waves reach
+wake - left as is: reserving it at the wake would only move it into the wake's frame. **Not measured yet:** live (below).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
