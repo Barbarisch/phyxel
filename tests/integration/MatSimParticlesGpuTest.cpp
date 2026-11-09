@@ -517,6 +517,17 @@ TEST_F(MatSimParticlesGpuTest, LabPoolDropNinthMetre) {
             if (k % 10 == 9) std::printf("[pool drop 1/9 m R %.1f] t %.1f s: %zu particles, last tick ms wake %.1f step %.1f settle %.1f ca %.1f\n",
                                          radius, (k + 1) / 10.0, np, st["last_tick_ms"].value("wake", 0.0), st["last_tick_ms"].value("step", 0.0),
                                          st["last_tick_ms"].value("settle", 0.0), st["last_tick_ms"].value("ca", 0.0));
+            if (k % 10 == 9 && st.contains("last_wake")) {
+                const auto& lw = st["last_wake"];
+                std::printf("    wake phases: scanned %zu cells, prep %.2f scan %.2f lift %.2f pack %.2f ms\n", lw.value("scanned_cells", size_t(0)),
+                            lw.value("prep_ms", 0.0), lw.value("scan_ms", 0.0), lw.value("lift_ms", 0.0), lw.value("pack_ms", 0.0));
+            }
+            if (k % 10 == 9 && st.contains("ca_gpu_last_ms")) {
+                const auto& x = st["ca_gpu_last_ms"];
+                std::printf("    device CA: up host %.2f copy %.2f, step device %.2f, down copy %.2f host %.2f adopt %.2f ms (gpu ticks %llu)\n",
+                            x.value("up_host", 0.0), x.value("up_copy", 0.0), x.value("step_device", 0.0), x.value("down_copy", 0.0),
+                            x.value("down_host", 0.0), x.value("down_adopt", 0.0), (unsigned long long)st.value("ca_ticks_gpu", uint64_t(0)));
+            }
             r.left = np;
         }
         if (r.busy) { r.stepMs /= r.busy; r.wakeMs /= r.busy; r.settleMs /= r.busy; r.caMs /= r.busy; r.gpuMs /= r.busy; }
@@ -616,9 +627,23 @@ TEST_F(MatSimParticlesGpuTest, DeviceCaEqualsHostCaInTheHybrid) {
         ASSERT_EQ(hs.lastTickEligible, ds.lastTickEligible) << "frame " << f;
     }
     std::printf("[MatSimParticlesGpu] device CA == host CA in the hybrid for 300 frames (%d with particles, %d with cells "
-                "moving)\n", framesWithParticles, framesMoving);
+                "moving, %llu uploads skipped as current)\n", framesWithParticles, framesMoving, (unsigned long long)ca.uploadsSkipped());
     EXPECT_GT(framesWithParticles, 10) << "the particles' walls must have been exercised";
     EXPECT_GT(framesMoving, 30);
+    // 6l: frames where nothing touched the core since the last download skip the upload; they must be in the run.
+    EXPECT_GT(ca.uploadsSkipped(), 30u);
+    // A device step not downloaded leaves the device ahead of the core: the next upload must copy, not skip.
+    {
+        MatSimCore ref = s;
+        std::string e;
+        ASSERT_TRUE(ca.upload(s, &e)) << e;   // current: skipped
+        ca.step(1);                            // not downloaded
+        ASSERT_TRUE(ca.upload(s, &e)) << e;   // must copy s again
+        ca.step(1);
+        ASSERT_TRUE(ca.download(s, &e)) << e;
+        ref.step(1);
+        EXPECT_TRUE(same(ref, s)) << "an upload after an undownloaded device step was skipped";
+    }
     ca.shutdown();
 }
 

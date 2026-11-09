@@ -130,10 +130,12 @@ bool MatSimCore::adoptStepped(std::vector<Cell> cells, uint64_t tick, std::vecto
     h_ = std::move(h);
     m_ = std::move(mx);
     srcBricks_.clear();   // 6l: the pointers came from elsewhere; the next incremental pass starts full
+    bumpGen();
     return true;
 }
 
 void MatSimCore::resetPressure() {
+    bumpGen();
     q_.assign(cur_.size(), kNoHead);
     qn_.assign(cur_.size(), kNoHead);
     m_.assign(cur_.size(), kNoHead);
@@ -161,6 +163,7 @@ bool MatSimCore::solidCell(const MicroSolidFn& fn, int wx, int wy, int wz, int c
 
 bool MatSimCore::create(IVec3 o, IVec3 sz, int cpm, const MicroSolidFn& solid, std::string* reason,
                         Config cfg) {
+    bumpGen();
     auto refuse = [&](const std::string& r) { if (reason) *reason = r; return false; };
     if (!validCellsPerM(cpm)) return refuse("cells_per_m must be 1, 3 or 9");
     if (sz.x <= 0 || sz.y <= 0 || sz.z <= 0) return refuse("box size must be positive on every axis");
@@ -223,6 +226,7 @@ bool MatSimCore::createMetres(double minX, double minY, double minZ, double size
 }
 
 void MatSimCore::clear() {
+    bumpGen();
     created_ = false;
     cfg_ = Config{};
     cpm_ = 0;
@@ -326,6 +330,7 @@ void MatSimCore::unblockAll() {
 }
 
 void MatSimCore::resolidify(const MicroSolidFn& fn) {
+    bumpGen();
     if (!created_ || !fn) return;
     unknownCells_ = 0;
     for (int y = 0; y < size_.y; ++y)
@@ -353,6 +358,7 @@ void MatSimCore::resolidify(const MicroSolidFn& fn) {
 // Resolution switch (§3a): split bottom-up, merge = sum. Two-phase: nothing changes on refusal.
 
 bool MatSimCore::setCellSize(int ncpm, const MicroSolidFn& fn, std::string* reason) {
+    bumpGen();
     auto refuse = [&](const std::string& r) { if (reason) *reason = r; return false; };
     if (!created_) return refuse("no box");
     if (!validCellsPerM(ncpm)) return refuse("cells_per_m must be 1, 3 or 9");
@@ -510,6 +516,7 @@ int MatSimCore::brickOf(int wx, int wy, int wz) const {
 }
 
 void MatSimCore::wakeAll() {
+    bumpGen();
     brickLo_ = {floorDiv(origin_.x - 1, 8), floorDiv(origin_.y - 1, 8), floorDiv(origin_.z - 1, 8)};
     const IVec3 hi{floorDiv(origin_.x + size_.x, 8), floorDiv(origin_.y + size_.y, 8), floorDiv(origin_.z + size_.z, 8)};
     brickDim_ = {hi.x - brickLo_.x + 1, hi.y - brickLo_.y + 1, hi.z - brickLo_.z + 1};
@@ -519,6 +526,7 @@ void MatSimCore::wakeAll() {
 }
 
 void MatSimCore::wakeCells(IVec3 lo, IVec3 hi) {
+    bumpGen();   // every cell edit (setCell, fillBox, blockEmpty, unblockAll) marks through here
     for (int by = floorDiv(lo.y, 8); by <= floorDiv(hi.y, 8); ++by)
         for (int bz = floorDiv(lo.z, 8); bz <= floorDiv(hi.z, 8); ++bz)
             for (int bx = floorDiv(lo.x, 8); bx <= floorDiv(hi.x, 8); ++bx) {
@@ -1042,6 +1050,7 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
 }
 
 StepStats MatSimCore::step(int n) {
+    bumpGen();
     StepStats st;
     if (!created_ || n <= 0) return st;
     const size_t nb = marks1_.size();

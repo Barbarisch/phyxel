@@ -35,7 +35,11 @@ public:
 
     /// Copy the core's stepping state to the device, (re)allocating for its box. Refuses (false +
     /// reason) for an uncreated core or a box whose buffers cannot be allocated.
+    /// 6l: skipped (returns true, copies nothing) when the device already holds this exact state: the last
+    /// download left the core at generation G, nothing has stepped the device since, and the core is still at G.
     bool upload(const MatSimCore& core, std::string* err);
+    void setSkipCurrentUpload(bool on) { m_skipCurrent = on; }   ///< default on; off = always copy (a control)
+    uint64_t uploadsSkipped() const { return m_uploadsSkipped; }
     bool loaded() const { return m_cells > 0; }
     /// Free the box's buffers (the pipelines stay).
     void release();
@@ -49,6 +53,10 @@ public:
     uint64_t tick() const { return m_tick; }
     /// Device time of the last step() call per tick, from timestamps (ms); < 0 when unavailable.
     double lastGpuMsPerTick() const { return m_lastMsPerTick; }
+    /// 6l: wall time of the last upload / download by part (host = staging memcpy + allocations, copy = the
+    /// submitted copy and its fence wait, adopt = MatSimCore::adoptStepped).
+    struct XferMs { double upHost = 0, upCopy = 0, downCopy = 0, downHost = 0, downAdopt = 0; };
+    const XferMs& lastXferMs() const { return m_xfer; }
 
 private:
     struct Buffer {
@@ -88,6 +96,10 @@ private:
     Buffer m_q[2], m_head;   ///< §6d route pointers (ping-pong with the cells) and head words
     Buffer m_mx[2];          ///< §6d max pointers (ping-pong)
     double m_lastMsPerTick = -1.0;
+    XferMs m_xfer;
+    uint64_t m_heldGen = 0;          ///< 6l: the core generation the device holds (0 = unknown)
+    bool m_skipCurrent = true;
+    uint64_t m_uploadsSkipped = 0;
 };
 
 } // namespace Phyxel::Core::MatSim

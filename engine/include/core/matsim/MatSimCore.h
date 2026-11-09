@@ -24,6 +24,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <atomic>
 #include <vector>
 
 namespace Phyxel::Core::MatSim {
@@ -168,6 +169,9 @@ public:
     uint64_t trappedUnits() const;
     uint64_t unknownCells() const { return unknownCells_; }
     uint64_t tick() const { return tick_; }
+    /// 6l: bumped by every change to the state a device copy holds (cells, marks, head/pointers, config, box).
+    /// Equal generations = no change in between: the hybrid lab skips re-uploading a device CA that is current.
+    uint64_t generation() const { return gen_; }
 
     int cellsPerM() const { return cpm_; }
     uint32_t full() const { return full_; }
@@ -177,7 +181,7 @@ public:
     /// Cell at a world cell coordinate; SOLID outside the box.
     Cell at(IVec3 w) const;
     const std::vector<Cell>& cells() const { return cur_; }
-    Config& config() { return cfg_; }
+    Config& config() { bumpGen(); return cfg_; }   // 6l: a writable config counts as a change (generation())
     const Config& config() const { return cfg_; }
 
     // --- P1b: the GPU port (MatSimGpu) steps a device copy of this state and hands it back. ---
@@ -227,6 +231,10 @@ private:
     void markBricksOfBlock(int bx, int by, int bz, std::vector<uint8_t>& marks) const;
     int brickOf(int wx, int wy, int wz) const;            ///< index into brick arrays
     void wakeAll();
+    uint64_t gen_ = 0;                                    ///< 6l: generation()
+    /// Generations are unique across all cores (a process-wide counter): equal generations = the same state,
+    /// even for a copy of a core or a new core at the same address.
+    void bumpGen() { static std::atomic<uint64_t> next{0}; gen_ = ++next; }
     size_t lastPressureBricks_ = 0;                       ///< 6l: bricks computed by the last pressure pass
     std::vector<std::vector<uint32_t>> srcBricks_;        ///< 6l: per brick, the bricks its cells' head pointers name
     std::vector<IVec3> blocked_;                          ///< 6k: cells made solid by blockEmpty()

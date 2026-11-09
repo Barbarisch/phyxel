@@ -427,6 +427,16 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
                                   {"largest_high_column", {ss.hiCol[0], ss.hiCol[1], ss.hiCol[2]}}};
             out["last_tick_ms"] = {{"wake", hms_.wake}, {"step", hms_.step}, {"settle", hms_.settle}, {"ca", hms_.ca}};
             out["hybrid_ca"] = hybridCa_ == HybridCa::Gpu ? "gpu" : hybridCa_ == HybridCa::Auto ? "auto" : "cpu";
+            {
+                const auto& ws = parts_->lastWakeStats();
+                out["last_wake"] = {{"scanned_cells", ws.scannedCells}, {"prep_ms", ws.prepMs}, {"scan_ms", ws.scanMs},
+                                    {"lift_ms", ws.liftMs}, {"pack_ms", ws.packMs}, {"particles", ws.particles}};
+            }
+            if (gpu_ && caGpuTicks_) {
+                const auto& x = gpu_->lastXferMs();
+                out["ca_gpu_last_ms"] = {{"up_host", x.upHost}, {"up_copy", x.upCopy}, {"step_device", gpu_->lastGpuMsPerTick()},
+                                         {"down_copy", x.downCopy}, {"down_host", x.downHost}, {"down_adopt", x.downAdopt}};
+            }
             out["ca_ticks_gpu"] = caGpuTicks_;
             out["ca_ticks_cpu"] = caCpuTicks_;
             if (!caGpuError_.empty()) out["hybrid_ca_error"] = caGpuError_;

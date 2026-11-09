@@ -267,7 +267,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     - **6l: a hybrid box's CA can step on the device** (lab `hybrid_ca` cpu|gpu|auto; default auto when the device CA
       exists and film_floor is 0: device when the last tick marked > 16 bricks). Parity-exact: lockstep test
       `DeviceCaEqualsHostCaInTheHybrid` (300/300 frames, with a 2-tick control). 1/9 m levelling tail CA 32-64 -> 7-13 ms.
-    - **Next:** the wake scan while the pool levels (10-16 ms Release); device CA transfers; fused particle kernels;
+    - **6l: the wake scan reads the cell array directly** (was `core.at()` ~49 ns a cell): levelling-tail wake
+      8.7-13.7 -> 2.8-5.0 ms Release, traces identical. Lab stats `last_wake` gives the phase split.
+    - **6l: the device CA skips a current upload** (`MatSimCore::generation()`, globally unique; `MatSimGpu` records it
+      at download, forgets it at step). The device step is 0.05 ms; the rest was transfer. Tail CA 5.6-7.1 -> 3.8-4.5 ms.
+      Lockstep test covers it (233 skips) + two mutations caught.
+    - **Next:** the device CA download (~3.5 ms; pointers only needed before a host step); fused particle kernels;
       the bundle on the live rig's dam break (does a real flow still wake what it should?) + a video, the
       floor+absorb pair at 1/3 m, the pressure-rule cycle.
     - ⚠️ GPU MatSim tests find `shaders/*.spv` relative to the working directory: run them from the repo root.

@@ -163,7 +163,12 @@ public:
     StepStats stepCells(MatSimCore& core, const std::function<StepStats(MatSimCore&)>& stepOne = nullptr);
     /// 6k diagnostics: the first pressure trigger cells of the last wake (cell, its neighbour, head and the neighbour's level, units).
     struct PressureTrigger { IVec3 cell, nb; uint32_t head, ex, fill, nbFill; };
-    struct WakeStats { size_t contact = 0, falling = 0, pressure = 0, particles = 0, packed = 0; std::vector<PressureTrigger> firstPressure; };   ///< trigger cells in the last wake(); particles made; of them packed from thin cells
+    struct WakeStats {
+        size_t contact = 0, falling = 0, pressure = 0, particles = 0, packed = 0;
+        std::vector<PressureTrigger> firstPressure;
+        size_t scannedCells = 0;                                   ///< 6l: cells testCell visited
+        double prepMs = 0, scanMs = 0, liftMs = 0, packMs = 0;     ///< 6l: wall time by phase (prep = contact/held masks, groups)
+    };   ///< trigger cells in the last wake(); particles made; of them packed from thin cells
     const WakeStats& lastWakeStats() const { return wakeStats_; }
     /// Why groups did not settle in the last settle(): groups by blocker, and the largest group.
     struct SettleStats {

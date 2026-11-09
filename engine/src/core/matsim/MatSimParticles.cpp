@@ -743,6 +743,9 @@ size_t MatSimParticles::wake(MatSimCore& core) {
     // quarter cell over a non-full space) or touches a particle (within one cell).
     wakeStats_ = {};
     if (cfg_.wakeHeadCells <= 0.f) return 0;
+    using WClock = std::chrono::steady_clock;
+    auto wms = [](WClock::time_point a, WClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    auto wt0 = WClock::now();
     full_ = core.full();
     const uint32_t F = core.full();
     const IVec3 o = core.origin(), n = core.size();
@@ -796,49 +799,58 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                     }
         }
     }
-    auto held = [&](const IVec3& w) {
-        return !heldP.empty() && heldP[idx(w.x - o.x, w.y - o.y, w.z - o.z)] != 0;
-    };
     std::vector<uint8_t> trig(N, 0);
     bool any = false;
+    auto wt1 = WClock::now();
+    wakeStats_.prepMs = wms(wt0, wt1);
+    // 6l: testCell reads the core's cell array by local index (the wake's idx is the core's index): the scan
+    // is the levelling tail's largest cost (~49 ns a cell through core.at, 13.6 ms for a 1/9 m pool, Release).
+    const Cell* C = core.cells().data();
+    const size_t strideY = size_t(n.x) * size_t(n.z), strideZ = size_t(n.x);
+    const double contactMin = double(cfg_.wakeContactMinFill) * F, pressMin = double(cfg_.wakePressureMinFill) * F,
+                 roomMin = double(cfg_.wakePressureMinRoom) * F;
     auto testCell = [&](int lx, int ly, int lz) {
-                const IVec3 w{o.x + lx, o.y + ly, o.z + lz};
-                const Cell c = core.at(w);
+                ++wakeStats_.scannedCells;
+                const size_t i = idx(lx, ly, lz);
+                const Cell c = C[i];
                 const uint8_t m = cellMaterial(c);
-                if (!isLiquid(m) || cellFill(c) == 0) return;
+                const uint32_t cf = cellFill(c);
+                if (!isLiquid(m) || cf == 0) return;
                 // Contact wakes a cell at least wakeContactMinFill full (default 0: any contact; see the config).
-                bool go = nearP[idx(lx, ly, lz)] != 0 && double(cellFill(c)) >= double(cfg_.wakeContactMinFill) * F;
+                bool go = nearP[i] != 0 && double(cf) >= contactMin;
                 if (go) ++wakeStats_.contact;
-                const Cell b = core.at({w.x, w.y - 1, w.z});
-                // Falling: at least half a cell over an EMPTY cell. A cell over a part-filled one is
-                // the CA's one-tick gravity job; counting it re-woke settled bodies every ~1 s
+                // Falling: at least half a cell over an EMPTY cell (outside the box reads SOLID). A cell over a
+                // part-filled one is the CA's one-tick gravity job; counting it re-woke settled bodies every ~1 s
                 // (4-18 trigger cells per cycle, WakeUTubeFromCells timeline).
-                if (!go && cellFill(c) >= F / 2 && cellMaterial(b) == kEmpty && !(core.inBox({w.x, w.y - 1, w.z}) && held({w.x, w.y - 1, w.z}))) {
+                if (!go && ly > 0 && cf >= F / 2 && cellMaterial(C[i - strideY]) == kEmpty && !(!heldP.empty() && heldP[i - strideY])) {
                     go = true;
                     ++wakeStats_.falling;
                 }
-                const uint32_t hw = head.empty() ? 0u : (head[idx(lx, ly, lz)] & kHeadMask);
-                if (!go && hw != 0 && double(cellFill(c)) >= double(cfg_.wakePressureMinFill) * F)
+                const uint32_t hw = head.empty() ? 0u : (head[i] & kHeadMask);
+                if (!go && hw != 0 && double(cf) >= pressMin)
                     for (const auto& d : kD) {
-                        const IVec3 nw{w.x + d[0], w.y + d[1], w.z + d[2]};
-                        if (!core.inBox(nw)) continue;
-                        const Cell x = core.at(nw);
+                        const int nx = lx + d[0], ny = ly + d[1], nz = lz + d[2];
+                        if (nx < 0 || ny < 0 || nz < 0 || nx >= n.x || ny >= n.y || nz >= n.z) continue;
+                        const size_t j = i + ptrdiff_t(d[0]) + ptrdiff_t(d[2]) * ptrdiff_t(strideZ) + ptrdiff_t(d[1]) * ptrdiff_t(strideY);
+                        const Cell x = C[j];
                         const uint8_t xm = cellMaterial(x);
                         if (xm == kSolid || (xm != kEmpty && xm != m) || cellFill(x) >= F) continue;
-                        if (xm == kEmpty && held(nw)) continue;   // 6k: a particle holds it
-                        if (double(F - cellFill(x)) < double(cfg_.wakePressureMinRoom) * F) continue;   // 6k: a small void: the CA fills it
+                        if (xm == kEmpty && !heldP.empty() && heldP[j]) continue;   // 6k: a particle holds it
+                        if (double(F - cellFill(x)) < roomMin) continue;   // 6k: a small void: the CA fills it
                         // An EMPTY neighbour counts from its top: a one-cell step in a settled surface
                         // is the CA level rule's job, and reading it as a cell of excess re-woke
                         // settled bodies (1-12 trigger cells a cycle, WakeUTubeFromCells timeline).
-                        const uint32_t ex = uint32_t(nw.y - o.y) * F + (xm == kEmpty ? F : cellFill(x));
+                        const uint32_t ex = uint32_t(ny) * F + (xm == kEmpty ? F : cellFill(x));
                         if (hw - 1 > ex + thr) {
                             go = true;
                             ++wakeStats_.pressure;
-                            if (wakeStats_.firstPressure.size() < 8) wakeStats_.firstPressure.push_back({w, nw, hw, ex, cellFill(c), cellFill(x)});
+                            const IVec3 w{o.x + lx, o.y + ly, o.z + lz};
+                            if (wakeStats_.firstPressure.size() < 8)
+                                wakeStats_.firstPressure.push_back({w, {o.x + nx, o.y + ny, o.z + nz}, hw, ex, cf, cellFill(x)});
                             break;
                         }
                     }
-                if (go) { trig[idx(lx, ly, lz)] = 1; any = true; }
+                if (go) { trig[i] = 1; any = true; }
     };
     if (!cfg_.wakeSkipQuiet) {
         for (int ly = 0; ly < n.y; ++ly)
@@ -880,6 +892,8 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                             for (int x = x0; x < x1; ++x) testCell(x - o.x, y - o.y, z - o.z);
                 }
     }
+    auto wt2 = WClock::now();
+    wakeStats_.scanMs = wms(wt1, wt2);
     if (!any) return 0;
     // Flood each triggered body (face-connected, same liquid) and lift all of it, in index order.
     std::vector<uint8_t> lift(N, 0);
@@ -943,6 +957,8 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                     }
                 }
             }
+    auto wt3 = WClock::now();
+    wakeStats_.liftMs = wms(wt2, wt3);
     size_t lifted = 0;
     const size_t first = p_.size();
     const uint32_t thin = uint32_t(double(cfg_.packThinBelow) * F);
@@ -1040,6 +1056,7 @@ size_t MatSimParticles::wake(MatSimCore& core) {
                 ++wakeStats_.packed;
             }
     wakeStats_.particles = p_.size() - first;
+    wakeStats_.packMs = wms(wt3, WClock::now());
     return lifted;
 }
 

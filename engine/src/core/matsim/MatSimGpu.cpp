@@ -3,6 +3,7 @@
 #include "vulkan/ComputePipeline.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 
@@ -125,6 +126,7 @@ void MatSimGpu::shutdown() {
 }
 
 void MatSimGpu::release() {
+    m_heldGen = 0;
     if (m_device == VK_NULL_HANDLE) return;
     vkDeviceWaitIdle(m_device);
     for (Buffer& b : m_cellBuf) destroyBuffer(b);
@@ -266,6 +268,12 @@ void MatSimGpu::bindSets() {
 bool MatSimGpu::upload(const MatSimCore& core, std::string* err) {
     if (!initialized()) { if (err) *err = "MatSimGpu: not initialised"; return false; }
     if (!core.created()) { if (err) *err = "MatSimGpu: the core has no box"; return false; }
+    if (m_skipCurrent && m_heldGen != 0 && core.generation() == m_heldGen && loaded()) {
+        ++m_uploadsSkipped;
+        m_xfer.upHost = m_xfer.upCopy = 0.0;
+        return true;
+    }
+    m_heldGen = 0;
     const size_t n = core.cells().size();
     const size_t nb = core.marksTick1().size();
     if (n != m_cells || nb != m_bricks) {
@@ -296,6 +304,9 @@ bool MatSimGpu::upload(const MatSimCore& core, std::string* err) {
     m_tick = core.tick();
     m_g = 0;
 
+    using XClock = std::chrono::steady_clock;
+    auto xms = [](XClock::time_point a, XClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    const auto u0 = XClock::now();
     const Layout l = layoutFor(n, nb);
     auto* base = static_cast<uint8_t*>(m_staging.mapped);
     std::memcpy(base + l.cells, core.cells().data(), n * 4);
@@ -312,6 +323,7 @@ bool MatSimGpu::upload(const MatSimCore& core, std::string* err) {
         mt[4 * m + 2] = slideThreshold(uint8_t(m), m_full, true);
         mt[4 * m + 3] = 0;
     }
+    const auto u1 = XClock::now();
     VkCommandBuffer cmd = beginCommands();
     auto copy = [&](const Buffer& dst, VkDeviceSize src, VkDeviceSize bytes) {
         VkBufferCopy r{src, 0, bytes};
@@ -327,12 +339,15 @@ bool MatSimGpu::upload(const MatSimCore& core, std::string* err) {
     copy(m_mx[0], l.mx, n * 4);
     copy(m_mx[1], l.mx, n * 4);
     submitAndWait(cmd);
+    m_xfer.upHost = xms(u0, u1);
+    m_xfer.upCopy = xms(u1, XClock::now());
     return true;
 }
 
 StepStats MatSimGpu::step(int n) {
     StepStats st;
     if (!loaded() || n <= 0) return st;
+    m_heldGen = 0;   // the device is now ahead of any core
     const Layout l = layoutFor(m_cells, m_bricks);
     const bool timed = m_queries != VK_NULL_HANDLE && m_timestampMs > 0.0;
     double ms = 0.0;
@@ -442,6 +457,9 @@ bool MatSimGpu::download(MatSimCore& core, std::string* err) {
         if (err) *err = "MatSimGpu: the core's box is not the uploaded box";
         return false;
     }
+    using XClock = std::chrono::steady_clock;
+    auto xms = [](XClock::time_point a, XClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    const auto d0 = XClock::now();
     const Layout l = layoutFor(m_cells, m_bricks);
     VkCommandBuffer cmd = beginCommands();
     barrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -459,6 +477,7 @@ bool MatSimGpu::download(MatSimCore& core, std::string* err) {
     barrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT,
             VK_ACCESS_HOST_READ_BIT);
     submitAndWait(cmd);
+    const auto d1 = XClock::now();
     const auto* base = static_cast<const uint8_t*>(m_staging.mapped);
     std::vector<Cell> cells(m_cells);
     std::memcpy(cells.data(), base + l.cells, m_cells * 4);
@@ -471,11 +490,16 @@ bool MatSimGpu::download(MatSimCore& core, std::string* err) {
     std::memcpy(h.data(), base + l.head, m_cells * 4);
     std::vector<uint32_t> mx(m_cells);
     std::memcpy(mx.data(), base + l.mx, m_cells * 4);
+    const auto d2 = XClock::now();
     if (!core.adoptStepped(std::move(cells), m_tick, std::move(m1), std::move(m2), std::move(q), std::move(h),
                            std::move(mx))) {
         if (err) *err = "MatSimGpu: the core refused the stepped state";
         return false;
     }
+    m_heldGen = core.generation();   // adoptStepped bumped it: the device holds exactly this
+    m_xfer.downCopy = xms(d0, d1);
+    m_xfer.downHost = xms(d1, d2);
+    m_xfer.downAdopt = xms(d2, XClock::now());
     return true;
 }
 

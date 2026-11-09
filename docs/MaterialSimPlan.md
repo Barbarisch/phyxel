@@ -1815,8 +1815,45 @@ Lab pool drop 1/9 m, regional, Release, with `auto`: CA in the levelling tail **
 ledger exact); the test's wall time went from 17.8 s to 9.0 s. The wake scan (10-16 ms a tick
 while the pool levels) is now the largest cost of the tail.
 
-Still open: the wake scan while the pool levels; the transfers of the device CA (heads and
-pointers go both ways every tick); the limit cycle.
+**The wake scan while the pool levels (2026-11-08).** Measured first, with per-phase timers
+(`WakeStats` prep/scan/lift/pack + `scannedCells`, lab stats `last_wake`). Prediction: the O(N)
+masks and whole-domain loops around the scan dominate. **Refuted:** in the regional tail those are
+~0.1 ms; the scan itself was the whole cost: the levelling ripple marks every brick, so the
+dilated scan visits all 279,936 water cells (13.6 ms, ~49 ns a cell, and it finds nothing: no
+lift). The cost was `core.at()` (out of line, a bounds check, ~8 calls a cell). `testCell` now
+reads the core's array by local index (the wake's index is the core's).
+
+- Equality: the per-frame wake trace of `PoolDropPhases` + `HybridUTubeAtOneNinthMetre` (lifted,
+  trigger counts, first wake, arm levels, peaks; run-to-run identical before the change) is
+  identical after it.
+- Release, lab pool drop 1/9 m, regional: scan 13.6 -> 3.8-4.8 ms at 280k cells (~15 ns a
+  cell); levelling-tail wake 8.7-13.7 -> 2.8-5.0 ms. Whole-body wake at 1 s: 10.9 -> 8.6 ms,
+  where prep (`groups()` over 105k particles, 6.1 ms) is now the larger part.
+
+**The device CA's transfers (2026-11-08).** Measured with a split (`MatSimGpu::lastXferMs`, lab
+stats `ca_gpu_last_ms`), Release, 1/9 m pool, levelling tail: up host 0.3-0.6 + copy 1.5-2.5,
+**step on the device 0.04-0.05 ms**, down copy 1.2-1.9 + host 1.1-1.5 + adopt 1.0 ms. The CA is
+all transfer. With no particles in flight nothing touches the core between a download and the
+next upload, so that upload re-sends what the device holds.
+
+- `MatSimCore::generation()`: bumped by every change to state a device copy holds (`wakeCells`,
+  through which every cell edit marks; `step`, `adoptStepped`, `resetPressure`, `wakeAll`,
+  `create`, `clear`, `resolidify`, `setCellSize`, the writable `config()`). Values come from a
+  process-wide counter, so equal generations mean the same state even across core copies.
+- `MatSimGpu`: `download` records the generation, `step` forgets it (the device is then ahead),
+  `upload` copies nothing when the core is still at it (`setSkipCurrentUpload(false)` = always copy).
+  Safe for the ping-pong pointer buffers: the pressure kernel writes every cell's `qNext`/`mNext`.
+- Lockstep `DeviceCaEqualsHostCaInTheHybrid`: 300/300 frames equal with 233 uploads skipped
+  (asserted > 30), plus a new case: an undownloaded device step, then an upload, must copy.
+  Mutations, each caught: no reset in `step` -> the new case fails; no bump in `wakeCells` ->
+  frames differ at frame 4.
+- Release, levelling tail: CA 5.6-7.1 -> 3.8-4.5 ms (upload 0). Outcomes unchanged (peak
+  1,632, all cells at 1.5 s, ledger exact).
+
+Still open: the download (~3.5 ms: copy, the host copies out of staging, `adoptStepped`'s moves);
+the wake only needs cells, heads and marks, the pointers only before a host step. An exact scan
+skip while the ripple runs; the whole-body wake's `groups()` (6 ms at 105k particles); the limit
+cycle.
 
 ## 7. Working alongside the other sessions
 
