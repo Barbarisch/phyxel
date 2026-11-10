@@ -276,7 +276,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Tail tick now ~wake 4.2 + CA ~3.8 ms (was ~19 ms at the start of 6l's cost work).
     - **6l: the wake scan on a persistent thread pool** (`wakeScanThreads`, exact: merged in scan order, lidded-holes rig
       pins the order). Tail wake 4.2 -> 0.9 ms. **1/9 m levelling tail tick ~19 -> ~3.3 ms (Release).**
-    - **Next:** the 1/9 m tail is no longer the bottleneck; the moving phase is (particle step floor ~3.5 ms, the
+    - **6l: the flood's host half** (`stats.last_step_split_ms`, `tools/matsim_flood_split.py`): the sponge's 125 reads/particle -> a
+      dilated mask over the particle box (305 -> 13 ms), the CA wall list's 27 IVec3/particle -> a deduped mask (137 -> 25);
+      exact (`HostMasksEqualTheReference`, `hostReference`, 2 mutations caught). 1/9 m flood at 257 k particles: tick ~845 -> ~270 ms
+      (Release). Left: GPU solver ~125 ms (unsorted gathers, 125 boundary reads, 3-5 substeps x 10 iterations), CA ~50, settle ~36,
+      wake ~37. Device time read 251 in the 'before' run, 124-129 after: unexplained variance.
+    - **Next:** the GPU solver (sort particles by bin for coherent gathers; boundary reads), settle + wake at 257 k (host);
+      the 1/9 m tail is no longer the bottleneck; the moving phase is (particle step floor ~3.5 ms, the
       whole-body wake's groups() 6 ms at 105k particles); fused particle kernels; download copy (~1.2 ms);
       **live dam break filmed 2026-11-09** (`hybrid_9_wakeR1_caauto.mp4`): the whole rig moves, so R = 1 m only staggers the lift; about 260 k particles for about 20 s, step about 400 ms/tick; settling (cells back only at about 23 s and 33 s although calm at about 20 s) is that scene's lever; the
       floor+absorb pair at 1/3 m, the pressure-rule cycle.

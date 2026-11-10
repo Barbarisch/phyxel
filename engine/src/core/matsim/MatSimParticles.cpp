@@ -170,6 +170,85 @@ int MatSimParticles::substepsFor(const MatSimCore& core, double dtFrame) const {
 
 void MatSimParticles::sponge(const MatSimCore& core, double dtFrame) {
     if (!(cfg_.spongeTau > 0.f) || p_.empty()) return;
+    if (cfg_.hostReference) { spongeReference(core, dtFrame); return; }
+    // 6l: "cell water of my liquid within W cells (Chebyshev, in the box)" is a mask dilated by W, one per liquid the
+    // particles carry: O(region cells) per tick instead of (2W+1)^3 reads per particle (305 ms at 257 k particles,
+    // 1/9 m). The region is the particles' cell bounding box grown by W (clamped to the box): a separable dilation read
+    // only at particle cells reads only source cells in it, so truncating the lines there changes nothing. Without the
+    // region a 1.6 k-particle drop paid for the whole 1/9 m box (LabPoolDropNinthMetre step 36 -> 60 ms, Debug).
+    const float k = std::exp(-float(dtFrame) / cfg_.spongeTau);
+    const int W = std::max(1, cfg_.spongeCells);
+    const IVec3 o = core.origin(), n = core.size();
+    const Cell* C = core.cells().data();
+    bool seen[256] = {};
+    IVec3 lo{INT_MAX, INT_MAX, INT_MAX}, hi{INT_MIN, INT_MIN, INT_MIN};
+    for (const Particle& q : p_) {
+        seen[q.mat] = true;
+        const int cx = floorI(q.x) - o.x, cy = floorI(q.y) - o.y, cz = floorI(q.z) - o.z;
+        lo = {std::min(lo.x, cx), std::min(lo.y, cy), std::min(lo.z, cz)};
+        hi = {std::max(hi.x, cx), std::max(hi.y, cy), std::max(hi.z, cz)};
+    }
+    const IVec3 r0{std::max(0, lo.x - W), std::max(0, lo.y - W), std::max(0, lo.z - W)};
+    const IVec3 r1{std::min(n.x, hi.x + W + 1), std::min(n.y, hi.y + W + 1), std::min(n.z, hi.z + W + 1)};
+    const IVec3 rd{std::max(0, r1.x - r0.x), std::max(0, r1.y - r0.y), std::max(0, r1.z - r0.z)};
+    const size_t R = size_t(rd.x) * rd.y * rd.z;
+    auto ridx = [&](int x, int y, int z) { return size_t(x - r0.x) + size_t(rd.x) * (size_t(z - r0.z) + size_t(rd.z) * size_t(y - r0.y)); };
+    std::vector<uint8_t> near(R), tmp(R);
+    std::vector<int> run;
+    // Dilate along one axis: out[i] = any(in[i - W .. i + W]) on each line (stride s, length len).
+    auto dilate = [&](const std::vector<uint8_t>& in, std::vector<uint8_t>& out, size_t s, int len, const std::vector<size_t>& starts) {
+        run.assign(size_t(len) + 1, 0);
+        for (size_t b : starts) {
+            for (int i = 0; i < len; ++i) run[i + 1] = run[i] + in[b + size_t(i) * s];
+            for (int i = 0; i < len; ++i) {
+                const int a = std::max(0, i - W), e = std::min(len, i + W + 1);
+                out[b + size_t(i) * s] = run[e] - run[a] > 0;
+            }
+        }
+    };
+    std::vector<size_t> sx, sz, sy;   // line starts: x lines (stride 1), z lines (stride rd.x), y lines (stride rd.x*rd.z)
+    if (R) {
+        for (int y = 0; y < rd.y; ++y) for (int z = 0; z < rd.z; ++z) sx.push_back(size_t(rd.x) * (size_t(z) + size_t(rd.z) * y));
+        for (int y = 0; y < rd.y; ++y) for (int x = 0; x < rd.x; ++x) sz.push_back(size_t(x) + size_t(rd.x) * size_t(rd.z) * y);
+        for (int z = 0; z < rd.z; ++z) for (int x = 0; x < rd.x; ++x) sy.push_back(size_t(x) + size_t(rd.x) * z);
+    }
+    for (int m = 0; m < 256; ++m) {
+        if (!seen[m]) continue;
+        if (R) {
+            for (int y = r0.y; y < r1.y; ++y)
+                for (int z = r0.z; z < r1.z; ++z) {
+                    const Cell* row = C + (size_t(n.x) * (size_t(z) + size_t(n.z) * y));
+                    uint8_t* out = near.data() + ridx(r0.x, y, z);
+                    for (int x = r0.x; x < r1.x; ++x) out[x - r0.x] = cellMaterial(row[x]) == uint8_t(m) && cellFill(row[x]) > 0;
+                }
+            dilate(near, tmp, 1, rd.x, sx);
+            dilate(tmp, near, size_t(rd.x), rd.z, sz);
+            dilate(near, tmp, size_t(rd.x) * rd.z, rd.y, sy);
+        }
+        for (Particle& q : p_) {
+            if (q.mat != uint8_t(m)) continue;
+            const int cx = floorI(q.x) - o.x, cy = floorI(q.y) - o.y, cz = floorI(q.z) - o.z;
+            bool hit;
+            if (cx >= 0 && cy >= 0 && cz >= 0 && cx < n.x && cy < n.y && cz < n.z)
+                hit = tmp[ridx(cx, cy, cz)] != 0;
+            else {   // outside the box (should not happen: the box is walled): the per-particle test
+                hit = false;
+                for (int dy = -W; dy <= W && !hit; ++dy)
+                    for (int dz = -W; dz <= W && !hit; ++dz)
+                        for (int dx = -W; dx <= W && !hit; ++dx) {
+                            const IVec3 w{cx + o.x + dx, cy + o.y + dy, cz + o.z + dz};
+                            if (!core.inBox(w)) continue;
+                            const Cell c = core.at(w);
+                            hit = cellMaterial(c) == q.mat && cellFill(c) > 0;
+                        }
+            }
+            if (hit) { q.vx *= k; q.vy *= k; q.vz *= k; }
+        }
+    }
+}
+
+void MatSimParticles::spongeReference(const MatSimCore& core, double dtFrame) {
+    if (!(cfg_.spongeTau > 0.f) || p_.empty()) return;
     const float k = std::exp(-float(dtFrame) / cfg_.spongeTau);
     const int W = std::max(1, cfg_.spongeCells);
     for (Particle& q : p_) {
@@ -198,7 +277,16 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
     if (!full_) full_ = core.full();
     if (gpu_) {
         std::string err;
-        if (gpu_->step(*this, core, dtFrame, &err)) { sponge(core, dtFrame); return; }
+        if (gpu_->step(*this, core, dtFrame, &err)) {
+            split_.gpuPack = gpu_->lastPackMs();
+            split_.gpuWait = gpu_->lastWaitMs();
+            split_.gpuDevice = gpu_->lastGpuMs();
+            split_.gpuUnpack = gpu_->lastUnpackMs();
+            const auto s0 = std::chrono::steady_clock::now();
+            sponge(core, dtFrame);
+            split_.sponge = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - s0).count();
+            return;
+        }
         std::fprintf(stderr, "[MatSimParticles] GPU step refused (%s); stepping on the CPU\n", err.c_str());
     }
     const float h = cfg_.kernelCells, h2 = h * h;
@@ -786,16 +874,64 @@ void MatSimParticles::settleBlockers(const MatSimCore& core, size_t& slow, size_
 
 StepStats MatSimParticles::stepCells(MatSimCore& core, const std::function<StepStats(MatSimCore&)>& stepOne) {
     auto one = [&]() { return stepOne ? stepOne(core) : core.step(1); };
-    if (!cfg_.caSeesParticles || p_.empty()) return one();
+    using SClock = std::chrono::steady_clock;
+    auto sms = [](SClock::time_point a, SClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    if (!cfg_.caSeesParticles || p_.empty()) {
+        const auto c0 = SClock::now();
+        const StepStats st = one();
+        split_.cellsMask = split_.cellsBlock = split_.cellsUnblock = 0;
+        split_.cellsBlocked = 0;
+        split_.cellsStep = sms(c0, SClock::now());
+        return st;
+    }
+    const auto c0 = SClock::now();
     std::vector<IVec3> held;
-    held.reserve(p_.size());
-    for (const Particle& q : p_)   // the cell of each particle and its neighbours (as wake's held mask)
-        for (int dy = -1; dy <= 1; ++dy)
-            for (int dz = -1; dz <= 1; ++dz)
-                for (int dx = -1; dx <= 1; ++dx) held.push_back({floorI(q.x) + dx, floorI(q.y) + dy, floorI(q.z) + dz});
-    core.blockEmpty(held);
+    if (cfg_.hostReference) {
+        held.reserve(p_.size());
+        for (const Particle& q : p_)   // the cell of each particle and its neighbours (as wake's held mask)
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dz = -1; dz <= 1; ++dz)
+                    for (int dx = -1; dx <= 1; ++dx) held.push_back({floorI(q.x) + dx, floorI(q.y) + dy, floorI(q.z) + dz});
+    } else {
+        // 6l: the same set, deduplicated through a box mask (blockEmpty skips out-of-box and non-empty cells anyway):
+        // ~300 k unique cells instead of 27 entries per particle (7 M IVec3s, 137 ms at 257 k particles).
+        // The mark mask spans the particles' bounding box grown by one cell (cost follows the region, not the box).
+        const IVec3 o = core.origin(), n = core.size();
+        IVec3 lo{INT_MAX, INT_MAX, INT_MAX}, hi{INT_MIN, INT_MIN, INT_MIN};
+        for (const Particle& q : p_) {
+            const int cx = floorI(q.x) - o.x, cy = floorI(q.y) - o.y, cz = floorI(q.z) - o.z;
+            lo = {std::min(lo.x, cx), std::min(lo.y, cy), std::min(lo.z, cz)};
+            hi = {std::max(hi.x, cx), std::max(hi.y, cy), std::max(hi.z, cz)};
+        }
+        const IVec3 r0{std::max(0, lo.x - 1), std::max(0, lo.y - 1), std::max(0, lo.z - 1)};
+        const IVec3 r1{std::min(n.x, hi.x + 2), std::min(n.y, hi.y + 2), std::min(n.z, hi.z + 2)};
+        const IVec3 rd{std::max(0, r1.x - r0.x), std::max(0, r1.y - r0.y), std::max(0, r1.z - r0.z)};
+        std::vector<uint8_t> mark(size_t(rd.x) * rd.y * rd.z, 0);
+        const Cell* C = core.cells().data();
+        for (const Particle& q : p_) {
+            const int cx = floorI(q.x) - o.x, cy = floorI(q.y) - o.y, cz = floorI(q.z) - o.z;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dz = -1; dz <= 1; ++dz)
+                    for (int dx = -1; dx <= 1; ++dx) {
+                        const int x = cx + dx, y = cy + dy, z = cz + dz;
+                        if (x < 0 || y < 0 || z < 0 || x >= n.x || y >= n.y || z >= n.z) continue;
+                        const size_t m = size_t(x - r0.x) + size_t(rd.x) * (size_t(z - r0.z) + size_t(rd.z) * size_t(y - r0.y));
+                        const size_t i = size_t(x) + size_t(n.x) * (size_t(z) + size_t(n.z) * y);
+                        if (!mark[m] && cellMaterial(C[i]) == kEmpty) { mark[m] = 1; held.push_back({x + o.x, y + o.y, z + o.z}); }
+                    }
+        }
+    }
+    const auto c1 = SClock::now();
+    split_.cellsBlocked = core.blockEmpty(held);
+    const auto c2 = SClock::now();
     const StepStats st = one();
+    const auto c3 = SClock::now();
     core.unblockAll();
+    const auto c4 = SClock::now();
+    split_.cellsMask = sms(c0, c1);
+    split_.cellsBlock = sms(c1, c2);
+    split_.cellsStep = sms(c2, c3);
+    split_.cellsUnblock = sms(c3, c4);
     return st;
 }
 

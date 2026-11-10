@@ -426,6 +426,14 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
                                   {"largest_low_column", {ss.loCol[0], ss.loCol[1], ss.loCol[2]}},
                                   {"largest_high_column", {ss.hiCol[0], ss.hiCol[1], ss.hiCol[2]}}};
             out["last_tick_ms"] = {{"wake", hms_.wake}, {"step", hms_.step}, {"settle", hms_.settle}, {"ca", hms_.ca}};
+            {
+                const auto& sp = parts_->lastStepSplit();
+                out["last_step_split_ms"] = {{"gpu_pack", sp.gpuPack}, {"gpu_submit_wait", sp.gpuWait},
+                                             {"gpu_device", sp.gpuDevice}, {"gpu_unpack", sp.gpuUnpack},
+                                             {"sponge", sp.sponge}, {"cells_mask", sp.cellsMask},
+                                             {"cells_block", sp.cellsBlock}, {"cells_step", sp.cellsStep},
+                                             {"cells_unblock", sp.cellsUnblock}, {"cells_blocked", sp.cellsBlocked}};
+            }
             out["hybrid_ca"] = hybridCa_ == HybridCa::Gpu ? "gpu" : hybridCa_ == HybridCa::Auto ? "auto" : "cpu";
             {
                 const auto& ws = parts_->lastWakeStats();

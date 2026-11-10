@@ -127,6 +127,9 @@ struct ParticleConfig {
     int wakeScanThreads = 0;
     size_t wakeScanParallelMin = 65536;
     int spongeCells = 2;
+    /// 6l, test only: run the sponge and stepCells' particle-wall mask the old per-particle way (125 / 27 cell visits per
+    /// particle) instead of the box masks. Equal results (MatSimParticles.HostMasksEqualTheReference).
+    bool hostReference = false;
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
 };
 
@@ -176,6 +179,13 @@ public:
         double prepMs = 0, scanMs = 0, liftMs = 0, packMs = 0;     ///< 6l: wall time by phase (prep = contact/held masks, groups)
     };   ///< trigger cells in the last wake(); particles made; of them packed from thin cells
     const WakeStats& lastWakeStats() const { return wakeStats_; }
+    /// 6l: where the last step() and stepCells() spent their time (ms; gpuDevice < 0 = no timestamps / CPU step).
+    struct StepSplit {
+        double gpuPack = 0, gpuWait = 0, gpuDevice = -1, gpuUnpack = 0, sponge = 0;
+        double cellsMask = 0, cellsBlock = 0, cellsStep = 0, cellsUnblock = 0;
+        size_t cellsBlocked = 0;
+    };
+    const StepSplit& lastStepSplit() const { return split_; }
     /// Why groups did not settle in the last settle(): groups by blocker, and the largest group.
     struct SettleStats {
         size_t groups = 0, busySpeed = 0, busyLevel = 0, settled = 0, absorbed = 0;
@@ -213,12 +223,14 @@ private:
     std::vector<uint32_t> groups(const MatSimCore& core);   ///< group root per particle (within h)
     bool solidAt(const MatSimCore& core, float x, float y, float z) const;
     void sponge(const MatSimCore& core, double dtFrame);   ///< 6k: damp particles next to cell water
+    void spongeReference(const MatSimCore& core, double dtFrame);   ///< 6k's per-particle sponge (hostReference)
 
     ParticleConfig cfg_;
     MatSimParticlesGpu* gpu_ = nullptr;
     std::vector<Particle> p_;
     int lastSubsteps_ = 0;
     WakeStats wakeStats_;
+    StepSplit split_;
     SettleStats settleStats_;
     // Work arrays (per substep).
     std::vector<float> px_, py_, pz_, lambda_, rho_;

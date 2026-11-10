@@ -1907,6 +1907,45 @@ on purpose, so it lifts before the dam goes. With R = 1 m the lift grows over a 
 - The water looks calm by about 20 s (frames), but particles return to cells only at about 23 s and 33 s. In a scene
   where everything moves, **settling, not the wake, decides the cost**.
 
+**Where the flood's tick goes, and the host half of it (2026-11-09).** Owner, after the video: *"looks pretty good,
+but doesnt look like something we could accomplish at a reasonable framerate."* Correct for 1/9 m as it stood: about
+845 ms a tick at about 257 k particles, against 16.7 ms for 60 fps. The lab now reports the split
+(`stats.last_step_split_ms`: GPU pack / submit+wait / device timestamps / unpack, the sponge, and stepCells' wall mask /
+block / CA step / unblock). It is measured on the live rig's flood with no video (`tools/matsim_flood_split.py --cpm 9
+--wake-radius 1`; Release, MatSimLab project, port 8120; hand-placed rig; median of 13 samples with > 100 k particles):
+
+| ms per tick | before (`matsim_flood_split_9_before.json`) | after (`..._masks.json`, `..._masks_run2.json`) |
+|---|---|---|
+| sponge (host) | 305 | 13 |
+| wall list for the CA (host) | 137 | 25 |
+| block / CA step / unblock | 27 / 22 / 5 | 6 / 13 / 5 |
+| GPU particle solver (device timestamps) | 251 | 129 / 124 |
+| settle / wake | 39 / 36 | 36 / 37 |
+| **tick** | **~845** | **~273 / ~266** |
+
+- Prediction, written before the timers went in: the sponge and the wall list are most of the step and CA
+  phases. Confirmed: 442 of 845 ms.
+- **Sponge:** it read (2W+1)^3 = 125 cells per particle. It now dilates a "cell water of this liquid" mask, separably
+  (prefix counts per line). The mask spans only the particles' bounding box grown by W, which is exact: a dilation read
+  at particle cells reads only source cells in that region.
+- **Wall list:** it pushed 27 `IVec3`s per particle (7 M). It now dedups through a byte mask over the particle box
+  grown by 1, which keeps the first-encounter order, so blocking runs in the same sequence.
+- The box-wide masks first ran over the whole 1/9 m box, about 1.5 M cells. That regressed a 1.6 k-particle drop
+  (`LabPoolDropNinthMetre`'s step assertion: 36 -> 60 ms Debug, red). The bounding box fixed it: 7.0 ms Debug
+  regional, 15.6 ms whole-body (was 28.9).
+- Exactness: `MatSimParticles.HostMasksEqualTheReference` runs the old paths (`ParticleConfig::hostReference`) in
+  lockstep for 180 frames at W = 1, 2, 3, comparing particles bit for bit, the cell hash and walls blocked.
+  Mutations:
+  - the dilation window one short on the low side: caught at W 1 frame 24 (velocities);
+  - the wall mask with dz in {-1, 0}: caught at frame 0 (144 vs 120 blocked).
+- Pool-drop outcomes unchanged: peaks 105,003 / 1,632, all cells at 1.5 s, ledger exact.
+- **Unexplained:** the GPU solver's device time was 251 ms in the "before" run and 129 / 124 ms in the two runs
+  after, on an identical state, and nothing here touches the GPU path. The host rows are the comparison; the device
+  row is run-to-run variance I have not explained.
+- **What is left at 1/9 m, 257 k particles (~270 ms):** the GPU solver about 125 ms (3-5 CFL substeps x (8 density
+  + 2 divergence) iterations, gathers over unsorted particles plus 125 boundary-cell reads each). Then the CA phase
+  about 50 ms, settle 36, wake 37 (both host). Still about 16x off 60 fps for a whole-box flood at 1/9 m.
+
 ## 7. Working alongside the other sessions
 
 - **Code lives in a separate git worktree and branch** (`feat/matsim-lab`, off `main`), with its

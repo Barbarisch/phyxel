@@ -1153,6 +1153,58 @@ TEST(MatSimParticles, WakeSkipQuietEqualsTheFullScan) {
 // pressure list and so every lift, on both scan paths (full, skip-quiet). Two runs in lockstep, serial vs 7 threads
 // (an odd count: uneven runs), threads forced on with wakeScanParallelMin 0: the regional pool drop and the
 // whole-body U-tube, 1/3 m.
+// 6l: the sponge's dilated box mask and stepCells' deduplicated wall list equal the per-particle originals
+// (hostReference), frame by frame: particle positions and velocities bit-equal, cells equal, same walls blocked.
+// The live 1/9 m flood spent 305 ms (sponge) + 137 ms (wall list) of an 845 ms tick in them at 257 k particles.
+TEST(MatSimParticles, HostMasksEqualTheReference) {
+    const int cpm = 3;
+    for (int W = 1; W <= 3; ++W) {
+        MatSimCore s[2];
+        std::vector<MatSimParticles> own;
+        own.reserve(2);
+        for (int k = 0; k < 2; ++k) {
+            std::string why;
+            // A pool with a pillar (walls inside the box) and a block dropped off-centre near a side wall.
+            auto occ = [](int mx, int my, int mz) { return (mx >= 20 && mx < 23 && mz >= 4 && mz < 7 && my < 18) ? Occ::Solid : Occ::Empty; };
+            ASSERT_TRUE(s[k].create({0, 0, 0}, {12 * cpm, 3 * cpm, 12 * cpm}, cpm, occ, &why)) << why;
+            s[k].fillBox(Mat::Water, {0, 0, 0}, {12 * cpm, cpm, 12 * cpm}, 1.0);
+            s[k].fillBox(Mat::Water, {28, 6, 2}, {4, 2, 4}, 1.0);
+            ParticleConfig pc = hybridConfig(true);
+            pc.wakeRadiusM = 1.0f;
+            pc.wakeContactMinSpeed = 0.5f;
+            pc.caSeesParticles = pc.wakeContactAveraged = true;
+            pc.spongeTau = 0.1f;
+            pc.spongeCells = W;
+            pc.wakePressureMinRoom = 0.5f;
+            pc.hostReference = k == 0;
+            own.emplace_back(pc);
+        }
+        size_t framesWithParticles = 0, blocked = 0;
+        for (int f = 0; f < 3 * 60; ++f) {
+            for (int k = 0; k < 2; ++k) {
+                own[k].wake(s[k]);
+                own[k].step(s[k], 1.0 / 60.0);
+                own[k].settle(s[k]);
+                own[k].stepCells(s[k]);
+            }
+            const auto &pa = own[0].particles(), &pb = own[1].particles();
+            ASSERT_EQ(pa.size(), pb.size()) << "W " << W << " frame " << f;
+            for (size_t i = 0; i < pa.size(); ++i) {
+                ASSERT_TRUE(pa[i].x == pb[i].x && pa[i].y == pb[i].y && pa[i].z == pb[i].z) << "W " << W << " frame " << f << " particle " << i;
+                ASSERT_TRUE(pa[i].vx == pb[i].vx && pa[i].vy == pb[i].vy && pa[i].vz == pb[i].vz) << "W " << W << " frame " << f << " particle " << i;
+            }
+            ASSERT_EQ(own[0].lastStepSplit().cellsBlocked, own[1].lastStepSplit().cellsBlocked) << "W " << W << " frame " << f;
+            ASSERT_EQ(cellHash(s[0]), cellHash(s[1])) << "W " << W << " frame " << f;
+            if (!pa.empty()) ++framesWithParticles;
+            blocked += own[1].lastStepSplit().cellsBlocked;
+        }
+        std::printf("[MatSimParticles] host masks vs reference, sponge %d cells: 180 frames identical, %zu with particles, "
+                    "%zu wall cells blocked\n", W, framesWithParticles, blocked);
+        EXPECT_GT(framesWithParticles, 30u) << "control: the rig must put particles next to cell water";
+        EXPECT_GT(blocked, 0u) << "control: stepCells must block walls";
+    }
+}
+
 TEST(MatSimParticles, WakeScanThreadsEqualSerial) {
     const int cpm = 3;
     for (int skipQuiet = 0; skipQuiet < 2; ++skipQuiet)

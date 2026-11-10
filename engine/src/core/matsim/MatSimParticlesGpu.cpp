@@ -219,6 +219,7 @@ bool MatSimParticlesGpu::step(MatSimParticles& ps, const MatSimCore& core, doubl
         mt[4 * m + 1] = mt[4 * m + 2] = mt[4 * m + 3] = 0;
     }
 
+    const auto wallPacked = std::chrono::steady_clock::now();
     VkCommandBufferAllocateInfo cai{};
     cai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cai.commandPool = m_pool;
@@ -309,6 +310,7 @@ bool MatSimParticlesGpu::step(MatSimParticles& ps, const MatSimCore& core, doubl
     const VkResult sub = vkQueueSubmit(m_queue, 1, &si, m_fence);
     const VkResult wait = sub == VK_SUCCESS ? vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX) : sub;
     vkFreeCommandBuffers(m_device, m_pool, 1, &cmd);
+    const auto wallWaited = std::chrono::steady_clock::now();
     if (sub != VK_SUCCESS || wait != VK_SUCCESS) {
         if (err) *err = "submit " + std::to_string(int(sub)) + " wait " + std::to_string(int(wait));
         return false;
@@ -327,7 +329,14 @@ bool MatSimParticlesGpu::step(MatSimParticles& ps, const MatSimCore& core, doubl
     }
     ps.setLastSubsteps(ns);
     ps.endFrame(dtFrame);
-    m_lastWallMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - wall0).count();
+    const auto wall1 = std::chrono::steady_clock::now();
+    auto dms = [](std::chrono::steady_clock::time_point a, std::chrono::steady_clock::time_point b) {
+        return std::chrono::duration<double, std::milli>(b - a).count();
+    };
+    m_packMs = dms(wall0, wallPacked);
+    m_waitMs = dms(wallPacked, wallWaited);
+    m_unpackMs = dms(wallWaited, wall1);
+    m_lastWallMs = dms(wall0, wall1);
     return true;
 }
 

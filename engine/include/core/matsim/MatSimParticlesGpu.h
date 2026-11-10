@@ -41,6 +41,10 @@ public:
     double lastGpuMs() const { return m_lastMs; }
     /// Wall time of the last step() including uploads and the wait (ms).
     double lastWallMs() const { return m_lastWallMs; }
+    /// 6l: the last step()'s host split (ms): staging fill, record+submit+wait, read-back (+ endFrame).
+    double lastPackMs() const { return m_packMs; }
+    double lastWaitMs() const { return m_waitMs; }
+    double lastUnpackMs() const { return m_unpackMs; }
 
 private:
     struct Buffer {
@@ -66,6 +70,7 @@ private:
 
     Buffer m_parts, m_work, m_keys, m_sorted, m_count, m_start, m_blocks, m_cells, m_mat, m_staging;
     double m_lastMs = -1.0, m_lastWallMs = 0.0;
+    double m_packMs = 0.0, m_waitMs = 0.0, m_unpackMs = 0.0;
 };
 
 } // namespace Phyxel::Core::MatSim
