@@ -12815,6 +12815,23 @@ frame, every slow frame's phases, the pool's grows, the tile seeds' parts. Contr
 - Tests (on the shared GPU): water unit 369 / 369; integration water 80 + the known two + `ARippleLayerBeyondTheReachHoldsNoDeviceState`
   (a dropped ripple layer still holds its device state) - which fails the same on the committed 51.3 code under the same load and
   passed earlier the same day: the load's, to recheck with the GPU free.
+- **Rechecked with the GPU free (2026-11-10):** `ARippleLayerBeyondTheReachHoldsNoDeviceState` passes (20 fly-aways, at most 1 device
+  state held) - it was the load's. **Live (L4)**, `tools/water_record_lake_live.py` on Creek (port 8114, Release, GPU otherwise idle),
+  the same visible splash (2 m, strength 8) at the lake's centre, the 0-8 s window after it:
+
+  | lake | worst frame | mean CPU frame | fps (mean) | water host ms/frame | back in the record |
+  |---|---|---|---|---|---|
+  | 60 m, 51.3 | 134 ms | 16.4 ms | 211 | 4.8 | ~28 s |
+  | 60 m, 51.3b | **104 ms** | **13.9 ms** | 162 | 5.7 | 26.3 s |
+  | 150 m, 51.3 | 205 ms | 47.6 ms | 113 | 10.4 | ~28 s |
+  | 150 m, 51.3b | **91 ms** | **13.0 ms** | 170 | 5.7 | 26.3 s |
+
+  The 150 m lake's splash now costs what the 60 m one does (the goal's test, live). At rest, the record only: 60 m 320-330 fps, GPU
+  2.9-3.0 ms; 150 m 283-289 fps, GPU 3.3-3.4 ms (as 51.3: 293 / 3.32). A FIRST run straight after the engine's boot read 243 fps / GPU
+  4.06 ms at rest on the 150 m lake and a 124 ms worst frame - its startup's, not the code's (the paired run repeats the committed rest
+  numbers). The 60 m lake's mean fps in the window is lower than 51.3's with a lower mean CPU frame: the window's fps is a mean of
+  sampled frames and the wake's few long frames move it; the CPU frame and worst frame are the cost. **Left:** one ~90-104 ms frame - the
+  wake itself (create + the centre tile's seed). Evidence: `w51_record_lake_live.json`. **Not measured:** the clip (next).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
