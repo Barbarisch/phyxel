@@ -1946,6 +1946,95 @@ block / CA step / unblock). It is measured on the live rig's flood with no video
   + 2 divergence) iterations, gathers over unsorted particles plus 125 boundary-cell reads each). Then the CA phase
   about 50 ms, settle 36, wake 37 (both host). Still about 16x off 60 fps for a whole-box flood at 1/9 m.
 
+### 6m. Proposal: resolution by activity (owner, 2026-11-10). Assessment and plan, NOT BUILT
+
+Owner: *"use increasingly larger voxels of liquid when possible and scale down for detail around activity ... a
+20x20 body would be mostly large voxels; at the source of the disturbance microvoxels, a little out subvoxels ... we
+need a test harness that disturbs water in controlled experiments ... a no bullshit assessment, with a concrete
+plan."*
+
+**Assessment (from data on this branch):**
+1. **Cost = moving volume x resolution^3.** Water at rest already costs about nothing (sleeping bricks; the 1/9 m
+   levelling tail is ~3 ms). So large voxels for still water buy memory and reach (a lake, not a pool), not frame
+   time. The frame time is in moving water: 257 k particles = 352 m3 moving at 1/9 m, ~270 ms a tick.
+2. **The literal design (1/9, 1/3, 1 m CA rings) does not work as is.** The CA's flow speed depends on cell size:
+   dam-break fronts measured 46.7 / 4.5 / 0.81 m/s at 1 / 1/3 / 1/9 m, U-tube levelling 2.6 / 18.5 / 81 s (§6d).
+   Rings of different sizes would flow at different speeds next to each other: visible seams and different outcomes.
+   Particles do not have this problem (8.18 m/s at 1/3 and 1/9 m, §6i), but particles of mixed sizes meeting at an
+   interface are research-grade (two-scale SPH). Not something to start on.
+3. **The idea is sound with the right model per ring.** Away from the source, a disturbed body's motion is surface
+   waves. A column height field (shallow water equations) gets the wave speed right (sqrt(g*h), any column size),
+   and costs per column, not per cell: 20 x 20 m at 1/3 m is 3,600 columns. Chentanez, Muller and Kim (SCA 2014 /
+   TVCG 2015) couple exactly this: particles + a 3D grid near the action, a height field outside, with waves crossing
+   the border, at interactive rates. The arrangement is proven; whether it fits this engine is the open part.
+4. **It changes outcomes, so it breaks R2 as written.** An adaptive water is a different water from a uniform 1/9 m
+   one. The guarantee becomes "within a measured tolerance of the 1/9 m reference, at every probe". That is an owner
+   decision: R2 relaxed to a tolerance for liquids.
+5. **A flood is not a local disturbance.** In the dam break everything moves, so the near ring is the whole flood.
+   Its tier knob is the particle size: 1/3 m (9.5 k particles, measured near 60 fps on older code), not 1/9 m.
+
+**Design: three representations, chosen by activity:**
+
+| Ring | Where | Model | Exists? |
+|---|---|---|---|
+| near | the disturbance (impact, pour, breach) | 3D particles at the tier's size (1/9 m, or 1/3 m when the moving volume is large) | yes: hybrid + regional wake (§6i-6k) |
+| wave | the rest of a disturbed body | column height field (shallow water) on the coarse grid; voxel-rendered as columns with a fill level | no |
+| rest | still water | CA cells, as coarse as possible (exact merge, §3a) | yes (merge exists box-wide; per region no) |
+
+**Plan.** Each phase has a written prediction, an exit test, and a kill test that stops the work.
+
+- **P0, the disturbance harness (build first; it decides the rest).**
+  - Rig: a 20 x 20 x 2 m pool inside one chunk, hand-placed, stated as such.
+  - Four controlled disturbances:
+    - D1: a 1 m3 block dropped at the centre.
+    - D2: a 0.1 m3 stone.
+    - D3: a pour of 10 L/s for 5 s at a point.
+    - D4: a 1 m wall breach into an empty basin.
+  - Each runs at uniform 1/9 m (the reference, offline, slow is fine), uniform 1/3 m and uniform 1 m.
+  - Recorded per run:
+    - surface height at probes 0, 1, 2, 5, 9 m from the source;
+    - wave arrival time at each probe (theory: sqrt(g*2 m) = 4.4 m/s);
+    - the moving volume over time and the time to rest;
+    - the ledger (exact);
+    - ms per tick by phase.
+  - Output: JSON, plus a side-by-side video.
+  - It answers: (a) beyond what distance does 1/3 m match 1/9 m within tolerance (the near-ring radius, measured, not
+    guessed)? (b) What share of the moving volume lies beyond it (the most adaptivity can win)?
+  - **Kill: if (b) is under 2x for D1-D3, stop.** The regional wake already captures the win.
+- **P1, the wave ring alone.**
+  - A shallow-water column solver; integer units, ledger exact.
+  - Tests:
+    - a still body stays level (no drift over 10 min);
+    - wave arrival within 10 % of sqrt(g*h) at 1 m and at 1/3 m columns (resolution-free: the CA is not);
+    - a basin's standing-wave period;
+    - cost of 3,600 columns.
+- **P2, coupling at a fixed border.**
+  - Particles inside a fixed near box, the height field outside.
+  - At the border, the particles' surface height drives the field and the field gives the particle boundary its
+    level (the paper's density coupling).
+  - Tests:
+    - D1 and D2 against the P0 reference: probes beyond the border within tolerance;
+    - a wave crossing the border reflects less than X % of its height;
+    - ledger exact.
+  - **Kill: a visible seam or reflection at the border that tuning does not fix in this phase.** This is where AMR
+    fluids usually fail; it is the riskiest phase.
+- **P3, dynamic.**
+  - The near box follows disturbances, grows and retires.
+  - Resting water merges to 1 m away from the surface.
+  - Stress:
+    - 10 disturbances at once;
+    - 100 spawn/retire cycles;
+    - a near box crossing a chunk border;
+    - D4 (the flood: the near box becomes the whole flood at the 1/3 m tier).
+- **P4, tiers.** The near ring's particle size and radius are the performance-tier knobs (docs/PerformanceTiers.md).
+  Whole-frame cost measured per tier on the P0 rig.
+
+**Not doing:**
+- particles of mixed sizes;
+- the CA for moving water at 1 m;
+- per-tier tick rates (P1d).
+Revisit only if P0-P2 data asks for them.
+
 ## 7. Working alongside the other sessions
 
 - **Code lives in a separate git worktree and branch** (`feat/matsim-lab`, off `main`), with its

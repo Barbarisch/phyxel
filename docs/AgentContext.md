@@ -281,7 +281,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       exact (`HostMasksEqualTheReference`, `hostReference`, 2 mutations caught). 1/9 m flood at 257 k particles: tick ~845 -> ~270 ms
       (Release). Left: GPU solver ~125 ms (unsorted gathers, 125 boundary reads, 3-5 substeps x 10 iterations), CA ~50, settle ~36,
       wake ~37. Device time read 251 in the 'before' run, 124-129 after: unexplained variance.
-    - **Next:** the GPU solver (sort particles by bin for coherent gathers; boundary reads), settle + wake at 257 k (host);
+    - **6m PROPOSED (owner 2026-11-10): resolution by activity** -- MaterialSimPlan §6m. Near ring = particles (exist), wave ring =
+      column height field / shallow water (new; the CA's speed depends on cell size 46.7/4.5/0.81 m/s, so CA rings would seam),
+      rest = coarse cells. Relaxes R2 to a tolerance (owner decision). **Next: P0, the disturbance harness** (20x20x2 m pool,
+      D1-D4, uniform 1/9 reference vs 1/3 vs 1 m, probes + wave arrival + moving volume); kill if adaptivity can win < 2x.
+    - **Then/also:** the GPU solver (sort particles by bin for coherent gathers; boundary reads), settle + wake at 257 k (host);
       the 1/9 m tail is no longer the bottleneck; the moving phase is (particle step floor ~3.5 ms, the
       whole-body wake's groups() 6 ms at 105k particles); fused particle kernels; download copy (~1.2 ms);
       **live dam break filmed 2026-11-09** (`hybrid_9_wakeR1_caauto.mp4`): the whole rig moves, so R = 1 m only staggers the lift; about 260 k particles for about 20 s, step about 400 ms/tick; settling (cells back only at about 23 s and 33 s although calm at about 20 s) is that scene's lever; the
