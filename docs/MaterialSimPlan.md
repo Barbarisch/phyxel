@@ -2029,6 +2029,10 @@ plan."*
 - **P4, tiers.** The near ring's particle size and radius are the performance-tier knobs (docs/PerformanceTiers.md).
   Whole-frame cost measured per tier on the P0 rig.
 
+**Rendering, at the scale of millions:** see `MatterRepresentationReview.md` (2026-11-10). Every ring is drawn as a
+GPU-resident voxel grid (march the cells in place; particles splatted into a grid), not as per-face float records.
+Its R1 (march the device CA's cells directly) is recommended before P0.
+
 **Not doing:**
 - particles of mixed sizes;
 - the CA for moving water at 1 m;
