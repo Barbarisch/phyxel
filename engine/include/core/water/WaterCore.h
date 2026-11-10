@@ -109,6 +109,8 @@ public:
     /// (x, z) in world voxel coords. Used by the resolution-invariance test and the debug feed.
     std::vector<std::pair<glm::ivec2, double>> massPerVoxelColumn() const;
 
+    const std::vector<Occ>& occData() const { return m_occ; }   ///< in idx() order (51.3d: linear copies)
+    std::vector<Occ>& occData() { return m_occ; }
     std::vector<float>& fData() { return m_f; }
     const std::vector<float>& fData() const { return m_f; }
     std::vector<float>& uData() { return m_u; }

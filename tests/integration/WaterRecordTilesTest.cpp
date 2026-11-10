@@ -988,6 +988,11 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchWakeStall) {
         const auto& w = mgr.sleptWakeStats();
         std::printf("  wake %d: %.1f ms total | create: alloc %.1f occupancy %.1f solids %.1f gpu %.1f (occ copy %.1f, create volume %.1f, upload %.1f) | seed: span read %.1f occupancy %.1f seed %.1f | cells %ld\n",
                     rep, ms, w.allocMs, w.occMs, w.solidsMs, w.gpuMs, w.gpuOccCopyMs, w.gpuCreateVolumeMs, w.gpuUploadMs, w.spanReadMs, w.seedOccMs, w.seedMs, w.cells);
+        std::printf("    patch parts: pool sizing %.1f | create %.1f (volume: buffers %.1f pipelines %.1f [%d, %d reused] fill %.1f) | adopt tiles %.1f | first tile %.1f ms\n",
+                    w.patchSizeMs, w.patchCreateMs, w.gpuBuffersMs, w.gpuPipelinesMs, w.gpuPipelines, w.gpuPipelinesReused, w.gpuFillMs, w.patchAdoptMs, w.patchWakeTileMs);
+        {   const auto u = mgr.gpuUploadSplit();
+            std::printf("    create's upload: settle %.1f host %.1f residency %.1f clear %.1f scatter %.1f tables %.1f submit %.1f ms, %ld bricks\n",
+                        u.settleMs, u.hostMs, u.residencyMs, u.clearMs, u.scatterMs, u.tablesMs, u.submitMs, u.bricks); }
         ASSERT_FALSE(ids.empty());
         mgr.addImpulse(glm::vec3(100.0f + 50.0f * rep - 50.0f, 1.9f, 100.0f), 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
         for (int k = 0; k < 8; ++k) {   // the frames after the wake: each one's total and its three slowest phases

@@ -125,9 +125,9 @@ bool WaterCoreManager::buildGpu(Av& avr, std::string* err) {
     const int brickHeight = av->brickHeightReq, groundBricks = av->groundBricksReq;
     const auto pc3 = PClock::now();
     if (av->backend == "gpu") {
-        // the grid's occupancy must hold the hold boundary the GPU reads (it is the solver's query on the CPU)
-        for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
-            av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
+        // the grid's occupancy must hold the hold boundary the GPU reads (it is the solver's query on the CPU) - 51.3d: the cache is
+        // in the grid's idx() order, one copy (cell by cell it was 6 ms on a patch's 3.5 M cells)
+        std::copy(av->occCache.begin(), av->occCache.end(), av->grid->occData().begin());
         // 26.12 P2b: a fill volume is SPARSE - it stores and steps only the bricks holding water and their halo (26.6), bit-identical
         // to keeping every brick (WaterBrickTest); the particle transport stays dense (26.6 point 7)
         const auto pg0 = PClock::now();
@@ -1371,6 +1371,8 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
     // the partial wake's margin, every recorded run's bricks and a halo brick each side, x 0.75. Started at 510 slots it doubled five
     // times in a patch's first second (510 -> 16,383), each grow ~40 ms of host work (alloc 20, free 15, copy 6 - DiagPatchLife); sized,
     // it started at 15,311 and never grew. A bound on cost only: past it the pool still grows; never the whole box (28,352 slots, 665 MB)
+    auto tp = std::chrono::steady_clock::now();   // 51.3d: the wake's parts
+    auto lapMs = [&tp]() { const auto n = std::chrono::steady_clock::now(); const double ms = std::chrono::duration<double, std::milli>(n - tp).count(); tp = n; return ms; };
     size_t slots = 0;
     if (m_spanReader && sv.cellSize > 0.0f && !s_patchPoolUnsizedForTest) {
         const int T = kRecordTile, per = std::max(1, static_cast<int>(std::lround(1.0f / sv.cellSize))), by = std::max(1, WaterCoreGpu::s_brickHeight);
@@ -1394,9 +1396,11 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
         if (slots <= WaterCoreGpu::kInitialSlots + 2) slots = 0;   // the default start covers it
     }
     m_lastPatchSlots = slots;
+    m_sleptWake.patchSizeMs = lapMs();
     m_createKeepsSlept = true; m_slotsForCreate = slots;
     const int id = create(lo, hi, sv.cellSize, sv.transport.empty() ? "eulerian" : sv.transport, &err, sv.backend.empty() ? "auto" : sv.backend, sv.sweeps);
     m_createKeepsSlept = false; m_slotsForCreate = 0;
+    m_sleptWake.patchCreateMs = lapMs();
     if (!id) { ++m_sleptWake.refused; m_sleptWake.lastError = err; return 0; }
     setPartialWake(id, true);
     setTallBand(id, sv.tallBandM);
@@ -1412,16 +1416,20 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
             f.origin = av->grid->spec().origin; f.nx = av->grid->nx(); f.nz = av->grid->nz(); f.h = av->h; f.source = av->id;
             f.cols.assign(static_cast<size_t>(f.nx) * f.nz, SurfaceColumn{});
         }
+        lapMs();
         adoptRecordedTiles(*av);
+        m_sleptWake.patchAdoptMs = lapMs();
         auto fd = [](int v, int b) { return v >= 0 ? v / b : -((-v + b - 1) / b); };
         woke = wakeTile(*av, fd(static_cast<int>(std::floor(c.x)), kRecordTile), fd(static_cast<int>(std::floor(c.z)), kRecordTile), 'M');
     }
+    m_sleptWake.patchWakeTileMs = lapMs();
     if (!woke) { destroy(id); ++m_sleptWake.wokenEmpty; return 0; }   // nothing recorded at the disturbance (dry ground at the pond's edge)
     ++m_sleptWake.woken; ++m_patchesWoken;
     // the wake's parts, as wakeSlept records them (A2f) - the patch's stall measured by the same split
     m_sleptWake.allocMs = m_createSplit.allocMs; m_sleptWake.occMs = m_createSplit.occMs; m_sleptWake.solidsMs = m_createSplit.solidsMs;
     m_sleptWake.gpuMs = m_createSplit.gpuMs; m_sleptWake.cells = m_createSplit.cells;
     m_sleptWake.gpuOccCopyMs = m_createGpuSplit.occCopyMs; m_sleptWake.gpuCreateVolumeMs = m_createGpuSplit.createVolumeMs; m_sleptWake.gpuUploadMs = m_createGpuSplit.uploadMs;
+    if (m_gpu) { const auto& cs = m_gpu->lastCreateSplit(); m_sleptWake.gpuBuffersMs = cs.buffersMs; m_sleptWake.gpuPipelinesMs = cs.pipelinesMs; m_sleptWake.gpuFillMs = cs.fillMs; m_sleptWake.gpuPipelines = cs.pipelines; m_sleptWake.gpuPipelinesReused = cs.pipelinesReused; }
     m_sleptWake.spanReadMs = m_seedSplit.spanReadMs; m_sleptWake.seedOccMs = m_seedSplit.occMs; m_sleptWake.seedMs = m_seedSplit.seedMs;
     return id;
 }
@@ -1956,6 +1964,7 @@ void WaterCoreManager::adoptRecordedTiles(Av& av) {
     const int tx0 = floorDivI(av.minVoxel.x, kTileVoxels), tx1 = floorDivI(av.maxVoxel.x, kTileVoxels);
     const int tz0 = floorDivI(av.minVoxel.z, kTileVoxels), tz1 = floorDivI(av.maxVoxel.z, kTileVoxels);
     const bool fieldOk = av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz;
+    std::vector<std::pair<glm::ivec2, glm::ivec2>> rects;   // 51.3d: every tile's columns in one residency pass + one submission
     for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
         glm::ivec2 bLo, bHi;
         if (!tileBricks(av, tx, tz, bLo, bHi)) continue;
@@ -1966,10 +1975,14 @@ void WaterCoreManager::adoptRecordedTiles(Av& av) {
         m_spanReader(vLo, vHi, runs);
         double m = 0.0;
         for (const auto& c : runs) for (const auto& r : c.runs) m += static_cast<double>(r.topY - r.bottomY);
-        m_gpu->setColumnsRecorded(vol, bLo, bHi);
+        rects.push_back({bLo, bHi});
         av.recordedTileList.push_back({tx, tz});
         av.recordedM3 += m;
-        if (fieldOk) { markRecordedColumns(av, tx, tz); queueTileSurface(av, tx, tz); }
+    }
+    m_gpu->setColumnsRecorded(vol, rects);
+    if (fieldOk) for (size_t i = av.recordedTileList.size() - rects.size(); i < av.recordedTileList.size(); ++i) {
+        markRecordedColumns(av, av.recordedTileList[i].first, av.recordedTileList[i].second);
+        queueTileSurface(av, av.recordedTileList[i].first, av.recordedTileList[i].second);
     }
     av.field.version = (1ull << 62) + (++m_fieldBumps);
 }

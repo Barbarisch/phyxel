@@ -12866,6 +12866,26 @@ round the view (default 48 m - from the wide pose the far lake would not be draw
   Patch back in the record 18.9 s (wide) / 24.7 s (close) after the splash. **Status: built, not signed off** - the owner's look.
 - Tests: water unit 369 / 369; integration water 82 / 84 (the known two); `ARippleLayerBeyondTheReachHoldsNoDeviceState` passes.
 
+**51.3d (2026-11-10) BUILT - the patch's wake, cut again** (51.3's next; no drift). First, a correction: a `DiagPatchLife` trace taken
+with the bench engine still running read the patch's first second as 12-55 ms frames of fence wait - the shared GPU's. With the GPU
+idle: **mean 4.2 ms a frame over the patch's first 6 s, p99 27 ms, worst 28 ms** (Release, 200 m lake in the record). Measured and
+rejected on the way: letting a patch's tall cells form inside its first 2 s (mean 4.8 ms, worst 53, and a pool grow) - the hold stays.
+The one heavy frame left is the wake. Split (`DiagPatchWakeStall`, new parts: pool sizing / create / adopt tiles / first tile; the
+create's upload split printed):
+
+| part | before | after | the fix |
+|---|---|---|---|
+| adopting the record's 25 tiles | 17.6 ms | **6.8 ms** | one residency pass + one submission for all of them (`setColumnsRecorded` over rectangles), not one each |
+| the occupancy cache -> grid copy | 6.2 ms | **0.1 ms** | a straight copy (the cache is in the grid's `idx()` order), not cell by cell |
+| the create's upload of the empty patch | 22 ms (host 13.5, residency 4.7, clear 3.5) | **14.5 ms** (7.5 / 4.0 / 2.7) | the host occupancy a linear copy; the unstored-water count a linear scan of the fills |
+| **the wake** | **102-121 ms** | **80-91 ms** | |
+
+  Left in the wake (box-sized: 3.5 M cells, the pond's full height): the CPU grid + solver allocation 12 ms, the occupancy read 12.6,
+  the device buffers 15-16 (+ 13.5 ms of pipelines on the first wake only), their fill 5-6, the upload 14.5, the first tile 10.5. The
+  structural next step would be a patch volume KEPT for the next splash (L3's kept memory, for patches: no allocation, buffers or
+  pipelines) - not built: the first splash would still pay, and a kept patch holds ~650 MB of device memory.
+- Tests: water unit 369 / 369; integration water 82 / 84 (the known two).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

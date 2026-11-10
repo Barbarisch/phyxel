@@ -557,6 +557,8 @@ public:
     void clearTall(Volume& vol);
     /// §27 W1b: the brick columns [bLo, bHi] are RECORDED from the next call (their bricks freed, read as ground - a wall).
     void setColumnsRecorded(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi);
+    /// 51.3d: many rectangles at once - one residency pass and one submission (a patch adopts its 25 tiles: 25 of each cost 17.6 ms)
+    void setColumnsRecorded(Volume& vol, const std::vector<std::pair<glm::ivec2, glm::ivec2>>& rects);
     /// §27 W1b measurement: the ground sentinel's largest |f|, |u|, |v|, |w| (must stay 0 - every ground and recorded brick reads it).
     glm::vec4 sentinelMaxAbs(Volume& vol);
     /// §27 W1b: wake recorded columns [bLo, bHi] with the cells in `cells` (spec in world cells, the volume's h): their bricks (and a

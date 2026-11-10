@@ -583,6 +583,8 @@ public:
                             double gpuOccCopyMs = 0.0, gpuCreateVolumeMs = 0.0, gpuUploadMs = 0.0;
                             /// 39.3 item 5: createVolume's own parts (WaterCoreGpu::CreateSplit)
                             double gpuBuffersMs = 0.0, gpuPipelinesMs = 0.0, gpuFillMs = 0.0; int gpuPipelines = 0, gpuPipelinesReused = 0;
+                            /// 51.3d: a patch wake's own parts - the pool sizing's span reads, create, adopting the record's tiles, the first tile's wake
+                            double patchSizeMs = 0.0, patchCreateMs = 0.0, patchAdoptMs = 0.0, patchWakeTileMs = 0.0;
                             /// L3 (41): what the last volume to sleep held when it slept, and gave back (device-local / host-visible bytes)
                             unsigned long long lastSleptDeviceBytes = 0, lastSleptHostBytes = 0; size_t lastSleptBuffers = 0; size_t lastSleptSlots = 0; };
     const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }

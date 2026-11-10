@@ -1027,12 +1027,17 @@ glm::vec4 WaterCoreGpu::sentinelMaxAbs(Volume& vol) {
 }
 
 void WaterCoreGpu::setColumnsRecorded(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi) {
+    setColumnsRecorded(vol, std::vector<std::pair<glm::ivec2, glm::ivec2>>{{bLo, bHi}});
+}
+
+void WaterCoreGpu::setColumnsRecorded(Volume& vol, const std::vector<std::pair<glm::ivec2, glm::ivec2>>& rects) {
     const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
-    if (!vol.bricked || nc == 0) return;
+    if (!vol.bricked || nc == 0 || rects.empty()) return;
     settle(vol);
     if (vol.colRecorded.size() != nc) vol.colRecorded.assign(nc, 0);
-    for (int bz = std::max(0, bLo.y); bz <= std::min(vol.bn.z - 1, bHi.y); ++bz)
-        for (int bx = std::max(0, bLo.x); bx <= std::min(vol.bn.x - 1, bHi.x); ++bx) vol.colRecorded[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz] = 1;
+    for (const auto& [bLo, bHi] : rects)
+        for (int bz = std::max(0, bLo.y); bz <= std::min(vol.bn.z - 1, bHi.y); ++bz)
+            for (int bx = std::max(0, bLo.x); bx <= std::min(vol.bn.x - 1, bHi.x); ++bx) vol.colRecorded[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz] = 1;
     vol.anyRecorded = true;
     // freed NOW, not at the next call: a body whose every column is frozen is asleep and runs no residency - its recorded bricks
     // would keep their water (counted twice, drawn twice) until something woke it. Every other brick keeps its residency.
@@ -1488,8 +1493,10 @@ void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
     forRanges(g.nz(), ht, [&](int z0, int z1) {
         for (int z = z0; z < z1; ++z) for (int x = 0; x < g.nx(); ++x) for (int y = g.ny() - 1; y >= 0; --y)
             if (g.occ(x, y, z) == Occ::Solid) { vol.hostSolidTop[static_cast<size_t>(x) + static_cast<size_t>(g.nx()) * z] = (static_cast<float>(g.spec().origin.y) + static_cast<float>(y) + 1.0f) * g.spec().h; break; }
-        for (int z = z0; z < z1; ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x)
-            vol.hostOcc[g.idx(x, y, z)] = static_cast<uint32_t>(g.occ(x, y, z));
+        // 51.3d: idx() is x-fastest, then y, then z - a z row range is one contiguous run (a linear copy, not idx() per cell)
+        const size_t a = g.idx(0, 0, z0), b = z1 < g.nz() ? g.idx(0, 0, z1) : g.cellCount();
+        const std::vector<Occ>& o = g.occData();
+        for (size_t i = a; i < b; ++i) vol.hostOcc[i] = static_cast<uint32_t>(o[i]);
     });
     WaterHostProfile::lap("up.1 host occupancy + solid tops", hp);
     vol.listsSized = false;
@@ -1542,8 +1549,13 @@ void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
         {   auto rms = [](UClock::time_point a, UClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
             m_lastResidencySplit = {rms(u2, ur1), rms(ur1, ur2), rms(ur2, ur3), rms(ur3, u3)}; }
         vol.unstoredM3 = 0.0;   // water in a brick the capacity could not store: counted (createVolume refuses this up front)
-        for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x)
-            if (g.f(x, y, z) != 0.0f && storageIndex(vol, x, y, z) < 0) vol.unstoredM3 += static_cast<double>(g.f(x, y, z)) * g.cellVolume();
+        {   // 51.3d: a linear scan of the fills; a cell's coordinates only where it holds water
+            const std::vector<float>& fd = g.fData();
+            const size_t nx = static_cast<size_t>(g.nx()), nxy = nx * static_cast<size_t>(g.ny());
+            for (size_t i = 0; i < fd.size(); ++i)
+                if (fd[i] != 0.0f && storageIndex(vol, static_cast<int>(i % nx), static_cast<int>((i / nx) % g.ny()), static_cast<int>(i / nxy)) < 0)
+                    vol.unstoredM3 += static_cast<double>(fd[i]) * g.cellVolume();
+        }
         // 51.3b: the ADDRESSED slots only (slotsUsed, set by the residency above) - a slot past them is written whole when it is
         // allocated (recordSlotUploads zeroes it). The whole capacity was ~70 MB of memset and copy for a patch made empty with its
         // pool sized (15,311 slots): the wake's upload 26 -> 100 ms (DiagPatchWakeStall)
