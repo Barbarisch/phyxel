@@ -677,8 +677,12 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     rec.ok = true;
     const glm::ivec3 lo = av->minVoxel, hi = av->maxVoxel;
     if (av->isPatch) {   // 51 S2: a patch's water is back in the record; its pond is still the slept box - no box for the patch
-        buildRecordTilesNow(lo, hi);
+        // 51.3c: destroyed FIRST - built while it lived, its woken columns were still its own (buildRecordTile skips a live volume's
+        // columns): the tiles were built dry there and marked current, then the destroy staled them and they were rebuilt 4 a frame
+        // (the 40 x 40 m patch showed the bed for ~4 frames, live)
+        if (s_patchSleepDrawFirstForTest) { buildRecordTilesNow(lo, hi); destroy(id); return rec; }   // TEST ONLY: the red control
         destroy(id);
+        buildRecordTilesNow(lo, hi);
         return rec;
     }
     if (const AvRecord* ar = find(id)) {   // 32: remembered - a disturbance inside the box wakes it from the record

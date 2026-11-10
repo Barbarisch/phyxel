@@ -1087,6 +1087,66 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchLife) {
     for (int id : ids) mgr.destroy(id);
 }
 
+// 51.3c: a patch's sleep leaves no hole. Live (the 150 m lake's clip, wide take) the patch's 40 x 40 m showed the bed for ~4 frames
+// of 30 the moment it slept: its record draw tiles were built BEFORE the patch was destroyed - its woken columns still its own, the
+// tiles built dry there and marked current - then the destroy staled them and they were rebuilt 4 a frame. A 60 m lake in the record,
+// the view at the splash, the live path; every frame from the splash to 3 s after the sleep, points every 2 m over the patch's box
+// must draw water (a volume's field or a record tile). Prediction: 0 hole frames. RED CONTROL: s_patchSleepDrawFirstForTest (the old
+// order) must show hole frames.
+static int runPatchSleepHoles(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool oldOrder, bool& slept, int& checked) {
+    WaterCoreManager::s_patchSleepDrawFirstForTest = oldOrder;
+    const auto drawBefore = WaterCoreManager::s_recordDraw; const float drawMBefore = WaterCoreManager::s_locality.drawM;
+    struct Restore { WaterCoreManager::RecordDraw d; float m; ~Restore() { WaterCoreManager::s_patchSleepDrawFirstForTest = false; WaterCoreManager::s_recordDraw = d; WaterCoreManager::s_locality.drawM = m; } } restore{drawBefore, drawMBefore};
+    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_locality.drawM = 48.0f;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return -1; }
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 60;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", WaterCoreManager::s_tallBandDefault}};
+    if (!mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump())) { ADD_FAILURE() << "loadSlept"; return -1; }
+    const glm::vec3 c(30.0f, 1.9f, 30.0f);
+    mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, 10.0f));
+    for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }   // the record's draw tiles, before the splash
+    const std::vector<int> ids = mgr.wakeSleptNear(c, 2.0f);
+    if (ids.empty()) { ADD_FAILURE() << "the splash woke nothing"; return -1; }
+    glm::ivec3 lo(0), hi(0);
+    if (const AvRecord* r = mgr.find(ids[0])) { lo = r->minVoxel; hi = r->maxVoxel; }
+    mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    std::vector<glm::vec2> pts;
+    for (int z = lo.z; z <= hi.z; z += 2) for (int x = lo.x; x <= hi.x; x += 2) pts.push_back({x + 0.55f, z + 0.55f});
+    int holes = 0, after = -1;
+    slept = false; checked = 0;
+    for (int k = 0; k < 60 * 45 && after < 180; ++k) {
+        mgr.update(1.0f / 60.0f);
+        mgr.surfaceFields();
+        if (mgr.list().empty()) slept = true;
+        if (slept) ++after;
+        int miss = 0;
+        for (const glm::vec2& p : pts) { float top = 0.0f; bool rec = false; if (!mgr.drawnAtWorld(p.x, p.y, top, rec)) ++miss; }
+        ++checked;
+        if (miss > 0) { ++holes; if (holes <= 3) std::printf("    frame %d (%s): %d of %zu points draw no water\n", k, slept ? "after the sleep" : "patch live", miss, pts.size()); }
+    }
+    return holes;
+}
+
+TEST_F(WaterRecordTilesTest, APatchSleepsWithoutAHole) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    bool slept = false, sleptRed = false; int checked = 0, checkedRed = 0;
+    const int holes = runPatchSleepHoles(device, physicalDevice, queue, queueFamilyIndex, false, slept, checked);
+    const int red = runPatchSleepHoles(device, physicalDevice, queue, queueFamilyIndex, true, sleptRed, checkedRed);
+    std::printf("  shipped: %d hole frames of %d (slept %d) | RED CONTROL (tiles built before the destroy): %d of %d (slept %d)\n", holes, checked, int(slept), red, checkedRed, int(sleptRed));
+    ASSERT_TRUE(slept && sleptRed) << "the patch never slept - the rig does not reach the hand-over";
+    EXPECT_EQ(holes, 0) << "a frame drew no water somewhere inside the patch's box";
+    EXPECT_GT(red, 0) << "RED CONTROL: the old order's hole went unseen";
+}
+
 TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     // the baseline is a lake LARGER than a patch (60 m): past the patch's size the cost may not grow with the lake. (A 30 m lake is

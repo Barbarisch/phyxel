@@ -68,8 +68,21 @@ class Api:
         return self.post(f"/api/debug/{name}", body or {}, timeout)
 
 
+WORLD_JOB_MAX = 100000   # the engine refuses a fill/clear over this many voxels ("Region too large")
+
+
 def world_job(api, path, box, **extra):
-    """/api/world/fill and /api/world/clear are async: wait for the job to leave the queue."""
+    """/api/world/fill and /api/world/clear are async: wait for the job to leave the queue. A box over the engine's cap is split in z
+    slabs; a refused job raises (a refused clear once left a stale kerb inside the 150 m lake unseen - WaterCore 51.3b)."""
+    if all(k in box for k in ("x1", "y1", "z1", "x2", "y2", "z2")):
+        nx, ny = abs(box["x2"] - box["x1"]) + 1, abs(box["y2"] - box["y1"]) + 1
+        z1, z2 = min(box["z1"], box["z2"]), max(box["z1"], box["z2"])
+        if nx * ny * (z2 - z1 + 1) > WORLD_JOB_MAX:
+            step = max(1, WORLD_JOB_MAX // (nx * ny))
+            res = None
+            for z in range(z1, z2 + 1, step):
+                res = world_job(api, path, dict(box, z1=z, z2=min(z2, z + step - 1)), **extra)
+            return res
     r = api.post(path, dict(box, **extra))
     aid = r.get("async_id")
     res = r
@@ -80,7 +93,10 @@ def world_job(api, path, box, **extra):
         if res.get("status") not in ("pending", "running", "accepted", "processing", "queued"):
             break
         time.sleep(0.5)
-    return res.get("result") or res
+    out = res.get("result") or res
+    if isinstance(out, dict) and out.get("error"):
+        raise RuntimeError(f"{path} {box} refused: {out}")
+    return out
 
 
 SOLVER_TICK = 1.0 / 60.0   # GpuParticlePhysics::FIXED_DT

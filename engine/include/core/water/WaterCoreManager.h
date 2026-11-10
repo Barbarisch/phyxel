@@ -613,6 +613,9 @@ public:
     static inline bool s_drawStaleOnAnyBoxForTest = false;
     /// TEST ONLY (51.3b control): a patch's pool starts at the default kInitialSlots (grown as its tiles wake)
     static inline bool s_patchPoolUnsizedForTest = false;
+    /// TEST ONLY (51.3c control): a sleeping patch's record draw tiles are built BEFORE it is destroyed (its woken columns still its
+    /// own - the tiles built dry there; the order before 51.3c)
+    static inline bool s_patchSleepDrawFirstForTest = false;
     /// 51.3b: the slot count the last patch's pool started with (0 = the default kInitialSlots)
     size_t lastPatchSlots() const { return m_lastPatchSlots; }
     static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
