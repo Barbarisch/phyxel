@@ -1544,8 +1544,13 @@ void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
         vol.unstoredM3 = 0.0;   // water in a brick the capacity could not store: counted (createVolume refuses this up front)
         for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x)
             if (g.f(x, y, z) != 0.0f && storageIndex(vol, x, y, z) < 0) vol.unstoredM3 += static_cast<double>(g.f(x, y, z)) * g.cellVolume();
-        std::memset(st, 0, static_cast<size_t>(vol.offOcc + vol.cells * 4));   // f, u, v, w, occ regions
-        std::memset(st + vol.offSolid, 0, vol.cells * 16);
+        // 51.3b: the ADDRESSED slots only (slotsUsed, set by the residency above) - a slot past them is written whole when it is
+        // allocated (recordSlotUploads zeroes it). The whole capacity was ~70 MB of memset and copy for a patch made empty with its
+        // pool sized (15,311 slots): the wake's upload 26 -> 100 ms (DiagPatchWakeStall)
+        const size_t used = uploadCells(vol);
+        std::memset(st, 0, used * 4);
+        for (VkDeviceSize off : {vol.offU, vol.offV, vol.offW, vol.offOcc}) std::memset(st + off, 0, used * 4);
+        std::memset(st + vol.offSolid, 0, used * 16);
         vol.pendingWakeAges.clear();   // 44.5: this upload carries the CPU's aged wake whole - aging it again would age it twice
         if (!vol.groundAsAir) { auto* so = reinterpret_cast<uint32_t*>(st + vol.offOcc); std::fill(so + kGround * vol.bc, so + (kGround + 1) * vol.bc, 1u); }   // 26.18: the ground sentinel
         std::vector<int> all;
@@ -1583,16 +1588,18 @@ void WaterCoreGpu::uploadSubmit(Volume& vol) {
         for (Buffer* b : {&vol.fOrig, &vol.uOld, &vol.vOld, &vol.wOld, &vol.liq, &vol.diag, &vol.rhs, &vol.pg, &vol.res, &vol.valA, &vol.valB,
                           &vol.knownA, &vol.knownB, &vol.first, &vol.keep, &vol.deposit})
             vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
-        copy(cmd, vol.staging, vol.solid, vol.cells * 16, vol.offSolid);
+        copy(cmd, vol.staging, vol.solid, uploadCells(vol) * 16, vol.offSolid);
         copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks);
         vkCmdFillBuffer(cmd, vol.bricks.buf, vol.counterOff * 4, (vol.brickInts - vol.counterOff) * 4, 0);
     }
-    copy(cmd, vol.staging, vol.f, vol.cells * sizeof(float));
-    copy(cmd, vol.staging, vol.fPrev, vol.cells * sizeof(float));
-    copy(cmd, vol.staging, vol.u, vol.nu * sizeof(float), vol.offU);
-    copy(cmd, vol.staging, vol.v, vol.nv * sizeof(float), vol.offV);
-    copy(cmd, vol.staging, vol.w, vol.nw * sizeof(float), vol.offW);
-    copy(cmd, vol.staging, vol.occ, vol.cells * 4, vol.offOcc);
+    // 51.3b: a bricked volume's addressed slots only (uploadCells); u, v, w are one value a cell there (nu = nv = nw = cells)
+    const VkDeviceSize upF = uploadCells(vol) * sizeof(float);
+    copy(cmd, vol.staging, vol.f, vol.bricked ? upF : vol.cells * sizeof(float));
+    copy(cmd, vol.staging, vol.fPrev, vol.bricked ? upF : vol.cells * sizeof(float));
+    copy(cmd, vol.staging, vol.u, vol.bricked ? upF : vol.nu * sizeof(float), vol.offU);
+    copy(cmd, vol.staging, vol.v, vol.bricked ? upF : vol.nv * sizeof(float), vol.offV);
+    copy(cmd, vol.staging, vol.w, vol.bricked ? upF : vol.nw * sizeof(float), vol.offW);
+    copy(cmd, vol.staging, vol.occ, vol.bricked ? upF : vol.cells * 4, vol.offOcc);
     vkCmdFillBuffer(cmd, vol.src.buf, 0, vol.src.bytes, 0);
     vkCmdFillBuffer(cmd, vol.p.buf, 0, vol.p.bytes, 0);   // 26.5: a replaced state starts its solve fresh (deterministic, as a new volume)
     vkCmdFillBuffer(cmd, vol.fLo.buf, 0, vol.fLo.bytes, 0);   // 26.10: the remainders belonged to the water that was there

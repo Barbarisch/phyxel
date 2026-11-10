@@ -969,6 +969,8 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchWakeStall) {
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr(state);
     mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });   // as live: the cube read (51.3)
+    struct RestoreUnsized { ~RestoreUnsized() { WaterCoreManager::s_patchPoolUnsizedForTest = false; } } restoreUnsized;
+    if (const char* u = std::getenv("P_UNSIZED")) WaterCoreManager::s_patchPoolUnsizedForTest = std::atoi(u) != 0;   // 51.3b control
     std::string err;
     ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
     mgr.setDroplets(false);
@@ -1001,6 +1003,88 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchWakeStall) {
         }
         for (int id : ids) mgr.destroy(id);
     }
+}
+
+// DiagPatchLife (51.3b): a patch's first P_SECONDS (6) as live runs them - the view point at the splash, a step and surfaceFields()
+// a frame (the record's draw tiles built round the viewer). Every frame over P_SLOW ms (12): its total, the tiles woken in it, and
+// its slowest phases; then the frame-time spread and the wake laps' maxima (WaterCoreManager::s_tilePhases.wakeMax).
+TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchLife) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto env = [](const char* k, double d) { const char* v = std::getenv(k); return v ? std::atof(v) : d; };
+    const int seconds = static_cast<int>(env("P_SECONDS", 6));
+    const double slow = env("P_SLOW", 12.0);
+    struct RestoreStale { ~RestoreStale() { WaterCoreManager::s_drawStaleOnAnyBoxForTest = false; } } restoreStale;
+    WaterCoreManager::s_drawStaleOnAnyBoxForTest = env("P_OLDSTALE", 0) != 0;   // the control: the rule before 51.3b
+    struct RestoreUnsized { ~RestoreUnsized() { WaterCoreManager::s_patchPoolUnsizedForTest = false; } } restoreUnsized;
+    WaterCoreManager::s_patchPoolUnsizedForTest = env("P_UNSIZED", 0) != 0;   // the control: the pool from 510 slots
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 200;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", WaterCoreManager::s_tallBandDefault}};
+    ASSERT_TRUE(mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump()));
+    const glm::vec3 c(100.0f, 1.9f, 100.0f);
+    mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, -10.0f));
+    for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }   // the record's draw tiles built before the splash, as live
+    std::printf("  before the splash: %d record draw tiles (%d wet), %d pending\n", mgr.recordDrawStats().tiles, mgr.recordDrawStats().wetTiles, mgr.recordDrawStats().pending);
+    WaterCoreManager::s_tilePhases = {};
+    const long growsBeforeWake = mgr.gpuGrowSplit().grows;
+    const auto t0 = std::chrono::steady_clock::now();
+    const std::vector<int> ids = mgr.wakeSleptNear(c, 2.0f);
+    ASSERT_FALSE(ids.empty());
+    mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    std::printf("  wake + push: %.1f ms (patch pool started at %zu slots, %ld grows in the wake)\n", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(), mgr.lastPatchSlots(), mgr.gpuGrowSplit().grows - growsBeforeWake);
+    std::vector<double> frames;
+    int peakBricks = 0;
+    long drawBuilt = 0, growsSeen = mgr.gpuGrowSplit().grows;
+    long wakesBefore = WaterCoreManager::s_tilePhases.wakeN;
+    for (int k = 0; k < seconds * 60; ++k) {
+        WaterHostProfile::reset();
+        const auto f0 = std::chrono::steady_clock::now();
+        mgr.update(1.0f / 60.0f);
+        auto hs = WaterHostProfile::Clock::now();
+        mgr.surfaceFields();
+        WaterHostProfile::lap("diag surfaceFields (whole)", hs);
+        const double fms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - f0).count();
+        frames.push_back(fms);
+        drawBuilt += mgr.recordDrawStats().builtLastCall;
+        if (const AvRecord* r = mgr.find(ids.front())) peakBricks = std::max(peakBricks, r->gpuBricks);
+        if (mgr.gpuGrowSplit().grows != growsSeen) {
+            const auto g = mgr.gpuGrowSplit(); growsSeen = g.grows;
+            const AvRecord* r = mgr.find(ids.front());
+            std::printf("    frame %3d: pool grow #%ld to %d slots, %.0f MB | alloc %.1f copy %.1f free %.1f tables %.1f rebind %.1f ms\n", k, g.grows,
+                        r ? int(r->gpuBrickCapacity) : -1, g.bytesAfter / 1048576.0, g.allocMs, g.copyMs, g.freeMs, g.tablesMs, g.rebindMs);
+        }
+        const long woke = WaterCoreManager::s_tilePhases.wakeN - wakesBefore; wakesBefore = WaterCoreManager::s_tilePhases.wakeN;
+        if (fms < slow) continue;
+        std::vector<std::pair<double, std::string>> ph; for (const auto& [key, v] : WaterHostProfile::maxMs) ph.push_back({v, key});
+        std::sort(ph.rbegin(), ph.rend());
+        std::printf("    frame %3d (%.2f s): %6.1f ms, %ld tiles woken |", k, k / 60.0, fms, woke);
+        for (size_t j = 0; j < std::min<size_t>(5, ph.size()); ++j) std::printf(" %s %.1f;", ph[j].second.c_str(), ph[j].first);
+        std::printf("\n");
+        if (woke > 0) {
+            const auto& G = WaterCoreGpu::s_tileGpuMs;
+            std::printf("      last seed: settle %.1f host %.1f (flags+need %.1f residency %.1f fresh %.1f fills %.1f tables %.1f) submit+wait %.1f\n",
+                        G.seedSettle, G.seedHost, G.seedPart[0], G.seedPart[1], G.seedPart[2], G.seedPart[3], G.seedPart[4], G.seedSubmit);
+        }
+    }
+    std::vector<double> s = frames; std::sort(s.begin(), s.end());
+    double sum = 0.0; for (double f : frames) sum += f;
+    std::printf("  frames %zu: mean %.2f ms, p50 %.2f, p95 %.2f, p99 %.2f, max %.1f | tiles woken %ld | record draw tiles rebuilt (budgeted) %ld\n", s.size(), sum / s.size(), s[s.size() / 2],
+                s[s.size() * 95 / 100], s[s.size() * 99 / 100], s.back(), WaterCoreManager::s_tilePhases.wakeN, drawBuilt);
+    if (const AvRecord* r = mgr.find(ids.front()))
+        std::printf("  at the end: capacity %d slots, %d bricks stored (peak %d), %ld pool grows in all\n", r->gpuBrickCapacity, r->gpuBricks, peakBricks, r->gpuPoolGrows);
+    const auto& P = WaterCoreManager::s_tilePhases;
+    std::printf("  wake laps max: span read %.1f | occupancy %.1f | seed + surface %.1f | seedColumns %.1f | record clear %.1f | record surfaces %.1f\n",
+                P.wakeMax[0], P.wakeMax[1], P.wakeMax[2], P.wakeMax[3], P.wakeMax[4], P.wakeMax[5]);
+    for (int id : ids) mgr.destroy(id);
 }
 
 TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {

@@ -12795,6 +12795,27 @@ with like (the bisect ran both sides with the bench up).
   **Next:** the tile wake's cost (one tile ~10-20 ms: its seed's residency and pool grows, the record surfaces it rebuilds) - then the
   owner's clip.
 
+**51.3b (2026-11-09) BUILT - a patch's first second, traced** (51.3's next; no drift). `DISABLED_DiagPatchLife`: the 200 m lake in the
+record, the view point at the splash and its record draw tiles built first (as live: 141), then 6 s of steps + `surfaceFields()` a
+frame, every slow frame's phases, the pool's grows, the tile seeds' parts. Controls: `P_OLDSTALE=1` (the old staleness rule),
+`P_UNSIZED=1` (the pool from 510 slots; also read by `DiagPatchWakeStall`).
+
+| part | before | after | the fix |
+|---|---|---|---|
+| the record's draw tiles rebuilt after a splash | **67** (all in range, ~4 ms each, 4 a frame - ~17 ms a frame for ~17 frames) | **0** | any volume change made EVERY draw tile stale (`m_avRevision`); now only the tiles under a box that came or went (`refreshBoxes`), and none for a patch - made with every column the record's (`adoptRecordedTiles`), nothing changes owner. `s_drawStaleOnAnyBoxForTest` = the old rule |
+| the pool's grows in a patch's first second | **5** (510 -> 16,383 slots), ~40 ms of host work each (alloc 20, free 15, copy 6; one seed 54-131 ms) | **0** (15,311 slots, 1.07x less than it grew to) | sized once at the wake from the record: the bricks of every recorded run (+ a halo brick each side) in the tiles the S1 disc can wake (Rd + 2 m), x 0.75 (13 of 21 such tiles woke; peak 14,742 bricks stored). A cost bound - past it the pool still grows |
+| the upload of a sized, empty patch | 26 -> **100 ms** (memset + copy of every region at the whole capacity, ~70 MB) | 25 ms | an upload writes the ADDRESSED slots only (`uploadCells`: `slotsUsed`); a slot allocated later is written whole (`recordSlotUploads` zeroes it, `scatterSlots` writes its occupancy and solids). Every bricked volume's upload |
+
+  51.3's note "reserving the pool at the wake would only move it into the wake's frame" was the upload's whole-capacity copy - with it
+  fixed the wake costs the same sized or not (`DiagPatchWakeStall`, alternating 2 x 3 wakes: 169-204 vs 172-200 ms; create volume
+  +15-20 ms, inside the run's noise). **Measured on a SHARED GPU** (another session's engine held it at 93-99 %): the frame totals
+  are its waits and do not separate the variants; the counts above (rebuilds, grows, slots) and the host parts do. Left per tile wake:
+  ~8 ms seed host work (need pass 1.5, fresh slots 3.3, fills 2.8) + ~3.5 ms seed surface + a small blocking submit; the seed's
+  wait for the call in flight only moves the step's own wait earlier. **Not measured:** live (L4) and the GPU side with the GPU idle.
+- Tests (on the shared GPU): water unit 369 / 369; integration water 80 + the known two + `ARippleLayerBeyondTheReachHoldsNoDeviceState`
+  (a dropped ripple layer still holds its device state) - which fails the same on the committed 51.3 code under the same load and
+  passed earlier the same day: the load's, to recheck with the GPU free.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

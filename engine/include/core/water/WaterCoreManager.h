@@ -609,6 +609,12 @@ public:
     /// 51.3: recorded tiles a volume wakes in one call (the margin's asks; nearest a live disturbance first, the rest the next call). A
     /// tile wake is one tile's span read, seed and upload (8-19 ms on the host, 27.19); the margin runs metres ahead of the waves
     static inline int s_tileWakesPerCall = 2;
+    /// TEST ONLY (51.3b control): any volume change makes every record draw tile stale (the rule before 51.3b)
+    static inline bool s_drawStaleOnAnyBoxForTest = false;
+    /// TEST ONLY (51.3b control): a patch's pool starts at the default kInitialSlots (grown as its tiles wake)
+    static inline bool s_patchPoolUnsizedForTest = false;
+    /// 51.3b: the slot count the last patch's pool started with (0 = the default kInitialSlots)
+    size_t lastPatchSlots() const { return m_lastPatchSlots; }
     static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
     /// 39.4 (A2f look preview) TEST: a touched slept pond wakes this many seconds after the first touch, not at once - what step 2's
     /// wake built across frames would look like (the body reads the record meanwhile). The wake still runs whole when it fires (the
@@ -914,7 +920,8 @@ private:
     struct KeptEntry { glm::ivec3 lo{0}, hi{0}; int handle = 0; };   ///< L3 (41): a slept box's kept GPU set (WaterCoreGpu handle)
     std::vector<KeptEntry> m_kept;
     int m_adoptForCreate = 0;   ///< L3 (41): set by wakeSlept around its create: the kept set the new volume takes its buffers from
-    size_t m_slotsForCreate = 0;   ///< L3 (41): ... and the slot count to start at (the set's)
+    size_t m_slotsForCreate = 0;   ///< L3 (41): ... and the slot count to start at (the set's); 51.3b: a patch's estimate
+    size_t m_lastPatchSlots = 0;   ///< 51.3b: the slot count the last patch started with (0 = the default)
     KeptMemoryStats m_keptMem;
     SolidsRevisionQuery m_revision;
     SolidsChangesQuery m_changes;   // 26.19

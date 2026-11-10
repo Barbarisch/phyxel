@@ -800,6 +800,8 @@ private:
     /// 27.23 W1d.1: grow the slot pool to hold at least `slots` stored bricks (doubling): new device buffers, every stored slot copied
     /// across (slot numbers unchanged), the tables rewritten, the kernels rebound. Between calls only (settles first). False = no change.
     bool growPool(Volume& vol, size_t slots);
+    /// 51.3b: the cells an upload writes - a bricked volume's addressed slots (slotsUsed), not its whole capacity
+    static size_t uploadCells(const Volume& vol) { return vol.bricked ? std::min(vol.cells, static_cast<size_t>(std::max(vol.slotsUsed, 0)) * vol.bc) : vol.cells; }
     /// 27.23 W1d.1: grow before a residency that would need more slots than the pool has (upload, seed)
     void ensureCapacity(Volume& vol, const std::vector<char>& need);
     void updatePartialWake(Volume& vol, const SolverParams& params);   // 26.31: the columns' state from the last unit map + wakes

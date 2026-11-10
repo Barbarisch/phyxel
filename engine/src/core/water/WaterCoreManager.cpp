@@ -238,9 +238,26 @@ WaterCoreManager::RemoveResult WaterCoreManager::remove(int id, bool discard) {
 }
 
 void WaterCoreManager::refreshBoxes() {
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> old = std::move(m_boxes);
     m_boxes.clear();
     for (const auto& av : m_avs) m_boxes.emplace_back(av->minVoxel, av->maxVoxel);
     ++m_avRevision;
+    // 51.3b: only the record draw tiles under a box that came or went go stale (their columns changed owner). Every tile in range
+    // went stale on any volume change: a patch's wake rebuilt ~70 tiles, ~4 ms each, 17-19 ms a frame for its first ~17 frames
+    // (DiagPatchLife). A patch is made with every column the record's (adoptRecordedTiles, before any draw): nothing changes owner
+    if (s_drawStaleOnAnyBoxForTest) { for (auto& [key, t] : m_recordTiles) t.avRev = ~0ull; return; }   // TEST ONLY: the old rule, the control
+    if (m_createKeepsSlept) return;
+    auto changed = [](const std::vector<std::pair<glm::ivec3, glm::ivec3>>& a, const std::vector<std::pair<glm::ivec3, glm::ivec3>>& b, auto&& f) {
+        for (const auto& x : a) if (std::find(b.begin(), b.end(), x) == b.end()) f(x);
+    };
+    auto stale = [&](const std::pair<glm::ivec3, glm::ivec3>& box) {
+        const int T = kRecordTile;
+        for (auto& [key, t] : m_recordTiles)
+            if (key.first * T <= box.second.x && key.first * T + T - 1 >= box.first.x && key.second * T <= box.second.z && key.second * T + T - 1 >= box.first.z)
+                t.avRev = ~0ull;
+    };
+    changed(old, m_boxes, stale);
+    changed(m_boxes, old, stale);
 }
 
 AvRecord WaterCoreManager::record(const Av& av) const {
@@ -1346,9 +1363,36 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
     // woken (one tile's seed and upload); the waves' margin wakes the next tiles as they spread (s_tileWakesPerCall a call). The whole
     // box seeded and uploaded at once cost 110-120 ms + 260-280 ms the next frame (DiagPatchWakeStall); recording is ON in a patch
     // (its tiles record back as they freeze - the patch's own way back to the record)
-    m_createKeepsSlept = true;
+    // 51.3b: the pool sized once, for the bricks the S1 disc can wake - its tiles (they wake whole) within the disturbance radius and
+    // the partial wake's margin, every recorded run's bricks and a halo brick each side, x 0.75. Started at 510 slots it doubled five
+    // times in a patch's first second (510 -> 16,383), each grow ~40 ms of host work (alloc 20, free 15, copy 6 - DiagPatchLife); sized,
+    // it started at 15,311 and never grew. A bound on cost only: past it the pool still grows; never the whole box (28,352 slots, 665 MB)
+    size_t slots = 0;
+    if (m_spanReader && sv.cellSize > 0.0f && !s_patchPoolUnsizedForTest) {
+        const int T = kRecordTile, per = std::max(1, static_cast<int>(std::lround(1.0f / sv.cellSize))), by = std::max(1, WaterCoreGpu::s_brickHeight);
+        const float reach = WaterCoreGpu::s_disturbanceRadiusM + 2.0f;
+        double bricks = 0.0;
+        auto fd = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+        for (int tz = fd(lo.z, T); tz <= fd(hi.z, T); ++tz) for (int tx = fd(lo.x, T); tx <= fd(hi.x, T); ++tx) {
+            if (WaterLocality::horizontalDistanceSqToBox(c, glm::vec2(static_cast<float>(tx * T), static_cast<float>(tz * T)),
+                                                         glm::vec2(static_cast<float>(tx * T + T), static_cast<float>(tz * T + T))) > reach * reach) continue;
+            const glm::ivec3 tLo(std::max(lo.x, tx * T), lo.y, std::max(lo.z, tz * T)), tHi(std::min(hi.x, tx * T + T - 1), hi.y, std::min(hi.z, tz * T + T - 1));
+            std::vector<ColumnRuns> runs;
+            m_spanReader(tLo, tHi, runs);
+            for (const auto& col : runs) for (const auto& r : col.runs) {
+                const double run = std::floor(r.topY * per / by) - std::floor(r.bottomY * per / by) + 1.0;
+                bricks += run + 2.0;   // the run's bricks + a halo brick each side (tall cells come on 2 s in: the whole depth is stored first)
+            }
+        }
+        const double perColumn = (static_cast<double>(per) / 8.0) * (per / 8.0);   // world columns -> 8-cell brick columns
+        // x 0.75: not every reachable tile wakes - 13 of 21 did, the peak 14,742 bricks against 20,400 counted (DiagPatchLife)
+        slots = static_cast<size_t>(std::ceil(0.75 * bricks * perColumn)) + 2;
+        if (slots <= WaterCoreGpu::kInitialSlots + 2) slots = 0;   // the default start covers it
+    }
+    m_lastPatchSlots = slots;
+    m_createKeepsSlept = true; m_slotsForCreate = slots;
     const int id = create(lo, hi, sv.cellSize, sv.transport.empty() ? "eulerian" : sv.transport, &err, sv.backend.empty() ? "auto" : sv.backend, sv.sweeps);
-    m_createKeepsSlept = false;
+    m_createKeepsSlept = false; m_slotsForCreate = 0;
     if (!id) { ++m_sleptWake.refused; m_sleptWake.lastError = err; return 0; }
     setPartialWake(id, true);
     setTallBand(id, sv.tallBandM);
@@ -2401,7 +2445,7 @@ void WaterCoreManager::refreshRecordTiles() {
     for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
         if (!inRange(tx, tz)) continue;
         RecordTile& t = m_recordTiles[{tx, tz}];
-        if (t.spanRev == sr && t.occRev == orv && t.avRev == m_avRevision) continue;
+        if (t.spanRev == sr && t.occRev == orv && t.avRev != ~0ull) continue;   // 51.3b: avRev ~0 = a box over it came or went (refreshBoxes)
         const float dx = (tx + 0.5f) * T - m_view.x, dz = (tz + 0.5f) * T - m_view.z;
         stale.push_back({dx * dx + dz * dz, {tx, tz}});
     }
@@ -2412,7 +2456,7 @@ void WaterCoreManager::refreshRecordTiles() {
         const bool wasWet = t.wet;
         buildRecordTile(key.first, key.second, t);
         remarkRecordedTile(key.first, key.second);   // 29 S1
-        t.spanRev = sr; t.occRev = orv; t.avRev = m_avRevision;
+        t.spanRev = sr; t.occRev = orv; t.avRev = 0;
         ++m_recordStats.builtLastCall;
         changed |= wasWet || t.wet;
     }
@@ -2446,7 +2490,7 @@ void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec
         const bool wasWet = t.wet;
         buildRecordTile(tx, tz, t);
         remarkRecordedTile(tx, tz);   // 29 S1
-        t.spanRev = sr; t.occRev = orv; t.avRev = m_avRevision;
+        t.spanRev = sr; t.occRev = orv; t.avRev = 0;
         changed |= wasWet || t.wet;
     }
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
