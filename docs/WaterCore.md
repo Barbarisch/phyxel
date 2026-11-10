@@ -12833,6 +12833,39 @@ frame, every slow frame's phases, the pool's grows, the tile seeds' parts. Contr
   sampled frames and the wake's few long frames move it; the CPU frame and worst frame are the cost. **Left:** one ~90-104 ms frame - the
   wake itself (create + the centre tile's seed). Evidence: `w51_record_lake_live.json`. **Not measured:** the clip (next).
 
+**51.3c (2026-11-10) BUILT - the owner's clip of the 150 m lake, and the two defects it found** (51.3's next: the clip; no drift).
+`tools/water_record_lake_clip.py` (new): the 150 m lake written straight into the record, the same 2 m / strength-8 splash at its centre,
+recorded from the window (gdigrab), two takes joined - WIDE (most of the lake; the patch a small part of it) and CLOSE (the patch fills
+the frame) - each captioned live with the phase, fps, live volumes, awake columns and the patch's size. Rig: the record drawn 200 m
+round the view (default 48 m - from the wide pose the far lake would not be drawn; that distance is S3's).
+- **Defect 1 - a hole where the patch slept** (the first wide take: the patch's 40 x 40 m showed the sand bed for 4 frames of 30, the
+  largest frame change in the clip - 1.87 mean grey levels, the splash itself 0.3). The patch's record draw tiles were built BEFORE it
+  was destroyed: `buildRecordTile` skips a live volume's columns, so the woken ones were built dry and marked current; the destroy then
+  staled them (`refreshBoxes`) and they were rebuilt 4 a frame. The close take showed nothing - all its tiles were back in the record
+  before the patch slept. **Fix:** the patch is destroyed first, then its tiles built (the whole-pond sleep path's order already).
+  Test `APatchSleepsWithoutAHole` (a 60 m lake in the record, the view at the splash, points every 2 m over the patch checked every
+  frame to 3 s after the sleep): RED before the fix **2 hole frames** (112, then 48 of 400 points dry - the clip's two steps); after,
+  **0**; the red control (`s_patchSleepDrawFirstForTest`, the old order) 2.
+- **Defect 2 - the rig's bed was wrong** (`/api/world/clear` refuses a box over 100,000 voxels; the 150 m lake's clear is 112,500 -
+  refused, and `water_bench.world_job` did not look: the 60 m lake's kerb stood inside the 150 m lake and part of its floor was grass).
+  Every 150 m live number before this line ran on that bed (the kerb crossed the patch's box). `world_job` now splits a box over the
+  cap into z slabs and raises on a refused job.
+- **Live, re-measured on the right bed** (`w51_record_lake_live.json`, Release, the GPU otherwise idle):
+
+  | lake | at rest (record only) | mean CPU frame 0-8 s after | worst frame | back in the record |
+  |---|---|---|---|---|
+  | 60 m | 344 fps, GPU 2.86 ms | 13.3 ms | 125 ms | 27.3 s |
+  | 150 m | **348 fps, GPU 2.75 ms** | **12.8 ms** | 141 ms | 27.1 s |
+
+  At rest the 150 m lake now costs what the 60 m one does (283-293 fps before: the stale kerb's and grass's drawing, not the water's).
+  The worst frame - the wake - reads 91-141 ms over the last four runs (one frame each: noisy; its parts are 51.3b's). The clip's
+  captions read **9-55 fps in the patch's first ~2 s**, ~135 fps at 4 s, 300-400 fps once it sleeps.
+- **The clip** (`lake150_clip.mp4`, 80 s; takes `_wide`/`_close` + `.srt`, `lake150_clip.json`): frame-difference check over both
+  takes - no step at the sleep (largest change within 2 s of it 0.006 / 0.022 grey levels, the quiet frames' own 0.007 / 0.021). The
+  only larger changes are a whole-frame shift of 1-2 grey levels every ~8.3 s in both takes (spread over the frame, not the water's).
+  Patch back in the record 18.9 s (wide) / 24.7 s (close) after the splash. **Status: built, not signed off** - the owner's look.
+- Tests: water unit 369 / 369; integration water 82 / 84 (the known two); `ARippleLayerBeyondTheReachHoldsNoDeviceState` passes.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
