@@ -12886,6 +12886,55 @@ create's upload split printed):
   pipelines) - not built: the first splash would still pay, and a kept patch holds ~650 MB of device memory.
 - Tests: water unit 369 / 369; integration water 82 / 84 (the known two).
 
+**51.4 (2026-11-10) S3 - the far skin: DESIGN** (51's S3; `/design-check` run first, verdict NEEDS WORK, resolved here). Measured in
+51.3c: beyond `s_locality.drawM` (48 m) recorded water is not drawn at all - the 150 m lake's far half is sand.
+- **What it is.** The skin is coarse `WaterSurfaceField`s - the same mesh, tiler, shader and material as the pond surface (no new
+  look; the look at distance is the owner's call later). A field already carries its cell size `h`; the tiler cuts every field into
+  36 x 36-column tiles, so a 4 m field's tile is 144 m.
+  - **The summary** (`WaterSkinSummary`): per world-aligned 4 x 4 m cell, its wet column count (0-16), the highest run top and the
+    lowest run bottom. Kept per CHUNK COLUMN (8 x 8 cells) as a storage unit only: a cell is a function of its 16 world columns'
+    runs, and 4 divides 32, so no cell straddles a chunk column.
+  - **Where a chunk column's summary comes from:** a column with a resident chunk is summarized from the record (the span reader);
+    a column with none from the GENERATOR (`WorldGenerator::waterSpansForChunkColumn`, the spans its chunks would be generated
+    with - as far terrain samples the pristine generator), so a far lake does not depend on which chunks happened to load.
+  - **The rings** (a clipmap): level k has cells of `base x 2^k` m (base 4), N x N cells (N = 64) round the camera, its origin
+    snapped to twice its cell so level k-1's square sits exactly on its lattice; level k draws only outside level k-1's square.
+    Level 0 draws only outside the record tiles in range (the SAME `inRange` test: a 4 m cell lies in exactly one 8 m tile) - one
+    boundary, so neither a hole nor a double draw at drawM, and no hysteresis needed there. Levels are added until one reaches
+    `far_m`; cells beyond `far_m` are dropped. A coarser cell is wet when at least half its area is wet; its top is the wet cells'
+    highest, its bottom their lowest. Level 0's half-width is kept >= drawM + 16 m (N grows) so no coarse cell reaches the record.
+  - **The drawing:** one field per level per world tile (36 x 36 cells; the tile is world-aligned, so its look - the body's,
+    resolved at the tile's first wet cell in world order - is a function of world position, never of where the camera is). A dry
+    or masked column says `solidTopY = +inf`: no lateral face, so the coarse shore is a flat edge, never a curtain over land.
+    Skin fields are NOT in `surfaceFields()` (what bodies and probes read): `skinFields()` is the renderer's only (§30.0b rule 2).
+  - **When it rebuilds:** a level's fields when its snapped origin moves (every 2 cells of camera travel) or a summary under it
+    changes. A summary goes stale when its chunk column's residency stamp changes (32.4's `m_resColumn`) or the span revision moves
+    (the summaries in range are re-read, nearest first, a budget per call - late, never blank).
+- **The design check's items, resolved:** (1) never-loaded chunks: the generator source above; (2) one summary per chunk COLUMN is
+  kept, but built from the reader's runs of the whole column stack and never stored in a chunk's blob, so a write never needs
+  another vertical chunk; (4) the gates restated (below); (6) ships OFF until the owner signs it off; LodTierLedger row in the same
+  commit as it ships.
+- **Left open, written down:** (3) the shore rule - "wet when half is" is built; "wet when any is, hidden by the far terrain's
+  depth" is the other option, measured later for the owner. (5) A ring's cells change size as the camera crosses a snap step - the
+  coarse shore steps; S4 judges it in motion (a dither fade is the hook). (7) An EDITED chunk column that is no longer resident
+  shows the generator's water, not its stored record, until the summary is persisted beside the world (S3 step 3; the bench lakes
+  are resident, so S3 steps 1-2 do not meet it). (8) Recorded water within drawM but outside the record tiles' height band
+  (`kRecordBandVoxels`) is still not drawn (51.3c) - the skin masks every in-range tile.
+- **The acceptance tests, written first** (`WaterSkinTest`, CPU only: a manager with a span reader and no device):
+  - `TheFarHalfOfALakeIsDrawn`: a 150 x 150 m lake 1 m deep, the view 10 m off one shore, drawM 48: every 2 m point of the lake is
+    drawn by exactly one of the record tiles or the skin (no hole, no double), the skin at the lake's level within 1 mm. RED today:
+    most of the points are holes.
+  - `TheSkinCostsTheSameForAnyFarLake`: a 1 km and a 5 km lake (an analytic reader - no map of 25 M columns), the same view: skin
+    quads within 1.1x, both bounded by levels x N^2; a still camera rebuilds nothing.
+  - Controls: a dry world draws 0 skin quads; a lake entirely within drawM draws 0 skin quads.
+  - `TheSummaryIsTheSamePerChunkAndWhole` (equality (i)): a lake across chunk seams at negative and positive coordinates,
+    summarized chunk column by chunk column vs one whole-region pass - every cell identical.
+  - Equality (ii) (S3 step 2, with the generator source): a generated chunk column's summary from its generated chunks' spans =
+    from `waterSpansForChunkColumn`; control: an edited chunk differs.
+- **Build order:** step 1 the summary + rings from the record, `skinFields()`, the route `water_av_skin`, the live feed, OFF by
+  default; step 2 the generator source + equality (ii); step 3 the persisted summary (item 7). Live: the 150 m lake from the wide
+  pose at drawM 48, skin off vs on; whole-frame cost at rest and through the splash; a fly-out clip for the owner.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
