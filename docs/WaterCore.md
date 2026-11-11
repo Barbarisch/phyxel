@@ -12655,7 +12655,7 @@ compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the s
 settings (tall cells on, recording off) the lake still sleeps (W1f, 4 of 4): the partial wake freezes columns before the bed churn
 or the stored velocities build. Recording keeps it awake long enough for them to show.
 
-## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1's acceptance test RED
+## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 step 1 BUILT, OFF (51.4b) - none signed off
 
 **The owner's words:** *"the biggest deal when making water work at scale is an area threshold for water disturbances"*; *"at some
 point we will need to make bodies of water that are bigger than 100 meters... that means levels. that means 'at this point water
@@ -12934,6 +12934,39 @@ create's upload split printed):
 - **Build order:** step 1 the summary + rings from the record, `skinFields()`, the route `water_av_skin`, the live feed, OFF by
   default; step 2 the generator source + equality (ii); step 3 the persisted summary (item 7). Live: the 150 m lake from the wide
   pose at drawM 48, skin off vs on; whole-frame cost at rest and through the splash; a fly-out clip for the owner.
+
+**51.4b (2026-11-10) S3 step 1 BUILT, OFF by default - the far skin from the record** (51.4's step 1; no drift). `WaterSkin`
+(`WaterSkin.h/.cpp`), owned by the manager; `skinFields()` is appended to the renderer's fields by the editor only. Route
+`water_av_skin {on, far_m, base_cell_m 4|8, ring_cells, summaries_per_call}` (echoes the values and the stats). LodTierLedger row 9.
+- **One change to the design, found by the first live still:** a coarse cell drawn whole when half its area is wet put water over
+  the kerb at the far corners (up to half a cell past the shore). Each summary cell now also keeps the RECTANGLE of its wet columns;
+  a drawn cell covers that rectangle only (`WaterSurfaceField::insetCols`, the extent in the column's spare floats - the mesh, the
+  tiler's keep test and `drawnAt` read it) and is drawn when at least half the rectangle is wet. A straight shore then lies exactly
+  on the shore at any cell size; two waters far apart in one coarse cell are not joined.
+- **Acceptance (`WaterSkinTest`, CPU, red controls in the same tests):**
+
+| test | red control | built |
+|---|---|---|
+| the 160 m lake, view 10 m off its shore, draw_m 48: 6,400 points | skin off: 5,568 holes | 0 holes, 0 doubles, the level exact; the record tiles' points unchanged (832) |
+| the bench's 150 m lake (shores off every lattice), every 1 m point within 30 m | whole cells: 640 points off the lake drawn (3.5 m out), 100 holes | 0 drawn off the lake, 0 holes |
+| a round lake, r 70 m | whole cells: 1.6 % of the lake holes, 1.2 % overhang | 0 holes, 1.4 % overhang, worst 2.8 m |
+| a 3 km and an 8 km lake, the same view | - | 5,502 skin cells each (1.00x; bound 4 x 64^2); a still call 0.002 ms, nothing rebuilt; flying 0.5 m a call: 0.19-0.24 ms mean, 3.0 ms worst (a ring's square moving) |
+| controls | - | a dry world and a lake inside draw_m: 0 skin cells |
+| equality (i): an irregular lake across chunk seams, per chunk column vs one pass | - | 1,024 cells, 0 differ |
+
+- **Live** (`tools/water_skin_live.py`, Release, WaterBench_Creek, the 150 m lake from the clip's wide pose at draw_m 48; evidence
+  `skin150_off.png` / `skin150_on.png` / `skin150.json`): the far lake drawn and ending at the kerb (64 % of the frame's pixels changed).
+  Whole frame at rest: skin off 557 fps, CPU 1.84 ms, GPU 0.78 ms; **on 589 fps, CPU 1.73 ms, GPU 0.88 ms** (4 levels, 1,016 cells,
+  5 fields; the editor's water feed 0.008 -> 0.013 ms). 0-8 s after the splash, skin on: CPU 7.8 ms mean, worst frame 116 ms (the
+  patch's - 51.3d's range); the patch's wake and sleep bump the span revision, so the 3,859 summaries were re-read (32 a call).
+  Not measured: the GPU time of the skin's draws alone (the frame's GPU moved +0.1 ms), a lake larger than the bench world's terrain.
+- **The owner's clip** (`tools/water_skin_flyout.py` -> `skin150_flyout.mp4`): the camera from 12 m over the near shore out to ~480 m
+  and back, skin off | on side by side, captioned with the distance, the frame rate and the skin's cells. 462 / 459 fps mean.
+  **Status: built, not signed off. The look decisions are the owner's:** turning it on by default; the shore rule (above); the ring
+  steps in motion (S4).
+- Open (51.4 items): step 2 the generator source for never-loaded chunks + equality (ii); step 3 the persisted summary; the band
+  (item 8). A patch's wake/sleep re-reads every summary in reach (a global span revision) - bounded by the budget, late never blank;
+  per-column revisions would remove it.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
