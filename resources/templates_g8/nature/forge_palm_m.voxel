@@ -1,0 +1,553 @@
+# grid: 8
+# ==========================================================
+# name:         forge_palm_m
+# display_name: Palm (forge h12)
+# description:  Unified space-colonization tree, 133 nodes, 1/8 m cells.
+# category:     nature
+# subcategory:  trees
+# facing:       +Z
+# bounds:       64W x 86H x 65D cells (8.00 x 10.75 x 8.12 m)
+# primitives:   540 boxes for 2793 cells
+# generator:    tree_forge.py --grid 8 --preset palm --height 12 --seed 121 --tier forest
+# ==========================================================
+
+B 19 0 25 2 1 3 LogPalm
+B 19 0 36 19 1 3 LogPalm
+B 20 0 28 19 1 2 LogPalm
+B 20 0 35 19 1 1 LogPalm
+B 21 0 26 2 1 2 LogPalm
+B 21 0 30 18 1 2 LogPalm
+B 21 0 34 20 1 1 LogPalm
+B 22 0 33 21 1 1 LogPalm
+B 23 0 27 1 2 1 LogPalm
+B 23 0 32 20 1 1 LogPalm
+B 24 0 27 16 1 1 LogPalm
+B 25 0 18 1 1 9 LogPalm
+B 26 0 20 1 1 7 LogPalm
+B 27 0 21 1 1 6 LogPalm
+B 28 0 22 2 1 5 LogPalm
+B 28 0 39 12 1 1 LogPalm
+B 29 0 40 11 1 1 LogPalm
+B 30 0 23 1 1 4 LogPalm
+B 31 0 25 1 1 2 LogPalm
+B 32 0 41 8 2 1 LogPalm
+B 33 0 42 9 1 1 LogPalm
+B 34 0 26 7 1 1 LogPalm
+B 34 0 43 8 1 1 LogPalm
+B 36 0 25 5 1 1 LogPalm
+B 36 0 44 7 1 1 LogPalm
+B 38 0 37 1 1 2 LogPalm
+B 38 0 45 5 1 1 LogPalm
+B 39 0 24 2 1 1 LogPalm
+V 39 0 28 LogPalm
+B 39 0 31 2 1 1 LogPalm
+V 40 0 41 LogPalm
+B 40 0 46 2 1 1 LogPalm
+B 20 1 36 18 1 2 LogPalm
+B 21 1 27 2 1 4 LogPalm
+B 21 1 35 17 1 1 LogPalm
+B 22 1 31 17 1 1 LogPalm
+B 22 1 34 17 1 1 LogPalm
+B 22 1 38 4 1 1 LogPalm
+B 23 1 28 16 1 3 LogPalm
+B 23 1 33 17 1 1 LogPalm
+B 24 1 32 16 1 1 LogPalm
+B 25 1 27 7 1 1 LogPalm
+B 26 1 24 4 1 3 LogPalm
+B 27 1 23 2 1 1 LogPalm
+B 29 1 38 10 1 1 LogPalm
+B 30 1 25 1 1 2 LogPalm
+B 30 1 39 9 1 1 LogPalm
+V 31 1 26 LogPalm
+B 31 1 40 9 1 1 LogPalm
+B 33 1 27 6 1 1 LogPalm
+B 34 1 42 7 1 1 LogPalm
+B 35 1 26 4 1 1 LogPalm
+B 35 1 43 7 1 1 LogPalm
+B 37 1 44 5 1 1 LogPalm
+V 40 1 45 LogPalm
+B 22 2 36 8 1 1 LogPalm
+B 23 2 35 7 1 1 LogPalm
+B 24 2 29 13 1 3 LogPalm
+B 24 2 34 14 1 1 LogPalm
+B 24 2 37 5 1 1 LogPalm
+B 25 2 32 7 1 2 LogPalm
+B 26 2 27 5 1 2 LogPalm
+B 27 2 26 3 1 1 LogPalm
+V 28 2 25 LogPalm
+B 30 2 37 7 1 1 LogPalm
+B 31 2 28 6 1 1 LogPalm
+B 31 2 35 5 1 2 LogPalm
+B 31 2 38 7 1 2 LogPalm
+B 32 2 32 7 1 1 LogPalm
+B 32 2 40 7 1 1 LogPalm
+B 33 2 33 6 1 1 LogPalm
+B 34 2 41 5 1 1 LogPalm
+B 35 2 42 4 1 1 LogPalm
+V 36 2 36 LogPalm
+V 37 2 31 LogPalm
+B 26 3 34 3 1 2 LogPalm
+B 27 3 29 4 1 3 LogPalm
+V 27 3 33 LogPalm
+B 28 3 28 2 1 1 LogPalm
+V 29 3 32 LogPalm
+B 30 3 34 2 4 1 LogPalm
+B 31 3 33 1 6 1 LogPalm
+B 32 3 36 3 1 3 LogPalm
+B 33 3 29 2 1 3 LogPalm
+B 33 3 39 3 1 1 LogPalm
+B 34 3 32 3 1 1 LogPalm
+B 35 3 30 1 1 2 LogPalm
+V 35 3 33 LogPalm
+B 35 3 37 1 1 2 LogPalm
+B 31 7 34 2 6 1 LogPalm
+B 32 12 35 1 12 1 LogPalm
+B 32 13 34 1 6 1 LogPalm
+B 33 15 35 1 13 1 LogPalm
+B 33 18 34 1 18 1 LogPalm
+B 32 28 34 1 11 1 LogPalm
+B 33 30 33 1 6 1 LogPalm
+B 32 33 33 1 19 1 LogPalm
+B 31 39 33 1 15 1 LogPalm
+B 31 43 32 1 19 1 LogPalm
+B 32 50 32 1 17 1 LogPalm
+B 32 58 31 1 11 1 LogPalm
+B 31 62 31 1 9 1 LogPalm
+B 31 65 32 1 6 1 LogPalm
+B 47 66 59 1 4 1 Leaf
+B 48 66 59 1 2 1 Leaf
+B 0 68 22 2 3 1 Leaf
+B 47 68 58 1 4 1 Leaf
+B 63 68 34 1 3 1 Leaf
+B 26 69 63 1 2 2 Leaf
+B 62 69 34 1 5 1 Leaf
+V 63 69 33 Leaf
+B 27 70 63 1 3 1 Leaf
+B 46 70 58 1 2 1 Leaf
+B 47 70 57 1 3 1 Leaf
+B 1 71 22 1 1 2 Leaf
+B 2 71 22 1 4 1 Leaf
+B 26 71 62 1 2 2 Leaf
+B 31 71 31 1 3 2 Leaf
+B 46 71 57 1 4 1 Leaf
+B 62 71 33 1 2 1 Leaf
+B 0 72 39 1 2 2 Leaf
+V 1 72 22 Leaf
+B 2 72 23 1 3 1 Leaf
+B 11 72 7 1 3 1 Leaf
+B 27 72 62 1 3 1 Leaf
+B 29 72 31 1 4 2 Leaf
+B 30 72 30 1 3 5 Leaf
+B 31 72 30 1 4 1 Leaf
+B 31 72 33 3 4 2 Leaf
+B 32 72 31 2 2 2 Leaf
+B 32 72 35 2 4 1 Leaf
+B 46 72 56 1 3 1 Leaf
+B 61 72 34 1 3 1 Leaf
+B 1 73 39 1 3 2 Leaf
+V 10 73 7 Leaf
+B 11 73 8 1 4 1 Leaf
+B 26 73 62 1 2 1 Leaf
+B 27 73 30 1 4 4 Leaf
+B 28 73 29 1 3 5 Leaf
+B 29 73 29 1 4 2 Leaf
+B 29 73 33 1 4 3 Leaf
+B 30 73 29 3 4 1 Leaf
+B 30 73 35 1 5 2 Leaf
+B 31 73 35 1 4 2 Leaf
+B 32 73 30 1 3 1 Leaf
+B 32 73 36 3 3 1 Leaf
+B 33 73 37 2 4 1 Leaf
+B 34 73 31 1 3 5 Leaf
+B 35 73 31 1 3 2 Leaf
+B 45 73 56 1 3 1 Leaf
+B 61 73 33 1 2 1 Leaf
+V 0 74 39 Leaf
+B 3 74 22 1 2 2 Leaf
+B 26 74 30 1 3 4 Leaf
+B 26 74 61 2 3 1 Leaf
+B 27 74 29 1 4 1 Leaf
+B 27 74 34 2 4 1 Leaf
+B 28 74 28 1 5 1 Leaf
+B 29 74 28 4 4 1 Leaf
+B 29 74 36 1 6 1 Leaf
+B 30 74 37 2 4 1 Leaf
+B 31 74 0 2 2 1 Leaf
+V 31 74 31 Leaf
+B 32 74 32 2 2 1 Leaf
+B 32 74 37 1 2 1 Leaf
+V 33 74 31 Leaf
+B 34 74 38 2 4 1 Leaf
+B 35 74 33 1 4 5 Leaf
+B 36 74 31 1 3 3 Leaf
+B 37 74 32 1 4 1 Leaf
+B 45 74 55 1 3 1 Leaf
+B 46 74 55 1 2 1 Leaf
+B 57 74 50 1 2 1 Leaf
+B 60 74 33 1 3 2 Leaf
+B 2 75 39 1 3 1 Leaf
+B 4 75 23 1 3 1 Leaf
+B 12 75 8 1 3 1 Leaf
+B 24 75 29 1 4 2 Leaf
+B 25 75 29 1 2 3 Leaf
+B 25 75 33 1 5 1 Leaf
+B 26 75 29 1 2 1 Leaf
+B 26 75 34 1 4 1 Leaf
+B 27 75 27 1 4 2 Leaf
+B 27 75 60 1 3 1 Leaf
+B 28 75 27 1 4 1 Leaf
+B 28 75 35 1 4 1 Leaf
+B 29 75 27 4 3 1 Leaf
+B 29 75 37 1 4 2 Leaf
+B 30 75 30 1 1 2 Leaf
+B 30 75 33 1 2 2 Leaf
+B 30 75 38 1 4 2 Leaf
+B 31 75 1 2 3 1 Leaf
+B 31 75 38 1 3 1 Leaf
+B 33 75 38 1 2 1 Leaf
+B 34 75 39 3 3 1 Leaf
+B 35 75 40 2 4 1 Leaf
+B 36 75 37 1 2 2 Leaf
+B 37 75 31 1 3 1 Leaf
+B 37 75 33 2 3 1 Leaf
+B 38 75 32 1 4 1 Leaf
+B 44 75 54 1 2 2 Leaf
+B 45 75 54 1 3 1 Leaf
+B 56 75 49 1 3 2 Leaf
+V 57 75 49 Leaf
+V 1 76 39 Leaf
+V 3 76 23 Leaf
+B 5 76 23 1 2 1 Leaf
+B 12 76 9 1 3 1 Leaf
+B 14 76 57 1 2 2 Leaf
+B 22 76 29 1 4 1 Leaf
+B 23 76 29 1 3 2 Leaf
+V 24 76 31 Leaf
+B 24 76 33 1 4 2 Leaf
+B 25 76 32 1 3 1 Leaf
+B 25 76 34 1 3 1 Leaf
+B 26 76 26 1 3 3 Leaf
+B 26 76 60 1 2 1 Leaf
+B 27 76 26 1 4 1 Leaf
+B 28 76 26 1 3 1 Leaf
+B 28 76 29 1 1 2 Leaf
+B 28 76 32 1 1 2 Leaf
+B 28 76 36 1 4 1 Leaf
+B 29 76 39 1 3 2 Leaf
+B 30 76 26 3 3 1 Leaf
+V 30 76 30 Leaf
+B 30 76 40 1 4 1 Leaf
+B 31 76 39 1 3 1 Leaf
+B 32 76 33 3 1 1 Leaf
+B 33 76 32 3 1 1 Leaf
+B 33 76 34 2 1 3 Leaf
+B 34 76 40 1 2 1 Leaf
+B 35 76 41 3 3 1 Leaf
+B 36 76 34 1 4 2 Leaf
+B 36 76 42 2 3 1 Leaf
+B 37 76 39 1 2 2 Leaf
+B 38 76 31 2 2 1 Leaf
+B 39 76 32 1 3 2 Leaf
+B 40 76 32 1 3 1 Leaf
+B 43 76 52 2 2 2 Leaf
+V 45 76 53 Leaf
+B 58 76 33 1 2 2 Leaf
+B 59 76 33 1 1 2 Leaf
+B 3 77 39 1 3 1 Leaf
+B 5 77 24 2 1 1 Leaf
+B 6 77 23 1 2 1 Leaf
+B 13 77 9 1 3 1 Leaf
+B 21 77 28 1 3 2 Leaf
+B 22 77 28 1 3 1 Leaf
+B 22 77 30 1 2 1 Leaf
+B 23 77 28 1 2 1 Leaf
+B 23 77 33 1 4 2 Leaf
+V 24 77 28 Leaf
+B 24 77 32 1 2 1 Leaf
+B 25 77 26 1 4 1 Leaf
+B 25 77 29 1 1 2 Leaf
+B 26 77 25 1 4 1 Leaf
+V 26 77 30 Leaf
+B 26 77 32 2 1 2 Leaf
+B 26 77 59 2 1 1 Leaf
+B 27 77 25 1 3 1 Leaf
+B 27 77 35 1 2 3 Leaf
+B 27 77 58 1 3 1 Leaf
+B 28 77 29 2 1 1 Leaf
+B 28 77 37 1 4 1 Leaf
+B 29 77 34 1 1 2 Leaf
+B 29 77 41 2 3 2 Leaf
+B 30 77 25 3 3 1 Leaf
+V 30 77 34 Leaf
+B 31 77 2 2 3 1 Leaf
+B 31 77 24 1 4 1 Leaf
+B 31 77 40 1 2 1 Leaf
+B 33 77 34 2 1 1 Leaf
+V 34 77 33 Leaf
+B 34 77 35 1 2 1 Leaf
+V 34 77 37 Leaf
+B 36 77 36 2 4 1 Leaf
+V 36 77 38 Leaf
+B 36 77 43 4 2 1 Leaf
+B 37 77 34 1 2 2 Leaf
+B 37 77 44 3 3 1 Leaf
+B 38 77 41 1 2 2 Leaf
+B 38 77 45 2 3 1 Leaf
+B 39 77 46 2 3 1 Leaf
+B 40 77 31 1 2 1 Leaf
+B 40 77 33 3 2 1 Leaf
+B 40 77 47 1 3 1 Leaf
+B 41 77 32 2 3 1 Leaf
+B 41 77 48 1 3 3 Leaf
+B 42 77 49 1 2 4 Leaf
+B 43 77 50 1 2 2 Leaf
+V 44 77 51 Leaf
+V 44 77 54 Leaf
+B 55 77 49 1 3 1 Leaf
+B 57 77 33 1 2 2 Leaf
+V 3 78 38 Leaf
+B 4 78 39 1 2 1 Leaf
+B 6 78 24 3 1 1 Leaf
+B 8 78 25 1 2 1 Leaf
+B 12 78 10 2 1 1 Leaf
+B 14 78 57 2 2 1 Leaf
+B 18 78 28 2 3 1 Leaf
+B 19 78 27 1 3 1 Leaf
+B 19 78 29 2 2 1 Leaf
+B 20 78 27 1 2 2 Leaf
+B 21 78 34 1 4 1 Leaf
+B 22 78 33 1 3 3 Leaf
+V 23 78 32 Leaf
+B 23 78 35 1 2 1 Leaf
+V 24 78 35 Leaf
+B 25 78 24 1 3 2 Leaf
+V 25 78 27 Leaf
+B 26 78 24 1 3 1 Leaf
+V 26 78 33 Leaf
+V 26 78 58 Leaf
+B 27 78 38 1 4 1 Leaf
+B 27 78 57 1 3 1 Leaf
+V 27 78 59 Leaf
+B 28 78 38 1 3 1 Leaf
+B 28 78 41 1 1 2 Leaf
+V 29 78 35 Leaf
+B 29 78 43 1 3 2 Leaf
+B 30 78 24 1 2 1 Leaf
+B 30 78 43 1 3 1 Leaf
+B 31 78 23 1 4 1 Leaf
+B 31 78 27 2 1 1 Leaf
+V 31 78 41 Leaf
+B 32 78 24 1 3 1 Leaf
+B 34 78 34 2 1 1 Leaf
+B 35 78 35 1 2 2 Leaf
+B 35 78 39 2 1 1 Leaf
+B 36 78 37 3 2 1 Leaf
+V 37 78 40 Leaf
+B 38 78 35 1 3 2 Leaf
+V 38 78 46 Leaf
+V 39 78 42 Leaf
+B 39 78 47 1 2 1 Leaf
+B 40 78 44 1 1 2 Leaf
+B 40 78 48 1 1 2 Leaf
+V 41 78 31 Leaf
+B 41 78 46 1 2 2 Leaf
+B 42 78 48 1 2 1 Leaf
+B 43 78 32 2 2 2 Leaf
+B 43 78 52 2 1 1 Leaf
+B 54 78 33 1 3 1 Leaf
+B 55 78 33 1 2 2 Leaf
+B 56 78 33 1 1 2 Leaf
+V 56 78 49 Leaf
+B 4 79 38 2 2 1 Leaf
+B 5 79 39 1 2 1 Leaf
+B 7 79 24 4 1 1 Leaf
+B 9 79 25 4 2 1 Leaf
+B 11 79 26 7 2 1 Leaf
+B 13 79 10 2 2 2 Leaf
+B 14 79 27 5 2 1 Leaf
+B 14 79 56 2 2 1 Leaf
+B 16 79 28 2 2 1 Leaf
+B 20 79 34 1 3 2 Leaf
+B 21 79 33 1 2 1 Leaf
+B 21 79 35 1 3 1 Leaf
+B 23 79 23 2 4 1 Leaf
+B 24 79 24 1 2 2 Leaf
+B 25 79 23 1 3 1 Leaf
+B 26 79 26 1 1 2 Leaf
+B 26 79 37 1 2 3 Leaf
+V 27 79 27 Leaf
+B 27 79 36 1 1 2 Leaf
+B 27 79 39 1 3 1 Leaf
+B 27 79 54 2 2 3 Leaf
+B 28 79 42 1 1 6 Leaf
+V 28 79 57 Leaf
+V 29 79 37 Leaf
+V 29 79 40 Leaf
+B 29 79 45 1 3 3 Leaf
+B 30 79 23 1 2 1 Leaf
+B 30 79 44 1 2 2 Leaf
+B 31 79 3 2 2 1 Leaf
+B 31 79 22 2 3 1 Leaf
+V 31 79 26 Leaf
+B 32 79 23 1 2 1 Leaf
+B 37 79 35 1 2 1 Leaf
+B 37 79 41 1 1 3 Leaf
+B 38 79 38 1 3 1 Leaf
+B 38 79 42 1 1 2 Leaf
+B 39 79 36 1 3 2 Leaf
+V 39 79 43 Leaf
+V 40 79 45 Leaf
+V 40 79 48 Leaf
+B 41 79 33 2 1 1 Leaf
+B 42 79 49 1 1 2 Leaf
+B 45 79 32 4 2 2 Leaf
+B 49 79 33 5 2 1 Leaf
+B 53 79 34 2 1 1 Leaf
+B 54 79 48 1 3 1 Leaf
+B 55 79 48 1 2 1 Leaf
+V 56 79 33 Leaf
+B 6 80 38 2 2 1 Leaf
+V 10 80 26 Leaf
+V 13 80 25 Leaf
+V 13 80 27 Leaf
+B 14 80 12 2 2 1 Leaf
+B 15 80 11 1 2 1 Leaf
+B 15 80 55 1 3 1 Leaf
+V 15 80 57 Leaf
+B 17 80 35 3 3 1 Leaf
+B 18 80 34 2 3 1 Leaf
+B 19 80 36 1 2 1 Leaf
+V 20 80 33 Leaf
+B 22 80 21 2 3 2 Leaf
+B 23 80 24 1 2 1 Leaf
+B 24 80 22 1 3 1 Leaf
+V 25 80 22 Leaf
+B 25 80 39 1 3 2 Leaf
+V 26 80 26 Leaf
+B 26 80 40 1 3 1 Leaf
+V 27 80 37 Leaf
+B 27 80 50 2 1 4 Leaf
+B 28 80 44 1 1 6 Leaf
+B 29 80 42 2 1 1 Leaf
+B 29 80 48 1 1 5 Leaf
+B 30 80 21 1 2 2 Leaf
+B 30 80 46 1 1 2 Leaf
+B 31 80 4 2 2 1 Leaf
+B 31 80 20 1 3 2 Leaf
+B 32 80 21 1 2 1 Leaf
+B 37 80 37 2 2 1 Leaf
+B 39 80 38 2 3 1 Leaf
+B 40 80 37 1 3 1 Leaf
+B 44 80 32 1 1 2 Leaf
+B 49 80 32 3 1 1 Leaf
+B 49 80 34 4 1 1 Leaf
+B 54 80 47 1 2 1 Leaf
+B 7 81 37 6 1 1 Leaf
+B 8 81 38 2 2 1 Leaf
+B 12 81 36 4 3 1 Leaf
+V 14 81 11 Leaf
+V 14 81 26 Leaf
+B 15 81 13 2 2 1 Leaf
+B 15 81 35 1 3 1 Leaf
+V 15 81 56 Leaf
+V 16 81 12 Leaf
+B 16 81 14 2 2 1 Leaf
+B 16 81 35 1 2 2 Leaf
+B 16 81 55 1 2 1 Leaf
+B 17 81 15 1 3 1 Leaf
+B 17 81 34 1 2 1 Leaf
+B 17 81 36 2 2 1 Leaf
+B 19 81 17 1 3 2 Leaf
+B 20 81 18 1 2 3 Leaf
+B 21 81 19 1 2 3 Leaf
+B 22 81 19 1 2 2 Leaf
+V 22 81 23 Leaf
+B 23 81 20 1 2 1 Leaf
+V 24 81 21 Leaf
+B 24 81 24 2 1 1 Leaf
+B 25 81 41 1 3 1 Leaf
+B 26 81 38 1 1 2 Leaf
+B 26 81 41 1 2 1 Leaf
+V 27 81 40 Leaf
+B 27 81 51 2 1 3 Leaf
+B 28 81 46 1 1 5 Leaf
+V 28 81 54 Leaf
+B 29 81 48 1 1 4 Leaf
+V 30 81 20 Leaf
+B 31 81 5 2 1 2 Leaf
+B 31 81 18 1 3 2 Leaf
+B 32 81 18 1 2 3 Leaf
+V 38 81 36 Leaf
+B 39 81 39 4 1 1 Leaf
+B 41 81 37 1 1 2 Leaf
+B 52 81 47 2 2 1 Leaf
+V 53 81 48 Leaf
+V 7 82 38 Leaf
+B 8 82 37 8 1 1 Leaf
+B 10 82 36 2 1 1 Leaf
+V 10 82 38 Leaf
+B 13 82 35 2 1 1 Leaf
+V 15 82 12 Leaf
+V 16 82 15 Leaf
+B 16 82 54 1 2 1 Leaf
+B 17 82 16 3 2 1 Leaf
+B 18 82 15 1 2 1 Leaf
+B 18 82 17 1 2 1 Leaf
+V 19 82 19 Leaf
+B 20 82 17 1 2 1 Leaf
+B 21 82 18 1 2 1 Leaf
+B 24 82 40 1 1 4 Leaf
+B 25 82 42 1 2 1 Leaf
+V 26 82 39 Leaf
+B 30 82 18 1 1 2 Leaf
+B 31 82 6 1 1 5 Leaf
+B 31 82 13 1 2 5 Leaf
+B 32 82 6 1 1 4 Leaf
+B 32 82 15 1 2 3 Leaf
+V 39 82 37 Leaf
+B 40 82 39 4 2 1 Leaf
+B 41 82 38 1 2 1 Leaf
+B 41 82 40 4 2 1 Leaf
+V 42 82 38 Leaf
+B 43 82 41 2 3 1 Leaf
+B 51 82 45 1 2 2 Leaf
+B 52 82 46 1 2 1 Leaf
+B 10 83 37 4 1 1 Leaf
+V 11 83 36 Leaf
+B 16 83 53 2 1 1 Leaf
+B 17 83 52 2 2 1 Leaf
+V 17 83 54 Leaf
+B 20 83 18 1 1 2 Leaf
+B 21 83 19 1 1 2 Leaf
+V 22 83 20 Leaf
+B 22 83 44 1 3 2 Leaf
+B 23 83 42 2 2 3 Leaf
+V 24 83 41 Leaf
+V 25 83 40 Leaf
+V 25 83 43 Leaf
+B 31 83 7 1 1 6 Leaf
+B 32 83 8 1 1 7 Leaf
+V 32 83 18 Leaf
+V 42 83 41 Leaf
+B 44 83 42 4 2 1 Leaf
+B 45 83 40 1 1 2 Leaf
+B 46 83 41 1 2 1 Leaf
+B 46 83 43 3 2 1 Leaf
+B 47 83 44 3 2 1 Leaf
+B 49 83 45 2 2 1 Leaf
+V 50 83 44 Leaf
+V 50 83 46 Leaf
+V 17 84 53 Leaf
+B 18 84 50 2 1 2 Leaf
+B 19 84 49 2 2 1 Leaf
+B 20 84 47 2 2 2 Leaf
+B 21 84 45 1 1 2 Leaf
+B 22 84 46 1 1 2 Leaf
+B 23 84 45 1 2 1 Leaf
+B 31 84 11 1 1 5 Leaf
+B 43 84 40 2 1 1 Leaf
+V 45 84 41 Leaf
+V 18 85 51 Leaf
+V 19 85 50 Leaf
+B 21 85 46 2 1 1 Leaf
+V 23 85 44 Leaf

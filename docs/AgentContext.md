@@ -301,7 +301,17 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (`tools/voxel_foundation_inventory.py`); code ~4,500 sites / ~270 files assume 3|9 per m (real risk: ~1,000
       structure sites in 1/9 units + nav gameplay numbers 17/9 m height, 4/9 m step); bare terrain measured 0.86-2.25
       detailed blocks per column, 0.6-1.6 MB per chunk footprint (12-14x vs dense). Skeletons in engine/*/core/voxfound
-      + VoxFound*LabTest (fracture predictions RED until F4, BlockStore RED until F1). NEXT: F1 storage + F4 fracture.
+      + VoxFound*LabTest (fracture predictions RED until F4). 2026-11-11: OWNER: convert GENERATORS, not templates
+      (regenerate later). F1 CPU BlockStore GREEN (equal to dense ref incl. 200-batch brush churn). FC: generator map
+      in plan §7a.3 (tree_forge = metres, easy; MicroCanvas + ~300 structure sites in 1/9 units with no length type;
+      ProceduralTree ports the DEPRECATED gen_tree; Python furniture/items/doors are authored integer designs);
+      `tools/voxgrid.py` + `tree_forge.py --grid 8` -> `resources/templates_g8/nature` (legacy output byte-identical).
+      Flora cost measured: forests ~6 detailed blocks/column, ~3.9 MB per chunk footprint (upper bounds held; the
+      predicted lower bound 4/column failed on a sparse 10-tree footprint, 2.27). Undergrowth not yet on the grid.
+      GOTCHA: test binary runs in build/tests, so WorldGenerator's CWD-relative biomes.json is NOT loaded (built-in
+      biomes) unless the test calls loadBiomes(<repo>/resources/biomes.json); and running phyxel_tests.exe needs
+      python312.dll on PATH (uv: %APPDATA%\uv\python\cpython-3.12.13-windows-x86_64-none). NEXT: C++ length type +
+      MicroCanvas on 1/8 m (FC step 3); F4 fracture reference.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

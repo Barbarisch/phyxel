@@ -194,8 +194,31 @@ For comparison, today's debris costs 6 faces x 64 B = 384 B per moving voxel, wi
 
   - The prediction was 1-3 detailed blocks per column. Bare terrain came in **lower** (0.86-2.25), so that prediction
     was wrong on the low side. The upper bound, which the budget relies on, held.
-  - **Not included yet:** flora (leaves are the expected big cost), structures, water. They are on thirds today and
-    arrive with FC. The real number per chunk is unknown until then.
+  - **Correction (2026-11-11):** the test binary runs in `build/tests`, where `WorldGenerator`'s CWD-relative
+    `resources/biomes.json` load finds nothing, so the table above used the built-in biomes. Re-measured with the
+    shipped biomes, bare terrain is about the same (Perlin s7 (0,0) 1.06; s12345 0.76; Mountains 1.42 / 2.21).
+- **Measured with flora (2026-11-11, `MeasuredFloraCostOnShippedBiomes`).** Shipped `biomes.json`; the engine's
+  `planFlora`; trees stamped from the `tree_forge --grid 8` library (generator output); area tall enough for the
+  tallest stamped tree. Pooled plants with no grid-8 generator yet (gen_tree bushes, hand-made fern/apple/flower,
+  "voxel matrix" shrubs) are not stamped, so undergrowth is a **lower bound**.
+
+  | Area | Planned (stamped) | Detailed per column, bare → flora | Estimated store per chunk footprint |
+  |---|---|---|---|
+  | Perlin s7 (0,0) | 17 (8) | 1.06 → 2.08 | 0.91 → 1.51 MB |
+  | Perlin s7 (512,-256) | 19 (10, all trees) | 0.97 → 2.27 | 0.84 → 1.61 MB |
+  | Perlin s12345 (-1024,768) | 3 (2) | 0.76 → 0.76 | 0.71 MB |
+  | Mountains s7 (0,0) | 17 (8) | 1.42 → 2.40 | 1.19 → 1.77 MB |
+  | Mountains s7 (2048,1024) | 0 | 2.21 | 1.60 MB |
+  | **Perlin s7 forest (3200,96)** | 127 (73) | 1.05 → **5.84** | 0.96 → **3.78 MB** |
+  | **Perlin s7 forest (8160,96)** | 100 (66) | 1.03 → **6.04** | 0.95 → **3.90 MB** |
+
+  - Prediction (written before the run): a footprint with ≥ 10 trees has 4-10 detailed blocks per column and
+    ≤ 6 MB. **Held in both forests (59 and 65 trees). The lower bound was wrong** for the sparse footprint with
+    exactly 10 trees (2.27 per column). The upper bounds, which the budget relies on, held everywhere and stay
+    asserted. (The first run's gate also counted all stamped plants rather than trees; corrected to match the
+    written prediction. It made no difference here: that footprint's 10 plants are all trees.)
+  - Forest at ~3.9 MB per footprint over a 256 m radius (~200 footprints) is ~0.8 GB: inside the 1-3 GB budget,
+    before undergrowth, structures and water.
   - At these numbers the directory is about 20 % of the store (164 KB of 0.79 MB). That supports measuring the
     two-level directory in F1.
 - **The directory is large:** 256 KB per chunk x 600 = 150 MB of mostly uniform entries. A two-level directory (one
@@ -540,16 +563,58 @@ What this means:
 - **A recommended shortcut for those two:** introduce a world-length unit type (metres, or integer 1/8 m units)
   and move them to it once. Changing `* 9` to `* 8` in place would silently change every proportion.
 
-The plan for each:
-1. **Inventory (F0): done** (above).
-2. **Change the generators**, not their output. Each generator emits the 1/8 m grid (or 1/64 m for items), and the
-   library is regenerated. This is exact by construction.
-3. **Redesign features that relied on thirds.** For example, roof courses and trim on 1/3 m steps move to 1/4 m or
-   3/8 m steps, and their texture crops are re-measured. Each one is reviewed by eye on screenshots, before and
-   after.
-4. **Resample hand-made templates** with a resampler that preserves volume per material (the count of voxels times
-   voxel volume stays within one voxel per material), then review by eye. Any that look wrong are re-authored.
-5. **Lint:** a check that fails if any template or generator still writes on a third or ninth grid.
+### 7a.3 Generators first (owner, 2026-11-11)
+
+Owner: "we dont need every template converted over. they can be regenerated. later. more importantly is fixing up
+any generation templates in the first place." So FC converts **generators**; the template library is regenerated
+from them later, and hand-made templates wait (re-authored or resampled only when needed).
+
+**Generator map (2026-11-11, from reading the code; C++ side read by an Explore agent, five citations spot-checked
+and confirmed).** For each: its internal model, its choke point (where it turns into voxels), and what is hard.
+
+| Generator | Model before voxels | Choke point | Hard part |
+|---|---|---|---|
+| `tools/tree_forge.py` (all `forge_*` flora, the live biome pools) | skeleton in **metres** (continuous), capsules/spheres | `forge_core.rasterize_*` + `emit()` | nothing: one scale factor. **Done 2026-11-11** (`--grid 8`, below) |
+| `tools/gen_tree.py` | sub-space (1/3 m) integer grid | its own `emit()` | marked DEPRECATED (superseded by tree_forge) but still makes the pooled `bush_round`/`bush_leafy_*`. **Retire**: replace with tree_forge bush presets |
+| `ProceduralTree` (C++, "procedural" flora mode) | 1/3 m integer grid, a port of the deprecated gen_tree | `emitTemplate` (`ProceduralTree.cpp:288`) | it ports the deprecated algorithm. **Port tree_forge to C++** on the new grid instead of converting it |
+| Flora stamping (`ObjectTemplateManager::decorateChunk`) | whole-metre anchors from `planFlora` | `stamp` lambda (`ObjectTemplateManager.cpp:548`) | none: anchors are metres; only the template format changes |
+| Terrain (`WorldGenerator::generateChunk`) | per-column metre heights + float `bedHeight` | `generateChunk` | creek beds quantised to thirds (`creekLayers`, `:1534`), bridge parapet subcubes (`:566`). The 1/8 m form follows `bedHeight` directly (the storage lab already does) |
+| Structures: `MicroCanvas` | integer **1/9 m** cells | `MicroCanvas::exportVoxels` (`MicroCanvas.cpp:110`), then `StructureGenerator::place` (`:793`) | the canvas is one choke point, but its callers hold ~300 sites of `*9`, `/3`, `%3` and design constants authored in ninths (below) |
+| `StructureRealizer`, `StructureForge`, `HearthForge`, `TowerForge`, `FenceBuilder`, `StairPlanner`, `StreetPaver`, `SettlementBuildService` | rooms/footprints in metres, converted `*9` at each use; styles in metres via `lround(m*9)` | the canvas, plus three private stampers (`emitMicro`, TowerForge `emitRange`, sign brackets) | **no shared length type**: raw ints named `...Micro`; six private floor-division helpers (`fl9`, `fdiv9`, `floorDiv9`, `fdiv`, `fdivq`, `floorDiv`) |
+| `tools/regen_furniture.py`, `gen_items.py`, `gen_door.py`, `gen_seat_variants.py` | **authored integer designs** in ninths (furniture), 1/81 m (items), thirds (doors) | their writers | dimensions are hand-picked cell counts (`SEAT_Y = 6` → 7/9 m): re-express in metres, then rasterize |
+| `tools/vox_import.py`, `asset_pipeline/template_writer.py` | a voxel matrix + a target scale | `res` / `write_template` | one scale parameter |
+
+**Design constants authored in thirds/ninths (must be re-picked, not scaled):** roof pitch in subcubes per metre of
+run (`StructureRealizer.cpp:760`), eave and underside snapped to subcube rows (`:688`, `:775`), quoin legs 4/3
+micro (`:650`), style thicknesses 0.111/0.222/0.333/0.444/0.667 m (`resources/structure_styles.json`), stair
+`MIN_TREAD`/`COMFORT_RISER` = 2 micro, character step-up 4 micro, guard height 8 micro (`StairPlanner.h`), tower
+treads 3 micro and door clearance 27 micro (`TowerForge.cpp`), hearth bodies 14x11x5 micro etc. (`HearthForge.cpp`).
+Natural 1/8 m picks: thicknesses 1/8, 2/8, 3/8, 4/8 m; riser 2/8 m; step-up 4/8 m (agent profile, §7a.2).
+
+**Bug found on main while reading:** TowerForge's `emitRange` (`SettlementBuildService.cpp:1240`) silently skips any
+micro span that is not 3-aligned (`++y`). A silent drop; logged here, not fixed on this branch.
+
+**Template format on the new grid:** the format the engine already defines for fine items, `# grid: N` + `V` lines,
+plus `B x y z sx sy sz Mat` boxes (written by `tools/voxgrid.py`, greedy-merged, deterministic). N = 8 for world
+content, 64 for items. The live loader accepts only 27/81 today; the lab reads grid 8 (`loadGridTemplate`).
+
+**Steps:**
+1. **Inventory (F0): done** (§7a.1-7a.2).
+2. **Shared emitter + first generator: done 2026-11-11.** `tools/voxgrid.py` (grid-agnostic canvas, B/V emit,
+   parser); `tree_forge.py --grid 8` (same skeleton and random stream; every cell 1/8 m; leaves in 2-cell = 1/4 m
+   clumps, the nearest step to today's 1/3 m subcube leaves, a look choice to review by eye). Legacy output stays
+   byte-identical (tested). Prediction "wood volume within 20% of legacy" held: 0.92x on oak h13 (legacy shells
+   over-fill). The 1/8 m forge library (35 trees, generator output) is in `resources/templates_g8/nature`:
+   8.4 MB against 22 MB for today's C/S/M forge library. Tests: `tools/test_voxgrid.py` (8).
+3. **A C++ length type** for the structure code (integer 1/8 m units with metre conversions) and one floor-division
+   helper; move `MicroCanvas` and its callers onto it in one pass, re-picking the constants above. Then the
+   structure validation suite (L2/L3) must pass on the new grid.
+4. **Re-express the authored-integer Python generators** (furniture, items, doors) in metres.
+5. **Retire** `gen_tree.py` (bush presets in tree_forge) and port tree_forge to C++ for procedural flora.
+6. **Terrain:** creek beds and the bridge parapet follow `bedHeight` at 1/8 m.
+7. **Hand-made templates:** later, by resampling (volume per material within one voxel) or re-authoring, reviewed
+   by eye.
+8. **Lint:** a check that fails if any generator still writes on a third or ninth grid.
 
 Exit: every template loads on the new grid; the lint passes; the structure generator's validation suite (L2/L3 in
 `ValidationLedger.md`) passes on the new grid; screenshots of the whole library reviewed.
@@ -590,8 +655,8 @@ Every rig is checked for:
 | Phase | What | Exit test | Stop if |
 |---|---|---|---|
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1). **Done 2026-11-10:** §13 decided; inventory in §7a.1-7a.2; save check in §3.5a point 7; skeletons `engine/*/core/voxfound/` (`VoxelGrid`, `FractureLab`, `StorageLab`) + `VoxFoundFractureLabTest` (4 checker tests green, 8 predictions red until F4) + `VoxFoundStorageLabTest` (3 green incl. measured terrain stats, 3 red until F1) | — | — |
-| **FC** | Content conversion (§7a), alongside F1-F3 | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
-| **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
+| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; next: the C++ length type + `MicroCanvas` | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
+| **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | pixel diff within the gate at 5 poses; face count ≤ today's on the same scene; frame time ≤ today | can't match the look, or more faces, or slower |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |

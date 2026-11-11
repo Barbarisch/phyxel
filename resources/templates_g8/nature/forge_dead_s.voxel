@@ -1,0 +1,892 @@
+# grid: 8
+# ==========================================================
+# name:         forge_dead_s
+# display_name: Dead (forge h9)
+# description:  Unified space-colonization tree, 137 nodes, 1/8 m cells.
+# category:     nature
+# subcategory:  trees
+# facing:       +Z
+# bounds:       57W x 73H x 44D cells (7.12 x 9.12 x 5.50 m)
+# primitives:   879 boxes for 13337 cells
+# generator:    tree_forge.py --grid 8 --preset dead --height 9 --seed 131 --tier forest
+# ==========================================================
+
+B 14 0 6 8 1 3 Log
+B 15 0 5 2 1 1 Log
+B 15 0 9 25 1 12 Log
+B 16 0 21 29 2 2 Log
+B 17 0 23 24 2 3 Log
+B 18 0 26 24 2 2 Log
+B 19 0 28 21 3 1 Log
+B 20 0 29 26 1 2 Log
+B 21 0 31 12 1 1 Log
+B 22 0 7 1 2 2 Log
+B 22 0 32 8 1 1 Log
+B 23 0 7 1 1 2 Log
+B 24 0 8 1 3 1 Log
+V 25 0 8 Log
+B 28 0 8 12 1 1 Log
+B 30 0 7 9 2 1 Log
+B 32 0 6 8 1 1 Log
+B 36 0 5 4 1 1 Log
+V 39 0 7 Log
+B 40 0 11 1 1 10 Log
+B 40 0 28 3 2 1 Log
+B 41 0 14 1 1 7 Log
+B 41 0 23 1 1 3 Log
+B 42 0 15 1 2 6 Log
+B 42 0 23 1 2 2 Log
+B 42 0 26 1 1 2 Log
+B 43 0 15 1 1 6 Log
+V 43 0 23 Log
+B 43 0 27 1 1 2 Log
+B 43 0 31 2 1 1 Log
+B 44 0 16 1 2 5 Log
+V 44 0 28 Log
+B 45 0 16 1 1 7 Log
+B 46 0 17 1 1 5 Log
+B 47 0 18 1 1 3 Log
+V 48 0 19 Log
+B 15 1 7 7 1 13 Log
+B 16 1 20 26 3 1 Log
+B 18 1 6 2 1 1 Log
+B 20 1 29 18 2 1 Log
+B 21 1 30 17 1 1 Log
+B 22 1 9 2 4 11 Log
+B 22 1 31 11 1 1 Log
+B 23 1 8 1 2 1 Log
+B 24 1 9 1 3 11 Log
+V 24 1 32 Log
+B 25 1 9 1 2 11 Log
+B 26 1 9 14 1 11 Log
+B 27 1 32 2 1 1 Log
+B 29 1 8 10 1 1 Log
+B 33 1 6 5 1 1 Log
+B 38 1 29 6 1 1 Log
+B 40 1 12 1 1 8 Log
+B 41 1 15 1 2 5 Log
+B 41 1 23 1 2 2 Log
+V 42 1 27 Log
+B 43 1 16 1 1 5 Log
+B 45 1 17 1 1 5 Log
+B 46 1 18 1 1 3 Log
+B 15 2 13 7 1 2 Log
+B 16 2 9 6 1 4 Log
+B 16 2 15 6 2 5 Log
+B 16 2 21 29 1 1 Log
+B 17 2 8 6 1 1 Log
+B 17 2 22 24 2 3 Log
+B 18 2 7 3 1 1 Log
+B 18 2 25 21 2 2 Log
+B 19 2 27 18 3 1 Log
+B 22 2 30 12 2 1 Log
+B 23 2 31 9 1 1 Log
+B 26 2 10 12 3 10 Log
+B 27 2 9 12 1 1 Log
+B 30 2 8 8 1 1 Log
+B 31 2 7 6 1 1 Log
+B 37 2 27 1 2 1 Log
+B 38 2 10 1 2 10 Log
+B 38 2 27 2 1 1 Log
+B 39 2 10 1 1 10 Log
+B 39 2 25 1 1 2 Log
+B 40 2 15 1 2 5 Log
+V 40 2 25 Log
+B 41 2 22 1 3 1 Log
+B 42 2 16 1 1 5 Log
+B 42 2 22 1 1 2 Log
+B 43 2 17 2 1 4 Log
+V 43 2 22 Log
+V 45 2 19 Log
+B 16 3 12 6 1 3 Log
+B 17 3 10 5 1 2 Log
+B 17 3 21 25 2 1 Log
+B 18 3 9 4 1 1 Log
+B 20 3 8 3 1 1 Log
+B 20 3 28 16 2 1 Log
+B 21 3 29 14 2 1 Log
+B 24 3 31 8 1 1 Log
+B 25 3 10 1 2 10 Log
+B 28 3 9 11 1 1 Log
+B 31 3 8 7 1 1 Log
+B 33 3 7 3 1 1 Log
+B 36 3 28 2 1 1 Log
+B 39 3 11 1 1 9 Log
+B 41 3 16 1 1 4 Log
+V 41 3 23 Log
+B 42 3 17 1 1 6 Log
+B 43 3 19 1 1 2 Log
+B 16 4 17 6 1 2 Log
+B 17 4 12 5 1 5 Log
+B 17 4 19 5 1 2 Log
+B 17 4 22 24 1 1 Log
+B 18 4 10 4 1 2 Log
+B 18 4 23 20 1 3 Log
+B 19 4 26 18 2 1 Log
+B 20 4 9 2 1 1 Log
+B 22 4 20 14 23 1 Log
+B 23 4 30 10 1 1 Log
+B 24 4 10 1 1 10 Log
+B 26 4 31 4 1 1 Log
+B 30 4 9 7 1 1 Log
+B 32 4 8 4 1 1 Log
+B 36 4 20 1 12 1 Log
+B 37 4 20 1 9 1 Log
+B 38 4 11 1 1 10 Log
+B 38 4 23 1 1 2 Log
+B 39 4 15 1 1 6 Log
+B 39 4 23 2 1 1 Log
+B 40 4 16 1 1 5 Log
+B 41 4 17 1 1 4 Log
+B 42 4 19 1 1 2 Log
+B 17 5 16 22 1 4 Log
+B 18 5 12 19 1 4 Log
+B 18 5 20 4 1 5 Log
+B 19 5 11 18 1 1 Log
+B 19 5 25 18 2 1 Log
+B 20 5 27 16 1 1 Log
+B 21 5 10 2 1 1 Log
+B 21 5 28 14 2 1 Log
+B 22 5 21 14 23 4 Log
+B 22 5 29 13 1 1 Log
+B 24 5 30 8 2 1 Log
+B 27 5 31 3 1 1 Log
+B 29 5 10 8 1 1 Log
+V 32 5 30 Log
+B 33 5 9 2 1 1 Log
+V 35 5 28 Log
+B 36 5 21 1 10 4 Log
+B 37 5 12 1 1 2 Log
+B 37 5 15 2 1 1 Log
+B 37 5 21 1 1 5 Log
+B 38 5 20 1 1 4 Log
+B 39 5 17 1 1 6 Log
+B 40 5 18 1 1 4 Log
+B 18 6 16 4 1 7 Log
+B 19 6 14 17 1 2 Log
+B 19 6 23 3 2 2 Log
+B 20 6 13 16 1 1 Log
+B 20 6 26 17 2 1 Log
+B 21 6 27 15 2 1 Log
+B 22 6 12 13 1 1 Log
+B 22 6 16 15 5 4 Log
+B 23 6 29 11 2 1 Log
+B 26 6 11 7 1 1 Log
+V 36 6 15 Log
+B 37 6 16 1 1 4 Log
+B 37 6 21 1 5 4 Log
+B 38 6 17 1 1 5 Log
+B 19 7 17 3 1 6 Log
+B 20 7 15 2 1 2 Log
+B 20 7 25 18 2 1 Log
+B 21 7 14 14 1 1 Log
+B 22 7 15 14 3 1 Log
+B 22 7 28 13 1 1 Log
+B 23 7 13 11 1 1 Log
+B 25 7 12 7 1 1 Log
+B 25 7 30 7 1 1 Log
+B 37 7 17 1 2 3 Log
+B 38 7 21 1 2 1 Log
+B 19 8 20 3 1 3 Log
+B 20 8 17 2 1 3 Log
+B 20 8 23 2 2 2 Log
+V 21 8 16 Log
+B 21 8 26 16 2 1 Log
+B 22 8 27 14 2 1 Log
+B 23 8 14 12 1 1 Log
+B 23 8 28 12 2 1 Log
+B 24 8 13 9 1 1 Log
+B 24 8 29 9 1 1 Log
+B 27 8 12 3 1 1 Log
+B 27 8 30 3 1 1 Log
+B 20 9 18 2 1 5 Log
+V 21 9 17 Log
+B 21 9 25 16 1 1 Log
+B 24 9 14 11 1 1 Log
+B 25 9 29 8 1 1 Log
+B 26 9 13 7 1 1 Log
+B 37 9 18 1 2 2 Log
+B 21 10 18 1 1 7 Log
+B 22 10 25 15 1 2 Log
+B 23 10 15 13 1 1 Log
+B 23 10 27 13 1 1 Log
+B 25 10 14 9 2 1 Log
+B 25 10 28 5 28 1 Log
+B 27 10 13 6 1 1 Log
+B 27 10 29 6 1 1 Log
+B 30 10 28 1 26 1 Log
+B 31 10 28 1 24 1 Log
+B 32 10 28 1 23 1 Log
+B 33 10 28 1 4 1 Log
+V 34 10 14 Log
+V 34 10 28 Log
+B 22 11 18 15 1 2 Log
+B 23 11 16 13 1 2 Log
+B 23 11 25 12 19 2 Log
+B 24 11 15 11 1 1 Log
+B 24 11 27 10 20 1 Log
+B 28 11 13 3 1 1 Log
+B 28 11 29 1 30 1 Log
+B 29 11 29 1 29 1 Log
+B 30 11 29 1 8 1 Log
+B 31 11 29 1 2 1 Log
+B 34 11 27 1 4 1 Log
+B 35 11 25 1 4 2 Log
+V 36 11 17 Log
+B 36 11 25 1 3 1 Log
+V 37 11 19 Log
+B 37 11 21 1 1 3 Log
+B 22 12 19 13 14 1 Log
+B 23 12 17 13 3 2 Log
+B 24 12 16 11 3 1 Log
+B 25 12 15 9 2 1 Log
+B 27 12 14 5 2 1 Log
+V 32 12 14 Log
+B 35 12 19 1 11 1 Log
+B 36 12 18 1 2 2 Log
+B 37 12 21 1 1 2 Log
+V 37 13 21 Log
+B 26 14 15 6 7 1 Log
+B 29 14 14 2 1 1 Log
+B 32 14 15 1 2 1 Log
+V 33 14 15 Log
+V 36 14 19 Log
+B 22 15 25 1 13 1 Log
+B 23 15 18 12 12 1 Log
+B 24 15 17 9 12 1 Log
+B 25 15 16 7 11 1 Log
+B 32 15 16 1 9 1 Log
+B 33 15 16 1 6 2 Log
+B 34 15 17 1 6 1 Log
+B 35 15 18 1 2 1 Log
+B 35 15 25 1 17 1 Log
+B 36 15 21 1 1 3 Log
+B 23 16 17 1 5 1 Log
+V 27 16 29 Log
+B 36 16 21 1 1 2 Log
+B 27 20 29 1 21 1 Log
+B 30 20 29 1 18 1 Log
+B 21 21 22 1 5 1 Log
+B 23 21 27 1 8 1 Log
+B 24 21 28 1 9 1 Log
+B 26 21 29 1 20 1 Log
+B 27 21 15 4 2 1 Log
+B 33 21 17 1 4 1 Log
+B 21 22 21 1 3 1 Log
+B 21 22 23 1 4 1 Log
+B 22 22 26 1 4 1 Log
+B 31 22 29 1 13 1 Log
+B 21 23 24 1 2 1 Log
+B 25 23 29 1 17 1 Log
+B 28 23 15 2 1 1 Log
+B 32 23 29 1 9 1 Log
+B 33 23 28 1 9 1 Log
+B 34 23 27 1 9 1 Log
+B 35 23 26 1 9 1 Log
+B 27 24 30 2 19 1 Log
+B 29 24 30 1 17 1 Log
+B 30 24 30 1 15 1 Log
+B 31 24 30 1 11 1 Log
+B 33 24 29 1 7 1 Log
+B 34 24 28 1 7 1 Log
+B 35 24 27 1 7 1 Log
+B 36 24 23 1 7 2 Log
+B 32 25 30 1 5 1 Log
+B 36 25 22 1 5 1 Log
+B 36 25 25 1 5 1 Log
+B 23 26 19 13 2 1 Log
+B 26 26 16 5 1 1 Log
+B 26 26 30 1 17 1 Log
+B 34 26 29 1 3 1 Log
+B 35 26 28 1 3 1 Log
+B 36 26 21 1 3 1 Log
+B 36 26 26 1 4 1 Log
+B 23 27 20 13 2 1 Log
+B 24 27 18 11 1 1 Log
+B 25 27 17 8 1 1 Log
+B 27 27 16 4 10 1 Log
+B 22 28 22 14 1 3 Log
+B 23 28 21 13 4 1 Log
+B 24 28 19 11 6 1 Log
+B 25 28 18 10 8 1 Log
+B 26 28 17 8 10 1 Log
+B 31 28 16 1 22 1 Log
+V 35 28 19 Log
+B 23 29 22 13 2 3 Log
+B 24 29 20 12 6 1 Log
+B 25 29 17 1 5 1 Log
+B 27 29 31 3 16 1 Log
+B 32 29 16 1 20 1 Log
+B 23 30 25 12 1 1 Log
+B 24 30 18 1 2 1 Log
+B 24 30 26 11 2 1 Log
+B 25 30 30 1 12 1 Log
+B 26 30 16 1 3 1 Log
+B 26 30 31 1 14 1 Log
+B 27 30 32 3 16 1 Log
+B 30 30 31 1 10 1 Log
+B 34 30 17 1 10 1 Log
+B 35 30 19 1 9 1 Log
+B 23 31 22 13 1 1 Log
+B 24 31 23 11 1 3 Log
+B 25 31 27 8 3 1 Log
+B 25 31 31 1 13 1 Log
+B 26 31 32 1 14 1 Log
+B 29 31 15 3 6 1 Log
+B 30 31 32 1 14 1 Log
+B 33 31 16 1 11 1 Log
+B 33 31 27 1 2 1 Log
+B 35 31 18 1 7 1 Log
+B 35 31 23 1 7 2 Log
+B 24 32 21 11 1 4 Log
+B 25 32 25 10 1 2 Log
+B 25 32 32 1 13 1 Log
+B 27 32 33 1 15 1 Log
+B 28 32 15 1 4 1 Log
+B 28 32 33 1 14 1 Log
+V 31 32 31 Log
+B 32 32 15 1 10 1 Log
+B 35 32 21 1 16 2 Log
+B 36 32 20 1 5 3 Log
+B 24 33 21 11 1 3 Log
+B 24 33 29 1 5 2 Log
+B 25 33 24 10 1 2 Log
+B 26 33 26 8 1 1 Log
+B 26 33 33 1 13 1 Log
+B 29 33 33 1 13 1 Log
+B 34 33 16 1 9 1 Log
+B 35 33 17 1 4 1 Log
+B 36 33 19 1 4 1 Log
+B 36 33 23 1 3 1 Log
+B 24 34 21 11 1 2 Log
+B 24 34 31 1 10 1 Log
+B 25 34 19 10 7 1 Log
+B 25 34 23 10 7 2 Log
+B 25 34 33 1 12 1 Log
+B 26 34 25 9 9 1 Log
+B 26 34 27 4 2 1 Log
+B 27 34 26 7 8 1 Log
+V 30 34 27 Log
+V 33 34 15 Log
+V 36 34 18 Log
+B 24 35 32 1 11 1 Log
+B 25 35 20 10 15 3 Log
+B 26 35 34 3 12 1 Log
+B 35 35 20 1 14 1 Log
+B 24 36 33 1 10 1 Log
+B 25 36 34 1 10 1 Log
+B 26 36 18 8 18 1 Log
+B 27 36 27 4 1 1 Log
+B 33 36 15 2 6 1 Log
+B 34 36 18 1 15 1 Log
+B 26 37 35 1 11 1 Log
+B 27 37 35 1 10 1 Log
+B 28 37 16 3 1 1 Log
+B 28 37 27 4 3 1 Log
+B 29 37 34 1 9 1 Log
+B 30 37 33 1 4 1 Log
+B 31 37 15 1 4 1 Log
+B 32 37 14 2 5 1 Log
+B 24 38 30 1 3 1 Log
+B 24 38 34 1 8 1 Log
+B 25 38 35 1 9 1 Log
+V 26 38 26 Log
+B 26 38 28 3 1 1 Log
+B 27 38 17 6 17 1 Log
+B 28 38 35 1 4 1 Log
+B 29 38 16 2 1 1 Log
+B 31 38 14 1 2 1 Log
+B 33 38 13 2 5 1 Log
+B 33 38 17 1 12 1 Log
+B 34 38 14 2 6 1 Log
+B 35 38 15 1 4 1 Log
+B 35 38 23 1 8 1 Log
+B 23 39 32 1 7 2 Log
+B 24 39 35 1 7 1 Log
+V 29 39 35 Log
+B 30 39 16 1 11 1 Log
+B 32 39 13 1 3 1 Log
+B 33 39 12 3 5 1 Log
+B 35 39 13 1 7 1 Log
+V 35 39 16 Log
+B 29 40 16 1 10 1 Log
+B 29 40 27 3 1 1 Log
+B 34 40 11 2 4 1 Log
+B 35 40 19 1 9 1 Log
+B 35 40 24 1 4 1 Log
+B 36 40 12 1 6 3 Log
+B 23 41 34 1 6 1 Log
+B 25 41 23 10 2 1 Log
+B 26 41 19 8 14 1 Log
+B 26 41 24 9 6 1 Log
+V 30 41 27 Log
+B 33 41 10 1 3 2 Log
+B 34 41 19 1 11 1 Log
+B 36 41 11 1 5 1 Log
+B 22 42 33 1 5 2 Log
+B 23 42 35 1 4 1 Log
+B 28 42 16 1 7 1 Log
+B 28 42 26 5 3 1 Log
+B 30 42 33 1 4 1 Log
+B 32 42 9 1 1 3 Log
+V 33 42 14 Log
+B 33 42 26 1 2 1 Log
+V 34 42 10 Log
+V 34 42 15 Log
+B 34 42 17 1 7 1 Log
+B 37 42 12 1 6 2 Log
+B 20 43 33 2 5 2 Log
+B 21 43 32 2 4 1 Log
+B 21 43 35 2 4 1 Log
+B 25 43 19 1 12 1 Log
+B 26 43 23 9 6 1 Log
+B 27 43 25 7 3 1 Log
+V 28 43 30 Log
+B 28 43 35 1 4 1 Log
+B 30 43 34 1 3 1 Log
+B 31 43 9 1 3 1 Log
+B 32 43 9 1 1 2 Log
+B 33 43 16 1 6 1 Log
+B 34 43 13 1 2 1 Log
+B 34 43 25 1 2 1 Log
+B 35 43 18 1 5 1 Log
+B 37 43 14 1 3 1 Log
+B 18 44 33 1 6 2 Log
+B 19 44 32 1 4 4 Log
+B 20 44 32 1 4 1 Log
+B 20 44 35 1 4 1 Log
+B 26 44 17 1 9 1 Log
+B 26 44 36 2 4 1 Log
+B 27 44 16 1 4 1 Log
+B 29 44 15 3 4 1 Log
+B 29 44 35 3 1 1 Log
+B 31 44 8 1 3 1 Log
+V 31 44 34 Log
+B 31 44 36 1 2 2 Log
+V 32 44 9 Log
+B 32 44 39 3 2 1 Log
+B 33 44 38 2 2 1 Log
+B 34 44 12 2 1 1 Log
+V 35 44 11 Log
+V 35 44 14 Log
+B 35 44 38 2 1 2 Log
+B 37 44 11 1 3 1 Log
+B 38 44 12 1 4 2 Log
+B 46 44 10 1 2 3 Log
+B 47 44 11 1 2 4 Log
+B 16 45 33 1 7 1 Log
+B 17 45 32 1 6 3 Log
+B 18 45 32 1 5 1 Log
+B 18 45 35 1 4 1 Log
+V 21 45 36 Log
+B 25 45 18 1 10 1 Log
+B 25 45 36 1 3 2 Log
+B 26 45 37 1 4 1 Log
+B 27 45 37 1 3 1 Log
+B 28 45 15 1 2 1 Log
+V 28 45 31 Log
+B 29 45 26 3 1 1 Log
+B 30 45 35 2 1 1 Log
+B 31 45 38 1 1 2 Log
+B 32 45 15 1 2 1 Log
+B 32 45 37 1 1 2 Log
+V 35 45 12 Log
+B 36 45 39 2 1 1 Log
+B 38 45 11 1 3 1 Log
+B 39 45 12 1 4 2 Log
+B 44 45 13 2 4 1 Log
+B 45 45 14 2 3 1 Log
+B 46 45 13 1 3 1 Log
+B 46 45 15 3 3 1 Log
+B 48 45 13 1 2 2 Log
+B 16 46 32 1 6 1 Log
+B 16 46 34 1 6 1 Log
+B 17 46 35 1 4 1 Log
+B 18 46 31 1 2 1 Log
+V 23 46 33 Log
+B 24 46 0 2 1 2 Log
+B 24 46 37 1 3 2 Log
+B 25 46 38 1 9 2 Log
+B 26 46 38 1 4 1 Log
+B 28 46 25 5 2 1 Log
+B 30 46 6 1 1 3 Log
+V 31 46 7 Log
+V 33 46 25 Log
+B 36 46 12 1 1 2 Log
+B 37 46 39 1 1 2 Log
+B 39 46 11 3 3 1 Log
+B 40 46 12 4 3 2 Log
+B 43 46 14 2 2 1 Log
+B 44 46 12 1 3 1 Log
+B 45 46 12 1 2 1 Log
+B 45 46 15 1 2 1 Log
+B 46 46 12 2 1 1 Log
+B 47 46 13 1 2 2 Log
+B 49 46 14 1 2 2 Log
+B 50 46 14 1 3 1 Log
+B 15 47 32 1 5 3 Log
+B 16 47 35 1 5 1 Log
+B 17 47 31 1 2 1 Log
+V 22 47 34 Log
+B 24 47 18 1 6 4 Log
+B 24 47 39 1 4 1 Log
+B 25 47 1 1 1 2 Log
+B 25 47 17 1 7 1 Log
+B 26 47 39 1 4 1 Log
+B 27 47 24 7 2 1 Log
+B 28 47 4 2 2 1 Log
+B 29 47 5 2 1 2 Log
+V 30 47 7 Log
+B 37 47 40 2 1 1 Log
+B 41 47 14 2 1 1 Log
+B 42 47 11 2 1 1 Log
+V 48 47 14 Log
+B 50 47 15 2 1 1 Log
+B 51 47 14 1 2 1 Log
+B 14 48 32 1 4 3 Log
+B 15 48 31 2 3 1 Log
+B 15 48 35 1 5 1 Log
+B 19 48 32 1 1 3 Log
+B 23 48 18 1 2 4 Log
+B 24 48 17 1 8 1 Log
+V 24 48 22 Log
+B 25 48 2 1 1 2 Log
+B 25 48 37 1 2 1 Log
+B 25 48 40 2 2 1 Log
+B 26 48 3 1 2 2 Log
+V 27 48 4 Log
+B 28 48 5 3 1 1 Log
+B 29 48 25 3 1 1 Log
+V 35 48 21 Log
+V 38 48 12 Log
+V 44 48 14 Log
+B 51 48 15 2 1 1 Log
+B 52 48 16 1 2 1 Log
+B 53 48 17 1 2 2 Log
+B 54 48 18 1 1 3 Log
+B 55 48 19 1 1 3 Log
+V 56 48 20 Log
+B 13 49 32 1 3 4 Log
+B 14 49 31 1 2 1 Log
+B 14 49 35 1 5 1 Log
+B 22 49 18 1 9 1 Log
+B 23 49 17 1 8 1 Log
+V 23 49 22 Log
+B 24 49 16 1 5 1 Log
+B 24 49 38 1 5 1 Log
+B 25 49 16 1 4 1 Log
+B 26 49 16 1 2 1 Log
+B 27 49 23 8 1 1 Log
+B 28 49 24 6 2 1 Log
+V 52 49 17 Log
+V 53 49 16 Log
+B 54 49 18 1 1 2 Log
+B 55 49 20 1 1 2 Log
+B 12 50 33 1 3 4 Log
+B 13 50 36 1 5 1 Log
+B 14 50 36 1 4 1 Log
+B 22 50 16 1 3 2 Log
+B 22 50 19 1 8 1 Log
+B 23 50 16 1 4 1 Log
+B 23 50 18 1 7 3 Log
+B 25 50 20 10 2 2 Log
+B 26 50 22 9 1 1 Log
+B 26 50 40 1 1 2 Log
+B 27 50 40 1 2 1 Log
+B 28 50 23 7 3 1 Log
+B 55 50 21 1 2 2 Log
+B 10 51 36 2 5 1 Log
+B 11 51 34 1 3 2 Log
+B 11 51 37 1 6 1 Log
+B 12 51 37 1 5 1 Log
+B 13 51 37 1 4 1 Log
+V 15 51 36 Log
+B 18 51 9 2 1 1 Log
+B 19 51 10 1 2 1 Log
+B 22 51 15 1 2 1 Log
+B 22 51 20 1 6 1 Log
+V 26 51 40 Log
+B 27 51 22 8 3 1 Log
+B 29 51 24 6 1 1 Log
+B 9 52 37 2 5 2 Log
+B 10 52 35 1 3 1 Log
+B 11 52 38 1 5 1 Log
+B 12 52 38 1 4 1 Log
+B 13 52 33 1 1 3 Log
+B 14 52 33 2 1 2 Log
+V 14 52 37 Log
+V 19 52 9 Log
+B 19 52 11 2 1 1 Log
+V 20 52 10 Log
+B 21 52 13 1 1 3 Log
+B 21 52 18 1 7 2 Log
+V 22 52 14 Log
+B 25 52 20 9 2 1 Log
+B 27 52 21 6 4 1 Log
+B 29 52 16 2 14 1 Log
+B 30 52 24 7 1 1 Log
+B 33 52 21 1 2 1 Log
+B 34 52 20 1 1 2 Log
+B 34 52 25 3 3 1 Log
+B 35 52 23 1 3 1 Log
+V 55 52 22 Log
+B 6 53 38 3 2 1 Log
+B 7 53 37 2 2 1 Log
+B 7 53 39 5 2 1 Log
+B 9 53 36 1 3 1 Log
+B 12 53 34 1 1 3 Log
+B 13 53 34 1 1 2 Log
+V 14 53 34 Log
+B 20 53 11 1 1 3 Log
+B 21 53 12 1 1 3 Log
+B 22 53 17 1 5 1 Log
+B 24 53 18 1 3 3 Log
+B 24 53 39 1 3 1 Log
+B 28 53 16 1 3 1 Log
+B 29 53 23 6 1 1 Log
+B 31 53 16 1 12 1 Log
+B 33 53 24 1 1 2 Log
+B 34 53 24 3 2 1 Log
+B 35 53 26 3 3 1 Log
+B 37 53 25 1 5 1 Log
+B 0 54 34 1 2 2 Log
+B 1 54 35 1 2 1 Log
+B 4 54 37 1 2 2 Log
+B 5 54 37 1 1 2 Log
+B 10 54 40 1 4 1 Log
+B 11 54 35 3 1 1 Log
+B 12 54 36 1 2 1 Log
+B 20 54 17 1 5 3 Log
+V 21 54 12 Log
+B 21 54 17 1 5 1 Log
+B 21 54 20 1 4 1 Log
+B 26 54 20 8 1 1 Log
+B 27 54 18 7 2 1 Log
+B 28 54 22 5 1 1 Log
+B 33 54 17 1 11 1 Log
+V 34 54 23 Log
+B 36 54 27 2 2 1 Log
+B 37 54 24 1 2 1 Log
+B 38 54 25 1 4 2 Log
+B 1 55 36 2 1 1 Log
+B 2 55 37 2 2 1 Log
+V 3 55 38 Log
+V 5 55 38 Log
+B 8 55 37 1 2 4 Log
+B 9 55 39 1 1 5 Log
+B 10 55 39 1 3 1 Log
+B 11 55 39 1 2 1 Log
+B 18 55 16 1 4 3 Log
+B 19 55 17 1 4 3 Log
+B 20 55 20 1 3 1 Log
+B 21 55 16 1 3 1 Log
+B 25 55 39 1 3 1 Log
+B 27 55 19 7 1 2 Log
+B 28 55 17 5 2 1 Log
+B 29 55 22 3 1 1 Log
+B 32 55 16 1 10 1 Log
+B 33 55 21 1 3 1 Log
+B 35 55 25 2 1 1 Log
+V 36 55 24 Log
+B 38 55 27 1 3 1 Log
+B 39 55 25 1 4 2 Log
+B 2 56 18 1 2 2 Log
+B 7 56 39 1 3 1 Log
+B 8 56 41 2 1 2 Log
+B 9 56 39 1 7 2 Log
+B 15 56 15 2 4 2 Log
+B 16 56 17 2 3 1 Log
+B 17 56 15 1 3 2 Log
+B 17 56 18 1 3 1 Log
+B 18 56 15 1 2 1 Log
+B 18 56 19 1 3 1 Log
+B 19 56 16 2 3 1 Log
+B 19 56 20 1 3 1 Log
+B 24 56 18 1 1 2 Log
+B 25 56 40 1 3 1 Log
+B 27 56 19 8 1 1 Log
+B 28 56 18 7 4 1 Log
+B 28 56 20 5 1 2 Log
+B 30 56 22 2 1 1 Log
+B 33 56 16 1 10 1 Log
+B 33 56 20 1 4 1 Log
+B 36 56 25 1 1 2 Log
+B 37 56 26 1 1 2 Log
+B 39 56 27 2 3 1 Log
+B 40 56 25 1 3 2 Log
+B 41 56 26 1 4 1 Log
+B 41 56 30 2 2 1 Log
+B 2 57 17 2 2 1 Log
+V 3 57 18 Log
+B 7 57 40 2 2 1 Log
+B 8 57 38 1 2 2 Log
+B 8 57 41 2 1 1 Log
+B 9 57 38 2 1 1 Log
+B 14 57 15 1 4 2 Log
+B 14 57 22 1 2 2 Log
+B 15 57 17 1 3 1 Log
+B 15 57 21 1 2 2 Log
+B 16 57 20 1 2 2 Log
+B 17 57 19 1 2 2 Log
+B 18 57 20 1 2 1 Log
+V 23 57 18 Log
+B 26 57 40 1 2 1 Log
+B 28 57 19 5 1 2 Log
+B 29 57 17 2 9 1 Log
+B 29 57 21 4 1 1 Log
+B 30 57 15 1 8 1 Log
+B 31 57 15 2 7 1 Log
+B 31 57 17 2 8 1 Log
+B 33 57 19 1 5 1 Log
+B 34 57 17 1 8 1 Log
+B 34 57 19 1 3 1 Log
+V 37 57 26 Log
+B 41 57 25 2 3 1 Log
+B 41 57 27 2 2 3 Log
+B 42 57 26 2 4 1 Log
+B 43 57 27 1 2 2 Log
+B 2 58 16 2 1 1 Log
+B 13 58 15 1 4 2 Log
+B 14 58 17 1 3 1 Log
+B 14 58 24 2 2 1 Log
+B 25 58 41 2 2 1 Log
+B 28 58 17 1 3 1 Log
+B 29 58 19 4 2 2 Log
+B 30 58 21 3 1 1 Log
+B 33 58 15 1 8 1 Log
+V 38 58 26 Log
+B 43 58 25 1 2 1 Log
+B 44 58 26 1 3 1 Log
+B 3 59 15 2 1 2 Log
+B 5 59 15 2 2 1 Log
+B 8 59 39 1 3 2 Log
+B 11 59 14 1 4 2 Log
+B 12 59 14 1 3 3 Log
+B 13 59 14 1 5 1 Log
+B 13 59 17 1 2 1 Log
+B 15 59 25 1 4 1 Log
+V 20 59 18 Log
+B 29 59 15 1 6 1 Log
+B 31 59 14 2 3 1 Log
+B 34 59 16 1 7 1 Log
+V 40 59 26 Log
+B 41 59 27 4 1 1 Log
+V 42 59 28 Log
+V 4 60 15 Log
+B 6 60 14 5 1 1 Log
+B 7 60 15 4 1 1 Log
+B 8 60 13 5 2 1 Log
+B 11 60 16 1 2 1 Log
+V 15 60 16 Log
+V 15 60 24 Log
+B 16 60 25 1 4 1 Log
+B 26 60 41 2 3 1 Log
+B 29 60 18 4 3 2 Log
+B 30 60 14 1 2 1 Log
+B 30 60 20 1 5 1 Log
+B 31 60 20 1 3 1 Log
+B 32 60 20 1 2 1 Log
+B 33 60 18 1 4 1 Log
+B 34 60 18 1 2 1 Log
+B 43 60 27 3 1 1 Log
+B 45 60 26 1 2 1 Log
+B 7 61 14 4 1 1 Log
+B 8 61 15 3 1 1 Log
+V 10 61 12 Log
+B 45 61 27 2 1 1 Log
+B 46 61 26 1 3 1 Log
+B 9 62 13 2 1 2 Log
+B 10 62 39 1 1 2 Log
+B 11 62 13 3 2 1 Log
+B 12 62 14 1 2 1 Log
+B 15 62 26 2 3 1 Log
+B 27 62 13 2 2 1 Log
+B 28 62 14 1 4 1 Log
+B 28 62 16 1 3 2 Log
+V 32 62 14 Log
+B 34 62 15 1 4 1 Log
+V 46 62 27 Log
+B 47 62 26 1 4 1 Log
+B 10 63 39 2 1 1 Log
+V 11 63 14 Log
+B 14 63 13 1 2 1 Log
+B 27 63 12 2 1 1 Log
+B 27 63 14 1 3 1 Log
+B 27 63 40 2 1 2 Log
+B 28 63 10 1 2 2 Log
+B 28 63 15 1 3 1 Log
+B 29 63 14 1 2 1 Log
+B 29 63 18 4 1 1 Log
+B 29 63 20 1 2 1 Log
+V 30 63 19 Log
+B 31 63 41 2 2 1 Log
+B 32 63 42 1 2 1 Log
+B 33 63 14 2 3 1 Log
+B 35 63 16 1 3 1 Log
+B 47 63 27 1 4 1 Log
+B 11 64 38 1 1 2 Log
+V 13 64 13 Log
+B 26 64 15 2 2 2 Log
+B 28 64 9 2 1 1 Log
+B 28 64 40 1 1 2 Log
+V 29 64 10 Log
+B 29 64 21 1 3 1 Log
+B 29 64 40 1 3 1 Log
+V 30 64 18 Log
+V 30 64 21 Log
+B 30 64 40 1 1 2 Log
+V 31 64 40 Log
+V 32 64 15 Log
+B 33 64 42 1 2 1 Log
+B 34 64 13 1 2 1 Log
+B 35 64 14 1 1 2 Log
+B 35 64 17 2 2 1 Log
+B 36 64 16 1 2 1 Log
+V 48 64 26 Log
+V 16 65 26 Log
+V 25 65 15 Log
+V 26 65 14 Log
+B 27 65 13 3 1 1 Log
+B 28 65 11 1 2 2 Log
+V 28 65 16 Log
+V 28 65 40 Log
+V 29 65 12 Log
+B 29 65 39 1 2 1 Log
+V 30 65 40 Log
+B 33 65 43 5 2 1 Log
+B 34 65 12 5 1 1 Log
+B 35 65 13 1 1 2 Log
+B 37 65 16 1 1 2 Log
+B 37 65 42 2 1 1 Log
+B 38 65 11 1 2 1 Log
+B 38 65 17 1 2 1 Log
+V 38 65 43 Log
+B 48 65 27 1 2 1 Log
+B 27 66 10 1 1 2 Log
+B 28 66 21 1 1 2 Log
+B 29 66 22 1 2 1 Log
+B 35 66 12 5 1 1 Log
+V 37 66 11 Log
+V 37 66 17 Log
+B 38 66 18 3 1 1 Log
+B 39 66 11 1 3 1 Log
+V 39 66 17 Log
+B 47 66 28 1 7 1 Log
+B 26 67 9 2 1 2 Log
+B 28 67 22 1 1 2 Log
+B 29 67 23 1 2 1 Log
+V 34 67 43 Log
+B 39 67 18 2 1 2 Log
+B 40 67 7 2 1 1 Log
+B 40 67 11 1 3 1 Log
+B 41 67 8 1 2 1 Log
+B 47 67 29 1 6 1 Log
+V 48 67 28 Log
+B 28 68 23 1 2 2 Log
+B 39 68 19 1 1 3 Log
+B 40 68 8 1 1 3 Log
+B 40 68 19 1 1 2 Log
+B 41 68 9 1 2 2 Log
+B 39 69 21 1 1 2 Log
+V 40 69 10 Log
+V 41 69 11 Log

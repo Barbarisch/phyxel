@@ -256,8 +256,17 @@ def add_fronds(nodes, rng, params):
 
 # ============================================================ voxelization
 
-def _res_for_radius(r_cube):
+def _res_for_radius(r_cube, grid=MICRO_PER_CUBE):
     """Pick the RASTERIZATION grid (in micro units) from a segment's radius in cube units.
+    On the 1/8 m grid (grid=8, docs/VoxelFoundationPlan.md) there is one voxel size, so everything
+    rasterizes at 1 cell; the block store collapses solid interiors instead of emit()."""
+    if grid != MICRO_PER_CUBE:
+        return 1
+    return _res_legacy(r_cube)
+
+
+def _res_legacy(r_cube):
+    """Legacy (C/S/M) rasterization grid in micro units.
     Thick wood rasterizes at SUBCUBE resolution — never cube — so its curved surface carries a
     subcube shell (slopes, not 1-cube stairsteps); emit() re-compresses the solid interior back to
     whole C's for free, so cost stays cube-cheap where it's invisible. Twigs stay microcube.
@@ -272,7 +281,7 @@ def rasterize_branches(nodes, mv, params):
     finer than the segment's bulk — emit() re-compresses solid interiors to cubes while curved
     surfaces keep their subcube/micro shell (slopes, not stairsteps)."""
     log = params["log_mat"]
-    MP = MICRO_PER_CUBE
+    MP = params.get("grid", MICRO_PER_CUBE)      # canvas cells per metre (9 legacy micro, 8 = 1/8 m)
     for nd in nodes:
         p = nd["parent"]
         if p < 0:
@@ -282,7 +291,7 @@ def rasterize_branches(nodes, mv, params):
         ra = nodes[p]["radius"] * MP
         rb = nd["radius"] * MP
         seg_mat = nd.get("mat", log)                 # fronds etc. override the wood material
-        vs = _res_for_radius(max(nodes[p]["radius"], nd["radius"]))
+        vs = _res_for_radius(max(nodes[p]["radius"], nd["radius"]), MP)
         rasterize_capsule(mv, a, b, ra, rb, vs, seg_mat)
 
 
@@ -293,8 +302,8 @@ def add_foliage(nodes, mv, rng, params):
     leaf = params["leaf_mat"]
     if not leaf:
         return
-    MP = MICRO_PER_CUBE
-    vs = params["leaf_res"]                 # 9 cube / 3 subcube / 1 micro
+    MP = params.get("grid", MICRO_PER_CUBE)
+    vs = params["leaf_res"]                 # cells: legacy 9 cube / 3 subcube / 1 micro; grid 8: 1 or 2
     lr = params["leaf_r"] * MP
     below = params["leaf_below_r"]
     for nd in nodes:
@@ -423,6 +432,12 @@ def build_tree(preset="oak", height=15, seed=0, tier="forest", **overrides):
     if "leaf_r_mult2" in t:
         p["leaf_r"] = p["leaf_r"] * t.pop("leaf_r_mult2")
     p.update(t)
+    grid = overrides.pop("grid", MICRO_PER_CUBE)
+    if grid != MICRO_PER_CUBE:
+        # 1/8 m grid: leaves default to 2-cell (1/4 m) clumps, the nearest power-of-two step to today's 1/3 m
+        # subcube leaves (a look choice, to be reviewed by eye; leaf_res=1 gives 1/8 m leaves)
+        p["leaf_res"] = 2
+    p["grid"] = grid
     p.update(overrides)
     rng = random.Random(f"forge:{preset}:{height}:{seed}:{tier}:{p['attractors']}")
     nodes = grow_skeleton(rng, p)
@@ -445,6 +460,8 @@ def bake(preset, height, seed=0, tier="forest", name=None, out=None, display_nam
     """Bake one tree to a .voxel template with a full-provenance header. Used by both the
     single-tree CLI and --batch. Returns the one-line summary string."""
     import os
+    if overrides.get("grid", MICRO_PER_CUBE) != MICRO_PER_CUBE:
+        return _bake_grid(preset, height, seed, tier, name, out, display_name, outdir, **overrides)
     mv, nnodes = build_tree(preset, height, seed, tier, **overrides)
     lines, (nc, ns, nm), bounds = emit(mv)
     name = name or f"forge_{preset}_{height}_s{seed}"
@@ -478,6 +495,51 @@ def bake(preset, height, seed=0, tier="forest", name=None, out=None, display_nam
             f"bounds {bounds[0]}x{bounds[1]}x{bounds[2]} -> {shown}")
 
 
+def _bake_grid(preset, height, seed, tier, name, out, display_name, outdir, **overrides):
+    """The 1/8 m foundation bake (docs/VoxelFoundationPlan.md §7a): the same skeleton, rasterized at
+    `grid` cells per metre and written as `# grid: N` B/V lines by voxgrid.emit_grid. Default output is the
+    parallel library resources/templates_g8/nature (the live engine does not load grid 8 yet)."""
+    import os
+    from voxgrid import GridVoxels, emit_grid
+    grid = overrides["grid"]
+    mv, nnodes = build_tree(preset, height, seed, tier, **overrides)
+    gv = GridVoxels(grid)
+    gv.v = mv.v
+    lines, (nboxes, ncells), bounds = emit_grid(gv)
+    name = name or f"forge_{preset}_{height}_s{seed}"
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if out is None:
+        out = os.path.join(outdir or os.path.join(repo, "resources", "templates_g8", "nature"), f"{name}.voxel")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    gen = f"tree_forge.py --grid {grid} --preset {preset} --height {height} --seed {seed} --tier {tier}"
+    gen += "".join(f" --{k} {overrides[k]}" for k in sorted(overrides) if k == "attractors")
+    extra = {k: v for k, v in overrides.items() if k not in ("attractors", "grid")}
+    header = [
+        lines[0],                                    # '# grid: N' must precede everything else
+        "# ==========================================================",
+        f"# name:         {name}",
+        f"# display_name: {display_name or f'{preset.capitalize()} (forge h{height})'}",
+        f"# description:  Unified space-colonization tree, {nnodes} nodes, 1/{grid} m cells.",
+        "# category:     nature", "# subcategory:  trees", "# facing:       +Z",
+        f"# bounds:       {bounds[0]}W x {bounds[1]}H x {bounds[2]}D cells "
+        f"({bounds[0] / grid:.2f} x {bounds[1] / grid:.2f} x {bounds[2] / grid:.2f} m)",
+        f"# primitives:   {nboxes} boxes for {ncells} cells",
+        f"# generator:    {gen}",
+    ]
+    if extra:
+        import json as _json
+        header.append(f"# overrides:    {_json.dumps(extra, sort_keys=True)}")
+    header += ["# ==========================================================", ""]
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(header + lines[1:]) + "\n")
+    try:
+        shown = os.path.relpath(out, repo)
+    except ValueError:
+        shown = out
+    return (f"{name}: {nnodes} nodes -> {ncells} cells in {nboxes} boxes (grid {grid}), "
+            f"bounds {bounds[0]}x{bounds[1]}x{bounds[2]} -> {shown}")
+
+
 def main(argv=None):
     import argparse
     import json
@@ -493,17 +555,24 @@ def main(argv=None):
                     help="bake a library: [{name, preset, height, seed, tier, ...overrides}, ...] "
                          "(see tools/forge_library.json)")
     ap.add_argument("--outdir", default=None, help="output directory (default resources/templates/nature)")
+    ap.add_argument("--grid", type=int, default=MICRO_PER_CUBE, choices=[MICRO_PER_CUBE, 8],
+                    help="9 = today's C/S/M template (default); 8 = the 1/8 m foundation grid "
+                         "(docs/VoxelFoundationPlan.md), written to resources/templates_g8/")
     args = ap.parse_args(argv)
 
     if args.batch:
         with open(args.batch, encoding="utf-8") as f:
             entries = json.load(f)
         for e in entries:
+            if args.grid != MICRO_PER_CUBE:
+                e = dict(e, grid=args.grid)
             print(bake(outdir=args.outdir, **e))
         print(f"batch: {len(entries)} trees baked from {args.batch}")
         return 0
 
     ov = {}
+    if args.grid != MICRO_PER_CUBE:
+        ov["grid"] = args.grid
     if args.attractors is not None:
         ov["attractors"] = args.attractors
     print(bake(args.preset, args.height, args.seed, args.tier,
