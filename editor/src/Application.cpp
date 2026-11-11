@@ -14275,6 +14275,8 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("event_log")) { M::s_tileEventLog = cmd.params.value("event_log", false); M::s_tileEvents.clear(); }
         if (cmd.params.contains("no_margin_wake_test")) M::s_noMarginWakeForTest = cmd.params.value("no_margin_wake_test", false);   // TEST ONLY (50 W1g.1 bisection)
         if (cmd.params.contains("ignore_neighbours_test")) M::s_recordIgnoresNeighboursForTest = cmd.params.value("ignore_neighbours_test", false);   // TEST ONLY: the old rule
+        // 51.9 TEST ONLY: a tile seed by the path before 51.9 (the whole brick map walked, three cell walks) - the live A/B; same device state
+        if (cmd.params.contains("seed_whole_map_test")) Core::Water::WaterCoreGpu::s_seedWholeMapForTest = cmd.params.value("seed_whole_map_test", false);
         nlohmann::json events = nlohmann::json::array();
         if (cmd.params.value("events_take", false)) {
             for (const auto& e : M::s_tileEvents)
@@ -14282,7 +14284,7 @@ void Application::registerWaterCommands() {
             M::s_tileEvents.clear();
         }
         r = {{"default", M::s_recordTilesDefault}, {"after_s", M::s_recordAfterS}, {"tile_m", 8}, {"measure_jump", M::s_measureRecordJump},
-             {"event_log", M::s_tileEventLog}, {"events", events},
+             {"event_log", M::s_tileEventLog}, {"events", events}, {"seed_whole_map_test", Core::Water::WaterCoreGpu::s_seedWholeMapForTest},
              {"write_wake_m", M::s_writeWakeReachM}, {"after_step_test", M::s_recordAfterStepForTest}, {"settle_after_test", M::s_settleAfterStepForTest}};
         {   // 27.19 measurement: the record / wake call's phases (ms, last + max); phases_reset:true clears the maxima first
             auto& P = M::s_tilePhases;

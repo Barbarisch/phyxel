@@ -487,6 +487,74 @@ TEST_F(WaterRecordTilesTest, TallCellsRecordAndWakeWithTheBooksExact) {
     WaterCoreGpu::s_seedSkipsTallCollapseForTest = false;
 }
 
+// 51.9 - a tile wake's seed over its own bricks (not the whole brick map) and one walk of its cells leaves the SAME device state.
+// A 24 x 24 m pond (3 x 3 tiles) 2 voxels deep, every tile recorded; then two touches wake the centre tile (1, 1) and the corner
+// tile (0, 0) (its halo clipped by the box); one call later the device's f, fPrev (dense) and the brick map are compared with the
+// whole-map path's (s_seedWholeMapForTest), with and without tall cells. Prediction: 0 differences. Controls: the old path against
+// itself (0 - the GPU run is deterministic, so a difference is the path's) and the RED - the narrowed range one brick short in x
+// (the off-by-one a narrowed range can have), which must differ. Found building it: dropping the HALO marks is invisible here - a
+// woken tile's bricks and their halo are still resident from before it recorded - so the parity holds the bricks by the map compare.
+TEST_F(WaterRecordTilesTest, ATileWakeSeedsTheSameDeviceStateAsTheWholeMapWalk) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct State { std::vector<float> f, fPrev; std::vector<int> map; double mass = 0; long woken = 0; int recorded = 0; bool ok = false; };
+    auto run = [&](bool whole, bool noHalo, float tall) {
+        State s;
+        WaterCoreGpu::s_seedWholeMapForTest = whole; WaterCoreGpu::s_seedNarrowShortForTest = noHalo;
+        struct Restore { ~Restore() { WaterCoreGpu::s_seedWholeMapForTest = false; WaterCoreGpu::s_seedNarrowShortForTest = false; } } restore;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { ADD_FAILURE() << err; return s; }
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        const float afterBefore = WaterCoreManager::s_recordAfterS;
+        WaterCoreManager::s_recordAfterS = 0.5f;
+        struct RestoreAfter { float a; ~RestoreAfter() { WaterCoreManager::s_recordAfterS = a; } } restoreAfter{afterBefore};
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(23, 2, 23), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        if (!id) { ADD_FAILURE() << err; return s; }
+        mgr.setAutoSleep(id, false);
+        if (tall > 0.0f) mgr.setTallBand(id, tall);
+        if (!mgr.setPartialWake(id, true) || !mgr.setRecordTiles(id, true)) { ADD_FAILURE() << "refused"; return s; }
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(23, 1, 23), 1.0f, nullptr);
+        AvRecord rec;
+        for (int k = 0; k < 360; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        const AvRecord* r = mgr.find(id);
+        s.recorded = r ? r->recordedTiles : -1;
+        mgr.addImpulse(glm::vec3(12.0f, 1.9f, 12.0f), 1.0f / 3.0f, 1e-4f, glm::vec3(0.0f, -1.0f, 0.0f));   // the centre tile
+        mgr.addImpulse(glm::vec3(3.0f, 1.9f, 3.0f), 1.0f / 3.0f, 1e-4f, glm::vec3(0.0f, -1.0f, 0.0f));     // the corner tile
+        mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        r = mgr.find(id);
+        s.woken = r ? r->tilesWoken : -1;
+        s.ok = mgr.deviceStateForTest(id, s.f, s.fPrev, s.map);
+        s.mass = mgr.totalMass();
+        return s;
+    };
+    auto diff = [](const State& a, const State& b, long& cellsF, long& cellsP, long& bricks) {
+        cellsF = cellsP = bricks = 0;
+        if (a.f.size() != b.f.size() || a.map.size() != b.map.size()) { cellsF = cellsP = bricks = -1; return; }
+        for (size_t i = 0; i < a.f.size(); ++i) { cellsF += a.f[i] != b.f[i]; cellsP += a.fPrev[i] != b.fPrev[i]; }
+        for (size_t i = 0; i < a.map.size(); ++i) bricks += (a.map[i] != 0) != (b.map[i] != 0);   // stored or not (slot numbers aside)
+    };
+    for (float tall : {0.0f, 0.5f}) {
+        const State oldA = run(true, false, tall), oldB = run(true, false, tall), now = run(false, false, tall), red = run(false, true, tall);
+        ASSERT_TRUE(oldA.ok && oldB.ok && now.ok && red.ok);
+        long cf, cp, b;
+        diff(oldA, oldB, cf, cp, b);
+        std::printf("  tall %.1f m: recorded %d, woken %ld | CONTROL old vs old: f %ld, fPrev %ld cells, bricks %ld\n", tall, oldA.recorded, oldA.woken, cf, cp, b);
+        EXPECT_EQ(oldA.recorded, 9) << "every tile of the still pond records before the touches";
+        EXPECT_GE(oldA.woken, 2) << "the touches woke the centre and the corner tiles";
+        ASSERT_EQ(cf + cp + b, 0) << "the GPU run is not deterministic - the parity cannot be read";
+        diff(oldA, now, cf, cp, b);
+        std::printf("    NEW vs old: f %ld, fPrev %ld cells, bricks %ld; mass %.6f vs %.6f m3; woken %ld vs %ld\n", cf, cp, b, now.mass, oldA.mass, now.woken, oldA.woken);
+        EXPECT_EQ(cf, 0); EXPECT_EQ(cp, 0); EXPECT_EQ(b, 0);
+        EXPECT_EQ(now.woken, oldA.woken);
+        EXPECT_EQ(now.mass, oldA.mass);
+        diff(oldA, red, cf, cp, b);
+        std::printf("    RED (range one brick short) vs old: f %ld, fPrev %ld cells, bricks %ld\n", cf, cp, b);
+        EXPECT_GT(cf + cp + b, 0) << "the red control must differ - or the test cannot see a seed brick the narrowed range missed";
+    }
+}
+
 // RemovingAVolumeNeverLosesWater (27.25, red first): a 32 x 16 m pond with recording - at rest every tile records, a push wakes the
 // tiles round it, and the volume is removed while some tiles are awake and some recorded. keep: the record then holds exactly the
 // water placed (the awake tiles written back, the recorded ones untouched); discard: the box is dry and the reported discard is the

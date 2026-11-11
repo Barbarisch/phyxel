@@ -6,6 +6,7 @@ stage) over the window after it. Prints the top phases and stages.
     python tools/water_splash_phases.py [--pose close|wide] [--window-s 8] [--tag splash_phases_close]
         [--water-viewer wide]        the water's viewer (water_locality test_viewer) at another pose, the camera unmoved: does the
                                      extra cost follow the water's viewer (its locality) or the camera (the frame's rendering)?
+        [--seed-whole-map]           51.9: tile seeds by the old path (the live A/B; the same device state)
         [--line-sweeps N] [--tall-sweeps N] [--quiet-scale S] [--rest-ticks N]   knobs for the run (restored after)
 Writes docs/evidence/water_core_m4/<tag>.json.
 """
@@ -30,6 +31,7 @@ def main():
     ap.add_argument("--tall-sweeps", type=int, default=None)
     ap.add_argument("--quiet-scale", type=float, default=None)
     ap.add_argument("--rest-ticks", type=int, default=None)
+    ap.add_argument("--seed-whole-map", action="store_true", help="51.9 A/B: tile seeds by the path before 51.9 (TEST ONLY switch, restored after)")
     ap.add_argument("--tag", default="splash_phases_close")
     a = ap.parse_args()
     api = Api(a.url); api.wait_status(300)
@@ -44,6 +46,7 @@ def main():
     if a.tall_sweeps is not None: knobs["tall"] = api.debug("water_av_tall", {"sweeps": a.tall_sweeps})
     pw = {k: v for k, v in (("quiet_scale", a.quiet_scale), ("rest_ticks", a.rest_ticks)) if v is not None}
     if pw: knobs["partial_wake"] = api.debug("water_av_partial_wake", pw)
+    knobs["seed_whole_map_test"] = api.debug("water_av_record_tiles", {"seed_whole_map_test": a.seed_whole_map}).get("seed_whole_map_test")
     out = {"pose": POSES[a.pose], "window_s": a.window_s, "knobs": knobs, "defaults": {"line_sweeps": ls0, "tall": tall0, "partial_wake": pw0}}
     if a.water_viewer:
         wv = POSES[a.water_viewer]
@@ -79,6 +82,7 @@ def main():
         time.sleep(30.0)
     finally:
         destroy_all(api)
+        api.debug("water_av_record_tiles", {"seed_whole_map_test": False})
         api.debug("water_av_record_draw", {"radius": draw0})
         api.debug("water_av_line_sweeps", {"count": ls0.get("count", 0)})
         api.debug("water_av_tall", {"sweeps": tall0.get("sweeps", 20)})

@@ -1092,7 +1092,32 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     auto inVol = [&](const glm::ivec3& c) { return c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < n.x && c.y < n.y && c.z < n.z; };
     std::vector<char> need(vol.mapCount, 0);
     for (size_t m = 0; m < vol.mapCount; ++m) need[m] = vol.map[m] >= kFirstSlot ? 2 : (vol.map[m] == kGround ? 1 : 0);   // the rest stays as it is
-    {   // needFromDenseFill's rule, over the seed's cells: per brick holding seed water, the nearest wet cell to each face
+    int redSkipBx = -1;   // 51.9 TEST ONLY: s_seedNarrowShortForTest's dropped brick column
+    if (!s_seedWholeMapForTest) {   // 51.9: the same rule over the bricks the seed's cells can lie in (the walk of the whole map for
+        // one tile was 1.4 ms of a wake, 51.8); markNeed still reaches out over the whole map, and only raises need, so order is free
+        const glm::ivec3 cLo = glm::max(off, glm::ivec3(0)), cHi = glm::min(off + glm::ivec3(cells.nx(), cells.ny(), cells.nz()) - 1, n - 1);
+        if (cLo.x <= cHi.x && cLo.y <= cHi.y && cLo.z <= cHi.z) {
+            const glm::ivec3 bLo3 = (cLo + vol.o) / vol.bs(), bHi3 = (cHi + vol.o) / vol.bs(), bn3 = bHi3 - bLo3 + 1;
+            if (s_seedNarrowShortForTest) redSkipBx = bHi3.x;
+            std::vector<int> rec(static_cast<size_t>(bn3.x) * bn3.y * bn3.z * 7, -1);
+            for (int z = cLo.z - off.z; z <= cHi.z - off.z; ++z) for (int y = cLo.y - off.y; y <= cHi.y - off.y; ++y) for (int x = cLo.x - off.x; x <= cHi.x - off.x; ++x) {
+                if (cells.f(x, y, z) == 0.0f) continue;
+                const glm::ivec3 q = off + glm::ivec3(x, y, z) + vol.o, b = q / vol.bs() - bLo3, l = q % vol.bs();
+                if (q.x / 8 == redSkipBx) continue;
+                int* r = &rec[(static_cast<size_t>(b.x) + static_cast<size_t>(bn3.x) * (b.y + static_cast<size_t>(bn3.y) * b.z)) * 7];
+                if (r[0] < 0) { r[0] = 1; for (int k = 1; k < 7; ++k) r[k] = 7; }
+                const int dd[6] = {l.x, 7 - l.x, l.y, vol.by - 1 - l.y, l.z, 7 - l.z};
+                for (int k = 0; k < 6; ++k) r[1 + k] = std::min(r[1 + k], dd[k]);
+            }
+            for (int bz = 0; bz < bn3.z; ++bz) for (int by = 0; by < bn3.y; ++by) for (int bx = 0; bx < bn3.x; ++bx) {
+                const int* r = &rec[(static_cast<size_t>(bx) + static_cast<size_t>(bn3.x) * (by + static_cast<size_t>(bn3.y) * bz)) * 7];
+                if (r[0] < 0) continue;
+                const glm::ivec3 b = bLo3 + glm::ivec3(bx, by, bz);
+                need[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 2;
+                markNeed(vol, need, b, r + 1, kB);
+            }
+        }
+    } else {   // needFromDenseFill's rule, over the seed's cells: per brick holding seed water, the nearest wet cell to each face
         std::vector<int> rec(vol.mapCount * 7, -1);
         for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) for (int x = 0; x < cells.nx(); ++x) {
             const glm::ivec3 c = off + glm::ivec3(x, y, z);
@@ -1125,6 +1150,23 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     std::vector<int> touched;
     double unplaced = 0.0;
     const double h3 = static_cast<double>(vol.spec.h) * vol.spec.h * vol.spec.h;
+    if (!s_seedWholeMapForTest) {   // 51.9: one walk - a slot is zeroed whole on its first touch, then written (three walks were 2.7 ms)
+        std::vector<char> zeroed;
+        for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) for (int x = 0; x < cells.nx(); ++x) {
+            const float f = cells.f(x, y, z);
+            const glm::ivec3 c = off + glm::ivec3(x, y, z);
+            if (f == 0.0f || !inVol(c) || (c.x + vol.o.x) / 8 == redSkipBx) continue;
+            const long i = storageIndex(vol, c.x, c.y, c.z);
+            if (i < static_cast<long>(kFirstSlot * vol.bc)) { unplaced += f * h3; continue; }   // a full capacity: counted, never silent
+            const int slot = static_cast<int>(i / static_cast<long>(vol.bc));
+            if (static_cast<size_t>(slot) >= zeroed.size()) zeroed.resize(static_cast<size_t>(slot) + 1, 0);
+            if (!zeroed[static_cast<size_t>(slot)]) {
+                zeroed[static_cast<size_t>(slot)] = 1; touched.push_back(slot);
+                std::memset(sf + static_cast<size_t>(slot) * vol.bc, 0, vol.bc * sizeof(float));
+            }
+            sf[i] = f;
+        }
+    } else {
     for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) for (int x = 0; x < cells.nx(); ++x) {
         const glm::ivec3 c = off + glm::ivec3(x, y, z);
         if (cells.f(x, y, z) == 0.0f || !inVol(c)) continue;
@@ -1143,6 +1185,7 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
         const long i = storageIndex(vol, c.x, c.y, c.z);
         if (i < static_cast<long>(kFirstSlot * vol.bc)) { unplaced += f * h3; continue; }   // a full capacity: counted, never silent
         sf[i] = f;
+    }
     }
     vol.seedUnplacedM3 += unplaced;
     std::sort(touched.begin(), touched.end());

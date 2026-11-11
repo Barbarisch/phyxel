@@ -317,6 +317,16 @@ public:
     WaterCoreGpu::ResidencySplit gpuResidencySplit() const { return m_gpu ? m_gpu->lastResidencySplit() : WaterCoreGpu::ResidencySplit{}; }
     WaterCoreGpu::GrowSplit gpuGrowSplit() const { return m_gpu ? m_gpu->lastGrowSplit() : WaterCoreGpu::GrowSplit{}; }   // L3 (41)
     const WaterGrid* gridForTest(int id) const { for (const auto& av : m_avs) if (av->id == id) return av->grid.get(); return nullptr; }
+    /// 51.9 TEST: a GPU volume's device fills (f, fPrev, dense cells) and its brick map - the seed parity test compares two runs
+    bool deviceStateForTest(int id, std::vector<float>& f, std::vector<float>& fPrev, std::vector<int>& map) {
+        for (auto& av : m_avs) if (av->id == id && av->gpuVol && m_gpu) {
+            m_gpu->gatherDenseForTest(*av->gpuVol, av->gpuVol->f, f);
+            m_gpu->gatherDenseForTest(*av->gpuVol, av->gpuVol->fPrev, fPrev);
+            map.assign(av->gpuVol->map.begin(), av->gpuVol->map.begin() + static_cast<long>(av->gpuVol->mapCount));
+            return true;
+        }
+        return false;
+    }
     const AvRecord* find(int id) const;
 
     /// Step one volume `ticks` times (explicit, simulation time).

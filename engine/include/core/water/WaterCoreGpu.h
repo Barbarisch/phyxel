@@ -571,6 +571,12 @@ public:
     static inline bool s_recordedOpenForTest = false;
     /// §27 W1b TEST ONLY: the seed leaves fPrev at 0 (the live cascade's cause) - the red control of the wake-speed bound.
     static inline bool s_seedSkipsFPrevForTest = false;
+    /// 51.9 TEST ONLY (the parity control): a tile seed walks the WHOLE brick map for its bricks' need and the tile's cells three times
+    /// (the path before 51.9); off = the need over the seed's own bricks only, one cell walk. Both leave the same device state.
+    static inline bool s_seedWholeMapForTest = false;
+    /// 51.9 TEST ONLY (the red control of the parity test): the narrowed brick range one brick short in x - the seed's cells in its
+    /// last brick column are neither marked nor written (the off-by-one a narrowed range can have)
+    static inline bool s_seedNarrowShortForTest = false;
     /// 27.19 measurement (ms, last call): a tile wake's seed upload / a record's cell read, split into the wait for the call in
     /// flight (settle), the host work, and the blocking submission
     struct TileGpuMs { double seedSettle = 0, seedHost = 0, seedSubmit = 0, readSettle = 0, readSubmit = 0, readHost = 0; double seedPart[5]{}; };   // seedPart: flags+need, residency, fresh uploads, fills, tables

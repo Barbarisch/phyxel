@@ -13206,6 +13206,33 @@ measure did not reproduce the cost they would trade against.
   wake as before, the same cells - nothing the owner trades). Next: make a tile wake cheap (the brick walk sized to the tile, one
   walk of the cells, no wait per tile) - its design check first.
 
+**51.9 (2026-11-11) BUILT, ON - a tile wake's seed over its own bricks, one walk of its cells; the ordinary wake 19 % cheaper, the
+hitch NOT gone** (51.8's next; `/design-check` READY; no drift). `WaterCoreGpu::seedColumns`: (1) the per-brick nearest-wet record
+(the need rule) over the bricks the seed's cells can lie in, not `vol.mapCount` x 7 ints over the whole volume - `markNeed` still
+reaches the whole map and only raises need, so the order is free; (2) the three walks of the tile's cells (touched slots, zero,
+write) fused into one, a slot zeroed whole on its first touch. Cost only: the same device state. TEST ONLY `s_seedWholeMapForTest`
+keeps the old path (the parity control; also `water_av_record_tiles` `seed_whole_map_test` for the live A/B).
+- **Test** (`WaterRecordTilesTest.ATileWakeSeedsTheSameDeviceStateAsTheWholeMapWalk`, GPU, a 24 x 24 m pond, 9 tiles recorded, the
+  centre and the corner tile woken, then f / fPrev dense and the brick map read back; tall cells off and 0.5 m): **new vs old 0 cells
+  of f, 0 of fPrev, 0 bricks, the same mass (255.999998 m^3) and wakes**; the control old vs old 0 (the run is deterministic); the RED
+  (the range one brick short in x) 6,912 cells of f and of fPrev. Found building it: the first red (the halo's need marks dropped)
+  differed in NOTHING - a woken tile's bricks and their halo are still resident from before it recorded, so this rig cannot see a
+  halo mark; the parity's brick compare holds the residency, the short range shows the test sees a missed seed brick.
+- **Live (Creek, close pose, `water_splash_phases.py [--seed-whole-map] --tag wake519_{old,new}_rN`, 3 + 3 takes interleaved old /
+  new in one session; another session's Debug test run was live through all six - the interleave is the control for it):**
+  | | old | new |
+  |---|---|---|
+  | a tile wake, median per take (45 / 49 wakes) | 8.9-9.4 ms | **7.4-7.6 ms** |
+  | the seed's host work (last wake) | 6.0-6.4 ms | **4.5-4.8 ms** |
+  | of it the need walk / the cell walk(s) | 1.6-1.7 / 2.7 ms | 1.0 / 1.75 ms |
+  | the worst wake / the worst `mgr.2` call | 43-61 / 52-70 ms | 40-45 / 48-52 ms |
+  The prediction (need walk < 0.3 ms, the walk < 1.5, a wake ~6.5 ms) missed: the need part also holds the whole-map `need` array's
+  init and the tall collapse; the fused walk still does a `storageIndex` per wet cell. **The hitch is one wake per splash whose GPU
+  upload waits ~40 ms** (`gpu_upload` max 39-43 ms new, 41-59 old, every take) - not the seed's host work. Next: what that upload
+  waits on (the pool's grow - `ensureCapacity` - or the call in flight), measured before anything is changed.
+- Tests: water unit 419 / 419; integration water 84 / 86 (the known two: `GpuFlipBulkParityAndRunup`,
+  `ShortWaveMatchesAllFineAndTheBooksAreExact`); the new parity test passes.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
