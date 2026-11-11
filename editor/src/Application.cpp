@@ -489,9 +489,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     waterCore->setRecordResidency(
         [this]() -> uint64_t { return chunkManager ? Core::residentSetHash(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end()) : 0; },
         [this](int cx, int cz) -> uint64_t {
-            // 51.4: one map lookup (the per-column stamps, rebuilt once a frame when the resident set moved) - the far skin asks
-            // thousands of columns a scan; 36 chunk lookups each cost milliseconds
-            refreshResidentColumns();
+            // 51.4: one map lookup (the per-column stamps, rebuilt once a frame before the water's update when the resident set
+            // moved) - the far skin asks thousands of columns a scan; 36 chunk lookups each, or the set's hash each, cost milliseconds
+            if (!m_residentColumnsValid) refreshResidentColumns();
             const auto it = m_residentColumns.find((static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz));
             return it == m_residentColumns.end() ? 0 : it->second;
         });
@@ -4050,6 +4050,7 @@ void Application::update(float deltaTime) {
                 if (loc.testViewerOn) waterCore->setViewPoint(loc.testViewer);
                 else if (camera) waterCore->setViewPoint(camera->getPosition());
             }
+            refreshResidentColumns();   // 51.4: once a frame (the record cache and the far skin read it)
             { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
             // 51.4 step 2: the far skin's generator source - its own copy of the streaming generator (the worker shares nothing with
             // this thread), made when the skin is on and the generator or the world changed

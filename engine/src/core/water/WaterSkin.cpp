@@ -186,10 +186,12 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     m_stats.levels = levels; m_stats.ringCells = n;
 
     // step 2: the generator's summaries that came back (a column made resident since keeps the record's)
+    int genDrained = 0;
     auto resident = [&](int cx, int cz) { return !m_worker || !in.residentColumn || !*in.residentColumn || (*in.residentColumn)(cx, cz) != 0; };
     if (m_worker) {
         std::vector<std::pair<uint64_t, std::vector<ColumnRuns>>> done;
         { std::lock_guard<std::mutex> lk(m_worker->mu); done.swap(m_worker->done); }
+        genDrained = static_cast<int>(done.size());
         for (auto& [key, runs] : done) {
             const auto it = m_sum.find(key);
             if (it == m_sum.end() || !it->second.requested) continue;   // forgotten meanwhile
@@ -205,11 +207,13 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     // the summaries: chunk columns within reach of a drawn cell, nearest first, a budget per call
     if (in.residentColumn && *in.residentColumn && in.residentGlobal != m_resSeen) {
         m_resSeen = in.residentGlobal;
+        bool moved = false;   // a re-scan only when one of OUR columns' chunks came or went (streaming moves the set nearly every frame)
         for (auto& [key, sm] : m_sum) {
             const int cx = static_cast<int>(static_cast<int32_t>(key >> 32)), cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
-            if ((*in.residentColumn)(cx, cz) != sm.res) sm.spanRev = ~0ull;   // its chunks came or went: re-read
+            const uint64_t r = (*in.residentColumn)(cx, cz);
+            if (sm.built ? r != sm.res : r != 0) { sm.spanRev = ~0ull; moved = true; }   // its chunks came or went: re-read
         }
-        ++m_resGen;
+        if (moved) ++m_resGen;
     }
     // the reach is measured from the viewer's chunk column's centre (+ one column), so the set moves only with that column: a camera
     // moving inside one column scans nothing
@@ -265,9 +269,10 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     }
     m_stats.summaries = static_cast<int>(m_sum.size());
     m_lastPending = m_stats.pending;
-    m_stats.genPending = 0; m_stats.genHeld = 0;
+    m_stats.genPending = 0;
     if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_stats.genPending = static_cast<int>(m_worker->queue.size()) + m_worker->inFlight; }
-    for (const auto& [key, sm] : m_sum) if (sm.fromGen) ++m_stats.genHeld;
+    // counted only on a call that changed the summaries: a walk over thousands of 2.4 KB entries is ~0.2 ms of cache misses (live, 51.4c)
+    if (scan || m_stats.summariesBuiltLastCall > 0 || genDrained > 0) { m_stats.genHeld = 0; for (const auto& [key, sm] : m_sum) if (sm.fromGen) ++m_stats.genHeld; }
 
     // the fields: a level is rebuilt only when what it reads moved - its snapped square, the summaries, the volumes, the settings,
     // and for level 0 the set of record tiles in range (a still camera over a still record rebuilds nothing; a moving one rebuilds
