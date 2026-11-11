@@ -1,0 +1,22 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         meat_rail
+# display_name: Meat Rail
+# description:  A freestanding butcher's rail -- two posts + a top rail hung with iron hooks (meat awaits a material).
+# category:     furniture
+# subcategory:  fixture
+# tags:         butcher, meat, rail, hooks, shambles, hanging
+# materials:    Log, Metal
+# facing:       +Z
+# bounds:       1.625W x 2.125H x 0.125D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 0 1 17 1 Log
+B 12 0 0 1 17 1 Log
+B 2 13 0 1 2 1 Metal
+B 4 13 0 1 2 1 Metal
+B 7 13 0 1 2 1 Metal
+B 10 13 0 1 2 1 Metal
+B 1 15 0 11 2 1 Log

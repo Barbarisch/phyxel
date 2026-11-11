@@ -1,0 +1,23 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         tool_rack
+# display_name: Tool Rack
+# description:  A wall-mounted smith's tool rack -- a board hung with hammers and tongs.
+# category:     furniture
+# subcategory:  fixture
+# tags:         tool, rack, smithy, blacksmith, wall, hammers, tongs
+# materials:    Wood, Metal
+# facing:       +Z (tools face the room; mounts on a wall ~1.5 m up)
+# bounds:       1.000W x 0.625H x 0.250D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 0 8 5 1 WoodWalnut
+B 1 2 1 1 3 1 Metal
+B 3 2 1 2 3 1 Metal
+B 6 2 1 1 3 1 Metal
+V 0 4 1 WoodWalnut
+V 2 4 1 WoodWalnut
+V 5 4 1 WoodWalnut
+V 7 4 1 WoodWalnut

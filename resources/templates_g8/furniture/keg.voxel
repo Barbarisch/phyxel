@@ -1,0 +1,34 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         keg
+# display_name: Keg (Tapped Cask)
+# description:  A kilderkin ale cask lying on chocks, broached with an iron tap.
+# category:     furniture
+# subcategory:  storage
+# tags:         keg, cask, ale, tavern, taproom, bar, common
+# materials:    Wood, Metal
+# facing:       +Z
+# bounds:       0.625W x 0.625H x 0.500D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 1 1 5 2 WoodWalnut
+B 4 0 1 1 1 2 WoodWalnut
+B 1 1 1 1 1 2 Metal
+B 2 1 1 2 4 2 WoodWalnut
+B 4 1 1 1 1 2 Metal
+B 0 2 0 1 2 1 WoodWalnut
+B 0 2 3 1 2 1 WoodWalnut
+B 1 2 0 1 2 1 Metal
+B 1 2 1 1 2 2 WoodWalnut
+B 1 2 3 1 2 1 Metal
+B 2 2 0 2 2 1 WoodWalnut
+B 2 2 3 1 2 1 WoodWalnut
+B 3 2 3 2 1 1 Metal
+B 4 2 0 1 2 1 Metal
+B 4 2 1 1 2 2 WoodWalnut
+V 3 3 3 WoodWalnut
+V 4 3 3 Metal
+B 1 4 1 1 1 2 Metal
+B 4 4 1 1 1 2 Metal

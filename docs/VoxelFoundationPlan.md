@@ -631,6 +631,43 @@ content, 64 for items. The live loader accepts only 27/81 today; the lab reads g
      (`StructureForge`), `TowerForge`, `FenceBuilder`, `StreetPaver`, `SettlementBuildService`, the validators
      (`RealizedStructureValidator`, `BuildingProgramValidator`) and `deriveLocations`.
 4. **Re-express the authored-integer Python generators** (furniture, items, doors) in metres.
+   **Furniture done 2026-11-11 (`regen_furniture.py --grid 8`, all 34 assets).** The designs stay authored in
+   ninths; the generator maps every authored box edge b to the nearest cell edge round(b·8/9), so touching parts
+   keep touching. A fill or a cleared hole never drops below one cell, and anchor heights are measured on the
+   emitted cells. Output: `resources/templates_g8/{furniture,architecture}` as `# grid: 8` B/V, with no
+   `.metrics.json` yet (the characterizer reads C/S/M only).
+   - **Tests** (`tools/test_regen_furniture_grid.py`, red first; `set_grid` did not exist):
+     - legacy output is byte-identical to the unmodified generator (digest over all 68 files);
+     - on grid 8, extents are within one cell of legacy, the material set is equal, the chest's parts are kept,
+       and every seat, surface, work and lie anchor rests on a solid top.
+   - **Measured on 1/8 m:**
+
+     | Item | 1/8 m | Legacy | Canon |
+     |---|---|---|---|
+     | Seats | 0.50 m | 0.444 m | 0.45 m (the 1/8 m steps either side are 0.375 and 0.5) |
+     | Tables | 0.75 m | 0.778 m | 0.75 m |
+     | Bar | 1.125 m | 1.111 m | — |
+     | Bed lie surface | 0.625 m | 0.556 m | — |
+
+     The bed's 1/9 m sheet layer has no 1/8 m cell of its own, so it gets a full cell.
+   - **Eye check:** offline isometric contact sheet, legacy vs 1/8 m at the same pixels per metre. The engine
+     cannot load grid 8 yet. Everything reads the same, except details spaced one ninth apart, which edge
+     mapping cannot keep:
+     - tool rack: 4 tools become 3 (two merge);
+     - keg: the hoops blur;
+     - forge hearth: the coals shrink to 1 cell;
+     - chair: the back opening drops from 2/9 to 1/8 m;
+     - wardrobe: one knob sits in the door seam.
+
+     These need their details re-designed in metres (a follow-up, per asset). The generator change is done.
+   - **Found: the committed furniture library has drifted from its generator** (before this change). Running the
+     unmodified generator rewrites 41 files:
+     - every `.metrics.json` is schema v1, against the characterizer's v2;
+     - `anvil`, `bed_single`, `chopping_block`, `oven_bread`, `table_wood` and `tavern_table` lack the
+       `# interaction_point:` header line the generator has written since A4 (2026-09-30), so the engine,
+       which reads points from the header, does not see their surface, work or lie points.
+
+     Logged, not fixed here: it changes live assets on the 1/9 m path.
 5. **Retire** `gen_tree.py` (bush presets in tree_forge) and port tree_forge to C++ for procedural flora.
    **Bushes done 2026-11-11.** Finding: gen_tree's "height 2" bushes are not 2 m: `bush_round` is 5.3 x 3.3 x 4.3 m
    (27 m³ leaf, no wood), `bush_leafy_s` 5.0 x 3.3 x 5.7 (32 m³), `bush_leafy_m` 5.0 x 4.3 x 5.7 (50 m³). Replaced by
@@ -686,7 +723,7 @@ Every rig is checked for:
 | Phase | What | Exit test | Stop if |
 |---|---|---|---|
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1). **Done 2026-11-10:** §13 decided; inventory in §7a.1-7a.2; save check in §3.5a point 7; skeletons `engine/*/core/voxfound/` (`VoxelGrid`, `FractureLab`, `StorageLab`) + `VoxFoundFractureLabTest` (4 checker tests green, 8 predictions red until F4) + `VoxFoundStorageLabTest` (3 green incl. measured terrain stats, 3 red until F1) | — | — |
-| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); next: hearths/furniture in metres, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
+| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8`, all 34 assets (step 4); next: `gen_door`/`gen_items` (items 1/81 → 1/64 m), hearths and furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | pixel diff within the gate at 5 poses; face count ≤ today's on the same scene; frame time ≤ today | can't match the look, or more faces, or slower |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |

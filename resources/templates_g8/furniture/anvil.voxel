@@ -1,0 +1,20 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         anvil
+# display_name: Anvil
+# description:  A blacksmith's anvil on a wooden stump -- face at working (knuckle) height.
+# category:     furniture
+# subcategory:  fixture
+# tags:         anvil, smithy, blacksmith, forge, iron
+# materials:    Metal, Log
+# facing:       +Z (horn to the front)
+# work_top:     0.778
+# bounds:       0.250W x 0.750H x 0.500D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+# interaction_point: work_0 work_surface 0.1110 0.7500 0.2780 0.0 *
+
+B 0 0 1 2 4 3 Log
+B 0 4 0 2 1 4 Metal
+B 0 5 1 2 1 3 Metal

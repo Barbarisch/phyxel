@@ -1,0 +1,28 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         tavern_table
+# display_name: Tavern Table (Long)
+# description:  A long communal tavern table for shared seating.
+# category:     furniture
+# subcategory:  table
+# tags:         table, tavern, communal, feast
+# materials:    Wood
+# facing:       +Z
+# bounds:       1.875W x 0.750H x 0.750D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+# interaction_point: surface surface 0.9440 0.7500 0.3890 0.0 *
+
+B 1 0 1 1 6 1 WoodWalnut
+B 1 0 4 1 6 1 WoodWalnut
+B 13 0 1 1 6 1 WoodWalnut
+B 13 0 4 1 6 1 WoodWalnut
+B 0 5 0 1 1 6 WoodWalnut
+B 1 5 0 14 1 1 WoodWalnut
+B 1 5 2 14 1 2 WoodWalnut
+B 1 5 5 14 1 1 WoodWalnut
+B 2 5 1 11 1 1 WoodWalnut
+B 2 5 4 11 1 1 WoodWalnut
+V 14 5 1 WoodWalnut
+V 14 5 4 WoodWalnut

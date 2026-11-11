@@ -1,0 +1,28 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         garden_bed
+# display_name: Garden Bed (Raised Bed)
+# description:  A raised kitchen-garden bed — board frame, soil, young plantings.
+# category:     prop
+# subcategory:  yard
+# tags:         garden, bed, planting, yard, toft, kitchen-garden, common
+# materials:    Wood, Dirt, Leaf
+# facing:       +Z (long side to the viewer)
+# bounds:       2.000W x 0.375H x 1.000D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 0 1 3 8 Wood
+B 1 0 0 15 3 1 Wood
+B 1 0 1 14 2 6 Dirt
+B 1 0 7 15 3 1 Wood
+B 15 0 1 1 3 6 Wood
+V 2 2 2 Leaf
+V 2 2 5 Leaf
+V 5 2 2 Leaf
+V 5 2 5 Leaf
+V 9 2 2 Leaf
+V 9 2 5 Leaf
+V 12 2 2 Leaf
+V 12 2 5 Leaf

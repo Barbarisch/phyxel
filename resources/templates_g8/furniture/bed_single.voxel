@@ -1,0 +1,26 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         bed_single
+# display_name: Bed (Single)
+# description:  A single rope-frame bed — walnut frame, linen mattress and pillow, red wool coverlet.
+# category:     furniture
+# subcategory:  bed
+# tags:         bed, sleep, bedchamber, linen, wool, common
+# materials:    WoodWalnut, Linen, Wool
+# facing:       +Z (headboard at z=0 -> against the wall at rot 0)
+# bounds:       0.875W x 0.875H x 1.875D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+# interaction_point: lie_0 lie 0.4440 0.6250 0.9440 0.0 *
+
+B 0 0 0 1 7 1 WoodWalnut
+B 0 0 14 1 4 1 WoodWalnut
+B 6 0 0 1 7 1 WoodWalnut
+B 6 0 14 1 4 1 WoodWalnut
+B 0 2 1 7 1 13 WoodWalnut
+B 1 2 0 5 5 1 WoodWalnut
+B 1 2 14 5 1 1 WoodWalnut
+B 0 3 1 7 1 13 Linen
+B 0 4 1 7 1 4 Linen
+B 0 4 5 7 1 9 Wool

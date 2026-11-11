@@ -1,0 +1,22 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         back_bar
+# display_name: Back Bar (Shelving)
+# description:  Wall shelving behind a tavern bar — three empty shelves (structure gen stocks them with item props).
+# category:     furniture
+# subcategory:  shelving
+# tags:         bar, shelf, tavern, inn
+# materials:    Wood
+# facing:       +Z (open shelf face toward the bartender / room)
+# bounds:       3.000W x 1.750H x 0.375D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 0 1 14 3 WoodWalnut
+B 1 0 0 23 1 3 WoodWalnut
+B 1 1 0 23 13 1 WoodWalnut
+B 23 1 1 1 13 2 WoodWalnut
+B 1 4 1 22 1 2 WoodWalnut
+B 1 8 1 22 1 2 WoodWalnut
+B 1 12 1 22 1 2 WoodWalnut

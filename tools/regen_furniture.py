@@ -6,6 +6,13 @@
 Deterministic, no LLM. Microcube resolution: 1 cube = 9 micro = 1 m. A global micro index p maps to
 (cube=p//9, sub=(p%9)//3, mic=p%3). Run from the repo root.
 
+Grids (docs/VoxelFoundationPlan.md 7a.3 step 4): the designs below are AUTHORED in ninths of a metre. With
+--grid 8 the same designs are emitted on the 1/8 m foundation grid: every authored box edge b (ninths) maps
+to the nearest cell edge round(b*8/9), so parts that touch keep touching and a box never shrinks below one
+cell; anchor surface heights go through the same map. Output: resources/templates_g8/<category>/, written
+as '# grid: 8' B/V lines (tools/voxgrid.py), no .metrics.json yet (the characterizer reads C/S/M only).
+Default (grid 9) output is byte-identical to before (tools/test_regen_furniture_grid.py).
+
 Targets (canon, metres):
   chest  -> coffer  1.2 w x 0.55 d x 0.7 h  (object_dimensions 'chest')
   hearth -> fireplace 1.5 w x 1.2 h x 0.6 d (object_dimensions 'hearth')
@@ -14,6 +21,42 @@ import json
 import os
 
 TEMPLATES = "resources/templates/furniture"   # category taxonomy (2026-08-07)
+
+AUTHORED_PER_M = 9   # the designs below are integers in ninths of a metre
+GRID = 9             # output cells per metre: 9 = today's C/S/M micro, 8 = the 1/8 m foundation grid
+OUT_ROOT = None      # None -> resources/templates (grid 9) / resources/templates_g8 (other grids); tests redirect
+
+
+def set_grid(n):
+    global GRID
+    GRID = n
+
+
+def _edge(b):
+    """An authored box edge (ninths) -> the nearest output cell edge (round half up)."""
+    return (b * GRID * 2 + AUTHORED_PER_M) // (2 * AUTHORED_PER_M)
+
+
+def _span(a, b):
+    """Authored inclusive cell range a..b -> output inclusive cell range (never empty)."""
+    if GRID == AUTHORED_PER_M:
+        return a, b
+    lo = _edge(a)
+    return lo, max(lo, _edge(b + 1) - 1)
+
+
+def my(b):
+    """Metres of an authored horizontal surface at edge b (ninths), on the output grid."""
+    if GRID == AUTHORED_PER_M:
+        return b / 9.0
+    return _edge(b) / GRID
+
+
+def _authored(c):
+    """Output cell index -> the authored (ninths) cell its centre lies in (for part predicates)."""
+    if GRID == AUTHORED_PER_M:
+        return c
+    return ((2 * c + 1) * AUTHORED_PER_M) // (2 * GRID)
 
 
 def decomp(p):
@@ -26,31 +69,36 @@ class Model:
         self.cells = {}  # (px,py,pz) -> material  (micro grid)
 
     def m(self, px, py, pz, mat):
-        self.cells[(px, py, pz)] = mat
+        if GRID == AUTHORED_PER_M:
+            self.cells[(px, py, pz)] = mat
+        else:
+            self.fill(px, px, py, py, pz, pz, mat)
 
     def box_shell(self, x0, x1, y0, y1, z0, z1, mat, faces=("x", "z", "ymin", "ymax")):
-        for x in range(x0, x1 + 1):
-            for y in range(y0, y1 + 1):
-                for z in range(z0, z1 + 1):
-                    on = False
-                    if "x" in faces and (x == x0 or x == x1):
-                        on = True
-                    if "z" in faces and (z == z0 or z == z1):
-                        on = True
-                    if "ymin" in faces and y == y0:
-                        on = True
-                    if "ymax" in faces and y == y1:
-                        on = True
-                    if on:
-                        self.cells[(x, y, z)] = mat
+        # the union of one-cell face slabs (each slab is a box, so it maps edge-exact on any grid)
+        if "x" in faces:
+            self.fill(x0, x0, y0, y1, z0, z1, mat)
+            self.fill(x1, x1, y0, y1, z0, z1, mat)
+        if "z" in faces:
+            self.fill(x0, x1, y0, y1, z0, z0, mat)
+            self.fill(x0, x1, y0, y1, z1, z1, mat)
+        if "ymin" in faces:
+            self.fill(x0, x1, y0, y0, z0, z1, mat)
+        if "ymax" in faces:
+            self.fill(x0, x1, y1, y1, z0, z1, mat)
 
     def fill(self, x0, x1, y0, y1, z0, z1, mat):
+        (x0, x1), (y0, y1), (z0, z1) = _span(x0, x1), _span(y0, y1), _span(z0, z1)
         for x in range(x0, x1 + 1):
             for y in range(y0, y1 + 1):
                 for z in range(z0, z1 + 1):
                     self.cells[(x, y, z)] = mat
 
     def clear(self, x0, x1, y0, y1, z0, z1):
+        if GRID != AUTHORED_PER_M:
+            # a cleared run maps edge-to-edge like a fill and, like a fill, keeps at least one cell: a
+            # one-ninth seam or slot is a designed feature (the wardrobe's door seam), not rounding noise
+            (x0, x1), (y0, y1), (z0, z1) = _span(x0, x1), _span(y0, y1), _span(z0, z1)
         for x in range(x0, x1 + 1):
             for y in range(y0, y1 + 1):
                 for z in range(z0, z1 + 1):
@@ -73,7 +121,10 @@ class Model:
         self.cells = {(x, y, maxz - z): mat for (x, y, z), mat in self.cells.items()}
 
     def emit_lines(self, order):
-        """order: list of (predicate, comment) -> grouped output for parts."""
+        """order: list of (predicate, comment) -> grouped output for parts. Predicates take AUTHORED
+        (ninths) coordinates on every grid."""
+        if GRID != AUTHORED_PER_M:
+            return self._emit_grid(order)
         out = []
         used = set()
         for pred, comment in order:
@@ -97,6 +148,30 @@ class Model:
             out.append(f"M {cx} {cy} {cz} {sx} {sy} {sz} {mx} {my} {mz} {mat}")
         return out
 
+    def _emit_grid(self, order):
+        """'# grid: N' + B/V lines (tools/voxgrid.py), part groups kept, one origin for all parts."""
+        from voxgrid import greedy_boxes
+        ox, oy, oz = (min(c[i] for c in self.cells) for i in range(3))
+        cells = {(x - ox, y - oy, z - oz): mat for (x, y, z), mat in self.cells.items()}
+        groups = []
+        left = dict(cells)
+        for pred, comment in order:
+            g = {}
+            for (x, y, z), mat in sorted(left.items()):
+                if pred(_authored(x + ox), _authored(y + oy), _authored(z + oz)):
+                    g[(x, y, z)] = mat
+            for k in g:
+                del left[k]
+            groups.append((comment, g))
+        groups.append((None, left))
+        out = [f"# grid: {GRID}"]
+        for comment, g in groups:
+            if comment:
+                out.append(comment)
+            for (x, y, z, sx, sy, sz, mat) in greedy_boxes(g):
+                out.append(f"V {x} {y} {z} {mat}" if sx == sy == sz == 1 else f"B {x} {y} {z} {sx} {sy} {sz} {mat}")
+        return out
+
 
 # Assets this script generates that do NOT live under furniture/. Stems are UNIQUE
 # library-wide (docs/AssetLibrary.md), so writing `well` into furniture/ next to the
@@ -108,12 +183,25 @@ OUT_DIR_OVERRIDE = {
 }
 
 
+def _out_dir(name):
+    rel = os.path.relpath(OUT_DIR_OVERRIDE.get(name, TEMPLATES), "resources/templates")
+    if OUT_ROOT is not None:
+        root = OUT_ROOT
+    else:
+        root = "resources/templates" if GRID == AUTHORED_PER_M else f"resources/templates_g{GRID}"
+    d = os.path.join(root, rel)
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
 def write(name, header, body_lines, model, anchors=None):
+    if GRID != AUTHORED_PER_M:
+        return _write_grid(name, header, body_lines, model, anchors)
     (mnx, mny, mnz), (mxx, mxy, mxz) = model.bounds()
     # overall extent in metres: a micro at index p occupies [p/9, (p+1)/9]
     omin = [mnx / 9.0, mny / 9.0, mnz / 9.0]
     omax = [(mxx + 1) / 9.0, (mxy + 1) / 9.0, (mxz + 1) / 9.0]
-    out_dir = OUT_DIR_OVERRIDE.get(name, TEMPLATES)
+    out_dir = OUT_DIR_OVERRIDE.get(name, TEMPLATES) if OUT_ROOT is None else _out_dir(name)
     vox_path = os.path.join(out_dir, name + ".voxel")
     with open(vox_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(header.rstrip() + "\n")
@@ -143,9 +231,52 @@ def write(name, header, body_lines, model, anchors=None):
     print(f"{name}: {len(model.cells)} micro, bounds {w:.3f}w x {h:.3f}h x {d:.3f}d m -> {vox_path}")
 
 
+def _rest_on_top(model, x, y, z):
+    """A surface anchor's height MEASURED on the emitted cells: from the mapped height, step up out of
+    solid / down onto solid by at most one cell in the anchor's column. One cell is the most the
+    never-empty rule can move a top (a 1/9 m layer with no 1/8 m cell of its own still gets one)."""
+    cx, cz = int(x * GRID), int(z * GRID)
+    cy = round(y * GRID)
+    solid = lambda yy: (cx, yy, cz) in model.cells
+    if solid(cy) and not solid(cy + 1):
+        cy += 1
+    elif not solid(cy - 1) and solid(cy - 2):
+        cy -= 1
+    return cy / GRID
+
+
+def _write_grid(name, header, body_lines, model, anchors):
+    """The same asset on GRID cells per metre. Anchors are re-based to the emitted origin (the grid
+    format rebases to 0); the authored '# bounds:' text is replaced by the measured one."""
+    (mnx, mny, mnz), (mxx, mxy, mxz) = model.bounds()
+    ext = [(mxx + 1 - mnx) / GRID, (mxy + 1 - mny) / GRID, (mxz + 1 - mnz) / GRID]
+    off = [mnx / GRID, mny / GRID, mnz / GRID]
+    hdr = []
+    for ln in header.rstrip().splitlines():
+        if ln.startswith("# bounds:"):
+            ln = (f"# bounds:       {ext[0]:.3f}W x {ext[1]:.3f}H x {ext[2]:.3f}D m "
+                  f"(1/{GRID} m grid; authored in ninths, edges mapped to the nearest cell)")
+        elif ln.startswith("# method:"):
+            ln = f"# method:       tools/regen_furniture.py --grid {GRID} (deterministic, canon-proportioned)"
+        hdr.append(ln)
+    vox_path = os.path.join(_out_dir(name), name + ".voxel")
+    with open(vox_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(body_lines[0] + "\n")                  # '# grid: N' precedes everything else
+        f.write("\n".join(hdr) + "\n")
+        for a in anchors or []:
+            x, y, z = (a["local_position"][i] - off[i] for i in range(3))
+            y = _rest_on_top(model, x + off[0], y + off[1], z + off[2]) - off[1]
+            f.write(f"# interaction_point: {a['point_id']} {a['kind']} {x:.4f} {y:.4f} {z:.4f} "
+                    f"{float(a.get('facing_yaw', 0.0)):.1f} *\n")
+        f.write("\n")
+        f.write("\n".join(body_lines[1:]) + "\n")
+    print(f"{name}: {len(model.cells)} cells (grid {GRID}), bounds {ext[0]:.3f}w x {ext[1]:.3f}h x "
+          f"{ext[2]:.3f}d m -> {vox_path}")
+
+
 def seat_anchor(cx_micro, top_micro, cz_micro, depth_micro=4):
     """A 'seat' interaction point at the seat-slab top centre (micro indices -> metres)."""
-    cx, cy, cz = (cx_micro + 0.5) / 9.0, top_micro / 9.0, (cz_micro + 0.5) / 9.0
+    cx, cy, cz = (cx_micro + 0.5) / 9.0, my(top_micro), (cz_micro + 0.5) / 9.0
     return [{
         "point_id": "seat_0", "kind": "seat",
         "local_position": [round(cx, 3), round(cy, 3), round(cz, 3)],
@@ -507,8 +638,8 @@ def _table(name, L, D, display, tags, desc):
         "# =========================================================="
     )
     write(name, header, m.emit_lines([]), m, [{"point_id": "surface", "kind": "surface",
-        "local_position": [round((L/2)/9, 3), round(7/9, 3), round((D/2)/9, 3)], "facing_yaw": 0.0,
-        "features": {"surface_y": round(7/9, 3)}}])
+        "local_position": [round((L/2)/9, 3), round(my(7), 3), round((D/2)/9, 3)], "facing_yaw": 0.0,
+        "features": {"surface_y": round(my(7), 3)}}])
 
 
 def gen_table_wood():  # 4-person dining table: ~1.44 x 0.78 x 0.89 m
@@ -558,14 +689,14 @@ def gen_barrel():
             for z in range(R):
                 if (x, z) in corners:
                     continue                         # bevel the corners -> rounder barrel
-                m.cells[(x, y, z)] = "WoodWalnut"
+                m.m(x, y, z, "WoodWalnut")
     for hoop in (1, H - 2):                          # iron hoops near top + bottom
         for x in range(R):
             for z in range(R):
                 if (x, z) in corners:
                     continue
                 if x in (0, R - 1) or z in (0, R - 1):
-                    m.cells[(x, hoop, z)] = "Metal"
+                    m.m(x, hoop, z, "Metal")
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -597,18 +728,18 @@ def gen_keg():
             for z in range(R):
                 if (y, z) in corners:
                     continue                    # bevel the CROSS-SECTION (y,z) — it lies on its side
-                m.cells[(x, CHOCK + y, z)] = "WoodWalnut"
+                m.m(x, CHOCK + y, z, "WoodWalnut")
     for hoop in (1, L - 2):                     # iron hoops near both heads
         for y in range(R):
             for z in range(R):
                 if (y, z) in corners:
                     continue
                 if y in (0, R - 1) or z in (0, R - 1):
-                    m.cells[(hoop, CHOCK + y, z)] = "Metal"
+                    m.m(hoop, CHOCK + y, z, "Metal")
     for cx in (0, L - 1):                       # chocks: keep it from rolling
         for z in range(1, R - 1):
-            m.cells[(cx, 0, z)] = "WoodWalnut"
-    m.cells[(L // 2, CHOCK + 1, R - 1)] = "Metal"   # the tap, at the low bilge, front face
+            m.m(cx, 0, z, "WoodWalnut")
+    m.m(L // 2, CHOCK + 1, R - 1, "Metal")   # the tap, at the low bilge, front face
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -699,8 +830,8 @@ def gen_anvil():
     m.clear(0, BX - 1, 6, 6, 0, 0)                         # round off the horn tip (front, z0)
     anchors = [{
         "point_id": "work_0", "kind": "work_surface",
-        "local_position": [round((BX / 2.0) / 9, 3), round(7 / 9, 3), round((LZ / 2.0) / 9, 3)],
-        "facing_yaw": 0.0, "features": {"work_top_y": round(7 / 9, 3)},
+        "local_position": [round((BX / 2.0) / 9, 3), round(my(7), 3), round((LZ / 2.0) / 9, 3)],
+        "facing_yaw": 0.0, "features": {"work_top_y": round(my(7), 3)},
     }]
     header = (
         "# ==========================================================\n"
@@ -795,8 +926,8 @@ def gen_oven_bread():
     m.fill(4, W - 5, DOME + 1, 20, D - 2, D - 1, "Stone")
     anchors = [{
         "point_id": "work_0", "kind": "work_surface",
-        "local_position": [round((W / 2.0) / 9, 3), round(7 / 9, 3), round((D - 1) / 9, 3)],
-        "facing_yaw": 0.0, "features": {"work_top_y": round(7 / 9, 3)},
+        "local_position": [round((W / 2.0) / 9, 3), round(my(7), 3), round((D - 1) / 9, 3)],
+        "facing_yaw": 0.0, "features": {"work_top_y": round(my(7), 3)},
     }]
     header = (
         "# ==========================================================\n"
@@ -830,8 +961,8 @@ def gen_chopping_block():
             m.fill(lx, lx, 0, 4, lz, lz, "WoodWalnut")          # leg
     anchors = [{
         "point_id": "work_0", "kind": "work_surface",
-        "local_position": [round((W / 2.0) / 9, 3), round(8 / 9, 3), round((D / 2.0) / 9, 3)],
-        "facing_yaw": 0.0, "features": {"work_top_y": round(8 / 9, 3)},
+        "local_position": [round((W / 2.0) / 9, 3), round(my(8), 3), round((D / 2.0) / 9, 3)],
+        "facing_yaw": 0.0, "features": {"work_top_y": round(my(8), 3)},
     }]
     header = (
         "# ==========================================================\n"
@@ -937,7 +1068,7 @@ def gen_bed():
     # frame: corner posts + side rails + slat deck
     for (x, z) in [(0, 0), (W - 1, 0), (0, L - 1), (W - 1, L - 1)]:
         for y in range(0, 4):
-            m.cells[(x, y, z)] = "WoodWalnut"
+            m.m(x, y, z, "WoodWalnut")
     m.fill(0, W - 1, 2, 2, 0, L - 1, "WoodWalnut")       # deck/rails at y2
     # headboard at the wall end (z0): full width, up to y7 (~0.78 m)
     m.fill(0, W - 1, 3, 7, 0, 0, "WoodWalnut")
@@ -965,10 +1096,10 @@ def gen_bed():
     )
     lie = [{
         "point_id": "lie_0", "kind": "lie",
-        "local_position": [round((W - 1) / 2.0 / 9.0 + 0.055, 3), round(5 / 9.0, 3),
+        "local_position": [round((W - 1) / 2.0 / 9.0 + 0.055, 3), round(my(5), 3),
                            round((L - 1) / 2.0 / 9.0 + 0.055, 3)],
         "facing_yaw": 0.0,
-        "features": {"lie_top_y": round(5 / 9.0, 3)},
+        "features": {"lie_top_y": round(my(5), 3)},
     }]
     write("bed_single", header, m.emit_lines([]), m, lie)
 
@@ -981,7 +1112,7 @@ def gen_chair():
     m = Model()
     for (x, z) in [(0, 0), (SW - 1, 0), (0, SD - 1), (SW - 1, SD - 1)]:   # legs
         for y in range(0, ST - 1):
-            m.cells[(x, y, z)] = "WoodWalnut"
+            m.m(x, y, z, "WoodWalnut")
     m.fill(0, SW - 1, ST - 1, ST - 1, 0, SD - 1, "WoodWalnut")            # seat slab
     m.fill(0, SW - 1, ST, BT - 1, 0, 0, "WoodWalnut")                     # backrest at z0
     m.clear(1, SW - 2, ST, BT - 3, 0, 0)                                  # open back panel
@@ -1011,7 +1142,7 @@ def gen_stool():
     m = Model()
     for (x, z) in [(0, 0), (S - 1, 0), (0, S - 1), (S - 1, S - 1)]:
         for y in range(0, ST - 1):
-            m.cells[(x, y, z)] = "WoodWalnut"
+            m.m(x, y, z, "WoodWalnut")
     m.fill(0, S - 1, ST - 1, ST - 1, 0, S - 1, "WoodWalnut")
     header = (
         "# ==========================================================\n"
@@ -1044,8 +1175,8 @@ def gen_wardrobe():
     front = D - 1
     m.fill(1, W - 2, 2, H - 2, front, front, "WoodWalnut")                # door field
     m.clear((W - 1) // 2, (W - 1) // 2, 2, H - 3, front, front)           # centre seam
-    m.cells[((W - 1) // 2 - 1, H // 2, front)] = "Metal"                  # knobs
-    m.cells[((W - 1) // 2 + 1, H // 2, front)] = "Metal"
+    m.m((W - 1) // 2 - 1, H // 2, front, "Metal")                  # knobs
+    m.m((W - 1) // 2 + 1, H // 2, front, "Metal")
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -1103,9 +1234,9 @@ def gen_well():
             r = ((x - cx) ** 2 + (z - cz) ** 2) ** 0.5
             if 3.4 <= r <= 5.2:
                 for y in range(H):
-                    m.cells[(x, y, z)] = "Cobblestone"
+                    m.m(x, y, z, "Cobblestone")
             elif r < 3.4:
-                m.cells[(x, 0, z)] = "Stone"      # shaft bottom course (reads as a dark hole)
+                m.m(x, 0, z, "Stone")      # shaft bottom course (reads as a dark hole)
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -1136,7 +1267,7 @@ def gen_woodpile():
         for x in range(inset, W - inset):
             for z in range(D):
                 mat = "LogBirch" if (x * 7 + y * 3 + z) % 11 == 0 else "Log"
-                m.cells[(x, y, z)] = mat
+                m.m(x, y, z, mat)
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -1165,7 +1296,7 @@ def gen_garden_bed():
     m.fill(1, W - 2, 0, H - 2, 1, D - 2, "Dirt")                          # soil fill
     for x in range(2, W - 2, 4):                                          # planting rows
         for z in (2, D - 3):
-            m.cells[(x, H - 1, z)] = "Leaf"
+            m.m(x, H - 1, z, "Leaf")
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -1212,7 +1343,7 @@ def gen_market_stall():
         y = (POST_H - 1) - (z * (POST_H - FRONT_H)) // (D + OVER - 1)
         for x in range(-1, W + 1):
             mat = "Wool" if (x // 3) % 2 == 0 else "Linen"   # madder/ecru stripes along X
-            m.cells[(x, y, z)] = mat
+            m.m(x, y, z, mat)
     # one stock crate tucked under the counter (visual weight; goods themselves are item props)
     m.box_shell(4, 9, 0, 4, 2, D - 3, "Wood", faces=("x", "z", "ymax"))
     # normalize: shift so min corner is 0 (canopy used x=-1)
@@ -1303,7 +1434,12 @@ if __name__ == "__main__":
     import sys as _sys
     # A4 (2026-09-30): regenerate everything, or only the assets named on the command line
     # (stem after gen_): `python tools/regen_furniture.py chair bench_wood`.
-    _only = set(_sys.argv[1:])
+    _args = _sys.argv[1:]
+    if "--grid" in _args:
+        i = _args.index("--grid")
+        set_grid(int(_args[i + 1]))
+        del _args[i:i + 2]
+    _only = set(_args)
     def _run(fn):
         if not _only or fn.__name__[len("gen_"):] in _only:
             fn()

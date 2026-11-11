@@ -1,0 +1,35 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         barrel
+# display_name: Barrel (Cask)
+# description:  A wooden storage cask with iron hoops — ale/wine/stores.
+# category:     furniture
+# subcategory:  storage
+# tags:         barrel, cask, storage, tavern, cellar, common
+# materials:    Wood, Metal
+# facing:       +Z
+# bounds:       0.625W x 0.875H x 0.625D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 1 5 1 3 WoodWalnut
+B 1 0 0 3 1 1 WoodWalnut
+B 1 0 4 3 1 1 WoodWalnut
+B 0 1 1 1 1 3 Metal
+B 1 1 0 3 1 1 Metal
+B 1 1 1 3 6 3 WoodWalnut
+B 1 1 4 3 1 1 Metal
+B 4 1 1 1 1 3 Metal
+B 0 2 1 1 3 3 WoodWalnut
+B 1 2 0 3 3 1 WoodWalnut
+B 1 2 4 3 3 1 WoodWalnut
+B 4 2 1 1 3 3 WoodWalnut
+B 0 5 1 1 1 3 Metal
+B 1 5 0 3 1 1 Metal
+B 1 5 4 3 1 1 Metal
+B 4 5 1 1 1 3 Metal
+B 0 6 1 1 1 3 WoodWalnut
+B 1 6 0 3 1 1 WoodWalnut
+B 1 6 4 3 1 1 WoodWalnut
+B 4 6 1 1 1 3 WoodWalnut

@@ -1,0 +1,27 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         oven_bread
+# display_name: Bread Oven
+# description:  A stone masonry dome bread oven -- baking chamber of glowing coals, arched mouth, back flue.
+# category:     furniture
+# subcategory:  fixture
+# tags:         oven, bread, bakery, baker, bakehouse, fire, vented
+# materials:    Stone, glow
+# facing:       +Z (mouth opens to the room; flue / chimney breast to the wall, +z)
+# work_top:     0.778
+# bounds:       1.500W x 2.375H x 1.375D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+# interaction_point: work_0 work_surface 0.7780 0.7500 1.2220 0.0 *
+
+B 0 0 0 3 11 11 Stone
+B 3 0 0 9 6 11 Stone
+B 3 6 0 9 5 2 Stone
+B 3 6 2 7 1 7 glow
+B 3 6 9 1 5 2 Stone
+B 8 6 9 4 5 2 Stone
+B 10 6 2 2 5 7 Stone
+B 4 9 9 4 2 2 Stone
+B 3 10 2 7 1 7 Stone
+B 4 11 0 5 8 2 Stone

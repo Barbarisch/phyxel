@@ -1,0 +1,17 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         bottle
+# display_name: Bottle
+# description:  A glass bottle with a cork — table / back-bar clutter.
+# category:     furniture
+# subcategory:  tableware
+# tags:         bottle, glass, drink, tavern, clutter
+# materials:    Glass, Wood
+# facing:       +Z
+# bounds:       0.125W x 0.375H x 0.125D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 0 1 2 1 Glass
+V 0 2 0 WoodWalnut

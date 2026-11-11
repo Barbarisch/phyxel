@@ -1,0 +1,18 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         bellows
+# display_name: Bellows
+# description:  A great double-lung blacksmith's bellows -- wide chamber tapering to an iron nozzle.
+# category:     furniture
+# subcategory:  fixture
+# tags:         bellows, smithy, blacksmith, forge, air
+# materials:    Wood, Metal
+# facing:       +Z (nozzle to the front / the forge)
+# bounds:       0.375W x 0.375H x 1.500D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 7 3 3 5 WoodWalnut
+B 1 0 4 1 3 3 WoodWalnut
+B 1 1 0 1 1 4 Metal

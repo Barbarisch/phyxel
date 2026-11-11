@@ -1,0 +1,20 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         counter
+# display_name: Kitchen Counter
+# description:  A kitchen work surface / dresser board with a plank front and overhanging top.
+# category:     furniture
+# subcategory:  counter
+# tags:         counter, kitchen, work, dresser
+# materials:    Wood
+# facing:       +Z
+# bounds:       1.625W x 0.875H x 0.500D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 0 1 7 3 WoodWalnut
+B 1 0 2 11 7 1 WoodWalnut
+B 12 0 0 1 6 3 WoodWalnut
+B 0 6 3 12 1 1 WoodWalnut
+B 1 6 0 11 1 2 WoodWalnut

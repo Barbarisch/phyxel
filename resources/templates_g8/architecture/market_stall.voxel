@@ -1,0 +1,65 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         market_stall
+# display_name: Market Stall (Trestle Stall)
+# description:  An open trestle market stall — plank counter, post frame, striped cloth
+#               canopy. Counter ships empty; goods are stocked as item props.
+# category:     prop
+# subcategory:  square
+# tags:         market, stall, trestle, square, trade, settlement
+# materials:    Wood, WoodPlanks, Wool, Linen
+# facing:       +Z (customer side; rear rail at z=0)
+# bounds:       2.250W x 2.250H x 1.250D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 1 0 0 2 6 2 Wood
+B 1 0 6 2 6 2 Wood
+B 2 0 2 1 6 4 Wood
+B 5 0 2 1 5 4 Wood
+B 6 0 2 4 5 1 Wood
+B 6 0 5 4 5 1 Wood
+B 9 0 3 1 5 2 Wood
+B 15 0 0 1 6 8 Wood
+B 16 0 0 1 6 2 Wood
+B 16 0 6 1 6 2 Wood
+B 6 4 3 3 1 2 Wood
+B 1 6 0 16 1 8 WoodPlanks
+B 1 7 0 2 10 2 Wood
+B 1 7 6 2 8 2 Wood
+B 15 7 0 2 10 2 Wood
+B 15 7 6 2 8 2 Wood
+B 3 13 0 12 1 1 Wood
+V 0 14 9 Linen
+B 1 14 9 3 1 1 Wool
+B 4 14 9 2 1 1 Linen
+B 6 14 9 3 1 1 Wool
+B 9 14 9 3 1 1 Linen
+B 12 14 9 2 1 1 Wool
+B 14 14 9 3 1 1 Linen
+V 17 14 9 Wool
+B 0 15 6 1 1 3 Linen
+B 1 15 6 3 1 3 Wool
+B 4 15 6 2 1 3 Linen
+B 6 15 6 3 1 3 Wool
+B 9 15 6 3 1 3 Linen
+B 12 15 6 2 1 3 Wool
+B 14 15 6 3 1 3 Linen
+B 17 15 6 1 1 3 Wool
+B 0 16 4 1 1 2 Linen
+B 1 16 4 3 1 2 Wool
+B 4 16 4 2 1 2 Linen
+B 6 16 4 3 1 2 Wool
+B 9 16 4 3 1 2 Linen
+B 12 16 4 2 1 2 Wool
+B 14 16 4 3 1 2 Linen
+B 17 16 4 1 1 2 Wool
+B 0 17 0 1 1 4 Linen
+B 1 17 0 3 1 4 Wool
+B 4 17 0 2 1 4 Linen
+B 6 17 0 3 1 4 Wool
+B 9 17 0 3 1 4 Linen
+B 12 17 0 2 1 4 Wool
+B 14 17 0 3 1 4 Linen
+B 17 17 0 1 1 4 Wool

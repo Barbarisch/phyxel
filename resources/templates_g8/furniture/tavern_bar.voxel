@@ -1,0 +1,23 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         tavern_bar
+# display_name: Tavern Bar (Counter)
+# description:  A long wooden serving counter — toe-kick front, overhanging top, dark front rail.
+# category:     furniture
+# subcategory:  counter
+# tags:         bar, counter, tavern, inn, serving
+# materials:    Wood, Log
+# facing:       +Z (patron side; bartender works behind, +z)
+# bounds:       3.000W x 1.125H x 0.625D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 0 1 9 4 WoodWalnut
+B 1 0 0 23 1 1 WoodWalnut
+B 1 0 3 23 9 1 WoodWalnut
+B 23 0 1 1 9 2 WoodWalnut
+B 23 1 0 1 8 1 WoodWalnut
+B 0 7 4 24 1 1 Log
+B 0 8 4 24 1 1 WoodWalnut
+B 1 8 0 22 1 3 WoodWalnut

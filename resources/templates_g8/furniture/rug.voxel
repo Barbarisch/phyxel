@@ -1,0 +1,20 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         rug
+# display_name: Rug (Woven)
+# description:  A woven floor rug with a wool border — warmth underfoot for chamber and hall.
+# category:     furniture
+# subcategory:  furnishing
+# tags:         rug, carpet, floor, chamber, hall, middling
+# materials:    rug_oriental, Wool
+# facing:       +Z (long side to the viewer)
+# bounds:       2.000W x 0.125H x 1.500D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 0 1 1 12 Wool
+B 1 0 0 15 1 1 Wool
+B 1 0 1 14 1 10 rug_oriental
+B 1 0 11 15 1 1 Wool
+B 15 0 1 1 1 10 Wool

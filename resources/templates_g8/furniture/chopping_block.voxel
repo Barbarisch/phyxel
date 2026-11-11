@@ -1,0 +1,22 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         chopping_block
+# display_name: Chopping Block
+# description:  A heavy end-grain wooden butcher's chopping block on legs -- the cutting surface.
+# category:     furniture
+# subcategory:  fixture
+# tags:         butcher, block, chopping, shambles, meat
+# materials:    Log, Wood
+# facing:       +Z
+# work_top:     0.889
+# bounds:       0.625W x 0.875H x 0.625D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+# interaction_point: work_0 work_surface 0.2780 0.8750 0.2780 0.0 *
+
+B 0 0 0 1 4 1 WoodWalnut
+B 0 0 4 1 4 1 WoodWalnut
+B 4 0 0 1 4 1 WoodWalnut
+B 4 0 4 1 4 1 WoodWalnut
+B 0 4 0 4 3 4 Log

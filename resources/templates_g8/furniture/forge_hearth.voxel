@@ -1,0 +1,26 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         forge_hearth
+# display_name: Forge Hearth
+# description:  A stone blacksmith's forge -- firepot of glowing coals, tuyere, and a back chimney/hood.
+# category:     furniture
+# subcategory:  fixture
+# tags:         forge, hearth, smithy, blacksmith, fire, vented
+# materials:    Stone, Metal, glow
+# facing:       +Z (open working front to the room; chimney breast + flue to the wall, +z)
+# bounds:       1.000W x 2.000H x 0.750D m (1/8 m grid; authored in ninths, edges mapped to the nearest cell)
+# method:       tools/regen_furniture.py --grid 8 (deterministic, canon-proportioned)
+# ==========================================================
+
+B 0 0 0 3 6 6 Stone
+B 3 0 0 5 4 6 Stone
+B 3 4 0 1 12 2 Stone
+B 3 4 2 2 1 2 glow
+B 3 4 4 5 2 2 Stone
+B 4 4 0 1 12 1 Stone
+V 4 4 1 Metal
+B 5 4 0 3 2 4 Stone
+B 4 5 1 1 11 1 Stone
+B 1 6 0 2 2 2 Stone
+B 5 6 0 2 2 2 Stone

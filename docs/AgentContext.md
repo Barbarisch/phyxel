@@ -319,8 +319,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (forge_bush_round/leafy_s/leafy_m sized to the old 5 m leaf mounds; biomes swapped; eye-checked). GOTCHA: the
       MCP launch_asset_editor/launch_engine exit at once here (python312.dll not on PATH) and the MCP tools talk to
       8090; launch phyxel.exe yourself with the uv python dir on PATH and `--port 8120`, drive it with curl
-      (/api/camera takes {"position":{"x","y","z"},"yaw","pitch"}; yaw 180 looks -x). NEXT: hearth bodies +
-      furniture in metres; the other structure generators (StructureForge furnish, Tower/Fence/Street/Settlement);
+      (/api/camera takes {"position":{"x","y","z"},"yaw","pitch"}; yaw 180 looks -x). FC step 4 furniture DONE
+      2026-11-11: `regen_furniture.py --grid 8` (designs stay in ninths; box EDGES map to the nearest 1/8 m edge,
+      fills and holes keep >= 1 cell, anchors measured on the emitted cells) -> resources/templates_g8/{furniture,
+      architecture}; legacy = the unmodified generator's output (digest pinned, tools/test_regen_furniture_grid.py).
+      Losses where details are 1/9 apart (tool rack 4->3 tools, keg hoops, forge coals) need re-design in metres.
+      GOTCHA: the COMMITTED furniture library is NOT its generator's output (metrics schema v1 vs v2; 6 templates
+      lack the interaction_point header, e.g. table_wood's surface point) -- logged, not regenerated. Offline eye
+      check without the engine: an isometric PIL contact sheet (engine can't load grid 8). NEXT: gen_door/gen_items
+      (1/81 -> 1/64 m); hearth bodies + furniture placement in C++; the other structure generators (StructureForge furnish, Tower/Fence/Street/Settlement);
       a building into the storage lab area; F4 fracture reference.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
