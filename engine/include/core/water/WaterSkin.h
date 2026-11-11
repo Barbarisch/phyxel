@@ -27,11 +27,16 @@ constexpr int kSkinCellM = 4;            ///< the summary's cell (m): divides th
 constexpr int kSkinCellsPerChunk = 8;    ///< 32 / 4
 
 /// One summary cell: `wet` = its wet world columns (a 4 m cell holds 16; an aggregate up to its area), the highest run top and
-/// the lowest run bottom over them (+-1e30 when dry).
+/// the lowest run bottom over them (+-1e30 when dry), and the rectangle they span. A drawn cell covers that rectangle only, and is
+/// drawn when at least half the rectangle is wet: a straight shore lies exactly on the shore at any cell size; two waters far apart
+/// in one coarse cell (a sparse rectangle) are not joined into one sheet.
 struct SkinCell {
     int wet = 0;
     float top = -1e30f, bottom = 1e30f;
-    bool operator==(const SkinCell& o) const { return wet == o.wet && top == o.top && bottom == o.bottom; }
+    int x0 = 0, z0 = 0, x1 = -1, z1 = -1;   ///< the wet columns' extent (world columns, inclusive; x1 < x0 when dry)
+    bool operator==(const SkinCell& o) const {
+        return wet == o.wet && top == o.top && bottom == o.bottom && (wet == 0 || (x0 == o.x0 && z0 == o.z0 && x1 == o.x1 && z1 == o.z1));
+    }
 };
 
 /// Adds the runs' columns into 4 m cells keyed by world cell index (floor division). A column is wet when one of its runs is at
@@ -47,6 +52,7 @@ public:
         int ringCells = 64;           ///< N: cells per side of a level (a multiple of 4, so each level sits on the next one's lattice)
         int summariesPerCall = 32;    ///< chunk columns summarized per call, nearest first (bounds a frame; late, never blank)
     };
+    static inline bool s_wholeCellsForTest = false;   ///< TEST ONLY: the red control - a cell drawn whole when half its AREA is wet
     struct Stats {
         int levels = 0, fields = 0, wetCells = 0, ringCells = 0;
         int summaries = 0, summariesBuiltLastCall = 0, pending = 0, fieldsRebuiltLastCall = 0;

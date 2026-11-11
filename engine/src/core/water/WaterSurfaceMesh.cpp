@@ -139,7 +139,12 @@ void buildWaterSurfaceMeshRect(const WaterSurfaceField& f, int rx0, int rz0, int
         for (int x = std::max(rx0, 0); x < std::min(rx1, f.nx); ++x) {
             const SurfaceColumn& c = f.at(x, z);
             const int n = runCount(c);
-            const float x0 = ox + x * h, x1 = x0 + h, z0 = oz + z * h, z1 = z0 + h;
+            float x0 = ox + x * h, x1 = x0 + h, z0 = oz + z * h, z1 = z0 + h;
+            if (f.insetCols) {   // 51.4 S3: the skin's cell drawn over its wet extent only
+                float a, b;
+                skinInsetDecode(c.pad1, a, b); x1 = x0 + b * h; x0 += a * h;
+                skinInsetDecode(c.pad2, a, b); z1 = z0 + b * h; z0 += a * h;
+            }
             for (int r = 0; r < n; ++r) {
                 const float lo = c.bottom[r], hi = c.top[r] + h;   // a neighbour's run within one cell above still shares the surface
                 const float top = c.top[r];
@@ -286,7 +291,7 @@ void WaterSurfaceTiler::update(const std::vector<const WaterSurfaceField*>& fiel
             SurfaceTile& t = m_tiles[key];
             t.seen = true;
             const size_t w = static_cast<size_t>(sx1 - sx0);
-            const bool header = t.generation != 0 && t.origin == f.origin && t.nx == f.nx && t.nz == f.nz && t.h == f.h && t.rippleLayer == f.rippleLayer && sameLook(t.look, f.look)
+            const bool header = t.generation != 0 && t.insetCols == f.insetCols && t.origin == f.origin && t.nx == f.nx && t.nz == f.nz && t.h == f.h && t.rippleLayer == f.rippleLayer && sameLook(t.look, f.look)
                                 && t.rx0 == sx0 && t.rz0 == sz0 && t.rx1 == sx1 && t.rz1 == sz1 && t.input.size() == w * static_cast<size_t>(sz1 - sz0);
             bool same = header;
             for (int z = sz0; z < sz1 && same; ++z)
@@ -303,6 +308,7 @@ void WaterSurfaceTiler::update(const std::vector<const WaterSurfaceField*>& fiel
                     const SurfaceColumn& a = t.input[static_cast<size_t>(z - sz0) * w + (x - sx0)];
                     const SurfaceColumn& b = f.at(x, z);
                     if (a.runs != b.runs) runs = true;
+                    if (a.pad1 != b.pad1 || a.pad2 != b.pad2) runs = true;   // 51.4: a skin cell's extent (never kept on a tolerance)
                     for (int r = 0; r < kSurfaceMaxRuns; ++r) dH = std::max(dH, std::max(std::abs(a.top[r] - b.top[r]), std::abs(a.bottom[r] - b.bottom[r])));
                     if (a.solidTopY != b.solidTopY) dH = std::max(dH, std::abs(a.solidTopY - b.solidTopY));
                     dF = std::max(dF, std::max(std::abs(a.u - b.u), std::abs(a.w - b.w)));
@@ -319,7 +325,7 @@ void WaterSurfaceTiler::update(const std::vector<const WaterSurfaceField*>& fiel
                     ++m_stats.heightBins[dH < 1e-5f ? 0 : dH < 1e-4f ? 1 : dH < 1e-3f ? 2 : dH < 1e-2f ? 3 : 4];
                 }
             }
-            t.origin = f.origin; t.nx = f.nx; t.nz = f.nz; t.h = f.h; t.rippleLayer = f.rippleLayer; t.look = f.look;
+            t.origin = f.origin; t.nx = f.nx; t.nz = f.nz; t.h = f.h; t.rippleLayer = f.rippleLayer; t.look = f.look; t.insetCols = f.insetCols;
             t.rx0 = sx0; t.rz0 = sz0; t.rx1 = sx1; t.rz1 = sz1;
             ++t.generation;
             ++m_stats.rebuilt;

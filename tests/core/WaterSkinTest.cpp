@@ -9,6 +9,10 @@
 //   - TheSkinCostsTheSameForAnyFarLake: a 3 km and an 8 km lake (both past far_m in every lake direction), the view the same
 //     distance off the south shore: skin columns within 1.1x; a still camera rebuilds nothing.
 //   - Controls: a dry world draws 0 skin columns; a lake entirely within drawM draws 0 skin columns.
+//   - TheCoarseShoreStaysOnTheShore: the bench's 150 m lake (straight shores NOT on any cell lattice: x 4..153, z 2..151), the
+//     view where the clip's wide pose is: every 1 m point within 30 m of the lake - 0 points of the lake undrawn, 0 points off it
+//     drawn by the skin. Red control (s_wholeCellsForTest, the first build's rule: a cell drawn whole when half its area is wet):
+//     points off the lake drawn (the live still showed water over the kerb). A round lake (r 70 m): its overhang and holes printed.
 //   - TheSummaryIsTheSamePerChunkAndWhole (equality (i)): an irregular lake across chunk seams, summarized by the manager chunk
 //     column by chunk column vs one whole-region pass - every 4 m cell identical.
 #include <gtest/gtest.h>
@@ -232,4 +236,46 @@ TEST(WaterSkinTest, TheSummaryIsTheSamePerChunkAndWhole) {
     EXPECT_GT(cells, 300);
     EXPECT_EQ(differ, 0);
     EXPECT_EQ(missing, 0);
+}
+
+TEST(WaterSkinTest, TheCoarseShoreStaysOnTheShore) {
+    SkinSettingsGuard guard;
+    struct WholeGuard { ~WholeGuard() { WaterSkin::s_wholeCellsForTest = false; } } whole;
+    WaterCoreManager::s_locality.drawM = 48.0f;
+    WaterCoreManager::s_recordDraw.on = true;
+    WaterCoreManager::s_skin.on = true;
+    struct Count { int lake = 0, holes = 0, off = 0, overhang = 0; float worstM = 0.0f; };
+    auto run = [&](std::function<bool(int, int)> wet, std::function<float(float, float)> distOut, bool wholeCells) {
+        WaterSkin::s_wholeCellsForTest = wholeCells;
+        WaterCoreManager mgr(ground);
+        AnalyticRecord rec; rec.wet = wet; rec.install(mgr);
+        mgr.setViewPoint(glm::vec3(79.0f, 6.0f, 172.0f));   // the clip's wide pose, over the water's height band
+        settle(mgr);
+        Count c;
+        for (int z = -30; z < 182; ++z) for (int x = -30; x < 184; ++x) {
+            const float px = x + 0.5f, pz = z + 0.5f;
+            float t = 0.0f; bool recd = false; int claims = 0;
+            const bool r = mgr.drawnAtWorld(px, pz, t, recd), sk = mgr.skinDrawnAtWorld(px, pz, t, &claims);
+            if (wet(x, z)) { ++c.lake; if (!r && !sk) ++c.holes; }
+            else { ++c.off; if (sk) { ++c.overhang; c.worstM = std::max(c.worstM, distOut(px, pz)); } }
+        }
+        return c;
+    };
+    auto square = [](int x, int z) { return x >= 4 && x < 154 && z >= 2 && z < 152; };
+    auto squareOut = [](float x, float z) { return std::max({4.0f - x, x - 154.0f, 2.0f - z, z - 152.0f, 0.0f}); };
+    const Count red = run(square, squareOut, true), sq = run(square, squareOut, false);
+    std::printf("[skin] straight shores, whole cells (red control): %d lake points, %d holes; %d off-lake points drawn, worst %.1f m out\n",
+                red.lake, red.holes, red.overhang, red.worstM);
+    std::printf("[skin] straight shores, wet rectangle:             %d lake points, %d holes; %d off-lake points drawn, worst %.1f m out\n",
+                sq.lake, sq.holes, sq.overhang, sq.worstM);
+    EXPECT_GT(red.overhang, 0);   // the control measures the defect
+    EXPECT_EQ(sq.overhang, 0);
+    EXPECT_EQ(sq.holes, 0);
+    auto round = [](int x, int z) { const float dx = x + 0.5f - 79.0f, dz = z + 0.5f - 77.0f; return dx * dx + dz * dz < 70.0f * 70.0f; };
+    auto roundOut = [](float x, float z) { return std::max(0.0f, std::sqrt((x - 79.0f) * (x - 79.0f) + (z - 77.0f) * (z - 77.0f)) - 70.0f); };
+    const Count rd = run(round, roundOut, false), rdWhole = run(round, roundOut, true);
+    std::printf("[skin] round lake r 70, wet rectangle: %d lake points, %d holes (%.2f %%); %d off-lake points drawn (%.2f %% of the lake), worst %.1f m out\n",
+                rd.lake, rd.holes, 100.0 * rd.holes / rd.lake, rd.overhang, 100.0 * rd.overhang / rd.lake, rd.worstM);
+    std::printf("[skin] round lake r 70, whole cells:   %d lake points, %d holes (%.2f %%); %d off-lake points drawn (%.2f %% of the lake), worst %.1f m out\n",
+                rdWhole.lake, rdWhole.holes, 100.0 * rdWhole.holes / rdWhole.lake, rdWhole.overhang, 100.0 * rdWhole.overhang / rdWhole.lake, rdWhole.worstM);
 }

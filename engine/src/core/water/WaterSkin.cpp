@@ -26,13 +26,17 @@ bool columnWater(const ColumnRuns& c, float& top, float& bottom) {
     return wet;
 }
 
-void addColumn(SkinCell& cell, float top, float bottom) {
+void addColumn(SkinCell& cell, int x, int z, float top, float bottom) {
+    if (cell.wet == 0) { cell.x0 = cell.x1 = x; cell.z0 = cell.z1 = z; }
+    else { cell.x0 = std::min(cell.x0, x); cell.x1 = std::max(cell.x1, x); cell.z0 = std::min(cell.z0, z); cell.z1 = std::max(cell.z1, z); }
     ++cell.wet; cell.top = std::max(cell.top, top); cell.bottom = std::min(cell.bottom, bottom);
 }
 
 void merge(SkinCell& into, const SkinCell& c) {
-    into.wet += c.wet;
-    if (c.wet > 0) { into.top = std::max(into.top, c.top); into.bottom = std::min(into.bottom, c.bottom); }
+    if (c.wet <= 0) return;
+    if (into.wet == 0) { into.x0 = c.x0; into.x1 = c.x1; into.z0 = c.z0; into.z1 = c.z1; }
+    else { into.x0 = std::min(into.x0, c.x0); into.x1 = std::max(into.x1, c.x1); into.z0 = std::min(into.z0, c.z0); into.z1 = std::max(into.z1, c.z1); }
+    into.wet += c.wet; into.top = std::max(into.top, c.top); into.bottom = std::min(into.bottom, c.bottom);
 }
 
 }  // namespace
@@ -41,7 +45,7 @@ void summarizeSkinCells(const std::vector<ColumnRuns>& runs, std::map<std::pair<
     for (const ColumnRuns& c : runs) {
         float top, bottom;
         if (!columnWater(c, top, bottom)) continue;
-        addColumn(out[{static_cast<int>(floorDivL(c.x, kSkinCellM)), static_cast<int>(floorDivL(c.z, kSkinCellM))}], top, bottom);
+        addColumn(out[{static_cast<int>(floorDivL(c.x, kSkinCellM)), static_cast<int>(floorDivL(c.z, kSkinCellM))}], c.x, c.z, top, bottom);
     }
 }
 
@@ -58,7 +62,7 @@ void WaterSkin::buildSummary(int ccx, int ccz, Summary& s, const Reader& reader)
         if (lx < 0 || lz < 0 || lx >= 32 || lz >= 32) continue;   // a reader that answers outside the box: not this column's
         float top, bottom;
         if (!columnWater(c, top, bottom)) continue;
-        addColumn(cells[(lx / kSkinCellM) + kSkinCellsPerChunk * (lz / kSkinCellM)], top, bottom);
+        addColumn(cells[(lx / kSkinCellM) + kSkinCellsPerChunk * (lz / kSkinCellM)], c.x, c.z, top, bottom);
     }
     // the 8, 16 and 32 m aggregates (a parent = its four children)
     for (int p = 1; p < 4; ++p) {
@@ -258,7 +262,9 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                 SurfaceColumn& c = cols[static_cast<size_t>(i) + static_cast<size_t>(kSurfaceTileCols) * j];
                 SkinCell a;
                 const bool known = aggregate(k, sz, gx, gz, a);
-                const bool wet = known && a.wet > 0 && 2 * static_cast<long>(a.wet) >= static_cast<long>(sz) * sz;
+                // wet: at least half the wet columns' rectangle is wet (the red control: half the cell's area)
+                const long rect = a.wet > 0 ? static_cast<long>(a.x1 - a.x0 + 1) * (a.z1 - a.z0 + 1) : 0;
+                const bool wet = known && a.wet > 0 && 2 * static_cast<long>(a.wet) >= (s_wholeCellsForTest ? static_cast<long>(sz) * sz : rect);
                 const float cxw = (static_cast<float>(gx) + 0.5f) * szf, czw = (static_cast<float>(gz) + 0.5f) * szf;
                 bool drawn = gx >= gx0 && gx < gx0 + n && gz >= gz0 && gz < gz0 + n;
                 if (drawn && k > 0 && gx >= hx0 && gx < hx0 + hn && gz >= hz0 && gz < hz0 + hn) drawn = false;   // the finer level draws it
@@ -273,6 +279,11 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                 }
                 if (!wet) { c.runs = 0.0f; c.solidTopY = 1e30f; continue; }   // dry: no lateral face (a coarse shore is a flat edge)
                 c.runs = 1.0f; c.top[0] = a.top; c.bottom[0] = a.bottom; c.solidTopY = a.bottom;
+                if (!s_wholeCellsForTest) {   // the quad over the wet columns' rectangle only
+                    const float wx0 = static_cast<float>(gx) * szf, wz0 = static_cast<float>(gz) * szf;
+                    c.pad1 = skinInsetEncode((static_cast<float>(a.x0) - wx0) / szf, (static_cast<float>(a.x1 + 1) - wx0) / szf);
+                    c.pad2 = skinInsetEncode((static_cast<float>(a.z0) - wz0) / szf, (static_cast<float>(a.z1 + 1) - wz0) / szf);
+                }
                 wetAny = true;
                 if (!lookSet && in.look) { look = in.look(static_cast<int>(std::floor(cxw)), static_cast<int>(std::floor(czw)), a.top); lookSet = true; }
             }
@@ -285,7 +296,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
             e.wetAny = wetAny;
             if (same) continue;
             f.origin = origin; f.nx = f.nz = kSurfaceTileCols; f.h = szf; f.cols = std::move(cols); f.look = look;
-            f.rippleLayer = -1; f.gpuDrawn = false;
+            f.rippleLayer = -1; f.gpuDrawn = false; f.insetCols = true;
             f.source = kSourceBit | (k << 26) | ((static_cast<int>(tx) & 0x1FFF) << 13) | (static_cast<int>(tz) & 0x1FFF);
             f.version = ++m_fieldVersion;
             ++m_stats.fieldsRebuiltLastCall;
@@ -316,6 +327,12 @@ bool WaterSkin::drawnAt(float x, float z, float& top, int* claims) const {
         if (cx < 0 || cz < 0 || cx >= f.nx || cz >= f.nz) continue;
         const SurfaceColumn& c = f.at(cx, cz);
         if (c.runs < 0.5f) continue;
+        if (f.insetCols) {   // the covered rectangle only
+            float a, b;
+            const float fx = x / f.h - std::floor(x / f.h), fz = z / f.h - std::floor(z / f.h);
+            skinInsetDecode(c.pad1, a, b); if (fx < a || fx >= b) continue;
+            skinInsetDecode(c.pad2, a, b); if (fz < a || fz >= b) continue;
+        }
         any = true; ++n; top = std::max(top, c.top[0]);
     }
     if (claims) *claims = n;

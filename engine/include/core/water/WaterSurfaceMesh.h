@@ -58,6 +58,16 @@ struct SurfaceColumn {
 };
 static_assert(sizeof(SurfaceColumn) == 64, "wc_surface.comp writes 16 floats per column");
 
+/// 51.4 S3: a cell's covered part along one axis, [a, b] in 0..1 of the cell, as one float (exact: integers below 2^24); 0 = all
+inline float skinInsetEncode(float a, float b) {
+    const int qa = static_cast<int>(a * 1000.0f + 0.5f), qb = static_cast<int>(b * 1000.0f + 0.5f);
+    return static_cast<float>(std::clamp(qa, 0, 1000) * 1024 + (1000 - std::clamp(qb, 0, 1000)));
+}
+inline void skinInsetDecode(float v, float& a, float& b) {
+    const int q = static_cast<int>(v + 0.5f);
+    a = static_cast<float>(q / 1024) / 1000.0f; b = static_cast<float>(1000 - q % 1024) / 1000.0f;
+}
+
 struct WaterSurfaceField {
     glm::ivec3 origin{0};     ///< grid origin in cells (world = origin * h)
     int   nx = 0, nz = 0;
@@ -68,6 +78,9 @@ struct WaterSurfaceField {
     int source = 0;                    ///< 26.30: who made it (a volume's id; 0 = unknown) - the tiler's key for its tiles
     uint64_t version = 0;              ///< 26.30: the producer's step counter; same source + version = same columns (0 = unknown: compared)
     bool gpuDrawn = false;             ///< 29 S1: the device draws this field (WaterCoreManager::gpuSurfaceDraws) - the host's tiler skips it
+    /// 51.4 S3: each column's pad1 / pad2 carry the part of the cell its top quad covers, in x and in z (skinInsetEncode): the far
+    /// skin's coarse cells drawn over their wet columns' extent only, so a straight shore stays on the shore at any cell size
+    bool insetCols = false;
     const SurfaceColumn& at(int x, int z) const { return cols[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]; }
 };
 
@@ -126,7 +139,7 @@ struct SurfaceTile {
     glm::vec3 lo{0.0f}, hi{0.0f};          ///< world bounds of its vertices (empty mesh: lo > hi)
     uint64_t generation = 0;               ///< bumped on every rebuild - the renderer re-uploads when it changes
     // what it was built from
-    glm::ivec3 origin{0}; int nx = 0, nz = 0; float h = 0.0f; int rippleLayer = -1; WaterLookPacked look;
+    glm::ivec3 origin{0}; int nx = 0, nz = 0; float h = 0.0f; int rippleLayer = -1; WaterLookPacked look; bool insetCols = false;
     int rx0 = 0, rz0 = 0, rx1 = 0, rz1 = 0;   ///< the snapshot rect (its columns + the ring, clipped to the field)
     std::vector<SurfaceColumn> input;
     bool seen = false;
