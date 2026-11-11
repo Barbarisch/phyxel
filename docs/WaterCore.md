@@ -13108,6 +13108,16 @@ showed or hid the 4 m rectangle's overhang beyond the record's exact shore - the
 - Cost: the 3 km lake test moving 0.5 m a call - the skin call 0.176 -> 0.243 ms mean, 4.8 -> 5.2 ms worst (a level rebuild).
   Quads: a shore cell up to 8 instead of 1 (interior cells unchanged). Not measured: live (the record / skin swap in a real frame,
   the GPU cost of the extra shore quads) - the next live run.
+- **Live (2026-11-11, WaterBench_Creek, Release, the 51.5 + 51.6 build; another checkout's Debug asset editor was running on 8120,
+  GPU 9 % before the run):** the skin booted ON with no call (`water_av_skin` echo `"on": true`, `mask_tiles` 137,
+  `record_pending` 0). The fly-out (`tools/water_skin_flyout.py --tag s4_flyout`, out to ~480 m and back, off | on side by side,
+  `s4_flyout.mp4`): the lake whole at every distance with the skin, no seam visible at 86 m, the water inside the kerb; frame rate
+  median 523 / 537 fps off / on, the dips (35-118 fps) at the near end in BOTH takes (record tiles building), the skin's call at most
+  2.16 ms. At rest (`water_skin_live.py --tag s4_live`, the wide pose): off 688 fps, CPU 1.49 ms, GPU 0.78 ms; on 690 fps, CPU
+  1.49 ms, GPU 0.91 ms (+0.12 ms, as at S3). After a splash with the skin on: CPU 7.35 ms mean, worst frame 109 ms (65 ms at S3) -
+  the woken patch's update (water host 2.58 ms / frame, update 7.95 ms), the skin's call at most 3.96 ms; the splash was not run
+  with the skin off, so whether 109 vs 65 ms is noise or a change is NOT known. Not measured live: the hole count (a round shore; the
+  bench's lake is square, where the sub-cells change nothing).
 - What is left of S4: the level steps' shore swaps (~1,000 px over a 35 s flight, worst frame 64 px - an 8 x 8 px patch at 1080p)
   and the record's own swaps in motion (a woken patch). Whether the remainder needs a fade is the owner's look call on the clip.
 
