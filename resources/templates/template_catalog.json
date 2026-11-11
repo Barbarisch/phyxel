@@ -2237,6 +2237,44 @@
     "subcubes": 356,
     "total": 1490
   },
+  "forge_bush_leafy_m": {
+    "category": "nature",
+    "cubes": 0,
+    "dims_units": [
+      6.0,
+      5.0,
+      7.0
+    ],
+    "file": "nature/forge_bush_leafy_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 4545,
+    "resolution_class": "microcube",
+    "subcubes": 1161,
+    "total": 5706
+  },
+  "forge_bush_leafy_s": {
+    "category": "nature",
+    "cubes": 0,
+    "dims_units": [
+      7.0,
+      4.0,
+      6.0
+    ],
+    "file": "nature/forge_bush_leafy_s.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 2781,
+    "resolution_class": "microcube",
+    "subcubes": 810,
+    "total": 3591
+  },
   "forge_bush_m": {
     "category": "nature",
     "cubes": 0,
@@ -2255,6 +2293,25 @@
     "resolution_class": "microcube",
     "subcubes": 625,
     "total": 2515
+  },
+  "forge_bush_round": {
+    "category": "nature",
+    "cubes": 0,
+    "dims_units": [
+      6.0,
+      4.0,
+      6.0
+    ],
+    "file": "nature/forge_bush_round.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 3024,
+    "resolution_class": "microcube",
+    "subcubes": 799,
+    "total": 3823
   },
   "forge_bush_s": {
     "category": "nature",

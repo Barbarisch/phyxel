@@ -632,6 +632,16 @@ content, 64 for items. The live loader accepts only 27/81 today; the lab reads g
      (`RealizedStructureValidator`, `BuildingProgramValidator`) and `deriveLocations`.
 4. **Re-express the authored-integer Python generators** (furniture, items, doors) in metres.
 5. **Retire** `gen_tree.py` (bush presets in tree_forge) and port tree_forge to C++ for procedural flora.
+   **Bushes done 2026-11-11.** Finding: gen_tree's "height 2" bushes are not 2 m: `bush_round` is 5.3 x 3.3 x 4.3 m
+   (27 m³ leaf, no wood), `bush_leafy_s` 5.0 x 3.3 x 5.7 (32 m³), `bush_leafy_m` 5.0 x 4.3 x 5.7 (50 m³). Replaced by
+   `forge_bush_round` / `_leafy_s` / `_leafy_m` (tree_forge `bush` preset, `canopy_r` 2.5-2.8 m) sized to them:
+   5.3 x 3.3 x 5.3 (32 m³), 6.0 x 3.3 x 5.7 (32 m³), 5.7 x 4.3 x 6.3 (47 m³), baked on both grids; all 16 biome
+   references swapped. Eye check: asset editor (port 8120), old vs new at the same pose, same size and read; the
+   forge versions are lumpier and leafy_m shows a short trunk stub (owner review welcome). No live biome references
+   gen_tree output any more; the remaining non-forge live flora (`fern`, `shrub_flat`, `shrub_round`,
+   `bush_flower`, `tree_apple`) is hand-made/imported (step 7). Flora cost re-measured with the bushes on the grid:
+   forests 3.90 and 3.95 MB per chunk footprint (+3 %), 6.05-6.13 detailed blocks per column; only `fern` still
+   missing there.
 6. **Terrain:** creek beds and the bridge parapet follow `bedHeight` at 1/8 m.
 7. **Hand-made templates:** later, by resampling (volume per material within one voxel) or re-authoring, reviewed
    by eye.

@@ -564,6 +564,7 @@ def main(argv=None):
         with open(args.batch, encoding="utf-8") as f:
             entries = json.load(f)
         for e in entries:
+            e = {k: v for k, v in e.items() if not k.startswith("_")}   # "_comment" etc. are notes
             if args.grid != MICRO_PER_CUBE:
                 e = dict(e, grid=args.grid)
             print(bake(outdir=args.outdir, **e))

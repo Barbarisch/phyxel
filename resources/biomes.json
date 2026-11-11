@@ -78,11 +78,11 @@
           "spacing": 4,
           "items": [
             {
-              "template": "bush_round",
+              "template": "forge_bush_round",
               "weight": 2
             },
             {
-              "template": "bush_leafy_s",
+              "template": "forge_bush_leafy_s",
               "weight": 2
             },
             {
@@ -216,11 +216,11 @@
               "weight": 3
             },
             {
-              "template": "bush_round",
+              "template": "forge_bush_round",
               "weight": 2
             },
             {
-              "template": "bush_leafy_s",
+              "template": "forge_bush_leafy_s",
               "weight": 2
             }
           ]
@@ -306,11 +306,11 @@
               "weight": 4
             },
             {
-              "template": "bush_leafy_m",
+              "template": "forge_bush_leafy_m",
               "weight": 3
             },
             {
-              "template": "bush_leafy_s",
+              "template": "forge_bush_leafy_s",
               "weight": 3
             },
             {
@@ -322,7 +322,7 @@
               "weight": 2
             },
             {
-              "template": "bush_round",
+              "template": "forge_bush_round",
               "weight": 2
             },
             {
@@ -406,11 +406,11 @@
               "weight": 2
             },
             {
-              "template": "bush_round",
+              "template": "forge_bush_round",
               "weight": 2
             },
             {
-              "template": "bush_leafy_s",
+              "template": "forge_bush_leafy_s",
               "weight": 2
             },
             {
@@ -485,15 +485,15 @@
             "weight": 2
           },
           {
-            "template": "bush_leafy_m",
+            "template": "forge_bush_leafy_m",
             "weight": 1
           },
           {
-            "template": "bush_leafy_s",
+            "template": "forge_bush_leafy_s",
             "weight": 1
           },
           {
-            "template": "bush_round",
+            "template": "forge_bush_round",
             "weight": 1
           }
         ]
@@ -575,7 +575,7 @@
               "weight": 4
             },
             {
-              "template": "bush_leafy_m",
+              "template": "forge_bush_leafy_m",
               "weight": 3
             },
             {
@@ -583,11 +583,11 @@
               "weight": 2
             },
             {
-              "template": "bush_leafy_s",
+              "template": "forge_bush_leafy_s",
               "weight": 2
             },
             {
-              "template": "bush_round",
+              "template": "forge_bush_round",
               "weight": 1
             }
           ]
@@ -660,7 +660,7 @@
               "weight": 2
             },
             {
-              "template": "bush_round",
+              "template": "forge_bush_round",
               "weight": 1
             }
           ]

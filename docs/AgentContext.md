@@ -315,7 +315,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       3/8 m, riser 2/8, agent 15/8 m, guard 8/8) + `realizeShell(program, style, grid)`: legacy byte-identical (20
       ForgeParityDigests + 4 canvas digests unchanged); on 1/8 m the 20-case BuildingHarness gives the SAME verdict
       per case (17 pass, 3 BAD fail their layer) and Roof/Trim/WindowInfill suites run on BOTH grids (38 green).
-      1/8 m canvas refuses C/S/M export and refuses hearths (bodies authored in ninths). NEXT: hearth bodies +
+      1/8 m canvas refuses C/S/M export and refuses hearths (bodies authored in ninths). gen_tree bushes RETIRED
+      (forge_bush_round/leafy_s/leafy_m sized to the old 5 m leaf mounds; biomes swapped; eye-checked). GOTCHA: the
+      MCP launch_asset_editor/launch_engine exit at once here (python312.dll not on PATH) and the MCP tools talk to
+      8090; launch phyxel.exe yourself with the uv python dir on PATH and `--port 8120`, drive it with curl
+      (/api/camera takes {"position":{"x","y","z"},"yaw","pitch"}; yaw 180 looks -x). NEXT: hearth bodies +
       furniture in metres; the other structure generators (StructureForge furnish, Tower/Fence/Street/Settlement);
       a building into the storage lab area; F4 fracture reference.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
