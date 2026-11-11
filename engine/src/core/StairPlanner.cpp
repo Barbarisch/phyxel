@@ -15,13 +15,14 @@ std::string stairFormToString(StairForm f) {
 
 namespace {
 
-constexpr int MIN_TREAD     = 2;   ///< micro (~0.22 m): shallowest usable tread depth
-constexpr int COMFORT_RISER = 2;   ///< micro (~0.22 m): IRC-ish comfortable riser target
+// MIN_TREAD (shallowest usable tread) and COMFORT_RISER (IRC-ish comfortable riser) come from the grid:
+// 2 cells on both grids (0.222 m legacy, 0.25 m on 1/8 m) — StructureGrid::minTread/comfortRiser.
 
 // Fit a flight rising H micro into runMicro of available run, keeping riser ≤ maxStep.
 // Prefers the comfort riser, only steepening (more rise per tread, fewer treads) when
 // run is tight. Returns false when even the steepest compliant flight won't fit.
-bool fitFlight(int H, int runMicro, int maxStep, int& treads, int& T, int& R) {
+bool fitFlight(int H, int runMicro, int maxStep, int& treads, int& T, int& R, const StructureGrid& g) {
+    const int MIN_TREAD = g.minTread(), COMFORT_RISER = g.comfortRiser();
     if (H <= 0) { treads = 0; T = 0; R = 0; return true; }
     if (runMicro < MIN_TREAD || maxStep < 1) return false;
     const int treadsMin = (H + maxStep - 1) / maxStep;   // fewest treads to keep riser ≤ maxStep
@@ -39,7 +40,7 @@ bool fitFlight(int H, int runMicro, int maxStep, int& treads, int& T, int& R) {
 // (≤ the step-up — e.g. the emergence tread sitting AT floor level) or gets a
 // kGuardHeightMicro curb standing on the floor surface. Computed from the planned
 // solids, so any form — and any future form — is covered by construction.
-void emitPerimeterGuards(StairPlan& p, int WM, int DM, int riseMicro, int maxStepMicro) {
+void emitPerimeterGuards(StairPlan& p, int WM, int DM, int riseMicro, int maxStepMicro, int guardH) {
     auto topSolidAt = [&](int x, int z) {
         int top = 0;                       // no solid below -> the lower floor at y=0
         for (const auto& s : p.solids)
@@ -49,7 +50,7 @@ void emitPerimeterGuards(StairPlan& p, int WM, int DM, int riseMicro, int maxSte
     };
     auto curb = [&](int x, int z) {
         if (riseMicro - topSolidAt(x, z) <= maxStepMicro) return;   // safe landing/tread
-        p.guards.push_back({x, riseMicro, z, 1, kGuardHeightMicro, 1});
+        p.guards.push_back({x, riseMicro, z, 1, guardH, 1});
     };
     for (int x = 0; x < WM; ++x) { curb(x, 0); if (DM > 1) curb(x, DM - 1); }
     for (int z = 1; z < DM - 1; ++z) { curb(0, z); if (WM > 1) curb(WM - 1, z); }
@@ -57,26 +58,28 @@ void emitPerimeterGuards(StairPlan& p, int WM, int DM, int riseMicro, int maxSte
 
 }  // namespace
 
-StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int maxStepMicro) {
+StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int maxStepMicro,
+                    const StructureGrid& g) {
+    const int M = g.perM;
     StairPlan p;
     if (wellW < 1 || wellD < 1 || riseMicro <= 0) { p.error = "degenerate well/rise"; return p; }
 
-    const int WM = wellW * 9, DM = wellD * 9;
+    const int WM = wellW * M, DM = wellD * M;
 
     if (form == StairForm::Switchback) {
         if (wellW < 2) { p.error = "switchback needs well width ≥ 2 (two lanes)"; return p; }
         const int laneW = WM / 2;                     // lane A = [0,laneW), lane B = [laneW,WM)
-        const int Ld    = std::min(9, DM / 3);        // mid-landing depth (≤ 1 cube)
+        const int Ld    = std::min(M, DM / 3);        // mid-landing depth (≤ 1 cube)
         const int runM  = DM - Ld;                    // run available to each half-flight
         const int h1 = riseMicro / 2, h2 = riseMicro - h1;
 
         int t1, T1, R1;
-        if (!fitFlight(h1, runM, maxStepMicro, t1, T1, R1)) {
+        if (!fitFlight(h1, runM, maxStepMicro, t1, T1, R1, g)) {
             p.error = "lower flight does not fit walkably in well"; return p;
         }
         const int runUsed = t1 * T1;                  // align both flights + landing to this run
         int t2, T2, R2;
-        if (!fitFlight(h2, runUsed, maxStepMicro, t2, T2, R2)) {
+        if (!fitFlight(h2, runUsed, maxStepMicro, t2, T2, R2, g)) {
             p.error = "upper flight does not fit walkably in well"; return p;
         }
 
@@ -105,7 +108,7 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
         p.topMicro = riseMicro;
         p.holeX = 0; p.holeZ = 0; p.holeW = WM; p.holeD = DM;   // the shaft opening
         p.ok = (p.maxRiserMicro <= maxStepMicro);
-        if (p.ok) emitPerimeterGuards(p, WM, DM, riseMicro, maxStepMicro);
+        if (p.ok) emitPerimeterGuards(p, WM, DM, riseMicro, maxStepMicro, g.guardHeight());
         return p;
     }
 
@@ -114,7 +117,7 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
     const int  runM  = runZ ? DM : WM;
     const int  crossW = runZ ? WM : DM;
     int t, T, R;
-    if (!fitFlight(riseMicro, runM, maxStepMicro, t, T, R)) {
+    if (!fitFlight(riseMicro, runM, maxStepMicro, t, T, R, g)) {
         p.error = "straight flight does not fit walkably in well (run too short)";
         p.holeX = 0; p.holeZ = 0; p.holeW = WM; p.holeD = DM;
         return p;
@@ -135,14 +138,15 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
     p.topMicro = riseMicro;
     p.holeX = 0; p.holeZ = 0; p.holeW = WM; p.holeD = DM;
     p.ok = (R <= maxStepMicro);
-    if (p.ok) emitPerimeterGuards(p, WM, DM, riseMicro, maxStepMicro);
+    if (p.ok) emitPerimeterGuards(p, WM, DM, riseMicro, maxStepMicro, g.guardHeight());
     return p;
 }
 
 int stackedEmergenceClearance(const StairPlan& lower, const StairPlan& upper,
                               int upperDxMicro, int upperDzMicro,
-                              int wellWcubes, int wellDcubes, int charHeightMicro) {
-    const int WM = wellWcubes * 9, DM = wellDcubes * 9;
+                              int wellWcubes, int wellDcubes, int charHeightMicro,
+                              const StructureGrid& g) {
+    const int WM = wellWcubes * g.perM, DM = wellDcubes * g.perM;
     const int floorMicro = lower.topMicro;   // the intermediate floor = lower flight's top
     auto inBox = [](int x, int y, int z, const StairSolid& s) {
         return x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h && z >= s.z && z < s.z + s.d;

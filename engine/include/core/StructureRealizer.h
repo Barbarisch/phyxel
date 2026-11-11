@@ -22,6 +22,7 @@
 #include "core/StyleProfile.h"
 #include "core/AssemblyPlan.h"
 #include "core/MicroCanvas.h"
+#include "core/StructureGrid.h"
 #include "core/StructureGenerator.h"   // StructureResult / VoxelPlacement (engine placement path)
 
 namespace Phyxel {
@@ -42,8 +43,11 @@ public:
         std::string error;
     };
 
-    /// Realize a single-story shell from `program` using `style`. P1: flat ground.
-    static ShellResult realizeShell(const BuildingProgram& program, const StyleProfile& style);
+    /// Realize the shell from `program` using `style`. P1: flat ground. `grid` = the canvas's cells per
+    /// metre: legacy 1/9 m (default; byte-identical to before the grid existed) or the 1/8 m foundation
+    /// grid (docs/VoxelFoundationPlan.md §7a.3). Every micro value in the result is in that grid's cells.
+    static ShellResult realizeShell(const BuildingProgram& program, const StyleProfile& style,
+                                    const StructureGrid& grid = StructureGrid::legacy());
 
     /// Convert a realized shell's MicroCanvas into engine VoxelPlacements offset to
     /// `worldOrigin` (the canvas's local y=0 maps to worldOrigin.y), for placement via

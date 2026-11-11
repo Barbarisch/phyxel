@@ -70,8 +70,16 @@ struct ResolutionReport {
 
 class MicroCanvas {
 public:
-    static constexpr int MICRO_PER_CUBE = 9;   ///< 9 micro-cells span one cube
+    static constexpr int MICRO_PER_CUBE = 9;   ///< 9 micro-cells span one cube (the LEGACY grid)
     static constexpr int MICRO_PER_SUB  = 3;   ///< 3 micro-cells span one subcube
+
+    /// The canvas's grid: cells per metre. 9 = the legacy cube/subcube/microcube store (default);
+    /// 8 = the voxel-foundation grid (docs/VoxelFoundationPlan.md §7a.3). Painting is grid-agnostic;
+    /// the cube helpers and exportVoxels()/report()/toVoxelTemplate() are the legacy C/S/M form and
+    /// work only on a 9 canvas (on any other grid exportVoxels() returns empty and logs an error).
+    MicroCanvas() = default;
+    explicit MicroCanvas(int cellsPerM) : m_perM(cellsPerM) {}
+    int cellsPerM() const { return m_perM; }
 
     // ----- painting in micro space -----
     /// Set (mat != "") or erase (mat == "", i.e. AIR) a single micro cell.
@@ -135,6 +143,7 @@ private:
         }
     };
 
+    int m_perM = MICRO_PER_CUBE;
     std::unordered_map<glm::ivec3, std::string, IVec3Hash> m_cells;
 };
 

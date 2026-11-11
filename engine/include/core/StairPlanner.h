@@ -27,6 +27,8 @@
 #include <string>
 #include <vector>
 
+#include "core/StructureGrid.h"
+
 namespace Phyxel {
 namespace Core {
 
@@ -40,11 +42,13 @@ std::string stairFormToString(StairForm f);
 /// the realizer used to hardcode its own 4 while the validator re-derived it, so a
 /// character-tuning change could silently desync built geometry from the gate (M2).
 constexpr int kCharacterStepUpMicro = 4;
+static_assert(kCharacterStepUpMicro == StructureGrid::legacy().stepUp(), "one step-up per grid");
 
 /// Guard band height above a walkable surface: 8 micro ≈ 0.89 m (IRC R312.1.2 —
 /// 36 in minimum guard at open-sided walking surfaces; the medieval balustrade
 /// variant is tracked in docs/structure-generation/GroundingGaps.md).
 constexpr int kGuardHeightMicro = 8;
+static_assert(kGuardHeightMicro == StructureGrid::legacy().guardHeight(), "one guard per grid");
 
 /// A solid block to fill, in the well's LOCAL micro frame: x in [0, wellW*9),
 /// z in [0, wellD*9), and solid from y=base (the lower walkable) up by height h.
@@ -67,7 +71,10 @@ struct StairPlan {
 
 /// Plan a stair filling a wellW×wellD (cubes) well rising riseMicro (floor-to-floor),
 /// keeping risers ≤ maxStepMicro. Geometry is local to the well's lower-walkable origin.
-StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int maxStepMicro);
+/// `g` = the canvas grid (cells per metre; legacy 1/9 m by default): the well is wellW*g.perM cells wide,
+/// and the tread/riser/guard constants come from StructureGrid.
+StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int maxStepMicro,
+                    const StructureGrid& g = StructureGrid::legacy());
 
 /// Worst-case head clearance (micro) a character has when emerging off the LOWER flight onto the
 /// shared intermediate floor, given the UPPER flight stacked above it (offset up by lower.topMicro,
@@ -77,7 +84,8 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
 /// on — geometry-driven, not a form label. Returns >= charHeightMicro means clear.
 int stackedEmergenceClearance(const StairPlan& lower, const StairPlan& upper,
                               int upperDxMicro, int upperDzMicro,
-                              int wellWcubes, int wellDcubes, int charHeightMicro);
+                              int wellWcubes, int wellDcubes, int charHeightMicro,
+                              const StructureGrid& g = StructureGrid::legacy());
 
 }  // namespace Core
 }  // namespace Phyxel

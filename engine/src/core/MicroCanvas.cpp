@@ -1,4 +1,5 @@
 #include "core/MicroCanvas.h"
+#include "utils/Logger.h"
 
 #include <array>
 #include <map>
@@ -57,7 +58,7 @@ void MicroCanvas::fillMicroBox(int gx, int gy, int gz, int gw, int gh, int gd,
 }
 
 void MicroCanvas::addCube(int cx, int cy, int cz, const std::string& mat) {
-    fillMicroBox(cx * 9, cy * 9, cz * 9, 9, 9, 9, mat);
+    fillMicroBox(cx * m_perM, cy * m_perM, cz * m_perM, m_perM, m_perM, m_perM, mat);
 }
 
 void MicroCanvas::addSubcube(int cx, int cy, int cz, int sx, int sy, int sz,
@@ -72,7 +73,7 @@ void MicroCanvas::addMicro(int cx, int cy, int cz, int sx, int sy, int sz,
 
 void MicroCanvas::fillCubeBox(int cx, int cy, int cz, int w, int h, int d,
                               const std::string& mat) {
-    fillMicroBox(cx * 9, cy * 9, cz * 9, w * 9, h * 9, d * 9, mat);
+    fillMicroBox(cx * m_perM, cy * m_perM, cz * m_perM, w * m_perM, h * m_perM, d * m_perM, mat);
 }
 
 // --------------------------------------------------------------------------- detailers
@@ -108,6 +109,14 @@ void MicroCanvas::chamferEdge(int gx, int gy, int gz, int gw, int gh, int gd,
 // --------------------------------------------------------------------------- export
 
 std::vector<CanvasVoxel> MicroCanvas::exportVoxels() const {
+    if (m_perM != MICRO_PER_CUBE) {
+        // C/S/M is the 1/9 m store's form; a 1/8 m canvas has none (docs/VoxelFoundationPlan.md §7a.3).
+        // Refuse loudly rather than reinterpret eighths as ninths.
+        LOG_ERROR_FMT("MicroCanvas", "exportVoxels: canvas is " << m_perM
+                      << " cells per metre; the C/S/M export exists only for 9 — refused ("
+                      << m_cells.size() << " cells not exported)");
+        return {};
+    }
     // Bucket every micro cell by its owning cube, keyed by the within-cube micro
     // index (lx + ly*9 + lz*81, 0..728).
     std::map<glm::ivec3, std::map<int, std::string>,

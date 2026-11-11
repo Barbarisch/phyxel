@@ -1,10 +1,13 @@
 #include <gtest/gtest.h>
 
+#include "core/StructureGrid.h"
 #include "core/StructureRealizer.h"
 #include "core/StyleProfile.h"
 #include "core/BuildingProgram.h"
 
 using namespace Phyxel::Core;
+
+class RoofForgeTest : public ::testing::TestWithParam<int> {};
 
 // ============================================================================
 // finish_forge P2.5 Ã¢â‚¬â€ ROOF SLOPE RESOLUTION (docs/structure-generation/FinishDetailPlan.md)
@@ -55,10 +58,10 @@ StyleProfile thatchStyle() {
     return *reg.get("thatch_test");
 }
 
-StructureRealizer::ShellResult build() {
+StructureRealizer::ShellResult build(const StructureGrid& g) {
     return StructureRealizer::realizeShell(
         BuildingProgram::fromJson(nlohmann::json::parse(kThatchCottage)),
-        thatchStyle());
+        thatchStyle(), g);
 }
 
 // Highest micro y whose cell at (x, z) holds the roof material, or -1 if none.
@@ -97,10 +100,10 @@ StyleProfile hipStyle() {
     return *reg.get("hip_test");
 }
 
-StructureRealizer::ShellResult buildHip() {
+StructureRealizer::ShellResult buildHip(const StructureGrid& g) {
     return StructureRealizer::realizeShell(
         BuildingProgram::fromJson(nlohmann::json::parse(kHipManor)),
-        hipStyle());
+        hipStyle(), g);
 }
 
 } // namespace
@@ -109,8 +112,11 @@ StructureRealizer::ShellResult buildHip() {
 // axis (X here), adjacent micro columns' roof-surface heights differ by <= 2
 // micro. RED today: the cube-quantized rasterizer jumps pitch*3 = 12 micro at
 // every cube boundary (50 deg -> pitch 4 subcubes per cube of run).
-TEST(RoofForgeTest, SlopeSurfaceIsMicroStepped) {
-    auto r = build();
+TEST_P(RoofForgeTest, SlopeSurfaceIsMicroStepped) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
+    auto r = build(g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
@@ -118,11 +124,11 @@ TEST(RoofForgeTest, SlopeSurfaceIsMicroStepped) {
 
     // Mid-ridge slice: z at the centre of the 9-cube depth, away from the gable
     // ends. Footprint is 7 cubes = 63 micro columns in X.
-    const int z = 4 * 9 + 4;
+    const int z = 4 * M + M / 2;
     int maxStep = 0, atX = -1;
     int prev = roofTopAt(c, 0, z, hi.y);
     ASSERT_GE(prev, 0) << "no roof surface at x=0";
-    for (int x = 1; x < 7 * 9; ++x) {
+    for (int x = 1; x < 7 * M; ++x) {
         const int top = roofTopAt(c, x, z, hi.y);
         ASSERT_GE(top, 0) << "roof surface has a hole at x=" << x;
         const int step = std::abs(top - prev);
@@ -137,30 +143,36 @@ TEST(RoofForgeTest, SlopeSurfaceIsMicroStepped) {
 // Coverage guard (GREEN before and after): every micro column of the footprint
 // carries roof material at the mid-ridge slice Ã¢â‚¬â€ smoothing the slope must not
 // open holes in the surface.
-TEST(RoofForgeTest, SlopeSurfaceCoversTheFootprint) {
-    auto r = build();
+TEST_P(RoofForgeTest, SlopeSurfaceCoversTheFootprint) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
+    auto r = build(g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
     ASSERT_TRUE(c.microBounds(lo, hi));
 
-    const int z = 4 * 9 + 4;
-    for (int x = 0; x < 7 * 9; ++x)
+    const int z = 4 * M + M / 2;
+    for (int x = 0; x < 7 * M; ++x)
         EXPECT_GE(roofTopAt(c, x, z, hi.y), 0) << "no roof cell in column x=" << x;
 }
 
 // Eave-flush guard (GREEN before and after): the roof's lowest course still
 // rests directly ON the wall top at the eave Ã¢â‚¬â€ micro-stepping must not
 // reintroduce the 1-micro hover (V1 checkRoofEaveFlush).
-TEST(RoofForgeTest, EaveStaysFlushOnTheWallTop) {
-    auto r = build();
+TEST_P(RoofForgeTest, EaveStaysFlushOnTheWallTop) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
+    auto r = build(g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
     ASSERT_TRUE(c.microBounds(lo, hi));
 
     // Find the eave course: the lowest Thatch cell over the westmost column.
-    const int z = 4 * 9 + 4;
+    const int z = 4 * M + M / 2;
     int eaveY = -1;
     for (int y = 0; y <= hi.y && eaveY < 0; ++y)
         if (c.materialAt(0, y, z) == "Thatch") eaveY = y;
@@ -176,8 +188,11 @@ TEST(RoofForgeTest, EaveStaysFlushOnTheWallTop) {
 // triangle, no flat cap. RED today: "hip" is unimplemented and silently falls
 // back to a FLAT roof cap, so the surface height at the centre equals the height
 // at every edge.
-TEST(RoofForgeTest, HipRoofSlopesUpFromAllFourEaves) {
-    auto r = buildHip();
+TEST_P(RoofForgeTest, HipRoofSlopesUpFromAllFourEaves) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
+    auto r = buildHip(g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
@@ -185,13 +200,13 @@ TEST(RoofForgeTest, HipRoofSlopesUpFromAllFourEaves) {
 
     // Footprint 9x6 cubes = 81x54 micro. Sample the roof surface at the centre
     // and just inside each of the four eaves (2 micro in from the edge).
-    const int cx = 40, cz = 27;
+    const int cx = 9 * M / 2, cz = 6 * M / 2;   // 40,27 at 1/9 m
     const int centre = roofTopAt(c, cx, cz, hi.y, "ClayTile");
     ASSERT_GE(centre, 0) << "no roof surface at the footprint centre";
     const int west  = roofTopAt(c, 2,  cz, hi.y, "ClayTile");
-    const int east  = roofTopAt(c, 78, cz, hi.y, "ClayTile");
+    const int east  = roofTopAt(c, 9 * M - 3, cz, hi.y, "ClayTile");
     const int south = roofTopAt(c, cx, 2,  hi.y, "ClayTile");
-    const int north = roofTopAt(c, cx, 51, hi.y, "ClayTile");
+    const int north = roofTopAt(c, cx, 6 * M - 3, hi.y, "ClayTile");
     ASSERT_GE(west, 0);  ASSERT_GE(east, 0);
     ASSERT_GE(south, 0); ASSERT_GE(north, 0);
 
@@ -206,26 +221,29 @@ TEST(RoofForgeTest, HipRoofSlopesUpFromAllFourEaves) {
 // The hip surface must be micro-stepped along BOTH axes (same invariant as the
 // gable slope). GREEN on the flat fallback (steps of 0) and GREEN after Ã¢â‚¬â€ the
 // slope-exists test above carries the red; this pins smoothness once hip lands.
-TEST(RoofForgeTest, HipSlopeSurfaceIsMicroStepped) {
-    auto r = buildHip();
+TEST_P(RoofForgeTest, HipSlopeSurfaceIsMicroStepped) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
+    auto r = buildHip(g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
     ASSERT_TRUE(c.microBounds(lo, hi));
 
     int maxStep = 0;
-    int prev = roofTopAt(c, 0, 27, hi.y, "ClayTile");
+    int prev = roofTopAt(c, 0, 6 * M / 2, hi.y, "ClayTile");
     ASSERT_GE(prev, 0);
-    for (int x = 1; x < 81; ++x) {
-        const int top = roofTopAt(c, x, 27, hi.y, "ClayTile");
+    for (int x = 1; x < 9 * M; ++x) {
+        const int top = roofTopAt(c, x, 6 * M / 2, hi.y, "ClayTile");
         ASSERT_GE(top, 0) << "roof hole at x=" << x;
         maxStep = std::max(maxStep, std::abs(top - prev));
         prev = top;
     }
-    prev = roofTopAt(c, 40, 0, hi.y, "ClayTile");
+    prev = roofTopAt(c, 9 * M / 2, 0, hi.y, "ClayTile");
     ASSERT_GE(prev, 0);
-    for (int z = 1; z < 54; ++z) {
-        const int top = roofTopAt(c, 40, z, hi.y, "ClayTile");
+    for (int z = 1; z < 6 * M; ++z) {
+        const int top = roofTopAt(c, 9 * M / 2, z, hi.y, "ClayTile");
         ASSERT_GE(top, 0) << "roof hole at z=" << z;
         maxStep = std::max(maxStep, std::abs(top - prev));
         prev = top;
@@ -235,8 +253,11 @@ TEST(RoofForgeTest, HipSlopeSurfaceIsMicroStepped) {
 
 // Eave-flush guard for the hip: the lowest roof course rests directly on the
 // wall top on every side (GREEN on the flat fallback and after).
-TEST(RoofForgeTest, HipEaveStaysFlushOnTheWallTop) {
-    auto r = buildHip();
+TEST_P(RoofForgeTest, HipEaveStaysFlushOnTheWallTop) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
+    auto r = buildHip(g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
@@ -244,9 +265,9 @@ TEST(RoofForgeTest, HipEaveStaysFlushOnTheWallTop) {
 
     int eaveY = -1;
     for (int y = 0; y <= hi.y && eaveY < 0; ++y)
-        if (c.materialAt(0, y, 27) == "ClayTile") eaveY = y;
+        if (c.materialAt(0, y, 6 * M / 2) == "ClayTile") eaveY = y;
     ASSERT_GE(eaveY, 0);
-    EXPECT_TRUE(c.occupiedMicro(0, eaveY - 1, 27) || c.occupiedMicro(1, eaveY - 1, 27))
+    EXPECT_TRUE(c.occupiedMicro(0, eaveY - 1, 6 * M / 2) || c.occupiedMicro(1, eaveY - 1, 6 * M / 2))
         << "hip eave hovers: air directly under the roof's lowest course";
 }
 
@@ -277,19 +298,22 @@ StyleProfile overhangStyle() {
 
 // Roof cells exist OUTSIDE the footprint at both eave sides (x < 0 and x >= 63
 // for the 7-cube span), continuing the slope plane downward past the wall.
-TEST(RoofForgeTest, EavesOverhangTheWalls) {
+TEST_P(RoofForgeTest, EavesOverhangTheWalls) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
     auto r = StructureRealizer::realizeShell(
-        BuildingProgram::fromJson(nlohmann::json::parse(kThatchCottage)), overhangStyle());
+        BuildingProgram::fromJson(nlohmann::json::parse(kThatchCottage)), overhangStyle(), g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
     ASSERT_TRUE(c.microBounds(lo, hi));
 
-    const int z = 4 * 9 + 4;
+    const int z = 4 * M + M / 2;
     bool west = false, east = false;
     for (int y = 0; y <= hi.y; ++y) {
         if (roofTopAt(c, -1, z, hi.y) >= 0) west = true;
-        if (roofTopAt(c, 63, z, hi.y) >= 0) east = true;
+        if (roofTopAt(c, 7 * M, z, hi.y) >= 0) east = true;
         break;   // roofTopAt already scans y; one call per side suffices
     }
     EXPECT_TRUE(west) << "no roof overhang past the west eave wall";
@@ -298,15 +322,18 @@ TEST(RoofForgeTest, EavesOverhangTheWalls) {
 
 // The overhang keeps micro-stepping (the slope metric holds across the
 // extended span) and the eave-flush guard still holds AT the wall plane.
-TEST(RoofForgeTest, OverhangContinuesTheSlopePlane) {
+TEST_P(RoofForgeTest, OverhangContinuesTheSlopePlane) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
     auto r = StructureRealizer::realizeShell(
-        BuildingProgram::fromJson(nlohmann::json::parse(kThatchCottage)), overhangStyle());
+        BuildingProgram::fromJson(nlohmann::json::parse(kThatchCottage)), overhangStyle(), g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
     ASSERT_TRUE(c.microBounds(lo, hi));
 
-    const int z = 4 * 9 + 4;
+    const int z = 4 * M + M / 2;
     // Walk from the westmost overhang cell across the wall line: adjacent
     // surface steps stay <= 2 micro (one continuous plane, no cliff at x=0).
     int prev = -1, maxStep = 0;
@@ -349,62 +376,77 @@ const char* kLPlanHouse = R"({
     }]
 })";
 
-StructureRealizer::ShellResult buildL() {
+StructureRealizer::ShellResult buildL(const StructureGrid& g) {
     return StructureRealizer::realizeShell(
-        BuildingProgram::fromJson(nlohmann::json::parse(kLPlanHouse)), thatchStyle());
+        BuildingProgram::fromJson(nlohmann::json::parse(kLPlanHouse)), thatchStyle(), g);
 }
 } // namespace
 
 // The MAIN range carries a real ridge: its surface at mid-depth stands well
 // above its eave. RED today: the flat cap is dead level.
-TEST(RoofForgeTest, LPlanMainRangeHasARidge) {
-    auto r = buildL();
+TEST_P(RoofForgeTest, LPlanMainRangeHasARidge) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
+    auto r = buildL(g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
     ASSERT_TRUE(c.microBounds(lo, hi));
     // x=58: inside the main range only (past the wing's x span). Slope runs
     // along Z (span 4 cubes): eave at z~2, ridge at z~18.
-    const int eave  = roofTopAt(c, 58, 2, hi.y);
-    const int ridge = roofTopAt(c, 58, 18, hi.y);
+    const int eave  = roofTopAt(c, 6 * M + M / 2, 2, hi.y);
+    const int ridge = roofTopAt(c, 6 * M + M / 2, 2 * M, hi.y);
     ASSERT_GE(eave, 0);  ASSERT_GE(ridge, 0);
-    EXPECT_GE(ridge - eave, 12)
+    EXPECT_GE(ridge - eave, g.m(12 / 9.0))
         << "main range is flat (ridge " << ridge << " vs eave " << eave << ") Ã¢â‚¬â€ the L-plan flat cap";
 }
 
 // The WING carries its own perpendicular ridge. RED today (flat).
-TEST(RoofForgeTest, LPlanWingHasAPerpendicularRidge) {
-    auto r = buildL();
+TEST_P(RoofForgeTest, LPlanWingHasAPerpendicularRidge) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
+    auto r = buildL(g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
     ASSERT_TRUE(c.microBounds(lo, hi));
     // z=54: inside the wing only (past the main range's depth). Wing slope runs
     // along X (span 4 cubes): eave at x~2, ridge at x~18.
-    const int eave  = roofTopAt(c, 2, 54, hi.y);
-    const int ridge = roofTopAt(c, 18, 54, hi.y);
+    const int eave  = roofTopAt(c, 2, 6 * M, hi.y);
+    const int ridge = roofTopAt(c, 2 * M, 6 * M, hi.y);
     ASSERT_GE(eave, 0);  ASSERT_GE(ridge, 0);
-    EXPECT_GE(ridge - eave, 12)
+    EXPECT_GE(ridge - eave, g.m(12 / 9.0))
         << "wing is flat (ridge " << ridge << " vs eave " << eave << ")";
 }
 
 // Coverage + notch guards (GREEN before and after): every footprint column
 // carries roof; the notch centre Ã¢â‚¬â€ far from any wall Ã¢â‚¬â€ stays open sky.
-TEST(RoofForgeTest, LPlanRoofCoversTheFootprintNotTheNotch) {
-    auto r = buildL();
+TEST_P(RoofForgeTest, LPlanRoofCoversTheFootprintNotTheNotch) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
+    auto r = buildL(g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     glm::ivec3 lo, hi;
     ASSERT_TRUE(c.microBounds(lo, hi));
     // Sample interior columns of both ranges + the junction line (watertight).
-    for (int x : {2, 18, 34, 40, 58, 76})
-        EXPECT_GE(roofTopAt(c, x, 18, hi.y), 0) << "roof hole in the main range at x=" << x;
-    for (int z : {2, 18, 34, 40, 58, 68})
-        EXPECT_GE(roofTopAt(c, 18, z, hi.y), 0) << "roof hole down the wing at z=" << z;
+    const int h = M / 2;   // 1/9 m: {2, 18, 34, 40, 58, 76} and {.., 68}
+    for (int x : {2, 2 * M, 4 * M - 2, 4 * M + h, 6 * M + h, 8 * M + h})
+        EXPECT_GE(roofTopAt(c, x, 2 * M, hi.y), 0) << "roof hole in the main range at x=" << x;
+    for (int z : {2, 2 * M, 4 * M - 2, 4 * M + h, 6 * M + h, 7 * M + 5})
+        EXPECT_GE(roofTopAt(c, 2 * M, z, hi.y), 0) << "roof hole down the wing at z=" << z;
     // Notch centre stays clear.
-    EXPECT_LT(roofTopAt(c, 58, 54, hi.y), 0) << "roof spills over the notch centre";
+    EXPECT_LT(roofTopAt(c, 6 * M + h, 6 * M, hi.y), 0) << "roof spills over the notch centre";
     // The plan records a real roof style for the composed L, not the flat fallback
     // (auditor gap: this field was untested).
     ASSERT_FALSE(r.plan.roof.empty());
     EXPECT_EQ(r.plan.roof[0].style, "gable") << "L-plan roof reported as flat in the plan";
 }
+
+// docs/VoxelFoundationPlan.md §7a.3: every invariant above holds on the legacy 1/9 m grid AND the 1/8 m
+// foundation grid (coordinates written in metres x M; grounded leg/sill sizes via StructureGrid::m).
+INSTANTIATE_TEST_SUITE_P(Grids, RoofForgeTest, ::testing::Values(9, 8),
+                         [](const ::testing::TestParamInfo<int>& i) { return "perM" + std::to_string(i.param); });

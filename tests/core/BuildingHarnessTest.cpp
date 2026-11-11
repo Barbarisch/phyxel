@@ -12,6 +12,7 @@
 #include "core/BuildingProgram.h"
 #include "core/FurniturePlacer.h"
 #include "core/StructureRealizer.h"
+#include "core/StructureGrid.h"
 #include "core/StyleProfile.h"
 #include "core/TraversalProbe.h"
 #include "core/RoomLayout.h"
@@ -144,20 +145,28 @@ BuildingProgram autofilled(int W, int D, unsigned seed) {
 
 // L3 (interior): on every story, a character-box can physically walk from the entrance room to
 // EVERY other room's centre through the carved doorways. A sealed room (no portal) => unreachable.
-bool roomsReachable(const StructureRealizer::ShellResult& sh, const BuildingProgram& p) {
+// The harness agent per grid. Legacy keeps its historical box (height 16 = 1.78 m) so the pinned
+// matrix is unchanged; the foundation grid uses the StructureGrid agent (15 = 1.875 m, step-up 3/8 m).
+AgentBox harnessAgent(const StructureGrid& g) {
+    return AgentBox{g.agentHalfWidth(), g.isLegacy() ? 16 : g.agentHeight(), g.stepUp()};
+}
+
+bool roomsReachable(const StructureRealizer::ShellResult& sh, const BuildingProgram& p,
+                    const StructureGrid& g = StructureGrid::legacy()) {
+    const int M = g.perM, half = M / 2;
     for (size_t s = 0; s < p.stories.size() && s < sh.floorTopByStory.size(); ++s) {
         const auto& rooms = p.stories[s].rooms;
         if (rooms.size() <= 1) continue;                       // single room: trivially navigable
         const int floorY = sh.floorTopByStory[s];
-        const int W = p.footprintW * 9, D = p.footprintD * 9;
+        const int W = p.footprintW * M, D = p.footprintD * M;
         TraversalProbe probe([&](int x, int y, int z) { return sh.canvas.occupiedMicro(x, y, z); },
-                             AgentBox{2, 16, 4});
+                             harnessAgent(g));
         const auto& r0 = rooms[0].rect;
-        const glm::ivec3 start((r0.x + r0.w / 2) * 9 + 4, floorY, (r0.z + r0.d / 2) * 9 + 4);
-        const glm::ivec3 bLo(0, floorY - 2, 0), bHi(W, floorY + 28, D);
+        const glm::ivec3 start((r0.x + r0.w / 2) * M + half, floorY, (r0.z + r0.d / 2) * M + half);
+        const glm::ivec3 bLo(0, floorY - 2, 0), bHi(W, floorY + g.m(28 / 9.0), D);
         for (size_t r = 1; r < rooms.size(); ++r) {
             const auto& rc = rooms[r].rect;
-            const int gx = (rc.x + rc.w / 2) * 9 + 4, gz = (rc.z + rc.d / 2) * 9 + 4;
+            const int gx = (rc.x + rc.w / 2) * M + half, gz = (rc.z + rc.d / 2) * M + half;
             if (!probe.reachable(start, glm::ivec3(gx - 2, floorY - 1, gz - 2),
                                  glm::ivec3(gx + 2, floorY + 1, gz + 2), bLo, bHi))
                 return false;
@@ -167,12 +176,14 @@ bool roomsReachable(const StructureRealizer::ShellResult& sh, const BuildingProg
 }
 
 // L2: every room on every story has a floor cell at its centre (somewhere to stand).
-bool floorsContinuous(const StructureRealizer::ShellResult& sh, const BuildingProgram& p) {
+bool floorsContinuous(const StructureRealizer::ShellResult& sh, const BuildingProgram& p,
+                      const StructureGrid& g = StructureGrid::legacy()) {
+    const int M = g.perM, half = M / 2;
     for (size_t s = 0; s < p.stories.size() && s < sh.floorTopByStory.size(); ++s) {
         const int slabTop = sh.floorTopByStory[s] - 1;   // top micro of the floor slab
         for (const auto& room : p.stories[s].rooms) {
-            const int cx = (room.rect.x + room.rect.w / 2) * 9 + 4;
-            const int cz = (room.rect.z + room.rect.d / 2) * 9 + 4;
+            const int cx = (room.rect.x + room.rect.w / 2) * M + half;
+            const int cz = (room.rect.z + room.rect.d / 2) * M + half;
             if (!sh.canvas.occupiedMicro(cx, slabTop, cz)) return false;
         }
     }
@@ -181,7 +192,9 @@ bool floorsContinuous(const StructureRealizer::ShellResult& sh, const BuildingPr
 
 // L3: a character-box climbs from the ground floor to the TOP floor. Bounded to the (shared)
 // stair well + a 1-cube margin. Multi-story with no stair => upper floors sealed => false.
-bool topReachable(const StructureRealizer::ShellResult& sh, const BuildingProgram& p) {
+bool topReachable(const StructureRealizer::ShellResult& sh, const BuildingProgram& p,
+                  const StructureGrid& g = StructureGrid::legacy()) {
+    const int M = g.perM;
     const int n = static_cast<int>(p.stories.size());
     if (n <= 1) return true;                          // single story: trivially "all floors"
     Rect well; bool haveWell = false;
@@ -192,17 +205,17 @@ bool topReachable(const StructureRealizer::ShellResult& sh, const BuildingProgra
 
     const int floor0 = sh.floorTopByStory[0];
     const int topY   = sh.floorTopByStory[n - 1];
-    const int wx0 = well.x * 9, wz0 = well.z * 9, wxm = well.w * 9, wzm = well.d * 9;
+    const int wx0 = well.x * M, wz0 = well.z * M, wxm = well.w * M, wzm = well.d * M;
 
     TraversalProbe probe([&](int x, int y, int z) { return sh.canvas.occupiedMicro(x, y, z); },
-                         AgentBox{2, 16, 4});
+                         harnessAgent(g));
     // Start inside LANE A (where a switchback's first flight runs), not the well centre (the lane
     // seam), and just south of the well so the agent walks in and climbs — matches the proven
     // AgentCanClimbSwitchbackToTopFloor start.
-    const glm::ivec3 start(wx0 + wxm / 4, floor0, std::max(0, wz0 - 4));
-    const glm::ivec3 goalLo(wx0 - 9, topY - 1, wz0 - 9), goalHi(wx0 + wxm + 9, topY + 2, wz0 + wzm + 9);
-    const glm::ivec3 bLo(std::max(0, wx0 - 9), 0, std::max(0, wz0 - 9));
-    const glm::ivec3 bHi(wx0 + wxm + 9, topY + 30, wz0 + wzm + 9);
+    const glm::ivec3 start(wx0 + wxm / 4, floor0, std::max(0, wz0 - g.m(4 / 9.0)));
+    const glm::ivec3 goalLo(wx0 - M, topY - 1, wz0 - M), goalHi(wx0 + wxm + M, topY + 2, wz0 + wzm + M);
+    const glm::ivec3 bLo(std::max(0, wx0 - M), 0, std::max(0, wz0 - M));
+    const glm::ivec3 bHi(wx0 + wxm + M, topY + g.m(30 / 9.0), wz0 + wzm + M);
     return probe.reachable(start, goalLo, goalHi, bLo, bHi);
 }
 
@@ -210,6 +223,7 @@ struct CaseResult {
     std::string name;
     bool build = false, floors = false, reach = false, rooms = false;
     bool roomsTested = false;   // false => single-room everywhere => rooms check is N/A (not "ok")
+    std::string error;          // why build failed
     bool pass() const { return build && floors && reach && rooms; }
 };
 
@@ -219,16 +233,17 @@ bool hasMultiRoomStory(const BuildingProgram& p) {
     return false;
 }
 
-CaseResult runCase(const std::string& name, const BuildingProgram& p, const StyleProfile& style) {
+CaseResult runCase(const std::string& name, const BuildingProgram& p, const StyleProfile& style,
+                   const StructureGrid& g = StructureGrid::legacy()) {
     CaseResult r; r.name = name;
-    auto sh = StructureRealizer::realizeShell(p, style);
+    auto sh = StructureRealizer::realizeShell(p, style, g);
     glm::ivec3 lo, hi;
-    r.build = sh.ok && sh.canvas.microBounds(lo, hi);
-    if (!r.build) return r;
-    r.floors = floorsContinuous(sh, p);
-    r.reach  = topReachable(sh, p);
+    r.build = sh.ok && sh.canvas.microBounds(lo, hi) && sh.canvas.cellsPerM() == g.perM;
+    if (!r.build) { r.error = sh.ok ? "canvas empty or on the wrong grid" : sh.error; return r; }
+    r.floors = floorsContinuous(sh, p, g);
+    r.reach  = topReachable(sh, p, g);
     r.roomsTested = hasMultiRoomStory(p);
-    r.rooms  = roomsReachable(sh, p);   // trivially true when not roomsTested
+    r.rooms  = roomsReachable(sh, p, g);   // trivially true when not roomsTested
     return r;
 }
 
@@ -303,6 +318,78 @@ TEST(BuildingHarness, Corpus) {
     // The autofill core seam must produce a navigable multi-room building (rooms check applicable).
     EXPECT_TRUE(autofillCase.pass())     << "autofillRoomLayout produced a non-navigable building";
     EXPECT_TRUE(autofillCase.roomsTested) << "autofill produced no multi-room story (rooms was n/a)";
+}
+
+// ============================================================================
+// docs/VoxelFoundationPlan.md §7a.3 step 3: the SAME corpus realized on the 1/8 m foundation grid.
+// Prediction (written before the realizer took a grid): every case gets the same verdict on every
+// layer as on the legacy 1/9 m grid — the 17 good cases pass build/floors/reach/rooms, and the three
+// BAD cases fail exactly the layer they fail today — with the canvas on 8 cells per metre and the
+// walking agent of that grid (StructureGrid: height 15/8 m, step-up 3/8 m).
+// ============================================================================
+TEST(BuildingHarness, CorpusOnFoundationGrid) {
+    const StyleProfile style = harnessStyle();
+    const StructureGrid g8 = StructureGrid::foundation();
+    std::cout << "\n=== BUILDING VALIDATION HARNESS (1/8 m grid) ===\n";
+    std::cout << "case                              build  floors  reach  rooms  OVERALL\n";
+    int passed = 0;
+    for (const auto& c : makeCorpus()) {
+        const CaseResult r9 = runCase(c.name, c.p, style);
+        const CaseResult r8 = runCase(c.name, c.p, style, g8);
+        auto yn = [](bool b) { return b ? " ok " : "FAIL"; };
+        std::cout << "  " << c.name;
+        for (int i = (int)c.name.size(); i < 32; ++i) std::cout << ' ';
+        std::cout << "  " << yn(r8.build) << "   " << yn(r8.floors) << "   " << yn(r8.reach) << "   "
+                  << (r8.build ? (r8.roomsTested ? yn(r8.rooms) : "n/a ") : "----") << "   "
+                  << (r8.pass() ? "PASS" : "----") << (r8.error.empty() ? "" : "  (" + r8.error + ")")
+                  << "\n";
+        if (r8.pass()) ++passed;
+        EXPECT_TRUE(r8.build) << c.name << ": " << r8.error;
+        EXPECT_EQ(r8.floors, r9.floors) << c.name << ": floors verdict differs from the 1/9 m grid";
+        EXPECT_EQ(r8.reach, r9.reach)   << c.name << ": reach verdict differs from the 1/9 m grid";
+        EXPECT_EQ(r8.rooms, r9.rooms)   << c.name << ": rooms verdict differs from the 1/9 m grid";
+    }
+    std::cout << "--- " << passed << " / " << makeCorpus().size() << " cases pass (1/8 m) ---\n\n";
+}
+
+// Proportions on the 1/8 m grid are metres, not ninths rescaled. Prediction for a 1-story 7x9
+// crawlspace tower in the harness style (walls 0.333 m, floor 0.333 m, crawl 1 m, storey 3 m):
+// floor top = 8 + 3 = 11 cells; the exterior wall band is 3 cells (0.375 m) thick; the wall stands
+// 24 cells (3 m) above the floor; the footprint spans exactly 7 x 9 m = 56 x 72 cells (no eave
+// overhang in this style); and the C/S/M exporter refuses the canvas (it has no 1/8 m form).
+TEST(BuildingHarness, FoundationGridProportionsAreMetres) {
+    const StyleProfile style = harnessStyle();
+    const StructureGrid g8 = StructureGrid::foundation();
+    const BuildingProgram p = tower(1, 7, 9, "switchback", "crawlspace", false);
+    auto sh = StructureRealizer::realizeShell(p, style, g8);
+    ASSERT_TRUE(sh.ok) << sh.error;
+    ASSERT_EQ(sh.canvas.cellsPerM(), 8);
+    EXPECT_EQ(sh.floorTopMicro, 11);
+    glm::ivec3 lo, hi;
+    ASSERT_TRUE(sh.canvas.microBounds(lo, hi));
+    EXPECT_EQ(lo.x, 0); EXPECT_EQ(hi.x, 7 * 8 - 1);
+    EXPECT_EQ(lo.z, 0); EXPECT_EQ(hi.z, 9 * 8 - 1);
+    // Wall band on the -z wall at mid-run (x = 3.5 m), half a metre above the floor.
+    const int x = 3 * 8 + 4, y = sh.floorTopMicro + 4;
+    int band = 0;
+    while (sh.canvas.occupiedMicro(x, y, band)) ++band;
+    EXPECT_EQ(band, 3) << "exterior wall 0.333 m should be 3 cells at 1/8 m";
+    // Wall height: solid at the band from the floor top up to floor top + 24, ceiling on top.
+    for (int k = 0; k < 24; ++k)
+        EXPECT_TRUE(sh.canvas.occupiedMicro(x, sh.floorTopMicro + k, 0)) << "wall gap at +" << k;
+    EXPECT_TRUE(sh.canvas.exportVoxels().empty()) << "C/S/M export must refuse a 1/8 m canvas";
+}
+
+// Hearth bodies are authored in ninths (HearthForge::bodyOf); until they are re-authored in metres the
+// 1/8 m shell must REFUSE a vented fixture, never paint a ninth-sized body into eighths.
+TEST(BuildingHarness, FoundationGridRefusesNinthAuthoredHearth) {
+    const StyleProfile style = harnessStyle();
+    BuildingProgram p = tower(1, 7, 9, "switchback", "crawlspace", false);
+    ProgFixture fx; fx.type = "fireplace"; fx.room = "r0"; fx.rect = {1, 0, 2, 1};
+    p.stories[0].fixtures.push_back(fx);
+    auto sh = StructureRealizer::realizeShell(p, style, StructureGrid::foundation());
+    EXPECT_FALSE(sh.ok);
+    EXPECT_NE(sh.error.find("hearth"), std::string::npos) << sh.error;
 }
 
 // ============================================================================

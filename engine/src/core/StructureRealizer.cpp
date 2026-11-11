@@ -143,9 +143,15 @@ std::vector<LocationMarker> StructureRealizer::deriveLocations(const BuildingPro
 }
 
 StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingProgram& program,
-                                                               const StyleProfile& style) {
+                                                               const StyleProfile& style,
+                                                               const StructureGrid& grid) {
     ShellResult res;
     if (program.stories.empty()) { res.error = "no stories"; return res; }
+    // The grid (docs/VoxelFoundationPlan.md §7a.3): M cells per metre. Every `M` below was a literal 9;
+    // the legacy grid reproduces the old canvas byte for byte (BuildingHarness.ForgeParityDigests).
+    const StructureGrid& g = grid;
+    const int M = g.perM;
+    res.canvas = MicroCanvas(M);
 
     const ProgStory& story = program.stories[0];     // P1: single story
     MicroCanvas& c = res.canvas;
@@ -160,11 +166,13 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     const std::string matRoof  = style.materialOf("roof", "WoodShingle");
     const std::string matCeil  = style.materialOf("structure", "WoodPlanks");
 
-    const int extT   = thicknessMicro(style.thicknessOf("exterior_wall", 0.333));
-    const int intT   = thicknessMicro(style.thicknessOf("interior_wall", 0.222));
-    const int foundT = thicknessMicro(style.thicknessOf("foundation_wall", 0.667));
-    const int floorT = thicknessMicro(style.thicknessOf("floor", 0.333));
-    const int ceilT  = thicknessMicro(style.thicknessOf("ceiling", 0.222));
+    // thicknessMicro on the canvas grid: nearest cell count, clamped to [1, one metre].
+    auto thick = [&](double metres) { return std::max(1, std::min(g.m(metres), M)); };
+    const int extT   = thick(style.thicknessOf("exterior_wall", 0.333));
+    const int intT   = thick(style.thicknessOf("interior_wall", 0.222));
+    const int foundT = thick(style.thicknessOf("foundation_wall", 0.667));
+    const int floorT = thick(style.thicknessOf("floor", 0.333));
+    const int ceilT  = thick(style.thicknessOf("ceiling", 0.222));
 
     // ---- pass 0/1: substructure level ----
     const int crawlH = (program.substructure == "crawlspace") ? 1
@@ -186,7 +194,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     auto inFoot = [&](int x, int z) { return footprint.count({x, z}) > 0; };
 
     // ---- vertical layout (micro): the GROUND story's floor ----
-    const int floorBaseMicro = crawlH * 9;
+    const int floorBaseMicro = crawlH * M;
     const int floorTopMicro  = floorBaseMicro + floorT;     // ground walkable surface
     res.floorTopMicro = floorTopMicro;
 
@@ -194,11 +202,11 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     const Cell dirs[4] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
     auto paintEdgeBand = [&](int cx, int cz, const Cell& d, int t, int y0, int y1,
                              const std::string& mat) {
-        int gx0 = cx * 9, gz0 = cz * 9;
-        int x0 = gx0, x1 = gx0 + 9, z0 = gz0, z1 = gz0 + 9;
-        if (d.first == 1)  x0 = gx0 + 9 - t;
+        int gx0 = cx * M, gz0 = cz * M;
+        int x0 = gx0, x1 = gx0 + M, z0 = gz0, z1 = gz0 + M;
+        if (d.first == 1)  x0 = gx0 + M - t;
         if (d.first == -1) x1 = gx0 + t;
-        if (d.second == 1) z0 = gz0 + 9 - t;
+        if (d.second == 1) z0 = gz0 + M - t;
         if (d.second == -1) z1 = gz0 + t;
         c.fillMicroBox(x0, y0, z0, x1 - x0, y1 - y0, z1 - z0, mat);
     };
@@ -230,15 +238,15 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         const ProgStory& st = program.stories[si];
         const int fBase = base;
         const int wBase = fBase + floorT;      // this story's walkable surface
-        const int wTop  = wBase + st.height * 9;
-        const int yCubes = fBase / 9;
+        const int wTop  = wBase + st.height * M;
+        const int yCubes = fBase / M;
         floorBaseByStory.push_back(fBase);
         floorTopByStory.push_back(wBase);
 
         // finish floor over the footprint (recorded per story — an intermediate floor
         // is also the ceiling of the story below; the plan is the feature-query source)
         for (const auto& [cx, cz] : footprint)
-            c.fillMicroBox(cx * 9, fBase, cz * 9, 9, floorT, 9, matFloor);
+            c.fillMicroBox(cx * M, fBase, cz * M, M, floorT, M, matFloor);
         plan.floors.push_back({bx0, bz0, bx1 - bx0, bz1 - bz0, yCubes,
                                style.thicknessOf("floor", 0.333), matFloor, "floor"});
 
@@ -261,11 +269,11 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 if (!s.ok) continue;
                 int half = intT / 2;
                 if (s.axis == 'x') {                   // wall runs along Z at x = coord
-                    int gx = s.coord * 9 - half;
-                    c.fillMicroBox(gx, wBase, s.lo * 9, intT, wTop - wBase, (s.hi - s.lo) * 9, matInt);
+                    int gx = s.coord * M - half;
+                    c.fillMicroBox(gx, wBase, s.lo * M, intT, wTop - wBase, (s.hi - s.lo) * M, matInt);
                 } else {                               // wall runs along X at z = coord
-                    int gz = s.coord * 9 - half;
-                    c.fillMicroBox(s.lo * 9, wBase, gz, (s.hi - s.lo) * 9, wTop - wBase, intT, matInt);
+                    int gz = s.coord * M - half;
+                    c.fillMicroBox(s.lo * M, wBase, gz, (s.hi - s.lo) * M, wTop - wBase, intT, matInt);
                 }
                 // Record the REAL partition line (featureAt queries this): the wall plane
                 // sits on the cube boundary at `coord`, spanning [lo, hi) along its run axis.
@@ -282,8 +290,8 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             if (p.kind == "window" && p.height <= 0) continue;
             bool ext = (p.a == "exterior" || p.b == "exterior");
             int sill = (p.kind == "window") ? 1 : 0;       // windows sit on a ~1-cube sill
-            int oyBase = wBase + sill * 9;
-            int oyTop  = std::min(wTop, oyBase + p.height * 9);
+            int oyBase = wBase + sill * M;
+            int oyTop  = std::min(wTop, oyBase + p.height * M);
             bool alongZ = (p.px == 0 || p.px == W);        // wall faces +/-x -> opening runs in Z
             // Claims Ledger increment 2: RECORD the reveal as it is painted. Every box
             // routed through rec() lands in the canvas exactly as before AND in the
@@ -306,7 +314,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 for (int k = 0; k < std::max(1, p.width); ++k) {
                     int cx = alongZ ? p.px - (p.px == W ? 1 : 0) : p.px + k;
                     int cz = alongZ ? p.pz + k : p.pz - (p.pz == D ? 1 : 0);
-                    rec(cx * 9, oyBase, cz * 9, 9, oyTop - oyBase, 9, "", "clear");   // carve to air
+                    rec(cx * M, oyBase, cz * M, M, oyTop - oyBase, M, "", "clear");   // carve to air
                     // The PASSAGE cell - one step inward from the wall cube. An interior
                     // partition is centred on the room boundary and straddles both cubes;
                     // a thick one (stone_keep: 1.0 m -> 9 micro) fills 5/9 of the very cell
@@ -319,7 +327,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                         const int ix = alongZ ? (p.px == W ? cx - 1 : cx + 1) : cx;
                         const int iz = alongZ ? cz : (p.pz == D ? cz - 1 : cz + 1);
                         if (inFoot(ix, iz))
-                            rec(ix * 9, oyBase, iz * 9, 9, oyTop - oyBase, 9, "", "passage");
+                            rec(ix * M, oyBase, iz * M, M, oyTop - oyBase, M, "", "passage");
                     }
                 }
 
@@ -379,13 +387,13 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                     const bool leafClosed = glazed || (shuttered && (h & 1u) == 0u);
                     if (alongZ) {
                         int cx  = p.px - (p.px == W ? 1 : 0);
-                        int fx0 = (p.px == 0) ? cx * 9 : cx * 9 + 9 - extT;   // wall band depth
-                        int z0 = p.pz * 9, z1 = (p.pz + w) * 9;
+                        int fx0 = (p.px == 0) ? cx * M : cx * M + M - extT;   // wall band depth
+                        int z0 = p.pz * M, z1 = (p.pz + w) * M;
                         rec(fx0, oyBase, z0,          extT, jambTop - oyBase, kJamb, matTrim, "jamb");
                         rec(fx0, oyBase, z1 - kJamb,  extT, jambTop - oyBase, kJamb, matTrim, "jamb");
                         rec(fx0, jambTop, z0,         extT, kLintel, z1 - z0, matTrim, "lintel");
                         if (isWin) {
-                            int proudX = (p.px == 0) ? cx * 9 - 1 : cx * 9 + 9;
+                            int proudX = (p.px == 0) ? cx * M - 1 : cx * M + M;
                             rec(proudX, oyBase - 1, z0, 1, 2, z1 - z0, matTrim, "ledge");    // proud ledge
                             rec(fx0,    oyBase - 1, z0, extT, 1, z1 - z0, matTrim, "sill");  // sill board
                             const int leafX = fx0 + extT / 2;                 // mid-reveal plane
@@ -404,13 +412,13 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                         }
                     } else {
                         int cz  = p.pz - (p.pz == D ? 1 : 0);
-                        int fz0 = (p.pz == 0) ? cz * 9 : cz * 9 + 9 - extT;
-                        int x0 = p.px * 9, x1 = (p.px + w) * 9;
+                        int fz0 = (p.pz == 0) ? cz * M : cz * M + M - extT;
+                        int x0 = p.px * M, x1 = (p.px + w) * M;
                         rec(x0,         oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim, "jamb");
                         rec(x1 - kJamb, oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim, "jamb");
                         rec(x0,         jambTop, fz0, x1 - x0, kLintel, extT, matTrim, "lintel");
                         if (isWin) {
-                            int proudZ = (p.pz == 0) ? cz * 9 - 1 : cz * 9 + 9;
+                            int proudZ = (p.pz == 0) ? cz * M - 1 : cz * M + M;
                             rec(x0, oyBase - 1, proudZ, x1 - x0, 2, 1, matTrim, "ledge");
                             rec(x0, oyBase - 1, fz0,    x1 - x0, 1, extT, matTrim, "sill");
                             const int leafZ = fz0 + extT / 2;
@@ -438,11 +446,11 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                     cut.alongZ = (sw.axis == 'x');
                     for (int k = 0; k < std::max(1, p.width); ++k) {
                         if (sw.axis == 'x')   // wall runs along Z at x=coord; doorway runs along Z
-                            rec((sw.coord - 1) * 9, oyBase, (p.pz + k) * 9,
-                                18, oyTop - oyBase, 9, "", "clear");
+                            rec((sw.coord - 1) * M, oyBase, (p.pz + k) * M,
+                                2 * M, oyTop - oyBase, M, "", "clear");
                         else                  // wall runs along X at z=coord; doorway runs along X
-                            rec((p.px + k) * 9, oyBase, (sw.coord - 1) * 9,
-                                9, oyTop - oyBase, 18, "", "clear");
+                            rec((p.px + k) * M, oyBase, (sw.coord - 1) * M,
+                                M, oyTop - oyBase, 2 * M, "", "clear");
                     }
                 }
             }
@@ -466,6 +474,15 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             const Rect stFootprint{sx0, sz0, sx1 - sx0, sz1 - sz0};
             for (const auto& fx : st.fixtures) {
                 if (!HearthForge::isVented(fx.type)) continue;   // furniture stays furniture
+                if (!g.isLegacy()) {
+                    // HearthForge bodies are authored as cell counts in ninths (bodyOf); painting them
+                    // into a 1/8 m canvas would shrink every hearth by 1/9. Refuse until they are
+                    // re-authored in metres (docs/VoxelFoundationPlan.md §7a.3 step 4).
+                    res.ok = false;
+                    res.error = "hearth '" + fx.type + "' has no " + std::to_string(M) +
+                                "-per-metre body yet (HearthForge bodies are authored in ninths)";
+                    return res;
+                }
                 auto rmIt = stRooms.find(fx.room);
                 if (rmIt == stRooms.end()) {
                     LOG_WARN_FMT("StructureRealizer", "hearth '" << fx.type << "' names room '"
@@ -499,7 +516,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     // follow-up, the geometry + reachability is the point.
     {
         const int nStory = static_cast<int>(floorTopByStory.size());
-        const int maxStepMicro = kCharacterStepUpMicro;   // shared, not a local literal (M2)
+        const int maxStepMicro = g.stepUp();   // shared, not a local literal (M2); 4 on the legacy grid
         std::set<long long> seenStairs;
 
         // Pass 1 — PLAN every stair. M2: honor sp.ok. The old code cut the hole and
@@ -533,11 +550,11 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 // Plan a CLIMBABLE stair. StairPlanner is the shared source of truth with
                 // BuildingProgramValidator, so what we build is exactly what the gate checks.
                 StairForm form = stairFormFromString(sr.form);
-                StairPlan sp = planStair(rc.w, rc.d, riseMicro, form, maxStepMicro);
+                StairPlan sp = planStair(rc.w, rc.d, riseMicro, form, maxStepMicro, g);
                 if (!sp.ok) {
                     const StairForm alt = (form == StairForm::Switchback)
                         ? StairForm::Straight : StairForm::Switchback;
-                    StairPlan repaired = planStair(rc.w, rc.d, riseMicro, alt, maxStepMicro);
+                    StairPlan repaired = planStair(rc.w, rc.d, riseMicro, alt, maxStepMicro, g);
                     if (repaired.ok) {
                         LOG_WARN_FMT("StructureRealizer", "place_stairs: "
                                      << stairFormToString(form) << " does not fit well "
@@ -572,14 +589,14 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             // interior through from outside. The shaft is allowed to open the FLOOR,
             // never the shell.
             {
-                int hx0 = ps.rc.x * 9 + ps.sp.holeX;
-                int hz0 = ps.rc.z * 9 + ps.sp.holeZ;
+                int hx0 = ps.rc.x * M + ps.sp.holeX;
+                int hz0 = ps.rc.z * M + ps.sp.holeZ;
                 int hx1 = hx0 + ps.sp.holeW;
                 int hz1 = hz0 + ps.sp.holeD;
                 hx0 = std::max(hx0, extT);
                 hz0 = std::max(hz0, extT);
-                hx1 = std::min(hx1, program.footprintW * 9 - extT);
-                hz1 = std::min(hz1, program.footprintD * 9 - extT);
+                hx1 = std::min(hx1, program.footprintW * M - extT);
+                hz1 = std::min(hz1, program.footprintD * M - extT);
                 if (hx1 > hx0 && hz1 > hz0)
                     c.fillMicroBox(hx0, ps.holeBase, hz0, hx1 - hx0,
                                    ps.topMicro - ps.holeBase, hz1 - hz0, "");
@@ -587,27 +604,28 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
 
             // (2) build the planned treads + landings (local micro → offset into the well)
             for (const auto& s : ps.sp.solids)
-                c.fillMicroBox(ps.rc.x * 9 + s.x, ps.botMicro + s.y, ps.rc.z * 9 + s.z,
+                c.fillMicroBox(ps.rc.x * M + s.x, ps.botMicro + s.y, ps.rc.z * M + s.z,
                                s.w, s.h, s.d, matFloor);
 
             // (2b) M2 guard curbs (entry-gated).
             const PlannedStair* next = nullptr;
             for (const auto& q : planned)
                 if (q.a == ps.b) { next = &q; break; }
-            for (const auto& g : ps.sp.guards) {
+            for (const auto& gd : ps.sp.guards) {
                 bool entryGate = false;
                 if (next) {
-                    const int wx = ps.rc.x * 9 + g.x - next->rc.x * 9;   // into next's frame
-                    const int wz = ps.rc.z * 9 + g.z - next->rc.z * 9;
+                    const int wx = ps.rc.x * M + gd.x - next->rc.x * M;   // into next's frame
+                    const int wz = ps.rc.z * M + gd.z - next->rc.z * M;
+                    const int hw = g.agentHalfWidth();
                     for (const auto& s : next->sp.solids) {
                         if (s.y + s.h > maxStepMicro) continue;   // not an entry-level tread
-                        if (wx >= s.x - 2 && wx < s.x + s.w + 2 &&
-                            wz >= s.z - 2 && wz < s.z + s.d + 2) { entryGate = true; break; }
+                        if (wx >= s.x - hw && wx < s.x + s.w + hw &&
+                            wz >= s.z - hw && wz < s.z + s.d + hw) { entryGate = true; break; }
                     }
                 }
                 if (entryGate) continue;
-                c.fillMicroBox(ps.rc.x * 9 + g.x, ps.botMicro + g.y, ps.rc.z * 9 + g.z,
-                               g.w, g.h, g.d, matFloor);
+                c.fillMicroBox(ps.rc.x * M + gd.x, ps.botMicro + gd.y, ps.rc.z * M + gd.z,
+                               gd.w, gd.h, gd.d, matFloor);
             }
 
             // (3) RECORD the flight in the plan at the moment it is built (Claims
@@ -616,11 +634,11 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             StairRecord rec;
             rec.x = ps.rc.x; rec.z = ps.rc.z; rec.w = ps.rc.w; rec.d = ps.rc.d;
             rec.fromStory = ps.a; rec.toStory = ps.b;
-            rec.baseY = ps.botMicro / 9;
-            rec.topY = (ps.topMicro + 8) / 9;
+            rec.baseY = ps.botMicro / M;
+            rec.topY = (ps.topMicro + M - 1) / M;
             rec.botWalkMicro = ps.botMicro; rec.topWalkMicro = ps.topMicro;
             rec.form = stairFormToString(ps.form);   // the form actually BUILT (post-repair)
-            rec.holeX = ps.rc.x * 9 + ps.sp.holeX; rec.holeZ = ps.rc.z * 9 + ps.sp.holeZ;
+            rec.holeX = ps.rc.x * M + ps.sp.holeX; rec.holeZ = ps.rc.z * M + ps.sp.holeZ;
             rec.holeW = ps.sp.holeW; rec.holeD = ps.sp.holeD;
             plan.stairs.push_back(rec);
         }
@@ -628,8 +646,8 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
 
     // ---- pass 4: ceiling slab over the footprint ----
     for (const auto& [cx, cz] : footprint)
-        c.fillMicroBox(cx * 9, wallTopMicro, cz * 9, 9, ceilT, 9, matCeil);
-    plan.floors.push_back({bx0, bz0, bx1 - bx0, bz1 - bz0, wallTopMicro / 9,
+        c.fillMicroBox(cx * M, wallTopMicro, cz * M, M, ceilT, M, matCeil);
+    plan.floors.push_back({bx0, bz0, bx1 - bx0, bz1 - bz0, wallTopMicro / M,
                            style.thicknessOf("ceiling", 0.222), matCeil, "ceiling"});
 
     // ---- pass 4.5: corner QUOINS (P2 place_trim increment A; TrimForgeTest) ----
@@ -647,19 +665,20 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     const bool rectangular = (int)footprint.size() == W_c * D_c;
     if (style.flag("quoins", false) && rectangular) {
         const std::string matTrim = style.materialOf("trim", matExt);
-        const int qLong = 4, qShort = 3;
+        // 450 x 300 mm legs: 9 -> 4 x 3 (0.444 x 0.333 m), 8 -> 4 x 2 (0.5 x 0.25 m).
+        const int qLong = g.m(0.45), qShort = g.m(0.30);
         const int qBase = floorTopByStory.empty() ? floorTopMicro : floorTopByStory[0];
         struct QCorner { int cx, cz, dx, dz; int ccx, ccz; };   // outermost wall micro + inward dir + corner CUBE
         const QCorner corners[4] = {
-            {bx0 * 9,     bz0 * 9,     +1, +1, bx0,     bz0},
-            {bx1 * 9 - 1, bz0 * 9,     -1, +1, bx1 - 1, bz0},
-            {bx0 * 9,     bz1 * 9 - 1, +1, -1, bx0,     bz1 - 1},
-            {bx1 * 9 - 1, bz1 * 9 - 1, -1, -1, bx1 - 1, bz1 - 1},
+            {bx0 * M,     bz0 * M,     +1, +1, bx0,     bz0},
+            {bx1 * M - 1, bz0 * M,     -1, +1, bx1 - 1, bz0},
+            {bx0 * M,     bz1 * M - 1, +1, -1, bx0,     bz1 - 1},
+            {bx1 * M - 1, bz1 * M - 1, -1, -1, bx1 - 1, bz1 - 1},
         };
         for (const auto& q : corners) {
             // Claims Ledger increment 2: record the corner zone the courses dress.
             plan.corners.push_back({q.ccx, q.ccz, q.dx, q.dz,
-                                    qBase / 9, (wallTopMicro + 8) / 9,
+                                    qBase / M, (wallTopMicro + M - 1) / M,
                                     qLong, qShort, matTrim});
             for (int y = qBase; y < wallTopMicro; ++y) {
                 const int course = y - qBase;
@@ -685,7 +704,14 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     // height*9), and ceilT < 3, so floor(ceilTop/3)*3 == wallTopMicro — the eave lands exactly on the
     // wall top. The old ceil() pushed it one subcube higher, leaving the visible 1-micro hover
     // (V1 RealizedStructureValidator::checkRoofEaveFlush).
-    int eaveSub = ceilTopMicro / 3;
+    //
+    // Grid: on the legacy grid the roof is stepped and snapped in SUBCUBE rows (3 micro) so the shell stays
+    // subcube-coarsenable; pitch is rise in subcubes per cube of run (pD = 3). The 1/8 m grid has no
+    // subcube: rows are single cells (snap 1) and pitch is rise in cells per metre of run (pD = M), so the
+    // grounded angle is kept to 1/8 m precision instead of 1/3 m (50 deg -> 10/8 = 51.3 deg; 40 -> 7/8).
+    const int snap = g.isLegacy() ? 3 : 1;
+    const int pD   = g.isLegacy() ? 3 : M;
+    const int eaveM = (ceilTopMicro / snap) * snap;   // micro y of the lowest roof course (eave-flush)
     // Decompose the footprint into 1-2 rectangular roof RANGES (P2.6; RoofForgeTest.LPlan*):
     // group contiguous rows (then columns) whose occupied cells form one identical interval.
     // 1 band = the plain rectangle; 2 bands with nested intervals = an L/T plan — the wider
@@ -758,24 +784,23 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         constexpr double PI = 3.14159265358979323846;
         const double pitchDeg = style.roofOf("pitch_deg", 0.0);
         const int pitch = pitchDeg > 0.0
-            ? std::max(1, (int)std::lround(3.0 * std::tan(pitchDeg * PI / 180.0)))
-            : 2;
-        const int shellM = (pitch + 1) * 3;
-        const int eaveM  = eaveSub * 3;
-        const int WM = W_c * 9, DM = D_c * 9;
+            ? std::max(1, (int)std::lround(pD * std::tan(pitchDeg * PI / 180.0)))
+            : (int)std::lround(pD * 2.0 / 3.0);   // legacy ~34 deg (2 subcubes per cube)
+        const int shellM = g.isLegacy() ? (pitch + 1) * 3 : pitch + g.m(1.0 / 3.0);
+        const int WM = W_c * M, DM = D_c * M;
         // Eave overhang on ALL four sides (a hip has no gable verge) — same thin-sheet
         // continuation as the gable pass; ⚠ modern-analog value, flagged in the style.
-        const int oM = std::max(0, (int)std::lround(style.roofOf("overhang", 0.0) * 9.0));
+        const int oM = std::max(0, g.m(style.roofOf("overhang", 0.0)));
         for (int mx = -oM; mx < WM + oM; ++mx) {
             const int dx = std::min(mx, WM - 1 - mx);
             for (int mz = -oM; mz < DM + oM; ++mz) {
                 const int d     = std::min(dx, std::min(mz, DM - 1 - mz));   // negative outside
-                const int top   = eaveM + (d * pitch) / 3;
+                const int top   = eaveM + (d * pitch) / pD;
                 const bool inside = d >= 0;
-                const int under = inside ? std::max(eaveM, (top - shellM + 1) / 3 * 3)
+                const int under = inside ? std::max(eaveM, (top - shellM + 1) / snap * snap)
                                          : std::max(0, top - 2);
                 if (top < 0 || top - under + 1 <= 0) continue;
-                c.fillMicroBox(bx0 * 9 + mx, under, bz0 * 9 + mz, 1, top - under + 1, 1, matRoof);
+                c.fillMicroBox(bx0 * M + mx, under, bz0 * M + mz, 1, top - under + 1, 1, matRoof);
             }
         }
     } else if (!roofRanges.empty() && (roofStyle == "gable" || roofStyle == "hip") &&
@@ -795,28 +820,29 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         constexpr double PI = 3.14159265358979323846;
         const double pitchDeg = style.roofOf("pitch_deg", 0.0);
         const int pitch = pitchDeg > 0.0
-            ? std::max(1, (int)std::lround(3.0 * std::tan(pitchDeg * PI / 180.0)))
-            : 2;
-        const int eaveM  = eaveSub * 3;      // micro y of the lowest roof course (eave-flush)
-        const int shellM = (pitch + 1) * 3;  // same vertical shell depth as the cube-stepped roof
-        const int oM = std::max(0, (int)std::lround(style.roofOf("overhang", 0.0) * 9.0));
-        auto fdivq = [](int a) { return a >= 0 ? a / 9 : (a - 8) / 9; };
+            ? std::max(1, (int)std::lround(pD * std::tan(pitchDeg * PI / 180.0)))
+            : (int)std::lround(pD * 2.0 / 3.0);   // legacy ~34 deg (2 subcubes per cube)
+        // Vertical shell depth: legacy = the cube-stepped roof's (pitch+1) subcubes; 1/8 m = the same
+        // metres (rise per metre + 1/3 m).
+        const int shellM = g.isLegacy() ? (pitch + 1) * 3 : pitch + g.m(1.0 / 3.0);
+        const int oM = std::max(0, g.m(style.roofOf("overhang", 0.0)));
+        auto fdivq = [&](int a) { return g.cubeOf(a); };
         // Candidate surface height of one range at an absolute micro column; INT_MIN = none.
         auto rangeTop = [&](const Rect& R, int mx, int mz, bool& inside) -> int {
             const bool sInZ = R.w >= R.d;                 // ridge along the longer axis
-            const int spanM = (sInZ ? R.d : R.w) * 9;
-            const int perpM = (sInZ ? R.w : R.d) * 9;
-            const int mb = sInZ ? mz - R.z * 9 : mx - R.x * 9;
-            const int mp = sInZ ? mx - R.x * 9 : mz - R.z * 9;
+            const int spanM = (sInZ ? R.d : R.w) * M;
+            const int perpM = (sInZ ? R.w : R.d) * M;
+            const int mb = sInZ ? mz - R.z * M : mx - R.x * M;
+            const int mp = sInZ ? mx - R.x * M : mz - R.z * M;
             if (mp < 0 || mp >= perpM) return INT_MIN;    // no verge overhang
             if (mb < -oM || mb >= spanM + oM) return INT_MIN;
             inside = mb >= 0 && mb < spanM;
             // Overhang only over EXTERIOR ground — never into the other range's footprint.
             if (!inside && inFoot(fdivq(mx), fdivq(mz))) return INT_MIN;
-            return eaveM + (std::min(mb, spanM - 1 - mb) * pitch) / 3;
+            return eaveM + (std::min(mb, spanM - 1 - mb) * pitch) / pD;
         };
-        for (int mx = bx0 * 9 - oM; mx < bx1 * 9 + oM; ++mx) {
-            for (int mz = bz0 * 9 - oM; mz < bz1 * 9 + oM; ++mz) {
+        for (int mx = bx0 * M - oM; mx < bx1 * M + oM; ++mx) {
+            for (int mz = bz0 * M - oM; mz < bz1 * M + oM; ++mz) {
                 int best = INT_MIN; bool bestInside = false;
                 for (const Rect& R : roofRanges) {
                     bool ins = false;
@@ -827,7 +853,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 if (best == INT_MIN || best < 0) continue;
                 // Underside snaps DOWN to the subcube grid inside (subcube-coarsenable shell,
                 // VoxelCountIsReasonable budget); overhang = thin 3-micro watertight sheet.
-                const int under = bestInside ? std::max(eaveM, (best - shellM + 1) / 3 * 3)
+                const int under = bestInside ? std::max(eaveM, (best - shellM + 1) / snap * snap)
                                              : std::max(0, best - 2);
                 if (best - under + 1 <= 0) continue;
                 c.fillMicroBox(mx, under, mz, 1, best - under + 1, 1, matRoof);
@@ -838,33 +864,33 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         // range needs no wall; the roof mass covers it).
         for (const Rect& R : roofRanges) {
             const bool sInZ = R.w >= R.d;
-            const int spanM = (sInZ ? R.d : R.w) * 9;
+            const int spanM = (sInZ ? R.d : R.w) * M;
             for (int mb = 0; mb < spanM; ++mb) {
-                const int top   = eaveM + (std::min(mb, spanM - 1 - mb) * pitch) / 3;
-                const int under = std::max(eaveM, (top - shellM + 1) / 3 * 3);
+                const int top   = eaveM + (std::min(mb, spanM - 1 - mb) * pitch) / pD;
+                const int under = std::max(eaveM, (top - shellM + 1) / snap * snap);
                 if (under <= eaveM) continue;
                 const int gh = under - eaveM;
                 if (sInZ) {
-                    const int cz = fdivq(R.z * 9 + mb);
+                    const int cz = fdivq(R.z * M + mb);
                     if (!inFoot(R.x - 1, cz))
-                        c.fillMicroBox(R.x * 9, eaveM, R.z * 9 + mb, extT, gh, 1, matExt);
+                        c.fillMicroBox(R.x * M, eaveM, R.z * M + mb, extT, gh, 1, matExt);
                     if (!inFoot(R.x + R.w, cz))
-                        c.fillMicroBox((R.x + R.w) * 9 - extT, eaveM, R.z * 9 + mb, extT, gh, 1, matExt);
+                        c.fillMicroBox((R.x + R.w) * M - extT, eaveM, R.z * M + mb, extT, gh, 1, matExt);
                 } else {
-                    const int cx = fdivq(R.x * 9 + mb);
+                    const int cx = fdivq(R.x * M + mb);
                     if (!inFoot(cx, R.z - 1))
-                        c.fillMicroBox(R.x * 9 + mb, eaveM, R.z * 9, 1, gh, extT, matExt);
+                        c.fillMicroBox(R.x * M + mb, eaveM, R.z * M, 1, gh, extT, matExt);
                     if (!inFoot(cx, R.z + R.d))
-                        c.fillMicroBox(R.x * 9 + mb, eaveM, (R.z + R.d) * 9 - extT, 1, gh, extT, matExt);
+                        c.fillMicroBox(R.x * M + mb, eaveM, (R.z + R.d) * M - extT, 1, gh, extT, matExt);
                 }
             }
         }
     } else {
         // non-rectangular / flat: a simple flat roof cap one cube above the ceiling
         for (const auto& [cx, cz] : footprint)
-            c.fillMicroBox(cx * 9, ceilTopMicro, cz * 9, 9, 3, 9, matRoof);
+            c.fillMicroBox(cx * M, ceilTopMicro, cz * M, M, g.m(1.0 / 3.0), M, matRoof);
     }
-    plan.roof.push_back({bx0, bz0, bx1, bz1, eaveSub / 3, style.roofOf("pitch_deg", 0.0),
+    plan.roof.push_back({bx0, bz0, bx1, bz1, eaveM / M, style.roofOf("pitch_deg", 0.0),
                          !roofRanges.empty() ? roofStyle : "flat", matRoof});
 
     // ---- place_chimney (#14) part 2: the STACKS. Runs last, because a stack has to

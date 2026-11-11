@@ -310,8 +310,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       predicted lower bound 4/column failed on a sparse 10-tree footprint, 2.27). Undergrowth not yet on the grid.
       GOTCHA: test binary runs in build/tests, so WorldGenerator's CWD-relative biomes.json is NOT loaded (built-in
       biomes) unless the test calls loadBiomes(<repo>/resources/biomes.json); and running phyxel_tests.exe needs
-      python312.dll on PATH (uv: %APPDATA%\uv\python\cpython-3.12.13-windows-x86_64-none). NEXT: C++ length type +
-      MicroCanvas on 1/8 m (FC step 3); F4 fracture reference.
+      python312.dll on PATH (uv: %APPDATA%\uv\python\cpython-3.12.13-windows-x86_64-none). FC step 3a DONE 2026-11-11:
+      `core/StructureGrid.h` (cells per metre as a VALUE: legacy 9 / foundation 8, one floorDiv, re-picked step-up
+      3/8 m, riser 2/8, agent 15/8 m, guard 8/8) + `realizeShell(program, style, grid)`: legacy byte-identical (20
+      ForgeParityDigests + 4 canvas digests unchanged); on 1/8 m the 20-case BuildingHarness gives the SAME verdict
+      per case (17 pass, 3 BAD fail their layer) and Roof/Trim/WindowInfill suites run on BOTH grids (38 green).
+      1/8 m canvas refuses C/S/M export and refuses hearths (bodies authored in ninths). NEXT: hearth bodies +
+      furniture in metres; the other structure generators (StructureForge furnish, Tower/Fence/Street/Settlement);
+      a building into the storage lab area; F4 fracture reference.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

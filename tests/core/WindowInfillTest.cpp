@@ -3,10 +3,13 @@
 #include "core/BuildingProgram.h"
 #include "core/RoomLayout.h"
 #include "core/RoomProgram.h"
+#include "core/StructureGrid.h"
 #include "core/StructureRealizer.h"
 #include "core/StyleProfile.h"
 
 using namespace Phyxel::Core;
+
+class WindowInfillTest : public ::testing::TestWithParam<int> {};
 
 // ============================================================================
 // finish_forge P3 — WINDOW INFILL (#10 / #15 slice). Open-air window holes read
@@ -82,7 +85,10 @@ bool anyMaterial(const MicroCanvas& c, const std::string& mat,
 
 // Every autofilled window carries the grounded default infill (data threading:
 // WindowSpec.infill -> ProgPortal.infill).
-TEST(WindowInfillTest, AutofilledWindowsDeclareShutteredInfill) {
+TEST_P(WindowInfillTest, AutofilledWindowsDeclareShutteredInfill) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
     ASSERT_NE(registry().get("longhouse"), nullptr);
     auto p = autofill("longhouse", 16, 6);
     ASSERT_FALSE(p.stories.empty());
@@ -99,14 +105,17 @@ TEST(WindowInfillTest, AutofilledWindowsDeclareShutteredInfill) {
 // THE street-read invariant (RED on the pre-infill realizer: openings are pure air): every
 // realized window shows shutter geometry — a closed leaf in the clear reveal OR open panels
 // folded back on the facade flanking the opening.
-TEST(WindowInfillTest, RealizedWindowRevealsContainShutterGeometry) {
+TEST_P(WindowInfillTest, RealizedWindowRevealsContainShutterGeometry) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
     ASSERT_NE(registry().get("longhouse"), nullptr);
     auto p = autofill("longhouse", 16, 6);
-    auto r = StructureRealizer::realizeShell(p, timberStyle());
+    auto r = StructureRealizer::realizeShell(p, timberStyle(), g);
     ASSERT_TRUE(r.ok) << r.error;
     const auto& c = r.canvas;
     const int wb = r.floorTopMicro;
-    const int extT = StructureRealizer::thicknessMicro(0.222);
+    const int extT = std::max(1, g.m(0.222));
     const int kJamb = 1, kLintel = 2, sill = 1;
 
     int windows = 0, withShutters = 0;
@@ -115,13 +124,13 @@ TEST(WindowInfillTest, RealizedWindowRevealsContainShutterGeometry) {
         ASSERT_TRUE(po.pz == 0 || po.pz == 6) << "longhouse window off the long walls";
         ++windows;
         const int w = std::max(1, po.width);
-        const int oyBase = wb + sill * 9;
-        const int oyTop = oyBase + po.height * 9;
+        const int oyBase = wb + sill * M;
+        const int oyTop = oyBase + po.height * M;
         const int jambTop = oyTop - kLintel;
-        const int x0 = po.px * 9, x1 = (po.px + w) * 9;
-        const int zWall0 = (po.pz == 0) ? 0 : 6 * 9 - extT;         // wall band depth
-        const int zWall1 = (po.pz == 0) ? extT : 6 * 9;
-        const int proudZ = (po.pz == 0) ? -1 : 6 * 9;               // 1 micro proud of the facade
+        const int x0 = po.px * M, x1 = (po.px + w) * M;
+        const int zWall0 = (po.pz == 0) ? 0 : 6 * M - extT;         // wall band depth
+        const int zWall1 = (po.pz == 0) ? extT : 6 * M;
+        const int proudZ = (po.pz == 0) ? -1 : 6 * M;               // 1 micro proud of the facade
         const int panelW = std::max(2, (x1 - x0) / 2);
         // closed leaf: any solid in the CLEAR reveal (inside jambs, above sill, below lintel)
         const bool leaf = anySolid(c, x0 + kJamb, x1 - kJamb, oyBase, jambTop, zWall0, zWall1);
@@ -140,7 +149,10 @@ TEST(WindowInfillTest, RealizedWindowRevealsContainShutterGeometry) {
 // The glass mechanism: a window portal declaring infill="glass" gets a Glass pane in the clear
 // reveal. (No shipped typology declares glass yet — manor_hall has no grounded windows spec —
 // this proves the realizer path so grounded content can land as data.)
-TEST(WindowInfillTest, GlassInfillPaintsAGlassPane) {
+TEST_P(WindowInfillTest, GlassInfillPaintsAGlassPane) {
+    const StructureGrid g{GetParam()};
+    const int M = g.perM;
+    (void)M;
     BuildingProgram p;
     p.name = "glasstest"; p.style = "timber_cottage";
     p.footprintW = 10; p.footprintD = 6; p.substructure = "slab";
@@ -155,10 +167,15 @@ TEST(WindowInfillTest, GlassInfillPaintsAGlassPane) {
     s.portals.push_back(win);
     p.stories.push_back(s);
 
-    auto r = StructureRealizer::realizeShell(p, timberStyle());
+    auto r = StructureRealizer::realizeShell(p, timberStyle(), g);
     ASSERT_TRUE(r.ok) << r.error;
-    const int extT = StructureRealizer::thicknessMicro(0.222);
-    const int oyBase = r.floorTopMicro + 9;                          // 1-cube sill
-    EXPECT_TRUE(anyMaterial(r.canvas, "Glass", 7 * 9, 8 * 9, oyBase, oyBase + 9, 0, extT))
+    const int extT = std::max(1, g.m(0.222));
+    const int oyBase = r.floorTopMicro + M;                          // 1-cube sill
+    EXPECT_TRUE(anyMaterial(r.canvas, "Glass", 7 * M, 8 * M, oyBase, oyBase + M, 0, extT))
         << "declared glass infill did not paint a Glass pane in the reveal";
 }
+
+// docs/VoxelFoundationPlan.md §7a.3: every invariant above holds on the legacy 1/9 m grid AND the 1/8 m
+// foundation grid (coordinates written in metres x M; grounded leg/sill sizes via StructureGrid::m).
+INSTANTIATE_TEST_SUITE_P(Grids, WindowInfillTest, ::testing::Values(9, 8),
+                         [](const ::testing::TestParamInfo<int>& i) { return "perM" + std::to_string(i.param); });

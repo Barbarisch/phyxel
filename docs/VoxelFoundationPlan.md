@@ -609,6 +609,27 @@ content, 64 for items. The live loader accepts only 27/81 today; the lab reads g
 3. **A C++ length type** for the structure code (integer 1/8 m units with metre conversions) and one floor-division
    helper; move `MicroCanvas` and its callers onto it in one pass, re-picking the constants above. Then the
    structure validation suite (L2/L3) must pass on the new grid.
+   **3a done 2026-11-11 (the building shell).** Design change from "one pass": the grid is a **value**, not a
+   constant, so today's game keeps running on 1/9 m while the 1/8 m path is proven (risk 1, "both paths until F7").
+   - `core/StructureGrid.h`: `perM` (legacy 9, foundation 8), `m(metres)`, `cubeOf`, the one `floorDiv`, and the
+     re-picked constants with the metres each stands for: step-up 3/8 m (0.375, chosen under today's controller's
+     0.444 so 1/8 m stairs stay climbable by the character that exists; the new controller's own value is F7's),
+     comfort riser and minimum tread 2/8 m, guard 8/8 m (meets IRC 0.914 m, which 8/9 = 0.889 did not), agent
+     15/8 m tall, 2/8 m half-width.
+   - `MicroCanvas(cellsPerM)`; the C/S/M export refuses a non-9 canvas loudly. `realizeShell(program, style, grid)`:
+     every literal 9 in it is the grid (none left). The roof is the one place the old code used thirds as design:
+     on 1/9 m it keeps subcube rows and pitch in subcubes per metre; on 1/8 m rows are single cells and pitch is
+     cells per metre, so the grounded angle is held to 1/8 m (50° → 10/8 = 51.3°; 40° → 7/8 = 41.2°). Quoin legs
+     450 x 300 mm → 4 x 2 cells. `planStair(..., grid)`.
+   - Prediction, written before the code: on 1/8 m the 20-case BuildingHarness gives every case the same verdict
+     per layer as on 1/9 m. **Held**: 17 pass, the 3 BAD cases fail exactly their layer (red first on a stub
+     that ignored the grid: 3/3 new tests failed). Roof (11), quoin (5) and window-infill (3) suites now run on
+     both grids: 38/38. Legacy: the 20 pinned `ForgeParityDigests` and the 4 `CanvasDigestTest` digests are
+     byte-identical.
+   - Not done (each refuses or stays legacy, never silently wrong): **hearths** (bodies are cell counts in ninths;
+     the 1/8 m shell refuses a vented fixture, tested), furniture placement and the furnish pass
+     (`StructureForge`), `TowerForge`, `FenceBuilder`, `StreetPaver`, `SettlementBuildService`, the validators
+     (`RealizedStructureValidator`, `BuildingProgramValidator`) and `deriveLocations`.
 4. **Re-express the authored-integer Python generators** (furniture, items, doors) in metres.
 5. **Retire** `gen_tree.py` (bush presets in tree_forge) and port tree_forge to C++ for procedural flora.
 6. **Terrain:** creek beds and the bridge parapet follow `bedHeight` at 1/8 m.
@@ -655,7 +676,7 @@ Every rig is checked for:
 | Phase | What | Exit test | Stop if |
 |---|---|---|---|
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1). **Done 2026-11-10:** §13 decided; inventory in §7a.1-7a.2; save check in §3.5a point 7; skeletons `engine/*/core/voxfound/` (`VoxelGrid`, `FractureLab`, `StorageLab`) + `VoxFoundFractureLabTest` (4 checker tests green, 8 predictions red until F4) + `VoxFoundStorageLabTest` (3 green incl. measured terrain stats, 3 red until F1) | — | — |
-| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; next: the C++ length type + `MicroCanvas` | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
+| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); next: hearths/furniture in metres, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | pixel diff within the gate at 5 poses; face count ≤ today's on the same scene; frame time ≤ today | can't match the look, or more faces, or slower |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
