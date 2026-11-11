@@ -10,7 +10,7 @@ Writes docs/evidence/water_core_m4/<tag>_off.mp4, <tag>_on.mp4 (+ .srt), <tag>.m
 import argparse, json, math, pathlib, shutil, subprocess, sys, time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from water_bench import Api, camera_set
-from water_record_lake_clip import EV, CX, CZ, TOP, W, Z0, lay_lake, destroy_all, srt_time
+from water_record_lake_clip import EV, CX, CZ, TOP, W, Z0, lay_lake, destroy_all, srt_time, splash
 
 
 def pose(u):
@@ -29,6 +29,8 @@ def main():
     ap.add_argument("--seconds", type=float, default=14.0, help="each leg (out, back); a 3 s hold at each end")
     ap.add_argument("--crop", default="954:560:243:60")
     ap.add_argument("--tag", default="skin150_flyout")
+    ap.add_argument("--splash", action="store_true",
+                    help="51.7 (S4's clip): start FAR, fly in, splash at the lake's centre (a patch wakes), hold, fly out with the patch alive")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
     api = Api(a.url); api.wait_status(300)
@@ -44,14 +46,22 @@ def main():
         out["record"] = lay_lake(api)
         for mode in ("off", "on"):
             api.debug("water_av_skin", {"on": mode == "on"})
-            camera_set(api, pose(0.0)); time.sleep(4.0)
+            camera_set(api, pose(1.0 if a.splash else 0.0)); time.sleep(4.0)
             mp4 = EV / f"{a.tag}_{mode}.mp4"
             rec = subprocess.Popen([ff, "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-t", f"{total:.1f}", "-i", f"title={a.window}",
                                     "-c:v", "libx264", "-pix_fmt", "yuv420p", str(mp4)])
-            t0 = time.time(); rows = []; last_row = -1.0
+            t0 = time.time(); rows = []; last_row = -1.0; splashed = False
             while rec.poll() is None:
                 t = time.time() - t0
-                if t < 3.0: u = 0.0
+                if a.splash:   # far -> in -> splash + hold -> out -> far
+                    if t < 3.0: u = 1.0
+                    elif t < 3.0 + a.seconds: u = 1.0 - (t - 3.0) / a.seconds
+                    elif t < 6.0 + a.seconds:
+                        u = 0.0
+                        if not splashed: splash(api); splashed = True
+                    elif t < 6.0 + 2 * a.seconds: u = (t - 6.0 - a.seconds) / a.seconds
+                    else: u = 1.0
+                elif t < 3.0: u = 0.0
                 elif t < 3.0 + a.seconds: u = (t - 3.0) / a.seconds
                 elif t < 6.0 + a.seconds: u = 1.0
                 elif t < 6.0 + 2 * a.seconds: u = 1.0 - (t - 6.0 - a.seconds) / a.seconds
@@ -63,14 +73,18 @@ def main():
                     try: fps = api.get("/api/debug/engine_timing").get("fps")
                     except Exception: fps = None
                     sk = api.debug("water_av_skin", {})
+                    try: vols = len(api.debug("water_av_list", {}).get("volumes", []))
+                    except Exception: vols = None
                     rows.append({"t": round(t, 2), "dist_m": round(math.hypot(p["z"] - CZ, p["y"] - TOP), 1), "fps": fps,
-                                 "skin_cells": sk.get("wet_cells"), "skin_levels": sk.get("levels"), "skin_ms": sk.get("ms_last_call")})
+                                 "skin_cells": sk.get("wet_cells"), "skin_levels": sk.get("levels"), "skin_ms": sk.get("ms_last_call"), "volumes": vols})
                 time.sleep(0.04)
             out["takes"][mode] = rows
+            if a.splash: time.sleep(30.0)   # the patch back in the record before the next take
             lines = []
             for i, r in enumerate(rows):
                 t1 = rows[i + 1]["t"] if i + 1 < len(rows) else r["t"] + 0.25
                 state = f"skin ON: {r['skin_cells']} cells, {r['skin_levels']} levels" if mode == "on" else "skin OFF: the record tiles only (48 m round the camera)"
+                if a.splash: state += " | patch live" if r.get("volumes") else " | no patch"
                 lines.append(f"{i + 1}\n{srt_time(r['t'])} --> {srt_time(t1)}\n{state}\n{r['dist_m']:.0f} m from the lake's centre | {(r['fps'] or 0):.0f} fps\n")
             (EV / f"{a.tag}_{mode}.srt").write_text("\n".join(lines), encoding="utf-8")
             fl = [r["fps"] for r in rows if r["fps"]]

@@ -1,0 +1,2417 @@
+{
+ "draw_m": 48.0,
+ "takes": {
+  "off": [
+   {
+    "t": 0.0,
+    "dist_m": 476.9,
+    "fps": 456.7044399027675,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 0.27,
+    "dist_m": 476.9,
+    "fps": 423.0476224247088,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 0.54,
+    "dist_m": 476.9,
+    "fps": 231.50826687549105,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 0.83,
+    "dist_m": 476.9,
+    "fps": 620.1550176987381,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 1.13,
+    "dist_m": 476.9,
+    "fps": 303.74826057711476,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 1.4,
+    "dist_m": 476.9,
+    "fps": 632.2710969457099,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 1.68,
+    "dist_m": 476.9,
+    "fps": 473.91121473362017,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 1.96,
+    "dist_m": 476.9,
+    "fps": 350.6434373213348,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 2.22,
+    "dist_m": 476.9,
+    "fps": 582.5468839879226,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 2.5,
+    "dist_m": 476.9,
+    "fps": 399.3450594456844,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 2.76,
+    "dist_m": 476.9,
+    "fps": 519.9667286555665,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 3.05,
+    "dist_m": 476.9,
+    "fps": 452.284019678243,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 3.33,
+    "dist_m": 476.3,
+    "fps": 492.51376767071434,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 3.6,
+    "dist_m": 475.1,
+    "fps": 502.8916544172489,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 3.85,
+    "dist_m": 473.2,
+    "fps": 491.03854081670335,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 4.12,
+    "dist_m": 470.7,
+    "fps": 476.64444373172273,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 4.38,
+    "dist_m": 467.5,
+    "fps": 341.1688347402915,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 4.64,
+    "dist_m": 463.6,
+    "fps": 506.50863193984026,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 4.94,
+    "dist_m": 458.4,
+    "fps": 232.33661856387505,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 5.22,
+    "dist_m": 452.9,
+    "fps": 433.4633527409323,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 5.52,
+    "dist_m": 446.2,
+    "fps": 375.9257007610387,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 5.77,
+    "dist_m": 439.9,
+    "fps": 339.316619499059,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 6.07,
+    "dist_m": 431.7,
+    "fps": 443.5966716053106,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 6.33,
+    "dist_m": 424.1,
+    "fps": 369.2216941705253,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 6.59,
+    "dist_m": 415.9,
+    "fps": 307.5125344352223,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 6.9,
+    "dist_m": 405.9,
+    "fps": 474.6535081471386,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 7.16,
+    "dist_m": 396.9,
+    "fps": 529.0445574696425,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 7.46,
+    "dist_m": 385.9,
+    "fps": 529.6049309492257,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 7.75,
+    "dist_m": 374.8,
+    "fps": 490.2200969170799,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 8.01,
+    "dist_m": 364.5,
+    "fps": 570.0604362900184,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 8.29,
+    "dist_m": 353.0,
+    "fps": 499.0020227453709,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 8.56,
+    "dist_m": 342.1,
+    "fps": 366.8378529325173,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 8.87,
+    "dist_m": 328.6,
+    "fps": 301.3228063883447,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 9.13,
+    "dist_m": 317.4,
+    "fps": 631.3530080304452,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 9.42,
+    "dist_m": 305.0,
+    "fps": 406.52059224680295,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 9.71,
+    "dist_m": 292.1,
+    "fps": 551.2071555575548,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 9.97,
+    "dist_m": 280.7,
+    "fps": 461.5739497070783,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 10.25,
+    "dist_m": 268.0,
+    "fps": 577.0007362021213,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 10.56,
+    "dist_m": 254.4,
+    "fps": 492.6836546507913,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 10.84,
+    "dist_m": 242.0,
+    "fps": 408.1965828886301,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 11.11,
+    "dist_m": 230.6,
+    "fps": 243.34453553928108,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 11.4,
+    "dist_m": 218.2,
+    "fps": 481.7884049978945,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 11.68,
+    "dist_m": 206.3,
+    "fps": 333.95672105653983,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 11.99,
+    "dist_m": 193.7,
+    "fps": 571.1348630555775,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 12.28,
+    "dist_m": 182.6,
+    "fps": 325.3090551203467,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 12.55,
+    "dist_m": 172.3,
+    "fps": 454.02953444968716,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 12.82,
+    "dist_m": 162.3,
+    "fps": 296.64787394406886,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 13.08,
+    "dist_m": 153.1,
+    "fps": 230.45191110744818,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 13.36,
+    "dist_m": 144.0,
+    "fps": 218.85190364898966,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 13.64,
+    "dist_m": 135.3,
+    "fps": 215.7078549094226,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 13.9,
+    "dist_m": 127.5,
+    "fps": 518.9413583342133,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 14.17,
+    "dist_m": 120.1,
+    "fps": 419.0061153896021,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 14.5,
+    "dist_m": 112.0,
+    "fps": 54.53454715589315,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 14.79,
+    "dist_m": 105.5,
+    "fps": 297.4508370274885,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 15.06,
+    "dist_m": 100.2,
+    "fps": 151.53581914183994,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 15.32,
+    "dist_m": 95.7,
+    "fps": 370.58997130170826,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 15.61,
+    "dist_m": 91.3,
+    "fps": 32.87127245350781,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 15.91,
+    "dist_m": 87.7,
+    "fps": 481.00048145211065,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 16.16,
+    "dist_m": 85.3,
+    "fps": 437.2731516007526,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 16.47,
+    "dist_m": 83.3,
+    "fps": 63.631445284836964,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 16.76,
+    "dist_m": 82.2,
+    "fps": 45.224924436420494,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 17.04,
+    "dist_m": 81.9,
+    "fps": 3.449886605741457,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 17.61,
+    "dist_m": 81.9,
+    "fps": 8.650638544847991,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 17.98,
+    "dist_m": 81.9,
+    "fps": 19.79907887437779,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 18.26,
+    "dist_m": 81.9,
+    "fps": 24.81586600462786,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 18.57,
+    "dist_m": 81.9,
+    "fps": 12.456588952891913,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 19.03,
+    "dist_m": 81.9,
+    "fps": 6.136350909751596,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 19.29,
+    "dist_m": 81.9,
+    "fps": 31.56077344720988,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 19.55,
+    "dist_m": 81.9,
+    "fps": 40.66941992371704,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 19.8,
+    "dist_m": 81.9,
+    "fps": 40.30064392943635,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 20.06,
+    "dist_m": 81.9,
+    "fps": 51.581756036492536,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 20.33,
+    "dist_m": 82.4,
+    "fps": 24.636549312204256,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 20.66,
+    "dist_m": 84.0,
+    "fps": 27.5044133936998,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 20.91,
+    "dist_m": 86.0,
+    "fps": 19.210708483799724,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 21.2,
+    "dist_m": 88.9,
+    "fps": 7.04710741848986,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 21.45,
+    "dist_m": 92.2,
+    "fps": 53.39968873525797,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 21.74,
+    "dist_m": 96.6,
+    "fps": 60.80690479483155,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 22.02,
+    "dist_m": 101.7,
+    "fps": 44.51012309883847,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 22.3,
+    "dist_m": 107.5,
+    "fps": 96.3047851936241,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 22.59,
+    "dist_m": 114.0,
+    "fps": 320.62587363750697,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 22.88,
+    "dist_m": 121.6,
+    "fps": 78.04756143761831,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 23.18,
+    "dist_m": 129.9,
+    "fps": 75.00187368156354,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 23.46,
+    "dist_m": 138.4,
+    "fps": 241.2661709109988,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 23.73,
+    "dist_m": 147.0,
+    "fps": 243.38005714459922,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 24.0,
+    "dist_m": 156.0,
+    "fps": 490.3162427996026,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 24.27,
+    "dist_m": 165.5,
+    "fps": 698.8608799840082,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 24.52,
+    "dist_m": 174.8,
+    "fps": 222.72707216059456,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 24.79,
+    "dist_m": 185.0,
+    "fps": 239.40053960567894,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 25.06,
+    "dist_m": 195.9,
+    "fps": 464.48976260012427,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 25.33,
+    "dist_m": 206.6,
+    "fps": 428.9820369520649,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 25.61,
+    "dist_m": 218.5,
+    "fps": 484.1677404300051,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 25.87,
+    "dist_m": 229.4,
+    "fps": 122.51299006995417,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 26.14,
+    "dist_m": 241.2,
+    "fps": 85.7287388713469,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 26.42,
+    "dist_m": 253.7,
+    "fps": 531.4908296406093,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 26.7,
+    "dist_m": 265.7,
+    "fps": 493.70527260555144,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 26.99,
+    "dist_m": 278.5,
+    "fps": 164.9538968974605,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 27.27,
+    "dist_m": 291.2,
+    "fps": 293.90154750094194,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 27.56,
+    "dist_m": 303.7,
+    "fps": 301.76835466419743,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 27.86,
+    "dist_m": 316.9,
+    "fps": 245.73042543440835,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 28.16,
+    "dist_m": 330.1,
+    "fps": 147.5470349175551,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 28.44,
+    "dist_m": 341.8,
+    "fps": 142.78371576389438,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 28.76,
+    "dist_m": 355.1,
+    "fps": 122.55803176979482,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 29.03,
+    "dist_m": 366.1,
+    "fps": 246.0327304502164,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 29.34,
+    "dist_m": 378.3,
+    "fps": 336.8591232654956,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 29.62,
+    "dist_m": 388.8,
+    "fps": 189.05020348911424,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 29.88,
+    "dist_m": 398.4,
+    "fps": 485.8614152057342,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 30.16,
+    "dist_m": 407.9,
+    "fps": 383.80350254862657,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 30.43,
+    "dist_m": 416.7,
+    "fps": 331.51002429882783,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 30.72,
+    "dist_m": 425.6,
+    "fps": 189.76772147983718,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 31.0,
+    "dist_m": 433.7,
+    "fps": 295.54321538741124,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 31.27,
+    "dist_m": 440.9,
+    "fps": 483.16180070093304,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 31.55,
+    "dist_m": 447.8,
+    "fps": 270.32872008667204,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 31.86,
+    "dist_m": 454.5,
+    "fps": 269.2659732362004,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 32.12,
+    "dist_m": 459.6,
+    "fps": 178.94850043764595,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 32.38,
+    "dist_m": 464.0,
+    "fps": 437.9242310879018,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 32.67,
+    "dist_m": 468.2,
+    "fps": 441.91084486280135,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 32.96,
+    "dist_m": 471.5,
+    "fps": 549.3599934204207,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 33.21,
+    "dist_m": 473.8,
+    "fps": 309.42509503457194,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 33.47,
+    "dist_m": 475.5,
+    "fps": 296.44562072631044,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 33.78,
+    "dist_m": 476.6,
+    "fps": 431.8348562456565,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 34.05,
+    "dist_m": 476.9,
+    "fps": 187.3781997961554,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 34.33,
+    "dist_m": 476.9,
+    "fps": 307.7491169969304,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 34.61,
+    "dist_m": 476.9,
+    "fps": 536.7110391991986,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 34.9,
+    "dist_m": 476.9,
+    "fps": 158.19531240331412,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 35.16,
+    "dist_m": 476.9,
+    "fps": 309.4059472958435,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 35.41,
+    "dist_m": 476.9,
+    "fps": 328.35330564849204,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 35.7,
+    "dist_m": 476.9,
+    "fps": 444.2272611572482,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 35.99,
+    "dist_m": 476.9,
+    "fps": 263.92188049489386,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 36.27,
+    "dist_m": 476.9,
+    "fps": 212.59858912661062,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 36.53,
+    "dist_m": 476.9,
+    "fps": 613.0832090860908,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 1
+   },
+   {
+    "t": 36.83,
+    "dist_m": 476.9,
+    "fps": 510.07398397417285,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   },
+   {
+    "t": 37.12,
+    "dist_m": 476.9,
+    "fps": 412.26911635417326,
+    "skin_cells": 0,
+    "skin_levels": 0,
+    "skin_ms": 3.715,
+    "volumes": 0
+   }
+  ],
+  "on": [
+   {
+    "t": 0.0,
+    "dist_m": 476.9,
+    "fps": 317.3293664520829,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0087,
+    "volumes": 0
+   },
+   {
+    "t": 0.28,
+    "dist_m": 476.9,
+    "fps": 362.7920431454673,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0066,
+    "volumes": 0
+   },
+   {
+    "t": 0.55,
+    "dist_m": 476.9,
+    "fps": 590.2490926483057,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.01,
+    "volumes": 0
+   },
+   {
+    "t": 0.82,
+    "dist_m": 476.9,
+    "fps": 473.9336490046049,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.009,
+    "volumes": 0
+   },
+   {
+    "t": 1.08,
+    "dist_m": 476.9,
+    "fps": 572.2133094232059,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0083,
+    "volumes": 0
+   },
+   {
+    "t": 1.39,
+    "dist_m": 476.9,
+    "fps": 353.70683434337514,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0116,
+    "volumes": 0
+   },
+   {
+    "t": 1.68,
+    "dist_m": 476.9,
+    "fps": 508.8799692892451,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0067,
+    "volumes": 0
+   },
+   {
+    "t": 1.96,
+    "dist_m": 476.9,
+    "fps": 512.400092674138,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0138,
+    "volumes": 0
+   },
+   {
+    "t": 2.25,
+    "dist_m": 476.9,
+    "fps": 278.71457132820933,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0087,
+    "volumes": 0
+   },
+   {
+    "t": 2.53,
+    "dist_m": 476.9,
+    "fps": 418.4800742532534,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0084,
+    "volumes": 0
+   },
+   {
+    "t": 2.79,
+    "dist_m": 476.9,
+    "fps": 459.1579178510519,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0078,
+    "volumes": 0
+   },
+   {
+    "t": 3.08,
+    "dist_m": 476.8,
+    "fps": 509.0872222993991,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0086,
+    "volumes": 0
+   },
+   {
+    "t": 3.35,
+    "dist_m": 476.3,
+    "fps": 423.1729598400384,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0084,
+    "volumes": 0
+   },
+   {
+    "t": 3.62,
+    "dist_m": 475.0,
+    "fps": 299.8590753546358,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0075,
+    "volumes": 0
+   },
+   {
+    "t": 3.92,
+    "dist_m": 472.6,
+    "fps": 242.02526571420876,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0091,
+    "volumes": 0
+   },
+   {
+    "t": 4.22,
+    "dist_m": 469.6,
+    "fps": 481.5563949438324,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0104,
+    "volumes": 0
+   },
+   {
+    "t": 4.49,
+    "dist_m": 466.0,
+    "fps": 398.8831276538816,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0075,
+    "volumes": 0
+   },
+   {
+    "t": 4.79,
+    "dist_m": 461.2,
+    "fps": 449.51902626006535,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0094,
+    "volumes": 0
+   },
+   {
+    "t": 5.05,
+    "dist_m": 456.3,
+    "fps": 298.38277361648164,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0082,
+    "volumes": 0
+   },
+   {
+    "t": 5.32,
+    "dist_m": 450.7,
+    "fps": 472.92505947119196,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0086,
+    "volumes": 0
+   },
+   {
+    "t": 5.59,
+    "dist_m": 444.3,
+    "fps": 449.3775990205063,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0085,
+    "volumes": 0
+   },
+   {
+    "t": 5.87,
+    "dist_m": 437.4,
+    "fps": 289.6871399581296,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0088,
+    "volumes": 0
+   },
+   {
+    "t": 6.15,
+    "dist_m": 429.5,
+    "fps": 274.12280169550235,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0087,
+    "volumes": 0
+   },
+   {
+    "t": 6.43,
+    "dist_m": 421.2,
+    "fps": 433.31309132049614,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0102,
+    "volumes": 0
+   },
+   {
+    "t": 6.7,
+    "dist_m": 412.7,
+    "fps": 447.0872430516961,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0095,
+    "volumes": 0
+   },
+   {
+    "t": 6.98,
+    "dist_m": 403.1,
+    "fps": 291.4007688018194,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.1249,
+    "volumes": 0
+   },
+   {
+    "t": 7.26,
+    "dist_m": 393.2,
+    "fps": 500.5004805190795,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0088,
+    "volumes": 0
+   },
+   {
+    "t": 7.52,
+    "dist_m": 383.8,
+    "fps": 535.4178882421648,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0096,
+    "volumes": 0
+   },
+   {
+    "t": 7.79,
+    "dist_m": 373.4,
+    "fps": 325.38313841888953,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0086,
+    "volumes": 0
+   },
+   {
+    "t": 8.1,
+    "dist_m": 361.0,
+    "fps": 470.9650103777574,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0075,
+    "volumes": 0
+   },
+   {
+    "t": 8.38,
+    "dist_m": 349.5,
+    "fps": 183.0127622439453,
+    "skin_cells": 110,
+    "skin_levels": 4,
+    "skin_ms": 2.1035,
+    "volumes": 0
+   },
+   {
+    "t": 8.66,
+    "dist_m": 337.8,
+    "fps": 486.4996503858895,
+    "skin_cells": 110,
+    "skin_levels": 4,
+    "skin_ms": 0.0086,
+    "volumes": 0
+   },
+   {
+    "t": 8.91,
+    "dist_m": 327.1,
+    "fps": 402.8522055786873,
+    "skin_cells": 140,
+    "skin_levels": 4,
+    "skin_ms": 0.0083,
+    "volumes": 0
+   },
+   {
+    "t": 9.18,
+    "dist_m": 315.1,
+    "fps": 178.76615269584323,
+    "skin_cells": 170,
+    "skin_levels": 4,
+    "skin_ms": 0.0087,
+    "volumes": 0
+   },
+   {
+    "t": 9.46,
+    "dist_m": 302.9,
+    "fps": 541.3305964525498,
+    "skin_cells": 170,
+    "skin_levels": 4,
+    "skin_ms": 0.0093,
+    "volumes": 0
+   },
+   {
+    "t": 9.73,
+    "dist_m": 290.9,
+    "fps": 472.5451172349904,
+    "skin_cells": 200,
+    "skin_levels": 4,
+    "skin_ms": 0.0105,
+    "volumes": 0
+   },
+   {
+    "t": 10.03,
+    "dist_m": 277.9,
+    "fps": 483.7461515138273,
+    "skin_cells": 230,
+    "skin_levels": 4,
+    "skin_ms": 0.0073,
+    "volumes": 0
+   },
+   {
+    "t": 10.29,
+    "dist_m": 266.3,
+    "fps": 507.17654920588774,
+    "skin_cells": 260,
+    "skin_levels": 4,
+    "skin_ms": 0.0096,
+    "volumes": 0
+   },
+   {
+    "t": 10.57,
+    "dist_m": 254.0,
+    "fps": 518.2152598121247,
+    "skin_cells": 260,
+    "skin_levels": 4,
+    "skin_ms": 0.008,
+    "volumes": 0
+   },
+   {
+    "t": 10.87,
+    "dist_m": 241.0,
+    "fps": 634.6385703604539,
+    "skin_cells": 290,
+    "skin_levels": 4,
+    "skin_ms": 0.0066,
+    "volumes": 0
+   },
+   {
+    "t": 11.16,
+    "dist_m": 228.2,
+    "fps": 480.81546206829694,
+    "skin_cells": 320,
+    "skin_levels": 4,
+    "skin_ms": 0.0131,
+    "volumes": 0
+   },
+   {
+    "t": 11.43,
+    "dist_m": 217.0,
+    "fps": 482.76529346339805,
+    "skin_cells": 320,
+    "skin_levels": 4,
+    "skin_ms": 0.0086,
+    "volumes": 0
+   },
+   {
+    "t": 11.69,
+    "dist_m": 206.0,
+    "fps": 489.93188537491426,
+    "skin_cells": 406,
+    "skin_levels": 4,
+    "skin_ms": 0.0079,
+    "volumes": 0
+   },
+   {
+    "t": 11.95,
+    "dist_m": 195.2,
+    "fps": 630.1594397685867,
+    "skin_cells": 492,
+    "skin_levels": 4,
+    "skin_ms": 0.0077,
+    "volumes": 0
+   },
+   {
+    "t": 12.22,
+    "dist_m": 184.8,
+    "fps": 576.2028421170055,
+    "skin_cells": 548,
+    "skin_levels": 4,
+    "skin_ms": 0.0096,
+    "volumes": 0
+   },
+   {
+    "t": 12.47,
+    "dist_m": 175.2,
+    "fps": 652.2306147081174,
+    "skin_cells": 604,
+    "skin_levels": 4,
+    "skin_ms": 0.0098,
+    "volumes": 0
+   },
+   {
+    "t": 12.76,
+    "dist_m": 164.6,
+    "fps": 302.0782931004652,
+    "skin_cells": 716,
+    "skin_levels": 4,
+    "skin_ms": 0.0069,
+    "volumes": 0
+   },
+   {
+    "t": 13.05,
+    "dist_m": 154.4,
+    "fps": 466.8970002155678,
+    "skin_cells": 772,
+    "skin_levels": 4,
+    "skin_ms": 0.0096,
+    "volumes": 0
+   },
+   {
+    "t": 13.33,
+    "dist_m": 144.9,
+    "fps": 458.00126257886853,
+    "skin_cells": 828,
+    "skin_levels": 4,
+    "skin_ms": 0.0095,
+    "volumes": 0
+   },
+   {
+    "t": 13.58,
+    "dist_m": 136.9,
+    "fps": 244.959962914091,
+    "skin_cells": 884,
+    "skin_levels": 4,
+    "skin_ms": 0.0085,
+    "volumes": 0
+   },
+   {
+    "t": 13.85,
+    "dist_m": 128.9,
+    "fps": 526.7038811442867,
+    "skin_cells": 940,
+    "skin_levels": 4,
+    "skin_ms": 0.0067,
+    "volumes": 0
+   },
+   {
+    "t": 14.14,
+    "dist_m": 121.0,
+    "fps": 485.24842547267457,
+    "skin_cells": 972,
+    "skin_levels": 4,
+    "skin_ms": 0.0094,
+    "volumes": 0
+   },
+   {
+    "t": 14.43,
+    "dist_m": 113.7,
+    "fps": 55.54598766872271,
+    "skin_cells": 996,
+    "skin_levels": 4,
+    "skin_ms": 0.1937,
+    "volumes": 0
+   },
+   {
+    "t": 14.72,
+    "dist_m": 107.0,
+    "fps": 112.23470847289393,
+    "skin_cells": 1020,
+    "skin_levels": 4,
+    "skin_ms": 0.0079,
+    "volumes": 0
+   },
+   {
+    "t": 14.99,
+    "dist_m": 101.6,
+    "fps": 334.86253464723114,
+    "skin_cells": 996,
+    "skin_levels": 4,
+    "skin_ms": 0.008,
+    "volumes": 0
+   },
+   {
+    "t": 15.3,
+    "dist_m": 96.0,
+    "fps": 307.03102073472405,
+    "skin_cells": 1020,
+    "skin_levels": 4,
+    "skin_ms": 0.0093,
+    "volumes": 0
+   },
+   {
+    "t": 15.57,
+    "dist_m": 92.0,
+    "fps": 24.694710657432825,
+    "skin_cells": 1012,
+    "skin_levels": 4,
+    "skin_ms": 0.1559,
+    "volumes": 0
+   },
+   {
+    "t": 15.88,
+    "dist_m": 88.1,
+    "fps": 95.67821862418887,
+    "skin_cells": 1028,
+    "skin_levels": 4,
+    "skin_ms": 0.0086,
+    "volumes": 0
+   },
+   {
+    "t": 16.16,
+    "dist_m": 85.4,
+    "fps": 411.06589154075465,
+    "skin_cells": 1008,
+    "skin_levels": 4,
+    "skin_ms": 0.0089,
+    "volumes": 0
+   },
+   {
+    "t": 16.45,
+    "dist_m": 83.4,
+    "fps": 83.46827563373989,
+    "skin_cells": 1056,
+    "skin_levels": 4,
+    "skin_ms": 0.0107,
+    "volumes": 0
+   },
+   {
+    "t": 16.73,
+    "dist_m": 82.2,
+    "fps": 24.532413190809457,
+    "skin_cells": 1056,
+    "skin_levels": 4,
+    "skin_ms": 0.0101,
+    "volumes": 0
+   },
+   {
+    "t": 17.0,
+    "dist_m": 81.9,
+    "fps": 159.62200982401976,
+    "skin_cells": 1040,
+    "skin_levels": 4,
+    "skin_ms": 0.0078,
+    "volumes": 0
+   },
+   {
+    "t": 17.28,
+    "dist_m": 81.9,
+    "fps": 34.91607831068565,
+    "skin_cells": 1008,
+    "skin_levels": 4,
+    "skin_ms": 4.7927,
+    "volumes": 1
+   },
+   {
+    "t": 17.64,
+    "dist_m": 81.9,
+    "fps": 4.664131271211697,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 1.9395,
+    "volumes": 1
+   },
+   {
+    "t": 17.95,
+    "dist_m": 81.9,
+    "fps": 28.655758705118668,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 0.7787,
+    "volumes": 1
+   },
+   {
+    "t": 18.23,
+    "dist_m": 81.9,
+    "fps": 36.55050922267853,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 0.7331,
+    "volumes": 1
+   },
+   {
+    "t": 18.6,
+    "dist_m": 81.9,
+    "fps": 5.862709461530155,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 1.1465,
+    "volumes": 1
+   },
+   {
+    "t": 18.88,
+    "dist_m": 81.9,
+    "fps": 36.284733464426836,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 0.8853,
+    "volumes": 1
+   },
+   {
+    "t": 19.13,
+    "dist_m": 81.9,
+    "fps": 55.71992686376336,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 0.9207,
+    "volumes": 1
+   },
+   {
+    "t": 19.42,
+    "dist_m": 81.9,
+    "fps": 56.696412017798295,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 0.9015,
+    "volumes": 1
+   },
+   {
+    "t": 19.73,
+    "dist_m": 81.9,
+    "fps": 48.00168949351585,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 0.7206,
+    "volumes": 1
+   },
+   {
+    "t": 20.0,
+    "dist_m": 81.9,
+    "fps": 23.83171068573437,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 0.7261,
+    "volumes": 1
+   },
+   {
+    "t": 20.28,
+    "dist_m": 82.3,
+    "fps": 25.567144272892264,
+    "skin_cells": 984,
+    "skin_levels": 4,
+    "skin_ms": 1.0311,
+    "volumes": 1
+   },
+   {
+    "t": 20.58,
+    "dist_m": 83.5,
+    "fps": 39.12715067050326,
+    "skin_cells": 988,
+    "skin_levels": 4,
+    "skin_ms": 0.9035,
+    "volumes": 1
+   },
+   {
+    "t": 20.86,
+    "dist_m": 85.5,
+    "fps": 29.166677278573864,
+    "skin_cells": 952,
+    "skin_levels": 4,
+    "skin_ms": 0.6241,
+    "volumes": 1
+   },
+   {
+    "t": 21.12,
+    "dist_m": 88.0,
+    "fps": 23.286195079402464,
+    "skin_cells": 964,
+    "skin_levels": 4,
+    "skin_ms": 0.5245,
+    "volumes": 1
+   },
+   {
+    "t": 21.37,
+    "dist_m": 91.1,
+    "fps": 26.173626397627444,
+    "skin_cells": 980,
+    "skin_levels": 4,
+    "skin_ms": 0.4394,
+    "volumes": 1
+   },
+   {
+    "t": 21.69,
+    "dist_m": 95.8,
+    "fps": 95.09229039418412,
+    "skin_cells": 956,
+    "skin_levels": 4,
+    "skin_ms": 0.0109,
+    "volumes": 1
+   },
+   {
+    "t": 21.95,
+    "dist_m": 100.4,
+    "fps": 430.5148973321906,
+    "skin_cells": 980,
+    "skin_levels": 4,
+    "skin_ms": 0.0091,
+    "volumes": 1
+   },
+   {
+    "t": 22.22,
+    "dist_m": 105.7,
+    "fps": 83.08200842796501,
+    "skin_cells": 960,
+    "skin_levels": 4,
+    "skin_ms": 0.1823,
+    "volumes": 1
+   },
+   {
+    "t": 22.49,
+    "dist_m": 111.7,
+    "fps": 156.21826902729364,
+    "skin_cells": 928,
+    "skin_levels": 4,
+    "skin_ms": 0.0113,
+    "volumes": 1
+   },
+   {
+    "t": 22.77,
+    "dist_m": 118.6,
+    "fps": 292.2865499798154,
+    "skin_cells": 912,
+    "skin_levels": 4,
+    "skin_ms": 0.0108,
+    "volumes": 1
+   },
+   {
+    "t": 23.03,
+    "dist_m": 125.7,
+    "fps": 357.2576887306093,
+    "skin_cells": 924,
+    "skin_levels": 4,
+    "skin_ms": 0.0118,
+    "volumes": 1
+   },
+   {
+    "t": 23.31,
+    "dist_m": 133.7,
+    "fps": 183.89452329252742,
+    "skin_cells": 896,
+    "skin_levels": 4,
+    "skin_ms": 0.0125,
+    "volumes": 1
+   },
+   {
+    "t": 23.59,
+    "dist_m": 142.2,
+    "fps": 113.58988929622289,
+    "skin_cells": 808,
+    "skin_levels": 4,
+    "skin_ms": 0.0091,
+    "volumes": 1
+   },
+   {
+    "t": 23.85,
+    "dist_m": 150.9,
+    "fps": 96.4162101509555,
+    "skin_cells": 758,
+    "skin_levels": 4,
+    "skin_ms": 0.0113,
+    "volumes": 1
+   },
+   {
+    "t": 24.13,
+    "dist_m": 160.6,
+    "fps": 149.98350678705853,
+    "skin_cells": 758,
+    "skin_levels": 4,
+    "skin_ms": 0.0091,
+    "volumes": 1
+   },
+   {
+    "t": 24.38,
+    "dist_m": 169.7,
+    "fps": 595.7700415551034,
+    "skin_cells": 646,
+    "skin_levels": 4,
+    "skin_ms": 0.0098,
+    "volumes": 1
+   },
+   {
+    "t": 24.66,
+    "dist_m": 180.2,
+    "fps": 174.08258573176647,
+    "skin_cells": 590,
+    "skin_levels": 4,
+    "skin_ms": 0.0115,
+    "volumes": 1
+   },
+   {
+    "t": 24.94,
+    "dist_m": 191.2,
+    "fps": 472.7909016504876,
+    "skin_cells": 534,
+    "skin_levels": 4,
+    "skin_ms": 0.0108,
+    "volumes": 1
+   },
+   {
+    "t": 25.25,
+    "dist_m": 203.4,
+    "fps": 478.24005606641833,
+    "skin_cells": 392,
+    "skin_levels": 4,
+    "skin_ms": 0.0103,
+    "volumes": 1
+   },
+   {
+    "t": 25.52,
+    "dist_m": 214.8,
+    "fps": 492.3197867751926,
+    "skin_cells": 336,
+    "skin_levels": 4,
+    "skin_ms": 0.0079,
+    "volumes": 1
+   },
+   {
+    "t": 25.79,
+    "dist_m": 226.0,
+    "fps": 413.1207073834611,
+    "skin_cells": 306,
+    "skin_levels": 4,
+    "skin_ms": 0.011,
+    "volumes": 1
+   },
+   {
+    "t": 26.06,
+    "dist_m": 238.0,
+    "fps": 258.0911622182909,
+    "skin_cells": 276,
+    "skin_levels": 4,
+    "skin_ms": 0.0115,
+    "volumes": 1
+   },
+   {
+    "t": 26.33,
+    "dist_m": 249.6,
+    "fps": 441.81320036797814,
+    "skin_cells": 276,
+    "skin_levels": 4,
+    "skin_ms": 0.0108,
+    "volumes": 1
+   },
+   {
+    "t": 26.58,
+    "dist_m": 260.7,
+    "fps": 256.29197385885504,
+    "skin_cells": 246,
+    "skin_levels": 4,
+    "skin_ms": 0.0091,
+    "volumes": 1
+   },
+   {
+    "t": 26.87,
+    "dist_m": 273.5,
+    "fps": 322.7993201847163,
+    "skin_cells": 222,
+    "skin_levels": 4,
+    "skin_ms": 0.0091,
+    "volumes": 1
+   },
+   {
+    "t": 27.14,
+    "dist_m": 285.3,
+    "fps": 441.3452156632606,
+    "skin_cells": 198,
+    "skin_levels": 4,
+    "skin_ms": 2.4261,
+    "volumes": 1
+   },
+   {
+    "t": 27.4,
+    "dist_m": 296.9,
+    "fps": 228.0189781189305,
+    "skin_cells": 198,
+    "skin_levels": 4,
+    "skin_ms": 0.0093,
+    "volumes": 1
+   },
+   {
+    "t": 27.71,
+    "dist_m": 310.4,
+    "fps": 215.6101802514832,
+    "skin_cells": 168,
+    "skin_levels": 4,
+    "skin_ms": 0.0095,
+    "volumes": 1
+   },
+   {
+    "t": 27.97,
+    "dist_m": 322.0,
+    "fps": 412.0652566668013,
+    "skin_cells": 138,
+    "skin_levels": 4,
+    "skin_ms": 0.0116,
+    "volumes": 1
+   },
+   {
+    "t": 28.26,
+    "dist_m": 334.4,
+    "fps": 323.8866281086566,
+    "skin_cells": 108,
+    "skin_levels": 4,
+    "skin_ms": 0.0077,
+    "volumes": 1
+   },
+   {
+    "t": 28.58,
+    "dist_m": 347.7,
+    "fps": 388.25903827820315,
+    "skin_cells": 108,
+    "skin_levels": 4,
+    "skin_ms": 0.0139,
+    "volumes": 1
+   },
+   {
+    "t": 28.85,
+    "dist_m": 359.1,
+    "fps": 51.19986816440197,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0099,
+    "volumes": 1
+   },
+   {
+    "t": 29.15,
+    "dist_m": 370.7,
+    "fps": 478.1714779396497,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0099,
+    "volumes": 1
+   },
+   {
+    "t": 29.41,
+    "dist_m": 381.1,
+    "fps": 196.71873833762743,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0089,
+    "volumes": 1
+   },
+   {
+    "t": 29.69,
+    "dist_m": 391.5,
+    "fps": 447.16721276315525,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0084,
+    "volumes": 1
+   },
+   {
+    "t": 29.96,
+    "dist_m": 400.9,
+    "fps": 209.26193537825296,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0074,
+    "volumes": 1
+   },
+   {
+    "t": 30.23,
+    "dist_m": 410.1,
+    "fps": 322.4974101270965,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.01,
+    "volumes": 1
+   },
+   {
+    "t": 30.49,
+    "dist_m": 418.5,
+    "fps": 183.38529770726925,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0101,
+    "volumes": 1
+   },
+   {
+    "t": 30.75,
+    "dist_m": 426.6,
+    "fps": 328.666284711958,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0093,
+    "volumes": 1
+   },
+   {
+    "t": 31.03,
+    "dist_m": 434.5,
+    "fps": 247.7332549502038,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0072,
+    "volumes": 1
+   },
+   {
+    "t": 31.31,
+    "dist_m": 441.9,
+    "fps": 486.0739924554404,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0083,
+    "volumes": 1
+   },
+   {
+    "t": 31.57,
+    "dist_m": 448.3,
+    "fps": 306.2693270965632,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0087,
+    "volumes": 1
+   },
+   {
+    "t": 31.86,
+    "dist_m": 454.4,
+    "fps": 261.4857689472235,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0104,
+    "volumes": 1
+   },
+   {
+    "t": 32.13,
+    "dist_m": 459.7,
+    "fps": 482.74196104877757,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0102,
+    "volumes": 1
+   },
+   {
+    "t": 32.42,
+    "dist_m": 464.6,
+    "fps": 393.0663209975157,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0079,
+    "volumes": 1
+   },
+   {
+    "t": 32.69,
+    "dist_m": 468.4,
+    "fps": 340.51828117430944,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0084,
+    "volumes": 1
+   },
+   {
+    "t": 32.99,
+    "dist_m": 471.8,
+    "fps": 423.6749694769207,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0102,
+    "volumes": 1
+   },
+   {
+    "t": 33.25,
+    "dist_m": 474.1,
+    "fps": 505.68899101385585,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0086,
+    "volumes": 1
+   },
+   {
+    "t": 33.54,
+    "dist_m": 475.8,
+    "fps": 429.09248157311,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0098,
+    "volumes": 1
+   },
+   {
+    "t": 33.83,
+    "dist_m": 476.7,
+    "fps": 293.72889143478665,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0097,
+    "volumes": 1
+   },
+   {
+    "t": 34.12,
+    "dist_m": 476.9,
+    "fps": 636.699363318025,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.008,
+    "volumes": 1
+   },
+   {
+    "t": 34.38,
+    "dist_m": 476.9,
+    "fps": 223.99426570313457,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0097,
+    "volumes": 1
+   },
+   {
+    "t": 34.67,
+    "dist_m": 476.9,
+    "fps": 284.9814807737223,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0086,
+    "volumes": 1
+   },
+   {
+    "t": 34.93,
+    "dist_m": 476.9,
+    "fps": 161.38143015020347,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0076,
+    "volumes": 1
+   },
+   {
+    "t": 35.23,
+    "dist_m": 476.9,
+    "fps": 290.8414052426069,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0078,
+    "volumes": 1
+   },
+   {
+    "t": 35.49,
+    "dist_m": 476.9,
+    "fps": 428.46737956732744,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.0099,
+    "volumes": 1
+   },
+   {
+    "t": 35.76,
+    "dist_m": 476.9,
+    "fps": 270.1242559655305,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.6574,
+    "volumes": 1
+   },
+   {
+    "t": 36.04,
+    "dist_m": 476.9,
+    "fps": 379.29073558324365,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.5823,
+    "volumes": 1
+   },
+   {
+    "t": 36.29,
+    "dist_m": 476.9,
+    "fps": 192.03809349388763,
+    "skin_cells": 98,
+    "skin_levels": 4,
+    "skin_ms": 0.7662,
+    "volumes": 0
+   },
+   {
+    "t": 36.56,
+    "dist_m": 476.9,
+    "fps": 334.56005998602393,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.6722,
+    "volumes": 0
+   },
+   {
+    "t": 36.82,
+    "dist_m": 476.9,
+    "fps": 272.44245448225803,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0086,
+    "volumes": 0
+   },
+   {
+    "t": 37.1,
+    "dist_m": 476.9,
+    "fps": 174.6633382643399,
+    "skin_cells": 100,
+    "skin_levels": 4,
+    "skin_ms": 0.0155,
+    "volumes": 0
+   }
+  ]
+ },
+ "record": {
+  "box": [
+   4,
+   16,
+   2,
+   153,
+   18,
+   151
+  ],
+  "m3": 45000.0,
+  "slept_boxes": 1,
+  "success": true,
+  "unwritten_columns": 0
+ }
+}

@@ -13145,6 +13145,11 @@ and a record tile / volume).
 - **Found, not fixed:** in the synced run the patch did NOT sleep in 120 s (6,316 frames live; realtime: ~19 s). The record step
   counts the water's own time, so it is not the clock; likely the per-column freeze's read-back differs between the modes. The game
   runs realtime; logged.
+- **Live (Creek, `tools/water_skin_flyout.py --splash --tag s4_splash_flyout`, the S4 clip: far -> in -> a splash at the lake's
+  centre -> out with the patch alive; off | on side by side, `s4_splash_flyout.mp4`):** the patch lives t 17-36 s, through the whole
+  fly-out. Skin OFF: the live patch is a notched island (its recorded tiles drawn by nobody beyond 48 m - the defect the skin's box
+  mask had too). Skin ON: the lake whole at 151 and 322 m, the splash's ring visible in the patch, no hole round it. Found, both takes
+  alike (not the skin's): ~5 s under 60 fps after the splash at this pose (3-57 fps; the wake), mean 318 fps over the take.
 - Tests: water unit + storage 423 / 423; integration water 83 / 85 (the known two). S4 now: the swaps in motion have no holes, no doubles and exact books in the tests; the pops left are the level steps' shore swaps
   (51.6). Owner sign-off: the clip (`s4_flyout.mp4`) and the look calls (a fade for the level steps; the sub-cell shore).
 
