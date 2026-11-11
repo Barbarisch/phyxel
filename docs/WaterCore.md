@@ -13008,7 +13008,9 @@ face's foot). `ADeepRecordTileWakesOnlyItsTop` (CPU, 40 tiles of an 80 m square 
 | 1 m pond (nothing to clip) | 116 ms | 120 ms | 0 differ |
 
   Left as it was: a dry column beside the water whose ground lies below the window reads no solid (its foot is the water's restored
-  bottom, as before for free-standing water) - in a valid record the shore's ground is at the water's top. Not measured live yet.
+  bottom, as before for free-standing water) - in a valid record the shore's ground is at the water's top. **Live** (`tools/water_record_deep_live.py`, RiverCarve, the camera over its ~60 m-deep lake, every tile in range rebuilt 3 times):
+  **a record-tile call 40 ms at most (4 tiles), 1.8-3.1 ms a tile on average** (was 309-513 ms a call); the 39 wet tiles drawn again
+  within 2-8 s; at rest 36 fps, CPU 27.9 ms, GPU 27.6 ms (the scene's).
   Tests: water unit 379 / 379. Integration water 81 / 84: the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` (a
   device state freed a cycle late at cycles 8 and 11 - timing) with ANOTHER application holding the GPU at ~50 % (a game, not this
   work); it passed on the idle GPU after 51.4b and touches none of the changed code (create / step / the ripple layer). Re-run
