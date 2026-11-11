@@ -16,6 +16,7 @@
 #include "core/water/WaterDroplets.h"      // 21: the droplet crown
 #include "core/water/RippleLayer.h"        // 22: ripples
 #include "core/water/RippleGpu.h"          // 25.34: the ripple step on the GPU
+#include "core/water/WaterSkin.h"          // 51.4 S3: the far skin
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <unordered_map>
 #include <map>
@@ -670,6 +671,17 @@ public:
     /// each on its own: the highest drawn top (false = no field draws water here - a hole), and whether a live volume holds
     /// the column in its record (recorded = 1).
     bool drawnAtWorld(float x, float z, float& top, bool& recorded) const;
+    /// 51.4 S3: the far SKIN - recorded water beyond the record tiles drawn as coarse surface fields on clipmap rings (WaterSkin.h).
+    /// The renderer's only: never in surfaceFields(), so no body or probe reads it (30.0b rule 2). Refreshes on each call (a budget
+    /// of chunk-column summaries, nearest first; the fields only when the view, the summaries or the volumes moved). Ships OFF.
+    using SkinSettings = WaterSkin::Settings;
+    static inline SkinSettings s_skin;
+    static constexpr int kSkinYLo = WaterSkin::kYLo, kSkinYHi = WaterSkin::kYHi;
+    const std::vector<const WaterSurfaceField*>& skinFields();
+    bool skinDrawnAtWorld(float x, float z, float& top, int* claims = nullptr) const { return m_skin.drawnAt(x, z, top, claims); }
+    const WaterSkin::Stats& skinStats() const { return m_skin.stats(); }
+    bool skinCellForTest(int cx, int cz, SkinCell& out) const { return m_skin.cellAt(cx, cz, out); }
+    const SpanReader& skinReaderForTest() const { return m_spanReader; }
     /// 27.18: the water the world's record (chunk spans) holds in a voxel box, m^3 (-1 with no span reader) - a create over it
     /// that does not seed from it would book the same water twice (27.14 finding 3)
     double recordedWaterIn(const glm::ivec3& lo, const glm::ivec3& hi) const;
@@ -1021,6 +1033,7 @@ private:
     uint64_t m_recordRevision = 0, m_recordBuilds = 0;
     std::function<uint64_t()> m_spanRevision;
     RecordDrawStats m_recordStats;
+    WaterSkin m_skin;   // 51.4 S3
     void refreshRecordTiles();
     void buildRecordTile(int tx, int tz, RecordTile& t);
     // §27 W1b: the tile life cycle of a GPU volume (after each step): wakes first, then tiles frozen long enough are recorded

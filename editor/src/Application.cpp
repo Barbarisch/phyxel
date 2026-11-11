@@ -4048,7 +4048,14 @@ void Application::update(float deltaTime) {
                 {   // Phase F: the surface mesh feed - the volumes' fields, then the recorded water near the camera (§27 W1a), so asked
                     // for even with no volume live
                     const auto& sf = waterCore->surfaceFields();
-                    renderCoordinator->setWaterCoreSurfaceFields(sf.empty() ? nullptr : &sf);
+                    // 51.4 S3: then the far skin (the renderer's only - no body reads it); off, it is empty and nothing is copied
+                    const auto& skin = waterCore->skinFields();
+                    if (skin.empty()) renderCoordinator->setWaterCoreSurfaceFields(sf.empty() ? nullptr : &sf);
+                    else {
+                        m_surfaceFieldsWithSkin.assign(sf.begin(), sf.end());
+                        m_surfaceFieldsWithSkin.insert(m_surfaceFieldsWithSkin.end(), skin.begin(), skin.end());
+                        renderCoordinator->setWaterCoreSurfaceFields(&m_surfaceFieldsWithSkin);
+                    }
                     m_gpuSurfaceDraws = waterCore->gpuSurfaceDraws();   // 29 S1: the volumes the device draws
                     renderCoordinator->setWaterCoreGpuSurfaces(m_gpuSurfaceDraws.empty() ? nullptr : &m_gpuSurfaceDraws);
                 }
@@ -14270,6 +14277,30 @@ void Application::registerWaterCommands() {
              {"wet_tiles", s.wetTiles}, {"built_last_call", s.builtLastCall}, {"pending", s.pending},
              {"build_ms_last_call", s.buildMsLastCall}, {"build_ms_max", s.buildMsMax}, {"build_ms_on_sleep_last", s.buildMsOnSleepLast},
              {"revision", waterCore->recordRevision()}};
+    });
+    // 51.4 S3: the far skin - recorded water beyond the record tiles (draw_m) drawn as coarse fields on clipmap rings. Omitted =
+    // unchanged. on (default OFF until the owner signs it off); far_m its reach, 0..the far plane (maxChunkRenderDistance - beyond
+    // it the quads are clipped anyway); base_cell_m 4 or 8 (a level-0 cell must lie inside one 8 m record tile, or the seam would cut
+    // it - anything else is refused, not rounded); ring_cells 8..256, rounded up to a multiple of 4 (each level then sits on the next
+    // one's lattice); summaries_per_call 1..1024 (chunk columns summarized a call). The echo: the values in force and the stats.
+    reg.on("water_av_skin", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        using M = Core::Water::WaterCoreManager;
+        if (!waterCore) return noCore(r);
+        auto& k = M::s_skin;
+        if (cmd.params.contains("base_cell_m")) {
+            const int b = cmd.params.value("base_cell_m", 4);
+            if (b != 4 && b != 8) { r = {{"error", "base_cell_m must be 4 or 8"}}; return; }
+            k.baseCellM = b;
+        }
+        if (cmd.params.contains("on")) k.on = cmd.params.value("on", false);
+        if (cmd.params.contains("far_m")) k.farM = std::clamp(cmd.params.value("far_m", 1024.0f), 0.0f, maxChunkRenderDistance);
+        if (cmd.params.contains("ring_cells")) k.ringCells = (std::clamp(cmd.params.value("ring_cells", 64), 8, 256) + 3) / 4 * 4;
+        if (cmd.params.contains("summaries_per_call")) k.summariesPerCall = std::clamp(cmd.params.value("summaries_per_call", 32), 1, 1024);
+        const auto& s = waterCore->skinStats();
+        r = {{"on", k.on}, {"far_m", k.farM}, {"base_cell_m", k.baseCellM}, {"ring_cells", k.ringCells}, {"summaries_per_call", k.summariesPerCall},
+             {"draw_m", M::s_locality.drawM}, {"levels", s.levels}, {"ring_cells_used", s.ringCells}, {"fields", s.fields}, {"wet_cells", s.wetCells},
+             {"summaries", s.summaries}, {"summaries_built", s.summariesBuilt}, {"summaries_built_last_call", s.summariesBuiltLastCall},
+             {"pending", s.pending}, {"fields_rebuilt_last_call", s.fieldsRebuiltLastCall}, {"ms_last_call", s.msLastCall}, {"ms_max", s.msMax}};
     });
     // §27 W1 step 0: {id} where the volume's water is - m^3 in air / inside ground / in unknown occupancy / above full cells
     reg.on("water_av_census", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {

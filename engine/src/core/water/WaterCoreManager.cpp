@@ -3120,6 +3120,20 @@ bool WaterCoreManager::surfaceAtWorld(float x, float z, float& level, float& top
     return false;
 }
 
+const std::vector<const WaterSurfaceField*>& WaterCoreManager::skinFields() {
+    // 51.4 S3: the record tiles' own mask (the same radius, tile and on-switch), the live volumes' boxes, the record's revisions
+    WaterSkin::Inputs in;
+    in.view = m_view; in.drawM = s_locality.drawM; in.recordTilesOn = s_recordDraw.on && static_cast<bool>(m_spanReader);
+    in.recordTileM = kRecordTile;
+    in.reader = &m_spanReader;
+    in.spanRevision = m_spanRevision ? m_spanRevision() : 0;
+    in.residentGlobal = m_resGlobal ? m_resGlobal() : 0; in.residentColumn = &m_resColumn;
+    in.volumeBoxes = &m_boxes; in.volumeBoxesRevision = m_avRevision;
+    in.look = [this](int x, int z, float top) { return packLook(lookAt(x, z, top)); };
+    m_skin.update(s_skin, in);
+    return m_skin.fields();
+}
+
 bool WaterCoreManager::drawnAtWorld(float x, float z, float& top, bool& recorded) const {
     bool any = false; top = -1e30f; recorded = false;
     for (const WaterSurfaceField* fp : m_fields) {
