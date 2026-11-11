@@ -12655,7 +12655,7 @@ compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the s
 settings (tall cells on, recording off) the lake still sleeps (W1f, 4 of 4): the partial wake freezes columns before the bed churn
 or the stored velocities build. Recording keeps it awake long enough for them to show.
 
-## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 (steps 1-3) BUILT, ON by default - the owner's call 2026-11-11 (51.4g); S4 steps 1-3 BUILT (51.5-51.7)
+## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 + S4 BUILT, ON, SIGNED OFF by the owner 2026-11-11 (51.4g, 51.7c)
 
 **The owner's words:** *"the biggest deal when making water work at scale is an area threshold for water disturbances"*; *"at some
 point we will need to make bodies of water that are bigger than 100 meters... that means levels. that means 'at this point water
@@ -13167,6 +13167,13 @@ and a record tile / volume).
   the frame's own ~6 ms of rendering the GPU is past a frame, and the CPU blocks on it. So the near splash's cost is the PATCH's GPU
   solve at full detail near the camera (locality: cost, never outcome) - S1/S2's limits (27.20, section 28), not S3/S4's. Its levers are
   the tier knobs (Rd the disturbance radius, the wake pace, the sweeps) - look / feel trades, the owner's call.
+
+**51.7c (2026-11-11) S3 + S4 SIGNED OFF by the owner.** After the S4 clip (`s4_splash_flyout.mp4`: far, in, a splash, out with the patch
+alive, skin off | on) and the questions on the sub-cell shore (51.6) and a fade for the level steps' shore swaps, the owner: *"right
+obviously looks right"*. Recorded: the skin as built (on by default, the sub-cell shore, the masks of 51.5 / 51.7) is signed off; no
+fade is asked for the level steps (~1,000 px over a 35 s flight, worst frame 64 px) - the hook stays unbuilt. Open after §51's four
+stages: the near splash's cost (51.7b: the patch's GPU call, the tier knobs - the owner's trade), the RiverCarve generator's lake wall
+(51.4c item 2), the synced-mode patch that does not sleep (51.7), and a per-world cache of the generator's summaries (51.4f).
 - Tests: water unit + storage 423 / 423; integration water 83 / 85 (the known two). S4 now: the swaps in motion have no holes, no doubles and exact books in the tests; the pops left are the level steps' shore swaps
   (51.6). Owner sign-off: the clip (`s4_flyout.mp4`) and the look calls (a fade for the level steps; the sub-cell shore).
 
