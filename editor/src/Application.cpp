@@ -147,6 +147,7 @@ float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.
 #include <algorithm>
 #include <unordered_set>
 #include "core/WaterSpanGridKey.h"
+#include "core/WaterSkinSource.h"   // 51.4 step 2
 #include <set>
 #include <chrono>
 #include <thread>
@@ -488,12 +489,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     waterCore->setRecordResidency(
         [this]() -> uint64_t { return chunkManager ? Core::residentSetHash(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end()) : 0; },
         [this](int cx, int cz) -> uint64_t {
-            if (!chunkManager) return 0;
-            uint64_t h = 0;
-            for (int cy = -4; cy <= 31; ++cy)
-                if (const Chunk* c = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz)))
-                    h += Core::chunkCoordHash64(glm::ivec3(cx, cy, cz)) ^ static_cast<uint64_t>(reinterpret_cast<uintptr_t>(c));
-            return h;
+            // 51.4: one map lookup (the per-column stamps, rebuilt once a frame when the resident set moved) - the far skin asks
+            // thousands of columns a scan; 36 chunk lookups each cost milliseconds
+            refreshResidentColumns();
+            const auto it = m_residentColumns.find((static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz));
+            return it == m_residentColumns.end() ? 0 : it->second;
         });
     waterCore->setSpanIo(
         [this](const std::vector<Core::Water::ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunksTouched) {
@@ -2901,6 +2901,21 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 // PROJECT LAUNCHER
 // ============================================================================
 
+// 51.4: each chunk column's residency stamp (32.4's: the sum over its chunks y -4..31 of the coordinate hash ^ the object), in one map
+// rebuilt only when the resident set's hash moved - O(resident chunks) then, one lookup per ask
+void Application::refreshResidentColumns() {
+    if (!chunkManager) { m_residentColumns.clear(); m_residentColumnsSeen = 0; return; }
+    const uint64_t h = Core::residentSetHash(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end());
+    if (h == m_residentColumnsSeen && m_residentColumnsValid) return;
+    m_residentColumnsSeen = h; m_residentColumnsValid = true;
+    m_residentColumns.clear();
+    for (const auto& [cc, c] : chunkManager->chunkMap) {
+        if (!c || cc.y < -4 || cc.y > 31) continue;
+        m_residentColumns[(static_cast<uint64_t>(static_cast<uint32_t>(cc.x)) << 32) | static_cast<uint32_t>(cc.z)] +=
+            Core::chunkCoordHash64(cc) ^ static_cast<uint64_t>(reinterpret_cast<uintptr_t>(c));
+    }
+}
+
 void Application::onLauncherResult(const LauncherResult& result) {
     namespace fs = std::filesystem;
     std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
@@ -4036,6 +4051,20 @@ void Application::update(float deltaTime) {
                 else if (camera) waterCore->setViewPoint(camera->getPosition());
             }
             { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
+            // 51.4 step 2: the far skin's generator source - its own copy of the streaming generator (the worker shares nothing with
+            // this thread), made when the skin is on and the generator or the world changed
+            if (Core::Water::WaterCoreManager::s_skin.on) {
+                const WorldGenerator* sg = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                if (sg != m_skinGenFrom || waterCore->worldResets() != m_skinGenResets) {
+                    m_skinGenFrom = sg; m_skinGenResets = waterCore->worldResets();
+                    if (sg && sg->hydrology()) {
+                        waterCore->setSkinGeneratorSource([sg]() -> Core::Water::WaterSkin::GeneratorSource {
+                            auto copy = std::make_shared<WorldGenerator>(*sg);   // one per worker, copied on this thread
+                            return [copy](const glm::ivec2& c, std::vector<Core::Water::ColumnRuns>& out) { generatedWaterRuns(*copy, c, out); };
+                        });
+                    } else waterCore->setSkinGeneratorSource(nullptr);
+                }
+            }
             // 32.4 (A2b): chunk columns whose record changed by residency - their debris water tiles are rebuilt, not left to the rotation
             if (auto ch = waterCore->takeRecordChanged(); !ch.empty() && debrisRuntime) debrisRuntime->invalidateWaterTiles(ch);
             const auto wtFeed = WClock::now();
@@ -14296,11 +14325,17 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("far_m")) k.farM = std::clamp(cmd.params.value("far_m", 1024.0f), 0.0f, maxChunkRenderDistance);
         if (cmd.params.contains("ring_cells")) k.ringCells = (std::clamp(cmd.params.value("ring_cells", 64), 8, 256) + 3) / 4 * 4;
         if (cmd.params.contains("summaries_per_call")) k.summariesPerCall = std::clamp(cmd.params.value("summaries_per_call", 32), 1, 1024);
+        if (cmd.params.contains("generator_threads")) {   // 1..8; applies when the source is next made (the world or the generator changes)
+            k.generatorThreads = std::clamp(cmd.params.value("generator_threads", 2), 1, 8);
+            m_skinGenFrom = nullptr; m_skinGenResets = -1;   // remade on the next frame with the new count
+        }
         const auto& s = waterCore->skinStats();
         r = {{"on", k.on}, {"far_m", k.farM}, {"base_cell_m", k.baseCellM}, {"ring_cells", k.ringCells}, {"summaries_per_call", k.summariesPerCall},
              {"draw_m", M::s_locality.drawM}, {"levels", s.levels}, {"ring_cells_used", s.ringCells}, {"fields", s.fields}, {"wet_cells", s.wetCells},
              {"summaries", s.summaries}, {"summaries_built", s.summariesBuilt}, {"summaries_built_last_call", s.summariesBuiltLastCall},
-             {"pending", s.pending}, {"fields_rebuilt_last_call", s.fieldsRebuiltLastCall}, {"ms_last_call", s.msLastCall}, {"ms_max", s.msMax}};
+             {"pending", s.pending}, {"fields_rebuilt_last_call", s.fieldsRebuiltLastCall}, {"ms_last_call", s.msLastCall}, {"ms_max", s.msMax},
+             {"generator_threads", k.generatorThreads}, {"generator_source", waterCore->hasSkinGeneratorSource()}, {"gen_pending", s.genPending},
+             {"gen_built", s.genBuilt}, {"gen_held", s.genHeld}};
     });
     // §27 W1 step 0: {id} where the volume's water is - m^3 in air / inside ground / in unknown occupancy / above full cells
     reg.on("water_av_census", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {

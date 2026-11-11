@@ -680,6 +680,9 @@ public:
     const std::vector<const WaterSurfaceField*>& skinFields();
     bool skinDrawnAtWorld(float x, float z, float& top, int* claims = nullptr) const { return m_skin.drawnAt(x, z, top, claims); }
     const WaterSkin::Stats& skinStats() const { return m_skin.stats(); }
+    /// 51.4 step 2: chunk columns with no resident chunk are summarized from the generator, on the skin's worker (WaterSkin.h)
+    void setSkinGeneratorSource(WaterSkin::GeneratorFactory factory) { m_skin.setGeneratorSource(std::move(factory), s_skin.generatorThreads); }
+    bool hasSkinGeneratorSource() const { return m_skin.hasGeneratorSource(); }
     bool skinCellForTest(int cx, int cz, SkinCell& out) const { return m_skin.cellAt(cx, cz, out); }
     const SpanReader& skinReaderForTest() const { return m_spanReader; }
     /// 27.18: the water the world's record (chunk spans) holds in a voxel box, m^3 (-1 with no span reader) - a create over it

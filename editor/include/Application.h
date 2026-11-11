@@ -123,6 +123,8 @@
 
 namespace Phyxel {
 
+class WorldGenerator;   // 51.4 step 2
+
 /// Editor mode — Edit for development workflow, Play for game testing.
 enum class EditorMode {
     Edit,   // Free camera, full panel access, simulation can be paused
@@ -316,6 +318,10 @@ private:
     std::vector<const Core::Water::RippleLayer*> m_rippleLayers;   // 22: this frame's layers, fed to the renderer
     std::vector<Core::Water::GpuSurfaceDraw> m_gpuSurfaceDraws;    // 29 S1: this frame's device-drawn surfaces, fed to the renderer
     std::vector<const Core::Water::WaterSurfaceField*> m_surfaceFieldsWithSkin;   // 51.4 S3: this frame's fields then the far skin's
+    const WorldGenerator* m_skinGenFrom = nullptr; long m_skinGenResets = -1;     // 51.4 step 2: the generator the skin's source copies
+    std::unordered_map<uint64_t, uint64_t> m_residentColumns;                      // 51.4: chunk column -> residency stamp
+    uint64_t m_residentColumnsSeen = 0; bool m_residentColumnsValid = false;
+    void refreshResidentColumns();
     // 20 (M2): debris displaces water WHILE IT MOVES (hysteresis kDisplaceOnSpeed / kDisplaceOffSpeed). Measured
     // 2026-10-10: with every wet piece displacing, ten floaters never settled (9-10 awake for 20 s; displacement
     // off: 1-3 by 7-10 s, the signed-off 19.6 feel) - a slow body and the water drive each other through the

@@ -24,6 +24,7 @@ class HydrologyMap;
 class FlowField;
 struct MapCoarseData;
 class WorldForgePlan;
+namespace Core::Water { struct ColumnRuns; }
 
 /**
  * @brief World generation interface for procedural world creation
@@ -436,6 +437,8 @@ private:
         std::vector<uint8_t>   has;
     };
     std::shared_ptr<const ChunkColumnSpans> waterSpansForChunkColumn(const glm::ivec2& colChunk);
+    // WaterCore 51.4 S3 step 2: the far skin reads a never-loaded chunk column's water through this (WaterSkinSource.h)
+    friend void generatedWaterRuns(WorldGenerator& gen, const glm::ivec2& colChunk, std::vector<Core::Water::ColumnRuns>& out);
 
     void clearColumnCache() {
         m_columnCache.clear(); m_columnCacheOrder.clear();

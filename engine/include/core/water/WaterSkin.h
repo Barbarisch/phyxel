@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -51,12 +52,17 @@ public:
         int baseCellM = 4;            ///< level 0's cell: 4 or 8 (a level-0 cell must lie inside one 8 m record tile, or the seam moves)
         int ringCells = 64;           ///< N: cells per side of a level (a multiple of 4, so each level sits on the next one's lattice)
         int summariesPerCall = 32;    ///< chunk columns summarized per call, nearest first (bounds a frame; late, never blank)
+        int generatorThreads = 2;     ///< step 2: workers for never-loaded columns (~35 ms a chunk column each, measured); read when the
+                                      ///< source is set
     };
     static inline bool s_wholeCellsForTest = false;   ///< TEST ONLY: the red control - a cell drawn whole when half its AREA is wet
     struct Stats {
         int levels = 0, fields = 0, wetCells = 0, ringCells = 0;
         int summaries = 0, summariesBuiltLastCall = 0, pending = 0, fieldsRebuiltLastCall = 0;
         long summariesBuilt = 0;
+        int genPending = 0;           ///< step 2: chunk columns queued on (or in) the generator worker
+        long genBuilt = 0;            ///< step 2: summaries made from the generator
+        int genHeld = 0;              ///< step 2: summaries held that came from the generator
         double msLastCall = 0.0, msMax = 0.0;
     };
     using Reader = std::function<void(const glm::ivec3&, const glm::ivec3&, std::vector<ColumnRuns>&)>;
@@ -78,6 +84,20 @@ public:
     static constexpr int kSourceBit = 0x20000000;    ///< a skin field's source (record tiles: 0x40000000; volumes count up from 1)
     static bool isSkinField(const WaterSurfaceField& f) { return f.source > 0 && (f.source & kSourceBit) != 0 && (f.source & 0x40000000) == 0; }
 
+    WaterSkin();
+    ~WaterSkin();
+    WaterSkin(const WaterSkin&) = delete;
+    WaterSkin& operator=(const WaterSkin&) = delete;
+    /// 51.4 step 2: a chunk column with NO resident chunk is summarized from the generator's water (generatedWaterRuns) on worker
+    /// threads. `factory` is called once per worker, here (the caller's thread): each source it returns is used by its worker ALONE,
+    /// so it must share nothing mutable with the others or the main thread (each its own generator copy: WorldGenerator memoizes).
+    /// Null: none (such a column reads the record, which holds nothing there). Replacing it drops every summary the old one made. A
+    /// column that becomes resident is re-read from the record; one that stops being resident keeps its record summary until the
+    /// generator's arrives.
+    using GeneratorSource = std::function<void(const glm::ivec2&, std::vector<ColumnRuns>&)>;
+    using GeneratorFactory = std::function<GeneratorSource()>;
+    void setGeneratorSource(GeneratorFactory factory, int threads = 2);
+    bool hasGeneratorSource() const { return static_cast<bool>(m_worker); }
     void update(const Settings& s, const Inputs& in);
     const std::vector<const WaterSurfaceField*>& fields() const { return m_out; }
     const Stats& stats() const { return m_stats; }
@@ -85,7 +105,7 @@ public:
     bool drawnAt(float x, float z, float& top, int* claims = nullptr) const;
     /// the summary's 4 m cell (cx, cz) (false: its chunk column is not summarized)
     bool cellAt(int cx, int cz, SkinCell& out) const;
-    void clear();
+    void clear();   ///< drops every summary and field (the generator source stays)
 
 private:
     // per chunk column: the 4 m cells and the 8 / 16 / 32 m aggregates above them (8x8 + 4x4 + 2x2 + 1)
@@ -93,13 +113,18 @@ private:
         SkinCell cells[85];
         uint64_t spanRev = ~0ull, res = ~0ull;
         bool built = false;
+        bool fromGen = false;     // step 2: made from the generator (the column had no resident chunk)
+        bool requested = false;   // step 2: queued on the generator worker
         uint64_t version = 0;
     };
     static constexpr int kPyrOffset[4] = {0, 64, 80, 84};
     std::unordered_map<uint64_t, Summary> m_sum;
     uint64_t m_resSeen = ~0ull;
     uint64_t m_sumVersion = 0;               // bumped whenever a summary's cells change
-    void buildSummary(int ccx, int ccz, Summary& s, const Reader& reader);
+    void buildSummary(int ccx, int ccz, Summary& s, const std::vector<ColumnRuns>& runs);
+    struct Worker;
+    std::unique_ptr<Worker> m_worker;
+    uint64_t m_genEpoch = 0;
     bool aggregate(int level, int sizeM, long gx, long gz, SkinCell& out) const;   // the cell of size sizeM at world cell index (gx, gz)
 
     struct FieldEntry { WaterSurfaceField field; bool wetAny = false; };

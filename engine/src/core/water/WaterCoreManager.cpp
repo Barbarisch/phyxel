@@ -1798,6 +1798,7 @@ WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
     m_recordChanged.clear(); m_resGlobalSeen = 0;
     out.recordTiles = static_cast<int>(m_recordTiles.size());
     m_recordTiles.clear(); m_recordBoxes.clear(); ++m_recordRevision;
+    m_skin.clear();   // 51.4: no summary of another world answers here (the editor replaces the generator source)
     m_fields.clear(); m_surface.clear();   // no pointer into a destroyed volume or tile survives
     m_motionSeen.clear(); m_motionPrevTops.clear(); ++m_fieldBumps;
     m_tickAccum = 0.0;

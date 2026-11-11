@@ -7,6 +7,10 @@
 #include <cmath>
 #include <cstring>
 #include <climits>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
 #include <tuple>
 
 namespace Phyxel::Core::Water {
@@ -16,15 +20,20 @@ namespace {
 long floorDivL(long a, long b) { return a >= 0 ? a / b : -((-a + b - 1) / b); }
 uint64_t columnKey(int cx, int cz) { return (static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz); }
 
-// a column's water as the summary sees it: runs at least 1 mm thick (the surface extraction's floor)
-bool columnWater(const ColumnRuns& c, float& top, float& bottom) {
-    bool wet = false; top = -1e30f; bottom = 1e30f;
-    for (const ColumnRun& r : c.runs) {
-        if (r.topY - r.bottomY < 1e-3f) continue;
-        wet = true; top = std::max(top, r.topY); bottom = std::min(bottom, r.bottomY);
+// a column's water as the summary sees it: wet when its runs hold at least 1 mm (the surface extraction's floor) in all; its top the
+// highest run's, its bottom the lowest's. Summed over EVERY entry of the column, not per run or per entry: a span the chunks store in
+// two pieces (cut at a vertical chunk's face) and a reader that answers chunk by chunk give two entries for one column - counted
+// once, they read the same as the whole span (equality (ii): counted per entry, a lake's cells read twice as wet)
+struct ColumnAcc {
+    float depth = 0.0f, top = -1e30f, bottom = 1e30f;
+    void add(const ColumnRuns& c) {
+        for (const ColumnRun& r : c.runs) {
+            if (r.topY <= r.bottomY) continue;
+            depth += r.topY - r.bottomY; top = std::max(top, r.topY); bottom = std::min(bottom, r.bottomY);
+        }
     }
-    return wet;
-}
+    bool wet() const { return depth >= 1e-3f; }
+};
 
 void addColumn(SkinCell& cell, int x, int z, float top, float bottom) {
     if (cell.wet == 0) { cell.x0 = cell.x1 = x; cell.z0 = cell.z1 = z; }
@@ -42,27 +51,81 @@ void merge(SkinCell& into, const SkinCell& c) {
 }  // namespace
 
 void summarizeSkinCells(const std::vector<ColumnRuns>& runs, std::map<std::pair<int, int>, SkinCell>& out) {
-    for (const ColumnRuns& c : runs) {
-        float top, bottom;
-        if (!columnWater(c, top, bottom)) continue;
-        addColumn(out[{static_cast<int>(floorDivL(c.x, kSkinCellM)), static_cast<int>(floorDivL(c.z, kSkinCellM))}], c.x, c.z, top, bottom);
+    std::map<std::pair<int, int>, ColumnAcc> cols;
+    for (const ColumnRuns& c : runs) cols[{c.x, c.z}].add(c);
+    for (const auto& [xz, a] : cols) {
+        if (!a.wet()) continue;
+        addColumn(out[{static_cast<int>(floorDivL(xz.first, kSkinCellM)), static_cast<int>(floorDivL(xz.second, kSkinCellM))}], xz.first, xz.second, a.top, a.bottom);
     }
+}
+
+// 51.4 step 2: the generator worker - one thread, a queue of chunk columns (nearest first as asked), results handed back
+struct WaterSkin::Worker {
+    std::vector<GeneratorSource> fns;   // one per thread
+    std::mutex mu;
+    std::condition_variable cv;
+    std::deque<uint64_t> queue;
+    int inFlight = 0;
+    std::vector<std::pair<uint64_t, std::vector<ColumnRuns>>> done;
+    bool stop = false;
+    std::vector<std::thread> th;
+    void run(int i) {
+        for (;;) {
+            uint64_t key;
+            {
+                std::unique_lock<std::mutex> lk(mu);
+                cv.wait(lk, [&] { return stop || !queue.empty(); });
+                if (stop) return;
+                key = queue.front(); queue.pop_front(); ++inFlight;
+            }
+            std::vector<ColumnRuns> runs;
+            fns[static_cast<size_t>(i)](glm::ivec2(static_cast<int>(static_cast<int32_t>(key >> 32)), static_cast<int>(static_cast<int32_t>(key & 0xffffffffull))), runs);
+            std::lock_guard<std::mutex> lk(mu);
+            --inFlight;
+            done.emplace_back(key, std::move(runs));
+        }
+    }
+};
+
+WaterSkin::WaterSkin() = default;
+
+WaterSkin::~WaterSkin() { setGeneratorSource(nullptr); }
+
+void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads) {
+    if (m_worker) {
+        { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->stop = true; }
+        m_worker->cv.notify_all();
+        for (std::thread& t : m_worker->th) if (t.joinable()) t.join();
+        m_worker.reset();
+    }
+    // the old source's summaries go (another world's generator must never answer); the record's stay
+    for (auto it = m_sum.begin(); it != m_sum.end();) { if (it->second.fromGen) it = m_sum.erase(it); else { it->second.requested = false; ++it; } }
+    ++m_sumVersion; m_scanValid = false; ++m_genEpoch;
+    if (!factory) return;
+    m_worker = std::make_unique<Worker>();
+    const int n = std::clamp(threads, 1, 8);
+    for (int i = 0; i < n; ++i) m_worker->fns.push_back(factory());   // made here, each used by its own thread alone
+    Worker* w = m_worker.get();
+    for (int i = 0; i < n; ++i) m_worker->th.emplace_back([w, i] { w->run(i); });
 }
 
 void WaterSkin::clear() {
     m_sum.clear(); m_fieldMap.clear(); m_out.clear(); m_levelKeys.clear(); m_keyValid = false; m_resSeen = ~0ull; m_scanValid = false; m_lastPending = 0;
+    if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->queue.clear(); m_worker->done.clear(); }
 }
 
-void WaterSkin::buildSummary(int ccx, int ccz, Summary& s, const Reader& reader) {
-    std::vector<ColumnRuns> runs;
-    reader(glm::ivec3(ccx * 32, kYLo, ccz * 32), glm::ivec3(ccx * 32 + 31, kYHi, ccz * 32 + 31), runs);
+void WaterSkin::buildSummary(int ccx, int ccz, Summary& s, const std::vector<ColumnRuns>& runs) {
     SkinCell cells[85];
+    ColumnAcc cols[32 * 32];
     for (const ColumnRuns& c : runs) {
         const int lx = c.x - ccx * 32, lz = c.z - ccz * 32;
         if (lx < 0 || lz < 0 || lx >= 32 || lz >= 32) continue;   // a reader that answers outside the box: not this column's
-        float top, bottom;
-        if (!columnWater(c, top, bottom)) continue;
-        addColumn(cells[(lx / kSkinCellM) + kSkinCellsPerChunk * (lz / kSkinCellM)], c.x, c.z, top, bottom);
+        cols[lx + 32 * lz].add(c);
+    }
+    for (int lz = 0; lz < 32; ++lz) for (int lx = 0; lx < 32; ++lx) {   // world order within the column: x fastest (any order gives the same cells)
+        const ColumnAcc& a = cols[lx + 32 * lz];
+        if (!a.wet()) continue;
+        addColumn(cells[(lx / kSkinCellM) + kSkinCellsPerChunk * (lz / kSkinCellM)], ccx * 32 + lx, ccz * 32 + lz, a.top, a.bottom);
     }
     // the 8, 16 and 32 m aggregates (a parent = its four children)
     for (int p = 1; p < 4; ++p) {
@@ -122,6 +185,23 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     const int sMax = base << (levels - 1);
     m_stats.levels = levels; m_stats.ringCells = n;
 
+    // step 2: the generator's summaries that came back (a column made resident since keeps the record's)
+    auto resident = [&](int cx, int cz) { return !m_worker || !in.residentColumn || !*in.residentColumn || (*in.residentColumn)(cx, cz) != 0; };
+    if (m_worker) {
+        std::vector<std::pair<uint64_t, std::vector<ColumnRuns>>> done;
+        { std::lock_guard<std::mutex> lk(m_worker->mu); done.swap(m_worker->done); }
+        for (auto& [key, runs] : done) {
+            const auto it = m_sum.find(key);
+            if (it == m_sum.end() || !it->second.requested) continue;   // forgotten meanwhile
+            Summary& sm = it->second;
+            sm.requested = false;
+            const int cx = static_cast<int>(static_cast<int32_t>(key >> 32)), cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
+            if (resident(cx, cz)) { m_scanValid = false; continue; }   // its chunks loaded while it was queued: the record answers
+            buildSummary(cx, cz, sm, runs);
+            sm.fromGen = true; sm.spanRev = in.spanRevision; sm.res = 0;
+            ++m_stats.genBuilt;
+        }
+    }
     // the summaries: chunk columns within reach of a drawn cell, nearest first, a budget per call
     if (in.residentColumn && *in.residentColumn && in.residentGlobal != m_resSeen) {
         m_resSeen = in.residentGlobal;
@@ -141,14 +221,19 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     m_scanValid = true; m_scanCx = vcx; m_scanCz = vcz; m_scanSpanRev = in.spanRevision; m_scanReach = reach; m_scanResGen = m_resGen;
     const long cx0 = floorDivL(static_cast<long>(std::floor(vc.x - reach)), 32), cx1 = floorDivL(static_cast<long>(std::floor(vc.x + reach)), 32);
     const long cz0 = floorDivL(static_cast<long>(std::floor(vc.z - reach)), 32), cz1 = floorDivL(static_cast<long>(std::floor(vc.z + reach)), 32);
-    std::vector<std::pair<float, uint64_t>> stale;
+    std::vector<std::pair<float, uint64_t>> stale, genAsk;
     if (scan) for (long cz = cz0; cz <= cz1; ++cz) for (long cx = cx0; cx <= cx1; ++cx) {
         const glm::vec2 lo(static_cast<float>(cx * 32), static_cast<float>(cz * 32)), hi = lo + glm::vec2(32.0f);
         const float d2 = WaterLocality::horizontalDistanceSqToBox(vc, lo, hi);
         if (d2 > reach * reach) continue;
         const uint64_t key = columnKey(static_cast<int>(cx), static_cast<int>(cz));
         const auto it = m_sum.find(key);
-        if (it == m_sum.end() || !it->second.built || it->second.spanRev != in.spanRevision) stale.push_back({d2, key});
+        if (!resident(static_cast<int>(cx), static_cast<int>(cz))) {
+            // step 2: the generator's - asked once (it never goes stale on the span revision: the record is not its source)
+            if (it == m_sum.end() || ((!it->second.built || !it->second.fromGen) && !it->second.requested)) genAsk.push_back({d2, key});
+            continue;
+        }
+        if (it == m_sum.end() || !it->second.built || it->second.fromGen || it->second.spanRev != in.spanRevision) stale.push_back({d2, key});
     }
     // forget what is well out of reach (bounded memory)
     const float keep = reach + 64.0f;
@@ -163,13 +248,26 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         if (m_stats.summariesBuiltLastCall >= budget) { ++m_stats.pending; continue; }
         Summary& sm = m_sum[key];
         const int cx = static_cast<int>(static_cast<int32_t>(key >> 32)), cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
-        buildSummary(cx, cz, sm, *in.reader);
-        sm.spanRev = in.spanRevision;
+        std::vector<ColumnRuns> runs;
+        (*in.reader)(glm::ivec3(cx * 32, kYLo, cz * 32), glm::ivec3(cx * 32 + 31, kYHi, cz * 32 + 31), runs);
+        buildSummary(cx, cz, sm, runs);
+        sm.spanRev = in.spanRevision; sm.fromGen = false; sm.requested = false;
         sm.res = (in.residentColumn && *in.residentColumn) ? (*in.residentColumn)(cx, cz) : 0;
         ++m_stats.summariesBuiltLastCall; ++m_stats.summariesBuilt;
     }
+    if (m_worker && !genAsk.empty()) {
+        std::sort(genAsk.begin(), genAsk.end());
+        {
+            std::lock_guard<std::mutex> lk(m_worker->mu);
+            for (const auto& [d2, key] : genAsk) { m_sum[key].requested = true; m_worker->queue.push_back(key); }
+        }
+        m_worker->cv.notify_all();
+    }
     m_stats.summaries = static_cast<int>(m_sum.size());
     m_lastPending = m_stats.pending;
+    m_stats.genPending = 0; m_stats.genHeld = 0;
+    if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_stats.genPending = static_cast<int>(m_worker->queue.size()) + m_worker->inFlight; }
+    for (const auto& [key, sm] : m_sum) if (sm.fromGen) ++m_stats.genHeld;
 
     // the fields: a level is rebuilt only when what it reads moved - its snapped square, the summaries, the volumes, the settings,
     // and for level 0 the set of record tiles in range (a still camera over a still record rebuilds nothing; a moving one rebuilds
