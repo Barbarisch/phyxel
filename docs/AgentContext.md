@@ -329,7 +329,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       check without the engine: tools/grid_contact_sheet.py (isometric PIL; engine can't load grid 8). gen_door
       --grid 8 (re-designed in metres; legacy output dir fixed to architecture/) and gen_items --grid 64 (authored
       1/81 canvas RESAMPLED at emit: edge-mapped occupancy, nearest-centre content, no material+tint vanishes)
-      DONE, red-first tests tools/test_gen_{door,items}_grid.py. NEXT: gen_seat_variants; hearth bodies + furniture placement in C++; the other structure generators (StructureForge furnish, Tower/Fence/Street/Settlement);
+      DONE, red-first tests tools/test_gen_{door,items}_grid.py; gen_seat_variants --grid 8 (fit-checked) -> FC STEP 4 COMPLETE. NEXT: hearth bodies + furniture placement in C++; the other structure generators (StructureForge furnish, Tower/Fence/Street/Settlement);
       a building into the storage lab area; F4 fracture reference.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;

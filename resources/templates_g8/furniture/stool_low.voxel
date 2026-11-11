@@ -1,0 +1,14 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         stool_low
+# display_name: Low Stool
+# description:  A low stool sized for smallfolk — halflings, gnomes, goblins, dwarves.
+# category:     furniture
+# subcategory:  seating
+# tags:         stool, seat, small, halfling, low
+# ==========================================================
+# interaction_point: seat_0 seat 0.3125 0.3750 0.3125 3.141593 *
+# method:       tools/gen_seat_variants.py --grid 8 (re-picked in metres)
+
+B 0 0 0 5 3 5 Wood

@@ -1,0 +1,14 @@
+# grid: 8
+# ==========================================================
+# ASSET METADATA
+# name:         bench_great
+# display_name: Great Bench
+# description:  A massive high bench for giant-kin — ogres and goliaths.
+# category:     furniture
+# subcategory:  seating
+# tags:         bench, seat, large, ogre, giant
+# ==========================================================
+# interaction_point: seat_0 seat 1.0000 1.3750 0.6875 3.141593 *
+# method:       tools/gen_seat_variants.py --grid 8 (re-picked in metres)
+
+B 0 0 0 16 11 11 Wood

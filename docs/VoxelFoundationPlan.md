@@ -712,6 +712,20 @@ content, 64 for items. The live loader accepts only 27/81 today; the lab reads g
    The 1/81 m designs ask for detail the 1/64 m item grid can't resolve in these spots. They need re-design
    in 1/64 m terms.
    Pre-existing: the legacy writer saves headers in cp1252 (the em dash is byte 0x97), not UTF-8.
+
+   **Seat variants done 2026-11-11 (`gen_seat_variants.py --grid 8`); step 4 complete.** These are fit-policy
+   seats, so they were re-picked in metres to the nearest cell, not mapped:
+   - `stool_low`: 0.625 x 0.375 x 0.625 m (legacy 0.667 x 0.333 x 0.667);
+   - `bench_great`: 2.0 x 1.375 x 1.375 m (legacy 2.0 x 1.333 x 1.333).
+
+   Against the SeatFit band, the great bench at 1.375 m is still a legal seat for the ogre (legs 1.58) and the
+   goliath (legs 1.27), and is still refused for a human (it sits over 0.20 m above a ~0.9 m leg). Smallfolk leg
+   lengths are not recorded anywhere, so the stool's 0.375 m is not checked against them.
+
+   Found, the same drift as the doors: the script wrote to the template root, the files live in `furniture/`,
+   and the writes ran **on import**. Running the test's first import dropped two root strays, which were
+   removed. Fixed: writes now run under `__main__`, into `furniture/`, and legacy output equals the committed
+   files. Tests: `tools/test_gen_seat_variants_grid.py` (red first).
 5. **Retire** `gen_tree.py` (bush presets in tree_forge) and port tree_forge to C++ for procedural flora.
    **Bushes done 2026-11-11.** Finding: gen_tree's "height 2" bushes are not 2 m: `bush_round` is 5.3 x 3.3 x 4.3 m
    (27 m³ leaf, no wood), `bush_leafy_s` 5.0 x 3.3 x 5.7 (32 m³), `bush_leafy_m` 5.0 x 4.3 x 5.7 (50 m³). Replaced by
@@ -767,7 +781,7 @@ Every rig is checked for:
 | Phase | What | Exit test | Stop if |
 |---|---|---|---|
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1). **Done 2026-11-10:** §13 decided; inventory in §7a.1-7a.2; save check in §3.5a point 7; skeletons `engine/*/core/voxfound/` (`VoxelGrid`, `FractureLab`, `StorageLab`) + `VoxFoundFractureLabTest` (4 checker tests green, 8 predictions red until F4) + `VoxFoundStorageLabTest` (3 green incl. measured terrain stats, 3 red until F1) | — | — |
-| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8` (34), `gen_door --grid 8`, `gen_items --grid 64` (52) (step 4); next: `gen_seat_variants`, hearths and furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
+| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8` (34), `gen_door --grid 8`, `gen_items --grid 64` (52), `gen_seat_variants --grid 8`: **step 4 complete**; next: hearths and furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | pixel diff within the gate at 5 poses; face count ≤ today's on the same scene; frame time ≤ today | can't match the look, or more faces, or slower |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
