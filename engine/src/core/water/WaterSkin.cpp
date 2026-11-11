@@ -60,29 +60,40 @@ void summarizeSkinCells(const std::vector<ColumnRuns>& runs, std::map<std::pair<
 }
 
 // 51.4 step 2: the generator worker - one thread, a queue of chunk columns (nearest first as asked), results handed back
+// 51.4e: the work is handed out in BLOCKS of kGenBlock x kGenBlock chunk columns, nearest block first, each walked row by row
+// (serpentine). One chunk column's generated water samples a padded area ~18 x 18 chunk columns wide (WorldGenerator::
+// waterSpansForBlock's margin) through a 512-entry cache: consecutive neighbours share almost all of it (~20 ms a column), while the
+// nearest-first spiral the first build used jumped round its ring and re-sampled it whole each time (~1.1 s a column, measured)
+static constexpr int kGenBlock = 8;
 struct WaterSkin::Worker {
     std::vector<GeneratorSource> fns;   // one per thread
     std::mutex mu;
     std::condition_variable cv;
-    std::deque<uint64_t> queue;
+    std::deque<std::vector<uint64_t>> queue;   // blocks, each its columns in walking order
+    size_t queuedColumns = 0;
     int inFlight = 0;
     std::vector<std::pair<uint64_t, std::vector<ColumnRuns>>> done;
     bool stop = false;
     std::vector<std::thread> th;
     void run(int i) {
         for (;;) {
-            uint64_t key;
+            std::vector<uint64_t> block;
             {
                 std::unique_lock<std::mutex> lk(mu);
                 cv.wait(lk, [&] { return stop || !queue.empty(); });
                 if (stop) return;
-                key = queue.front(); queue.pop_front(); ++inFlight;
+                block = std::move(queue.front()); queue.pop_front();
+                queuedColumns -= block.size(); inFlight += static_cast<int>(block.size());
             }
-            std::vector<ColumnRuns> runs;
-            fns[static_cast<size_t>(i)](glm::ivec2(static_cast<int>(static_cast<int32_t>(key >> 32)), static_cast<int>(static_cast<int32_t>(key & 0xffffffffull))), runs);
-            std::lock_guard<std::mutex> lk(mu);
-            --inFlight;
-            done.emplace_back(key, std::move(runs));
+            for (size_t k = 0; k < block.size(); ++k) {
+                const uint64_t key = block[k];
+                std::vector<ColumnRuns> runs;
+                fns[static_cast<size_t>(i)](glm::ivec2(static_cast<int>(static_cast<int32_t>(key >> 32)), static_cast<int>(static_cast<int32_t>(key & 0xffffffffull))), runs);
+                std::lock_guard<std::mutex> lk(mu);
+                --inFlight;
+                done.emplace_back(key, std::move(runs));
+                if (stop) { inFlight -= static_cast<int>(block.size() - k - 1); return; }
+            }
         }
     }
 };
@@ -111,7 +122,7 @@ void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads) {
 
 void WaterSkin::clear() {
     m_sum.clear(); m_fieldMap.clear(); m_out.clear(); m_levelKeys.clear(); m_keyValid = false; m_resSeen = ~0ull; m_scanValid = false; m_lastPending = 0;
-    if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->queue.clear(); m_worker->done.clear(); }
+    if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->queue.clear(); m_worker->queuedColumns = 0; m_worker->done.clear(); }
 }
 
 void WaterSkin::buildSummary(int ccx, int ccz, Summary& s, const std::vector<ColumnRuns>& runs) {
@@ -260,17 +271,36 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         ++m_stats.summariesBuiltLastCall; ++m_stats.summariesBuilt;
     }
     if (m_worker && !genAsk.empty()) {
-        std::sort(genAsk.begin(), genAsk.end());
+        // 51.4e: grouped into blocks (nearest block first, by its nearest column), each walked serpentine
+        std::map<std::pair<long, long>, std::pair<float, std::vector<uint64_t>>> blocks;
+        for (const auto& [d2, key] : genAsk) {
+            const long cx = static_cast<int32_t>(key >> 32), cz = static_cast<int32_t>(key & 0xffffffffull);
+            auto& b = blocks[{floorDivL(cx, kGenBlock), floorDivL(cz, kGenBlock)}];
+            if (b.second.empty() || d2 < b.first) b.first = d2;
+            b.second.push_back(key);
+            m_sum[key].requested = true;
+        }
+        std::vector<std::pair<float, std::vector<uint64_t>>> order;
+        for (auto& [bk, b] : blocks) {
+            std::sort(b.second.begin(), b.second.end(), [](uint64_t a, uint64_t c) {
+                const long ax = static_cast<int32_t>(a >> 32), az = static_cast<int32_t>(a & 0xffffffffull);
+                const long cx = static_cast<int32_t>(c >> 32), cz = static_cast<int32_t>(c & 0xffffffffull);
+                if (az != cz) return az < cz;
+                return (floorDivL(az, 1) & 1) ? ax > cx : ax < cx;   // serpentine: odd rows walked back
+            });
+            order.push_back(std::move(b));
+        }
+        std::sort(order.begin(), order.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
         {
             std::lock_guard<std::mutex> lk(m_worker->mu);
-            for (const auto& [d2, key] : genAsk) { m_sum[key].requested = true; m_worker->queue.push_back(key); }
+            for (auto& [d, keys] : order) { m_worker->queuedColumns += keys.size(); m_worker->queue.push_back(std::move(keys)); }
         }
         m_worker->cv.notify_all();
     }
     m_stats.summaries = static_cast<int>(m_sum.size());
     m_lastPending = m_stats.pending;
     m_stats.genPending = 0;
-    if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_stats.genPending = static_cast<int>(m_worker->queue.size()) + m_worker->inFlight; }
+    if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_stats.genPending = static_cast<int>(m_worker->queuedColumns) + m_worker->inFlight; }
     // counted only on a call that changed the summaries: a walk over thousands of 2.4 KB entries is ~0.2 ms of cache misses (live, 51.4c)
     if (scan || m_stats.summariesBuiltLastCall > 0 || genDrained > 0) { m_stats.genHeld = 0; for (const auto& [key, sm] : m_sum) if (sm.fromGen) ++m_stats.genHeld; }
 

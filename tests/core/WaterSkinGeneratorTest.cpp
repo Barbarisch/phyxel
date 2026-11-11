@@ -251,3 +251,37 @@ TEST(WaterSkinGeneratorTest, DISABLED_DiagRiverCarveGeneratorCost) {
     }
     std::printf("[skin gen] RiverCarve: %d chunk columns, %.1f ms mean, %.1f ms worst, %ld wet columns, top max %.2f\n", n, sum / n, worst, wet, topMax);
 }
+
+// 51.4e DIAG: the generator source's fill rate on RiverCarve's recipe with the skin's own workers (2 threads, nearest first), no
+// engine - live it filled ~1.5 chunk columns a second. Run with --gtest_also_run_disabled_tests.
+TEST(WaterSkinGeneratorTest, DISABLED_DiagRiverCarveFillRate) {
+    struct Guard { WaterCoreManager::SkinSettings skin = WaterCoreManager::s_skin; ~Guard() { WaterCoreManager::s_skin = skin; } } guard;
+    WaterCoreManager::s_skin.on = true;
+    WaterCoreManager::s_skin.farM = 512.0f;
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    WorldRecipe rec = g.makeRecipe();
+    rec.climateFrequency = 0.0012f; rec.creekCarve = true;
+    g.applyRecipe(rec);
+    WaterCoreManager m([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    m.setSpanIo([](const std::vector<ColumnRuns>&, float, float, long* u, long* c) { if (u) *u = 0; if (c) *c = 0; },
+                [](const glm::ivec3&, const glm::ivec3&, std::vector<ColumnRuns>& o) { o.clear(); });
+    m.setRecordResidency([] { return uint64_t(1); }, [](int, int) { return uint64_t(0); });
+    m.setViewPoint(glm::vec3(-1700.0f, 125.0f, -1160.0f));
+    m.setSkinGeneratorSource([&g]() -> WaterSkin::GeneratorSource {
+        auto copy = std::make_shared<WorldGenerator>(g);
+        return [copy](const glm::ivec2& col, std::vector<ColumnRuns>& out) { generatedWaterRuns(*copy, col, out); };
+    });
+    const auto t0 = std::chrono::steady_clock::now();
+    double lastPrint = 0.0;
+    for (;;) {
+        m.surfaceFields(); m.skinFields();
+        const auto& s = m.skinStats();
+        const double t = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        if (t - lastPrint > 10.0) { std::printf("  %.0f s: %ld built, %d pending\n", t, s.genBuilt, s.genPending); lastPrint = t; }
+        if ((s.genPending == 0 && s.genBuilt > 0) || t > 300.0) {
+            std::printf("[skin gen] fill: %ld chunk columns in %.1f s (%.1f a second, 2 workers), %d pending\n", s.genBuilt, t, s.genBuilt / t, s.genPending);
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    }
+}

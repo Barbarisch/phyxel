@@ -13011,6 +13011,18 @@ face's foot). `ADeepRecordTileWakesOnlyItsTop` (CPU, 40 tiles of an 80 m square 
   bottom, as before for free-standing water) - in a valid record the shore's ground is at the water's top. **Live** (`tools/water_record_deep_live.py`, RiverCarve, the camera over its ~60 m-deep lake, every tile in range rebuilt 3 times):
   **a record-tile call 40 ms at most (4 tiles), 1.8-3.1 ms a tile on average** (was 309-513 ms a call); the 39 wet tiles drawn again
   within 2-8 s; at rest 36 fps, CPU 27.9 ms, GPU 27.6 ms (the scene's).
+
+**51.4e (2026-11-10) BUILT - the generator source 10x faster: work handed out in coherent blocks** (51.4c's open cost; no drift). One
+chunk column's generated water samples a padded area ~18 x 18 chunk columns wide through the generator's 512-entry column cache;
+neighbours share almost all of it. The nearest-first spiral (split over 2 workers) jumped round its ring and re-sampled it whole each
+time: ~1.1 s a column, measured without the engine (`DISABLED_DiagRiverCarveFillRate`: 553 columns in 300 s, the same rate as live -
+so not CPU contention). Now the workers take blocks of 8 x 8 chunk columns, nearest block first, each walked row by row (serpentine).
+- Diag (RiverCarve's recipe, 2 workers, no engine): **1,077 chunk columns in 55 s (19.5 a second; was 1.8)**.
+- Live (`water_skin_river_live.py`, RiverCarve): **the whole 1 km reach - 3,699 chunk columns - from the generator in 162 s** (22.8 a
+  second; 51.4c: 449 in 300 s). At rest skin on vs off: 37.7 / 38.0 fps, CPU 26.6 / 26.4 ms (A/B/A; the first off window again caught
+  streaming: 18.5 ms water feed frames, the record tiles reading chunks as they load). Evidence `skin_river_blocks*`.
+- Still: a world's first fill takes minutes and is redone every session (and every time the skin is switched on) - step 3 (the summary
+  persisted) remains the cure; the persisted summary must also carry an edited column's record (51.4 item 7).
   Tests: water unit 379 / 379. Integration water 81 / 84: the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` (a
   device state freed a cycle late at cycles 8 and 11 - timing) with ANOTHER application holding the GPU at ~50 % (a game, not this
   work); it passed on the idle GPU after 51.4b and touches none of the changed code (create / step / the ripple layer). Re-run
