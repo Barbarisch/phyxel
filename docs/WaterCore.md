@@ -13011,8 +13011,8 @@ face's foot). `ADeepRecordTileWakesOnlyItsTop` (CPU, 40 tiles of an 80 m square 
   bottom, as before for free-standing water) - in a valid record the shore's ground is at the water's top. Not measured live yet.
   Tests: water unit 379 / 379. Integration water 81 / 84: the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` (a
   device state freed a cycle late at cycles 8 and 11 - timing) with ANOTHER application holding the GPU at ~50 % (a game, not this
-  work); it passed on the idle GPU after 51.4b and touches none of the changed code (create / step / the ripple layer) - NOT yet
-  re-run on an idle GPU.
+  work); it passed on the idle GPU after 51.4b and touches none of the changed code (create / step / the ripple layer). Re-run
+  on the idle GPU (the game closed): 3 / 3 pass - the load's, not this change's.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
