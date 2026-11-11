@@ -136,6 +136,106 @@ blocks that need them.
   Today: ~5.9 MB per surface chunk (Debug).
 - One generated town's fine detail, 553 k microcubes = 75 MB today. Estimate: ~1-2 MB.
 
+### 3.5a Scale: big worlds, memory bandwidth, still vs moving matter, physics
+
+This section was added after owner review on 2026-11-10: *"memory bandwidth needs to be considered. static and
+dynamic needs to be considered. physics needs to be considered."*
+
+Machine context:
+- RTX 4090: 24 GB, ~1 TB/s of video memory bandwidth.
+- PCIe 4 x16: ~25 GB/s in practice.
+- Today's residency: chunks load within 256 m and unload at 352 m. The far tiers reach 2-4 km (`LodTierLedger.md`).
+
+All numbers below are **estimates** until F1 and F2 measure them.
+
+**1. Four kinds of matter, and what each costs.**
+Principle: **floats are paid per object, never per voxel.** The one exception is particles, which are capped and
+short-lived.
+
+| Kind | Examples | Stored as | Memory | Cost per frame |
+|---|---|---|---|---|
+| still grid matter | terrain, walls, built-in furniture | blocks | 0 B per voxel in uniform blocks, 1 B in detailed ones | drawing only; no simulation |
+| grid matter that moves in place | water, sand, rubble, fire | the same blocks, plus a 4 B fill channel | +4 B per voxel, only where present | simulation, in proportion to awake blocks; sleeping blocks cost 0 |
+| bodies | broken pieces, doors, moving furniture | one transform (~48 B) + its own packed blocks + faces built once | a 1 m³ piece ≈ 2 KB | physics, in proportion to the surface voxels of awake bodies; drawing |
+| particles | spray, splashes, fast water | position + velocity in floats, ~32-48 B each | a capped budget | in proportion to the count; they return to the grid when they settle |
+
+For comparison, today's debris costs 6 faces x 64 B = 384 B per moving voxel, with a 10 k cap. A 1 m³ piece
+(512 voxels at 1/8 m) would cost 196 KB and 5 % of the cap. The estimate for the same piece as a body is ~2 KB.
+
+**2. Memory capacity: how big a world fits.**
+- **Dense storage is impossible.**
+  - One chunk is 16.7 M voxels = 16.7 MB at 1 B each.
+  - A 256 m radius is ≈ 200 chunk columns x ~3 surface chunks = 600 chunks ≈ 10 GB.
+  - So collapsing uniform blocks is mandatory, not an optimisation.
+- **With uniform blocks:**
+  - A surface chunk is ≈ 2 k detailed blocks x 576 B ≈ 1.2 MB, plus a 256 KB directory.
+  - 600 chunks ≈ 0.9 GB. Forests (leaves) and towns are more detailed, so budget 1-3 GB for today's 256 m radius.
+  - That fits on 24 GB; the 8 GB tier is tight.
+- **The directory is large:** 256 KB per chunk x 600 = 150 MB of mostly uniform entries. A two-level directory (one
+  entry per group of 4x4x4 blocks first) is measured in F1.
+- **Full voxel detail cannot reach 1 km:** 16x the area is 15-50 GB. Beyond the detail radius the world is drawn
+  from coarser levels (point 3).
+
+**3. Levels of detail are built into blocks.**
+- A block mip pyramid: 1/8, 1/4, 1/2 m, then 1 m (one value per block), then 2 m and 4 m. Each level holds 1/8 of the
+  data of the level below.
+- At 1 m per block, the far world costs what today's world of cubes costs.
+- The pyramid replaces tier 2 (resident chunk LOD, currently off). It feeds tier 3 (far-LOD chunks) and the
+  structure and tree proxies (tiers 5 and 7), which today build their own pyramids. `LodTierLedger.md` is updated
+  when this is built.
+- The detail radius (full 1/8 m voxels) is a performance-tier knob, for example 128 / 256 / 384 m.
+- The chunk rule holds: LOD changes cost and how things look by distance, never by chunk.
+
+**4. GPU memory bandwidth per frame.**
+- **Bytes per face are not the bottleneck.** Today's measured 4-settlement scene has 270 k faces. At 12 B x 4 passes
+  (main view + 3 shadow cascades) that is ≈ 13 MB per frame, ≈ 0.8 GB/s at 60 fps: under 0.1 % of 1 TB/s.
+- **The number of faces is the bottleneck.** Measured today: 1.76 M unmerged faces ran at 27.5 fps; 270 k merged
+  faces ran at ~140 fps.
+  - Merging only inside a block (at most 8x8 voxels per face) would multiply faces on large flat surfaces.
+  - Example: a flat 32 m wall is a few faces today, but at least 1,024 when merged only per block.
+  - So **merging across blocks is required** (§4.1). F2 gate: face count ≤ today's on the same scene.
+- **Lighting and GI rays** read 1 bit per voxel (the 64 B solidity mask per block) and skip uniform blocks whole.
+  Their cost follows the number of rays.
+- **Simulation** reads 4 B per awake voxel per pass. Measured: 1.49 M awake cells stepped in 0.03-0.11 ms.
+
+**5. Traffic between CPU and GPU (PCIe).**
+- **Streaming in:**
+  - Sprinting at 10 m/s with a 256 m radius brings in ~5 chunk columns per second ≈ 15 chunks ≈ 20 MB/s. That is
+    small for PCIe.
+  - **The real limit is generating 16.7 M voxels per chunk.** Generators must write whole uniform blocks directly,
+    never voxel by voxel, or run on the GPU, in which case nothing is uploaded at all.
+  - F1 measures chunks generated per second at 1/8 m against today.
+- **CPU mirror read-back:** changed blocks only. A large explosion touching 10 k blocks ≈ 6 MB, sent once ≈ 0.25 ms of
+  transfer, arriving 1-2 frames late.
+- **CPU mirror size:** the CPU doesn't need the whole detail radius. Physics, navigation and AI only need the world
+  near characters.
+  - The mirror radius is its own knob, for example 64-128 m around the player and each active NPC group.
+  - That is ≈ 1/4 to 1/16 of the GPU's copy.
+
+**6. Physics at scale.**
+- **Characters and navigation (CPU):**
+  - Characters collide against the mirror at 1/8 m.
+  - `NavGrid` already uses 1 m cells, which match blocks, so block solidity summaries can feed it directly.
+- **Bodies (GPU):**
+  - Cost follows the surface voxels of awake bodies. Sleeping bodies cost only drawing and memory.
+  - Without a rest policy, every break adds bodies that never go away: a demolished town becomes thousands of bodies
+    forever.
+  - That makes §6.7's rest policy a scaling decision, not a cosmetic one.
+- **Simulation radius:**
+  - Liquids, powders and fire are stepped only inside an active radius (a tier knob).
+  - Outside it, blocks sleep and their state is saved.
+  - Far water that must keep flowing (rivers) comes from the existing hydrology bake, not the voxel simulation.
+- **The anchoring search can blow up.** After a cut, "is this piece still connected to the ground?" can mean
+  searching a whole town, because everything connects through the terrain. It is bounded like this:
+  - search the block graph first, which is 512x smaller than the voxel graph;
+  - stop as soon as the search reaches terrain or a block already marked anchored;
+  - refine voxel by voxel only near the cut.
+  - F4 measures the worst-case search size on the wall and column rigs, plus a whole-building rig.
+- **Budgets:** today's 10 k debris cap becomes a body budget and a crumb budget, both tier knobs.
+
+**7. Saving big worlds.** Only chunks that differ from what the deterministic generator would produce need saving.
+An untouched chunk is regenerated from the seed. F0 checks whether today's store already works this way.
+
 ### 3.6 Saving
 - Codec v3: per chunk, the directory, then detailed blocks run-length encoded. Optional channels follow.
 - Old worlds: a converter from PXB2. A cube converts exactly to one 8x8x8 block. Subcubes and microcubes don't land
@@ -146,7 +246,8 @@ blocks that need them.
 ### 4.1 Faces built on the GPU, per changed block
 - A compute pass turns each changed block into faces. Hidden faces are dropped, and same-material faces are merged
   inside the block (8x8 slices).
-- A second pass merges across block borders within a chunk where it pays.
+- A second pass merges across block borders within a chunk. **This is required:** face count drives frame time
+  (§3.5a point 4), and per-block merging alone would multiply faces on large flat surfaces.
 - Faces go into a GPU face pool and are drawn with GPU-driven indirect draws. No CPU meshing, no main-thread hitch.
 
 ### 4.2 Face record (target ≤ 8-12 B)
@@ -372,8 +473,8 @@ Every rig is checked for:
 |---|---|---|---|
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1) | — | — |
 | **FC** | Content conversion (§7a), alongside F1-F3 | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
-| **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area | memory ≥ 5x better on the town; every read-interface query equal | memory win < 5x |
-| **F2** | GPU face building + drawing through today's lighting | pixel diff within the gate at 5 poses; frame time ≤ today | can't match the look, or slower |
+| **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
+| **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | pixel diff within the gate at 5 poses; face count ≤ today's on the same scene; frame time ≤ today | can't match the look, or more faces, or slower |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
 | **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
@@ -426,7 +527,23 @@ Outcomes that never depend on the tier:
 1. ~~Voxel size~~ **Decided 2026-11-10: 1/8 m** (D5). Rejected: 1/9 m, which keeps today's content exact but leaves
    blocks at 0.89 m and chunks at 28.4 m, off whole metres; and 1/9 m with 36-block chunks (32 m), which fixes the
    chunks only.
-2. **Body rest policy:** the hybrid (§6.7 c), or always-bake / never-bake.
-3. **Structural load in v1** (§6.6), or after the fracture lab's video review.
-4. **Start with F1 (storage) and the fracture lab's CPU reference (F4) in parallel?** They don't touch each other,
-   and the fracture model can be proven on a plain voxel grid before the new store exists.
+2. **What happens to a broken piece once it stops moving?** A loose piece is a separate object with its own position
+   and rotation. Separate objects cost physics and drawing every frame, so they can't pile up forever (§3.5a point 6).
+   - (a) It stays a separate object forever. You can always pick it up or knock it again, but the cost grows with
+     every break.
+   - (b) It melts back into the world grid as soon as it rests. It costs nothing afterwards, but it snaps to the grid
+     (it can shift by up to ~6 cm) and becomes part of the ground or wall until broken again.
+   - (c) **Recommended:** it stays a separate object while it is near you or recently moved, and melts back in when it
+     is far away and the object budget is full.
+3. **Do buildings collapse under their own weight in the first version?**
+   - Without it (v1 as planned), a piece falls only when it is completely disconnected from the ground. A tower
+     standing on one remaining voxel stays up.
+   - With it, thin connections snap under the weight above them, so the tower falls. This is much more expensive and
+     harder.
+   - Recommendation: build without it first, show you the fracture videos, then decide.
+4. **How far should full 1/8 m detail reach** (§3.5a points 2-3)? Today chunks load within 256 m. Beyond the
+   detail radius the world is drawn from 1 m blocks and coarser levels. Recommendation: 256 m on this machine, as a
+   tier knob (smaller on weaker GPUs). Going much farther costs gigabytes per step.
+
+Not an owner question: the build order. F1 (storage) comes first. The fracture rules (F4) are proven on a plain voxel
+grid alongside it, because they don't depend on the new storage.

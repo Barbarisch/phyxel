@@ -291,7 +291,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       patterns into pieces (bonds, part ids, anchoring, bodies with one transform, crumbs as powder). Retired terms:
       cube/subcube/microcube (brushes of 1/2/4/8 voxels instead), MatSim "brick" = block, MatSim "cell" = voxel.
       Content on thirds/ninths must convert (§7a: 177/238 templates, 43 fine items, structure generator's thirds).
-      Phases F0-F8 + FC. Open: body rest policy, structural load in v1, F1 + F4 in parallel.
+      §3.5a SCALE budget (owner review): floats per object never per voxel; dense storage impossible (10 GB at 256 m),
+      uniform blocks -> est 1-3 GB; block mip pyramid = LOD; face COUNT (not bytes) is the draw cost so cross-block
+      merging is required; generating 16.7 M voxels/chunk is the streaming limit; anchoring search bounded via the
+      block graph. Phases F0-F8 + FC. Open: rest policy, collapse under weight in v1, detail radius (256 m recommended).
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only
