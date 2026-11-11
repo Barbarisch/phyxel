@@ -193,6 +193,9 @@ public:
     // Pure function of world (x,z) + seed/params, so it's seam-free and reusable by the
     // flora decoration pass (which lives outside WorldGenerator).
     ColumnSample sampleSurface(int worldX, int worldZ) { return sampleColumn(worldX, worldZ); }
+    /// The layer material at world metre worldY of a sampled column (same rule chunk generation uses).
+    /// Public for VoxelFoundationPlan's storage lab, which samples the terrain at 1/8 m.
+    std::string columnMaterialAt(int worldY, const ColumnSample& col) const { return materialForColumn(worldY, col); }
     /// WaterCore.md 25.22: is the 1/3 m creek-bed carve on (the recipe's flag)?
     bool creekCarve() const { return m_creekCarve; }
     void setCreekCarve(bool on) { m_creekCarve = on; }
