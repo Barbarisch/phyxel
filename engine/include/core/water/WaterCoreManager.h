@@ -614,6 +614,9 @@ public:
     static inline int s_tileWakesPerCall = 2;
     /// TEST ONLY (51.3b control): any volume change makes every record draw tile stale (the rule before 51.3b)
     static inline bool s_drawStaleOnAnyBoxForTest = false;
+    /// 51.4d TEST ONLY: a record tile wakes its water's WHOLE height into the scratch grid (the control of the top-only build)
+    static inline bool s_recordTileWholeDepthForTest = false;
+    static constexpr float kRecordTileDepthWindowM = 2.0f;   ///< 51.4d: a record tile wakes only this much below its lowest run top
     /// TEST ONLY (51.3b control): a patch's pool starts at the default kInitialSlots (grown as its tiles wake)
     static inline bool s_patchPoolUnsizedForTest = false;
     /// TEST ONLY (51.3c control): a sleeping patch's record draw tiles are built BEFORE it is destroyed (its woken columns still its

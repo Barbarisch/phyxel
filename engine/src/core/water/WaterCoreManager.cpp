@@ -2569,6 +2569,21 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     }
     t.wet = !kept.empty();
     if (!t.wet) { t.field = WaterSurfaceField{}; return; }
+    // 51.4d: only the top of the water is drawn, so only the top is woken - from kRecordTileDepthWindowM under the LOWEST run top in
+    // the tile (every run keeps its own surface), the runs' true bottoms restored after the extraction (the shader's depth, a lateral
+    // face's foot). The whole height was woken: ~60 m of generated lake made a 72 x 558 x 72-cell scratch, 309-513 ms a call (live)
+    float topMin = 1e30f;
+    for (const auto& c : kept) for (const auto& r : c.runs) topMin = std::min(topMin, r.topY);
+    const float clipY = std::floor(topMin - kRecordTileDepthWindowM);
+    std::vector<ColumnRuns> whole;   // the runs as recorded (their bottoms), when clipped
+    if (!s_recordTileWholeDepthForTest && yMin < clipY) {
+        whole = kept;
+        for (auto& c : kept) {
+            for (auto& r : c.runs) { if (r.bottomY < clipY) { r.mass *= static_cast<double>((r.topY - clipY) / std::max(1e-6f, r.topY - r.bottomY)); r.bottomY = clipY; } }
+            c.runs.erase(std::remove_if(c.runs.begin(), c.runs.end(), [](const ColumnRun& r) { return r.topY <= r.bottomY; }), c.runs.end());
+        }
+        yMin = clipY;
+    }
     const int y0 = static_cast<int>(std::floor(yMin)) - 1, y1 = static_cast<int>(std::ceil(yMax)) + 1;   // voxels: a cell of ground below, air above
     WaterGrid scratch(GridSpec{glm::ivec3(lo.x * per, y0 * per, lo.z * per), glm::ivec3(T * per, (y1 - y0) * per, T * per), 1.0f / static_cast<float>(per)});
     bpart(0);
@@ -2595,6 +2610,26 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     }
     bpart(1);
     recordSurfaceField(scratch, kept, t.field);
+    if (!whole.empty()) {
+        // 51.4d: a run extracted from the window's floor is a clipped one - its bottom is the recorded run's (the one holding its top)
+        std::unordered_map<uint64_t, const ColumnRuns*> byCol;
+        for (const auto& c : whole) byCol[(static_cast<uint64_t>(static_cast<uint32_t>(c.x)) << 32) | static_cast<uint32_t>(c.z)] = &c;
+        const float hf = t.field.h, floorY = clipY;
+        auto floorDivI = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+        for (int fz = 0; fz < t.field.nz; ++fz) for (int fx = 0; fx < t.field.nx; ++fx) {
+            SurfaceColumn& sc = t.field.cols[static_cast<size_t>(fx) + static_cast<size_t>(t.field.nx) * fz];
+            const int n = std::min(static_cast<int>(sc.runs + 0.5f), kSurfaceMaxRuns);
+            if (n <= 0) continue;
+            const int wx = floorDivI(t.field.origin.x + fx, per), wz = floorDivI(t.field.origin.z + fz, per);
+            const auto it = byCol.find((static_cast<uint64_t>(static_cast<uint32_t>(wx)) << 32) | static_cast<uint32_t>(wz));
+            if (it == byCol.end()) continue;
+            for (int r = 0; r < n; ++r) {
+                if (std::abs(sc.bottom[r] - floorY) > 0.5f * hf) continue;   // not cut by the window
+                for (const ColumnRun& w : it->second->runs)
+                    if (w.bottomY < floorY && w.topY >= sc.top[r] - hf) { sc.bottom[r] = w.bottomY; break; }
+            }
+        }
+    }
     bpart(2);
     t.field.source = kRecordDrawSourceBit | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
     t.field.version = ++m_recordBuilds;

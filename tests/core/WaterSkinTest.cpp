@@ -321,3 +321,78 @@ TEST(WaterSkinTest, ASkinCellIsFlatAtItsOwnLevel) {
     EXPECT_GT(quads, 50);
     EXPECT_EQ(offLevel, 0);
 }
+
+// 51.4d: a record tile over DEEP water wakes only its top into the scratch grid. Live (WaterBench_RiverCarve) tiles over ~60 m of
+// generated water cost 309-513 ms a call (4 tiles): the 1/9 m scratch held the water's whole height (72 x 558 x 72 cells, an
+// occupancy ask each). Prediction: a 60 m-deep lake's record tiles - clipped to the top 2 m, the run bottoms restored from the record -
+// draw the same field (every run's top within 0.1 mm, its bottom within 0.1 mm, the same run counts) at under a fifth of the build
+// time. Control: a 1 m pond (nothing to clip) is the same and costs the same.
+TEST(WaterSkinTest, ADeepRecordTileWakesOnlyItsTop) {
+    SkinSettingsGuard guard;
+    struct G { ~G() { WaterCoreManager::s_recordTileWholeDepthForTest = false; } } g;
+    WaterCoreManager::s_locality.drawM = 24.0f;
+    WaterCoreManager::s_recordDraw.on = true;
+    WaterCoreManager::s_skin.on = false;
+    auto run = [&](float bottom, float top, bool whole, double& ms, std::map<int, std::vector<SurfaceColumn>>& out) {
+        WaterCoreManager::s_recordTileWholeDepthForTest = whole;
+        auto state = [bottom](const glm::ivec3& m) { return m.y < static_cast<int>(bottom) * 9 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        AnalyticRecord rec;
+        rec.wet = [](int x, int z) { return x >= -40 && x < 40 && z >= -40 && z < 40; };
+        rec.top = [top](int, int) { return top; };
+        rec.install(mgr);
+        // the reader's runs start at y 0: the bed is `bottom`
+        mgr.setSpanIo([](const std::vector<ColumnRuns>&, float, float, long* u, long* c) { if (u) *u = 0; if (c) *c = 0; },
+                      [&rec, bottom](const glm::ivec3& lo, const glm::ivec3& hi, std::vector<ColumnRuns>& o) {
+                          o.clear();
+                          for (int z = lo.z; z <= hi.z; ++z) for (int x = lo.x; x <= hi.x; ++x) {
+                              if (!rec.wet(x, z)) continue;
+                              ColumnRun r; r.bottomY = std::max(bottom, static_cast<float>(lo.y)); r.topY = std::min(rec.top(x, z), static_cast<float>(hi.y + 1));
+                              if (r.topY <= r.bottomY) continue;
+                              r.mass = r.topY - r.bottomY;
+                              ColumnRuns c; c.x = x; c.z = z; c.runs.push_back(r); o.push_back(std::move(c));
+                          }
+                      });
+        mgr.setViewPoint(glm::vec3(0.0f, top + 4.0f, 0.0f));
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < 400; ++i) { mgr.surfaceFields(); if (mgr.recordDrawStats().pending == 0) break; }
+        ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        out.clear();
+        for (const WaterSurfaceField* f : mgr.surfaceFields()) out[f->source] = f->cols;
+    };
+    struct Cmp { long cols = 0, differ = 0; float worstTop = 0.0f, worstBottom = 0.0f; };
+    auto compare = [](const std::map<int, std::vector<SurfaceColumn>>& a, const std::map<int, std::vector<SurfaceColumn>>& b) {
+        Cmp c;
+        if (a.size() != b.size()) { c.differ = 1 << 30; return c; }
+        for (const auto& [src, ca] : a) {
+            const auto it = b.find(src);
+            if (it == b.end() || it->second.size() != ca.size()) { ++c.differ; continue; }
+            for (size_t i = 0; i < ca.size(); ++i) {
+                const SurfaceColumn &p = ca[i], &q = it->second[i];
+                ++c.cols;
+                bool bad = p.runs != q.runs;
+                for (int r = 0; r < static_cast<int>(p.runs + 0.5f) && r < kSurfaceMaxRuns; ++r) {
+                    c.worstTop = std::max(c.worstTop, std::abs(p.top[r] - q.top[r])); c.worstBottom = std::max(c.worstBottom, std::abs(p.bottom[r] - q.bottom[r]));
+                    bad |= std::abs(p.top[r] - q.top[r]) > 1e-4f || std::abs(p.bottom[r] - q.bottom[r]) > 1e-4f;
+                }
+                c.differ += bad;
+            }
+        }
+        return c;
+    };
+    std::map<int, std::vector<SurfaceColumn>> deepWhole, deepTop, pondWhole, pondTop;
+    double msDeepWhole, msDeepTop, msPondWhole, msPondTop;
+    run(0.0f, 60.25f, true, msDeepWhole, deepWhole);
+    run(0.0f, 60.25f, false, msDeepTop, deepTop);
+    run(0.0f, 1.25f, true, msPondWhole, pondWhole);
+    run(0.0f, 1.25f, false, msPondTop, pondTop);
+    const Cmp deep = compare(deepWhole, deepTop), pond = compare(pondWhole, pondTop);
+    std::printf("[record] 60 m deep: %zu tiles, whole depth %.0f ms, top only %.0f ms; %ld columns, %ld differ (worst top %.6f, bottom %.6f m)\n",
+                deepTop.size(), msDeepWhole, msDeepTop, deep.cols, deep.differ, deep.worstTop, deep.worstBottom);
+    std::printf("[record] 1 m pond:  %zu tiles, whole depth %.0f ms, top only %.0f ms; %ld columns, %ld differ\n",
+                pondTop.size(), msPondWhole, msPondTop, pond.cols, pond.differ);
+    EXPECT_GT(deep.cols, 1000);
+    EXPECT_EQ(deep.differ, 0);
+    EXPECT_EQ(pond.differ, 0);
+    EXPECT_LT(msDeepTop, msDeepWhole / 5.0);
+}

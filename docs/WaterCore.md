@@ -12995,6 +12995,25 @@ record, one that stops being resident keeps its record summary until the generat
      not built. Also: turning the skin off drops every summary (its generator work with it).
 - **Status:** built, OFF, not signed off. Next for S3: step 3 (persist the summaries), the generator's cost, then S4.
 
+**51.4d (2026-11-10) BUILT, ON - a record tile over deep water wakes only its top** (form 2's drawing, found by 51.4c's generated
+world; drift row: not an S3 step - the record tiles are form 2 - taken now because it is a 0.3-0.5 s frame on every generated deep lake
+the camera nears, default ON). A record tile woke its water's WHOLE height into the 1/9 m scratch grid: ~60 m of generated lake made a
+72 x 558 x 72-cell scratch and an occupancy ask per cell. Now: only from `kRecordTileDepthWindowM` (2 m) under the tile's LOWEST run
+top (every run keeps its own surface); each clipped run's true bottom is restored after the extraction (the shader's depth, a lateral
+face's foot). `ADeepRecordTileWakesOnlyItsTop` (CPU, 40 tiles of an 80 m square lake; control `s_recordTileWholeDepthForTest`):
+
+| water | whole depth | top only | fields |
+|---|---|---|---|
+| 60 m deep | 2,274 ms | **155 ms** | 207,360 columns, 0 differ (tops and bottoms exact) |
+| 1 m pond (nothing to clip) | 116 ms | 120 ms | 0 differ |
+
+  Left as it was: a dry column beside the water whose ground lies below the window reads no solid (its foot is the water's restored
+  bottom, as before for free-standing water) - in a valid record the shore's ground is at the water's top. Not measured live yet.
+  Tests: water unit 379 / 379. Integration water 81 / 84: the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` (a
+  device state freed a cycle late at cycles 8 and 11 - timing) with ANOTHER application holding the GPU at ~50 % (a game, not this
+  work); it passed on the idle GPU after 51.4b and touches none of the changed code (create / step / the ripple layer) - NOT yet
+  re-run on an idle GPU.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

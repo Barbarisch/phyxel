@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 #include "core/WaterSkinSource.h"
 #include "core/WorldGenerator.h"
+#include "core/WorldRecipe.h"
 #include "core/HydrologyMap.h"
 #include "core/Chunk.h"
 #include "core/water/WaterSkin.h"
@@ -228,4 +229,25 @@ TEST(WaterSkinGeneratorTest, ANeverLoadedLakeIsDrawnTheSameAsALoadedOne) {
     EXPECT_EQ(differ, 0);
     EXPECT_EQ(drawnControl, 0);
     EXPECT_GT(b.skinStats().genHeld, 0);
+}
+
+// 51.4c DIAG: the generator source's cost on WaterBench_RiverCarve's recipe (Mountains, seed 20260729, climate 0.0012, creek carve),
+// at the chunk columns of the lake it holds (y 107.8 round (-1728, -1140)) - live it filled ~1.5 chunk columns a second on 2 workers
+// (0.5-1.4 s each) where the seed-7 diag above measured 35 ms. Run with --gtest_also_run_disabled_tests.
+TEST(WaterSkinGeneratorTest, DISABLED_DiagRiverCarveGeneratorCost) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    WorldRecipe rec = g.makeRecipe();
+    rec.climateFrequency = 0.0012f; rec.creekCarve = true;
+    g.applyRecipe(rec);
+    std::vector<ColumnRuns> runs;
+    double sum = 0.0, worst = 0.0; int n = 0; long wet = 0; float topMax = -1e30f;
+    for (int dz = -2; dz < 2; ++dz) for (int dx = -2; dx < 2; ++dx) {
+        const auto t0 = std::chrono::steady_clock::now();
+        generatedWaterRuns(g, glm::ivec2(-54 + dx, -36 + dz), runs);
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        sum += ms; worst = std::max(worst, ms); ++n; wet += static_cast<long>(runs.size());
+        for (const auto& c : runs) for (const auto& r : c.runs) topMax = std::max(topMax, r.topY);
+        std::printf("  column (%d, %d): %.1f ms, %zu wet\n", -54 + dx, -36 + dz, ms, runs.size());
+    }
+    std::printf("[skin gen] RiverCarve: %d chunk columns, %.1f ms mean, %.1f ms worst, %ld wet columns, top max %.2f\n", n, sum / n, worst, wet, topMax);
 }
