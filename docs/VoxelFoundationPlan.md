@@ -668,6 +668,17 @@ content, 64 for items. The live loader accepts only 27/81 today; the lab reads g
        which reads points from the header, does not see their surface, work or lie points.
 
      Logged, not fixed here: it changes live assets on the 1/9 m path.
+
+   **Doors done 2026-11-11 (`gen_door.py --grid 8`).** Re-designed in metres, not mapped from thirds:
+   - a 1 x 2 m (wide: 2 x 2 m) leaf one cell deep;
+   - one-cell (0.125 m) Log stiles and rails, near a real ~0.11 m stile; today's are 1/3 m;
+   - a centred mid rail (the legacy rail sits off-centre: row 3 of 6 subcube rows), a centre mullion on wide doors;
+   - a Gold knob one cell proud, under the rail on the latch side, with the handle point at its centre.
+
+   Output: `resources/templates_g8/architecture`. Found: the script still wrote to the template root, but the
+   doors moved to `architecture/` in the 2026-08-07 taxonomy, so a re-run would have made root strays with
+   colliding stems. Fixed: legacy now writes to `architecture/`, and its output equals the committed files.
+   Tests: `tools/test_gen_door_grid.py` (red first).
 5. **Retire** `gen_tree.py` (bush presets in tree_forge) and port tree_forge to C++ for procedural flora.
    **Bushes done 2026-11-11.** Finding: gen_tree's "height 2" bushes are not 2 m: `bush_round` is 5.3 x 3.3 x 4.3 m
    (27 m³ leaf, no wood), `bush_leafy_s` 5.0 x 3.3 x 5.7 (32 m³), `bush_leafy_m` 5.0 x 4.3 x 5.7 (50 m³). Replaced by

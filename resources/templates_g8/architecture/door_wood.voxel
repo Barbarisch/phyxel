@@ -1,0 +1,13 @@
+# grid: 8
+# wooden door - 1 m wide (X), 2 m tall (Y), one 1/8 m cell deep. Hinge edge at local X=0, Z=0. Log frame, Wood panels, Gold knob.
+# interaction_point: handle_0 door_handle 0.8125 0.9375 0.1875 0.0 * 2.00 "Open / Close" 90.0
+# method: tools/gen_door.py --grid 8 (designed in metres)
+
+B 0 0 0 1 16 1 Log
+B 1 0 0 7 1 1 Log
+B 1 1 0 6 7 1 Wood
+B 7 1 0 1 15 1 Log
+V 6 7 1 Gold
+B 1 8 0 6 1 1 Log
+B 1 9 0 6 6 1 Wood
+B 1 15 0 6 1 1 Log

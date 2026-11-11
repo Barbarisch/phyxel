@@ -8,8 +8,14 @@ lighter Wood panels, and a Gold microcube knob on the latch side. The hinge stil
 X=0 (DoorManager pivots there). registerDoor compresses the leaf along Z into a thin slab, so
 the authored single subcube layer renders microcube-thin.
 
-Run:  python tools/gen_door.py
-Writes resources/templates/door_wood{,_wide}.voxel + matching .metrics.json.
+Run:  python tools/gen_door.py [--grid 8]
+Writes resources/templates/architecture/door_wood{,_wide}.voxel + matching .metrics.json (the library
+taxonomy folder since 2026-08-07; this script used to write to the template root).
+
+--grid 8 (docs/VoxelFoundationPlan.md 7a.3 step 4): the same door DESIGNED IN METRES on the 1/8 m grid,
+not the thirds rescaled -- frame members are one cell (0.125 m, near a real ~0.11 m stile; today's are
+1/3 m subcubes), a one-cell knob proud of the leaf. Output resources/templates_g8/architecture as
+'# grid: 8' B/V lines (tools/voxgrid.py), no .metrics.json (the characterizer reads C/S/M only).
 """
 
 import json
@@ -66,7 +72,42 @@ def build_door(width_cubes: int, height_cubes: int):
     return lines, handle_local
 
 
-def write_door(name: str, width_cubes: int, height_cubes: int):
+def build_door_grid(width_m: int, height_m: int, n: int):
+    """The door in metres on n cells per metre. Returns (grid_lines, handle_local_xyz_metres)."""
+    from voxgrid import GridVoxels, emit_grid
+    W, H = width_m * n, height_m * n
+    mid = H // 2                                    # mid rail at half height, as legacy
+    mullion = W // 2 if width_m > 1 else -1         # wide doors only
+    gv = GridVoxels(n)
+    for x in range(W):
+        for y in range(H):
+            frame = x in (0, W - 1) or y in (0, H - 1, mid) or x == mullion
+            gv.set(x, y, 0, FRAME if frame else PANEL)
+    # knob: the latch-side panel column next to the stile, one cell under the mid rail, one cell proud
+    kx, ky = W - 2, mid - 1
+    gv.set(kx, ky, 1, HANDLE)
+    lines, _, _ = emit_grid(gv)
+    return lines, [round((kx + 0.5) / n, 4), round((ky + 0.5) / n, 4), round(1.5 / n, 4)]
+
+
+def default_out_dir(grid: int = 3):
+    return TEMPLATES / "architecture" if grid in (3, 9) else (TEMPLATES.parent / f"templates_g{grid}" / "architecture")
+
+
+def write_door(name: str, width_cubes: int, height_cubes: int, out_dir=None, grid: int = 3):
+    out = Path(out_dir) if out_dir is not None else default_out_dir(grid)
+    out.mkdir(parents=True, exist_ok=True)
+    if grid not in (3, 9):
+        glines, h = build_door_grid(width_cubes, height_cubes, grid)
+        text = [glines[0],
+                f"# {'Wide ' if width_cubes > 1 else ''}wooden door - {width_cubes} m wide (X), {height_cubes} m "
+                f"tall (Y), one 1/{grid} m cell deep. Hinge edge at local X=0, Z=0. Log frame, Wood panels, Gold knob.",
+                f"# interaction_point: handle_0 door_handle {h[0]} {h[1]} {h[2]} 0.0 * 2.00 \"Open / Close\" 90.0",
+                f"# method: tools/gen_door.py --grid {grid} (designed in metres)",
+                ""] + glines[1:]
+        (out / f"{name}.voxel").write_text("\n".join(text) + "\n", encoding="utf-8", newline="\n")
+        print(f"{name}.voxel (grid {grid}): {len(glines) - 1} boxes  (handle @ {h}) -> {out}")
+        return
     lines, handle = build_door(width_cubes, height_cubes)
     header = [
         f"# {'Wide ' if width_cubes > 1 else ''}wooden door - "
@@ -80,7 +121,7 @@ def write_door(name: str, width_cubes: int, height_cubes: int):
         # which stays closed while DoorManager's swings — the "ghost door" L-shape bug.
         "",
     ]
-    voxel_path = TEMPLATES / f"{name}.voxel"
+    voxel_path = out / f"{name}.voxel"
     voxel_path.write_text("\n".join(header + lines) + "\n", encoding="utf-8")
 
     metrics = {
@@ -96,7 +137,7 @@ def write_door(name: str, width_cubes: int, height_cubes: int):
             "features": {},
         }],
     }
-    (TEMPLATES / f"{name}.metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    (out / f"{name}.metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
     n_sub = sum(1 for l in lines if l.startswith("S "))
     n_mic = sum(1 for l in lines if l.startswith("M "))
@@ -104,5 +145,6 @@ def write_door(name: str, width_cubes: int, height_cubes: int):
 
 
 if __name__ == "__main__":
-    write_door("door_wood", 1, 2)
-    write_door("door_wood_wide", 2, 2)
+    _grid = int(sys.argv[sys.argv.index("--grid") + 1]) if "--grid" in sys.argv else 3
+    write_door("door_wood", 1, 2, grid=_grid)
+    write_door("door_wood_wide", 2, 2, grid=_grid)
