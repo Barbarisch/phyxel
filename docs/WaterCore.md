@@ -13160,6 +13160,13 @@ and a record tile / volume).
   **Found, the bigger thing (not the skin's, S1/S2's):** a splash 26 m from the close camera holds the frame under 60 fps for ~8 s -
   CPU 18-22 ms a frame, the water update 13-18 ms of it (at rest there: 183-224 fps, GPU 6.4 ms). Logged for the owner; the patch's
   update cost at a near pose is the next lever on the 120 fps target, not the skin.
+  **Where the near splash's cost goes (`tools/water_splash_phases.py --pose close`, `splash_phases_close.json`, 8 s windows):** at rest
+  0.05 ms a frame. After the splash: the GPU step 8.0 ms a frame on the CPU - of it **4.5-4.7 ms WAITING on the fence** for the water's
+  previous call (`gpu.01 settle`, `collect.1 fence wait`), then residency 1.7 + 0.3, recording the commands 1.0, ripples 0.6, the
+  surface read 0.5, tall cells 0.5, record / wake 0.4. The water's GPU call is 6.1-6.5 ms at this pose (3.1 ms at the wide pose): with
+  the frame's own ~6 ms of rendering the GPU is past a frame, and the CPU blocks on it. So the near splash's cost is the PATCH's GPU
+  solve at full detail near the camera (locality: cost, never outcome) - S1/S2's limits (27.20, section 28), not S3/S4's. Its levers are
+  the tier knobs (Rd the disturbance radius, the wake pace, the sweeps) - look / feel trades, the owner's call.
 - Tests: water unit + storage 423 / 423; integration water 83 / 85 (the known two). S4 now: the swaps in motion have no holes, no doubles and exact books in the tests; the pops left are the level steps' shore swaps
   (51.6). Owner sign-off: the clip (`s4_flyout.mp4`) and the look calls (a fade for the level steps; the sub-cell shore).
 

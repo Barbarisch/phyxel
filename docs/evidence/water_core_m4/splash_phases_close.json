@@ -1,0 +1,251 @@
+{
+ "pose": {
+  "x": 79.0,
+  "y": 32.0,
+  "z": 103.0,
+  "yaw": -90.0,
+  "pitch": -34.0
+ },
+ "window_s": 8.0,
+ "record": {
+  "box": [
+   4,
+   16,
+   2,
+   153,
+   18,
+   151
+  ],
+  "m3": 45000.0,
+  "slept_boxes": 1,
+  "success": true,
+  "unwritten_columns": 0
+ },
+ "rest": {
+  "app_water_cpu_ms_last": {
+   "bodies": 0.005,
+   "exchange": 0.0002,
+   "feed": 0.0182,
+   "motion": 0.0,
+   "pressure": 0.001,
+   "solids": 0.0008,
+   "total": 0.0503,
+   "update": 0.0204
+  },
+  "app_water_cpu_ms_worst_frame": {
+   "bodies": 0.0052,
+   "exchange": 0.0002,
+   "feed": 0.0212,
+   "motion": 0.0,
+   "pressure": 0.0008,
+   "solids": 0.0007,
+   "total": 0.1531,
+   "update": 0.0189
+  },
+  "frames": 1246,
+  "phases": {
+   "ripples.1 surfaceFields (= surf.*)": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 0.0823,
+    "ms_per_frame": 0.016653852327447836
+   },
+   "ripples.2 masks + layers": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 0.0267,
+    "ms_per_frame": 0.0023323434991974227
+   },
+   "surf.5 rest": {
+    "calls_per_frame": 2.0,
+    "max_ms_per_call": 0.0008,
+    "ms_per_frame": 0.00018619582664526412
+   },
+   "surf.6 record tiles' surfaces": {
+    "calls_per_frame": 2.0,
+    "max_ms_per_call": 0.0801,
+    "ms_per_frame": 0.020815489566613218
+   }
+  },
+  "tiler_last": {
+   "build_ms": 0.0,
+   "ms": 0.0631,
+   "rebuilt": 0
+  }
+ },
+ "splash": {
+  "strength": 8.0,
+  "success": true,
+  "woken": [
+   1
+  ]
+ },
+ "after": {
+  "app_water_cpu_ms_last": {
+   "bodies": 0.01,
+   "exchange": 0.0002,
+   "feed": 0.0269,
+   "motion": 0.002,
+   "pressure": 0.0017,
+   "solids": 0.0017,
+   "total": 0.4547,
+   "update": 0.4072
+  },
+  "app_water_cpu_ms_worst_frame": {
+   "bodies": 0.0073,
+   "exchange": 0.0003,
+   "feed": 6.4804,
+   "motion": 4.7268,
+   "pressure": 0.0014,
+   "solids": 0.0009,
+   "total": 130.8853,
+   "update": 119.6626
+  },
+  "frames": 522,
+  "phases": {
+   "collect.1 fence wait": {
+    "calls_per_frame": 0.7471264367816092,
+    "max_ms_per_call": 81.1195,
+    "ms_per_frame": 4.490724712643678
+   },
+   "collect.2 lists + copies": {
+    "calls_per_frame": 0.7471264367816092,
+    "max_ms_per_call": 8.0857,
+    "ms_per_frame": 0.2132088122605365
+   },
+   "collect.3 stats + record + sleep": {
+    "calls_per_frame": 0.7471264367816092,
+    "max_ms_per_call": 1.0716,
+    "ms_per_frame": 0.02640651340996167
+   },
+   "gpu.01 settle (collect the call before)": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 90.145,
+    "ms_per_frame": 4.697339080459772
+   },
+   "gpu.02 grow pool": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.0071,
+    "ms_per_frame": 0.0009340996168582382
+   },
+   "gpu.03 partial wake (freeze test)": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.204,
+    "ms_per_frame": 0.08418429118773946
+   },
+   "gpu.03b the bodies' box (44.2)": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.0648,
+    "ms_per_frame": 0.01705134099616859
+   },
+   "gpu.04 residency: which bricks": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 9.4072,
+    "ms_per_frame": 1.7475641762452103
+   },
+   "gpu.05 residency: apply": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 2.0749,
+    "ms_per_frame": 0.28309444444444437
+   },
+   "gpu.06 compact": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.019,
+    "ms_per_frame": 0.004504980842911875
+   },
+   "gpu.07 partition + tables": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 2.8376,
+    "ms_per_frame": 0.10146168582375475
+   },
+   "gpu.08 record the commands": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 11.7665,
+    "ms_per_frame": 0.988636973180077
+   },
+   "gpu.09 submit": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.3489,
+    "ms_per_frame": 0.06416494252873567
+   },
+   "mgr.1 upload (world changes)": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.0007,
+    "ms_per_frame": 5.210727969348641e-05
+   },
+   "mgr.2 record / wake tiles": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 78.7705,
+    "ms_per_frame": 0.3755176245210723
+   },
+   "mgr.3 tall cells": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 1.0437,
+    "ms_per_frame": 0.46079425287356324
+   },
+   "mgr.4 the GPU step (= gpu.* + collect.*)": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 96.5321,
+    "ms_per_frame": 8.008023563218382
+   },
+   "mgr.5 after the step": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.0218,
+    "ms_per_frame": 0.0013386973180076604
+   },
+   "motion.1 takeMotion scan": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 5.1137,
+    "ms_per_frame": 0.05702567049808446
+   },
+   "ripples.1 surfaceFields (= surf.*)": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 1.6783,
+    "ms_per_frame": 0.35987145593869757
+   },
+   "ripples.2 masks + layers": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 25.9132,
+    "ms_per_frame": 0.6123687739463596
+   },
+   "surf.0 (before)": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.0007,
+    "ms_per_frame": 0.00012375478927203088
+   },
+   "surf.1 read the GPU surface": {
+    "calls_per_frame": 0.7471264367816092,
+    "max_ms_per_call": 1.6462,
+    "ms_per_frame": 0.5269616858237547
+   },
+   "surf.2 seed patches": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.0856,
+    "ms_per_frame": 0.0023955938697318
+   },
+   "surf.3 CPU fallback (extract)": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.0152,
+    "ms_per_frame": 0.0005896551724137924
+   },
+   "surf.4 mark recorded columns": {
+    "calls_per_frame": 0.7490421455938697,
+    "max_ms_per_call": 0.9648,
+    "ms_per_frame": 0.009650766283525018
+   },
+   "surf.5 rest": {
+    "calls_per_frame": 2.281609195402299,
+    "max_ms_per_call": 0.0176,
+    "ms_per_frame": 0.002564942528735603
+   },
+   "surf.6 record tiles' surfaces": {
+    "calls_per_frame": 2.281609195402299,
+    "max_ms_per_call": 0.1095,
+    "ms_per_frame": 0.03410459770114941
+   }
+  },
+  "tiler_last": {
+   "build_ms": 0.0,
+   "ms": 0.0538,
+   "rebuilt": 0
+  }
+ }
+}
