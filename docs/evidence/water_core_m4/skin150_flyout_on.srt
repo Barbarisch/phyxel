@@ -1,0 +1,674 @@
+1
+00:00:00,000 --> 00:00:00,280
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 338 fps
+
+2
+00:00:00,280 --> 00:00:00,550
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 540 fps
+
+3
+00:00:00,550 --> 00:00:00,810
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 408 fps
+
+4
+00:00:00,810 --> 00:00:01,080
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 503 fps
+
+5
+00:00:01,080 --> 00:00:01,330
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 470 fps
+
+6
+00:00:01,330 --> 00:00:01,620
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 464 fps
+
+7
+00:00:01,620 --> 00:00:01,890
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 519 fps
+
+8
+00:00:01,890 --> 00:00:02,140
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 458 fps
+
+9
+00:00:02,140 --> 00:00:02,430
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 464 fps
+
+10
+00:00:02,430 --> 00:00:02,710
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 446 fps
+
+11
+00:00:02,710 --> 00:00:03,000
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 449 fps
+
+12
+00:00:03,000 --> 00:00:03,260
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 318 fps
+
+13
+00:00:03,260 --> 00:00:03,520
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 331 fps
+
+14
+00:00:03,520 --> 00:00:03,790
+skin ON: 1044 cells, 4 levels
+83 m from the lake's centre | 476 fps
+
+15
+00:00:03,790 --> 00:00:04,050
+skin ON: 1008 cells, 4 levels
+85 m from the lake's centre | 32 fps
+
+16
+00:00:04,050 --> 00:00:04,350
+skin ON: 1020 cells, 4 levels
+87 m from the lake's centre | 34 fps
+
+17
+00:00:04,350 --> 00:00:04,620
+skin ON: 1036 cells, 4 levels
+91 m from the lake's centre | 443 fps
+
+18
+00:00:04,620 --> 00:00:04,950
+skin ON: 1004 cells, 4 levels
+95 m from the lake's centre | 373 fps
+
+19
+00:00:04,950 --> 00:00:05,230
+skin ON: 1028 cells, 4 levels
+100 m from the lake's centre | 61 fps
+
+20
+00:00:05,230 --> 00:00:05,540
+skin ON: 1016 cells, 4 levels
+106 m from the lake's centre | 356 fps
+
+21
+00:00:05,540 --> 00:00:05,840
+skin ON: 988 cells, 4 levels
+113 m from the lake's centre | 575 fps
+
+22
+00:00:05,840 --> 00:00:06,120
+skin ON: 972 cells, 4 levels
+120 m from the lake's centre | 409 fps
+
+23
+00:00:06,120 --> 00:00:06,380
+skin ON: 940 cells, 4 levels
+128 m from the lake's centre | 541 fps
+
+24
+00:00:06,380 --> 00:00:06,680
+skin ON: 884 cells, 4 levels
+136 m from the lake's centre | 574 fps
+
+25
+00:00:06,680 --> 00:00:06,940
+skin ON: 828 cells, 4 levels
+145 m from the lake's centre | 557 fps
+
+26
+00:00:06,940 --> 00:00:07,220
+skin ON: 772 cells, 4 levels
+154 m from the lake's centre | 584 fps
+
+27
+00:00:07,220 --> 00:00:07,530
+skin ON: 716 cells, 4 levels
+164 m from the lake's centre | 473 fps
+
+28
+00:00:07,530 --> 00:00:07,800
+skin ON: 660 cells, 4 levels
+175 m from the lake's centre | 480 fps
+
+29
+00:00:07,800 --> 00:00:08,110
+skin ON: 548 cells, 4 levels
+186 m from the lake's centre | 502 fps
+
+30
+00:00:08,110 --> 00:00:08,420
+skin ON: 492 cells, 4 levels
+198 m from the lake's centre | 524 fps
+
+31
+00:00:08,420 --> 00:00:08,690
+skin ON: 406 cells, 4 levels
+210 m from the lake's centre | 590 fps
+
+32
+00:00:08,690 --> 00:00:08,950
+skin ON: 320 cells, 4 levels
+222 m from the lake's centre | 532 fps
+
+33
+00:00:08,950 --> 00:00:09,210
+skin ON: 320 cells, 4 levels
+233 m from the lake's centre | 528 fps
+
+34
+00:00:09,210 --> 00:00:09,500
+skin ON: 290 cells, 4 levels
+244 m from the lake's centre | 528 fps
+
+35
+00:00:09,500 --> 00:00:09,760
+skin ON: 260 cells, 4 levels
+257 m from the lake's centre | 458 fps
+
+36
+00:00:09,760 --> 00:00:10,040
+skin ON: 230 cells, 4 levels
+268 m from the lake's centre | 464 fps
+
+37
+00:00:10,040 --> 00:00:10,300
+skin ON: 230 cells, 4 levels
+281 m from the lake's centre | 664 fps
+
+38
+00:00:10,300 --> 00:00:10,550
+skin ON: 200 cells, 4 levels
+293 m from the lake's centre | 453 fps
+
+39
+00:00:10,550 --> 00:00:10,830
+skin ON: 170 cells, 4 levels
+304 m from the lake's centre | 547 fps
+
+40
+00:00:10,830 --> 00:00:11,080
+skin ON: 170 cells, 4 levels
+316 m from the lake's centre | 573 fps
+
+41
+00:00:11,080 --> 00:00:11,360
+skin ON: 140 cells, 4 levels
+327 m from the lake's centre | 514 fps
+
+42
+00:00:11,360 --> 00:00:11,650
+skin ON: 110 cells, 4 levels
+339 m from the lake's centre | 541 fps
+
+43
+00:00:11,650 --> 00:00:11,930
+skin ON: 100 cells, 4 levels
+351 m from the lake's centre | 178 fps
+
+44
+00:00:11,930 --> 00:00:12,190
+skin ON: 100 cells, 4 levels
+362 m from the lake's centre | 544 fps
+
+45
+00:00:12,190 --> 00:00:12,460
+skin ON: 100 cells, 4 levels
+372 m from the lake's centre | 466 fps
+
+46
+00:00:12,460 --> 00:00:12,750
+skin ON: 100 cells, 4 levels
+383 m from the lake's centre | 477 fps
+
+47
+00:00:12,750 --> 00:00:13,040
+skin ON: 100 cells, 4 levels
+393 m from the lake's centre | 150 fps
+
+48
+00:00:13,040 --> 00:00:13,350
+skin ON: 100 cells, 4 levels
+404 m from the lake's centre | 486 fps
+
+49
+00:00:13,350 --> 00:00:13,630
+skin ON: 100 cells, 4 levels
+414 m from the lake's centre | 501 fps
+
+50
+00:00:13,630 --> 00:00:13,890
+skin ON: 100 cells, 4 levels
+423 m from the lake's centre | 456 fps
+
+51
+00:00:13,890 --> 00:00:14,180
+skin ON: 100 cells, 4 levels
+431 m from the lake's centre | 407 fps
+
+52
+00:00:14,180 --> 00:00:14,450
+skin ON: 100 cells, 4 levels
+439 m from the lake's centre | 489 fps
+
+53
+00:00:14,450 --> 00:00:14,710
+skin ON: 100 cells, 4 levels
+445 m from the lake's centre | 524 fps
+
+54
+00:00:14,710 --> 00:00:14,990
+skin ON: 100 cells, 4 levels
+451 m from the lake's centre | 403 fps
+
+55
+00:00:14,990 --> 00:00:15,290
+skin ON: 100 cells, 4 levels
+457 m from the lake's centre | 402 fps
+
+56
+00:00:15,290 --> 00:00:15,580
+skin ON: 100 cells, 4 levels
+462 m from the lake's centre | 540 fps
+
+57
+00:00:15,580 --> 00:00:15,870
+skin ON: 100 cells, 4 levels
+467 m from the lake's centre | 515 fps
+
+58
+00:00:15,870 --> 00:00:16,130
+skin ON: 100 cells, 4 levels
+471 m from the lake's centre | 509 fps
+
+59
+00:00:16,130 --> 00:00:16,390
+skin ON: 100 cells, 4 levels
+473 m from the lake's centre | 464 fps
+
+60
+00:00:16,390 --> 00:00:16,660
+skin ON: 100 cells, 4 levels
+475 m from the lake's centre | 478 fps
+
+61
+00:00:16,660 --> 00:00:16,920
+skin ON: 100 cells, 4 levels
+476 m from the lake's centre | 458 fps
+
+62
+00:00:16,920 --> 00:00:17,190
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 507 fps
+
+63
+00:00:17,190 --> 00:00:17,480
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 428 fps
+
+64
+00:00:17,480 --> 00:00:17,770
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 516 fps
+
+65
+00:00:17,770 --> 00:00:18,030
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 382 fps
+
+66
+00:00:18,030 --> 00:00:18,280
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 414 fps
+
+67
+00:00:18,280 --> 00:00:18,560
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 496 fps
+
+68
+00:00:18,560 --> 00:00:18,840
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 482 fps
+
+69
+00:00:18,840 --> 00:00:19,110
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 560 fps
+
+70
+00:00:19,110 --> 00:00:19,370
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 597 fps
+
+71
+00:00:19,370 --> 00:00:19,620
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 495 fps
+
+72
+00:00:19,620 --> 00:00:19,880
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 537 fps
+
+73
+00:00:19,880 --> 00:00:20,170
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 388 fps
+
+74
+00:00:20,170 --> 00:00:20,440
+skin ON: 100 cells, 4 levels
+477 m from the lake's centre | 479 fps
+
+75
+00:00:20,440 --> 00:00:20,750
+skin ON: 100 cells, 4 levels
+476 m from the lake's centre | 427 fps
+
+76
+00:00:20,750 --> 00:00:21,060
+skin ON: 100 cells, 4 levels
+474 m from the lake's centre | 448 fps
+
+77
+00:00:21,060 --> 00:00:21,360
+skin ON: 100 cells, 4 levels
+471 m from the lake's centre | 456 fps
+
+78
+00:00:21,360 --> 00:00:21,650
+skin ON: 100 cells, 4 levels
+468 m from the lake's centre | 428 fps
+
+79
+00:00:21,650 --> 00:00:21,910
+skin ON: 100 cells, 4 levels
+464 m from the lake's centre | 469 fps
+
+80
+00:00:21,910 --> 00:00:22,170
+skin ON: 100 cells, 4 levels
+459 m from the lake's centre | 470 fps
+
+81
+00:00:22,170 --> 00:00:22,440
+skin ON: 100 cells, 4 levels
+454 m from the lake's centre | 444 fps
+
+82
+00:00:22,440 --> 00:00:22,740
+skin ON: 100 cells, 4 levels
+448 m from the lake's centre | 461 fps
+
+83
+00:00:22,740 --> 00:00:23,030
+skin ON: 100 cells, 4 levels
+441 m from the lake's centre | 406 fps
+
+84
+00:00:23,030 --> 00:00:23,280
+skin ON: 100 cells, 4 levels
+433 m from the lake's centre | 436 fps
+
+85
+00:00:23,280 --> 00:00:23,560
+skin ON: 100 cells, 4 levels
+426 m from the lake's centre | 394 fps
+
+86
+00:00:23,560 --> 00:00:23,840
+skin ON: 100 cells, 4 levels
+417 m from the lake's centre | 461 fps
+
+87
+00:00:23,840 --> 00:00:24,130
+skin ON: 100 cells, 4 levels
+408 m from the lake's centre | 375 fps
+
+88
+00:00:24,130 --> 00:00:24,440
+skin ON: 100 cells, 4 levels
+398 m from the lake's centre | 373 fps
+
+89
+00:00:24,440 --> 00:00:24,740
+skin ON: 100 cells, 4 levels
+386 m from the lake's centre | 495 fps
+
+90
+00:00:24,740 --> 00:00:25,020
+skin ON: 100 cells, 4 levels
+375 m from the lake's centre | 350 fps
+
+91
+00:00:25,020 --> 00:00:25,330
+skin ON: 100 cells, 4 levels
+364 m from the lake's centre | 508 fps
+
+92
+00:00:25,330 --> 00:00:25,590
+skin ON: 100 cells, 4 levels
+352 m from the lake's centre | 481 fps
+
+93
+00:00:25,590 --> 00:00:25,840
+skin ON: 110 cells, 4 levels
+341 m from the lake's centre | 636 fps
+
+94
+00:00:25,840 --> 00:00:26,120
+skin ON: 140 cells, 4 levels
+330 m from the lake's centre | 346 fps
+
+95
+00:00:26,120 --> 00:00:26,410
+skin ON: 140 cells, 4 levels
+318 m from the lake's centre | 372 fps
+
+96
+00:00:26,410 --> 00:00:26,720
+skin ON: 170 cells, 4 levels
+305 m from the lake's centre | 445 fps
+
+97
+00:00:26,720 --> 00:00:26,970
+skin ON: 200 cells, 4 levels
+292 m from the lake's centre | 518 fps
+
+98
+00:00:26,970 --> 00:00:27,230
+skin ON: 200 cells, 4 levels
+280 m from the lake's centre | 598 fps
+
+99
+00:00:27,230 --> 00:00:27,540
+skin ON: 230 cells, 4 levels
+269 m from the lake's centre | 590 fps
+
+100
+00:00:27,540 --> 00:00:27,790
+skin ON: 260 cells, 4 levels
+255 m from the lake's centre | 384 fps
+
+101
+00:00:27,790 --> 00:00:28,070
+skin ON: 290 cells, 4 levels
+244 m from the lake's centre | 151 fps
+
+102
+00:00:28,070 --> 00:00:28,360
+skin ON: 320 cells, 4 levels
+232 m from the lake's centre | 634 fps
+
+103
+00:00:28,360 --> 00:00:28,620
+skin ON: 320 cells, 4 levels
+220 m from the lake's centre | 497 fps
+
+104
+00:00:28,620 --> 00:00:28,890
+skin ON: 350 cells, 4 levels
+209 m from the lake's centre | 665 fps
+
+105
+00:00:28,890 --> 00:00:29,160
+skin ON: 492 cells, 4 levels
+198 m from the lake's centre | 500 fps
+
+106
+00:00:29,160 --> 00:00:29,420
+skin ON: 548 cells, 4 levels
+187 m from the lake's centre | 446 fps
+
+107
+00:00:29,420 --> 00:00:29,710
+skin ON: 604 cells, 4 levels
+177 m from the lake's centre | 556 fps
+
+108
+00:00:29,710 --> 00:00:29,990
+skin ON: 716 cells, 4 levels
+166 m from the lake's centre | 457 fps
+
+109
+00:00:29,990 --> 00:00:30,270
+skin ON: 772 cells, 4 levels
+156 m from the lake's centre | 657 fps
+
+110
+00:00:30,270 --> 00:00:30,580
+skin ON: 828 cells, 4 levels
+147 m from the lake's centre | 637 fps
+
+111
+00:00:30,580 --> 00:00:30,890
+skin ON: 884 cells, 4 levels
+137 m from the lake's centre | 626 fps
+
+112
+00:00:30,890 --> 00:00:31,160
+skin ON: 940 cells, 4 levels
+128 m from the lake's centre | 518 fps
+
+113
+00:00:31,160 --> 00:00:31,410
+skin ON: 976 cells, 4 levels
+121 m from the lake's centre | 642 fps
+
+114
+00:00:31,410 --> 00:00:31,680
+skin ON: 1000 cells, 4 levels
+114 m from the lake's centre | 102 fps
+
+115
+00:00:31,680 --> 00:00:31,940
+skin ON: 1024 cells, 4 levels
+108 m from the lake's centre | 454 fps
+
+116
+00:00:31,940 --> 00:00:32,230
+skin ON: 996 cells, 4 levels
+102 m from the lake's centre | 449 fps
+
+117
+00:00:32,230 --> 00:00:32,500
+skin ON: 1020 cells, 4 levels
+97 m from the lake's centre | 517 fps
+
+118
+00:00:32,500 --> 00:00:32,770
+skin ON: 996 cells, 4 levels
+93 m from the lake's centre | 63 fps
+
+119
+00:00:32,770 --> 00:00:33,090
+skin ON: 1032 cells, 4 levels
+89 m from the lake's centre | 453 fps
+
+120
+00:00:33,090 --> 00:00:33,360
+skin ON: 1012 cells, 4 levels
+86 m from the lake's centre | 548 fps
+
+121
+00:00:33,360 --> 00:00:33,640
+skin ON: 1048 cells, 4 levels
+84 m from the lake's centre | 643 fps
+
+122
+00:00:33,640 --> 00:00:33,940
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 45 fps
+
+123
+00:00:33,940 --> 00:00:34,200
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 465 fps
+
+124
+00:00:34,200 --> 00:00:34,450
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 510 fps
+
+125
+00:00:34,450 --> 00:00:34,730
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 446 fps
+
+126
+00:00:34,730 --> 00:00:35,010
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 483 fps
+
+127
+00:00:35,010 --> 00:00:35,280
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 517 fps
+
+128
+00:00:35,280 --> 00:00:35,550
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 464 fps
+
+129
+00:00:35,550 --> 00:00:35,830
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 422 fps
+
+130
+00:00:35,830 --> 00:00:36,090
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 496 fps
+
+131
+00:00:36,090 --> 00:00:36,380
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 486 fps
+
+132
+00:00:36,380 --> 00:00:36,660
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 193 fps
+
+133
+00:00:36,660 --> 00:00:36,930
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 478 fps
+
+134
+00:00:36,930 --> 00:00:37,210
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 590 fps
+
+135
+00:00:37,210 --> 00:00:37,460
+skin ON: 1040 cells, 4 levels
+82 m from the lake's centre | 496 fps
