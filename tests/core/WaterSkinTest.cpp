@@ -403,3 +403,122 @@ TEST(WaterSkinTest, ADeepRecordTileWakesOnlyItsTop) {
     EXPECT_EQ(pond.differ, 0);
     EXPECT_LT(msDeepTop, msDeepWhole / 5.0);
 }
+
+// 51.5 S4 - the swaps in motion (docs/WaterCore.md 51.5). A round lake (r 300 m, level 1.0, centred on the origin); the camera 5 m
+// above it flies from 700 m out to the centre and back at 40 m/s, 60 frames a second, asking the record tiles and the skin ONCE a
+// frame (the budgets as shipped - no settle between frames). Each frame:
+//   - HOLES: lake points (2 m grid within drawM + 24 m of the camera) that neither the record tiles nor the skin draw;
+//   - DOUBLES: lake points both draw;
+//   - FLIPS: points of a 2 m grid in the shore band (|r - 300| <= 8 m) and the seam window whose drawn state or level changed since
+//     the last frame (the lake is at rest: any change is a swap), weighted by the screen pixels a 2 m square covers there
+//     (1080 rows over a 70 degree field; the grazing factor 5 / distance).
+// Predictions (written before measuring): holes > 0 today - a record tile entering range is masked out of the skin at once and drawn
+// only on its build turn (4 a call); flips > 0 at the shore wherever a level boundary or the record/skin seam passes it.
+namespace {
+struct FlyStats { long motionHoleFrames = 0, motionHolesMax = 0; float holeInlandMax = 0.0f; double skinMsMax = 0.0; long fieldsRebuiltMax = 0; long frames = 0, holeFrames = 0, holesMax = 0, holesSum = 0, doublesMax = 0, flipFrames = 0, flipsSum = 0; double pxMax = 0.0, pxSum = 0.0; long bigPopFrames = 0; };
+FlyStats flyInAndOut(float speed, float drawM, bool verbose, bool settleEach = false, bool redMask = false) {
+    SkinSettingsGuard guard;
+    WaterCoreManager::s_locality.drawM = drawM;
+    WaterCoreManager::s_recordDraw.on = true;
+    WaterCoreManager::s_skin.on = true;
+    WaterCoreManager::s_skin.farM = 1024.0f;
+    WaterCoreManager mgr(ground);
+    const float R = 300.0f;
+    AnalyticRecord rec;
+    rec.wet = [&](int x, int z) { const float fx = x + 0.5f, fz = z + 0.5f; return fx * fx + fz * fz < R * R; };
+    rec.install(mgr);
+    // the reference: the same flight settled every frame - a MOTION hole is a point it draws and the flight does not
+    WaterCoreManager ref(ground);
+    rec.install(ref);
+    const float eye = 6.0f, startZ = 700.0f;
+    mgr.setViewPoint(glm::vec3(0.0f, eye, startZ));
+    settle(mgr);
+    const float step = speed / 60.0f;
+    const int legFrames = static_cast<int>(startZ / step);
+    std::map<std::pair<int, int>, float> prev;   // point -> drawn level (or -1e30 not drawn)
+    FlyStats st;
+    const double pxPerSr = std::pow(1080.0 / (70.0 * 3.14159265 / 180.0), 2.0);
+    for (int fr = 0; fr <= 2 * legFrames; ++fr) {
+        const float z = fr <= legFrames ? startZ - step * fr : step * (fr - legFrames);
+        const glm::vec3 view(0.0f, eye, z);
+        mgr.setViewPoint(view);
+        if (settleEach) settle(mgr);
+        if (!settleEach) { ref.setViewPoint(view); settle(ref); }   // the reference always masks what draws (51.5)
+        mgr.surfaceFields();
+        WaterSkin::s_maskInRangeForTest = redMask;   // the red control: the S3 mask, on the flight only
+        { const auto t0 = std::chrono::steady_clock::now(); mgr.skinFields();
+          st.skinMsMax = std::max(st.skinMsMax, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count()); }
+        WaterSkin::s_maskInRangeForTest = false;
+        st.fieldsRebuiltMax = std::max(st.fieldsRebuiltMax, static_cast<long>(mgr.skinStats().fieldsRebuiltLastCall));
+        long holes = 0, doubles = 0, flips = 0, motionHoles = 0; double px = 0.0;
+        std::map<std::pair<int, int>, float> cur;
+        auto sample = [&](int x, int zz, bool holeCheck) {
+            const float fx = x + 1.0f, fz = zz + 1.0f;
+            float rt = 0.0f, stp = 0.0f; bool recorded = false; int claims = 0;
+            const bool r = mgr.drawnAtWorld(fx, fz, rt, recorded);
+            const bool s = mgr.skinDrawnAtWorld(fx, fz, stp, &claims);
+            const bool wet = fx * fx + fz * fz < R * R;
+            if (holeCheck && wet && !r && !s) {
+                ++holes;
+                st.holeInlandMax = std::max(st.holeInlandMax, R - std::sqrt(fx * fx + fz * fz));   // how far inside the shore
+                if (!settleEach) {
+                    float a = 0.0f; bool b = false;
+                    const bool rr = ref.drawnAtWorld(fx, fz, a, b), rs = ref.skinDrawnAtWorld(fx, fz, a);
+                    if (rr || rs) ++motionHoles;
+                }
+            }
+            if (holeCheck && wet && ((r && s) || claims > 1)) ++doubles;
+            const float lvl = r ? rt : (s ? stp : -1e30f);
+            const auto key = std::make_pair(x, zz);
+            if (cur.count(key)) return;
+            cur[key] = lvl;
+            const auto it = prev.find(key);
+            if (it != prev.end() && std::abs(it->second - lvl) > 1e-3f) {
+                ++flips;
+                const float dx = fx - view.x, dz = fz - view.z;
+                const float d2 = dx * dx + dz * dz + eye * eye, d = std::sqrt(d2);
+                px += 4.0 * (eye - 1.0f) / d / d2 * pxPerSr;
+            }
+        };
+        const int w = static_cast<int>(drawM) + 24;
+        const int cx = static_cast<int>(std::floor(view.x / 2.0f)) * 2, cz = static_cast<int>(std::floor(view.z / 2.0f)) * 2;
+        for (int zz = cz - w; zz <= cz + w; zz += 2) for (int x = cx - w; x <= cx + w; x += 2) sample(x, zz, true);
+        for (int zz = -312; zz <= 312; zz += 2) for (int x = -312; x <= 312; x += 2) {
+            const float rr = std::sqrt((x + 1.0f) * (x + 1.0f) + (zz + 1.0f) * (zz + 1.0f));
+            if (std::abs(rr - R) <= 8.0f) sample(x, zz, false);
+        }
+        if (fr > 0) {
+            ++st.frames;
+            if (holes) ++st.holeFrames;
+            if (motionHoles) ++st.motionHoleFrames;
+            st.motionHolesMax = std::max(st.motionHolesMax, motionHoles);
+            st.holesMax = std::max(st.holesMax, holes); st.holesSum += holes;
+            st.doublesMax = std::max(st.doublesMax, doubles);
+            if (flips) ++st.flipFrames;
+            st.flipsSum += flips; st.pxSum += px; st.pxMax = std::max(st.pxMax, px);
+            if (px > 16.0) ++st.bigPopFrames;
+            if (verbose && (holes || px > 16.0))
+                std::printf("[fly] frame %d z %.1f: holes %ld doubles %ld flips %ld (%.0f px); record pending %d\n", fr, z, holes, doubles, flips, px, mgr.recordDrawStats().pending);
+        }
+        prev.swap(cur);
+    }
+    std::printf("[fly] motion holes in %ld frames (max %ld); holes at most %.1f m inside the shore\n", st.motionHoleFrames, st.motionHolesMax, st.holeInlandMax);
+    std::printf("[fly] %.0f m/s drawM %.0f: %ld frames; holes in %ld (max %ld, sum %ld); doubles max %ld; flips in %ld frames (sum %ld, %.0f px; worst frame %.0f px; frames over 16 px %ld); skin call max %.2f ms, fields rebuilt max %ld%s\n",
+                speed, drawM, st.frames, st.holeFrames, st.holesMax, st.holesSum, st.doublesMax, st.flipFrames, st.flipsSum, st.pxSum, st.pxMax, st.bigPopFrames,
+                st.skinMsMax, st.fieldsRebuiltMax, settleEach ? " (settled each frame)" : "");
+    return st;
+}
+}  // namespace
+
+// 51.5 S4 step 1: every lake point drawn by exactly one of the record tiles or the skin in EVERY frame of the flight. Red before
+// (the skin masked the tiles in range, drawn only on their build turn): holes in 1,115 of 2,100 frames at 40 m/s, max 76 points.
+// Control: the same flight settled each frame has none (the metric measures motion, not the static seam).
+TEST(WaterSkinTest, TheFlyInAndOutHasNoHoles) {
+    const FlyStats red = flyInAndOut(40.0f, 48.0f, false, false, true);   // the red control: the S3 mask on the flight
+    EXPECT_GT(red.motionHoleFrames, 100);
+    for (float speed : {40.0f, 120.0f}) {
+        const FlyStats st = flyInAndOut(speed, 48.0f, false);
+        EXPECT_EQ(st.motionHoleFrames, 0) << speed << " m/s";
+        EXPECT_EQ(st.doublesMax, 0) << speed << " m/s";
+    }
+}

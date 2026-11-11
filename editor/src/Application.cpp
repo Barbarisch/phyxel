@@ -14351,7 +14351,7 @@ void Application::registerWaterCommands() {
              {"draw_m", M::s_locality.drawM}, {"levels", s.levels}, {"ring_cells_used", s.ringCells}, {"fields", s.fields}, {"wet_cells", s.wetCells},
              {"summaries", s.summaries}, {"summaries_built", s.summariesBuilt}, {"summaries_built_last_call", s.summariesBuiltLastCall},
              {"pending", s.pending}, {"fields_rebuilt_last_call", s.fieldsRebuiltLastCall}, {"ms_last_call", s.msLastCall}, {"ms_max", s.msMax},
-             {"generator_threads", k.generatorThreads}, {"generator_source", waterCore->hasSkinGeneratorSource()}, {"gen_pending", s.genPending},
+             {"generator_threads", k.generatorThreads}, {"generator_source", waterCore->hasSkinGeneratorSource()}, {"gen_pending", s.genPending}, {"mask_tiles", s.maskTiles}, {"record_pending", waterCore->recordDrawStats().pending},
              {"gen_built", s.genBuilt}, {"gen_held", s.genHeld}};
     });
     // §27 W1 step 0: {id} where the volume's water is - m^3 in air / inside ground / in unknown occupancy / above full cells

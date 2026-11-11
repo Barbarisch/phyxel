@@ -358,27 +358,27 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         const glm::vec2 lo(static_cast<float>(tx) * rt, static_cast<float>(tz) * rt);
         return WaterLocality::horizontalDistanceSqToBox(in.view, lo, lo + glm::vec2(rt)) <= drawM * drawM;
     };
-    // the record tiles in range, row by row (tz, first tx, last tx) - level 0's mask, hashed
-    std::vector<long> maskRows;
+    // level 0's mask: the record tiles that draw (51.5 - built ones; a pending tile inside the disc stays the skin's), as sorted
+    // (tz, tx), hashed. Without the list: the tiles in range (the S3 rule)
+    std::vector<std::pair<long, long>> mask;
     uint64_t maskHash = 1469598103934665603ull;
     if (in.recordTilesOn) {
-        const long rtz0 = floorDivL(static_cast<long>(std::floor(in.view.z - drawM)), in.recordTileM) - 1;
-        const long rtz1 = floorDivL(static_cast<long>(std::floor(in.view.z + drawM)), in.recordTileM) + 1;
-        const long rtx0 = floorDivL(static_cast<long>(std::floor(in.view.x - drawM)), in.recordTileM) - 1;
-        const long rtx1 = floorDivL(static_cast<long>(std::floor(in.view.x + drawM)), in.recordTileM) + 1;
-        for (long tz = rtz0; tz <= rtz1; ++tz) {
-            long a = LONG_MAX, b = LONG_MIN;
-            for (long tx = rtx0; tx <= rtx1; ++tx) if (tileInRange(tx, tz)) { a = std::min(a, tx); b = std::max(b, tx); }
-            if (a > b) continue;
-            maskRows.push_back(tz); maskRows.push_back(a); maskRows.push_back(b);
-            for (long v : {tz, a, b}) { maskHash ^= static_cast<uint64_t>(v); maskHash *= 1099511628211ull; }
+        if (in.recordDrawn && !s_maskInRangeForTest) {
+            mask.reserve(in.recordDrawn->size());
+            for (const auto& [tx, tz] : *in.recordDrawn) mask.push_back({tz, tx});
+        } else {
+            const long rtz0 = floorDivL(static_cast<long>(std::floor(in.view.z - drawM)), in.recordTileM) - 1;
+            const long rtz1 = floorDivL(static_cast<long>(std::floor(in.view.z + drawM)), in.recordTileM) + 1;
+            const long rtx0 = floorDivL(static_cast<long>(std::floor(in.view.x - drawM)), in.recordTileM) - 1;
+            const long rtx1 = floorDivL(static_cast<long>(std::floor(in.view.x + drawM)), in.recordTileM) + 1;
+            for (long tz = rtz0; tz <= rtz1; ++tz) for (long tx = rtx0; tx <= rtx1; ++tx) if (tileInRange(tx, tz)) mask.push_back({tz, tx});
         }
+        std::sort(mask.begin(), mask.end());
+        for (const auto& [tz, tx] : mask) for (long v : {tz, tx}) { maskHash ^= static_cast<uint64_t>(v); maskHash *= 1099511628211ull; }
     }
-    auto recordMasked = [&](long wx, long wz) {   // the record tile holding this world point is in range (a disc: rows are runs)
-        const long tx = floorDivL(wx, in.recordTileM), tz = floorDivL(wz, in.recordTileM);
-        for (size_t i = 0; i + 2 < maskRows.size(); i += 3)
-            if (maskRows[i] == tz) return tx >= maskRows[i + 1] && tx <= maskRows[i + 2];
-        return false;
+    m_stats.maskTiles = static_cast<int>(mask.size());
+    auto recordMasked = [&](long wx, long wz) {   // the record tile holding this world point draws
+        return std::binary_search(mask.begin(), mask.end(), std::make_pair(floorDivL(wz, in.recordTileM), floorDivL(wx, in.recordTileM)));
     };
     auto inVolume = [&](float x, float z) {
         if (!in.volumeBoxes) return false;
@@ -404,9 +404,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         long mtx0 = LONG_MIN, mtx1 = LONG_MAX, mtz0 = LONG_MIN, mtz1 = LONG_MAX;
         if (k == 0) {
             long bx0 = LONG_MAX, bx1 = LONG_MIN, bz0 = LONG_MAX, bz1 = LONG_MIN;
-            for (size_t i = 0; i + 2 < maskRows.size(); i += 3) {
-                bz0 = std::min(bz0, maskRows[i]); bz1 = std::max(bz1, maskRows[i]); bx0 = std::min(bx0, maskRows[i + 1]); bx1 = std::max(bx1, maskRows[i + 2]);
-            }
+            for (const auto& [tz, tx] : mask) { bz0 = std::min(bz0, tz); bz1 = std::max(bz1, tz); bx0 = std::min(bx0, tx); bx1 = std::max(bx1, tx); }
             const long per = static_cast<long>(kSurfaceTileCols) * sz;   // a level-0 field's width (m)
             const long nb0x = bx0 <= bx1 ? floorDivL(bx0 * in.recordTileM, per) : LONG_MAX, nb1x = bx0 <= bx1 ? floorDivL(bx1 * in.recordTileM + in.recordTileM - 1, per) : LONG_MIN;
             const long nb0z = bz0 <= bz1 ? floorDivL(bz0 * in.recordTileM, per) : LONG_MAX, nb1z = bz0 <= bz1 ? floorDivL(bz1 * in.recordTileM + in.recordTileM - 1, per) : LONG_MIN;

@@ -55,12 +55,14 @@ public:
         int generatorThreads = 2;     ///< step 2: workers for never-loaded columns (~35 ms a chunk column each, measured); read when the
                                       ///< source is set
     };
-    static inline bool s_wholeCellsForTest = false;   ///< TEST ONLY: the red control - a cell drawn whole when half its AREA is wet
+    static inline bool s_wholeCellsForTest = false;
+    static inline bool s_maskInRangeForTest = false;   ///< TEST ONLY: 51.5's red control - mask the tiles in range (S3), not the drawn ones   ///< TEST ONLY: the red control - a cell drawn whole when half its AREA is wet
     struct Stats {
         int levels = 0, fields = 0, wetCells = 0, ringCells = 0;
         int summaries = 0, summariesBuiltLastCall = 0, pending = 0, fieldsRebuiltLastCall = 0;
         long summariesBuilt = 0;
         int genPending = 0;           ///< step 2: chunk columns queued on (or in) the generator worker
+        int maskTiles = 0;            ///< 51.5: record tiles the skin leaves to the record (the ones that draw)
         long genBuilt = 0;            ///< step 2: summaries made from the generator
         int genHeld = 0;              ///< step 2: summaries held that came from the generator
         double msLastCall = 0.0, msMax = 0.0;
@@ -71,6 +73,10 @@ public:
         float drawM = 48.0f;                  ///< the record tiles' radius
         bool recordTilesOn = true;            ///< false: no record tiles are drawn, the skin masks none
         int recordTileM = 8;
+        /// 51.5 (S4 step 1): the record tiles that DRAW (built at least once - a stale one keeps its last field), as (tx, tz). The
+        /// skin masks exactly these: a tile in range but not yet built is the skin's until its build turn (late, never a hole).
+        /// Null: the tiles in range (refreshRecordTiles' own test) - the S3 rule.
+        const std::vector<std::pair<int, int>>* recordDrawn = nullptr;
         const Reader* reader = nullptr;       ///< the record (null: the skin draws nothing)
         uint64_t spanRevision = 0;            ///< any change: the summaries held are re-read (nearest first)
         uint64_t residentGlobal = 0;          ///< 32.4: the resident set's stamp - when it moves, each summary's column stamp is asked

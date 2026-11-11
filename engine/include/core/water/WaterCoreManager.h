@@ -1045,6 +1045,7 @@ private:
     RecordDrawStats m_recordStats;
     WaterSkin m_skin;   // 51.4 S3
     SkinStoredChunks m_skinStoredList; SkinStoredRuns m_skinStoredRuns;   // 51.4f
+    std::vector<std::pair<int, int>> m_skinRecordDrawn;   // 51.5: the record tiles that draw (the skin's level-0 mask)
     void refreshRecordTiles();
     void buildRecordTile(int tx, int tz, RecordTile& t);
     // §27 W1b: the tile life cycle of a GPU volume (after each step): wakes first, then tiles frozen long enough are recorded

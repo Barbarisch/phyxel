@@ -12655,7 +12655,7 @@ compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the s
 settings (tall cells on, recording off) the lake still sleeps (W1f, 4 of 4): the partial wake freezes columns before the bed churn
 or the stored velocities build. Recording keeps it awake long enough for them to show.
 
-## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 (steps 1-3) BUILT, ON by default - the owner's call 2026-11-11 (51.4g); S4 next
+## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 (steps 1-3) BUILT, ON by default - the owner's call 2026-11-11 (51.4g); S4 step 1 BUILT (51.5)
 
 **The owner's words:** *"the biggest deal when making water work at scale is an area threshold for water disturbances"*; *"at some
 point we will need to make bodies of water that are bigger than 100 meters... that means levels. that means 'at this point water
@@ -13053,6 +13053,34 @@ level-to-level pops in motion (S4). Cost as measured in 51.4b-f: Creek wide pose
 min on a generated world, every session - the summary cache of 51.4f "Left" would make it once). Known defect now visible by
 default: RiverCarve's generated record holds a lake at y 107.8 the terrain does not hold, drawn as a wall by the record tiles and
 now also by the skin far away (a generator defect, 51.4c item 2, not fixed).
+
+**51.5 (2026-11-11) S4 step 1 BUILT, ON - no holes at the record / skin seam in motion** (51's S4; `/design-check` READY). The S4
+measurement first (`WaterSkinTest.TheFlyInAndOutHasNoHoles`; CPU): a round lake r 300 m at level 1.0, the camera 5 m above it
+flying 700 m out -> the centre -> out at 40 and 120 m/s, 60 frames a second, the record tiles and the skin asked once a frame (the
+shipped budgets). Each frame: HOLES (lake points on a 2 m grid within drawM + 24 m nothing draws), DOUBLES, a MOTION hole (a hole a
+second manager settled at the same view draws), and FLIPS (shore-band and seam points whose drawn state or level changed since the
+last frame - the lake is at rest, so any change is a swap - weighted by the screen pixels a 2 m square covers there: 1080 rows
+over 70 degrees, grazing factor 5 / distance).
+- **Measured before (the red):** holes in 1,115 of 2,100 frames at 40 m/s (max 76 points); 896 of them MOTION holes (max 64);
+  pops over 16 px in 185 frames, worst 5,406 px.
+- **Two causes, one fix.** (1) The skin masked level 0 under every record tile IN RANGE, but a tile entering range has no field until
+  its build turn (4 a call) - the skin stopped drawing it before the record drew it. (2) Found while checking the control: the S3 mask
+  and the record disagreed AT REST at the radius - `refreshRecordTiles` scans from `floorDiv(view - r, 8)`, which leaves out a tile
+  whose far edge is exactly r away (view z 352, edge 304: 136 tiles built, 140 masked, 4 tiles of nothing). **The fix: the skin
+  masks the tiles that DRAW** - `WaterSkin::Inputs::recordDrawn`, the manager's tiles built at least once (a stale one keeps its last
+  field); a tile in range and pending is the skin's until its turn (its coarse shore for those frames - late, never a hole). The
+  mask is a sorted key set (a pending tile can sit inside the disc, so no longer row runs); level 0 still rebuilds only the fields
+  under the changed mask's boxes. `water_av_skin` echoes `mask_tiles` and `record_pending`.
+- **After:** 0 motion holes and 0 doubles in every frame at 40 and 120 m/s; the red control (`WaterSkin::s_maskInRangeForTest`, the
+  S3 mask on the flight only) 896 frames. Pops over 16 px: 34 frames, worst 345 px (was 185 / 5,406 - most of the old pops were the
+  holes opening and closing). What is left at rest: holes at most 0.5 m inside the shore (the coarse shore rule's rectangles against
+  a round shore - the owner's look call on the shore rule) and the 34 frames of shore swaps (S4 step 2).
+- Cost: the skin call in motion at most 2.7-3.1 ms (a level-0 rebuild, up to 24 fields) - the same as before the change (3.10 ms
+  with the S3 mask). Not measured: live (the Creek fly-out) - deferred so a visible bench does not run while the owner uses the
+  machine; the next S4 step's live run carries it. Water unit + storage 422 / 422.
+- **Next (S4 step 2):** the remaining pops are coarse-shore swaps where a level boundary or the seam passes a shore cell. Options
+  for the owner: a short cross-fade of a swapped cell (the dither hook of 51.4), or hold a level's shore rectangle until it is far
+  enough that the swap is under N pixels.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

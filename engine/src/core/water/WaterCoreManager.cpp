@@ -3161,6 +3161,10 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::skinFields() {
     WaterSkin::Inputs in;
     in.view = m_view; in.drawM = s_locality.drawM; in.recordTilesOn = s_recordDraw.on && static_cast<bool>(m_spanReader);
     in.recordTileM = kRecordTile;
+    // 51.5 (S4 step 1): the tiles that draw - built at least once (a stale tile keeps its last field); a pending one stays the skin's
+    m_skinRecordDrawn.clear();
+    for (const auto& [key, t] : m_recordTiles) if (t.spanRev != ~0ull) m_skinRecordDrawn.push_back(key);
+    in.recordDrawn = &m_skinRecordDrawn;
     in.reader = &m_spanReader;
     in.spanRevision = m_spanRevision ? m_spanRevision() : 0;
     in.residentGlobal = m_resGlobal ? m_resGlobal() : 0; in.residentColumn = &m_resColumn;
