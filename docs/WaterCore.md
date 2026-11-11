@@ -12655,7 +12655,7 @@ compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the s
 settings (tall cells on, recording off) the lake still sleeps (W1f, 4 of 4): the partial wake freezes columns before the bed churn
 or the stored velocities build. Recording keeps it awake long enough for them to show.
 
-## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 (steps 1-3) BUILT, ON by default - the owner's call 2026-11-11 (51.4g); S4 step 1 BUILT (51.5)
+## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 (steps 1-3) BUILT, ON by default - the owner's call 2026-11-11 (51.4g); S4 steps 1-2 BUILT (51.5, 51.6)
 
 **The owner's words:** *"the biggest deal when making water work at scale is an area threshold for water disturbances"*; *"at some
 point we will need to make bodies of water that are bigger than 100 meters... that means levels. that means 'at this point water
@@ -13081,6 +13081,35 @@ over 70 degrees, grazing factor 5 / distance).
 - **Next (S4 step 2):** the remaining pops are coarse-shore swaps where a level boundary or the seam passes a shore cell. Options
   for the owner: a short cross-fade of a swapped cell (the dither hook of 51.4), or hold a level's shore rectangle until it is far
   enough that the swap is under N pixels.
+
+**51.6 (2026-11-11) S4 step 2 BUILT, ON - the skin's shore by SUB-CELLS** (51's S4; no drift: the pops' cause, not a fade). The
+51.5 flight, the pops split by swap and distance: ALL of them were the skin's coverage at the shore (none <-> skin; 0 from the seam's
+level or from record <-> skin), 1,646 of 2,729 px at 48-100 m - a record tile handing over to the skin (or back) at a curved shore
+showed or hid the 4 m rectangle's overhang beyond the record's exact shore - the rest at the level steps (128 m on: 774 + 309 px).
+- **The rule:** each skin cell carries a 4 x 4 mask of SUB-CELLS (a quarter of its side: 1 m at level 0, 2 m at level 1, 4 m ...),
+  each wet when at least half its columns are; the cell is drawn when any sub-cell is, its quads are the wet sub-cells' runs row by
+  row, clipped to the wet rectangle (so a straight shore stays exact at every size). The 4 m summary cell keeps its 16 wet columns
+  as bits (`SkinCell::cols`); `WaterSkin::aggregate` derives a level's sub-cells from them (1-2 m), from the pyramid (4-32 m) or
+  from whole chunk columns (64 m on) - a fully wet cell takes no lookups. The mask rides in the skin column's `top[1]` (a skin cell
+  has one run); the mesh and `drawnAt` read it.
+- **Measured (`TheShoreSwapsAreSmall`, red control `WaterSkin::s_rectShoreForTest` = S3's rectangle alone, the same flight):**
+
+| | rectangle (S3) | sub-cells |
+|---|---|---|
+| pops at the seam (48-100 m) | 1,646 px | **0** |
+| pops at the level steps (100 m on) | 1,083 px | 966 px |
+| the flight's pops (40 m/s, 35 s) / worst frame | 2,729 / 345 px | **965 / 64 px** |
+| round lake r 70 m at rest: holes / overhang / worst out | 0 / 1.38 % / 2.8 m | 0.04 % / 0.26 % / 0.9 m |
+| straight shores (the bench's 150 m lake) | 0 holes, 0 overhang | 0 holes, 0 overhang |
+
+  Predicted before measuring: the seam's pops to ~0 (held) and the level steps' to fall with the finer shore (did NOT: a 1 m shore
+  swapped for a 2 m one changes as much as a 4 m rectangle for an 8 m one). Holes at rest stay within 0.5 m of the shore (a sub-cell
+  less than half wet), a little more of them than the rectangle's (0.04 % of the round lake vs 0).
+- Cost: the 3 km lake test moving 0.5 m a call - the skin call 0.176 -> 0.243 ms mean, 4.8 -> 5.2 ms worst (a level rebuild).
+  Quads: a shore cell up to 8 instead of 1 (interior cells unchanged). Not measured: live (the record / skin swap in a real frame,
+  the GPU cost of the extra shore quads) - the next live run.
+- What is left of S4: the level steps' shore swaps (~1,000 px over a 35 s flight, worst frame 64 px - an 8 x 8 px patch at 1080p)
+  and the record's own swaps in motion (a woken patch). Whether the remainder needs a fade is the owner's look call on the clip.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

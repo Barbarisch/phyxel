@@ -281,7 +281,12 @@ TEST(WaterSkinTest, TheCoarseShoreStaysOnTheShore) {
     auto round = [](int x, int z) { const float dx = x + 0.5f - 79.0f, dz = z + 0.5f - 77.0f; return dx * dx + dz * dz < 70.0f * 70.0f; };
     auto roundOut = [](float x, float z) { return std::max(0.0f, std::sqrt((x - 79.0f) * (x - 79.0f) + (z - 77.0f) * (z - 77.0f)) - 70.0f); };
     const Count rd = run(round, roundOut, false), rdWhole = run(round, roundOut, true);
+    WaterSkin::s_rectShoreForTest = true;   // 51.6: S3's shore (the rectangle alone), for comparison
+    const Count rdRect = run(round, roundOut, false);
+    WaterSkin::s_rectShoreForTest = false;
     std::printf("[skin] round lake r 70, wet rectangle: %d lake points, %d holes (%.2f %%); %d off-lake points drawn (%.2f %% of the lake), worst %.1f m out\n",
+                rdRect.lake, rdRect.holes, 100.0 * rdRect.holes / rdRect.lake, rdRect.overhang, 100.0 * rdRect.overhang / rdRect.lake, rdRect.worstM);
+    std::printf("[skin] round lake r 70, sub-cells:     %d lake points, %d holes (%.2f %%); %d off-lake points drawn (%.2f %% of the lake), worst %.1f m out\n",
                 rd.lake, rd.holes, 100.0 * rd.holes / rd.lake, rd.overhang, 100.0 * rd.overhang / rd.lake, rd.worstM);
     std::printf("[skin] round lake r 70, whole cells:   %d lake points, %d holes (%.2f %%); %d off-lake points drawn (%.2f %% of the lake), worst %.1f m out\n",
                 rdWhole.lake, rdWhole.holes, 100.0 * rdWhole.holes / rdWhole.lake, rdWhole.overhang, 100.0 * rdWhole.overhang / rdWhole.lake, rdWhole.worstM);
@@ -415,9 +420,11 @@ TEST(WaterSkinTest, ADeepRecordTileWakesOnlyItsTop) {
 // Predictions (written before measuring): holes > 0 today - a record tile entering range is masked out of the skin at once and drawn
 // only on its build turn (4 a call); flips > 0 at the shore wherever a level boundary or the record/skin seam passes it.
 namespace {
-struct FlyStats { long motionHoleFrames = 0, motionHolesMax = 0; float holeInlandMax = 0.0f; double skinMsMax = 0.0; long fieldsRebuiltMax = 0; long frames = 0, holeFrames = 0, holesMax = 0, holesSum = 0, doublesMax = 0, flipFrames = 0, flipsSum = 0; double pxMax = 0.0, pxSum = 0.0; long bigPopFrames = 0; };
-FlyStats flyInAndOut(float speed, float drawM, bool verbose, bool settleEach = false, bool redMask = false) {
+struct FlyStats { long motionHoleFrames = 0, motionHolesMax = 0; float holeInlandMax = 0.0f; double skinMsMax = 0.0; long fieldsRebuiltMax = 0; long frames = 0, holeFrames = 0, holesMax = 0, holesSum = 0, doublesMax = 0, flipFrames = 0, flipsSum = 0; double pxMax = 0.0, pxSum = 0.0; long bigPopFrames = 0;
+                  double pxByKind[9] = {}; double pxByDist[4] = {}; };   // kind = from * 3 + to (0 none, 1 record, 2 skin); dist <48, <100, <300, more
+FlyStats flyInAndOut(float speed, float drawM, bool verbose, bool settleEach = false, bool redMask = false, bool rectShore = false) {
     SkinSettingsGuard guard;
+    struct RectGuard { explicit RectGuard(bool on) { WaterSkin::s_rectShoreForTest = on; } ~RectGuard() { WaterSkin::s_rectShoreForTest = false; } } rectGuard(rectShore);
     WaterCoreManager::s_locality.drawM = drawM;
     WaterCoreManager::s_recordDraw.on = true;
     WaterCoreManager::s_skin.on = true;
@@ -435,7 +442,7 @@ FlyStats flyInAndOut(float speed, float drawM, bool verbose, bool settleEach = f
     settle(mgr);
     const float step = speed / 60.0f;
     const int legFrames = static_cast<int>(startZ / step);
-    std::map<std::pair<int, int>, float> prev;   // point -> drawn level (or -1e30 not drawn)
+    std::map<std::pair<int, int>, std::pair<float, int>> prev;   // point -> drawn level (or -1e30 not drawn), its drawer
     FlyStats st;
     const double pxPerSr = std::pow(1080.0 / (70.0 * 3.14159265 / 180.0), 2.0);
     for (int fr = 0; fr <= 2 * legFrames; ++fr) {
@@ -451,7 +458,7 @@ FlyStats flyInAndOut(float speed, float drawM, bool verbose, bool settleEach = f
         WaterSkin::s_maskInRangeForTest = false;
         st.fieldsRebuiltMax = std::max(st.fieldsRebuiltMax, static_cast<long>(mgr.skinStats().fieldsRebuiltLastCall));
         long holes = 0, doubles = 0, flips = 0, motionHoles = 0; double px = 0.0;
-        std::map<std::pair<int, int>, float> cur;
+        std::map<std::pair<int, int>, std::pair<float, int>> cur;
         auto sample = [&](int x, int zz, bool holeCheck) {
             const float fx = x + 1.0f, fz = zz + 1.0f;
             float rt = 0.0f, stp = 0.0f; bool recorded = false; int claims = 0;
@@ -471,13 +478,20 @@ FlyStats flyInAndOut(float speed, float drawM, bool verbose, bool settleEach = f
             const float lvl = r ? rt : (s ? stp : -1e30f);
             const auto key = std::make_pair(x, zz);
             if (cur.count(key)) return;
-            cur[key] = lvl;
+            const int src = r ? 1 : (s ? 2 : 0);
+            cur[key] = {lvl, src};
             const auto it = prev.find(key);
-            if (it != prev.end() && std::abs(it->second - lvl) > 1e-3f) {
+            if (it != prev.end() && std::abs(it->second.first - lvl) > 1e-3f) {
                 ++flips;
                 const float dx = fx - view.x, dz = fz - view.z;
                 const float d2 = dx * dx + dz * dz + eye * eye, d = std::sqrt(d2);
-                px += 4.0 * (eye - 1.0f) / d / d2 * pxPerSr;
+                const double p = 4.0 * (eye - 1.0f) / d / d2 * pxPerSr;
+                px += p;
+                if (fr > 0) {
+                    st.pxByKind[it->second.second * 3 + src] += p;
+                    const float hd = std::sqrt(dx * dx + dz * dz);
+                    st.pxByDist[hd < 48.0f ? 0 : hd < 100.0f ? 1 : hd < 300.0f ? 2 : 3] += p;
+                }
             }
         };
         const int w = static_cast<int>(drawM) + 24;
@@ -502,6 +516,8 @@ FlyStats flyInAndOut(float speed, float drawM, bool verbose, bool settleEach = f
         }
         prev.swap(cur);
     }
+    std::printf("[fly] pop px by swap: none->record %.0f, none->skin %.0f, record->none %.0f, record->skin %.0f, skin->none %.0f, skin->record %.0f, skin->skin %.0f; by distance <48 %.0f, 48-100 %.0f, 100-300 %.0f, >300 %.0f\n",
+                st.pxByKind[1], st.pxByKind[2], st.pxByKind[3], st.pxByKind[5], st.pxByKind[6], st.pxByKind[7], st.pxByKind[8], st.pxByDist[0], st.pxByDist[1], st.pxByDist[2], st.pxByDist[3]);
     std::printf("[fly] motion holes in %ld frames (max %ld); holes at most %.1f m inside the shore\n", st.motionHoleFrames, st.motionHolesMax, st.holeInlandMax);
     std::printf("[fly] %.0f m/s drawM %.0f: %ld frames; holes in %ld (max %ld, sum %ld); doubles max %ld; flips in %ld frames (sum %ld, %.0f px; worst frame %.0f px; frames over 16 px %ld); skin call max %.2f ms, fields rebuilt max %ld%s\n",
                 speed, drawM, st.frames, st.holeFrames, st.holesMax, st.holesSum, st.doublesMax, st.flipFrames, st.flipsSum, st.pxSum, st.pxMax, st.bigPopFrames,
@@ -521,4 +537,20 @@ TEST(WaterSkinTest, TheFlyInAndOutHasNoHoles) {
         EXPECT_EQ(st.motionHoleFrames, 0) << speed << " m/s";
         EXPECT_EQ(st.doublesMax, 0) << speed << " m/s";
     }
+}
+
+// 51.6 S4 step 2: the skin's shore by sub-cells (a quarter of the cell's side, each wet when half its columns are, clipped to the
+// wet rectangle). Prediction (before measuring): the pops at the seam (48-100 m: the 4 m rectangle's overhang appearing and going
+// as record tiles hand over) fall to ~0 - level 0's sub-cells ARE the columns; the 128 m level step's pops fall with the 2 m shore.
+// Red control (s_rectShoreForTest, S3's shore: the rectangle alone): the 51.5 numbers.
+// MEASURED: the seam's pops 1,646 -> 0 px (the first prediction held); the level steps' 774 -> 776 px (the second did NOT - a 1 m
+// shore swapped for a 2 m one changes as much as a 4 m rectangle for an 8 m one); the flight 2,729 -> 965 px, worst frame 345 -> 64.
+TEST(WaterSkinTest, TheShoreSwapsAreSmall) {
+    const FlyStats red = flyInAndOut(40.0f, 48.0f, false, false, false, true);
+    const FlyStats st = flyInAndOut(40.0f, 48.0f, false);
+    EXPECT_EQ(st.motionHoleFrames, 0);
+    EXPECT_EQ(st.doublesMax, 0);
+    EXPECT_GT(red.pxByDist[1], 1000.0);              // the control measures the seam's pops
+    EXPECT_LT(st.pxByDist[1], 0.01 * red.pxByDist[1]);   // the seam: none
+    EXPECT_LT(st.pxMax, 0.5 * red.pxMax);
 }

@@ -159,6 +159,24 @@ void buildWaterSurfaceMeshRect(const WaterSurfaceField& f, int rx0, int rz0, int
                 // every neighbour whose run overlaps within one CELL height, and at 16-32 m cells a river 20 m below a lake was pulled
                 // up into a wall of water (live, WaterBench_RiverCarve)
                 if (f.insetCols && !g_skinCornersAveragedForTest) y00 = y10 = y11 = y01 = top;
+                const int subMask = (f.insetCols && !g_skinCornersAveragedForTest) ? static_cast<int>(c.top[1] + 0.5f) : 0;   // the 51.4c control: whole quads
+                if (subMask != 0) {
+                    // 51.6: the skin cell's wet sub-cells (a quarter of its side each), row by row, runs merged, clipped to the rectangle
+                    const float cx0 = ox + x * h, cz0 = oz + z * h, q = h * 0.25f;
+                    for (int j = 0; j < 4; ++j) for (int i = 0; i < 4;) {
+                        if (!((subMask >> (i + 4 * j)) & 1)) { ++i; continue; }
+                        int e = i;
+                        while (e + 1 < 4 && ((subMask >> (e + 1 + 4 * j)) & 1)) ++e;
+                        const float qx0 = std::max(x0, cx0 + i * q), qx1 = std::min(x1, cx0 + (e + 1) * q);
+                        const float qz0 = std::max(z0, cz0 + j * q), qz1 = std::min(z1, cz0 + (j + 1) * q);
+                        if (qx1 > qx0 && qz1 > qz0) {
+                            quad({qx0, top, qz0}, {qx0, top, qz1}, {qx1, top, qz1}, {qx1, top, qz0}, depth, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), foam, flow);
+                            ++out.topQuads;
+                        }
+                        i = e + 1;
+                    }
+                    continue;   // a skin cell has no lateral faces (its dry and masked neighbours: no wall)
+                }
                 quad({x0, y00, z0}, {x0, y01, z1}, {x1, y11, z1}, {x1, y10, z0}, depth, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), foam, flow);
                 ++out.topQuads;
                 // lateral faces: -x, +x, -z, +z

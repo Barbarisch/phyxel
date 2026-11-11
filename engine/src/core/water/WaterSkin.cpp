@@ -39,6 +39,7 @@ void addColumn(SkinCell& cell, int x, int z, float top, float bottom) {
     if (cell.wet == 0) { cell.x0 = cell.x1 = x; cell.z0 = cell.z1 = z; }
     else { cell.x0 = std::min(cell.x0, x); cell.x1 = std::max(cell.x1, x); cell.z0 = std::min(cell.z0, z); cell.z1 = std::max(cell.z1, z); }
     ++cell.wet; cell.top = std::max(cell.top, top); cell.bottom = std::min(cell.bottom, bottom);
+    cell.cols = static_cast<uint16_t>(cell.cols | (1u << ((x & 3) + 4 * (z & 3))));   // 51.6 (x & 3: the floor modulo, negatives too)
 }
 
 void merge(SkinCell& into, const SkinCell& c) {
@@ -153,7 +154,45 @@ void WaterSkin::buildSummary(int ccx, int ccz, Summary& s, const std::vector<Col
     s.built = true;
 }
 
-bool WaterSkin::aggregate(int /*level*/, int sizeM, long gx, long gz, SkinCell& out) const {
+int WaterSkin::wetIn(long wx, long wz, long s) const {
+    if (s <= 2) {   // inside one 4 m cell: its column bits
+        SkinCell c;
+        if (!cellAt(static_cast<int>(floorDivL(wx, kSkinCellM)), static_cast<int>(floorDivL(wz, kSkinCellM)), c)) return 0;
+        const int lx = static_cast<int>(wx & 3), lz = static_cast<int>(wz & 3);
+        int n = 0;
+        for (long j = 0; j < s; ++j) for (long i = 0; i < s; ++i) n += (c.cols >> ((lx + i) + 4 * (lz + j))) & 1;
+        return n;
+    }
+    if (s <= 32) {   // one pyramid cell
+        const long ccx = floorDivL(wx, 32), ccz = floorDivL(wz, 32);
+        const auto it = m_sum.find(columnKey(static_cast<int>(ccx), static_cast<int>(ccz)));
+        if (it == m_sum.end() || !it->second.built) return 0;
+        const int p = s == 4 ? 0 : (s == 8 ? 1 : (s == 16 ? 2 : 3));
+        const int per = kSkinCellsPerChunk >> p;
+        return it->second.cells[kPyrOffset[p] + static_cast<int>((wx - ccx * 32) / s) + per * static_cast<int>((wz - ccz * 32) / s)].wet;
+    }
+    int n = 0;   // whole chunk columns
+    for (long j = 0; j < s / 32; ++j) for (long i = 0; i < s / 32; ++i) {
+        const auto it = m_sum.find(columnKey(static_cast<int>(floorDivL(wx, 32) + i), static_cast<int>(floorDivL(wz, 32) + j)));
+        if (it != m_sum.end() && it->second.built) n += it->second.cells[kPyrOffset[3]].wet;
+    }
+    return n;
+}
+
+bool WaterSkin::aggregate(int level, int sizeM, long gx, long gz, SkinCell& out) const {
+    const bool known = aggregateCell(level, sizeM, gx, gz, out);
+    // 51.6: the 4 x 4 sub-cells, each wet when at least half its columns are (a 4 m cell: its columns exactly)
+    out.sub = 0;
+    if (known && static_cast<long>(out.wet) >= static_cast<long>(sizeM) * sizeM) out.sub = 0xFFFF;   // all wet: no lookups (not a shore)
+    else if (known && out.wet > 0) {
+        const long s = sizeM / 4, wx = gx * sizeM, wz = gz * sizeM;
+        for (int j = 0; j < 4; ++j) for (int i = 0; i < 4; ++i)
+            if (2 * static_cast<long>(wetIn(wx + i * s, wz + j * s, s)) >= s * s) out.sub = static_cast<uint16_t>(out.sub | (1u << (i + 4 * j)));
+    }
+    return known;
+}
+
+bool WaterSkin::aggregateCell(int /*level*/, int sizeM, long gx, long gz, SkinCell& out) const {
     out = SkinCell{};
     const long wx = gx * sizeM, wz = gz * sizeM;
     if (sizeM <= 32) {
@@ -437,7 +476,9 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                 const bool known = aggregate(k, sz, gx, gz, a);
                 // wet: at least half the wet columns' rectangle is wet (the red control: half the cell's area)
                 const long rect = a.wet > 0 ? static_cast<long>(a.x1 - a.x0 + 1) * (a.z1 - a.z0 + 1) : 0;
-                const bool wet = known && a.wet > 0 && 2 * static_cast<long>(a.wet) >= (s_wholeCellsForTest ? static_cast<long>(sz) * sz : rect);
+                // 51.6: wet when any sub-cell is (the sub-cells carry the shore; S3's rule - half the rectangle - is the red control)
+                const bool wet = known && a.wet > 0 && ((s_wholeCellsForTest || s_rectShoreForTest)
+                                     ? 2 * static_cast<long>(a.wet) >= (s_wholeCellsForTest ? static_cast<long>(sz) * sz : rect) : a.sub != 0);
                 const float cxw = (static_cast<float>(gx) + 0.5f) * szf, czw = (static_cast<float>(gz) + 0.5f) * szf;
                 bool drawn = gx >= gx0 && gx < gx0 + n && gz >= gz0 && gz < gz0 + n;
                 if (drawn && k > 0 && gx >= hx0 && gx < hx0 + hn && gz >= hz0 && gz < hz0 + hn) drawn = false;   // the finer level draws it
@@ -456,6 +497,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                     const float wx0 = static_cast<float>(gx) * szf, wz0 = static_cast<float>(gz) * szf;
                     c.pad1 = skinInsetEncode((static_cast<float>(a.x0) - wx0) / szf, (static_cast<float>(a.x1 + 1) - wx0) / szf);
                     c.pad2 = skinInsetEncode((static_cast<float>(a.z0) - wz0) / szf, (static_cast<float>(a.z1 + 1) - wz0) / szf);
+                    if (!s_rectShoreForTest) c.top[1] = static_cast<float>(a.sub);   // 51.6: the sub-cells, inside the rectangle
                 }
                 wetAny = true;
                 if (!lookSet && in.look) { look = in.look(static_cast<int>(std::floor(cxw)), static_cast<int>(std::floor(czw)), a.top); lookSet = true; }
@@ -505,6 +547,8 @@ bool WaterSkin::drawnAt(float x, float z, float& top, int* claims) const {
             const float fx = x / f.h - std::floor(x / f.h), fz = z / f.h - std::floor(z / f.h);
             skinInsetDecode(c.pad1, a, b); if (fx < a || fx >= b) continue;
             skinInsetDecode(c.pad2, a, b); if (fz < a || fz >= b) continue;
+            const int m = static_cast<int>(c.top[1] + 0.5f);   // 51.6: the sub-cell holding the point
+            if (m != 0 && !((m >> (std::min(3, static_cast<int>(fx * 4.0f)) + 4 * std::min(3, static_cast<int>(fz * 4.0f)))) & 1)) continue;
         }
         any = true; ++n; top = std::max(top, c.top[0]);
     }

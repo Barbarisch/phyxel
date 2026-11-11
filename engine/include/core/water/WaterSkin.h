@@ -35,8 +35,11 @@ struct SkinCell {
     int wet = 0;
     float top = -1e30f, bottom = 1e30f;
     int x0 = 0, z0 = 0, x1 = -1, z1 = -1;   ///< the wet columns' extent (world columns, inclusive; x1 < x0 when dry)
+    uint16_t cols = 0;   ///< 51.6: a 4 m cell's wet columns, bit (x mod 4) + 4 (z mod 4) (0 in the 8-32 m aggregates)
+    uint16_t sub = 0;    ///< 51.6: WaterSkin::aggregate's answer - the cell's 4 x 4 sub-cells (each a quarter of its side) at least half wet
     bool operator==(const SkinCell& o) const {
-        return wet == o.wet && top == o.top && bottom == o.bottom && (wet == 0 || (x0 == o.x0 && z0 == o.z0 && x1 == o.x1 && z1 == o.z1));
+        return wet == o.wet && top == o.top && bottom == o.bottom && cols == o.cols
+               && (wet == 0 || (x0 == o.x0 && z0 == o.z0 && x1 == o.x1 && z1 == o.z1));
     }
 };
 
@@ -56,7 +59,8 @@ public:
                                       ///< source is set
     };
     static inline bool s_wholeCellsForTest = false;
-    static inline bool s_maskInRangeForTest = false;   ///< TEST ONLY: 51.5's red control - mask the tiles in range (S3), not the drawn ones   ///< TEST ONLY: the red control - a cell drawn whole when half its AREA is wet
+    static inline bool s_maskInRangeForTest = false;
+    static inline bool s_rectShoreForTest = false;     ///< TEST ONLY: 51.6's red control - the shore by the wet rectangle alone (S3)   ///< TEST ONLY: 51.5's red control - mask the tiles in range (S3), not the drawn ones   ///< TEST ONLY: the red control - a cell drawn whole when half its AREA is wet
     struct Stats {
         int levels = 0, fields = 0, wetCells = 0, ringCells = 0;
         int summaries = 0, summariesBuiltLastCall = 0, pending = 0, fieldsRebuiltLastCall = 0;
@@ -120,6 +124,8 @@ public:
     bool drawnAt(float x, float z, float& top, int* claims = nullptr) const;
     /// the summary's 4 m cell (cx, cz) (false: its chunk column is not summarized)
     bool cellAt(int cx, int cz, SkinCell& out) const;
+    /// 51.6: the wet columns in the s x s world square at (wx, wz) (s a power of two, the square aligned to s), from the summaries
+    int wetIn(long wx, long wz, long s) const;
     void clear();   ///< drops every summary and field (the generator source stays)
 
 private:
@@ -142,7 +148,8 @@ private:
     struct Worker;
     std::unique_ptr<Worker> m_worker;
     uint64_t m_genEpoch = 0;
-    bool aggregate(int level, int sizeM, long gx, long gz, SkinCell& out) const;   // the cell of size sizeM at world cell index (gx, gz)
+    bool aggregate(int level, int sizeM, long gx, long gz, SkinCell& out) const;
+    bool aggregateCell(int level, int sizeM, long gx, long gz, SkinCell& out) const;   // the cell without its sub-cells   // the cell of size sizeM at world cell index (gx, gz)
 
     struct FieldEntry { WaterSurfaceField field; bool wetAny = false; };
     std::map<std::tuple<int, int, int>, FieldEntry> m_fieldMap;   // (level, tile x, tile z)
