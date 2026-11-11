@@ -24,21 +24,48 @@ Decided:
 - **D2: designed for the GPU first.**
 - **D3: 8x8x8 blocks.**
 - **D4: fracture along crack lines into pieces**, not single voxels.
+- **D5: the voxel is 1/8 m (12.5 cm)** (owner, 2026-11-10: *"yes go with 1/8 m"*). So 8 voxels = 1 block = 1 m,
+  and a chunk is 32 m, the same as today. Chosen over 1/9 m because everything then nests in powers of two and
+  lines up with whole metres. The cost is converting content built on thirds and ninths of a metre (§7a).
 
 Still open: §13.
 
 ## 1. Words used in this plan
 
-Engine terms where they exist; each new term defined once.
+Engine terms where they exist; each new term defined once. **These are the settled terms (owner, 2026-11-10).**
+
+**The three levels:**
+
+| Level | Made of | Voxels per side | Voxels in total | Size |
+|---|---|---|---|---|
+| **voxel** | — | 1 | 1 | 1/8 m = 12.5 cm |
+| **block** | 8 x 8 x 8 voxels = 512 voxels | 8 | 512 | 1 m |
+| **chunk** | 32 x 32 x 32 blocks = 32,768 blocks | 256 | 16,777,216 | 32 m |
+
+Below a world voxel, items have their own finer grid: an **item voxel** is 1/64 m (≈ 1.6 cm), an 8 x 8 x 8 split of
+a world voxel.
 
 | Term | Meaning |
 |---|---|
-| **voxel** | The one and only voxel. Same size as today's microcube (1/9 m ≈ 11.1 cm) unless §13 Q1 decides otherwise. Has a material. |
-| **block** | An 8x8x8 group of voxels (512 voxels). The unit of storage, editing, meshing and simulation. Invisible to the player, like chunks. |
+| **voxel** | The one and only world voxel, 1/8 m. Has a material. |
+| **block** | 8x8x8 voxels, exactly 1 m. The unit of storage, editing, drawing and simulation. Never visible to the player, like chunks. |
 | **uniform block** | A block whose 512 voxels are all one material (air, rock, a plain wall). Stored as one entry. |
 | **detailed block** | A block with mixed contents. Stored voxel by voxel. |
-| **chunk** | A fixed group of blocks (§3.3). Unit of streaming and saving. Still never visible. |
-| **cube / subcube** (after this plan) | Not storage types any more. Only **brush sizes**: place or break 9x9x9 or 3x3x3 voxels at once. |
+| **chunk** | 32x32x32 blocks, 32 m, the same size and coordinates as today's chunk. Unit of streaming, saving and generation. Never visible. |
+| **item voxel** | 1/64 m, the grid items are built and broken on (§6.8). Replaces today's 1/81 m fine-voxel grid. |
+| **brush** | How many voxels one place/break action covers: 1, 2, 4 or 8 voxels per side (12.5 cm, 25 cm, 50 cm, 1 m). |
+
+**Retired terms:**
+- **cube, subcube, microcube:** gone as storage. A 1 m brush does what placing a cube did. Subcube (1/3 m) has no
+  exact equivalent on the 1/8 m grid.
+- **MatSim "brick"** (its 8x8x8 cell group) is a **block**. "Brick" now means only the `Bricks` material or a
+  building part.
+- **MatSim "cell"** is a **voxel** once the simulation runs on the world grid (§5). "Cell" stays only for the lab's
+  coarser test sizes.
+- **"dynamic voxel", "debris", "kinematic group"** for things that move: all become **bodies** (below).
+
+| Term | Meaning |
+|---|---|
 | **bond** | The connection between two voxels that share a face. Breaking things = cutting bonds. |
 | **piece** | A set of voxels still bonded to each other after a break (a connected group). |
 | **anchored** | A piece still bonded, through other voxels, to the ground or to something fixed. Anchored pieces stay put. |
@@ -50,9 +77,10 @@ Engine terms where they exist; each new term defined once.
 ## 2. Goals and non-goals
 
 **Goals:**
-1. Detail at 1/9 m anywhere, with storage as cheap as today's cubes where nothing is detailed.
-2. **Today's look kept exactly** where content is the same. A 9x9x9 stone region looks like today's stone cube,
-   pixel for pixel (§4.3).
+1. Detail at 1/8 m anywhere, with storage as cheap as today's cubes where nothing is detailed.
+2. **Today's look kept exactly** where content is the same. A 1 m stone block (8x8x8 voxels) looks like today's
+   stone cube, pixel for pixel (§4.3). This holds for content on whole metres. Content on thirds is re-made (§7a), so
+   its shape changes slightly and it is judged by eye, not by pixel diff.
 3. Everything that changes (edits, simulation, breaking) works per block, on the GPU, without whole-chunk rebuilds
    on the main thread.
 4. Breaking produces **pieces along crack lines** that depend on the material and the hit. Crumbs only where they
@@ -62,7 +90,7 @@ Engine terms where they exist; each new term defined once.
 
 **Non-goals (v1):**
 - metal that bends;
-- cracks smoother than a voxel (cracks follow voxel faces, so they are jagged at 11 cm);
+- cracks smoother than a voxel (cracks follow voxel faces, so they are jagged at 12.5 cm);
 - full structural stress analysis (§6.6 phases it in later);
 - changing the lighting model (the new path must satisfy today's contract, `MatterRepresentationReview.md` A6).
 
@@ -88,8 +116,8 @@ blocks that need them.
 - A **solidity summary** for skipping empty space: lighting, physics and ray casts can skip a whole block in one test.
 
 ### 3.3 Chunk size
-- 32 x 32 x 32 blocks = 256 voxels per side (28.4 m at 1/9 m voxels; §13 Q1 changes this to 32 m if voxels become
-  1/8 m).
+- 32 x 32 x 32 blocks = 256 voxels per side = 32 m, the same as today's chunk. Chunk coordinates, database keys,
+  streaming distances and WorldForge's chunk arithmetic don't change.
 - The directory is 32,768 entries x 8 B = 256 KB per resident chunk. A chunk of all air or all rock collapses to one
   entry, as today's store does.
 
@@ -104,13 +132,14 @@ blocks that need them.
   directly. Audited per reader in phase F7.
 
 ### 3.5 Estimates (to be measured in F1)
-- Terrain surface: ~1-3 detailed blocks per column, so ~1-3 k detailed blocks per 28 m chunk column ≈ 0.6-2 MB.
+- Terrain surface: ~1-3 detailed blocks per column, so ~1-3 k detailed blocks per 32 m chunk column ≈ 0.6-2 MB.
   Today: ~5.9 MB per surface chunk (Debug).
 - One generated town's fine detail, 553 k microcubes = 75 MB today. Estimate: ~1-2 MB.
 
 ### 3.6 Saving
 - Codec v3: per chunk, the directory, then detailed blocks run-length encoded. Optional channels follow.
-- Old worlds: a converter from PXB2 (cube = a 9x9x9 region, subcube = 3x3x3, microcube = 1 voxel), or regenerate.
+- Old worlds: a converter from PXB2. A cube converts exactly to one 8x8x8 block. Subcubes and microcubes don't land
+  on the 1/8 m grid and are resampled (§7a). Generated worlds are regenerated instead, which is exact.
 
 ## 4. Drawing
 
@@ -131,9 +160,10 @@ The block's position comes from a per-block table, not from each face.
 
 ### 4.3 Today's look
 - Texture coordinates become a pure function of world position. The audit showed today's cube / subcube / microcube
-  UVs already reduce to one (`MatterRepresentationReview.md` A6), so a 9x9 patch of stone voxels shows today's 1 m
-  stone tile exactly.
-- `varied` materials keep their per-cell hash, now per 9x9x9 region, so the look is unchanged.
+  UVs already reduce to one (`MatterRepresentationReview.md` A6), so an 8x8 patch of stone voxels shows today's 1 m
+  stone tile exactly. The texture doesn't depend on voxel size.
+- `varied` materials keep their per-cube hash, now per block, which is exactly today's cube, so the look is
+  unchanged.
 - **Gate:** per-pixel diff against today's render at the same poses (debug tonemap, LightingPipeline trap 1).
 
 ### 4.4 Lighting and shadows
@@ -150,6 +180,9 @@ Ray-marching blocks instead of faces stays an option, decided on data (`MatterRe
 
 - MatSim's cells become world voxels with a fill channel: liquids and powders live in the world, not in a separate
   box.
+- MatSim's cell sizes change from 1, 1/3, 1/9 m to 1, 1/2, 1/4, 1/8 m. Its exact split/merge then works by halving,
+  and every measurement on this branch made at 1/9 m is re-run at 1/8 m. A 1/8 m grid has (9/8)³ = 1.42x fewer
+  voxels per m³ than 1/9 m.
 - Its GPU rules run on awake blocks only. Measured: 1.49 M awake cells stepped in 0.03-0.11 ms.
 - Particles for fast motion (the hybrid) write back into world voxels when they settle.
 - Crumbs from breaking (§6) are powder in this simulation: rubble that slides into piles.
@@ -242,7 +275,8 @@ get weaker, so repeated blows open the same cracks. Hairline cracks are drawn wh
 - **Gathering:** a resting piece is still the gatherable aftermath (`DestructionSystemV2.md` (D)).
 
 ### 6.8 Items
-- Items are already their own grids (fine items at 1/81 m, kinematic).
+- Items are already their own grids (today's fine items: 1/81 m, kinematic). They move to **item voxels**, 1/64 m,
+  so one world voxel splits into exactly 8x8x8 item voxels.
 - The fracture model doesn't depend on the voxel size: it works on any grid. An item breaks with the same patterns
   and bonds, at its own resolution, into pieces that are smaller items.
 
@@ -265,13 +299,43 @@ From the audit (`MatterRepresentationReview.md` A5), in order:
    voxels, set part ids), not per-voxel calls. `MicroCanvas` already paints at voxel resolution; it exports
    directly.
 3. **Drawing** (§4), behind a switch, with the pixel-diff gate.
-4. **Editing:** placing and breaking with brushes 1 / 3x3x3 / 9x9x9; picking returns a voxel position, not a
-   `Chunk*`.
+4. **Editing:** placing and breaking with brushes of 1, 2, 4 or 8 voxels per side; picking returns a voxel position,
+   not a `Chunk*`.
 5. **Destruction** (§6) replaces `DamageSystem`'s carving.
 6. **Saving** (codec v3 + converter), **LOD tiers 2/3** (a block mip pyramid), **snapshots / undo / the voxel API**
    (JSON in voxel coordinates; cube and subcube become brush sizes).
 7. **Delete** `Subcube`, `Microcube`, the C/S/M face packing and the old mesher. The 16 files that walk `chunkMap`
    go through the new interfaces.
+
+## 7a. Converting content to the 1/8 m grid
+
+Content on whole metres converts exactly: one cube becomes one block. Content on thirds (subcube, 1/3 m) and ninths
+(microcube, 1/9 m) does not, because 1/3 m is 2.67 voxels. Counted in the repo on 2026-11-10:
+
+| Content | How much | Made by |
+|---|---|---|
+| Templates with subcube or microcube lines | 177 of 238 `.voxel` files | mostly generators (`gen_tree.py`, `regen_furniture.py`, `vox_import.py`, BlockSmith); the rest by hand, count not yet split |
+| Fine-voxel items (`# grid: 81`) | 43 | `gen_items.py`, `vox_import.py --scale fine` |
+| Structure generator laid out on thirds | 5 files: `StructureGenerator`, `StructureRealizer`, `StructureForge`, `StructureBuildService`, `SettlementBuildService` | code |
+| Roof textures cropped to land courses on the 1/3 m grid | the roof family in `fetch_polyhaven.py` | tool |
+| MatSim cell sizes 1, 1/3, 1/9 m | `validCellsPerM` and its tests | code |
+
+The plan for each:
+1. **Inventory first (in F0).** List every template as generator-made or hand-made, and list every place the code
+   assumes 3 or 9 per metre (`grep` for the constants, plus the subcube/microcube APIs). Output: a table in this doc.
+2. **Change the generators**, not their output. Each generator emits the 1/8 m grid (or 1/64 m for items), and the
+   library is regenerated. This is exact by construction.
+3. **Redesign features that relied on thirds.** For example, roof courses and trim on 1/3 m steps move to 1/4 m or
+   3/8 m steps, and their texture crops are re-measured. Each one is reviewed by eye on screenshots, before and
+   after.
+4. **Resample hand-made templates** with a resampler that preserves volume per material (the count of voxels times
+   voxel volume stays within one voxel per material), then review by eye. Any that look wrong are re-authored.
+5. **Lint:** a check that fails if any template or generator still writes on a third or ninth grid.
+
+Exit: every template loads on the new grid; the lint passes; the structure generator's validation suite (L2/L3 in
+`ValidationLedger.md`) passes on the new grid; screenshots of the whole library reviewed.
+
+This work runs alongside F1-F3 and must finish before F7 switches the default.
 
 ## 8. Test harnesses (built before the features they test)
 
@@ -306,7 +370,8 @@ Every rig is checked for:
 
 | Phase | What | Exit test | Stop if |
 |---|---|---|---|
-| **F0** | Decide §13; write the two harness skeletons | — | — |
+| **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1) | — | — |
+| **FC** | Content conversion (§7a), alongside F1-F3 | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area | memory ≥ 5x better on the town; every read-interface query equal | memory win < 5x |
 | **F2** | GPU face building + drawing through today's lighting | pixel diff within the gate at 5 poses; frame time ≤ today | can't match the look, or slower |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
@@ -342,11 +407,15 @@ Outcomes that never depend on the tier:
 5. **Rotation at rest** (§6.7): baked pieces shift by up to half a voxel; kept pieces cost memory.
 6. **The world simulation and fracture share the grid.** Concurrent writes in one block need an order (simulation
    then fracture, per tick).
-7. **Content compatibility** depends on §13 Q1.
+7. **Content conversion** (§7a). 177 of 238 templates, 43 fine items and the structure generator's thirds-based
+   layout must move to the 1/8 m grid. Mostly generator changes, but hand-made templates need resampling and review,
+   and features designed on 1/3 m steps (roof courses, trim) need redesign. Its size is unknown until the F0
+   inventory.
 
 ## 12. What stays as it is
 
-- Fine items (1/81 m, kinematic);
+- items as their own kinematic grids (their grid moves from 1/81 m to 1/64 m, §6.8);
+- chunk size (32 m) and chunk coordinates;
 - characters;
 - far terrain and far-tree LOD (tiers 4-6, independent of chunks);
 - the lighting model and its gates;
@@ -354,13 +423,9 @@ Outcomes that never depend on the tier:
 
 ## 13. Open decisions for the owner
 
-1. **Voxel size.**
-   - **(A) keep 1/9 m:** every existing generator, template, roof course and texture stays exact. Blocks of 8 are
-     0.89 m, so metres and blocks don't line up (invisible to the player, like chunks).
-   - **(B) 1/8 m (12.5 cm):** 8 voxels = 1 block = exactly 1 m, so everything is a power of two. Existing content
-     built on thirds and ninths of a metre must be re-made or resampled.
-   - Recommendation: (A), because it keeps all existing content exact. (B) is cleaner if we are willing to
-     regenerate content.
+1. ~~Voxel size~~ **Decided 2026-11-10: 1/8 m** (D5). Rejected: 1/9 m, which keeps today's content exact but leaves
+   blocks at 0.89 m and chunks at 28.4 m, off whole metres; and 1/9 m with 36-block chunks (32 m), which fixes the
+   chunks only.
 2. **Body rest policy:** the hybrid (§6.7 c), or always-bake / never-bake.
 3. **Structural load in v1** (§6.6), or after the fracture lab's video review.
 4. **Start with F1 (storage) and the fracture lab's CPU reference (F4) in parallel?** They don't touch each other,

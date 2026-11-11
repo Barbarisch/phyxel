@@ -285,10 +285,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       column height field / shallow water (new; the CA's speed depends on cell size 46.7/4.5/0.81 m/s, so CA rings would seam),
       rest = coarse cells. Relaxes R2 to a tolerance (owner decision). **Next: P0, the disturbance harness** (20x20x2 m pool,
       D1-D4, uniform 1/9 reference vs 1/3 vs 1 m, probes + wave arrival + moving volume); kill if adaptivity can win < 2x.
-    - **VOXEL FOUNDATION PLAN (owner 2026-11-10)**, `docs/VoxelFoundationPlan.md`: decided ONE voxel size (today's microcube)
-      replacing cube/subcube/microcube, GPU-first, 8x8x8 blocks (uniform or detailed), fracture along crack patterns into
-      pieces (bonds, part ids, anchoring, bodies with one transform, crumbs as powder). Phases F0-F8. Open: voxel size
-      1/9 vs 1/8 m, body rest policy, structural load in v1, F1 + F4 in parallel.
+    - **VOXEL FOUNDATION PLAN (owner 2026-11-10)**, `docs/VoxelFoundationPlan.md`: decided ONE voxel size, **1/8 m (12.5 cm)**,
+      replacing cube/subcube/microcube; **voxel → block (8x8x8 = 1 m) → chunk (32x32x32 blocks = 32 m, same as today)**;
+      items on **item voxels** (1/64 m, replaces 1/81 m). GPU-first, uniform/detailed blocks, fracture along crack
+      patterns into pieces (bonds, part ids, anchoring, bodies with one transform, crumbs as powder). Retired terms:
+      cube/subcube/microcube (brushes of 1/2/4/8 voxels instead), MatSim "brick" = block, MatSim "cell" = voxel.
+      Content on thirds/ninths must convert (§7a: 177/238 templates, 43 fine items, structure generator's thirds).
+      Phases F0-F8 + FC. Open: body rest policy, structural load in v1, F1 + F4 in parallel.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only
