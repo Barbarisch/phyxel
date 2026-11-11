@@ -679,6 +679,39 @@ content, 64 for items. The live loader accepts only 27/81 today; the lab reads g
    doors moved to `architecture/` in the 2026-08-07 taxonomy, so a re-run would have made root strays with
    colliding stems. Fixed: legacy now writes to `architecture/`, and its output equals the committed files.
    Tests: `tools/test_gen_door_grid.py` (red first).
+
+   **Items done 2026-11-11 (`gen_items.py --grid 64`, all 52).** The items are authored cell by cell at 1/81 m
+   (the flat projected boards at 1/27 m), with tints doing the fine colour work. So the authored canvas is kept
+   whole and resampled at emit time, not mapped box by box:
+   - **Occupancy:** each authored cell covers the output cells between its edges, mapped to the nearest
+     1/64 m edge. Runs keep their extent exactly. A cell with no output edge of its own keeps one cell only
+     when it is a one-cell-thick part along that axis, placed in the cell that holds its centre.
+   - **Content:** each output cell holds the authored cell nearest its centre, independent of painting order.
+   - **No detail vanishes:** a material+tint the content rule dropped everywhere (the quiver's one-cell
+     fletching caps, the candle's two-tone flame) recolours the cell at its centre. If that cell holds the
+     last cell of another detail, it takes the nearest empty face-neighbour instead.
+   - **Grip:** the output cell holding the authored grip centre, snapped to the nearest occupied cell when the
+     legacy grip is on the item (the jug's strap).
+
+   Output: `resources/templates_g8/{items,weapons,test}` + `templates_g8/items_manifest.json`, B/V lines with
+   tints, 143 KB against 1.3 MB legacy. The catalog is not touched.
+
+   **Tests** (`tools/test_gen_items_grid.py`, red first):
+   - legacy output equals the unmodified generator's (digest over 54 files; the committed item library equals
+     its generator, 53/53 files);
+   - on grid 64: extents within one cell, exactly the same material+tint set, and grip within one cell of
+     legacy, on a solid cell exactly when legacy's is (the bowl and lantern are held over a hollow on both grids).
+
+   **Eye check** (offline contact sheet): the weapons, tableware and lights read the same. Losses:
+   - fork: the tines merge, since 3 tines + 2 gaps need 5 cells and the head is 4 cells at 1/64 m;
+   - lantern: the dark corner posts mostly give way to the glass panes;
+   - goblet: the rim crenellation smooths out;
+   - sword: the gilt pommel cap becomes steel. The check works per material+tint, and the same gilt survives
+     on the guard tips, so it can't see this loss.
+
+   The 1/81 m designs ask for detail the 1/64 m item grid can't resolve in these spots. They need re-design
+   in 1/64 m terms.
+   Pre-existing: the legacy writer saves headers in cp1252 (the em dash is byte 0x97), not UTF-8.
 5. **Retire** `gen_tree.py` (bush presets in tree_forge) and port tree_forge to C++ for procedural flora.
    **Bushes done 2026-11-11.** Finding: gen_tree's "height 2" bushes are not 2 m: `bush_round` is 5.3 x 3.3 x 4.3 m
    (27 m³ leaf, no wood), `bush_leafy_s` 5.0 x 3.3 x 5.7 (32 m³), `bush_leafy_m` 5.0 x 4.3 x 5.7 (50 m³). Replaced by
@@ -734,7 +767,7 @@ Every rig is checked for:
 | Phase | What | Exit test | Stop if |
 |---|---|---|---|
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1). **Done 2026-11-10:** §13 decided; inventory in §7a.1-7a.2; save check in §3.5a point 7; skeletons `engine/*/core/voxfound/` (`VoxelGrid`, `FractureLab`, `StorageLab`) + `VoxFoundFractureLabTest` (4 checker tests green, 8 predictions red until F4) + `VoxFoundStorageLabTest` (3 green incl. measured terrain stats, 3 red until F1) | — | — |
-| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8`, all 34 assets (step 4); next: `gen_door`/`gen_items` (items 1/81 → 1/64 m), hearths and furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
+| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8` (34), `gen_door --grid 8`, `gen_items --grid 64` (52) (step 4); next: `gen_seat_variants`, hearths and furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | pixel diff within the gate at 5 poses; face count ≤ today's on the same scene; frame time ≤ today | can't match the look, or more faces, or slower |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |

@@ -19,6 +19,10 @@ PAL = {"WoodWalnut": (110, 72, 45), "Wood": (160, 115, 70), "Log": (85, 60, 40),
 
 
 def col(m):
+    if isinstance(m, tuple):                  # (material, tint): items carry their look in the tint
+        m = m[1] or m[0]
+    if m.startswith("#"):
+        return tuple(int(m[i:i + 2], 16) for i in (1, 3, 5))
     if m in PAL:
         return PAL[m]
     h = hashlib.md5(m.encode()).digest()

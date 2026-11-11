@@ -32,6 +32,7 @@ import os
 import sys
 
 GRID = 81                      # cells per cube edge (1 cell = 1/81 unit)
+OUT_GRID = None                # --grid N: emit on N cells per metre (64 = the 1/64 m item grid) instead
 ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_WEAPONS = os.path.join(ROOT, "resources", "templates", "weapons")
 OUT_ITEMS = os.path.join(ROOT, "resources", "templates", "items")
@@ -184,9 +185,81 @@ class Model:
         zs = [c[2] for c in self.cells]
         return (min(xs), min(ys), min(zs)), (max(xs), max(ys), max(zs))
 
+    def resampled(self, n):
+        """The authored canvas on n cells per metre (docs/VoxelFoundationPlan.md 7a.3 step 4). Occupancy: each
+        authored cell covers the output cells between its edges mapped to the nearest output edge, at least one
+        (thin parts survive, touching parts keep touching). Content: the authored cell whose centre is nearest
+        the output cell's centre (independent of painting order). Returns (cells, grip_cell_or_None)."""
+        a = self.grid
+
+        def edge(b):
+            return (2 * b * n + a) // (2 * a)
+
+        def span(c, axis=None, cell=None):
+            # A cell whose two edges map to the same output edge covers nothing -- unless it is a run one
+            # cell thick along this axis (a thin part), which keeps one cell. Inside a longer run the
+            # neighbours' spans cover the run exactly edge to edge, so the run does not grow.
+            lo, hi = edge(c), edge(c + 1) - 1
+            if hi < lo and cell is not None:
+                lo_n = list(cell); lo_n[axis] -= 1
+                hi_n = list(cell); hi_n[axis] += 1
+                if tuple(lo_n) not in self.cells and tuple(hi_n) not in self.cells:
+                    lo = hi = ((2 * c + 1) * n) // (2 * a)   # the output cell holding its centre
+            return range(lo, hi + 1)
+
+        best = {}
+        for c in sorted(self.cells):
+            sx, sy, sz = (span(c[i], i, c) for i in range(3))
+            for o in ((ox, oy, oz) for ox in sx for oy in sy for oz in sz):
+                d = sum(((c[i] + 0.5) * n / a - (o[i] + 0.5)) ** 2 for i in range(3))
+                if o not in best or d < best[o][0]:
+                    best[o] = (d, self.cells[c])
+        # A detail never vanishes: a (material, tint, state) the nearest-centre choice dropped everywhere
+        # (a one-cell fletching cap on a shaft) takes the output cell holding each of its authored centres,
+        # or the nearest occupied cell next to it -- it recolours, it does not add volume.
+        kept = {v for (_, v) in best.values()}
+        for c in sorted(self.cells):
+            v = self.cells[c]
+            if v in kept:
+                continue
+            p = [(c[i] + 0.5) * n / a for i in range(3)]
+            o = tuple(math.floor(t) for t in p)
+            if o not in best:
+                near = [(o[0] + i, o[1] + j, o[2] + k) for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1)]
+                near = [q for q in near if q in best]
+                if not near:
+                    continue
+                o = min(near, key=lambda q: (sum((q[i] + 0.5 - p[i]) ** 2 for i in range(3)), q))
+            held = best[o][1]
+            if held != v and sum(1 for (_, w) in best.values() if w == held) == 1:
+                # o holds the LAST cell of another detail (a two-tone candle flame in one output cell):
+                # take the nearest empty face-neighbour instead (one added cell, within the extent bound)
+                free = [(o[0] + d[0], o[1] + d[1], o[2] + d[2]) for d in
+                        ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))]
+                free = [q for q in free if q not in best]
+                if not free:
+                    continue
+                o = min(free, key=lambda q: (sum((q[i] + 0.5 - p[i]) ** 2 for i in range(3)), q))
+            best[o] = (0.0, v)
+        grip = None
+        if self.grip:
+            # the output cell containing the authored grip cell's centre; if the grip is ON the item (a thin
+            # handle) and that cell is empty, the nearest occupied cell within one step
+            p = [(self.grip[i] + 0.5) * n / a for i in range(3)]
+            grip = tuple(math.floor(v) for v in p)
+            if self.grip in self.cells and grip not in best:
+                near = [(grip[0] + i, grip[1] + j, grip[2] + k)
+                        for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1)]
+                near = [o for o in near if o in best]
+                if near:
+                    grip = min(near, key=lambda o: (sum((o[i] + 0.5 - p[i]) ** 2 for i in range(3)), o))
+        return {o: v for o, (_, v) in best.items()}, grip
+
     def emit(self, out_dir):
         if not self.cells:
             raise ValueError(f"{self.name}: empty model")
+        if OUT_GRID:
+            return self._emit_grid(out_dir, OUT_GRID)
         (mnx, mny, mnz), (mxx, mxy, mxz) = self.bounds()
         shift = (-mnx, -mny, -mnz)
         dims = (mxx - mnx + 1, mxy - mny + 1, mxz - mnz + 1)
@@ -229,6 +302,43 @@ class Model:
             ]
         print(f"  {self.name:16s} {len(self.cells):6d} cells  "
               f"{dims[0]/g:.2f}x{dims[1]/g:.2f}x{dims[2]/g:.2f} u")
+        return entry
+
+    def _emit_grid(self, out_dir, n):
+        """'# grid: n' B/V lines (greedy boxes over equal material+tint+state) into the foundation library."""
+        from voxgrid import greedy_boxes
+        cells, grip = self.resampled(n)
+        ox, oy, oz = (min(c[i] for c in cells) for i in range(3))
+        cells = {(x - ox, y - oy, z - oz): v for (x, y, z), v in cells.items()}
+        dims = tuple(max(c[i] for c in cells) + 1 for i in range(3))
+        lines = [
+            f"# grid: {n}",
+            f"# {self.name} — item on the 1/{n} m grid, resampled from its 1/{self.grid} m design",
+            f"# Generated by tools/gen_items.py --grid {n} — DO NOT hand-edit; edit the generator.",
+            f"# dims: {dims[0]}x{dims[1]}x{dims[2]} cells ({dims[0]/n:.3f}x{dims[1]/n:.3f}x{dims[2]/n:.3f} m)",
+            f"# category: {self.category}",
+        ]
+        if self.surface:
+            lines.append(f"# surface: texture={self.surface[0]} projection=planar axis={self.surface[1]}")
+        for (x, y, z, sx, sy, sz, (mat, tint, state)) in greedy_boxes(cells):
+            line = f"V {x} {y} {z} {mat}" if sx == sy == sz == 1 else f"B {x} {y} {z} {sx} {sy} {sz} {mat}"
+            if tint:
+                line += f" tint={tint}"
+            if state:
+                line += f" state={state}"
+            lines.append(line)
+        lib = os.path.join(ROOT, "resources", "templates")
+        g_lib = os.path.join(ROOT, "resources", "templates_g8")
+        out = os.path.join(g_lib, os.path.relpath(out_dir, lib))
+        os.makedirs(out, exist_ok=True)
+        path = os.path.join(out, self.name + ".voxel")
+        with open(path, "w", newline="\n", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        entry = {"file": os.path.relpath(path, g_lib).replace("\\", "/"), "grid": n, "cells": len(cells),
+                 "dims_units": [round(d / n, 4) for d in dims]}
+        if grip:
+            entry["grip_point_units"] = [round((grip[i] - (ox, oy, oz)[i] + 0.5) / n, 4) for i in range(3)]
+        print(f"  {self.name:16s} {len(cells):6d} cells  {dims[0]/n:.2f}x{dims[1]/n:.2f}x{dims[2]/n:.2f} m (grid {n})")
         return entry
 
 
@@ -1159,7 +1269,35 @@ def register_catalog(manifest):
 
 
 def main():
-    only = set(sys.argv[1:])
+    global OUT_GRID
+    args = sys.argv[1:]
+    OUT_GRID = None
+    if "--grid" in args:
+        i = args.index("--grid")
+        OUT_GRID = int(args[i + 1])
+        del args[i:i + 2]
+    try:
+        _main(set(args))
+    finally:
+        OUT_GRID = None
+
+
+def _main(only):
+    if OUT_GRID:
+        # the foundation library: its own manifest, no catalog entry (the live engine does not load it yet)
+        g_man = os.path.join(os.path.dirname(os.path.dirname(MANIFEST)), "templates_g8", "items_manifest.json")
+        manifest = json.load(open(g_man)) if os.path.exists(g_man) else {}
+        for gen in ALL:
+            name = gen.__name__[len("gen_"):]
+            if only and name not in only:
+                continue
+            model, out_dir = gen()
+            manifest[model.name] = model.emit(out_dir)
+        os.makedirs(os.path.dirname(g_man), exist_ok=True)
+        with open(g_man, "w", newline="\n") as f:
+            json.dump(manifest, f, indent=2, sort_keys=True)
+        print(f"manifest -> {g_man}")
+        return
     manifest = {}
     if os.path.exists(MANIFEST):
         with open(MANIFEST) as f:

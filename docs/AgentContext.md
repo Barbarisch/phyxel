@@ -326,8 +326,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Losses where details are 1/9 apart (tool rack 4->3 tools, keg hoops, forge coals) need re-design in metres.
       GOTCHA: the COMMITTED furniture library is NOT its generator's output (metrics schema v1 vs v2; 6 templates
       lack the interaction_point header, e.g. table_wood's surface point) -- logged, not regenerated. Offline eye
-      check without the engine: an isometric PIL contact sheet (engine can't load grid 8). NEXT: gen_door/gen_items
-      (1/81 -> 1/64 m); hearth bodies + furniture placement in C++; the other structure generators (StructureForge furnish, Tower/Fence/Street/Settlement);
+      check without the engine: tools/grid_contact_sheet.py (isometric PIL; engine can't load grid 8). gen_door
+      --grid 8 (re-designed in metres; legacy output dir fixed to architecture/) and gen_items --grid 64 (authored
+      1/81 canvas RESAMPLED at emit: edge-mapped occupancy, nearest-centre content, no material+tint vanishes)
+      DONE, red-first tests tools/test_gen_{door,items}_grid.py. NEXT: gen_seat_variants; hearth bodies + furniture placement in C++; the other structure generators (StructureForge furnish, Tower/Fence/Street/Settlement);
       a building into the storage lab area; F4 fracture reference.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
