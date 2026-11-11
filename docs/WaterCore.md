@@ -12655,7 +12655,7 @@ compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the s
 settings (tall cells on, recording off) the lake still sleeps (W1f, 4 of 4): the partial wake freezes columns before the bed churn
 or the stored velocities build. Recording keeps it awake long enough for them to show.
 
-## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 step 1 BUILT, OFF (51.4b) - none signed off
+## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 (steps 1-3) BUILT, ON by default - the owner's call 2026-11-11 (51.4g); S4 next
 
 **The owner's words:** *"the biggest deal when making water work at scale is an area threshold for water disturbances"*; *"at some
 point we will need to make bodies of water that are bigger than 100 meters... that means levels. that means 'at this point water
@@ -13043,6 +13043,16 @@ stops being resident - the re-route already happens then.
   device state freed a cycle late at cycles 8 and 11 - timing) with ANOTHER application holding the GPU at ~50 % (a game, not this
   work); it passed on the idle GPU after 51.4b and touches none of the changed code (create / step / the ripple layer). Re-run
   on the idle GPU (the game closed): 3 / 3 pass - the load's, not this change's.
+
+**51.4g (2026-11-11) the skin ships ON - the owner's call** (51.4 item 6). The owner, after watching `skin150_flyout.mp4` (off | on
+side by side): *"well based on that video, obviously skin needs to be on"*. `WaterSkin::Settings::on` now defaults to true, pinned by
+`WaterSkinTest.TheSkinShipsOn`; `water_av_skin {"on":false}` still turns it off. What the decision covers: the skin is drawn by
+default. What it does not yet cover (still the owner's): the shore rule (a coarse cell covers only its wet columns' rectangle), and the
+level-to-level pops in motion (S4). Cost as measured in 51.4b-f: Creek wide pose 517 vs 527-557 fps (CPU 1.96 vs 1.84-1.94 ms, GPU
+0.88 vs 0.78 ms); RiverCarve 37.7 / 37.9 fps. Every streaming world now runs 2 generator worker threads while its reach fills (~3
+min on a generated world, every session - the summary cache of 51.4f "Left" would make it once). Known defect now visible by
+default: RiverCarve's generated record holds a lake at y 107.8 the terrain does not hold, drawn as a wall by the record tiles and
+now also by the skin far away (a generator defect, 51.4c item 2, not fixed).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

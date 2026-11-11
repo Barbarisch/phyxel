@@ -81,6 +81,13 @@ long skinWetColumns(WaterCoreManager& mgr) {
 
 }  // namespace
 
+// 51.4g: the owner's call (2026-11-11, from the fly-out clip) - the skin ships ON; a default change updates this test in the same commit
+TEST(WaterSkinTest, TheSkinShipsOn) {
+    EXPECT_TRUE(WaterSkin::Settings{}.on);
+    EXPECT_EQ(WaterSkin::Settings{}.farM, 1024.0f);
+    EXPECT_EQ(WaterSkin::Settings{}.baseCellM, 4);
+}
+
 TEST(WaterSkinTest, TheFarHalfOfALakeIsDrawn) {
     SkinSettingsGuard guard;
     WaterCoreManager::s_locality.drawM = 48.0f;

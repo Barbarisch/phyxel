@@ -47,7 +47,7 @@ void summarizeSkinCells(const std::vector<ColumnRuns>& runs, std::map<std::pair<
 class WaterSkin {
 public:
     struct Settings {
-        bool on = false;              ///< ships OFF until the owner signs it off (51.4 item 6)
+        bool on = true;               ///< ON: the owner, 2026-11-11, from the fly-out clip (51.4g); pinned by TheSkinShipsOn
         float farM = 1024.0f;         ///< the skin's reach (m, horizontal); cells whose centre is farther are not drawn
         int baseCellM = 4;            ///< level 0's cell: 4 or 8 (a level-0 cell must lie inside one 8 m record tile, or the seam moves)
         int ringCells = 64;           ///< N: cells per side of a level (a multiple of 4, so each level sits on the next one's lattice)

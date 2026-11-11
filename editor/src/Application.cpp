@@ -14325,7 +14325,7 @@ void Application::registerWaterCommands() {
              {"revision", waterCore->recordRevision()}};
     });
     // 51.4 S3: the far skin - recorded water beyond the record tiles (draw_m) drawn as coarse fields on clipmap rings. Omitted =
-    // unchanged. on (default OFF until the owner signs it off); far_m its reach, 0..the far plane (maxChunkRenderDistance - beyond
+    // unchanged. on (default ON - owner 2026-11-11, 51.4g); far_m its reach, 0..the far plane (maxChunkRenderDistance - beyond
     // it the quads are clipped anyway); base_cell_m 4 or 8 (a level-0 cell must lie inside one 8 m record tile, or the seam would cut
     // it - anything else is refused, not rounded); ring_cells 8..256, rounded up to a multiple of 4 (each level then sits on the next
     // one's lattice); summaries_per_call 1..1024 (chunk columns summarized a call). The echo: the values in force and the stats.
