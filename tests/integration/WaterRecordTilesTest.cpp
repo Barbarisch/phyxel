@@ -928,7 +928,7 @@ static LakeSplash runRecordedLake(VkDevice device, VkPhysicalDevice pd, VkQueue 
 // skin; points every 2 m within drawM + 24 m of the camera, on the lake: drawn by nothing (a hole) or by the skin AND a record tile /
 // a volume (a double); the books (record + live volumes - placed). Prediction: 0 hole frames, 0 doubles, |books| < 1e-3 m^3 every
 // frame. (The pops of a coarse shore are TheShoreSwapsAreSmall's, CPU; this lake's straight shores do not swap.)
-struct FlySplash { long frames = 0, liveFrames = 0, holeFrames = 0, holesMax = 0, doubleFrames = 0; double booksWorst = 0.0, booksEnd = 0.0; bool woke = false, slept = false; int phase = 0; };
+struct FlySplash { long frames = 0, liveFrames = 0, holeFrames = 0, holesMax = 0, doubleFrames = 0; double booksWorst = 0.0, booksEnd = 0.0, skinMsLive = 0.0, skinMsLiveMax = 0.0; long skinRebuiltLive = 0; bool woke = false, slept = false; int phase = 0; };
 static FlySplash runFlyToSplash(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool realtime, bool redMask) {
     FlySplash o;
     const auto drawBefore = WaterCoreManager::s_recordDraw; const float drawMBefore = WaterCoreManager::s_locality.drawM;
@@ -976,9 +976,11 @@ static FlySplash runFlyToSplash(VkDevice device, VkPhysicalDevice pd, VkQueue qu
         mgr.setViewPoint(view);
         mgr.update(dt);
         mgr.surfaceFields();
+        const auto ts = std::chrono::steady_clock::now();
         mgr.skinFields();
+        const double sms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ts).count();
         const bool live = !mgr.list().empty();
-        if (live) ++o.liveFrames;
+        if (live) { ++o.liveFrames; o.skinMsLive += sms; o.skinMsLiveMax = std::max(o.skinMsLiveMax, sms); o.skinRebuiltLive += mgr.skinStats().fieldsRebuiltLastCall; }
         if (o.woke && !live) o.slept = true;
         ++o.frames;
         if (!realtime) {   // the books: every step synced (realtime readers see the grid once a second - stale, not wrong)
@@ -1023,6 +1025,9 @@ TEST_F(WaterRecordTilesTest, TheFlyInToASplashAndOutHasNoHolesAndTheBooksExact) 
         std::printf("  %-42s %ld frames (patch live in %ld; slept %d, phase %d): holes in %ld (max %ld), doubles in %ld; books worst %.6f, at the end %+.6f m^3\n",
                     n, s.frames, s.liveFrames, int(s.slept), s.phase, s.holeFrames, s.holesMax, s.doubleFrames, s.booksWorst, s.booksEnd);
     };
+    std::printf("  the skin while the patch lives (realtime): %.3f ms a frame mean, %.2f max, %.1f fields rebuilt a frame | red control %.3f / %.2f / %.1f\n",
+                a.skinMsLive / std::max(1L, a.liveFrames), a.skinMsLiveMax, double(a.skinRebuiltLive) / std::max(1L, a.liveFrames),
+                red.skinMsLive / std::max(1L, red.liveFrames), red.skinMsLiveMax, double(red.skinRebuiltLive) / std::max(1L, red.liveFrames));
     line("realtime (drawing as live)", a);
     line("RED CONTROL (a volume's whole box masked)", red);
     line("synced each step (the books)", b);

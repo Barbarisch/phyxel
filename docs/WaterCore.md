@@ -13150,6 +13150,16 @@ and a record tile / volume).
   fly-out. Skin OFF: the live patch is a notched island (its recorded tiles drawn by nobody beyond 48 m - the defect the skin's box
   mask had too). Skin ON: the lake whole at 151 and 322 m, the splash's ring visible in the patch, no hole round it. Found, both takes
   alike (not the skin's): ~5 s under 60 fps after the splash at this pose (3-57 fps; the wake), mean 318 fps over the take.
+- **The skin's cost while a patch lives (51.7b, measured - a hypothesis dropped):** the close pose's splash A/B/A (`water_skin_live.py
+  --pose close --splash-ab`, `s4_close_ab.json`): fps mean 86.6 / 83.9 / 87.3 (skin on / off / on), CPU frame 22.2 / 18.0 / 21.9 ms,
+  water host 18.5 / 15.1 / 20.1 ms. Suspected: 51.7's revision (the volumes' recorded tiles) rebuilding every skin level each time a
+  patch tile records or wakes. Built a narrower rebuild and measured it in the GPU test: the skin while the patch lives 0.290 ms a
+  frame either way, 1.7 fields rebuilt a frame either way (an unchanged field is skipped) - **no gain, reverted.** The split says
+  why: the skin runs in the editor's `feed` (0.82 / 0.02 / 0.53 ms); the difference is the WATER UPDATE (17.7 / 13.1 / 15.4 ms), which
+  the skin does not touch and which varies splash to splash. **The skin's live cost while a patch is awake: ~0.5-0.8 ms a frame.**
+  **Found, the bigger thing (not the skin's, S1/S2's):** a splash 26 m from the close camera holds the frame under 60 fps for ~8 s -
+  CPU 18-22 ms a frame, the water update 13-18 ms of it (at rest there: 183-224 fps, GPU 6.4 ms). Logged for the owner; the patch's
+  update cost at a near pose is the next lever on the 120 fps target, not the skin.
 - Tests: water unit + storage 423 / 423; integration water 83 / 85 (the known two). S4 now: the swaps in motion have no holes, no doubles and exact books in the tests; the pops left are the level steps' shore swaps
   (51.6). Owner sign-off: the clip (`s4_flyout.mp4`) and the look calls (a fade for the level steps; the sub-cell shore).
 
