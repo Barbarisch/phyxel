@@ -294,7 +294,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       §3.5a SCALE budget (owner review): floats per object never per voxel; dense storage impossible (10 GB at 256 m),
       uniform blocks -> est 1-3 GB; block mip pyramid = LOD; face COUNT (not bytes) is the draw cost so cross-block
       merging is required; generating 16.7 M voxels/chunk is the streaming limit; anchoring search bounded via the
-      block graph. Phases F0-F8 + FC. Open: rest policy, collapse under weight in v1, detail radius (256 m recommended).
+      block graph. Phases F0-F8 + FC. ALL DECIDED 2026-11-10: D6 resting pieces = hybrid (body near/recent, bake far
+      when over budget); D7 no collapse-under-weight in v1 (after fracture videos); D8 LOD variable with many steps
+      (~16 power-of-two levels 12.5 cm..4 km, chosen per region by screen size, cross-faded, budget controller; no
+      fixed detail radius). NEXT: F0 (content inventory, harness skeletons), then F1 storage; F4 fracture rules alongside.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

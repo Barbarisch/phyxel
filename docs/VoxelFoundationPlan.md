@@ -28,7 +28,16 @@ Decided:
   and a chunk is 32 m, the same as today. Chosen over 1/9 m because everything then nests in powers of two and
   lines up with whole metres. The cost is converting content built on thirds and ninths of a metre (§7a).
 
-Still open: §13.
+- **D6: resting pieces use the hybrid** (owner, 2026-11-10: *"go with C"*). A piece stays a body while it is near
+  the player or recently moved, and is baked into the world grid when it is far away and the body budget is full
+  (§6.7).
+- **D7: no collapse under weight in v1** (owner: *"do your suggestion"*). v1 uses anchoring only. Structural load
+  (§6.6) is decided after the owner sees the fracture-lab videos.
+- **D8: level of detail is variable, with many steps** (owner: *"LOD should be variable with many many many
+  steps"*). There is no single detail radius. The level is chosen continuously by size on screen, with every
+  power-of-two level from 1/8 m to kilometres (§3.5a point 3).
+
+Still open: none.
 
 ## 1. Words used in this plan
 
@@ -176,15 +185,32 @@ For comparison, today's debris costs 6 faces x 64 B = 384 B per moving voxel, wi
 - **Full voxel detail cannot reach 1 km:** 16x the area is 15-50 GB. Beyond the detail radius the world is drawn
   from coarser levels (point 3).
 
-**3. Levels of detail are built into blocks.**
-- A block mip pyramid: 1/8, 1/4, 1/2 m, then 1 m (one value per block), then 2 m and 4 m. Each level holds 1/8 of the
-  data of the level below.
-- At 1 m per block, the far world costs what today's world of cubes costs.
-- The pyramid replaces tier 2 (resident chunk LOD, currently off). It feeds tier 3 (far-LOD chunks) and the
-  structure and tree proxies (tiers 5 and 7), which today build their own pyramids. `LodTierLedger.md` is updated
-  when this is built.
-- The detail radius (full 1/8 m voxels) is a performance-tier knob, for example 128 / 256 / 384 m.
-- The chunk rule holds: LOD changes cost and how things look by distance, never by chunk.
+**3. Levels of detail: variable, with many steps (D8).**
+- **The levels.** A mip pyramid over the voxels, with one level per power of two:
+  - 1/8, 1/4, 1/2 m inside a block, then 1 m (one value per block);
+  - then 2, 4, 8, 16, 32 m inside a chunk;
+  - then 64 m up to ~4 km above chunks, replacing today's separate far tiers where they can share it.
+  - That is about 16 steps from 12.5 cm to 4 km. Each level holds 1/8 of the data of the level below, so the whole
+    pyramid costs ~14 % more than the finest level alone.
+  - Powers of two are the only steps that nest exactly: every coarse voxel is exactly 2x2x2 of the next finer level.
+    Finer steps (for example 1.5x) would need resampling and break exactness. Smoothness between steps comes from
+    blending instead (below).
+- **No fixed distances.** The level is chosen per block region (never per chunk) by how big a voxel looks on screen,
+  aiming at a target number of pixels per voxel. So the level adapts by itself to resolution, field of view and
+  zoom.
+- **Variable by budget.** The pixels-per-voxel target is the performance-tier knob. A controller raises it when GPU
+  memory or frame time is over budget and lowers it when there is room. Detail fills whatever the machine can afford,
+  and on a 24 GB card it reaches far.
+- **No visible steps.** Neighbouring levels are cross-faded (dithered per pixel over a band, as tiers 5 and 8b already
+  do), so a change of level never pops. Gates for each level: no holes where levels meet, and no "fattening".
+  - Fattening means coarse levels drawing solids bigger than they are. It is one of the two reasons today's tier 2 is
+    off; the other is grass.
+- **Simulation and physics use their own radius, not the LOD.** Physics, liquids and fracture run only at full
+  detail near characters. Far levels are only drawn.
+- **What it replaces.** The pyramid replaces tier 2 (resident chunk LOD, currently off). It feeds tier 3 (far-LOD
+  chunks) and the structure and tree proxies (tiers 5 and 7), which today build their own pyramids.
+  `LodTierLedger.md` is updated when this is built.
+- **The chunk rule holds:** LOD changes cost and how things look by distance, never by chunk.
 
 **4. GPU memory bandwidth per frame.**
 - **Bytes per face are not the bottleneck.** Today's measured 4-settlement scene has 270 k faces. At 12 B x 4 passes
@@ -355,7 +381,8 @@ get weaker, so repeated blows open the same cracks. Hairline cracks are drawn wh
 - v1 uses anchoring only: connected or not.
 - v2 adds load: each bond carries the weight above it, and an overloaded bond cracks. A sagging beam snaps, a
   cantilever breaks at its root.
-- It is decided on data from the F4 harness, because it is expensive and not needed for the first look.
+- Decided (D7): not in v1. Decided after the owner reviews the F4 fracture-lab videos, because it is expensive and not
+  needed for the first look.
 
 ### 6.7 Bodies: moving, colliding, coming to rest
 - **Simulation:** bodies run on the GPU solver. Today's GPU debris already collides against the micro-resolution
@@ -370,7 +397,7 @@ get weaker, so repeated blows open the same cracks. Hairline cracks are drawn wh
   - (a) keep it as a body forever (Teardown): cost grows with every break;
   - (b) at rest, voxelize it into the world grid: volume-preserving resampling, conservation-tested, but the shape
     shifts by up to half a voxel;
-  - (c) **hybrid (recommended):** keep it as a body while it is near the player or recently moved; bake it into the
+  - (c) **hybrid (decided, D6):** keep it as a body while it is near the player or recently moved; bake it into the
     world grid when it is asleep and the body budget is exceeded, farthest first.
   - Gate: conservation exact, and the visual pop measured.
 - **Gathering:** a resting piece is still the gatherable aftermath (`DestructionSystemV2.md` (D)).
@@ -522,28 +549,18 @@ Outcomes that never depend on the tier:
 - the lighting model and its gates;
 - the HTTP API's shape (coordinates change units; cube and subcube become brush sizes).
 
-## 13. Open decisions for the owner
+## 13. Owner decisions (all decided 2026-11-10)
 
-1. ~~Voxel size~~ **Decided 2026-11-10: 1/8 m** (D5). Rejected: 1/9 m, which keeps today's content exact but leaves
-   blocks at 0.89 m and chunks at 28.4 m, off whole metres; and 1/9 m with 36-block chunks (32 m), which fixes the
-   chunks only.
-2. **What happens to a broken piece once it stops moving?** A loose piece is a separate object with its own position
-   and rotation. Separate objects cost physics and drawing every frame, so they can't pile up forever (§3.5a point 6).
-   - (a) It stays a separate object forever. You can always pick it up or knock it again, but the cost grows with
-     every break.
-   - (b) It melts back into the world grid as soon as it rests. It costs nothing afterwards, but it snaps to the grid
-     (it can shift by up to ~6 cm) and becomes part of the ground or wall until broken again.
-   - (c) **Recommended:** it stays a separate object while it is near you or recently moved, and melts back in when it
-     is far away and the object budget is full.
-3. **Do buildings collapse under their own weight in the first version?**
-   - Without it (v1 as planned), a piece falls only when it is completely disconnected from the ground. A tower
-     standing on one remaining voxel stays up.
-   - With it, thin connections snap under the weight above them, so the tower falls. This is much more expensive and
-     harder.
-   - Recommendation: build without it first, show you the fracture videos, then decide.
-4. **How far should full 1/8 m detail reach** (§3.5a points 2-3)? Today chunks load within 256 m. Beyond the
-   detail radius the world is drawn from 1 m blocks and coarser levels. Recommendation: 256 m on this machine, as a
-   tier knob (smaller on weaker GPUs). Going much farther costs gigabytes per step.
+1. **Voxel size: 1/8 m** (D5). Rejected:
+   - 1/9 m: it keeps today's content exact, but leaves blocks at 0.89 m and chunks at 28.4 m, off whole metres.
+   - 1/9 m with 36-block chunks (32 m): it fixes the chunks only.
+2. **Resting pieces: the hybrid** (D6, §6.7 c).
+   - Rejected: keep every piece as a body forever (the cost grows with every break).
+   - Rejected: always bake a piece in at rest (it shifts by up to ~6 cm and can't be picked up as a piece).
+3. **No collapse under weight in v1** (D7). Revisited after the fracture-lab videos.
+4. **Level of detail: variable, with many steps** (D8, §3.5a point 3). There is no fixed detail radius. The level is
+   chosen per region by size on screen, with ~16 power-of-two levels from 12.5 cm to ~4 km, cross-faded between
+   levels. A budget controller sets how much detail the machine can afford.
 
-Not an owner question: the build order. F1 (storage) comes first. The fracture rules (F4) are proven on a plain voxel
-grid alongside it, because they don't depend on the new storage.
+Build order (not an owner question): F0, then F1 (storage). The fracture rules (F4) are proven on a plain voxel grid
+alongside F1, because they don't depend on the new storage.
