@@ -12968,6 +12968,33 @@ create's upload split printed):
   (item 8). A patch's wake/sleep re-reads every summary in reach (a global span revision) - bounded by the budget, late never blank;
   per-column revisions would remove it.
 
+**51.4c (2026-11-10) S3 step 2 BUILT (OFF with the skin) - far water from the generator; a generated world's first look** (51.4's step 2;
+no drift). `generatedWaterRuns` (`WaterSkinSource.h`: the generator's per-chunk-column spans, a bridge pier's columns skipped - the
+spans `generateChunk` stores) runs on the skin's worker threads (`generator_threads`, default 2), each with its own generator copy
+made on the main thread; a chunk column with no resident chunk is summarized from it, one that becomes resident is re-read from the
+record, one that stops being resident keeps its record summary until the generator's arrives.
+- **Tests:** equality (ii) `TheGeneratorSummaryEqualsTheGeneratedChunks` (Mountains seed 7, 3 x 3 chunk columns): 548 cells, 0 differ;
+  control (one column drained): 1 differs. **It found a defect:** a span the chunks store in pieces (cut at a vertical chunk's face)
+  counted as two columns (wet 32 of 16) - the summary now merges a column's entries first (the live record reader may answer chunk by
+  chunk). End to end `ANeverLoadedLakeIsDrawnTheSameAsALoadedOne`: 19,881 points, 0 differ; control (no source): nothing drawn.
+  `ASkinCellIsFlatAtItsOwnLevel` (below): red control 324 of 440 quads off their level (worst 14.5 m), built 0.
+- **Live on a generated world** (`tools/water_skin_river_live.py`, WaterBench_RiverCarve: Mountains, streaming, old CA water off;
+  evidence `skin_river*.png/json`):
+  1. **The skin drew walls of water** - the mesh's corner averaging joins neighbours whose runs overlap within one cell height, and at
+     16-32 m cells a river 20 m below a lake was pulled up into a wall. **Fixed:** a skin cell is flat at its own level (waters at
+     different heights meet in a step).
+  2. **The generated record holds water the terrain does not hold** (not the skin's): a lake at y 107.8 over ~28,700 columns north of
+     z -1146, ~60 m deep, beside dry grassed land with trees; up close the RECORD TILES (skin off) draw it too, as a free-standing wall
+     (`skin_river_near_off.png`). The skin draws the record faithfully; the record is wrong there - a generator/hydrology item, logged,
+     not fixed here (the owner's order: S3 is drawing).
+  3. **Costs found:** the skin itself is within noise there (A/B/A at rest: 13.7 / 13.6 / 13.7 fps, CPU 73.7-74.4 ms - the scene is
+     heavy). Not the skin's: record tiles over that ~60 m-deep water cost 309-513 ms a call (4 tiles; the 1/9 m scratch grid is the
+     water's full height) - the 164 ms "water feed" frames while it streamed in. The generator source is far slower live than in the
+     unit test: **~1.5 chunk columns a second on 2 workers** (0.5-1.4 s each; the unit test's 35 ms was a small lake) - a 1 km reach
+     would take ~40 min to fill. The cure is step 3 (the summary persisted: generated once per world) and/or a cheaper generator query;
+     not built. Also: turning the skin off drops every summary (its generator work with it).
+- **Status:** built, OFF, not signed off. Next for S3: step 3 (persist the summaries), the generator's cost, then S4.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

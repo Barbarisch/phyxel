@@ -59,6 +59,8 @@ struct SurfaceColumn {
 static_assert(sizeof(SurfaceColumn) == 64, "wc_surface.comp writes 16 floats per column");
 
 /// 51.4 S3: a cell's covered part along one axis, [a, b] in 0..1 of the cell, as one float (exact: integers below 2^24); 0 = all
+/// 51.4c TEST ONLY: the red control - skin cells' corners averaged like the pond surface's (walls of water between levels)
+inline bool g_skinCornersAveragedForTest = false;
 inline float skinInsetEncode(float a, float b) {
     const int qa = static_cast<int>(a * 1000.0f + 0.5f), qb = static_cast<int>(b * 1000.0f + 0.5f);
     return static_cast<float>(std::clamp(qa, 0, 1000) * 1024 + (1000 - std::clamp(qb, 0, 1000)));

@@ -279,3 +279,45 @@ TEST(WaterSkinTest, TheCoarseShoreStaysOnTheShore) {
     std::printf("[skin] round lake r 70, whole cells:   %d lake points, %d holes (%.2f %%); %d off-lake points drawn (%.2f %% of the lake), worst %.1f m out\n",
                 rdWhole.lake, rdWhole.holes, 100.0 * rdWhole.holes / rdWhole.lake, rdWhole.overhang, 100.0 * rdWhole.overhang / rdWhole.lake, rdWhole.worstM);
 }
+
+// 51.4c: a skin cell is flat at its own level. Live on a generated world a river in a gorge beside water 30 m higher drew walls of
+// water: the mesh's corner averaging joined cells whose runs overlapped within one (coarse) cell height. A stepped river (its level
+// falling 1 m every 8 m) beside a lake 30 m higher, far from the view: every top vertex of every skin quad at its own cell's level.
+TEST(WaterSkinTest, ASkinCellIsFlatAtItsOwnLevel) {
+    SkinSettingsGuard guard;
+    WaterCoreManager::s_locality.drawM = 48.0f;
+    WaterCoreManager::s_recordDraw.on = true;
+    WaterCoreManager::s_skin.on = true;
+    WaterCoreManager mgr(ground);
+    AnalyticRecord rec;
+    rec.wet = [](int x, int z) { return (x >= 100 && x < 116 && z >= -200 && z < 200) || (x >= 116 && x < 180 && z >= -40 && z < 40); };
+    rec.top = [](int x, int z) { return x >= 116 ? 31.0f : 1.0f + static_cast<float>(((z + 200) / 8) % 30); };
+    rec.install(mgr);
+    mgr.setViewPoint(glm::vec3(0.0f, 20.0f, 0.0f));
+    settle(mgr);
+    struct Off { ~Off() { g_skinCornersAveragedForTest = false; } } off;
+    auto measure = [&](bool averaged, long& quads, long& offLevel, float& worst) {
+        g_skinCornersAveragedForTest = averaged;
+        quads = 0; offLevel = 0; worst = 0.0f;
+        for (const WaterSurfaceField* f : mgr.skinFields()) {
+            WaterSurfaceMesh m; buildWaterSurfaceMesh(*f, m);
+            for (size_t q = 0; q + 3 < m.vertices.size(); q += 4) {
+                if (m.vertices[q].side != 0.0f) continue;
+                ++quads;
+                // the quad's own cell: its centre
+                const glm::vec3 c = 0.25f * (m.vertices[q].pos + m.vertices[q + 1].pos + m.vertices[q + 2].pos + m.vertices[q + 3].pos);
+                const int cx = static_cast<int>(std::floor(c.x / f->h)) - f->origin.x, cz = static_cast<int>(std::floor(c.z / f->h)) - f->origin.z;
+                const float own = f->at(cx, cz).top[0];
+                for (int k = 0; k < 4; ++k) { const float d = std::abs(m.vertices[q + k].pos.y - own); worst = std::max(worst, d); if (d > 1e-4f) { ++offLevel; break; } }
+            }
+        }
+    };
+    long rq, ro, quads, offLevel; float rw, worst;
+    measure(true, rq, ro, rw);
+    measure(false, quads, offLevel, worst);
+    std::printf("[skin] averaged corners (red control): %ld top quads, %ld with a corner off their cell's level (worst %.2f m)\n", rq, ro, rw);
+    std::printf("[skin] flat cells:                     %ld top quads, %ld with a corner off their cell's level (worst %.2f m)\n", quads, offLevel, worst);
+    EXPECT_GT(ro, 0);   // the control measures the defect
+    EXPECT_GT(quads, 50);
+    EXPECT_EQ(offLevel, 0);
+}

@@ -153,8 +153,12 @@ void buildWaterSurfaceMeshRect(const WaterSurfaceField& f, int rx0, int rz0, int
                 const float foam = (r == n - 1) ? c.foam : 0.0f;
                 const glm::vec2 flow = (r == n - 1) ? glm::vec2(c.u, c.w) : glm::vec2(0.0f);
                 // corners: (-x,-z) (+x,-z) (+x,+z) (-x,+z)
-                const float y00 = cornerY(x, z, 0, 0, lo, hi, top), y10 = cornerY(x, z, 1, 0, lo, hi, top);
-                const float y11 = cornerY(x, z, 1, 1, lo, hi, top), y01 = cornerY(x, z, 0, 1, lo, hi, top);
+                float y00 = cornerY(x, z, 0, 0, lo, hi, top), y10 = cornerY(x, z, 1, 0, lo, hi, top);
+                float y11 = cornerY(x, z, 1, 1, lo, hi, top), y01 = cornerY(x, z, 0, 1, lo, hi, top);
+                // 51.4 S3: a skin cell is FLAT at its own level - waters at different heights meet in a step. Averaged, a corner joins
+                // every neighbour whose run overlaps within one CELL height, and at 16-32 m cells a river 20 m below a lake was pulled
+                // up into a wall of water (live, WaterBench_RiverCarve)
+                if (f.insetCols && !g_skinCornersAveragedForTest) y00 = y10 = y11 = y01 = top;
                 quad({x0, y00, z0}, {x0, y01, z1}, {x1, y11, z1}, {x1, y10, z0}, depth, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), foam, flow);
                 ++out.topQuads;
                 // lateral faces: -x, +x, -z, +z
