@@ -13115,8 +13115,10 @@ showed or hid the 4 m rectangle's overhang beyond the record's exact shore - the
   median 523 / 537 fps off / on, the dips (35-118 fps) at the near end in BOTH takes (record tiles building), the skin's call at most
   2.16 ms. At rest (`water_skin_live.py --tag s4_live`, the wide pose): off 688 fps, CPU 1.49 ms, GPU 0.78 ms; on 690 fps, CPU
   1.49 ms, GPU 0.91 ms (+0.12 ms, as at S3). After a splash with the skin on: CPU 7.35 ms mean, worst frame 109 ms (65 ms at S3) -
-  the woken patch's update (water host 2.58 ms / frame, update 7.95 ms), the skin's call at most 3.96 ms; the splash was not run
-  with the skin off, so whether 109 vs 65 ms is noise or a change is NOT known. Not measured live: the hole count (a round shore; the
+  the woken patch's update (water host 2.58 ms / frame, update 7.95 ms), the skin's call at most 3.96 ms. Then A/B/A'd (`--splash-ab`:
+  three splashes, skin on / off / on, 30 s rest after each, `s4_splash_ab.json`): worst frame 61 / 57 / 60 ms, CPU frame mean 8.71 /
+  5.95 / 6.40 ms - the 109 ms was a one-off, the first splash of a session costs more whatever the skin does, and the skin adds
+  ~0.45 ms CPU a frame while a patch is awake (its call at most 3.6 ms, a level rebuild). Not measured live: the hole count (a round shore; the
   bench's lake is square, where the sub-cells change nothing).
 - What is left of S4: the level steps' shore swaps (~1,000 px over a 35 s flight, worst frame 64 px - an 8 x 8 px patch at 1080p)
   and the record's own swaps in motion (a woken patch). Whether the remainder needs a fade is the owner's look call on the clip.

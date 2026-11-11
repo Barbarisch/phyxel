@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--pose", default="wide")
     ap.add_argument("--tag", default="skin150")
     ap.add_argument("--rest-s", type=float, default=6.0)
+    ap.add_argument("--splash-ab", action="store_true", help="51.6: three splashes, the skin on / off / on, 30 s rest after each")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
     api = Api(a.url); api.wait_status(300)
@@ -62,13 +63,16 @@ def main():
             print(f"pixels changed by the skin (grey >= 16): {100.0 * changed / total:.1f} %", flush=True)
         except Exception as e:
             print("diff:", e)
-        k = splash(api)
-        out["splash"] = k
-        out["splash_on"] = window(api, 8.0, "skin on, 0-8 s after the splash")
-        r = out["splash_on"]
-        print(f"splash, skin on: {r['fps_mean']} fps mean, cpu frame {r['cpu_frame_ms_mean']} ms, worst frame {r['frame_ms_max']} ms, "
-              f"skin {json.dumps(api.debug('water_av_skin', {}))}", flush=True)
-        time.sleep(30.0)
+        for i, mode in enumerate(("on", "off", "on") if a.splash_ab else ("on",)):
+            api.debug("water_av_skin", {"on": mode == "on"})
+            time.sleep(3.0)
+            key = "splash_on" if i == 0 else f"splash_{i}_{mode}"
+            out["splash" if i == 0 else f"splash_{i}"] = splash(api)
+            out[key] = window(api, 8.0, f"skin {mode}, 0-8 s after the splash")
+            r = out[key]
+            print(f"splash {i}, skin {mode}: {r['fps_mean']} fps mean, cpu frame {r['cpu_frame_ms_mean']} ms, worst frame {r['frame_ms_max']} ms, "
+                  f"skin {json.dumps(api.debug('water_av_skin', {}))}", flush=True)
+            time.sleep(30.0)
     finally:
         destroy_all(api)
         api.debug("water_av_skin", {"on": bool(skin0.get("on", False))})
