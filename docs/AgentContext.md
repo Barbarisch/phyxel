@@ -285,11 +285,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       column height field / shallow water (new; the CA's speed depends on cell size 46.7/4.5/0.81 m/s, so CA rings would seam),
       rest = coarse cells. Relaxes R2 to a tolerance (owner decision). **Next: P0, the disturbance harness** (20x20x2 m pool,
       D1-D4, uniform 1/9 reference vs 1/3 vs 1 m, probes + wave arrival + moving volume); kill if adaptivity can win < 2x.
-    - **Matter representation review (2026-11-10)**, `docs/MatterRepresentationReview.md`: static is cheap from upload-once +
-      surface-not-volume + packed implicit positions; dynamic loses all three (per-face 64 B floats, per frame, host-owned).
-      Proposal: one GPU-resident 1 B/voxel brick grid with a transform per GRID (world / body / sim), marched (Teardown hybrid);
-      particles splat into grids. Gates R0-R4; **R1 = march the device CA's cells directly (kill: costs more than today's faces)**.
-      Owner decisions pending: hybrid direction, textures vs palette for dynamic matter, R1 before 6m P0.
+    - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
+      spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
+      main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only
+      debris GPU-resident (10 k cap), nothing moving in the occupancy pool. ~6 narrow read seams; 9 deep consumers.
+      Proposed: D1 measure, D2 dense fine storage behind existing accessors, D3 march the MatSim grid. AWAITING OWNER.
     - **Then/also:** the GPU solver (sort particles by bin for coherent gathers; boundary reads), settle + wake at 257 k (host);
       the 1/9 m tail is no longer the bottleneck; the moving phase is (particle step floor ~3.5 ms, the
       whole-body wake's groups() 6 ms at 105k particles); fused particle kernels; download copy (~1.2 ms);
