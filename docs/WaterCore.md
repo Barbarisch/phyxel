@@ -13157,7 +13157,8 @@ and a record tile / volume).
   frame either way, 1.7 fields rebuilt a frame either way (an unchanged field is skipped) - **no gain, reverted.** The split says
   why: the skin runs in the editor's `feed` (0.82 / 0.02 / 0.53 ms); the difference is the WATER UPDATE (17.7 / 13.1 / 15.4 ms), which
   the skin does not touch and which varies splash to splash. **The skin's live cost while a patch is awake: ~0.5-0.8 ms a frame.**
-  **Found, the bigger thing (not the skin's, S1/S2's):** a splash 26 m from the close camera holds the frame under 60 fps for ~8 s -
+  **Found, the bigger thing (not the skin's, S1/S2's) - CORRECTED in 51.8: a GPU shared with another engine, not the splash:** a
+  splash 26 m from the close camera holds the frame under 60 fps for ~8 s -
   CPU 18-22 ms a frame, the water update 13-18 ms of it (at rest there: 183-224 fps, GPU 6.4 ms). Logged for the owner; the patch's
   update cost at a near pose is the next lever on the 120 fps target, not the skin.
   **Where the near splash's cost goes (`tools/water_splash_phases.py --pose close`, `splash_phases_close.json`, 8 s windows):** at rest
@@ -13172,10 +13173,38 @@ and a record tile / volume).
 alive, skin off | on) and the questions on the sub-cell shore (51.6) and a fade for the level steps' shore swaps, the owner: *"right
 obviously looks right"*. Recorded: the skin as built (on by default, the sub-cell shore, the masks of 51.5 / 51.7) is signed off; no
 fade is asked for the level steps (~1,000 px over a 35 s flight, worst frame 64 px) - the hook stays unbuilt. Open after §51's four
-stages: the near splash's cost (51.7b: the patch's GPU call, the tier knobs - the owner's trade), the RiverCarve generator's lake wall
+stages: the near splash's cost (51.7b: the patch's GPU call, the tier knobs - the owner's trade; 51.8: a loaded GPU - what is left is a
+~0.3 s wake hitch), the RiverCarve generator's lake wall
 (51.4c item 2), the synced-mode patch that does not sleep (51.7), and a per-world cache of the generator's summaries (51.4f).
 - Tests: water unit + storage 423 / 423; integration water 83 / 85 (the known two). S4 now: the swaps in motion have no holes, no doubles and exact books in the tests; the pops left are the level steps' shore swaps
   (51.6). Owner sign-off: the clip (`s4_flyout.mp4`) and the look calls (a fade for the level steps; the sub-cell shore).
+
+**51.8 (2026-11-11) MEASURED - the near splash's cost, again: 51.7b's "under 60 fps for ~8 s" was a loaded GPU; what is left is a
+~0.3 s hitch of tile wakes** (51.7c's first open item; no drift: measured before any knob is touched). The owner's "keep going" after
+51.7c's list; the plan was to measure the tier knobs (Rd, the wake pace, the sweeps) for the owner to choose between. The first
+measure did not reproduce the cost they would trade against.
+- **The same rig, a warm bench** (Creek, Release, the close pose, nothing else on the GPU; `water_skin_live.py --pose close
+  --splash-ab --tag s4_close_ab_warm`): 0-8 s after the splash **236.6 / 217.8 / 207.0 fps mean** (skin on / off / on) against
+  51.7b's 86.6 / 83.9 / 87.3; the GPU frame median 2.9 ms against 6.0-6.8; the water's GPU call **3.2 ms** against 6.1-6.5; the CPU
+  frame 8.7-11.6 ms against 18-22. **At rest, the water asleep, the GPU frame median was already 6.5 ms then (2.8 ms now)** - the
+  GPU was 2.4x slower before the splash, so 51.7b measured a shared GPU (most likely another session's engine, running then), not
+  the patch. `water_splash_phases.py --pose close` three times: the GPU step 1.59-1.74 ms a frame (51.7b: 8.0), the fence wait
+  0.06-0.07 ms (51.7b: 4.5-4.7), 164-180 fps mean over the 8 s. Not re-measured: the S4 clip's "~5 s under 60 fps" (51.7; ffmpeg
+  was capturing then too).
+- **The water's GPU call, by stage** (`water_av_kernel_timing`, now in `water_splash_phases.py`; 366-382 calls): 3.09-3.29 ms - the
+  pressure sweeps 1.26-1.33, the surface copy 0.29, sources 0.26-0.29, transport 0.25-0.28, extrapolate 0.20-0.22, the rest
+  under 0.17 each. At 46-48 calls a second that is ~0.15 ms of GPU a frame at 200 fps: the knobs (the sweeps, Rd) buy little
+  framerate now.
+- **What is left: a hitch at the splash.** The worst frame 67-102 ms (fps min 8-14) in every take; `mgr.2 record / wake tiles`
+  48-59 ms in one call. The tile event log (`water_av_record_tiles` `event_log`, `splash_tiles_close.json`): **15 recorded tiles
+  woke in 0.29 s** (4 by the splash's own write 'W' in the API call, 2 by the margin 'M', 9 by droplet landings 'L'), **8.1-9.9 ms
+  each** on the host, one 42 ms (its GPU upload waited 40 ms). At 2 wakes a call (`s_tileWakesPerCall`) that is ~0.3 s of 20-60 ms
+  frames. A wake's parts (the worst of 15, ms): seed surface 2.8, occupancy 0.7, the GPU seed 6.3 on the host - which bricks it
+  needs 1.4 (a walk of the whole volume's brick map, `vol.mapCount` x 7 ints, for one 8 m tile), residency 0.6, slot uploads 1.5,
+  the fill walks over the tile's cells 2.7 - and its submit-and-wait 1.5.
+- **So:** the near splash runs at 200+ fps mean once the patch is up; the felt cost is the wake's first 0.3 s, a pure cost (the tiles
+  wake as before, the same cells - nothing the owner trades). Next: make a tile wake cheap (the brick walk sized to the tile, one
+  walk of the cells, no wait per tile) - its design check first.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
