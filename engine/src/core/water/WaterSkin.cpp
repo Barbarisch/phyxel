@@ -425,6 +425,12 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
             if (x >= static_cast<float>(b.first.x) && x < static_cast<float>(b.second.x + 1) && z >= static_cast<float>(b.first.z) && z < static_cast<float>(b.second.z + 1)) return true;
         return false;
     };
+    auto meetsVolume = [&](float x0, float z0, float side) {   // a box overlaps [x0, x0 + side) x [z0, z0 + side)
+        if (!in.volumeBoxes) return false;
+        for (const auto& b : *in.volumeBoxes)
+            if (x0 < static_cast<float>(b.second.x + 1) && x0 + side > static_cast<float>(b.first.x) && z0 < static_cast<float>(b.second.z + 1) && z0 + side > static_cast<float>(b.first.z)) return true;
+        return false;
+    };
     long prevX0 = 0, prevZ0 = 0;   // the finer level's square origin, in its own cells
     bool anyLevel = false;
     for (int k = 0; k < levels; ++k) {
@@ -484,7 +490,21 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                 if (drawn && k > 0 && gx >= hx0 && gx < hx0 + hn && gz >= hz0 && gz < hz0 + hn) drawn = false;   // the finer level draws it
                 if (drawn) { const float dx = cxw - fcx, dz = czw - fcz; if (dx * dx + dz * dz > farM * farM) drawn = false; }
                 if (drawn && k == 0 && recordMasked(gx * sz, gz * sz)) drawn = false;   // the record tiles draw it
-                if (drawn && inVolume(cxw, czw)) drawn = false;                           // a live volume draws it
+                // a live volume draws its own columns - 51.7: per SUB-CELL, and not its recorded tiles (the record's: beyond the record
+                // tiles' reach nobody else draws them). The S3 rule (the cell's centre in a box) is the red control
+                uint16_t keep = 0xFFFF;
+                if (drawn && s_volumeBoxMaskForTest) { if (inVolume(cxw, czw)) drawn = false; }
+                else if (drawn && meetsVolume(static_cast<float>(gx) * szf, static_cast<float>(gz) * szf, szf)) {
+                    const float q = szf * 0.25f;
+                    uint16_t owned = 0;
+                    for (int sj = 0; sj < 4; ++sj) for (int si = 0; si < 4; ++si) {
+                        const float px = static_cast<float>(gx) * szf + (static_cast<float>(si) + 0.5f) * q, pz = static_cast<float>(gz) * szf + (static_cast<float>(sj) + 0.5f) * q;
+                        if (inVolume(px, pz) && (!in.volumeDraws || in.volumeDraws(static_cast<int>(std::floor(px)), static_cast<int>(std::floor(pz)))))
+                            owned = static_cast<uint16_t>(owned | (1u << (si + 4 * sj)));
+                    }
+                    if (owned == 0xFFFF) drawn = false;
+                    else { keep = static_cast<uint16_t>(~owned); if (wet && (a.sub & keep) == 0) drawn = false; }   // its water all the volume's
+                }
                 if (!drawn) {
                     // another drawer's column: an edge, no wall; its level (when wet) is what a corner here meets (27.15)
                     c.runs = -1.0f;
@@ -497,7 +517,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                     const float wx0 = static_cast<float>(gx) * szf, wz0 = static_cast<float>(gz) * szf;
                     c.pad1 = skinInsetEncode((static_cast<float>(a.x0) - wx0) / szf, (static_cast<float>(a.x1 + 1) - wx0) / szf);
                     c.pad2 = skinInsetEncode((static_cast<float>(a.z0) - wz0) / szf, (static_cast<float>(a.z1 + 1) - wz0) / szf);
-                    if (!s_rectShoreForTest) c.top[1] = static_cast<float>(a.sub);   // 51.6: the sub-cells, inside the rectangle
+                    if (!s_rectShoreForTest) c.top[1] = static_cast<float>(a.sub & keep);   // 51.6: the sub-cells, inside the rectangle (51.7: not a volume's)
                 }
                 wetAny = true;
                 if (!lookSet && in.look) { look = in.look(static_cast<int>(std::floor(cxw)), static_cast<int>(std::floor(czw)), a.top); lookSet = true; }

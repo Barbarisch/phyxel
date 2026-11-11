@@ -3168,7 +3168,16 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::skinFields() {
     in.reader = &m_spanReader;
     in.spanRevision = m_spanRevision ? m_spanRevision() : 0;
     in.residentGlobal = m_resGlobal ? m_resGlobal() : 0; in.residentColumn = &m_resColumn;
-    in.volumeBoxes = &m_boxes; in.volumeBoxesRevision = m_avRevision;
+    in.volumeBoxes = &m_boxes;
+    // 51.7: a volume draws its box minus its RECORDED tiles (the record's); the revision follows the recorded tiles too
+    uint64_t rv = m_avRevision * 1099511628211ull;
+    for (const auto& av : m_avs) for (const auto& [tx, tz] : av->recordedTileList) { rv ^= (static_cast<uint64_t>(static_cast<uint32_t>(tx)) << 32) ^ static_cast<uint32_t>(tz) ^ (static_cast<uint64_t>(av->id) << 17); rv *= 1099511628211ull; }
+    in.volumeBoxesRevision = rv;
+    in.volumeDraws = [this](int x, int z) {
+        for (const auto& av : m_avs)
+            if (x >= av->minVoxel.x && x <= av->maxVoxel.x && z >= av->minVoxel.z && z <= av->maxVoxel.z && !columnRecorded(*av, x, z)) return true;
+        return false;
+    };
     in.look = [this](int x, int z, float top) { return packLook(lookAt(x, z, top)); };
     in.storedChunks = &m_skinStoredList; in.storedRuns = &m_skinStoredRuns;   // 51.4f
     m_skin.update(s_skin, in);

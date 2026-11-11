@@ -12655,7 +12655,7 @@ compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the s
 settings (tall cells on, recording off) the lake still sleeps (W1f, 4 of 4): the partial wake freezes columns before the bed churn
 or the stored velocities build. Recording keeps it awake long enough for them to show.
 
-## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 (steps 1-3) BUILT, ON by default - the owner's call 2026-11-11 (51.4g); S4 steps 1-2 BUILT (51.5, 51.6)
+## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1, S2 BUILT, ON; S3 (steps 1-3) BUILT, ON by default - the owner's call 2026-11-11 (51.4g); S4 steps 1-3 BUILT (51.5-51.7)
 
 **The owner's words:** *"the biggest deal when making water work at scale is an area threshold for water disturbances"*; *"at some
 point we will need to make bodies of water that are bigger than 100 meters... that means levels. that means 'at this point water
@@ -13122,6 +13122,31 @@ showed or hid the 4 m rectangle's overhang beyond the record's exact shore - the
   bench's lake is square, where the sub-cells change nothing).
 - What is left of S4: the level steps' shore swaps (~1,000 px over a 35 s flight, worst frame 64 px - an 8 x 8 px patch at 1080p)
   and the record's own swaps in motion (a woken patch). Whether the remainder needs a fade is the owner's look call on the clip.
+
+**51.7 (2026-11-11) S4 step 3 BUILT, ON - the fly-in to a splash and out: no holes, no doubles, the books exact** (51's S4 test as
+written: "the camera flying in from far to a splash and out again - no pops, no holes, the books exact").
+`WaterRecordTilesTest.TheFlyInToASplashAndOutHasNoHolesAndTheBooksExact` (GPU): a 200 m lake in the record (2 m deep), the skin as
+shipped, drawM 48; the camera 8 m up flies from z 700 to 10 m off the splash point (100, 100) at 40 m/s, splashes (a patch wakes),
+holds 2 s, flies out to z 700 while the patch lives, holds until it sleeps, flies in again (2,990 frames). Every frame: points every
+2 m round the camera (drawM + 24 m) AND round the splash (wherever the camera is) - a hole (nothing draws it) or a double (the skin
+and a record tile / volume).
+- **Found (red, first run): holes in 86 frames, up to 96 points** - a strip of the live patch (x 80-120, z 80-88) as the camera left
+  it. The patch's tiles that went still were RECORDED back (its field leaves them to the record), the record tiles stop at drawM, and
+  the skin masked the patch's whole BOX - so beyond 48 m nobody drew them. And a second defect the camera-only sample could not see:
+  the skin masked a coarse cell whole when its CENTRE was in a box - far away (32 m cells) a patch's surroundings were hidden or its
+  box drawn twice.
+- **The fix:** the skin masks what a volume DRAWS - `WaterSkin::Inputs::volumeDraws` (the manager: inside a live volume's box and not
+  in one of its recorded tiles), asked per SUB-CELL (8 m at 32 m cells: a tile - exact at every level in use), only for cells that meet
+  a box; the revision folds in the volumes' recorded tiles. Red control `WaterSkin::s_volumeBoxMaskForTest` (S3's rule).
+- **Measured:** realtime (as live) **0 hole frames, 0 doubles**; the red control 1,003 hole frames (max 848 points) and 407 double
+  frames; the books after the sleep -0.000017 m^3. The books EVERY frame need a synced run (`setRealtime(false)`: realtime readers see
+  the grid once a second, so a fast test read a stale grid - the first run's "1,152 m^3" was the measurement's): worst 0.000004 m^3
+  over 7,200 frames, 0 holes, 0 doubles.
+- **Found, not fixed:** in the synced run the patch did NOT sleep in 120 s (6,316 frames live; realtime: ~19 s). The record step
+  counts the water's own time, so it is not the clock; likely the per-column freeze's read-back differs between the modes. The game
+  runs realtime; logged.
+- Tests: water unit + storage 423 / 423; integration water 83 / 85 (the known two). S4 now: the swaps in motion have no holes, no doubles and exact books in the tests; the pops left are the level steps' shore swaps
+  (51.6). Owner sign-off: the clip (`s4_flyout.mp4`) and the look calls (a fade for the level steps; the sub-cell shore).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

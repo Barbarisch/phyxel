@@ -921,6 +921,122 @@ static LakeSplash runRecordedLake(VkDevice device, VkPhysicalDevice pd, VkQueue 
     return o;
 }
 
+// 51.7 S4 (the swaps in motion, docs/WaterCore.md 51.7): the camera flies in from far to a splash and out again - no holes, no
+// doubles, the books exact, in EVERY frame. A 200 m lake in the record (2 m deep), the skin ON (as shipped), drawM 48; the camera
+// 8 m up flies from 600 m out (z 700) to 10 m off the splash point (100, 100) at 40 m/s, splashes (the patch wakes), holds 2 s, flies
+// out to z 700 while the patch lives, holds there until it sleeps, and flies in again. Each frame: update, the record tiles, the
+// skin; points every 2 m within drawM + 24 m of the camera, on the lake: drawn by nothing (a hole) or by the skin AND a record tile /
+// a volume (a double); the books (record + live volumes - placed). Prediction: 0 hole frames, 0 doubles, |books| < 1e-3 m^3 every
+// frame. (The pops of a coarse shore are TheShoreSwapsAreSmall's, CPU; this lake's straight shores do not swap.)
+struct FlySplash { long frames = 0, liveFrames = 0, holeFrames = 0, holesMax = 0, doubleFrames = 0; double booksWorst = 0.0, booksEnd = 0.0; bool woke = false, slept = false; int phase = 0; };
+static FlySplash runFlyToSplash(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool realtime, bool redMask) {
+    FlySplash o;
+    const auto drawBefore = WaterCoreManager::s_recordDraw; const float drawMBefore = WaterCoreManager::s_locality.drawM;
+    const auto skinBefore = WaterCoreManager::s_skin;
+    struct Restore { WaterCoreManager::RecordDraw d; float m; WaterCoreManager::SkinSettings s;
+                     ~Restore() { WaterCoreManager::s_recordDraw = d; WaterCoreManager::s_locality.drawM = m; WaterCoreManager::s_skin = s; WaterSkin::s_volumeBoxMaskForTest = false; } } restore{drawBefore, drawMBefore, skinBefore};
+    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_locality.drawM = 48.0f;
+    WaterCoreManager::s_skin = WaterCoreManager::SkinSettings{};   // as shipped (on)
+    WaterSkin::s_volumeBoxMaskForTest = redMask;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+    mgr.setDroplets(false);
+    mgr.setRealtime(realtime);
+    FakeRecord record; record.install(mgr);
+    const int W = 200;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    const double placed = record.total();
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", WaterCoreManager::s_tallBandDefault}};
+    if (!mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump())) { ADD_FAILURE() << "loadSlept"; return o; }
+    const glm::vec2 c(100.0f, 100.0f);
+    const float eye = 8.0f, farZ = 700.0f, nearZ = c.y + 10.0f, step = 40.0f / 60.0f, dt = 1.0f / 60.0f;
+    glm::vec3 view(c.x, eye, farZ);
+    mgr.setViewPoint(view);
+    for (int k = 0; k < 600 && (k < 2 || mgr.recordDrawStats().pending > 0 || mgr.skinStats().pending > 0); ++k) { mgr.update(dt); mgr.surfaceFields(); mgr.skinFields(); }
+    int hold = 0;   // phase 0 in, 1 hold at the splash, 2 out, 3 hold far until slept, 4 in again, 5 done
+    for (int k = 0; k < 60 * 120 && o.phase < 5; ++k) {
+        if (o.phase == 0) {
+            view.z = std::max(nearZ, view.z - step);
+            if (view.z <= nearZ) {
+                o.phase = 1; hold = 0;
+                const std::vector<int> ids = mgr.wakeSleptNear(glm::vec3(c.x, 1.9f, c.y), 2.0f);
+                if (ids.empty()) { ADD_FAILURE() << "the splash woke nothing"; return o; }
+                mgr.addImpulse(glm::vec3(c.x, 1.9f, c.y), 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+                o.woke = true;
+            }
+        }
+        else if (o.phase == 1) { if (++hold >= 120) o.phase = 2; }
+        else if (o.phase == 2) { view.z = std::min(farZ, view.z + step); if (view.z >= farZ) { o.phase = 3; hold = 0; } }
+        else if (o.phase == 3) { if (o.slept && ++hold >= 60) o.phase = 4; }
+        else if (o.phase == 4) { view.z = std::max(nearZ, view.z - step); if (view.z <= nearZ) o.phase = 5; }
+        mgr.setViewPoint(view);
+        mgr.update(dt);
+        mgr.surfaceFields();
+        mgr.skinFields();
+        const bool live = !mgr.list().empty();
+        if (live) ++o.liveFrames;
+        if (o.woke && !live) o.slept = true;
+        ++o.frames;
+        if (!realtime) {   // the books: every step synced (realtime readers see the grid once a second - stale, not wrong)
+            const double books = record.total() + (live ? mgr.totalMass() : 0.0) - placed;
+            if (std::abs(books) > o.booksWorst) o.booksWorst = std::abs(books);
+            continue;
+        }
+        long holes = 0, doubles = 0;
+        int hx0 = 1 << 30, hx1 = -(1 << 30), hz0 = 1 << 30, hz1 = -(1 << 30);
+        auto sample = [&](int x, int z) {
+            const float px = x + 1.05f, pz = z + 1.05f;
+            float top = 0.0f, st = 0.0f; bool rec = false; int claims = 0;
+            const bool r = mgr.drawnAtWorld(px, pz, top, rec);
+            const bool s = mgr.skinDrawnAtWorld(px, pz, st, &claims);
+            if (!r && !s) { ++holes; hx0 = std::min(hx0, x); hx1 = std::max(hx1, x); hz0 = std::min(hz0, z); hz1 = std::max(hz1, z); }
+            if ((r && s) || claims > 1) ++doubles;
+        };
+        // round the camera (the record / skin seam) and round the splash (the patch, wherever the camera is)
+        const int vx = static_cast<int>(std::floor(view.x / 2.0f)) * 2, vz = static_cast<int>(std::floor(view.z / 2.0f)) * 2;
+        for (int z = std::max(0, vz - 72); z <= std::min(W - 2, vz + 72); z += 2) for (int x = std::max(0, vx - 72); x <= std::min(W - 2, vx + 72); x += 2) sample(x, z);
+        for (int z = 60; z <= 138; z += 2) for (int x = 60; x <= 138; x += 2) if (std::abs(z - vz) > 72 || std::abs(x - vx) > 72) sample(x, z);
+        if (holes) {
+            ++o.holeFrames;
+            if (o.holeFrames <= 3) std::printf("    %s frame %d (phase %d, view z %.1f, %s): %ld holes, x %d..%d z %d..%d\n", redMask ? "RED" : "", k, o.phase, view.z, live ? "patch live" : "no patch", holes, hx0, hx1 + 2, hz0, hz1 + 2);
+        }
+        o.holesMax = std::max(o.holesMax, holes);
+        if (doubles) {
+            ++o.doubleFrames;
+            if (o.doubleFrames <= 3) std::printf("    %s frame %d (phase %d, view z %.1f): %ld doubles\n", redMask ? "RED" : "", k, o.phase, view.z, doubles);
+        }
+    }
+    o.booksEnd = record.total() + (mgr.list().empty() ? 0.0 : mgr.totalMass()) - placed;   // after the sleep: the record alone (exact)
+    return o;
+}
+
+TEST_F(WaterRecordTilesTest, TheFlyInToASplashAndOutHasNoHolesAndTheBooksExact) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const FlySplash a = runFlyToSplash(device, physicalDevice, queue, queueFamilyIndex, true, false);
+    const FlySplash red = runFlyToSplash(device, physicalDevice, queue, queueFamilyIndex, true, true);
+    const FlySplash b = runFlyToSplash(device, physicalDevice, queue, queueFamilyIndex, false, false);
+    auto line = [](const char* n, const FlySplash& s) {
+        std::printf("  %-42s %ld frames (patch live in %ld; slept %d, phase %d): holes in %ld (max %ld), doubles in %ld; books worst %.6f, at the end %+.6f m^3\n",
+                    n, s.frames, s.liveFrames, int(s.slept), s.phase, s.holeFrames, s.holesMax, s.doubleFrames, s.booksWorst, s.booksEnd);
+    };
+    line("realtime (drawing as live)", a);
+    line("RED CONTROL (a volume's whole box masked)", red);
+    line("synced each step (the books)", b);
+    for (const FlySplash* s : {&a, &red}) EXPECT_EQ(s->phase, 5) << "the flight did not finish (the patch never slept?)";
+    // the synced run: flown in, splashed and out (phase >= 3). Its patch did NOT sleep in 120 s (realtime: ~19 s) - logged in 51.7
+    EXPECT_GE(b.phase, 3);
+    for (const FlySplash* s : {&a, &red, &b}) EXPECT_GT(s->liveFrames, 60) << "CONTROL: the patch lived through part of the flight";
+    EXPECT_LT(std::abs(a.booksEnd), 1e-3) << "the realtime flight's books after the sleep";
+    EXPECT_EQ(a.holeFrames, 0);
+    EXPECT_EQ(a.doubleFrames, 0);
+    EXPECT_GT(red.holeFrames, 0) << "RED CONTROL: the masked recorded tiles went unseen";
+    EXPECT_LT(b.booksWorst, 1e-3);
+}
+
 // 51.3: the occupancy read by CUBE (a uniform cube asked once) equals the read cell by cell, in a world with full cubes, empty ones,
 // MIXED ones (sub-voxel detail: some micro cells solid) and a region not resident (unknown). CONTROL: a cube query that calls a mixed
 // cube empty must differ (else the comparison cannot fail).

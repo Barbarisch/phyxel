@@ -60,7 +60,8 @@ public:
     };
     static inline bool s_wholeCellsForTest = false;
     static inline bool s_maskInRangeForTest = false;
-    static inline bool s_rectShoreForTest = false;     ///< TEST ONLY: 51.6's red control - the shore by the wet rectangle alone (S3)   ///< TEST ONLY: 51.5's red control - mask the tiles in range (S3), not the drawn ones   ///< TEST ONLY: the red control - a cell drawn whole when half its AREA is wet
+    static inline bool s_rectShoreForTest = false;
+    static inline bool s_volumeBoxMaskForTest = false;   ///< TEST ONLY: 51.7's red control - a cell masked when its centre is in a box (S3)     ///< TEST ONLY: 51.6's red control - the shore by the wet rectangle alone (S3)   ///< TEST ONLY: 51.5's red control - mask the tiles in range (S3), not the drawn ones   ///< TEST ONLY: the red control - a cell drawn whole when half its AREA is wet
     struct Stats {
         int levels = 0, fields = 0, wetCells = 0, ringCells = 0;
         int summaries = 0, summariesBuiltLastCall = 0, pending = 0, fieldsRebuiltLastCall = 0;
@@ -87,6 +88,10 @@ public:
         const std::function<uint64_t(int, int)>* residentColumn = nullptr;
         const std::vector<std::pair<glm::ivec3, glm::ivec3>>* volumeBoxes = nullptr;   ///< live volumes draw their own columns
         uint64_t volumeBoxesRevision = 0;
+        /// 51.7: whether a live volume DRAWS world column (x, z) itself - inside its box and not in one of its RECORDED tiles (the
+        /// record's to draw: the record tiles near, the skin beyond them). Null: the boxes alone. Asked per sub-cell (a quarter of the
+        /// cell's side; 8 m at 32 m cells - a tile), only for cells that meet a box. volumeBoxesRevision must change when it does.
+        std::function<bool(int, int)> volumeDraws;
         std::function<WaterLookPacked(int, int, float)> look;   ///< the body's look at a world column
         /// 51.4f (step 3): the world's STORED chunks. Only edited chunks are saved (a pristine one regenerates identically), so a
         /// chunk column with nothing resident is the generator's water EXCEPT in its stored chunks: `storedChunks` lists their y
