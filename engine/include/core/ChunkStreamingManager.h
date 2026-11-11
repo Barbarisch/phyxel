@@ -248,6 +248,10 @@ public:
 
     // Accessors
     WorldStorage* getWorldStorage() const { return worldStorage; }
+    /// WaterCore 51.4f: the far skin's reads of the STORED (edited) chunks, under m_storageMutex like every other DB access.
+    /// The stored chunks in a box (chunk coords, inclusive; no decode), and one stored chunk's water spans (world Y; decodes it).
+    std::vector<glm::ivec3> storedChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk);
+    bool storedChunkWaterSpans(const glm::ivec3& chunkCoord, std::vector<glm::vec4>& xzBottomTop);
 
 private:
     // Callback functions

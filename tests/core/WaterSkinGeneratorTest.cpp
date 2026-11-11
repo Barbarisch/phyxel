@@ -285,3 +285,101 @@ TEST(WaterSkinGeneratorTest, DISABLED_DiagRiverCarveFillRate) {
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 }
+
+// 51.4f (S3 step 3, 51.4 item 7): an EDITED chunk saved and unloaded draws its stored water, not the generator's. Only edited chunks
+// are stored (a pristine one regenerates identically), so a non-resident chunk column is the generator's water except in its stored
+// chunks. The edit: the chunk holding the lake's surface drained (stored with no water). Prediction: B (nothing resident, the
+// generator source, the store answering for that chunk) draws exactly what A draws (everything resident, the record = the generated
+// water with that chunk drained) - 0 points differ, and fewer drawn than the pristine lake. Control: B without the store draws the
+// pristine lake there (differs from A).
+TEST(WaterSkinGeneratorTest, AnEditedUnloadedChunkDrawsItsStoredWater) {
+    struct Guard {
+        float drawM = WaterCoreManager::s_locality.drawM; WaterCoreManager::SkinSettings skin = WaterCoreManager::s_skin;
+        ~Guard() { WaterCoreManager::s_locality.drawM = drawM; WaterCoreManager::s_skin = skin; }
+    } guard;
+    WaterCoreManager::s_locality.drawM = 48.0f;
+    WaterCoreManager::s_skin.on = true;
+    WaterCoreManager::s_skin.farM = 128.0f;
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    int wx = 0, wz = 0;
+    ASSERT_TRUE(findWetColumn(g, wx, wz));
+    const int ecx = floorDiv(wx, 32), ecz = floorDiv(wz, 32);
+    std::vector<ColumnRuns> centre; generatedWaterRuns(g, glm::ivec2(ecx, ecz), centre);
+    float top = 0.0f; for (const auto& c : centre) for (const auto& r : c.runs) top = std::max(top, r.topY);
+    const int ecy = floorDiv(static_cast<int>(std::floor(top - 0.01f)), 32);   // the chunk holding the surface
+    auto drained = [&](int cx, int cz, std::vector<ColumnRuns>& runs) {   // the edit, applied to a column's generated runs
+        if (cx != ecx || cz != ecz) return;
+        const float lo = static_cast<float>(ecy * 32), hi = lo + 32.0f;
+        for (auto& c : runs) {
+            std::vector<ColumnRun> keep;
+            for (const ColumnRun& r : c.runs) {
+                if (r.bottomY < lo) { ColumnRun k = r; k.topY = std::min(r.topY, lo); if (k.topY > k.bottomY) keep.push_back(k); }
+                if (r.topY > hi) { ColumnRun k = r; k.bottomY = std::max(r.bottomY, hi); if (k.topY > k.bottomY) keep.push_back(k); }
+            }
+            c.runs.swap(keep);
+        }
+    };
+    std::map<std::pair<int, int>, std::vector<ColumnRuns>> cache;
+    auto reader = [&](const glm::ivec3& lo, const glm::ivec3& hi, std::vector<ColumnRuns>& out) {
+        out.clear();
+        for (int cz = floorDiv(lo.z, 32); cz <= floorDiv(hi.z, 32); ++cz) for (int cx = floorDiv(lo.x, 32); cx <= floorDiv(hi.x, 32); ++cx) {
+            auto it = cache.find({cx, cz});
+            if (it == cache.end()) { std::vector<ColumnRuns> r; generatedWaterRuns(g, glm::ivec2(cx, cz), r); drained(cx, cz, r); it = cache.emplace(std::make_pair(cx, cz), std::move(r)).first; }
+            for (const ColumnRuns& c : it->second) {
+                if (c.x < lo.x || c.x > hi.x || c.z < lo.z || c.z > hi.z) continue;
+                ColumnRuns k = c; k.runs.clear();
+                for (ColumnRun r : c.runs) {
+                    r.bottomY = std::max(r.bottomY, static_cast<float>(lo.y)); r.topY = std::min(r.topY, static_cast<float>(hi.y + 1));
+                    if (r.topY > r.bottomY) { r.mass = r.topY - r.bottomY; k.runs.push_back(r); }
+                }
+                if (!k.runs.empty()) out.push_back(std::move(k));
+            }
+        }
+    };
+    auto noWrite = [](const std::vector<ColumnRuns>&, float, float, long* u, long* c) { if (u) *u = 0; if (c) *c = 0; };
+    auto ground = [](const glm::ivec3& m) { return m.y < 0 ? 1 : 0; };
+    auto nothing = [](const glm::ivec3&, const glm::ivec3&, std::vector<ColumnRuns>& out) { out.clear(); };
+    const glm::vec3 view(static_cast<float>(wx) + 80.0f, top + 6.0f, static_cast<float>(wz));
+    auto settle = [](WaterCoreManager& m) {
+        for (int i = 0; i < 20000; ++i) {
+            m.surfaceFields(); m.skinFields();
+            if (m.recordDrawStats().pending == 0 && m.skinStats().pending == 0 && m.skinStats().genPending == 0) return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        ADD_FAILURE() << "never settled";
+    };
+    WaterCoreManager a(ground), b(ground), control(ground);
+    a.setSpanIo(noWrite, reader); a.setViewPoint(view);
+    settle(a);
+    for (WaterCoreManager* m : {&b, &control}) {
+        m->setSpanIo(noWrite, nothing);
+        m->setRecordResidency([] { return uint64_t(1); }, [](int, int) { return uint64_t(0); });
+        m->setViewPoint(view);
+        m->setSkinGeneratorSource([&g]() -> WaterSkin::GeneratorSource {
+            auto copy = std::make_shared<WorldGenerator>(g);
+            return [copy](const glm::ivec2& col, std::vector<ColumnRuns>& out) { generatedWaterRuns(*copy, col, out); };
+        });
+    }
+    int storedAsks = 0;
+    b.setSkinStoredChunks(
+        [&](int cx0, int cz0, int cx1, int cz1, std::vector<glm::ivec3>& out) {
+            out.clear();
+            if (ecx >= cx0 && ecx <= cx1 && ecz >= cz0 && ecz <= cz1) out.push_back(glm::ivec3(ecx, ecy, ecz));
+        },
+        [&](int cx, int cy, int cz, std::vector<ColumnRuns>& out) { ++storedAsks; out.clear(); (void)cx; (void)cy; (void)cz; });   // drained: no water stored
+    settle(b); settle(control);
+    int points = 0, drawnA = 0, drawnB = 0, drawnC = 0, differ = 0, differControl = 0;
+    for (int z = -140; z <= 140; z += 2) for (int x = -140; x <= 140; x += 2) {
+        const float px = view.x + x + 0.5f, pz = view.z + z + 0.5f;
+        float ta = 0.0f, tb = 0.0f, tc = 0.0f;
+        const bool da = a.skinDrawnAtWorld(px, pz, ta), db = b.skinDrawnAtWorld(px, pz, tb), dc = control.skinDrawnAtWorld(px, pz, tc);
+        ++points; drawnA += da; drawnB += db; drawnC += dc;
+        if (da != db || (da && ta != tb)) ++differ;
+        if (da != dc || (da && ta != tc)) ++differControl;
+    }
+    std::printf("[skin gen] edited chunk (%d, %d, %d) drained: %d points - loaded %d drawn, unloaded with the store %d (differ %d, %d stored reads), without the store %d (differ %d)\n",
+                ecx, ecy, ecz, points, drawnA, drawnB, differ, storedAsks, drawnC, differControl);
+    EXPECT_EQ(differ, 0);
+    EXPECT_GT(differControl, 0);   // the control measures the edit
+    EXPECT_EQ(storedAsks, 1);
+}

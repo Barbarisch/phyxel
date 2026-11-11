@@ -78,7 +78,16 @@ public:
         const std::vector<std::pair<glm::ivec3, glm::ivec3>>* volumeBoxes = nullptr;   ///< live volumes draw their own columns
         uint64_t volumeBoxesRevision = 0;
         std::function<WaterLookPacked(int, int, float)> look;   ///< the body's look at a world column
+        /// 51.4f (step 3): the world's STORED chunks. Only edited chunks are saved (a pristine one regenerates identically), so a
+        /// chunk column with nothing resident is the generator's water EXCEPT in its stored chunks: `storedChunks` lists their y
+        /// (chunk coords; a cheap ask, no decode), `storedRuns` reads one's water (world runs; decodes it - edited columns only, a
+        /// few a call). Both on the calling thread. Null: every non-resident column is the generator's (an edit made, saved and
+        /// unloaded shows the generator's water - 51.4 item 7). `storedChunks` answers a whole box of chunk columns at once
+        /// (cx0, cz0, cx1, cz1 inclusive -> the stored chunks' coords) - one query a scan.
+        const std::function<void(int, int, int, int, std::vector<glm::ivec3>&)>* storedChunks = nullptr;
+        const std::function<void(int, int, int, std::vector<ColumnRuns>&)>* storedRuns = nullptr;
     };
+    static constexpr int kStoredReadsPerCall = 4;   ///< 51.4f: edited non-resident chunk columns read per call
     static constexpr int kYLo = -128, kYHi = 1023;   ///< the band a chunk column's summary reads (chunks y -4..31)
     static constexpr int kMaxLevels = 8;
     static constexpr int kSourceBit = 0x20000000;    ///< a skin field's source (record tiles: 0x40000000; volumes count up from 1)
@@ -115,6 +124,8 @@ private:
         bool built = false;
         bool fromGen = false;     // step 2: made from the generator (the column had no resident chunk)
         bool requested = false;   // step 2: queued on the generator worker
+        std::vector<int> storedCy;            // 51.4f: its stored (edited) chunks' y - their water replaces the generator's there
+        std::vector<ColumnRuns> storedRuns;   // 51.4f: their water, held until the generator's arrives
         uint64_t version = 0;
     };
     static constexpr int kPyrOffset[4] = {0, 64, 80, 84};

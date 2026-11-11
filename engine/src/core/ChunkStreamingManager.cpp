@@ -939,4 +939,26 @@ Chunk* ChunkStreamingManager::getChunkAtCoord(const glm::ivec3& chunkCoord) {
     return nullptr;
 }
 
+// WaterCore 51.4f: the far skin's reads of the stored (edited) chunks - serialized with the streaming loads and saves
+std::vector<glm::ivec3> ChunkStreamingManager::storedChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk) {
+    if (!worldStorage) return {};
+    std::lock_guard<std::mutex> lock(m_storageMutex);
+    return worldStorage->getChunksInRegion(minChunk, maxChunk);
+}
+
+bool ChunkStreamingManager::storedChunkWaterSpans(const glm::ivec3& chunkCoord, std::vector<glm::vec4>& out) {
+    out.clear();
+    if (!worldStorage) return false;
+    Chunk tmp(chunkCoord * 32);
+    tmp.initializeForLoading();
+    {
+        std::lock_guard<std::mutex> lock(m_storageMutex);
+        if (!worldStorage->loadChunk(chunkCoord, tmp)) return false;
+    }
+    const float base = static_cast<float>(chunkCoord.y * 32);
+    for (const auto& w : tmp.getWaterSpans())
+        out.push_back(glm::vec4(static_cast<float>(chunkCoord.x * 32 + w.x), static_cast<float>(chunkCoord.z * 32 + w.z), base + w.bottom, base + w.top));
+    return true;
+}
+
 } // namespace Phyxel

@@ -210,6 +210,29 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
             sm.requested = false;
             const int cx = static_cast<int>(static_cast<int32_t>(key >> 32)), cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
             if (resident(cx, cz)) { m_scanValid = false; continue; }   // its chunks loaded while it was queued: the record answers
+            if (!sm.storedCy.empty()) {
+                // 51.4f: the stored chunks' water in their own heights, the generator's everywhere else in the column
+                for (auto& col : runs) {
+                    std::vector<ColumnRun> keep;
+                    for (const ColumnRun& r : col.runs) {
+                        std::vector<std::pair<float, float>> parts{{r.bottomY, r.topY}};
+                        for (int cy : sm.storedCy) {
+                            const float lo = static_cast<float>(cy * 32), hi = lo + 32.0f;
+                            std::vector<std::pair<float, float>> next;
+                            for (const auto& [a, b] : parts) {
+                                if (b <= lo || a >= hi) { next.push_back({a, b}); continue; }
+                                if (a < lo) next.push_back({a, lo});
+                                if (b > hi) next.push_back({hi, b});
+                            }
+                            parts.swap(next);
+                        }
+                        for (const auto& [a, b] : parts) if (b > a) { ColumnRun k = r; k.bottomY = a; k.topY = b; k.mass = static_cast<double>(b - a); keep.push_back(k); }
+                    }
+                    col.runs.swap(keep);
+                }
+                runs.insert(runs.end(), sm.storedRuns.begin(), sm.storedRuns.end());
+                std::vector<ColumnRuns>().swap(sm.storedRuns);
+            }
             buildSummary(cx, cz, sm, runs);
             sm.fromGen = true; sm.spanRev = in.spanRevision; sm.res = 0;
             ++m_stats.genBuilt;
@@ -237,6 +260,13 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     const long cx0 = floorDivL(static_cast<long>(std::floor(vc.x - reach)), 32), cx1 = floorDivL(static_cast<long>(std::floor(vc.x + reach)), 32);
     const long cz0 = floorDivL(static_cast<long>(std::floor(vc.z - reach)), 32), cz1 = floorDivL(static_cast<long>(std::floor(vc.z + reach)), 32);
     std::vector<std::pair<float, uint64_t>> stale, genAsk;
+    int storedReads = 0;
+    std::unordered_map<uint64_t, std::vector<int>> stored;   // 51.4f: chunk column -> its stored chunks' y (one query a scan)
+    if (scan && m_worker && in.storedChunks && *in.storedChunks) {
+        std::vector<glm::ivec3> coords;
+        (*in.storedChunks)(static_cast<int>(cx0), static_cast<int>(cz0), static_cast<int>(cx1), static_cast<int>(cz1), coords);
+        for (const glm::ivec3& c : coords) stored[columnKey(c.x, c.z)].push_back(c.y);
+    }
     if (scan) for (long cz = cz0; cz <= cz1; ++cz) for (long cx = cx0; cx <= cx1; ++cx) {
         const glm::vec2 lo(static_cast<float>(cx * 32), static_cast<float>(cz * 32)), hi = lo + glm::vec2(32.0f);
         const float d2 = WaterLocality::horizontalDistanceSqToBox(vc, lo, hi);
@@ -245,7 +275,19 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         const auto it = m_sum.find(key);
         if (!resident(static_cast<int>(cx), static_cast<int>(cz))) {
             // step 2: the generator's - asked once (it never goes stale on the span revision: the record is not its source)
-            if (it == m_sum.end() || ((!it->second.built || !it->second.fromGen) && !it->second.requested)) genAsk.push_back({d2, key});
+            if (it == m_sum.end() || ((!it->second.built || !it->second.fromGen) && !it->second.requested)) {
+                // 51.4f: its stored (edited) chunks read now - on this thread, a few a call; the rest asked on a later call
+                std::vector<int> cys;
+                if (const auto st = stored.find(key); st != stored.end()) cys = st->second;
+                if (!cys.empty()) {
+                    if (storedReads >= kStoredReadsPerCall || !in.storedRuns || !*in.storedRuns) { ++m_stats.pending; continue; }
+                    ++storedReads;
+                    Summary& sm = m_sum[key];
+                    sm.storedCy = cys; sm.storedRuns.clear();
+                    for (int cy : cys) { std::vector<ColumnRuns> r; (*in.storedRuns)(static_cast<int>(cx), cy, static_cast<int>(cz), r); sm.storedRuns.insert(sm.storedRuns.end(), r.begin(), r.end()); }
+                } else if (it != m_sum.end()) { it->second.storedCy.clear(); it->second.storedRuns.clear(); }
+                genAsk.push_back({d2, key});
+            }
             continue;
         }
         if (it == m_sum.end() || !it->second.built || it->second.fromGen || it->second.spanRev != in.spanRevision) stale.push_back({d2, key});

@@ -53,6 +53,9 @@ public:
     // Access the world database (for per-world recipe/metadata). May be null if the world
     // has no persistent storage configured.
     WorldStorage* getWorldStorage() const { return m_streamingManager.getWorldStorage(); }
+    /// WaterCore 51.4f (ChunkStreamingManager): the stored chunks in a box; one stored chunk's water spans as (x, z, bottomY, topY), world
+    std::vector<glm::ivec3> storedChunksInRegion(const glm::ivec3& lo, const glm::ivec3& hi) { return m_streamingManager.storedChunksInRegion(lo, hi); }
+    bool storedChunkWaterSpans(const glm::ivec3& c, std::vector<glm::vec4>& out) { return m_streamingManager.storedChunkWaterSpans(c, out); }
 
     // Far-LOD geometry for chunks that were evicted without ever being saved (world-look
     // A1/A2): populated by the streaming eviction callback, consumed by the renderer's

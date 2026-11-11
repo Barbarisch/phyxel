@@ -686,6 +686,10 @@ public:
     /// 51.4 step 2: chunk columns with no resident chunk are summarized from the generator, on the skin's worker (WaterSkin.h)
     void setSkinGeneratorSource(WaterSkin::GeneratorFactory factory) { m_skin.setGeneratorSource(std::move(factory), s_skin.generatorThreads); }
     bool hasSkinGeneratorSource() const { return m_skin.hasGeneratorSource(); }
+    /// 51.4f: the world's stored (edited) chunks - a non-resident chunk column's water there is the store's, not the generator's
+    using SkinStoredChunks = std::function<void(int, int, int, int, std::vector<glm::ivec3>&)>;
+    using SkinStoredRuns = std::function<void(int, int, int, std::vector<ColumnRuns>&)>;
+    void setSkinStoredChunks(SkinStoredChunks list, SkinStoredRuns runs) { m_skinStoredList = std::move(list); m_skinStoredRuns = std::move(runs); }
     bool skinCellForTest(int cx, int cz, SkinCell& out) const { return m_skin.cellAt(cx, cz, out); }
     const SpanReader& skinReaderForTest() const { return m_spanReader; }
     /// 27.18: the water the world's record (chunk spans) holds in a voxel box, m^3 (-1 with no span reader) - a create over it
@@ -1040,6 +1044,7 @@ private:
     std::function<uint64_t()> m_spanRevision;
     RecordDrawStats m_recordStats;
     WaterSkin m_skin;   // 51.4 S3
+    SkinStoredChunks m_skinStoredList; SkinStoredRuns m_skinStoredRuns;   // 51.4f
     void refreshRecordTiles();
     void buildRecordTile(int tx, int tz, RecordTile& t);
     // §27 W1b: the tile life cycle of a GPU volume (after each step): wakes first, then tiles frozen long enough are recorded

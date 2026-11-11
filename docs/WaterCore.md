@@ -13023,6 +13023,22 @@ so not CPU contention). Now the workers take blocks of 8 x 8 chunk columns, near
   streaming: 18.5 ms water feed frames, the record tiles reading chunks as they load). Evidence `skin_river_blocks*`.
 - Still: a world's first fill takes minutes and is redone every session (and every time the skin is switched on) - step 3 (the summary
   persisted) remains the cure; the persisted summary must also carry an edited column's record (51.4 item 7).
+
+**51.4f (2026-11-10) S3 step 3 BUILT (OFF with the skin) - an edited, unloaded chunk draws its STORED water** (51.4 item 7; the step
+changed from "persist the summary"). Only edited (dirty) chunks are saved - a pristine one regenerates identically (ChunkStreaming
+Manager saves dirty chunks only; the span writer marks its chunks dirty). So a chunk column with nothing resident is exactly the
+generator's water except in its STORED chunks, and the store is the truth there: once a scan the skin asks the world for the stored
+chunks in its reach (`ChunkManager::storedChunksInRegion`, one SQL query, no decode), and for a column with any it reads their water
+(`storedChunkWaterSpans`: decodes the chunk, under the streaming manager's storage mutex; 4 a call), cuts those chunks' heights out of
+the generator's runs and puts the stored water in. Nothing new is persisted, so nothing can disagree with the saved world (a summary
+table could, with an unsaved edit). The set of stored chunks only changes when a chunk unloads (saved), which is also when its column
+stops being resident - the re-route already happens then.
+- `AnEditedUnloadedChunkDrawsItsStoredWater` (CPU): the lake's surface chunk drained and "stored": unloaded with the store vs loaded -
+  0 of 19,881 points differ (1 stored read); the control (no store) differs at 240 - the generator's water where it was drained.
+- Live (RiverCarve, no edits there - the path's query cost): the reach filled in 164 s, the skin's call 0.008 ms at rest (worst 15.5 ms
+  - a scan), 37.7 / 37.9 fps on / off. Not tested live: an edit saved and unloaded (the CPU test carries it).
+- Left: a world's first generator fill still takes minutes every session (a cache of the generator's summaries keyed by the recipe
+  would make it once per world - pure, cannot go stale; not built). Water unit + storage tests 425 / 425.
   Tests: water unit 379 / 379. Integration water 81 / 84: the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` (a
   device state freed a cycle late at cycles 8 and 11 - timing) with ANOTHER application holding the GPU at ~50 % (a game, not this
   work); it passed on the idle GPU after 51.4b and touches none of the changed code (create / step / the ripple layer). Re-run

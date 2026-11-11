@@ -495,6 +495,22 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             const auto it = m_residentColumns.find((static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz));
             return it == m_residentColumns.end() ? 0 : it->second;
         });
+    // 51.4f: the far skin reads the world's STORED (edited) chunks for columns with nothing resident (only edited chunks are saved)
+    waterCore->setSkinStoredChunks(
+        [this](int cx0, int cz0, int cx1, int cz1, std::vector<glm::ivec3>& out) {
+            out.clear();
+            if (chunkManager) out = chunkManager->storedChunksInRegion(glm::ivec3(cx0, -4, cz0), glm::ivec3(cx1, 31, cz1));
+        },
+        [this](int cx, int cy, int cz, std::vector<Core::Water::ColumnRuns>& out) {
+            out.clear();
+            std::vector<glm::vec4> spans;
+            if (!chunkManager || !chunkManager->storedChunkWaterSpans(glm::ivec3(cx, cy, cz), spans)) return;
+            for (const glm::vec4& s : spans) {
+                Core::Water::ColumnRuns c; c.x = static_cast<int>(s.x); c.z = static_cast<int>(s.y);
+                Core::Water::ColumnRun r; r.bottomY = s.z; r.topY = s.w; r.mass = static_cast<double>(s.w - s.z);
+                c.runs.push_back(r); out.push_back(std::move(c));
+            }
+        });
     waterCore->setSpanIo(
         [this](const std::vector<Core::Water::ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunksTouched) {
             using namespace Core::Water;

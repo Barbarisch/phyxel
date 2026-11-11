@@ -3166,6 +3166,7 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::skinFields() {
     in.residentGlobal = m_resGlobal ? m_resGlobal() : 0; in.residentColumn = &m_resColumn;
     in.volumeBoxes = &m_boxes; in.volumeBoxesRevision = m_avRevision;
     in.look = [this](int x, int z, float top) { return packLook(lookAt(x, z, top)); };
+    in.storedChunks = &m_skinStoredList; in.storedRuns = &m_skinStoredRuns;   // 51.4f
     m_skin.update(s_skin, in);
     return m_skin.fields();
 }
