@@ -1,6 +1,7 @@
 #pragma once
-// docs/WaterCore.md 21.2 / 21.11 - the droplet crown: water the grid cannot hold leaves it as droplets,
-// flies, and lands back in - mass exact (grid + pool is conserved).
+// docs/WaterCore.md 21.2 / 21.11 - the droplet crown, made COSMETIC in 51.11 (the owner, 2026-10-11: "splash particles would
+// not 'take' from the volume of the pond. it should jsut be a few splash particles for affect"): droplets show the water a
+// splash throws, fly and land (driving ripples), and carry none - the pond's water never leaves the grid.
 //
 // BIRTH, two rules, per world cell (no chunk input):
 //  (1) SCRAPS - a DETACHED run (a vertical run of cells holding water, f >= film, whose cell below is air:
@@ -40,20 +41,17 @@ struct DropletBirth {
 };
 struct BirthReport { int scraps = 0, sprays = 0; double volume = 0.0; };
 
-/// The CPU reference of both rules on `g` (one tick of `dt`): zeroes / reduces the cells, appends one birth
-/// per column that lost water. Mass removed from the grid == sum of the births' volumes.
+/// The CPU reference of both rules on `g` (one tick of `dt`): appends one birth per column that threw water (the volume the
+/// droplets SHOW). 51.11 (the owner's decision, 2026-10-11): droplets are cosmetic - the grid's mass is unchanged. A spray cell keeps
+/// its water; a scrap's water falls down its own column onto what holds it, the same tick.
 BirthReport birthDroplets(WaterGrid& g, float dt, float gravity, std::vector<DropletBirth>& out);
-
-/// Put `volume` (m^3) into `g` at the world point (the cell holding it, lifted to the first non-solid cell at
-/// or above it); a cell's overflow above 1 - s carries up its column. Returns what did not fit (m^3).
-double depositIntoGrid(WaterGrid& g, const glm::vec3& world, double volume);
 
 /// The pool (21.2): world-space droplets, owned by WaterCoreManager. Cap 20 000 (§12 decision 5).
 struct Droplet {
     glm::vec3 pos{0.0f}, vel{0.0f};
-    float volume = 0.0f;   ///< m^3 it carries
-    float edge = 0.0f;     ///< drawn cube edge = volume^(1/3): drawn volume = carried mass
-    int volumeId = 0;      ///< the active volume it left (and lands back in)
+    float volume = 0.0f;   ///< m^3 it SHOWS (51.11: carries no water; sizes the cube and its landing's ripple kick)
+    float edge = 0.0f;     ///< drawn cube edge = volume^(1/3)
+    int volumeId = 0;      ///< the active volume it left (whose surface it lands on)
     float age = 0.0f;
 };
 class DropletPool {
@@ -63,8 +61,8 @@ public:
     void setCap(size_t c) { m_cap = c < kCap ? c : kCap; }
     size_t cap() const { return m_cap; }
     /// Split a birth into droplets of (k h)^3 each (k = the size knob, clamped [1/27, 1]) at hashed points inside the
-    /// cell around `b.pos`, velocity +-15 % zero-sum per birth. Returns the volume that did NOT fit the pool (the
-    /// caller puts it straight back - never dropped).
+    /// cell around `b.pos`, velocity +-15 % zero-sum per birth. Returns the volume that did NOT fit the pool (shown by
+    /// none - counted as refused; no water, 51.11).
     double spawn(const DropletBirth& b, int volumeId, float h, float sizeFraction, uint32_t tick);
     /// 26.31 look (the owner, 2026-10-18: "splashes way too round"): the share of the +-15 % velocity spread that goes SIDEWAYS
     /// to the birth's own velocity (1 = isotropic, the 21 default - each parcel bursts into a ball; < 1 = thrown along its
@@ -73,13 +71,11 @@ public:
     /// Advance every droplet by dt (gravity, quadratic air drag); `land(pos, prevPos, volumeId)` returns true when
     /// the droplet reached water or ground - the droplet is then removed and reported in `landed`.
     template <class LandFn> void step(float dt, float gravity, LandFn land, std::vector<Droplet>& landed);
-    /// Remove every droplet of a volume (it is flushed into its grid by the caller).
-    std::vector<Droplet> take(int volumeId);
-    /// A2i (47): drop every droplet (the world changed); returns the volume dropped
-    double clear() { const double v = volumeInFlight(); m_d.clear(); return v; }
+    /// Remove every droplet of a volume (51.11: just dropped - they carry no water).
+    void drop(int volumeId);
+    /// A2i (47): drop every droplet (the world changed)
+    void clear() { m_d.clear(); }
     const std::vector<Droplet>& droplets() const { return m_d; }
-    double volumeInFlight() const { double v = 0.0; for (const Droplet& d : m_d) v += d.volume; return v; }
-    double volumeInFlight(int volumeId) const { double v = 0.0; for (const Droplet& d : m_d) if (d.volumeId == volumeId) v += d.volume; return v; }
     bool anyFor(int volumeId) const { for (const Droplet& d : m_d) if (d.volumeId == volumeId) return true; return false; }
 private:
     std::vector<Droplet> m_d;

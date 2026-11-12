@@ -15,6 +15,9 @@
 // docs/WaterCore.md 21.6 / 21.11 - the droplet crown's unit tests (D-T1..D-T4, D-T7, D-T9). Predictions were
 // written in 21.6 and 21.11 before S1 was built; each test quotes its own. D-T5 (GPU parity) needs a device and
 // lives with the integration tests, not here.
+// 51.11 (the owner's decision, 2026-10-11): droplets are COSMETIC - they show water and carry none. The D-T tests that
+// pinned the water flying and landing back were rewritten to that contract: the grid's own mass is constant every tick
+// (it was grid + pool), a full pool refuses (shown by none) with nothing to put back, and a spray cell keeps its water.
 
 namespace Phyxel::Core::Water {
 namespace {
@@ -33,8 +36,8 @@ MicroStateQuery stoneBox(glm::ivec3 lo, glm::ivec3 hi) {
     };
 }
 
-// grid + pool: the quantity the droplets must conserve
-double ledger(const WaterCoreManager& m) { return m.totalMass() + m.dropletVolume(); }
+// 51.11: the pond's own water - droplets carry none, so the grid alone is conserved
+double ledger(const WaterCoreManager& m) { return m.totalMass(); }
 
 // ── D-T1 / D-T4 rig: a scrap thrown upward in a closed 4 m box ──────────────────────────────────────────
 // One voxel at (1, 2, 1) filled to f = 0.2 (a 3 x 3 sheet of columns, each sum f 0.6 < 1, air below), kicked
@@ -68,7 +71,7 @@ ScrapRun launchScrap(size_t cap, float seconds) {
         r.maxAlive = std::max(r.maxAlive, static_cast<size_t>(st.alive));
         for (const glm::vec4& d : mgr.dropletDrawList())
             if (d.y > r.apexY) { r.apexY = d.y; r.apexT = (k + 1) * kDt; }
-        const bool now = mgr.dropletVolume() > 0.0;
+        const bool now = mgr.dropletStats().alive > 0;
         if (flying && !now) r.lastLandT = (k + 1) * kDt;
         flying = now;
     }
@@ -78,7 +81,7 @@ ScrapRun launchScrap(size_t cap, float seconds) {
 }
 
 // D-T1 - a scrap launched upward in a closed box (21.6): born on its first isolated tick; all lands within the
-// flight time + 0.1 s; grid + pool conserved <= 1e-6 m^3 EVERY tick. The flight time is the measured apex
+// flight time + 0.1 s; the grid conserved EVERY tick (51.11: the droplets show the scrap, its water falls down its column). The flight time is the measured apex
 // (highest droplet, its tick) plus the free fall from there to the floor, sqrt(2 y / g) - drag only lengthens it,
 // by < 1 % at these speeds (dropletDrag at 3.7 cm, 4 m/s: 0.12 m/s^2).
 // Control: the same box holding rested water - 0 births in 60 s.
@@ -88,7 +91,7 @@ TEST(WaterDropletTest, AScrapFliesAndLandsMassExact) {
     std::printf("  scrap %.6f m^3: born after tick 1 %.6f m^3; apex y %.3f m at %.3f s -> predicted landing %.3f s, last landing %.3f s;"
                 " born %.6f landed %.6f, grid at end %.6f; worst ledger drift %.2e m^3\n",
                 r.m0, r.bornAfterFirst, r.apexY, r.apexT, predicted, r.lastLandT, r.born, r.landed, r.gridEnd, r.worstDrift);
-    EXPECT_GE(r.bornAfterFirst, 0.99 * r.m0) << "the scrap must leave the grid on its first tick";
+    EXPECT_GE(r.bornAfterFirst, 0.99 * r.m0) << "the scrap must be shown as droplets on its first tick";
     EXPECT_GT(r.apexY, 2.6f) << "the droplets rise (they carry the scrap's upward velocity)";
     ASSERT_GT(r.lastLandT, 0.0f) << "every droplet must land within the run";
     EXPECT_LE(r.lastLandT, predicted + 0.1f) << "landing later than the flight time";
@@ -96,8 +99,8 @@ TEST(WaterDropletTest, AScrapFliesAndLandsMassExact) {
     EXPECT_NEAR(r.landed, r.born, 1e-6);
     // relative since 2026-10-11 (WaterCore.md 24.11): the scrap is placed bottom-up now (one 0.6 cell, not three 0.2 cells)
     // and its float32 rounding path read 1.22e-6 m^3 on 0.2 (6e-6 relative) - born = landed exactly; the drift does not grow
-    EXPECT_NEAR(r.gridEnd, r.m0, 1e-5 * r.m0) << "all of it back in the grid";
-    EXPECT_LE(r.worstDrift, 1e-5 * r.m0) << "grid + pool must be conserved every tick";
+    EXPECT_NEAR(r.gridEnd, r.m0, 1e-5 * r.m0) << "all of it in the grid";
+    EXPECT_LE(r.worstDrift, 1e-5 * r.m0) << "the grid must be conserved every tick (droplets take no water, 51.11)";
 
     // control: rested water is never born
     WaterCoreManager mgr(stoneBox({0, 0, 0}, {3, 3, 3}));
@@ -111,19 +114,19 @@ TEST(WaterDropletTest, AScrapFliesAndLandsMassExact) {
     EXPECT_EQ(mgr.dropletStats().births, 0) << "control: still water must never become droplets";
 }
 
-// D-T4 - the pool full (cap forced to 10): births refused, refused > 0, the ledger still exact (21.6).
+// D-T4 - the pool full (cap forced to 10): births refused, refused > 0, the grid still exact (21.6; 51.11: nothing left it).
 TEST(WaterDropletTest, AFullPoolRefusesAndKeepsTheWater) {
     const ScrapRun r = launchScrap(10, 3.0f);
     std::printf("  cap 10: max alive %zu, born %.6f refused %.6f landed %.6f m^3, worst ledger drift %.2e m^3\n",
                 r.maxAlive, r.born, r.refused, r.landed, r.worstDrift);
     EXPECT_LE(r.maxAlive, 10u) << "the cap is a hard bound";
     EXPECT_GT(r.refused, 0.0) << "a birth that does not fit must be refused (and reported)";
-    EXPECT_LE(r.worstDrift, 1e-6) << "refused water goes straight back - never dropped";
+    EXPECT_LE(r.worstDrift, 1e-6) << "the grid keeps its water whether or not the pool has room";
 }
 
 // ── D-T2: the T4 stone entry (the CPU reference: WaterSolver + birthDroplets) ──────────────────────────────
 // The 20.8 pond (4 x 3 x 4 m box, water 1.5 m deep at 1/3 m cells, WaterSolidTest's dropStone), a 1/3 m stone
-// entering at `speed`. Born water is removed and counted (grid + born is the ledger). `inject`: a scripted scrap -
+// entering at `speed`. 51.11: born water stays in the grid (the ledger is the grid alone). `inject`: a scripted scrap -
 // ONE cell at f = 0.2, 0.8 m above the pond beside the entry, placed 20 ticks in - the control that the measure sees
 // a floating scrap in this rig (the CPU stone throws none of its own at 6 m/s: 21.11, DiagJetParcels). A voxel-sized
 // scrap is no use here: a 3 x 3 sheet of columns touching each other is never "isolated" (the draft rule measured).
@@ -143,7 +146,7 @@ EntryRun stoneEntry(bool droplets, float speed, bool inject, glm::ivec3 at = {3,
     const float film = WaterGrid::kSurfaceMinDepth / kH, cx = 6.5f * kH, he = kH / 2.0f, rest = 1.5f;
     MovingSolid b; b.centre = {cx, rest + he + 0.02f, cx}; b.halfExtents = glm::vec3(he); b.velocity = {0.0f, -speed, 0.0f};
     for (int k = 0; k < 180; ++k) {
-        if (inject && k == injectTick) { g.f(at.x, at.y, at.z) = 0.2f; s.wake(); m0 = g.totalMass() + r.born; }
+        if (inject && k == injectTick) { g.f(at.x, at.y, at.z) = 0.2f; s.wake(); m0 = g.totalMass(); }
         b.centre.y = std::max(he, b.centre.y - speed * kDt);
         if (b.centre.y <= he) b.velocity = glm::vec3(0.0f);
         s.setMovingSolids({b}, kDt);
@@ -153,7 +156,7 @@ EntryRun stoneEntry(bool droplets, float speed, bool inject, glm::ivec3 at = {3,
             const BirthReport br = birthDroplets(g, kDt, kG, out);
             r.scraps += br.scraps; r.sprays += br.sprays; r.born += br.volume;
         }
-        r.worstDrift = std::max(r.worstDrift, std::abs(g.totalMass() + r.born - m0));
+        r.worstDrift = std::max(r.worstDrift, std::abs(g.totalMass() - m0));
         int iso = 0;
         for (const DetachedRun& run : findDetachedRuns(sp.dims, g.fData().data(), g.sData().data(), film))
             if (run.isolated && run.sumF < 1.0f && run.bottom.y + run.cells < sp.dims.y) ++iso;   // a run reaching the lid is capped, not a scrap
@@ -201,7 +204,7 @@ TEST(WaterDropletTest, DISABLED_DiagScriptedScrap) {
 
 // D-T3 - the 19.7 pocket pond (the DiagPockets rig: 2 m of water, a 62 m/s blast 3 m off the east wall, 30 s) then a
 // slosh at 3 m/s (21.6): 0 scraps born in the 5 s after the slosh - a pocket's roof rests beside supported water.
-// The CPU reference directly (WaterSolver + birthDroplets): born water is removed and counted, grid + born exact.
+// The CPU reference directly (WaterSolver + birthDroplets): 51.11 - born water stays in the grid, the grid exact.
 TEST(WaterDropletTest, PocketsAndASloshAreNotScraps) {
     WaterGrid g(GridSpec{glm::ivec3(0), glm::ivec3(12, 9, 12), kH});
     const GridSpec sp = g.spec();
@@ -230,9 +233,9 @@ TEST(WaterDropletTest, PocketsAndASloshAreNotScraps) {
         std::vector<DropletBirth> out;
         const BirthReport r = birthDroplets(g, kDt, kG, out);
         scraps += r.scraps; sprays += r.sprays; born += r.volume;
-        worst = std::max(worst, std::abs(g.totalMass() + born - m0));
+        worst = std::max(worst, std::abs(g.totalMass() - m0));
     }
-    std::printf("  after the blast (30 s): %d pockets; slosh 3 m/s, 5 s: scrap runs born %d, spray cells %d (%.6f m^3); worst grid + born drift %.2e m^3\n",
+    std::printf("  after the blast (30 s): %d pockets; slosh 3 m/s, 5 s: scrap runs born %d, spray cells %d (%.6f m^3 shown); worst grid drift %.2e m^3\n",
                 pockets, scraps, sprays, born, worst);
     EXPECT_GT(pockets, 0) << "control: the rig must hold pockets after the blast";
     EXPECT_EQ(scraps, 0) << "a pocket's roof (beside supported water) was born as a scrap";
@@ -302,7 +305,8 @@ TEST(WaterDropletTest, BirthsDoNotSeeTheVolumeOrTheChunk) {
 }
 
 // D-T9 - spray off a fast-rising surface (21.11 rule 2): the top cell of a supported run whose top face carries
-// water up at 4 m/s (above v_c = sqrt(2 g h) = 2.56 m/s) emits f (v - v_c) dt / h of a cell; at 2 m/s it emits none.
+// water up at 4 m/s (above v_c = sqrt(2 g h) = 2.56 m/s) shows f (v - v_c) dt / h of a cell; at 2 m/s it shows none.
+// 51.11: the cell keeps its water (the grid loses nothing).
 TEST(WaterDropletTest, ARisingSurfaceSpraysOnlyAboveTheGridLimit) {
     const float vc = std::sqrt(2.0f * kG * kH);
     for (float vUp : {4.0f, 2.0f}) {
@@ -314,14 +318,73 @@ TEST(WaterDropletTest, ARisingSurfaceSpraysOnlyAboveTheGridLimit) {
         std::vector<DropletBirth> out;
         const BirthReport r = birthDroplets(g, kDt, kG, out);
         const double expected = vUp > vc ? 0.5 * (vUp - vc) * kDt / kH * g.cellVolume() : 0.0;
-        std::printf("  top face %.1f m/s (v_c %.2f): sprays %d, scraps %d, volume %.3e m^3 (expected %.3e), grid lost %.3e m^3\n",
+        std::printf("  top face %.1f m/s (v_c %.2f): sprays %d, scraps %d, volume shown %.3e m^3 (expected %.3e), grid lost %.3e m^3\n",
                     vUp, vc, r.sprays, r.scraps, r.volume, expected, m0 - g.totalMass());
         EXPECT_EQ(r.scraps, 0);
         EXPECT_EQ(r.sprays, vUp > vc ? 1 : 0);
         EXPECT_NEAR(r.volume, expected, 1e-9);
-        EXPECT_NEAR(m0 - g.totalMass(), r.volume, 1e-9) << "what the grid lost is what was born";
+        EXPECT_NEAR(g.totalMass(), m0, 1e-9) << "the spray cell keeps its water (51.11: droplets are cosmetic)";
         if (vUp > vc) { ASSERT_EQ(out.size(), 1u); EXPECT_FLOAT_EQ(out[0].vel.y, vUp); }
     }
+}
+
+// ── 51.11: splash droplets are COSMETIC (the owner's decision, 2026-10-11: "splash particles would not 'take' from the volume
+// of the pond. it should jsut be a few splash particles for affect") ────────────────────────────────────────────────────
+// 51.11-T1 - the D-T1 scrap thrown up with droplets on: the pond's own water (the grid) is constant EVERY tick, while
+// droplets are in flight. Prediction: the drift stays at float rounding (< 1e-5 of the scrap). Red (21's ledger-exact droplets):
+// the grid drops by the whole scrap on tick 1. Control: droplets ARE born and fly (else the measure is blind).
+TEST(WaterDropletTest, CosmeticDropletsTakeNoWater) {
+    WaterCoreManager mgr(stoneBox({0, 0, 0}, {3, 3, 3}));
+    std::string err;
+    const int id = mgr.create({0, 0, 0}, {3, 3, 3}, kH, "eulerian", &err, "cpu");
+    ASSERT_NE(id, 0) << err;
+    mgr.setDropletSize(1.0f / 9.0f);
+    mgr.placeBox({1, 2, 1}, {1, 2, 1}, 0.2f, nullptr);
+    mgr.addImpulse(glm::vec3(1.5f, 2.5f, 1.5f), 0.6f, 3.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+    const double m0 = mgr.totalMass();
+    double worst = 0.0;
+    size_t maxAlive = 0;
+    AvRecord rec;
+    for (int k = 0; k < 180; ++k) {
+        mgr.step(id, 1, kDt, &rec);
+        worst = std::max(worst, std::abs(mgr.totalMass() - m0));
+        maxAlive = std::max(maxAlive, static_cast<size_t>(mgr.dropletStats().alive));
+    }
+    const auto& st = mgr.dropletStats();
+    std::printf("  cosmetic: scrap %.6f m^3; born (shown) %.6f m^3, max alive %zu; worst grid drift %.2e m^3\n",
+                m0, st.bornM3, maxAlive, worst);
+    EXPECT_GT(st.bornM3, 0.0) << "control: the scrap must still throw droplets";
+    EXPECT_GT(maxAlive, 0u) << "control: droplets fly";
+    EXPECT_LE(worst, 1e-5 * m0) << "the pond's water must not change while droplets fly - they take none";
+}
+
+// 51.11-T2 - a scrap in mid-air over a pond: its water moves straight DOWN ITS OWN COLUMN in the birth tick, onto the pond
+// (filling upward from the first open cell), and no other column changes. Prediction: cell (6, 6, 6) 0.3 -> 0; (6, 3, 6) (the
+// first open cell over the full layer y 0..2) 0 -> 0.3; every other cell unchanged; the birth still reported (volume shown 0.3 V).
+// Red (21's rule): the scrap's water leaves the grid (the column gains nothing).
+TEST(WaterDropletTest, AScrapFallsDownItsOwnColumn) {
+    WaterGrid g = airGrid({0, 0, 0});
+    g.fillBox({0, 0, 0}, {11, 2, 11}, 1.0f);
+    g.f(6, 6, 6) = 0.3f;
+    const std::vector<float> before = g.fData();
+    const double m0 = g.totalMass();
+    std::vector<DropletBirth> out;
+    const BirthReport r = birthDroplets(g, kDt, kG, out);
+    int otherChanged = 0;
+    for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x) {
+        if (x == 6 && z == 6) continue;
+        if (g.f(x, y, z) != before[g.idx(x, y, z)]) ++otherChanged;
+    }
+    std::printf("  scrap 0.3 at (6,6,6) over a pond topped at y 2: births %zu (%.4f cells shown), f(6,6,6) %.3f, f(6,3,6) %.3f,"
+                " other cells changed %d, grid change %.2e m^3\n", out.size(), r.volume / g.cellVolume(), g.f(6, 6, 6), g.f(6, 3, 6),
+                otherChanged, g.totalMass() - m0);
+    EXPECT_EQ(r.scraps, 1) << "control: it is a scrap";
+    ASSERT_EQ(out.size(), 1u);
+    EXPECT_NEAR(out[0].volume, 0.3 * g.cellVolume(), 1e-7) << "the droplets SHOW the scrap's water";
+    EXPECT_EQ(g.f(6, 6, 6), 0.0f) << "the scrap is gone from mid-air";
+    EXPECT_NEAR(g.f(6, 3, 6), 0.3f, 1e-6f) << "its water is on the pond below, in its own column";
+    EXPECT_EQ(otherChanged, 0) << "no other column is touched";
+    EXPECT_NEAR(g.totalMass(), m0, 1e-9) << "nothing leaves the pond";
 }
 
 }  // namespace

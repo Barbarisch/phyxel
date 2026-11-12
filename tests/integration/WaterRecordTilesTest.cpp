@@ -993,8 +993,8 @@ static LakeSplash runRecordedLake(VkDevice device, VkPhysicalDevice pd, VkQueue 
         if (std::getenv("LAKE_TRACE") && k % 30 == 29) {   // DIAGNOSTIC (51.9b books): every 0.5 s - the books with the water in flight
             long woken = 0, wByWrite = 0; int recorded = 0;
             for (const AvRecord& r : mgr.list()) { woken += r.tilesWoken; wByWrite += r.tilesWokenByWrite; recorded += r.recordedTiles; }
-            std::printf("    t %5.1f  books %+.5f m^3 (cells %.4f, record %.4f, in flight %.4f)  live %d  woken %ld (by write %ld)  recorded %d\n", (k + 1) * dt,
-                        record.total() + mgr.totalMass() + mgr.dropletVolume() - placed, mgr.totalMass(), record.total(), mgr.dropletVolume(), live, woken, wByWrite, recorded);
+            std::printf("    t %5.1f  books %+.5f m^3 (cells %.4f, record %.4f)  live %d  woken %ld (by write %ld)  recorded %d\n", (k + 1) * dt,
+                        record.total() + mgr.totalMass() - placed, mgr.totalMass(), record.total(), live, woken, wByWrite, recorded);
         }
         o.patches = std::max(o.patches, live);
         o.peakAwake = std::max(o.peakAwake, awake);
@@ -1391,60 +1391,47 @@ TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {
 // the peak 15,774-16,372 bricks). The 200 m lake 2 m deep in the record, the same visible splash at its centre, droplets on and off
 // (live, 9 of 15 tile wakes were droplet landings); 40 s. Prediction: 0 grows, and the pool no more than 1.25x the peak bricks (the
 // memory bound - never more than the 51.3b pool after its grow, 1.5x); the books exact past the counted drops (the residue sweep, thin
-// films at sleep). RED: the 51.3b sizing (x 0.75, s_patchPoolFactorOldForTest) grows.
+// films at sleep). RED: a pool sized x 0.5 grows (s_patchPoolFactorForTest). It was 51.3b's x 0.75 until 51.11: with cosmetic
+// droplets the landings wake no columns, the peak with droplets fell from 17,524 bricks to 14,742 (= without them), and x 0.75
+// (15,311 slots) no longer grows in this rig.
 TEST_F(WaterRecordTilesTest, ASplashPatchsPoolNeverGrows) {
     if (!isVulkanAvailable()) GTEST_SKIP();
-    struct RestoreFactor { ~RestoreFactor() { WaterCoreManager::s_patchPoolFactorOldForTest = false; } } restoreFactor;
-    // the RED: 51.3b's x 0.75 with droplets on (as live)
-    WaterCoreManager::s_patchPoolFactorOldForTest = true;
+    struct RestoreFactor { ~RestoreFactor() { WaterCoreManager::s_patchPoolFactorForTest = 0.0; } } restoreFactor;
+    // the RED: a pool sized x 0.5, droplets on (as live)
+    WaterCoreManager::s_patchPoolFactorForTest = 0.5;
     const LakeSplash red = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(100.0f, 100.0f), nullptr, true);
-    WaterCoreManager::s_patchPoolFactorOldForTest = false;
-    std::printf("  RED (x 0.75, droplets): pool sized %zu, last %d; grows %ld; bricks peak %d\n", red.poolSized, red.poolLast, red.poolGrows, red.bricksPeak);
+    WaterCoreManager::s_patchPoolFactorForTest = 0.0;
+    std::printf("  RED (x 0.5, droplets): pool sized %zu, last %d; grows %ld; bricks peak %d\n", red.poolSized, red.poolLast, red.poolGrows, red.bricksPeak);
     EXPECT_GE(red.poolGrows, 1) << "the red control must grow - or this rig cannot see the hitch";
     for (bool droplets : {false, true}) {
         const LakeSplash s = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(100.0f, 100.0f), nullptr, droplets);
         std::printf("  droplets %d: pool sized %zu, last %d slots; grows %ld; bricks peak %d (%.2fx the sized pool); back in the record %d; books %+.4f m^3 (counted drops: residue %.4f, thin films %.4f)\n",
                     int(droplets), s.poolSized, s.poolLast, s.poolGrows, s.bricksPeak, s.poolSized ? double(s.bricksPeak) / s.poolSized : 0.0, int(s.slept), s.books, s.residue, s.thin);
         const auto& d = s.drops;
-        std::printf("    droplets m^3: born %.4f, landed %.4f, refused %.4f, relocated %.4f, flushed %.4f, destroyed %.4f; alive %d\n",
-                    d.bornM3, d.landedM3, d.refusedM3, d.relocatedM3, d.flushedM3, d.destroyedM3, d.alive);
+        std::printf("    droplets m^3 shown (51.11: cosmetic): born %.4f, landed %.4f, refused %.4f; alive %d\n", d.bornM3, d.landedM3, d.refusedM3, d.alive);
         EXPECT_GT(s.bricksPeak, 1000) << "CONTROL: the splash woke water into the pool";
         EXPECT_EQ(s.poolGrows, 0) << "the patch's pool grew - a 38-64 ms frame";
         // the memory bound: never past what the 51.3b pool reached after its one grow (x 0.75, doubled: 1.5x the count)
         EXPECT_LE(static_cast<double>(s.poolSized), 1.5 * s.bricksPeak) << "the pool is sized far past the water it holds (memory)";
-        // 51.10: exact with droplets too (the 51.9b loss was the disc cap freezing a landing's column - ASplashsLandingsAreAllKept)
+        // exact with droplets too (51.11: droplets carry no water - ASplashKeepsItsWater)
         EXPECT_LT(std::abs(s.books + s.residue + s.thin), 1e-3) << "water lost past the counted drops";
     }
 }
 
-// 51.10 - every droplet a splash throws comes back into the water, wherever it lands. 51.9b found ~2.2 L of 117 L of spray lost each
-// splash (droplets on only); the deposit ledger (WaterCoreGpu::s_depositLedger) put 2.15 L of it in FROZEN slots: S1's disturbance
-// disc froze the column a landing had just woken (wakeBox), the deposit was staged past the awake slots, never copied, never applied.
-// Now an explicit wake steps its column beyond the disc, and a deposit a call cannot take waits for the next one. The 200 m lake, the
-// same splash as above, droplets on; one variable: s_discCapsWakesForTest. Prediction: RED loses >= 1 L with deposits in frozen
-// slots; GREEN books within 0.2 L of exact (float noise measured -0.0000 without droplets) and every droplet landed.
-TEST_F(WaterRecordTilesTest, ASplashsLandingsAreAllKept) {
+// 51.11 - a splash keeps its water: droplets are COSMETIC (the owner's decision, 2026-10-11: "splash particles would not 'take' from
+// the volume of the pond"). Replaces 51.10's ASplashsLandingsAreAllKept, whose loss (landings deposited into columns S1's disc had
+// frozen) cannot happen now - a droplet deposits nothing. The 200 m lake, 51.9b's splash, droplets on. Prediction: books exact to the
+// counted drops (< 2e-4 m^3 - 51.10's green read -1.0e-5); the splash still throws droplets (the control) and all have landed by the
+// end. The red is the CPU rig's (WaterDropletTest.CosmeticDropletsTakeNoWater: 21's droplets took 0.2 m^3 from the grid).
+TEST_F(WaterRecordTilesTest, ASplashKeepsItsWater) {
     if (!isVulkanAvailable()) GTEST_SKIP();
-    struct Restore { ~Restore() { WaterCoreGpu::s_discCapsWakesForTest = false; } } restore;
-    for (bool red : {true, false}) {
-        WaterCoreGpu::s_discCapsWakesForTest = red;
-        WaterCoreGpu::s_depositLedger = {};
-        const LakeSplash s = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(100.0f, 100.0f), nullptr, true);
-        WaterCoreGpu::s_discCapsWakesForTest = false;
-        const auto& L = WaterCoreGpu::s_depositLedger; const double c = 1.0 / 729.0;   // cell fractions -> m^3 (h = 1/9 m)
-        const double lost = s.books + s.residue + s.thin;
-        std::printf("  %s: books %+.6f m^3 (residue %.6f, thin %.6f); droplets born %.4f landed %.4f alive %d; deposits staged %.5f, met a frozen / "
-                    "absent / sentinel cell %.5f / %.5f / %.5f m^3\n", red ? "RED (the disc caps wakes)" : "GREEN", s.books, s.residue, s.thin,
-                    s.drops.bornM3, s.drops.landedM3, s.drops.alive, L.staged * c, L.frozen * c, L.absent * c, L.sentinel * c);
-        EXPECT_GT(s.drops.landedM3, 0.05) << "CONTROL: the splash threw spray";
-        EXPECT_EQ(s.drops.alive, 0) << "droplets still in flight at the end";
-        if (red) {
-            EXPECT_LT(lost, -1e-3) << "the red must lose the outer landings - or this rig cannot see the defect";
-            EXPECT_GT(L.frozen * c, 1e-3) << "the red's loss is not the frozen-slot deposits";
-        } else {
-            EXPECT_LT(std::abs(lost), 2e-4) << "a landing was lost";
-        }
-    }
+    const LakeSplash s = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(100.0f, 100.0f), nullptr, true);
+    const double lost = s.books + s.residue + s.thin;
+    std::printf("  books %+.6f m^3 (residue %.6f, thin %.6f); droplets shown: born %.4f landed %.4f alive %d; pool grows %ld, bricks peak %d\n",
+                s.books, s.residue, s.thin, s.drops.bornM3, s.drops.landedM3, s.drops.alive, s.poolGrows, s.bricksPeak);
+    EXPECT_GT(s.drops.landedM3, 0.05) << "CONTROL: the splash threw spray";
+    EXPECT_EQ(s.drops.alive, 0) << "droplets still in flight at the end";
+    EXPECT_LT(std::abs(lost), 2e-4) << "the splash changed the lake's water past the counted drops";
 }
 
 // SUPERSEDED by ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch (51 S2): this rig holds a lake as ONE volume over its whole box - the

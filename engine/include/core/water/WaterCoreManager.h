@@ -555,7 +555,7 @@ public:
     /// the volumes (GPU memory freed), droplets, slept boxes, body rows, kept GPU sets, paced wakes, the record cache and tiles, the
     /// solid holds and the motion caches. Engine wiring (span IO, GPU, queries) and the settings stay; ids keep counting. The caller
     /// restores the new world's records after (loadSlept, bodies().load).
-    struct WorldReset { int volumes = 0, slept = 0, bodies = 0, kept = 0, jobs = 0, recordTiles = 0; double dropletsM3 = 0.0, ms = 0.0; };
+    struct WorldReset { int volumes = 0, slept = 0, bodies = 0, kept = 0, jobs = 0, recordTiles = 0; double ms = 0.0; };
     WorldReset resetWorld();
     long worldResets() const { return m_worldResets; }
     long patchesWoken() const { return m_patchesWoken; }   ///< 51 S2: patches woken in slept ponds since the manager was made
@@ -634,7 +634,7 @@ public:
     /// grew once every splash (38-64 ms in one frame), DOUBLING to 1.5x (or the whole box, 665 MB). At 1.0 it holds the peak with
     /// no grow and less memory than the grown pool. Cost only: past it the pool still grows. Pinned by ASplashPatchsPoolNeverGrows.
     static constexpr double kPatchPoolFactor = 1.0;
-    static inline bool s_patchPoolFactorOldForTest = false;   ///< TEST ONLY (51.9b red): the 51.3b factor, 0.75
+    static inline double s_patchPoolFactorForTest = 0.0;   ///< TEST ONLY (the red of ASplashPatchsPoolNeverGrows): > 0 replaces kPatchPoolFactor
     /// TEST ONLY (51.3c control): a sleeping patch's record draw tiles are built BEFORE it is destroyed (its woken columns still its
     /// own - the tiles built dry there; the order before 51.3c)
     static inline bool s_patchSleepDrawFirstForTest = false;
@@ -719,25 +719,25 @@ public:
     std::vector<JetRun> scanDetachedRuns();
 
     // ── 21: the droplet crown (WaterDroplets.h) ─────────────────────────────────────────────────
-    /// Water the grid cannot hold (scraps, spray off a fast-rising surface) leaves as droplets every tick, flies
-    /// (gravity, air drag) and lands back - into the water or onto the ground of its own volume. Grid + pool is
-    /// conserved: a refused birth (pool full) or a deposit that does not fit goes straight back. A volume with
-    /// droplets in flight does not auto-sleep; sleep() lands them first; destroy() discards them with its water.
+    /// 51.11 (the owner's decision, 2026-10-11): droplets are COSMETIC. Water the grid cannot hold (scraps, spray off a fast-rising
+    /// surface) is SHOWN as droplets every tick; they fly (gravity, air drag) and land on the water or ground of their own volume,
+    /// where a landing kicks the ripple layer. They carry no water: the grid keeps it (a scrap falls down its own column the same
+    /// tick, WaterDroplets.h). A volume with droplets in flight does not auto-sleep (its rings are still coming); sleep, destroy and
+    /// a world reset just drop them.
     struct DropletStats {
         // size: a droplet's edge as a fraction of the volume's cell. 1 = one cell - at the pond's 1/9 m a droplet is a microcube
         // (11 cm). The owner's pick, 2026-10-18 (tools/water_splash_variants_video.py: 375 droplets at a 1 m stone's peak against
         // 11,304 at the old 1/9 - "way too round and numerous"); the burst stays isotropic (DropletPool::s_lateralSpread 1).
         bool on = true; float size = 1.0f; int alive = 0;
-        double bornM3 = 0.0, landedM3 = 0.0, refusedM3 = 0.0, relocatedM3 = 0.0, flushedM3 = 0.0, destroyedM3 = 0.0;
+        double bornM3 = 0.0, landedM3 = 0.0, refusedM3 = 0.0;   // the volume SHOWN (51.11: no water moves with a droplet)
         long births = 0, landings = 0; int scraps = 0, sprays = 0;   // scraps / sprays: CPU volumes (the GPU counts per column record)
     };
     void setDroplets(bool on) { m_dstats.on = on; }
     /// Droplet edge as a fraction of the volume's cell (21.11 default 1/9); clamped [1/27, 1] where it is used (DropletPool::spawn).
     void setDropletSize(float k) { m_dstats.size = k; }
-    /// Test hook (D-T4): lower the pool cap; a refused birth goes straight back into the grid.
+    /// Test hook (D-T4): lower the pool cap; a refused birth is shown by no droplet (counted).
     void setDropletCap(size_t c) { m_pool.setCap(c); }
     const DropletStats& dropletStats() { m_dstats.alive = static_cast<int>(m_pool.droplets().size()); return m_dstats; }
-    double dropletVolume() const { double v = 0.0; for (const Droplet& d : m_pool.droplets()) v += d.volume; return v; }   ///< water in flight
     /// Droplet cubes for the renderer (xyz centre, w edge), rebuilt every update.
     const std::vector<glm::vec4>& dropletDrawList() const { return m_dropletDraw; }
 
@@ -882,7 +882,7 @@ private:
         std::string tallLastOff;         // 27.22d
         double recordedM3 = 0.0;
         std::vector<std::pair<int, int>> recordedTileList;   ///< tile (x, z) indices in the record now
-        std::vector<std::pair<int, int>> pendingTileWakes;   ///< §27 W1c: tiles a droplet landed on - woken before the next call
+        std::vector<std::pair<int, int>> pendingTileWakes;   ///< tiles whose wake 51.3's pace held back - woken at a later call (51.11: landings no longer wake tiles)
         std::map<std::pair<int, int>, double> tileChangedAt;   ///< §50 W1g measurement: when each tile last recorded or woke (steady s)
         std::map<std::pair<int, int>, float> tileFrozenSeconds;   ///< s each tile has had every stored column frozen (counted here: a
                                                              ///< body whose columns all froze is asleep and runs no call to count them)
@@ -916,7 +916,6 @@ private:
         uint64_t uploadedAtStep = ~0ull;   // 39.10: stepCount when the grid was last uploaded (the CPU grid is that state until a download)
         double fieldStepSec = -1.0;     // wall time of that step
         bool hadSolids = false;         // 20: fed bodies (or a wake) last frame - keep feeding until it clears
-        std::vector<float> pendingDeposit;   // 21: GPU volume - landed droplets (cell fractions) for the next step
         std::unique_ptr<RippleLayer> ripple;  // 22: the sub-cell wave layer (null = none / refused); 26.13: a window following the camera
         uint64_t rippleMaskVersion = 0;       // 26.30 step 3: the field version the ripple mask was built from
         glm::ivec4 rippleMaskKey{0};          //   and the window (origin x/z, nx, nz)
@@ -947,7 +946,6 @@ private:
     void stepRipples(float dt);
     void collectBirths(Av& av, float dt);          // after a step: births -> the pool
     void stepDroplets(float dt);                   // flight + landing for every volume
-    void depositDroplet(Av& av, const glm::vec3& at, double volume);
     Av* volumeById(int id) { for (auto& a : m_avs) if (a->id == id) return a.get(); return nullptr; }
     bool isAsleep(const Av& av) const { return av.backend == "gpu" ? av.gpuLast.asleep : av.solver->asleep(); }
     void refreshOccupancy(Av& av);
@@ -1093,7 +1091,7 @@ private:
     void logTileEvent(Av& av, int tx, int tz, char cause, double ms);   ///< §50 W1g measurement (s_tileEventLog)
     /// wake the recorded tiles a write at `world` touches (+ s_writeWakeReachM); deferred = before the next call (a write that
     /// lands then too - a droplet's deposit), not now (a collect between two calls breaks the freeze test, 27.13)
-    void wakeRecordedNear(Av& av, const glm::vec3& world, float radius, bool deferred = false);
+    void wakeRecordedNear(Av& av, const glm::vec3& world, float radius);
     bool tileBricks(const Av& av, int tx, int tz, glm::ivec2& bLo, glm::ivec2& bHi) const;   ///< the tile's brick-box columns (clipped)
     bool columnRecorded(const Av& av, int wx, int wz) const;   ///< world voxel column (wx, wz) is in a recorded tile of this volume
     uint64_t m_fieldBumps = 0;

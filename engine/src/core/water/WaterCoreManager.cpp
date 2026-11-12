@@ -179,7 +179,7 @@ void WaterCoreManager::eraseSleptOverlapping(const glm::ivec3& lo, const glm::iv
 bool WaterCoreManager::destroy(int id) {
     auto it = std::find_if(m_avs.begin(), m_avs.end(), [id](const std::unique_ptr<Av>& a) { return a->id == id; });
     if (it == m_avs.end()) return false;
-    for (const Droplet& d : m_pool.take(id)) m_dstats.destroyedM3 += d.volume;   // 21: discarded with the volume's water
+    m_pool.drop(id);   // 51.11: droplets carry no water - nothing to discard with it
     if ((*it)->gpuVol && m_gpu) m_gpu->destroyVolume((*it)->gpuVol);
     m_avs.erase(it);
     m_fields.clear(); for (const auto& a : m_avs) m_fields.push_back(&a->field);   // 26.30 step 3: no pointer to the destroyed field survives
@@ -206,12 +206,12 @@ WaterCoreManager::RemoveResult WaterCoreManager::remove(int id, bool discard) {
         out.ok = true; out.keptM3 = rec.massStored + recorded; out.heldM3 = rec.heldMass; out.unwrittenColumns = rec.unwrittenColumns;
         return out;
     }
-    // discard: the cells, the droplets in flight and every run the record holds in the box
+    // discard: the cells and every run the record holds in the box (51.11: droplets carry no water)
     syncFromGpu(*av, false);
     double cells = av->grid->totalMass();
     const double recorded = av->recordedM3;   // the books of a live volume: its cells + its recorded tiles (the spans under its
                                               // awake columns are the copy it was seeded from - cleared below, not counted twice)
-    for (const Droplet& d : m_pool.take(id)) { cells += d.volume; m_dstats.destroyedM3 += d.volume; }
+    m_pool.drop(id);
     std::vector<WaterBodyTable::ColumnMass> before, written;
     double spans = 0.0;
     if (m_spanReader) {
@@ -617,15 +617,7 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     if (!m_spanWriter) { rec.error = "no span writer installed (the application owns the chunks)"; return rec; }
     refreshOccupancy(*av);
     syncFromGpu(*av, false);   // forced: never the rate-limited mirror, or the record is a second old
-    {   // 21: in-flight droplets land now, into the grid the write-back reads (sleep must not lose them)
-        const std::vector<Droplet> flying = m_pool.take(id);
-        for (const Droplet& d : flying) {
-            const double left = depositIntoGrid(*av->grid, d.pos, d.volume);
-            m_dstats.flushedM3 += d.volume - left;
-            if (left > 0.0) { DropletBirth b; b.pos = d.pos; b.volume = static_cast<float>(left); m_pool.spawn(b, id, av->h, m_dstats.size, m_dropletTick); }
-        }
-        if (!flying.empty()) { av->solver->wake(); if (av->gpuVol) av->gpuDirty = true; }
-    }
+    m_pool.drop(id);   // 51.11: droplets in flight carry no water - nothing to land before the write-back
     if (!isAsleep(*av) && !force) {
         const int q = av->backend == "gpu" ? av->gpuLast.quietTicks : av->last.quietTicks;
         rec.error = "volume is awake (quiet_ticks " + std::to_string(q) + "/" + std::to_string(av->solver->params().restTicks) + "); force:true writes a snapshot";
@@ -1393,7 +1385,7 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
         const double perColumn = (static_cast<double>(per) / 8.0) * (per / 8.0);   // world columns -> 8-cell brick columns
         // x kPatchPoolFactor (51.9b; was 0.75 - 13 of 21 tiles woke without droplets, the peak 14,742 bricks against 20,400 counted;
         // with droplets and live the peak is 0.86-0.99 of the count, and the 0.75 pool grew every splash)
-        slots = static_cast<size_t>(std::ceil((s_patchPoolFactorOldForTest ? 0.75 : kPatchPoolFactor) * bricks * perColumn)) + 2;
+        slots = static_cast<size_t>(std::ceil((s_patchPoolFactorForTest > 0.0 ? s_patchPoolFactorForTest : kPatchPoolFactor) * bricks * perColumn)) + 2;
         if (slots <= WaterCoreGpu::kInitialSlots + 2) slots = 0;   // the default start covers it
     }
     m_lastPatchSlots = slots;
@@ -1780,10 +1772,9 @@ WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
     std::vector<int> ids;
     for (const auto& a : m_avs) ids.push_back(a->id);
     for (int id : ids) {
-        for (const Droplet& d : m_pool.take(id)) out.dropletsM3 += d.volume;   // destroy() would count them as destroyed water
         if (destroy(id)) ++out.volumes;
     }
-    out.dropletsM3 += m_pool.clear();
+    m_pool.clear();
     m_dropletDraw.clear(); m_particleDraw.clear();
     if (m_gpu) for (const KeptEntry& k : m_kept) m_gpu->releaseKept(k.handle);
     out.kept = static_cast<int>(m_kept.size());
@@ -1860,7 +1851,7 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds) {
     // 1. wakes first (a recorded tile the awake margin or a wake box reached) - even with recording off, nothing stays stranded
     const std::vector<int> wakes = m_gpu->takeRecordedWakes(vol);
     if (!wakes.empty() || !av.pendingTileWakes.empty()) {
-        std::set<std::pair<int, int>> tiles(av.pendingTileWakes.begin(), av.pendingTileWakes.end());   // + the droplets' landings (deferred)
+        std::set<std::pair<int, int>> tiles(av.pendingTileWakes.begin(), av.pendingTileWakes.end());   // + the wakes 51.3's pace held back
         const std::set<std::pair<int, int>> deferredTiles = tiles;   // §50 W1g measurement: the cause ('L' deferred, 'M' the margin)
         for (int c : wakes) tiles.insert({floorDivI(c % vol.bn.x + offX, kTileBricks), floorDivI(c / vol.bn.x + offZ, kTileBricks)});
         // 51.3: nearest a live disturbance first, at most s_tileWakesPerCall a call - the rest wait (pendingTileWakes) for the next
@@ -2152,15 +2143,14 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz, char cause) {
 // §27 W1b: before anything writes into a volume's water (a push, placed water, debris momentum, a moving body), the recorded tiles
 // it touches - and a 2 m margin, so its first waves meet cells - are woken from the record, synchronously: a write into a recorded
 // tile's empty cells is lost (a push did nothing; a stone would fall through a recorded lake without a splash).
-void WaterCoreManager::wakeRecordedNear(Av& av, const glm::vec3& world, float radius, bool deferred) {
+void WaterCoreManager::wakeRecordedNear(Av& av, const glm::vec3& world, float radius) {
     if (!av.gpuVol || av.recordedTileList.empty()) return;
     const float r = radius + s_writeWakeReachM;
     const int tx0 = floorDivI(static_cast<int>(std::floor(world.x - r)), kTileVoxels), tx1 = floorDivI(static_cast<int>(std::floor(world.x + r)), kTileVoxels);
     const int tz0 = floorDivI(static_cast<int>(std::floor(world.z - r)), kTileVoxels), tz1 = floorDivI(static_cast<int>(std::floor(world.z + r)), kTileVoxels);
     for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
         if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) == av.recordedTileList.end()) continue;
-        if (deferred) { av.pendingTileWakes.push_back({tx, tz}); ++av.tilesWokenByWrite; }
-        else if (wakeTile(av, tx, tz, 'W')) ++av.tilesWokenByWrite;
+        if (wakeTile(av, tx, tz, 'W')) ++av.tilesWokenByWrite;
     }
 }
 
@@ -2742,35 +2732,7 @@ void WaterCoreManager::collectBirths(Av& av, float dt) {
     for (const DropletBirth& b : births) {
         m_dstats.bornM3 += b.volume; ++m_dstats.births;
         const double refused = m_pool.spawn(b, av.id, av.h, m_dstats.size, m_dropletTick);
-        if (refused > 0.0) { m_dstats.refusedM3 += refused; depositDroplet(av, b.pos, refused); }   // pool full: straight back
-    }
-}
-
-void WaterCoreManager::depositDroplet(Av& av, const glm::vec3& at, double volume) {
-    if (volume <= 0.0) return;
-    if (av.backend == "gpu" && av.gpuVol && m_gpu) {
-        // §27 W1b: a landing on a recorded tile wakes it first - its cells are the GROUND sentinel's until then, and the deposit
-        // would have written its water into the sentinel every ground brick shares
-        // would have written its water into the sentinel every ground brick shares. Deferred: the deposit lands at the next call, and
-        // the tile is woken just before it (27.13: a wake here, after the call was submitted, collected it early)
-        wakeRecordedNear(av, at, 0.0f, true);
-        // the GPU applies it at its next step (wc_column_ops mode 5); the cell is chosen as depositIntoGrid does
-        const WaterGrid& g = *av.grid;
-        glm::ivec3 c = g.worldToCell(at);
-        c.x = std::clamp(c.x, 0, g.nx() - 1); c.z = std::clamp(c.z, 0, g.nz() - 1); c.y = std::clamp(c.y, 0, g.ny() - 1);
-        while (c.y < g.ny() - 1 && av.occCache[g.idx(c.x, c.y, c.z)] != Occ::Air) ++c.y;
-        if (av.pendingDeposit.size() != g.cellCount()) av.pendingDeposit.assign(g.cellCount(), 0.0f);
-        av.pendingDeposit[g.idx(c.x, c.y, c.z)] += static_cast<float>(volume / g.cellVolume());
-        av.hasPendingDeposit = true;
-        m_gpu->wakeBox(*av.gpuVol, c, c, true);   // 26.31: the landing's column (the partial wake; a no-op without it); 51.10: past the disc too
-        return;
-    }
-    const double left = depositIntoGrid(*av.grid, at, volume);
-    av.solver->wake();
-    if (left > 0.0) {   // a ceiling over it: it flies again (never dropped)
-        DropletBirth b; b.pos = at; b.volume = static_cast<float>(left);
-        const double refused = m_pool.spawn(b, av.id, av.h, m_dstats.size, m_dropletTick);
-        if (refused > 0.0) av.grid->f(0, 0, 0) += static_cast<float>(refused / av.grid->cellVolume());   // unreachable in practice (pool full AND a ceiling): kept in the grid, mass exact
+        m_dstats.refusedM3 += refused;   // pool full: shown by none (51.11: the water never left the grid)
     }
 }
 
@@ -2801,7 +2763,6 @@ void WaterCoreManager::stepDroplets(float dt) {
         if (outside) {   // left its volume's box: lands at the nearest column's surface (21.9 F1 - no wall in mid-air), counted
             const float y = runs > 0 ? c.top[runs - 1] : ground;
             if (d.pos.y > y) return false;   // still above the water there: let it fly
-            m_dstats.relocatedM3 += d.volume;
             landAt.push_back(glm::vec3(colXZ.x, y - 0.01f, colXZ.z));
             return true;
         }
@@ -2820,10 +2781,8 @@ void WaterCoreManager::stepDroplets(float dt) {
             av->ripple->addImpulse(landAt[i].x, landAt[i].z, 1000.0f * landed[i].volume * -landed[i].vel.y / (d * d));
             ++m_rstats.impulses;
         }
-        depositDroplet(*av, landAt[i], landed[i].volume);
+        // 51.11: no deposit - the droplet carried no water (the owner's decision, 2026-10-11)
     }
-    for (auto& av : m_avs)
-        if (av->hasPendingDeposit && av->gpuVol && m_gpu) { m_gpu->setDeposits(*av->gpuVol, av->pendingDeposit); std::fill(av->pendingDeposit.begin(), av->pendingDeposit.end(), 0.0f); av->hasPendingDeposit = false; av->gpuLast.asleep = false; }
     Phyxel::Core::Water::dropletDrawList(m_pool, m_dropletDraw);
     m_dstats.alive = static_cast<int>(m_pool.droplets().size());
 }

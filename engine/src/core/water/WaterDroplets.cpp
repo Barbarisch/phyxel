@@ -77,15 +77,21 @@ BirthReport birthDroplets(WaterGrid& g, float dt, float gravity, std::vector<Dro
         const size_t c = static_cast<size_t>(x + g.nx() * z);
         colVol[c] += vol; colPos[c] += glm::dvec3(p) * vol; colVel[c] += glm::dvec3(v) * vol;
     };
+    std::vector<float> back(colVol.size(), 0.0f);   // 51.11: each column's scrap water, in cells, put back down its column
+    std::vector<int> lowest(colVol.size(), -1);       // the column's lowest scrap cell
     for (const Scrap& sc : scraps) {
+        const size_t c = static_cast<size_t>(sc.x + g.nx() * sc.z);
         for (int y = sc.y0; y < sc.y1; ++y) {
             const double vol = static_cast<double>(g.f(sc.x, y, sc.z)) * V;
             add(sc.x, sc.z, g.cellCenterWorld(sc.x, y, sc.z), cellVelocity(g, sc.x, y, sc.z), vol);
+            back[c] += g.f(sc.x, y, sc.z);
             g.f(sc.x, y, sc.z) = 0.0f;
         }
+        lowest[c] = lowest[c] < 0 ? sc.y0 : std::min(lowest[c], sc.y0);
         ++rep.scraps;
     }
-    // (2) spray: the top cell of every supported run whose top face carries water up faster than v_c
+    // (2) spray: the top cell of every supported run whose top face carries water up faster than v_c. 51.11: the cell keeps its
+    // water - the droplets only SHOW it (the owner, 2026-10-11: splash particles do not take from the pond)
     for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x)
         for (int y = 0; y + 1 < g.ny(); ++y) {
             const float ft = g.f(x, y, z);
@@ -96,12 +102,30 @@ BirthReport birthDroplets(WaterGrid& g, float dt, float gravity, std::vector<Dro
             if (vUp <= vc) continue;
             const float frac = std::min(ft * (vUp - vc) * dt / h, ft - film);
             if (frac <= 0.0f) continue;
-            g.f(x, y, z) = ft - frac;
             glm::vec3 p = g.cellCenterWorld(x, y, z); p.y += 0.5f * h;
             glm::vec3 vel = cellVelocity(g, x, y, z); vel.y = vUp;
             add(x, z, p, vel, static_cast<double>(frac) * V);
             ++rep.sprays;
         }
+    // (3) 51.11: a scrap's water falls straight down its own column, the same tick: from its lowest cell down through the air to
+    // what holds it (water, a solid, a body or the grid floor), filling upward from the first open cell. The grid cannot carry it in
+    // mid-air (21.10's floating slab), and nothing leaves the pond. A separate pass on the GPU too (wc_column_ops mode 5): a
+    // neighbour's scrap test reads this column, so the return must wait until every column has decided.
+    for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) {
+        const size_t c = static_cast<size_t>(x + g.nx() * z);
+        if (lowest[c] < 0 || back[c] <= 0.0f) continue;
+        int y = lowest[c];
+        while (y > 0 && airCell(g, x, y - 1, z, film)) --y;   // the first open cell over what holds it
+        if (y > 0 && g.occ(x, y - 1, z) == Occ::Air && g.f(x, y - 1, z) + g.s(x, y - 1, z) < 1.0f) --y;   // a part-full cell under it fills first
+        float left = back[c];
+        for (int yy = y; yy < g.ny() && left > 0.0f; ++yy) {
+            if (g.occ(x, yy, z) != Occ::Air) break;
+            const float room = std::max(0.0f, 1.0f - g.s(x, yy, z) - g.f(x, yy, z));
+            const float put = std::min(room, left);
+            g.f(x, yy, z) += put; left -= put;
+        }
+        if (left > 0.0f) g.f(x, lowest[c], z) += left;   // unreachable (the scrap's own cells are room enough): kept, never dropped
+    }
     for (size_t c = 0; c < colVol.size(); ++c) {
         if (colVol[c] <= 0.0) continue;
         DropletBirth b; b.volume = static_cast<float>(colVol[c]);
@@ -110,23 +134,6 @@ BirthReport birthDroplets(WaterGrid& g, float dt, float gravity, std::vector<Dro
         rep.volume += colVol[c];
     }
     return rep;
-}
-
-double depositIntoGrid(WaterGrid& g, const glm::vec3& world, double volume) {
-    if (volume <= 0.0) return 0.0;
-    glm::ivec3 c = g.worldToCell(world);
-    c.x = std::clamp(c.x, 0, g.nx() - 1); c.z = std::clamp(c.z, 0, g.nz() - 1); c.y = std::clamp(c.y, 0, g.ny() - 1);
-    while (c.y < g.ny() && g.occ(c.x, c.y, c.z) != Occ::Air) ++c.y;   // landed on ground: the first open cell above it
-    const double V = g.cellVolume();
-    double left = volume / V;   // in cell fractions
-    for (int y = c.y; y < g.ny() && left > 0.0; ++y) {
-        if (g.occ(c.x, y, c.z) != Occ::Air) break;                      // a ceiling: what is left goes back to the caller
-        const double room = std::max(0.0, 1.0 - static_cast<double>(g.s(c.x, y, c.z)) - static_cast<double>(g.f(c.x, y, c.z)));
-        const double put = std::min(room, left);
-        g.f(c.x, y, c.z) = static_cast<float>(g.f(c.x, y, c.z) + put);
-        left -= put;
-    }
-    return left * V;
 }
 
 namespace {
@@ -176,15 +183,8 @@ double DropletPool::spawn(const DropletBirth& b, int volumeId, float h, float si
     return static_cast<double>(n - fit) * each;
 }
 
-std::vector<Droplet> DropletPool::take(int volumeId) {
-    std::vector<Droplet> out;
-    size_t w = 0;
-    for (size_t i = 0; i < m_d.size(); ++i) {
-        if (m_d[i].volumeId == volumeId) out.push_back(m_d[i]);
-        else m_d[w++] = m_d[i];
-    }
-    m_d.resize(w);
-    return out;
+void DropletPool::drop(int volumeId) {
+    m_d.erase(std::remove_if(m_d.begin(), m_d.end(), [volumeId](const Droplet& d) { return d.volumeId == volumeId; }), m_d.end());
 }
 
 void dropletDrawList(const DropletPool& pool, std::vector<glm::vec4>& out) {

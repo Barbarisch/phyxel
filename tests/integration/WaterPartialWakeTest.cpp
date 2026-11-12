@@ -195,3 +195,43 @@ TEST_F(WaterPartialWakeTest, TheSurfaceOverTheAwakeColumnsKeepsTheFrozenOnes) {
     EXPECT_LE(cp.maxFlow, 1e-3f) << "the kept surface velocity within the tiler's flow tolerance";
     EXPECT_GT(cr.ticks, 0) << "control: without keeping the frozen columns the field must differ";
 }
+
+// 51.11 (GPU) - droplets are COSMETIC (the owner's decision, 2026-10-11): the D-T1 scrap (a 1 m box of 1/3 m cells, one voxel at
+// f 0.2 kicked up at 3 m/s) on the GPU backend - wc_column_ops mode 4 shows it, mode 5 puts its water back down its own column. The
+// books (mass + residue dropped) stay constant every tick with droplets on, as with them off (the control's floor); droplets are born
+// and fly. Prediction: worst drift < 1e-5 of the scrap both ways; births > 0 on, 0 off. The red is the CPU rig's (21's droplets took
+// the whole scrap, 0.2 m^3, from the grid on tick 1).
+TEST_F(WaterPartialWakeTest, CosmeticDropletsTakeNoGpuWater) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    for (bool droplets : {true, false}) {
+        auto state = [](const glm::ivec3& m) -> int { return (m.x < 0 || m.y < 0 || m.z < 0 || m.x >= 36 || m.y >= 36 || m.z >= 36) ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        mgr.setDroplets(droplets);
+        mgr.setDropletSize(1.0f / 9.0f);
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(3, 3, 3), 1.0f / 3.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_NE(id, 0) << err;
+        mgr.placeBox(glm::ivec3(1, 2, 1), glm::ivec3(1, 2, 1), 0.2f, nullptr);
+        mgr.addImpulse(glm::vec3(1.5f, 2.5f, 1.5f), 0.6f, 3.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+        AvRecord rec;
+        const float dt = 1.0f / 60.0f;
+        mgr.step(id, 1, dt, &rec);
+        double b0 = -1.0, worst = 0.0; int maxAlive = 0;
+        for (int k = 0; k < 180; ++k) {
+            mgr.step(id, 1, dt, &rec);
+            const AvRecord* r = mgr.find(id);
+            const double books = rec.mass + (r ? r->residueDropped : 0.0);
+            if (b0 < 0.0) b0 = books;
+            worst = std::max(worst, std::abs(books - b0));
+            maxAlive = std::max(maxAlive, mgr.dropletStats().alive);
+        }
+        const auto& st = mgr.dropletStats();
+        std::printf("  droplets %s: books %.6f m^3, worst drift %.2e m^3; births %ld (%.6f m^3 shown), max alive %d\n",
+                    droplets ? "ON " : "OFF", b0, worst, st.births, st.bornM3, maxAlive);
+        EXPECT_GT(b0, 0.15) << "CONTROL: the scrap is in the grid";
+        EXPECT_LE(worst, 1e-5 * b0) << "the GPU grid's water changed while droplets flew - they take none";
+        if (droplets) { EXPECT_GT(st.births, 0) << "CONTROL: the scrap is shown as droplets"; EXPECT_GT(maxAlive, 0); }
+        else EXPECT_EQ(st.births, 0);
+    }
+}

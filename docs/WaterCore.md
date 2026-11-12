@@ -102,7 +102,10 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
   (§24.11); added mass (§24.10); the still-pond phantom current not re-measured (§19.6); water under a solid lid does not
   converge (26.23).
 - *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater not wired (§21.4); 1.5-2.3 % black facets at steep tilts
-  (§22.12.2); cosmetic splashes that take no water (owner preference 2026-10-11, not designed).
+  (§22.12.2).
+- **OWNER DECISION, 2026-10-11 (reaffirmed 2026-11-12: "follow the plan"): splash droplets are cosmetic.** They take no
+  water from the pond and add none back; landings still drive ripples. Being built as 51.11. Until 51.11 ships, the code still
+  has ledger-exact droplets, which is the drift.
 - *Parity:* the CPU-GPU kick gap (§19.2); droplet parity D-T5 (§21.12); the FLIP run-up (§15.15 - the one failing water
   integration test).
 - *Cost:* the partial wake's +0.036 ms where nothing freezes; the reductions ~0.17-0.19 ms a call.
@@ -13293,6 +13296,82 @@ at a time, with a deposit ledger (`WaterCoreGpu::s_depositLedger`, new: where ea
   stepping the landed columns, not proven. Not measured: the GPU frame time (the frame count is the whole frame).
 - Tests: water unit (`*Water*`) 383 / 383; integration water 86 / 88 (the known two); `ASplashsLandingsAreAllKept` passes, its red
   loses 2.2 L.
+- **Superseded by 51.11:** 51.10 made ledger-exact droplets keep their water. The owner had already decided (2026-10-11, §0a)
+  that splash droplets take no water at all. I did not check the plan before building 51.10. 51.11 builds the owner's decision
+  and backs 51.10's landing exemption out.
+
+**51.11 (2026-11-12) DESIGN - splash droplets are cosmetic: they take no water from the pond and give none back (the owner's
+decision of 2026-10-11, carried out).** Owner, 2026-10-11: "ideally splash particles would not 'take' from the volume of the pond.
+it should jsut be a few splash particles for affect." Owner, 2026-11-12: "follow the plan". This replaces §12 decision 5's
+"ledger-exact re-absorption" and 21.2's "the water that left flies and lands back" for every volume. The creek had this rule
+(25.30, a cosmetic crown with no water) until 26.27 removed it with the column model. The pond's droplets were never switched over.
+- **Birth (21.2's rules, unchanged detection).** The same scraps and sprays are found, by the same rules, so the same birth
+  records (position, velocity, volume) make the same droplets. What changes is what happens to the grid's water:
+  - **Spray:** the top cell keeps its water. The record is read, the cell is not changed.
+  - **Scrap** (a detached run in mid-air): the grid still cannot carry it (21.10's floating slab). Its water moves straight
+    down its OWN column, in the same tick, onto whatever is below it (water or ground), filling upward. Nothing leaves the
+    pond, mass is exact every tick, and no other column is touched.
+  - **GPU:** `wc_column_ops` mode 4 zeroes a scrap as now and keeps its water in the column's birth record (slot 5 = cell
+    fractions to put back, slot 6 = the lowest scrap cell + 1; both were per-column counts nothing read). A new mode 5
+    dispatched right after puts it back down the column. Mode 4 cannot do this itself: a neighbour's scrap test reads this
+    column's cells, so writing them in the same pass would race.
+  - **CPU reference:** `birthDroplets` gets the same third pass, after the spray pass.
+- **Droplets** fly, draw and land as now (same pool, cap, size knob and look). A landing gives the ripple layer its
+  downward momentum, as now (22.3.1), and puts no water anywhere.
+- **Deleted** (it existed only to put droplet water back): the landing deposit (`depositDroplet`, `pendingDeposit`),
+  `setDeposits` and the staging deposit path with 51.10's frozen-cell backstop, the old mode 5, the landing wake, and 51.10's
+  landing exemption from the disc cap (`colLanding`, `wakeBox(..., landing)`, `s_discCapsWakesForTest`, `s_depositLedger`).
+  The device `deposit` buffer (4 bytes per pool cell) and its staging range go too. Sleep, destroy, save and world reset now
+  just drop droplets in flight; there is no water to flush.
+- **Books:** `water_ledger.droplets` = 0 and `dropletVolume()` = 0 (no water in flight). `water_droplets` keeps
+  born / landed / refused as the volume SHOWN (cosmetic), and `flushed` / `destroyed` / `relocated` are always 0.
+- **Look:** the droplets are the same. Two things could still look different, and the owner judges both from a recording:
+  (a) a strong jet keeps its sprayed water in the grid, so it may stand higher or rise as a slab (21.11's reason for spray
+  removal); (b) a scrap's water reaches the surface at once instead of after its flight time.
+- **Tests (red first):**
+  - Unit `CosmeticDropletsTakeNoWater` (CPU): a stone into a pond with droplets on. The grid's mass stays constant to 1e-6
+    of a cell EVERY tick while droplets are in flight (red: today it drops by the in-flight volume), and droplets are born
+    (> 0, the control).
+  - Unit `AScrapFallsDownItsOwnColumn`: one detached scrap over a pond column. Its water is in that column's surface cell
+    after the birth tick, and no other column changed.
+  - GPU parity: the same rig on the GPU backend gives the same births (count and volume) and constant mass.
+  - Integration: the 200 m lake splash (`ASplashsLandingsAreAllKept`, renamed `ASplashKeepsItsWater`): the books stay
+    exact with droplets on, the disc cap is no longer exempted for anything, and no deposit exists.
+  - The D-T tests that pinned water flying and landing (D-T1..D-T4, D-T9) are rewritten to the cosmetic contract, and
+    each rewrite is listed when built.
+- **Live:** the Creek close splash (`water_splash_phases.py`), new vs 51.10, n = 3, interleaved: droplets alive peak,
+  pool grows, frames, `mgr.4`. Plus a recording of the stone splash for the owner's look.
+- **Design-check (2026-11-12): READY.** The look is unchanged. Chunk independence: the spread hash is world-cell (D-T7) and the
+  return walks only its own column. Order-independent: GPU mode 4 runs on the pre-tick state, mode 5 is its own column-local
+  dispatch, and the CPU runs the same passes in the same order. API: field meanings change and three fields go, listed above.
+  Tiers: none affected; the knobs (cap, size) never change the outcome.
+
+**51.11 BUILT (2026-11-12), not signed off.**
+- **Red first** (the old code, CPU): `CosmeticDropletsTakeNoWater` - the grid lost the whole scrap (0.2000 m^3) while droplets
+  flew; `AScrapFallsDownItsOwnColumn` - the scrap's 0.3 cell left the grid (grid -0.0111 m^3), the pond below gained nothing.
+  Controls passed both times (droplets born; it is a scrap).
+- **Green:**
+  - CPU: worst grid drift 5.5e-8 m^3 with 3,942 droplets alive. The scrap's 0.3 cell lands in (6, 3, 6), the first open
+    cell over the pond. No other cell changes and the grid does not change.
+  - GPU, `WaterPartialWakeTest.CosmeticDropletsTakeNoGpuWater` (new): books drift 3.5e-8 m^3 with droplets on (9 births)
+    against 3.3e-8 off, the floor.
+  - The 200 m lake, `ASplashKeepsItsWater` (replaces 51.10's `ASplashsLandingsAreAllKept`): books -0.000017 m^3, of which
+    0.000013 is the counted residue sweep. 0.111 m^3 of spray shown, all landed.
+- **Rewritten to the cosmetic contract:**
+  - D-T1, D-T4 and D-T9 now hold the grid alone exact (it was grid + pool). D-T9's spray cell loses 0.
+  - D-T2 and D-T3 drift is now grid - start (it was grid + born - start).
+  - The pool test's red is now x 0.5 (see below).
+- **Found - the pool:** with cosmetic droplets the 200 m lake's peak with droplets on is **14,742 bricks, the same as with
+  them off**. 51.10 measured 17,524: the extra ~2,800 bricks were landings waking columns to receive water. At 51.3b's x 0.75
+  (15,311 slots) the pool no longer grows in this rig, so `ASplashPatchsPoolNeverGrows`'s red is now x 0.5 (10,208 slots,
+  grows once). The pool factor stays at 1.0; that decision is still the owner's. It now needs the live grow rate re-measured
+  (below), because 51.9b's "grows in 2 of 5 splashes" was measured with landing wakes.
+- **Deleted**, as designed: the landing deposit, `setDeposits`, the device `deposit` buffer (and wc_column_ops binding 8;
+  bricks -> 8, fLo -> 9, 10 bindings), its staging range, 51.10's `colLanding` / `s_discCapsWakesForTest` / `s_depositLedger`,
+  the landing tile wake (`wakeRecordedNear`'s deferred branch), and the `disc_caps_wakes_test` / `deposits` fields of
+  `water_av_record_tiles`. `water_droplets` drops `relocated_m3`, `flushed_m3` and `destroyed_m3`; it reads `in_flight_m3`
+  0 and gains `cosmetic: true`. `water_ledger.droplets` reads 0. The world reset no longer reports `droplets_m3`.
+- Tests: water unit 385 / 385.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
@@ -13360,9 +13439,9 @@ containers.
 - *Parity and tests:* the CPU-GPU kick gap was not re-measured after the theta fix (§19.2, §24.5 F2); D-T5 droplet GPU
   parity not written (§21.12); FLIP run-up parity (§15.15).
 - *Not started:* wading (E4), containers, pipes, scoop, AV merge/split, the §23 liquids.
-- **Owner preference, 2026-10-11 (not designed):** "ideally splash particles would not 'take' from the volume of the
-  pond. it should jsut be a few splash particles for affect." - today every droplet is pond water, ledger-exact (§12
-  #5, §21.2). Making splashes cosmetic is a design change to write and check when the owner asks for it.
+- **Owner DECISION, 2026-10-11:** "ideally splash particles would not 'take' from the volume of the
+  pond. it should jsut be a few splash particles for affect." This was mis-filed here as a "preference to design when
+  asked". It is a decision, and 51.11 builds it (2026-11-12).
 
 **Is the still pond ready to build on? Yes, for flowing water.** The owner signed off its feel; what remains open is
 polish (look, short-wave loss, terraces) or features that do not gate a stream (wading, containers, pipes, other

@@ -23,7 +23,7 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 9, 9, 9, 11, 13, 7, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 12, 9, 14};   // 50.7: + Mg (liq, diag, rhs, p, r z s q, coef x b, info, scal, bricks)   // 31: + BodyPressure (p, bricks, surfDense, requests, windows, data, slot map, solid, occ)   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 9, 9, 9, 10, 13, 7, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 12, 9, 14};   // 50.7: + Mg (liq, diag, rhs, p, r z s q, coef x b, info, scal, bricks)   // 31: + BodyPressure (p, bricks, surfDense, requests, windows, data, slot map, solid, occ)   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -181,7 +181,7 @@ void WaterCoreGpu::bindPipelines(Volume& vol) {
     bindAll(*vol.pipes[FaceOpsU],   {&vol.f, &vol.occ, &vol.u, &vol.p, &vol.liq, &vol.solid, br, &vol.pg, &vol.discBuf});   // 50.6d: + pg; 51 S1: + the disturbance centres
     bindAll(*vol.pipes[FaceOpsV],   {&vol.f, &vol.occ, &vol.v, &vol.p, &vol.liq, &vol.solid, br, &vol.pg, &vol.discBuf});   // 50.6d: + pg; 51 S1: + the disturbance centres
     bindAll(*vol.pipes[FaceOpsW],   {&vol.f, &vol.occ, &vol.w, &vol.p, &vol.liq, &vol.solid, br, &vol.pg, &vol.discBuf});   // 50.6d: + pg; 51 S1: + the disturbance centres
-    bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped, &vol.solid, &vol.births, &vol.deposit, br, &vol.fLo});   // 21: + births, deposit; 26.10: + fLo
+    bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped, &vol.solid, &vol.births, br, &vol.fLo});   // 21: + births; 26.10: + fLo; 51.11: - deposit
     bindAll(*vol.pipes[Surface],    {&vol.f, &vol.occ, &vol.surf, &vol.u, &vol.w, &vol.solid, br, &vol.births, &vol.birthsPacked, &vol.lists, &vol.surfDense, &vol.solidTopD});   // Phase F (+ u, w: E2; + solid: 20; 26.11: packed lists; 29 S1: the dense field)
     // 29 S1: bindings 6 / 7 are the test expansion's (expandSurfaceForTest rebinds them); otherwise placeholders
     bindAll(*vol.pipes[SurfaceMesh], {&vol.surfDense, &vol.meshCorners, &vol.meshMeta, &vol.meshList, &vol.meshArgs, br, &vol.meshList, &vol.meshArgs, &vol.solidTopD, &vol.colAgg, &vol.motionRef, &vol.motionOut});
@@ -332,7 +332,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
            && createBuffer(vol->out, kOutSlots * 16, false, err) && createBuffer(vol->sources, kMaxSources * sizeof(GpuSource), false, err)
            && createBuffer(vol->surf, vol->columns * (32 + sizeof(Core::Water::SurfaceColumn)), false, err)    // Phase F: the surface field (G2: 64 B)
            && createBuffer(vol->solid, vol->cells * 16, false, err)                                     // 20: (s, q, wake, ledger) per cell
-           && createBuffer(vol->births, vol->columns * 32, false, err) && createBuffer(vol->birthsPacked, vol->columns * 32, false, err) && createBuffer(vol->lists, 16, false, err) && createBuffer(vol->deposit, vol->cells * F4, false, err)   // 21: droplets
+           && createBuffer(vol->births, vol->columns * 32, false, err) && createBuffer(vol->birthsPacked, vol->columns * 32, false, err) && createBuffer(vol->lists, 16, false, err)   // 21: droplets
            && createBuffer(vol->bricks, vol->brickInts * 4, false, err)                                 // 26.6
            && createBuffer(vol->momentum, kMaxMomentum * 32, true, err)                                  // 26.26: written by the host each call
            && (!vol->bricked || createBuffer(vol->unitMap, std::max<size_t>(1, static_cast<size_t>(vol->bn.x) * vol->nuy * static_cast<size_t>(vol->bn.z)) * 16, false, err))   // 27.23 W1e
@@ -348,15 +348,14 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
            && (!vol->bricked || createBuffer(vol->surfUp, vol->dColumns * (sizeof(Core::Water::SurfaceColumn) + 4), true, err));
     vol->meshListCap = vol->bricked ? static_cast<uint32_t>(vol->dColumns * 4) : 0u;
     { static uint64_t s_serial = 0; vol->serial = ++s_serial; }
-    // staging: [f | u | v | w | occ | src | out | p | sources | surf | solid | births | deposit | bricks | particles]
+    // staging: [f | u | v | w | occ | src | out | p | sources | surf | solid | births | bricks | particles] (51.11: - deposit)
     vol->offU = vol->cells * F4; vol->offV = vol->offU + vol->nu * F4; vol->offW = vol->offV + vol->nv * F4;
     vol->offOcc = vol->offW + vol->nw * F4; vol->offSrc = vol->offOcc + vol->cells * 4; vol->offOut = vol->offSrc + vol->cells * F4;
     vol->offP = vol->offOut + kOutSlots * 16; vol->offSources = vol->offP + vol->cells * F4;
     vol->offSurf = vol->offSources + kMaxSources * sizeof(GpuSource);
     vol->offSolid = vol->offSurf + 64 + vol->columns * (32 + sizeof(Core::Water::SurfaceColumn));   // 26.11: [counts | pad | one-run | multi-run]
     vol->offBirths = vol->offSolid + vol->cells * 16;
-    vol->offDeposit = vol->offBirths + vol->columns * 32;
-    vol->offBricks = vol->offDeposit + vol->cells * F4;
+    vol->offBricks = vol->offBirths + vol->columns * 32;
     vol->offParticles = vol->offBricks + vol->brickInts * 4;
     VkDeviceSize particleBytes = 0;
     if (particles) {
@@ -384,7 +383,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         auto adopted = [&](const Buffer* b) { return std::find(m_adoptedDevice.begin(), m_adoptedDevice.end(), b) != m_adoptedDevice.end(); };
         for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                           &vol->diag, &vol->rhs, &vol->p, &vol->pg, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep,
-                          &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->unitMap,
+                          &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->bricks, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->unitMap,
                           &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->colAgg,
                           &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->motionOut})
             if (b->buf && !(s_keptSkipsClearForTest && adopted(b))) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
@@ -509,7 +508,7 @@ WaterCoreGpu::KeptStats WaterCoreGpu::keptStats() const {
 std::vector<WaterCoreGpu::Buffer*> WaterCoreGpu::allBuffers(Volume& vol) {
     Volume* v = &vol;
     return {&v->f, &v->fOrig, &v->fPrev, &v->u, &v->v, &v->w, &v->uOld, &v->vOld, &v->wOld, &v->occ, &v->src, &v->liq,
-            &v->diag, &v->rhs, &v->p, &v->pg, &v->res, &v->valA, &v->valB, &v->knownA, &v->knownB, &v->first, &v->keep, &v->dropped, &v->part, &v->part2, &v->out, &v->sources, &v->surf, &v->solid, &v->births, &v->deposit, &v->bricks, &v->posA, &v->velA, &v->posB, &v->velB, &v->pcount, &v->pstart, &v->pcursor, &v->stageCap, &v->unitCap, &v->scratch, &v->fLo, &v->birthsPacked, &v->lists, &v->staging, &v->momentum, &v->unitMap,
+            &v->diag, &v->rhs, &v->p, &v->pg, &v->res, &v->valA, &v->valB, &v->knownA, &v->knownB, &v->first, &v->keep, &v->dropped, &v->part, &v->part2, &v->out, &v->sources, &v->surf, &v->solid, &v->births, &v->bricks, &v->posA, &v->velA, &v->posB, &v->velB, &v->pcount, &v->pstart, &v->pcursor, &v->stageCap, &v->unitCap, &v->scratch, &v->fLo, &v->birthsPacked, &v->lists, &v->staging, &v->momentum, &v->unitMap,
             &v->surfDense, &v->solidTopD, &v->meshCorners, &v->meshMeta, &v->meshList, &v->meshArgs, &v->meshArgsHost, &v->surfUp, &v->colAgg,
             &v->motionRef, &v->motionOut, &v->motionOutHost, &v->winReq};
 }
@@ -824,7 +823,7 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
     const size_t oldCap = vol.capacity, oldInfoOff = vol.infoOff, oldTallOff = vol.tallOff;
     // the capacity-dependent buffers: the new ones replace them, the old kept until their contents are copied
     Buffer* const keep[] = {&vol.f, &vol.fOrig, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.uOld, &vol.vOld, &vol.wOld, &vol.occ, &vol.src, &vol.fLo,
-                            &vol.solid, &vol.deposit, &vol.p, &vol.bricks};
+                            &vol.solid, &vol.p, &vol.bricks};
     Buffer* const scratchB[] = {&vol.liq, &vol.diag, &vol.rhs, &vol.pg, &vol.res, &vol.valA, &vol.valB, &vol.knownA, &vol.knownB, &vol.first, &vol.keep,
                                 &vol.part, &vol.part2, &vol.staging, &vol.stageCap};
     std::vector<Buffer> oldKeep, oldScratch;
@@ -849,7 +848,7 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
            && createBuffer(vol.knownA, vol.latticeMax * 4, false, &err) && createBuffer(vol.knownB, vol.latticeMax * 4, false, &err)
            && createBuffer(vol.first, vol.latticeMax * 4, false, &err) && createBuffer(vol.keep, vol.latticeMax * 4, false, &err)
            && createBuffer(vol.part, vol.groups * 16, false, &err) && createBuffer(vol.part2, vol.groups * 16, false, &err)
-           && createBuffer(vol.solid, vol.cells * 16, false, &err) && createBuffer(vol.deposit, vol.cells * F4, false, &err)
+           && createBuffer(vol.solid, vol.cells * 16, false, &err)
            && createBuffer(vol.bricks, vol.brickInts * 4, false, &err);
     vol.offU = vol.cells * F4; vol.offV = vol.offU + vol.nu * F4; vol.offW = vol.offV + vol.nv * F4;
     vol.offOcc = vol.offW + vol.nw * F4; vol.offSrc = vol.offOcc + vol.cells * 4; vol.offOut = vol.offSrc + vol.cells * F4;
@@ -857,8 +856,7 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
     vol.offSurf = vol.offSources + kMaxSources * sizeof(GpuSource);
     vol.offSolid = vol.offSurf + 64 + vol.columns * (32 + sizeof(Core::Water::SurfaceColumn));
     vol.offBirths = vol.offSolid + vol.cells * 16;
-    vol.offDeposit = vol.offBirths + vol.columns * 32;
-    vol.offBricks = vol.offDeposit + vol.cells * F4;
+    vol.offBricks = vol.offBirths + vol.columns * 32;
     vol.offParticles = vol.offBricks + vol.brickInts * 4;
     ok = ok && createBuffer(vol.staging, vol.offParticles, true, &err);
     if (!ok) {   // out of device memory: keep the old pool (the residency's capacity backstop holds the water), loudly
@@ -877,7 +875,7 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
         vol.offP = vol.offOut + kOutSlots * 16; vol.offSources = vol.offP + vol.cells * F4;
         vol.offSurf = vol.offSources + kMaxSources * sizeof(GpuSource);
         vol.offSolid = vol.offSurf + 64 + vol.columns * (32 + sizeof(Core::Water::SurfaceColumn));
-        vol.offBirths = vol.offSolid + vol.cells * 16; vol.offDeposit = vol.offBirths + vol.columns * 32; vol.offBricks = vol.offDeposit + vol.cells * F4;
+        vol.offBirths = vol.offSolid + vol.cells * 16; vol.offBricks = vol.offBirths + vol.columns * 32;
         vol.offParticles = vol.offBricks + vol.brickInts * 4;
         return false;
     }
@@ -945,18 +943,16 @@ void WaterCoreGpu::wakeAll(Volume& vol) {
     vol.wakeAllPending = true;
 }
 
-void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi, bool landing) {
+void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi) {
     vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0;
     if (!vol.partialWake) return;
     const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
     if (vol.colWake.size() != nc) vol.colWake.assign(nc, 0);
-    if (landing && vol.colLanding.size() != nc) vol.colLanding.assign(nc, 0);
     const int bx0 = std::max(0, (lo.x + vol.o.x) >> 3), bx1 = std::min(vol.bn.x - 1, (hi.x + vol.o.x) >> 3);
     const int bz0 = std::max(0, (lo.z + vol.o.z) >> 3), bz1 = std::min(vol.bn.z - 1, (hi.z + vol.o.z) >> 3);
     for (int bz = bz0; bz <= bz1; ++bz) for (int bx = bx0; bx <= bx1; ++bx) {
         const size_t c = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
         vol.colWake[c] = 1;
-        if (landing) vol.colLanding[c] = 1;
     }
 }
 
@@ -1265,11 +1261,6 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
     const bool anyRec = vol.anyRecorded && vol.colRecorded.size() == nc;
     auto wantSeed = [&](size_t c) { if (std::find(vol.recordedWakes.begin(), vol.recordedWakes.end(), static_cast<int>(c)) == vol.recordedWakes.end()) vol.recordedWakes.push_back(static_cast<int>(c)); };
     if (vol.wakeAllPending) { std::fill(vol.colQuiet.begin(), vol.colQuiet.end(), 0); vol.wakeAllPending = false; }
-    // 51.10: a droplet's LANDING steps its column this call even beyond the disturbance disc below - the disc caps cost, never
-    // outcomes: capped, the deposit was staged into a frozen slot and lost (2.2 L of 117 L a splash). Only landings: exempting every
-    // wake (the splash's box, writes) let the simulated area past the disc - the pool grew in 4 of 6 live splashes (0 of 6 capped)
-    std::vector<char> forced(nc, 0);
-    if (vol.colLanding.size() == nc) { forced.swap(vol.colLanding); vol.colLanding.assign(nc, 0); }
     for (size_t c = 0; c < nc; ++c) if (vol.colWake[c]) { vol.colQuiet[c] = 0; vol.colWake[c] = 0; if (anyRec && vol.colRecorded[c]) wantSeed(c); }
     // moving -> awake: grown along x, then along z (separable Chebyshev dilation)
     const int M = kPartialWakeMargin;
@@ -1293,7 +1284,7 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
         const float rCells = std::max(s_disturbanceRadiusM, s_disturbanceBandM + 2.0f) / vol.spec.h;
         for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
             const size_t ci = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
-            if (!awake[ci] || (forced[ci] && !s_discCapsWakesForTest)) continue;
+            if (!awake[ci]) continue;
             // the brick column's nearest point to each centre (a column the disc reaches at all stays eligible)
             const float x0 = bx * 8.0f - vol.o.x, z0 = bz * 8.0f - vol.o.z;
             bool inside = false;
@@ -1386,7 +1377,7 @@ void WaterCoreGpu::recordSlotUploads(VkCommandBuffer cmd, Volume& vol, const std
         if (zero)
             for (Buffer* b : {&vol.f, &vol.fOrig, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.uOld, &vol.vOld, &vol.wOld, &vol.src, &vol.liq,
                               &vol.diag, &vol.rhs, &vol.p, &vol.pg, &vol.res, &vol.valA, &vol.valB, &vol.knownA, &vol.knownB, &vol.first, &vol.keep,
-                              &vol.deposit, &vol.fLo})
+                              &vol.fLo})
                 vkCmdFillBuffer(cmd, b->buf, first * 4, count * 4, 0);
         copy(cmd, vol.staging, vol.occ, count * 4, vol.offOcc + first * 4, first * 4);
         copy(cmd, vol.staging, vol.solid, count * 16, vol.offSolid + first * 16, first * 16);
@@ -1572,7 +1563,6 @@ void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
                 need[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 2;
                 markNeed(vol, need, b, dist, kB);
             }
-            if (!vol.hostDeposit.empty()) needFromDenseFill(vol, vol.hostDeposit, need, kB);
         }
         const auto ur1 = UClock::now();   // 39.8: the residency's parts
         // 26.18: which bricks are all ground - from THIS upload's occupancy (an upload follows every occupancy change: a dig
@@ -1656,7 +1646,7 @@ void WaterCoreGpu::uploadSubmit(Volume& vol) {
     VkCommandBuffer cmd = beginCommands();
     if (vol.bricked) {
         for (Buffer* b : {&vol.fOrig, &vol.uOld, &vol.vOld, &vol.wOld, &vol.liq, &vol.diag, &vol.rhs, &vol.pg, &vol.res, &vol.valA, &vol.valB,
-                          &vol.knownA, &vol.knownB, &vol.first, &vol.keep, &vol.deposit})
+                          &vol.knownA, &vol.knownB, &vol.first, &vol.keep})
             vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
         copy(cmd, vol.staging, vol.solid, uploadCells(vol) * 16, vol.offSolid);
         copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks);
@@ -1946,16 +1936,6 @@ void WaterCoreGpu::flushSolidUpload(Volume& vol) {
     recordSolidUpload(cmd, vol);
     submitAndWait(cmd);
     vol.solidWakePending = false;
-}
-
-void WaterCoreGpu::setDeposits(Volume& vol, const std::vector<float>& cellFractions) {
-    if (cellFractions.size() != vol.dCells || !vol.staging.mapped) { for (float c : cellFractions) s_depositLedger.refused += c; return; }
-    if (vol.depositPending && vol.hostDeposit.size() == vol.dCells) { for (size_t i = 0; i < vol.dCells; ++i) vol.hostDeposit[i] += cellFractions[i]; }   // two frames' deposits before a step: add
-    else vol.hostDeposit = cellFractions;
-    vol.depositPending = true;
-    // water arrived: the volume must step. 26.31: with the partial wake only the columns it landed in wake (the caller's wakeBox per
-    // landing; a stone's splash raining back woke the whole pond 1 s after the stone, measured) - without it, the whole volume
-    if (vol.partialWake) { vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0; } else wakeAll(vol);
 }
 
 bool WaterCoreGpu::readBirths(Volume& vol, std::vector<float>& out) const {
@@ -2978,7 +2958,6 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
             need[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 2;
             markNeed(vol, need, b, dist, reach);
         }
-        if (vol.depositPending && !vol.hostDeposit.empty()) needFromDenseFill(vol, vol.hostDeposit, need, reach);
         WaterHostProfile::lap("gpu.04 residency: which bricks", hp);
         const std::vector<int> fresh = applyResidency(vol, need);
         vol.lastRings = rings;
@@ -3043,42 +3022,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     vkCmdFillBuffer(cmd, vol.births.buf, 0, vol.births.bytes, 0);   // 21: this call's birth records
     vkCmdFillBuffer(cmd, vol.lists.buf, 0, vol.lists.bytes, 0);     // 26.11: the packed lists start empty
     const size_t cols = liveColumns(vol);
-    if (vol.depositPending) {   // 21: droplets that landed since the last step
-        auto* sd = reinterpret_cast<float*>(static_cast<char*>(vol.staging.mapped) + vol.offDeposit);
-        std::vector<float> later;   // 51.10: deposits this call cannot take - kept for the next one, never dropped
-        if (vol.bricked) {
-            std::memset(sd, 0, liveCells(vol) * sizeof(float));
-            const glm::ivec3 dn = vol.spec.dims;
-            for (int z = 0; z < dn.z; ++z) for (int y = 0; y < dn.y; ++y) for (int x = 0; x < dn.x; ++x) {
-                const size_t d = static_cast<size_t>(x) + static_cast<size_t>(dn.x) * (y + static_cast<size_t>(dn.y) * z);
-                if (d >= vol.hostDeposit.size() || vol.hostDeposit[d] == 0.0f) continue;
-                const long i = storageIndex(vol, x, y, z);
-                const double dv = vol.hostDeposit[d];
-                // only an AWAKE stored cell takes a deposit: mode 5 runs over the awake columns and the copy below covers the awake
-                // slots alone - a frozen slot's deposit was staged and never copied (lost; 51.10), an absent / sentinel cell holds none
-                const bool takes = i >= static_cast<long>(kFirstSlot) * static_cast<long>(vol.bc) && static_cast<size_t>(i) < liveCells(vol);
-                if (!takes && !s_discCapsWakesForTest) {
-                    if (i < 0) s_depositLedger.absent += dv; else if (i < static_cast<long>(kFirstSlot) * static_cast<long>(vol.bc)) s_depositLedger.sentinel += dv;
-                    else s_depositLedger.frozen += dv;
-                    if (later.empty()) later.assign(vol.hostDeposit.size(), 0.0f);
-                    later[d] = vol.hostDeposit[d];
-                    wakeBox(vol, glm::ivec3(x, y, z), glm::ivec3(x, y, z), true);   // its column steps next call (a landing beats the disc cap)
-                    continue;
-                }
-                if (i < 0) { s_depositLedger.absent += dv; continue; }   // TEST ONLY red (s_discCapsWakesForTest): the old path
-                if (static_cast<size_t>(i) >= liveCells(vol)) s_depositLedger.frozen += dv; else s_depositLedger.staged += dv;
-                if (sd[i] != 0.0f) ++s_depositLedger.shared;
-                sd[i] = vol.hostDeposit[d];
-            }
-            ++s_depositLedger.calls;
-        } else if (vol.hostDeposit.size() == vol.cells) {
-            std::memcpy(sd, vol.hostDeposit.data(), vol.cells * sizeof(float));
-        }
-        copy(cmd, vol.staging, vol.deposit, liveCells(vol) * sizeof(float), vol.offDeposit);
-        barrier(cmd);
-        push.mode = 5; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.mode = 0;
-        vol.depositPending = !later.empty(); vol.hostDeposit = std::move(later);
-    } else barrier(cmd);
+    barrier(cmd);
     if (vol.solidRatesPending) {   // 20 (M1): q and the ledger marks from the device's own fill, once per upload
         push.mode = 1; push.param0 = vol.solidFrame; dispatch(cmd, *vol.pipes[Classify], push, liveCells(vol)); push.mode = 0; push.param0 = 0.0f;
         vol.solidRatesPending = false;
@@ -3094,7 +3038,10 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         for (int s = 0; s < n; ++s) recordSubstep(cmd, vol, push, params, sweeps, vol.quietBefore);
         if (!vol.particles && !(s_disableStagesForTest & 8)) { push.mode = 2; push.param0 = 1e-6f; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.param0 = 0.0f; }   // sweep (fills only)
         capAt(7);
-        if (vol.dropletsOn) { push.mode = 4; push.param0 = dt; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.param0 = 0.0f; push.mode = 0; }   // 21: droplet births, once per tick
+        if (vol.dropletsOn) {   // 21: droplet births, once per tick; 51.11: then each scrap's water back down its own column (cosmetic droplets)
+            push.mode = 4; push.param0 = dt; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.param0 = 0.0f;
+            push.mode = 5; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.mode = 0;
+        }
         capAt(8);
         stamp(cmd, vol, TsSweepBirths);
     }
