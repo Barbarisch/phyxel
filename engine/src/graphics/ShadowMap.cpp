@@ -67,6 +67,11 @@ void ShadowMap::cleanup() {
         vkDestroyPipeline(vkDevice, pipeline, nullptr);
         pipeline = VK_NULL_HANDLE;
     }
+    if (voxFoundPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(vkDevice, voxFoundPipeline, nullptr);
+        voxFoundPipeline = VK_NULL_HANDLE;
+    }
+    voxFoundFailed = false;
     if (pipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(vkDevice, pipelineLayout, nullptr);
         pipelineLayout = VK_NULL_HANDLE;
@@ -461,6 +466,116 @@ bool ShadowMap::createPipeline() {
     vkDestroyShaderModule(device->getDevice(), fragShaderModule, nullptr);
 
     return true;
+}
+
+// docs/VoxelFoundationPlan.md F2.4 — the 1/8 m face preview's caster pipeline. Mirrors createPipeline() state
+// exactly (BACK cull, the same depth bias, static viewport, LESS) and reuses its layout; only the vertex shader and
+// the instance layout (binding 1: PreviewFace, 12 B = three uints at locations 1-3) differ.
+VkPipeline ShadowMap::ensureVoxFoundPipeline() {
+    if (voxFoundPipeline != VK_NULL_HANDLE || voxFoundFailed) return voxFoundPipeline;
+    if (pipelineLayout == VK_NULL_HANDLE || renderPass == VK_NULL_HANDLE) return VK_NULL_HANDLE;
+    auto fail = [&](const char* why) {
+        LOG_ERROR("ShadowMap", "voxfound caster pipeline: {}", why);
+        voxFoundFailed = true;
+        return VK_NULL_HANDLE;
+    };
+    auto vertCode = Utils::readFile(Core::AssetManager::instance().resolveShader("voxfound_face_shadow.vert.spv"));
+    auto fragCode = Utils::readFile(Core::AssetManager::instance().resolveShader("shadow.frag.spv"));
+    if (vertCode.empty() || fragCode.empty()) return fail("shader files missing (run build_shaders.bat)");
+    VkShaderModule vertMod = createShaderModule(device->getDevice(), vertCode);
+    VkShaderModule fragMod = createShaderModule(device->getDevice(), fragCode);
+    if (vertMod == VK_NULL_HANDLE || fragMod == VK_NULL_HANDLE) return fail("shader module creation failed");
+
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertMod;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fragMod;
+    stages[1].pName = "main";
+
+    // Binding 0 = the shared corner-ID vertex buffer (as the chunk pipeline); binding 1 = PreviewFace.
+    std::vector<VkVertexInputBindingDescription> bindings = {Vulkan::Vertex::getBindingDescription()};
+    std::vector<VkVertexInputAttributeDescription> attrs = Vulkan::Vertex::getAttributeDescriptions();
+    VkVertexInputBindingDescription inst{};
+    inst.binding = 1;
+    inst.stride = 12;
+    inst.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    bindings.push_back(inst);
+    for (uint32_t i = 0; i < 3; ++i) {
+        VkVertexInputAttributeDescription a{};
+        a.binding = 1;
+        a.location = 1 + i;
+        a.format = VK_FORMAT_R32_UINT;
+        a.offset = 4 * i;
+        attrs.push_back(a);
+    }
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = uint32_t(bindings.size());
+    vertexInputInfo.pVertexBindingDescriptions = bindings.data();
+    vertexInputInfo.vertexAttributeDescriptionCount = uint32_t(attrs.size());
+    vertexInputInfo.pVertexAttributeDescriptions = attrs.data();
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkViewport viewport{0.0f, 0.0f, float(width), float(height), 0.0f, 1.0f};
+    VkRect2D scissor{{0, 0}, {width, height}};
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1;
+    viewportState.pScissors = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;     // with the 36-index draw (M5)
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_TRUE;
+    rasterizer.depthBiasConstantFactor = 1.25f;
+    rasterizer.depthBiasSlopeFactor = 1.75f;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+
+    VkGraphicsPipelineCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    info.stageCount = 2;
+    info.pStages = stages;
+    info.pVertexInputState = &vertexInputInfo;
+    info.pInputAssemblyState = &inputAssembly;
+    info.pViewportState = &viewportState;
+    info.pRasterizationState = &rasterizer;
+    info.pMultisampleState = &multisampling;
+    info.pDepthStencilState = &depthStencil;
+    info.pColorBlendState = &colorBlending;
+    info.layout = pipelineLayout;
+    info.renderPass = renderPass;
+    const VkResult r = vkCreateGraphicsPipelines(device->getDevice(), VK_NULL_HANDLE, 1, &info, nullptr, &voxFoundPipeline);
+    vkDestroyShaderModule(device->getDevice(), vertMod, nullptr);
+    vkDestroyShaderModule(device->getDevice(), fragMod, nullptr);
+    if (r != VK_SUCCESS) {
+        voxFoundPipeline = VK_NULL_HANDLE;
+        return fail("vkCreateGraphicsPipelines failed");
+    }
+    return voxFoundPipeline;
 }
 
 void ShadowMap::beginRenderPass(VkCommandBuffer commandBuffer) {

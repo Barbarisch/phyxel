@@ -37,6 +37,11 @@ public:
     VkPipeline getDynamicShadowPipeline() const { return dynamicPipeline; }
     VkPipelineLayout getDynamicShadowLayout() const { return dynamicPipelineLayout; }
 
+    /// docs/VoxelFoundationPlan.md F2.4: caster pipeline for the 1/8 m face preview (12 B PreviewFace instances,
+    /// voxfound_face_shadow.vert). Same layout (getPipelineLayout) and state as the chunk pipeline. Created on
+    /// first call; VK_NULL_HANDLE if it cannot be built (logged once).
+    VkPipeline ensureVoxFoundPipeline();
+
     // ---- C2.1 (docs/ContinuousLodPlan.md): per-draw chunk data for multidraw ----
     /// One multidraw per arena BLOCK needs the per-chunk origin out of push constants,
     /// because an indirect draw cannot vary them. Origins live in this SSBO, indexed by
@@ -83,6 +88,8 @@ private:
     VkPipeline kinematicPipeline = VK_NULL_HANDLE;
     VkPipelineLayout dynamicPipelineLayout = VK_NULL_HANDLE;
     VkPipeline dynamicPipeline = VK_NULL_HANDLE;
+    VkPipeline voxFoundPipeline = VK_NULL_HANDLE;   // F2.4 (lazy)
+    bool voxFoundFailed = false;
 
     // (The old m_shadowRange member + UI slider were DEAD — nothing in the render path read
     // them; the live reach knob is RenderCoordinator::s_shadowDistance, POST /api/debug/shadow.

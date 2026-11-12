@@ -3210,6 +3210,39 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
         m_nearShadowInstancesDrawn = shadowInstances;
     }
 
+    // F2.4 (docs/VoxelFoundationPlan.md §4.6 item 6): the 1/8 m face preview casts into the mid and near
+    // cascades like chunks do (not far: chunks don't either). Same pipeline layout + state as the chunk casters,
+    // 36-index both-windings draw (M5). Uses the buffer the main pass uploaded (a debug view: the very first frame
+    // after a change casts the previous list).
+    if (cascade != kCascadeFar) m_voxFoundShadowFaces[cascade == kCascadeNear ? 1 : 0] = 0;
+    if (cascade == kCascadeMid) m_voxFoundShadowSprigs = 0;
+    if (cascade != kCascadeFar && m_voxFoundPreview && m_voxFoundPreview->castFaces &&
+        m_voxFoundBuffer != VK_NULL_HANDLE && m_voxFoundMapped &&
+        m_voxFoundRevision == m_voxFoundPreview->revision && !m_voxFoundPreview->faces.empty() && camera) {
+        VkPipeline vp = map.ensureVoxFoundPipeline();
+        if (vp != VK_NULL_HANDLE) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), commandBuffer, "VoxFound Shadow");
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vp);
+            if (map.getChunkDataSet(currentFrame) != VK_NULL_HANDLE) {
+                VkDescriptorSet set = map.getChunkDataSet(currentFrame);
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, map.getPipelineLayout(), 0, 1,
+                                        &set, 0, nullptr);
+            }
+            vulkanDevice->bindVertexBuffers(currentFrame);
+            vulkanDevice->bindIndexBuffer(currentFrame);
+            VkDeviceSize off = 0;
+            vkCmdBindVertexBuffers(commandBuffer, 1, 1, &m_voxFoundBuffer, &off);
+            struct { glm::mat4 lightSpaceMatrix; glm::vec3 chunkBaseOffset; uint32_t useChunkDataSsbo; uint32_t drawIndexBase; } pc;
+            pc.lightSpaceMatrix = lightSpaceMatrix;
+            pc.chunkBaseOffset = camera->relativeTo(m_voxFoundPreview->originMetres);
+            pc.useChunkDataSsbo = 0u;
+            pc.drawIndexBase = 0u;
+            vkCmdPushConstants(commandBuffer, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+            vkCmdDrawIndexed(commandBuffer, 36u, uint32_t(m_voxFoundPreview->faces.size()), 0, 0, 0);
+            m_voxFoundShadowFaces[cascade == kCascadeNear ? 1 : 0] = uint32_t(m_voxFoundPreview->faces.size());
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Character shadow pass (AnimatedVoxelCharacter / NPC ragdolls)
     // -------------------------------------------------------------------------
@@ -3320,6 +3353,15 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
         m_shadowFoliageChunks = int(foliageDraws.size());
         foliagePipeline->renderShadow(commandBuffer,
                                       vulkanDevice->getDescriptorSet(currentFrame), foliageDraws);
+        // F2.4: the 1/8 m preview's sprigs cast canopy shadows exactly like today's cards (same cascade).
+        if (m_voxFoundPreview && m_voxFoundPreview->castSprigs && m_voxFoundSprigBuffer != VK_NULL_HANDLE &&
+            m_voxFoundSprigRevision == m_voxFoundPreview->revision && !m_voxFoundPreview->sprigs.empty()) {
+            foliagePipeline->renderShadowVoxFound(commandBuffer, vulkanDevice->getDescriptorSet(currentFrame),
+                                                  m_voxFoundSprigBuffer,
+                                                  uint32_t(m_voxFoundPreview->sprigs.size()),
+                                                  m_voxFoundPreview->originMetres);
+            m_voxFoundShadowSprigs = uint32_t(m_voxFoundPreview->sprigs.size());
+        }
     }
 
     // -------------------------------------------------------------------------

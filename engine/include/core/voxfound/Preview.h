@@ -31,6 +31,8 @@ struct Preview {
     glm::dvec3 originMetres{0.0};    // world position of voxel (0,0,0)'s min corner
     std::vector<PreviewFace> faces;
     std::vector<PreviewSprig> sprigs;
+    bool castFaces = true;           // F2.4 diagnosis switches: which parts write the shadow maps
+    bool castSprigs = true;
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves
 };
 

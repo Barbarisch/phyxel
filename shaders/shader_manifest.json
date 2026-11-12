@@ -381,6 +381,11 @@
       "sources": "75cf409ed34164ac6bd12119f6a57ace9343b8abcaa4a6c4457390be63e1d480",
       "spv_present": true
     },
+    "voxfound_face_shadow.vert": {
+      "built": true,
+      "sources": "01b9aaa18e8c896b006a3541a1f594226af516714e39e38d166193ad707e3333",
+      "spv_present": true
+    },
     "voxfound_faces.comp": {
       "built": true,
       "sources": "909b113878bed04f049e4e82a380f4b986870ea823c1e6f56fed68e300bac75a",
@@ -389,6 +394,11 @@
     "voxfound_foliage.vert": {
       "built": true,
       "sources": "da009f2de4934839b43e9bbe569a7e9d6c75b3f3ae25abd7d81dafbb0e7f9f28",
+      "spv_present": true
+    },
+    "voxfound_foliage_shadow.vert": {
+      "built": true,
+      "sources": "6f93d3b4aefe4d53cd277bef37068628ae8b031fe9771857fbc934d82b7f5c1f",
       "spv_present": true
     },
     "water.frag": {

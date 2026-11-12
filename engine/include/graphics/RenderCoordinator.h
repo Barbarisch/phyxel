@@ -23,7 +23,7 @@
 #include "graphics/VoxelLightOccupancyGpu.h"     // M1b: sub-voxel occupancy on the GPU
 #include "core/WaterManager.h"               // WaterSurfaceCell (WaterCore debug feed)
 #include "core/voxfound/Preview.h"           // F2.2 1/8 m face preview
-#include "core/voxfound/Preview.h"           // F2.2 1/8 m face preview
+#include <array>
 #include <functional>
 #include <future>
 #include <memory>
@@ -620,6 +620,10 @@ public:
     /// GPU-side face count drawn by the preview last frame (0 = off).
     uint32_t voxFoundPreviewFacesDrawn() const { return m_voxFoundDrawn; }
     uint32_t voxFoundPreviewSprigsDrawn() const { return m_voxFoundSprigsDrawn; }
+    /// F2.4 shadow casters drawn by the last shadow passes: mid faces, near faces, mid sprigs.
+    std::array<uint32_t, 3> voxFoundShadowCasters() const {
+        return {m_voxFoundShadowFaces[0], m_voxFoundShadowFaces[1], m_voxFoundShadowSprigs};
+    }
 
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
     // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
@@ -1497,6 +1501,8 @@ private:
     size_t         m_voxFoundSprigCapacity = 0;
     uint64_t       m_voxFoundSprigRevision = UINT64_MAX;
     uint32_t       m_voxFoundSprigsDrawn = 0;
+    uint32_t       m_voxFoundShadowFaces[2] = {0, 0};              // F2.4 casters drawn: [mid, near]
+    uint32_t       m_voxFoundShadowSprigs = 0;
     void renderVoxFoundSprigs();
     void releaseVoxFoundSprigBuffer();
     bool  m_waterEnabled = false;

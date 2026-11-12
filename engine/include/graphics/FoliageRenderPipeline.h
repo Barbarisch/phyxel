@@ -78,6 +78,9 @@ public:
     /// the position. Call in the scene pass. Main view only (no shadow casting yet).
     void renderVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer, uint32_t count,
                         const glm::dvec3& originAbs);
+    /// F2.4: the same sprigs into the (mid) shadow map — renderShadow's twin (voxfound_foliage_shadow.vert).
+    void renderShadowVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer, uint32_t count,
+                              const glm::dvec3& originAbs);
 
     // ---- KINEMATIC foliage (F3): leaf cards riding moving coherent fragments ----
     // A felled tree's canopy stays card-rendered while it falls: instances live in a
@@ -118,6 +121,11 @@ private:
     VkRenderPass     m_renderPass = VK_NULL_HANDLE;       // kept for the lazy pipeline
     VkDescriptorSetLayout m_uboLayout = VK_NULL_HANDLE;
     VkExtent2D       m_extent{0, 0};
+    VkPipeline       m_voxFoundShadowPipeline = VK_NULL_HANDLE;  // F2.4 (lazy)
+    bool             m_voxFoundShadowFailed   = false;
+    VkRenderPass     m_shadowRenderPass = VK_NULL_HANDLE;        // kept for lazy shadow pipelines
+    VkExtent2D       m_shadowExtent{0, 0};
+    bool createShadowPipeline(const char* vertSpv, VkPipeline* outPipeline);
     Params           m_params;
     glm::vec3        m_cameraWorld{0.0f};   // per-frame camera position (camera-relative rendering)
 

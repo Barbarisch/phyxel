@@ -13342,6 +13342,24 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"error", "no Vulkan device / renderer"}};
             return;
         }
+        if (cmd.params.contains("cast")) {   // {"cast":{"faces":bool,"sprigs":bool}}: shadow casters on/off (diagnosis)
+            const auto& c = cmd.params["cast"];
+            voxFoundPreview.castFaces = c.value("faces", voxFoundPreview.castFaces);
+            voxFoundPreview.castSprigs = c.value("sprigs", voxFoundPreview.castSprigs);
+            if (!cmd.params.contains("type") && !cmd.params.contains("templates")) {
+                response = {{"cast_faces", voxFoundPreview.castFaces}, {"cast_sprigs", voxFoundPreview.castSprigs}};
+                return;
+            }
+        }
+        if (cmd.params.value("stats", false)) {   // what the last frame actually drew (main + shadow passes)
+            const auto sc = renderCoordinator->voxFoundShadowCasters();
+            response = {{"faces_drawn", renderCoordinator->voxFoundPreviewFacesDrawn()},
+                        {"sprigs_drawn", renderCoordinator->voxFoundPreviewSprigsDrawn()},
+                        {"shadow_faces_mid", sc[0]}, {"shadow_faces_near", sc[1]}, {"shadow_sprigs_mid", sc[2]},
+                        {"preview_faces", voxFoundPreview.faces.size()},
+                        {"preview_sprigs", voxFoundPreview.sprigs.size()}};
+            return;
+        }
         if (!voxFoundBuilder) {
             voxFoundBuilder = std::make_unique<FaceBuilderGpu>();
             std::string gerr;

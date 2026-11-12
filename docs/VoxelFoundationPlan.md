@@ -455,9 +455,38 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   different: the new canopy is flat pale green, today's has dark lobes.** Cause, from `foliage.frag`: today's canopy is
   in the shadow map (foliage shadow pass) and in the micro occupancy the ambient traces; the preview's leaves are in
   neither, so every card gets full sun and full-sky ambient. That is §4.6 item 6 + §4.4, now visible.
-- NEXT: preview faces + sprigs into the shadow pass (`foliage_shadow.vert` twin; the solid faces' 36-index caster
-  rule binds), and the preview's voxels into the occupancy the ambient reads; then re-capture this A/B, read pixel
-  values on both canopies, and settle the sprig density.
+- NEXT (done in F2.4 below): shadow casting, then re-capture with pixel values, settle the density.
+
+**F2.4 2026-11-12 — the preview casts shadows; sprig density settled by measurement.** (§4.6 item 6, partly.)
+- Built: `voxfound_face_shadow.vert` + `ShadowMap::ensureVoxFoundPipeline` (the chunk caster's layout and state, the
+  36-index both-windings draw under back cull, M5) — faces cast into mid ∪ near like chunks; `voxfound_foliage_shadow.vert`
+  (`foliage_shadow.vert` with the 1/8 m decode, diff = decode only) + `FoliageRenderPipeline::renderShadowVoxFound` —
+  sprigs cast into mid like today's cards. Preview `{"stats":true}` reports what the last frame drew in each pass;
+  `{"cast":{"faces":bool,"sprigs":bool}}` switches casters for diagnosis. `LightingPipeline.md` §0.2 + §9 updated.
+- Caster matrix, oak, fixed pose (today's control constant at mean 166.7 in all 8 captures): the 1/8 m canopy p50
+  is 209 with no casters or faces only, 50 with sprigs only or both — **all of the canopy shading comes from the
+  sprigs**, none from the solid faces, and density (1,152 vs 3,772 sprigs) barely moves it.
+- **Trap I fell into:** the first A/B pose (camera at x 98 between the trees) saw today's oak from its right and the
+  new oak from its left, so one showed its sunlit side and the other its shadowed side: "new canopy too dark (p50 50
+  vs 180)" was the POSE. Fixed rig (`f24_species.py`): each tree from the SAME pose relative to its own trunk centre
+  (height 17 + 0.67 H, distance 1.73 H), canopy-only box. Read A/B numbers only from that rig.
+- Same-relative-pose results (canopy luma: pixels / mean / p50):
+
+  | Tree | today (grid 3) | 1/8 m @ 2.25 | @ 4.5 | @ 7.5 |
+  |---|---|---|---|---|
+  | oak_m | 58,216 / 130.6 / 130.5 | 55,032 / 128.9 / 113.4 | **57,631 / 131.9 / 129.5** | 58,996 / 134.4 / 144.5 |
+  | birch_m | 48,578 / 158.4 / 187.1 | 44,154 / 158.2 / 186.0 | **47,657 / 160.5 / 189.0** | 49,017 / 163.3 / 192.0 |
+  | spruce_m | 32,080 / 133.0 / 155.0 | 24,738 / 118.2 / 134.1 | 26,968 / 122.6 / 143.1 | 28,023 / 126.1 / 146.4 |
+
+  **`kSprigsPerM2` = 4.5** (was the derived 2.25). Spruce stays short at every density: its 1/8 m template is a
+  smaller tree (6.5 x 6.25 m footprint vs 8 x 7 m on grid 3) — a template-generation difference to fix in the
+  library (§7a), not in the cards.
+- Not done, and not needed for this match: the preview's voxels are still NOT in the occupancy the ambient reads
+  (`phxAmbient` sees open sky around them). The canopy matched without it; it will matter for interiors and dense
+  cover, and the real fix is ambient over the new store (§4.4), not resampling 1/8 m into today's 1/9 m pool.
+- Forest (F2.2 spot, 84 trees, `voxfound_f24_forest_cards_shadows.png`): 36,778 solid faces + 15,579 sprigs, all
+  drawn in the main, mid, near (faces) and mid (sprigs) passes; dappled canopy shadows on ground and trunks.
+- Tests: CPU 7/7 + GPU 7/7 on rebuilt exes (forest sprigs 14,716 at 4.5/m², GPU = CPU exactly).
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

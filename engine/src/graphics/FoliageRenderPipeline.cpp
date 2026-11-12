@@ -61,6 +61,9 @@ void FoliageRenderPipeline::cleanup() {
     if (m_voxFoundPipeline != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_voxFoundPipeline, nullptr);
     m_voxFoundPipeline = VK_NULL_HANDLE;
     m_voxFoundFailed   = false;
+    if (m_voxFoundShadowPipeline != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_voxFoundShadowPipeline, nullptr);
+    m_voxFoundShadowPipeline = VK_NULL_HANDLE;
+    m_voxFoundShadowFailed   = false;
     if (m_pipelineLayout != VK_NULL_HANDLE) vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
     if (m_kinPipeline       != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_kinPipeline, nullptr);
     if (m_kinPipelineLayout != VK_NULL_HANDLE) vkDestroyPipelineLayout(m_device, m_kinPipelineLayout, nullptr);
@@ -235,12 +238,20 @@ void FoliageRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D e
 }
 
 bool FoliageRenderPipeline::initializeShadow(VkRenderPass shadowRenderPass, VkExtent2D shadowExtent) {
-    if (m_device == VK_NULL_HANDLE || m_pipelineLayout == VK_NULL_HANDLE) {
-        LOG_ERROR("FoliageRenderPipeline", "initializeShadow called before initialize()");
+    m_shadowRenderPass = shadowRenderPass;
+    m_shadowExtent     = shadowExtent;
+    return createShadowPipeline("foliage_shadow.vert.spv", &m_shadowPipeline);
+}
+
+bool FoliageRenderPipeline::createShadowPipeline(const char* vertSpv, VkPipeline* outPipeline) {
+    const VkRenderPass shadowRenderPass = m_shadowRenderPass;
+    const VkExtent2D shadowExtent = m_shadowExtent;
+    if (m_device == VK_NULL_HANDLE || m_pipelineLayout == VK_NULL_HANDLE || shadowRenderPass == VK_NULL_HANDLE) {
+        LOG_ERROR("FoliageRenderPipeline", "shadow pipeline requested before initialize()/initializeShadow()");
         return false;
     }
     try {
-        auto vertCode = readShaderFile(Core::AssetManager::instance().resolveShader("foliage_shadow.vert.spv"));
+        auto vertCode = readShaderFile(Core::AssetManager::instance().resolveShader(vertSpv));
         auto fragCode = readShaderFile(Core::AssetManager::instance().resolveShader("foliage_shadow.frag.spv"));
 
         VkShaderModule vertModule, fragModule;
@@ -327,19 +338,56 @@ bool FoliageRenderPipeline::initializeShadow(VkRenderPass shadowRenderPass, VkEx
         pipelineInfo.renderPass          = shadowRenderPass;
         pipelineInfo.subpass             = 0;
         VkResult res = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo,
-                                                 nullptr, &m_shadowPipeline);
+                                                 nullptr, outPipeline);
         vkDestroyShaderModule(m_device, vertModule, nullptr);
         vkDestroyShaderModule(m_device, fragModule, nullptr);
         if (res != VK_SUCCESS) {
-            throw std::runtime_error("failed to create foliage shadow pipeline");
+            throw std::runtime_error(std::string("failed to create foliage shadow pipeline from ") + vertSpv);
         }
     } catch (const std::exception& e) {
-        LOG_ERROR("FoliageRenderPipeline", "Shadow pipeline init failed ({}); foliage casts no shadows", e.what());
-        m_shadowPipeline = VK_NULL_HANDLE;
+        LOG_ERROR("FoliageRenderPipeline", "Shadow pipeline init failed ({}); these cards cast no shadows", e.what());
+        *outPipeline = VK_NULL_HANDLE;
         return false;
     }
-    LOG_INFO("FoliageRenderPipeline", "Shadow caster initialized (dappled canopy shadows)");
+    LOG_INFO("FoliageRenderPipeline", "Shadow caster initialized ({})", vertSpv);
     return true;
+}
+
+// docs/VoxelFoundationPlan.md F2.4 — the 1/8 m sprigs' canopy shadows: renderShadow's twin for one buffer,
+// voxfound_foliage_shadow.vert (position decode only). Mid cascade, like today's foliage.
+void FoliageRenderPipeline::renderShadowVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer,
+                                                 uint32_t count, const glm::dvec3& originAbs) {
+    if (!m_params.enabled || buffer == VK_NULL_HANDLE || count == 0 || m_shadowPipeline == VK_NULL_HANDLE) return;
+    if (m_voxFoundShadowPipeline == VK_NULL_HANDLE) {
+        if (m_voxFoundShadowFailed) return;
+        if (!createShadowPipeline("voxfound_foliage_shadow.vert.spv", &m_voxFoundShadowPipeline)) {
+            m_voxFoundShadowFailed = true;
+            return;
+        }
+    }
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxFoundShadowPipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &uboSet, 0, nullptr);
+    FoliagePush pc{};
+    pc.cardSize      = m_params.cardSize;
+    pc.windStrength  = m_params.windStrength;
+    pc.radius        = m_params.radius;
+    pc.cardsPerVoxel = m_params.cardsPerVoxel;
+    pc.windDirX      = m_params.wind.dir.x;
+    pc.windDirZ      = m_params.wind.dir.y;
+    pc.windBase      = m_params.wind.base;
+    pc.gustAmp       = m_params.wind.gustAmp;
+    pc.gustScale     = m_params.wind.gustScale;
+    pc.windScrollX   = m_params.wind.scroll.x;
+    pc.windScrollZ   = m_params.wind.scroll.y;
+    pc.windAniso     = m_params.wind.aniso;
+    pc.chunkBaseOffset = glm::vec3(originAbs - glm::dvec3(m_cameraWorld));
+    pc.absBaseX = float(originAbs.x);
+    pc.absBaseY = float(originAbs.y);
+    pc.absBaseZ = float(originAbs.z);
+    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FoliagePush), &pc);
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &offset);
+    vkCmdDraw(cmd, 6u * m_params.cardsPerVoxel, count, 0, 0);
 }
 
 

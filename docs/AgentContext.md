@@ -371,9 +371,17 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       GOTCHAS: a build after a failed post-build (MSB3073) left phyxel_tests.exe with a NEW timestamp but STALE code
       (stub results) -- delete the exe to force a relink when results look impossible. Bash `python` hangs (Store
       stub) -- use PowerShell with the uv PATH. Unit tests also need the uv python dir on PATH.
-      NEXT: preview faces + sprigs into the shadow pass and into the occupancy the ambient reads, re-capture the oak
-      A/B with pixel values, settle sprig density; then device-side texture table (8 B draw record); uniform-block
-      skip; chunk-border neighbours; then a whole-frame A/B against today on the same generated scene.
+      F2.4 SHADOWS (2026-11-12): preview faces cast into mid+near (ShadowMap::ensureVoxFoundPipeline,
+      voxfound_face_shadow.vert), sprigs into mid (renderShadowVoxFound, voxfound_foliage_shadow.vert). Canopy
+      shading is ALL from sprig casting. Measured at the same pose relative to each trunk (f24_species.py):
+      kSprigsPerM2 = 4.5 matches today's oak + birch canopies (coverage, mean, p50). Preview body extras:
+      {"stats":true} (what each pass drew), {"cast":{"faces","sprigs"}}. Ambient occupancy still excludes the
+      preview (not needed for the canopy match; real fix = ambient over the new store, §4.4).
+      TRAP: an A/B pose BETWEEN two trees sees one lit side and one shadowed side -- compare trees only from the
+      same pose relative to each trunk. PowerShell 5.1 strips quotes in JSON args: f22_preview.py takes @file.
+      NEXT: device-side texture table (8 B draw record); uniform-block skip; chunk-border neighbours; then a
+      whole-frame A/B against today on the same generated scene (the F2 gate); regenerate spruce templates to
+      today's size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

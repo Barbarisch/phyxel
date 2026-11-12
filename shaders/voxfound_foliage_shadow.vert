@@ -1,0 +1,119 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "wind.glsl"
+
+// Foliage leaf-card SHADOW caster. Same card fan/orientation/wind math as foliage.vert (cards
+// must shadow exactly where they render — keep the wind block byte-identical), but projected
+// by the light-space matrix into the shadow map. Pairs with foliage_shadow.frag which alpha-tests the leaf-forge cutout mask, so
+// canopies cast DAPPLED shadows — before this pass, leaf voxels cast no shadows at all (the
+// mesher skips their solid faces; trunks alone shadowed the ground).
+
+// docs/VoxelFoundationPlan.md F2.4: TWIN of foliage_shadow.vert for the 1/8 m sprigs (VoxFound::foliageSprigs) --
+// identical except the position decode, exactly as voxfound_foliage.vert twins foliage.vert. Keep in step.
+layout(location = 0) in uint inPacked;  // 0-7 x |8-15 y |16-23 z (1/8 m cell, 0-255) |24-27 sky
+layout(location = 1) in uint inTex;     // low16 = leaf texture index |16-19 R |20-23 G |24-27 B (block light)
+
+layout(set = 0, binding = 0) uniform UniformBufferObject {
+    mat4 view;
+    mat4 proj;
+    mat4 lightSpaceMatrix;
+    vec3 sunDirection;
+    vec3 sunColor;
+    uint numInstances;
+    float ambientLight;
+    float emissiveMultiplier;
+    vec3 cameraPosition;
+    mat4 reflectedViewProj;
+    float elapsedTime;
+    mat4 viewProj;          // proj*view, precombined once per frame on CPU
+    mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
+} ubo;
+
+layout(push_constant) uniform PushConstants {
+    vec3  chunkBaseOffset;   // chunk world origin
+    float cardSize;          // leaf card half-extent
+    float windStrength;      // master wind amplitude (multiplies the shared field)
+    float radius;            // safety cull cap (world units)
+    uint  cardsPerVoxel;
+    // Shared wind field (WindSystem writes grass + foliage identically each frame).
+    float windDirX;
+    float windDirZ;
+    float windBase;          // steady bend strength
+    float gustAmp;           // gust amplitude on top of base
+    float gustScale;         // gust spatial frequency (1/world units)
+    float windScrollX;   // CPU-integrated gust-field offset (see WindSystem::State::scroll)
+    float windScrollZ;         // gust front travel speed (world units/s)
+    // Camera-relative rendering: chunkBaseOffset above is (world - camera); exact ABSOLUTE
+    // chunk origin for hash/phase seeds (never relative, or cards re-roll as the camera moves).
+    float absBaseX;
+    float absBaseY;
+    float absBaseZ;
+    float windAniso;   // gust-front crosswind stretch; must match grass (one wind field)
+} pc;
+
+layout(location = 0) out flat uint vTex;    // leaf texture index
+layout(location = 1) out vec2  vCard;       // card-plane coords in [-1,1] (mask UV)
+layout(location = 2) out flat uint vMaskV;  // per-card mask variant (bit0 flipX, bit1 flipY, bit2 swap)
+
+float hash21(vec2 p) {
+    p = fract(p * vec2(127.1, 311.7));
+    p += dot(p, p + 34.23);
+    return fract(p.x * p.y);
+}
+
+void main() {
+    uint packed = inPacked;
+    vec3 cell = vec3(float(packed & 0xFFu), float((packed >> 8) & 0xFFu), float((packed >> 16) & 0xFFu));
+    vec3 cellM = (cell + 0.5) / 8.0;   // 1/8 m cell centre, metres from the origin
+    vTex = inTex & 0xFFFFu;
+
+    // Subcube centre in world space (identical to foliage.vert).
+    vec3 subCenter = pc.chunkBaseOffset + cellM;
+    vec3 scHash = mod(vec3(pc.absBaseX, pc.absBaseY, pc.absBaseZ)
+                      + cellM, 2048.0);   // ABSOLUTE hash domain
+
+    int card   = gl_VertexIndex / 6;
+    int corner = gl_VertexIndex - card * 6;
+
+    vec2 seed = vec2(scHash.x * 6.13 + scHash.z * 11.7 + float(card) * 3.71,
+                     scHash.z * 4.19 - scHash.y * 7.53 + float(card) * 5.31);
+    float h0 = hash21(seed);
+    float h1 = hash21(seed + 13.1);
+    float h2 = hash21(seed + 27.7);
+    vMaskV = uint(hash21(seed + 57.9) * 7.999);
+
+    float az = h0 * 6.2831853;
+    float el = h1 * 3.1415926 - 1.5707963;
+    vec3 nrm = vec3(cos(el) * cos(az), sin(el), cos(el) * sin(az));
+    vec3 up0 = (abs(nrm.y) < 0.9) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 right = normalize(cross(up0, nrm));
+    vec3 up    = cross(nrm, right);
+
+    vec3 jitter = (vec3(h0, h1, h2) - 0.5) * (2.0 / 3.0) * 0.55;
+    vec3 center = subCenter + jitter;
+
+    // Wind block — byte-identical to foliage.vert (see comments there).
+    vec2 wd = vec2(pc.windDirX, pc.windDirZ);
+    float gust = windGustAt(scHash.xz, vec2(pc.windScrollX, pc.windScrollZ), wd, pc.gustScale, pc.windAniso);
+    float bend = (pc.windBase + pc.gustAmp * gust) * pc.windStrength;
+
+    float fphase = scHash.x * 1.7 + scHash.z * 1.3 + float(card) * 2.39;
+    float fang   = sin(ubo.elapsedTime * 2.1 + fphase) * 0.05
+                 * (pc.gustAmp * gust + 0.2 * pc.windBase) * clamp(pc.windStrength * 20.0, 0.0, 1.0);
+    float ca = cos(fang), sa = sin(fang);
+    vec3 rightW = right * ca + up * sa;
+    vec3 upW    = up * ca - right * sa;
+
+    vec2 quad[6] = vec2[6](vec2(-1,-1), vec2(1,-1), vec2(1,1), vec2(-1,-1), vec2(1,1), vec2(-1,1));
+    vec2 q = quad[corner];
+    vCard = q;
+
+    // Same safety cull as the visible pass so shadows match rendered cards.
+    float dist = length(ubo.cameraPosition - center);
+    float scale = pc.cardSize * (0.8 + 0.4 * h2) * (dist > pc.radius ? 0.0 : 1.0);
+
+    vec3 worldPos = center + (q.x * rightW + q.y * upW) * scale;
+    float hFrac = clamp((worldPos.y - (subCenter.y - 0.55)) * 0.9, 0.0, 1.0);
+    worldPos.xz += wd * (bend * hFrac);
+    gl_Position = ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
+}

@@ -86,13 +86,15 @@ size_t coverageErrors(const VoxelGrid& g, Outside outside, const std::vector<Qua
 /// air), kept when foliageCellHash01(world cell) < s_foliageDensity (0.25), and foliage.vert fans it into
 /// cardsPerVoxel cutout cards of a fixed size in metres. At 1/8 m the same rule per voxel would put
 /// (8/3)^2 = 7.1x the sprigs on the same canopy shell, so the density is defined in METRES instead: sprigs per
-/// m^2 of exposed leaf cell face area projected to cells, kSprigsPerM2 = 0.25 per (1/3 m)^2 cell = 2.25,
-/// i.e. a 1/8 m cell is kept with probability 2.25/64. The look is a function of world position, not of voxel
-/// size. Thinning uses today's hash on the absolute 1/8 m cell, so it is seam-free across chunks.
+/// m^2 of exposed cell area, a 1/8 m cell kept with probability kSprigsPerM2/64. The look is a function of world
+/// position, not of voxel size. Thinning uses today's hash on the absolute 1/8 m cell (seam-free across chunks).
+/// kSprigsPerM2 = 4.5 is MEASURED, not derived (F2.4, VoxelFoundationPlan): the 0.25 knob alone (2.25/m^2)
+/// under-fills, because today's micro leaves bypass that knob. 4.5 matched today's canopy coverage + luminance on
+/// oak and birch (same tree, same relative pose, shadows on).
 ///
 /// A sprig is a PackedFace with axis = 3 (unused by faces): a = x | y<<8 | z<<16 | 3<<24, b = material<<16.
 /// Outside::Air: the grid border counts as air; Outside::Skip: it does not expose a cell.
-constexpr double kSprigsPerM2 = 0.25 * 9.0;
+constexpr double kSprigsPerM2 = 4.5;
 uint32_t sprigThreshold24(double sprigsPerM2, int voxelsPerM);   // keep a cell when sprigHash24 < this
 uint32_t sprigHash24(glm::ivec3 worldCell);                      // == today's foliageCellHash01 * 2^24
 struct SprigParams {
