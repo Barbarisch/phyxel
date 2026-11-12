@@ -346,8 +346,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       chunk-relative 5+5+5-bit position). Every render optimization today has (hidden-face culling, merging,
       frustum/occlusion culling, indirect draws, shadow caster culling, LOD tiers) must be rebuilt on blocks --
       inventory + status in VoxelFoundationPlan §4.6. Debug endpoint POST /api/debug/micro_cells added (not yet exercised live).
-      NEXT: F2.1 GPU face builder (equal to the CPU reference) + draw through today's lighting; light in the merge
-      key; then furniture placement on 1/8 m, other structure generators, F4 fracture reference.
+      F2.1 DONE (2026-11-11): GPU face builder voxfound/FaceBuilderGpu + shaders/voxfound_faces.comp, run merge
+      (meshRuns; parallel per slice row; fewer quads than greedy), 8 B PackedFace, exact vs CPU (integration test
+      VoxFoundFaceBuilderGpu, mutation-checked). 5.1 ms GPU per 256x160x256 window, naive kernel.
+      NEXT: F2.2 draw the PackedFace pool through today's lighting on a small generated scene (eye check);
+      then uniform-block skip, chunk-border neighbours, the rest of §4.6.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

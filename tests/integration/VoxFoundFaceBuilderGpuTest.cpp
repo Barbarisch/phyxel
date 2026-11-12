@@ -1,0 +1,166 @@
+// VoxFoundFaceBuilderGpuTest — docs/VoxelFoundationPlan.md F2.1, §4.6 items 1-2.
+//
+// The GPU face builder (FaceBuilderGpu, shaders/voxfound_faces.comp) is accepted only on EXACT equality
+// with the CPU reference meshRuns: the same packed 8-byte faces, as a set. Needs a Vulkan device: the
+// fixture GTEST_SKIPs without one (never a pass).
+//
+// Cases: hand rigs; random content at awkward sizes (1 voxel, sides not a multiple of 4 or 8, a full
+// 256 side) with both Outside modes; engine-generated Perlin terrain (two seeds); a 3-D checkerboard
+// (no merging possible: 786,432 faces) that overflows the starting face buffer so the regrow path runs;
+// refusals for a 0 side and a 257 side.
+#include <gtest/gtest.h>
+#include "IntegrationTestFixture.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <limits>
+#include <random>
+#include <string>
+#include <vector>
+
+#include "core/WorldGenerator.h"
+#include "core/voxfound/FaceBuilderGpu.h"
+#include "core/voxfound/Mesher.h"
+#include "core/voxfound/StorageLab.h"
+
+using namespace Phyxel;
+using namespace Phyxel::Core;
+using namespace Phyxel::Core::VoxFound;
+using Phyxel::Testing::VulkanTestFixture;
+
+namespace {
+
+VoxelGrid box(glm::ivec3 d) {
+    VoxelGrid g;
+    g.resize(d);
+    return g;
+}
+
+std::vector<uint64_t> keys(const std::vector<PackedFace>& f) {
+    std::vector<uint64_t> k;
+    k.reserve(f.size());
+    for (const PackedFace& p : f) k.push_back(p.key());
+    std::sort(k.begin(), k.end());
+    return k;
+}
+
+std::vector<PackedFace> cpuFaces(const VoxelGrid& g, Outside o) {
+    std::vector<PackedFace> f;
+    for (const Quad& q : meshRuns(g, o)) f.push_back(packFace(q));
+    return f;
+}
+
+std::string firstDiff(const std::vector<uint64_t>& cpu, const std::vector<uint64_t>& gpu) {
+    std::vector<uint64_t> onlyCpu, onlyGpu;
+    std::set_difference(cpu.begin(), cpu.end(), gpu.begin(), gpu.end(), std::back_inserter(onlyCpu));
+    std::set_difference(gpu.begin(), gpu.end(), cpu.begin(), cpu.end(), std::back_inserter(onlyGpu));
+    auto show = [](uint64_t k) {
+        const Quad q = unpackFace({uint32_t(k >> 32), uint32_t(k)});
+        char b[128];
+        std::snprintf(b, sizeof(b), "(%d,%d,%d) axis %d dir %d %dx%d mat %d", q.o.x, q.o.y, q.o.z, q.axis, q.dir,
+                      q.du, q.dv, q.material);
+        return std::string(b);
+    };
+    std::string s = std::to_string(onlyCpu.size()) + " only on CPU, " + std::to_string(onlyGpu.size()) + " only on GPU";
+    if (!onlyCpu.empty()) s += "; first CPU-only " + show(onlyCpu[0]);
+    if (!onlyGpu.empty()) s += "; first GPU-only " + show(onlyGpu[0]);
+    return s;
+}
+
+class VoxFoundFaceBuilderGpu : public VulkanTestFixture {
+protected:
+    void SetUp() override {
+        VulkanTestFixture::SetUp();
+        if (!isVulkanAvailable() || device == VK_NULL_HANDLE) GTEST_SKIP() << "no Vulkan device";
+        std::string err;
+        if (!gpu.init(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err))
+            GTEST_SKIP() << "FaceBuilderGpu init: " << err;
+    }
+    void TearDown() override {
+        gpu.shutdown();
+        VulkanTestFixture::TearDown();
+    }
+    // Builds on the GPU and compares with the CPU reference; returns the face count.
+    size_t same(const VoxelGrid& g, Outside o, const std::string& name) {
+        std::vector<PackedFace> f;
+        std::string err;
+        EXPECT_TRUE(gpu.build(g, o, f, &err)) << name << ": " << err;
+        const auto c = keys(cpuFaces(g, o)), k = keys(f);
+        EXPECT_EQ(c.size(), k.size()) << name;
+        EXPECT_TRUE(c == k) << name << ": " << firstDiff(c, k);
+        return k.size();
+    }
+    FaceBuilderGpu gpu;
+};
+
+}  // namespace
+
+TEST_F(VoxFoundFaceBuilderGpu, HandRigsEqualTheReference) {
+    VoxelGrid one = box({3, 3, 3});
+    one.set({1, 1, 1}, 1);
+    EXPECT_EQ(same(one, Outside::Air, "single voxel"), 6u);
+    VoxelGrid blk = box({8, 8, 8});
+    for (size_t i = 0; i < blk.size(); ++i) blk.mat[i] = 1;
+    EXPECT_EQ(same(blk, Outside::Air, "8^3 block"), 6u);
+    EXPECT_EQ(same(blk, Outside::Skip, "8^3 block, skip"), 0u);
+    VoxelGrid wall = box({256, 256, 1});
+    for (size_t i = 0; i < wall.size(); ++i) wall.mat[i] = 1;
+    EXPECT_EQ(same(wall, Outside::Air, "256x256x1 wall"), 6u);
+}
+
+TEST_F(VoxFoundFaceBuilderGpu, RandomContentAtAwkwardSizesEqualsTheReference) {
+    const glm::ivec3 sizes[] = {{1, 1, 1}, {24, 20, 28}, {13, 7, 5}, {256, 7, 3}, {5, 256, 9}, {3, 9, 256}, {33, 65, 17}};
+    std::mt19937 rng(23);
+    for (glm::ivec3 d : sizes) {
+        VoxelGrid g = box(d);
+        for (size_t i = 0; i < g.size(); ++i) {
+            const unsigned r = rng() % 100;
+            g.mat[i] = r < 40 ? 1 : r < 50 ? 2 : r < 52 ? 255 : 0;
+        }
+        for (Outside o : {Outside::Air, Outside::Skip})
+            same(g, o, std::to_string(d.x) + "x" + std::to_string(d.y) + "x" + std::to_string(d.z) +
+                           (o == Outside::Air ? " air" : " skip"));
+    }
+}
+
+TEST_F(VoxFoundFaceBuilderGpu, GeneratedTerrainEqualsTheReference) {
+    struct Spot { uint32_t seed; int x, z; };
+    for (Spot s : {Spot{7u, 0, 0}, Spot{12345u, -1024, 768}}) {
+        WorldGenerator gen(WorldGenerator::GenerationType::Perlin, s.seed);
+        float lo = std::numeric_limits<float>::max(), hi = -lo;
+        for (int x = s.x - 1; x <= s.x + 32; ++x)
+            for (int z = s.z - 1; z <= s.z + 32; ++z) {
+                const float h = gen.sampleSurface(x, z).bedHeight;
+                lo = std::min(lo, h);
+                hi = std::max(hi, h);
+            }
+        const int y0 = int(std::floor(lo)) - 8, y1 = int(std::ceil(hi)) + 8;
+        const VoxelArea a = buildTerrainArea(gen, {s.x, y0, s.z}, {32, y1 - y0, 32});
+        ASSERT_LE(a.grid.dim.y, kMaxChunkVoxels) << "terrain window taller than one chunk";
+        const size_t n = same(a.grid, Outside::Skip, "perlin s" + std::to_string(s.seed));
+        std::printf("[facebuilder] perlin s%u (%d,%d) %dx%dx%d voxels: %zu faces, GPU %.3f ms\n", s.seed, s.x, s.z,
+                    a.grid.dim.x, a.grid.dim.y, a.grid.dim.z, n, gpu.lastGpuMs());
+    }
+}
+
+TEST_F(VoxFoundFaceBuilderGpu, OverflowRegrowsAndStaysExact) {
+    gpu.setInitialCapacity(4096);
+    VoxelGrid g = box({64, 64, 64});
+    for (int x = 0; x < 64; ++x)
+        for (int y = 0; y < 64; ++y)
+            for (int z = 0; z < 64; ++z)
+                if ((x + y + z) % 2 == 0) g.set({x, y, z}, 1);
+    EXPECT_EQ(same(g, Outside::Air, "checkerboard 64^3"), 64u * 64u * 64u / 2u * 6u);
+    EXPECT_GE(gpu.capacity(), 64u * 64u * 64u / 2u * 6u);
+}
+
+TEST_F(VoxFoundFaceBuilderGpu, RefusesGridsThatAreNotOneChunk) {
+    std::vector<PackedFace> f;
+    std::string err;
+    EXPECT_FALSE(gpu.build(box({257, 1, 1}), Outside::Air, f, &err));
+    EXPECT_NE(err.find("256"), std::string::npos) << err;
+    err.clear();
+    EXPECT_FALSE(gpu.build(box({0, 4, 4}), Outside::Air, f, &err));
+    EXPECT_FALSE(err.empty());
+}

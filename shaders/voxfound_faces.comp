@@ -1,0 +1,94 @@
+#version 450
+// docs/VoxelFoundationPlan.md F2.1, §4.6 items 1-2 — the GPU face builder (FaceBuilderGpu).
+//
+// One invocation per slice ROW of one axis: (dir, slice s, row v). It walks u, forms maximal runs of
+// faces of one material (hidden-face culling: a face exists where the voxel is solid and its neighbour
+// across the face is air; outside the grid = air or no face, pc.dim.w), and emits a quad for every run
+// that is the HEAD of a stack: no identical run (same start, width, material) in row v-1. The head then
+// extends down while row v+h holds an identical run. Rows never talk to each other, so the result is a
+// pure function of the voxels — the CPU reference is meshRuns (Mesher.cpp), equal as a set
+// (VoxFoundFaceBuilderGpu, tests/integration).
+//
+// Output: the 8-byte PackedFace record (Mesher.h).
+//   a: x 0-7 | y 8-15 | z 16-23 | axis 24-25 | dir>0 bit 26
+//   b: du-1 0-7 | dv-1 8-15 | material 16-23
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 0) readonly buffer Vox { uint vox[]; };      // material bytes, 4 per word, VoxelGrid order
+layout(std430, binding = 1) writeonly buffer Faces { uvec2 faces[]; };
+layout(std430, binding = 2) buffer Counter { uint faceCount; };
+
+layout(push_constant) uniform PC {
+    ivec4 dim;   // xyz = grid size (each 1..256); w = outside: 0 air, 1 skip
+    ivec4 job;   // x = axis; y = rows in this dispatch (2 * ns * nv); z = face capacity
+} pc;
+
+uint matAt(ivec3 p) {
+    const int i = p.z + pc.dim.z * (p.y + pc.dim.y * p.x);
+    return (vox[i >> 2] >> ((i & 3) * 8)) & 0xFFu;
+}
+
+bool inGrid(ivec3 p) {
+    return all(greaterThanEqual(p, ivec3(0))) && all(lessThan(p, pc.dim.xyz));
+}
+
+int AX, UA, VA, DIR, S;
+
+// Material of the exposed face at (u, v) of this slice, 0 = no face.
+uint faceAt(int u, int v) {
+    ivec3 p;
+    p[AX] = S;
+    p[UA] = u;
+    p[VA] = v;
+    const uint m = matAt(p);
+    if (m == 0u) return 0u;
+    ivec3 q = p;
+    q[AX] += DIR;
+    if (!inGrid(q)) return pc.dim.w == 0 ? m : 0u;
+    return matAt(q) == 0u ? m : 0u;
+}
+
+// Does row r hold exactly the maximal run [u, u+w) of material m?
+bool sameRun(int u, int w, int r, uint m, int nu) {
+    if (u > 0 && faceAt(u - 1, r) == m) return false;
+    if (u + w < nu && faceAt(u + w, r) == m) return false;
+    for (int k = 0; k < w; ++k)
+        if (faceAt(u + k, r) != m) return false;
+    return true;
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (id >= uint(pc.job.y)) return;
+    AX = pc.job.x;
+    UA = (AX + 1) % 3;
+    VA = (AX + 2) % 3;
+    const int ns = pc.dim[AX], nu = pc.dim[UA], nv = pc.dim[VA];
+    const uint perDir = uint(ns * nv);
+    DIR = id < perDir ? -1 : 1;
+    const uint rem = id % perDir;
+    S = int(rem / uint(nv));
+    const int v = int(rem % uint(nv));
+
+    int u = 0;
+    while (u < nu) {
+        const uint m = faceAt(u, v);
+        if (m == 0u) { ++u; continue; }
+        int w = 1;
+        while (u + w < nu && faceAt(u + w, v) == m) ++w;
+        if (!(v > 0 && sameRun(u, w, v - 1, m, nu))) {
+            int h = 1;
+            while (v + h < nv && sameRun(u, w, v + h, m, nu)) ++h;
+            ivec3 o;
+            o[AX] = S;
+            o[UA] = u;
+            o[VA] = v;
+            const uint slot = atomicAdd(faceCount, 1u);
+            if (slot < uint(pc.job.z))
+                faces[slot] = uvec2(uint(o.x) | (uint(o.y) << 8) | (uint(o.z) << 16) | (uint(AX) << 24) |
+                                        (DIR > 0 ? (1u << 26) : 0u),
+                                    uint(w - 1) | (uint(h - 1) << 8) | (m << 16));
+        }
+        u += w;
+    }
+}

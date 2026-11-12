@@ -45,6 +45,25 @@ std::vector<Quad> meshCulled(const VoxelGrid& g, Outside outside);
 /// blockLimit 0 = merge across the whole grid; > 0 = no quad crosses a multiple of blockLimit.
 std::vector<Quad> meshGreedy(const VoxelGrid& g, Outside outside, int blockLimit = 0);
 
+/// RUN MERGE (F2.1, the form the GPU builds). Per slice row: maximal runs of one material along u. A run
+/// stacks onto the run in the previous row when start, width and material are all equal. Rows are
+/// independent, so the GPU builds it with one thread per row and no ordering between threads, and this CPU
+/// version is its exact reference (same quads, as a set). Exact coverage like greedy, merges across block
+/// borders like greedy, but it does not search for wider rectangles, so it can produce more quads.
+std::vector<Quad> meshRuns(const VoxelGrid& g, Outside outside);
+
+/// The compact face record (§4.2, §4.6): 8 bytes, position relative to a chunk of at most 256 voxels a
+/// side (today's InstanceData is 16 B with a 5+5+5-bit cube position).
+///   a: x bits 0-7 | y 8-15 | z 16-23 | axis 24-25 | dir>0 bit 26 | 27-31 free
+///   b: du-1 bits 0-7 | dv-1 8-15 | material 16-23 | 24-31 free (tint index / flags later)
+constexpr int kMaxChunkVoxels = 256;
+struct PackedFace {
+    uint32_t a = 0, b = 0;
+    uint64_t key() const { return (uint64_t(a) << 32) | b; }
+};
+PackedFace packFace(const Quad& q);
+Quad unpackFace(PackedFace f);
+
 /// Exactness check for a merged mesh: every exposed unit face (as meshCulled defines it) is covered by
 /// exactly one quad of the same material, and no quad covers anything else. Returns the number of unit
 /// faces in error (missing + doubled + extra + wrong material); `why` gets the first few.

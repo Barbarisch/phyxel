@@ -366,8 +366,8 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 
 | # | Today | Where today | On the new store | Status |
 |---|---|---|---|---|
-| 1 | Hidden-face culling (cube, subcube, microcube; across chunk borders) | `ChunkRenderManager`, RenderOptimization Phase 1 | Per block, from the 64 B solidity masks: a face survives only if the neighbour voxel is air. Block and chunk borders read the neighbour block's mask. Uniform blocks: all-solid interior blocks and all-air blocks emit nothing without a voxel loop | CPU reference done inside a grid (`Mesher`); border handling against neighbour blocks owed |
-| 2 | Greedy face merging (cube; sub/micro fine merge, default ON) | `ChunkRenderManager` `s_fineGreedyMerge` | §4.1: in-block, then across blocks. **Consequence for §4.2:** a cross-block quad is up to 256 voxels long, so the extents need 8+8 bits, not 3+3 | CPU reference done |
+| 1 | Hidden-face culling (cube, subcube, microcube; across chunk borders) | `ChunkRenderManager`, RenderOptimization Phase 1 | Per block, from the 64 B solidity masks: a face survives only if the neighbour voxel is air. Block and chunk borders read the neighbour block's mask. Uniform blocks: all-solid interior blocks and all-air blocks emit nothing without a voxel loop | **GPU done inside one chunk** (F2.1, `FaceBuilderGpu`, exact vs CPU); neighbour chunks at the border and the uniform-block skip owed |
+| 2 | Greedy face merging (cube; sub/micro fine merge, default ON) | `ChunkRenderManager` `s_fineGreedyMerge` | §4.1: in-block, then across blocks. **Consequence for §4.2:** a cross-block quad is up to 256 voxels long, so the extents need 8+8 bits, not 3+3 | **GPU done** (F2.1): run merge across the whole chunk, one thread per slice row |
 | 3 | Distance + frustum culling per chunk | `RenderCoordinator` LEVEL 1/2 | Same per chunk, plus per block AABB in the GPU draw-building pass | owed |
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | owed |
@@ -379,6 +379,22 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 
 Known defect that gets worse with more merging: **T-junction cracks at merge borders** (`RenderOptimization.md:489`).
 Cross-block merging creates more T-junctions, so F2 has to handle it, not inherit it.
+
+**F2.1 built 2026-11-11 — the GPU face builder** (`voxfound/FaceBuilderGpu`, `shaders/voxfound_faces.comp`):
+- Algorithm: **run merge** (`meshRuns`). Per slice row, maximal runs of one material; a run stacks onto the identical
+  run (same start, width, material) in the previous row. Rows are independent, so one GPU thread per row with no
+  ordering, and the result is a pure function of the voxels. Sequential greedy can't be split that way.
+- Face record: the 8-byte `PackedFace` (chunk-relative 8+8+8-bit position, axis, direction, 8+8-bit extents,
+  material, 8 bits free for tint/flags). Today's record is 16 B.
+- Exactness: GPU = CPU reference as a set on hand rigs, random content at awkward sizes (1 voxel; sides 5, 7, 13, 17,
+  33, 65, 256), both Outside modes, two engine-generated Perlin terrain windows, and a 64³ checkerboard (786,432
+  faces, overflows the starting buffer, regrows). Red first: the CPU tests failed on the stub; 3 of 5 GPU tests failed
+  on the stub (the other 2 compared an empty stub with an empty stub). Mutation check: `v > 0` → `v > 1` in the kernel's
+  head test was caught by 2 tests.
+- Measured: run merge gives **fewer** quads than greedy on Perlin s7 (1,763 vs 1,983). GPU time for a whole
+  32 x 20 x 32 m window (256 x 160 x 256 voxels): 5.1 ms (s7), 1.7 ms (s12345). That is a naive kernel: every row
+  reads every voxel byte from global memory, including all-air and all-solid blocks. Levers, in order: skip uniform
+  blocks via the solidity masks, then rebuild only changed rows (item 9).
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

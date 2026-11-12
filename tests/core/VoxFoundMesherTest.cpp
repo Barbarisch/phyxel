@@ -3,7 +3,8 @@
 // 1. Exact rigs with counts worked out by hand (written before the code ran).
 // 2. Exactness: on random content and generated terrain, every merged mesh covers every exposed unit face
 //    exactly once with the right material (coverageErrors == 0), at block limits 0 and 8.
-// 3. MEASURED face counts (the F2 gate is "face count <= today's on the same scene"; this is the first look):
+// 3. MEASURED face counts (cost inputs, not the gate — the F2 gate is "a world that works today still works",
+//    docs/VoxelFoundationPlan.md §3.5a point 4):
 //    - terrain areas from the ENGINE's generator (WorldGenerator, fixed seeds) at 1/8 m, bare and with the
 //      engine's flora plan stamped from the tree_forge --grid 8 library;
 //    - "today proxy": the same area reduced to 1 m cubes (each metre takes the voxel at its centre), merged
@@ -207,6 +208,72 @@ TEST(VoxFoundMesher, MergedTerrainMeshIsExact) {
     const auto q = meshGreedy(a.grid, Outside::Skip);
     std::string why;
     EXPECT_EQ(coverageErrors(a.grid, Outside::Skip, q, &why), 0u) << why;
+}
+
+// ---- 2b. run merge (F2.1, the GPU's form) ------------------------------------------------------------------
+// Hand counts (written before the code ran): a single voxel 6; a solid 8^3 block 6 (every face is one full
+// 8x8 run stack); two materials side by side 10; the 256 x 256 x 1 wall 6 (each +-z face: 256 identical
+// full-width rows -> one quad; each side face: one row).
+
+TEST(VoxFoundMesher, RunMergeHandCounts) {
+    VoxelGrid one = box({3, 3, 3});
+    one.set({1, 1, 1}, 1);
+    EXPECT_EQ(meshRuns(one, Outside::Air).size(), 6u);
+    VoxelGrid blk = box({8, 8, 8});
+    for (size_t i = 0; i < blk.size(); ++i) blk.mat[i] = 1;
+    EXPECT_EQ(meshRuns(blk, Outside::Air).size(), 6u);
+    EXPECT_EQ(meshRuns(blk, Outside::Skip).size(), 0u);
+    VoxelGrid two = box({2, 1, 1});
+    two.set({0, 0, 0}, 1);
+    two.set({1, 0, 0}, 2);
+    EXPECT_EQ(meshRuns(two, Outside::Air).size(), 10u);
+    VoxelGrid wall = box({256, 256, 1});
+    for (size_t i = 0; i < wall.size(); ++i) wall.mat[i] = 1;
+    EXPECT_EQ(meshRuns(wall, Outside::Air).size(), 6u);
+}
+
+TEST(VoxFoundMesher, RunMergeIsExact) {
+    std::mt19937 rng(11);
+    VoxelGrid g = box({24, 20, 28});
+    for (size_t i = 0; i < g.size(); ++i) {
+        const unsigned r = rng() % 100;
+        g.mat[i] = r < 35 ? 1 : r < 45 ? 2 : r < 50 ? 3 : 0;
+    }
+    for (int x = 0; x < 24; ++x)
+        for (int z = 0; z < 28; ++z) g.set({x, 3, z}, 1);
+    for (Outside o : {Outside::Air, Outside::Skip}) {
+        const auto q = meshRuns(g, o);
+        std::string why;
+        EXPECT_EQ(coverageErrors(g, o, q, &why), 0u) << why;
+        EXPECT_LT(q.size(), meshCulled(g, o).size());
+    }
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    const VoxelArea a = surfaceArea(gen, 0, 0);
+    const auto t = meshRuns(a.grid, Outside::Skip);
+    std::string why;
+    EXPECT_EQ(coverageErrors(a.grid, Outside::Skip, t, &why), 0u) << why;
+    std::printf("[mesher] perlin s7 (0,0): runs %zu vs greedy %zu quads\n", t.size(),
+                meshGreedy(a.grid, Outside::Skip).size());
+}
+
+TEST(VoxFoundMesher, PackedFaceRoundTrips) {
+    std::vector<Quad> qs;
+    Quad q;
+    qs.push_back(q);
+    q.o = {255, 255, 255}; q.axis = 2; q.dir = 1; q.du = 256; q.dv = 256; q.material = 255;
+    qs.push_back(q);
+    q.o = {7, 130, 0}; q.axis = 1; q.dir = -1; q.du = 1; q.dv = 200; q.material = 3;
+    qs.push_back(q);
+    for (const Quad& in : qs) {
+        const Quad out = unpackFace(packFace(in));
+        EXPECT_EQ(out.o, in.o);
+        EXPECT_EQ(out.axis, in.axis);
+        EXPECT_EQ(out.dir, in.dir);
+        EXPECT_EQ(out.du, in.du);
+        EXPECT_EQ(out.dv, in.dv);
+        EXPECT_EQ(out.material, in.material);
+    }
+    EXPECT_EQ(sizeof(PackedFace), 8u);
 }
 
 // ---- 3. measured -----------------------------------------------------------------------------------------

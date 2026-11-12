@@ -23,6 +23,7 @@ set(INTEGRATION_TEST_SOURCES
     WaterRecordedPondTest.cpp
     WaterTallCellTest.cpp
     MatSimGpuParityTest.cpp
+    VoxFoundFaceBuilderGpuTest.cpp
     MatSimParticlesGpuTest.cpp
 )
 

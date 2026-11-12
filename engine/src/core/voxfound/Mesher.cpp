@@ -85,6 +85,68 @@ std::vector<Quad> meshGreedy(const VoxelGrid& g, Outside outside, int blockLimit
     return out;
 }
 
+std::vector<Quad> meshRuns(const VoxelGrid& g, Outside outside) {
+    std::vector<Quad> out;
+    std::vector<uint8_t> mask;
+    for (int axis = 0; axis < 3; ++axis) {
+        const int ua = (axis + 1) % 3, va = (axis + 2) % 3;
+        const int ns = g.dim[axis], nu = g.dim[ua], nv = g.dim[va];
+        mask.assign(size_t(nu) * nv, 0);
+        auto at = [&](int u, int v) { return mask[size_t(v) * nu + u]; };
+        // Row r holds exactly the maximal run [u, u+w) of material m.
+        auto sameRun = [&](int u, int w, int r, uint8_t m) {
+            if (u > 0 && at(u - 1, r) == m) return false;
+            if (u + w < nu && at(u + w, r) == m) return false;
+            for (int k = 0; k < w; ++k)
+                if (at(u + k, r) != m) return false;
+            return true;
+        };
+        for (int dir : {-1, 1})
+            for (int s = 0; s < ns; ++s) {
+                for (int v = 0; v < nv; ++v)
+                    for (int u = 0; u < nu; ++u)
+                        mask[size_t(v) * nu + u] = faceAt(g, outside, axisPoint(axis, s, u, v), axis, dir);
+                for (int v = 0; v < nv; ++v)
+                    for (int u = 0; u < nu;) {
+                        const uint8_t m = at(u, v);
+                        if (!m) { ++u; continue; }
+                        int w = 1;
+                        while (u + w < nu && at(u + w, v) == m) ++w;
+                        if (!(v > 0 && sameRun(u, w, v - 1, m))) {
+                            int h = 1;
+                            while (v + h < nv && sameRun(u, w, v + h, m)) ++h;
+                            Quad q;
+                            q.o = axisPoint(axis, s, u, v);
+                            q.axis = uint8_t(axis); q.dir = int8_t(dir);
+                            q.du = uint16_t(w); q.dv = uint16_t(h); q.material = m;
+                            out.push_back(q);
+                        }
+                        u += w;
+                    }
+            }
+    }
+    return out;
+}
+
+PackedFace packFace(const Quad& q) {
+    PackedFace f;
+    f.a = uint32_t(q.o.x & 0xFF) | (uint32_t(q.o.y & 0xFF) << 8) | (uint32_t(q.o.z & 0xFF) << 16) |
+          (uint32_t(q.axis & 3) << 24) | (q.dir > 0 ? (1u << 26) : 0u);
+    f.b = uint32_t((q.du - 1) & 0xFF) | (uint32_t((q.dv - 1) & 0xFF) << 8) | (uint32_t(q.material) << 16);
+    return f;
+}
+
+Quad unpackFace(PackedFace f) {
+    Quad q;
+    q.o = {int(f.a & 0xFF), int((f.a >> 8) & 0xFF), int((f.a >> 16) & 0xFF)};
+    q.axis = uint8_t((f.a >> 24) & 3);
+    q.dir = (f.a >> 26) & 1 ? 1 : -1;
+    q.du = uint16_t((f.b & 0xFF) + 1);
+    q.dv = uint16_t(((f.b >> 8) & 0xFF) + 1);
+    q.material = uint8_t((f.b >> 16) & 0xFF);
+    return q;
+}
+
 size_t coverageErrors(const VoxelGrid& g, Outside outside, const std::vector<Quad>& quads, std::string* why) {
     // key = voxel index * 6 + face slot
     auto key = [&](glm::ivec3 p, int axis, int dir) { return g.idx(p) * 6 + size_t(axis * 2 + (dir > 0)); };
