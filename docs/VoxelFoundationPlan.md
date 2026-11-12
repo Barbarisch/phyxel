@@ -268,7 +268,8 @@ For comparison, today's debris costs 6 faces x 64 B = 384 B per moving voxel, wi
   - Keep today's optimizations in the new face record. Today a face is 16 B (`InstanceData`): a 15-bit position
     relative to its chunk (5+5+5), face bits, texture, flags, merge extents, tint. At 1/8 m a 32 m chunk is 256 voxels a
     side, so a chunk-relative position needs 8+8+8 bits. A block-relative one needs 3+3+3 bits plus a per-block base
-    the shader looks up. Either way the record should stay ≤ 16 B.
+    the shader looks up. §4.2 targets 8-12 B. Every render optimization today's renderer has must be rebuilt on the
+    new store (§4.6).
 - **Lighting and GI rays** read 1 bit per voxel (the 64 B solidity mask per block) and skip uniform blocks whole.
   Their cost follows the number of rays.
 - **Simulation** reads 4 B per awake voxel per pass. Measured: 1.49 M awake cells stepped in 0.03-0.11 ms.
@@ -357,6 +358,30 @@ The block's position comes from a per-block table, not from each face.
 
 ### 4.5 Later
 Ray-marching blocks instead of faces stays an option, decided on data (`MatterRepresentationReview.md` Option 3).
+
+### 4.6 Render optimizations: carry over or rebuild (owner, 2026-11-11)
+The new store does not inherit today's optimizations for free. Every one below has to be rebuilt on blocks, or
+consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (culling levels), `LodTierLedger.md`
+(8 tiers), `RenderOptimization.md` (culling + merge campaigns), `NearShadowCascade.md`.
+
+| # | Today | Where today | On the new store | Status |
+|---|---|---|---|---|
+| 1 | Hidden-face culling (cube, subcube, microcube; across chunk borders) | `ChunkRenderManager`, RenderOptimization Phase 1 | Per block, from the 64 B solidity masks: a face survives only if the neighbour voxel is air. Block and chunk borders read the neighbour block's mask. Uniform blocks: all-solid interior blocks and all-air blocks emit nothing without a voxel loop | CPU reference done inside a grid (`Mesher`); border handling against neighbour blocks owed |
+| 2 | Greedy face merging (cube; sub/micro fine merge, default ON) | `ChunkRenderManager` `s_fineGreedyMerge` | §4.1: in-block, then across blocks. **Consequence for §4.2:** a cross-block quad is up to 256 voxels long, so the extents need 8+8 bits, not 3+3 | CPU reference done |
+| 3 | Distance + frustum culling per chunk | `RenderCoordinator` LEVEL 1/2 | Same per chunk, plus per block AABB in the GPU draw-building pass | owed |
+| 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | owed |
+| 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | owed |
+| 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | owed |
+| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | owed |
+| 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
+| 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
+| 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
+
+Known defect that gets worse with more merging: **T-junction cracks at merge borders** (`RenderOptimization.md:489`).
+Cross-block merging creates more T-junctions, so F2 has to handle it, not inherit it.
+
+Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
+difference is measured.
 
 ## 5. Simulation on the world grid
 
@@ -830,7 +855,7 @@ Every rig is checked for:
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1). **Done 2026-11-10:** §13 decided; inventory in §7a.1-7a.2; save check in §3.5a point 7; skeletons `engine/*/core/voxfound/` (`VoxelGrid`, `FractureLab`, `StorageLab`) + `VoxFoundFractureLabTest` (4 checker tests green, 8 predictions red until F4) + `VoxFoundStorageLabTest` (3 green incl. measured terrain stats, 3 red until F1) | — | — |
 | **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8` (34), `gen_door --grid 8`, `gen_items --grid 64` (52), `gen_seat_variants --grid 8`: **step 4 complete**; hearth bodies on 1/8 m (4b) and the KI-5i +side wall-flush fix; next: furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
-| **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate | a scene that works today doesn't, and we can't find and fix why |
+| **F2** | GPU face building (hidden-face culling, merging in and across blocks) + drawing through today's lighting; the §4.6 render optimizations rebuilt on blocks (culling, occlusion, indirect draws, shadow casters, block LOD pyramid, direction culling); T-junction handling | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate | a scene that works today doesn't, and we can't find and fix why |
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |

@@ -343,7 +343,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F2 GATE (owner, 2026-11-11): a world that works today must still work on the new store -- same generated
       scenes, same perf tier, whole frame + GPU memory + bytes/frame; if not, find why. Face count vs today is NOT a
       gate (comparing face counts across voxel sizes is meaningless). Keep the face record compact (today 16 B,
-      chunk-relative 5+5+5-bit position). Debug endpoint POST /api/debug/micro_cells added (not yet exercised live).
+      chunk-relative 5+5+5-bit position). Every render optimization today has (hidden-face culling, merging,
+      frustum/occlusion culling, indirect draws, shadow caster culling, LOD tiers) must be rebuilt on blocks --
+      inventory + status in VoxelFoundationPlan §4.6. Debug endpoint POST /api/debug/micro_cells added (not yet exercised live).
       NEXT: F2.1 GPU face builder (equal to the CPU reference) + draw through today's lighting; light in the merge
       key; then furniture placement on 1/8 m, other structure generators, F4 fracture reference.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
