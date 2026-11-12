@@ -36,21 +36,33 @@ struct Quad {
     uint8_t material = 0;
 };
 
+/// Materials drawn as LEAF CARDS instead of solid faces (today: MaterialDef::billboarded — Leaf, LeafBirch,
+/// LeafSpruce, LeafJungle, LeafAutumn; ChunkRenderManager + FoliageRenderPipeline). A card voxel stays solid
+/// in the store: it hides its neighbours' faces exactly like any voxel (today's mesher keeps leaf subcubes in
+/// occupancy so wood inside a canopy is culled), but emits no faces of its own. Its exposed cells become
+/// sprigs instead (foliageSprigs).
+struct CardSet {
+    uint32_t bits[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    void set(uint8_t m) { bits[m >> 5] |= 1u << (m & 31); }
+    bool has(uint8_t m) const { return (bits[m >> 5] >> (m & 31)) & 1u; }
+};
+
 /// What lies outside the grid. Air: the area is an object in empty space (every outer face is drawn).
 /// Skip: the area is a window into a larger world, so faces on its outer boundary are not counted
 /// (their neighbour is unknown; in a world they are usually hidden).
 enum class Outside { Air, Skip };
 
-std::vector<Quad> meshCulled(const VoxelGrid& g, Outside outside);
+/// `cards` (optional, every mesher below): voxels of these materials emit no faces but still hide others.
+std::vector<Quad> meshCulled(const VoxelGrid& g, Outside outside, const CardSet* cards = nullptr);
 /// blockLimit 0 = merge across the whole grid; > 0 = no quad crosses a multiple of blockLimit.
-std::vector<Quad> meshGreedy(const VoxelGrid& g, Outside outside, int blockLimit = 0);
+std::vector<Quad> meshGreedy(const VoxelGrid& g, Outside outside, int blockLimit = 0, const CardSet* cards = nullptr);
 
 /// RUN MERGE (F2.1, the form the GPU builds). Per slice row: maximal runs of one material along u. A run
 /// stacks onto the run in the previous row when start, width and material are all equal. Rows are
 /// independent, so the GPU builds it with one thread per row and no ordering between threads, and this CPU
 /// version is its exact reference (same quads, as a set). Exact coverage like greedy, merges across block
 /// borders like greedy, but it does not search for wider rectangles, so it can produce more quads.
-std::vector<Quad> meshRuns(const VoxelGrid& g, Outside outside);
+std::vector<Quad> meshRuns(const VoxelGrid& g, Outside outside, const CardSet* cards = nullptr);
 
 /// The compact face record (§4.2, §4.6): 8 bytes, position relative to a chunk of at most 256 voxels a
 /// side (today's InstanceData is 16 B with a 5+5+5-bit cube position).
@@ -68,6 +80,28 @@ Quad unpackFace(PackedFace f);
 /// exactly one quad of the same material, and no quad covers anything else. Returns the number of unit
 /// faces in error (missing + doubled + extra + wrong material); `why` gets the first few.
 size_t coverageErrors(const VoxelGrid& g, Outside outside, const std::vector<Quad>& quads,
-                      std::string* why = nullptr);
+                      std::string* why = nullptr, const CardSet* cards = nullptr);
+
+/// LEAF SPRIGS (F2.3). Today one FoliageInstanceData is emitted per EXPOSED leaf subcube (any face neighbour
+/// air), kept when foliageCellHash01(world cell) < s_foliageDensity (0.25), and foliage.vert fans it into
+/// cardsPerVoxel cutout cards of a fixed size in metres. At 1/8 m the same rule per voxel would put
+/// (8/3)^2 = 7.1x the sprigs on the same canopy shell, so the density is defined in METRES instead: sprigs per
+/// m^2 of exposed leaf cell face area projected to cells, kSprigsPerM2 = 0.25 per (1/3 m)^2 cell = 2.25,
+/// i.e. a 1/8 m cell is kept with probability 2.25/64. The look is a function of world position, not of voxel
+/// size. Thinning uses today's hash on the absolute 1/8 m cell, so it is seam-free across chunks.
+///
+/// A sprig is a PackedFace with axis = 3 (unused by faces): a = x | y<<8 | z<<16 | 3<<24, b = material<<16.
+/// Outside::Air: the grid border counts as air; Outside::Skip: it does not expose a cell.
+constexpr double kSprigsPerM2 = 0.25 * 9.0;
+uint32_t sprigThreshold24(double sprigsPerM2, int voxelsPerM);   // keep a cell when sprigHash24 < this
+uint32_t sprigHash24(glm::ivec3 worldCell);                      // == today's foliageCellHash01 * 2^24
+struct SprigParams {
+    CardSet cards;
+    glm::ivec3 worldOriginVoxel{0};   // absolute cell of grid voxel (0,0,0)
+    uint32_t threshold24 = 0;
+};
+PackedFace packSprig(glm::ivec3 cell, uint8_t material);
+inline bool isSprig(PackedFace f) { return ((f.a >> 24) & 3u) == 3u; }
+std::vector<PackedFace> foliageSprigs(const VoxelGrid& g, Outside outside, const SprigParams& p);
 
 }  // namespace Phyxel::Core::VoxFound

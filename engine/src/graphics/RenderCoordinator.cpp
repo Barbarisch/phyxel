@@ -2514,6 +2514,53 @@ void RenderCoordinator::releaseVoxFoundBuffer() {
     m_voxFoundMapped = nullptr;
     m_voxFoundCapacity = 0;
     m_voxFoundRevision = UINT64_MAX;
+    releaseVoxFoundSprigBuffer();
+}
+
+void RenderCoordinator::releaseVoxFoundSprigBuffer() {
+    if (m_voxFoundSprigBuffer == VK_NULL_HANDLE || !vulkanDevice) return;
+    vkDeviceWaitIdle(vulkanDevice->getDevice());
+    if (m_voxFoundSprigMapped) vkUnmapMemory(vulkanDevice->getDevice(), m_voxFoundSprigMemory);
+    vkDestroyBuffer(vulkanDevice->getDevice(), m_voxFoundSprigBuffer, nullptr);
+    vkFreeMemory(vulkanDevice->getDevice(), m_voxFoundSprigMemory, nullptr);
+    m_voxFoundSprigBuffer = VK_NULL_HANDLE;
+    m_voxFoundSprigMemory = VK_NULL_HANDLE;
+    m_voxFoundSprigMapped = nullptr;
+    m_voxFoundSprigCapacity = 0;
+    m_voxFoundSprigRevision = UINT64_MAX;
+}
+
+// docs/VoxelFoundationPlan.md F2.3: the preview's leaf sprigs, drawn as today's cutout leaf cards
+// (FoliageRenderPipeline::renderVoxFound). Same buffer policy as the faces.
+void RenderCoordinator::renderVoxFoundSprigs() {
+    m_voxFoundSprigsDrawn = 0;
+    if (!m_voxFoundPreview || m_voxFoundPreview->sprigs.empty() || !foliagePipeline || !vulkanDevice) return;
+    const auto& sprigs = m_voxFoundPreview->sprigs;
+    if (sprigs.size() > m_voxFoundSprigCapacity) {
+        releaseVoxFoundSprigBuffer();
+        size_t cap = 1u << 14;
+        while (cap < sprigs.size()) cap *= 2;
+        const VkDeviceSize bytes = VkDeviceSize(cap) * sizeof(Core::VoxFound::PreviewSprig);
+        vulkanDevice->createBuffer(bytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                   m_voxFoundSprigBuffer, m_voxFoundSprigMemory);
+        if (m_voxFoundSprigBuffer == VK_NULL_HANDLE || m_voxFoundSprigMemory == VK_NULL_HANDLE ||
+            vkMapMemory(vulkanDevice->getDevice(), m_voxFoundSprigMemory, 0, bytes, 0, &m_voxFoundSprigMapped) !=
+                VK_SUCCESS) {
+            m_voxFoundSprigMapped = nullptr;
+            return;
+        }
+        m_voxFoundSprigCapacity = cap;
+    }
+    if (!m_voxFoundSprigMapped) return;
+    if (m_voxFoundSprigRevision != m_voxFoundPreview->revision) {
+        std::memcpy(m_voxFoundSprigMapped, sprigs.data(), sprigs.size() * sizeof(Core::VoxFound::PreviewSprig));
+        m_voxFoundSprigRevision = m_voxFoundPreview->revision;
+    }
+    m_voxFoundSprigsDrawn = static_cast<uint32_t>(sprigs.size());
+    foliagePipeline->renderVoxFound(vulkanDevice->getCommandBuffer(currentFrame),
+                                    vulkanDevice->getDescriptorSet(currentFrame), m_voxFoundSprigBuffer,
+                                    m_voxFoundSprigsDrawn, m_voxFoundPreview->originMetres);
 }
 
 // docs/VoxelFoundationPlan.md F2.2: the 1/8 m face preview — faces built by the GPU face builder, drawn by
@@ -4338,6 +4385,11 @@ void RenderCoordinator::drawFrame() {
         {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VoxFound Preview");
             renderVoxFoundPreview();
+        }
+        // F2.3 its leaf sprigs as today's leaf cards (separate scope: card cost is measured on its own)
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VoxFound Sprigs");
+            renderVoxFoundSprigs();
         }
 
         // Grass blades on grass-topped terrain (opaque cutout; reuses the just-computed visible set)

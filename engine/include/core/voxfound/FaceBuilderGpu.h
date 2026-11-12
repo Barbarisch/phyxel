@@ -41,7 +41,10 @@ public:
     /// Build g's faces on the device into `out` (order unspecified). Refuses (false + reason) a grid with
     /// a side of 0 or more than kMaxChunkVoxels. Grows its face buffer and rebuilds when the faces
     /// overflow it, so the result is always complete.
-    bool build(const VoxelGrid& g, Outside outside, std::vector<PackedFace>& out, std::string* err);
+    /// `sprigs` (F2.3, optional): its card materials emit no faces (meshRuns with cards), and a fourth pass
+    /// appends their leaf sprigs (foliageSprigs) to `out` as axis-3 records (isSprig). Exact vs the CPU pair.
+    bool build(const VoxelGrid& g, Outside outside, std::vector<PackedFace>& out, std::string* err,
+               const SprigParams* sprigs = nullptr);
 
     /// Device time of the last build's face pass (ms, from timestamps; < 0 when unavailable).
     double lastGpuMs() const { return m_lastGpuMs; }

@@ -26,6 +26,7 @@
 #include <limits>
 #include <map>
 #include <random>
+#include <tuple>
 
 #include <nlohmann/json.hpp>
 
@@ -274,6 +275,135 @@ TEST(VoxFoundMesher, PackedFaceRoundTrips) {
         EXPECT_EQ(out.material, in.material);
     }
     EXPECT_EQ(sizeof(PackedFace), 8u);
+}
+
+// ---- F2.3 leaf cards: leaf voxels draw as today's cutout cards, not solid faces ----
+
+TEST(VoxFoundMesher, CardVoxelsEmitNoFacesButStillHideTheirNeighbours) {
+    // Log (1) at (1,1,1) with a leaf (2) on its +x side. Predicted with cards = {2}: the log keeps 5 faces
+    // (its +x face is hidden by the leaf, as today's occupancy does), the leaf draws none.
+    VoxelGrid g = box({4, 3, 3});
+    g.set({1, 1, 1}, 1);
+    g.set({2, 1, 1}, 2);
+    CardSet cards;
+    cards.set(2);
+    EXPECT_EQ(meshCulled(g, Outside::Air).size(), 10u);   // control: no cards
+    const auto culled = meshCulled(g, Outside::Air, &cards);
+    EXPECT_EQ(culled.size(), 5u);
+    for (const Quad& q : culled) EXPECT_EQ(q.material, 1);
+    EXPECT_EQ(meshRuns(g, Outside::Air, &cards).size(), 5u);
+    EXPECT_EQ(meshGreedy(g, Outside::Air, 0, &cards).size(), 5u);
+    std::string why;
+    EXPECT_EQ(coverageErrors(g, Outside::Air, meshRuns(g, Outside::Air, &cards), &why, &cards), 0u) << why;
+    // A cards-blind mesh is NOT a valid cards mesh (it draws the leaf).
+    EXPECT_GT(coverageErrors(g, Outside::Air, meshRuns(g, Outside::Air), nullptr, &cards), 0u);
+}
+
+TEST(VoxFoundMesher, RunMergeWithCardsIsExact) {
+    std::mt19937 rng(23);
+    VoxelGrid g = box({20, 18, 22});
+    for (size_t i = 0; i < g.size(); ++i) {
+        const unsigned r = rng() % 100;
+        g.mat[i] = r < 30 ? 1 : r < 50 ? 2 : r < 55 ? 3 : 0;
+    }
+    CardSet cards;
+    cards.set(2);
+    for (Outside o : {Outside::Air, Outside::Skip}) {
+        const auto q = meshRuns(g, o, &cards);
+        std::string why;
+        EXPECT_EQ(coverageErrors(g, o, q, &why, &cards), 0u) << why;
+        for (const Quad& x : q) ASSERT_NE(x.material, 2);
+        EXPECT_LT(q.size(), meshRuns(g, o).size());
+    }
+}
+
+TEST(VoxFoundMesher, SprigHashIsTodaysFoliageHash) {
+    // ChunkRenderManager.cpp foliageCellHash01 (today's canopy thinning), reproduced here as the oracle.
+    auto today = [](int wx, int wy, int wz) {
+        uint32_t h = uint32_t(wx) * 0x8DA6B343u ^ uint32_t(wy) * 0xD8163841u ^ uint32_t(wz) * 0xCB1AB31Fu;
+        h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+        return h & 0xFFFFFFu;
+    };
+    for (glm::ivec3 c : {glm::ivec3{0, 0, 0}, glm::ivec3{1, 2, 3}, glm::ivec3{-5, 700, -123456},
+                         glm::ivec3{65535, -1, 31}})
+        EXPECT_EQ(sprigHash24(c), today(c.x, c.y, c.z)) << c.x << "," << c.y << "," << c.z;
+}
+
+TEST(VoxFoundMesher, SprigThresholdIsDefinedInMetres) {
+    // Same sprigs per m^2 at any voxel size: probability = sprigsPerM2 / voxelsPerM^2.
+    EXPECT_EQ(sprigThreshold24(2.25, 3), 1u << 22);                      // 0.25 of 2^24 (today's knob)
+    EXPECT_EQ(sprigThreshold24(2.25, 8), uint32_t(std::lround(2.25 / 64.0 * 16777216.0)));
+    EXPECT_EQ(sprigThreshold24(1e9, 8), 1u << 24);                       // clamps to "keep all"
+    EXPECT_EQ(sprigThreshold24(0.0, 8), 0u);
+}
+
+TEST(VoxFoundMesher, SprigsAreExposedCardCellsOnly) {
+    // 3x3x3 leaf cube centred in a 5^3 grid, keep-all threshold. Prediction: 26 sprigs (every cell but the
+    // buried centre), each at its own cell, axis 3, material 2. A log cell (1) emits no sprig.
+    VoxelGrid g = box({5, 5, 5});
+    for (int x = 1; x <= 3; ++x)
+        for (int y = 1; y <= 3; ++y)
+            for (int z = 1; z <= 3; ++z) g.set({x, y, z}, 2);
+    g.set({0, 0, 0}, 1);
+    SprigParams p;
+    p.cards.set(2);
+    p.threshold24 = 1u << 24;
+    const auto s = foliageSprigs(g, Outside::Air, p);
+    ASSERT_EQ(s.size(), 26u);
+    for (const PackedFace& f : s) {
+        EXPECT_TRUE(isSprig(f));
+        EXPECT_EQ((f.b >> 16) & 0xFFu, 2u);
+        const glm::ivec3 c{int(f.a & 0xFF), int((f.a >> 8) & 0xFF), int((f.a >> 16) & 0xFF)};
+        EXPECT_EQ(g.at(c), 2);
+        EXPECT_NE(c, glm::ivec3(2, 2, 2));
+    }
+    EXPECT_EQ(packSprig({1, 2, 3}, 9).a, 1u | (2u << 8) | (3u << 16) | (3u << 24));
+    EXPECT_EQ(packSprig({1, 2, 3}, 9).b, 9u << 16);
+    // Grid filled with leaves: Air exposes the whole shell, Skip exposes nothing.
+    VoxelGrid full = box({3, 3, 3});
+    for (auto& m : full.mat) m = 2;
+    EXPECT_EQ(foliageSprigs(full, Outside::Air, p).size(), 26u);
+    EXPECT_EQ(foliageSprigs(full, Outside::Skip, p).size(), 0u);
+    // Zero threshold keeps nothing.
+    p.threshold24 = 0;
+    EXPECT_EQ(foliageSprigs(g, Outside::Air, p).size(), 0u);
+}
+
+TEST(VoxFoundMesher, SprigThinningIsAFunctionOfWorldPosition) {
+    // A one-cell-thick leaf slab (every cell exposed via +-y), 64 x 64 cells. Whole grid vs the same slab
+    // built as two halves at their own world origins (Outside::Skip): identical world-cell sets, so
+    // thinning cannot show a chunk seam. Kept fraction ~ the threshold.
+    const glm::ivec3 origin{-40, 300, 1000};
+    VoxelGrid whole = box({64, 3, 64});
+    for (int x = 0; x < 64; ++x)
+        for (int z = 0; z < 64; ++z) whole.set({x, 1, z}, 2);
+    SprigParams p;
+    p.cards.set(2);
+    p.threshold24 = sprigThreshold24(kSprigsPerM2, 8);
+    auto worldCells = [](const std::vector<PackedFace>& s, glm::ivec3 o) {
+        std::vector<std::tuple<int, int, int>> w;
+        for (const PackedFace& f : s)
+            w.emplace_back(o.x + int(f.a & 0xFF), o.y + int((f.a >> 8) & 0xFF), o.z + int((f.a >> 16) & 0xFF));
+        std::sort(w.begin(), w.end());
+        return w;
+    };
+    p.worldOriginVoxel = origin;
+    const auto all = worldCells(foliageSprigs(whole, Outside::Skip, p), origin);
+    std::vector<std::tuple<int, int, int>> halves;
+    for (int h = 0; h < 2; ++h) {
+        VoxelGrid half = box({32, 3, 64});
+        for (int x = 0; x < 32; ++x)
+            for (int z = 0; z < 64; ++z) half.set({x, 1, z}, 2);
+        p.worldOriginVoxel = origin + glm::ivec3(32 * h, 0, 0);
+        const auto w = worldCells(foliageSprigs(half, Outside::Skip, p), p.worldOriginVoxel);
+        halves.insert(halves.end(), w.begin(), w.end());
+    }
+    std::sort(halves.begin(), halves.end());
+    EXPECT_EQ(all, halves);
+    const double kept = double(all.size()) / 4096.0, want = kSprigsPerM2 / 64.0;
+    std::printf("[sprigs] slab kept %.4f, threshold %.4f\n", kept, want);
+    EXPECT_NEAR(kept, want, 0.35 * want);
+    EXPECT_GT(all.size(), 0u);
 }
 
 // ---- 3. measured -----------------------------------------------------------------------------------------

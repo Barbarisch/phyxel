@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <limits>
 #include <random>
 #include <string>
@@ -45,9 +46,11 @@ std::vector<uint64_t> keys(const std::vector<PackedFace>& f) {
     return k;
 }
 
-std::vector<PackedFace> cpuFaces(const VoxelGrid& g, Outside o) {
+std::vector<PackedFace> cpuFaces(const VoxelGrid& g, Outside o, const SprigParams* sp = nullptr) {
     std::vector<PackedFace> f;
-    for (const Quad& q : meshRuns(g, o)) f.push_back(packFace(q));
+    for (const Quad& q : meshRuns(g, o, sp ? &sp->cards : nullptr)) f.push_back(packFace(q));
+    if (sp)
+        for (const PackedFace& s : foliageSprigs(g, o, *sp)) f.push_back(s);
     return f;
 }
 
@@ -82,11 +85,11 @@ protected:
         VulkanTestFixture::TearDown();
     }
     // Builds on the GPU and compares with the CPU reference; returns the face count.
-    size_t same(const VoxelGrid& g, Outside o, const std::string& name) {
+    size_t same(const VoxelGrid& g, Outside o, const std::string& name, const SprigParams* sp = nullptr) {
         std::vector<PackedFace> f;
         std::string err;
-        EXPECT_TRUE(gpu.build(g, o, f, &err)) << name << ": " << err;
-        const auto c = keys(cpuFaces(g, o)), k = keys(f);
+        EXPECT_TRUE(gpu.build(g, o, f, &err, sp)) << name << ": " << err;
+        const auto c = keys(cpuFaces(g, o, sp)), k = keys(f);
         EXPECT_EQ(c.size(), k.size()) << name;
         EXPECT_TRUE(c == k) << name << ": " << firstDiff(c, k);
         return k.size();
@@ -163,4 +166,66 @@ TEST_F(VoxFoundFaceBuilderGpu, RefusesGridsThatAreNotOneChunk) {
     err.clear();
     EXPECT_FALSE(gpu.build(box({0, 4, 4}), Outside::Air, f, &err));
     EXPECT_FALSE(err.empty());
+}
+
+// ---- F2.3 leaf cards: card materials emit no faces; exposed card cells become sprigs (axis-3 records) ----
+
+TEST_F(VoxFoundFaceBuilderGpu, CardsAndSprigsEqualTheReference) {
+    // Random content, cards = {2, 255} (255 exercises the high CardSet word), a negative world origin, two
+    // thresholds (keep all; the metric 1/8 m threshold), both Outside modes, awkward sizes.
+    const glm::ivec3 sizes[] = {{1, 1, 1}, {24, 20, 28}, {13, 7, 5}, {256, 7, 3}, {33, 65, 17}};
+    std::mt19937 rng(41);
+    for (uint32_t thr : {1u << 24, sprigThreshold24(kSprigsPerM2, kVoxelsPerM)}) {
+        SprigParams sp;
+        sp.cards.set(2);
+        sp.cards.set(255);
+        sp.worldOriginVoxel = {-1000, 37, 123456};
+        sp.threshold24 = thr;
+        for (glm::ivec3 d : sizes) {
+            VoxelGrid g = box(d);
+            for (size_t i = 0; i < g.size(); ++i) {
+                const unsigned r = rng() % 100;
+                g.mat[i] = r < 30 ? 1 : r < 50 ? 2 : r < 55 ? 255 : 0;
+            }
+            for (Outside o : {Outside::Air, Outside::Skip}) {
+                const std::string name = std::to_string(d.x) + "x" + std::to_string(d.y) + "x" + std::to_string(d.z) +
+                                         (o == Outside::Air ? " air" : " skip") + " thr " + std::to_string(thr);
+                same(g, o, name, &sp);
+                size_t sprigs = 0;
+                for (const PackedFace& f : foliageSprigs(g, o, sp)) sprigs += isSprig(f);
+                if (d == glm::ivec3(24, 20, 28) && thr == (1u << 24)) EXPECT_GT(sprigs, 0u) << name;
+            }
+        }
+    }
+}
+
+TEST_F(VoxFoundFaceBuilderGpu, ForestWithFloraEqualsTheReference) {
+    // The F2.2 forest spot: engine terrain + engine flora plan stamped from the 1/8 m tree library.
+    namespace fs = std::filesystem;
+    fs::path root = fs::current_path();
+    for (int i = 0; i < 6 && !fs::exists(root / "resources" / "templates_g8"); ++i) root = root.parent_path();
+    ASSERT_TRUE(fs::exists(root / "resources" / "templates_g8")) << "repo root not found from " << fs::current_path();
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    gen.loadBiomes((root / "resources" / "biomes.json").string());
+    const int x0 = 8160, z0 = 96;
+    float lo = std::numeric_limits<float>::max();
+    for (int x = x0 - 1; x <= x0 + 32; ++x)
+        for (int z = z0 - 1; z <= z0 + 32; ++z) lo = std::min(lo, gen.sampleSurface(x, z).bedHeight);
+    const int y0 = int(std::floor(lo)) - 2;
+    VoxelArea a = buildTerrainArea(gen, {x0, y0, z0}, {32, 32, 32});
+    const FloraStampStats flora = stampFlora(a, gen, (root / "resources" / "templates_g8" / "nature").string());
+    ASSERT_GT(flora.stamped, 0u);
+    SprigParams sp;
+    for (size_t m = 0; m < a.palette.size(); ++m)
+        for (const char* leaf : {"Leaf", "LeafBirch", "LeafSpruce", "LeafJungle", "LeafAutumn"})
+            if (a.palette[m] == leaf) sp.cards.set(uint8_t(m));
+    sp.worldOriginVoxel = a.originVoxel;
+    sp.threshold24 = sprigThreshold24(kSprigsPerM2, kVoxelsPerM);
+    const size_t all = same(a.grid, Outside::Skip, "forest", &sp);
+    size_t sprigs = 0;
+    for (const PackedFace& f : cpuFaces(a.grid, Outside::Skip, &sp)) sprigs += isSprig(f);
+    EXPECT_GT(sprigs, 0u);
+    std::printf("[facebuilder] forest (%d,%d) %zu trees: solid faces %zu (vs %zu with leaves as voxels), "
+                "sprigs %zu, GPU %.3f ms\n", x0, z0, flora.stamped, all - sprigs, meshRuns(a.grid, Outside::Skip).size(),
+                sprigs, gpu.lastGpuMs());
 }

@@ -58,6 +58,9 @@ void FoliageRenderPipeline::cleanup() {
     if (m_device == VK_NULL_HANDLE) return;
     if (m_pipeline       != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_pipeline, nullptr);
     if (m_shadowPipeline != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_shadowPipeline, nullptr);
+    if (m_voxFoundPipeline != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_voxFoundPipeline, nullptr);
+    m_voxFoundPipeline = VK_NULL_HANDLE;
+    m_voxFoundFailed   = false;
     if (m_pipelineLayout != VK_NULL_HANDLE) vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
     if (m_kinPipeline       != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_kinPipeline, nullptr);
     if (m_kinPipelineLayout != VK_NULL_HANDLE) vkDestroyPipelineLayout(m_device, m_kinPipelineLayout, nullptr);
@@ -98,8 +101,12 @@ void FoliageRenderPipeline::recreatePipeline(VkRenderPass renderPass, VkExtent2D
 }
 
 void FoliageRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D extent,
-                                           VkDescriptorSetLayout uboLayout) {
-    auto vertCode = readShaderFile(Core::AssetManager::instance().resolveShader("foliage.vert.spv"));
+                                           VkDescriptorSetLayout uboLayout, const char* vertSpv,
+                                           VkPipeline* outPipeline) {
+    m_renderPass = renderPass;
+    m_uboLayout  = uboLayout;
+    m_extent     = extent;
+    auto vertCode = readShaderFile(Core::AssetManager::instance().resolveShader(vertSpv));
     auto fragCode = readShaderFile(Core::AssetManager::instance().resolveShader("foliage.frag.spv"));
 
     VkShaderModule vertModule, fragModule;
@@ -197,7 +204,8 @@ void FoliageRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D e
     layoutInfo.pSetLayouts            = &uboLayout;
     layoutInfo.pushConstantRangeCount = 1;
     layoutInfo.pPushConstantRanges    = &pushRange;
-    if (vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
+    if (m_pipelineLayout == VK_NULL_HANDLE &&
+        vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create FoliageRenderPipeline layout");
     }
 
@@ -217,8 +225,9 @@ void FoliageRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D e
     pipelineInfo.subpass             = 0;
     pipelineInfo.pDynamicState = &dynState;
 
-    if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create FoliageRenderPipeline");
+    if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+                                  outPipeline ? outPipeline : &m_pipeline) != VK_SUCCESS) {
+        throw std::runtime_error(std::string("failed to create FoliageRenderPipeline from ") + vertSpv);
     }
 
     vkDestroyShaderModule(m_device, vertModule, nullptr);
@@ -407,6 +416,47 @@ void FoliageRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
         vkCmdBindVertexBuffers(cmd, 0, 1, &c.buffer, &offset);
         vkCmdDraw(cmd, vertexCount, c.count, 0, 0);
     }
+}
+
+// docs/VoxelFoundationPlan.md F2.3 — leaf sprigs of the 1/8 m store. Same layout, push constants, card
+// params, wind and foliage.frag as render(); only the vertex shader's position decode differs
+// (voxfound_foliage.vert). Pipeline created on first use.
+void FoliageRenderPipeline::renderVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer,
+                                           uint32_t count, const glm::dvec3& originAbs) {
+    if (!m_params.enabled || buffer == VK_NULL_HANDLE || count == 0 || m_pipelineLayout == VK_NULL_HANDLE) return;
+    if (m_voxFoundPipeline == VK_NULL_HANDLE) {
+        if (m_voxFoundFailed) return;
+        try {
+            createPipeline(m_renderPass, m_extent, m_uboLayout, "voxfound_foliage.vert.spv", &m_voxFoundPipeline);
+        } catch (const std::exception& e) {
+            LOG_ERROR("FoliageRenderPipeline", "voxfound sprig pipeline: {}", e.what());
+            m_voxFoundFailed = true;
+            return;
+        }
+    }
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxFoundPipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &uboSet, 0, nullptr);
+    FoliagePush pc{};
+    pc.cardSize      = m_params.cardSize;
+    pc.windStrength  = m_params.windStrength;
+    pc.radius        = m_params.radius;
+    pc.cardsPerVoxel = m_params.cardsPerVoxel;
+    pc.windDirX      = m_params.wind.dir.x;
+    pc.windDirZ      = m_params.wind.dir.y;
+    pc.windBase      = m_params.wind.base;
+    pc.gustAmp       = m_params.wind.gustAmp;
+    pc.gustScale     = m_params.wind.gustScale;
+    pc.windScrollX   = m_params.wind.scroll.x;
+    pc.windScrollZ   = m_params.wind.scroll.y;
+    pc.windAniso     = m_params.wind.aniso;
+    pc.chunkBaseOffset = glm::vec3(originAbs - glm::dvec3(m_cameraWorld));
+    pc.absBaseX = float(originAbs.x);
+    pc.absBaseY = float(originAbs.y);
+    pc.absBaseZ = float(originAbs.z);
+    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FoliagePush), &pc);
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &offset);
+    vkCmdDraw(cmd, 6u * m_params.cardsPerVoxel, count, 0, 0);
 }
 
 // ============================================================================

@@ -383,7 +383,12 @@
     },
     "voxfound_faces.comp": {
       "built": true,
-      "sources": "8fcd87b2d8fdc12c2923d9b89fb8d7f3690916d80bd080fb314f7dca5de71c01",
+      "sources": "909b113878bed04f049e4e82a380f4b986870ea823c1e6f56fed68e300bac75a",
+      "spv_present": true
+    },
+    "voxfound_foliage.vert": {
+      "built": true,
+      "sources": "da009f2de4934839b43e9bbe569a7e9d6c75b3f3ae25abd7d81dafbb0e7f9f28",
       "spv_present": true
     },
     "water.frag": {

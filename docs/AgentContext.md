@@ -359,9 +359,21 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       POST /api/camera does NOT move the render camera (status bar camera unchanged, no "Syncing Free Camera"
       log, even with mode:"free") -- unexplained; workaround: load_definition with a NEW world "name" and the
       camera pose (a same-name reload ignores the camera).
-      NEXT: shadow casting for preview faces; occupancy/ambient from the new store (§4.4); device-side texture
-      table (8 B draw record); uniform-block skip; chunk-border neighbours; then a whole-frame A/B against today
-      on the same generated scene.
+      F2.3 LEAF CARDS (2026-11-12): leaves are NEVER drawn as voxels in this engine -- billboarded materials
+      (Leaf*) stay in the store/occupancy, emit no faces, and each exposed leaf cell becomes one 8 B card instance
+      (foliage.vert fans 5 cutout cards). F2.2 drew them as cubes (my mistake; the "dark slits" in the bush). Now:
+      CardSet-aware meshers + foliageSprigs (CPU) + FaceBuilderGpu 4th pass (axis-3 records), exact vs CPU,
+      mutation-checked; voxfound_foliage.vert + FoliageRenderPipeline::renderVoxFound draw them as today's cards.
+      Preview body: leaves "cards"|"voxels", sprigs_per_m2, templates [{name,x,z}]. A/B rig:
+      scratchpad f23_ab.py (today's grid-3 tree spawned beside the 1/8 m one). Today's real card density is NOT the
+      0.25 knob: micro leaves emit unthinned duplicate instances (oak: 4,536 instances / 3,847 distinct).
+      Remaining visible difference: new canopy flat pale (not in shadow map, not in ambient occupancy).
+      GOTCHAS: a build after a failed post-build (MSB3073) left phyxel_tests.exe with a NEW timestamp but STALE code
+      (stub results) -- delete the exe to force a relink when results look impossible. Bash `python` hangs (Store
+      stub) -- use PowerShell with the uv PATH. Unit tests also need the uv python dir on PATH.
+      NEXT: preview faces + sprigs into the shadow pass and into the occupancy the ambient reads, re-capture the oak
+      A/B with pixel values, settle sprig density; then device-side texture table (8 B draw record); uniform-block
+      skip; chunk-border neighbours; then a whole-frame A/B against today on the same generated scene.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

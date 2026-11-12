@@ -19,9 +19,25 @@ layout(std430, binding = 1) writeonly buffer Faces { uvec2 faces[]; };
 layout(std430, binding = 2) buffer Counter { uint faceCount; };
 
 layout(push_constant) uniform PC {
-    ivec4 dim;   // xyz = grid size (each 1..256); w = outside: 0 air, 1 skip
-    ivec4 job;   // x = axis; y = rows in this dispatch (2 * ns * nv); z = face capacity
+    ivec4 dim;     // xyz = grid size (each 1..256); w = outside: 0 air, 1 skip
+    ivec4 job;     // x = axis (3 = the sprig pass); y = invocations in this dispatch; z = face capacity
+    uvec4 cards0;  // CardSet bits 0-127: materials drawn as leaf cards (no faces; F2.3)
+    uvec4 cards1;  // CardSet bits 128-255
+    ivec4 origin;  // xyz = absolute cell of voxel (0,0,0); w = sprig keep threshold (24-bit hash)
 } pc;
+
+bool isCard(uint m) {
+    const uint w = m >> 5u;
+    const uint word = w < 4u ? pc.cards0[w] : pc.cards1[w - 4u];
+    return ((word >> (m & 31u)) & 1u) != 0u;
+}
+
+// Today's canopy-thinning hash (ChunkRenderManager foliageCellHash01), 24 bits; == VoxFound::sprigHash24.
+uint sprigHash24(ivec3 c) {
+    uint h = uint(c.x) * 0x8DA6B343u ^ uint(c.y) * 0xD8163841u ^ uint(c.z) * 0xCB1AB31Fu;
+    h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+    return h & 0xFFFFFFu;
+}
 
 uint matAt(ivec3 p) {
     const int i = p.z + pc.dim.z * (p.y + pc.dim.y * p.x);
@@ -41,7 +57,7 @@ uint faceAt(int u, int v) {
     p[UA] = u;
     p[VA] = v;
     const uint m = matAt(p);
-    if (m == 0u) return 0u;
+    if (m == 0u || isCard(m)) return 0u;   // a card voxel draws no faces (it still hides others below)
     ivec3 q = p;
     q[AX] += DIR;
     if (!inGrid(q)) return pc.dim.w == 0 ? m : 0u;
@@ -60,6 +76,28 @@ bool sameRun(int u, int w, int r, uint m, int nu) {
 void main() {
     const uint id = gl_GlobalInvocationID.x;
     if (id >= uint(pc.job.y)) return;
+    if (pc.job.x == 3) {
+        // SPRIG pass (F2.3, VoxFound::foliageSprigs): one invocation per voxel. A card voxel with any face
+        // neighbour air (outside the grid: air when dim.w == 0, never when skip) is a sprig, kept when today's
+        // thinning hash on its absolute cell is below the threshold. Record: axis field 3.
+        const int i = int(id);
+        const ivec3 p = ivec3(i / (pc.dim.y * pc.dim.z), (i / pc.dim.z) % pc.dim.y, i % pc.dim.z);
+        const uint m = matAt(p);
+        if (m == 0u || !isCard(m)) return;
+        if (sprigHash24(pc.origin.xyz + p) >= uint(pc.origin.w)) return;
+        bool exposed = false;
+        for (int a = 0; a < 3 && !exposed; ++a)
+            for (int d = -1; d <= 1 && !exposed; d += 2) {
+                ivec3 q = p;
+                q[a] += d;
+                exposed = inGrid(q) ? matAt(q) == 0u : pc.dim.w == 0;
+            }
+        if (!exposed) return;
+        const uint slot = atomicAdd(faceCount, 1u);
+        if (slot < uint(pc.job.z))
+            faces[slot] = uvec2(uint(p.x) | (uint(p.y) << 8) | (uint(p.z) << 16) | (3u << 24), m << 16);
+        return;
+    }
     AX = pc.job.x;
     UA = (AX + 1) % 3;
     VA = (AX + 2) % 3;

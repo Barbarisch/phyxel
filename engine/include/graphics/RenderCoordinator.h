@@ -619,6 +619,7 @@ public:
     void setVoxFoundPreview(const Core::VoxFound::Preview* p) { m_voxFoundPreview = p; }
     /// GPU-side face count drawn by the preview last frame (0 = off).
     uint32_t voxFoundPreviewFacesDrawn() const { return m_voxFoundDrawn; }
+    uint32_t voxFoundPreviewSprigsDrawn() const { return m_voxFoundSprigsDrawn; }
 
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
     // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
@@ -1490,6 +1491,14 @@ private:
     uint32_t       m_voxFoundDrawn = 0;
     void renderVoxFoundPreview();
     void releaseVoxFoundBuffer();
+    VkBuffer       m_voxFoundSprigBuffer = VK_NULL_HANDLE;         // F2.3 leaf sprigs
+    VkDeviceMemory m_voxFoundSprigMemory = VK_NULL_HANDLE;
+    void*          m_voxFoundSprigMapped = nullptr;
+    size_t         m_voxFoundSprigCapacity = 0;
+    uint64_t       m_voxFoundSprigRevision = UINT64_MAX;
+    uint32_t       m_voxFoundSprigsDrawn = 0;
+    void renderVoxFoundSprigs();
+    void releaseVoxFoundSprigBuffer();
     bool  m_waterEnabled = false;
     float m_seaLevel = Core::kSeaLevelY; // shared default (WorldConstants.h) — must match the
                                          // water sim or the plane draws where no water is

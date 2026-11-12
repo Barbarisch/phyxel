@@ -72,6 +72,13 @@ public:
 
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D extent);
 
+    /// docs/VoxelFoundationPlan.md F2.3 — draw `count` leaf sprigs of the 1/8 m store (8 B instances:
+    /// cell x|y<<8|z<<16|sky<<24, tex word as FoliageInstanceData) whose cell (0,0,0) min corner is at
+    /// originAbs (world metres). Today's cards, params, wind and foliage.frag; voxfound_foliage.vert decodes
+    /// the position. Call in the scene pass. Main view only (no shadow casting yet).
+    void renderVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer, uint32_t count,
+                        const glm::dvec3& originAbs);
+
     // ---- KINEMATIC foliage (F3): leaf cards riding moving coherent fragments ----
     // A felled tree's canopy stays card-rendered while it falls: instances live in a
     // shared buffer with per-object ranges (mirrors KinematicVoxelPipeline); each draw
@@ -96,7 +103,9 @@ public:
     void setCameraWorld(const glm::vec3& camPos) { m_cameraWorld = camPos; }
 
 private:
-    void createPipeline(VkRenderPass renderPass, VkExtent2D extent, VkDescriptorSetLayout uboLayout);
+    /// Creates the layout on first call; the pipeline goes to *outPipeline (default m_pipeline).
+    void createPipeline(VkRenderPass renderPass, VkExtent2D extent, VkDescriptorSetLayout uboLayout,
+                        const char* vertSpv = "foliage.vert.spv", VkPipeline* outPipeline = nullptr);
     uint32_t findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags props) const;
 
     VkDevice         m_device         = VK_NULL_HANDLE;
@@ -104,6 +113,11 @@ private:
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline       m_pipeline       = VK_NULL_HANDLE;
     VkPipeline       m_shadowPipeline = VK_NULL_HANDLE;  // depth-only cutout caster (may be null)
+    VkPipeline       m_voxFoundPipeline = VK_NULL_HANDLE; // F2.3 1/8 m sprigs (lazy)
+    bool             m_voxFoundFailed   = false;
+    VkRenderPass     m_renderPass = VK_NULL_HANDLE;       // kept for the lazy pipeline
+    VkDescriptorSetLayout m_uboLayout = VK_NULL_HANDLE;
+    VkExtent2D       m_extent{0, 0};
     Params           m_params;
     glm::vec3        m_cameraWorld{0.0f};   // per-frame camera position (camera-relative rendering)
 

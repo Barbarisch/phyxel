@@ -9610,6 +9610,23 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             }
             response = {{"success", true}, {"foliage_enabled", renderCoordinator->isFoliageEnabled()},
                         {"density", Graphics::ChunkRenderManager::getFoliageDensity()}};
+            // Measured card load of the loaded chunks (docs/VoxelFoundationPlan.md F2.3 A/B): every
+            // FoliageInstanceData, and the DISTINCT sprig positions among them (micro leaves of one subcube each
+            // emit an instance at the same subcube centre with the same hash seed: identical, overlapping cards).
+            if (chunkManager) {
+                size_t total = 0;
+                std::set<std::array<int32_t, 4>> distinct;   // chunk origin + position bits (x,y,z,sub)
+                for (const auto& ch : chunkManager->chunks) {
+                    if (!ch) continue;
+                    const glm::ivec3 o = ch->getWorldOrigin();
+                    for (const auto& fi : ch->getFoliageInstances()) {
+                        ++total;
+                        distinct.insert({o.x, o.y, o.z, int32_t(fi.packed & 0x1FFFFFu)});
+                    }
+                }
+                response["foliage_instances"] = total;
+                response["foliage_distinct_sprigs"] = distinct.size();
+            }
         }
         return true;
 
@@ -13316,6 +13333,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         if (cmd.params.value("clear", false)) {
             if (renderCoordinator) renderCoordinator->setVoxFoundPreview(nullptr);
             voxFoundPreview.faces.clear();
+            voxFoundPreview.sprigs.clear();
             ++voxFoundPreview.revision;
             response = {{"cleared", true}};
             return;
@@ -13364,7 +13382,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             }
         // One chunk is 32 m tall: 2 m under the lowest ground, up to 26 m of headroom for trees.
         const int y0 = int(std::floor(lo)) - 2;
-        const int top = int(std::ceil(hi)) + 2 + (flora ? 26 : 0);
+        const bool trees = flora || (cmd.params.contains("templates") && cmd.params["templates"].is_array());
+        const int top = int(std::ceil(hi)) + 2 + (trees ? 26 : 0);
         const int ySize = std::min(32, top - y0);
         if (int(std::ceil(hi)) + 1 > y0 + 32) {
             response = {{"error", "ground relief over this area exceeds one 32 m chunk"}, {"relief_m", hi - lo}};
@@ -13374,14 +13393,75 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         VoxelArea area = buildTerrainArea(gen, {x0, y0, z0}, {size, ySize, size});
         FloraStampStats fs;
         if (flora) fs = stampFlora(area, gen, "resources/templates_g8/nature");
+        // "templates":[{"name":"forge_oak_m","x":8,"z":8}] — stamp named 1/8 m library templates (tree_forge
+        // --grid 8 output) with stampFlora's rule: footprint centred on metre column (x, z) of the area, base on
+        // the ground there. For side-by-side A/B against today's grid-3 template spawned at the same spot.
+        nlohmann::json stampedTemplates = nlohmann::json::array();
+        if (cmd.params.contains("templates") && cmd.params["templates"].is_array()) {
+            for (const auto& tj : cmd.params["templates"]) {
+                const std::string name = tj.value("name", std::string());
+                const GridTemplate t = loadGridTemplate("resources/templates_g8/nature/" + name + ".voxel");
+                if (!t.error.empty()) {
+                    stampedTemplates.push_back({{"name", name}, {"error", t.error}});
+                    continue;
+                }
+                const int cx = tj.value("x", 0) * kVoxelsPerM + kVoxelsPerM / 2;
+                const int cz = tj.value("z", 0) * kVoxelsPerM + kVoxelsPerM / 2;
+                int gy = 0;
+                for (int vy = area.grid.dim.y - 1; vy >= 0; --vy)
+                    if (area.grid.in({cx, vy, cz}) && area.grid.mat[area.grid.idx({cx, vy, cz})] != 0) { gy = vy + 1; break; }
+                const glm::ivec3 base(cx - t.bounds.x / 2, gy, cz - t.bounds.z / 2);
+                size_t written = 0, clipped = 0;
+                for (const auto& b : t.boxes) {
+                    uint8_t m = 0;
+                    for (size_t i = 1; i < area.palette.size(); ++i)
+                        if (area.palette[i] == b.material) m = uint8_t(i);
+                    if (m == 0) { m = uint8_t(area.palette.size()); area.palette.push_back(b.material); }
+                    for (int x = 0; x < b.size.x; ++x)
+                        for (int y = 0; y < b.size.y; ++y)
+                            for (int z = 0; z < b.size.z; ++z) {
+                                const glm::ivec3 q = base + b.pos + glm::ivec3(x, y, z);
+                                if (!area.grid.in(q)) { ++clipped; continue; }
+                                area.grid.mat[area.grid.idx(q)] = m;
+                                ++written;
+                            }
+                }
+                stampedTemplates.push_back({{"name", name}, {"cells", written}, {"clipped", clipped},
+                                            {"bounds_cells", {t.bounds.x, t.bounds.y, t.bounds.z}},
+                                            {"base_voxel", {base.x, base.y, base.z}}});
+            }
+        }
         const auto t1 = std::chrono::steady_clock::now();
+        // F2.3 leaves: materials the engine draws as leaf cards (MaterialDef::billboarded) emit no solid faces;
+        // their exposed cells become sprigs at kSprigsPerM2 (Mesher.h). "leaves":"voxels" draws them solid (A/B).
+        const bool leafCards = cmd.params.value("leaves", std::string("cards")) != "voxels";
+        SprigParams sprigParams;
+        std::vector<std::string> cardMaterials;
+        for (size_t m = 1; m < area.palette.size(); ++m) {
+            const auto* md = Core::MaterialRegistry::instance().getMaterial(area.palette[m]);
+            if (md && md->billboarded) {
+                sprigParams.cards.set(uint8_t(m));
+                cardMaterials.push_back(area.palette[m]);
+            }
+        }
+        sprigParams.worldOriginVoxel = area.originVoxel;
+        sprigParams.threshold24 =
+            sprigThreshold24(cmd.params.value("sprigs_per_m2", kSprigsPerM2), kVoxelsPerM);
         std::vector<PackedFace> packed;
         std::string berr;
-        if (!voxFoundBuilder->build(area.grid, outside, packed, &berr)) {
+        if (!voxFoundBuilder->build(area.grid, outside, packed, &berr, leafCards ? &sprigParams : nullptr)) {
             response = {{"error", berr}};
             return;
         }
         const auto t2 = std::chrono::steady_clock::now();
+        std::vector<PackedFace> sprigRecs;
+        packed.erase(std::remove_if(packed.begin(), packed.end(),
+                                    [&](const PackedFace& f) {
+                                        if (!isSprig(f)) return false;
+                                        sprigRecs.push_back(f);
+                                        return true;
+                                    }),
+                     packed.end());
         // Texture per (material, face): MaterialRegistry by palette name, faceID 0 +Z 1 -Z 2 +X 3 -X 4 +Y 5 -Y.
         std::vector<std::array<uint16_t, 6>> tex(area.palette.size());
         for (size_t m = 0; m < area.palette.size(); ++m)
@@ -13393,6 +13473,13 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             const int faceID = q.axis == 2 ? (q.dir > 0 ? 0 : 1) : q.axis == 0 ? (q.dir > 0 ? 2 : 3) : (q.dir > 0 ? 4 : 5);
             voxFoundPreview.faces[i] = {packed[i].a, packed[i].b,
                                         q.material < tex.size() ? uint32_t(tex[q.material][faceID]) : 0u};
+        }
+        // Sprig instance: today's leaf texture (face 0, as ChunkRenderManager), full sky, no block light.
+        voxFoundPreview.sprigs.resize(sprigRecs.size());
+        for (size_t i = 0; i < sprigRecs.size(); ++i) {
+            const uint32_t m = (sprigRecs[i].b >> 16) & 0xFFu;
+            voxFoundPreview.sprigs[i] = {(sprigRecs[i].a & 0xFFFFFFu) | (15u << 24),
+                                         m < tex.size() ? uint32_t(tex[m][0]) : 0u};
         }
         glm::dvec3 at(x0, y0, z0);
         if (cmd.params.contains("at") && cmd.params["at"].is_array() && cmd.params["at"].size() >= 3)
@@ -13410,12 +13497,18 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     {"drawn_at_m", {at.x, at.y, at.z}},
                     {"solid_voxels", area.grid.solidCount()},
                     {"faces", packed.size()},
+                    {"leaves", leafCards ? "cards" : "voxels"},
+                    {"card_materials", cardMaterials},
+                    {"sprigs", sprigRecs.size()},
+                    {"sprigs_per_m2", cmd.params.value("sprigs_per_m2", kSprigsPerM2)},
+                    {"sprig_instance_bytes", sprigRecs.size() * sizeof(PreviewSprig)},
                     {"face_record_bytes", packed.size() * sizeof(PackedFace)},
                     {"preview_instance_bytes", packed.size() * sizeof(PreviewFace)},
                     {"gpu_face_build_ms", voxFoundBuilder->lastGpuMs()},
                     {"generate_ms", ms(t0, t1)},
                     {"build_wall_ms", ms(t1, t2)},
                     {"palette", area.palette},
+                    {"templates_stamped", stampedTemplates},
                     {"flora_stamped", fs.stamped},
                     {"flora_missing", fs.missing}};
         return;

@@ -10,10 +10,12 @@ namespace Phyxel::Core::VoxFound {
 namespace {
 constexpr uint32_t kGroup = 64;
 struct FacesPC {
-    int32_t dim[4];   // xyz, w = outside (0 air, 1 skip)
-    int32_t job[4];   // axis, rows, capacity, -
+    int32_t dim[4];     // xyz, w = outside (0 air, 1 skip)
+    int32_t job[4];     // axis (3 = sprig pass), invocations, capacity, -
+    uint32_t cards[8];  // CardSet bits (F2.3)
+    int32_t origin[4];  // absolute cell of voxel 0; w = sprig keep threshold
 };
-static_assert(sizeof(FacesPC) == 32, "voxfound_faces.comp push constants");
+static_assert(sizeof(FacesPC) == 80, "voxfound_faces.comp push constants");
 }  // namespace
 
 FaceBuilderGpu::FaceBuilderGpu() = default;
@@ -166,7 +168,8 @@ bool FaceBuilderGpu::ensureBuffers(size_t voxelWords, size_t faces, std::string*
     return true;
 }
 
-bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<PackedFace>& out, std::string* err) {
+bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<PackedFace>& out, std::string* err,
+                           const SprigParams* sprigs) {
     out.clear();
     if (!initialized()) { if (err) *err = "FaceBuilderGpu: not initialised"; return false; }
     for (int a = 0; a < 3; ++a)
@@ -208,13 +211,20 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<Pack
             vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_queries, 0);
         }
         m_faces->bind(cmd);
-        for (int axis = 0; axis < 3; ++axis) {
-            const int ns = g.dim[axis], nv = g.dim[(axis + 2) % 3];
-            const int rows = 2 * ns * nv;
+        for (int axis = 0; axis < (sprigs ? 4 : 3); ++axis) {
+            // axis 3 = the sprig pass: one invocation per voxel.
+            const int rows = axis < 3 ? 2 * g.dim[axis] * g.dim[(axis + 2) % 3] : int(n);
             FacesPC pc{};
             pc.dim[0] = g.dim.x; pc.dim[1] = g.dim.y; pc.dim[2] = g.dim.z;
             pc.dim[3] = outside == Outside::Air ? 0 : 1;
             pc.job[0] = axis; pc.job[1] = rows; pc.job[2] = int32_t(m_capacity);
+            if (sprigs) {
+                std::memcpy(pc.cards, sprigs->cards.bits, sizeof(pc.cards));
+                pc.origin[0] = sprigs->worldOriginVoxel.x;
+                pc.origin[1] = sprigs->worldOriginVoxel.y;
+                pc.origin[2] = sprigs->worldOriginVoxel.z;
+                pc.origin[3] = int32_t(sprigs->threshold24);
+            }
             m_faces->pushConstants(cmd, &pc, sizeof(pc));
             m_faces->dispatch(cmd, (uint32_t(rows) + kGroup - 1) / kGroup);
         }

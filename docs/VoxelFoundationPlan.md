@@ -412,16 +412,52 @@ The outer box faces are counted (`outside: air`), so these are dioramas. Eye che
 - Terrace steps 1/8 m high across the slopes; grass top and side textures tile at 1 m across merged faces, as §4.3
   predicts; trunks with 1/8 m stepped root flares.
 - Not there yet, as expected: the faces cast no shadows (the shadow passes draw chunk instances only, §4.6 item 6);
-  no grass blades or leaf cards (§4.6 item 7, those tiers read chunk voxels); leaves are raw leaf voxels.
+  no grass blades (§4.6 item 7, that tier reads chunk voxels); leaves were drawn as raw leaf voxels — WRONG, fixed in
+  F2.3 (leaves are cards).
 - Observed, not explained yet:
   - (corrected 2026-11-12) the earlier "near-black trunk faces" claim was overstated. In
     `voxfound_f22_forest_closeup.png` the right trunk's root flare and the trunk at the right edge are dark but
     textured — consistent with ordinary sun-facing-away faces lit by ambient only. No pixel values were read and no
     today's-renderer control was captured, so neither "near-black" nor the §4.4 occupancy cause is established.
     Check: same tree, same pose, today's path vs preview, compare pixel values on those faces.
-  - thin dark horizontal slits across a bush, probably leaf-layer undersides at eye level. Needs a closer look.
+  - thin dark horizontal slits across a bush — EXPLAINED in F2.3: F2.2 drew leaf voxels as solid cubes, but the
+    engine never draws leaves as cubes (leaf cards, below). The slits were the leaf cubes' own faces.
 - Draw instance is 12 B in this stopgap: the PackedFace plus a texture word looked up on the host. The 8 B path needs a
   material-to-texture table on the device.
+
+**F2.3 2026-11-12 — leaves are today's leaf CARDS, not voxels.** My F2.2 mistake: I drew leaf voxels as solid faces
+without reading how the engine draws leaves. How today works (`ChunkRenderManager.cpp` ~960/1396/1561/1695,
+`FoliageRenderPipeline`, `foliage.vert/.frag`): materials with `billboarded` (Leaf, LeafBirch, LeafSpruce, LeafJungle,
+LeafAutumn) stay voxels in the store and in occupancy (they hide the wood inside a canopy) but **emit no faces**; each
+EXPOSED leaf cell emits one 8 B `FoliageInstanceData`, which `foliage.vert` fans into `cardsPerVoxel` (5) cutout cards
+in hashed 3-D orientations, card size and jitter in metres; `foliage.frag` carves a leaf silhouette and lights it with
+the shadow map (the canopy self-shadows through the foliage shadow pass) + the probe ambient (`phxAmbient`, which traces
+the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid coarse leaf mass
+(`RenderCoordinator::renderFoliage`); the new LOD tiers must keep that handoff (§4.6 item 7).
+- Built: `CardSet` + card-aware meshers (`Mesher.h`: a card voxel draws no faces but still hides its neighbours);
+  `foliageSprigs` (exposed card cells, thinned by today's `foliageCellHash01` on the ABSOLUTE 1/8 m cell → seam-free);
+  the GPU face builder's 4th pass (axis-3 records in the same 8 B buffer); `shaders/voxfound_foliage.vert` (= `foliage.vert`
+  with a 1/8 m position decode, same push constants/layout/`foliage.frag`); `FoliageRenderPipeline::renderVoxFound`;
+  preview `leaves: "cards"|"voxels"`, `sprigs_per_m2`, `templates:[{name,x,z}]` (stamp a named 1/8 m library tree);
+  `POST /api/debug/foliage` now also reports today's `foliage_instances` + `foliage_distinct_sprigs`.
+- Red/green: 6 new CPU tests failed on stubs, then pass; 2 new GPU tests (random content with cards {2,255}, negative
+  world origin, both thresholds, both Outside modes; the F2.2 forest with flora) equal the CPU reference exactly.
+  Mutation: dropping `isCard` from the kernel's `faceAt` is caught (leaf faces appear only on the GPU).
+- **Density is NOT today's 0.25 knob.** Measured on `forge_oak_m` (same tree in both libraries), live: today emits
+  4,536 card instances = **3,847 distinct sprigs**; the gap is micro leaves, which emit one instance each, UNTHINNED, at
+  their parent subcube centre with the same hash seed — identical overlapping cards (a waste today, worth fixing on its
+  own). My first metric definition (0.25 per (1/3 m)² → 2.25/m², `kSprigsPerM2`) gives 1,152 sprigs on the 1/8 m oak;
+  7.5/m² gives 3,772 ≈ today's distinct count. Eye check at one pose: both densities read as a full canopy, so the
+  visible difference is not density. Default stays 2.25/m² until the lit comparison below decides it.
+- Forest (F2.2 spot, 84 trees): solid faces 78,780 → **35,861** with leaves as cards, + 7,484 sprigs (8 B each).
+- Eye check (`docs/evidence/voxfound_f23_oak_*_vs_today.png`, today's grid-3 oak left, 1/8 m oak right, same pose):
+  with `leaves:"voxels"` the 1/8 m canopy shows the blocky slits; with cards the silhouette matches today's. **Still
+  different: the new canopy is flat pale green, today's has dark lobes.** Cause, from `foliage.frag`: today's canopy is
+  in the shadow map (foliage shadow pass) and in the micro occupancy the ambient traces; the preview's leaves are in
+  neither, so every card gets full sun and full-sky ambient. That is §4.6 item 6 + §4.4, now visible.
+- NEXT: preview faces + sprigs into the shadow pass (`foliage_shadow.vert` twin; the solid faces' 36-index caster
+  rule binds), and the preview's voxels into the occupancy the ambient reads; then re-capture this A/B, read pixel
+  values on both canopies, and settle the sprig density.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.
