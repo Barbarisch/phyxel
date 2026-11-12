@@ -315,7 +315,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       3/8 m, riser 2/8, agent 15/8 m, guard 8/8) + `realizeShell(program, style, grid)`: legacy byte-identical (20
       ForgeParityDigests + 4 canvas digests unchanged); on 1/8 m the 20-case BuildingHarness gives the SAME verdict
       per case (17 pass, 3 BAD fail their layer) and Roof/Trim/WindowInfill suites run on BOTH grids (38 green).
-      1/8 m canvas refuses C/S/M export and refuses hearths (bodies authored in ninths). gen_tree bushes RETIRED
+      1/8 m canvas refuses C/S/M export (hearths: see below). gen_tree bushes RETIRED
       (forge_bush_round/leafy_s/leafy_m sized to the old 5 m leaf mounds; biomes swapped; eye-checked). GOTCHA: the
       MCP launch_asset_editor/launch_engine exit at once here (python312.dll not on PATH) and the MCP tools talk to
       8090; launch phyxel.exe yourself with the uv python dir on PATH and `--port 8120`, drive it with curl
@@ -329,8 +329,21 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       check without the engine: tools/grid_contact_sheet.py (isometric PIL; engine can't load grid 8). gen_door
       --grid 8 (re-designed in metres; legacy output dir fixed to architecture/) and gen_items --grid 64 (authored
       1/81 canvas RESAMPLED at emit: edge-mapped occupancy, nearest-centre content, no material+tint vanishes)
-      DONE, red-first tests tools/test_gen_{door,items}_grid.py; gen_seat_variants --grid 8 (fit-checked) -> FC STEP 4 COMPLETE. NEXT: hearth bodies + furniture placement in C++; the other structure generators (StructureForge furnish, Tower/Fence/Street/Settlement);
-      a building into the storage lab area; F4 fracture reference.
+      DONE, red-first tests tools/test_gen_{door,items}_grid.py; gen_seat_variants --grid 8 (fit-checked) -> FC STEP 4 COMPLETE. HEARTHS on 1/8 m DONE 2026-11-11:
+      HearthForge::bodyOf(type, grid) re-picks the 3 bodies from the canon METRES (fireplace 1.5x1.25x0.625,
+      forge 1.0x1.0x0.75, oven 1.625x1.375x1.375; same cube footprints), ridgeClearance(g) = smallest count >= 2 ft
+      (9: 6, 8: 5); legacy bodies byte-identical. FOUND + FIXED KI-5i (BuildKnownIssues.md): every piece not a whole
+      number of cubes deep floated off +x/+z walls (60/81 templates; wall_lantern 0.78 m) -- one rule now,
+      flushAnchorMicro, shared by microWorldPos / placedCubeSpan / HearthForge::poseOf; L4 live re-check OWED.
+      GOTCHA: run phyxel_tests.exe with the uv python dir on PATH (exit 0xC0000135 otherwise, no output); bash
+      heredocs with backticks die in this shell's eval -- write scripts with the Write tool.
+      F2.0 (2026-11-11): CPU reference mesher voxfound/Mesher (culled / greedy whole-area / greedy per 8-block,
+      coverageErrors exactness check). MEASURED (VoxelFoundationPlan §9a): 1/8 m bare terrain merges to 36-47x
+      today's 1 m cubes (predicted 3-10x -- falsified; smooth relief scales ~8^2, not 8); buildings 0.99x of 1/9 m.
+      The F2 gate "faces <= today" is unreachable for full-res terrain -- proposed absolute per-view budget + LOD
+      pyramid (owner to confirm). Debug endpoint POST /api/debug/micro_cells added (not yet exercised live).
+      NEXT: F2.1 GPU face builder (equal to the CPU reference) + draw through today's lighting; light in the merge
+      key; then furniture placement on 1/8 m, other structure generators, F4 fracture reference.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

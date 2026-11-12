@@ -626,8 +626,8 @@ content, 64 for items. The live loader accepts only 27/81 today; the lab reads g
      that ignored the grid: 3/3 new tests failed). Roof (11), quoin (5) and window-infill (3) suites now run on
      both grids: 38/38. Legacy: the 20 pinned `ForgeParityDigests` and the 4 `CanvasDigestTest` digests are
      byte-identical.
-   - Not done (each refuses or stays legacy, never silently wrong): **hearths** (bodies are cell counts in ninths;
-     the 1/8 m shell refuses a vented fixture, tested), furniture placement and the furnish pass
+   - Not done (each refuses or stays legacy, never silently wrong): ~~hearths~~ (done 2026-11-11, step 4b
+     below), furniture placement and the furnish pass
      (`StructureForge`), `TowerForge`, `FenceBuilder`, `StreetPaver`, `SettlementBuildService`, the validators
      (`RealizedStructureValidator`, `BuildingProgramValidator`) and `deriveLocations`.
 4. **Re-express the authored-integer Python generators** (furniture, items, doors) in metres.
@@ -726,6 +726,45 @@ content, 64 for items. The live loader accepts only 27/81 today; the lab reads g
    and the writes ran **on import**. Running the test's first import dropped two root strays, which were
    removed. Fixed: writes now run under `__main__`, into `furniture/`, and legacy output equals the committed
    files. Tests: `tools/test_gen_seat_variants_grid.py` (red first).
+
+   **4b. Hearth bodies in C++, done 2026-11-11** (`HearthForge::bodyOf(type, grid)`). The 1/8 m shell used to
+   refuse a vented fixture; it now paints one. The three bodies are re-picked from the canon metres
+   (`object_dimensions.json`), never the ninth counts reused:
+
+   | body | legacy 1/9 m (w x h x d) | 1/8 m | notes on 1/8 m |
+   |---|---|---|---|
+   | fireplace | 14 x 11 x 5 = 1.556 x 1.222 x 0.556 m | 12 x 10 x 5 = 1.5 x 1.25 x 0.625 m | jambs 0.25 m, so the opening is 1.0 x 0.625 m (legacy 0.889 x 0.667) |
+   | forge_hearth | 9 x 9 x 7 | 8 x 8 x 6 = 1.0 x 1.0 x 0.75 m | work surface 0.75 m; firepot 0.25 x 0.375 m, 0.125 m deep (canon pot 0.23 x 0.33 x 0.11) |
+   | oven_bread | 14 x 12 x 12 | 13 x 11 x 11 = 1.625 x 1.375 x 1.375 m | coal floor 0.75 m; chamber 0.875 m square, 0.375 m clear above the coals; mouth 0.375 x 0.25 m (canon 0.63 x 0.45 m dome = 0.28 m) |
+
+   - **Same everywhere:**
+     - the cube footprints (2x1, 1x1, 2x2), so siting does not move;
+     - the flue (3 x 3 cells, now 0.141 m², at least 1/10 of each opening on both grids);
+     - the stack (5 x 5);
+     - the fuel pile: the same 2-billet bed plus a crossing log.
+   - **Ridge clearance:** `ridgeClearance(g)` is the smallest cell count that clears 2 ft. That is 6 on 1/9 m
+     (0.667 m) and 5 on 1/8 m (0.625 m).
+   - **Code:** one paint routine for both grids. The feature sizes (slab, jamb, lintel, deck, opening spans) are
+     named `Body` fields; on legacy they hold the original literals, so the legacy canvas is byte-identical (the 20
+     `ForgeParityDigests`).
+   - **The forge has no centre cell.** Its body is an even 8 cells wide, so the flue sits 1/16 m off centre,
+     under the hood.
+   - **Tests** (red on a stub with no 1/8 m bodies: 4/4 failed):
+     - `HearthForgeTest.FoundationBodiesArePickedFromTheCanonMetres`, `RidgeClearanceIsTheSmallestCountClearingTwoFeet`
+       and `FlueAreaServesTheFireboxOpeningOnBothGrids`;
+     - `BuildingHarness.FoundationGridPaintsMetreHearth`, which replaced `FoundationGridRefusesNinthAuthoredHearth`;
+     - `BuildingHarness.HearthBodiesSitFlushOnEveryWallOnBothGrids` (3 types x 4 walls x 2 grids). It checks
+       that the cell behind the breast is wall, the fire anchor is in air, the flue is open from the throat to the
+       cap, and the cap is exactly `ridgeClearance` above the ridge. A seeded defect (the oven fire anchor moved
+       into the coal row) failed all 4 oven cases.
+   - **Eye check:** offline renders of the C++ canvas (`PHYXEL_HEARTH_DUMP`, then the contact-sheet renderer).
+     The engine can't load the grid yet.
+   - **Found while testing, and fixed: KI-5i** (`structure-generation/BuildKnownIssues.md`). On every grid, a
+     piece that is not a whole number of cubes deep floated off +x/+z walls. That covers 60 of 81 committed
+     templates; the wall lantern stood 0.78 m off a +z wall. Fixed in the shared anchor (`flushAnchorMicro`).
+   - **Still legacy:** siting (`StructureForge` passes ninth wall thicknesses to `siteAllStories`). On 1/8 m
+     the realizer re-derives the pose with its own cells and re-applies the routing gate. The furnish pass is
+     still 1/9 m only.
 5. **Retire** `gen_tree.py` (bush presets in tree_forge) and port tree_forge to C++ for procedural flora.
    **Bushes done 2026-11-11.** Finding: gen_tree's "height 2" bushes are not 2 m: `bush_round` is 5.3 x 3.3 x 4.3 m
    (27 m³ leaf, no wood), `bush_leafy_s` 5.0 x 3.3 x 5.7 (32 m³), `bush_leafy_m` 5.0 x 4.3 x 5.7 (50 m³). Replaced by
@@ -781,15 +820,60 @@ Every rig is checked for:
 | Phase | What | Exit test | Stop if |
 |---|---|---|---|
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1). **Done 2026-11-10:** §13 decided; inventory in §7a.1-7a.2; save check in §3.5a point 7; skeletons `engine/*/core/voxfound/` (`VoxelGrid`, `FractureLab`, `StorageLab`) + `VoxFoundFractureLabTest` (4 checker tests green, 8 predictions red until F4) + `VoxFoundStorageLabTest` (3 green incl. measured terrain stats, 3 red until F1) | — | — |
-| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8` (34), `gen_door --grid 8`, `gen_items --grid 64` (52), `gen_seat_variants --grid 8`: **step 4 complete**; next: hearths and furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
+| **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8` (34), `gen_door --grid 8`, `gen_items --grid 64` (52), `gen_seat_variants --grid 8`: **step 4 complete**; hearth bodies on 1/8 m (4b) and the KI-5i +side wall-flush fix; next: furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | pixel diff within the gate at 5 poses; face count ≤ today's on the same scene; frame time ≤ today | can't match the look, or more faces, or slower |
+| | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy **3-10x — i.e. the gate "face count ≤ today's" is predicted to FAIL on bare terrain** (1/8 m relief has 8x the steps per metre); per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
 | **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
 | **F7** | Move the consumers over (§7), default switched | full test suite green; L4 live checks | — |
 | **F8** | Scale and stress: a whole town, 100 simultaneous breaks, 1,000 edit/break cycles, crossing chunk borders | invariants hold at every step | — |
+
+## 9a. F2 measurements (face counts)
+
+First run 2026-11-11, `VoxFoundMesherTest` (Debug), CPU reference mesher, engine generator content, 32 x 32 m
+footprint at 1/8 m, outer boundary not counted (`Outside::Skip`). Light is not in the merge key: every count is a lower
+bound. "Today proxy" = the centre voxel of each metre, greedy-merged within 32 m (what today's 1 m cube terrain draws,
+minus the light splits).
+
+| Scene | culled | greedy (whole area) | per-block (8) | today proxy | greedy / proxy | per-block / greedy |
+|---|---|---|---|---|---|---|
+| Perlin s7 (0,0), bare | 70,327 | 1,983 | 3,838 | 55 | 36x | 1.94x |
+| Perlin s12345 (-1024,768), bare | 66,562 | 839 | 2,003 | 18 | 47x | 2.39x |
+| Mountains s7 (2048,1024), bare | 114,554 | 45,048 | 51,443 | 1,047 | 43x | 1.14x |
+| Perlin s7 (0,0) + flora | 163,297 | 17,048 | 24,318 | 813 * | 21x * | 1.43x |
+| Perlin s7 forest (8160,96) + flora | 640,406 | 106,123 | 134,468 | 4,565 * | 23x * | 1.27x |
+| Building shell 9 x 7 m, 2 stories | 1/9 m: 77,484 / 1/8 m: 61,608 | 1/9 m: 404 / 1/8 m: 401 | — | — | 0.99x (1/8 vs 1/9) | — |
+
+\* not a fair "today": today's trees are already 1/9 m micro templates, which the 1 m proxy flattens to cubes.
+
+**Against the predictions:**
+- culled 70k-200k: **held** (66k-115k bare).
+- greedy 3k-15k on bare Perlin: **wrong, better** (0.8k-2.0k). Mountains 45k is outside it the other way.
+- today proxy 0.5k-3k: **wrong** (18-55; gentle Perlin is only 2-4 one-metre levels in 32 m).
+- **greedy / today 3-10x: FALSIFIED — 36-47x on bare terrain.** I predicted linear 8x scaling. Wrong model: a
+  slope cut into terraces has 8x as many contour lines at 1/8 m, and each contour is 8x as many cells long; greedy
+  rectangles pay per step along each contour, so merged faces scale near 8² on smooth relief, not 8.
+- per-block / unbounded 1.5-3x: held on gentle ground (1.9-2.4x), **wrong on rough ground and flora** (1.1-1.4x —
+  little there merges past 1 m anyway).
+- building shell within ±30 % of 1/9 m: **held** (0.99x). Walls and floors are axis-aligned slabs; grid size doesn't
+  change their rectangle count.
+
+**What this means for F2:**
+1. The gate as written ("face count ≤ today's on the same scene") **cannot be met by full-resolution terrain** — it
+   misses by ~40x on bare ground. Buildings meet it.
+2. The absolute numbers are less alarming than the ratio. Bare gentle terrain is 1-2k faces per 32 x 32 m patch.
+   A 128 m radius is about 50 patches → 50k-100k faces. Today draws 270k faces at ~140 fps (CLAUDE.md, ContinuousLodPlan
+   M4). The forest (106k per patch) and mountains (45k per patch) are what break the budget: they need the block LOD
+   pyramid within a few tens of metres.
+3. Proposed gate change, for the owner to confirm: replace the ratio with an **absolute face budget per view** at
+   equal frame time (whole frame ≤ today's at 5 poses), with the LOD pyramid counted in. A ratio against 1 m cubes
+   penalises exactly the detail this foundation is for.
+4. Owed control: the proxy is not checked against the live engine's face count on the same ground. Light splits make
+   today's real count higher than the proxy, so the true ratio is somewhat below 36-47x.
+5. Merging across blocks is worth 1.1-2.4x. It is required for gentle ground and secondary in forest.
 
 ## 10. Performance tiers
 
