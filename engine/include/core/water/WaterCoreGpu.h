@@ -254,6 +254,7 @@ public:
         float unitsDt = 1.0f / 60.0f;    ///< 27.26: the collected call's tick (s)
         double quietRef = 0.0;           ///< 27.26: the volume's quiet time in 1/60 s ticks (quietTicks = its integer part)
         std::vector<char> colFrozen, colWake;   ///< frozen now; a wake asked for since the last call
+        std::vector<char> colLanding;           ///< 51.10: a deposit waits in the column (a wakeBox with landing) - exempt from the disc cap
         /// 50.6f SETTLING: a stored, awake column whose energy passes the freeze test's KE bound (only its level still moves) - its
         /// faces are damped at restDamping (FaceOps mode 11). Bricks[tallOff + dColumns + bx + bn.x bz] holds the flags on the device.
         std::vector<char> colEnergyQuiet, colSettle;
@@ -537,7 +538,9 @@ public:
     /// TEST ONLY (the red control): a partial read resets every column it did not cover, as the whole read does - frozen ones too.
     static inline bool s_partialSurfaceResetAllForTest = false;
     /// 26.31: wake the brick columns touching grid cells [lo, hi] (the margin grows round them next call) / every column.
-    void wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi);
+    /// 51.10: `landing` = a deposit waits in these columns - they step next call even beyond the disturbance disc (a frozen column
+    /// cannot take a deposit); any other wake stays capped by the disc (cost)
+    void wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi, bool landing = false);
     void wakeAll(Volume& vol);
     /// §27 W1b: the cells of the brick columns [bLo, bHi] (brick-box x, z; inclusive) read back - only those bricks cross - into `out`
     /// (spec in world cells: origin = the columns' first cell, every y of the volume; occupancy from the host copy, Solid where
@@ -582,6 +585,14 @@ public:
     struct TileGpuMs { double seedSettle = 0, seedHost = 0, seedSubmit = 0, readSettle = 0, readSubmit = 0, readHost = 0; double seedPart[5]{};
                        double seedSettleMax = 0, seedHostMax = 0, seedSubmitMax = 0, seedPartMax[5]{}; long seedGrows = 0, seeds = 0; };   // 51.9b: maxima since a reset + pool grows in a seed   // seedPart: flags+need, residency, fresh uploads, fills, tables
     static inline TileGpuMs s_tileGpuMs;
+    /// 51.10 (measurement): where the steps' host deposits went, in cell fractions since a reset - staged into an awake stored cell, or
+    /// met a frozen slot / an absent brick / a sentinel (kept for the next call since 51.10), or refused at setDeposits (size / staging);
+    /// `shared` = two deposits staged into one storage cell
+    struct DepositLedger { double staged = 0, sentinel = 0, absent = 0, refused = 0, frozen = 0; long shared = 0, calls = 0; };
+    static inline DepositLedger s_depositLedger;
+    /// 51.10 TEST ONLY (the red): the disturbance disc freezes an explicitly woken column too, and a deposit into a frozen slot is
+    /// staged and never copied - the old path that lost a splash's outer landings
+    static inline bool s_discCapsWakesForTest = false;
     /// 28 (the launch count): dispatches / barriers recorded since the last reset (step() resets at its start, reports at its end)
     mutable long m_dispatchCount = 0, m_barrierCount = 0;
     /// 27.22: red-black sweep pairs of the tall layer alone after the band's sweeps (one cell a column - cheap)

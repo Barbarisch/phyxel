@@ -14277,6 +14277,8 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("ignore_neighbours_test")) M::s_recordIgnoresNeighboursForTest = cmd.params.value("ignore_neighbours_test", false);   // TEST ONLY: the old rule
         // 51.9 TEST ONLY: a tile seed by the path before 51.9 (the whole brick map walked, three cell walks) - the live A/B; same device state
         if (cmd.params.contains("seed_whole_map_test")) Core::Water::WaterCoreGpu::s_seedWholeMapForTest = cmd.params.value("seed_whole_map_test", false);
+        // 51.10 TEST ONLY: the disturbance disc freezes an explicitly woken column too (the path that lost a splash's outer landings)
+        if (cmd.params.contains("disc_caps_wakes_test")) Core::Water::WaterCoreGpu::s_discCapsWakesForTest = cmd.params.value("disc_caps_wakes_test", false);
         nlohmann::json events = nlohmann::json::array();
         if (cmd.params.value("events_take", false)) {
             for (const auto& e : M::s_tileEvents)
@@ -14285,10 +14287,15 @@ void Application::registerWaterCommands() {
         }
         r = {{"default", M::s_recordTilesDefault}, {"after_s", M::s_recordAfterS}, {"tile_m", 8}, {"measure_jump", M::s_measureRecordJump},
              {"event_log", M::s_tileEventLog}, {"events", events}, {"seed_whole_map_test", Core::Water::WaterCoreGpu::s_seedWholeMapForTest},
+             {"disc_caps_wakes_test", Core::Water::WaterCoreGpu::s_discCapsWakesForTest},
              {"write_wake_m", M::s_writeWakeReachM}, {"after_step_test", M::s_recordAfterStepForTest}, {"settle_after_test", M::s_settleAfterStepForTest}};
         {   // 27.19 measurement: the record / wake call's phases (ms, last + max); phases_reset:true clears the maxima first
             auto& P = M::s_tilePhases;
-            if (cmd.params.value("phases_reset", false)) { P = M::TilePhases{}; Core::Water::WaterCoreGpu::s_tileGpuMs = {}; }
+            if (cmd.params.value("phases_reset", false)) { P = M::TilePhases{}; Core::Water::WaterCoreGpu::s_tileGpuMs = {}; Core::Water::WaterCoreGpu::s_depositLedger = {}; }
+            {   // 51.10: where droplet deposits went since phases_reset (cell fractions)
+                const auto& L = Core::Water::WaterCoreGpu::s_depositLedger;
+                r["deposits"] = {{"staged", L.staged}, {"frozen", L.frozen}, {"absent", L.absent}, {"sentinel", L.sentinel}, {"refused", L.refused}, {"calls", L.calls}};
+            }
             r["phases"] = {{"record_names", {"gpu_read", "runs", "spans", "gpu_flags", "draw"}}, {"record_last", P.rec}, {"record_max", P.recMax}, {"records", P.recN},
                            {"wake_names", {"span_read", "occupancy", "seed_surface", "gpu_upload", "span_clear", "draw"}}, {"wake_last", P.wake}, {"wake_max", P.wakeMax}, {"wakes", P.wakeN}};
             const auto& G = Core::Water::WaterCoreGpu::s_tileGpuMs;   // the last call's GPU waits split out

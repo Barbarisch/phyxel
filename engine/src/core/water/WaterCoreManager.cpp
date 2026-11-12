@@ -2762,7 +2762,7 @@ void WaterCoreManager::depositDroplet(Av& av, const glm::vec3& at, double volume
         if (av.pendingDeposit.size() != g.cellCount()) av.pendingDeposit.assign(g.cellCount(), 0.0f);
         av.pendingDeposit[g.idx(c.x, c.y, c.z)] += static_cast<float>(volume / g.cellVolume());
         av.hasPendingDeposit = true;
-        m_gpu->wakeBox(*av.gpuVol, c, c);   // 26.31: the landing's column (the partial wake; a no-op without it)
+        m_gpu->wakeBox(*av.gpuVol, c, c, true);   // 26.31: the landing's column (the partial wake; a no-op without it); 51.10: past the disc too
         return;
     }
     const double left = depositIntoGrid(*av.grid, at, volume);

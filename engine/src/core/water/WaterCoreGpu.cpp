@@ -945,14 +945,19 @@ void WaterCoreGpu::wakeAll(Volume& vol) {
     vol.wakeAllPending = true;
 }
 
-void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi) {
+void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi, bool landing) {
     vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0;
     if (!vol.partialWake) return;
     const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
     if (vol.colWake.size() != nc) vol.colWake.assign(nc, 0);
+    if (landing && vol.colLanding.size() != nc) vol.colLanding.assign(nc, 0);
     const int bx0 = std::max(0, (lo.x + vol.o.x) >> 3), bx1 = std::min(vol.bn.x - 1, (hi.x + vol.o.x) >> 3);
     const int bz0 = std::max(0, (lo.z + vol.o.z) >> 3), bz1 = std::min(vol.bn.z - 1, (hi.z + vol.o.z) >> 3);
-    for (int bz = bz0; bz <= bz1; ++bz) for (int bx = bx0; bx <= bx1; ++bx) vol.colWake[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz] = 1;
+    for (int bz = bz0; bz <= bz1; ++bz) for (int bx = bx0; bx <= bx1; ++bx) {
+        const size_t c = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
+        vol.colWake[c] = 1;
+        if (landing) vol.colLanding[c] = 1;
+    }
 }
 
 // §27 W1b: a tile's cells read back - only the bricks of its columns cross (a whole-volume download sent 1.9 M cells for a 46 x 28 m
@@ -1260,6 +1265,11 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
     const bool anyRec = vol.anyRecorded && vol.colRecorded.size() == nc;
     auto wantSeed = [&](size_t c) { if (std::find(vol.recordedWakes.begin(), vol.recordedWakes.end(), static_cast<int>(c)) == vol.recordedWakes.end()) vol.recordedWakes.push_back(static_cast<int>(c)); };
     if (vol.wakeAllPending) { std::fill(vol.colQuiet.begin(), vol.colQuiet.end(), 0); vol.wakeAllPending = false; }
+    // 51.10: a droplet's LANDING steps its column this call even beyond the disturbance disc below - the disc caps cost, never
+    // outcomes: capped, the deposit was staged into a frozen slot and lost (2.2 L of 117 L a splash). Only landings: exempting every
+    // wake (the splash's box, writes) let the simulated area past the disc - the pool grew in 4 of 6 live splashes (0 of 6 capped)
+    std::vector<char> forced(nc, 0);
+    if (vol.colLanding.size() == nc) { forced.swap(vol.colLanding); vol.colLanding.assign(nc, 0); }
     for (size_t c = 0; c < nc; ++c) if (vol.colWake[c]) { vol.colQuiet[c] = 0; vol.colWake[c] = 0; if (anyRec && vol.colRecorded[c]) wantSeed(c); }
     // moving -> awake: grown along x, then along z (separable Chebyshev dilation)
     const int M = kPartialWakeMargin;
@@ -1283,7 +1293,7 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
         const float rCells = std::max(s_disturbanceRadiusM, s_disturbanceBandM + 2.0f) / vol.spec.h;
         for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
             const size_t ci = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
-            if (!awake[ci]) continue;
+            if (!awake[ci] || (forced[ci] && !s_discCapsWakesForTest)) continue;
             // the brick column's nearest point to each centre (a column the disc reaches at all stays eligible)
             const float x0 = bx * 8.0f - vol.o.x, z0 = bz * 8.0f - vol.o.z;
             bool inside = false;
@@ -1939,7 +1949,7 @@ void WaterCoreGpu::flushSolidUpload(Volume& vol) {
 }
 
 void WaterCoreGpu::setDeposits(Volume& vol, const std::vector<float>& cellFractions) {
-    if (cellFractions.size() != vol.dCells || !vol.staging.mapped) return;
+    if (cellFractions.size() != vol.dCells || !vol.staging.mapped) { for (float c : cellFractions) s_depositLedger.refused += c; return; }
     if (vol.depositPending && vol.hostDeposit.size() == vol.dCells) { for (size_t i = 0; i < vol.dCells; ++i) vol.hostDeposit[i] += cellFractions[i]; }   // two frames' deposits before a step: add
     else vol.hostDeposit = cellFractions;
     vol.depositPending = true;
@@ -3035,6 +3045,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const size_t cols = liveColumns(vol);
     if (vol.depositPending) {   // 21: droplets that landed since the last step
         auto* sd = reinterpret_cast<float*>(static_cast<char*>(vol.staging.mapped) + vol.offDeposit);
+        std::vector<float> later;   // 51.10: deposits this call cannot take - kept for the next one, never dropped
         if (vol.bricked) {
             std::memset(sd, 0, liveCells(vol) * sizeof(float));
             const glm::ivec3 dn = vol.spec.dims;
@@ -3042,15 +3053,31 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
                 const size_t d = static_cast<size_t>(x) + static_cast<size_t>(dn.x) * (y + static_cast<size_t>(dn.y) * z);
                 if (d >= vol.hostDeposit.size() || vol.hostDeposit[d] == 0.0f) continue;
                 const long i = storageIndex(vol, x, y, z);
-                if (i >= 0) sd[i] = vol.hostDeposit[d];   // the residency above stored every deposit's brick
+                const double dv = vol.hostDeposit[d];
+                // only an AWAKE stored cell takes a deposit: mode 5 runs over the awake columns and the copy below covers the awake
+                // slots alone - a frozen slot's deposit was staged and never copied (lost; 51.10), an absent / sentinel cell holds none
+                const bool takes = i >= static_cast<long>(kFirstSlot) * static_cast<long>(vol.bc) && static_cast<size_t>(i) < liveCells(vol);
+                if (!takes && !s_discCapsWakesForTest) {
+                    if (i < 0) s_depositLedger.absent += dv; else if (i < static_cast<long>(kFirstSlot) * static_cast<long>(vol.bc)) s_depositLedger.sentinel += dv;
+                    else s_depositLedger.frozen += dv;
+                    if (later.empty()) later.assign(vol.hostDeposit.size(), 0.0f);
+                    later[d] = vol.hostDeposit[d];
+                    wakeBox(vol, glm::ivec3(x, y, z), glm::ivec3(x, y, z), true);   // its column steps next call (a landing beats the disc cap)
+                    continue;
+                }
+                if (i < 0) { s_depositLedger.absent += dv; continue; }   // TEST ONLY red (s_discCapsWakesForTest): the old path
+                if (static_cast<size_t>(i) >= liveCells(vol)) s_depositLedger.frozen += dv; else s_depositLedger.staged += dv;
+                if (sd[i] != 0.0f) ++s_depositLedger.shared;
+                sd[i] = vol.hostDeposit[d];
             }
+            ++s_depositLedger.calls;
         } else if (vol.hostDeposit.size() == vol.cells) {
             std::memcpy(sd, vol.hostDeposit.data(), vol.cells * sizeof(float));
         }
         copy(cmd, vol.staging, vol.deposit, liveCells(vol) * sizeof(float), vol.offDeposit);
         barrier(cmd);
         push.mode = 5; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.mode = 0;
-        vol.depositPending = false; vol.hostDeposit.clear();
+        vol.depositPending = !later.empty(); vol.hostDeposit = std::move(later);
     } else barrier(cmd);
     if (vol.solidRatesPending) {   // 20 (M1): q and the ledger marks from the device's own fill, once per upload
         push.mode = 1; push.param0 = vol.solidFrame; dispatch(cmd, *vol.pipes[Classify], push, liveCells(vol)); push.mode = 0; push.param0 = 0.0f;

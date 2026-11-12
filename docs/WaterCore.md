@@ -13253,7 +13253,7 @@ the count). 51.3b's 0.75 came from a rig WITHOUT droplets (peak 0.72); with drop
   splashes (0.75: every splash measured, 9 of 9), the pool 16.5 k slots when it does not grow (0.75: 24.8 k after its grow), 28.4 k
   when it does (0.75: 24.8 k - 14 % more). x 1.5 would hold the live peaks (24.8 k slots, the 0.75 pool's grown size, ~580 MB at
   51.3b's ~23.5 KB a slot) but in the rig it is the whole box (665 MB) for every splash. Not chosen here.
-- **Found, logged OPEN (not fixed): with droplets ON a splash loses ~2.2 L of 117 L of spray** (the rig's books -0.0022 m^3, every
+- **Found, logged OPEN (FIXED in 51.10 - the disc cap froze a landing's column; the guesses below were wrong): with droplets ON a splash loses ~2.2 L of 117 L of spray** (the rig's books -0.0022 m^3, every
   run, x 0.75 and x 1.0 alike; 0 without droplets). Every droplet lands (born = landed, none refused / relocated / destroyed); the
   loss builds 2-4.5 s after the splash while droplets land on just-woken tiles, then holds through the sleep (`LAKE_TRACE=1`, the
   books every 0.5 s with the water in flight). With the wake pace off (`s_tileWakesPerCall` 1000) the books are exact (-0.0000) - but a
@@ -13261,6 +13261,38 @@ the count). 51.3b's 0.75 came from a rig WITHOUT droplets (peak 0.72); with drop
   The deposit kernel (`wc_column_ops` mode 5) returns what finds no room as a birth, so no clamp either. Left: births from a
   recorded tile's sentinel bricks / their read-back. The test bounds it (exact without droplets; with them under 2 % of the spray).
 - Tests: water unit 419 / 419; integration water 85 / 87 (the known two); `ASplashPatchsPoolNeverGrows` passes, its red grows.
+
+**51.10 (2026-11-11) BUILT - every droplet a splash throws comes back into the water: the 2.2 L a splash lost was S1's disc freezing a
+landing's column** (51.9b's open item; no drift - 51 S1's own rule, "the disc caps cost, never outcomes"). Measured first, one path
+at a time, with a deposit ledger (`WaterCoreGpu::s_depositLedger`, new: where each step's host deposits went):
+- Every landing reached the device's staging (staged 0.11674 m^3 = landed; none to an absent brick, a sentinel, or refused) - the
+  host path was clean. A seed overwriting water already in its slots (a test-only read-back of every slot a wake writes that was
+  stored before it): 0 slots, 0 m^3 - not that either; the audit was removed.
+- **The cause:** 2.15 L of the deposits were staged into FROZEN slots. A step copies and applies deposits over the awake slots only
+  (`wc_column_ops` mode 5 runs over the awake columns), so those were never applied (left in staging past the copied range - where a later call with more awake slots could even have
+  copied them in, stale; now never written there). The
+  landing woke its column (`wakeBox`), but 51 S1's disturbance disc then froze every column beyond it, the woken one too. Spray
+  thrown past the disc lost its water. (51.9b's "pace off = exact" was the same mechanism seen sideways: with every tile woken at once
+  the deposits found awake columns.)
+- **Built:** a droplet's LANDING steps its column that call even beyond the disc (`wakeBox(..., landing)` -> `colLanding`;
+  `updatePartialWake` exempts those columns from the cap; the margin around them is not). First built for EVERY explicit wake - live
+  that grew the patch's pool in 4 of 6 splashes (0 of 6 with the cap, interleaved, `disc510_*`): the splash's own wake box and the
+  writes reach past the disc, so the simulated area did too (S1's cost). Narrowed to landings. Belt and braces: a deposit that meets a frozen, absent or sentinel
+  cell is kept for the next call (its column woken), never staged where it is not applied and never dropped - not reached in the rig
+  once the wake is exempt. TEST ONLY `s_discCapsWakesForTest` = the old path (the red).
+- **Test `ASplashsLandingsAreAllKept`** (the 200 m lake, 51.9b's splash, droplets on; red first): RED books **-0.002176 m^3** with
+  0.00215 m^3 met a frozen slot; GREEN **-0.000010 m^3** (0.000007 of it the counted residue sweep), nothing met a frozen slot, every
+  droplet landed. `ASplashPatchsPoolNeverGrows` now holds the books exact (1e-3) with droplets too (was bounded at 2 %); its peak
+  bricks 17,524 (was 17,512).
+- **Live (Creek, close pose, `water_splash_phases.py --disc-caps-wakes` = the old path, new; 12 takes interleaved, both orders, no
+  other engine or test run; `disc510b_*`):** deposits into a frozen slot - old 0-1 cell fractions a splash (millilitres: the Creek's
+  disc holds nearly all the spray; the 200 m rig lake threw 2.2 L past it), new 0. Pool grows: new 2 of 6, old 1 of 6 (51.9b's
+  baseline 2 of 5). The 8 s after the splash: new 1,521 frames mean (1,480-1,549) against old 1,570 (1,543-1,596) - ~190 vs ~196 fps,
+  ~0.16 ms a frame; `mgr.4` 1.52 vs 1.45 ms a frame; the GPU call 3.17 vs 3.13 ms. An earlier batch (`disc510_*`, the broad
+  exemption) read 1,506 vs 1,506 in its old-first half, so this is near the run-to-run spread - logged as a possible ~3 % cost of
+  stepping the landed columns, not proven. Not measured: the GPU frame time (the frame count is the whole frame).
+- Tests: water unit (`*Water*`) 383 / 383; integration water 86 / 88 (the known two); `ASplashsLandingsAreAllKept` passes, its red
+  loses 2.2 L.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
