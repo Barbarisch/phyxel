@@ -104,8 +104,7 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
 - *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater not wired (§21.4); 1.5-2.3 % black facets at steep tilts
   (§22.12.2).
 - **OWNER DECISION, 2026-10-11 (reaffirmed 2026-11-12: "follow the plan"): splash droplets are cosmetic.** They take no
-  water from the pond and add none back; landings still drive ripples. Being built as 51.11. Until 51.11 ships, the code still
-  has ledger-exact droplets, which is the drift.
+  water from the pond and add none back; landings still drive ripples. BUILT as 51.11 (2026-11-12), not signed off.
 - *Parity:* the CPU-GPU kick gap (§19.2); droplet parity D-T5 (§21.12); the FLIP run-up (§15.15 - the one failing water
   integration test).
 - *Cost:* the partial wake's +0.036 ms where nothing freezes; the reductions ~0.17-0.19 ms a call.
@@ -13371,7 +13370,23 @@ it should jsut be a few splash particles for affect." Owner, 2026-11-12: "follow
   the landing tile wake (`wakeRecordedNear`'s deferred branch), and the `disc_caps_wakes_test` / `deposits` fields of
   `water_av_record_tiles`. `water_droplets` drops `relocated_m3`, `flushed_m3` and `destroyed_m3`; it reads `in_flight_m3`
   0 and gains `cosmetic: true`. `water_ledger.droplets` reads 0. The world reset no longer reports `droplets_m3`.
-- Tests: water unit 385 / 385.
+- Tests: water unit 385 / 385; integration water 87 / 89 (the known two: `GpuFlipBulkParityAndRunup`,
+  `ShortWaveMatchesAllFineAndTheBooksAreExact`).
+- **Live (Creek, close pose, `water_splash_phases.py`, `cosm511_r1..6`):**
+  - From take 2 on, ANOTHER session's engine was running (PID 8640, not mine, left alone). So only take 1 is valid for
+    timing, and this was not interleaved: 51.10's build is gone, so the comparison is its `disc510b_*` takes from 2026-11-11.
+  - Unaffected by load: the pool grew in **0 of 6** splashes (51.10: 2 of 6 new, 1 of 6 old; 51.9b: 2 of 5). Every take
+    woke the same 14 tiles (51.10: 14-17). About 2,600 droplet births a splash, about 130 L shown.
+  - Take 1 (alone): 2,003 frames in the 8 s after the splash (~250 fps) against 51.10's 1,480-1,549. `mgr.4` 0.65 ms a frame
+    against 1.47-1.57. Worst call 16.1 ms (`mgr.4`). GPU call 3.11 ms. This is one take: not proven, but the direction
+    the deleted landing wakes predict.
+  - Takes 2-6 (loaded GPU): 836-1,328 frames - the other engine's cost, not read as this change's.
+  - Not measured: the GPU frame time alone; a clean n >= 3.
+- **For the owner's look:** `docs/evidence/water_core_m4/cosm511_clip.mp4` (`water_record_lake_clip.py`, wide then close,
+  20 s each, the 150 m record lake, strength 8). Recorded with the other session's engine running; the bench held about
+  165 fps. Frames: droplets thrown at +0.3 s, the crater at +0.8 s, rings at +3 s.
+- **Status: built, not signed off.** Open for the owner: the look (above, especially (a) the jet keeping its sprayed water and
+  (b) scraps reaching the surface at once), and the pool factor, now with 0 of 6 live grows at 1.0.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
