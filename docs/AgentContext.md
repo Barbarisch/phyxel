@@ -349,8 +349,18 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F2.1 DONE (2026-11-11): GPU face builder voxfound/FaceBuilderGpu + shaders/voxfound_faces.comp, run merge
       (meshRuns; parallel per slice row; fewer quads than greedy), 8 B PackedFace, exact vs CPU (integration test
       VoxFoundFaceBuilderGpu, mutation-checked). 5.1 ms GPU per 256x160x256 window, naive kernel.
-      NEXT: F2.2 draw the PackedFace pool through today's lighting on a small generated scene (eye check);
-      then uniform-block skip, chunk-border neighbours, the rest of §4.6.
+      F2.2 FIRST LIGHT (2026-11-11): POST /api/debug/voxfound_preview draws an engine-generated 32x32 m area at
+      1/8 m (terrain + optional flora) through voxfound_face.vert + today's voxel.frag. Forest 80,552 faces =
+      0.32 ms GPU draw. Faces cast no shadows yet; ambient doesn't see them (dark trunk faces). Evidence
+      docs/evidence/voxfound_f22_*.png.
+      GOTCHAS (this build): MCP launch_engine fails silently here (python312 DLL not on PATH) -- start phyxel.exe
+      from PowerShell with the uv python dir on PATH; MCP tools talk to 8090, so call the 8120 HTTP API directly.
+      POST /api/camera does NOT move the render camera (status bar camera unchanged, no "Syncing Free Camera"
+      log, even with mode:"free") -- unexplained; workaround: load_definition with a NEW world "name" and the
+      camera pose (a same-name reload ignores the camera).
+      NEXT: shadow casting for preview faces; occupancy/ambient from the new store (§4.4); device-side texture
+      table (8 B draw record); uniform-block skip; chunk-border neighbours; then a whole-frame A/B against today
+      on the same generated scene.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

@@ -102,6 +102,8 @@
 #include "core/WaterManager.h"
 #include "core/water/WaterCoreManager.h"
 #include "core/matsim/MatSimLab.h"
+#include "core/voxfound/FaceBuilderGpu.h"
+#include "core/voxfound/Preview.h"
 #include "core/water/WadeDrag.h"
 #include "core/water/ShoreBand.h"
 #include "scene/NPCEntity.h"
@@ -288,6 +290,8 @@ private:
     std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim (retires per WaterCore.md sec. 9)
     std::unique_ptr<Core::Water::WaterCoreManager> waterCore;          // WaterCore active volumes (Phase B; docs/WaterCore.md)
     std::unique_ptr<Core::MatSim::MatSimLab> matSimLab;                // MatSim lab box (docs/MaterialSimPlan.md), inert until create
+    std::unique_ptr<Core::VoxFound::FaceBuilderGpu> voxFoundBuilder;   // F2.2 1/8 m face preview builder (lazy)
+    Core::VoxFound::Preview voxFoundPreview;                           // F2.2 what the renderer draws (setVoxFoundPreview)
     void applyWaterSpanEdit(int x, int y, int z, bool solid);          // Phase D2: edits never create water (docs/WaterCore.md 16.3)
     long m_waterHeldEdits = 0;                                          // Phase D2: edits held because a run reaches into a non-resident chunk
     // Phase G (docs/WaterCore.md 18.5): the shoreline band - solved water along the shore around the camera
@@ -665,6 +669,7 @@ private:
     // domain at a time). Called once during init.
     void registerWaterCommands();
     void registerMatSimCommands();       // matsim_*: the MatSim lab (docs/MaterialSimPlan.md)
+    void handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::json& response);   // F2.2 1/8 m preview
     void registerSettlementCommands();   // build_settlement: compose a settlement (subdivide+populate+build each)
     void registerWorldForgeCommands();   // worldforge_*: world-scale plan preview/apply/status/map (docs/WorldForge.md)
     void registerDoorCommands();

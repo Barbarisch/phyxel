@@ -22,6 +22,8 @@
 #include "graphics/FarTerrainRenderPipeline.h"   // TileDraw (far-cascade caster cache)
 #include "graphics/VoxelLightOccupancyGpu.h"     // M1b: sub-voxel occupancy on the GPU
 #include "core/WaterManager.h"               // WaterSurfaceCell (WaterCore debug feed)
+#include "core/voxfound/Preview.h"           // F2.2 1/8 m face preview
+#include "core/voxfound/Preview.h"           // F2.2 1/8 m face preview
 #include <functional>
 #include <future>
 #include <memory>
@@ -613,6 +615,10 @@ public:
     void setWaterCoreParticles(const std::vector<glm::vec4>* particles) { m_waterCoreParticles = particles; }
     /// MatSim P1b raw-cell view (docs/MaterialSimPlan.md): exposed cell faces, drawn by the dynamic voxel pipeline. nullptr = off.
     void setMatSimFaces(const std::vector<Phyxel::DynamicSubcubeInstanceData>* faces) { m_matSimFaces = faces; }
+    /// docs/VoxelFoundationPlan.md F2.2: the 1/8 m face preview (main view, receives shadows, casts none yet). nullptr = off.
+    void setVoxFoundPreview(const Core::VoxFound::Preview* p) { m_voxFoundPreview = p; }
+    /// GPU-side face count drawn by the preview last frame (0 = off).
+    uint32_t voxFoundPreviewFacesDrawn() const { return m_voxFoundDrawn; }
 
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
     // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
@@ -1475,6 +1481,15 @@ private:
     VkDeviceMemory m_matSimMemory = VK_NULL_HANDLE;
     void*          m_matSimMapped = nullptr;
     void renderMatSimDebug();
+    const Core::VoxFound::Preview* m_voxFoundPreview = nullptr;   // F2.2 1/8 m face preview
+    VkBuffer       m_voxFoundBuffer = VK_NULL_HANDLE;              // host-visible, grows to fit
+    VkDeviceMemory m_voxFoundMemory = VK_NULL_HANDLE;
+    void*          m_voxFoundMapped = nullptr;
+    size_t         m_voxFoundCapacity = 0;                         // faces
+    uint64_t       m_voxFoundRevision = UINT64_MAX;
+    uint32_t       m_voxFoundDrawn = 0;
+    void renderVoxFoundPreview();
+    void releaseVoxFoundBuffer();
     bool  m_waterEnabled = false;
     float m_seaLevel = Core::kSeaLevelY; // shared default (WorldConstants.h) — must match the
                                          // water sim or the plane draws where no water is

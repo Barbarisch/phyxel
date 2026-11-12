@@ -376,6 +376,11 @@
       "sources": "ee83da1d79ec4b74747e6ff3caae749314709d2d0314ae673a223b83f1472c83",
       "spv_present": true
     },
+    "voxfound_face.vert": {
+      "built": true,
+      "sources": "75cf409ed34164ac6bd12119f6a57ace9343b8abcaa4a6c4457390be63e1d480",
+      "spv_present": true
+    },
     "voxfound_faces.comp": {
       "built": true,
       "sources": "8fcd87b2d8fdc12c2923d9b89fb8d7f3690916d80bd080fb314f7dca5de71c01",

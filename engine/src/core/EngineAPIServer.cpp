@@ -1624,6 +1624,20 @@ void EngineAPIServer::setupRoutes() {
     // Read-only. scan_micro aggregates per CUBE, which cannot see a gap of a few micro
     // (KI-5i: a piece standing 1-7 micro off a wall).
     // ====================================================================
+    // POST /api/debug/voxfound_preview — docs/VoxelFoundationPlan.md F2.2: draw an engine-generated area
+    // at 1/8 m through the GPU face builder and voxel.frag. Body: see Application "voxfound_preview".
+    srv.Post("/api/debug/voxfound_preview", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("voxfound_preview", params, 120000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     srv.Post("/api/debug/micro_cells", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = req.body.empty() ? json::object() : json::parse(req.body);

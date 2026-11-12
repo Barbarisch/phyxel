@@ -57,14 +57,52 @@ bool RenderPipeline::createGraphicsPipeline() {
     return true;
 }
 
+bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
+    if (voxFoundPipeline != VK_NULL_HANDLE) return true;
+    if (pipelineLayout == VK_NULL_HANDLE || fragShaderModule == VK_NULL_HANDLE) return false;
+    if (voxFoundVertModule == VK_NULL_HANDLE) {
+        auto code = Utils::readFile(vertSpvPath);
+        if (code.empty()) {
+            LOG_WARN("RenderPipeline", "voxfound preview: cannot read " + vertSpvPath);
+            return false;
+        }
+        voxFoundVertModule = createShaderModule(code);
+    }
+    // Instance (binding 1): uint a, uint b (the PackedFace) + uint texture word, 12 bytes.
+    VkVertexInputBindingDescription bind{};
+    bind.binding = 1;
+    bind.stride = 12;
+    bind.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    std::vector<VkVertexInputAttributeDescription> attrs(3);
+    for (uint32_t i = 0; i < 3; ++i) {
+        attrs[i].binding = 1;
+        attrs[i].location = 1 + i;
+        attrs[i].format = VK_FORMAT_R32_UINT;
+        attrs[i].offset = 4 * i;
+    }
+    return buildStaticPipeline(fragShaderModule, VK_TRUE, Graphics::DepthConvention::sceneDepthCompareOp(),
+                               VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                                   VK_COLOR_COMPONENT_A_BIT,
+                               voxFoundPipeline, "voxfound preview", voxFoundVertModule, &bind, &attrs);
+}
+
 bool RenderPipeline::buildStaticPipeline(VkShaderModule fragModule, VkBool32 depthWrite,
                                          VkCompareOp depthCompare, VkColorComponentFlags colorWriteMask,
-                                         VkPipeline& out, const char* what) {
+                                         VkPipeline& out, const char* what, VkShaderModule vertModule,
+                                         const VkVertexInputBindingDescription* instBinding,
+                                         const std::vector<VkVertexInputAttributeDescription>* instAttrs) {
     // Vertex input - use both vertex and instance data
     auto vertexBindingDescription = Vertex::getBindingDescription();
     auto vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
-    auto instanceBindingDescription = InstanceData::getBindingDescription();
-    auto instanceAttributeDescriptions = InstanceData::getAttributeDescriptions();
+    auto instanceBindingDescription = instBinding ? *instBinding : InstanceData::getBindingDescription();
+    std::vector<VkVertexInputAttributeDescription> instanceAttributeDescriptions;
+    if (instAttrs) {
+        instanceAttributeDescriptions = *instAttrs;
+    } else {
+        const auto a = InstanceData::getAttributeDescriptions();
+        instanceAttributeDescriptions.assign(a.begin(), a.end());
+    }
+    const VkShaderModule vert = vertModule != VK_NULL_HANDLE ? vertModule : vertShaderModule;
 
     std::vector<VkVertexInputBindingDescription> bindingDescriptions = {
         vertexBindingDescription,
@@ -146,11 +184,11 @@ bool RenderPipeline::buildStaticPipeline(VkShaderModule fragModule, VkBool32 dep
     // Shader stages (assuming shaders are already loaded)
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
-    if (vertShaderModule != VK_NULL_HANDLE) {
+    if (vert != VK_NULL_HANDLE) {
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
         vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-        vertShaderStageInfo.module = vertShaderModule;
+        vertShaderStageInfo.module = vert;
         vertShaderStageInfo.pName = "main";
         shaderStages.push_back(vertShaderStageInfo);
     }
@@ -846,6 +884,14 @@ void RenderPipeline::cleanup() {
         graphicsPipeline = VK_NULL_HANDLE;
     }
     destroyDepthPrepassPipelines();   // P-DP variants + voxel_depth.frag module
+    if (voxFoundPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, voxFoundPipeline, nullptr);
+        voxFoundPipeline = VK_NULL_HANDLE;
+    }
+    if (voxFoundVertModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, voxFoundVertModule, nullptr);
+        voxFoundVertModule = VK_NULL_HANDLE;
+    }
 
     if (debugGraphicsPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, debugGraphicsPipeline, nullptr);

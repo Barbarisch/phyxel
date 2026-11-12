@@ -100,6 +100,8 @@ float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.
 #include "core/EngineConfig.h"
 #include "core/CrashHandler.h"
 #include "core/AssetManager.h"
+#include "core/voxfound/StorageLab.h"
+#include <array>
 #include "core/GameDefinitionLoader.h"
 #include "core/CharacterVisualResolver.h"  // race/preset -> animFile+appearance (single spawn path)
 #include "core/MonsterDefinition.h"        // stat blocks for spawn_encounter
@@ -3734,6 +3736,8 @@ void Application::cleanup() {
     if (runtime && runtime->getPerfCapture()) runtime->getPerfCapture()->setRenderCoordinator(nullptr);
     if (renderCoordinator) renderCoordinator->setMatSimFaces(nullptr);
     matSimLab.reset();   // its GPU buffers and pipelines go while the device still exists
+    if (renderCoordinator) renderCoordinator->setVoxFoundPreview(nullptr);
+    voxFoundBuilder.reset();   // F2.2: same reason
     renderCoordinator.reset();
     voxelInteractionSystem.reset();
     raycastVisualizer.reset();
@@ -13300,6 +13304,123 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
     return false; // not an animation command
 }
 
+// docs/VoxelFoundationPlan.md F2.2 -- POST /api/debug/voxfound_preview (registered in registerMatSimCommands).
+void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::json& response) {
+        // docs/VoxelFoundationPlan.md F2.2 — draw a 1/8 m area: the ENGINE's terrain generator (and flora
+        // planner + the tree_forge --grid 8 library when "flora") sampled at 1/8 m by
+        // VoxFound::buildTerrainArea, faces built on the GPU by FaceBuilderGpu, drawn through voxel.frag.
+        // Body: {type:"Perlin"|"Mountains"|"Flat", seed, x, z (area origin, metres), size (<= 32 m),
+        //        flora, outside:"air"|"skip", at:[X,Y,Z] (world metres for the area's min corner;
+        //        default = its true position)}  or  {clear:true}.
+        using namespace Core::VoxFound;
+        if (cmd.params.value("clear", false)) {
+            if (renderCoordinator) renderCoordinator->setVoxFoundPreview(nullptr);
+            voxFoundPreview.faces.clear();
+            ++voxFoundPreview.revision;
+            response = {{"cleared", true}};
+            return;
+        }
+        if (!vulkanDevice || !renderCoordinator) {
+            response = {{"error", "no Vulkan device / renderer"}};
+            return;
+        }
+        if (!voxFoundBuilder) {
+            voxFoundBuilder = std::make_unique<FaceBuilderGpu>();
+            std::string gerr;
+            const std::string spv = Core::AssetManager::instance().resolveShader("voxfound_faces.comp.spv");
+            if (!voxFoundBuilder->init(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice(),
+                                       vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(),
+                                       std::filesystem::path(spv).parent_path().string(), &gerr)) {
+                voxFoundBuilder.reset();
+                response = {{"error", "FaceBuilderGpu init: " + gerr}};
+                return;
+            }
+        }
+        const std::string typeName = cmd.params.value("type", std::string("Perlin"));
+        WorldGenerator::GenerationType type = WorldGenerator::GenerationType::Perlin;
+        if (typeName == "Mountains") type = WorldGenerator::GenerationType::Mountains;
+        else if (typeName == "Flat") type = WorldGenerator::GenerationType::Flat;
+        else if (typeName != "Perlin") {
+            response = {{"error", "type must be Perlin, Mountains or Flat"}};
+            return;
+        }
+        const uint32_t seed = cmd.params.value("seed", 7u);
+        const int x0 = cmd.params.value("x", 0), z0 = cmd.params.value("z", 0);
+        const int size = cmd.params.value("size", 32);
+        const bool flora = cmd.params.value("flora", false);
+        const Outside outside = cmd.params.value("outside", std::string("air")) == "skip" ? Outside::Skip : Outside::Air;
+        if (size < 1 || size > kMaxChunkVoxels / kVoxelsPerM) {
+            response = {{"error", "size must be 1..32 metres (one chunk)"}};
+            return;
+        }
+        WorldGenerator gen(type, seed);
+        gen.loadBiomes("resources/biomes.json");
+        float lo = std::numeric_limits<float>::max(), hi = -lo;
+        for (int x = x0 - 1; x <= x0 + size; ++x)
+            for (int z = z0 - 1; z <= z0 + size; ++z) {
+                const float h = gen.sampleSurface(x, z).bedHeight;
+                lo = std::min(lo, h);
+                hi = std::max(hi, h);
+            }
+        // One chunk is 32 m tall: 2 m under the lowest ground, up to 26 m of headroom for trees.
+        const int y0 = int(std::floor(lo)) - 2;
+        const int top = int(std::ceil(hi)) + 2 + (flora ? 26 : 0);
+        const int ySize = std::min(32, top - y0);
+        if (int(std::ceil(hi)) + 1 > y0 + 32) {
+            response = {{"error", "ground relief over this area exceeds one 32 m chunk"}, {"relief_m", hi - lo}};
+            return;
+        }
+        const auto t0 = std::chrono::steady_clock::now();
+        VoxelArea area = buildTerrainArea(gen, {x0, y0, z0}, {size, ySize, size});
+        FloraStampStats fs;
+        if (flora) fs = stampFlora(area, gen, "resources/templates_g8/nature");
+        const auto t1 = std::chrono::steady_clock::now();
+        std::vector<PackedFace> packed;
+        std::string berr;
+        if (!voxFoundBuilder->build(area.grid, outside, packed, &berr)) {
+            response = {{"error", berr}};
+            return;
+        }
+        const auto t2 = std::chrono::steady_clock::now();
+        // Texture per (material, face): MaterialRegistry by palette name, faceID 0 +Z 1 -Z 2 +X 3 -X 4 +Y 5 -Y.
+        std::vector<std::array<uint16_t, 6>> tex(area.palette.size());
+        for (size_t m = 0; m < area.palette.size(); ++m)
+            for (int f = 0; f < 6; ++f)
+                tex[m][f] = m == 0 ? 0 : Core::MaterialRegistry::instance().getTextureIndex(area.palette[m], f);
+        voxFoundPreview.faces.resize(packed.size());
+        for (size_t i = 0; i < packed.size(); ++i) {
+            const Quad q = unpackFace(packed[i]);
+            const int faceID = q.axis == 2 ? (q.dir > 0 ? 0 : 1) : q.axis == 0 ? (q.dir > 0 ? 2 : 3) : (q.dir > 0 ? 4 : 5);
+            voxFoundPreview.faces[i] = {packed[i].a, packed[i].b,
+                                        q.material < tex.size() ? uint32_t(tex[q.material][faceID]) : 0u};
+        }
+        glm::dvec3 at(x0, y0, z0);
+        if (cmd.params.contains("at") && cmd.params["at"].is_array() && cmd.params["at"].size() >= 3)
+            at = {cmd.params["at"][0].get<double>(), cmd.params["at"][1].get<double>(), cmd.params["at"][2].get<double>()};
+        voxFoundPreview.originMetres = at;
+        ++voxFoundPreview.revision;
+        renderCoordinator->setVoxFoundPreview(&voxFoundPreview);
+        auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+        response = {{"provenance", "engine WorldGenerator (" + typeName + " seed " + std::to_string(seed) +
+                                       ") sampled at 1/8 m by VoxFound::buildTerrainArea" +
+                                       (flora ? " + engine flora plan stamped from resources/templates_g8/nature" : "") +
+                                       "; faces by FaceBuilderGpu"},
+                    {"voxels", {area.grid.dim.x, area.grid.dim.y, area.grid.dim.z}},
+                    {"area_origin_m", {x0, y0, z0}},
+                    {"drawn_at_m", {at.x, at.y, at.z}},
+                    {"solid_voxels", area.grid.solidCount()},
+                    {"faces", packed.size()},
+                    {"face_record_bytes", packed.size() * sizeof(PackedFace)},
+                    {"preview_instance_bytes", packed.size() * sizeof(PreviewFace)},
+                    {"gpu_face_build_ms", voxFoundBuilder->lastGpuMs()},
+                    {"generate_ms", ms(t0, t1)},
+                    {"build_wall_ms", ms(t1, t2)},
+                    {"palette", area.palette},
+                    {"flora_stamped", fs.stamped},
+                    {"flora_missing", fs.missing}};
+        return;
+}
+
 // ============================================================================
 // Water-sim (CPU WaterManager) debug commands — first domain migrated off the processAPICommands
 // if-chain onto the CommandRegistry. Handlers run on the game-loop thread; the dispatcher owns
@@ -13308,6 +13429,13 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
 // The lab is created at init; a handler that runs before it exists, or throws on a mistyped field,
 // answers with an error instead of reaching the legacy dispatch.
 void Application::registerMatSimCommands() {
+    m_commandRegistry.on("voxfound_preview", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        try {
+            handleVoxFoundPreview(cmd, r);
+        } catch (const std::exception& e) {
+            r = {{"error", std::string("voxfound_preview: ") + e.what()}};
+        }
+    });
     for (const std::string& a : Core::MatSim::MatSimLab::actions()) {
         m_commandRegistry.on("matsim_" + a, [this, a](const Core::APICommand& cmd, nlohmann::json& r) {
             if (!matSimLab) { r = {{"error", "MatSim lab not available"}}; return; }

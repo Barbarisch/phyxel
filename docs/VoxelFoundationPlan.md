@@ -396,6 +396,30 @@ Cross-block merging creates more T-junctions, so F2 has to handle it, not inheri
   reads every voxel byte from global memory, including all-air and all-solid blocks. Levers, in order: skip uniform
   blocks via the solidity masks, then rebuild only changed rows (item 9).
 
+**F2.2 first light 2026-11-11 — 1/8 m voxels drawn through today's lighting** (`POST /api/debug/voxfound_preview`,
+`shaders/voxfound_face.vert` + today's `voxel.frag`, `RenderPipeline::ensureVoxFoundPipeline` = the static pipeline's
+state with a different vertex shader and instance layout, `RenderCoordinator::renderVoxFoundPreview` in the main scene
+pass). Content provenance: the engine's `WorldGenerator` sampled at 1/8 m by `buildTerrainArea`, plus the engine's
+flora plan stamped from `resources/templates_g8/nature`. Faces come from `FaceBuilderGpu`. Placed on a flat 3x2x3-chunk
+lab world (Debug build, 1600x900, RTX 4090 rig).
+
+| Scene (32 x 32 m) | voxels | solid | faces | GPU face build | GPU draw (median / p90, n=240) | whole GPU frame |
+|---|---|---|---|---|---|---|
+| Perlin s7 (0,0), bare | 256 x 64 x 256 | 2.29 M | 1,890 | 5.9-15.6 ms | 0.078 / 0.093 ms | 2.9 ms |
+| Perlin s7 forest (8160,96) + flora (84 trees stamped, 16 names missing from the library) | 256 x 256 x 256 | 3.17 M | 80,552 | 2.4 ms | 0.32 / 0.68 ms | 2.46 ms |
+
+The outer box faces are counted (`outside: air`), so these are dioramas. Eye check (`docs/evidence/voxfound_f22_*.png`):
+- Terrace steps 1/8 m high across the slopes; grass top and side textures tile at 1 m across merged faces, as §4.3
+  predicts; trunks with 1/8 m stepped root flares.
+- Not there yet, as expected: the faces cast no shadows (the shadow passes draw chunk instances only, §4.6 item 6);
+  no grass blades or leaf cards (§4.6 item 7, those tiers read chunk voxels); leaves are raw leaf voxels.
+- Observed, not explained yet:
+  - some trunk faces render near-black. Likely §4.4: the ambient probes trace the micro occupancy, which does not
+    contain these voxels, so they are lit as if the space they fill were open.
+  - thin dark horizontal slits across a bush, probably leaf-layer undersides at eye level. Needs a closer look.
+- Draw instance is 12 B in this stopgap: the PackedFace plus a texture word looked up on the host. The 8 B path needs a
+  material-to-texture table on the device.
+
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.
 

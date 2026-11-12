@@ -809,6 +809,7 @@ RenderCoordinator::~RenderCoordinator() {
     // Explicit, not `= default`: the light-occupancy buffers must be released while the Vulkan
     // device is still alive.
     if (m_lightOccupancy) m_lightOccupancy->cleanup();
+    releaseVoxFoundBuffer();
     if (m_matSimBuffer != VK_NULL_HANDLE && vulkanDevice) {   // MatSim P1b raw-cell view buffer
         vkUnmapMemory(vulkanDevice->getDevice(), m_matSimMemory);
         vkDestroyBuffer(vulkanDevice->getDevice(), m_matSimBuffer, nullptr);
@@ -2500,6 +2501,62 @@ void RenderCoordinator::renderMatSimDebug() {
     vulkanDevice->bindIndexBuffer(currentFrame);
     vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
     vkCmdDraw(cmd, 6, n, 0, 0);
+}
+
+void RenderCoordinator::releaseVoxFoundBuffer() {
+    if (m_voxFoundBuffer == VK_NULL_HANDLE || !vulkanDevice) return;
+    vkDeviceWaitIdle(vulkanDevice->getDevice());
+    if (m_voxFoundMapped) vkUnmapMemory(vulkanDevice->getDevice(), m_voxFoundMemory);
+    vkDestroyBuffer(vulkanDevice->getDevice(), m_voxFoundBuffer, nullptr);
+    vkFreeMemory(vulkanDevice->getDevice(), m_voxFoundMemory, nullptr);
+    m_voxFoundBuffer = VK_NULL_HANDLE;
+    m_voxFoundMemory = VK_NULL_HANDLE;
+    m_voxFoundMapped = nullptr;
+    m_voxFoundCapacity = 0;
+    m_voxFoundRevision = UINT64_MAX;
+}
+
+// docs/VoxelFoundationPlan.md F2.2: the 1/8 m face preview — faces built by the GPU face builder, drawn by
+// voxfound_face.vert + voxel.frag (the static pipeline's state) in the main scene pass. One host-visible
+// buffer, re-filled only when the preview's revision moves (a debug view: a frame in flight may see the
+// next list for one frame; a regrow waits for the device first).
+void RenderCoordinator::renderVoxFoundPreview() {
+    m_voxFoundDrawn = 0;
+    if (!m_voxFoundPreview || m_voxFoundPreview->faces.empty() || !renderPipeline || !vulkanDevice || !camera) return;
+    if (!renderPipeline->ensureVoxFoundPipeline("shaders/voxfound_face.vert.spv")) return;
+    const auto& faces = m_voxFoundPreview->faces;
+    if (faces.size() > m_voxFoundCapacity) {
+        releaseVoxFoundBuffer();
+        size_t cap = 1u << 16;
+        while (cap < faces.size()) cap *= 2;
+        const VkDeviceSize bytes = VkDeviceSize(cap) * sizeof(Core::VoxFound::PreviewFace);
+        vulkanDevice->createBuffer(bytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                   m_voxFoundBuffer, m_voxFoundMemory);
+        if (m_voxFoundBuffer == VK_NULL_HANDLE || m_voxFoundMemory == VK_NULL_HANDLE ||
+            vkMapMemory(vulkanDevice->getDevice(), m_voxFoundMemory, 0, bytes, 0, &m_voxFoundMapped) != VK_SUCCESS) {
+            m_voxFoundMapped = nullptr;
+            return;
+        }
+        m_voxFoundCapacity = cap;
+    }
+    if (!m_voxFoundMapped) return;
+    if (m_voxFoundRevision != m_voxFoundPreview->revision) {
+        std::memcpy(m_voxFoundMapped, faces.data(), faces.size() * sizeof(Core::VoxFound::PreviewFace));
+        m_voxFoundRevision = m_voxFoundPreview->revision;
+    }
+    VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundPipeline());
+    vulkanDevice->bindVertexBuffers(currentFrame);
+    VkDeviceSize off = 0;
+    vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
+    vulkanDevice->bindIndexBuffer(currentFrame);
+    vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
+    const glm::dvec3 origin = m_voxFoundPreview->originMetres;
+    vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), camera->relativeTo(origin),
+                                glm::vec3(origin));
+    m_voxFoundDrawn = static_cast<uint32_t>(faces.size());
+    vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), m_voxFoundDrawn, 0);
 }
 
 // Occlusion culling via the per-chunk visibility graph ("cave culling"). BFS from
@@ -4275,6 +4332,12 @@ void RenderCoordinator::drawFrame() {
             gpuProfiler->beginPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
             actuallyRenderedChunks = renderStaticGeometry();
             gpuProfiler->endPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
+        }
+
+        // F2.2 1/8 m face preview (debug; off unless the editor set one)
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VoxFound Preview");
+            renderVoxFoundPreview();
         }
 
         // Grass blades on grass-topped terrain (opaque cutout; reuses the just-computed visible set)

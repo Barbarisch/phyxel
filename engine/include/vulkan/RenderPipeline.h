@@ -46,6 +46,11 @@ public:
     // depth compare and colour write mask.
     //   prepass : voxel_depth.frag, depth write ON, scene compare, colour writes OFF
     //   shading : voxel.frag,       depth write OFF, or-equal compare, colour writes ON
+    // docs/VoxelFoundationPlan.md F2.2 — the 1/8 m face preview: the static pipeline's state and
+    // voxel.frag, with shaders/voxfound_face.vert reading the 12-byte preview face instance
+    // (PackedFace a, b + texture word). Built on first use; false (and logged) when the .spv is missing.
+    bool ensureVoxFoundPipeline(const std::string& vertSpvPath);
+    VkPipeline getVoxFoundPipeline() const { return voxFoundPipeline; }
     bool hasDepthPrepass() const { return depthPrepassPipeline != VK_NULL_HANDLE && graphicsPipelineAfterPrepass != VK_NULL_HANDLE; }
     void bindDepthPrepassPipeline(VkCommandBuffer commandBuffer);
     void bindGraphicsPipelineAfterPrepass(VkCommandBuffer commandBuffer);
@@ -150,8 +155,15 @@ private:
     // One definition of the static voxel pipeline state (vertex input, cull FRONT + CCW, 1 sample,
     // dynamic viewport/scissor, pipelineLayout, renderPass) shared by the static pipeline and both
     // P-DP variants, so they cannot drift. Requires pipelineLayout and vertShaderModule to exist.
+    // vertModule / instBinding / instAttrs override the static vertex shader and InstanceData layout
+    // (the voxel-foundation preview pipeline); everything else stays the static pipeline's state.
     bool buildStaticPipeline(VkShaderModule fragModule, VkBool32 depthWrite, VkCompareOp depthCompare,
-                             VkColorComponentFlags colorWriteMask, VkPipeline& out, const char* what);
+                             VkColorComponentFlags colorWriteMask, VkPipeline& out, const char* what,
+                             VkShaderModule vertModule = VK_NULL_HANDLE,
+                             const VkVertexInputBindingDescription* instBinding = nullptr,
+                             const std::vector<VkVertexInputAttributeDescription>* instAttrs = nullptr);
+    VkShaderModule voxFoundVertModule = VK_NULL_HANDLE;
+    VkPipeline voxFoundPipeline = VK_NULL_HANDLE;
     void createDepthPrepassPipelines();   // best effort: leaves them null (feature unavailable) on failure
     void destroyDepthPrepassPipelines();
     bool createDescriptorSetLayout();
