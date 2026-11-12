@@ -1,9 +1,8 @@
 #pragma once
 // docs/VoxelFoundationPlan.md §4 + F2 — the CPU REFERENCE mesher for the 1/8 m store.
 //
-// Turns voxels into the faces the renderer would draw, in three forms, so the F2 gate ("face count <=
-// today's on the same scene") can be measured before any GPU code exists, and so the GPU face builder has
-// an exact reference to equal later:
+// Turns voxels into the faces the renderer would draw, in three forms, so face cost can be measured before
+// any GPU code exists, and so the GPU face builder has an exact reference to equal later:
 //   * culled  — one unit quad per exposed voxel face (a face whose neighbour across it is air). Hidden
 //               faces dropped, nothing merged: the cost of drawing voxels with no merging at all.
 //   * greedy  — exposed faces of the same material and direction merged into maximal rectangles per slice,

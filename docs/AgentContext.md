@@ -340,8 +340,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F2.0 (2026-11-11): CPU reference mesher voxfound/Mesher (culled / greedy whole-area / greedy per 8-block,
       coverageErrors exactness check). MEASURED (VoxelFoundationPlan §9a): 1/8 m bare terrain merges to 36-47x
       today's 1 m cubes (predicted 3-10x -- falsified; smooth relief scales ~8^2, not 8); buildings 0.99x of 1/9 m.
-      The F2 gate "faces <= today" is unreachable for full-res terrain -- proposed absolute per-view budget + LOD
-      pyramid (owner to confirm). Debug endpoint POST /api/debug/micro_cells added (not yet exercised live).
+      F2 GATE (owner, 2026-11-11): a world that works today must still work on the new store -- same generated
+      scenes, same perf tier, whole frame + GPU memory + bytes/frame; if not, find why. Face count vs today is NOT a
+      gate (comparing face counts across voxel sizes is meaningless). Keep the face record compact (today 16 B,
+      chunk-relative 5+5+5-bit position). Debug endpoint POST /api/debug/micro_cells added (not yet exercised live).
       NEXT: F2.1 GPU face builder (equal to the CPU reference) + draw through today's lighting; light in the merge
       key; then furniture placement on 1/8 m, other structure generators, F4 fracture reference.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

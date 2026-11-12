@@ -260,7 +260,15 @@ For comparison, today's debris costs 6 faces x 64 B = 384 B per moving voxel, wi
   faces ran at ~140 fps.
   - Merging only inside a block (at most 8x8 voxels per face) would multiply faces on large flat surfaces.
   - Example: a flat 32 m wall is a few faces today, but at least 1,024 when merged only per block.
-  - So **merging across blocks is required** (§4.1). F2 gate: face count ≤ today's on the same scene.
+  - So **merging across blocks is required** (§4.1).
+  - F2 gate (corrected 2026-11-11, owner): **a world that works today must still work.** Generate the same scene with
+    the engine's generators and run it on the new store. Whole-frame time, GPU memory and bytes moved per frame must
+    stay in the same performance tier. If it doesn't, find out why and fix it. Face count is one input to that cost,
+    not the gate.
+  - Keep today's optimizations in the new face record. Today a face is 16 B (`InstanceData`): a 15-bit position
+    relative to its chunk (5+5+5), face bits, texture, flags, merge extents, tint. At 1/8 m a 32 m chunk is 256 voxels a
+    side, so a chunk-relative position needs 8+8+8 bits. A block-relative one needs 3+3+3 bits plus a per-block base
+    the shader looks up. Either way the record should stay ≤ 16 B.
 - **Lighting and GI rays** read 1 bit per voxel (the 64 B solidity mask per block) and skip uniform blocks whole.
   Their cost follows the number of rays.
 - **Simulation** reads 4 B per awake voxel per pass. Measured: 1.49 M awake cells stepped in 0.03-0.11 ms.
@@ -822,8 +830,8 @@ Every rig is checked for:
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1). **Done 2026-11-10:** §13 decided; inventory in §7a.1-7a.2; save check in §3.5a point 7; skeletons `engine/*/core/voxfound/` (`VoxelGrid`, `FractureLab`, `StorageLab`) + `VoxFoundFractureLabTest` (4 checker tests green, 8 predictions red until F4) + `VoxFoundStorageLabTest` (3 green incl. measured terrain stats, 3 red until F1) | — | — |
 | **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8` (34), `gen_door --grid 8`, `gen_items --grid 64` (52), `gen_seat_variants --grid 8`: **step 4 complete**; hearth bodies on 1/8 m (4b) and the KI-5i +side wall-flush fix; next: furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
-| **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | pixel diff within the gate at 5 poses; face count ≤ today's on the same scene; frame time ≤ today | can't match the look, or more faces, or slower |
-| | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy **3-10x — i.e. the gate "face count ≤ today's" is predicted to FAIL on bare terrain** (1/8 m relief has 8x the steps per metre); per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
+| **F2** | GPU face building + cross-block merging + drawing through today's lighting; the block LOD pyramid | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate | a scene that works today doesn't, and we can't find and fix why |
+| | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
 | **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
@@ -861,19 +869,15 @@ minus the light splits).
 - building shell within ±30 % of 1/9 m: **held** (0.99x). Walls and floors are axis-aligned slabs; grid size doesn't
   change their rectangle count.
 
-**What this means for F2:**
-1. The gate as written ("face count ≤ today's on the same scene") **cannot be met by full-resolution terrain** — it
-   misses by ~40x on bare ground. Buildings meet it.
-2. The absolute numbers are less alarming than the ratio. Bare gentle terrain is 1-2k faces per 32 x 32 m patch.
-   A 128 m radius is about 50 patches → 50k-100k faces. Today draws 270k faces at ~140 fps (CLAUDE.md, ContinuousLodPlan
-   M4). The forest (106k per patch) and mountains (45k per patch) are what break the budget: they need the block LOD
-   pyramid within a few tens of metres.
-3. Proposed gate change, for the owner to confirm: replace the ratio with an **absolute face budget per view** at
-   equal frame time (whole frame ≤ today's at 5 poses), with the LOD pyramid counted in. A ratio against 1 m cubes
-   penalises exactly the detail this foundation is for.
-4. Owed control: the proxy is not checked against the live engine's face count on the same ground. Light splits make
-   today's real count higher than the proxy, so the true ratio is somewhat below 36-47x.
-5. Merging across blocks is worth 1.1-2.4x. It is required for gentle ground and secondary in forest.
+**What this means for F2** (rewritten 2026-11-11 after the owner's correction; the first version treated "no more
+faces than today" as the goal, which was never the requirement):
+- These counts are cost inputs, not a pass/fail. The gate is in §3.5a point 4 and the F2 row: the scenes that run
+  today must still run, in the same tier, measured whole-frame on the GPU path. If one doesn't, find out why and fix it.
+- The numbers say where to look first when that is measured. Smooth relief at 1/8 m has many more terrace steps, so
+  its merged face count grows close to 8² over 1 m cubes. Then forests (106k faces per 32 x 32 m).
+- The building shell costs the same at 1/8 m as at 1/9 m.
+- Merging across blocks is worth 1.1-2.4x.
+- Owed: today's real face count on the same ground. The proxy has no light splits and flattens micro trees.
 
 ## 10. Performance tiers
 
