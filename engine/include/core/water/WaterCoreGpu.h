@@ -579,7 +579,8 @@ public:
     static inline bool s_seedNarrowShortForTest = false;
     /// 27.19 measurement (ms, last call): a tile wake's seed upload / a record's cell read, split into the wait for the call in
     /// flight (settle), the host work, and the blocking submission
-    struct TileGpuMs { double seedSettle = 0, seedHost = 0, seedSubmit = 0, readSettle = 0, readSubmit = 0, readHost = 0; double seedPart[5]{}; };   // seedPart: flags+need, residency, fresh uploads, fills, tables
+    struct TileGpuMs { double seedSettle = 0, seedHost = 0, seedSubmit = 0, readSettle = 0, readSubmit = 0, readHost = 0; double seedPart[5]{};
+                       double seedSettleMax = 0, seedHostMax = 0, seedSubmitMax = 0, seedPartMax[5]{}; long seedGrows = 0, seeds = 0; };   // 51.9b: maxima since a reset + pool grows in a seed   // seedPart: flags+need, residency, fresh uploads, fills, tables
     static inline TileGpuMs s_tileGpuMs;
     /// 28 (the launch count): dispatches / barriers recorded since the last reset (step() resets at its start, reports at its end)
     mutable long m_dispatchCount = 0, m_barrierCount = 0;

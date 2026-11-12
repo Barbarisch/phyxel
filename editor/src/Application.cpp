@@ -14288,12 +14288,14 @@ void Application::registerWaterCommands() {
              {"write_wake_m", M::s_writeWakeReachM}, {"after_step_test", M::s_recordAfterStepForTest}, {"settle_after_test", M::s_settleAfterStepForTest}};
         {   // 27.19 measurement: the record / wake call's phases (ms, last + max); phases_reset:true clears the maxima first
             auto& P = M::s_tilePhases;
-            if (cmd.params.value("phases_reset", false)) P = M::TilePhases{};
+            if (cmd.params.value("phases_reset", false)) { P = M::TilePhases{}; Core::Water::WaterCoreGpu::s_tileGpuMs = {}; }
             r["phases"] = {{"record_names", {"gpu_read", "runs", "spans", "gpu_flags", "draw"}}, {"record_last", P.rec}, {"record_max", P.recMax}, {"records", P.recN},
                            {"wake_names", {"span_read", "occupancy", "seed_surface", "gpu_upload", "span_clear", "draw"}}, {"wake_last", P.wake}, {"wake_max", P.wakeMax}, {"wakes", P.wakeN}};
             const auto& G = Core::Water::WaterCoreGpu::s_tileGpuMs;   // the last call's GPU waits split out
             r["phases"]["gpu_last"] = {{"seed_settle", G.seedSettle}, {"seed_host", G.seedHost}, {"seed_submit", G.seedSubmit},
                                        {"read_settle", G.readSettle}, {"read_submit", G.readSubmit}, {"read_host", G.readHost}, {"seed_parts", G.seedPart}, {"record_build_parts", P.build}};
+            r["phases"]["seed_max"] = {{"settle", G.seedSettleMax}, {"host", G.seedHostMax}, {"submit", G.seedSubmitMax}, {"parts", G.seedPartMax},
+                                       {"pool_grows", G.seedGrows}, {"seeds", G.seeds}};   // 51.9b: since phases_reset
         }
         if (cmd.params.contains("id")) r["applied"] = waterCore->setRecordTiles(cmd.params.value("id", 0), cmd.params.value("on", true));
     });

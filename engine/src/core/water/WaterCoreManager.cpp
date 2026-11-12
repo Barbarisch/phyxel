@@ -1391,8 +1391,9 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
             }
         }
         const double perColumn = (static_cast<double>(per) / 8.0) * (per / 8.0);   // world columns -> 8-cell brick columns
-        // x 0.75: not every reachable tile wakes - 13 of 21 did, the peak 14,742 bricks against 20,400 counted (DiagPatchLife)
-        slots = static_cast<size_t>(std::ceil(0.75 * bricks * perColumn)) + 2;
+        // x kPatchPoolFactor (51.9b; was 0.75 - 13 of 21 tiles woke without droplets, the peak 14,742 bricks against 20,400 counted;
+        // with droplets and live the peak is 0.86-0.99 of the count, and the 0.75 pool grew every splash)
+        slots = static_cast<size_t>(std::ceil((s_patchPoolFactorOldForTest ? 0.75 : kPatchPoolFactor) * bricks * perColumn)) + 2;
         if (slots <= WaterCoreGpu::kInitialSlots + 2) slots = 0;   // the default start covers it
     }
     m_lastPatchSlots = slots;

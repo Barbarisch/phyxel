@@ -13233,6 +13233,35 @@ keeps the old path (the parity control; also `water_av_record_tiles` `seed_whole
 - Tests: water unit 419 / 419; integration water 84 / 86 (the known two: `GpuFlipBulkParityAndRunup`,
   `ShortWaveMatchesAllFineAndTheBooksAreExact`); the new parity test passes.
 
+**51.9b (2026-11-11) BUILT - the hitch was the patch's POOL GROW; sized x 1.0 it is gone in 3 of 5 live splashes; a droplet books
+loss found and logged** (51.9's next; no drift). Measured first: per-part maxima of a seed (`water_av_record_tiles` `phases.seed_max`,
+new) - the ~40 ms wake is **one pool grow every splash** (residency 37.6-63.9 ms; every other part under 2 ms). 51.3b sized a patch's
+pool at the wake as x 0.75 of the recorded bricks the S1 disc can wake (+ halo); a grow DOUBLES it. `tools/water_patch_pool.py` (new,
+the pool polled through a splash): live 12,394 slots at the wake -> 24,789 at 0.11-0.15 s, the peak 15,774-16,372 bricks (0.96-0.99 of
+the count). 51.3b's 0.75 came from a rig WITHOUT droplets (peak 0.72); with droplets the peak is higher.
+- **Built:** `WaterCoreManager::kPatchPoolFactor` = 1.0 (TEST ONLY `s_patchPoolFactorOldForTest` = 0.75, the red). Cost only: past it the
+  pool still grows. Test `ASplashPatchsPoolNeverGrows` (the 200 m lake, the same splash, 40 s; red first): RED x 0.75 with droplets -
+  15,311 slots, grows once to the whole box (28,351), peak 17,512; x 1.0 - 20,414 slots, **0 grows** without and with droplets (peak
+  0.72x / 0.86x the pool); the memory bound (the pool <= 1.5x the peak) holds.
+- **Live (Creek, close pose; another session's Debug test run live throughout):** three `water_splash_phases.py` takes
+  (`wake519c_r*`): **0 grows in any seed; the worst wake 8.5-9.2 ms (was 40-45), the worst `mgr.2` call 14.7-15.6 ms (was 48-52)**; the
+  worst water call of the window 21.8-29.7 ms (`mgr.4`, the fence wait - not yet split). Two `water_patch_pool.py` takes
+  (`patch_pool_519b_r*`): **the pool still grew once in both** (at 0.11 s and at 4.96 s), to the whole box (28,351) - the live peak
+  20,906-23,141 bricks, 1.27-1.40x the count (the count is the S1 disc's recorded runs; live droplets land and wake past it). So: the
+  grow left the seed in 3 of 5 live splashes, not all.
+- **The trade left (the owner's - GPU memory against a one-off ~40-60 ms frame):** x 1.0 against 51.3b's 0.75 - grows 2 of 5 live
+  splashes (0.75: every splash measured, 9 of 9), the pool 16.5 k slots when it does not grow (0.75: 24.8 k after its grow), 28.4 k
+  when it does (0.75: 24.8 k - 14 % more). x 1.5 would hold the live peaks (24.8 k slots, the 0.75 pool's grown size, ~580 MB at
+  51.3b's ~23.5 KB a slot) but in the rig it is the whole box (665 MB) for every splash. Not chosen here.
+- **Found, logged OPEN (not fixed): with droplets ON a splash loses ~2.2 L of 117 L of spray** (the rig's books -0.0022 m^3, every
+  run, x 0.75 and x 1.0 alike; 0 without droplets). Every droplet lands (born = landed, none refused / relocated / destroyed); the
+  loss builds 2-4.5 s after the splash while droplets land on just-woken tiles, then holds through the sleep (`LAKE_TRACE=1`, the
+  books every 0.5 s with the water in flight). With the wake pace off (`s_tileWakesPerCall` 1000) the books are exact (-0.0000) - but a
+  build waking deposit tiles outside the pace changed nothing (the same -0.0021567), so the paced deposit is NOT the path; reverted.
+  The deposit kernel (`wc_column_ops` mode 5) returns what finds no room as a birth, so no clamp either. Left: births from a
+  recorded tile's sentinel bricks / their read-back. The test bounds it (exact without droplets; with them under 2 % of the spray).
+- Tests: water unit 419 / 419; integration water 85 / 87 (the known two); `ASplashPatchsPoolNeverGrows` passes, its red grows.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

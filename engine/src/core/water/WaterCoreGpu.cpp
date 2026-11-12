@@ -1139,7 +1139,9 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     auto tp = std::chrono::steady_clock::now();
     auto part = [&](int k) { const auto n = std::chrono::steady_clock::now(); s_tileGpuMs.seedPart[k] = std::chrono::duration<double, std::milli>(n - tp).count(); tp = n; };
     s_tileGpuMs.seedPart[0] = std::chrono::duration<double, std::milli>(tp - tq1).count();
+    const size_t capBefore = vol.capacity;
     ensureCapacity(vol, need);   // 27.23 W1d.1
+    if (vol.capacity != capBefore) ++s_tileGpuMs.seedGrows;   // 51.9b measurement
     const std::vector<int> fresh = applyResidency(vol, need);
     part(1);
     VkCommandBuffer cmd = beginCommands();
@@ -1207,6 +1209,9 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     const auto tq2 = std::chrono::steady_clock::now();
     submitAndWait(cmd);
     s_tileGpuMs.seedSubmit = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tq2).count();
+    {   auto& T = s_tileGpuMs; ++T.seeds;   // 51.9b measurement: the worst of each part since the last reset
+        T.seedSettleMax = std::max(T.seedSettleMax, T.seedSettle); T.seedHostMax = std::max(T.seedHostMax, T.seedHost);
+        T.seedSubmitMax = std::max(T.seedSubmitMax, T.seedSubmit); for (int k = 0; k < 5; ++k) T.seedPartMax[k] = std::max(T.seedPartMax[k], T.seedPart[k]); }
     vol.recordValid = false;   // the next residency keeps every stored brick (its record predates the seed)
     vol.surfaceFullNext = true;   // 27.15: the seeded columns are frozen, their surface must still be drawn
     vol.unitsFullNext = true;     // 27.23 W1e: ... and weighed

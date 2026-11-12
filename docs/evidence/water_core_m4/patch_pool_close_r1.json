@@ -1,0 +1,2684 @@
+{
+ "pose": {
+  "x": 79.0,
+  "y": 32.0,
+  "z": 103.0,
+  "yaw": -90.0,
+  "pitch": -34.0
+ },
+ "rows": [
+  {
+   "t": 0.047,
+   "capacity": 0,
+   "bricks": 0,
+   "grows": 0,
+   "recorded_tiles": 21,
+   "tiles_woken": 4
+  },
+  {
+   "t": 0.15,
+   "capacity": 12394,
+   "bricks": 6804,
+   "grows": 0,
+   "recorded_tiles": 17,
+   "tiles_woken": 8
+  },
+  {
+   "t": 0.293,
+   "capacity": 12394,
+   "bricks": 11340,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 12
+  },
+  {
+   "t": 0.393,
+   "capacity": 24789,
+   "bricks": 15661,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 0.462,
+   "capacity": 24789,
+   "bricks": 15005,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 0.543,
+   "capacity": 24789,
+   "bricks": 15020,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 0.623,
+   "capacity": 24789,
+   "bricks": 15034,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 0.685,
+   "capacity": 24789,
+   "bricks": 15046,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 0.764,
+   "capacity": 24789,
+   "bricks": 15070,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 0.839,
+   "capacity": 24789,
+   "bricks": 15305,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 0.899,
+   "capacity": 24789,
+   "bricks": 15761,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 0.99,
+   "capacity": 24789,
+   "bricks": 15311,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.146,
+   "capacity": 24789,
+   "bricks": 15770,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.217,
+   "capacity": 24789,
+   "bricks": 15774,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.284,
+   "capacity": 24789,
+   "bricks": 15315,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.348,
+   "capacity": 24789,
+   "bricks": 15133,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.41,
+   "capacity": 24789,
+   "bricks": 15135,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.502,
+   "capacity": 24789,
+   "bricks": 15139,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.574,
+   "capacity": 24789,
+   "bricks": 15141,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.663,
+   "capacity": 24789,
+   "bricks": 15141,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.737,
+   "capacity": 24789,
+   "bricks": 15152,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.81,
+   "capacity": 24789,
+   "bricks": 15153,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.883,
+   "capacity": 24789,
+   "bricks": 15154,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 1.963,
+   "capacity": 24789,
+   "bricks": 15153,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.055,
+   "capacity": 24789,
+   "bricks": 15151,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.209,
+   "capacity": 24789,
+   "bricks": 15147,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.27,
+   "capacity": 24789,
+   "bricks": 15324,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.33,
+   "capacity": 24789,
+   "bricks": 15133,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.403,
+   "capacity": 24789,
+   "bricks": 15119,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.469,
+   "capacity": 24789,
+   "bricks": 15068,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.532,
+   "capacity": 24789,
+   "bricks": 15065,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.63,
+   "capacity": 24789,
+   "bricks": 15066,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.713,
+   "capacity": 24789,
+   "bricks": 15074,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.78,
+   "capacity": 24789,
+   "bricks": 15084,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.86,
+   "capacity": 24789,
+   "bricks": 15093,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.935,
+   "capacity": 24789,
+   "bricks": 15114,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 2.996,
+   "capacity": 24789,
+   "bricks": 15127,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.079,
+   "capacity": 24789,
+   "bricks": 15134,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.214,
+   "capacity": 24789,
+   "bricks": 15137,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.289,
+   "capacity": 24789,
+   "bricks": 15156,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.368,
+   "capacity": 24789,
+   "bricks": 15163,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.432,
+   "capacity": 24789,
+   "bricks": 15165,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.495,
+   "capacity": 24789,
+   "bricks": 15168,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.56,
+   "capacity": 24789,
+   "bricks": 15168,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.633,
+   "capacity": 24789,
+   "bricks": 15172,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.694,
+   "capacity": 24789,
+   "bricks": 15172,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.755,
+   "capacity": 24789,
+   "bricks": 15176,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.84,
+   "capacity": 24789,
+   "bricks": 15176,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.9,
+   "capacity": 24789,
+   "bricks": 15178,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 3.959,
+   "capacity": 24789,
+   "bricks": 15178,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.023,
+   "capacity": 24789,
+   "bricks": 15178,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.105,
+   "capacity": 24789,
+   "bricks": 15179,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.245,
+   "capacity": 24789,
+   "bricks": 15179,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.324,
+   "capacity": 24789,
+   "bricks": 15180,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.404,
+   "capacity": 24789,
+   "bricks": 15181,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.483,
+   "capacity": 24789,
+   "bricks": 15184,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.543,
+   "capacity": 24789,
+   "bricks": 15184,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.605,
+   "capacity": 24789,
+   "bricks": 15184,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.687,
+   "capacity": 24789,
+   "bricks": 15188,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.768,
+   "capacity": 24789,
+   "bricks": 15189,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.848,
+   "capacity": 24789,
+   "bricks": 15189,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.925,
+   "capacity": 24789,
+   "bricks": 15189,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 4.987,
+   "capacity": 24789,
+   "bricks": 15191,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.051,
+   "capacity": 24789,
+   "bricks": 15190,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.128,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.253,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.316,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.378,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.44,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.515,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.577,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.641,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.701,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.778,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.841,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.902,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 5.98,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.041,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.125,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.267,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.331,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.407,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.466,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.541,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.62,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.699,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.777,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.857,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 6.936,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.011,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.09,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.171,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.31,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.371,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.451,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.515,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.58,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.655,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.734,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.798,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.874,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 7.952,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.031,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.091,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.174,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.237,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.364,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.427,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.502,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.58,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.659,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.733,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.793,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.871,
+   "capacity": 24789,
+   "bricks": 15182,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 8.933,
+   "capacity": 24789,
+   "bricks": 15183,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.011,
+   "capacity": 24789,
+   "bricks": 15183,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.091,
+   "capacity": 24789,
+   "bricks": 15183,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.17,
+   "capacity": 24789,
+   "bricks": 15186,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.232,
+   "capacity": 24789,
+   "bricks": 15186,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.375,
+   "capacity": 24789,
+   "bricks": 15188,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.452,
+   "capacity": 24789,
+   "bricks": 15192,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.526,
+   "capacity": 24789,
+   "bricks": 15194,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.606,
+   "capacity": 24789,
+   "bricks": 15194,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.684,
+   "capacity": 24789,
+   "bricks": 15194,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.745,
+   "capacity": 24789,
+   "bricks": 15194,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.825,
+   "capacity": 24789,
+   "bricks": 15194,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.886,
+   "capacity": 24789,
+   "bricks": 15194,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 9.946,
+   "capacity": 24789,
+   "bricks": 15195,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.007,
+   "capacity": 24789,
+   "bricks": 15197,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.086,
+   "capacity": 24789,
+   "bricks": 15197,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.168,
+   "capacity": 24789,
+   "bricks": 15203,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.242,
+   "capacity": 24789,
+   "bricks": 15203,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.303,
+   "capacity": 24789,
+   "bricks": 15207,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.454,
+   "capacity": 24789,
+   "bricks": 15210,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.517,
+   "capacity": 24789,
+   "bricks": 15212,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.581,
+   "capacity": 24789,
+   "bricks": 15215,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.667,
+   "capacity": 24789,
+   "bricks": 15220,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.73,
+   "capacity": 24789,
+   "bricks": 15225,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.79,
+   "capacity": 24789,
+   "bricks": 15225,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.863,
+   "capacity": 24789,
+   "bricks": 15226,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.922,
+   "capacity": 24789,
+   "bricks": 15226,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 10.984,
+   "capacity": 24789,
+   "bricks": 15229,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.07,
+   "capacity": 24789,
+   "bricks": 15229,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.133,
+   "capacity": 24789,
+   "bricks": 8428,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.193,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.255,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.337,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.445,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.506,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.588,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.648,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.712,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.772,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.856,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 11.931,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.009,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.091,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.167,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.226,
+   "capacity": 24789,
+   "bricks": 8429,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.29,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.372,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.495,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.555,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.614,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.695,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.755,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.816,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.901,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 12.961,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.042,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.118,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.178,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.239,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.301,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.363,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.446,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.572,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.655,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.729,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.79,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.873,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 13.948,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.026,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.104,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.182,
+   "capacity": 24789,
+   "bricks": 8430,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.261,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.342,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.422,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.482,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.609,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.684,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.766,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.841,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.902,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 14.981,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.061,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.123,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.182,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.242,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.325,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.385,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.469,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.531,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.64,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.719,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.778,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.84,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.901,
+   "capacity": 24789,
+   "bricks": 8431,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 15.986,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.065,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.127,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.201,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.279,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.355,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.434,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.496,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.575,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.7,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.777,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.839,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.918,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 16.997,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.056,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.116,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.176,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.261,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.321,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.403,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.483,
+   "capacity": 24789,
+   "bricks": 8432,
+   "grows": 1,
+   "recorded_tiles": 11,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.561,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.622,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.743,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.803,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.887,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 17.947,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.027,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.108,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.169,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.248,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.328,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.389,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 13,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.491,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.564,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.624,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.684,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.806,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.869,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 18.955,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.033,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.096,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.157,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.218,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.28,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.362,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.442,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.504,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.566,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.628,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.69,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.752,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.817,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.889,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 19.952,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.014,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.075,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 15,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.196,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.259,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.334,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.412,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.489,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.553,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.631,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.711,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.775,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.839,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.902,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 20.975,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.054,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.117,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.197,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.276,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.354,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 16,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.448,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 17,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.519,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 19,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.579,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 19,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.662,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 20,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.723,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 20,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.805,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 20,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.885,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 20,
+   "tiles_woken": 14
+  },
+  {
+   "t": 21.965,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 20,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.026,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 20,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.087,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 20,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.148,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 20,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.208,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 20,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.29,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.37,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.456,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.519,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.604,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.664,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.727,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.791,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.853,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 22.934,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.011,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.074,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.137,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.199,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.276,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 22,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.349,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.41,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.511,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.571,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.632,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.693,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.754,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.814,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.885,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 23.948,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.026,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.089,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.153,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.23,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.29,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.372,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.45,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 23,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.563,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 25,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.649,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 25,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.709,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 25,
+   "tiles_woken": 14
+  },
+  {
+   "t": 24.769,
+   "capacity": 24789,
+   "bricks": 7182,
+   "grows": 1,
+   "recorded_tiles": 25,
+   "tiles_woken": 14
+  }
+ ],
+ "record": {
+  "box": [
+   4,
+   16,
+   2,
+   153,
+   18,
+   151
+  ],
+  "m3": 45000.0,
+  "slept_boxes": 1,
+  "success": true,
+  "unwritten_columns": 0
+ },
+ "splash": {
+  "strength": 8.0,
+  "success": true,
+  "woken": [
+   4
+  ]
+ },
+ "summary": {
+  "capacity_first": 0,
+  "capacities": [
+   0,
+   12394,
+   24789
+  ],
+  "grows_last": 1,
+  "bricks_peak": 15774,
+  "alive_s": 24.769,
+  "first_grow_t": 0.15
+ }
+}

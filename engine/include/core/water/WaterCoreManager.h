@@ -629,6 +629,12 @@ public:
     static constexpr float kRecordTileDepthWindowM = 2.0f;   ///< 51.4d: a record tile wakes only this much below its lowest run top
     /// TEST ONLY (51.3b control): a patch's pool starts at the default kInitialSlots (grown as its tiles wake)
     static inline bool s_patchPoolUnsizedForTest = false;
+    /// 51.9b: a patch's pool at its wake = this x the recorded bricks the S1 disc can wake (+ halo). 51.3b's 0.75 came from a rig
+    /// without droplets (peak 0.72 of the count); live, and in the rig with droplets, the peak is 0.86-0.99 of the count - the pool
+    /// grew once every splash (38-64 ms in one frame), DOUBLING to 1.5x (or the whole box, 665 MB). At 1.0 it holds the peak with
+    /// no grow and less memory than the grown pool. Cost only: past it the pool still grows. Pinned by ASplashPatchsPoolNeverGrows.
+    static constexpr double kPatchPoolFactor = 1.0;
+    static inline bool s_patchPoolFactorOldForTest = false;   ///< TEST ONLY (51.9b red): the 51.3b factor, 0.75
     /// TEST ONLY (51.3c control): a sleeping patch's record draw tiles are built BEFORE it is destroyed (its woken columns still its
     /// own - the tiles built dry there; the order before 51.3c)
     static inline bool s_patchSleepDrawFirstForTest = false;
