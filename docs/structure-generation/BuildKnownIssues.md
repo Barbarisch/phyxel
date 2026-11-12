@@ -99,6 +99,43 @@ HYPOTHESIS until confirmed in code.
   (main-range + wing exterior walls overlapping into a cube-read band) or the winged
   layout emitting cube walls; a cube-thick partition also breaks the door-carve arithmetic
   (the carve clears the thin band, leaving cube remnants that narrow/block the doorway).
+- **KI-5i — Shallow pieces float off MAX-side (+x / +z) walls — FIXED at unit level
+  (2026-11-11, found moving the hearths to the 1/8 m grid; not yet seen live).** The anchor
+  was `footprintMin*9 - backDir*inset` on every wall. On a -side wall the piece's back face
+  IS the anchor, so it is flush. On a +side wall the back face is the anchor plus the
+  piece's extent, which stopped `cubes*9 - extent` micro short of the wall: flush only for
+  a piece that is a whole number of cubes deep. **60 of 81** committed
+  furniture/architecture templates are not (census over C/S/M extents, the same measure
+  as `StructureForge::loadFixtureFootprints`). On a +z wall that left, for example:
+  - `wall_lantern` and `tool_rack`: 7 micro (0.78 m) off the wall;
+  - `back_bar`: 6 micro;
+  - `bookshelf` and `wall_shelf`: 5 micro;
+  - the legacy fireplace: 4 micro; the bread oven: 6 micro.
+  It is the likely remaining cause of KI-5b's "sometimes not flush, especially wall
+  lanterns": KI-5b fixed the inset values, and its test (`FixtureFlushnessTest`) checks the
+  inset numbers, never the gap to the wall.
+
+  Fix: one rule, `flushAnchorMicro` (FurniturePlacer.h). On a +side wall it puts the back
+  face on the wall's inner face: `(cube0 + cubes)*M - inset - extent`. That equals the old
+  anchor for a whole-cube piece, so whole-cube placement and every existing digest are
+  unchanged. Three users share it:
+  - `microWorldPos` (new overload taking the footprint; the `StructureForge` furnish pass
+    passes the template's measured extents);
+  - `placedCubeSpan` (the reservation; a shallow +side piece no longer reserves a spurious
+    extra cube into the room);
+  - `HearthForge::poseOf`.
+
+  Tests, red first:
+  - `FixtureFlushnessTest.ShallowPieceIsFlushOnEveryWall`: red 73 vs 78 on +z, the 5-micro
+    bookshelf gap;
+  - `BuildingHarness.HearthBodiesSitFlushOnEveryWallOnBothGrids` (3 types x 4 walls x 2
+    grids, measured on the canvas): red on exactly the 12 +side cases.
+
+  OWED:
+  - L4 live re-check of a furnished tavern, where wall pieces on +x/+z walls should now
+    touch the wall;
+  - `placedCubeSpan` still insets by the exterior thickness on both axes, where
+    `microWorldPos` uses per-axis insets (pre-existing, unchanged).
 - **KI-5f — Fences don't always come to a neat corner — FIXED at unit level (2026-07-24,
   solution-auditor PASS after a two-round audit).** Two composition defects: W/E runs
   shortened by a cube left an 8-9 micro rail/picket gap beside every corner post, and

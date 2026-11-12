@@ -18,8 +18,11 @@
 //   * the canvas detectors (WallClosure / FloorIntegrity / ChimneyIntegrity)
 //     can finally SEE the chimney, which they never could post-export.
 //
-// Coordinates are STRUCTURE-LOCAL MICRO (9 micro = 1 cube), matching
-// StructureRealizer's canvas. Bodies are authored unrotated with the firebox
+// Coordinates are STRUCTURE-LOCAL canvas cells, matching StructureRealizer's
+// canvas: 9 per cube on the legacy grid, 8 on the 1/8 m foundation grid
+// (bodyOf/footprintOf/poseOf/paintBody take the StructureGrid; the 1/8 m
+// bodies are picked from the canon metres, docs/VoxelFoundationPlan.md 7a.3 4b).
+// The "Micro" names and the GROUNDING numbers below are the legacy grid's. Bodies are authored unrotated with the firebox
 // opening toward +Z and the chimney breast at z = 0 (the wall side), then
 // rotated about the same pivot PlacedObjectManager uses, so a sited hearth
 // lands exactly where the furnish pass reserves it.
@@ -47,6 +50,7 @@
 #include "core/BuildingProgram.h"   // ProgStory / ProgFixture / Rect
 #include "core/FurniturePlacer.h"   // FurniturePlacement / Footprint (siting)
 #include "core/MicroCanvas.h"
+#include "core/StructureGrid.h"
 #include "core/StyleProfile.h"
 
 namespace Phyxel {
@@ -57,6 +61,9 @@ public:
     /// How far ABOVE the roof apex the stack must finish, in MICRO cells.
     /// 6 micro = 0.667 m > the 2 ft (0.610 m) IRC R1003.9 floor; 5 would FAIL it.
     static constexpr int kRidgeClearanceMicro = 6;
+    /// The same rule on any grid: the smallest whole number of cells clearing 2 ft (0.6096 m).
+    /// 9 -> 6 (0.667 m); 8 -> 5 (0.625 m).
+    static int ridgeClearance(const StructureGrid& g);
     /// Stack half-extent (5x5 masonry) and flue half-extent (3x3 void), in micro.
     static constexpr int kStackHalfMicro = 2;
     static constexpr int kFlueHalfMicro  = 1;
@@ -98,13 +105,23 @@ public:
                                         ///< billet (the void is z1..d-1, not z1..d-2) and
                                         ///< shipped a one-log "pile".
         int fuelFloorY = 0;             ///< firebox floor (local micro) the pile rests on
+        // Feature sizes the painter reads (cells), so one paint routine serves every grid:
+        int baseT = 0;     ///< fireplace: base slab thickness
+        int sideW = 0;     ///< fireplace: side pillar width; oven: side wall of the chamber
+        int topT = 0;      ///< fireplace: lintel / mantel thickness
+        int deckY = 0;     ///< forge: top course of the work block; oven: the hearth (coal) floor
+        int openX0 = 0, openX1 = 0;   ///< forge: firepot x span; oven: mouth x span
+        int openY1 = 0;    ///< oven: top row of the mouth
     };
-    static Body bodyOf(const std::string& type);
+    /// The body on grid g. Legacy (9) numbers are the original ninth authoring, unchanged; the
+    /// foundation (8) body is re-picked from the canon METRES (docs/VoxelFoundationPlan.md 7a.3).
+    static Body bodyOf(const std::string& type, const StructureGrid& g = StructureGrid::legacy());
 
     /// The body's footprint in CUBES — what the furnish pass reserves for it.
     /// Derived from the body itself (the forge owns the geometry), NOT from a
     /// template sidecar: nothing spawns a hearth template any more.
-    static Footprint footprintOf(const std::string& type);
+    static Footprint footprintOf(const std::string& type,
+                                 const StructureGrid& g = StructureGrid::legacy());
 
     /// Site every VENTED built-in this story's rooms call for, by running the SAME
     /// placement algorithm the furnish pass will run later (same recipes, same pass
@@ -165,7 +182,8 @@ public:
         Rect bodyCubes;                 ///< the body's true placed cube span
     };
     static Pose poseOf(const ProgFixture& fx, const Rect& room, const Rect& footprint,
-                       int extTMicro, int intTMicro);
+                       int extTMicro, int intTMicro,
+                       const StructureGrid& g = StructureGrid::legacy());
 
     /// PAINT the hearth body into the canvas and return its record (base, mantel,
     /// flue rect, flame anchor — everything the stack pass and the lighting pass
@@ -174,7 +192,8 @@ public:
     /// interior face exactly like the furnish pass would have placed it.
     static HearthRecord paintBody(MicroCanvas& c, const ProgFixture& fx, const Rect& room,
                                   const Rect& footprint, int story, int walkMicroY,
-                                  int extTMicro, int intTMicro, const StyleProfile& style);
+                                  int extTMicro, int intTMicro, const StyleProfile& style,
+                                  const StructureGrid& g = StructureGrid::legacy());
 
     /// PAINT the stack from the mantel up to `topMicroY` (inclusive) and carve the
     /// flue as canvas AIR — through whatever the stack crosses, which is how the
@@ -184,7 +203,8 @@ public:
 
     /// The stack's cube column (footprint-local) — reserved so furniture on the
     /// stories ABOVE the hearth is never placed inside the chimney breast.
-    static Rect stackCubeRect(const HearthRecord& rec);
+    static Rect stackCubeRect(const HearthRecord& rec,
+                              const StructureGrid& g = StructureGrid::legacy());
 
     /// One billet of the fuel pile, in structure-local MICRO (fractional: a
     /// billet is centred between cells, not snapped to one).

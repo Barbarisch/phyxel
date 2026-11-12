@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <fstream>
 
 #include <nlohmann/json.hpp>
@@ -7,6 +8,7 @@
 #include "core/BuildingProgram.h"
 #include "core/FurniturePlacer.h"
 #include "core/HearthForge.h"
+#include "core/StructureGrid.h"
 
 using namespace Phyxel::Core;
 
@@ -162,4 +164,70 @@ TEST(HearthForgeTest, StackColumnIsReservedForTheStoryAbove) {
     const bool overlaps = up.x < pose.stackCubes.x1() && pose.stackCubes.x < up.x1() &&
                           up.z < pose.stackCubes.z1() && pose.stackCubes.z < up.z1();
     EXPECT_FALSE(overlaps) << "the upstairs hearth was sited inside the stack from below";
+}
+
+// ============================================================================
+// docs/VoxelFoundationPlan.md §7a.3 step 4 — the hearth bodies on the 1/8 m
+// foundation grid, re-picked from the canon METRES (not a rescale of ninths):
+//   * width/depth within the canon tolerance AND the nearest 1/8 m value;
+//   * the same cube footprint as the legacy body, so siting is unchanged;
+//   * the stack fits on the body; the ridge clearance is the smallest whole
+//     number of cells that still clears 2 ft (IRC R1003.9) on each grid.
+// ============================================================================
+TEST(HearthForgeTest, FoundationBodiesArePickedFromTheCanonMetres) {
+    const StructureGrid g8 = StructureGrid::foundation();
+    struct Case { const char* type; const char* archetype; };
+    for (const Case& c : {Case{"fireplace", "hearth"},
+                          Case{"forge_hearth", "forge_hearth"},
+                          Case{"oven_bread", "oven_bread"}}) {
+        double cw = 0, ch = 0, cd = 0, tol = 0.2;
+        if (!canonExtents(c.archetype, cw, ch, cd, tol))
+            GTEST_SKIP() << "resources/object_dimensions.json not reachable - grounding NOT checked";
+        const auto b = HearthForge::bodyOf(c.type, g8);
+        ASSERT_TRUE(b.known) << c.type << " has no 1/8 m body";
+        EXPECT_NEAR(b.w / 8.0, cw, tol) << c.type;
+        EXPECT_NEAR(b.d / 8.0, cd, tol) << c.type;
+        EXPECT_LE(std::abs(b.w - cw * 8), 0.5) << c.type << " width not the nearest eighth of " << cw;
+        EXPECT_LE(std::abs(b.d - cd * 8), 0.5) << c.type << " depth not the nearest eighth of " << cd;
+        EXPECT_GE(b.flueCx - HearthForge::kStackHalfMicro, 0) << c.type;
+        EXPECT_LT(b.flueCx + HearthForge::kStackHalfMicro, b.w) << c.type;
+        EXPECT_GE(b.flueCz - HearthForge::kStackHalfMicro, 0) << c.type;
+        EXPECT_LT(b.flueCz + HearthForge::kStackHalfMicro, b.d) << c.type;
+        const auto fp8 = HearthForge::footprintOf(c.type, g8);
+        const auto fp9 = HearthForge::footprintOf(c.type);
+        EXPECT_EQ(fp8.width, fp9.width) << c.type << " cube footprint changed with the grid";
+        EXPECT_EQ(fp8.depth, fp9.depth) << c.type << " cube footprint changed with the grid";
+        EXPECT_EQ(fp8.microW, b.w - 1) << c.type;
+        EXPECT_EQ(fp8.microD, b.d - 1) << c.type;
+    }
+    // The fire sits at the canon working height: the forge block's top SURFACE (deckY is its top
+    // course) and the oven's hearth floor (deckY is the coal row lying on it), both 0.8 m.
+    EXPECT_NEAR((HearthForge::bodyOf("forge_hearth", g8).deckY + 1) / 8.0, 0.8, 1.0 / 16 + 1e-9);
+    EXPECT_NEAR(HearthForge::bodyOf("oven_bread", g8).deckY / 8.0, 0.8, 1.0 / 16 + 1e-9);
+    // Legacy bodies unchanged by the parameter.
+    EXPECT_EQ(HearthForge::bodyOf("fireplace").w, 14);
+    EXPECT_EQ(HearthForge::bodyOf("fireplace", StructureGrid::legacy()).h, 11);
+}
+
+TEST(HearthForgeTest, RidgeClearanceIsTheSmallestCountClearingTwoFeet) {
+    const double twoFeet = 0.6096;
+    for (const StructureGrid g : {StructureGrid::legacy(), StructureGrid::foundation()}) {
+        const int n = HearthForge::ridgeClearance(g);
+        EXPECT_GE(g.toM(n), twoFeet) << g.perM;
+        EXPECT_LT(g.toM(n - 1), twoFeet) << g.perM;
+    }
+    EXPECT_EQ(HearthForge::ridgeClearance(StructureGrid::legacy()), HearthForge::kRidgeClearanceMicro);
+}
+
+// Flue area against the fireplace opening on both grids (IRC R1003.15.1: >= 1/10 of the opening),
+// and the firebox keeps at least its legacy clear depth (0.444 m at 1/9; 0.5 m at 1/8).
+TEST(HearthForgeTest, FlueAreaServesTheFireboxOpeningOnBothGrids) {
+    for (const StructureGrid g : {StructureGrid::legacy(), StructureGrid::foundation()}) {
+        const auto b = HearthForge::bodyOf("fireplace", g);
+        const double openW = g.toM(b.w - 2 * b.sideW);
+        const double openH = g.toM(b.h - b.baseT - b.topT);
+        const double flue = g.toM(2 * HearthForge::kFlueHalfMicro + 1);
+        EXPECT_GE(flue * flue, 0.1 * openW * openH) << g.perM;
+        EXPECT_GE(g.toM(b.d - 1), g.isLegacy() ? 0.44 : 0.5) << g.perM << " firebox depth";
+    }
 }

@@ -1159,8 +1159,11 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                     ? fpIt2->second.microH : 9;
                 const int baseMicroY = FurniturePlacer::mountedMicroY(
                     pl.type, surfMicroY, ceilMicroY, tmplMicroH);
-                const glm::ivec3 microPos =
-                    FurniturePlacer::microWorldPos(pl, extTMicro, baseMicroY);
+                // KI-5i: with the template's real extents, so a shallow piece sits flush on a
+                // +x / +z wall too (not just on the min-side walls).
+                const glm::ivec3 microPos = FurniturePlacer::microWorldPos(
+                    pl, extTMicro, baseMicroY,
+                    fpIt2 != fixtureFootprints.end() ? fpIt2->second : Footprint{});
                 // `as:"item"` recipe pieces realize as PICKABLE ITEM PROPS at the
                 // planned spot (rugs on the floor, ...) — same placement, different
                 // realization; baked templates remain the default.

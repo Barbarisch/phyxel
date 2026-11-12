@@ -8687,6 +8687,42 @@ static bool handlePlacedObjectCommand(
         }
         return true;
 
+    } else if (cmd.action == "micro_cells") {
+        // Per-MICRO-cell occupancy (see /api/debug/micro_cells). A full cube occupies all 729 of its
+        // micro cells, a subcube its 27, a microcube its own.
+        if (!chunkManager) {
+            response = {{"error", "ChunkManager not available"}};
+        } else if (!cmd.params.contains("cells") || !cmd.params["cells"].is_array()) {
+            response = {{"error", "Missing 'cells' array of [x,y,z] micro coords"}};
+        } else {
+            auto fdiv = [](int a, int b) { int q = a / b; if ((a % b) != 0 && ((a < 0) != (b < 0))) --q; return q; };
+            nlohmann::json out = nlohmann::json::array();
+            int n = 0;
+            for (const auto& c : cmd.params["cells"]) {
+                if (++n > 4096) break;
+                if (!c.is_array() || c.size() < 3) continue;
+                const int mx = c[0].get<int>(), my = c[1].get<int>(), mz = c[2].get<int>();
+                const glm::ivec3 wc(fdiv(mx, 9), fdiv(my, 9), fdiv(mz, 9));
+                const glm::ivec3 r(mx - wc.x * 9, my - wc.y * 9, mz - wc.z * 9);   // 0..8 in the cube
+                const glm::ivec3 sp(r.x / 3, r.y / 3, r.z / 3), mp(r.x % 3, r.y % 3, r.z % 3);
+                nlohmann::json cell = {{"x", mx}, {"y", my}, {"z", mz}, {"material", nullptr}, {"level", "air"}};
+                if (auto* cube = chunkManager->getCubeAt(wc)) {
+                    cell["material"] = cube->getMaterialName(); cell["level"] = "cube";
+                } else if (Chunk* chunk = chunkManager->getChunkAt(wc)) {
+                    const glm::ivec3 lc(wc.x - fdiv(wc.x, 32) * 32, wc.y - fdiv(wc.y, 32) * 32,
+                                        wc.z - fdiv(wc.z, 32) * 32);
+                    if (auto* sc = chunk->getSubcubeAt(lc, sp)) {
+                        cell["material"] = sc->getMaterialName(); cell["level"] = "subcube";
+                    } else if (auto* mc = chunk->getMicrocubeAt(lc, sp, mp)) {
+                        cell["material"] = mc->getMaterialName(); cell["level"] = "microcube";
+                    }
+                }
+                out.push_back(cell);
+            }
+            response = {{"cells", out}, {"count", out.size()}};
+        }
+        return true;
+
     } else if (cmd.action == "scan_region_micro") {
         // Micro-resolution scan: unlike scan_region (full cubes only), this reports the distinct
         // materials present at cube/subcube/microcube level per world cube — so structure walls,

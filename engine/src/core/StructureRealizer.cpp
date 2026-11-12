@@ -474,15 +474,9 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             const Rect stFootprint{sx0, sz0, sx1 - sx0, sz1 - sz0};
             for (const auto& fx : st.fixtures) {
                 if (!HearthForge::isVented(fx.type)) continue;   // furniture stays furniture
-                if (!g.isLegacy()) {
-                    // HearthForge bodies are authored as cell counts in ninths (bodyOf); painting them
-                    // into a 1/8 m canvas would shrink every hearth by 1/9. Refuse until they are
-                    // re-authored in metres (docs/VoxelFoundationPlan.md §7a.3 step 4).
-                    res.ok = false;
-                    res.error = "hearth '" + fx.type + "' has no " + std::to_string(M) +
-                                "-per-metre body yet (HearthForge bodies are authored in ninths)";
-                    return res;
-                }
+                // The body comes from HearthForge::bodyOf on THIS grid (re-picked in metres for 1/8 m,
+                // docs/VoxelFoundationPlan.md §7a.3 step 4); an unknown grid has no body and is refused
+                // below ("no hearth geometry"), never painted from another grid's numbers.
                 auto rmIt = stRooms.find(fx.room);
                 if (rmIt == stRooms.end()) {
                     LOG_WARN_FMT("StructureRealizer", "hearth '" << fx.type << "' names room '"
@@ -491,7 +485,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 }
                 HearthRecord rec = HearthForge::paintBody(
                     c, fx, rmIt->second, stFootprint, static_cast<int>(si), wBase,
-                    extT, intT, style);
+                    extT, intT, style, g);
                 if (rec.stackW <= 0) {
                     res.ok = false;
                     res.error = "no hearth geometry for vented fixture type '" + fx.type + "'";
@@ -909,7 +903,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             // is come up in the MIDDLE of a room upstairs — a chimney against a wall
             // reads as a breast, one in the middle of the floor is a column through
             // the room. That is a REFUSAL, not a silent lean.
-            const Rect sc = HearthForge::stackCubeRect(rec);
+            const Rect sc = HearthForge::stackCubeRect(rec, g);
             std::string which;   // the same rule the forge sited against (HearthForge::siteAllStories)
             if (HearthForge::stackCrossesUpperRoomMiddle(sc, program, rec.story, &which)) {
                 res.ok = false;
@@ -918,11 +912,11 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                             "' — re-site the hearth (no silent lean)";
                 return res;
             }
-            HearthForge::paintStack(c, rec, apex + HearthForge::kRidgeClearanceMicro);
+            HearthForge::paintStack(c, rec, apex + HearthForge::ridgeClearance(g));
         }
         LOG_INFO_FMT("StructureRealizer", "place_chimney: " << plan.hearths.size()
                      << " stack(s) painted into the shell, apex " << apex
-                     << " -> cap " << (apex + HearthForge::kRidgeClearanceMicro) << " (micro)");
+                     << " -> cap " << (apex + HearthForge::ridgeClearance(g)) << " (micro)");
     }
 
     res.floorTopByStory = floorTopByStory;   // per-story walkable micro-Y (for the harness / KI-2)

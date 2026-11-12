@@ -216,18 +216,28 @@ FurniturePlacer::Emitter FurniturePlacer::emitterFor(const std::string& type) {
 }
 
 CubeSpan placedCubeSpan(int microW, int microD, int rotation, const glm::ivec3& backDir,
-                        int extTMicro, int baseCubeX, int baseCubeZ) {
-    auto floorDiv9 = [](int a) { int q = a / 9; if (a % 9 != 0 && a < 0) --q; return q; };
+                        int extTMicro, int baseCubeX, int baseCubeZ, int perM) {
+    // perM: cells per metre of the micro extents (9 = legacy; HearthForge passes its grid's).
+    auto floorDiv9 = [perM](int a) { return floorDiv(a, perM); };
     const int r = ((rotation % 360) + 360) % 360;
     const int Wm = (r == 90 || r == 270) ? microD : microW;   // rotated micro extents
     const int Dm = (r == 90 || r == 270) ? microW : microD;
-    // anchor = footprint corner in micro, inset toward the room by extT on each wall-abutting axis
-    const int Ox = baseCubeX * 9 - backDir.x * extTMicro;
-    const int Oz = baseCubeZ * 9 - backDir.z * extTMicro;
+    // anchor = the wall-flush corner (KI-5i), inset toward the room by extT on each wall-abutting axis
+    const int Ox = flushAnchorMicro(baseCubeX, Wm, backDir.x, extTMicro, perM);
+    const int Oz = flushAnchorMicro(baseCubeZ, Dm, backDir.z, extTMicro, perM);
     CubeSpan s;
     s.minX = floorDiv9(Ox);  s.maxX = floorDiv9(Ox + Wm);
     s.minZ = floorDiv9(Oz);  s.maxZ = floorDiv9(Oz + Dm);
     return s;
+}
+
+int flushAnchorMicro(int cube0, int maxIdx, int back, int inset, int perM) {
+    if (back < 0) return cube0 * perM + inset;
+    if (back > 0) {
+        const int cubes = maxIdx / perM + 1;
+        return (cube0 + cubes) * perM - inset - (maxIdx + 1);
+    }
+    return cube0 * perM;
 }
 
 std::vector<std::string> FurniturePlacer::requiredFurniture(const std::string& purpose) {
@@ -453,6 +463,21 @@ glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTM
     return glm::ivec3(p.worldPos.x * 9 - p.backDir.x * tx,
                       surfaceMicroY,
                       p.worldPos.z * 9 - p.backDir.z * tz);
+}
+
+glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTMicro,
+                                          int surfaceMicroY, const Footprint& fp) {
+    // KI-5i: the template's real (rotated) micro extents put its BACK face on the wall on every side.
+    // Unknown extents (microW/microD <= 0) are whole cubes, which reproduces the overload above exactly.
+    const int r = ((p.rotation % 360) + 360) % 360;
+    const bool turned = (r == 90 || r == 270);
+    const int mW = fp.microW > 0 ? fp.microW : std::max(1, fp.width) * 9 - 1;
+    const int mD = fp.microD > 0 ? fp.microD : std::max(1, fp.depth) * 9 - 1;
+    const int tx = p.insetMicroX >= 0 ? p.insetMicroX : extTMicro;
+    const int tz = p.insetMicroZ >= 0 ? p.insetMicroZ : extTMicro;
+    return glm::ivec3(flushAnchorMicro(p.worldPos.x, turned ? mD : mW, p.backDir.x, tx),
+                      surfaceMicroY,
+                      flushAnchorMicro(p.worldPos.z, turned ? mW : mD, p.backDir.z, tz));
 }
 
 // ---- MOUNTING (quality B): sconces/racks on the wall, the chandelier from the ceiling. ----

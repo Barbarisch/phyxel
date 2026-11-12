@@ -68,7 +68,19 @@ struct CubeSpan {
     int depth()  const { return maxZ - minZ + 1; }
 };
 CubeSpan placedCubeSpan(int microW, int microD, int rotation, const glm::ivec3& backDir,
-                        int extTMicro, int baseCubeX, int baseCubeZ);
+                        int extTMicro, int baseCubeX, int baseCubeZ, int perM = 9);
+
+/// KI-5i: the wall-flush anchor (min corner, in cells) along ONE axis, for a piece whose footprint starts
+/// at cube `cube0` and whose (rotated) max cell index is `maxIdx`, backed by a wall on side `back`
+/// (-1 = min side, +1 = max side, 0 = none) and inset `inset` cells off it.
+///   back -1: cube0*M + inset            (the back face IS the anchor: on the wall's inner face)
+///   back +1: (cube0 + cubes)*M - inset - (maxIdx + 1), cubes = maxIdx / M + 1
+///            (the back face, anchor + maxIdx, is the last cell before the wall band). For a whole-cube
+///            piece this is cube0*M - inset, the pre-KI-5i anchor; a shallower piece used to stop
+///            cubes*M - (maxIdx + 1) cells short of the wall.
+///   back  0: cube0*M
+/// ONE rule shared by microWorldPos (spawn), placedCubeSpan (reservation) and HearthForge::poseOf (paint).
+int flushAnchorMicro(int cube0, int maxIdx, int back, int inset, int perM = 9);
 
 /// The semantic identity of a placed fixture — what's needed to address it later in a session
 /// ("rotate the bed", "move the 2nd bedroom's bed"). Carried into the PlacedObject's metadata.
@@ -252,6 +264,12 @@ public:
     /// walkable-surface micro-Y (`surfaceMicroY`), NOT the truncated cube `worldPos.y`. This is the
     /// fix for furniture clipping thin sub-cube walls / sinking into the mid-cube floor. Testable.
     static glm::ivec3 microWorldPos(const FurniturePlacement& p, int extTMicro, int surfaceMicroY);
+    /// The same, for a piece whose template extents are known (KI-5i): on a MAX-side wall the
+    /// anchor puts the piece's BACK face on the wall's inner face, so a piece that is not a whole
+    /// number of cubes deep no longer floats off a +x / +z wall. fp.microW/microD <= 0 = whole cubes
+    /// (identical to the overload above).
+    static glm::ivec3 microWorldPos(const FurniturePlacement& p, int extTMicro, int surfaceMicroY,
+                                    const Footprint& fp);
 
     /// M4: the furnishing PASS rank of a fixture type — 0 heavy (built-in/vented
     /// fixtures that shape the room), 1 light (movable furniture), 2 lighting,

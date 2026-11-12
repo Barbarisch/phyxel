@@ -2,6 +2,7 @@
 #include "core/FurniturePlacer.h"
 
 #include <algorithm>
+#include <cmath>
 #include <climits>
 #include <map>
 #include <vector>
@@ -98,7 +99,59 @@ bool HearthForge::isVented(const std::string& type) {
 // (FurnitureConformanceTest gates those numbers), so moving the hearth from a
 // spawned template into the shell changes where it lives, not how big it is.
 // ---------------------------------------------------------------------------
-HearthForge::Body HearthForge::bodyOf(const std::string& type) {
+int HearthForge::ridgeClearance(const StructureGrid& g) {
+    // IRC R1003.9: the chimney finishes at least 2 ft (0.6096 m) above the ridge. The smallest
+    // whole number of cells that clears it -- 9: 6 (0.667 m, kRidgeClearanceMicro); 8: 5 (0.625 m).
+    constexpr double kTwoFeet = 0.6096;
+    return static_cast<int>(std::ceil(kTwoFeet * g.perM - 1e-9));
+}
+
+// The 1/8 m bodies (docs/VoxelFoundationPlan.md 7a.3 step 4): every number below is picked from the
+// canon METRES (resources/object_dimensions.json), to the nearest eighth, never the ninth count reused.
+// Same cube footprints as the legacy bodies (HearthForgeTest pins it), so siting does not move.
+static HearthForge::Body foundationBodyOf(const std::string& type) {
+    HearthForge::Body b;
+    if (type == "fireplace") {
+        // canon 'hearth' 1.5 w x 1.2 h x 0.6 d -> 12 x 10 x 5 (1.5 x 1.25 x 0.625 m).
+        b.known = true; b.w = 12; b.h = 10; b.d = 5;
+        b.baseT = 2;      // 0.25 m base slab
+        b.sideW = 2;      // 0.25 m jambs -> a 1.0 m opening (legacy 0.889 m)
+        b.topT  = 3;      // 0.375 m lintel; opening height y2..6 = 0.625 m (legacy 0.667 m)
+        b.flueCx = 6; b.flueCz = 2;    // flue 3x3 = 0.141 m^2 >= 1/10 of the 0.625 m^2 opening
+        b.fireX = 6; b.fireY = 3; b.fireZ = 2;
+        b.material = "Bricks";
+        b.fuelItem = "firewood";
+        b.fuelSpanMicro = 8;     // clear width x2..9 = 1.0 m
+        b.fuelDepthMicro = 4;    // clear depth z1..4 = 0.5 m -> the same 2-billet bed + crossing log
+        b.fuelFloorY = 2;
+    } else if (type == "forge_hearth") {
+        // canon width 1.0 / depth 0.8 / work_top 0.8 -> 8 x 6, block top course y5 (surface 0.75 m),
+        // hood y6..7 (body 1.0 m tall, as legacy). Firepot ~0.23 x 0.33 m x 0.11 m deep (canon note)
+        // -> x3..4 (0.25 m) x z2..4 (0.375 m), one cell (0.125 m) deep.
+        b.known = true; b.w = 8; b.h = 8; b.d = 6;
+        b.deckY = 5;
+        b.openX0 = 3; b.openX1 = 4;
+        b.flueCx = 4; b.flueCz = 2;    // an even body has no centre cell: the flue sits 1/16 m off
+                                       // centre, under the hood that spans x1..6
+        b.fireX = 4; b.fireY = 5; b.fireZ = 3;
+        b.material = "Stone";
+    } else if (type == "oven_bread") {
+        // canon width 1.6 / depth 1.4 / interior 0.9 / dome 0.45 / mouth 0.63 of the dome / work_top 0.8
+        // -> 13 x 11 mass (1.625 x 1.375 m), coal floor y6 (0.75 m), chamber x3..9 z2..8 (0.875 m),
+        // y6..9 (0.375 m clear above the coals), shell to y10 (1.375 m), mouth x5..7 y7..8
+        // (0.375 x 0.25 m; 0.63 x 0.45 = 0.28 m).
+        b.known = true; b.w = 13; b.h = 11; b.d = 11;
+        b.sideW = 3; b.deckY = 6;
+        b.openX0 = 5; b.openX1 = 7; b.openY1 = 8;
+        b.flueCx = 6; b.flueCz = 2;
+        b.fireX = 6; b.fireY = 7; b.fireZ = 5;
+        b.material = "Stone";
+    }
+    return b;
+}
+
+HearthForge::Body HearthForge::bodyOf(const std::string& type, const StructureGrid& g) {
+    if (!g.isLegacy()) return g.perM == 8 ? foundationBodyOf(type) : Body{};
     Body b;
     if (type == "fireplace") {
         // canon 'hearth' 1.5 w x 1.2 h x 0.6 d -> 14 x 11 x 5 micro.
@@ -113,6 +166,7 @@ HearthForge::Body HearthForge::bodyOf(const std::string& type) {
         b.fuelSpanMicro = 8;     // clear width  x3..10
         b.fuelDepthMicro = 4;    // clear depth  z1..4  -> a 2-billet bed + 1 crossing log
         b.fuelFloorY = 2;
+        b.baseT = 2; b.sideW = 3; b.topT = 3;
     } else if (type == "forge_hearth") {
         // canon 'forge_hearth' width 1.0 / work_top 0.8 / depth 0.8 -> 9 x 7 micro,
         // block top at y6 (0.778 m). Height here stops at the HOOD (y8): the flue
@@ -121,6 +175,7 @@ HearthForge::Body HearthForge::bodyOf(const std::string& type) {
         b.flueCx = 4; b.flueCz = 2;
         b.fireX = 4; b.fireY = 6; b.fireZ = 3;
         b.material = "Stone";
+        b.deckY = 6; b.openX0 = 3; b.openX1 = b.w - 4;
     } else if (type == "oven_bread") {
         // canon 'oven_bread' width 1.6 / depth 1.4 / interior 0.9 / work_top 0.8 ->
         // 14 x 12 micro mass, hearth floor at y7 (0.778 m), dome shell closing at y11.
@@ -128,16 +183,17 @@ HearthForge::Body HearthForge::bodyOf(const std::string& type) {
         b.flueCx = 7; b.flueCz = 2;
         b.fireX = 7; b.fireY = 8; b.fireZ = 6;
         b.material = "Stone";
+        b.sideW = 3; b.deckY = 7; b.openX0 = 5; b.openX1 = b.w - 6; b.openY1 = b.h - 2;
     }
     return b;
 }
 
-Footprint HearthForge::footprintOf(const std::string& type) {
-    const Body b = bodyOf(type);
+Footprint HearthForge::footprintOf(const std::string& type, const StructureGrid& g) {
+    const Body b = bodyOf(type, g);
     Footprint fp;
     if (!b.known) return fp;
-    fp.width  = (b.w + 8) / 9;      // cubes across the front
-    fp.depth  = (b.d + 8) / 9;      // cubes into the room
+    fp.width  = (b.w + g.perM - 1) / g.perM;      // cubes across the front
+    fp.depth  = (b.d + g.perM - 1) / g.perM;      // cubes into the room
     fp.microW = b.w - 1;            // max micro index (the placer's convention)
     fp.microD = b.d - 1;
     fp.microH = b.h - 1;
@@ -344,10 +400,12 @@ int HearthForge::siteAllStories(BuildingProgram& program,
 }
 
 HearthForge::Pose HearthForge::poseOf(const ProgFixture& fx, const Rect& room,
-                                      const Rect& footprint, int extTMicro, int intTMicro) {
+                                      const Rect& footprint, int extTMicro, int intTMicro,
+                                      const StructureGrid& g) {
     Pose p;
-    const Body b = bodyOf(fx.type);
+    const Body b = bodyOf(fx.type, g);
     if (!b.known) return p;
+    const int M = g.perM;
     const int rot = ((fx.rotation % 360) + 360) % 360;
 
     // The SAME anchor the furnish pass computes (FurniturePlacer::microWorldPos): the
@@ -357,66 +415,73 @@ HearthForge::Pose HearthForge::poseOf(const ProgFixture& fx, const Rect& room,
     int insetX = -1, insetZ = -1;
     FurniturePlacer::wallInsetsFor(room, footprint, backDir, extTMicro, intTMicro,
                                    insetX, insetZ);
-    p.anchorX = fx.rect.x * 9 - backDir.x * (insetX >= 0 ? insetX : 0);
-    p.anchorZ = fx.rect.z * 9 - backDir.z * (insetZ >= 0 ? insetZ : 0);
+    // KI-5i: flush on EVERY wall - on a +x / +z wall the body's back face (not its min corner) meets
+    // the wall; a body less than whole cubes deep used to stand off a max-side wall.
+    const bool turned = (rot == 90 || rot == 270);
+    p.anchorX = flushAnchorMicro(fx.rect.x, turned ? b.d - 1 : b.w - 1, backDir.x,
+                                 insetX >= 0 ? insetX : 0, M);
+    p.anchorZ = flushAnchorMicro(fx.rect.z, turned ? b.w - 1 : b.d - 1, backDir.z,
+                                 insetZ >= 0 ? insetZ : 0, M);
 
     const glm::ivec2 rFlue = rotateLocal(b.flueCx, b.flueCz, b.w, b.d, rot);
     p.flueCx = p.anchorX + rFlue.x;
     p.flueCz = p.anchorZ + rFlue.y;
 
-    auto fdiv9 = [](int a) { int q = a / 9; if (a % 9 != 0 && a < 0) --q; return q; };
-    const int sx0 = fdiv9(p.flueCx - kStackHalfMicro), sx1 = fdiv9(p.flueCx + kStackHalfMicro);
-    const int sz0 = fdiv9(p.flueCz - kStackHalfMicro), sz1 = fdiv9(p.flueCz + kStackHalfMicro);
+    const int sx0 = floorDiv(p.flueCx - kStackHalfMicro, M), sx1 = floorDiv(p.flueCx + kStackHalfMicro, M);
+    const int sz0 = floorDiv(p.flueCz - kStackHalfMicro, M), sz1 = floorDiv(p.flueCz + kStackHalfMicro, M);
     p.stackCubes = Rect{sx0, sz0, sx1 - sx0 + 1, sz1 - sz0 + 1};
 
     const CubeSpan span = placedCubeSpan(b.w - 1, b.d - 1, rot, backDir, extTMicro,
-                                         fx.rect.x, fx.rect.z);
+                                         fx.rect.x, fx.rect.z, M);
     p.bodyCubes = Rect{span.minX, span.minZ, span.width(), span.depth()};
     return p;
 }
 
 HearthRecord HearthForge::paintBody(MicroCanvas& c, const ProgFixture& fx, const Rect& room,
                                     const Rect& footprint, int story, int walkMicroY,
-                                    int extTMicro, int intTMicro, const StyleProfile& style) {
+                                    int extTMicro, int intTMicro, const StyleProfile& style,
+                                    const StructureGrid& g) {
     HearthRecord rec;
-    const Body b = bodyOf(fx.type);
+    const Body b = bodyOf(fx.type, g);
     if (!b.known) return rec;   // caller reports; never silently paints a guess
 
     const int rot = ((fx.rotation % 360) + 360) % 360;
     const std::string mat = style.materialOf("hearth", b.material);
-    const Pose pose = poseOf(fx, room, footprint, extTMicro, intTMicro);
+    const Pose pose = poseOf(fx, room, footprint, extTMicro, intTMicro, g);
     const int ax = pose.anchorX, az = pose.anchorZ;
 
-    BodyGrid g(b.w, b.h, b.d);
+    // One paint routine for every grid: the feature sizes come from the Body (legacy = the original
+    // ninth literals, named; foundation = picked in metres), so the legacy canvas is byte-identical.
+    BodyGrid bg(b.w, b.h, b.d);
     if (fx.type == "fireplace") {
-        g.fill(0, b.w - 1, 0, 1, 0, b.d - 1, mat);                 // hearth base slab
-        g.fill(0, b.w - 1, 0, b.h - 1, 0, 0, mat);                 // breast (to the wall)
-        g.fill(0, 2, 2, b.h - 1, 0, b.d - 1, mat);                 // side pillars
-        g.fill(b.w - 3, b.w - 1, 2, b.h - 1, 0, b.d - 1, mat);
-        g.fill(0, b.w - 1, b.h - 3, b.h - 1, 0, b.d - 1, mat);     // lintel / mantel
-        g.clear(3, b.w - 4, 2, b.h - 4, 1, b.d - 1);               // firebox, opening +Z
+        bg.fill(0, b.w - 1, 0, b.baseT - 1, 0, b.d - 1, mat);                   // hearth base slab
+        bg.fill(0, b.w - 1, 0, b.h - 1, 0, 0, mat);                             // breast (to the wall)
+        bg.fill(0, b.sideW - 1, b.baseT, b.h - 1, 0, b.d - 1, mat);             // side pillars
+        bg.fill(b.w - b.sideW, b.w - 1, b.baseT, b.h - 1, 0, b.d - 1, mat);
+        bg.fill(0, b.w - 1, b.h - b.topT, b.h - 1, 0, b.d - 1, mat);            // lintel / mantel
+        bg.clear(b.sideW, b.w - b.sideW - 1, b.baseT, b.h - b.topT - 1, 1, b.d - 1);   // firebox, +Z
         // NO fuel bed painted here. The wood is a pile of ITEM PROPS (see the
         // fuel plan below): masonry-baked logs cannot burn, cannot be lit, and
         // read as a pale slab wedged in the brick.
-        carveThroat(g, b.flueCx, b.flueCz, b.h - 3, b.h - 1);      // gather through the mantel
+        carveThroat(bg, b.flueCx, b.flueCz, b.h - b.topT, b.h - 1);             // gather through the mantel
     } else if (fx.type == "forge_hearth") {
-        g.fill(0, b.w - 1, 0, 6, 0, b.d - 1, mat);                 // solid hearth block
-        g.clear(3, b.w - 4, 5, 6, 2, 4);                           // firepot recess
-        g.fill(3, b.w - 4, 5, 5, 2, 4, "glow");                    // coals
-        g.fill(b.w / 2, b.w / 2, 5, 5, 2, 2, "Metal");             // tuyere (bellows inlet)
-        g.fill(1, b.w - 2, 7, 8, 0, 2, mat);                       // hood over the fire, to the wall
-        carveThroat(g, b.flueCx, b.flueCz, 7, 8);                  // under-hood gather
+        bg.fill(0, b.w - 1, 0, b.deckY, 0, b.d - 1, mat);                       // solid hearth block
+        bg.clear(b.openX0, b.openX1, b.deckY - 1, b.deckY, 2, 4);               // firepot recess
+        bg.fill(b.openX0, b.openX1, b.deckY - 1, b.deckY - 1, 2, 4, "glow");    // coals
+        bg.fill(b.w / 2, b.w / 2, b.deckY - 1, b.deckY - 1, 2, 2, "Metal");     // tuyere (bellows inlet)
+        bg.fill(1, b.w - 2, b.deckY + 1, b.h - 1, 0, 2, mat);                   // hood over the fire, to the wall
+        carveThroat(bg, b.flueCx, b.flueCz, b.deckY + 1, b.h - 1);              // under-hood gather
     } else {   // oven_bread
-        g.fill(0, b.w - 1, 0, b.h - 1, 0, b.d - 1, mat);           // masonry mass
-        g.clear(3, b.w - 4, 7, b.h - 2, 2, b.d - 3);               // baking chamber
-        g.fill(3, b.w - 4, 7, 7, 2, b.d - 3, "glow");              // coals on the oven floor
-        g.clear(5, b.w - 6, 8, 10, b.d - 2, b.d - 1);              // arched mouth, opening +Z
-        carveThroat(g, b.flueCx, b.flueCz, b.h - 1, b.h - 1);      // dome shell -> flue
+        bg.fill(0, b.w - 1, 0, b.h - 1, 0, b.d - 1, mat);                       // masonry mass
+        bg.clear(b.sideW, b.w - b.sideW - 1, b.deckY, b.h - 2, 2, b.d - 3);     // baking chamber
+        bg.fill(b.sideW, b.w - b.sideW - 1, b.deckY, b.deckY, 2, b.d - 3, "glow");   // coals on the oven floor
+        bg.clear(b.openX0, b.openX1, b.deckY + 1, b.openY1, b.d - 2, b.d - 1);  // arched mouth, opening +Z
+        carveThroat(bg, b.flueCx, b.flueCz, b.h - 1, b.h - 1);                  // dome shell -> flue
     }
-    g.emit(c, ax, walkMicroY, az, rot);
+    bg.emit(c, ax, walkMicroY, az, rot);
 
     // The flame anchor follows the body through the SAME rotation as its geometry.
-    const glm::ivec2 rFire = g.rotate(b.fireX, b.fireZ, rot);
+    const glm::ivec2 rFire = bg.rotate(b.fireX, b.fireZ, rot);
 
     rec.type = fx.type;
     rec.room = fx.room;
@@ -523,11 +588,11 @@ void HearthForge::paintStack(MicroCanvas& c, HearthRecord& rec, int topMicroY) {
     rec.stackTopMicroY = topMicroY;
 }
 
-Rect HearthForge::stackCubeRect(const HearthRecord& rec) {
+Rect HearthForge::stackCubeRect(const HearthRecord& rec, const StructureGrid& g) {
     if (rec.stackW <= 0) return Rect{};
-    auto fdiv9 = [](int a) { int q = a / 9; if (a % 9 != 0 && a < 0) --q; return q; };
-    const int x0 = fdiv9(rec.stackX), x1 = fdiv9(rec.stackX + rec.stackW - 1);
-    const int z0 = fdiv9(rec.stackZ), z1 = fdiv9(rec.stackZ + rec.stackD - 1);
+    const int M = g.perM;
+    const int x0 = floorDiv(rec.stackX, M), x1 = floorDiv(rec.stackX + rec.stackW - 1, M);
+    const int z0 = floorDiv(rec.stackZ, M), z1 = floorDiv(rec.stackZ + rec.stackD - 1, M);
     return Rect{x0, z0, x1 - x0 + 1, z1 - z0 + 1};
 }
 

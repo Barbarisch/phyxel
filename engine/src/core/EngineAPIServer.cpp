@@ -1618,6 +1618,25 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/micro_cells — what occupies individual MICRO cells (1/9 m, world micro
+    // coords = cube*9 + subcube*3 + microcube). Body: {"cells":[[x,y,z],...]} (<= 4096).
+    // Returns {"cells":[{"x","y","z","material"|null,"level":"cube|subcube|microcube|air"}]}.
+    // Read-only. scan_micro aggregates per CUBE, which cannot see a gap of a few micro
+    // (KI-5i: a piece standing 1-7 micro off a wall).
+    // ====================================================================
+    srv.Post("/api/debug/micro_cells", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("micro_cells", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/world/scan_micro — Micro-resolution region scan (cube/subcube/
     // microcube materials per cube). Body: {x1,y1,z1,x2,y2,z2} in CUBE coords.
     // ====================================================================

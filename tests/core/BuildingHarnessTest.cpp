@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <iterator>
 #include <string>
@@ -11,6 +12,7 @@
 
 #include "core/BuildingProgram.h"
 #include "core/FurniturePlacer.h"
+#include "core/HearthForge.h"
 #include "core/StructureRealizer.h"
 #include "core/StructureGrid.h"
 #include "core/StyleProfile.h"
@@ -380,16 +382,103 @@ TEST(BuildingHarness, FoundationGridProportionsAreMetres) {
     EXPECT_TRUE(sh.canvas.exportVoxels().empty()) << "C/S/M export must refuse a 1/8 m canvas";
 }
 
-// Hearth bodies are authored in ninths (HearthForge::bodyOf); until they are re-authored in metres the
-// 1/8 m shell must REFUSE a vented fixture, never paint a ninth-sized body into eighths.
-TEST(BuildingHarness, FoundationGridRefusesNinthAuthoredHearth) {
+// The 1/8 m shell paints a vented hearth whose body is picked in METRES (HearthForge::bodyOf on the
+// foundation grid; until 2026-11-11 it refused, the bodies being authored in ninths). Measured on the
+// canvas: the fireplace is 1.5 m wide x 1.25 m to the mantel, flush against the -z wall's inner face,
+// and its flue is one continuous air column from the firebox, through the mantel, the ceiling and the
+// roof, up to a solid cap at least 2 ft above the ridge.
+TEST(BuildingHarness, FoundationGridPaintsMetreHearth) {
     const StyleProfile style = harnessStyle();
     BuildingProgram p = tower(1, 7, 9, "switchback", "crawlspace", false);
     ProgFixture fx; fx.type = "fireplace"; fx.room = "r0"; fx.rect = {1, 0, 2, 1};
     p.stories[0].fixtures.push_back(fx);
     auto sh = StructureRealizer::realizeShell(p, style, StructureGrid::foundation());
-    EXPECT_FALSE(sh.ok);
-    EXPECT_NE(sh.error.find("hearth"), std::string::npos) << sh.error;
+    ASSERT_TRUE(sh.ok) << sh.error;
+    ASSERT_EQ(sh.plan.hearths.size(), 1u);
+    const HearthRecord& h = sh.plan.hearths[0];
+    const MicroCanvas& c = sh.canvas;
+    const int base = sh.floorTopMicro;
+    EXPECT_EQ(h.baseMicroY, base);
+    EXPECT_EQ(h.mantelMicroY - base, 10) << "mantel 1.25 m";
+    // Body width along x on the base slab row, in the middle of its depth: 12 cells = 1.5 m, from x = 1 m.
+    const int extT = 3;                                   // 0.333 m exterior wall -> 3 cells
+    const int zMid = extT + 2;
+    int x0 = 8, x1 = 8;
+    ASSERT_TRUE(c.occupiedMicro(x0, base, zMid));
+    while (c.occupiedMicro(x1 + 1, base, zMid) && c.materialAt(x1 + 1, base, zMid) == h.material) ++x1;
+    EXPECT_EQ(x1 - x0 + 1, 12) << "fireplace width 1.5 m";
+    // Flush to the wall: the breast row is the first cell inside the wall band.
+    EXPECT_EQ(c.materialAt(14, base + 5, extT), h.material) << "breast not at the wall's inner face";
+    EXPECT_FALSE(c.occupiedMicro(14, base + 4, extT + 2)) << "firebox not open";
+    // The flue: one air column from just above the firebox to the cap, then solid.
+    const int fx0 = h.flueX + h.flueW / 2, fz0 = h.flueZ + h.flueD / 2;
+    for (int y = h.mantelMicroY - 3; y < h.stackTopMicroY; ++y)
+        EXPECT_FALSE(c.occupiedMicro(fx0, y, fz0)) << "flue blocked at y " << y;
+    EXPECT_TRUE(c.occupiedMicro(fx0, h.stackTopMicroY, fz0)) << "no cap on the stack";
+    EXPECT_GE(h.stackTopMicroY - sh.roofApexMicro, 5)
+        << "cap less than 2 ft (5 eighths) above the ridge";
+}
+
+// Every vented type against every wall (3 types x 4 rotations), on BOTH grids: the shell builds, the
+// breast is FLUSH against the wall's inner face (measured on the canvas: the cell behind the breast is
+// wall, not air), the fire anchor is in AIR (a fire inside masonry is a defect a pose check cannot see),
+// and the flue is open from the throat below the mantel to a solid cap exactly ridgeClearance(g) above
+// the ridge (9: 6 = 0.667 m; 8: 5 = 0.625 m; both >= 2 ft).
+// PHYXEL_HEARTH_DUMP=<dir> writes each 1/8 m body (rotation 0) as a '# grid: 8' V file for the offline
+// eye check.
+TEST(BuildingHarness, HearthBodiesSitFlushOnEveryWallOnBothGrids) {
+    const StyleProfile style = harnessStyle();
+    const char* dumpDir = std::getenv("PHYXEL_HEARTH_DUMP");
+    for (const StructureGrid g : {StructureGrid::legacy(), StructureGrid::foundation()})
+    for (const char* type : {"fireplace", "forge_hearth", "oven_bread"}) {
+        const Footprint fp = HearthForge::footprintOf(type, g);
+        ASSERT_GT(fp.width, 0) << type;
+        const int fw = fp.width, fd = fp.depth;
+        struct Wall { int rot; Rect r; int bx, bz; };   // (bx, bz) = outward wall normal
+        // 7 x 9 room; the exterior door is on the x = 0 wall at z = 4, so the -x case sits at z = 6.
+        for (const Wall& w : {Wall{0, {2, 0, fw, fd}, 0, -1}, Wall{180, {2, 9 - fd, fw, fd}, 0, 1},
+                              Wall{270, {0, 6, fd, fw}, -1, 0}, Wall{90, {7 - fd, 3, fd, fw}, 1, 0}}) {
+            const std::string what = std::string(type) + " rot " + std::to_string(w.rot) +
+                                     " grid " + std::to_string(g.perM);
+            BuildingProgram p = tower(1, 7, 9, "switchback", "crawlspace", false);
+            ProgFixture fx; fx.type = type; fx.room = "r0"; fx.rect = w.r; fx.rotation = w.rot;
+            p.stories[0].fixtures.push_back(fx);
+            auto sh = StructureRealizer::realizeShell(p, style, g);
+            ASSERT_TRUE(sh.ok) << what << ": " << sh.error;
+            ASSERT_EQ(sh.plan.hearths.size(), 1u) << what;
+            const HearthRecord& h = sh.plan.hearths[0];
+            const MicroCanvas& c = sh.canvas;
+            const int cx = h.flueX + h.flueW / 2, cz = h.flueZ + h.flueD / 2;
+            // Flush: every preset puts the flue axis kStackHalf + 0 = 2 cells in from its back face, so
+            // the breast's back row is at flue + 2 * normal and the wall starts one cell further out.
+            const int yb = h.baseMicroY + 1, k = HearthForge::kStackHalfMicro;
+            EXPECT_EQ(c.materialAt(cx + w.bx * k, yb, cz + w.bz * k), h.material) << what << " no breast";
+            EXPECT_TRUE(c.occupiedMicro(cx + w.bx * (k + 1), yb, cz + w.bz * (k + 1)) &&
+                        c.materialAt(cx + w.bx * (k + 1), yb, cz + w.bz * (k + 1)) != h.material)
+                << what << " breast not against the wall (air or more masonry behind it)";
+            EXPECT_FALSE(c.occupiedMicro(h.fireMicroX, h.fireMicroY, h.fireMicroZ))
+                << what << " fire anchor inside masonry";
+            for (int y = h.mantelMicroY - 1; y < h.stackTopMicroY; ++y)
+                EXPECT_FALSE(c.occupiedMicro(cx, y, cz)) << what << " flue blocked at y " << y;
+            EXPECT_TRUE(c.occupiedMicro(cx, h.stackTopMicroY, cz)) << what << " no cap";
+            EXPECT_EQ(h.stackTopMicroY - sh.roofApexMicro, HearthForge::ridgeClearance(g)) << what;
+
+            if (dumpDir && w.rot == 0 && !g.isLegacy()) {
+                const std::string path = std::string(dumpDir) + "/hearth_g8_" + type + ".voxel";
+                if (FILE* f = std::fopen(path.c_str(), "w")) {
+                    std::fprintf(f, "# grid: 8\n# BuildingHarness.FoundationGridPaintsEveryHearthTypeOnEveryWall"
+                                    " -- the realized canvas, cropped to the body (+1 m up)\n");
+                    for (int x = h.x * 8; x < (h.x + h.w) * 8; ++x)
+                        for (int z = 0; z < (h.z + h.d) * 8; ++z)
+                            for (int y = h.baseMicroY; y < h.mantelMicroY + 8; ++y)
+                                if (c.occupiedMicro(x, y, z))
+                                    std::fprintf(f, "V %d %d %d %s\n", x, y - h.baseMicroY, z,
+                                                 c.materialAt(x, y, z).c_str());
+                    std::fclose(f);
+                }
+            }
+        }
+    }
 }
 
 // ============================================================================
