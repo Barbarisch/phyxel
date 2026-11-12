@@ -351,7 +351,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       VoxFoundFaceBuilderGpu, mutation-checked). 5.1 ms GPU per 256x160x256 window, naive kernel.
       F2.2 FIRST LIGHT (2026-11-11): POST /api/debug/voxfound_preview draws an engine-generated 32x32 m area at
       1/8 m (terrain + optional flora) through voxfound_face.vert + today's voxel.frag. Forest 80,552 faces =
-      0.32 ms GPU draw. Faces cast no shadows yet; ambient doesn't see them (dark trunk faces). Evidence
+      0.32 ms GPU draw. Faces cast no shadows yet; ambient occupancy doesn't include them (no visible defect attributed to that yet —
+      the "dark trunk faces" claim was unmeasured, see plan §9a). Evidence
       docs/evidence/voxfound_f22_*.png.
       GOTCHAS (this build): MCP launch_engine fails silently here (python312 DLL not on PATH) -- start phyxel.exe
       from PowerShell with the uv python dir on PATH; MCP tools talk to 8090, so call the 8120 HTTP API directly.

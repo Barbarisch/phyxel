@@ -414,8 +414,11 @@ The outer box faces are counted (`outside: air`), so these are dioramas. Eye che
 - Not there yet, as expected: the faces cast no shadows (the shadow passes draw chunk instances only, §4.6 item 6);
   no grass blades or leaf cards (§4.6 item 7, those tiers read chunk voxels); leaves are raw leaf voxels.
 - Observed, not explained yet:
-  - some trunk faces render near-black. Likely §4.4: the ambient probes trace the micro occupancy, which does not
-    contain these voxels, so they are lit as if the space they fill were open.
+  - (corrected 2026-11-12) the earlier "near-black trunk faces" claim was overstated. In
+    `voxfound_f22_forest_closeup.png` the right trunk's root flare and the trunk at the right edge are dark but
+    textured — consistent with ordinary sun-facing-away faces lit by ambient only. No pixel values were read and no
+    today's-renderer control was captured, so neither "near-black" nor the §4.4 occupancy cause is established.
+    Check: same tree, same pose, today's path vs preview, compare pixel values on those faces.
   - thin dark horizontal slits across a bush, probably leaf-layer undersides at eye level. Needs a closer look.
 - Draw instance is 12 B in this stopgap: the PackedFace plus a texture word looked up on the host. The 8 B path needs a
   material-to-texture table on the device.
