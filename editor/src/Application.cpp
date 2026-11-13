@@ -15298,7 +15298,13 @@ void Application::registerWaterCommands() {
                             "(world.streaming: true in a height-based world)"}};
             return;
         }
-        r = {{"generator_sea_level", g->getTerrainParams().seaLevelY}};
+        r = {{"generator_sea_level", g->getTerrainParams().seaLevelY},
+             // WaterCore.md 51.12 / 51.13: which bake ran (recipe flags) and what the drain did
+             {"carve_drains_basins", g->carveDrainsBasins()}, {"bake_floods_terrain", g->bakeFloodsTerrain()}};
+        if (const HydrologyMap* hd = g->hydrology()) {
+            r["basins_drained"] = hd->basinsDrained();
+            r["basins_unresolved"] = hd->basinsUnresolved();
+        }
         const HydrologyMap* h = g->hydrology();
         const FlowField* f = g->riverNetwork();
         if (!h || !f) {

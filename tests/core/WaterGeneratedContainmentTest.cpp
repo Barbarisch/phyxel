@@ -16,6 +16,7 @@
 #include "core/FlowField.h"
 #include <chrono>
 #include <cstdlib>
+#include <vector>
 #include <fstream>
 #include <sstream>
 #include <cstdio>
@@ -28,12 +29,14 @@ using namespace Phyxel;
 namespace {
 
 // drains: WorldRecipe::carveDrainsBasins (51.12). The bench's own recipe predates it (no key -> false).
-bool loadRiverCarve(WorldGenerator& g, bool drains = false) {
+// floods: WorldRecipe::bakeFloodsTerrain (51.13), also absent from the bench's recipe.
+bool loadRiverCarve(WorldGenerator& g, bool drains = false, bool floods = false) {
     std::ifstream f("tests/core/golden/rivercarve_recipe.json");
     if (!f) return false;
     std::stringstream ss; ss << f.rdbuf();
     WorldRecipe r = WorldRecipe::fromJson(ss.str());
     r.carveDrainsBasins = drains;
+    r.bakeFloodsTerrain = floods;
     g.applyRecipe(r);
     return g.hydrology() != nullptr;
 }
@@ -111,7 +114,8 @@ Census census(WorldGenerator& g, int x0, int z0, int w, int d) {
 TEST(WaterGeneratedContainmentTest, DISABLED_DiagRiverCarveLakeWall) {
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
     const char* drainEnv = std::getenv("PHYXEL_DRAIN");
-    ASSERT_TRUE(loadRiverCarve(g, drainEnv && drainEnv[0] == '1')) << "fixture tests/core/golden/rivercarve_recipe.json (run from the repo root)";
+    const char* floodEnv = std::getenv("PHYXEL_FLOODS");
+    ASSERT_TRUE(loadRiverCarve(g, drainEnv && drainEnv[0] == '1', floodEnv && floodEnv[0] == '1')) << "fixture tests/core/golden/rivercarve_recipe.json (run from the repo root)";
     const HydrologyMap* h = g.hydrology();
     // 1. the bake's cells at the 51.4c level (107.8) round the bench camera (x -1728, north of z -1146)
     int bx0 = 1 << 30, bz0 = 1 << 30, bx1 = -(1 << 30), bz1 = -(1 << 30), cells = 0;
@@ -156,7 +160,7 @@ TEST(WaterGeneratedContainmentTest, ACarvedChannelDrainsTheBasinItCrosses) {
 // resolves the same as a whole as in its 16 chunk-sized blocks.
 TEST(WaterGeneratedContainmentTest, ADrainedBasinIsTheSameChunkedOrWhole) {
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
-    ASSERT_TRUE(loadRiverCarve(g, true));
+    ASSERT_TRUE(loadRiverCarve(g, true, true));   // both bake flags on (51.12 + 51.13)
     const int x0 = -1792, z0 = -1120, n = 128;
     std::vector<WaterSpan> whole; std::vector<uint8_t> wholeHas;
     g.waterSpansForBlock(x0, z0, n, n, whole, wholeHas);
@@ -256,4 +260,87 @@ TEST(WaterGeneratedContainmentTest, DISABLED_DiagCellsRoundTheWorstWall) {
         }
         std::printf("\n");
     }
+}
+
+// 51.13 diagnostic: why does the bake's coarse rim stand where the generated terrain has none? Over the bake cells of the
+// residual-wall regions (drain on), per cell: (a) the SAME POINT - the bake's height at the cell's corner minus the generated
+// surface there (the formula: biome blend, valley shaping, carve); (b) THE CELL - the generated surface at that corner minus its
+// minimum over the cell (sampled every `stride` m; one cell exhaustively to check the stride). Percentiles of each.
+TEST(WaterGeneratedContainmentTest, DISABLED_DiagBakeHeightAgainstTheTerrain) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true));
+    const HydrologyMap& h = *g.hydrology();
+    const float cs = h.cellSize();
+    const int stride = 4;
+    std::vector<float> pointDiff, cellDrop, lakePointDiff, lakeCellDrop;
+    auto fine = [&](int x, int z) { return static_cast<float>(g.sampleSurface(x, z).surfaceY + 1); };
+    for (int cz = -25; cz < -3; ++cz) for (int cx = -18; cx < -10; ++cx) {   // x -2304..-1408, z -3200..-384
+        const int x0 = cx * static_cast<int>(cs), z0 = cz * static_cast<int>(cs);
+        const float hb = g.bakeHeightAt(static_cast<float>(x0), static_cast<float>(z0));
+        const float fc = fine(x0, z0);
+        float fmin = 1e30f;
+        for (int z = z0; z < z0 + static_cast<int>(cs); z += stride)
+            for (int x = x0; x < x0 + static_cast<int>(cs); x += stride) fmin = std::min(fmin, fine(x, z));
+        const bool lake = h.hasWater(x0 + 1.0f, z0 + 1.0f) && h.waterLevelAt(x0 + 1.0f, z0 + 1.0f) > h.seaLevel() + 1e-3f;
+        pointDiff.push_back(hb - fc); cellDrop.push_back(fc - fmin);
+        if (lake) { lakePointDiff.push_back(hb - fc); lakeCellDrop.push_back(fc - fmin); }
+    }
+    auto pct = [](std::vector<float> v, const char* name) {
+        if (v.empty()) { std::printf("%s: none\n", name); return; }
+        std::sort(v.begin(), v.end());
+        auto at = [&](float q) { return v[static_cast<size_t>(q * (v.size() - 1))]; };
+        std::printf("%-44s n %4zu | min %7.1f p10 %7.1f p50 %7.1f p90 %7.1f max %7.1f\n", name, v.size(), v.front(), at(0.1f), at(0.5f),
+                    at(0.9f), v.back());
+    };
+    pct(pointDiff, "(a) bake height - terrain, same point");
+    pct(cellDrop, "(b) terrain at corner - its cell minimum");
+    pct(lakePointDiff, "(a) lake cells only");
+    pct(lakeCellDrop, "(b) lake cells only");
+    // the stride check: one cell exhaustively
+    const int x0 = -1664, z0 = -2816;
+    float m1 = 1e30f, m4 = 1e30f;
+    for (int z = z0; z < z0 + 128; ++z) for (int x = x0; x < x0 + 128; ++x) {
+        const float f = fine(x, z); m1 = std::min(m1, f); if ((x - x0) % stride == 0 && (z - z0) % stride == 0) m4 = std::min(m4, f);
+    }
+    std::printf("stride check cell (%d, %d): min every 1 m %.1f, every %d m %.1f\n", x0, z0, m1, stride, m4);
+}
+
+// 51.13 - the acceptance test, step 1 of 2. The bbox-corner region north of the 51.4c lake, where 51.12 left walls with no channel
+// near (drain on: drains 1,450 / unreached 485 faces, worst 35.6 m). Control: the drain on, the new flag off - must reproduce them.
+// Prediction (written before the build): with the bake flooding the generated surface the drains + unreached faces fall by more than
+// half and the worst lake wall falls below 20 m. What remains is the terrain dipping INSIDE a cell (step 2), reported, not hidden.
+TEST(WaterGeneratedContainmentTest, TheBakeFloodsTheGeneratedSurface) {
+    const int x0 = -2112, z0 = -3136, w = 768, d = 768;
+    long before = 0;
+    {
+        WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+        ASSERT_TRUE(loadRiverCarve(g, true, false));
+        const Census c = census(g, x0, z0, w, d);
+        report("control: drain on, floods off", x0, z0, w, d, c);
+        before = c.wallDrains + c.wallUnreached;
+        ASSERT_GT(before, 1000) << "control: 51.12's residual walls must reproduce (drains 1,450 + unreached 485)";
+        ASSERT_GT(c.worstWall, 30.0f);
+    }
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true));
+    const Census c = census(g, x0, z0, w, d);
+    report("drain on, floods on", x0, z0, w, d, c);
+    EXPECT_LT(c.wallDrains + c.wallUnreached, before / 2);
+    EXPECT_EQ(c.wallRiver, 0);
+    EXPECT_LT(c.worstWall, 20.0f) << "worst wall at (" << c.wx << ", " << c.wz << "): level " << c.wLevel << ", ground top "
+                                  << c.wGround + 1 << " (" << c.wWhy << ")";
+}
+
+// 51.13 - the off flag changes nothing: with bakeFloodsTerrain off the bake's levels and filled are bit-identical to a generator that
+// never heard of it (the default constructor path, then the same recipe).
+TEST(WaterGeneratedContainmentTest, TheFloodsFlagOffLeavesTheBakeAsItWas) {
+    WorldGenerator a(WorldGenerator::GenerationType::Mountains, 20260729u), b(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(a, true, false));
+    WorldGenerator::clearHydroBakeCache();
+    ASSERT_TRUE(loadRiverCarve(b, true, true));
+    WorldGenerator::clearHydroBakeCache();
+    WorldGenerator c(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(c, true, false));   // re-baked from scratch after a floods-on bake: no state leaks
+    EXPECT_EQ(a.hydrology()->levels(), c.hydrology()->levels());
+    EXPECT_NE(a.hydrology()->levels(), b.hydrology()->levels()) << "the flag must change the bake on this world";
 }

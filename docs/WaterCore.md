@@ -13458,6 +13458,48 @@ becomes its outlet bed"; `/design-check` READY). Not signed off.
   - not clean: the GPU read 100 % with the owner's stream client running, so these frame figures are not this change's alone.
 - **Status: built, not signed off.** For the owner: the look (`drain512_river_on.png` / `_off.png`). Open: the second cause above,
   the synced-mode patch that does not sleep (51.7) and the per-world summary cache (51.4f).
+- **Correction (2026-11-13, the owner on `drain512_river_on.png`):** that still is not a look image. It shows a dark slot canyon
+  about 80 m deep and a few pixels of river behind trees, with the cursor in frame. It shows only that the 51.4c wall is gone;
+  nothing about the water can be judged from it. A usable capture (low, along the water, cursor hidden) is owed when the lakes
+  settle (51.13).
+
+**51.13 (2026-11-13) step 1 BUILT, OFF - the bake floods the generated surface at its cell corners: it MOVES the walls, it does not
+remove them** (51.12's second cause; `/design-check` READY).
+- **Measured first** (`DISABLED_DiagBakeHeightAgainstTheTerrain`, 176 bake cells round the walls):
+  - (a) at the same corner point, the bake's height (coarse base + relief) stands above the generated column by a median 16.9 m
+    (p10 4.3, p90 26.8, max 35.8). The bake has no biome blend, valley or carve.
+  - (b) inside a cell, the terrain dips below its corner by a median 11 m (p90 64, max 82). Sampling every 4 m matched every 1 m
+    on the check cell.
+- **Built** (recipe `bakeFloodsTerrain`):
+  - The lakes flood the generated column's top face at each corner (`sampleColumn`). The flow field keeps the coarse height,
+    so the rivers are unchanged; it is now built first, because the generated surface needs its valley and carve.
+  - 51.12's drain and the body index use the same height.
+  - The cache key carries the flag. `water_bake_info` echoes `carve_drains_basins`, `bake_floods_terrain`, `basins_drained` and
+    `basins_unresolved`.
+- **Tests:**
+  - `TheBakeFloodsTheGeneratedSurface`, north region x -2112..-1344, z -3136..-2368. Red first: the flag did nothing, 1,935
+    faces. The control (drain on, flag off) reproduced 51.12's drains 1,450 / unreached 485 / worst 35.6 m. Green, as predicted:
+    **drains 296, unreached 0, worst 16.0 m**; wet 217,660 -> 22,041.
+  - `TheFloodsFlagOffLeavesTheBakeAsItWas`: off, the bake is bit-identical to one that never had the flag.
+- **But the 51.4c view got WORSE** (the diagnostic, both flags on):
+  - a new 90,506-column lake at level 92 appears;
+  - wet 25,734 -> 127,398; faces 382 -> 618 (drains 184, unreached 434); worst 18.6 -> 24.0 m.
+  - `RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains` failed with the flag on for new worlds: a road is not graded
+    under water.
+
+  One point per 128 m cell is still a guess at that cell. A corner sample of the real terrain finds new pits where the corner
+  happens to sit low, and drops old ones. **No single sample can guarantee no walls.**
+- **So: OFF for every world** (`makeRecipe` does not set it; the recipe pin says so). The code stays as step 2's plumbing.
+  `RoadFieldSeam` / `TerrainRecipe` / WorldForge: 56 / 56 with it off.
+- **Step 2, the guarantee (next):** flood each cell's LOWER BOUND of the generated surface. A bake on cell minima cannot leave a
+  lake above any fine column of a neighbouring dry cell:
+  - Priority-Flood gives every 4-neighbour of a lake cell, if it is not itself in the lake, a filled height of at least the
+    level;
+  - a dry cell's filled height is its own minimum;
+  - so every column in it is at least the level.
+
+  This is the "bake re-floods after the carve" option the 2026-10-09 gap logged beside the drain. Its cost is the open question:
+  a true minimum means sampling inside every cell. It is measured before it is designed.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

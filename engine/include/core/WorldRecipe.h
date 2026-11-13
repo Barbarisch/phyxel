@@ -70,6 +70,11 @@ struct WorldRecipe {
     // surface where the channel leaves it. Changes the bake's lake levels, so a world made before it has no key -> false (its
     // unsaved chunks must agree with its saved lakes); new worlds get it from makeRecipe(). Written only when true.
     bool carveDrainsBasins = false;
+    // WaterCore.md 51.13: the hydrology bake floods the GENERATED surface (the column's top face at each cell corner: biome blend,
+    // valley, carve) instead of the coarse base + relief, which stood a median 16.9 m above the terrain at the same point. Changes
+    // lake levels, so absent -> false. OFF for new worlds too (51.13 measured: a corner sample moves the walls, it does not remove
+    // them) until step 2 floods each cell's lower bound. Written only when true.
+    bool bakeFloodsTerrain = false;
 
     std::string toJson() const {
         nlohmann::json root;
@@ -110,6 +115,7 @@ struct WorldRecipe {
         if (worldforge.enabled) root["worldforge"] = worldforge.toJson();
         if (creekCarve) root["creekCarve"] = true;
         if (carveDrainsBasins) root["carveDrainsBasins"] = true;
+        if (bakeFloodsTerrain) root["bakeFloodsTerrain"] = true;
         return root.dump(2);
     }
 
@@ -163,6 +169,7 @@ struct WorldRecipe {
                 r.worldforge = WorldForgeParams::fromJson(root["worldforge"]);
             r.creekCarve = root.value("creekCarve", false);
             r.carveDrainsBasins = root.value("carveDrainsBasins", false);
+            r.bakeFloodsTerrain = root.value("bakeFloodsTerrain", false);
         } catch (...) {
             // Bad/empty input -> caller falls back to synthesizing from the category library.
         }

@@ -263,13 +263,15 @@ struct HydroBakeKey {
     float climateFreq;
     float seaLevel;   // the flood outlet is part of the bake's identity (same seed, different sea → different lakes)
     std::vector<Spline::Point> spline;
-    // 51.12: the drain reads the CARVED surface, which the biomes' height tuning shapes - so with the drain on, two configs
-    // that differ only in a biome's heightScale / heightOffset bake different lakes and must not share an entry.
+    // 51.12 / 51.13: the drain reads the CARVED surface and the flood (floods on) the GENERATED surface, both shaped by the biomes'
+    // height tuning - so with either on, two configs that differ only in a biome's heightScale / heightOffset bake different
+    // lakes and must not share an entry.
     bool drains = false;
+    bool floods = false;
     std::vector<float> biomeHeight;   // (heightScale, heightOffset) per biome, in order; empty when the drain is off
     bool operator==(const HydroBakeKey& o) const {
         if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq ||
-            seaLevel != o.seaLevel || drains != o.drains || biomeHeight != o.biomeHeight) return false;
+            seaLevel != o.seaLevel || drains != o.drains || floods != o.floods || biomeHeight != o.biomeHeight) return false;
         if (spline.size() != o.spline.size()) return false;
         for (size_t i = 0; i < spline.size(); ++i)
             if (spline[i].x != o.spline[i].x || spline[i].y != o.spline[i].y) return false;
@@ -354,7 +356,8 @@ void WorldGenerator::rebuildCoarseModel() {
     HydroBakeKey key{static_cast<int>(generationType), seed, terrainParams.climateFrequency,
                      seaLvl, m_continentalHeightSpline.points()};
     key.drains = m_carveDrainsBasins;
-    if (key.drains)
+    key.floods = m_bakeFloodsTerrain;
+    if (key.drains || key.floods)
         for (const auto& b : m_biomes) { key.biomeHeight.push_back(b.heightScale); key.biomeHeight.push_back(b.heightOffset); }
     bool cacheHit = false;
     {
@@ -390,16 +393,28 @@ void WorldGenerator::rebuildCoarseModel() {
     const int riverThresh = std::max(
         1, static_cast<int>(std::lround(FlowField::kDefaultRiverThresholdCells *
                                         (32.0 * 32.0) / (kHydroCell * kHydroCell))));
-    m_hydro = std::make_shared<HydrologyMap>(heightAt, kHydroOrigin, kHydroOrigin,
-                                             kHydroCells, kHydroCells, kHydroCell, seaLvl);
+    // The drainage network stays on the coarse height (its ridge/valley structure makes the trunk rivers; see above) and is
+    // built FIRST: the generated surface the lakes flood below (51.13) carries the valley and carve that need it.
     m_flow  = std::make_shared<FlowField>(heightAt, kHydroOrigin, kHydroOrigin,
                                           kHydroCells, kHydroCells, kHydroCell, seaLvl, riverThresh);
+    // 51.13: THE LAKES FLOOD THE TERRAIN THE GENERATOR MAKES. The coarse height above stood a median 16.9 m (max 35.8) above the
+    // generated column at the same point on RiverCarve (no biome blend, no valley, no carve), so the bake perched lakes on rims
+    // the terrain does not have - free-standing walls. With the recipe's flag on, a corner's height is the generated column's
+    // top face, the same ground waterSpansForBlock tests the water against. Captures `this`: used only in this scope (the map
+    // and the body index keep no copy). m_worldForge is null here (reset at the top), so no road grading enters the sample.
+    HydrologyMap::HeightFunc hydroHeight = heightAt;
+    if (m_bakeFloodsTerrain)
+        hydroHeight = [this](float x, float z) -> float {
+            return static_cast<float>(sampleColumn(static_cast<int>(std::floor(x)), static_cast<int>(std::floor(z))).surfaceY + 1);
+        };
+    m_hydro = std::make_shared<HydrologyMap>(hydroHeight, kHydroOrigin, kHydroOrigin,
+                                             kHydroCells, kHydroCells, kHydroCell, seaLvl);
     // 51.12: the bake sees the carve - a carved channel drains the basin it crosses. Before the body index (it labels the
     // levels) and before the cache (the entry is immutable once shared). m_worldForge is null here (reset above), so the
     // columns sampled carry no road grading; river columns never read the bake (grading is riverOrder == 0 only).
     if (m_carveDrainsBasins) {
         std::unordered_map<int, float> memo;   // a river cell beside several bodies is scanned once
-        m_hydro->drainCarvedBasins(*m_flow, heightAt, [this, &memo](int cell) {
+        m_hydro->drainCarvedBasins(*m_flow, hydroHeight, [this, &memo](int cell) {
             auto it = memo.find(cell);
             if (it != memo.end()) return it->second;
             return memo[cell] = carvedRiverSurfaceInCell(cell);
@@ -410,7 +425,8 @@ void WorldGenerator::rebuildCoarseModel() {
     }
     // Body identity rides the bake (tangible-water Phase A). Built HERE because volumeEst needs
     // the flood's height function, which is not retained anywhere after this scope.
-    m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, heightAt);
+    m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, hydroHeight);
+    if (m_bakeFloodsTerrain) clearColumnCache();   // samples taken during the bake saw the previous backings
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Water bodies labeled: "
              << m_waterBodies->bodies().size() << " bodies");
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << kHydroCells << "x" << kHydroCells
@@ -454,11 +470,19 @@ void WorldGenerator::bakeWorldForgePlan() {
     clearColumnCache();
 }
 
+float WorldGenerator::bakeHeightAt(float x, float z) const {
+    if (!m_coarse) return 0.0f;
+    const CoarseSample cs = m_coarse->sample(x, z);
+    return cs.baseHeight + reliefAt(generationType, seed, static_cast<int>(std::floor(x)), static_cast<int>(std::floor(z)),
+                                    cs.continentalness);
+}
+
 std::shared_ptr<const WorldForgePlan> WorldGenerator::previewWorldForge(
     const WorldForgeParams& params) {
     if (!m_hydro || !m_flow || !m_waterBodies || !m_coarse) return nullptr;
-    // The SAME full-surface height function the hydrology bake flooded (pure: immutable
-    // shared coarse model + seed/type by value — the worker-copy contract).
+    // The coarse full-surface height (base + relief) - the one the DRAINAGE network routes on. Since WaterCore.md 51.13 the
+    // lakes flood the generated surface instead when the recipe's bakeFloodsTerrain is on; the siting keeps this input
+    // (pure: immutable shared coarse model + seed/type by value — the worker-copy contract).
     auto heightAt = [coarse = m_coarse, s = seed, gt = generationType](float x, float z) -> float {
         const CoarseSample cs = coarse->sample(x, z);
         return cs.baseHeight + reliefAt(gt, s, static_cast<int>(std::floor(x)),
@@ -1543,6 +1567,8 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     r.worldforge = m_worldForgeParams;
     r.creekCarve = true;   // 25.22: new worlds carve creek beds to 1/3 m
     r.carveDrainsBasins = true;   // 51.12: new worlds' carved channels drain the basins they cross
+    // 51.13: bakeFloodsTerrain stays OFF for new worlds - a corner sample of the generated surface moved the walls instead of
+    // removing them (WaterCore.md 51.13); only the cell's lower bound (step 2) guarantees none.
     return r;
 }
 
@@ -1595,6 +1621,7 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     m_worldForgeParams = recipe.worldforge;
     m_creekCarve = recipe.creekCarve;   // 25.22
     m_carveDrainsBasins = recipe.carveDrainsBasins;   // 51.12: a bake input - the rebuild below re-bakes with it
+    m_bakeFloodsTerrain = recipe.bakeFloodsTerrain;   // 51.13: likewise
     terrainParams.climateFrequency = recipe.climateFrequency;
     terrainParams.seaLevelY = recipe.seaLevelY;   // rebake below re-floods against this outlet
     // Override per-biome tuning by name; biome category fields (materials, climate) untouched.
