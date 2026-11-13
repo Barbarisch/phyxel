@@ -13380,13 +13380,29 @@ it should jsut be a few splash particles for affect." Owner, 2026-11-12: "follow
   - Take 1 (alone): 2,003 frames in the 8 s after the splash (~250 fps) against 51.10's 1,480-1,549. `mgr.4` 0.65 ms a frame
     against 1.47-1.57. Worst call 16.1 ms (`mgr.4`). GPU call 3.11 ms. This is one take: not proven, but the direction
     the deleted landing wakes predict.
-  - Takes 2-6 (loaded GPU): 836-1,328 frames - the other engine's cost, not read as this change's.
+  - Takes 2-6 (loaded GPU): 836-1,328 frames. Blamed above on the other engine; the re-measure below shows that was not
+    established - the GPU was shared with more than that engine.
   - Not measured: the GPU frame time alone; a clean n >= 3.
+- **The clean re-measure, attempted (2026-11-12, `cosm511c_r1..4`, `cosm511d_r1..5`): NOT CLEAN - the timing is still owed.**
+  - Only take `cosm511c_r1` ran with nothing else seen: 1,953 frames, `mgr.4` 0.64 ms a frame, GPU call 3.08 ms, worst call
+    17.1 ms - the same as `cosm511_r1` (2,003 / 0.65 / 3.11 / 16.1). Two clean-looking takes, both in a fresh engine.
+  - Every later take was slower (607-1,595 frames), with or without another session's engine sampled during it
+    (`cosm511d` checked every 2 s: takes 1-3 overlapped one and ran ~1,590; take 5 ran alone and made 873). So neither
+    "the other engine" nor the take order explains it.
+  - The rest window before the splash (water asleep, its CPU ~0.05 ms) fell too: 2,629 frames in the first take, 1,207-1,244
+    in an engine after five splashes, 1,382-1,430 right after a restart (`restprobe`, 3 windows each, no other engine). A
+    restart does not bring it back: nothing builds up in the engine. `nvidia-smi` then: the GPU at 99 %, with a game and a
+    stream client running on it (the owner's, left alone). The machine was shared; the frame numbers of this session after
+    the first take are not this change's.
+  - Load-independent and kept: the pool grew in **0 of 9 more takes** (0 of 15 with 51.11's six), every take woke the same
+    14 tiles.
+  - Owed: n >= 3 timing takes on an idle GPU (`nvidia-smi` near 0 % before the take), interleaved with droplets off as the
+    control (51.10's build is gone).
 - **For the owner's look:** `docs/evidence/water_core_m4/cosm511_clip.mp4` (`water_record_lake_clip.py`, wide then close,
   20 s each, the 150 m record lake, strength 8). Recorded with the other session's engine running; the bench held about
   165 fps. Frames: droplets thrown at +0.3 s, the crater at +0.8 s, rings at +3 s.
 - **Status: built, not signed off.** Open for the owner: the look (above, especially (a) the jet keeping its sprayed water and
-  (b) scraps reaching the surface at once), and the pool factor, now with 0 of 6 live grows at 1.0.
+  (b) scraps reaching the surface at once), and the pool factor, now with 0 of 15 live grows at 1.0 (51.11 and its re-measure).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
