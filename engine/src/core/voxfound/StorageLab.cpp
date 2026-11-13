@@ -243,6 +243,8 @@ RegionBuild forEachRegionChunk(
                 const glm::ivec3 off(kVoxelsPerM);
                 rc.grid = subGrid(a.grid, off, inner);
                 rc.border = neighboursOf(a.grid, off, inner, Outside::Air);  // the margin covers every border voxel
+                rc.area = &a.grid;
+                rc.areaMarginVoxels = kVoxelsPerM;
                 ++rb.chunks;
                 each(rc, rb.palette);
             }

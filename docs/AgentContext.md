@@ -426,8 +426,16 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       whole 128 m region from inside it, so ground poses still cast all 480k faces into both maps (volume, not culling).
       TRAP: today's s_shadowFrustumCull (off) tests ABSOLUTE chunk boxes against the camera-relative light matrix.
       PIXEL RIG: diff the VIEWPORT box (y 45-670, x 242-1196); the full frame differs in the status-bar counters.
-      NEXT: the depth prepass for the preview (F2.8's lever list; today has one, the preview not), then §4.6 item 7
-      (distance tiers / LOD). Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
+      F2.13 (2026-11-13): §4.6 item 7 first part -- the block LOD pyramid (Mesher.h LodGrid/lodBase/lodDown/
+      lodScaleFace), levels 1/8..1 m from each chunk's 1 m margin area (RegionChunk::area). Half-solid rule (no
+      fattening); material = own exposed voxels, else the AIR neighbours' surface (thin grass lies in the cell above),
+      else volume (a volume vote showed dirt on 39 % of the floor at 1 m vs 6 %). {"lod_levels":3} builds,
+      {"lod_draw":k} swaps without rebuild. Whole region: 1/4 m -3.2..-5.2 ms, 1/2 m -4.4..-6.8, 1 m -4.3..-6.5 (mostly
+      shadow casters). Up close coarse levels are blocky; 1 m loses thin trunks -> F2.14 gates.
+      NEXT (the plan's F2 list, §4.6 item 7 continued): F2.14 = level per block region by size on screen (pixels per
+      voxel, tier knob), dithered cross-fade, "no holes where levels meet" gate, coarse shadow casters. Then item 8
+      (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
+      Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

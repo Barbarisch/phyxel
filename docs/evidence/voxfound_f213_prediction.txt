@@ -1,0 +1,16 @@
+F2.13 predictions, written 2026-11-13 BEFORE any pyramid code ran (gate region, Perlin s7 + flora, 480,349 faces at L0).
+
+Rule: a level-k voxel is solid when >= half of the 8^k level-0 voxels it covers are solid (counts nest exactly:
+count_k = sum of its 8 children); material = the largest summed count among its solid children (ties: lowest index).
+
+1. Faces per level (whole region, solid faces, leaves stay cards):
+   L1 (1/4 m): 0.25-0.45 x L0;  L2 (1/2 m): 0.08-0.20 x;  L3 (1 m): 0.02-0.08 x.
+   (§9a: smooth relief scaled ~8^2 over 8x resolution, i.e. ~1/4 per level; trunks/rock scale less well.)
+2. Solid volume (no fattening): every coarse solid voxel is >= 50 % solid at L0 by construction; total solid volume
+   within +-3 % of L0 at L1-L3 on this terrain (surface error is symmetric at a ~flat surface; slight loss on thin
+   trunks/branches).
+3. Chunk independence: building a level per chunk (from the chunk's 1 m margin area) equals the level built over a
+   larger area, cut to the chunk: 0 voxels differ.
+4. Whole frame, whole region forced to one level (5 poses, today's world hidden): the main-view face scope falls
+   roughly with the face count; the shadow scopes (~2.5 mid + ~1.9 near at the ground poses) fall the most at L2-L3.
+   The leaf sprigs (unchanged, L0) still dominate the ground poses, so whole frame drops less than the face scopes.

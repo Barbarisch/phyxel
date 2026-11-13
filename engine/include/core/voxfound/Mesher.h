@@ -195,4 +195,33 @@ void clipPlanesZeroToOne(const glm::mat4& clip, glm::vec3 frameOrigin, glm::vec4
 /// frame as the box) the box inside `lightPlanes`.
 bool casterBoxKept(glm::vec3 lo, glm::vec3 hi, glm::vec3 cullCenter, float reach, const glm::vec4 lightPlanes[6]);
 
+// ---- F2.13 (§3.5a point 3, §4.6 item 7): the block LOD pyramid -------------------------------------------------
+/// One level of the pyramid. Level k voxels are 2^k level-0 voxels a side. `count` = how many LEVEL-0 solid voxels
+/// each covers; counts nest exactly (a level-k+1 count is the sum of its 8 children). A voxel is solid when its count
+/// is at least half of the 8^k level-0 voxels it covers (no fattening: never drawn solid while mostly air). Its
+/// material is the one SEEN FROM OUTSIDE: the most common among the level-0 voxels it covers that touch air (a voxel
+/// on the grid's border counts as touching only what is inside the grid). When it covers none, the surface usually
+/// lies in an AIR neighbour at the same level (a thin grass layer above a solid cell, too thin to make its own cell
+/// solid): then the surface vote of its air face neighbours decides. Only a cell with neither (buried) takes its
+/// volume vote. Ties: lowest material index. Measured on the forest floor seen from above: by volume alone the 1 m
+/// level showed dirt on 39 % (1/8 m: 6 %); with the cell's own surface vote, still 39 %; with the neighbours' too,
+/// see VoxelFoundationPlan F2.13. The neighbour step reads only the carried surface data and the volume vote reads
+/// its own channel (`volMat`), so a level's materials depend on at most one cell around each cell (the 1 m margin
+/// of a region chunk covers it up to the 1 m level).
+/// Card (leaf) materials stay cards: the level is meshed with the same CardSet.
+struct LodGrid {
+    VoxelGrid grid;
+    std::vector<uint32_t> count;
+    std::vector<uint32_t> surf;     // level-0 voxels covered that touch air
+    std::vector<uint8_t> surfMat;   // the material most of them have (0 when surf == 0)
+    std::vector<uint8_t> volMat;    // the volume vote (what the next level's volume vote reads)
+    int level = 0;
+};
+LodGrid lodBase(const VoxelGrid& g);
+/// The next coarser level. Every side of `fine` must be even.
+LodGrid lodDown(const LodGrid& fine);
+/// A face meshed at level k, in the level-0 units of the record (position and extents x 2^k). The scaled extents
+/// must fit the record (du, dv <= 256).
+PackedFace lodScaleFace(PackedFace f, int level);
+
 }  // namespace Phyxel::Core::VoxFound

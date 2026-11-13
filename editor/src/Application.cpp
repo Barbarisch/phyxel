@@ -13377,6 +13377,15 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             renderCoordinator->setVoxFoundShadowCull(cmd.params.value("shadow_cull", true));
         if (cmd.params.contains("shadow_mdi"))
             renderCoordinator->setVoxFoundShadowMdi(cmd.params.value("shadow_mdi", true));
+        // {"lod_draw":k}: F2.13 draw pyramid level k (built with {"lod_levels":n}) for the whole region, no rebuild.
+        if (cmd.params.contains("lod_draw") && !cmd.params.contains("type") && !cmd.params.contains("region")) {
+            const int k = cmd.params.value("lod_draw", 0);
+            const bool ok = voxFoundPreview.selectLevel(k);
+            response = {{"lod_draw", voxFoundPreview.drawLevel}, {"ok", ok},
+                        {"levels_built", voxFoundPreview.levels.size()}, {"faces", voxFoundPreview.faces.size()}};
+            if (!ok) response["error"] = "level " + std::to_string(k) + " not built (lod_levels)";
+            return;
+        }
         if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview") || cmd.params.contains("chunk_cull") ||
             cmd.params.contains("occlusion") || cmd.params.contains("mdi") || cmd.params.contains("shadow_cull") ||
             cmd.params.contains("shadow_mdi")) {
@@ -13640,12 +13649,19 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     const bool leafCards = cmd.params.value("leaves", std::string("cards")) != "voxels";
     const double sprigsPerM2 = cmd.params.value("sprigs_per_m2", kSprigsPerM2);
 
-    std::vector<PackedFace> faces, sprigRecs;
+    std::vector<PackedFace> sprigRecs;
     std::vector<PreviewChunk> chunks;
-    std::vector<PreviewCluster> clusters;   // F2.11
     // F2.11 measured (VoxelFoundationPlan.md): 1-block clusters (26k indirect commands) cost +0.2-1.0 ms whole frame,
     // 2 blocks +0.0-0.26, 4 blocks neutral -> 4 is the default; 1 stays available to measure.
     const int clusterBlocks = std::clamp(cmd.params.value("cluster_blocks", 4), 1, 32);
+    // F2.13 (§3.5a point 3, §4.6 item 7): {"lod_levels":n} also builds pyramid levels 1..n of every chunk (1 = 1/4 m,
+    // 2 = 1/2, 3 = 1 m; the 1 m margin of each chunk's area gives a coarse level its real neighbours, so 3 is the
+    // deepest here) and keeps them all; {"lod_draw":k} (handleVoxFoundPreview) swaps level k in for the whole region
+    // without a rebuild. A debug view to see and measure each level; per-region selection is F2.14. Leaf sprigs and
+    // occlusion connectivity stay at level 0.
+    const int lodLevels = std::clamp(cmd.params.value("lod_levels", 0), 0, 3);
+    std::vector<Preview::Level> levels(size_t(lodLevels) + 1);
+    std::vector<size_t> levelSolid(levels.size(), 0);
     std::vector<std::string> palette;
     double gpuMs = 0.0, genMs = 0.0, buildMs = 0.0;
     size_t solid = 0;
@@ -13671,23 +13687,48 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         solid += rc.grid.solidCount();
         PreviewChunk pc;
         pc.originMetres = glm::dvec3(rc.originVoxel) / double(kVoxelsPerM);
-        pc.firstFace = uint32_t(faces.size());
         pc.firstSprig = uint32_t(sprigRecs.size());
-        std::vector<PackedFace> solidFaces;
-        for (const PackedFace& f : out) (isSprig(f) ? sprigRecs : solidFaces).push_back(f);
-        // F2.11: group the chunk's faces into clusters of clusterBlocks^3 blocks, one indirect command each
-        for (const FaceCluster& c : clusterFaces(solidFaces, clusterBlocks)) {
-            PreviewCluster pcl;
-            const glm::vec3 base = glm::vec3((rc.chunk - lo) * kChunkM);
-            pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
-            pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
-            pcl.firstFace = pc.firstFace + c.first;
-            pcl.count = c.count;
-            pcl.chunk = uint32_t(chunks.size());
-            clusters.push_back(pcl);
+        LodGrid lod;
+        if (lodLevels > 0 && rc.area) lod = lodBase(*rc.area);
+        for (int k = 0; k <= lodLevels; ++k) {
+            std::vector<PackedFace> solidFaces;
+            if (k == 0) {
+                for (const PackedFace& f : out) (isSprig(f) ? sprigRecs : solidFaces).push_back(f);
+                levelSolid[0] += rc.grid.solidCount();
+            } else if (rc.area) {
+                lod = lodDown(lod);
+                const int sc = 1 << k;
+                const glm::ivec3 off(rc.areaMarginVoxels / sc), inner(kChunkM * kVoxelsPerM / sc);
+                const VoxelGrid cg = subGrid(lod.grid, off, inner);
+                const Neighbours cb = neighboursOf(lod.grid, off, inner, Outside::Air);
+                SprigParams noSprigs = sp;
+                noSprigs.threshold24 = 0;   // leaves stay cards (no faces); their sprigs come from level 0
+                std::vector<PackedFace> coarse;
+                if (!voxFoundBuilder->build(cg, Edges(cb), coarse, &err, leafCards ? &noSprigs : nullptr)) return;
+                gpuMs += voxFoundBuilder->lastGpuMs();
+                levelSolid[size_t(k)] += cg.solidCount();
+                for (const PackedFace& f : coarse)
+                    if (!isSprig(f)) solidFaces.push_back(lodScaleFace(f, k));
+            }
+            Preview::Level& L = levels[size_t(k)];
+            const uint32_t first = uint32_t(L.faces.size());
+            // F2.11: group the chunk's faces into clusters of clusterBlocks^3 blocks, one indirect command each
+            for (const FaceCluster& c : clusterFaces(solidFaces, clusterBlocks)) {
+                PreviewCluster pcl;
+                const glm::vec3 base = glm::vec3((rc.chunk - lo) * kChunkM);
+                pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
+                pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
+                pcl.firstFace = first + c.first;
+                pcl.count = c.count;
+                pcl.chunk = uint32_t(chunks.size());
+                L.clusters.push_back(pcl);
+            }
+            L.faces.insert(L.faces.end(), solidFaces.begin(), solidFaces.end());
+            L.firstFace.push_back(first);
+            L.faceCount.push_back(uint32_t(L.faces.size()) - first);
         }
-        faces.insert(faces.end(), solidFaces.begin(), solidFaces.end());
-        pc.faceCount = uint32_t(faces.size()) - pc.firstFace;
+        pc.firstFace = levels[0].firstFace.back();
+        pc.faceCount = levels[0].faceCount.back();
         pc.sprigCount = uint32_t(sprigRecs.size()) - pc.firstSprig;
         pc.chunk = rc.chunk;
         pc.connect = blockFaceConnectivity(rc.grid, seeThrough);
@@ -13709,20 +13750,26 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
             voxFoundPreview.faceTex[m * 6 + f] = t;
             if (f == 0) leafTex[m] = t;
         }
-    voxFoundPreview.faces = std::move(faces);
     voxFoundPreview.sprigs.resize(sprigRecs.size());
     for (size_t i = 0; i < sprigRecs.size(); ++i) {   // as the single-area preview: leaf texture face 0, full sky
         const uint32_t m = (sprigRecs[i].b >> 16) & 0xFFu;
         voxFoundPreview.sprigs[i] = {(sprigRecs[i].a & 0xFFFFFFu) | (15u << 24), m < leafTex.size() ? leafTex[m] : 0u};
     }
     voxFoundPreview.chunks = std::move(chunks);
-    voxFoundPreview.clusters = std::move(clusters);
+    voxFoundPreview.levels = std::move(levels);
+    voxFoundPreview.selectLevel(0);
     voxFoundPreview.anchorMetres = glm::dvec3(lo * kChunkM);
     voxFoundPreview.clusterBlocks = clusterBlocks;
     voxFoundPreview.shown = true;
     voxFoundPreview.originMetres = glm::dvec3(lo * kChunkM);
     ++voxFoundPreview.revision;
     renderCoordinator->setVoxFoundPreview(&voxFoundPreview);
+    nlohmann::json lodFaces = nlohmann::json::array(), lodVolume = nlohmann::json::array();
+    for (size_t k = 0; k < voxFoundPreview.levels.size(); ++k) {
+        lodFaces.push_back(voxFoundPreview.levels[k].faces.size());
+        lodVolume.push_back(levelSolid[0] ? double(levelSolid[k]) * double(uint64_t(1) << (3 * k)) / double(levelSolid[0])
+                                          : 0.0);
+    }
     response = {{"provenance", "engine WorldGenerator (" + typeName + " seed " + std::to_string(seed) +
                                    ") at 1/8 m, generated chunk by chunk by VoxFound::forEachRegionChunk" +
                                    (flora ? " + engine flora plan stamped from " + floraDir : "") +
@@ -13730,6 +13777,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 {"chunks_from", {lo.x, lo.y, lo.z}}, {"chunks_to", {hi.x, hi.y, hi.z}},
                 {"chunks", rb.chunks},
                 {"clusters", voxFoundPreview.clusters.size()}, {"cluster_blocks", clusterBlocks},
+                {"lod_levels", lodLevels}, {"lod_faces", lodFaces}, {"lod_solid_volume_vs_l0", lodVolume},
                 {"chunks_with_geometry", std::count_if(voxFoundPreview.chunks.begin(), voxFoundPreview.chunks.end(),
                                                        [](const PreviewChunk& c) { return c.faceCount || c.sprigCount; })},
                 {"chunks_fully_blocking", std::count_if(voxFoundPreview.chunks.begin(), voxFoundPreview.chunks.end(),

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace Phyxel::Core::VoxFound {
@@ -454,6 +455,115 @@ void clipPlanesZeroToOne(const glm::mat4& clip, glm::vec3 frameOrigin, glm::vec4
         const double len = glm::length(glm::dvec3(p[i]));
         planes[i] = len > 0.0 ? glm::vec4(p[i] / len) : glm::vec4(0, 0, 0, 1);
     }
+}
+
+LodGrid lodBase(const VoxelGrid& g) {
+    LodGrid l;
+    l.grid = g;
+    l.count.resize(g.size());
+    l.surf.assign(g.size(), 0u);
+    l.surfMat.assign(g.size(), 0);
+    l.volMat = g.mat;
+    static const glm::ivec3 kDirs[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    for (size_t i = 0; i < g.size(); ++i) {
+        l.count[i] = g.mat[i] != 0 ? 1u : 0u;
+        if (!g.mat[i]) continue;
+        const glm::ivec3 p = g.pos(i);
+        for (const glm::ivec3& d : kDirs) {
+            const glm::ivec3 q = p + d;
+            if (g.in(q) && g.mat[g.idx(q)] == 0) {   // outside the grid is not air (unknown)
+                l.surf[i] = 1u;
+                l.surfMat[i] = g.mat[i];
+                break;
+            }
+        }
+    }
+    return l;
+}
+
+LodGrid lodDown(const LodGrid& fine) {
+    const glm::ivec3 d = fine.grid.dim;
+    if (d.x % 2 || d.y % 2 || d.z % 2) throw std::invalid_argument("lodDown: every side must be even");
+    LodGrid l;
+    l.level = fine.level + 1;
+    l.grid.resize(d / 2);
+    l.count.assign(l.grid.size(), 0u);
+    l.surf.assign(l.grid.size(), 0u);
+    l.surfMat.assign(l.grid.size(), 0);
+    l.volMat.assign(l.grid.size(), 0);
+    const uint64_t half = (uint64_t(1) << (3 * l.level)) / 2;   // half of the 8^k level-0 voxels covered
+    // a small vote: (material, weight) pairs, winner = largest weight, ties to the lowest material index
+    struct Vote {
+        uint8_t mats[8];
+        uint32_t w[8];
+        int n = 0;
+        void add(uint8_t m, uint32_t weight) {
+            int j = 0;
+            while (j < n && mats[j] != m) ++j;
+            if (j == n) {
+                mats[n] = m;
+                w[n++] = 0;
+            }
+            w[j] += weight;
+        }
+        uint8_t winner() const {
+            int best = 0;
+            for (int j = 1; j < n; ++j)
+                if (w[j] > w[best] || (w[j] == w[best] && mats[j] < mats[best])) best = j;
+            return n ? mats[best] : uint8_t(0);
+        }
+    };
+    for (int x = 0; x < l.grid.dim.x; ++x)
+        for (int y = 0; y < l.grid.dim.y; ++y)
+            for (int z = 0; z < l.grid.dim.z; ++z) {
+                uint32_t total = 0, surfTotal = 0;
+                Vote vol, surf;
+                for (int c = 0; c < 8; ++c) {
+                    const glm::ivec3 p(2 * x + (c & 1), 2 * y + ((c >> 1) & 1), 2 * z + ((c >> 2) & 1));
+                    const size_t i = fine.grid.idx(p);
+                    total += fine.count[i];
+                    // every child votes its surface (air children too: the surface of the coarse cell runs through
+                    // them); only solid children vote by volume (one always exists when the cell is solid)
+                    if (fine.surf[i]) {
+                        surf.add(fine.surfMat[i], fine.surf[i]);
+                        surfTotal += fine.surf[i];
+                    }
+                    if (fine.grid.mat[i]) vol.add(fine.volMat[i], fine.count[i]);
+                }
+                const size_t o = l.grid.idx({x, y, z});
+                l.count[o] = total;
+                l.surf[o] = surfTotal;
+                l.surfMat[o] = surf.winner();
+                if (uint64_t(total) < half || vol.n == 0) continue;
+                l.volMat[o] = vol.winner();
+                l.grid.mat[o] = surfTotal ? surf.winner() : l.volMat[o];
+            }
+    // a solid cell that covers no surface voxel: the surface lies in its air face neighbours (same level)
+    static const glm::ivec3 kDirs[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    for (size_t o = 0; o < l.grid.size(); ++o) {
+        if (!l.grid.mat[o] || l.surf[o]) continue;
+        const glm::ivec3 p = l.grid.pos(o);
+        Vote nb;
+        for (const glm::ivec3& d : kDirs) {
+            const glm::ivec3 q = p + d;
+            if (!l.grid.in(q)) continue;
+            const size_t j = l.grid.idx(q);
+            if (l.count[j] * 2 >= (uint32_t(1) << (3 * l.level))) continue;   // a solid neighbour (by count)
+            if (l.surf[j]) nb.add(l.surfMat[j], l.surf[j]);
+        }
+        if (nb.n) l.grid.mat[o] = nb.winner();
+    }
+    return l;
+}
+
+PackedFace lodScaleFace(PackedFace f, int level) {
+    Quad q = unpackFace(f);
+    const int s = 1 << level;
+    q.o *= s;
+    if (q.dir > 0) q.o[q.axis] += s - 1;   // a +side face lies past its voxel: the last level-0 voxel of the cell
+    q.du = uint16_t(q.du * s);
+    q.dv = uint16_t(q.dv * s);
+    return packFace(q);
 }
 
 bool casterBoxKept(glm::vec3 lo, glm::vec3 hi, glm::vec3 cullCenter, float reach, const glm::vec4 lightPlanes[6]) {

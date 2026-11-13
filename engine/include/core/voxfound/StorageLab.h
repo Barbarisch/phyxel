@@ -84,6 +84,10 @@ struct RegionChunk {
     glm::ivec3 originVoxel{0};    // world 1/8 m position of grid voxel (0,0,0)
     VoxelGrid grid;               // 256^3, materials index Region::palette
     Neighbours border;            // solidity of the voxel layer outside each face
+    /// F2.13: the area the chunk was cut from (the chunk + a 1 m margin on every side, flora stamped, palette remapped);
+    /// valid only during the callback. The margin lets coarse LOD levels (up to 1 m) see their real neighbours.
+    const VoxelGrid* area = nullptr;
+    int areaMarginVoxels = 0;
 };
 struct RegionBuild {
     std::vector<std::string> palette{"air"};

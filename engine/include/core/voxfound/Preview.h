@@ -63,6 +63,31 @@ struct Preview {
     bool castFaces = true;           // F2.4 diagnosis switches: which parts write the shadow maps
     bool castSprigs = true;
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves
+
+    /// F2.13 (§4.6 item 7): the pyramid levels built with a region (index = level; level k voxels are 2^k / 8 m,
+    /// faces in level-0 units). Per chunk (same order as `chunks`): its face range in that level's `faces`.
+    struct Level {
+        std::vector<PackedFace> faces;
+        std::vector<uint32_t> firstFace, faceCount;
+        std::vector<PreviewCluster> clusters;
+    };
+    std::vector<Level> levels;
+    int drawLevel = 0;
+    /// Draws level k for the whole region: copies its faces, ranges and clusters into the drawn fields and bumps
+    /// the revision (the renderer re-uploads). Returns false if level k was not built.
+    bool selectLevel(int k) {
+        if (k < 0 || size_t(k) >= levels.size() || levels[size_t(k)].firstFace.size() != chunks.size()) return false;
+        const Level& L = levels[size_t(k)];
+        faces = L.faces;
+        clusters = L.clusters;
+        for (size_t i = 0; i < chunks.size(); ++i) {
+            chunks[i].firstFace = L.firstFace[i];
+            chunks[i].faceCount = L.faceCount[i];
+        }
+        drawLevel = k;
+        ++revision;
+        return true;
+    }
 };
 
 }  // namespace Phyxel::Core::VoxFound

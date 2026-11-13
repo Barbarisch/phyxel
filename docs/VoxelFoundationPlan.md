@@ -372,7 +372,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
-| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | owed |
+| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + cross-fade owed (F2.14) |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
@@ -747,6 +747,69 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
 - What this does not fix: the preview still casts ~480k faces into BOTH maps at the ground poses (~1.9 ms near +
   ~2.5 ms mid). That is caster VOLUME inside the light box, which only a coarser caster (LOD, item 7) or a tighter
   near fit removes, not culling.
+
+**F2.13 2026-11-13 — §4.6 item 7, first part: the block LOD pyramid (§3.5a point 3), levels 1/8 → 1 m.**
+- Built (Mesher.h `LodGrid`, `lodBase`, `lodDown`, `lodScaleFace`):
+  - Levels nest exactly: a level-k voxel covers 2^k level-0 voxels a side, and its `count` of level-0 solid voxels is
+    the sum of its 8 children. Solid when the count is at least HALF of the 8^k level-0 voxels covered, so a coarse
+    voxel is never drawn solid while mostly air (no fattening by construction; a majority of majorities would allow
+    down to (1/2)^k — pinned by `LodLevelIsHalfSolidAtLevelZero`).
+  - Material = the one seen from outside (below). Card (leaf) materials stay cards.
+  - Faces of level k go into the same 8 B record in level-0 units (`lodScaleFace`: position × 2^k, a +side face on the
+    cell's last level-0 voxel, extents × 2^k ≤ 256). No shader change.
+  - Engine: `RegionChunk::area` exposes the chunk's 1 m margin area, so a level's border voxels are its real
+    neighbours up to the 1 m level. `voxfound_preview {"lod_levels":n}` builds levels 1..n of every chunk and keeps
+    them all (`Preview::levels`); `{"lod_draw":k}` draws level k for the whole region without a rebuild (a debug view
+    to see and measure each level; selection per block region by size on screen, the cross-fade and the 2 m+ levels
+    are F2.14+). Leaf sprigs and occlusion connectivity stay at level 0.
+- Material rule, found by eye then measured (forest spot, area of up-facing faces per material):
+  - By volume (first version): the 1 m level showed DIRT on 39 % of the ground seen from above (1/8 m: 6 %): the
+    dirt under a 1/8 m grass layer outvotes it.
+  - By the cell's own exposed level-0 voxels (second): still 39 %. Cause: the grass layer usually lies in the cell
+    ABOVE, which is mostly air; the solid cell below covers only buried dirt.
+  - Final: own exposed voxels; if none, the exposed voxels of its AIR face neighbours at the same level; if none
+    (buried), the volume vote. 1 m: dirt 100 m² / grass 712 m² vs 1/8 m 72 / 749. The volume vote reads its own
+    channel and the neighbour step reads only carried surface data, so a level's materials depend on one cell around
+    each cell (inside the 1 m margin). Gate: every material with ≥ 5 % of level 0's up-facing area keeps its share
+    within 10 points at every level (red on both earlier rules).
+- Red first: `LodLevelIsHalfSolidAtLevelZero`, `LodLevelsAreChunkIndependentAndScaleExactly` (a part built with the
+  engine's 1 m margin equals the whole cut, every level; coarse meshes cover exactly; scaled boxes = boxes × 2^k),
+  `LodLevelKeepsTheMaterialSeenFromOutside`, the share gate in `MeasuredLodLevelsOnAGeneratedForest`; all red on
+  stubs or the earlier rule; CPU 40/40, GPU 12/12.
+- Prediction (scratch `f213_prediction.txt`, before any code ran) vs measured, whole gate region:
+
+  | Level | faces | × L0 (predicted) | solid volume vs L0 (predicted ±3 %) |
+  |---|---|---|---|
+  | 1/8 m | 480,349 | 1 | 1 |
+  | 1/4 m | 127,280 | 0.265 (0.25-0.45, held) | +0.7 % |
+  | 1/2 m | 32,796 | 0.068 (0.08-0.20: fewer) | +0.3 % |
+  | 1 m | 9,325 | 0.019 (0.02-0.08: at the edge) | −0.2 % |
+
+  Building levels 1-3 adds 15 s to the 32-chunk region build (CPU reference; the GPU port is owed).
+- Looks (same pose, wind 0, GI off, `docs/evidence/voxfound_f213_*.png`): the ground keeps its materials at every
+  level. At 1 m, trunks thinner than half a metre thin out or vanish (they fill less than half a cell) and trunk
+  bases read as pale blocks. Up close every coarse level is visibly blocky, as expected: that is what the selection
+  by size on screen (F2.14) is for; these are its gates.
+- Whole frame, the WHOLE region drawn at level k vs level 0 (Release, perf_harness 8 pairs × 5 poses,
+  `docs/evidence/voxfound_f213_ab_L*.jsonl`; every CI excludes 0):
+
+  | Pose | 1/4 m − 1/8 m | 1/2 m − 1/8 m | 1 m − 1/8 m |
+  |---|---|---|---|
+  | overview_south | −3.19 | −4.38 | −4.29 |
+  | top_down | −3.19 | −4.71 | −4.55 |
+  | forest_floor_open | −5.20 | −6.77 | −5.91 |
+  | east_low | −5.04 | −6.37 | −6.55 |
+  | canopy_close | −4.27 | −5.63 | −6.54 |
+
+  Most of it is the shadow passes: the preview's face casters cost ~4.5 ms at 1/8 m (mid ~2.5 + near ~1.9) and
+  ~0.8 ms at 1/4 m, ~0.3 ms at 1/2 m, ~0.08 ms at 1 m — caster VOLUME, as F2.12 found. Past 1/2 m the gain
+  flattens (1 m saves about what 1/2 m saves): what is left is the sprigs, the sky and the rest of the frame. The main-view face scope falls 1.2-2.2 ms at
+  the ground poses. Prediction 4 held in direction (shadows fall most; the sprigs, unchanged, still dominate the
+  ground poses).
+- Not done here, owed to F2.14: choosing the level per block region by size on screen (pixels per voxel, the tier
+  knob), the dithered cross-fade between levels with the "no holes where levels meet" gate, coarse shadow casters
+  chosen from the light's view, the leaf sprigs and grass at distance (tier 8 handoff), levels above 1 m (need a
+  wider margin or the region pyramid), and the GPU port of the level build.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

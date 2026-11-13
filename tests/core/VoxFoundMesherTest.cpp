@@ -798,3 +798,157 @@ TEST(VoxFoundMesher, CasterBoxFollowsTodaysRuleAndTheLightBox) {
     EXPECT_FALSE(kept(c + side * 150.0f)) << "inside the reach but beside the light box: the light frustum drops it";
     EXPECT_TRUE(kept(c + side * 70.0f)) << "straddling the light box's side: kept";
 }
+
+// ---- F2.13 (§3.5a point 3, §4.6 item 7): the block LOD pyramid ------------------------------------------------------
+TEST(VoxFoundMesher, LodLevelIsHalfSolidAtLevelZero) {
+    // one 2x2x2 cell: 4 solid (materials 5, 5, 3, 3) -> solid, tie broken to the lower index 3; 3 solid -> air
+    VoxelGrid g = box({4, 2, 2});
+    g.set({0, 0, 0}, 5);
+    g.set({1, 0, 0}, 5);
+    g.set({0, 1, 0}, 3);
+    g.set({1, 1, 0}, 3);
+    g.set({2, 0, 0}, 7);
+    g.set({3, 0, 0}, 7);
+    g.set({2, 1, 1}, 7);
+    const LodGrid l1 = lodDown(lodBase(g));
+    ASSERT_EQ(l1.grid.dim, glm::ivec3(2, 1, 1));
+    EXPECT_EQ(l1.level, 1);
+    EXPECT_EQ(l1.grid.at({0, 0, 0}), 3) << "4 of 8 solid: solid; tie 5 vs 3 -> lowest index";
+    EXPECT_EQ(l1.count[l1.grid.idx({0, 0, 0})], 4u);
+    EXPECT_EQ(l1.grid.at({1, 0, 0}), 0) << "3 of 8 solid: air";
+    EXPECT_EQ(l1.count[l1.grid.idx({1, 0, 0})], 3u);
+
+    // two levels: 5 of the 8 level-1 cells are exactly half solid (solid at level 1), 3 are empty. Level 2 holds
+    // 20 of 64 level-0 voxels: AIR, although a majority of majorities would call it solid (that would fatten).
+    VoxelGrid h = box({4, 4, 4});
+    int filled = 0;
+    for (int cx = 0; cx < 2; ++cx)
+        for (int cy = 0; cy < 2; ++cy)
+            for (int cz = 0; cz < 2; ++cz) {
+                if (filled++ >= 5) continue;
+                for (int x = 0; x < 2; ++x)
+                    for (int z = 0; z < 2; ++z) h.set({cx * 2 + x, cy * 2, cz * 2 + z}, 9);   // bottom half
+            }
+    const LodGrid h1 = lodDown(lodBase(h));
+    size_t solid1 = 0, count1 = 0;
+    for (size_t i = 0; i < h1.grid.size(); ++i) {
+        solid1 += h1.grid.mat[i] != 0;
+        count1 += h1.count[i];
+    }
+    EXPECT_EQ(solid1, 5u);
+    EXPECT_EQ(count1, h.solidCount()) << "counts nest exactly";
+    const LodGrid h2 = lodDown(h1);
+    ASSERT_EQ(h2.grid.dim, glm::ivec3(1));
+    EXPECT_EQ(h2.count[0], 20u);
+    EXPECT_EQ(h2.grid.mat[0], 0) << "20 of 64 level-0 voxels: air (no fattening)";
+}
+
+TEST(VoxFoundMesher, LodLevelKeepsTheMaterialSeenFromOutside) {
+    // a 1 m cell (8^3): one 1/8 m layer of grass (2) on 7 layers of dirt (1), air above. By volume dirt wins 448 to
+    // 64, but what the eye sees is the grass: the level-3 voxel must be grass. Measured first on the forest: by volume
+    // the 1 m level showed dirt on 39 % of the ground seen from above, 1/8 m on 6 %.
+    VoxelGrid g = box({8, 16, 8});
+    for (int x = 0; x < 8; ++x)
+        for (int z = 0; z < 8; ++z)
+            for (int y = 0; y < 8; ++y) g.set({x, y, z}, y == 7 ? 2 : 1);
+    LodGrid l = lodBase(g);
+    for (int k = 0; k < 3; ++k) l = lodDown(l);
+    ASSERT_EQ(l.grid.dim, glm::ivec3(1, 2, 1));
+    EXPECT_EQ(l.grid.at({0, 0, 0}), 2) << "the surface material, not the volume majority";
+    EXPECT_EQ(l.grid.at({0, 1, 0}), 0) << "the air above stays air";
+    // a cell with no exposed voxel (buried) keeps the volume vote
+    VoxelGrid b = box({8, 8, 8});
+    for (int x = 0; x < 8; ++x)
+        for (int y = 0; y < 8; ++y)
+            for (int z = 0; z < 8; ++z) b.set({x, y, z}, y == 7 ? 2 : 1);
+    LodGrid lb = lodBase(b);
+    for (int k = 0; k < 3; ++k) lb = lodDown(lb);
+    EXPECT_EQ(lb.grid.at({0, 0, 0}), 1) << "nothing exposed inside the grid (its border is not air): volume vote";
+}
+
+TEST(VoxFoundMesher, LodLevelsAreChunkIndependentAndScaleExactly) {
+    const std::string root = repoRoot();
+    ASSERT_FALSE(root.empty());
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    ASSERT_TRUE(gen.loadBiomes(root + "/resources/biomes.json"));
+    VoxelArea a = surfaceArea(gen, 8160, 96, 40);
+    stampFlora(a, gen, root + "/resources/templates_g8/nature");
+    // the whole area vs a sub-box aligned to 1 m, built as the engine builds a chunk (with a 1 m margin in x and z,
+    // RegionChunk::area): the interior of every level of the sub-box equals the cut of the whole
+    const glm::ivec3 lo(64, 0, 96), size(128, a.grid.dim.y, 128), margin(8, 0, 8);
+    LodGrid whole = lodBase(a.grid), part = lodBase(subGrid(a.grid, lo - margin, size + 2 * margin));
+    for (int k = 1; k <= 3; ++k) {
+        whole = lodDown(whole);
+        part = lodDown(part);
+        const int s = 1 << k;
+        const VoxelGrid cut = subGrid(whole.grid, lo / s, size / s);
+        const VoxelGrid mine = subGrid(part.grid, margin / s, size / s);
+        ASSERT_EQ(cut.dim, mine.dim) << "level " << k;
+        size_t diff = 0;
+        for (size_t i = 0; i < cut.size(); ++i) diff += cut.mat[i] != mine.mat[i];
+        EXPECT_EQ(diff, 0u) << "level " << k << ": the level depends on where the area was cut";
+        // faces meshed at level k, scaled to level-0 units: the same boxes x 2^k, on the 2^k grid
+        const std::vector<Quad> q = meshRuns(mine, Outside::Skip);
+        EXPECT_GT(mine.solidCount(), 0u) << "level " << k << " is empty: nothing compared";
+        EXPECT_GT(q.size(), 0u) << "level " << k << " has no faces: nothing compared";
+        std::string why;
+        EXPECT_EQ(coverageErrors(mine, Outside::Skip, q, &why), 0u) << why;
+        size_t bad = 0;
+        for (const Quad& c : q) {
+            const PackedFace f = lodScaleFace(packFace(c), k);
+            glm::ivec3 l0, h0, l1, h1;
+            faceBox(packFace(c), l0, h0);
+            faceBox(f, l1, h1);
+            if (l1 != l0 * s || h1 != h0 * s) ++bad;
+        }
+        EXPECT_EQ(bad, 0u) << "level " << k << ": scaled faces";
+    }
+}
+
+TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {
+    // cost inputs for item 7 (not a gate): the §9a forest spot, faces and solid volume per level
+    const std::string root = repoRoot();
+    ASSERT_FALSE(root.empty());
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    ASSERT_TRUE(gen.loadBiomes(root + "/resources/biomes.json"));
+    VoxelArea a = surfaceArea(gen, 8160, 96, 40);
+    stampFlora(a, gen, root + "/resources/templates_g8/nature");
+    CardSet cards;
+    for (size_t m = 1; m < a.palette.size(); ++m)
+        if (a.palette[m].rfind("Leaf", 0) == 0) cards.set(uint8_t(m));
+    LodGrid l = lodBase(a.grid);
+    const double vol0 = double(a.grid.solidCount());
+    size_t faces0 = 0, prev = 0;
+    std::map<std::string, double> share0;   // level 0's share of the up-facing area per material
+    for (int k = 0; k <= 3; ++k) {
+        if (k) l = lodDown(l);
+        const size_t faces = meshRuns(l.grid, Outside::Skip, &cards).size();
+        const double vol = double(l.grid.solidCount()) * double(1 << (3 * k));
+        if (!k) faces0 = faces;
+        std::printf("[lod] forest (8160,96) level %d (%.3f m): %zu faces (%.3fx L0), solid volume %.4fx L0\n", k,
+                    0.125 * (1 << k), faces, double(faces) / double(faces0), vol / vol0);
+        // what the eye sees from above: area (m^2) of up-facing (+y) solid faces per material
+        std::map<std::string, double> up;
+        const double cellM2 = std::pow(0.125 * double(1 << k), 2.0);
+        for (const Quad& q : meshRuns(l.grid, Outside::Skip, &cards))
+            if (q.axis == 1 && q.dir > 0) up[a.palette[q.material]] += double(q.du) * double(q.dv) * cellM2;
+        std::string line;
+        for (const auto& [name, m2] : up)
+            if (m2 >= 1.0) line += " " + name + " " + std::to_string(int(m2 + 0.5));
+        std::printf("[lod]   up-facing m^2:%s\n", line.c_str());
+        // gate (the look from above): every material holding >= 5 % of level 0's up-facing area keeps its share
+        // within 10 percentage points at every level
+        double total = 0.0;
+        for (const auto& [name, m2] : up) total += m2;
+        for (const auto& [name, m2] : up) {
+            if (!k) share0[name] = m2 / total;
+        }
+        for (const auto& [name, s0] : share0) {
+            if (s0 < 0.05) continue;
+            const double sk = up.count(name) ? up[name] / total : 0.0;
+            EXPECT_NEAR(sk, s0, 0.10) << "level " << k << ": " << name << " share of the ground seen from above";
+        }
+        if (k) EXPECT_LT(faces, prev) << "level " << k;
+        prev = faces;
+    }
+}

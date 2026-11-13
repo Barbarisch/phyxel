@@ -32,6 +32,12 @@ non-render distance systems (streaming residency, sim LOD) listed below the line
 | 8c | Characters | `LodService::characterLodLevel` | 3 (full / lod1 35 u / lod2 80 u) + cull 400 u | world-unit, viewScale-corrected | pop | per-frame | ON |
 | 8d | Kinematic objects (items/furniture/doors) | `RenderCoordinator::buildKinematicVisibility` + `KinematicCulling.h` | 1 + cull (camera frustum + 128 u main; light frustum, no distance cap, shadow) | bounding sphere cached at `add()` | pop (cull only — no LOD levels yet) | per-frame | ON (2026-08-07 — previously the ONLY unculled geometry class; drawn in up to 4 passes unconditionally) |
 
+**Voxel-foundation block pyramid (2026-11-13, `docs/VoxelFoundationPlan.md` F2.13) — NOT a tier yet.** The 1/8 m
+store's LOD pyramid (`VoxFound::LodGrid`, levels 1/8 → 1 m, half-solid rule, surface material, chunk-independent) is
+built for the debug region preview only (`voxfound_preview {"lod_levels":3}` builds, `{"lod_draw":k}` draws one level
+for the whole region). No distance selection, no fade, no handoff yet; it touches none of the 8 tiers above. When
+selection by size on screen lands (F2.14) it is meant to replace tier 2 (§3.5a point 3) and this ledger gets a row.
+
 **No far tier exists for:** water (other session owns Phase B), kinematic voxel LOD
 (8d is cull-only — no face coarsening at distance), GPU debris, VFX.
 **WorldForge roads DO render in the far-terrain tiles (corrected 2026-08-18 — the
