@@ -1,0 +1,9 @@
+PREDICTIONS for chain 113 (mode m5b6), written BEFORE the launch. The tree: the seat reads the way at the nearest paved
+cell to the door along its normal (one cell out first); the town rig's residency margin 32.
+  PM5b1.84 the set GREEN (42 of 42) - no unit test reads the seat.
+PREDICTIONS for chain 114 (mode m5b3vt = the town arm alone), the same tree:
+  PM5b1.85 the three neighbours (blacksmith @13538, tavern @13545, apothecary @13553) seat from the cell at their door
+    (1368 / 1378): thresholds within a step of it; their routes PASS. hall_house @13517 and @13477 PASS as in chain 112.
+  PM5b1.86 lots 0 and 5 BUILD (24 of 24 built, 0 lot failures) under the 32 margin.
+  PM5b1.87 the tavern @13573's doorway obstruction stays RED (a forge finding, recorded); predicted 71 walkable / 1
+    blocked of 72. UNCERTAIN: the two newly built lots' doors are unmeasured so far - any new red is read as found.

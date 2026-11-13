@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <climits>
 #include <cmath>
 #include <cstdio>
 #include <functional>
@@ -47,6 +48,11 @@ int hillHeight(int x, int z) { (void)z; return 30 + static_cast<int>(std::floor(
 bool hillWater(int x, int z) { (void)x; return z >= 2 && z <= 3; }
 // the flat control
 int flatHeight(int, int) { return 30; }
+// M5b-1: two 4-cube benches, one open at the south end (x 18..21, z >= 8) and one open at the north end
+// (x 44..47, z < D - 8): no straight east-west row at any z clears both, a routed way snakes round them
+std::function<int(int, int)> twoBenchesHeight(int D) {
+    return [D](int x, int z) { return 30 + (((x >= 18 && x < 22 && z >= 8) || (x >= 44 && x < 48 && z < D - 8)) ? 4 : 0); };
+}
 // a 4-cube bench across the site at x 18..21 from z 8 northward (a steep band with a way round its south end)
 int bandHeight(int x, int z) { return 30 + ((x >= 18 && x < 22 && z >= 8) ? 4 : 0); }
 
@@ -85,7 +91,8 @@ Violations measure(const SettlementMap& m, const std::function<int(int, int)>& h
             // street-tier spine, whose rows abut the street's edge while the polyline is its centre line)
             const MapNode* first = w.nodes.empty() ? nullptr : m.node(w.nodes.front());
             const bool startsAtDoor = first && first->x == d.x && first->z == d.y;
-            if (m.morphology == "cluster") { if (!startsAtDoor) ++v.lotDoorOffWay; }
+            // chain 91: a croft whose door cell lies ON an earlier path fronts that path (no one-node way of its own)
+            if (m.morphology == "cluster") { if (!startsAtDoor && best > 0.5f) ++v.lotDoorOffWay; }
             else if (!startsAtDoor && best > 1.5f + 0.5f * w.width) ++v.lotDoorOffWay;
         }
         if (l.rect.x < 0 || l.rect.z < 0 || l.rect.x1() > m.W || l.rect.z1() > m.D) ++v.lotOutside;
@@ -220,12 +227,11 @@ TEST(SettlementMapTest, MapInvariantsHoldOnEveryTier) {
         }
 }
 
-// STATUS 2026-11-05 (chain 70, m5a_red_green.txt): RED BY MEASUREMENT on the street tiers, left for the owner / M5b. A way
-// never crosses standing or channel water (M0: water is unbuildable; the growth's cost grid blocks it). The hamlet's grown ways
-// cross none; the village / town / city maps are the main-street scenario AS BUILT (chooseStreetAxis + planMainStreetLayout /
-// planCityLayout) whose spine and lanes run straight across the hill rig's creek (town 2 segments, city 3) - the layout drops
-// PLOTS on water but not its streets. The pin as written stands so the finding stays visible; M5b grows the street tiers.
-// RULED 2026-11-05 (owner): stays red, as written, until M5b grows the street tiers from the map.
+// A way never crosses standing or channel water (M0: water is unbuildable; the growth's cost grid blocks it). RED BY
+// MEASUREMENT from chain 70 (2026-11-05) to chain 88 on the street tiers - the main-street scenario AS BUILT ran its spine
+// and lanes straight across the hill rig's creek (town 2 segments, city 3); the owner ruled it stayed red as written until
+// M5b grew the street tiers from the map. GREEN since chain 89 (2026-11-06, M5b-1): every tier's ways are routed on the
+// cost grid; the as-built layouts remain as the CONTROL of CityAxesFollowTerrain.
 TEST(SettlementMapTest, WaysStayOutOfWater) {
     ASSERT_TRUE(rigs().programOk);
     struct Site { const char* tier; int W, D; };
@@ -357,4 +363,125 @@ TEST(SettlementMapTest, BakeTimeIsReportedAndTheGrowthReachesManyLots) {
     std::printf("[ M5a ] stress (200 x 160 flat, target 400): %zu lots, %zu ways in %.1f ms%s\n", s.lots.size(), s.ways.size(), s.bakeMs, s.ok() ? "" : (" (" + s.refusal + ")").c_str());
     EXPECT_GE(s.lots.size(), 100u) << "the growth seats too few lots on an open site";
     EXPECT_LT(s.bakeMs, 20000.0f) << "the growth is too slow even for Debug";
+    // O15 (register): the contract's scale is a 200-lot city under 2 s on RELEASE. Two figures are PRINTED for the
+    // Release run to read (no time bound here - Debug is not the gate): the growth on a site large enough for 200
+    // lots (280 x 200 flat, the same target 400), and the city tier as programmed on its 160 x 120 rig.
+    SettlementMapInput stress2 = inputFor("hamlet", 280, 200, flatHeight, std::function<bool(int, int)>());
+    stress2.tier = &big;
+    const SettlementMap s2 = planSettlementMap(stress2);
+    std::printf("[ O15 ] stress (280 x 200 flat, target 400): %zu lots, %zu ways in %.1f ms%s\n", s2.lots.size(), s2.ways.size(), s2.bakeMs, s2.ok() ? "" : (" (" + s2.refusal + ")").c_str());
+    EXPECT_GE(s2.lots.size(), 200u) << "the 280 x 200 site does not reach the contract's 200 lots";
+    const SettlementMapInput cityIn = inputFor("city", 160, 120, flatHeight, std::function<bool(int, int)>());
+    const SettlementMap c = planSettlementMap(cityIn);
+    std::printf("[ O15 ] city as programmed (160 x 120 flat): %zu lots, %zu ways in %.1f ms%s\n", c.lots.size(), c.ways.size(), c.bakeMs, c.ok() ? "" : (" (" + c.refusal + ")").c_str());
+}
+
+// ============================================================================
+// M5b-1 (the M5b design check of 2026-11-06; predictions in pm_chain88.txt)
+// ============================================================================
+
+// CityAxesFollowTerrain, the street tiers' form of WaysAvoidTheSteepBand: on the two-bench rig the
+// PRIMARY way of the village, town and city routes round the benches (steepest cube step <= 1) while the
+// axis chooser's spine as built (planSettlementMapAsBuilt, the CONTROL) runs straight across one (>= 4).
+// RED by measurement today: the planner's street-tier map IS the as-built spine.
+TEST(SettlementMapTest, CityAxesFollowTerrain) {
+    ASSERT_TRUE(rigs().programOk);
+    struct Site { const char* tier; int W, D; };
+    for (const Site s : {Site{"village", 80, 48}, Site{"town", 140, 60}, Site{"city", 160, 120}}) {
+        SettlementMapInput in = inputFor(s.tier, s.W, s.D, twoBenchesHeight(s.D), std::function<bool(int, int)>());
+        ASSERT_NE(in.tier, nullptr) << s.tier;
+        const SettlementMap control = planSettlementMapAsBuilt(in);
+        const SettlementMap m = planSettlementMap(in);
+        ASSERT_TRUE(control.ok()) << s.tier << " control: " << control.refusal;
+        ASSERT_TRUE(m.ok()) << s.tier << ": " << m.refusal;
+        auto primaryWorst = [&](const SettlementMap& map) {
+            SettlementMap only = map; only.ways.clear();
+            for (const auto& w : map.ways) if (w.highway == "primary") only.ways.push_back(w);
+            return std::make_pair(worstStepAlongWays(only, in.heightAt), only.ways.size());
+        };
+        const auto [wc, nc] = primaryWorst(control);
+        const auto [wp, np] = primaryWorst(m);
+        std::printf("[ M5b ] axes %s: CONTROL (as built) %zu primary ways, steepest step %.0f; planner %zu primary ways, steepest step %.0f (%zu lots, %zu ways)\n",
+                    s.tier, nc, wc, np, wp, m.lots.size(), m.ways.size());
+        ASSERT_GT(nc, 0u) << s.tier << ": the control has no primary way";
+        // chain 88: the village's axis chooser cleared both benches with a north-south spine (its own relief
+        // scoring finds the flat column) - the discriminating controls are the town's and the city's, both at 4
+        if (s.tier != std::string("village")) EXPECT_GE(wc, 4.0f) << s.tier << ": the as-built spine clears both benches - the rig measures nothing";
+        ASSERT_GT(np, 0u) << s.tier << ": the planner has no primary way";
+        EXPECT_LE(wp, 1.0f) << s.tier << ": the primary way climbs a bench";
+    }
+}
+
+// SiteRectsSeatTheBand (red test (e)): on the FLAT open field the literal site rects of the box plan
+// (WorldForgePlan::tierPreset) seat the program's band for every seed - the hamlet's 40 x 32 (REASONED)
+// is predicted to FAIL on the seeds whose target is 6 (the L4 sites seated 5 / 3 / 2). The search below
+// is the derivation's measurement: the smallest rect at the preset's aspect that seats every seed's
+// target; the derived preset (D43 (b)) is pinned against it. The street tiers' as-built rows carry no
+// target (the growth sets one in M5b-1): reported, and asserted at the tier's minimum only.
+TEST(SettlementMapTest, SiteRectsSeatTheBand) {
+    ASSERT_TRUE(rigs().programOk);
+    // chain 89: seeds 1..N reached only the band's lower targets (town 16..21 of 15-30, city 21..24 of 20-48) - the
+    // seed band - 1 draws the band's MAXIMUM (min + seed % band), so every tier's top is in the set
+    struct Site { const char* tier; std::vector<unsigned> seeds; };
+    for (const Site s : {Site{"hamlet", {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}}, Site{"village", {1, 2, 3, 4, 8}}, Site{"town", {1, 2, 3, 15}}, Site{"city", {1, 2, 28}}}) {
+        const WorldForgePlan::TierPreset preset = WorldForgePlan::tierPreset(s.tier == std::string("city") ? "town" : s.tier);
+        const int W0 = s.tier == std::string("city") ? 160 : preset.width, D0 = s.tier == std::string("city") ? 120 : preset.depth;
+        const SettlementTierPreset* tier = rigs().program.get("medieval", s.tier);
+        ASSERT_NE(tier, nullptr);
+        const int nSeeds = static_cast<int>(s.seeds.size());
+        auto seatsAll = [&](int W, int D, int& short_, int& minSeated) {
+            short_ = 0; minSeated = INT_MAX;
+            for (const unsigned seed : s.seeds) {
+                const SettlementMapInput in = inputFor(s.tier, W, D, flatHeight, std::function<bool(int, int)>(), seed);
+                const SettlementMap m = planSettlementMap(in);
+                const int seated = static_cast<int>(m.lots.size());
+                minSeated = std::min(minSeated, seated);
+                const int want = m.targetLots > 0 ? m.targetLots : tier->buildingsMin;
+                if (!m.ok() || seated < want) ++short_;
+            }
+            return short_ == 0;
+        };
+        int shortAtPreset = 0, minAtPreset = 0;
+        const bool presetOk = seatsAll(W0, D0, shortAtPreset, minAtPreset);
+        int W = W0, D = D0, sh = 0, mn = 0; bool found = presetOk;
+        while (!found && W < 2 * W0) {   // grow at the preset's aspect, 4 cubes a step
+            W += 4; D = std::max(4, (W * D0 / W0 + 3) / 4 * 4);
+            found = seatsAll(W, D, sh, mn);
+        }
+        std::printf("[ M5b ] site rect %s: preset %d x %d seats the target in %d of %d seeds (min seated %d, band %d-%d); smallest rect at that aspect seating every seed: %s\n",
+                    s.tier, W0, D0, nSeeds - shortAtPreset, nSeeds, minAtPreset, tier->buildingsMin, tier->buildingsMax,
+                    found ? (std::to_string(W) + " x " + std::to_string(D)).c_str() : "none under 2x");
+        // D43 (b), ruled 2026-11-06: the civ-seeded box plans take the DERIVED presets - at least the measured
+        // smallest rect, and seating every seed's target themselves (chain 88: the literal 40 x 32 seated it on
+        // 10 of 20, the smallest 48 x 40; the derived 56 x 44 carries a 1.25 area margin for the dropouts)
+        ASSERT_TRUE(found) << s.tier << ": no rect under 2x the preset seats every seed";
+        const WorldForgePlan::TierPreset derived = WorldForgePlan::tierPresetDerived(s.tier);
+        int shortAtDerived = 0, minAtDerived = 0;
+        const bool derivedOk = seatsAll(derived.width, derived.depth, shortAtDerived, minAtDerived);
+        std::printf("[ M5b ] site rect %s: DERIVED %d x %d seats the target in %d of %d seeds (min seated %d)\n", s.tier, derived.width, derived.depth, nSeeds - shortAtDerived, nSeeds, minAtDerived);
+        EXPECT_GE(derived.width * derived.depth, W * D) << s.tier << ": the derived preset is smaller than the measured smallest rect " << W << " x " << D;
+        EXPECT_TRUE(derivedOk) << s.tier << ": the derived preset " << derived.width << " x " << derived.depth << " does not seat the band's target on " << shortAtDerived << " of " << nSeeds << " flat seeds";
+    }
+}
+
+// The derived site rects on the HILL rig (the 5 % hillside with the creek): every tier seats at least its
+// minimum and its ways stay dry - the flat measurement above plus the slope and water dropouts.
+TEST(SettlementMapTest, DerivedSiteRectsSeatTheMinimumOnTheHill) {
+    ASSERT_TRUE(rigs().programOk);
+    for (const char* tierName : {"hamlet", "village", "town", "city"}) {
+        const WorldForgePlan::TierPreset derived = WorldForgePlan::tierPresetDerived(tierName);
+        for (unsigned seed = 1; seed <= 3; ++seed) {
+            const SettlementMapInput in = inputFor(tierName, derived.width, derived.depth, hillHeight, hillWater, seed);
+            ASSERT_NE(in.tier, nullptr) << tierName;
+            const SettlementMap m = planSettlementMap(in);
+            const Violations v = measure(m, in.heightAt, in.maxRelief, in.waterAt);
+            std::printf("[ M5b ] hill %s %d x %d seed %u: %zu lots of target %d (min %d), %zu ways, %d wet segments, bake %.1f ms%s\n", tierName, derived.width, derived.depth, seed,
+                        m.lots.size(), m.targetLots, in.tier->buildingsMin, m.ways.size(), v.wayInWater, m.bakeMs, m.ok() ? "" : (" REFUSED: " + m.refusal).c_str());
+            printMap("hill (derived rect)", m, v);
+            ASSERT_TRUE(m.ok()) << tierName << ": " << m.refusal;
+            EXPECT_GE(static_cast<int>(m.lots.size()), in.tier->buildingsMin) << tierName;
+            EXPECT_EQ(v.wayInWater, 0) << tierName << ": a way crosses the creek";
+            EXPECT_EQ(v.overlaps + v.wayThroughFootprint + v.lotOutside + v.lotNoWay + v.lotDoorOffWay, 0) << tierName << ": an invariant broke on the hill";
+        }
+    }
 }

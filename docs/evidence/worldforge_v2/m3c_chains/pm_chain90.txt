@@ -1,0 +1,19 @@
+PREDICTIONS for chain 90 (mode m5b2, the same set as chain 89), after the chain-89 answers: the 2-D envelope on the ribbon,
+the derived village rect 104 x 64, the band's top seed in the seat test, the hill test's breakdown printed, the build-service
+rig on the derived rects, the dressing-order pin restated. Written BEFORE the launch.
+  PM5b1.17 WayRibbonCoversTheCentrelineToItsWidth GREEN: 0 step breaks (the envelope), coverage and spread as chain 89
+    (79 due, 0 missing, 0 beyond); the walk GREEN.
+  PM5b1.18 SiteRectsSeatTheBand: the hamlet as chain 89 (20 of 20 at 56 x 44). The village's DERIVED 104 x 64 seats the
+    target on all 5 seeds including seed 8 (target 14) - UNCERTAIN (the 92 x 56 measurement was at targets <= 12).
+    The town at 140 x 60 with seed 15 (target 30) - UNCERTAIN, likely SHORT (30 burgages at ~400 cells each need ~12000
+    of 8400 cells: predicted to seat 24-28 of 30 -> a derived town rect to follow); the city 160 x 160 with seed 28
+    (target 48): likely seats (25600 cells; 27 seated on 160 x 120 at target 27) - UNCERTAIN.
+  PM5b1.19 DerivedSiteRectsSeatTheMinimumOnTheHill: the one violation of chain 89 is read from the breakdown; predicted
+    a lotDoorOffWay 1 on one street tier (a fronting lot whose door cell sits diagonally beside a lane's band and
+    connects by a two-cell lane whose first node is the door - the cluster rule is not applied, so the polyline
+    tolerance decides) or a wayThroughFootprint 1 (a lane's centre line grazing a footprint corner through the
+    sampled segment test). Red stays until read; the fix follows the reading.
+  PM5b1.20 SettlementBuildServiceTest GREEN on the derived rects (the town 140 x 60 seats >= 15 at seed 3: target 18);
+    LotDressingRunsAfterTheBuildingsForEveryMorphology GREEN with the ways unit before the buildings and the spurs after.
+  PM5b1.21 the rest as chain 89 (143 green).
+  PM5b1.22 the bakes: the city on 160 x 160 ~1.4 s Debug per map (chain 89's hill numbers) - the Release gate measured at L4.

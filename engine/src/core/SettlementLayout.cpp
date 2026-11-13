@@ -287,9 +287,8 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
                 const RoomProgram* rp = rooms.get(typ);
                 if (!rp) continue;                              // unknown typology: skip this draw
                 if (typCapped(typ)) continue;                   // M4: caps bind counts — redraw
-                const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
-                const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
-                                                                                   : rp->widthMin));
+                const NaturalFootprint nf = naturalFootprintOf(*rp);   // M5b-1: the one derivation
+                const int natLong = nf.longU, natShort = nf.shortU;
                 const bool longToStreet = (rp->entrance == "long_wall");
                 const int fDim = longToStreet ? natLong : natShort;   // along the street
                 const int dDim = longToStreet ? natShort : natLong;   // back from the street
@@ -511,9 +510,8 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
                     typ = drawTypology(weights, count, seed, static_cast<unsigned>(t));
                     rp = rooms.get(typ);
                     if (!rp) break;
-                    const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
-                    const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
-                                                                                       : rp->widthMin));
+                    const NaturalFootprint nf = naturalFootprintOf(*rp);   // M5b-1: the one derivation
+                    const int natLong = nf.longU, natShort = nf.shortU;
                     const bool longToStreet = (rp->entrance == "long_wall");
                     fDim = longToStreet ? natLong : natShort;
                     dDim = longToStreet ? natShort : natLong;

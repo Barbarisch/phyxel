@@ -94,9 +94,13 @@ public:
     /// footprint, so an anchor never snaps INSIDE the building (interiors are
     /// standable floor, but the NavGraph cannot yet route exterior->interior, so
     /// an indoor anchor is a dead schedule target).
+    /// `preferDir` (optional, M5b-1): the direction the anchor's meaning points along - a front-door
+    /// marker's outward normal - so a displaced anchor stays IN FRONT of its door (further out, up or
+    /// down a cube or two) before the search turns a corner.
     static glm::ivec3 snapToStandable(const std::function<bool(const glm::ivec3&)>& solidAt,
                                       const glm::ivec3& cell, int radius = 5,
-                                      const std::function<bool(const glm::ivec3&)>& avoid = {});
+                                      const std::function<bool(const glm::ivec3&)>& avoid = {},
+                                      const glm::ivec2& preferDir = glm::ivec2(0, 0));
 
     // ---- Fixture-light persistence ---------------------------------------------------
     // LightManager lights live only in memory, so a saved settlement used to come back

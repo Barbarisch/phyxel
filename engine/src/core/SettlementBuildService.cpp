@@ -32,6 +32,7 @@
 #include "core/PlacedObjectManager.h"
 #include "core/ResidentPlanner.h"
 #include "core/RoomProgram.h"
+#include "core/RoomLayout.h"
 #include "core/SettlementLayout.h"
 #include "core/SettlementProgram.h"
 #include "core/SiteAnalysis.h"
@@ -447,6 +448,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         Core::SettlementMap siteMap;
         std::string mapSampler = "flat";
         std::vector<std::vector<glm::ivec2>> mapWayCells;   // the ways' node cells (WORLD cubes) for the paths unit
+        std::vector<Core::WayRibbon> mapRibbons;             // M5b-1: the same cells with each way's paved width, for the ribbon paver
+        std::vector<glm::ivec4> mapFoot;                     // M5b-1 (chain 114): the map's lot footprints (x, z, w, d) world cubes - the ways never pave inside one
+        glm::ivec2 mapWellCell(0); bool mapWell = false;      // M5b-1: the village well on the primary's verge (the projection's)
+        int primaryWayId = -1;
         // {"legacy_layout": true}: the layout AS BUILT before M5a for a program tier - the CONTROL of the L4
         // A/B (the same site, seed and terrain through the grid, so a gate refusal can be attributed)
         const bool legacyLayout = p.value("legacy_layout", false);
@@ -503,13 +508,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             }
             siteMap = Core::planSettlementMap(mi);
             if (!siteMap.ok()) {
-                res.error = {{"error", siteMap.refusal}, {"map_sampler", mapSampler}, {"dropped_lots", siteMap.droppedLots}};
+                res.error = {{"error", siteMap.refusal}, {"map_sampler", mapSampler}, {"dropped_lots", siteMap.droppedLots},
+                             {"buildable_fraction", siteMap.buildableFraction},
+                             {"seated_lots", siteMap.lots.size()}, {"target_lots", siteMap.targetLots}};
                 res.map = siteMap.toJson();   // the partial map stays on record (L4 run 2: a planner refusal left none)
                 return res;
             }
             const Core::MapProjection proj = Core::projectMap(siteMap);
             layout = proj.layout;
             msl = proj.msl;
+            mapWellCell = proj.wellCell; mapWell = proj.hasWell; primaryWayId = proj.primaryWay;
             droppedPlots = siteMap.droppedLots;
             for (const auto& l : siteMap.lots) {
                 Core::PlacedBuilding b;
@@ -517,11 +525,15 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 b.footprint = l.footprint;
                 b.typology = l.typology;
                 buildings.push_back(b);
+                mapFoot.push_back(glm::ivec4(ox + l.footprint.x, oz + l.footprint.z, l.footprint.w, l.footprint.d));
             }
             for (const auto& w : siteMap.ways) {
                 std::vector<glm::ivec2> cells;
                 for (int nid : w.nodes) if (const Core::MapNode* n = siteMap.node(nid)) cells.push_back({ox + n->x, oz + n->z});
-                if (cells.size() >= 2) mapWayCells.push_back(std::move(cells));
+                if (cells.size() >= 2) {
+                    mapRibbons.push_back({cells, std::max(1, static_cast<int>(std::lround(w.width)))});
+                    mapWayCells.push_back(std::move(cells));
+                }
             }
             LOG_INFO_FMT("Settlement", "[M5A-MAP] " << era << "/" << tierName << " seed " << seed << ": " << siteMap.lots.size() << " lots, "
                          << siteMap.ways.size() << " ways, " << siteMap.nodes.size() << " nodes, entry " << siteMap.entryNode
@@ -663,18 +675,31 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         auto propsJsonP = res.yardProps;
         auto residentsJsonP = res.residents;
         auto sharedPaved = std::make_shared<std::set<std::pair<int, int>>>();
+        // M5b-1 (chain 107): the WAYS' paved columns alone (a snapshot taken when the door spurs begin) - the doorsteps'
+        // anchors; a spur's own paving is the door's approach, never the way the approach must reach
+        auto sharedWayPaved = std::make_shared<std::set<std::pair<int, int>>>();
+        // M5b-1 (chain 109): threshold - pad * 9 as MEASURED per style on the buildings already built here (12 or 14 live)
+        auto sharedPadOffset = std::make_shared<std::map<std::string, int>>();
         // Road-band cells (world coords, walkable headroom over the paving) recorded by
         // the street unit for the late "street sweep": construction can drop debris on a
         // finished road (a building's site prep UNDERMINES a roadside tree -> U4 topples
         // it -> the felled trunk RETIRES as static voxels across the street; measured,
         // deterministic at seed 3) — swept again after the buildings, before nav rebuild.
         auto sharedRoadBand = std::make_shared<std::vector<glm::ivec3>>();
+        // O9: the cube AABB of every prop this build places BEFORE the sweep (the well, the yard props) - the sweep
+        // never clears a cell inside one (planStreetSweep)
+        auto sharedPropBoxes = std::make_shared<std::vector<std::pair<glm::ivec3, glm::ivec3>>>();
         // Front doors of the buildings that actually BUILT: marker cell (2 out from the
         // door, from the forge's front-door location), footprint, threshold micro.
         struct FrontDoor {
             glm::ivec3 marker; glm::ivec4 foot; int thresholdMicro;
             std::string typology;    ///< for the gate's route labels
             nlohmann::json rooms;    ///< [{story, purpose, rect:[x,z,w,d]}] building-local cubes
+            // M5b-1 (chain 93): the forge's door - the wall cube it is cut through and the outward normal.
+            // The marker above is SNAPPED to standable ground and can sit round the corner; the gate, the
+            // spurs and the doorsteps read THIS door when it is recorded, the marker's side otherwise.
+            bool hasDoor = false; glm::ivec2 door{0, 0}; glm::ivec2 normal{0, 0};
+            int padY = INT_MIN;   // the pad level the forge leveled to (the requested one when the seat set it), for the record
         };
         auto sharedFrontDoors = std::make_shared<std::vector<FrontDoor>>();
         // M5a-1 (chain 74): the buildings that realized, so the gate can tell "no door recorded" from "nothing built"
@@ -872,9 +897,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 int w = plotW, d = plotD;
                 if (!mainStreetMode && !mapLots) {   // a map lot's footprint IS the typology's natural, oriented size
                     if (const Core::RoomProgram* rp = roomReg.get(v.typology)) {
-                        const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
-                        const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
-                                                                                           : rp->widthMin));
+                        const Core::NaturalFootprint nf = Core::naturalFootprintOf(*rp);   // M5b-1: one derivation
+                        const int natLong = nf.longU, natShort = nf.shortU;
                         if (plotW >= plotD) { w = natLong; d = natShort; }
                         else                { w = natShort; d = natLong; }
                         w = std::min(std::max(1, w), plotW);
@@ -892,6 +916,23 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 ? terrainTopAt(bx + bw / 2, bz + bd / 2)
                 : oy;
             const bool seatInUnit = terrain && !seatFlat;
+            // M5b-1 (chain 101, DESIGN DECISION): a MAP lot fronting a way is built at the WAY'S level at its door - the
+            // door-approach cell beyond the lot rect's front edge (the planner's lotDoorApproach), read from the ways
+            // unit's paved stamp at seat time. The natural ground stays the seat where no paving lies there.
+            glm::ivec2 approachCell(INT_MIN, INT_MIN);
+            glm::ivec2 approachNormal(0, 0);   // the door's outward normal (chain 112: the seat walks it from the door)
+            if (mapLots && i < msl.assigned.size()) {
+                const auto& ap = msl.assigned[i];
+                const int afx = ap.footprint.x, afz = ap.footprint.z, afw = ap.footprint.w, afd = ap.footprint.d;
+                switch (ap.streetSide) {
+                    case 'N': approachCell = {afx + afw / 2, ap.plot.rect.z1()}; approachNormal = {0, 1}; break;
+                    case 'S': approachCell = {afx + afw / 2, ap.plot.rect.z - 1}; approachNormal = {0, -1}; break;
+                    case 'E': approachCell = {ap.plot.rect.x1(), afz + afd / 2}; approachNormal = {1, 0}; break;
+                    case 'W': approachCell = {ap.plot.rect.x - 1, afz + afd / 2}; approachNormal = {-1, 0}; break;
+                    default: break;
+                }
+                if (approachCell.x != INT_MIN) approachCell += glm::ivec2(ox, oz);
+            }
             // Street-facing front hint (OpeningsLayoutTest.FrontHint*): the entrance wall faces
             // the plot's street side. The building rect is axis-aligned in settlement coords, so
             // 'S' (street at -z) = its local z0 wall, etc. No street (terrain mode) = no hint.
@@ -907,6 +948,37 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 case 'W': front = "x0"; break;
                 case 'E': front = "x1"; break;
                 default: break;
+            }
+            if (mapLots && approachCell.x != INT_MIN) {
+                // M5b-1 (chain 109, after the front hint): the DOOR is not always at the frontage's midpoint (a hall house's cross-passage door
+                // sits at the hall / service boundary, four cells from it) and a way can climb 17 micro along one
+                // frontage; the autofill is deterministic in (typology, footprint, front, the position seed), so the
+                // door's wall cell is PREDICTED here exactly as the forge will place it, and the way is read at its
+                // approach (two cells out along the normal). The midpoint stays the fallback.
+                if (const Core::RoomProgram* rp = roomReg.get(var.typology)) {
+                    Core::BuildingProgram pp;
+                    pp.name = var.typology; pp.typology = var.typology; pp.footprintW = bw; pp.footprintD = bd;
+                    pp.substructure = "slab"; pp.front = front;
+                    Core::ProgStory st; st.height = 3; pp.stories.push_back(st);
+                    const unsigned seed = (static_cast<unsigned>(bx) * 73856093u) ^ (static_cast<unsigned>(bz) * 19349663u) ^ 0x9e3779b9u;
+                    if (Core::autofillRoomLayout(pp, seed ? seed : 1u, rp) && !pp.stories.empty()) {
+                        const Core::ProgPortal* door = nullptr; bool onFront = false;
+                        for (const auto& po : pp.stories[0].portals) {
+                            if (po.kind != "door" || (po.a != "exterior" && po.b != "exterior")) continue;
+                            const bool f = (front == "x0" && po.px == 0) || (front == "x1" && po.px == bw) || (front == "z0" && po.pz == 0) || (front == "z1" && po.pz == bd);
+                            if (!door || (f && !onFront)) { door = &po; onFront = f; }
+                        }
+                        if (door) {
+                            glm::ivec2 wall, nrm;
+                            if (door->px == 0)       { wall = {bx, bz + door->pz}; nrm = {-1, 0}; }
+                            else if (door->px == bw) { wall = {bx + bw - 1, bz + door->pz}; nrm = {1, 0}; }
+                            else if (door->pz == 0)  { wall = {bx + door->px, bz}; nrm = {0, -1}; }
+                            else                     { wall = {bx + door->px, bz + bd - 1}; nrm = {0, 1}; }
+                            approachCell = wall + nrm * 2;
+                            approachNormal = nrm;
+                        }
+                    }
+                }
             }
             auto makeBp = [&](const Core::BuildingVariant& v, int w, int d, int x, int z) {
                 return nlohmann::json{
@@ -935,7 +1007,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                           locationRegistry, npcManager, pushUndo, addPointLight, keepClear,
                                           itemPropManager, hostDeps = deps, bp, bp2, seatInUnit,
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
-                                          lotIndex = static_cast<int>(i),
+                                          lotIndex = static_cast<int>(i), approachCell, approachNormal, sharedStamp, sharedPadOffset,
                                           typ1 = var.typology, typ2 = var2.typology,
                                           sharedFrontDoors, sharedBuilt]() mutable {
                 if (!chunkManager) return;
@@ -943,8 +1015,53 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     if (!seatInUnit) return;
                     const int cx = p["position"].value("x", 0) + w / 2;
                     const int cz = p["position"].value("z", 0) + d / 2;
-                    p["position"]["y"] =
-                        settlementTopScan(chunkManager, oy, cx, cz, /*floraBlind=*/true);
+                    const int natural = settlementTopScan(chunkManager, oy, cx, cz, /*floraBlind=*/true);
+                    p["position"]["y"] = natural;
+                    // M5b-1 (chain 101): the way's standing level at the door approach - the highest paved surface
+                    // among the stamp's columns in the approach cell (then its 8 neighbours, nearest ring first)
+                    if (approachCell.x != INT_MIN && sharedStamp && !sharedStamp->empty()) {
+                        int wayTop = INT_MIN; glm::ivec2 at(INT_MIN, INT_MIN);
+                        // chain 112: the cell the walker steps from INTO the doorway comes first - the way's paving can
+                        // step 10 micro across its own width at a junction (1368 one cell out, 1378 two cells out: three
+                        // neighbours on one street seated two cells out stood 12 above the cell at their door)
+                        if (approachNormal.x != 0 || approachNormal.y != 0) {
+                            const glm::ivec2 wall = approachCell - approachNormal * 2;
+                            for (int k = 1; k <= 3 && wayTop == INT_MIN; ++k) {
+                                const glm::ivec2 c = wall + approachNormal * k;
+                                // chain 114: the way can step INSIDE the cell at the door (1368 on the door's axis, 1377 at
+                                // its far edge): the centre column is the walker's level (the gate's convention), the
+                                // lowest stamped column when the centre is not stamped
+                                int centre = INT_MIN, lowest = INT_MAX;
+                                for (const auto& st : *sharedStamp) {
+                                    if (st.x < c.x * 9 || st.x >= c.x * 9 + 9 || st.z < c.y * 9 || st.z >= c.y * 9 + 9) continue;
+                                    if (st.x == c.x * 9 + 4 && st.z == c.y * 9 + 4) centre = st.w;
+                                    lowest = std::min(lowest, st.w);
+                                }
+                                if (centre != INT_MIN) { wayTop = centre; at = c; }
+                                else if (lowest != INT_MAX) { wayTop = lowest; at = c; }
+                            }
+                        }
+                        for (int r = 0; r <= 1 && wayTop == INT_MIN; ++r)
+                            for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) {
+                                if (std::max(std::abs(dx), std::abs(dz)) != r) continue;
+                                const int ax = approachCell.x + dx, az = approachCell.y + dz;
+                                for (const auto& c : *sharedStamp)
+                                    if (c.x >= ax * 9 && c.x < ax * 9 + 9 && c.z >= az * 9 && c.z < az * 9 + 9 && c.w > wayTop) { wayTop = c.w; at = {ax, az}; }
+                            }
+                        if (wayTop != INT_MIN) {
+                            // threshold = pad * 9 + offset: the offset MEASURED on this settlement's earlier buildings of the
+                            // same style (chain 109: 12 on the town's, 14 on the village's), 12 until one is measured
+                            const std::string styleName = p.value("style", std::string());
+                            const int kThresholdAbovePad = sharedPadOffset->count(styleName) ? sharedPadOffset->at(styleName) : 12;
+                            constexpr int kStepUp = 4;
+                            const int padY = Core::padCubeForStreet(wayTop + 1, kThresholdAbovePad, kStepUp);
+                            p["position"]["y"] = padY;
+                            p["pad_y"] = padY;   // the forge's prepare_pad levels the footprint HERE (else the terrain median)
+                            LOG_INFO_FMT("Settlement", "seat: " << p.value("typology", std::string("?")) << " @" << p["position"].value("x", 0) << ","
+                                         << p["position"].value("z", 0) << " at the way's level: paved surface " << wayTop << " at (" << at.x << "," << at.y
+                                         << ") -> pad y " << padY << " (natural " << natural << ")");
+                        }
+                    }
                 };
                 // M0: ONE mapping from the settlement's deps to a building's (Deps::structureDeps).
                 Core::StructureBuildService::Deps deps = hostDeps.structureDeps();
@@ -953,13 +1070,23 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     if (!res.contains("locations") || !res["locations"].is_array()) return;
                     for (const auto& L : res["locations"]) {
                         const auto& P = L["position"];
-                        sharedFrontDoors->push_back({glm::ivec3(static_cast<int>(std::floor(P.value("x", 0.0f))),
-                                                               static_cast<int>(std::floor(P.value("y", 0.0f))),
-                                                               static_cast<int>(std::floor(P.value("z", 0.0f)))),
-                                                     glm::ivec4(x, z, w, d),
-                                                     res.value("floor_top_micro", -1),
-                                                     prog.value("typology", std::string("?")),
-                                                     res.value("rooms", nlohmann::json::array())});
+                        FrontDoor fd{glm::ivec3(static_cast<int>(std::floor(P.value("x", 0.0f))),
+                                                static_cast<int>(std::floor(P.value("y", 0.0f))),
+                                                static_cast<int>(std::floor(P.value("z", 0.0f)))),
+                                     glm::ivec4(x, z, w, d),
+                                     res.value("floor_top_micro", -1),
+                                     prog.value("typology", std::string("?")),
+                                     res.value("rooms", nlohmann::json::array())};
+                        if (L.contains("door") && L["door"].is_object()) {   // M5b-1: the forge's door
+                            const auto& D = L["door"];
+                            fd.hasDoor = true;
+                            fd.door = {D.value("x", 0), D.value("z", 0)};
+                            fd.normal = {D.value("nx", 0), D.value("nz", 0)};
+                        }
+                        fd.padY = prog.value("pad_y", prog["position"].value("y", INT_MIN));
+                        if (fd.padY != INT_MIN && fd.thresholdMicro >= 0 && prog.contains("pad_y"))
+                            (*sharedPadOffset)[prog.value("style", std::string())] = fd.thresholdMicro - fd.padY * 9;
+                        sharedFrontDoors->push_back(fd);
                         break;   // one front door per building
                     }
                 };
@@ -1020,7 +1147,53 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         };
         std::set<std::pair<int, int>> pavedCols;   // CUBE columns actually PAVED — fences gap here (V1)
 
-        if (mainStreetMode && chunkManager) {
+        if ((mainStreetMode || mapLots) && chunkManager) {
+            if (mapLots) {
+            // M5b-1 (the design check's item 3a): ONE paver for every map way at its width - the hamlet's paths and
+            // the street tiers' routed primary and lanes alike (Core::planWayPaving: each leg graded along its centre
+            // line, LEVEL across the width, a capsule round diagonal legs); the same applier as the legacy street
+            // unit, so the door spurs, the sweep and the fences' straddle rule read the same shared columns.
+            units.push_back({"grading + paving ways",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, tierStreetMat = tierP->street.material, mapRibbons, mapFoot,
+                 groundMicro, groundTopAt, fl9, emitMicro, abox, pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp]() {
+            if (!chunkManager) return;
+            auto& pathsJson = *pathsJsonP;
+            auto& pavedCols = *sharedPaved;
+            Core::PavingPlan pave = Core::planWayPaving(mapRibbons, groundMicro, abox, tierStreetMat);
+            // M5b-1 (chain 114): a way's capsule edge can poke into a setback-0 lot's footprint; the forge builds over the
+            // stamped micros and those above its floor survive as a spike in the doorway (the town's tavern @13573:
+            // columns at 1449 against a floor of 1443). No column inside a lot's footprint is stamped.
+            {
+                const size_t before = pave.columns.size();
+                pave.columns.erase(std::remove_if(pave.columns.begin(), pave.columns.end(), [&](const Core::PavedColumn& c) {
+                    const int cbx = fl9(c.x), cbz = fl9(c.z);
+                    for (const auto& f : mapFoot)
+                        if (cbx >= f.x && cbx <= f.x + f.z - 1 && cbz >= f.y && cbz <= f.y + f.w - 1) return true;
+                    return false;
+                }), pave.columns.end());
+                if (pave.columns.size() != before)
+                    LOG_INFO_FMT("Settlement", "ways: " << (before - pave.columns.size()) << " paved columns inside lot footprints dropped");
+            }
+            PavingApply ap;
+            if (!pave.columns.empty())
+                ap = applyPavingPlan(chunkManager, pave, groundMicro, groundTopAt, fl9, emitMicro,
+                                     pavedCols, *sharedRoadBand, *sharedStamp, tierStreetMat);
+            long legs = 0;
+            for (const auto& r : mapRibbons) legs += static_cast<long>(r.cells.size()) - 1;
+            LOG_INFO_FMT("Settlement", "ways: paved " << ap.placedMicros << " micros over " << pave.columns.size()
+                         << " columns (" << pave.levelCols << " level, " << pave.fillCols << " fill, " << pave.cutCols
+                         << " cut honored, " << ap.cutCubes << " cubes removed, " << ap.bandCleared
+                         << " corridor cells band-cleared) for " << mapRibbons.size() << " ways / " << legs << " legs, "
+                         << tierStreetMat << ", " << static_cast<long>(ap.stampMs) << " ms");
+            pathsJson = {{"ways", static_cast<long>(mapRibbons.size())}, {"legs", legs},
+                         {"paved_columns", static_cast<long>(pave.columns.size())},
+                         {"paved_microcubes", ap.placedMicros},
+                         {"level_cols", pave.levelCols}, {"fill_cols", pave.fillCols},
+                         {"cut_cols_honored", pave.cutCols}, {"cut_cubes_removed", ap.cutCubes},
+                         {"grass_converted", ap.grassConverted},
+                         {"material", tierStreetMat}, {"stamp_ms", static_cast<long>(ap.stampMs)}};
+            }});
+            } else {
             // STREET PAVING (Phase 2), as ONE work unit: grade + pave the full street width in the
             // tier's material, plus a spur from every building's front-wall midpoint. CUT columns
             // honored (terrain removed above the graded surface, then capped).
@@ -1060,6 +1233,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          {"spurs", pave.spursPlanned}, {"spurs_too_steep", pave.spursFailed},
                          {"material", paveMat}, {"stamp_ms", stampMs}};
             }});
+            }   // the legacy street rects (a build without a map)
             // M0: DOOR SPURS, after the buildings. Each spur runs from the REALIZED door's
             // marker (recorded by the building unit) to the nearest stamped street column,
             // meeting the street at its planned surface; a refused lot has no door -> no
@@ -1067,22 +1241,26 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             postBuildUnits.push_back({"door spurs",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
                  tierStreetMat = tierP->street.material, bFoot, groundMicro, groundTopAt, fl9, emitMicro, abox,
-                 pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp, sharedFrontDoors]() {
+                 pathsJsonP, sharedPaved, sharedWayPaved, sharedRoadBand, sharedStamp, sharedFrontDoors]() {
             if (!chunkManager) return;
+            *sharedWayPaved = *sharedPaved;   // M5b-1 (chain 107): the ways' paving before any spur is laid
             // M0 row 2b: the spur starts one cell OUTSIDE THE DOOR (doorApproach - the gate's
             // door-finding), at the live ground there; not at the forge's marker, 2 cells out
             // and often on the street's edge, which left the straight run one cell short of
             // the pad-to-street drop (M0 L4 town: 3 of 5 spurs "too steep"; F7: 0 of 8).
             std::vector<Core::DoorAnchor> doors;
             for (const auto& fd : *sharedFrontDoors) {
-                const auto da = settlementDoorApproach(chunkManager, abox, fd.marker, fd.foot,
-                                                       fd.thresholdMicro);
+                const auto da = fd.hasDoor ? SettlementBuildService::doorApproachAt(fd.door, fd.normal)   // M5b-1: the forge's door
+                                           : settlementDoorApproach(chunkManager, abox, fd.marker, fd.foot, fd.thresholdMicro);
                 const int mx = da.outside.x * 9 + 4, mz = da.outside.y * 9 + 4;
-                doors.push_back({mx, mz, groundMicro(mx, mz)});
+                // M5b-1 (chain 107): the spur starts at the door's THRESHOLD (its surface = the standing level less one),
+                // not at the ground the pad left behind - the pad is seated at the way, the ground outside is not
+                doors.push_back({mx, mz, fd.thresholdMicro - 1});
             }
             const std::vector<glm::ivec4> streetStamp = *sharedStamp;   // copy: the applier appends
             const Core::PavingPlan pave = Core::planDoorSpurs(doors, bFoot, streetStamp, groundMicro,
                                                               abox, tierStreetMat);
+            for (const auto& f : pave.spurFailures) LOG_INFO_FMT("Settlement", "door spur too steep: " << f);
             auto& pavedCols = *sharedPaved;
             PavingApply ap;
             if (!pave.columns.empty())
@@ -1113,8 +1291,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // footprint centres.
             std::vector<Core::DoorAnchor> doors;
             for (const auto& fd : *sharedFrontDoors) {   // M0 row 2b: outside the FOUND door
-                const auto da = settlementDoorApproach(chunkManager, abox, fd.marker, fd.foot,
-                                                       fd.thresholdMicro);
+                const auto da = fd.hasDoor ? SettlementBuildService::doorApproachAt(fd.door, fd.normal)   // M5b-1: the forge's door
+                                           : settlementDoorApproach(chunkManager, abox, fd.marker, fd.foot, fd.thresholdMicro);
                 doors.push_back({da.outside.x * 9 + 4, da.outside.y * 9 + 4,
                                  (settlementTopScan(chunkManager, oy, da.outside.x, da.outside.y, true) + 1) * 9});
             }
@@ -1359,16 +1537,18 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (mainStreetMode && placedObjectManager && objectTemplateManager && chunkManager) {
             postBuildUnits.push_back({"yard props + well",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP,
-                 lotFailuresP = res.lotFailures, lotToPlot]() {
+                 lotFailuresP = res.lotFailures, lotToPlot, mapWell, mapWellCell, sharedPropBoxes]() {
             if (!chunkManager || !placedObjectManager || !objectTemplateManager) return;
             int propsPlaced = 0, propsSkipped = 0;
             auto spawnProp = [&](const std::string& type, int cx, int cz, int rot) -> bool {
                 const std::string tmpl = Core::FurnitureCatalog::templateFor(type);
                 if (tmpl.empty() || !objectTemplateManager->getTemplate(tmpl)) return false;
                 const int gy = terrainTopAt(cx, cz) + 1;             // stand on the ground/paving
-                return !placedObjectManager
-                            ->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, gy * 9, cz * 9), rot, "")
-                            .empty();
+                const std::string id = placedObjectManager->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, gy * 9, cz * 9), rot, "");
+                if (id.empty()) return false;
+                if (const Core::PlacedObject* po = placedObjectManager->get(id))
+                    sharedPropBoxes->push_back({po->boundingMin, po->boundingMax});   // O9: the sweep keeps these cells
+                return true;
             };
             const std::set<int> failedPlotSet = SettlementBuildService::failedPlots(*lotFailuresP, lotToPlot);
             int propsSkippedFailedLots = 0;
@@ -1387,8 +1567,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             if (!msl.hasSquare && pubSpec.well) {     // village: the main street's verge, mid-length
                 const Core::Rect& ms = msl.mainStreet;
                 const bool msAlongX = ms.w >= ms.d;
-                const int wcx = ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
-                const int wcz = oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
+                // M5b-1: a map build's primary way is a polyline - the planner's projection names the verge cell
+                const int wcx = mapWell ? ox + mapWellCell.x : ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
+                const int wcz = mapWell ? oz + mapWellCell.y : oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
                 (spawnProp("well", wcx, wcz, 0) ? ++propsPlaced : ++propsSkipped);
             }
             LOG_INFO_FMT("Settlement", "yard props: " << propsPlaced << " placed, "
@@ -1408,14 +1589,22 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // recorded by the street unit so the road the nav rebuild sees is the road
         // NPCs actually get.
         units.push_back({"street sweep",
-            [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, sharedRoadBand, sharedStamp, emitMicro,
+            [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, sharedRoadBand, sharedStamp, emitMicro, bFoot, sharedPropBoxes,
              sweepMat = (programMode && tierP ? tierP->street.material
                                              : std::string("Gravel"))]() {
             if (!chunkManager || sharedRoadBand->empty()) return;
+            // M5b-1 (chain 103): never sweep a cube inside a BUILDING's footprint (walls included) - a setback-0 lot's
+            // doorway cube abuts the way's capsule, counts as a band cube, and was hollowed to the paving's level
+            // (the town's hall_house @13514 and blacksmith @13503: the doorway floor 11-12 micro under the threshold).
+            // O9: nor a cube inside a prop this build placed before the sweep (the well on the way's verge, the yard
+            // props). The selection is Core::planStreetSweep (SettlementBuildServiceTest.SweepNeverErasesPlacedObjectCells).
+            const Core::SweepPlan sweepPlan = Core::planStreetSweep(*sharedRoadBand, bFoot, *sharedPropBoxes);
             std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
-            for (const auto& wp : *sharedRoadBand)
+            const int keptForBuildings = sweepPlan.keptForBuildings;
+            for (const auto& wp : sweepPlan.cells) {
                 if (Chunk* ch = chunkManager->getChunkAtFast(wp))
                     byChunk[ch].push_back(wp - ch->getWorldOrigin());
+            }
             int swept = 0;
             for (auto& [ch, cells] : byChunk) {
                 swept += ch->clearCellsBulk(cells);
@@ -1432,8 +1621,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 restamped = Core::StructureGenerator::place(chunkManager, re).placed;
             }
             LOG_INFO_FMT("Settlement", "street sweep: " << swept << " cells cleared over "
-                         << sharedRoadBand->size() << " band cells, " << restamped
-                         << " paving micros re-stamped");
+                         << sharedRoadBand->size() << " band cells (" << keptForBuildings << " inside a building's footprint kept, "
+                         << sweepPlan.keptForObjects << " inside one of " << sharedPropBoxes->size() << " placed props' boxes kept), "
+                         << restamped << " paving micros re-stamped");
         }});
 
         // CIRCUIT WALL (place_town_wall #42, CityForgePlan M7). The band sits OUTSIDE the
@@ -1750,11 +1940,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (mainStreetMode && chunkManager) {
             units.push_back({"doorsteps",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 sharedFrontDoors, emitMicro, fl9, pathsJsonP,
+                 sharedFrontDoors, sharedWayPaved, emitMicro, fl9, pathsJsonP,
                  stepMat = (programMode && tierP ? tierP->street.material : std::string("Cobblestone"))]() {
             if (!chunkManager) return;
             constexpr int kStepUpMicro = 4;          // AnimatedVoxelCharacter::m_maxStepHeight = 4/9 m
-            constexpr int kMaxSteps = 4;
+            constexpr int kMaxSteps = 6;             // M5b-1 chain 98: the face can lie beyond a level apron
             auto solidMicro = [chunkManager](int mx, int my, int mz) {
                 return chunkManager->occupiedMicro(glm::ivec3(mx, my, mz));
             };
@@ -1796,38 +1986,95 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             for (const auto& fd : *sharedFrontDoors) {
                 if (fd.thresholdMicro < 0) { ++skipped; continue; }
                 const int fx = fd.foot.x, fz = fd.foot.y, fw = fd.foot.z, fdp = fd.foot.w;
-                // Outward normal from where the marker sits relative to the footprint.
-                int nx = 0, nz = 0;
-                if (fd.marker.x < fx)            nx = -1;
-                else if (fd.marker.x >= fx + fw) nx = +1;
-                else if (fd.marker.z < fz)       nz = -1;
-                else                             nz = +1;
-                // The wall cube the door is cut through, and the first cell outside it.
-                const int wallX = nx < 0 ? fx : nx > 0 ? fx + fw - 1 : fd.marker.x;
-                const int wallZ = nz < 0 ? fz : nz > 0 ? fz + fdp - 1 : fd.marker.z;
+                // The door's wall cube and outward normal: the forge's recorded door (M5b-1); without one,
+                // inferred from where the marker sits relative to the footprint.
+                int nx = 0, nz = 0, wallX = 0, wallZ = 0;
+                if (fd.hasDoor) { nx = fd.normal.x; nz = fd.normal.y; wallX = fd.door.x; wallZ = fd.door.y; }
+                else {
+                    if (fd.marker.x < fx)            nx = -1;
+                    else if (fd.marker.x >= fx + fw) nx = +1;
+                    else if (fd.marker.z < fz)       nz = -1;
+                    else                             nz = +1;
+                    wallX = nx < 0 ? fx : nx > 0 ? fx + fw - 1 : fd.marker.x;
+                    wallZ = nz < 0 ? fz : nz > 0 ? fz + fdp - 1 : fd.marker.z;
+                }
                 const int threshold = fd.thresholdMicro;             // feet micro inside
                 // DOOR-APPROACH BAND (G-72): the two cells outside the door must be air over
                 // the paving up to the character's height - the parcel fence ran across the
                 // hall's doorstep (its gate sat at the front wall's midpoint, the door did not).
-                for (int k = 1; k <= 2; ++k) {
-                    const int cx = wallX + nx * k, cz = wallZ + nz * k;
-                    const int groundTop = topBelow(cx, cz, threshold + 9);
-                    if (groundTop == INT_MIN) continue;
-                    clearAbove(cx, cz, groundTop + 1, groundTop + 1 + 18);
-                }
-                bool any = false;
+                // M5b-1 chain 98: each approach cell's GROUND is the lowest column top over the cell (a fence's slat or
+                // post across the approach is not the ground; the centre column alone read the fence's rail as ground
+                // and cleared the air above it, leaving the fence), read below the threshold plus a cube (a bump
+                // outside a door stands above the threshold and is a step DOWN into the house).
+                auto cellGroundTop = [&](int cx, int cz, int fromMicroY) {
+                    int lowest = INT_MAX; bool anyCol = false;
+                    for (int dx = 0; dx < 9; ++dx)
+                        for (int dz = 0; dz < 9; ++dz) {
+                            const int mx = cx * 9 + dx, mz = cz * 9 + dz;
+                            for (int my = fromMicroY - 1; my > fromMicroY - 40; --my)
+                                if (solidMicro(mx, my, mz)) { lowest = std::min(lowest, my); anyCol = true; break; }
+                        }
+                    return anyCol ? lowest : INT_MIN;
+                };
+                // chain 116: a PAVED cell's standing level is its paving - the centre column's top (the gate's own
+                // convention), the highest column's otherwise; the band covers such a cell only partly at its edge and
+                // the lowest column read the natural ground 10 micro under the way (then the approach clearing below
+                // wiped the paving down to it at the town's blacksmith and apothecary)
+                auto cellPavedTop = [&](int cx, int cz, int fromMicroY) {
+                    const int mx = cx * 9 + 4, mz = cz * 9 + 4;
+                    for (int my = fromMicroY - 1; my > fromMicroY - 40; --my)
+                        if (solidMicro(mx, my, mz)) return my;
+                    int highest = INT_MIN;
+                    for (int dx = 0; dx < 9; ++dx)
+                        for (int dz = 0; dz < 9; ++dz)
+                            for (int my = fromMicroY - 1; my > fromMicroY - 40; --my)
+                                if (solidMicro(cx * 9 + dx, my, cz * 9 + dz)) { highest = std::max(highest, my); break; }
+                    return highest;
+                };
+                std::vector<int> groundFeet;   // the standing level each cell outward offers
+                std::vector<bool> pavedCell;   // a paved column (the way): an anchor the stoop never touches
                 for (int k = 1; k <= kMaxSteps; ++k) {
                     const int cx = wallX + nx * k, cz = wallZ + nz * k;
-                    const int groundTop = topBelow(cx, cz, threshold);  // paving / ground top
-                    if (groundTop == INT_MIN) break;
-                    const int feetOutside = groundTop + 1;
-                    const int stepFeet = threshold - kStepUpMicro * k;  // this step's standing level
-                    if (stepFeet <= feetOutside) break;                  // riser from here is already <= step
-                    // Fill the cell up to the step's top (exclusive at stepFeet) from EACH
-                    // micro column's own top: the centre column decides the riser, but a
-                    // stoop laid from the centre's height alone floats over lower columns
-                    // (regen #10: a 3-micro slab at 156..158 over air at 153..155 beside the
-                    // croft's door - the gate's start flood could not get under or onto it).
+                    const bool paved = sharedWayPaved->count({cx, cz}) > 0;
+                    const int g = paved ? cellPavedTop(cx, cz, threshold + 9) : cellGroundTop(cx, cz, threshold + 9);
+                    groundFeet.push_back(g == INT_MIN ? INT_MIN : g + 1);
+                    pavedCell.push_back(paved);
+                }
+                // M5b-1 chain 105: the LEVELS - the unpaved cells between the door and the way take the line from the
+                // threshold down to the way (<= 4 a cell, never above the threshold: the lintel); a cell above its
+                // level is CUT, below it FILLED; the way's cells are anchors (one sill on its edge at most)
+                const std::vector<int> fills = Core::planDoorstepLevels(threshold, groundFeet, pavedCell, kStepUpMicro);
+                // DOOR-APPROACH BAND (G-72): the two cells outside the door, and every cell that takes a level, must be
+                // air over the paving / the step up to the character's height - the parcel fence ran across the
+                // hall's doorstep (its gate sat at the front wall's midpoint, the door did not).
+                std::vector<glm::ivec3> cutCubes;
+                for (int k = 1; k <= kMaxSteps; ++k) {
+                    const size_t ki = static_cast<size_t>(k - 1);
+                    if (groundFeet[ki] == INT_MIN) continue;
+                    const int cx = wallX + nx * k, cz = wallZ + nz * k;
+                    const int tgt = fills[ki];
+                    if (tgt != INT_MIN && tgt < groundFeet[ki]) {
+                        // a CUT: every terrain cube from the one holding the new top up to the found ground goes
+                        for (int cy = fl9(tgt - 1); cy <= fl9(groundFeet[ki] - 1); ++cy) cutCubes.push_back(glm::ivec3(cx, cy, cz));
+                    }
+                    if (k > 2 && tgt == INT_MIN) continue;
+                    const int base = (tgt != INT_MIN) ? tgt : groundFeet[ki];
+                    clearAbove(cx, cz, std::min(base, groundFeet[ki]), base + 18);
+                }
+                if (!cutCubes.empty()) Core::StructureGenerator::removeVoxels(chunkManager, cutCubes);
+                bool any = false; int cuts = 0;
+                for (int k = 1; k <= kMaxSteps; ++k) {
+                    const size_t ki = static_cast<size_t>(k - 1);
+                    if (groundFeet[ki] == INT_MIN) break;
+                    const int stepFeet = fills[ki];
+                    if (stepFeet == INT_MIN) continue;
+                    const int cx = wallX + nx * k, cz = wallZ + nz * k;
+                    if (stepFeet < groundFeet[ki]) ++cuts;
+                    const int groundTop = std::min(groundFeet[ki], stepFeet) - 1;
+                    // Fill the cell up to the level (exclusive at stepFeet) from EACH micro column's own top: a stoop
+                    // laid from one height alone floats over lower columns (regen #10: a 3-micro slab at 156..158 over
+                    // air at 153..155 beside the croft's door - the gate's start flood could not get under or onto it).
+                    // After a cut the columns' tops are the cube below the removed ones.
                     for (int dx = 0; dx < 9; ++dx)
                         for (int dz = 0; dz < 9; ++dz) {
                             const int mx = cx * 9 + dx, mz = cz * 9 + dz;
@@ -1839,9 +2086,20 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                 emitMicro(out, mx, my, mz, stepMat);
                         }
                     ++steps; any = true;
-                    if (stepFeet - feetOutside <= kStepUpMicro) break;   // the next riser is climbable
                 }
                 if (any) ++stooped;
+                {   // the door's approach as this unit read it (the gate measures the same cells)
+                    const int doorwayTop = cellGroundTop(wallX, wallZ, threshold + 9);
+                    std::string prof;
+                    for (size_t ki = 0; ki < groundFeet.size(); ++ki)
+                        prof += " " + (groundFeet[ki] == INT_MIN ? std::string("-") : std::to_string(groundFeet[ki])) + (pavedCell[ki] ? "p" : "")
+                              + (fills[ki] != INT_MIN ? "->" + std::to_string(fills[ki]) + (fills[ki] < groundFeet[ki] ? "c" : "") : "");
+                    LOG_INFO_FMT("Settlement", "doorsteps: " << fd.typology << " @" << fx << "," << fz << " door wall (" << wallX << "," << wallZ
+                                 << ") normal (" << nx << "," << nz << ") threshold " << threshold << " doorway floor "
+                                 << (doorwayTop == INT_MIN ? -1 : doorwayTop + 1) << " ground feet outward" << prof
+                                 << " -> " << (any ? (cuts ? "stooped with cuts" : "stooped") : "no step") << (fd.hasDoor ? "" : " (marker-inferred wall)")
+                                 << " [threshold - pad*9 = " << (fd.padY == INT_MIN ? -999 : threshold - fd.padY * 9) << "]");
+                }
             }
             long placed = 0;
             if (!out.voxels.empty()) {
@@ -1906,10 +2164,21 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // location sat at the footprint's corner column, 5 cells out on the street,
                 // while its door is 4 cells along the wall). M0 row 2b: ONE door-finding
                 // (doorApproach), shared with the spur unit and the cluster path network.
-                const auto da = SettlementBuildService::doorApproach(fd.marker, fd.foot,
-                    [&](int cx, int cz) { return seatFeet(cx, cz, fd.thresholdMicro) != INT_MIN; });
+                const auto da = fd.hasDoor ? SettlementBuildService::doorApproachAt(fd.door, fd.normal)   // M5b-1: the forge's door
+                                           : SettlementBuildService::doorApproach(fd.marker, fd.foot,
+                                                 [&](int cx, int cz) { return seatFeet(cx, cz, fd.thresholdMicro) != INT_MIN; });
                 const int passX = da.inside.x, passZ = da.inside.y;      // one cell inside the door
-                const int streetFeet = seatFeet(fd.marker.x, fd.marker.z, fd.thresholdMicro);
+                glm::ivec2 startCell(fd.marker.x, fd.marker.z);
+                int streetFeet = seatFeet(startCell.x, startCell.y, fd.thresholdMicro);
+                // M5b-1 (chain 103): the marker's column can seat nothing at micro level (a fence's cube read as
+                // standable by the cube-granular snap); the route then starts in FRONT of the door, two to four
+                // cells out along its normal - the street side the marker meant.
+                if (streetFeet == INT_MIN && (da.normal.x != 0 || da.normal.y != 0))
+                    for (int k = 2; k <= 4 && streetFeet == INT_MIN; ++k) {
+                        const glm::ivec2 c(da.wall.x + da.normal.x * k, da.wall.y + da.normal.y * k);
+                        const int f = seatFeet(c.x, c.y, fd.thresholdMicro);
+                        if (f != INT_MIN) { startCell = c; streetFeet = f; }
+                    }
                 const int passFeet = seatFeet(passX, passZ, fd.thresholdMicro);
                 const std::string tag = fd.typology + " @" + std::to_string(fx) + "," + std::to_string(fz);
                 if (streetFeet == INT_MIN || passFeet == INT_MIN) {
@@ -1923,7 +2192,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 std::vector<Core::WalkRoute> routes;
                 Core::WalkRoute in;
                 in.label = tag + ": street -> door";
-                in.from = glm::ivec3(fd.marker.x * 9 + 4, streetFeet, fd.marker.z * 9 + 4);
+                in.from = glm::ivec3(startCell.x * 9 + 4, streetFeet, startCell.y * 9 + 4);
                 in.to   = glm::ivec3(passX * 9 + 4, passFeet, passZ * 9 + 4);
                 in.goalRadiusMicro = 4;
                 routes.push_back(in);
@@ -2117,7 +2386,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                            {"buildings_cap", tierP->buildingsMax}};
             if (mainStreetMode) {
                 programJson["main_street"] = {{"x", ox + msl.mainStreet.x}, {"z", oz + msl.mainStreet.z},
-                                              {"w", msl.mainStreet.w}, {"d", msl.mainStreet.d}};
+                                              {"w", msl.mainStreet.w}, {"d", msl.mainStreet.d}};   // a map build: the primary way's bounding box
+                if (primaryWayId >= 0) programJson["primary_way"] = primaryWayId;
                 programJson["dropped_plots"] = droppedPlots;
                 if ((int)buildings.size() < tierP->buildingsMin)
                     programJson["below_tier_min"] = tierP->buildingsMin;   // surfaced, not silent
@@ -2148,6 +2418,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     }
     if (mapLots) {
         programJson["map_sampler"] = mapSampler;
+        programJson["target_lots"] = siteMap.targetLots;   // the growth's aim; fewer buildings than this = lots the site did not seat (surfaced)
         res.map = siteMap.toJson();
         res.settlement["map"] = {{"lots", siteMap.lots.size()}, {"ways", siteMap.ways.size()}, {"nodes", siteMap.nodes.size()}, {"entry_node", siteMap.entryNode}};
     }
@@ -2274,6 +2545,14 @@ SettlementBuildService::DoorApproach SettlementBuildService::doorApproach(
     const int wx = d.wall.x, wz = d.wall.y;
     d.outside = {wx + nx, wz + nz};
     d.inside = {wx - nx, wz - nz};
+    return d;
+}
+
+SettlementBuildService::DoorApproach SettlementBuildService::doorApproachAt(const glm::ivec2& doorWall, const glm::ivec2& normal) {
+    DoorApproach d;
+    d.wall = doorWall; d.normal = normal; d.found = true;
+    d.outside = {doorWall.x + normal.x, doorWall.y + normal.y};
+    d.inside = {doorWall.x - normal.x, doorWall.y - normal.y};
     return d;
 }
 

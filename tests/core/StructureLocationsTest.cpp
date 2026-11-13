@@ -218,6 +218,82 @@ TEST(StructureLocationsTest, SnapToStandableFixesDeadAnchor) {
     EXPECT_EQ(s2.y, 17);
 }
 
+// M5b-1 (chain 93, the street tiers' first live gate): a way graded one cube ABOVE the pad put the marker's
+// column one cube higher than the anchor; the snap's same-level-first search walked FIVE cubes sideways to the
+// first same-level cell - round the corner of the house - and the gate, the spurs and the doorsteps all inferred
+// the door's wall from that side (two village crofts: the route's goal became the inside of a windowless east
+// wall where a bench stood; blocked). The ground a cube up or down in the SAME column is the open ground in
+// front of the door and must win over any lateral step; the eave case (dy = +3, the test above) stays lateral.
+TEST(StructureLocationsTest, SnapToStandableKeepsTheMarkerInItsColumnAcrossAOneCubeStep) {
+    // flat ground at y = 16 (stand at 17); a one-cube-higher apron (y = 17 solid, stand at 18) over the 9 x 9
+    // around (10, 20) - the graded way in front of the door; same-level open ground first at ring 5
+    auto solidAt = [](const glm::ivec3& p) {
+        if (p.y <= 16) return true;
+        if (p.y == 17 && std::abs(p.x - 10) <= 4 && std::abs(p.z - 20) <= 4) return true;
+        return false;
+    };
+    const glm::ivec3 snapped = Phyxel::Core::StructureBuildService::snapToStandable(solidAt, glm::ivec3(10, 17, 20));
+    EXPECT_EQ(snapped, glm::ivec3(10, 18, 20))
+        << "the marker left its column for (" << snapped.x << ", " << snapped.y << ", " << snapped.z
+        << ") instead of standing on the apron one cube up";
+    // one cube DOWN likewise (the way cut below the pad)
+    auto cutAt = [](const glm::ivec3& p) {
+        if (std::abs(p.x - 10) <= 4 && std::abs(p.z - 20) <= 4) return p.y <= 15;
+        return p.y <= 16;
+    };
+    const glm::ivec3 down = Phyxel::Core::StructureBuildService::snapToStandable(cutAt, glm::ivec3(10, 17, 20));
+    EXPECT_EQ(down, glm::ivec3(10, 16, 20)) << "the marker left its column instead of stepping down one cube";
+}
+
+// M5b-1 chain 98: the way FILLED two cubes above the pad in front of a croft's door; the marker's own column was
+// standable only two cubes up, beyond the in-column step, and the search turned the corner to a same-level cell
+// five cubes east - in the neighbour's toft. A front-door marker's meaning points along its door's outward normal:
+// a displaced anchor must move OUT along that normal (up or down a cube or two) before any lateral step.
+TEST(StructureLocationsTest, SnapToStandableFollowsTheDoorNormalBeforeTurningACorner) {
+    // ground at y = 16 (stand 17) everywhere; the way's fill: y <= 18 solid (stand 19) over z >= 20 for |x - 10| <= 4;
+    // the anchor (10, 17, 20) sits inside the fill; the door is at z < 20, its outward normal +z
+    auto solidAt = [](const glm::ivec3& p) {
+        if (p.y <= 16) return true;
+        if (p.z >= 20 && std::abs(p.x - 10) <= 4 && p.y <= 18) return true;
+        return false;
+    };
+    const glm::ivec3 snapped = Phyxel::Core::StructureBuildService::snapToStandable(solidAt, glm::ivec3(10, 17, 20), 5, {}, glm::ivec2(0, 1));
+    EXPECT_EQ(snapped.x, 10) << "the marker turned a corner to (" << snapped.x << ", " << snapped.y << ", " << snapped.z << ")";
+    EXPECT_GE(snapped.z, 20) << "the marker moved back toward / into the building";
+    EXPECT_EQ(snapped.y, 19) << "the marker should stand on the fill in front of the door";
+}
+
+// M5b-1: the marker RECORDS the door it was anchored at - the wall cube and the outward normal - so the
+// settlement's door-finding is the forge's door, not an inference from where the (snapped) marker sits.
+TEST(StructureLocationsTest, DerivedLocationRecordsTheDoorItAnchored) {
+    RoomProgramRegistry reg;
+    ASSERT_TRUE(reg.loadFromFile("resources/room_program.json"));
+    const RoomProgram* croft = reg.get("croft");
+    ASSERT_NE(croft, nullptr);
+    for (const char* front : {"z1", "z0"}) {
+        BuildingProgram p;
+        p.name = "croft"; p.typology = "croft"; p.footprintW = 8; p.footprintD = 6; p.substructure = "slab";
+        p.front = front;
+        ProgStory st; st.height = 3; p.stories.push_back(st);
+        ASSERT_TRUE(autofillRoomLayout(p, 7u, croft));
+        StyleProfile style;
+        auto shell = StructureRealizer::realizeShell(p, style);
+        ASSERT_TRUE(shell.ok) << shell.error;
+        const glm::ivec3 origin(100, 16, 200);
+        auto locs = StructureRealizer::deriveLocations(p, "croft", shell.plan, origin, shell.floorTopMicro);
+        ASSERT_EQ(locs.size(), 1u);
+        EXPECT_TRUE(locs[0].hasDoor) << front << ": the croft's marker records no door";
+        const int nz = (std::string(front) == "z1") ? +1 : -1;
+        EXPECT_EQ(locs[0].doorNormal, glm::ivec2(0, nz)) << front;
+        EXPECT_EQ(locs[0].doorWall.y, nz > 0 ? origin.z + 5 : origin.z) << front << ": the door's wall cube is not on the front wall";
+        EXPECT_GE(locs[0].doorWall.x, origin.x); EXPECT_LT(locs[0].doorWall.x, origin.x + 8);
+        // the marker sits two cells beyond the door's wall cube along the normal
+        const glm::ivec3 m(static_cast<int>(std::floor(locs[0].position.x)), 0, static_cast<int>(std::floor(locs[0].position.z)));
+        EXPECT_EQ(m.x, locs[0].doorWall.x) << front;
+        EXPECT_EQ(m.z, locs[0].doorWall.y + 2 * nz) << front;
+    }
+}
+
 // Determinism + origin linearity: same inputs -> identical marker; shifting the
 // origin shifts the marker by exactly the shift (ids differ since they encode
 // world coords — two crofts must not collide in the registry).
@@ -314,15 +390,11 @@ TEST(StructureLocationsTest, EveryShippedTypologyReportsOneLocation) {
     for (const auto& name : reg.programs()) {
         const RoomProgram* rp = reg.get(name);
         ASSERT_NE(rp, nullptr) << name;
-        const int natLong = std::max(1, static_cast<int>(std::lround(rp->bays * rp->bayLength)));
-        int natShort = std::max(1, static_cast<int>(std::lround(rp->widthMax > 0 ? rp->widthMax : rp->widthMin)));
-        // chain 86 (a FINDING, m5a_red_green.txt): the planner's and the legacy realizer's natural footprint take
-        // width_max for the short side, and the manor_hall's 20 x 17 is refused by the forge's own proportion check
-        // (length:width 1.18 below its min 1.50) - a lot of that typology cannot realize as derived. This pin is about
-        // the LOCATIONS, so the pad keeps the forge's proportion: the short side at most length / proportion_min.
-        if (rp->proportionMin > 0.0)
-            natShort = std::max(std::max(1, static_cast<int>(std::lround(rp->widthMin))),
-                                std::min(natShort, static_cast<int>(std::floor(natLong / rp->proportionMin))));
+        // M5b-1: the pad builds every typology at ITS natural footprint through the one derivation the planner
+        // and the realizer use (naturalFootprintOf keeps the forge's proportion - chain 86's manor_hall finding,
+        // closed by RoomProgramTest.EveryTypologysNaturalFootprintPassesTheForge); no rig footprint any more
+        const NaturalFootprint nf = naturalFootprintOf(*rp);
+        const int natLong = nf.longU, natShort = nf.shortU;
         PadWorld w;
         StructureBuildService::Deps deps;
         deps.chunkManager = &w.cm;

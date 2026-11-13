@@ -4,8 +4,13 @@
 #include <fstream>
 #include <set>
 #include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #include "core/SettlementBuildService.h"
+#include "core/StreetPaver.h"
+#include "core/WorldForgePlan.h"
 
 using namespace Phyxel::Core;
 
@@ -34,8 +39,12 @@ using namespace Phyxel::Core;
 
 namespace {
 
-SettlementBuildService::Plan planTier(const std::string& tier, int w = 80, int d = 48,
+// M5b-1 (chain 89): the rig's rect is the tier's DERIVED one (WorldForgePlan::tierPresetDerived) unless the
+// test names a size - the town's band (15-30) does not seat on the village's 80 x 48 under the growth
+// (13 of 15 seated, a planner refusal), as it did not on the live world's 40 x 32 hamlets (M5a, 5 / 3 / 2)
+SettlementBuildService::Plan planTier(const std::string& tier, int w = 0, int d = 0,
                                       int seed = 3) {
+    if (w <= 0 || d <= 0) { const auto pr = Phyxel::WorldForgePlan::tierPresetDerived(tier); w = pr.width; d = pr.depth; }
     nlohmann::json params = {{"era", "medieval"},
                              {"tier", tier},
                              {"seed", seed},
@@ -415,6 +424,7 @@ TEST(SettlementBuildServiceTest, LotDressingRunsAfterTheBuildingsForEveryMorphol
             const int idx = static_cast<int>(i);
             if (l.rfind("building ", 0) == 0) { if (firstBuilding < 0) firstBuilding = idx; lastBuilding = idx; }
             if (l == "grading + paving streets") streets = idx;
+            if (l == "grading + paving ways")    streets = idx;   // M5b-1: one ribbon paver for every map way, before the buildings
             if (l == "grading + paving paths")   paths = idx;
             if (l == "door spurs")               spurs = idx;
             if (l == "fencing parcels")          fences = idx;
@@ -423,7 +433,10 @@ TEST(SettlementBuildServiceTest, LotDressingRunsAfterTheBuildingsForEveryMorphol
         }
         ASSERT_GE(lastBuilding, 0) << tier << ": no building units";
         const std::string morph = plan.program.value("morphology", std::string("?"));
-        const bool mainStreet = (morph == "main_street" || morph == "semi_organic");
+        // M5b-1: every program tier builds from its map - the planned ways are paved BEFORE the buildings (the
+        // map is the record) and the door spurs run AFTER them from the realized doors; the legacy MST path unit
+        // (door to door, after the buildings) stays for a build without a map
+        const bool mainStreet = (morph == "main_street" || morph == "semi_organic") || plan.map.is_object();
         if (mainStreet) {
             ASSERT_GE(streets, 0) << tier << ": no street unit";
             EXPECT_LT(streets, firstBuilding) << tier << ": streets must be graded before the buildings";
@@ -603,3 +616,47 @@ TEST(SettlementBuildServiceTest, RoomGoalBoxIsTheInnerFloorArea) {
             EXPECT_GE(gb.first.z, 63); EXPECT_LE(gb.second.z, (7 + d) * 9 - 1);
         }
 }
+
+// M0 row "street sweep protects cells owned by placed objects" (register O9; owed since M0, the M5b-1 closure). The
+// sweep runs AFTER the well and the yard props are placed and clears whole cube cells over the road band; its selection
+// is Core::planStreetSweep. The rig: a band 12 x 3 cubes over 3 levels (x 0..11, y 10..12, z 0..2), a well's box on the
+// verge reaching one cube into the band (x 4..5, y 10..11, z 2..3), a building footprint abutting it (x 9..11, z 2..4).
+// The invariant at every cell: no selected cell lies inside the object's box or the footprint; every other band cell IS
+// selected (the control: the guard does not switch the sweep off - the cell above the well, y 12, is still swept).
+TEST(SettlementBuildServiceTest, SweepNeverErasesPlacedObjectCells) {
+    std::vector<glm::ivec3> band;
+    for (int x = 0; x < 12; ++x)
+        for (int z = 0; z < 3; ++z)
+            for (int y = 10; y <= 12; ++y) band.push_back({x, y, z});
+    const std::vector<glm::ivec4> feet = {glm::ivec4(9, 2, 3, 3)};
+    const std::vector<std::pair<glm::ivec3, glm::ivec3>> boxes = {{glm::ivec3(4, 10, 2), glm::ivec3(5, 11, 3)}};
+    auto inBox = [&](const glm::ivec3& c) {
+        return c.x >= 4 && c.x <= 5 && c.y >= 10 && c.y <= 11 && c.z >= 2 && c.z <= 3;
+    };
+    auto inFoot = [&](const glm::ivec3& c) { return c.x >= 9 && c.x <= 11 && c.z >= 2 && c.z <= 4; };
+
+    const SweepPlan plan = planStreetSweep(band, feet, boxes);
+    std::set<std::tuple<int, int, int>> swept;
+    int objectCellsSwept = 0, footCellsSwept = 0;
+    for (const auto& c : plan.cells) {
+        swept.insert({c.x, c.y, c.z});
+        if (inBox(c)) ++objectCellsSwept;
+        if (inFoot(c)) ++footCellsSwept;
+    }
+    EXPECT_EQ(objectCellsSwept, 0) << "the sweep selected " << objectCellsSwept << " of the well's 4 band cells";
+    EXPECT_EQ(footCellsSwept, 0);
+    EXPECT_EQ(plan.keptForObjects, 4);     // x 4..5, y 10..11, z 2
+    EXPECT_EQ(plan.keptForBuildings, 9);   // x 9..11, y 10..12, z 2
+    int missed = 0;
+    for (const auto& c : band)
+        if (!inBox(c) && !inFoot(c) && !swept.count({c.x, c.y, c.z})) ++missed;
+    EXPECT_EQ(missed, 0) << "band cells outside every box and footprint the sweep left";
+    EXPECT_TRUE(swept.count({4, 12, 2})) << "the cell ABOVE the well's box is debris space and is swept";
+    EXPECT_EQ(static_cast<int>(plan.cells.size()), 108 - 4 - 9);
+
+    // the control: no objects -> the well's cells are swept like any other (the metric reads the guard, not the rig)
+    const SweepPlan bare = planStreetSweep(band, feet, {});
+    EXPECT_EQ(static_cast<int>(bare.cells.size()), 108 - 9);
+    EXPECT_EQ(bare.keptForObjects, 0);
+}
+

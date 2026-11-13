@@ -698,9 +698,12 @@ void WorldGenerator::bakeWorldForgePlan() {
                 if (site.state == CivPlan::Abandoned) continue;
                 if (site.pos.x < x0 + kBoxEdgeInsetU || site.pos.x >= x1 - kBoxEdgeInsetU || site.pos.y < z0 + kBoxEdgeInsetU || site.pos.y >= z1 - kBoxEdgeInsetU) continue;
                 boxParams.sitePins.push_back(glm::ivec2(static_cast<int>(std::lround(site.pos.x)), static_cast<int>(std::lround(site.pos.y))));
-                boxParams.pinTiers.push_back(site.tier <= CivPlan::Town ? "town" : (site.tier == CivPlan::Village ? "village" : "hamlet"));
+                // M5b-1 (D45, ruled 2026-11-06): the ladder's CITY maps to the city program now that the box plan
+                // has a city rect (tierPresetDerived); before, city -> town because it had none. Outposts stay hamlets.
+                boxParams.pinTiers.push_back(site.tier == CivPlan::City ? "city" : site.tier == CivPlan::Town ? "town" : (site.tier == CivPlan::Village ? "village" : "hamlet"));
             }
         }
+        boxParams.derivedSiteRects = true;   // M5b-1 (D43 (b)): civ-seeded plans take the program-derived site rects
         boxParams.siteCount = std::max(3, static_cast<int>(boxParams.sitePins.size()));
         boxParams.pinRefine = true;   // D18: the macro centre is refined on the 16 u grid (dry, flattest footprint)
         // M4a (D25/D28): the box routes ONLY the corridor graph's demand. Each corridor polyline is
@@ -1016,9 +1019,9 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
 std::shared_ptr<const std::vector<WorldGenerator::ColumnSample>>
 WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
     const uint64_t key = (uint64_t(uint32_t(colChunk.x)) << 32) | uint64_t(uint32_t(colChunk.y));
-    auto it = m_columnCache.find(key);
-    if (it != m_columnCache.end()) {
-        m_columnCacheLru.splice(m_columnCacheLru.begin(), m_columnCacheLru, it->second.second);   // LRU touch
+    auto it = m_lru.columnCache.find(key);
+    if (it != m_lru.columnCache.end()) {
+        m_lru.columnLru.splice(m_lru.columnLru.begin(), m_lru.columnLru, it->second.second);   // LRU touch
         return it->second.first;
     }
 
@@ -1032,26 +1035,42 @@ WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
         std::chrono::steady_clock::now() - tsC0).count());
     ++t_columnBlocks;
 
-    while (m_columnCache.size() >= kColumnCacheMax) {   // LRU eviction
-        m_columnCache.erase(m_columnCacheLru.back());
-        m_columnCacheLru.pop_back();
+    while (m_lru.columnCache.size() >= kColumnCacheMax) {   // LRU eviction
+        m_lru.columnCache.erase(m_lru.columnLru.back());
+        m_lru.columnLru.pop_back();
     }
-    m_columnCacheLru.push_front(key);
-    m_columnCache.emplace(key, ColumnCacheEntry(fresh, m_columnCacheLru.begin()));
+    m_lru.columnLru.push_front(key);
+    m_lru.columnCache.emplace(key, ColumnCacheEntry(fresh, m_lru.columnLru.begin()));
     return fresh;
+}
+
+size_t WorldGenerator::columnCacheSize() const { return m_lru.columnCache.size(); }
+size_t WorldGenerator::surfaceCacheSize() const { return m_lru.surfaceCache.size(); }
+bool WorldGenerator::cachesSelfConsistent() const {
+    auto owned = [](const std::list<uint64_t>& lru, const auto& map) {
+        std::unordered_map<const uint64_t*, uint64_t> nodes;
+        for (const uint64_t& k : lru) nodes.emplace(&k, k);
+        if (nodes.size() != map.size()) return false;
+        for (const auto& kv : map) {
+            const auto it = nodes.find(&*kv.second.second);
+            if (it == nodes.end() || it->second != kv.first) return false;
+        }
+        return true;
+    };
+    return owned(m_lru.columnLru, m_lru.columnCache) && owned(m_lru.surfaceLru, m_lru.surfaceCache);
 }
 
 std::shared_ptr<const WorldGenerator::SurfaceBlock>
 WorldGenerator::surfaceBlockForChunk(const glm::ivec2& colChunk) {
     const uint64_t key = (uint64_t(uint32_t(colChunk.x)) << 32) | uint64_t(uint32_t(colChunk.y));
-    auto it = m_surfaceCache.find(key);
-    if (it != m_surfaceCache.end()) {
-        m_surfaceCacheLru.splice(m_surfaceCacheLru.begin(), m_surfaceCacheLru, it->second.second);
+    auto it = m_lru.surfaceCache.find(key);
+    if (it != m_lru.surfaceCache.end()) {
+        m_lru.surfaceLru.splice(m_lru.surfaceLru.begin(), m_lru.surfaceLru, it->second.second);
         return it->second.first;
     }
     auto block = std::make_shared<SurfaceBlock>();
-    auto colIt = m_columnCache.find(key);
-    if (colIt != m_columnCache.end()) {
+    auto colIt = m_lru.columnCache.find(key);
+    if (colIt != m_lru.columnCache.end()) {
         // Already sampled for generation: just compact it (no new column samples).
         const std::vector<ColumnSample>& cols = *colIt->second.first;
         for (size_t i = 0; i < 1024; ++i) {
@@ -1077,12 +1096,12 @@ WorldGenerator::surfaceBlockForChunk(const glm::ivec2& colChunk) {
             std::chrono::steady_clock::now() - tsC0).count());
         ++t_columnBlocks;
     }
-    while (m_surfaceCache.size() >= kSurfaceCacheMax) {
-        m_surfaceCache.erase(m_surfaceCacheLru.back());
-        m_surfaceCacheLru.pop_back();
+    while (m_lru.surfaceCache.size() >= kSurfaceCacheMax) {
+        m_lru.surfaceCache.erase(m_lru.surfaceLru.back());
+        m_lru.surfaceLru.pop_back();
     }
-    m_surfaceCacheLru.push_front(key);
-    m_surfaceCache.emplace(key, SurfaceCacheEntry(block, m_surfaceCacheLru.begin()));
+    m_lru.surfaceLru.push_front(key);
+    m_lru.surfaceCache.emplace(key, SurfaceCacheEntry(block, m_lru.surfaceLru.begin()));
     return block;
 }
 

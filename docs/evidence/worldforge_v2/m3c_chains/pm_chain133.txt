@@ -1,0 +1,15 @@
+PREDICTIONS for chain 133 (m5b_stp_chain 133, SettlementTerrainPlanTest.*, patch 19 = test-only rig changes after
+chain 132's 8 ok / 2 failed). Written 2026-11-10 BEFORE patch 19 is applied or built. The final-tree set moves to
+chains 134 (m5b2), 135 (m5b6), 136 (m5b3v), 137 (m5b4); PM5b1.110-112 (pm_chain132.txt) carry to those numbers.
+
+  PM5b1.113 (chain 133): 10 ok, 0 failed.
+    a. half ramp: the village arm REFUSED (5 of 6, buildable_fraction 0.571, as chain 132); the hamlet arm PLANS
+       (minimum 3; UNCERTAIN - the flat half is 96 x 16 and a hamlet toft with its setback may not fit 16 rows: if
+       the hamlet is refused too, "planned > 0" FAILS and the rig is the question, stated after). If it plans: 0
+       lots past row 16, and the flat control seats >= 1 lot past row 16 (UNCERTAIN - on a 28-deep flat site I
+       expect lots on both sides of the entry path; if every control lot sits in z < 17 the control assertion fails).
+    b. pond: the wet plan is NOT refused (the street passes the pond - UNCERTAIN: if the first lot fronts the primary
+       way and the pond blocks the way's band, the route may still fail); 0 footprints in the pond; the whole-depth
+       band stays refused with "no dry route".
+    c. canopy with the hamlet on the generator's ground: plans (the tenth test plans a hamlet on 48 x 28 there);
+       the margin equals the biome's widest crown.

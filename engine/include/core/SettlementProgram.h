@@ -52,6 +52,8 @@ struct SetbackSpec {
 struct BellSpec {
     int   roadPreferredU = 3;    ///< the door's preferred distance to its way (the front yard: setback.max)
     int   roadSpreadU = 14;      ///< the bell's spread (a toft's depth: plot.depth_max)
+    float roadFloor = 0.0f;      ///< M5b-1: the road factor never drops below this (street tiers: a lot off every
+                                 ///< way stays a candidate and gets a lane - the growth's infill; 0 = the hamlet's bell)
     int   reliefHalfU = 3;       ///< the slope bell's half-width in relief cubes over the lot (half the buildable cap)
     int   waterPreferredU = 16;  ///< the water bell's centre (near, not in)
     int   waterSpreadU = 16;

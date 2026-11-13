@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
@@ -56,6 +58,11 @@ private:
     Phyxel::ChunkManager m_cm;
 };
 
+// THE RIG'S SITE (2026-11-10, chain 126): since M5b-1 the village is GROWN from the map to the program's band
+// (min 6 lots) and refuses below it; the 48 x 28 site these tests used seats 5 on flat ground. The site is
+// 96 x 28 on a 3-chunk world; the terrain functions are unchanged.
+constexpr int kW = 96, kD = 28, kChunksX = 3;
+
 SettlementBuildService::Plan planOn(HeadlessWorld& w, int W, int D, bool terrain,
                                     int seed = 3, const char* tier = "village") {
     nlohmann::json params = {{"era", "medieval"}, {"tier", tier}, {"seed", seed},
@@ -75,11 +82,11 @@ SettlementBuildService::Plan planOn(HeadlessWorld& w, int W, int D, bool terrain
 // ---------------------------------------------------------------------------
 TEST(SettlementTerrainPlanTest, ASiteWithUngroundedColumnsIsRefused) {
     // Terrain everywhere EXCEPT a hole at x in [20,24], z in [10,14].
-    HeadlessWorld w(2, [](int x, int z) {
+    HeadlessWorld w(kChunksX, [](int x, int z) {
         if (x >= 20 && x <= 24 && z >= 10 && z <= 14) return -1;   // no terrain at all
         return 16;
     });
-    const auto plan = planOn(w, 48, 28, /*terrain=*/false);
+    const auto plan = planOn(w, kW, kD, /*terrain=*/false);
 
     ASSERT_FALSE(plan.ok()) << "a site with a hole in it planned successfully";
     EXPECT_TRUE(plan.error.contains("ungrounded_columns"))
@@ -94,12 +101,12 @@ TEST(SettlementTerrainPlanTest, ASiteWithUngroundedColumnsIsRefused) {
 // ...and the documented override must actually override, or the gate is a wall
 // rather than a default.
 TEST(SettlementTerrainPlanTest, TheUngroundedOverrideIsHonoured) {
-    HeadlessWorld w(2, [](int x, int z) {
+    HeadlessWorld w(kChunksX, [](int x, int z) {
         if (x >= 20 && x <= 24 && z >= 10 && z <= 14) return -1;
         return 16;
     });
     nlohmann::json params = {{"era", "medieval"}, {"tier", "village"}, {"seed", 3},
-                             {"width", 48}, {"depth", 28}, {"allow_ungrounded", true},
+                             {"width", kW}, {"depth", kD}, {"allow_ungrounded", true},
                              {"position", {{"x", 0}, {"y", 16}, {"z", 0}}}};
     SettlementBuildService::Deps deps;
     deps.chunkManager = w.cm();
@@ -115,13 +122,30 @@ TEST(SettlementTerrainPlanTest, TheUngroundedOverrideIsHonoured) {
 // makes the steep-terrain degradation below meaningful rather than vacuous.
 // ---------------------------------------------------------------------------
 TEST(SettlementTerrainPlanTest, TerrainModeOnFlatGroundPlansAFullSettlement) {
-    HeadlessWorld w(2, [](int, int) { return 16; });
-    const auto plan = planOn(w, 48, 28, /*terrain=*/true);
+    HeadlessWorld w(kChunksX, [](int, int) { return 16; });
+    const auto plan = planOn(w, kW, kD, /*terrain=*/true);
 
     ASSERT_TRUE(plan.ok()) << plan.error.dump();
     EXPECT_GT(plan.settlement.value("buildings", 0), 0);
     EXPECT_EQ(plan.program.value("dropped_plots", -1), 0)
         << "plots were dropped as unbuildable on perfectly FLAT ground";
+}
+
+// ---------------------------------------------------------------------------
+// The rig these tests used until 2026-11-10: a village on 48 x 28. Since M5b-1 the grown village refuses below the
+// program's minimum; on this flat site it seats 5 of 6. A PIN of measured behaviour (chain 126), not
+// red-before-green: the refusal carries the count, the aim and the buildable fraction (1.0 - the site is too
+// SMALL, not unbuildable). Whether the M5a rows seated more on this rect was not measured.
+// ---------------------------------------------------------------------------
+TEST(SettlementTerrainPlanTest, AVillageSiteBelowItsMinimumIsRefusedWithTheCount) {
+    HeadlessWorld w(2, [](int, int) { return 16; });
+    const auto plan = planOn(w, 48, 28, /*terrain=*/true);
+    ASSERT_FALSE(plan.ok()) << "the 48 x 28 village planned - the pin of chain 126 no longer holds (a change in how many lots the growth seats)";
+    std::printf("[ terrain plan ] village 48 x 28 flat: REFUSED %s\n", plan.error.dump().c_str());
+    EXPECT_EQ(plan.error.value("seated_lots", -1), 5);
+    EXPECT_GE(plan.error.value("target_lots", -1), 6);
+    EXPECT_DOUBLE_EQ(plan.error.value("buildable_fraction", -1.0), 1.0);
+    EXPECT_TRUE(plan.units.empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -132,40 +156,62 @@ TEST(SettlementTerrainPlanTest, TerrainModeOnFlatGroundPlansAFullSettlement) {
 TEST(SettlementTerrainPlanTest, ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt) {
     // A sawtooth: every column alternates between y=16 and y=30. Relief 14 per cell,
     // far past any buildable threshold -- nowhere is flat.
-    HeadlessWorld w(2, [](int x, int z) { return ((x + z) % 2 == 0) ? 16 : 30; });
-    const auto plan = planOn(w, 48, 28, /*terrain=*/true);
+    HeadlessWorld w(kChunksX, [](int x, int z) { return ((x + z) % 2 == 0) ? 16 : 30; });
+    const auto plan = planOn(w, kW, kD, /*terrain=*/true);
 
     EXPECT_FALSE(plan.ok())
         << "a settlement was planned on sawtooth cliffs - the buildability gate is not firing";
     EXPECT_TRUE(plan.error.contains("buildable_fraction"))
         << "the refusal must report HOW unbuildable the site was: " << plan.error.dump();
+    EXPECT_LT(plan.error.value("buildable_fraction", 1.0), 0.5) << "a sawtooth of 14-cube steps reported as mostly buildable";
     EXPECT_TRUE(plan.units.empty()) << "a refused terrain plan handed back work units";
 }
 
 // A slope that is buildable in places must produce a settlement, and the count of
 // plots dropped for unbuildability must be SURFACED (graceful degradation is only
 // honest if it is reported).
-TEST(SettlementTerrainPlanTest, PartlyBuildableTerrainSurfacesTheDroppedPlotCount) {
+// (RENAMED 2026-11-10 from PartlyBuildableTerrainSurfacesTheDroppedPlotCount: it no longer measures a dropped count)
+TEST(SettlementTerrainPlanTest, PartlyBuildableTerrainSeatsNoLotOnTheRamp) {
     // Flat half (z < 16) and a steep ramp half (z >= 16) climbing 3 cubes per cell.
-    HeadlessWorld w(2, [](int x, int z) { return z < 16 ? 16 : 16 + (z - 16) * 3; });
-    const auto plan = planOn(w, 48, 28, /*terrain=*/true);
-
-    if (!plan.ok()) {
-        // Acceptable outcome, but it still has to say why.
-        EXPECT_TRUE(plan.error.contains("buildable_fraction")) << plan.error.dump();
-        return;
+    // Both tiers (2026-11-10, chain 132): the village is REFUSED on this rig (5 of its minimum 6 fit the flat half), so
+    // its arm proves the refusal's report; the hamlet (minimum 3) plans, so its arm runs the lot assertions.
+    int planned = 0;
+    for (const char* tier : {"village", "hamlet"}) {
+        HeadlessWorld w(kChunksX, [](int x, int z) { return z < 16 ? 16 : 16 + (z - 16) * 3; });
+        const auto plan = planOn(w, kW, kD, /*terrain=*/true, 3, tier);
+        if (!plan.ok()) {
+            // Acceptable outcome, but it still has to say why - and how far the growth got.
+            std::printf("[ terrain plan ] half ramp, %s: REFUSED %s\n", tier, plan.error.dump().c_str());
+            EXPECT_TRUE(plan.error.contains("buildable_fraction")) << plan.error.dump();
+            EXPECT_LT(plan.error.value("buildable_fraction", 1.0), 0.75) << "half the site is a 3-per-cell ramp";
+            EXPECT_TRUE(plan.error.contains("seated_lots")) << plan.error.dump();
+            continue;
+        }
+        ++planned;
+        // RESTATED 2026-11-10 for the grown map (after chain 126, stated in pm_chain132.txt): growth does not DROP a
+        // lot on the ramp, it never SEATS one there - "dropped_plots" stays 0 by construction. The contract (nothing
+        // stands on the ramp; a settlement that shrank for the terrain says so) is measured directly: no lot's rect
+        // reaches a ramp row - with the flat CONTROL at the same seed seating at least one lot past that row, so the
+        // assertion can fail - and the growth's aim (target_lots) is echoed beside the count.
+        HeadlessWorld flat(kChunksX, [](int, int) { return 16; });
+        const auto control = planOn(flat, kW, kD, /*terrain=*/true, 3, tier);
+        ASSERT_TRUE(control.ok()) << control.error.dump();
+        auto lotsOf = [](const SettlementBuildService::Plan& pl) { return pl.map.value("lots", nlohmann::json::array()); };
+        auto pastRamp = [](const nlohmann::json& lots) {
+            int n = 0;
+            for (const auto& l : lots) if (l["rect"][1].get<int>() + l["rect"][3].get<int>() > 17) ++n;   // rect = [x, z, w, d]; z1 exclusive
+            return n;
+        };
+        const auto lots = lotsOf(plan), controlLots = lotsOf(control);
+        std::printf("[ terrain plan ] half ramp, %s: %zu lots, %d past row 16 (flat control %zu lots, %d past row 16), target %d\n", tier,
+                    lots.size(), pastRamp(lots), controlLots.size(), pastRamp(controlLots), plan.program.value("target_lots", -1));
+        ASSERT_GT(pastRamp(controlLots), 0) << "control broken: on flat ground no lot reaches the rows the ramp occupies";
+        EXPECT_EQ(pastRamp(lots), 0) << "a lot's rect reaches the ramp (rows z >= 17 climb 3 per cell)";
+        EXPECT_LE(lots.size(), controlLots.size());
+        EXPECT_TRUE(plan.program.contains("target_lots")) << "the growth's aim must be echoed beside the seated count";
+        EXPECT_GT(plan.settlement.value("buildings", 0), 0) << "the flat half should still host buildings";
     }
-    EXPECT_TRUE(plan.program.contains("dropped_plots"))
-        << "a terrain build that skipped plots must report the count, not quietly shrink";
-    // GT, not GE(0). This fixture is a ramp climbing 3 cubes per cell over half the site,
-    // so plots MUST be dropped -- and `>= 0` is trivially true for zero, which the
-    // solution-auditor demonstrated by breaking the TooSteep classification and watching
-    // this test stay green with dropped_plots=0. A test named for a count has to check it.
-    EXPECT_GT(plan.program.value("dropped_plots", 0), 0)
-        << "the steep ramp dropped NO plots - either the buildability filter or the drop "
-           "accounting is broken, and this test would have passed anyway under >= 0";
-    EXPECT_GT(plan.settlement.value("buildings", 0), 0)
-        << "the flat half should still host buildings";
+    EXPECT_GT(planned, 0) << "neither tier planned on the half ramp - the lot assertions never ran";
 }
 
 // ---------------------------------------------------------------------------
@@ -175,8 +221,8 @@ TEST(SettlementTerrainPlanTest, PartlyBuildableTerrainSurfacesTheDroppedPlotCoun
 // ---------------------------------------------------------------------------
 TEST(SettlementTerrainPlanTest, TerrainPlanningIsDeterministicInTheSeed) {
     auto mk = [](int seed) {
-        HeadlessWorld w(2, [](int x, int z) { return 16 + ((x / 16) + (z / 16)) % 2; });
-        return planOn(w, 48, 28, /*terrain=*/true, seed).queuedBuilds.dump();
+        HeadlessWorld w(kChunksX, [](int x, int z) { return 16 + ((x / 16) + (z / 16)) % 2; });
+        return planOn(w, kW, kD, /*terrain=*/true, seed).queuedBuilds.dump();
     };
     const std::string a = mk(3), b = mk(3), c = mk(9);
     EXPECT_EQ(a, b) << "the same seed produced a different terrain settlement";
@@ -190,8 +236,8 @@ TEST(SettlementTerrainPlanTest, TerrainPlanningIsDeterministicInTheSeed) {
 // the skip is surfaced. Together these pin both halves of that branch.
 // ---------------------------------------------------------------------------
 TEST(SettlementTerrainPlanTest, WithAWorldTheSitePrepUnitsAreActuallyPlanned) {
-    HeadlessWorld w(2, [](int, int) { return 16; });
-    const auto plan = planOn(w, 48, 28, /*terrain=*/false);
+    HeadlessWorld w(kChunksX, [](int, int) { return 16; });
+    const auto plan = planOn(w, kW, kD, /*terrain=*/false);
     ASSERT_TRUE(plan.ok()) << plan.error.dump();
 
     EXPECT_FALSE(plan.settlement.value("site_prep_skipped", false))
@@ -231,7 +277,7 @@ namespace {
 // surface — the chunk's own persisted "water as world data" record, what a loaded world
 // carries. The band runs ACROSS the main street (which lies along x on this site), so the
 // burgage plots on both sides of the street straddle it.
-void floodBandX(HeadlessWorld& w, int chunksX, int x0, int x1, int surfaceY) {
+void floodBandX(HeadlessWorld& w, int chunksX, int x0, int x1, int surfaceY, int z0 = 0, int z1 = 31) {
     for (int cx = 0; cx < chunksX; ++cx) {
         Phyxel::Chunk* ch = w.cm()->getChunkAtFast(glm::ivec3(cx * 32, surfaceY, 0));
         ASSERT_NE(ch, nullptr);
@@ -239,7 +285,7 @@ void floodBandX(HeadlessWorld& w, int chunksX, int x0, int x1, int surfaceY) {
         for (int lx = 0; lx < 32; ++lx) {
             const int wx = cx * 32 + lx;
             if (wx < x0 || wx > x1) continue;
-            for (int z = 0; z < 32; ++z) {
+            for (int z = std::max(0, z0); z <= std::min(31, z1); ++z) {
                 Phyxel::Chunk::WaterSpanLocal s;
                 s.x = static_cast<uint8_t>(lx); s.z = static_cast<uint8_t>(z);
                 s.bottom = static_cast<float>(surfaceY + 1); s.top = static_cast<float>(surfaceY + 1) + 0.6f;
@@ -249,40 +295,56 @@ void floodBandX(HeadlessWorld& w, int chunksX, int x0, int x1, int surfaceY) {
         ch->setWaterSpans(std::move(spans));
     }
 }
-int buildingsCrossingBandX(const SettlementBuildService::Plan& plan, int x0, int x1) {
+// lots of the plan's MAP whose building footprint ([x, z, w, d], settlement-local = world on this rig) overlaps the box
+int footprintsInBox(const SettlementBuildService::Plan& plan, int x0, int x1, int z0, int z1) {
     int n = 0;
-    for (const auto& b : plan.queuedBuilds) {
-        const int bx = b["position"].value("x", 0);
-        const int bw = b["footprint"].is_array() && b["footprint"].size() == 2 ? b["footprint"][0].get<int>() : 0;
-        if (bx <= x1 && bx + bw - 1 >= x0) ++n;
+    for (const auto& l : plan.map.value("lots", nlohmann::json::array())) {
+        const auto& f = l["footprint"];
+        const int fx = f[0].get<int>(), fz = f[1].get<int>(), fw = f[2].get<int>(), fd = f[3].get<int>();
+        if (fx <= x1 && fx + fw - 1 >= x0 && fz <= z1 && fz + fd - 1 >= z0) ++n;
     }
     return n;
 }
 }  // namespace
 
-TEST(SettlementTerrainPlanTest, CreekInsideFootprintIsNotBuildable) {
-    // CONTROL: plan the dry flat site first and take the creek band from its FIRST building's
-    // footprint (its middle two columns), so the band is one a planned building provably crosses.
-    HeadlessWorld dry(2, [](int, int) { return 16; });
-    const auto dryPlan = planOn(dry, 48, 28, /*terrain=*/true);
+// (RENAMED 2026-11-10 from CreekInsideFootprintIsNotBuildable: the water is a pond; the creek is the pin at the end)
+TEST(SettlementTerrainPlanTest, WaterInsideFootprintIsNotBuildable) {
+    // CONTROL: plan the dry flat site first and take the water from its FIRST lot's building footprint (its middle
+    // two columns, over the footprint's own rows), so the water is where a planned building provably stands.
+    // RIG CHANGE 2026-11-10 (after chain 132, stated in pm_chain133.txt): the water was a band across the WHOLE
+    // depth; since M5b-1 the village's main street is routed and a site bisected by water is refused ("no dry
+    // route for the main street") - pinned below as measured behaviour. The water here is a pond the street can pass.
+    HeadlessWorld dry(kChunksX, [](int, int) { return 16; });
+    const auto dryPlan = planOn(dry, kW, kD, /*terrain=*/true);
     ASSERT_TRUE(dryPlan.ok()) << dryPlan.error.dump();
-    ASSERT_FALSE(dryPlan.queuedBuilds.empty());
-    const auto& b0 = dryPlan.queuedBuilds[0];
-    const int bx = b0["position"].value("x", 0), bw = b0["footprint"][0].get<int>();
-    const int x0 = bx + bw / 2 - 1, x1 = bx + bw / 2;   // a 2-cube creek through the building's middle
-    ASSERT_GT(buildingsCrossingBandX(dryPlan, x0, x1), 0)
-        << "control broken: the band was taken from a planned building, it must cross it";
+    const auto dryLots = dryPlan.map.value("lots", nlohmann::json::array());
+    ASSERT_FALSE(dryLots.empty());
+    const auto& f0 = dryLots[0]["footprint"];
+    const int fx = f0[0].get<int>(), fz = f0[1].get<int>(), fw = f0[2].get<int>(), fd = f0[3].get<int>();
+    const int x0 = fx + fw / 2 - 1, x1 = fx + fw / 2, z0 = fz, z1 = fz + fd - 1;
+    ASSERT_GT(footprintsInBox(dryPlan, x0, x1, z0, z1), 0)
+        << "control broken: the water was taken from a planned building, it must stand in it";
 
-    HeadlessWorld wet(2, [](int, int) { return 16; });
-    floodBandX(wet, 2, x0, x1, 16);
-    const auto plan = planOn(wet, 48, 28, /*terrain=*/true);
+    HeadlessWorld wet(kChunksX, [](int, int) { return 16; });
+    floodBandX(wet, kChunksX, x0, x1, 16, z0, z1);
+    const auto plan = planOn(wet, kW, kD, /*terrain=*/true);
     ASSERT_TRUE(plan.ok()) << plan.error.dump();
-    EXPECT_EQ(buildingsCrossingBandX(plan, x0, x1), 0)
-        << "a building was planned over the creek band x " << x0 << ".." << x1
+    std::printf("[ terrain plan ] pond x %d..%d z %d..%d: dry %zu lots, wet %zu lots, footprints in the pond %d\n", x0, x1, z0, z1,
+                dryLots.size(), plan.map.value("lots", nlohmann::json::array()).size(), footprintsInBox(plan, x0, x1, z0, z1));
+    EXPECT_EQ(footprintsInBox(plan, x0, x1, z0, z1), 0)
+        << "a building was planned over the water x " << x0 << ".." << x1 << " z " << z0 << ".." << z1
         << " (analyzeSite received no water predicate)";
-    EXPECT_GT(plan.program.value("dropped_plots", 0), 0)
-        << "plots over water must be DROPPED and counted, not silently shrunk";
+    // (the legacy "dropped_plots > 0" assertion is REMOVED 2026-11-10, stated in pm_chain132.txt: the grown map
+    // seats the lot elsewhere instead of dropping it - nothing is dropped; the assertion above is the contract)
     EXPECT_GT(plan.settlement.value("buildings", 0), 0) << "the dry parts still host buildings";
+
+    // A PIN of measured behaviour (chain 132), not red-before-green: water across the whole depth bisects the site
+    // and the village is refused with the street's reason, not planned with a street through the water.
+    HeadlessWorld cut(kChunksX, [](int, int) { return 16; });
+    floodBandX(cut, kChunksX, x0, x1, 16);
+    const auto cutPlan = planOn(cut, kW, kD, /*terrain=*/true);
+    EXPECT_FALSE(cutPlan.ok());
+    EXPECT_NE(cutPlan.error.value("error", std::string()).find("no dry route"), std::string::npos) << cutPlan.error.dump();
 }
 
 // ---------------------------------------------------------------------------
@@ -310,13 +372,16 @@ TEST(SettlementTerrainPlanTest, CanopyMarginCoversTheBiomesWidestTree) {
     ASSERT_GT(templates.templateHalfFootprintColumns("forge_oak_l"), 0)
         << "rig: the nature library did not load headless";
 
-    HeadlessWorld w(2, [](int, int) { return 16; });
+    HeadlessWorld w(kChunksX, [](int, int) { return 16; });
     w.cm()->configureStreamingGeneration(true, Phyxel::WorldGenerator::GenerationType::Perlin, 20260816);
     Phyxel::WorldGenerator* gen = w.cm()->getStreamingGenerator();
     ASSERT_NE(gen, nullptr);
     // NOTE: configureStreamingGeneration replaces the generator but the headless chunks stay.
-    nlohmann::json params = {{"era", "medieval"}, {"tier", "village"}, {"seed", 3},
-                             {"width", 48}, {"depth", 28}, {"terrain", true},
+    // RIG CHANGE 2026-11-10 (after chain 132, stated in pm_chain133.txt): the village is refused on the generator's
+    // ground under this rect (5 of its minimum 6, buildable fraction 1.0 - NOT explained); the margin under test is
+    // the biome's, so the rig plans the hamlet, the tier the materials test below already uses.
+    nlohmann::json params = {{"era", "medieval"}, {"tier", "hamlet"}, {"seed", 3},
+                             {"width", kW}, {"depth", kD}, {"terrain", true},
                              {"position", {{"x", 0}, {"y", 16}, {"z", 0}}}};
     SettlementBuildService::Deps deps;
     deps.chunkManager = w.cm();
@@ -325,7 +390,7 @@ TEST(SettlementTerrainPlanTest, CanopyMarginCoversTheBiomesWidestTree) {
     ASSERT_TRUE(plan.ok()) << plan.error.dump();
 
     // Expected: the widest crown the SITE biome can grow (pool + extra layers, pool mode), floor 4.
-    const auto& biome = gen->getBiomes()[gen->sampleSurface(24, 14).biomeIndex];
+    const auto& biome = gen->getBiomes()[gen->sampleSurface(kW / 2, kD / 2).biomeIndex];
     std::vector<int> halves;
     auto add = [&](const std::vector<std::pair<std::string, int>>& items, const std::string& mode) {
         for (const auto& it : items) {

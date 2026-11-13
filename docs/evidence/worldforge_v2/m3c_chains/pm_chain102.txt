@@ -1,0 +1,17 @@
+PREDICTIONS for chain 102 (mode m5b6 = StreetPaverTest, StructureLocationsTest, SpawnGateTest), written BEFORE the launch.
+The tree: padCubeForStreet (the pad cube whose threshold lands within a step of the way) + its test; the realizer seats a
+map lot's building from the ways unit's paved stamp at the lot's door approach (DESIGN DECISION, chain 101 (a)); the
+headless rebuild prints the approach section. Red-before-green: this helper's test is red by construction only (new
+function); the measured red is chain 101's four one-way drops; the green is chain 103's arms.
+  PM5b1.64 PadCubeForStreetPutsTheThresholdWithinAStepOfTheWay GREEN (878 -> 96, 892 -> 98, 1363 -> 150; every case within 4).
+  PM5b1.65 the rest of the set GREEN as chain 100 (41 of 41).
+PREDICTIONS for chain 103 (mode m5b3v = the village and town arms), the same tree:
+  PM5b1.66 every street-tier building's "seat:" line names the way's surface at its approach and a pad within one cube
+    of the natural seat on most lots, two cubes where the way is a causeway or a cutting (the village crofts @-7919 /
+    @-7904: pad 96 for the way at 878; the hall_house @-7903: 98 for 892).
+  PM5b1.67 the VILLAGE gate PASSES: the four one-way drops and faces are gone (the thresholds within a step of their
+    ways; the stoops fill the rest), 34 routes over 11 doors, 0 skipped.
+  PM5b1.68 the TOWN: the two one-way drops (blacksmith @13538, apothecary) PASS; the two doorway PITS (hall_house
+    @13514, blacksmith @13503) UNCERTAIN - read headless first (the diag4 run) and fixed before this chain if the forge
+    carves the doorway floor away; the skipped hall_house @13517's marker seats on the way. Predicted PASSED, 72 routes
+    over 24 doors; a route that stays blocked is recorded as found.

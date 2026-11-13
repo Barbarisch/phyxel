@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <fstream>
+#include <string>
 
 #include "core/RoomProgram.h"
 
@@ -74,4 +76,43 @@ TEST(RoomProgramTest, ShippedCanonIsGroundedAndBayDriven) {
     bool hallIsTwoBays = false;
     for (const auto& r : hh->rooms) if (r.purpose == "hall" && r.bays == 2.0) hallIsTwoBays = true;
     EXPECT_TRUE(hallIsTwoBays);
+}
+
+// M5b-1 (the M5b design check of 2026-11-06, red test (f)): every shipped typology's NATURAL footprint -
+// the one the planner seats and the realizer builds - passes the forge's own proportion bounds
+// (BuildingProgramValidator's footprint_too_square / footprint_too_long). RED on the manor_hall as the
+// rule stands (width_max 17 for the short side: 20 x 17 = 1.18 below its min 1.50; chain 86 found it
+// through buildV2). Every value here is the canon's own (bays x bay_length, the width range, the
+// proportion bounds) - the test adds none.
+TEST(RoomProgramTest, EveryTypologysNaturalFootprintPassesTheForge) {
+    const char* candidates[] = {"resources/room_program.json", "../resources/room_program.json",
+                                "../../resources/room_program.json", "../../../resources/room_program.json"};
+    RoomProgramRegistry reg;
+    bool found = false;
+    for (const char* p : candidates) {
+        std::ifstream f(p);
+        if (f.good()) { found = reg.loadFromFile(p); break; }
+    }
+    if (!found) GTEST_SKIP() << "resources/room_program.json not reachable from CWD";
+    int checked = 0, refused = 0;
+    for (const std::string& name : reg.programs()) {
+        const RoomProgram* rp = reg.get(name);
+        ASSERT_NE(rp, nullptr) << name;
+        const NaturalFootprint nf = naturalFootprintOf(*rp);
+        const double ratio = nf.shortU > 0 ? static_cast<double>(nf.longU) / nf.shortU : 0.0;
+        const double pmin = rp->proportionMin > 0.0 ? rp->proportionMin : 1.0;
+        const bool tooSquare = ratio + 1e-6 < pmin;
+        const bool tooLong = rp->proportionMax > 0.0 && ratio > rp->proportionMax + 1e-6;
+        const bool tooNarrow = rp->widthMin > 0.0 && nf.shortU + 1e-6 < rp->widthMin;
+        std::printf("[ M5b ] %-14s natural %2d x %2d  ratio %.2f  bounds [%.2f, %s]  width_min %.0f%s\n", name.c_str(), nf.longU, nf.shortU, ratio, pmin,
+                    rp->proportionMax > 0.0 ? std::to_string(rp->proportionMax).substr(0, 4).c_str() : "-", rp->widthMin,
+                    (tooSquare ? "  TOO SQUARE" : tooLong ? "  TOO LONG" : tooNarrow ? "  TOO NARROW" : ""));
+        ++checked;
+        if (tooSquare || tooLong || tooNarrow) ++refused;
+        EXPECT_FALSE(tooSquare) << name << ": the natural footprint " << nf.longU << " x " << nf.shortU << " is refused by the forge as too square (" << ratio << " < " << pmin << ")";
+        EXPECT_FALSE(tooLong) << name << ": too long";
+        EXPECT_FALSE(tooNarrow) << name << ": the short side is under width_min";
+    }
+    std::printf("[ M5b ] natural footprints: %d typologies, %d refused by the forge's bounds\n", checked, refused);
+    EXPECT_GE(checked, 13);
 }

@@ -65,6 +65,50 @@ double secondsSince(const std::chrono::steady_clock::time_point& t0) {
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 }
 
+// M5b-1 (chain 97): the route's APPROACH as a vertical section along the straight line from `from` to `to`, one
+// column per micro step (the longer axis steps by 1, the other interpolated), rows = micro y top to bottom: '#'
+// solid, '.' air, 'F' the probe fits AND is supported with its feet there (a standable cell), 'S' the start's
+// column, 'G' the goal's. A step the walker cannot take reads as a riser taller than 4 between two F's.
+void printApproachSection(ChunkManager& cm, const glm::ivec3& from, const glm::ivec3& to) {
+    const std::function<bool(int, int, int)> occ = [&cm](int x, int y, int z) { return cm.occupiedMicro(glm::ivec3(x, y, z)); };
+    Core::AgentBox box;
+    Core::TraversalProbe probe(occ, box);
+    const int dx = to.x - from.x, dz = to.z - from.z;
+    const int n = std::max(std::abs(dx), std::abs(dz));
+    if (n <= 0) return;
+    const int yLo = std::min(from.y, to.y) - 12, yHi = std::max(from.y, to.y) + 20;
+    std::vector<glm::ivec2> cols;
+    for (int k = 0; k <= n; ++k)
+        cols.push_back({from.x + (dx * k + (dx >= 0 ? n / 2 : -n / 2)) / n, from.z + (dz * k + (dz >= 0 ? n / 2 : -n / 2)) / n});
+    std::printf("[ M5a-1 ]   approach section from (%d,%d,%d) to (%d,%d,%d): %d columns, micro y %d..%d (rows top to bottom; # solid, . air, F standable, S start, G goal)\n",
+                from.x, from.y, from.z, to.x, to.y, to.z, n + 1, yLo, yHi);
+    for (int y = yHi; y >= yLo; --y) {
+        std::string row;
+        for (int k = 0; k <= n; ++k) {
+            const int x = cols[k].x, z = cols[k].y;
+            char ch = occ(x, y, z) ? '#' : '.';
+            if (ch == '.' && occ(x, y - 1, z) && probe.fits(x, y, z) && probe.supported(x, y, z)) ch = 'F';
+            if (k == 0 && y == from.y) ch = 'S';
+            if (k == n && y == to.y) ch = 'G';
+            row += ch;
+        }
+        std::printf("[ M5a-1 ]   y %5d %s%s\n", y, row.c_str(), (y % 9 == 0) ? "  <- cube edge" : "");
+    }
+    // the feet level the probe would stand at in each column (the top solid + 1 where it fits), for the risers
+    std::string feet = "[ M5a-1 ]   feet per column:";
+    int prev = INT_MIN;
+    for (int k = 0; k <= n; ++k) {
+        const int x = cols[k].x, z = cols[k].y;
+        int f = INT_MIN;
+        for (int y = yHi; y >= yLo; --y) if (!occ(x, y, z) && occ(x, y - 1, z) && probe.fits(x, y, z) && probe.supported(x, y, z)) { f = y; break; }
+        feet += " " + (f == INT_MIN ? std::string("-") : std::to_string(f));
+        if (f != INT_MIN && prev != INT_MIN && std::abs(f - prev) > box.maxStepUpMicro) feet += "!";
+        prev = f;
+    }
+    std::printf("%s   (! = a riser over %d micro from the previous column)\n", feet.c_str(), box.maxStepUpMicro);
+}
+
+
 // The live site, resident: the chunk manager's own generator carries the recipe (the realizer and the planner
 // sample THAT generator), and the chunks over the site rect plus a margin are generated from it.
 struct LiveSiteRig {
@@ -104,7 +148,9 @@ struct LiveSiteRig {
                 surfaceHi = std::max(surfaceHi, sy);
             }
         // the chunk rows from 24 u below the lowest surface (grading, cellars) to 40 u above the highest (roofs)
-        const int y0 = std::max(0, surfaceLo - 24), y1 = surfaceHi + 40;
+        // chain 114: a hall house's chimney cap reached past surface + 40 (one voxel of 91354 "not materialized" refused
+        // the lot twice); 64 (the rig's range, stated)
+        const int y0 = std::max(0, surfaceLo - 24), y1 = surfaceHi + 64;
         for (int cx = floorDiv32(x0); cx <= floorDiv32(x1); ++cx)
             for (int cz = floorDiv32(z0); cz <= floorDiv32(z1); ++cz)
                 for (int cy = floorDiv32(y0); cy <= floorDiv32(y1); ++cy) {
@@ -214,6 +260,8 @@ struct LiveSiteRig {
                     pair ? "YES" : "NO", flood.size(), lo.x, lo.y, lo.z, hi.x, hi.y, hi.z, within4, within4y, within13);
     }
 
+    void approachProfile(const glm::ivec3& from, const glm::ivec3& to) { printApproachSection(cm, from, to); }
+
     // The fixtures the furnisher placed within 12 cubes of a pinch (the live pinch sat between a bench and a table).
     void fixturesNear(const glm::ivec3& pfMicro) {
         const int cx = floorDivN(pfMicro.x, 9), cz = floorDivN(pfMicro.z, 9);
@@ -294,6 +342,8 @@ nlohmann::json realize(LiveSiteRig& rig, bool legacyLayout) {
     const nlohmann::json walk = plan.walkability ? *plan.walkability : nlohmann::json::object();
     out = SettlementBuildService::gateOutcome(walk, false);
     out["queued"] = plan.queuedBuilds.size();
+    out["paths"] = plan.paths ? *plan.paths : nlohmann::json::object();   // M5b-1: the ways unit's record (paved columns, legs)
+    std::printf("[ M5a-1 ] paths unit: %s\n", out["paths"].dump().c_str());
     out["lot_failures"] = plan.lotFailures ? *plan.lotFailures : nlohmann::json::array();
     out["map"] = plan.map;
     out["skipped"] = walk.value("skipped", 0);
@@ -362,6 +412,8 @@ nlohmann::json realize(LiveSiteRig& rig, bool legacyLayout) {
             const auto fr = r["from"], to = r["to"];
             rig.goalCheck(glm::ivec3(fr[0].get<int>(), fr[1].get<int>(), fr[2].get<int>()),
                           glm::ivec3(to[0].get<int>(), to[1].get<int>(), to[2].get<int>()), r.value("goal_radius", 4), pfv, ptv);
+            rig.approachProfile(glm::ivec3(fr[0].get<int>(), fr[1].get<int>(), fr[2].get<int>()),
+                                glm::ivec3(to[0].get<int>(), to[1].get<int>(), to[2].get<int>()));
         }
     }
     for (const auto& f : out["lot_failures"]) std::printf("[ M5a-1 ]   lot failure: %s\n", f.dump().c_str());
@@ -369,13 +421,13 @@ nlohmann::json realize(LiveSiteRig& rig, bool legacyLayout) {
 }
 
 void pinTheRecord(const LiveSiteRig& rig) {
-    // the L4 record (m5a_l4_m5a_status.json): hamlet 3 at (-7976, 2280), 40 x 32, seed 939730262, surfaceY 54.07
+    // the M5a-1 L4 record (m5a_l4_m5a_status.json): hamlet 3 at (-7976, 2280), 40 x 32, seed 939730262, surfaceY 54.07.
+    // M5b-1 (D43 (b), ruled 2026-11-06): the civ-seeded box plan takes the DERIVED rects - the hamlet 56 x 44 - so
+    // the record is re-measured here (the centre refines on the 16 u grid by footprint relief and may move with
+    // the rect; the seed follows the position): printed by setUpSite, pinned on the rect.
     ASSERT_EQ(rig.site->tier, "hamlet");
-    ASSERT_EQ(rig.site->pos.x, -7976) << "the headless civ plan does not seat hamlet 3 where the live world did";
-    ASSERT_EQ(rig.site->pos.y, 2280);
-    ASSERT_EQ(rig.site->seed, 939730262u);
-    ASSERT_EQ(rig.site->width, 40);
-    ASSERT_EQ(rig.site->depth, 32);
+    ASSERT_EQ(rig.site->width, 56) << "the civ-seeded box plan must take the derived hamlet rect (D43 (b))";
+    ASSERT_EQ(rig.site->depth, 44);
 }
 
 }  // namespace
@@ -388,11 +440,11 @@ TEST(SettlementMapLiveSiteTest, TheLegacyControlBuildsHamletThree) {
     pinTheRecord(rig);
     const auto out = realize(rig, /*legacyLayout=*/true);
     ASSERT_FALSE(out.contains("plan_error")) << out.dump();
-    EXPECT_EQ(out.value("queued", 0), 3) << "the live control queued 3 buildings";
+    EXPECT_GE(out.value("queued", 0), 3) << "the live control queued 3 buildings on 40 x 32 (M5a-1); at least the minimum on 56 x 44";
     EXPECT_EQ(out["lot_failures"].size(), 0u);
     // chain 74: both arms "passed" on 0 routes over 0 doors - the door record rode on the optional LocationRegistry
     // (absent headless) and a gate that measured nothing read as a pass. The gate must have measured every building.
-    EXPECT_EQ(out.value("built", -1), 3) << "the gate result must carry the built count";
+    EXPECT_EQ(out.value("built", -1), out.value("queued", -2)) << "the gate result must carry the built count";
     EXPECT_EQ(out.value("doors", -1), out.value("built", -2)) << "every built building records a front door for the gate";
     EXPECT_GE(out.value("walkable", 0) + out.value("blocked", 0), 3) << "the gate measured no route (live: 10 over 3 doors)";
     EXPECT_GT(out.value("fixtures", 0), 0) << "the crofts must be furnished for the rig to match the live world (chain 76)";
@@ -410,9 +462,10 @@ TEST(SettlementMapLiveSiteTest, HamletThreeBuildsFromItsMap) {
     pinTheRecord(rig);
     const auto out = realize(rig, /*legacyLayout=*/false);
     ASSERT_FALSE(out.contains("plan_error")) << out.dump();
-    EXPECT_EQ(out["map"].value("lots", nlohmann::json::array()).size(), 5u) << "the live map seated 5 lots";
+    // M5a-1's record on 40 x 32 seated 5 lots; on the derived 56 x 44 the count is the growth's (its target by seed)
+    EXPECT_GE(out["map"].value("lots", nlohmann::json::array()).size(), 3u) << "fewer lots than the hamlet's minimum";
     EXPECT_EQ(out["lot_failures"].size(), 0u);
-    EXPECT_EQ(out.value("built", -1), 5) << "the gate result must carry the built count";
+    EXPECT_EQ(out.value("built", -1), static_cast<int>(out["map"].value("lots", nlohmann::json::array()).size())) << "the gate result must carry the built count = the map's lots";
     EXPECT_EQ(out.value("doors", -1), out.value("built", -2)) << "every built building records a front door for the gate";
     EXPECT_GE(out.value("walkable", 0) + out.value("blocked", 0), 5) << "the gate measured no route (live: 10 over 5 doors)";
     EXPECT_GT(out.value("fixtures", 0), 0) << "the crofts must be furnished for the rig to match the live world (chain 76)";
@@ -440,4 +493,172 @@ TEST(SettlementMapLiveSiteTest, TheFirstVillageBuildsFromItsMapWithEveryDoorMeas
     EXPECT_EQ(out.value("gate", std::string()), "passed")
         << "the first village through its map on the live world's terrain (L4 covered hamlets only): " << out.value("blocked", 0)
         << " blocked - a finding for M5b if red";
+    // M5b-1: the village's map is GROWN (a routed primary way + lanes) and paved by the ribbon paver
+    EXPECT_GT(out["map"].value("ways", nlohmann::json::array()).size(), 0u);
+    EXPECT_GT(out["paths"].value("paved_columns", 0L), 0L) << "the ways unit paved nothing";
 }
+
+// M5b-1: the TOWN arm - the baseline world's town (site 0, 140 x 60 on a SnowGrass hillside at surface ~171) through its
+// grown map: a routed primary way with lanes, the market area, every door measured, the gate's verdict reported, the
+// ribbon paver's columns > 0. The first town through its map headless; its L4 is m5b_l4.sh.
+TEST(SettlementMapLiveSiteTest, TheTownBuildsFromItsGrownMapWithEveryDoorMeasured) {
+    LiveSiteRig rig;
+    // chain 112: two lots at the 140 x 60 site's edge were refused on "target chunk not materialized" with a 24-cube
+    // margin (a hall house's 16 x 8 footprint plus its roof reach past it) - the margin is the rig's, 32 here (stated)
+    ASSERT_TRUE(rig.setUpTier("town", 32)) << rig.why;
+    const auto out = realize(rig, /*legacyLayout=*/false);
+    ASSERT_FALSE(out.contains("plan_error")) << "the planner refused the town: " << out.dump();
+    EXPECT_GE(out["map"].value("lots", nlohmann::json::array()).size(), 15u) << "fewer lots than the town's minimum";
+    EXPECT_GT(out["map"].value("ways", nlohmann::json::array()).size(), 0u);
+    EXPECT_GT(out.value("built", -1), 0);
+    EXPECT_EQ(out.value("doors", -1), out.value("built", -2)) << "every built building records a front door for the gate";
+    EXPECT_NE(out.value("gate", std::string()), "doorless");
+    EXPECT_GT(out.value("goal_boxes_checked", 0), 0);
+    EXPECT_EQ(out.value("goal_boxes_wrong", -1), 0);
+    EXPECT_GT(out["paths"].value("paved_columns", 0L), 0L) << "the ways unit paved nothing";
+    EXPECT_EQ(out.value("gate", std::string()), "passed") << "the town through its grown map: " << out.value("blocked", 0) << " blocked";
+}
+
+// ── M5b-1 chain 93 diagnosis: the village and town arms blocked 2 / 31 and 6 / 72 street -> door routes. The gate's
+// `to` (the passage cell doorApproach found) sat on a bench in both village crofts and 8-23 micro above the street in
+// the town; the start flood never reached within one cube of it. Rebuild each blocked building HEADLESS on a flat pad
+// at its LIVE world position (the floorplan and furnishing seeds derive from x, z only) and read the geometry the two
+// finders disagree on: the plan's door (the marker deriveLocations emitted), the wall cell doorApproach chose and its
+// passage, every wall cell's seat verdicts, the micro occupancy around the passage, the fixtures beside it. The claim
+// under test: the passage cell seats the agent AT THE FLOOR (not on a fixture). A live-walkable croft is the control.
+namespace {
+struct HeadlessCase { const char* label; const char* typology; int w, d; const char* front; int x, z; bool blockedLive; const char* shape; };
+
+bool headlessSeats(ChunkManager& cm, const Core::AgentBox& box, int cx, int cz, int hintMicroY) {
+    const std::function<bool(int, int, int)> occ = [&cm](int x, int y, int z) { return cm.occupiedMicro(glm::ivec3(x, y, z)); };
+    const int mx = cx * 9 + 4, mz = cz * 9 + 4;
+    int top = INT_MIN;
+    for (int my = hintMicroY + 8; my > hintMicroY - 31; --my) if (occ(mx, my, mz)) { top = my; break; }
+    if (top == INT_MIN) return false;
+    Core::TraversalProbe probe(occ, box);
+    for (int y = top + 1; y <= top + 10; ++y) if (probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) return true;
+    return false;
+}
+int headlessSeatFeet(ChunkManager& cm, const Core::AgentBox& box, int cx, int cz, int hintMicroY) {
+    const std::function<bool(int, int, int)> occ = [&cm](int x, int y, int z) { return cm.occupiedMicro(glm::ivec3(x, y, z)); };
+    const int mx = cx * 9 + 4, mz = cz * 9 + 4;
+    int top = INT_MIN;
+    for (int my = hintMicroY + 9; my > hintMicroY - 31; --my) if (occ(mx, my, mz)) { top = my; break; }
+    if (top == INT_MIN) return INT_MIN;
+    Core::TraversalProbe probe(occ, box);
+    for (int y = top + 1; y <= top + 10; ++y) if (probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) return y;
+    return INT_MIN;
+}
+}  // namespace
+
+TEST(SettlementMapLiveSiteTest, DoorPassageOfTheLiveBlockedBuildingsRebuiltHeadless) {
+    const std::vector<HeadlessCase> cases = {
+        {"village lot 5 croft (BLOCKED live in chain 93: passage on bench_wood_9)", "croft", 8, 6, "z1", -7919, -9955, true, "L"},
+        {"village lot 4 croft (walkable live - CONTROL)", "croft", 8, 6, "z1", -7889, -9951, false, "rect"},
+        {"town lot 22 blacksmith (BLOCKED live in chain 93)", "blacksmith", 8, 6, "x1", 13503, -9920, true, "L"},
+    };
+    for (const auto& c : cases) {
+        std::printf("\n[ M5b-1 ] ===== %s: %s %dx%d front %s at (%d, %d) =====\n", c.label, c.typology, c.w, c.d, c.front, c.x, c.z);
+        ChunkManager cm;
+        cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+        ObjectTemplateManager templates{&cm};
+        templates.loadTemplates("resources/templates");
+        PlacedObjectManager placed{&cm, &templates, nullptr};
+        // the flat pad: every chunk under the footprint + 4 cubes of margin, resident, solid to y = 28
+        std::vector<std::unique_ptr<Phyxel::Chunk>> owned;
+        for (int cx = floorDiv32(c.x - 4); cx <= floorDiv32(c.x + c.w + 4); ++cx)
+            for (int cz = floorDiv32(c.z - 4); cz <= floorDiv32(c.z + c.d + 4); ++cz) {
+                const glm::ivec3 cc(cx, 0, cz);
+                if (cm.chunkMap.count(cc)) continue;
+                auto ch = std::make_unique<Phyxel::Chunk>(cc * 32);
+                ch->initializeForLoading();
+                for (int x = 0; x < 32; ++x) for (int z = 0; z < 32; ++z) for (int y = 0; y <= 28; ++y) ch->addCube(glm::ivec3(x, y, z));
+                cm.chunkMap[cc] = ch.get();
+                cm.chunks.push_back(std::move(ch));
+            }
+        const nlohmann::json params = {
+            {"schema", "v2"}, {"type", "house"}, {"style", "timber_cottage"}, {"typology", c.typology},
+            {"period", "medieval"}, {"room_program", "resources/room_program.json"}, {"front", c.front}, {"footprint_shape", c.shape},
+            {"position", {{"x", c.x}, {"y", 29}, {"z", c.z}}},
+            {"footprint", nlohmann::json::array({c.w, c.d})},
+            {"substructure", "slab"},
+            {"stories", nlohmann::json::array({nlohmann::json{{"height", 3}}})},
+            {"allow_ungrounded", true}};
+        StructureBuildService::Deps deps;
+        deps.chunkManager = &cm; deps.templates = &templates; deps.placedObjects = &placed;
+        const auto res = StructureBuildService::buildV2(params, deps);
+        if (res.contains("error")) { ADD_FAILURE() << c.label << ": " << res.dump().substr(0, 400); continue; }
+        const int floorTop = res.value("floor_top_micro", -1);
+        ASSERT_TRUE(res.contains("locations") && res["locations"].is_array() && !res["locations"].empty()) << res.dump().substr(0, 300);
+        const auto& P = res["locations"][0]["position"];
+        const glm::ivec3 marker(static_cast<int>(std::floor(P.value("x", 0.0f))), static_cast<int>(std::floor(P.value("y", 0.0f))),
+                                static_cast<int>(std::floor(P.value("z", 0.0f))));
+        std::printf("[ M5b-1 ] floor_top_micro %d (floor cube %d), marker (%d, %d, %d) = local (%d, %d) of footprint [%d..%d] x [%d..%d]\n",
+                    floorTop, floorTop / 9, marker.x, marker.y, marker.z, marker.x - c.x, marker.z - c.z, c.x, c.x + c.w - 1, c.z, c.z + c.d - 1);
+        Core::AgentBox box;
+        const auto seats = [&](int cx, int cz) { return headlessSeats(cm, box, cx, cz, floorTop); };
+        // the finder as the settlement runs it (M5b-1): the forge's RECORDED door when the location carries one
+        const auto& L0 = res["locations"][0];
+        const bool hasDoor = L0.contains("door") && L0["door"].is_object();
+        const glm::ivec2 recDoor = hasDoor ? glm::ivec2(L0["door"].value("x", 0), L0["door"].value("z", 0)) : glm::ivec2(0);
+        const glm::ivec2 recNormal = hasDoor ? glm::ivec2(L0["door"].value("nx", 0), L0["door"].value("nz", 0)) : glm::ivec2(0);
+        const auto inferred = SettlementBuildService::doorApproach(marker, glm::ivec4(c.x, c.z, c.w, c.d), seats);
+        const auto da = hasDoor ? SettlementBuildService::doorApproachAt(recDoor, recNormal) : inferred;
+        std::printf("[ M5b-1 ] recorded door: %s wall (%d, %d) normal (%d, %d); the marker-side inference: wall (%d, %d) normal (%d, %d)\n",
+                    hasDoor ? "yes" : "NO", recDoor.x, recDoor.y, recNormal.x, recNormal.y, inferred.wall.x, inferred.wall.y, inferred.normal.x, inferred.normal.y);
+        EXPECT_TRUE(hasDoor) << c.label << ": the building's location records no door";
+        if (hasDoor) EXPECT_EQ(inferred.wall, recDoor) << c.label << ": on the flat pad (no snap displacement) the marker-side inference must agree with the recorded door";
+        std::printf("[ M5b-1 ] doorApproach: normal (%d, %d) found %d wall (%d, %d) outside (%d, %d) inside/passage (%d, %d)\n",
+                    da.normal.x, da.normal.y, (int)da.found, da.wall.x, da.wall.y, da.outside.x, da.outside.y, da.inside.x, da.inside.y);
+        // every wall cell along the marker's wall: the seat verdicts the finder read
+        {
+            const int nx = da.normal.x, nz = da.normal.y;
+            const int wallX = nx < 0 ? c.x : nx > 0 ? c.x + c.w - 1 : 0, wallZ = nz < 0 ? c.z : nz > 0 ? c.z + c.d - 1 : 0;
+            const int len = (nz != 0) ? c.w : c.d;
+            std::string line = "[ M5b-1 ] wall cells (k: seats(wall)/seats(inside)): ";
+            for (int k = 0; k < len; ++k) {
+                const int cx = (nz != 0) ? c.x + k : wallX, cz = (nz != 0) ? wallZ : c.z + k;
+                line += std::to_string(k) + ":" + (seats(cx, cz) ? "W" : "-") + (seats(cx - nx, cz - nz) ? "I" : "-") + " ";
+            }
+            std::printf("%s\n", line.c_str());
+        }
+        const int streetFeet = headlessSeatFeet(cm, box, marker.x, marker.z, floorTop);
+        const int passFeet = headlessSeatFeet(cm, box, da.inside.x, da.inside.y, floorTop);
+        std::printf("[ M5b-1 ] gate endpoints: street feet %d at the marker, passage feet %d at (%d, %d); the floor is at %d -> the passage seats %s\n",
+                    streetFeet, passFeet, da.inside.x, da.inside.y, floorTop,
+                    passFeet == INT_MIN ? "NOWHERE" : passFeet == floorTop ? "ON THE FLOOR" : "ABOVE THE FLOOR (on something)");
+        // the fixtures within 2 cubes of the passage cell
+        for (const auto& [id, o] : placed.getAllObjects()) {
+            if (o.category != "template") continue;
+            if (o.boundingMax.x < da.inside.x - 2 || o.boundingMin.x > da.inside.x + 2 || o.boundingMax.z < da.inside.y - 2 || o.boundingMin.z > da.inside.y + 2) continue;
+            std::printf("[ M5b-1 ]   fixture %s (%s) bbox (%d,%d,%d)-(%d,%d,%d)%s\n", id.c_str(), o.templateName.c_str(),
+                        o.boundingMin.x, o.boundingMin.y, o.boundingMin.z, o.boundingMax.x, o.boundingMax.y, o.boundingMax.z,
+                        (da.inside.x >= o.boundingMin.x && da.inside.x <= o.boundingMax.x && da.inside.y >= o.boundingMin.z && da.inside.y <= o.boundingMax.z) ? "  <- COVERS THE PASSAGE CELL" : "");
+        }
+        // micro occupancy around the passage: +-4 cubes, at the floor's feet level and +9 ('#' solid, '.' free, P passage
+        // centre column, W the chosen wall cell's centre, M the marker's centre; '|' every cube edge)
+        for (const int dy : {0, 9}) {
+            const int y = floorTop + dy;
+            std::printf("[ M5b-1 ] occupancy at micro y %d (floor %+d), x %d..%d, z %d..%d (rows z top to bottom):\n", y, dy,
+                        (da.inside.x - 4) * 9, (da.inside.x + 5) * 9 - 1, (da.inside.y - 4) * 9, (da.inside.y + 5) * 9 - 1);
+            for (int z = (da.inside.y - 4) * 9; z < (da.inside.y + 5) * 9; ++z) {
+                std::string row;
+                for (int x = (da.inside.x - 4) * 9; x < (da.inside.x + 5) * 9; ++x) {
+                    char ch = cm.occupiedMicro(glm::ivec3(x, y, z)) ? '#' : '.';
+                    if (x == da.inside.x * 9 + 4 && z == da.inside.y * 9 + 4) ch = 'P';
+                    else if (x == da.wall.x * 9 + 4 && z == da.wall.y * 9 + 4) ch = 'W';
+                    else if (x == marker.x * 9 + 4 && z == marker.z * 9 + 4) ch = 'M';
+                    row += ch;
+                    if (floorModN(x, 9) == 8) row += '|';
+                }
+                std::printf("[ M5b-1 ]   z %6d %s%s\n", z, row.c_str(), (floorModN(z, 9) == 8) ? "  <- cube edge" : "");
+            }
+        }
+        if (streetFeet != INT_MIN && passFeet != INT_MIN)
+            printApproachSection(cm, glm::ivec3(marker.x * 9 + 4, streetFeet, marker.z * 9 + 4), glm::ivec3(da.inside.x * 9 + 4, passFeet, da.inside.y * 9 + 4));
+        EXPECT_TRUE(da.found) << c.label << ": doorApproach found no seating opening on the marker's wall";
+        EXPECT_EQ(passFeet, floorTop) << c.label << ": the gate's passage cell (" << da.inside.x << ", " << da.inside.y
+                                          << ") does not seat the agent on the floor (" << (c.blockedLive ? "BLOCKED live" : "walkable live") << ")";
+    }
+}
+

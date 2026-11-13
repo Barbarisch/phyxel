@@ -1,0 +1,10 @@
+PREDICTIONS for chain 115 (mode m5b6), written BEFORE the launch. The tree: the ways unit drops paved columns inside the
+map's lot footprints; the seat reads the centre column of the nearest paved cell; the rig's vertical range surface + 64.
+  PM5b1.88 the set GREEN (42 of 42) - no unit test reads these.
+PREDICTIONS for chain 116 (mode m5b3vt = the town arm alone), the same tree:
+  PM5b1.89 lots 0 and 5 BUILD (24 of 24, 0 lot failures); the ways unit logs columns dropped inside footprints (> 0: the
+    setback-0 lots).
+  PM5b1.90 blacksmith @13538 and apothecary @13553 seat from the centre column at their doors (1367 -> pad 151, threshold
+    1371) and PASS; tavern @13573's doorway spike is gone (no stamped column inside its footprint) and its route PASSES.
+  PM5b1.91 the TOWN gate PASSES: 72 walkable, 0 blocked, 0 skipped over 72 routes (24 doors). UNCERTAIN: the two newly
+    built lots' doors are unmeasured so far; a new red is read as found.

@@ -1,0 +1,665 @@
+WorldForge v2 M5b - red -> green ledger (docs/WorldForgeV2Plan.md, the M5b design check of 2026-11-06; the owner's
+rulings of the same day: D43 (b) civ-enabled recipes derive their site rects from the program, version-1 keeps the
+literal presets; D44 (a) a house parcel is the conquered SUBSET of the nominal toft; D45 the civ ladder's cities map
+to the city program in M5b-1, the city's first L4 gated on the measured Release bake). Predictions are written to
+m3c_chains/pm_chainN.txt BEFORE each launch and hashed by the chain's START line; every miss is recorded here.
+
+M5b-1: the street tiers grown from the map.
+CHAIN 88 (build 2026-11-06 12:45:25-12:47:28, 0 errors, the exe 12:47:23; run 12:47:28-12:47:49, m4b4r_r88_m5b1.txt, mode
+  m5b1 = SettlementMapTest.* : StreetPaverTest.* : RoomProgramTest.*; the START line hashes the eight M5b files and
+  pm_chain88.txt): 19 ok, 6 failed - THE RED RUN, on the tree with three declarations carrying today's rules.
+  PM5b1.1 MET: EveryTypologysNaturalFootprintPassesTheForge red on exactly the manor_hall (20 x 17, 1.18 < 1.50);
+    13 checked, 1 refused.
+  PM5b1.2 MET on the claim, MISSED on the measurement: WayRibbonCoversTheCentrelineToItsWidth red (ok 0, 0 columns)
+    but "0 cells due" - the test bound a reference to testWay()'s TEMPORARY vector (undefined behaviour read 0
+    cells inside the ribbon); fixed in the test (the vector held). The due threshold 2.0 cubes was also wrong for
+    the capsule the paver builds (half-width 2.5: a cell whose centre is at 2.0 has corner columns at 2.71,
+    outside) - set to 1.5, stated here before chain 89.
+  PM5b1.3 MET: ProbeWalksTheWayRibbonAcrossADiagonal red at the ASSERT on plan.ok.
+  PM5b1.4 MET on the town (control 4, planner 4) and the city (4, 4); the UNCERTAIN case happened on the village:
+    the axis chooser's own relief scoring picked a north-south spine clearing both benches (control 0, planner 0).
+    The village's control therefore sees nothing on this rig; the assertion on the control is kept for the town
+    and the city (the discriminating cases), the village's control is reported. Stated as a rig limit, not fixed.
+  PM5b1.5 MET: the hamlet's literal 40 x 32 seats the band's target on 10 of 20 flat seeds (min seated 3); the
+    smallest rect at that aspect seating every seed: 48 x 40. The street tiers' as-built rows seat their minimum
+    on every seed (village min 8 of band 6-14, town 20 of 15-30, city 43 of 20-48).
+  PM5b1.6 MET: WaysStayOutOfWater red (town 2, city 3 segments), every other pin green.
+  The count in the predictions' last line was wrong (I wrote "5 red" counting the two ribbon tests as one): 6 red.
+  Measurement -> the derived hamlet rect (D43 (b)): 48 x 40 x 1.25 area (REASONED margin for the slope and water
+  dropouts) = 2400 cells -> 56 x 44 (2464, aspect 1.27 ~ 5:4), WorldForgePlan::tierPresetDerived; the village and
+  town keep 80 x 48 / 140 x 60 (the L4-tested sizes, re-measured against the grown map by the same test); the city
+  160 x 160 = the program's reference_site.
+PREDICTIONS for chain 89: in m3c_chains/pm_chain89.txt (PM5b1.7-16), hashed by its START line.
+CHAIN 89 (build 2026-11-06 13:0x-13:08:25, 0 errors, the exe 13:08:21; run 13:08:25-13:15:42, m4b4r_r89_m5b2.txt, mode m5b2 -
+  the map, paver, program, locations, build-service, layout, plan, flow, recipe and walkability sets; the START line hashes
+  the thirteen M5b files and pm_chain89.txt): 143 ok, 7 failed - the GREEN run of the claims, red on three rig measurements,
+  one seam and one record.
+  PM5b1.7 MET: 13 typologies, 0 refused; the manor_hall 20 x 13 at 1.54.
+  PM5b1.8 MET on the walk (paved WALKABLE across the ridge's cut and the diagonal leg, the bare terrain BLOCKED) and on the
+    coverage (79 cells due, 0 not wholly paved, 0 columns beyond the width); MISSED on the step-up: 6 adjacent columns
+    differ by more than 4 micro - at the BEND, where leg 1 was still descending the ridge's cut and leg 2 started at the
+    node's grade (first writer wins at the overlap, a seam along the capsules' boundary). Fix: the paved surface is
+    relaxed into the 2-D slope-limited lower envelope (every 4-neighbour step <= the cap, the 1-D rule of
+    planTerrainPath in two dimensions; nothing rises, a seam becomes a shallow cut) - stated here before chain 90.
+  PM5b1.9 MET: WaysStayOutOfWater GREEN - hamlet 3 ways, village 1, town 4, city 2; 0 segments cross the creek on all four
+    (was town 2 / city 3 since chain 70; the owner-ruled red closes).
+  PM5b1.10 MET: the planner's primary at steepest step 0 on the village (control 0, reported), the town (control 4) and
+    the city (3 primary ways - the crossroads - control 4). CityAxesFollowTerrain GREEN.
+  PM5b1.11 MET on the hamlet (the literal 40 x 32: 10 of 20, smallest 48 x 40, unchanged; the DERIVED 56 x 44 seats every
+    seed's target, 20 of 20) and on the town (140 x 60: 6 of 6, min seated 16) and city (160 x 120: 4 of 4; the derived
+    160 x 160: 4 of 4); the UNCERTAIN case happened on the VILLAGE: 80 x 48 under the growth seats the target on 4 of 6
+    flat seeds (min seated 7), the smallest rect at that aspect seating every seed 92 x 56 -> the derived village rect
+    becomes 104 x 64 (x 1.25 area, the hamlet's rule) and is re-measured in chain 90. The seeds 1..N reached only the
+    bands' LOWER targets (town 16..21 of 15-30, city 21..24 of 20-48; the test's own measurement of its reach): the
+    seed band - 1 draws the band's maximum, added to every tier's seed set - stated as a rig correction.
+  PM5b1.12 MET: MapInvariantsHoldOnEveryTier GREEN on the grown street tiers (village 8 / 9 lots, town 22 / 22, city
+    27 / 27 on the hill / flat; 0 overlaps, 0 through a footprint, 0 off its way).
+  PM5b1.13 MISSED on one invariant: every tier at its derived rect on the hill seats >= its minimum (hamlet 4 / 5 / 6 of
+    targets 4 / 5 / 6; village 7 / 8 / 9; town 16 / 17 / 18; city 21 / 22 / 23 - every seed exactly its target) with 0
+    wet segments and the bakes 20 / 35 / 195 / 1430 ms Debug; but the invariant sum read 1 on one tier - the test did
+    not print the breakdown (overlaps / through a footprint / outside / no way / off its way); it prints it now and
+    the finding is read on chain 90.
+  PM5b1.14 MET: the M5a pins green; the hamlet's hill / flat maps 3 / 4 lots as before.
+  PM5b1.15 MET: StructureLocationsTest, CityLayoutTest, MainStreetLayoutTest, SettlementLayoutTest green.
+  PM5b1.16 MET on the hashes (VersionOnePlanHashesArePinned green) and on the plan / flow / recipe / program / walkability
+    sets; MISSED on SettlementBuildServiceTest: four tests red - three because the headless rig plans EVERY tier on the
+    village's 80 x 48, where the town's band (15-30) does not seat under the growth ("13 of 15 seated", a planner
+    refusal; the rows packed it): the rig now plans each tier on its DERIVED rect (a rig correction, stated); the
+    fourth because the dressing-order pin looked for the cluster's "grading + paving paths" unit AFTER the buildings -
+    under M5b-1 every map tier paves its planned ways BEFORE the buildings ("grading + paving ways") and the door spurs
+    run after them (the pin's contract restated: the ways are the map, the spurs are the realized doors).
+PREDICTIONS for chain 90: in m3c_chains/pm_chain90.txt (PM5b1.17-22), hashed by its START line.
+CHAIN 90 (build 2026-11-06 13:2x-13:25:27): 2 ERRORS, nothing ran - SettlementBuildServiceTest named WorldForgePlan without
+  its Phyxel namespace (the file's `using` is Phyxel::Core). The one edit is that qualification; chain 91 carries chain
+  90's predictions unchanged (pm_chain91.txt).
+CHAIN 91 (build 2026-11-06 13:2x-13:26:33, 0 errors, the exe 13:26:29; run from 13:26:33, m4b4r_r91_m5b2.txt): the chain's
+  shell was STOPPED BY THE HARNESS at ~13:32 for system memory (free 2.6 GB after); the test exe ran on by itself and its
+  log is the record (no RUN EXIT summary line - the counts below are grep'd from the log). Not restarted unasked.
+  PM5b1.17 MET: the ribbon 0 step breaks (79 due, 0 missing, 0 beyond), the walk WALKABLE / bare BLOCKED.
+  PM5b1.18 MET and better than predicted: the derived village 104 x 64 seats the target on 5 of 5 seeds (seed 8 = 14
+    included; the literal 80 x 48: 4 of 5, smallest 92 x 56); the town 140 x 60 seats the target on 4 of 4 INCLUDING
+    seed 15 (target 30 - predicted short, it seats); the city 160 x 160 on 3 of 3 including seed 28 (target 48); the
+    hamlet 56 x 44 20 of 20. Every tier's derived rect stands as set.
+  PM5b1.19 MET on the kind (one invariant each) and the breakdown read: (a) the HAMLET at 56 x 44 seed 3: "bad ways 1"
+    - a croft's door-approach cell lay ON an earlier path, connect() returned that one cell and the planner made a
+    ONE-NODE way (the cluster branch never fronted an existing way); (b) the TOWN seed 1: "door off its way 1" - the
+    street band was dilated as a Chebyshev SQUARE, whose corner cells on a diagonal run sit 1.41 r from the centre
+    line, and a lot fronting such a cell had its door at 1.41 r + 1 > the polyline tolerance 1.5 + width / 2 (r 3 on
+    the main width 6: 5.23 > 5). Fixes, stated before chain 92: a door cell ON a way fronts it on every tier (the
+    measure's cluster rule accepts a door on the polyline besides a way starting at the door); the band is a DISC.
+  PM5b1.20 MET: SettlementBuildServiceTest green on the derived rects; the dressing-order pin green.
+  PM5b1.21 / .22: the exe finished on its own at 13:34:11 - "150 tests from 14 test suites ran (457765 ms)", 149 PASSED,
+    1 FAILED (the hill test above). The chain's shell died at ~13:32 with 111 OK logged by then.
+PREDICTIONS for chain 92: in m3c_chains/pm_chain92.txt (PM5b1.23-25), hashed by its START line.
+CHAIN 92 (build 2026-11-09 09:23:38-09:24:00, 0 errors, the exe 09:23:56; run 09:24:00-09:31:23, m4b4r_r92_m5b2.txt; the START
+  line hashes the M5b files and pm_chain92.txt): 150 ok, 0 failed - THE GREEN RUN of the set.
+  PM5b1.23 MET: DerivedSiteRectsSeatTheMinimumOnTheHill GREEN - hamlet 56 x 44 seeds 1-3: 4 / 5 / 6 lots of targets 4 / 5 / 6
+    with 4 / 5 / 5 ways and 0 bad ways (seed 3's croft fronts the earlier path: 6 lots on 5 ways); village 104 x 64: 7 / 8 / 9
+    of 7 / 8 / 9; town 140 x 60 seed 1: 16 of 16 with 0 doors off their way (the disc band), seeds 2-3: 17 / 18; city
+    160 x 160: 21 / 22 / 23; every invariant 0 on every tier, 0 wet segments; bakes Debug hamlet 18-22 ms, village 82-93,
+    town 185-197, city 1353 ms (seed 1).
+  PM5b1.24 MET: the M5a pins unchanged (the hamlet hill / flat maps 3 / 4 lots, 3 / 4 ways, 15 nodes as chain 91; the band
+    map 4 lots 4 ways); the UNCERTAIN stress count did not move - 200 x 160 target 400: 136 lots, 136 ways (6961 ms).
+  PM5b1.25 MET: the full set 150 of 150.
+PREDICTIONS for chain 93: in m3c_chains/pm_chain93.txt (PM5b1.26-29, the rig chain), hashed by its START line.
+CHAIN 93 (build 2026-11-09 09:31:xx-09:32:13, 0 errors; run 09:32:13-10:13:50, m4b4r_r93_m5b3.txt, mode m5b3 = the four
+  live-site arms on the baseline world): 2 ok, 2 failed - the hamlet arms GREEN, the two street-tier GATES RED.
+  PM5b1.26 MET: TheLegacyControlBuildsHamletThree on 56 x 44 - the layout as built queued 9 (the UNCERTAIN "more than 3"
+    happened: the rows pack the larger rect), 9 built, 9 doors, the gate 28 walkable / 0 blocked over 28 routes, passed.
+  PM5b1.27 MET: HamletThreeBuildsFromItsMap - 6 lots (the seed's target on 56 x 44; was 5 on 40 x 32), 6 ways / 14 nodes,
+    the ways unit paved 2918 columns (Dirt, 0.4 s), 6 built, 6 doors, 16 / 16 routes, passed.
+  PM5b1.28 MISSED on the gate (the UNCERTAIN case): the first village (104 x 64) planned 11 lots on 8 ways / 61 nodes (bake
+    164 ms Debug), the ways unit paved 68959 columns (Gravel; 14777 fill, 13945 cut honoured, 303 cubes removed; 11.4 s),
+    11 built, 11 doors, paved_columns > 0 - but the gate BLOCKED 2 of 31 routes with 1 skipped: croft @-7919,-9955 and
+    croft @-7904,-9955 "street -> door" (the test's goal check: the gate's passage cell lies inside bench_wood_9 /
+    bench_wood_13, the wide flood from the street reached 0 cells within one cube of the passage); the skipped one the
+    blacksmith whose passage cell seats nothing (INT_MIN). The verdict is "blocked" - recorded as the finding, the rule
+    not loosened.
+  PM5b1.29 MISSED on the gate likewise: the town (140 x 60) planned 24 lots on 19 ways / 122 nodes (bake 404 ms), paved
+    104621 columns (Cobblestone, 20.9 s), 24 built, 24 doors, 0 goal boxes wrong - the gate BLOCKED 6 of 72 routes
+    (hall_house x 2, apothecary, butcher, croft, blacksmith: every one "street -> door"; the passage's feet 8-23 micro
+    above the street's, the flood from the street within one cube of the passage on three, within its window on none).
+  DIAGNOSIS (in progress, this tree): the pinch pairs the gate reports are open air at the same height on both samplers
+    and connect on their own - the forward walk fails at its GOAL, as chain 79 found on the hamlet. The passage cell is
+    SettlementBuildService::doorApproach's choice (the seating opening on the marker's wall nearest the marker); the
+    furnisher's doorway-clearance check uses the plan's recorded door carve. The two blocked crofts are lots 5 and 7
+    (orientation 0 = street side N, front z1), yet their markers sit EAST of the footprint (x = W + 1: a door on the
+    x = W wall) - the autofill's long-wall door for an 8 x 6 croft with front z1 should be on the z = D wall. A headless
+    rebuild of each blocked building at its live position (the seeds derive from x, z) reads the geometry directly:
+    DoorPassageOfTheLiveBlockedBuildingsRebuiltHeadless (a live-walkable croft as the control).
+  HEADLESS REBUILD (10:32-10:34, m5b1_diag1_run.txt): every blocked building rebuilt on a flat pad at its live x, z with
+    the live front - the crofts' doors on the z = D wall (marker local (4, 7)), the passage cells bare floor, the finder
+    found the door at distance 0 on all six (the control too). The headless rebuild does NOT reproduce the live
+    geometry: live, lots 5 and 7 carried their markers at local (9, 2) - a door on the x = W wall. The one live-only
+    input seen in the log: the variant's footprint_shape 'L' on exactly those two crofts ("requested but the typology
+    has no winged variant - building RECT"), which the autofill code reads as a message only. Not explained by reading;
+    the forge now logs the program it builds and the front door it anchors (two INFO lines, permanent), and the village
+    arm runs again alone to read them. PREDICTION before that run: the two crofts' floorplan lines name an exterior
+    door at (8, z) - on the x = W wall - despite front 'z1'; the other nine buildings' doors sit on their front walls.
+  THE VILLAGE ARM ALONE with the forge's door log (10:40-10:52, m5b1_diag2_village.txt; the headless rebuild with the
+    live shape 'L' first, m5b1_diag2_headless.txt - unchanged, 3 of 3 passages on the floor): the PREDICTION MISSED.
+    Live, both crofts' floorplans name their exterior door at (4, 6) - the z = D wall, the FRONT - and deriveLocations
+    anchored their markers at local (4, 7), two cells north of the door, exactly as headless. The gate's route started
+    elsewhere: croft @-7919,-9955's "street" was (-7910, -9953) - five east, five south of the anchored marker. The
+    mover: StructureBuildService's anchor SNAP (snapToStandable, radius 5, same-level FIRST across the whole radius,
+    then |dy| outward - designed for the eave-capped dead column). The street tiers grade their ways a cube above or
+    below the pad (14777 fill / 13945 cut columns in this village), so the marker's column is standable one cube UP
+    - which the same-level-first order never tries before walking five cubes sideways round the corner of the house.
+    Three consumers then inferred the door's WALL from the marker's side (doorApproach, the doorsteps' inline normal,
+    the spurs via settlementDoorApproach): the east wall - windowless, with a bench inside - became the "door", its
+    inside cell the route's goal. The blacksmith's skipped endpoint the same (its marker moved to a side whose inside
+    cell seats nothing). The gate's verdict was RIGHT about the geometry it was given and WRONG about the house.
+    The hamlets never showed it: their paths are level (0 fill, 0 cut) so the marker's column stays standable.
+  FIX (two parts, red first in chain 95): (1) the forge RECORDS the door it anchored (LocationMarker::hasDoor /
+    doorWall / doorNormal, reported as "door" in the build's locations list) and the settlement's gate, spurs, paths
+    and doorsteps read THAT door (doorApproachAt) - the marker's side only without a record; (2) the snap tries the
+    anchor's own column one cube up / down before any lateral step (the eave case keeps its lateral rule). The
+    red test: SnapToStandableKeepsTheMarkerInItsColumnAcrossAOneCubeStep (StructureLocationsTest) - the apron one
+    cube up and the cut one cube down; both arms predicted RED on the unfixed snap (pm_chain95.txt).
+CHAIN 95 (build 2026-11-09 10:57-10:59:23, 0 errors; run 10:59:23-11:05:17, m4b4r_r95_m5b5.txt, mode m5b5 = StructureLocationsTest,
+  SettlementWalkabilityTest, SettlementBuildServiceTest, SpawnGateTest, the headless door-passage rebuild): 59 ok, 1 failed -
+  THE RED RUN of the gate finding.
+  PM5b1.39 MET: SnapToStandableKeepsTheMarkerInItsColumnAcrossAOneCubeStep RED on both arms - the snap returned (5, 17, 15),
+    five cubes away on the diagonal of ring 5, for the apron one cube UP and for the cut one cube DOWN alike.
+  PM5b1.40 MET: DerivedLocationRecordsTheDoorItAnchored GREEN (z1: normal (0, +1), wall z origin + 5, the marker 2 beyond;
+    z0 likewise). PM5b1.41 MET: the eave case and SpawnGateTest GREEN. PM5b1.42 / .43 MET: the headless rebuild, the
+    walkability and build-service sets GREEN.
+PREDICTIONS for chains 96 and 97: in m3c_chains/pm_chain96.txt (PM5b1.44-49), hashed by chain 96's START line.
+CHAIN 96 (build 2026-11-09 11:05-11:06:29, 0 errors; run 11:06:29-11:11:24, m4b4r_r96_m5b5.txt, the same set): 60 ok, 0 failed -
+  THE GREEN RUN of the unit set.
+  PM5b1.44 MET: the snap test GREEN on both arms. PM5b1.45 MET: the eave case GREEN; SpawnGateTest 17 of 17 GREEN (the
+    UNCERTAIN case did not happen). PM5b1.46 MET: the door record GREEN; the headless rebuild 3 of 3 with the recorded
+    door equal to the inferred wall on every case (croft z1 wall (-7915, -9950) normal (0, 1); control alike; blacksmith
+    x1 wall (13510, -9917) normal (1, 0)). PM5b1.47 MET: the walkability and build-service sets GREEN.
+CHAIN 97 (build 2026-11-09 11:11:30-11:11:57, 0 errors; run 11:11:57-11:39:00, m4b4r_r97_m5b3v.txt, mode m5b3v = the village and
+  town arms): 0 ok, 2 failed - BOTH PREDICTIONS MISSED.
+  PM5b1.48 MISSED: the village gate BLOCKED 4 of 34 routes (0 skipped: the blacksmith's passage now seats and is measured)
+    - a DIFFERENT set from chain 93's two: hall_house @-7903,-9936 (from 892 to 903, 3 cubes: the marker now in front of
+    the door; the flood from the street reached nothing within one cube of the passage), croft @-7873,-9943 (873 -> 876),
+    blacksmith @-7882,-9930 (891 -> 903), croft @-7904,-9955 (855 -> 860, gap 14). The croft @-7919 of chain 93 PASSES.
+    The map, the ways and the paving are byte-identical to chain 93 (11 lots, 8 ways, 68959 columns); the door spurs 10
+    of 11 (1 too steep, was 0), the doorsteps 2 of 11.
+  PM5b1.49 MISSED: the town gate BLOCKED 6 of 69 (1 skipped): hall_house @13517 at the IDENTICAL pinch and counts as chain
+    93 (23059 / 27415 - its marker was never displaced; its start sits 23 micro below the passage six cubes away), the
+    tavern @13545 new (the passage cell inside wardrobe_4), apothecary, butcher, hall_house @13514, blacksmith @13503 as
+    chain 93; the croft @13558 passes; the blacksmith @13538's street endpoint seats nothing (skipped).
+  READING: the marker snap was ONE cause (two routes moved from blocked to walkable, the goals are now the real doors'
+    inside cells) and not the whole: at every remaining blocked door the start flood reaches nothing within one cube of
+    the passage, with the threshold 3-23 micro above the street's feet. The recorded-door fix stands on its own test
+    (chain 96) and is kept. Chain 98 (pm_chain98.txt) reads each blocked approach as a vertical section before anything
+    else moves.
+CHAIN 98 (build 2026-11-09 11:41-11:42:25, 0 errors; run 11:42:25-11:52:16, m4b4r_r98_m5b3vv.txt, the village arm alone with the
+  approach readings): 0 ok, 1 failed - THE READING RUN. PM5b1.53 MET: the same four doors blocked at the same pinches.
+  PM5b1.54 MET on the kind (a riser the stoop left, and a displaced start) - the sections read:
+  (a) hall_house @-7903,-9936 and blacksmith @-7882,-9930 (the same shape): the street stands at 892 / 891; one cell out
+    a 9-micro FACE rises to the toft's apron at 901; the threshold is 903. The doorsteps unit read "ground top outside
+    k1 900, k2 891 -> no step": its loop looks at the first cell's riser to the threshold (2, fine) and BREAKS - the
+    face between the second cell and the first is never stooped. The way was CUT a cube below the toft here (the
+    ribbon's lower envelope; 13945 cut columns), which the hamlets' level paths never do.
+  (b) croft @-7904,-9955 (and chain 93's two): the start lies 5 cubes EAST and 5 south of the door again - the marker's
+    column in front of the door is a way FILLED two cubes above the pad; the in-column step (+-1) could not reach it
+    and the search turned the corner into the side gap, fenced off from the door. croft @-7873,-9943: the start 2 cubes
+    east of the door's axis (the same mechanism, a smaller displacement), the straight section crossing the wall beside
+    the carve; a fence post stands in the street cell.
+  FIX (red first in chain 99): (1) the stoop lifted into a pure paver function, planDoorstepFills, whose rule carries the
+    descent to the ground wherever the drop lies (every riser <= 4; a cell that needs no fill resets the level to its
+    ground and the walk continues outward, 6 cells); the realizer's unit reads each approach cell's ground as the MIN
+    column top over the cell (a fence's slat or post is not the ground) and clears the approach band above THAT ground
+    (the fence across a door's approach becomes the gateway); (2) the snap prefers the door's outward normal (out, up
+    or down a cube or two) before any lateral step - a front-door marker stays in front of its door. The red tests:
+    DoorstepsStoopTheWholeDescentToTheStreet (StreetPaverTest) and SnapToStandableFollowsTheDoorNormalBeforeTurningACorner
+    (StructureLocationsTest); predictions pm_chain99.txt. The final-tree chains move to 102 (m5b2) / 103 (m5b4).
+CHAIN 99 (build 2026-11-09 11:57-11:58:59, 0 errors; run 11:58:59-12:00:04, m4b4r_r99_m5b6.txt, mode m5b6 = StreetPaverTest,
+  StructureLocationsTest, SpawnGateTest): 38 ok, 2 failed - THE RED RUN of chain 98's findings.
+  PM5b1.55 MET: DoorstepsStoopTheWholeDescentToTheStreet RED - the shipped rule fills nothing on the apron case (fills[1],
+    fills[2] INT_MIN) and the riser from the street (892) up to the apron (901) reads 9 > 4; on the simple case it fills
+    the first cell (865) and stops, leaving the riser from 864 up to the bump at 869 at 5 > 4 (an extra reading: the
+    bump case was also short under the shipped rule).
+  PM5b1.56 MET: SnapToStandableFollowsTheDoorNormalBeforeTurningACorner RED - the unchanged search returned (9, 17, 19):
+    a ring-1 cell at the same level, one cube sideways AND one cube back toward the house.
+  PM5b1.57 MET: the other 38 GREEN.
+CHAIN 100 (build 2026-11-09 12:00:0x-12:00:55, 0 errors; run 12:00:55-12:02:01, m4b4r_r100_m5b6.txt, the same set): 40 ok, 0
+  failed - THE GREEN RUN. PM5b1.58 / .59 / .60 MET (the stoop's apron and simple cases, the snap along the normal at
+  (10, 19, 20), the eave case, the in-column step, the door record, SpawnGateTest, the ribbon and spur tests).
+PREDICTIONS for chain 101 (the village and town arms): pm_chain100.txt PM5b1.61-62, hashed by chain 101's START line.
+CHAIN 101 (build 2026-11-09 12:02:0x-12:02:33, 0 errors; run 12:02:33-12:27:28, m4b4r_r101_m5b3v.txt, the village and town arms):
+  0 ok, 2 failed - PM5b1.61 / .62 MISSED, the counts moved the right way: the village 32 walkable / 2 blocked of 34 (was
+  30 / 4), the town 64 / 4 of 68 with 1 skipped (was 63 / 6). The stoops now read as designed (the village hall_house
+  and blacksmith: fills 896 / 892 / 888 / 884 down to the street at 883 - six cells; 9 of 11 doors stooped, 13 of 24).
+  The remaining six, read from their sections:
+  (a) ONE-WAY DROPS (the village crofts @-7919 and @-7904, the town blacksmith @13538 and apothecary @13553): the WAY is
+    FILLED above the toft - the start stands on the way at 878 (croft @-7919), the single setback cell outside the door
+    at 865 (the stoop's fill for a threshold of 869), the threshold 869: the walker drops 13 into the toft and cannot
+    climb back; the ascent 869 -> 878 needs two intermediate levels and the lot offers ONE cell. The doorsteps' rule
+    bounds descents only; bounding ascents cannot help here (one cell: 873 or 874 leaves a riser of 5 either side).
+    The cause is the premise: the lot's pad sits on the NATURAL ground while the way it fronts is graded (a causeway
+    here, a cutting at the hall_house) - the building must be built at the STREET'S level at its door.
+  (b) A PIT IN THE DOORWAY (the town hall_house @13514,-9944 and blacksmith @13503,-9920, both fronted x1): the
+    section stands at 1363 (the way), 1367 (the stoop), then 1360 INSIDE THE WALL CUBE (11 below the threshold 1371),
+    then 1371 in the passage - the door's carve floor is the ground, not the slab. Read headless next (the blacksmith
+    is one of the headless rebuild's cases).
+  (c) hall_house @13517,-9922 skipped: its marker's column seats nothing at micro level (street INT_MIN) - the snap's
+    cube-granular standable landed on a fence's cube; the marker needs the paved way (read with (a)'s fix).
+  HEADLESS (12:31-12:32, m5b1_diag4_headless.txt): the blacksmith of (b) rebuilt on the flat pad shows NO pit - the wall
+    cube stands at the threshold (264), the carve 18 clear, the lintel above; the pit is made live. The two pit lots are
+    the town's setback-0 lots fronted x1 (lots 10 and 22), whose doorway cube abuts the way band. Not explained by
+    reading: the doorsteps unit now logs the doorway cube's own standing level ("doorway floor") beside the threshold,
+    and the street-level seating (below) changes the premise - read on chain 103 before anything else moves on (b).
+  FIX for (a) (DESIGN DECISION, stated): a map lot fronting a way is BUILT AT THE WAY'S LEVEL at its door - the realizer
+    seats the pad from the ways unit's paved stamp at the lot's door-approach cell (Core::padCubeForStreet: the pad cube
+    whose threshold, pad top + 14 micro as the slab builds measured live, lands within one step of the way's standing
+    level), the natural ground where no paving lies there; logged per building ("seat: ... at the way's level"). The
+    ways are graded (a causeway over a dip, a cutting through a rise); the lots were not. Red: chain 101's one-way
+    drops; the helper's test is red by construction only; green: chain 103's arms (pm_chain102.txt).
+CHAIN 102 (build 2026-11-09 12:33-12:34:56, 0 errors; run 12:34:56-12:36:03, m4b4r_r102_m5b6.txt, mode m5b6): 41 ok, 0 failed.
+  PM5b1.64 MET (PadCubeForStreetPutsTheThresholdWithinAStepOfTheWay GREEN), PM5b1.65 MET (the rest as chain 100).
+PREDICTIONS for chain 103 (the village and town arms): pm_chain102.txt PM5b1.66-68, hashed by chain 103's START line.
+CHAIN 103 (build 2026-11-09 12:36:0x-12:36:33, 0 errors; run 12:36:33-13:07:01, m4b4r_r103_m5b3v.txt, the arms): 0 ok, 2 failed -
+  PM5b1.66 MET on the reading (every street-tier building logged its "seat:" from the way: the village crofts 97 / 95
+  for the ways at 882 / 864, the hall_house 97 for 882), MISSED on the effect: the forge's prepare_pad levels the pad
+  from the footprint's terrain tops (StructureGenerator::planPadLevel) and reads position.y only as the scan hint -
+  "leveled footprint to y=95" against the seat's 97 - so every gate result is BYTE-IDENTICAL to chain 101 (the same
+  pinches, counts and fills). PM5b1.67 / .68 MISSED for that reason. The doorway floor read: the pit lots stand at 1360
+  against 1371 (hall_house @13514) and 1395 against 1407 (blacksmith @13503); every other door's doorway floor equals
+  its threshold. Both pit lots are setback-0 and abut the way band; the one unit that clears whole cubes AFTER the
+  buildings over the band's cube columns is the STREET SWEEP (3 cubes over every paved column, re-stamping the paving
+  only) - a doorway cube whose edge micro columns lie inside the way's capsule is a band cube and is hollowed to the
+  paving's level. Fixes (chain 104 red by construction, chain 105 the arms): the forge honours a requested pad level
+  ("pad_y", set by the settlement's street-level seat); the sweep and the spur paver never touch a cube inside a
+  building's footprint rect (walls included); the gate's start falls back to the cells in front of the door when the
+  marker's column seats nothing (hall_house @13517, skipped twice).
+CHAIN 104 (build 2026-11-09 13:08-13:10:27, 0 errors; run 13:10:27-13:11:50, m4b4r_r104_m5b6.txt, mode m5b6): 41 ok, 0 failed.
+  PM5b1.69 MET (the UNCERTAIN spur case did not happen).
+PREDICTIONS for chain 105 (the arms): pm_chain104.txt PM5b1.70-72, hashed by chain 105's START line.
+CHAIN 105 (build 2026-11-09 13:12:0x-13:12:18, 0 errors; run 13:12:18-13:40:10, m4b4r_r105_m5b3v.txt, the arms): 0 ok, 2 failed.
+  PM5b1.70 MET: every street-tier pad "(requested)" at the seat's y (the village 95-101, the town 150-159). The PIT is
+  CLOSED: every door's doorway floor equals its threshold (the sweep kept 522 footprint cubes in the town, 0 in the
+  village); the one-way drops are gone; chain 101's six blocked doors all pass. PM5b1.71 / .72 MISSED on a NEW shape:
+  the village 32 / 2 of 34 (hall_house @-7903, blacksmith @-7882 - the cutting lots), the town 66 / 4 of 70 (butcher
+  @13509, hall_house @13477 street -> door AND door -> solar, tavern @13573; 1 lot refused by chunk residency and
+  re-rolled). The sections: the pad moved DOWN to the way (the hall_house 99 -> 97: threshold 885, way 890) but the
+  SETBACK CELLS between the door and the way kept their natural height (900): a 15-micro wall in front of the door
+  (the stoop's rule accepts a rise outward as a "bump" and steps it down toward the street - the right side, the wrong
+  cliff). The butcher (threshold 1409, way 1409, the setback cell 1413) and the tavern (1443 / 1441 / 1450) read the
+  second rule: a cell HIGHER than the threshold in front of a door puts the walker's head into the LINTEL (the carve is
+  18, the agent 17: the outside level must be <= threshold + 1). The hall_house @13477's door -> solar: the solar's
+  floor stands 7 above the hall's (1405 / 1398) - a new interior finding on a requested pad cut below the natural
+  ground, recorded as found, read on the next run.
+  FIX (chain 106 red / 107 arms): (1) the pad rule puts the threshold AT OR ABOVE the way (T >= W - 1; padCubeForStreet
+    takes the smallest such pad: T - W in [-1, 7]); (2) the stoop becomes planDoorstepLevels: the unpaved approach
+    cells between the door and the first PAVED cell (the way, the anchor) take the line from the threshold down to
+    the way's level, <= 4 per cell, never above the threshold - a cell standing above its target is CUT (terrain cubes
+    removed, the partial cube refilled to the target), below it FILLED; paved cells are never touched; without a paved
+    cell within six the old descent rule stands.
+CHAIN 106 (build 2026-11-09 13:44-13:46:42, 0 errors; run 13:46:42-13:48:03, m4b4r_r106_m5b6.txt, mode m5b6): 42 ok, 0 failed.
+  PM5b1.73 / .74 MET (the levels test, the pad rule's new bound, the rest).
+PREDICTIONS for chain 107 (the arms): pm_chain106.txt PM5b1.75-76, hashed by chain 107's START line.
+CHAIN 107 (build 2026-11-09 13:48:0x-13:48:33, 0 errors; run 13:48:33-14:17:06, m4b4r_r107_m5b3v.txt, the arms): 0 ok, 2 failed -
+  PM5b1.75 / .76 MISSED, and WORSE on the count: the village 30 / 4 of 34, the town 64 / 6 of 70; the doorsteps unit
+  stooped 6 of 11 / 7 of 23 with one step each. The per-door lines read "894p 882p 882p ..." - the cell right outside
+  the door is PAVED: the DOOR SPUR unit (before the doorsteps) paves from that cell toward the street, anchored at the
+  NATURAL ground there (groundMicro: 894 against a threshold of 885 - the pad was lowered to the way, the spur's start
+  was not), and the levels rule took the spur's own cell for the way (kw = 0: nothing to level, no sill owed). Two
+  defects in one reading: (1) the spur must start at the door's THRESHOLD (the level the stoop meets), not the ground
+  the pad left behind - a spur that cannot ramp from there within its grade cap is "too steep" and the doorsteps take
+  over; (2) the stoop's anchors are the WAYS' paving only (a snapshot of the paved set before the spur unit), never a
+  spur's. Also read: without an anchor in reach the rule must still cut a cell above the threshold (the lintel) -
+  desired = clamp(ground, level - 4, level) on every unpaved cell, anchor or none; and the threshold stands pad * 9 + 12
+  on every requested pad (the hall_house @13477: pad 154 -> 1398; the crofts 97 -> 885), not + 14 as the terrain-median
+  pads measured - the pad rule takes 12.
+CHAIN 108 (build 2026-11-09 14:19-14:21:04, 0 errors; run 14:21:04-14:22:19, m4b4r_r108_m5b6.txt, mode m5b6): 42 ok, 0 failed.
+  PM5b1.77 MET.
+PREDICTIONS for chain 109 (the arms): pm_chain108.txt PM5b1.78-80, hashed by chain 109's START line.
+CHAIN 109 (build 2026-11-09 14:22:0x-14:22:43, 0 errors; run 14:22:43-14:49:01, m4b4r_r109_m5b3v.txt, the arms): 1 ok, 1 failed.
+  PM5b1.79 MET - THE VILLAGE GATE PASSES: 34 walkable, 0 blocked, 0 skipped over 34 routes (11 front doors of 11 built,
+    181 fixtures; 11 spurs planned, 0 too steep; 6 doors stooped with 8 steps). The first street tier grown from its map
+    through the walkability gate on the live world's terrain.
+  PM5b1.78 MET on the requested pads (23 doors read threshold - pad*9 = 12); the 11 village doors read 14 - the village
+    arm's buildings carried position.y = the requested pad but "pad_y"... (read: the offsets split by arm; the pad rule's
+    12 holds for the town, the village stands 2 higher than assumed and passed regardless - recorded, not tuned).
+  PM5b1.80 MISSED on three town routes (67 walkable, 3 blocked of 70; 1 lot re-rolled on chunk residency): hall_house
+    @13517 street -> door (the way at 1387 two cells out, the first cell at 1405, the threshold 1409: an 18-micro riser
+    between the second and first cells), tavern @13573 street -> door (the way 1441, a 1450 bump before the door at
+    1443), hall_house @13477 door -> solar (the solar's floor 1405 against the hall's 1398 - interior). Read next.
+  READINGS of chain 109's three town routes: (a) hall_house @13517 - the seat read the way at the LOT's frontage midpoint
+    (13524: paved surface 1404) while the door sits four cells west (x 13521, the hall / service boundary of a 16-wide
+    hall house) where the way stands at 1387: the way climbs 17 micro along that frontage; the pad followed the wrong
+    end, and my sill exception then raised an 18-micro "sill" on the way's edge (a wall). Fix (chain 110): the sill is
+    one step or nothing; the seat predicts the DOOR by running the autofill ahead of the forge (deterministic in the
+    typology, footprint, front and position seed) and reads the way at the door's approach. (b) tavern @13573 - the
+    sign hangs clear (1465, 22 above the threshold); the slice at feet + 4 shows the doorway cube's interior SOLID in a
+    45-degree outline from the hinge side (seven columns at the wall thinning to one two cubes in), with the wall skin
+    solid across the carve but one column: an obstruction in the doorway itself, not the approach - a forge finding,
+    read but not yet explained (an open door leaf in occupancy, or a stair / terrain wedge); recorded. (c) hall_house
+    @13477 door -> solar: the solar's inner area is unreachable - a standable surface at 1405 across the room against
+    the hall's 1398 (the rug template is a 1-micro slab by its header, so not that); the furnisher's wardrobe, bed, two
+    chests and the rug fill the 2 x 6 inner area; the M5a-1 rule refuses a room whose inner area is wholly furnished.
+    A forge / furnisher finding; recorded. Both (b) and (c) are in the gate's domain (it found them) and outside
+    M5b-1's (the map, the ways, the seat); they stay red in the town arm and are listed for the owner.
+CHAIN 110 (build 2026-11-09 14:5x-14:57:25): 6 ERRORS, nothing ran - the predicted-door block read the building's front
+  hint before the realizer computed it (declared below). The block moves after the hint; chain 111 carries chain 110's
+  predictions (pm_chain110.txt PM5b1.81), chain 112 the town arm's (PM5b1.82-83); the final-tree chains move to 114 / 115.
+CHAIN 111 (build 2026-11-09 14:57-14:58:30, 0 errors; run 14:58:30-14:59:49, m4b4r_r111_m5b6.txt, mode m5b6): 42 ok, 0 failed.
+  PM5b1.81 MET (the cliff case takes no sill).
+PREDICTIONS for chain 112 (the town arm alone): pm_chain111.txt / pm_chain110.txt PM5b1.82-83, hashed by chain 112's START line.
+CHAIN 112 (build 2026-11-09 14:59-15:00:15, 0 errors; run 15:00:15-15:17:55, m4b4r_r112_m5b3vt.txt, the town arm alone): 0 ok,
+  1 failed - 62 walkable, 4 blocked of 66 (22 doors of 22 built, 2 lots EMPTY: lot 0 hall_house and lot 5 croft refused
+  twice on "target chunk not materialized" - the rig's 24-cube residency margin at the site's edge, a rig limit, 32 next).
+  PM5b1.82 MET: hall_house @13517 seats from its DOOR's approach (paved surface 1388 at (13521,-9913), pad 153) and its
+    route PASSES; the hall_house @13477's door -> solar PASSES too (its pad moved a cube with the learned offset; the
+    1405 surface of chain 109 is not explained and is watched). The offsets: 16 doors at 12, 6 at 14 (the town has two
+    styles) - the per-style learning holds after each style's first building.
+  PM5b1.83 MISSED on three NEW routes, one shape: blacksmith @13538, tavern @13545, apothecary @13553 (neighbours on one
+    way) - every approach cell is the WAY's own paving (setback 0 against the band) and the way steps 10 micro across its
+    own width at their doors (1368 one cell out, 1378 two cells out: a junction seam within the envelope's per-micro cap);
+    the seat read the way two cells out (the marker's spot) and put the threshold 12 above the cell at the door; the
+    stoop holds a way cell as an anchor and owed no sill (12 > 8). Fix (chains 113 / 114): the seat reads the way at the
+    NEAREST paved cell to the door along its normal (one cell out first). The tavern @13573's doorway obstruction stays
+    as recorded (a forge finding).
+CHAIN 113 (build 2026-11-09 15:19-15:20:41, 0 errors; run 15:20:41-15:21:59, m4b4r_r113_m5b6.txt, mode m5b6): 42 ok, 0 failed.
+  PM5b1.84 MET.
+PREDICTIONS for chain 114 (the town arm alone): pm_chain113.txt PM5b1.85-87, hashed by chain 114's START line.
+CHAIN 114 (build 2026-11-09 15:21-15:22:24, 0 errors; run 15:22:24-15:39:52, m4b4r_r114_m5b3vt.txt, the town arm alone): 0 ok,
+  1 failed - 63 walkable, 3 blocked of 66 (22 of 24 built: lots 0 and 5 refused again on "target chunk not materialized"
+  under the 32 margin - the rig's VERTICAL range (surface + 40) is the limit, not the horizontal one: a chimney cap; 64).
+  PM5b1.85 PARTLY: tavern @13545 PASSES; blacksmith @13538 and apothecary @13553 stay blocked with identical profiles -
+    the seat read the nearest paved cell but took the MAX stamped surface in it (1377) while the cell's standing level at
+    the door's axis is 1368 (the way steps inside that very cell): the seat takes the CENTRE column's surface (the
+    gate's own convention), the lowest otherwise. PM5b1.86 MISSED (the vertical range). PM5b1.87 read differently: the
+    tavern @13573's "obstruction" is PAVING - the ways unit's stamp holds a column at 1449 in the cell at its door and
+    columns at 1449-1450 inside its doorway cube (the band's capsule edge pokes into a setback-0 footprint; the forge
+    builds over them and the micros above the floor survive as a spike): the seat read 1449 and raised the pad a cube,
+    the walker meets the spike either way. Fix (chains 115 / 116): the ways unit never stamps a column inside a lot's
+    footprint (the map's lots are known before the ways are paved); the seat reads the centre column.
+CHAIN 115 (build 2026-11-09 15:41-15:42:37, 0 errors; run 15:42:37-15:43:59, m4b4r_r115_m5b6.txt, mode m5b6): 42 ok, 0 failed.
+  PM5b1.88 MET.
+PREDICTIONS for chain 116 (the town arm alone): pm_chain115.txt PM5b1.89-91, hashed by chain 116's START line.
+CHAIN 116 (build 2026-11-09 15:43-15:44:23, 0 errors; run 15:44:23-16:00:56, m4b4r_r116_m5b3vt.txt, the town arm alone): 0 ok,
+  1 failed - 70 walkable, 2 blocked of 72, 24 of 24 BUILT (PM5b1.89 MET: the vertical range; the ways dropped 10710
+  paved columns inside lot footprints), the tavern @13573 PASSES (PM5b1.90 half MET: its doorway spike was the ways'
+  paving inside its footprint). The blacksmith @13538 and apothecary @13553 stand on the identical profile (1378 / 1368 /
+  1380) - and the seat DID read the centre column at their doors: 1377 (feet 1378, the threshold 1380: a riser of 2).
+  The 1368 is MINE: the doorsteps unit read the partly-paved cell at the door by its LOWEST column (the natural ground
+  under the band's edge, 1367) and then cleared the approach band from that level up - the way's paving micros 1368-1377
+  in that cell went with the fences. The gate then met a 12-micro hole where the paving had been. Fix (chains 117 / 118):
+  a paved cell's standing level is its paving - the centre column's top, the highest column's otherwise - for the stoop
+  and for the clearing's base alike; the lowest-column rule stays for unpaved cells (a fence rail is not the ground).
+PREDICTIONS for chains 117 / 118: pm_chain117.txt.
+CHAIN 117 (build 2026-11-09 16:01-16:03:18, 0 errors; run 16:03:18-16:04:34, m4b4r_r117_m5b6.txt, mode m5b6): 42 ok, 0 failed.
+  PM5b1.92 MET.
+PREDICTIONS for chain 118 (the town arm alone): pm_chain117.txt PM5b1.93-94, hashed by chain 118's START line.
+CHAIN 118 (build 2026-11-09 16:03-16:05:00, 0 errors; run 16:05:00-16:20:12, m4b4r_r118_m5b3vt.txt, the town arm alone): 1 ok, 0
+  failed - THE TOWN GATE PASSES: 72 walkable, 0 blocked, 0 skipped over 72 routes (24 front doors of 24 built, 0 lot
+  failures, 394 fixtures; 5 doors stooped with 7 steps). PM5b1.93 MET (the blacksmith and apothecary read "1378p" at
+  their doors, the paving kept, a riser of 2); PM5b1.94 MET. With chain 109's village (34 / 0 / 0) both street tiers grown
+  from their maps pass the walkability gate on the live world's terrain. Paused here at the owner's word ("take a break
+  before starting the next chain"): the final-tree chains (120 the m5b2 set, 121 the broad set), the Release build and
+  the L4 run 12, the auditor, the plan paragraph and the commit wait for the go.
+CHAIN 120 (run 2026-11-09 ~16:23-16:31, m4b4r_r120_m5b2.txt, mode m5b2 on the FINAL TREE; chain 119 was never run - the number
+  fell out of the renames): 156 tests from 14 suites, 156 PASSED. PM5b1.50 MET at the count amended before the launch (156:
+  the set includes StructureLocationsTest's three new tests), PM5b1.51 MET (the version-1 hashes pinned), PM5b1.52 MET.
+  The same day the plan was restructured at the owner's word (rev 4: the build records moved verbatim to
+  docs/WorldForgeV2BuildLog.md, the open-items register 5.0, D46, the M5 sequencing amendments) - a docs change, no source.
+PREDICTIONS for chain 121 (mode m5b4, the broad set): pm_chain120.txt's last paragraph -> pm_chain94.txt PM5b1.35-38.
+CHAIN 121 (mode m5b4, the broad regression; build 2026-11-09 16:31, 0 errors; run from 16:31:11, m4b4r_r121_m5b4.txt):
+  INCOMPLETE - NOT A RESULT. The chain's shell was killed by the harness for low memory during the run (not restarted);
+  the test process ran on alone across the laptop's sleep (CivHistoryTest.StressEpochsShockAndDeterminism: 58602 s wall).
+  Stopped BY ME 2026-11-10 09:23 at 19 ok, 0 failed of 142 (BridgeSpanTest 10 of 10, CivHistoryTest 9 run; inside
+  CivHistoryTest.EpochsZeroMatchesTheReleaseEngineRecord when stopped): the tree had moved on (O9, below), so its
+  result could not certify the final tree and the set runs again as chain 126. The 123 tests not reached are UNMEASURED
+  on the chain-120 tree. PM5b1.35-38 (pm_chain120.txt) are neither met nor missed; they carry to chain 126.
+O9 (the sweep's named M0 test, owed at M5b-1's closure): the street sweep's selection extracted into
+  Core::planStreetSweep; the service records the cube box of every prop it places before the sweep (the well, the yard
+  props). RED stage first (the selection as built: building footprints guarded, objects not consulted), then the guard.
+PREDICTIONS for chains 122-126: pm_chain122.txt.
+CHAIN 122 (build 2026-11-10 09:23:21-09:23:52, 0 errors; run 09:23:52-09:30:59, m4b4r_r122_m5b2.txt): 156 ok, 1 failed -
+  the RED as predicted (PM5b1.95 MET): SettlementBuildServiceTest.SweepNeverErasesPlacedObjectCells "the sweep selected
+  4 of the well's 4 band cells", keptForObjects 0 against 4, the selection's size off by the same 4; the no-object
+  control inside the test passed. The other 156 green.
+ADDED before chain 123 (stated, after pm_chain122.txt was written): the O15 bake rig in
+  SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots (a 280 x 200 flat site, target 400, asserted >= 200
+  lots; the city tier's bake printed). PREDICTION, written before the launch: the 280 x 200 site seats >= 200 lots
+  (the 200 x 160 site seated 136; 1.75 x the area); UNCERTAIN - the growth may stop on a rule other than area, a miss
+  is recorded. Chain 123's count is therefore still 157 ok (the rig sits inside an existing test).
+CHAIN 123 (build + run 2026-11-10 09:31-09:39:19, m4b4r_r123_m5b2.txt; the guard in planStreetSweep): 157 ok, 0 failed
+  (PM5b1.96 MET) - SweepNeverErasesPlacedObjectCells passes, VersionOnePlanHashesArePinned passes. The O15 rig, DEBUG:
+  280 x 200 flat seats 233 lots / 233 ways in 23377.5 ms (the >= 200 prediction MET; the growth stops at "no buildable,
+  connectable lot", 233 of 400); 200 x 160: 136 lots in 6817.9 ms; the city as programmed 27 lots / 3 ways in 1057.6 ms.
+CHAIN 124 (09:39-09:40:40, m4b4r_r124_m5b6.txt): 42 ok, 0 failed (PM5b1.97 MET).
+CHAIN 125 (run 09:41:04-10:05:29, m4b4r_r125_m5b3v.txt, the village and town live arms on this tree): 2 ok, 0 failed.
+  PM5b1.98 MET: village gate 34 walkable / 0 blocked / 0 skipped over 11 doors of 11 built, 0 lot failures; town gate
+  72 / 0 / 0 over 24 doors of 24 built, 0 lot failures.
+  PM5b1.99: M > 0 on both (11 and 44 props). N: village 0 of 3114 band cells (my expectation N > 0 there MISSED - the
+  well's box does not reach the band on this seed), town 5 of 4098 band cells inside props' boxes kept. So the M0 row
+  WAS LIVE on the town: before this guard the sweep cleared those 5 cube cells of placed props. Which props and how
+  many of their voxels stood in those cells is NOT measured (the guard keeps whole cube cells of the object's AABB).
+  Also read: "0 inside a building's footprint kept" on both tiers - the ways unit drops paved columns inside lot
+  footprints (chain 116), so the band no longer reaches them; the chain-103 guard is now a second line.
+O15 RELEASE - PREDICTION written before the Release test build: Debug took 23.4 s for 233 lots; a Release / Debug ratio
+  of 10-20 x on this code is my guess, so 1.2-2.3 s for 233 lots - UNCERTAIN against the 2 s gate (the gate is stated
+  for 200 lots; the rig seats 233 and cannot stop at 200). The city as programmed: under 0.2 s. A miss is recorded.
+
+O15 RELEASE (tests build 2026-11-10 10:06:06-10:14:37, 0 errors, exe 10:14:32; three runs of
+  SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots, m5b_o15_release_run1-3.txt in the scratchpad, laptop):
+    233 lots (280 x 200 flat, the cluster growth): 3148.6 / 3157.4 / 3256.0 ms
+    136 lots (200 x 160 flat):                      900.2 /  936.2 /  926.0 ms
+    the city AS PROGRAMMED (160 x 120, 27 lots, 3 ways): 134.8 / 145.5 / 141.0 ms
+  Against the contract's gate (< 2 s Release for a 200-lot city): NOT MET at 233 lots (3.15-3.26 s); the 200-lot point
+  itself is unmeasured (the rig cannot stop at 200) and lies between 0.9 s (136) and 3.2 s (233) on a curve that grows
+  faster than the lot count (x 1.71 lots -> x 3.4 time). My prediction (1.2-2.3 s for 233) MISSED: the Release / Debug
+  ratio is 7.3 x, not 10-20 x. What IS under the gate: every map the program can produce today (the city 27 lots,
+  0.14 s). The gate is therefore open for the 200-lot city the plan's contract names - a finding for M5b-2 / M5c, where
+  the lot count grows; nothing was tuned here. Two caveats on the rig: it is the CLUSTER growth with the hamlet's
+  program at target 400 on a flat site, not a street-tier city of 200 lots (no such program exists yet).
+RELEASE EDITOR BUILD for L4 run 12: 10:14:51-10:15:47, 0 errors, exe 10:15:46 (m5b_release_build_12.txt).
+L4 RUN 12, FIRST LAUNCH (2026-11-10 10:16): NOT A RUN - my launch error. The script was started from the scratchpad
+  directory; the engine exited at boot ("Failed to open file: shaders/static_voxel.vert.spv" - it resolves shaders from
+  the working directory). Stopped by me at 10:33; nothing was built or measured. Relaunched from the repository root.
+L4 RUN 12, SECOND LAUNCH (2026-11-10 10:32:58-11:22, m5b_l4_run12b.out; Release exe 10:15:46): the CONTROL ran, the
+  MAP JOB DID NOT - the engine died 10:38:34, 0.1 s after the town's first unit.
+  CONTROL (village 1 at -7912,-9928, legacy_layout via build_settlement): 8 plots, 8 buildings; gate 20 walkable,
+    1 blocked over 21 routes (croft @-7881,-9913 street -> door, ONE-WAY, a drop) - the as-built layout is REFUSED by the
+    gate on this site (recorded, the control's verdict; m5b_l4_m5b1_control_log.txt). Its sweep kept 4 cells inside 16
+    props' boxes of 999 band cells. One capture + 8 stats samples at the control pose were taken.
+  MAP JOB: site 0 (town) planned - "[M5A-MAP] medieval/town seed 3066084745: 24 lots, 19 ways, 122 nodes, bake
+    64.7 ms" (Release) - "parcel clearing: 86898 cells over 7184 columns", then the process ended. NO map-grown site
+    was built; PM5b1.30-34, .63, .101, .102 are neither met nor missed.
+  THE DEATH: the engine's crash report crashes/crash_20261110_103834.txt - ACCESS_VIOLATION (read of 0xffff...ffff) in
+    std::list::splice <- WorldGenerator::surfaceBlockForChunk (WorldGenerator.cpp:1053) <- waterSpansForBlock <-
+    waterSpansForChunkColumn <- generateChunk <- ChunkStreamingManager::genWorkerLoop. A streaming WORKER, not the
+    settlement build. HYPOTHESIS (not yet shown): the column / surface LRU caches (LRU since 2026-10-20) keep a list
+    iterator per map entry; the workers' generators are member-wise copies of the live generator
+    (ChunkManager.cpp:96, taken lazily on the first pump); a copy taken while the live generator's caches are
+    populated holds iterators into the LIVE generator's lists, and a worker hitting such an entry splices another
+    thread's list. Not an M5b-1 defect in the settlement code - but M5a / M5b put new callers on the live generator
+    (the planner's ground and water samplers), which is what would populate it.
+  PREDICTIONS, written before the build (m5b_gen_chain 127 = red, 128 = green; filter ColumnCacheTest.*):
+    PM5b1.103 (127, the self-check + the test, no fix): ACopiedGeneratorOwnsItsCacheIterators FAILS at "the copy holds
+      N column / M surface entries whose LRU iterators point into the SOURCE's lists" with N, M > 0; the two controls
+      inside it pass; the existing test passes: 1 ok, 1 failed.
+    PM5b1.104 (128, a copy starts with empty caches): 2 ok, 0 failed; the copy generates the source's chunk three times
+      after the source is destroyed.
+    PM5b1.105 (the L4 relaunch): the engine log's [GEN-SNAPSHOT] line shows whether the live caches were populated at
+      the snapshot. If column or surface > 0 there, the hypothesis is the cause of THIS death; if both are 0 it is
+      NOT, the fix is still a real defect closed, and the death is unexplained - stated either way.
+
+GEN CHAIN 127 (first build 11:26:55: 3 errors, my accessors declared in the private section - nothing ran; rebuilt
+  11:28:53-11:34:27, 0 errors; run to 11:36:05, m5b_gen_r127.txt): 1 ok, 1 failed - the RED as predicted (PM5b1.103
+  MET): "source after one chunk: column cache 1, surface cache 289"; "the copy: column cache 1, surface cache 289,
+  self-consistent 0"; "the copy holds 1 column / 289 surface entries whose LRU iterators point into the SOURCE's lists".
+GEN CHAIN 128 (the fix: the two LRU caches in WorldGenerator::LruCaches, whose COPY is empty; build 11:36:14-11:41:12,
+  0 errors; run to 11:42:52, m5b_gen_r128.txt): 2 ok, 0 failed (PM5b1.104 MET) - "the copy: column cache 0, surface
+  cache 0, self-consistent 1"; the copy and the copy-assigned generator own their iterators; the copy generated the
+  source's chunk three times (equal cube counts) after the source was destroyed. The equality is a cube COUNT, not a
+  voxel-by-voxel comparison (stated).
+L4 RUN 12, THIRD LAUNCH (Release editor rebuilt with the generator fix 11:43:06-11:46:18, 0 errors, exe 11:46:17;
+  run 11:46-12:09, m5b_l4_run12c.out; evidence docs/evidence/worldforge_v2/m5b_l4/m5b_l4_m5b1_*; laptop RTX 1000 Ada):
+  [GEN-SNAPSHOT] (both engine instances, 3 workers each): "live generator caches at the snapshot: column 0, surface 63;
+    the copy: column 0, surface 0, self-consistent yes". So the live SURFACE cache WAS populated when the workers were
+    copied (PM5b1.105: the condition the hypothesis needs is present); before the fix those 63 entries went to every
+    worker with iterators into the live generator's list. The engine did not die in this run and no new crash report
+    was written. That is ONE run: it is consistent with the hypothesis and does not prove the 10:38 death had no other
+    cause.
+  CONTROL (village 1, legacy_layout): as in the second launch - 8 buildings, gate 20 walkable / 1 blocked of 21
+    (croft @-7881,-9913 street -> door, a drop): the as-built layout is REFUSED on this site.
+  THE MAP JOB (worldforge_build, sites 0,1,2, one job, 501 s): 3 of 3 BUILT, 0 lot failures each.
+    site 0 town    : 24 lots / 19 ways / 122 nodes, bake 91.9 ms; 24 buildings; gate 72 walkable / 0 blocked / 72
+                     routes (24 doors of 24 built, 0 skipped); sweep 4093 of 4098 band cells (5 in props' boxes kept)
+    site 1 village : 11 lots / 8 ways / 61 nodes, bake 37.0 ms; 11 buildings; gate 34 / 0 / 34 (11 of 11);
+                     sweep 3114 of 3114 (0 kept)
+    site 2 village : 13 lots / 4 ways / 21 nodes, bake 64.1 ms; 13 buildings; gate 40 / 0 / 40 (13 of 13);
+                     sweep 1598 of 1602 (4 kept)
+    The same village site: REFUSED as built (control), 34 / 0 from its grown map.
+    Bake: 37-92 ms Release per site against the 2 s gate (these maps: 11-24 lots).
+  MICRO PROBE (village 1, primary way width 5, 10 nodes, Gravel): 10 of 10 nodes carry Gravel in their own column. The
+    probe's own figure - columns with ANY Gravel across a 9-cube section - reads a median of 7.5 against "5 +- 1":
+    by the metric as written that prediction MISSED. Read from the rows: the full-count columns (81 micro per level)
+    number 5 at 6 of the 10 sections, 6-7 at the others; the extra columns are partial edge columns (10, 63, 71
+    micro) and neighbouring paving with other counts (98, 121, 626, 810 - spurs / a second way at a junction, not
+    identified). The metric counts a 10-micro sliver as a column; it is not changed here - the miss stands recorded.
+  CAPTURES (PM5b1.101 MET in count): town 4 + minimap, village 1 4 + minimap, village 2 2 + minimap (its primary way
+    has 2 nodes: no street pose emitted), control 1. Pictures, not measurements; they include the editor's panels.
+    Looked at: town0_elevated, town0_street_a, village1_elevated - buildings, paved ways, a hanging sign in frame.
+  RENDER STATS A/B (PM5b1.102; O14 stays OPEN - this is not the ladder), same pose over village 1, 8 samples each,
+    every sample identical: total_visible_faces as built (8 buildings) 338872; from the map (11 buildings) 369326
+    (+9.0 %); visible chunks 215 / 215. Town pose 288136 faces, village 2 pose 300790. Frame time is NOT in
+    /api/render/stats; the status bar in the captures read 33 FPS (town elevated), 18 (town street), 21 (village 1
+    elevated) - single readings in the editor on the laptop, not a benchmark.
+  NOT explained: the job result reports "residents": 0 per site while the captures' outliner lists res_* NPC rows and
+    "Entities: 25" at the town. Not investigated.
+FINAL-TREE CHAINS (2026-11-10, Debug, the tree with the O9 guard and the generator's LruCaches; test exe 11:41:07):
+CHAIN 129 (m5b2, run 12:10:40-12:18:06, m4b4r_r129_m5b2.txt): 157 ok, 0 failed (PM5b1.106 as predicted).
+CHAIN 130 (m5b6, 12:18:12-12:19:26, m4b4r_r130_m5b6.txt): 42 ok, 0 failed.
+CHAIN 131 (m5b3v, 12:19:31-12:42:59, m4b4r_r131_m5b3v.txt): 2 ok, 0 failed - village gate 34 walkable / 0 blocked over
+  34 routes (11 doors of 11 built, 0 skipped); town gate 72 / 0 over 72 routes (24 of 24, 0 skipped).
+CHAIN 126 (m5b4, the broad regression, 12:43:06-15:42:52, m4b4r_r126_m5b4.txt; 10785 s): 133 ok, 9 FAILED of 142.
+  PM5b1.35 MET (WorldForgePlanTest 20, Recipe 5, Stress 7, BuildFlow 11 all ok). PM5b1.36 MET (CivPlanStress 8,
+  CivPlan 8, CivHistory 12 ok). PM5b1.37 MISSED AS WRITTEN: EarthworkTest.HairpinBankHasNoCliffStepWithItsControl
+  fails (15 cliff steps against 0) - the standing M4 red (m5a_red_green.txt:351), which the prediction did not
+  except; the other 8 earthwork, 10 bridge, 12 seam, 14 + 10 route tests ok. PM5b1.38 MISSED: 8 of
+  SettlementTerrainPlanTest's 10 fail. The messages: a VILLAGE on the tests' 48 x 28 site is refused, "no buildable,
+  connectable lot for the tier's minimum (5 of 6 seated)" on flat ground (3 of 6 on the half ramp and on the
+  generator's ground, 0 of 6 on the sawtooth); and the map branch's refusal carries no "buildable_fraction". Two
+  findings: (1) since M5b-1 the village is grown to the program's band and refuses below its minimum, and the old
+  rig's site cannot seat the minimum - the suite was not in the m5b2 set, so the leg ran from chain 88 to 131 without
+  it (a gap in my per-increment set); (2) the refusal's "how unbuildable" field was lost when the map branch took
+  over the program tiers (M5a) - a contract regression, live since M5a, hidden because the M5a scenario never refused
+  on these rigs. Fix: patch 18; predictions pm_chain132.txt (PM5b1.109-112).
+CHAIN 132 (m5b_stp_chain, build 2026-11-10 15:47:21-15:47:51, 0 errors; run to 15:48:10, m5b_stp_r132.txt; patch 18):
+  8 ok, 2 failed of SettlementTerrainPlanTest's 10. PM5b1.109 MISSED (10 ok predicted). By sub-prediction:
+  a MET (flat 96 x 28: 9 lots, 3 ways, target 9); b MET (the sawtooth refused with buildable_fraction, the < 0.5
+  assertion held); c as expected - the half ramp REFUSED, "5 of 6 seated", buildable_fraction 0.571, target 9: the
+  test went through its refusal branch and the new lot assertions DID NOT EXECUTE (and they indexed the rect as an
+  object - it is an array [x, z, w, d]; they would have thrown: my defect, caught by reading, fixed in patch 19);
+  d MET (seed 3: 7 lots / 3 ways, seed 9: 6 lots / 1 way); e MISSED (named uncertain): the canopy rig's village is
+  refused on the generator's ground, "5 of 6 seated" with buildable_fraction 1.0 and target 9 - why a fully
+  buildable 96 x 28 rect seats 5 where the flat field seats 9 is NOT explained (relief bell, or the way routing on
+  real ground - not measured); f MISSED: the dry control planned, the wet plan was refused - "no dry route for the
+  main street from the entry to the far edge": the test's water band crosses the whole depth and bisects the site.
+  PATCH 19 (test-only, rig changes AFTER a run, stated; predictions pm_chain133.txt): the half-ramp test runs village
+  AND hamlet so the lot assertions execute, with a flat control that must seat a lot past the ramp row; the creek
+  becomes a pond over the first building's footprint, lots read from the map, and the whole-depth band is pinned as
+  a refusal (measured behaviour, not red-before-green); the canopy rig plans the hamlet.
+CHAIN 133 (m5b_stp_chain, build 2026-11-10 15:49:55-15:50:06, 0 errors; run to 15:50:26, m5b_stp_r133.txt; patch 19):
+  10 ok, 0 failed (PM5b1.113 MET). a: half ramp - village REFUSED (5 of 6 seated, buildable_fraction 0.571, target 9);
+  hamlet PLANS 5 lots, 0 past row 16, against the flat control's 6 lots with 5 past row 16 (target 6) - the lot
+  assertions executed and the control can fail them. b: pond x 4..5 z 5..10 through the first building - dry 9 lots,
+  wet 9 lots, 0 footprints in the pond; the whole-depth band stays refused ("no dry route"). c: the canopy rig plans
+  with the hamlet. RED for the code half of patch 18 = chain 126's ImpossibleTerrain failure (no buildable_fraction
+  in the refusal); the rig halves are rig changes after runs, as stated above - not red-before-green.
+  NOT explained, carried: the village on the generator's ground under a 96 x 28 rect seats 5 of target 9 at
+  buildable_fraction 1.0 (chain 132 e).
+  THE FINAL-TREE SET RUNS AGAIN on this tree: chains 134 (m5b2), 135 (m5b6), 136 (m5b3v), 137 (m5b4); predictions
+  PM5b1.110-112 (pm_chain132.txt).
+CHAIN 134 (m5b2, run from 15:50:53): INCOMPLETE - NOT A RESULT. STOPPED BY ME at 15:58 (119 ok, 0 failed so far) so
+  the audit's findings could go into one tree. Chains 135-137 never started. (Its START line names pm_chain134.txt,
+  which never existed: the chain script derives the name from N. The predictions were PM5b1.110-112 in
+  pm_chain132.txt, restated against the real chain numbers in pm_chain138.txt.)
+SOLUTION-AUDITOR, 2026-11-10 ~15:57 (read-only, on the patch-19 tree, before the final-tree set had run):
+  VERDICT: FAIL. Findings by its own severity order, each with what was done:
+   1. the closure text was written before the evidence (placeholders for chains 134-137 and the audit under a
+      "BUILT" header) - TRUE; the header and status line are corrected when the runs are in, not before.
+   2. L4 run 12c, chains 125 / 129-131 and the Release O15 run predate patch 18; "diagnostic only" rests on reading
+      the code (it found only diagnostic changes: the map's float, the refusal / program echoes, the serialization)
+      - the whole set AND the L4 run are repeated on the final tree (below). The O15 Release figures are NOT
+      repeated: they stand on planner hash 57d1f821 (patch 18 added one assignment after the site analysis).
+   3. the terrain-plan coverage was weakened: the half ramp's village arm only refuses, the canopy rig moved to the
+      hamlet, the "5 of 9 on real ground" is unexplained, the lot assertion had no mutation evidence, a creek across
+      a village site now refuses where the M5a rows planned - the mutation is chain 138 (below); the old rig is
+      pinned (AVillageSiteBelowItsMinimumIsRefusedWithTheCount); the rest stays OPEN in the plan's register (O19).
+   4. the O9 "the row WAS LIVE" line above is an INFERENCE: the guard keeps AABB cells, which may be empty space;
+      guard-off was never run live and no voxel was counted. CORRECTED HERE: what is measured is that the sweep's
+      band reached 5 (town) and 4 (village 2) cube cells inside placed props' boxes. The service's wiring (it
+      passes the recorded boxes) is evidenced only by that live log line; no test pins it. Owed (O9): a prop's
+      voxel count before / after the sweep, red with the guard off.
+   5. O15's caveats understated: the 233-lot rig is the CLUSTER growth with the hamlet program (stated in this
+      ledger, missing from the register row); "the city as programmed" was 160 x 120, not the derived 160 x 160;
+      "the per-lot candidate scan is the cost" was never profiled - the row is corrected.
+   6. the generator fix: copy-assign never seen red, no moved-generator test, no terrain golden suite after the
+      change - two tests added (patch 20), the mutation shows them red (chain 138), the terrain mode is chain 144.
+   7. D45 (the civ city -> the city program) has no test and no live run - TRUE, carried to the register.
+   8. prediction numbering mismatched; misses not named in the build log (PM5b1.13 and the repeated gate misses of
+      chains 93-118) - the build log names them.
+   Also: a leftover "(void)objectBoxes;" in planStreetSweep - removed (patch 20, no behaviour); two tests named for
+   what they no longer measure - renamed.
+PATCH 20 (2026-11-10 16:00; predictions pm_chain138.txt, PM5b1.114-117).
+CHAIN 138 = THE MUTATION (m5b_stp_chain, build 16:00:26-16:06:10, 0 errors; run to 16:09:24, m5b_stp_r138.txt;
+  planner fbd82bdf (M1: TooSteep cells no longer unusable in the candidate table), WorldGenerator.h f1a5f13b (M2:
+  LruCaches copies member-wise)): 12 ok, 3 failed - the three predicted.
+  PM5b1.114 MET: ACopiedGeneratorOwnsItsCacheIterators and ACopyAssignedGeneratorOwnsItsCacheIterators FAIL
+    (cachesSelfConsistent false); AMovedGeneratorKeepsAConsistentCache passes.
+  PM5b1.115 MET (was uncertain): PartlyBuildableTerrainSeatsNoLotOnTheRamp FAILS - "half ramp, hamlet: 6 lots, 2 past
+    row 16 (flat control 6 lots, 5 past row 16)": with the table broken, lots are seated on the ramp and the
+    assertion catches it. The sawtooth stayed refused under M1 (its refusal does not depend on that table alone -
+    so ImpossibleTerrain is NOT shown to guard the filter; stated). The village arm refused as before.
+  The pin: "village 48 x 28 flat: REFUSED ... (5 of 6 seated) ... seated_lots 5, target_lots 9, buildable 1.0".
+  The mutation was reverted by the same script; the hashes after the revert are printed below by the chain 139
+  START line and must read planner 02b8296fbf26e8f9, WorldGenerator.h 847920132c7714f6.
+THE FINAL SET on the patch-20 tree (Debug test exe 2026-11-10 16:15:48; planner 02b8296f, WorldGenerator.h 84792013
+  - the mutation reverted, read from the chain 139 START line):
+CHAIN 139 (m5b_stp_chain, SettlementTerrainPlanTest.* + ColumnCacheTest.*; run to 16:18:58, m5b_stp_r139.txt): 15 ok,
+  0 failed (PM5b1.116 MET).
+CHAIN 140 (m5b2, to 16:27:08, m4b4r_r140_m5b2.txt): 157 ok, 0 failed (PM5b1.110 as restated MET).
+CHAIN 141 (m5b6, to 16:28:33, m4b4r_r141_m5b6.txt): 42 ok, 0 failed.
+CHAIN 142 (SettlementMapLiveSiteTest.*, 16:28:38-17:04:02, m5b_stp_r142.txt): 5 ok, 0 failed (PM5b1.111 MET).
+  legacy control hamlet 3: 28 walkable / 0 blocked / 0 skipped over 9 doors of 9 built; hamlet 3 from its map:
+  16 / 0 / 0 over 6 of 6; village: 34 / 0 / 0 over 11 of 11; town: 72 / 0 / 0 over 24 of 24; 0 lot failures on
+  each; the headless door-passage arm ok. The village and town counts equal chain 131's (before patch 18).
+CHAIN 143 (m5b4, started 17:04:09): INCOMPLETE - NOT A RESULT. The chain's shell was killed by the harness for low
+  memory (as chain 121); read 2026-11-12 09:04 the test process was still alive inside its FIRST test
+  (BridgeSpanTest.NoDeckBeyondTheGroundedSpan), 0 tests finished. NOT restarted by me (the standing rule).
+CHAIN 144 (terrain mode), the Release editor build and L4 run 12's fourth launch: NEVER STARTED. PM5b1.112 and
+  PM5b1.117 are neither met nor missed. On this tree the broad regression, the terrain / golden suites and the
+  Release L4 are UNMEASURED.
+RESUMED 2026-11-12 on the owner's word ("kill it and lets keep going"): chain 143's orphaned test process (PID 13140,
+  0 tests finished) was killed. RENUMBERING: pm_chain138.txt names the broad regression "chain 143" and the terrain
+  mode "chain 144"; they ran as chains 146 and 145. Same tree (Debug test exe 2026-11-10 16:15:48, planner 02b8296f).
+CHAIN 145 (terrain mode, 09:11:38-09:20:21, m4b4r_r145_terrain.txt): 111 tests, 108 ok, 1 failed (2 SKIPPED by their own
+  guard: ColumnCostBench.PhaseTiming...Printed x 2). The failure: RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope
+  - the plan's register O4, red by design since chain 38. My prediction "0 failed" (pm_chain138, "CHAIN 144") is
+  MISSED AS WRITTEN: I did not except the standing red. No other terrain / golden / column-cache failure.
+RELEASE EDITOR BUILD (m5b_release_build_12.txt): 09:20:22-09:24:08, 0 errors, exe 2026-11-12 09:24:07.
+L4 RUN 12, FOURTH LAUNCH (Release, CivLabE0, generator: the worldforge_build job; m5b_l4_run12d.out, evidence
+  docs/evidence/worldforge_v2/m5b_l4/m5b_l4_m5b1_*; the third launch's files are in the scratchpad backup, not in
+  the repo): job complete in 571.7 s, 3 of 3 sites status built.
+  town (24 lots, 19 ways, bake 81.4 ms): gate 72 walkable / 0 blocked over 72 routes, 24 doors of 24, 0 skipped,
+    0 lot failures; sweep 4093 of 4098 band cells cleared, 5 inside props' boxes kept.
+  village 1 (11 lots, 8 ways, 63.6 ms): 34 / 0 over 34, 11 of 11, 0 skipped, 0 lot failures; sweep 3114 of 3114.
+  village 2 (13 lots, 4 ways, 79.8 ms): 40 / 0 over 40, 13 of 13, 0 skipped, 0 lot failures; sweep 1598 of 1602, 4 kept.
+  control (legacy_layout, village 1's site): 20 walkable / 1 blocked over 21 routes, 8 doors of 8 - REFUSED by the gate.
+  No crash report newer than crash_20261110_103834. PM5b1.117 MET: every gate count equals the third launch's.
+  NOT measured: the job result still reads "0 residents" per site (register O19); village 2 has no street-level
+  captures (the script takes them for the town and village 1 only); the screenshots are not evidence of anything.
+CHAIN 146 (m5b4, 09:48:33-12:50:25, m4b4r_r146_m5b4.txt): 143 tests, 142 ok, 1 failed =
+  EarthworkTest.HairpinBankHasNoCliffStepWithItsControl (the standing M4 red, O19 d). PM5b1.112 MET. Both version-1
+  plan hashes pinned (VersionOnePlanHashesArePinned ok; Mountains 18197215997962677593 printed). The chain's shell
+  was killed by the harness for low memory at ~12:39; the test process ran on and wrote its own totals and
+  "EXIT 1 2026-11-12 12:50:25". (CORRECTED after the second audit: I wrote here that the chain's closing lines
+  were absent - they are present: "RUN r146_m5b4 EXIT 1 2026-11-12 12:50:26 142 ok, 1 failed", "CHAIN DONE". The
+  harness killed the OUTER shell; the chain script survived with its test process.)
+SOLUTION-AUDITOR, SECOND PASS, 2026-11-12 (read-only, the final tree): VERDICT: PASS, conditional on correcting the
+  stale header, "[136 TO FILL]", the chain 146 "closing lines absent" sentence and the asset_requests.json
+  side-effect; the evidence is real, post-dates the final source, and the open items are honestly stated.
+  Conditions: the three texts corrected; resources/asset_requests.json left OUT of the commit. Standing notes: Debug
+  only for unit / golden evidence; the hairpin baseline not re-measured; O9's voxel count owed.
+

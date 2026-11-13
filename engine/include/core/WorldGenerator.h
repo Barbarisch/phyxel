@@ -556,9 +556,17 @@ private:
     };
     std::shared_ptr<const ChunkColumnSpans> waterSpansForChunkColumn(const glm::ivec2& colChunk);
 
+public:
+    // Diagnostics for the LRU caches (ColumnCacheTest.ACopiedGeneratorOwnsItsCacheIterators): the entry counts, and
+    // whether every map entry's LRU iterator points at a node of THIS generator's own list holding its own key.
+    size_t columnCacheSize() const;
+    size_t surfaceCacheSize() const;
+    bool cachesSelfConsistent() const;
+private:
+
     void clearColumnCache() {
-        m_columnCache.clear(); m_columnCacheLru.clear();
-        m_surfaceCache.clear(); m_surfaceCacheLru.clear();
+        m_lru.columnCache.clear(); m_lru.columnLru.clear();
+        m_lru.surfaceCache.clear(); m_lru.surfaceLru.clear();
         // Spans derive from the same terrain + bake the column samples do — one lifetime.
         m_waterSpanCache.clear(); m_waterSpanCacheOrder.clear();
     }
@@ -592,14 +600,32 @@ private:
     // the build if the extent is raised past what this can hold, so it cannot break silently twice.
     static constexpr size_t kColumnCacheMax = 512;    // LRU since 2026-10-20 (was FIFO)
     using ColumnCacheEntry = std::pair<std::shared_ptr<const std::vector<ColumnSample>>, std::list<uint64_t>::iterator>;
-    std::unordered_map<uint64_t, ColumnCacheEntry> m_columnCache;
-    std::list<uint64_t> m_columnCacheLru;                // front = most recently used
+    // (the map and its LRU list live in m_lru below - a cache is NOT copied with the generator)
     // The compact surface LRU: 2048 blocks x ~9 KB = ~18 MB per generator instance, enough for the
     // 17x17 streamed columns padded by kWaterExtentSteps (33x33 = 1089 blocks) with headroom.
     static constexpr size_t kSurfaceCacheMax = 2048;
     using SurfaceCacheEntry = std::pair<std::shared_ptr<const SurfaceBlock>, std::list<uint64_t>::iterator>;
-    std::unordered_map<uint64_t, SurfaceCacheEntry> m_surfaceCache;
-    std::list<uint64_t> m_surfaceCacheLru;
+    // The two LRU caches. Each map entry holds an ITERATOR into its list, so a member-wise copy would carry
+    // iterators into the SOURCE generator's lists: the streaming workers' generators are copies of the live one
+    // (ChunkManager's snapshot), and a worker touching a copied entry spliced the live generator's list from
+    // another thread (the Release editor's access violation of 2026-11-10, crashes/crash_20261110_103834.txt:
+    // list::splice <- surfaceBlockForChunk <- generateChunk <- genWorkerLoop). A cache is not state: a COPY starts
+    // with EMPTY caches; a move keeps them (list nodes and map values move with their owners).
+    struct LruCaches {
+        std::unordered_map<uint64_t, ColumnCacheEntry> columnCache;
+        std::list<uint64_t> columnLru;                // front = most recently used
+        std::unordered_map<uint64_t, SurfaceCacheEntry> surfaceCache;
+        std::list<uint64_t> surfaceLru;
+        LruCaches() = default;
+        LruCaches(const LruCaches&) {}
+        LruCaches& operator=(const LruCaches& o) {
+            if (this != &o) { columnCache.clear(); columnLru.clear(); surfaceCache.clear(); surfaceLru.clear(); }
+            return *this;
+        }
+        LruCaches(LruCaches&&) = default;
+        LruCaches& operator=(LruCaches&&) = default;
+    };
+    LruCaches m_lru;
     std::unordered_map<uint64_t, std::shared_ptr<const ChunkColumnSpans>> m_waterSpanCache;
     std::vector<uint64_t> m_waterSpanCacheOrder;
     // Layer-1 ridged mountain relief at a column. `continentalness` is passed in (the caller already

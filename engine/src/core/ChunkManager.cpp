@@ -93,7 +93,12 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         [this]() -> std::unique_ptr<WorldGenerator> {
             if (!m_streamingGenerationEnabled || !m_worldGenerator) return nullptr;
             // Snapshot AFTER the loader applied recipe/params (lazy: first pump).
-            return std::make_unique<WorldGenerator>(*m_worldGenerator);
+            auto snap = std::make_unique<WorldGenerator>(*m_worldGenerator);
+            LOG_INFO_FMT("ChunkStreaming", "[GEN-SNAPSHOT] live generator caches at the snapshot: column "
+                         << m_worldGenerator->columnCacheSize() << ", surface " << m_worldGenerator->surfaceCacheSize()
+                         << "; the copy: column " << snap->columnCacheSize() << ", surface " << snap->surfaceCacheSize()
+                         << ", self-consistent " << (snap->cachesSelfConsistent() ? "yes" : "NO"));
+            return snap;
         },
         [this](Chunk& chunk, const glm::ivec3& chunkCoord) {
             // Flora normally runs on the WORKER (setWorkerFloraDecorator); the

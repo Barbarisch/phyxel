@@ -1,0 +1,37 @@
+PREDICTIONS for L4 RUN 12 (m5b_release_build_run12.sh then m5b_l4.sh Release m5b1 on CivLabE0 - civ recipe 20260816,
+civEpochs 0, fresh DB; the Release exe built from the tree after chain 92/93; the build log hashes the M5b files and this
+file), written BEFORE the Release build and the run.
+  PM5b1.30 the box plan's sites carry the DERIVED rects (D43 (b), derivedSiteRects set on the civ path): town 0 140 x 60,
+    villages 1 and 2 104 x 64, hamlets 3-5 56 x 44 (were 80 x 48 / 40 x 32 in M5a-1's runs). The sites' POSITIONS and
+    seeds as M5a-1 (the civ pick is independent of the rect; the plan hash CHANGES because the rects are in the plan -
+    stated, the civ-enabled recipe is not a pinned hash).
+  PM5b1.31 the CONTROL (village 1 through the layout AS BUILT, legacy_layout, on a fresh world): built, the gate "passed",
+    the log carries the legacy "streets:" unit and NO "ways:" unit. UNCERTAIN on the counts (the first village through the
+    legacy layout on 104 x 64 - the rows pack it; the M0-era villages built 6-14 buildings).
+  PM5b1.32 the JOB (sites 0, 1, 2 in one worldforge_build): every site PLANS from its map (a MAP in each ledger entry with
+    tier, lots in the band - town 15-30, village 6-14 - ways >= 2 with exactly ONE primary way per village and >= 1 on the
+    town, bake_ms < 2000 each on Release: Debug measured 35 ms village / 195 ms town on the hill rig). Status "built" on
+    the two villages; the town UNCERTAIN (a civ town at 13512, -9928 - its ground unseen by any rig; a planner refusal
+    "no dry route" or a gate verdict is reported as found). The city tier is NOT in this box (no civ city inside it) - its
+    first L4 waits for a lab world with one, stated in the plan.
+  PM5b1.33 the RECORD (a built village) and the MICRO probe at <= 10 nodes of its primary way (width 5, Gravel): >= 8 of
+    the probed nodes carry Gravel in their OWN column within y-1..y+2 of the node's surface (the ribbon's centre is the
+    node; a node whose graded surface left the 4-cube window reads 0 - the window is the probe's limit, stated); the
+    ribbon's width across the 9-column section median 5 +- 1 columns (the capsule radius 2.5 cubes). A wider reading
+    means the lanes or the spurs cross the section; a narrower one is a paver finding.
+  PM5b1.34 the log: "grading + paving ways" per site, the gate lines per site, no "paving paths" unit on the street tiers,
+    no REFUSED on the villages; the minimap drawn at the record.
+  PM5b1.63 (added 2026-11-09 after chains 93-100, before the Release build): the villages' walkability gates PASS live
+    (0 blocked routes, 0 skipped: every door's marker in front of its door, the faces between the graded ways and the
+    tofts stooped - the engine log's "doorsteps:" lines name the stooped doors with their fills); the control village
+    through the legacy layout passes as well. The town's gate: predicted PASSED; a blocked route there is a finding
+    recorded as found (the planner's map stays the record either way).
+
+ADDED 2026-11-10 before the Release build (the L4 script gained captures and a render-stats A/B; register O14):
+  PM5b1.101 every BUILT street-tier site yields four daylight captures (elevated, oblique, two on the primary way) and
+    a site minimap. A capture is a picture, not a measurement; the poses are computed, not checked - a street pose
+    inside a building or facing a wall is reported as found.
+  PM5b1.102 the render-stats A/B at ONE pose over the first village (as built via legacy_layout vs grown from the map,
+    8 raw samples each, laptop GPU, Release): UNCERTAIN, no direction predicted - the two builds differ in lot count
+    and layout, so this is a like-site comparison, not a controlled one. It is NOT the C-25..C-100 ladder (4090,
+    project CityBench, absent on this machine); the ladder stays owed and O14 stays open.

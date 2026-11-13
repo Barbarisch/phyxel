@@ -1,0 +1,239 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementTerrainPlanTest.*:ColumnCacheTest.*
+[==========] Running 15 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from ColumnCacheTest
+[ RUN      ] ColumnCacheTest.AWorkerStreamingTheGatePoseSamplesFewFreshBlocksPerChunk
+[32m[16:15:52.907] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:15:53.581] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[16:15:53.582] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[16:15:53.623] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 3360702379361611432); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 13194 bodies[0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 23670 source entries, warp inversions beyond 1 u: 43[0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 3 over 1112 carved reaches, reaches moved per round [152,7,0], cumulative lowering max 2.30532 u, sum 25.2876 u, 0 reaches lowered by more than 8 u; band columns 410327, bank reads 112716, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 5, deepest END lowering 2.30532 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0[0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.305,2.305][0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 356734 base by round [18.808,18.808] natural stations [21.113,20.692,20.272,19.851,19.430,19.009,18.589,18.168,17.747] final [18.808,18.808,17.948,17.614,17.604,17.604,17.604,17.604,17.604][0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 356734 bank (-4140,-5251) local rim 20.6848 at t 0.321503 | winner 355710 env 18.6022 rim 18.2569 perp 12.9949 behind 0.493293 floor 14.6225 penalty 0 | deficit 2.08264[0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 787840 base by round [45.030,45.030] natural stations [47.166,46.899,46.632,46.365,46.098,45.831,45.564,45.297,45.030] final [45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030][0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 787840 bank (-4074,8232) local rim 47.5043 at t 0.120338 | winner 787841 env 45.6254 rim 45.6254 perp 13.1417 behind 0 floor 13.7045 penalty 0 | deficit 1.87895[0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 902804 base by round [15.039,15.039] natural stations [16.626,16.329,16.032,15.735,15.438,15.140,14.843,14.546,14.249] final [15.039,15.039,14.283,14.249,14.249,14.249,14.249,14.249,14.249][0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 902804 bank (4763,11821) local rim 16.4229 at t 0.334412 | winner 902805 env 14.8746 rim 14.8409 perp 13.6592 behind 0 floor 13.611 penalty 0 | deficit 1.5483[0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 372112 base by round [45.159,45.159] natural stations [46.728,46.568,46.408,46.249,46.089,45.929,45.769,45.610,45.450] final [45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159][0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 372112 bank (-3571,-4762) local rim 47.1834 at t 0.136734 | winner 371088 env 45.8016 rim 45.8016 perp 12.5242 behind 0 floor 13.3642 penalty 0 | deficit 1.38176[0m
+[32m[16:16:10.591] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 777639 base by round [25.603,25.603] natural stations [26.625,26.521,26.417,26.313,26.209,26.105,26.001,25.897,25.793] final [25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603][0m
+[32m[16:16:10.592] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 777639 bank (-2821,7905) local rim 27.2661 at t 0 | winner 776615 env 26.2437 rim 26.2437 perp 12.6994 behind 0 floor 14.0183 penalty 0 | deficit 1.02241[0m
+[32m[16:16:10.592] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 356734 (382,348) lowered 2.30532 u over 1 rounds, last driven by source 355710 (382,347) folded 0 deficit 2.08264 u[0m
+[32m[16:16:10.592] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 787840 (384,769) lowered 2.13599 u over 1 rounds, last driven by source 787841 (385,769) folded 0 deficit 1.87895 u[0m
+[32m[16:16:10.592] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 902804 (660,881) lowered 1.58697 u over 1 rounds, last driven by source 902805 (661,881) folded 0 deficit 1.5483 u[0m
+[32m[16:16:10.592] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 372112 (400,363) lowered 1.56827 u over 1 rounds, last driven by source 371088 (400,362) folded 0 deficit 1.38176 u[0m
+[32m[16:16:10.592] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 777639 (423,759) lowered 1.02241 u over 1 rounds, last driven by source 776615 (423,758) folded 0 deficit 1.02241 u[0m
+[32m[16:16:10.592] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1[0m
+[32m[16:16:24.621] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 8 roads, 0 bridges, 333 segments in 14025 ms (hash 16364615613792498013)[0m
+[32m[16:16:24.622] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ column cache ] 289 chunks generated by one of three workers: 4.63 fresh column blocks per chunk (analytic floor 4.77)
+[       OK ] ColumnCacheTest.AWorkerStreamingTheGatePoseSamplesFewFreshBlocksPerChunk (81100 ms)
+[ RUN      ] ColumnCacheTest.ACopiedGeneratorOwnsItsCacheIterators
+[32m[16:17:14.007] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:17:26.502] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 8 roads, 0 bridges, 333 segments in 12490 ms (hash 16364615613792498013)[0m
+[32m[16:17:26.502] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ column cache ] source after one chunk: column cache 1, surface cache 289
+[ column cache ] the copy: column cache 0, surface cache 0, self-consistent 1
+[32m[16:17:34.907] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:17:35.571] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 957 bodies[0m
+[32m[16:17:35.571] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=3017 maxOrder=5 drainageComplete=1[0m
+[       OK ] ColumnCacheTest.ACopiedGeneratorOwnsItsCacheIterators (21631 ms)
+[ RUN      ] ColumnCacheTest.ACopyAssignedGeneratorOwnsItsCacheIterators
+[32m[16:17:35.639] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:17:48.208] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 8 roads, 0 bridges, 333 segments in 12564 ms (hash 16364615613792498013)[0m
+[32m[16:17:48.209] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:17:56.649] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:18:09.479] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 8 roads, 0 bridges, 333 segments in 12825 ms (hash 16364615613792498013)[0m
+[32m[16:18:09.479] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ column cache ] assigned: column cache 0, surface cache 0, self-consistent 1
+[       OK ] ColumnCacheTest.ACopyAssignedGeneratorOwnsItsCacheIterators (42571 ms)
+[ RUN      ] ColumnCacheTest.AMovedGeneratorKeepsAConsistentCache
+[32m[16:18:18.212] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:18:30.956] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 8 roads, 0 bridges, 333 segments in 12739 ms (hash 16364615613792498013)[0m
+[32m[16:18:30.956] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ column cache ] moved: column cache 1, surface cache 289 (source held 289), self-consistent 1
+[       OK ] ColumnCacheTest.AMovedGeneratorKeepsAConsistentCache (21188 ms)
+[----------] 4 tests from ColumnCacheTest (166491 ms total)
+
+[----------] 11 tests from SettlementTerrainPlanTest
+[ RUN      ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused
+[       OK ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused (128 ms)
+[ RUN      ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured
+[32m[16:18:39.597] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:39.603] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:39.622] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 3 ways, 6 nodes, entry 0, sampler flat, 0 dropped, bake 18.5094 ms[0m
+[32m[16:18:39.625] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (3 streets)[0m
+[       OK ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured (103 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement
+[32m[16:18:39.750] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:39.756] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:39.919] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 3 ways, 6 nodes, entry 0, sampler chunks, 0 dropped, bake 161.798 ms[0m
+[32m[16:18:39.923] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (3 streets)[0m
+[       OK ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement (298 ms)
+[ RUN      ] SettlementTerrainPlanTest.AVillageSiteBelowItsMinimumIsRefusedWithTheCount
+[32m[16:18:40.000] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:40.006] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[ terrain plan ] village 48 x 28 flat: REFUSED {"buildable_fraction":1.0,"dropped_lots":0,"error":"no buildable, connectable lot for the tier's minimum (5 of 6 seated)","map_sampler":"chunks","seated_lots":5,"target_lots":9}
+[       OK ] SettlementTerrainPlanTest.AVillageSiteBelowItsMinimumIsRefusedWithTheCount (164 ms)
+[ RUN      ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt
+[32m[16:18:40.230] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:40.235] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt (278 ms)
+[ RUN      ] SettlementTerrainPlanTest.PartlyBuildableTerrainSeatsNoLotOnTheRamp
+[32m[16:18:40.506] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:40.511] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[ terrain plan ] half ramp, village: REFUSED {"buildable_fraction":0.5714285969734192,"dropped_lots":0,"error":"no buildable, connectable lot for the tier's minimum (5 of 6 seated)","map_sampler":"chunks","seated_lots":5,"target_lots":9}
+[32m[16:18:40.791] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:40.796] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:40.934] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 5 lots, 5 ways, 14 nodes, entry 1, sampler chunks, 0 dropped, bake 137.327 ms[0m
+[32m[16:18:40.936] [INFO] [Settlement] build_settlement: 5 plots, 5 buildings queued (2 streets)[0m
+[32m[16:18:41.060] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:41.065] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:41.238] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 18 nodes, entry 1, sampler chunks, 0 dropped, bake 172.261 ms[0m
+[32m[16:18:41.240] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (2 streets)[0m
+[ terrain plan ] half ramp, hamlet: 5 lots, 0 past row 16 (flat control 6 lots, 5 past row 16), target 6
+[       OK ] SettlementTerrainPlanTest.PartlyBuildableTerrainSeatsNoLotOnTheRamp (876 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed
+[32m[16:18:41.367] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:41.373] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:41.542] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 7 lots, 3 ways, 16 nodes, entry 0, sampler chunks, 0 dropped, bake 168.362 ms[0m
+[32m[16:18:41.545] [INFO] [Settlement] build_settlement: 7 plots, 7 buildings queued (4 streets)[0m
+[32m[16:18:41.671] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:41.677] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:41.835] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 7 lots, 3 ways, 16 nodes, entry 0, sampler chunks, 0 dropped, bake 156.922 ms[0m
+[32m[16:18:41.838] [INFO] [Settlement] build_settlement: 7 plots, 7 buildings queued (4 streets)[0m
+[32m[16:18:41.963] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:41.969] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:42.124] [INFO] [Settlement] [M5A-MAP] medieval/village seed 9: 6 lots, 1 ways, 12 nodes, entry 0, sampler chunks, 0 dropped, bake 154.303 ms[0m
+[32m[16:18:42.126] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (2 streets)[0m
+[       OK ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed (883 ms)
+[ RUN      ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned
+[32m[16:18:42.250] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:42.255] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:42.274] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 3 ways, 6 nodes, entry 0, sampler flat, 0 dropped, bake 18.1611 ms[0m
+[32m[16:18:42.277] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (3 streets)[0m
+[       OK ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned (150 ms)
+[ RUN      ] SettlementTerrainPlanTest.WaterInsideFootprintIsNotBuildable
+[32m[16:18:42.402] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:42.407] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:42.568] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 3 ways, 6 nodes, entry 0, sampler chunks, 0 dropped, bake 159.39 ms[0m
+[32m[16:18:42.572] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (3 streets)[0m
+[32m[16:18:42.696] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:42.702] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:42.862] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 3 ways, 6 nodes, entry 0, sampler chunks, 0 dropped, bake 160.025 ms[0m
+[32m[16:18:42.866] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (3 streets)[0m
+[ terrain plan ] pond x 4..5 z 5..10: dry 9 lots, wet 9 lots, footprints in the pond 0
+[32m[16:18:42.992] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:42.997] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementTerrainPlanTest.WaterInsideFootprintIsNotBuildable (872 ms)
+[ RUN      ] SettlementTerrainPlanTest.CanopyMarginCoversTheBiomesWidestTree
+[32m[16:18:43.153] [INFO] [ObjectTemplateManager] Loaded template: bush_flower with 0 cubes, 18 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:43.159] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_blue with 3 cubes, 366 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:43.166] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_green with 1 cubes, 494 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:43.177] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_m with 21 cubes, 788 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:43.186] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_s with 9 cubes, 634 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:43.193] [INFO] [ObjectTemplateManager] Loaded template: bush_round with 8 cubes, 506 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:43.194] [INFO] [ObjectTemplateManager] Loaded template: fern with 0 cubes, 11 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:43.406] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_l with 17 cubes, 6791 subcubes, 7074 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:43.559] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_m with 9 cubes, 4028 subcubes, 5562 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:43.873] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_l with 23 cubes, 9275 subcubes, 10937 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:44.177] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_m with 10 cubes, 5388 subcubes, 13347 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:44.391] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_l with 18 cubes, 6473 subcubes, 7074 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:44.602] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_m with 8 cubes, 3491 subcubes, 9307 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:44.628] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_blue with 0 cubes, 321 subcubes, 1138 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:44.652] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_green with 0 cubes, 356 subcubes, 1134 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:44.695] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_m with 0 cubes, 625 subcubes, 1890 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:44.724] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_s with 0 cubes, 371 subcubes, 1404 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:44.751] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_m with 6 cubes, 827 subcubes, 965 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:44.769] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_s with 6 cubes, 589 subcubes, 567 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:45.806] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xl with 4491 cubes, 30928 subcubes, 33213 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:47.615] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xxl with 13788 cubes, 57981 subcubes, 50494 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:48.308] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak with 2142 cubes, 20403 subcubes, 22610 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:48.695] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak_s with 585 cubes, 9306 subcubes, 14376 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:48.829] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_l with 16 cubes, 2522 subcubes, 5422 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:48.901] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_m with 4 cubes, 1236 subcubes, 3206 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:49.393] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_l with 84 cubes, 16978 subcubes, 14405 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:49.696] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_m with 31 cubes, 7400 subcubes, 10866 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:50.228] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_hero with 27 cubes, 13693 subcubes, 20095 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:50.540] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_l with 29 cubes, 10898 subcubes, 9600 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:50.856] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_m with 10 cubes, 5289 subcubes, 14261 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:51.020] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_sparse with 9 cubes, 4051 subcubes, 6345 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:51.051] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_l with 0 cubes, 114 subcubes, 1636 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:51.073] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_m with 0 cubes, 128 subcubes, 1125 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:51.284] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_l with 30 cubes, 5832 subcubes, 7496 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:51.404] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_m with 5 cubes, 2571 subcubes, 4883 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:52.623] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xl with 6730 cubes, 40818 subcubes, 34983 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:54.861] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xxl with 21549 cubes, 79410 subcubes, 59079 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:54.983] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_l with 8 cubes, 3119 subcubes, 4980 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:55.081] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_m with 5 cubes, 1484 subcubes, 5093 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:55.127] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_s with 4 cubes, 744 subcubes, 2126 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:55.551] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_l with 20 cubes, 15241 subcubes, 15417 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:55.959] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_m with 5 cubes, 8624 subcubes, 18414 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:55.961] [INFO] [ObjectTemplateManager] Loaded template: hedge_section with 1 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:55.961] [INFO] [ObjectTemplateManager] Loaded template: mushroom with 0 cubes, 16 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:55.971] [INFO] [ObjectTemplateManager] Loaded template: shrub_flat with 0 cubes, 25 subcubes, 583 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:55.988] [INFO] [ObjectTemplateManager] Loaded template: shrub_round with 0 cubes, 62 subcubes, 877 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.026] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_l with 0 cubes, 3149 subcubes, 4 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.045] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_m with 0 cubes, 1475 subcubes, 2 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.046] [INFO] [ObjectTemplateManager] Loaded template: tree_apple with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.148] [INFO] [ObjectTemplateManager] Loaded template: tree_autumn_m with 11 cubes, 4675 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.149] [INFO] [ObjectTemplateManager] Loaded template: tree_birch with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.165] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_l with 4 cubes, 1213 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.180] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_m with 3 cubes, 1117 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.192] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_sparse with 3 cubes, 992 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.194] [INFO] [ObjectTemplateManager] Loaded template: tree_dead with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.196] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_m with 3 cubes, 116 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.198] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_s with 2 cubes, 116 subcubes, 2 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.484] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak with 35730 cubes, 19 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.830] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak_xl with 42041 cubes, 5 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.849] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_l with 40 cubes, 1391 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.860] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_m with 11 cubes, 784 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.886] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_m with 85 cubes, 2141 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.934] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_xl with 218 cubes, 3909 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:56.936] [INFO] [ObjectTemplateManager] Loaded template: tree_oak with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.011] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_l with 19 cubes, 6503 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.060] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_lush with 10 cubes, 4176 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.116] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_m with 11 cubes, 5009 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.141] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_s with 7 cubes, 1978 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.184] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_sparse with 6 cubes, 3780 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.185] [INFO] [ObjectTemplateManager] Loaded template: tree_palm with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.187] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_l with 0 cubes, 120 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.189] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_m with 0 cubes, 96 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.190] [INFO] [ObjectTemplateManager] Loaded template: tree_pine with 0 cubes, 27 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.210] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_l with 8 cubes, 1696 subcubes, 28 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.217] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_m with 5 cubes, 506 subcubes, 20 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.222] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_s with 4 cubes, 291 subcubes, 16 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.427] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_l with 26550 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.913] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_xl with 38336 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.970] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_l with 183 cubes, 2578 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:57.993] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_m with 38 cubes, 1012 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:58.051] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_l with 163 cubes, 2894 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:58.075] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_m with 32 cubes, 1130 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:58.084] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_s with 7 cubes, 464 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:58.085] [INFO] [ObjectTemplateManager] Loaded template: tree_stump with 0 cubes, 14 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:58.128] [INFO] [ObjectTemplateManager] Loaded template: tree_willow_l with 80 cubes, 2303 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:18:58.129] [INFO] [ObjectTemplateManager] Template scan: 85 loaded from resources/templates/nature[0m
+[32m[16:18:58.233] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:18:58.234] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)[0m
+[32m[16:18:58.309] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:58.316] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:58.380] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 25 nodes, entry 4, sampler generator, 0 dropped, bake 62.8895 ms[0m
+[32m[16:18:58.384] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (1 streets)[0m
+[       OK ] SettlementTerrainPlanTest.CanopyMarginCoversTheBiomesWidestTree (15440 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerraceFenceAndPathMaterialsComeFromBiomeAndProgram
+[32m[16:18:58.663] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:18:58.664] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)[0m
+[32m[16:18:58.703] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:18:58.710] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:18:58.739] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 5 lots, 5 ways, 19 nodes, entry 4, sampler generator, 0 dropped, bake 27.9153 ms[0m
+[32m[16:18:58.743] [INFO] [Settlement] build_settlement: 5 plots, 5 buildings queued (1 streets)[0m
+[       OK ] SettlementTerrainPlanTest.TerraceFenceAndPathMaterialsComeFromBiomeAndProgram (152 ms)
+[----------] 11 tests from SettlementTerrainPlanTest (19350 ms total)
+
+[----------] Global test environment tear-down
+[==========] 15 tests from 2 test suites ran. (185842 ms total)
+[  PASSED  ] 15 tests.

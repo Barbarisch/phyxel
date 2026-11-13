@@ -318,6 +318,16 @@ StructureForge::StageReport StructureForge::stageFloorplan(Context& ctx) {
     if (ctx.anyAutofill) ctx.preAutofillStories = ctx.program.stories;   // M3 repair snapshot
     ctx.floorplanSeed = seed ? seed : 1u;
     const bool typologyApplied = autofillRoomLayout(ctx.program, ctx.floorplanSeed, ctx.rp);
+    {
+        std::string doors;
+        if (!ctx.program.stories.empty())
+            for (const auto& po : ctx.program.stories[0].portals)
+                if (po.kind == "door" && (po.a == "exterior" || po.b == "exterior"))
+                    doors += " (" + std::to_string(po.px) + "," + std::to_string(po.pz) + " w" + std::to_string(po.width) + " h" + std::to_string(po.height) + ")";
+        LOG_INFO_FMT("StructureBuild", "floorplan: typology '" << ctx.program.typology << "' " << ctx.program.footprintW << "x"
+                     << ctx.program.footprintD << " front '" << ctx.program.front << "' shape '" << ctx.program.footprintShape
+                     << "' seed " << ctx.floorplanSeed << " exterior doors:" << (doors.empty() ? " none" : doors));
+    }
     if (emptyBefore > 0) {
         int total = 0;
         for (const auto& st : ctx.program.stories) total += (int)st.rooms.size();
@@ -720,7 +730,12 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
             ctx.response["vegetation_cleared_cells"] = static_cast<int>(toClear.size());
         }
         if (!tops.empty()) {
-            const int padLevel = StructureGenerator::planPadLevel(tops);
+            // M5b-1 (chain 103): a caller that knows the level the building must stand at - the settlement
+            // realizer seating a lot at the way it fronts - passes "pad_y"; otherwise the median of the
+            // footprint's terrain tops (minimum cut + fill).
+            const int padLevel = ctx.params.contains("pad_y") && ctx.params["pad_y"].is_number_integer()
+                                     ? ctx.params["pad_y"].get<int>()
+                                     : StructureGenerator::planPadLevel(tops);
             std::vector<glm::ivec3> cut;          // terrain above the pad -> remove
             StructureResult fill;                 // terrain below the pad -> add (Dirt)
             for (size_t i = 0; i < tops.size(); ++i) {
@@ -755,6 +770,7 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
             if (!fill.voxels.empty()) StructureGenerator::place(chunkManager, fill);
             ctx.oy = padLevel + 1;    // foundation bottom rests on the flat pad
             LOG_INFO_FMT("StructureBuild", "prepare_pad: leveled footprint to y=" << padLevel
+                         << (ctx.params.contains("pad_y") ? " (requested)" : " (median of the terrain tops)")
                          << " (cut " << cut.size() << ", fill " << fill.voxels.size() << ")");
 
             // SEAT THE SUBSTRUCTURE BELOW GRADE (#34). A foundation belongs IN the
@@ -803,6 +819,11 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
     // whatever StructureResult.locations holds — v2 populated none until now.
     ctx.structure.locations = StructureRealizer::deriveLocations(
         ctx.program, ctx.typ, ctx.shell.plan, glm::ivec3(ox, oy, oz), ctx.shell.floorTopMicro);
+    for (const auto& lm : ctx.structure.locations)
+        LOG_INFO_FMT("StructureBuild", "front door marker '" << lm.name << "' at world (" << static_cast<int>(std::floor(lm.position.x)) << ", "
+                     << static_cast<int>(std::floor(lm.position.z)) << ") = local (" << (static_cast<int>(std::floor(lm.position.x)) - ox) << ", "
+                     << (static_cast<int>(std::floor(lm.position.z)) - oz) << ") of " << ctx.program.footprintW << "x" << ctx.program.footprintD
+                     << " at (" << ox << ", " << oz << ") front '" << ctx.program.front << "'");
 
     // Persist the assembly plan with its placement origin: featureAt(local) + origin =
     // a post-build structural-feature query (wall/floor/ceiling/...) that no consumer

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <utility>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -76,3 +78,98 @@ TEST(ColumnCacheTest, AWorkerStreamingTheGatePoseSamplesFewFreshBlocksPerChunk) 
     EXPECT_LE(perChunk, floorBlocks * 1.1) << perChunk << " fresh blocks per chunk vs the floor " << floorBlocks
                                            << ": the column cache is thrashing (engine measured 32.06 with the FIFO)";
 }
+
+// The Release editor died in L4 run 12 (2026-11-10, crashes/crash_20261110_103834.txt): an access violation in
+// list::splice <- surfaceBlockForChunk <- generateChunk on a streaming WORKER. The LRU caches keep a list iterator in
+// each map entry and the worker generators are member-wise copies of the live one - a copy taken while the source's
+// cache is populated holds iterators into the SOURCE's lists. The invariant: a copy owns every iterator it holds (it
+// starts empty), and it generates the same chunk as its source after the source is gone. Controls: the rig does
+// populate the source's caches, and the check passes on the source itself.
+TEST(ColumnCacheTest, ACopiedGeneratorOwnsItsCacheIterators) {
+    auto base = std::make_unique<WorldGenerator>(WorldGenerator::GenerationType::Perlin, 20260816u);
+    base->applyRecipe(baselineRecipe());
+    const glm::ivec3 cc(300 / 32, 69 / 32, -1400 / 32);
+    auto first = std::make_unique<Chunk>(cc * 32);
+    first->initializeForLoading();
+    base->generateChunk(*first, cc);
+    std::printf("[ column cache ] source after one chunk: column cache %zu, surface cache %zu\n", base->columnCacheSize(), base->surfaceCacheSize());
+    ASSERT_GT(base->columnCacheSize(), 0u) << "the rig did not populate the column cache";
+    ASSERT_GT(base->surfaceCacheSize(), 0u) << "the rig did not populate the surface cache";
+    ASSERT_TRUE(base->cachesSelfConsistent()) << "control: the source owns its own iterators";
+
+    WorldGenerator copy = *base;
+    std::printf("[ column cache ] the copy: column cache %zu, surface cache %zu, self-consistent %d\n", copy.columnCacheSize(), copy.surfaceCacheSize(), copy.cachesSelfConsistent() ? 1 : 0);
+    ASSERT_TRUE(copy.cachesSelfConsistent()) << "the copy holds " << copy.columnCacheSize() << " column / " << copy.surfaceCacheSize()
+                                             << " surface entries whose LRU iterators point into the SOURCE's lists";
+    WorldGenerator assigned(WorldGenerator::GenerationType::Perlin, 1u);
+    assigned = *base;
+    ASSERT_TRUE(assigned.cachesSelfConsistent()) << "copy ASSIGNMENT carries the source's iterators";
+
+    base.reset();   // the source is gone: anything the copy still held of it would dangle
+    for (int pass = 0; pass < 3; ++pass) {   // miss, then two hits (the splice path)
+        auto again = std::make_unique<Chunk>(cc * 32);
+        again->initializeForLoading();
+        copy.generateChunk(*again, cc);
+        EXPECT_EQ(again->getCubeCount(), first->getCubeCount()) << "pass " << pass << ": the copy generates a different chunk";
+        EXPECT_TRUE(copy.cachesSelfConsistent()) << "pass " << pass;
+    }
+    EXPECT_GT(copy.columnCacheSize(), 0u);
+}
+
+// Audit 2026-11-10: the copy-ASSIGNMENT check above sits behind the copy's ASSERT, so it was never seen red. Its own
+// test: an assigned-to generator that already holds entries of its own must end owning every iterator it holds.
+TEST(ColumnCacheTest, ACopyAssignedGeneratorOwnsItsCacheIterators) {
+    auto base = std::make_unique<WorldGenerator>(WorldGenerator::GenerationType::Perlin, 20260816u);
+    base->applyRecipe(baselineRecipe());
+    const glm::ivec3 cc(300 / 32, 69 / 32, -1400 / 32);
+    auto first = std::make_unique<Chunk>(cc * 32);
+    first->initializeForLoading();
+    base->generateChunk(*first, cc);
+    ASSERT_GT(base->surfaceCacheSize(), 0u) << "the rig did not populate the surface cache";
+
+    WorldGenerator assigned(WorldGenerator::GenerationType::Perlin, 20260816u);
+    assigned.applyRecipe(baselineRecipe());
+    const glm::ivec3 other(cc.x + 3, cc.y, cc.z);
+    auto warm = std::make_unique<Chunk>(other * 32);
+    warm->initializeForLoading();
+    assigned.generateChunk(*warm, other);   // the target holds its own entries before the assignment
+    ASSERT_TRUE(assigned.cachesSelfConsistent());
+    assigned = *base;
+    std::printf("[ column cache ] assigned: column cache %zu, surface cache %zu, self-consistent %d\n", assigned.columnCacheSize(), assigned.surfaceCacheSize(), assigned.cachesSelfConsistent() ? 1 : 0);
+    ASSERT_TRUE(assigned.cachesSelfConsistent()) << "copy ASSIGNMENT left " << assigned.surfaceCacheSize()
+                                                 << " surface entries whose LRU iterators point into the SOURCE's lists";
+    base.reset();
+    for (int pass = 0; pass < 2; ++pass) {
+        auto again = std::make_unique<Chunk>(cc * 32);
+        again->initializeForLoading();
+        assigned.generateChunk(*again, cc);
+        EXPECT_EQ(again->getCubeCount(), first->getCubeCount()) << "pass " << pass;
+        EXPECT_TRUE(assigned.cachesSelfConsistent()) << "pass " << pass;
+    }
+}
+
+// ...and a MOVED generator (the header says a move keeps the caches: list nodes and map values move with their
+// owners). Whatever it keeps, it must own, and it must generate the source's chunk.
+TEST(ColumnCacheTest, AMovedGeneratorKeepsAConsistentCache) {
+    auto base = std::make_unique<WorldGenerator>(WorldGenerator::GenerationType::Perlin, 20260816u);
+    base->applyRecipe(baselineRecipe());
+    const glm::ivec3 cc(300 / 32, 69 / 32, -1400 / 32);
+    auto first = std::make_unique<Chunk>(cc * 32);
+    first->initializeForLoading();
+    base->generateChunk(*first, cc);
+    const size_t surfaceBefore = base->surfaceCacheSize();
+    ASSERT_GT(surfaceBefore, 0u);
+
+    WorldGenerator moved(std::move(*base));
+    std::printf("[ column cache ] moved: column cache %zu, surface cache %zu (source held %zu), self-consistent %d\n", moved.columnCacheSize(), moved.surfaceCacheSize(), surfaceBefore, moved.cachesSelfConsistent() ? 1 : 0);
+    ASSERT_TRUE(moved.cachesSelfConsistent()) << "the moved generator holds iterators it does not own";
+    base.reset();
+    for (int pass = 0; pass < 2; ++pass) {
+        auto again = std::make_unique<Chunk>(cc * 32);
+        again->initializeForLoading();
+        moved.generateChunk(*again, cc);
+        EXPECT_EQ(again->getCubeCount(), first->getCubeCount()) << "pass " << pass;
+        EXPECT_TRUE(moved.cachesSelfConsistent()) << "pass " << pass;
+    }
+}
+

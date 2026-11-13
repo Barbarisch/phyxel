@@ -1,0 +1,3 @@
+START 2026-11-10 16:00:26 SettlementTerrainPlanTest.cpp 858fccf29e683191 SettlementBuildService.cpp 8d72c6efc338a827 SettlementMapPlanner.cpp fbd82bdf0fda3f4d SettlementMap.cpp 679122014315073b SettlementMap.h 3d2eb5e4a451fb3e WorldGenerator.h f1a5f13bbd24badc ColumnCacheTest.cpp 442a51a482cb8d60 StreetPaver.cpp 5778709fc55782df pm138 4714cb791e7ff8ac ledger 009f1d1fa61651ec
+BUILD EXIT 0 2026-11-10 16:06:10 errors: 0 exe 2026-11-10_16:06:06
+RUN EXIT 1 2026-11-10 16:09:24 12 ok, 3 failed

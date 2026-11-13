@@ -1,0 +1,13 @@
+PREDICTIONS for chain 98 (mode m5b3vv = the village arm alone), written BEFORE the launch - a READING run after chain 97
+missed (the recorded door and the in-column snap left the village gate blocked on 4 of 34 routes, a different set from
+chain 93's 2, and the town on 6 of 69). The tree adds diagnostics only: the realizer logs each door's approach as the
+doorsteps unit read it (door wall, normal, threshold, the ground top one and two cells out, stooped or not) and each spur
+the paver refused; the test prints each blocked route's approach as a vertical section from the street start to the
+passage with the standable cells marked.
+  PM5b1.53 the four blocked doors read the same as chain 97 (hall_house @-7903,-9936, croft @-7873,-9943, blacksmith
+    @-7882,-9930, croft @-7904,-9955): the map, the ways and the buildings are deterministic on this tree.
+  PM5b1.54 the finding the section shows, predicted: at each blocked door the feet-per-column line carries at least one
+    "!" (a riser over 4 micro) between the street and the threshold - the doorsteps unit left it ("no step" because the
+    ground top it read one cell out was within 4 of the threshold while the walkable surface there is lower, or the
+    riser lies beyond the two cells it stoops) - OR a solid across the approach (a fence run) with no F under it.
+    UNCERTAIN which; the run decides and nothing is changed before it is read.

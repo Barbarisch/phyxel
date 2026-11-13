@@ -39,6 +39,13 @@ struct LocationMarker {
     glm::vec3 position{0.0f};
     float radius = 3.0f;
     LocationType type = LocationType::Custom;
+    /// M5b-1 (chain 93): the exterior DOOR this marker was anchored at - the world cube of the wall cell
+    /// the door is cut through and its outward normal - so a consumer that needs the door (the settlement's
+    /// walkability gate, door spurs, doorsteps) reads the forge's door instead of inferring a wall from the
+    /// marker's side; the marker itself is snapped to standable ground afterwards and may move.
+    bool hasDoor = false;
+    glm::ivec2 doorWall{0, 0};
+    glm::ivec2 doorNormal{0, 0};
 };
 
 /// Cardinal facing direction for structures.

@@ -79,6 +79,13 @@ WorldForgePlan::TierPreset WorldForgePlan::tierPreset(const std::string& tier) {
     return {"hamlet", 40, 32};
 }
 
+WorldForgePlan::TierPreset WorldForgePlan::tierPresetDerived(const std::string& tier) {
+    if (tier == "city") return {"city", 160, 160};
+    if (tier == "town") return {"town", 140, 60};
+    if (tier == "village") return {"village", 104, 64};   // chain 89: 80 x 48 seated the target on 4 of 6 flat seeds under the growth; smallest 92 x 56; x 1.25 area
+    return {"hamlet", 56, 44};
+}
+
 uint32_t WorldForgePlan::siteSeed(uint32_t worldSeed, const glm::ivec2& pos) {
     // Same avalanche idiom as the terrain-noise hash (tnHash): pure in (worldSeed, position),
     // so a site's settlement build is reproducible from the world seed alone.
@@ -569,7 +576,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     positions.reserve(picked.size());
     for (const auto& pk : picked) positions.push_back(pk.pos);
     for (size_t i = 0; i < picked.size(); ++i) {
-        const TierPreset preset = tierPreset(tierOf[i]);
+        const TierPreset preset = P.derivedSiteRects ? tierPresetDerived(tierOf[i]) : tierPreset(tierOf[i]);   // M5b-1 D43 (b)
         WorldForgeSite site;
         site.id = static_cast<int>(i);
         site.tier = preset.name;

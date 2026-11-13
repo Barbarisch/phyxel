@@ -1,0 +1,11 @@
+PREDICTIONS for chain 99 (mode m5b6 = StreetPaverTest, StructureLocationsTest, SpawnGateTest), written BEFORE the launch -
+THE RED RUN of chain 98's two findings. The tree: the doorsteps' stoop lifted into a pure paver function
+(planDoorstepFills) WITH the shipped rule (the stoop ends at the first cell that needs no fill); the snap gains a
+`preferDir` parameter that is not yet used. Nothing else.
+  PM5b1.55 DoorstepsStoopTheWholeDescentToTheStreet RED: on the apron case the shipped rule returns no fill at all
+    (the first cell's riser is 2) - fills[1] reads INT_MIN against the expected 897 and the riser check reads 9 > 4
+    from the apron (901) down to the street (892); the simple case passes (865, then none).
+  PM5b1.56 SnapToStandableFollowsTheDoorNormalBeforeTurningACorner RED: the unchanged search returns a same-level cell
+    5 cubes east (x 15 or 5, y 17) - x != 10.
+  PM5b1.57 the rest of the three suites GREEN as chains 96 / 92 (the eave case, the in-column step, the door record,
+    the ribbon, the spurs, SpawnGateTest).

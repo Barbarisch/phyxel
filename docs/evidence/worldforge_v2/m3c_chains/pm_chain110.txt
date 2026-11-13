@@ -1,0 +1,11 @@
+PREDICTIONS for chain 110 (mode m5b6), written BEFORE the launch. The tree: the sill exception bounded to one step
+(a cliff takes no sill); the seat reads the way at the PREDICTED door's approach (the autofill run ahead of the forge);
+the threshold-above-pad offset learned per style.
+  PM5b1.81 the set GREEN (42 of 42): the levels test's cliff case none.
+PREDICTIONS for chain 111 (mode m5b3vt = the town arm alone), the same tree:
+  PM5b1.82 hall_house @13517's seat reads the way at its door's approach (x 13521, the 1387 level) - the threshold
+    within 7 of the way, the stoop fills the setback cell; the route PASSES. The village's lots (not run) are
+    unaffected in kind.
+  PM5b1.83 the tavern @13573 (an obstruction in its doorway cube, a 45-degree outline in plan) and the hall_house
+    @13477's door -> solar (the solar's inner area unreachable) stay RED - forge-side findings read but not fixed in
+    this chain (recorded as found). The town's gate therefore still "blocked"; predicted 68 walkable / 2 blocked of 70.

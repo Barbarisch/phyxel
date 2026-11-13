@@ -1,0 +1,15 @@
+PREDICTIONS for chain 94 (mode m5b4 - the broad set the derived rects or the paver could touch: WorldForgeStressTest,
+WorldForgePlanTest, WorldForgeRecipeTest, WorldForgeBuildFlowTest, CivPlanStressTest, CivPlanTest, CivHistoryTest,
+RouteGraphTest, RouteFieldTest, EarthworkTest, BridgeSpanTest, RoadFieldSeamTest, SettlementTerrainPlanTest,
+SettlementProgramTest), written BEFORE the launch, on the FINAL tree: WaysStayOutOfWater's STATUS header removed after
+chain 93 (a comment edit in SettlementMapTest.cpp only - no assertion moves), nothing else changed since chain 92.
+  PM5b1.35 every WorldForge plan pin GREEN: derivedSiteRects defaults false and is never serialized, so the version-1 recipe
+    9693137997320541182 and the Mountains 18197215997962677593 pins stand (VersionOnePlanHashesArePinned was green in chain
+    92); the stress worlds (8-site, Mountains) plan the same sites at the LITERAL presets - no civ path in those tests.
+  PM5b1.36 the civ sets (CivPlanStressTest the ladder 3/6/18/56/162, CivPlanTest, CivHistoryTest) GREEN and byte-identical:
+    the rects enter after the pick, at site creation; the pick and the lattice never read them.
+  PM5b1.37 the routes / earthwork / bridges / seams sets GREEN: the ribbon paver is a settlement-local unit; the inter-site
+    roads, their grading and the seam tests never call planWayPaving.
+  PM5b1.38 SettlementTerrainPlanTest and SettlementProgramTest GREEN: the program's new bells blocks (road_access.floor, the
+    street tiers' sources) parse; every tier's sources entry present (D40).
+  UNCERTAIN: none named. The set's count is read from the run, not carried forward.

@@ -87,6 +87,7 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         if (b.contains("road_access") && b["road_access"].is_object()) {
             t.bells.roadPreferredU = b["road_access"].value("preferred_u", t.bells.roadPreferredU);
             t.bells.roadSpreadU = b["road_access"].value("spread_u", t.bells.roadSpreadU);
+            t.bells.roadFloor = b["road_access"].value("floor", t.bells.roadFloor);
         }
         if (b.contains("slope") && b["slope"].is_object()) t.bells.reliefHalfU = b["slope"].value("relief_half_u", t.bells.reliefHalfU);
         if (b.contains("water") && b["water"].is_object()) {

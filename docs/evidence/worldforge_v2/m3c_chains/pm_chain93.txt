@@ -1,0 +1,19 @@
+PREDICTIONS for chain 93 (mode m5b3 = SettlementMapLiveSiteTest.* - the four live-site arms on the baseline world's terrain,
+headless; 140-300 s per arm), written BEFORE the launch, on the tree chain 92 ran (the disc band, every-tier fronting).
+  PM5b1.26 TheLegacyControlBuildsHamletThree GREEN on the DERIVED 56 x 44 (pinTheRecord asserts the tier and the rect only;
+    the position and seed are re-measured here, not pinned): queued >= 3, 0 lot failures, built == queued == doors, the gate
+    "passed". UNCERTAIN: the legacy layout on the larger rect may queue MORE than the 3 crofts the 40 x 32 record carried
+    (the rows pack the rect) - any count >= 3 meets the arm.
+  PM5b1.27 HamletThreeBuildsFromItsMap GREEN: the growth on 56 x 44 seats the hamlet's target by seed (the band 3-6;
+    chain 91 seated every flat seed's target, the hill rig every minimum), lots >= 3, built == lots == doors, routes >= 5,
+    0 goal boxes wrong, the gate "passed" (M5a-1's room goal). UNCERTAIN on the lot COUNT (the record on 40 x 32 was 5): the
+    larger rect changes the interest map's extent, so the count is the seed's target, 3..6.
+  PM5b1.28 TheFirstVillageBuildsFromItsMapWithEveryDoorMeasured: the village (104 x 64 derived) plans a routed primary with
+    lanes, ways > 0, built > 0, doors == built, paths.paved_columns > 0 (the ways unit). The GATE: UNCERTAIN - the first
+    street tier ever through the gate on real terrain; a blocked route is a finding for M5b-1 recorded as found, not a
+    rule loosened. Prediction: "passed" (the hill rig's every tier met its minimum with the graded ribbons; the spurs
+    connect each door to its way at the paver's cap).
+  PM5b1.29 TheTownBuildsFromItsGrownMapWithEveryDoorMeasured: lots >= 15 (the band 15-30; the hill rig seated 16-18 on
+    140 x 60), ways > 0 (the primary + lanes), built > 0, doors == built, paved_columns > 0, 0 goal boxes wrong; the gate
+    UNCERTAIN as .28 (the SnowGrass hillside at ~171 is the steepest site of the four). Prediction: "passed".
+  The set: 4 of 4 if the two gates pass; a gate red is reported with its blocked count and the door it blocked on.

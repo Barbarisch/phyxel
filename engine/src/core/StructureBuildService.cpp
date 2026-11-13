@@ -195,7 +195,7 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
                                       static_cast<int>(std::floor(loc.position.y)),
                                       static_cast<int>(std::floor(loc.position.z)));
                 const glm::ivec3 snapped = StructureBuildService::snapToStandable(
-                    solidAt, cell, 5, insideBuilding);
+                    solidAt, cell, 5, insideBuilding, loc.hasDoor ? loc.doorNormal : glm::ivec2(0, 0));
                 loc.position = glm::vec3(snapped.x + 0.5f, static_cast<float>(snapped.y),
                                          snapped.z + 0.5f);
             }
@@ -216,11 +216,15 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
                 locationRegistry->addLocation(regLoc);
                 ++locationsRegistered;
             }
-            locationsJson.push_back({
+            nlohmann::json lj = {
                 {"id", loc.id}, {"name", loc.name},
                 {"position", {{"x", loc.position.x}, {"y", loc.position.y}, {"z", loc.position.z}}},
                 {"radius", loc.radius}, {"type", Location::typeToString(loc.type)}
-            });
+            };
+            // M5b-1: the door the marker was anchored at (the marker above is SNAPPED and may have moved)
+            if (loc.hasDoor)
+                lj["door"] = {{"x", loc.doorWall.x}, {"z", loc.doorWall.y}, {"nx", loc.doorNormal.x}, {"nz", loc.doorNormal.y}};
+            locationsJson.push_back(lj);
         }
     }
 
@@ -311,13 +315,35 @@ nlohmann::json StructureBuildService::placeAndRegister(const StructureResult& st
 glm::ivec3 StructureBuildService::snapToStandable(
     const std::function<bool(const glm::ivec3&)>& solidAt,
     const glm::ivec3& cell, int radius,
-    const std::function<bool(const glm::ivec3&)>& avoid) {
+    const std::function<bool(const glm::ivec3&)>& avoid, const glm::ivec2& preferDir) {
     // Standable = solid floor underfoot + 2 cells of clear air (feet + head).
     auto standable = [&](const glm::ivec3& p) {
         return solidAt(glm::ivec3(p.x, p.y - 1, p.z)) &&
                !solidAt(p) && !solidAt(glm::ivec3(p.x, p.y + 1, p.z));
     };
-    // Same-level FIRST across the whole radius, then |dy| outward: a lateral step to
+    // The anchor itself, then its OWN column one cube up or down (M5b-1, chain 93: a way graded a
+    // cube above the pad raised the ground in front of the door by one cube; the same-level-first
+    // search below walked five cubes sideways round the corner of the house, and every consumer
+    // that inferred the door's wall from the marker's side read a windowless wall). The ground a
+    // cube up or down in the same column IS the open ground in front of the door.
+    for (int dy : {0, 1, -1})
+        if (!(avoid && avoid(glm::ivec3(cell.x, cell.y + dy, cell.z))) && standable(glm::ivec3(cell.x, cell.y + dy, cell.z)))
+            return glm::ivec3(cell.x, cell.y + dy, cell.z);
+    // M5b-1 chain 98: an anchor whose meaning points along a direction (a front-door marker: the door's outward
+    // normal) stays ON THAT LINE - its own column two cubes up or down (a way filled two cubes above the pad), then
+    // the next cells outward, each at the nearest level first - before the search turns a corner (the marker of a
+    // village croft went five cubes round the house into the fenced side gap).
+    if (preferDir.x != 0 || preferDir.y != 0) {
+        static constexpr int kDyDir[] = {0, 1, -1, 2, -2, 3, -3};
+        for (int k = 0; k <= 4; ++k)
+            for (int dy : kDyDir) {
+                if (k == 0 && std::abs(dy) < 2) continue;   // the own column at |dy| <= 1 was tried above
+                const glm::ivec3 p(cell.x + preferDir.x * k, cell.y + dy, cell.z + preferDir.y * k);
+                if (avoid && avoid(p)) continue;
+                if (standable(p)) return p;
+            }
+    }
+    // Then same-level across the whole radius, then |dy| outward: a lateral step to
     // open ground must beat climbing onto whatever capped the column (an eave/roof at
     // dy=+3 is "standable" but unreachable — the exact dead-anchor case).
     static constexpr int kDy[] = {0, 1, -1, 2, -2, 3, -3};

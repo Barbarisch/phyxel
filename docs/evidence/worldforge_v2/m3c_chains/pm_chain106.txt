@@ -1,0 +1,16 @@
+PREDICTIONS for chain 106 (mode m5b6 = StreetPaverTest, StructureLocationsTest, SpawnGateTest), written BEFORE the launch.
+The tree: padCubeForStreet puts the threshold at or above the way less one (T - W in [-1, 7]); planDoorstepLevels (the
+approach cells between the door and the first paved cell cut or filled to the line down to the way, the way an anchor
+with one sill at most); the realizer's doorsteps unit cuts terrain cubes where a cell stands above its level and fills
+below it. Red-before-green: the levels test and the pad test's new bound are red by construction only (new rules on
+new functions); the measured red is chain 105's six routes; the green is chain 107's arms.
+  PM5b1.73 DoorstepLevelsCutAndFillTheApproachToTheWay GREEN (the cutting 883 / untouched; the bump 1409; the apron
+    899 then the sill 895; the open case as the fills rule); PadCubeForStreetPutsTheThresholdAtOrAboveTheWay GREEN
+    (878 -> 96, 892 -> 98, 1363 -> 150, 870 -> 95; every case in [W - 1, W + 7]).
+  PM5b1.74 the rest of the set GREEN (42 of 42).
+PREDICTIONS for chain 107 (mode m5b3v = the arms), the same tree:
+  PM5b1.75 the VILLAGE gate PASSES (34 routes over 11 doors, 0 skipped): the hall_house and blacksmith setback cells
+    cut to their ways' level ("stooped with cuts"), the thresholds 887 for the ways at 883.
+  PM5b1.76 the TOWN: the butcher's and tavern's bumps cut, the hall_house @13477's approach cut to its way; the
+    door -> solar red UNCERTAIN (an interior floor 7 above the hall's on a requested pad: read from the run, a
+    forge finding if it stands). Predicted PASSED on the street -> door routes; the set's verdict read, not predicted.

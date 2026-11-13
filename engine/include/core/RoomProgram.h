@@ -129,6 +129,18 @@ struct RoomProgram {
     bool hasSource(const std::string& key) const { return sources.find(key) != sources.end(); }
 };
 
+/// M5b-1 (docs/WorldForgeV2Plan.md, the M5b design check of 2026-11-06): the typology's NATURAL
+/// footprint - the long side = bays x bay_length, the short side from the width range - in ONE
+/// place. Four copies lived in the planner, the legacy realizer and the two street layouts, each
+/// taking width_max for the short side, which the forge's own proportion check refuses for the
+/// manor_hall (20 x 17 at 1.18 below its min 1.50 - chain 86). RoomProgramTest pins every
+/// shipped typology's natural footprint against the forge's proportion bounds.
+struct NaturalFootprint {
+    int longU = 0;    ///< along the frame (cubes)
+    int shortU = 0;   ///< across it (cubes)
+};
+NaturalFootprint naturalFootprintOf(const RoomProgram& rp);
+
 class RoomProgramRegistry {
 public:
     bool loadFromFile(const std::string& path);

@@ -1,0 +1,12 @@
+PREDICTIONS for chain 95 (mode m5b5 = StructureLocationsTest, SettlementWalkabilityTest, SettlementBuildServiceTest,
+SpawnGateTest, the headless door-passage rebuild), written BEFORE the launch - THE RED RUN of the chain-93 gate finding.
+The tree: the LocationMarker records the door it was anchored at (hasDoor / doorWall / doorNormal, deriveLocations fills
+it, the build service reports it as "door" in the locations list) - recording only, no consumer reads it yet; the snap
+and the three door-wall inferences (gate, spurs, doorsteps) UNCHANGED.
+  PM5b1.39 SnapToStandableKeepsTheMarkerInItsColumnAcrossAOneCubeStep RED on BOTH arms: the same-level-first search
+    returns a cell 5 cubes away at y 17 (up) and at y 17 (down) instead of (10, 18, 20) / (10, 16, 20).
+  PM5b1.40 DerivedLocationRecordsTheDoorItAnchored GREEN (red by construction only: the fields are new): for front z1
+    the normal (0, +1), the wall cube z = origin.z + 5, the marker 2 beyond; for z0 the normal (0, -1), z = origin.z.
+  PM5b1.41 SnapToStandableFixesDeadAnchor (the eave case) GREEN, unchanged; SpawnGateTest GREEN.
+  PM5b1.42 the headless door-passage rebuild GREEN as before (the flat pad never displaces a marker).
+  PM5b1.43 SettlementWalkabilityTest and SettlementBuildServiceTest GREEN (nothing they read changed).

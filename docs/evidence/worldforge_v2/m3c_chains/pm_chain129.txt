@@ -1,0 +1,11 @@
+PREDICTIONS for chains 129-131 and 126, written 2026-11-10 12:1x BEFORE the launch. The tree: chain 125's plus the
+generator fix (WorldGenerator::LruCaches - a copy starts with empty caches), the snapshot log in ChunkManager.cpp, the
+new ColumnCacheTest. WorldGenerator.h changed, so every set is rebuilt and rerun.
+  CHAIN 129 (m5b2): PM5b1.106 157 ok, 0 failed; both version-1 plan hashes pinned.
+  CHAIN 130 (m5b6): PM5b1.107 42 ok, 0 failed.
+  CHAIN 131 (m5b3v): PM5b1.108 2 ok, 0 failed; village gate 34 / 0 / 0 over 11 doors of 11, town 72 / 0 / 0 over 24 of
+    24 (the caches are a pure memo: the generated terrain is unchanged, so the gates repeat chain 125).
+  CHAIN 126 (m5b4, 142 tests, the broad regression): PM5b1.100 as written - 0 failed. UNCERTAIN: this set has not
+    completed on any tree since chain 91; 123 of its tests were never reached in chain 121. A red is read as found.
+    A generator whose copy starts cold changes cache-miss COUNTS (ColumnCacheTest's bound held at 4.63 in gen chain
+    128) but not any generated value.

@@ -1,0 +1,10 @@
+PREDICTIONS for chain 92 (mode m5b2, the same set), after chain 91's two planner findings (a door cell ON a way fronts it on
+every tier; the street band a disc). Written BEFORE the launch.
+  PM5b1.23 DerivedSiteRectsSeatTheMinimumOnTheHill GREEN: hamlet 56 x 44 seeds 1-3 with 0 bad ways (seed 3's croft fronts
+    the earlier path), town seed 1 with 0 doors off their way; every tier >= its minimum, 0 wet, the invariants 0.
+  PM5b1.24 the hamlet's M5a pins unchanged on 40 x 32 (EveryLotTouchesAWay, WaysAvoidTheSteepBand, the stand-in, plan-twice,
+    the samplers): the fronting rule fires only when a door cell lies on a path, which none of those maps had (their
+    bad-way counts were 0) - the maps byte-identical. UNCERTAIN only on BakeTime's 200 x 160 stress count (136 lots):
+    a croft there may now front a path instead of adding a one-node way - the way count may drop, the lot count not.
+  PM5b1.25 the rest as chain 91 (the ribbon, the site rects incl. the band tops, the water, the axes, the build-service
+    sets, the hashes): GREEN; the full set 150 of 150 if nothing else moves.

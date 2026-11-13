@@ -1,0 +1,913 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementMapTest.*:StreetPaverTest.*:RoomProgramTest.*:StructureLocationsTest.*:SettlementBuildServiceTest.*:WorldForgePlanTest.*:WorldForgeStressTest.VersionOnePlanHashesArePinned:CityLayoutTest.*:MainStreetLayoutTest.*:SettlementLayoutTest.*:WorldForgeBuildFlowTest.*:SettlementProgramTest.*:WorldForgeRecipeTest.*:SettlementWalkabilityTest.*
+[==========] Running 157 tests from 14 test suites.
+[----------] Global test environment set-up.
+[----------] 13 tests from CityLayoutTest
+[ RUN      ] CityLayoutTest.CrossroadsAxesMeetAtTheMarketSquare
+[32m[16:19:05.791] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:19:05.797] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.CrossroadsAxesMeetAtTheMarketSquare (12 ms)
+[ RUN      ] CityLayoutTest.SecondaryStreetsSliceJitteredBlocks
+[32m[16:19:05.802] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:19:05.808] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.SecondaryStreetsSliceJitteredBlocks (10 ms)
+[ RUN      ] CityLayoutTest.PlotsFrontStreetsNoOverlapsConnectedNetwork
+[32m[16:19:05.813] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:19:05.818] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.PlotsFrontStreetsNoOverlapsConnectedNetwork (10 ms)
+[ RUN      ] CityLayoutTest.PlotAreasAreNotUniform
+[32m[16:19:05.824] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:19:05.829] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.PlotAreasAreNotUniform (10 ms)
+[ RUN      ] CityLayoutTest.TradesClusterInsideTheCoreRing
+[32m[16:19:05.835] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:19:05.840] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.TradesClusterInsideTheCoreRing (11 ms)
+[ RUN      ] CityLayoutTest.ProbeWalksSquareToStreetEndAndCrossRow
+[32m[16:19:05.846] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:19:05.851] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.ProbeWalksSquareToStreetEndAndCrossRow (143981 ms)
+[ RUN      ] CityLayoutTest.SecondaryLanesMeander
+[32m[16:21:29.828] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.833] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.SecondaryLanesMeander (17 ms)
+[ RUN      ] CityLayoutTest.DensityRaisesTheBuildingCount
+[32m[16:21:29.846] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.851] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.DensityRaisesTheBuildingCount (15 ms)
+[ RUN      ] CityLayoutTest.TypologyCapsBoundTheServiceGlut
+[32m[16:21:29.862] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.868] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.TypologyCapsBoundTheServiceGlut (18 ms)
+[ RUN      ] CityLayoutTest.TheCityHasOneTownHallAndItStandsByTheMarket
+[32m[16:21:29.880] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.886] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.TheCityHasOneTownHallAndItStandsByTheMarket (17 ms)
+[ RUN      ] CityLayoutTest.DeterministicInSeed
+[32m[16:21:29.898] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.904] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.DeterministicInSeed (15 ms)
+[ RUN      ] CityLayoutTest.TheBuildingCapGrowsWithTheSite
+[32m[16:21:29.914] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.919] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.TheBuildingCapGrowsWithTheSite (12 ms)
+[ RUN      ] CityLayoutTest.SitesAtOrBelowTheReferenceKeepTheTunedCap
+[32m[16:21:29.927] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.932] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] CityLayoutTest.SitesAtOrBelowTheReferenceKeepTheTunedCap (9 ms)
+[----------] 13 tests from CityLayoutTest (144145 ms total)
+
+[----------] 12 tests from MainStreetLayoutTest
+[ RUN      ] MainStreetLayoutTest.PlotsOnBothSidesAndAbutTheSpine
+[32m[16:21:29.937] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.943] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.PlotsOnBothSidesAndAbutTheSpine (11 ms)
+[ RUN      ] MainStreetLayoutTest.NoPlotOverlapsAStreetOrAnotherPlot
+[32m[16:21:29.949] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.955] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.NoPlotOverlapsAStreetOrAnotherPlot (11 ms)
+[ RUN      ] MainStreetLayoutTest.PlotFrontageIsSizedFromItsTypology
+[32m[16:21:29.958] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.964] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.PlotFrontageIsSizedFromItsTypology (8 ms)
+[ RUN      ] MainStreetLayoutTest.BuildingOrientationAndNaturalSizeFollowTheTypology
+[32m[16:21:29.967] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.973] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.BuildingOrientationAndNaturalSizeFollowTheTypology (8 ms)
+[ RUN      ] MainStreetLayoutTest.WeightedDrawCoversThePaletteAndIsDeterministic
+[32m[16:21:29.976] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.981] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.WeightedDrawCoversThePaletteAndIsDeterministic (8 ms)
+[ RUN      ] MainStreetLayoutTest.DeterministicInSeedAndRespectsBuildingCap
+[32m[16:21:29.985] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.990] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.DeterministicInSeedAndRespectsBuildingCap (9 ms)
+[ RUN      ] MainStreetLayoutTest.TooSmallFootprintReturnsNotOk
+[32m[16:21:29.994] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:29.999] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.TooSmallFootprintReturnsNotOk (8 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisFindsTheFlatValley
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisFindsTheFlatValley (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisHonorsRoadPreference
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisHonorsRoadPreference (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisHonorsArrivalOffset
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisHonorsArrivalOffset (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisIsNotBiasedTowardTheShortAxis
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisIsNotBiasedTowardTheShortAxis (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisLeavesPlotRoomOnBothSides
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisLeavesPlotRoomOnBothSides (0 ms)
+[----------] 12 tests from MainStreetLayoutTest (67 ms total)
+
+[----------] 4 tests from RoomProgramTest
+[ RUN      ] RoomProgramTest.LoadsTypologyWithBaysAndSources
+[       OK ] RoomProgramTest.LoadsTypologyWithBaysAndSources (0 ms)
+[ RUN      ] RoomProgramTest.DefaultTypologyForFunctionIsConservative
+[       OK ] RoomProgramTest.DefaultTypologyForFunctionIsConservative (0 ms)
+[ RUN      ] RoomProgramTest.ShippedCanonIsGroundedAndBayDriven
+[32m[16:21:30.006] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] RoomProgramTest.ShippedCanonIsGroundedAndBayDriven (5 ms)
+[ RUN      ] RoomProgramTest.EveryTypologysNaturalFootprintPassesTheForge
+[32m[16:21:30.011] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[ M5b ] apothecary     natural  8 x  6  ratio 1.33  bounds [1.00, 2.50]  width_min 5
+[ M5b ] bakery         natural  8 x  6  ratio 1.33  bounds [1.00, 2.50]  width_min 5
+[ M5b ] blacksmith     natural  8 x  6  ratio 1.33  bounds [1.00, 2.50]  width_min 5
+[ M5b ] butcher        natural  8 x  6  ratio 1.33  bounds [1.00, 2.50]  width_min 5
+[ M5b ] croft          natural  8 x  6  ratio 1.33  bounds [1.00, 3.00]  width_min 4
+[ M5b ] general_store  natural  8 x  6  ratio 1.33  bounds [1.00, 2.50]  width_min 5
+[ M5b ] hall_house     natural 16 x  8  ratio 2.00  bounds [1.00, 3.00]  width_min 6
+[ M5b ] longhouse      natural 16 x  6  ratio 2.67  bounds [1.00, 4.00]  width_min 4
+[ M5b ] manor_hall     natural 20 x 13  ratio 1.54  bounds [1.50, 3.00]  width_min 8
+[ M5b ] tavern         natural 16 x  7  ratio 2.29  bounds [1.00, 3.00]  width_min 6
+[ M5b ] tenement       natural  8 x  5  ratio 1.60  bounds [1.00, 2.50]  width_min 4
+[ M5b ] tower_house    natural  8 x  8  ratio 1.00  bounds [1.00, 1.80]  width_min 5
+[ M5b ] town_hall      natural 16 x  7  ratio 2.29  bounds [1.00, 3.00]  width_min 6
+[ M5b ] natural footprints: 13 typologies, 0 refused by the forge's bounds
+[       OK ] RoomProgramTest.EveryTypologysNaturalFootprintPassesTheForge (5 ms)
+[----------] 4 tests from RoomProgramTest (11 ms total)
+
+[----------] 23 tests from SettlementBuildServiceTest
+[ RUN      ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan
+[32m[16:21:30.015] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:30.020] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:30.045] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 8 nodes, entry 1, sampler flat, 0 dropped, bake 24.8394 ms[0m
+[32m[16:21:30.047] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (5 streets)[0m
+[32m[16:21:30.052] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:30.058] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:30.158] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 99.7957 ms[0m
+[32m[16:21:30.162] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[16:21:30.167] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:30.172] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:30.369] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3: 18 lots, 2 ways, 4 nodes, entry 0, sampler flat, 0 dropped, bake 196.767 ms[0m
+[32m[16:21:30.375] [INFO] [Settlement] build_settlement: 18 plots, 18 buildings queued (2 streets)[0m
+[32m[16:21:30.382] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:30.386] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:31.762] [INFO] [Settlement] [M5A-MAP] medieval/city seed 3: 23 lots, 3 ways, 5 nodes, entry 0, sampler flat, 0 dropped, bake 1375.28 ms[0m
+[32m[16:21:31.769] [INFO] [Settlement] build_settlement: 23 plots, 23 buildings queued (3 streets)[0m
+[       OK ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan (1760 ms)
+[ RUN      ] SettlementBuildServiceTest.EveryProgramTierPlansFromTheSettlementMap
+[32m[16:21:31.776] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:31.781] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:31.805] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 8 nodes, entry 1, sampler flat, 0 dropped, bake 22.5345 ms[0m
+[32m[16:21:31.807] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (5 streets)[0m
+[ M5a ] hamlet headless: 6 lots, 6 ways (sampler flat)
+[32m[16:21:31.812] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:31.816] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:31.906] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 88.7575 ms[0m
+[32m[16:21:31.909] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[ M5a ] village headless: 9 lots, 1 ways (sampler flat)
+[32m[16:21:31.913] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:31.918] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:32.096] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3: 18 lots, 2 ways, 4 nodes, entry 0, sampler flat, 0 dropped, bake 178.139 ms[0m
+[32m[16:21:32.102] [INFO] [Settlement] build_settlement: 18 plots, 18 buildings queued (2 streets)[0m
+[ M5a ] town headless: 18 lots, 2 ways (sampler flat)
+[32m[16:21:32.109] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:32.114] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:33.416] [INFO] [Settlement] [M5A-MAP] medieval/city seed 3: 23 lots, 3 ways, 5 nodes, entry 0, sampler flat, 0 dropped, bake 1300.64 ms[0m
+[32m[16:21:33.423] [INFO] [Settlement] build_settlement: 23 plots, 23 buildings queued (3 streets)[0m
+[ M5a ] city headless: 23 lots, 3 ways (sampler flat)
+[32m[16:21:33.431] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:33.433] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)[0m
+[       OK ] SettlementBuildServiceTest.EveryProgramTierPlansFromTheSettlementMap (1660 ms)
+[ RUN      ] SettlementBuildServiceTest.TheQueuedBuildingsAreTheMapsLots
+[32m[16:21:33.436] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:33.441] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:33.466] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 8 nodes, entry 1, sampler flat, 0 dropped, bake 23.9625 ms[0m
+[32m[16:21:33.468] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (5 streets)[0m
+[ M5a ] hamlet: 6 lots - typology mismatches 0, footprint 0, position 0
+[32m[16:21:33.472] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:33.478] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:33.569] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 90.3424 ms[0m
+[32m[16:21:33.571] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[ M5a ] village: 9 lots - typology mismatches 0, footprint 0, position 0
+[32m[16:21:33.576] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:33.582] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:33.766] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3: 18 lots, 2 ways, 4 nodes, entry 0, sampler flat, 0 dropped, bake 183.746 ms[0m
+[32m[16:21:33.771] [INFO] [Settlement] build_settlement: 18 plots, 18 buildings queued (2 streets)[0m
+[ M5a ] town: 18 lots - typology mismatches 0, footprint 0, position 0
+[32m[16:21:33.780] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:33.786] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:35.127] [INFO] [Settlement] [M5A-MAP] medieval/city seed 3: 23 lots, 3 ways, 5 nodes, entry 0, sampler flat, 0 dropped, bake 1340.24 ms[0m
+[32m[16:21:35.134] [INFO] [Settlement] build_settlement: 23 plots, 23 buildings queued (3 streets)[0m
+[ M5a ] city: 23 lots - typology mismatches 0, footprint 0, position 0
+[       OK ] SettlementBuildServiceTest.TheQueuedBuildingsAreTheMapsLots (1704 ms)
+[ RUN      ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans
+[32m[16:21:35.143] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:35.144] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)[0m
+[       OK ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans (7 ms)
+[ RUN      ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist
+[32m[16:21:35.148] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.153] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:35.243] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 89.1229 ms[0m
+[32m[16:21:35.246] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist (102 ms)
+[ RUN      ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped
+[32m[16:21:35.251] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.255] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:35.345] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 89.0277 ms[0m
+[32m[16:21:35.348] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped (101 ms)
+[ RUN      ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty
+[32m[16:21:35.353] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.357] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:35.448] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 89.8429 ms[0m
+[32m[16:21:35.451] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty (102 ms)
+[ RUN      ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted
+[32m[16:21:35.455] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.460] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted (8 ms)
+[ RUN      ] SettlementBuildServiceTest.AKnownEraWithoutARoomProgramPackIsRefusedNamingThePack
+[32m[16:21:35.488] [INFO] [SettlementProgram] Loaded 5 settlement tiers from test_georgian_settlement_program.json[0m
+[32m[16:21:35.494] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementBuildServiceTest.AKnownEraWithoutARoomProgramPackIsRefusedNamingThePack (34 ms)
+[ RUN      ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused
+[32m[16:21:35.499] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.503] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused (9 ms)
+[ RUN      ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused
+[32m[16:21:35.508] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.513] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused (9 ms)
+[ RUN      ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed
+[32m[16:21:35.517] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.522] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:35.555] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 32.2964 ms[0m
+[32m[16:21:35.558] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[16:21:35.563] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.567] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:35.601] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 32.8377 ms[0m
+[32m[16:21:35.603] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[16:21:35.608] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.613] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:35.649] [INFO] [Settlement] [M5A-MAP] medieval/village seed 4: 10 lots, 2 ways, 4 nodes, entry 0, sampler flat, 0 dropped, bake 35.3653 ms[0m
+[32m[16:21:35.652] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (2 streets)[0m
+[       OK ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed (140 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav
+[32m[16:21:35.659] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.664] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:35.702] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 38.0557 ms[0m
+[32m[16:21:35.705] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav (52 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology
+[32m[16:21:35.711] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:35.716] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:36.115] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 7: 6 lots, 6 ways, 15 nodes, entry 1, sampler flat, 0 dropped, bake 398.736 ms[0m
+[32m[16:21:36.117] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (2 streets)[0m
+[32m[16:21:36.121] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:36.128] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:37.332] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 13 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 1203.04 ms[0m
+[32m[16:21:37.339] [INFO] [Settlement] build_settlement: 13 plots, 13 buildings queued (1 streets)[0m
+[32m[16:21:37.347] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:37.354] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:39.446] [INFO] [Settlement] [M5A-MAP] medieval/town seed 7: 22 lots, 2 ways, 4 nodes, entry 0, sampler flat, 0 dropped, bake 2091.4 ms[0m
+[32m[16:21:39.453] [INFO] [Settlement] build_settlement: 22 plots, 22 buildings queued (2 streets)[0m
+[32m[16:21:39.461] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:39.466] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:41.239] [INFO] [Settlement] [M5A-MAP] medieval/city seed 7: 27 lots, 3 ways, 5 nodes, entry 0, sampler flat, 0 dropped, bake 1771.99 ms[0m
+[32m[16:21:41.248] [INFO] [Settlement] build_settlement: 27 plots, 27 buildings queued (3 streets)[0m
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology (5544 ms)
+[ RUN      ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden
+[       OK ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden (0 ms)
+[ RUN      ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology
+[32m[16:21:41.257] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:41.262] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:42.822] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 7: 6 lots, 6 ways, 15 nodes, entry 1, sampler chunks, 0 dropped, bake 1559.38 ms[0m
+[32m[16:21:42.825] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (2 streets)[0m
+[32m[16:21:42.830] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:42.836] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:44.939] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 13 lots, 1 ways, 2 nodes, entry 0, sampler chunks, 0 dropped, bake 2102.22 ms[0m
+[32m[16:21:44.944] [INFO] [Settlement] build_settlement: 13 plots, 13 buildings queued (1 streets)[0m
+[32m[16:21:44.949] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:44.954] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:47.729] [INFO] [Settlement] [M5A-MAP] medieval/town seed 7: 22 lots, 2 ways, 4 nodes, entry 0, sampler chunks, 0 dropped, bake 2775.09 ms[0m
+[32m[16:21:47.737] [INFO] [Settlement] build_settlement: 22 plots, 22 buildings queued (2 streets)[0m
+[32m[16:21:47.744] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:47.750] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:50.636] [INFO] [Settlement] [M5A-MAP] medieval/city seed 7: 27 lots, 3 ways, 5 nodes, entry 0, sampler chunks, 0 dropped, bake 2885.61 ms[0m
+[32m[16:21:50.646] [INFO] [Settlement] build_settlement: 27 plots, 27 buildings queued (3 streets)[0m
+[       OK ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology (9397 ms)
+[ RUN      ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices
+[       OK ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices (0 ms)
+[ RUN      ] SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall
+[       OK ] SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall (0 ms)
+[ RUN      ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod
+[32m[16:21:50.654] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:50.660] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:21:50.703] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 9 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped, bake 41.9472 ms[0m
+[32m[16:21:50.706] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod (57 ms)
+[ RUN      ] SettlementBuildServiceTest.MissingRoomProgramRefuses
+[32m[16:21:50.711] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[33m[16:21:50.712] [WARN] [RoomProgram] room_program not found at resources/does_not_exist_room_program.json[0m
+[       OK ] SettlementBuildServiceTest.MissingRoomProgramRefuses (3 ms)
+[ RUN      ] SettlementBuildServiceTest.AGateThatMeasuredNoDoorOfABuiltBuildingDoesNotPass
+[       OK ] SettlementBuildServiceTest.AGateThatMeasuredNoDoorOfABuiltBuildingDoesNotPass (0 ms)
+[ RUN      ] SettlementBuildServiceTest.RoomGoalBoxIsTheInnerFloorArea
+[       OK ] SettlementBuildServiceTest.RoomGoalBoxIsTheInnerFloorArea (0 ms)
+[ RUN      ] SettlementBuildServiceTest.SweepNeverErasesPlacedObjectCells
+[       OK ] SettlementBuildServiceTest.SweepNeverErasesPlacedObjectCells (0 ms)
+[----------] 23 tests from SettlementBuildServiceTest (20700 ms total)
+
+[----------] 16 tests from SettlementLayoutTest
+[ RUN      ] SettlementLayoutTest.AdjacentPlotsSeparatedByStreet
+[       OK ] SettlementLayoutTest.AdjacentPlotsSeparatedByStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.EveryPlotMeetsMinSize
+[       OK ] SettlementLayoutTest.EveryPlotMeetsMinSize (0 ms)
+[ RUN      ] SettlementLayoutTest.PlotsFitTheFootprint
+[       OK ] SettlementLayoutTest.PlotsFitTheFootprint (0 ms)
+[ RUN      ] SettlementLayoutTest.StreetsCoverTheGapsAndDontOverlapPlots
+[       OK ] SettlementLayoutTest.StreetsCoverTheGapsAndDontOverlapPlots (0 ms)
+[ RUN      ] SettlementLayoutTest.TooDenseReturnsEmpty
+[       OK ] SettlementLayoutTest.TooDenseReturnsEmpty (0 ms)
+[ RUN      ] SettlementLayoutTest.BuildingInsetFromPlotByYard
+[       OK ] SettlementLayoutTest.BuildingInsetFromPlotByYard (0 ms)
+[ RUN      ] SettlementLayoutTest.BuildingsFitDontOverlapAndCarryTypology
+[       OK ] SettlementLayoutTest.BuildingsFitDontOverlapAndCarryTypology (0 ms)
+[ RUN      ] SettlementLayoutTest.TinyPlotSkipped
+[       OK ] SettlementLayoutTest.TinyPlotSkipped (0 ms)
+[ RUN      ] SettlementLayoutTest.TerrainPlotsLandOnlyOnBuildable
+[       OK ] SettlementLayoutTest.TerrainPlotsLandOnlyOnBuildable (0 ms)
+[ RUN      ] SettlementLayoutTest.SteepMountainYieldsNoPlots
+[       OK ] SettlementLayoutTest.SteepMountainYieldsNoPlots (0 ms)
+[ RUN      ] SettlementLayoutTest.TerrainPlotsDontOverlapAndAreSpaced
+[       OK ] SettlementLayoutTest.TerrainPlotsDontOverlapAndAreSpaced (0 ms)
+[ RUN      ] SettlementLayoutTest.ScaleSixBySixAllInvariantsHold
+[       OK ] SettlementLayoutTest.ScaleSixBySixAllInvariantsHold (0 ms)
+[ RUN      ] SettlementLayoutTest.ZeroSetbackFlushButClearOfStreet
+[       OK ] SettlementLayoutTest.ZeroSetbackFlushButClearOfStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.ComposedWorldFootprintsDontOverlap
+[       OK ] SettlementLayoutTest.ComposedWorldFootprintsDontOverlap (0 ms)
+[ RUN      ] SettlementLayoutTest.EveryGridPlotFrontsAStreet
+[       OK ] SettlementLayoutTest.EveryGridPlotFrontsAStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.PlotsFrontTheSharedStreetFacingEachOther
+[       OK ] SettlementLayoutTest.PlotsFrontTheSharedStreetFacingEachOther (0 ms)
+[----------] 16 tests from SettlementLayoutTest (0 ms total)
+
+[----------] 11 tests from SettlementMapTest
+[ RUN      ] SettlementMapTest.EveryLotTouchesAWay
+[32m[16:21:50.717] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:21:50.722] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[ M5a ] CONTROL (as built): hamlet/cluster (as built) 4 lots, 0 ways, 0 nodes, entry -1, bake 0.00 ms | no way 4, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] planner: hamlet/cluster 3 lots, 3 ways, 15 nodes, entry 1, bake 7.76 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hamlet hill: target 6, seated 3 (seated under the target is silent above the minimum - reported)
+[       OK ] SettlementMapTest.EveryLotTouchesAWay (18 ms)
+[ RUN      ] SettlementMapTest.MapInvariantsHoldOnEveryTier
+[ M5a ] hill: hamlet/cluster 3 lots, 3 ways, 15 nodes, entry 1, bake 7.93 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: hamlet/cluster 4 lots, 4 ways, 15 nodes, entry 1, bake 9.73 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: village/main_street 8 lots, 1 ways, 8 nodes, entry 0, bake 35.56 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: village/main_street 9 lots, 1 ways, 2 nodes, entry 0, bake 42.61 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: town/main_street 22 lots, 4 ways, 20 nodes, entry 0, bake 250.65 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: town/main_street 22 lots, 2 ways, 4 nodes, entry 0, bake 235.77 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: city/semi_organic 27 lots, 3 ways, 19 nodes, entry 0, bake 1245.65 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: city/semi_organic 27 lots, 3 ways, 5 nodes, entry 0, bake 1151.09 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[       OK ] SettlementMapTest.MapInvariantsHoldOnEveryTier (2980 ms)
+[ RUN      ] SettlementMapTest.WaysStayOutOfWater
+[ M5a ] water: hamlet 3 ways, 0 segments cross the creek
+[ M5a ] water: village 1 ways, 0 segments cross the creek
+[ M5a ] water: town 4 ways, 0 segments cross the creek
+[ M5a ] water: city 3 ways, 0 segments cross the creek
+[       OK ] SettlementMapTest.WaysStayOutOfWater (1503 ms)
+[ RUN      ] SettlementMapTest.MapIsIdenticalFromPlanTwice
+[       OK ] SettlementMapTest.MapIsIdenticalFromPlanTwice (493 ms)
+[ RUN      ] SettlementMapTest.MapIsOrderIndependentOfItsSamplers
+[ M5a ] two samplers: 3 lots / 3 ways each; the tiled cache touched 20 tiles
+[       OK ] SettlementMapTest.MapIsOrderIndependentOfItsSamplers (18 ms)
+[ RUN      ] SettlementMapTest.WaysAvoidTheSteepBand
+[ M5a ] band: hamlet/cluster 4 lots, 4 ways, 12 nodes, entry 1, bake 10.18 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] band: 4 lots (2 east of the bench), 4 ways; steepest cube step along the ways 0, along the straight door -> entry lines 4 (the control)
+[ M5a ] band CONTROL (slope aversion 0): 4 lots, 4 ways, steepest cube step along the ways 4
+[       OK ] SettlementMapTest.WaysAvoidTheSteepBand (19 ms)
+[ RUN      ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn
+[ M5a ] stand-in: 3 walkable, 0 blocked of 3 lots (entry node 1)
+[ M5a ] stand-in CONTROL (sealed): 1 walkable, 3 blocked
+[       OK ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn (10845 ms)
+[ RUN      ] SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots
+[ M5a ] hamlet bake 7.14 ms (3 lots)
+[ M5a ] stress (200 x 160 flat, target 400): 136 lots, 136 ways in 7314.9 ms (no buildable, connectable lot for the tier's minimum (136 of 400 seated))
+[ O15 ] stress (280 x 200 flat, target 400): 233 lots, 233 ways in 24336.5 ms (no buildable, connectable lot for the tier's minimum (233 of 400 seated))
+[ O15 ] city as programmed (160 x 120 flat): 27 lots, 3 ways in 1148.1 ms
+[       OK ] SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots (32807 ms)
+[ RUN      ] SettlementMapTest.CityAxesFollowTerrain
+[ M5b ] axes village: CONTROL (as built) 1 primary ways, steepest step 0; planner 1 primary ways, steepest step 0 (9 lots, 6 ways)
+[ M5b ] axes town: CONTROL (as built) 1 primary ways, steepest step 4; planner 1 primary ways, steepest step 0 (22 lots, 14 ways)
+[ M5b ] axes city: CONTROL (as built) 1 primary ways, steepest step 4; planner 3 primary ways, steepest step 0 (27 lots, 14 ways)
+[       OK ] SettlementMapTest.CityAxesFollowTerrain (1523 ms)
+[ RUN      ] SettlementMapTest.SiteRectsSeatTheBand
+[ M5b ] site rect hamlet: preset 40 x 32 seats the target in 10 of 20 seeds (min seated 3, band 3-6); smallest rect at that aspect seating every seed: 48 x 40
+[ M5b ] site rect hamlet: DERIVED 56 x 44 seats the target in 20 of 20 seeds (min seated 3)
+[ M5b ] site rect village: preset 80 x 48 seats the target in 4 of 5 seeds (min seated 7, band 6-14); smallest rect at that aspect seating every seed: 92 x 56
+[ M5b ] site rect village: DERIVED 104 x 64 seats the target in 5 of 5 seeds (min seated 7)
+[ M5b ] site rect town: preset 140 x 60 seats the target in 4 of 4 seeds (min seated 16, band 15-30); smallest rect at that aspect seating every seed: 140 x 60
+[ M5b ] site rect town: DERIVED 140 x 60 seats the target in 4 of 4 seeds (min seated 16)
+[ M5b ] site rect city: preset 160 x 120 seats the target in 3 of 3 seeds (min seated 21, band 20-48); smallest rect at that aspect seating every seed: 160 x 120
+[ M5b ] site rect city: DERIVED 160 x 160 seats the target in 3 of 3 seeds (min seated 21)
+[       OK ] SettlementMapTest.SiteRectsSeatTheBand (13848 ms)
+[ RUN      ] SettlementMapTest.DerivedSiteRectsSeatTheMinimumOnTheHill
+[ M5b ] hill hamlet 56 x 44 seed 1: 4 lots of target 4 (min 3), 4 ways, 0 wet segments, bake 19.2 ms
+[ M5a ] hill (derived rect): hamlet/cluster 4 lots, 4 ways, 19 nodes, entry 1, bake 19.21 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill hamlet 56 x 44 seed 2: 5 lots of target 5 (min 3), 5 ways, 0 wet segments, bake 21.5 ms
+[ M5a ] hill (derived rect): hamlet/cluster 5 lots, 5 ways, 17 nodes, entry 1, bake 21.50 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill hamlet 56 x 44 seed 3: 6 lots of target 6 (min 3), 5 ways, 0 wet segments, bake 22.1 ms
+[ M5a ] hill (derived rect): hamlet/cluster 6 lots, 5 ways, 17 nodes, entry 1, bake 22.13 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill village 104 x 64 seed 1: 7 lots of target 7 (min 6), 1 ways, 0 wet segments, bake 88.1 ms
+[ M5a ] hill (derived rect): village/main_street 7 lots, 1 ways, 12 nodes, entry 0, bake 88.08 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill village 104 x 64 seed 2: 8 lots of target 8 (min 6), 3 ways, 0 wet segments, bake 106.8 ms
+[ M5a ] hill (derived rect): village/main_street 8 lots, 3 ways, 16 nodes, entry 0, bake 106.76 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill village 104 x 64 seed 3: 9 lots of target 9 (min 6), 1 ways, 0 wet segments, bake 94.5 ms
+[ M5a ] hill (derived rect): village/main_street 9 lots, 1 ways, 12 nodes, entry 0, bake 94.51 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill town 140 x 60 seed 1: 16 lots of target 16 (min 15), 2 ways, 0 wet segments, bake 201.1 ms
+[ M5a ] hill (derived rect): town/main_street 16 lots, 2 ways, 16 nodes, entry 0, bake 201.06 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill town 140 x 60 seed 2: 17 lots of target 17 (min 15), 4 ways, 0 wet segments, bake 215.2 ms
+[ M5a ] hill (derived rect): town/main_street 17 lots, 4 ways, 20 nodes, entry 0, bake 215.24 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill town 140 x 60 seed 3: 18 lots of target 18 (min 15), 2 ways, 0 wet segments, bake 202.5 ms
+[ M5a ] hill (derived rect): town/main_street 18 lots, 2 ways, 16 nodes, entry 0, bake 202.52 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill city 160 x 160 seed 1: 21 lots of target 21 (min 20), 2 ways, 0 wet segments, bake 1482.8 ms
+[ M5a ] hill (derived rect): city/semi_organic 21 lots, 2 ways, 17 nodes, entry 0, bake 1482.83 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill city 160 x 160 seed 2: 22 lots of target 22 (min 20), 3 ways, 0 wet segments, bake 1403.0 ms
+[ M5a ] hill (derived rect): city/semi_organic 22 lots, 3 ways, 19 nodes, entry 0, bake 1403.05 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5b ] hill city 160 x 160 seed 3: 23 lots of target 23 (min 20), 2 ways, 0 wet segments, bake 1541.8 ms
+[ M5a ] hill (derived rect): city/semi_organic 23 lots, 2 ways, 17 nodes, entry 0, bake 1541.85 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[       OK ] SettlementMapTest.DerivedSiteRectsSeatTheMinimumOnTheHill (5401 ms)
+[----------] 11 tests from SettlementMapTest (69462 ms total)
+
+[----------] 6 tests from SettlementProgramTest
+[ RUN      ] SettlementProgramTest.ShippedFileLoadsAllMedievalTiers
+[32m[16:23:00.179] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementProgramTest.ShippedFileLoadsAllMedievalTiers (3 ms)
+[ RUN      ] SettlementProgramTest.UnknownEraOrTierRejected
+[32m[16:23:00.182] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementProgramTest.UnknownEraOrTierRejected (3 ms)
+[ RUN      ] SettlementProgramTest.EveryTierTypologyExistsInRoomProgram
+[32m[16:23:00.185] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:23:00.189] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementProgramTest.EveryTierTypologyExistsInRoomProgram (7 ms)
+[ RUN      ] SettlementProgramTest.EveryTierIsSourced
+[32m[16:23:00.193] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementProgramTest.EveryTierIsSourced (3 ms)
+[ RUN      ] SettlementProgramTest.MalformedJsonRejected
+[       OK ] SettlementProgramTest.MalformedJsonRejected (0 ms)
+[ RUN      ] SettlementProgramTest.DensityScalesThePreset
+[32m[16:23:00.196] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementProgramTest.DensityScalesThePreset (3 ms)
+[----------] 6 tests from SettlementProgramTest (20 ms total)
+
+[----------] 10 tests from SettlementWalkabilityTest
+[ RUN      ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage
+[32m[16:23:00.200] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:23:00.204] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:23:00.206] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage (12708 ms)
+[ RUN      ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed
+[32m[16:23:12.909] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:23:12.915] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:23:12.916] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed (14936 ms)
+[ RUN      ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding
+[32m[16:23:27.845] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:23:27.850] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:23:27.852] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:23:39.481] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:23:39.486] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:23:39.488] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding (30929 ms)
+[ RUN      ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze
+[       OK ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze (42 ms)
+[ RUN      ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn
+[32m[16:23:58.818] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:23:58.823] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:23:58.824] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn (53182 ms)
+[ RUN      ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell
+[32m[16:24:52.001] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:24:52.006] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:24:52.007] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell (36172 ms)
+[ RUN      ] SettlementWalkabilityTest.AOneWayDropIsNotWalkable
+[       OK ] SettlementWalkabilityTest.AOneWayDropIsNotWalkable (860 ms)
+[ RUN      ] SettlementWalkabilityTest.TheWayBackStartsWhereTheWalkerArrived
+[       OK ] SettlementWalkabilityTest.TheWayBackStartsWhereTheWalkerArrived (63 ms)
+[ RUN      ] SettlementWalkabilityTest.ARoomIsReachedAnywhereInsideItsInnerArea
+[       OK ] SettlementWalkabilityTest.ARoomIsReachedAnywhereInsideItsInnerArea (1059 ms)
+[ RUN      ] SettlementWalkabilityTest.TheInnerAreaGoalPassesWheneverAnInnerColumnIsReachable
+[ M5a-1 ] partition sweep (px: P = centre goal walkable, A = inner-area goal walkable): 0:-- 1:-- 2:-- 3:-- 4:-- 5:-- 6:-- 7:-- 8:-- 9:-- 10:-- 11:-- 12:-A 13:-A 14:-A 15:-A 16:-A 17:PA 18:PA 19:PA 20:PA 21:PA 22:PA 23:PA 24:PA 25:PA 26:PA 27:PA 28:PA 29:PA 30:PA 31:PA 32:PA 33:PA 34:PA 35:PA 36:PA
+[ M5a-1 ] the inner-area goal first passes at px 12, the centre goal at px 17: the loosening is the band px 12..16
+[       OK ] SettlementWalkabilityTest.TheInnerAreaGoalPassesWheneverAnInnerColumnIsReachable (2797 ms)
+[----------] 10 tests from SettlementWalkabilityTest (152753 ms total)
+
+[----------] 14 tests from StreetPaverTest
+[ RUN      ] StreetPaverTest.PlanCoversEveryStreetColumnIncludingCuts
+[       OK ] StreetPaverTest.PlanCoversEveryStreetColumnIncludingCuts (9 ms)
+[ RUN      ] StreetPaverTest.AdjacentPavedColumnsStayWithinStepUp
+[       OK ] StreetPaverTest.AdjacentPavedColumnsStayWithinStepUp (12 ms)
+[ RUN      ] StreetPaverTest.BuildingInteriorIsNeverPaved
+[       OK ] StreetPaverTest.BuildingInteriorIsNeverPaved (7 ms)
+[ RUN      ] StreetPaverTest.DoorSpurReachesTheStreetAtItsSurface
+[       OK ] StreetPaverTest.DoorSpurReachesTheStreetAtItsSurface (10 ms)
+[ RUN      ] StreetPaverTest.ProbeWalksThePavedStreetEndToEnd
+[       OK ] StreetPaverTest.ProbeWalksThePavedStreetEndToEnd (904 ms)
+[ RUN      ] StreetPaverTest.DoorOnTheStreetEdgeCountsAsConnected
+[       OK ] StreetPaverTest.DoorOnTheStreetEdgeCountsAsConnected (7 ms)
+[ RUN      ] StreetPaverTest.EmptyStreetsReturnNotOk
+[       OK ] StreetPaverTest.EmptyStreetsReturnNotOk (0 ms)
+[ RUN      ] StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers
+[       OK ] StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers (6 ms)
+[ RUN      ] StreetPaverTest.DoorSpursMeetTheStampedStreetAndNeverRepaveIt
+[       OK ] StreetPaverTest.DoorSpursMeetTheStampedStreetAndNeverRepaveIt (16 ms)
+[ RUN      ] StreetPaverTest.WayRibbonCoversTheCentrelineToItsWidth
+[ M5b ] way ribbon: ok 1, 10175 columns; 79 cells due, 0 not wholly paved; 0 columns beyond the width; 0 step breaks
+[       OK ] StreetPaverTest.WayRibbonCoversTheCentrelineToItsWidth (57 ms)
+[ RUN      ] StreetPaverTest.ProbeWalksTheWayRibbonAcrossADiagonal
+[ M5b ] way ribbon walk: paved WALKABLE, bare terrain (the control) blocked
+[       OK ] StreetPaverTest.ProbeWalksTheWayRibbonAcrossADiagonal (3913 ms)
+[ RUN      ] StreetPaverTest.DoorstepsStoopTheWholeDescentToTheStreet
+[       OK ] StreetPaverTest.DoorstepsStoopTheWholeDescentToTheStreet (0 ms)
+[ RUN      ] StreetPaverTest.PadCubeForStreetPutsTheThresholdAtOrAboveTheWay
+[       OK ] StreetPaverTest.PadCubeForStreetPutsTheThresholdAtOrAboveTheWay (0 ms)
+[ RUN      ] StreetPaverTest.DoorstepLevelsCutAndFillTheApproachToTheWay
+[       OK ] StreetPaverTest.DoorstepLevelsCutAndFillTheApproachToTheWay (0 ms)
+[----------] 14 tests from StreetPaverTest (4945 ms total)
+
+[----------] 11 tests from StructureLocationsTest
+[ RUN      ] StructureLocationsTest.TavernEmitsTavernMarkerOutsideDoor
+[32m[16:25:37.904] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.TavernEmitsTavernMarkerOutsideDoor (277 ms)
+[ RUN      ] StructureLocationsTest.TypologyMapsToLocationType
+[32m[16:25:38.180] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.TypologyMapsToLocationType (193 ms)
+[ RUN      ] StructureLocationsTest.PrefersFrontWallDoor
+[32m[16:25:38.374] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.PrefersFrontWallDoor (550 ms)
+[ RUN      ] StructureLocationsTest.DoorlessShellFallsBackToCentre
+[       OK ] StructureLocationsTest.DoorlessShellFallsBackToCentre (33 ms)
+[ RUN      ] StructureLocationsTest.SnapToStandableFixesDeadAnchor
+[       OK ] StructureLocationsTest.SnapToStandableFixesDeadAnchor (0 ms)
+[ RUN      ] StructureLocationsTest.SnapToStandableKeepsTheMarkerInItsColumnAcrossAOneCubeStep
+[       OK ] StructureLocationsTest.SnapToStandableKeepsTheMarkerInItsColumnAcrossAOneCubeStep (0 ms)
+[ RUN      ] StructureLocationsTest.SnapToStandableFollowsTheDoorNormalBeforeTurningACorner
+[       OK ] StructureLocationsTest.SnapToStandableFollowsTheDoorNormalBeforeTurningACorner (0 ms)
+[ RUN      ] StructureLocationsTest.DerivedLocationRecordsTheDoorItAnchored
+[32m[16:25:38.957] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.DerivedLocationRecordsTheDoorItAnchored (102 ms)
+[ RUN      ] StructureLocationsTest.DeterministicAndOriginRelative
+[32m[16:25:39.060] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.DeterministicAndOriginRelative (57 ms)
+[ RUN      ] StructureLocationsTest.BuildReportsItsLocationsWithOrWithoutARegistry
+[32m[16:25:39.194] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:39.196] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:39.197] [INFO] [StructureBuild] floorplan: typology 'croft' 8x6 front '' shape '' seed 2494828605 exterior doors: (4,0 w1 h2)[0m
+[32m[16:25:39.197] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[16:25:39.199] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:25:39.199] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[16:25:39.288] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:25:39.343] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:25:39.509] [INFO] [StructureBuild] front door marker 'croft' at world (6, 0) = local (4, -2) of 8x6 at (2, 2) front ''[0m
+[32m[16:25:40.342] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=4 realize=89 pad=50 excav=179 place+register=818 (place=817 grass=0 nav=0) fixtures=0 TOTAL=1149[0m
+[32m[16:25:40.581] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:40.585] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:40.586] [INFO] [StructureBuild] floorplan: typology 'croft' 8x6 front '' shape '' seed 2494828605 exterior doors: (4,0 w1 h2)[0m
+[32m[16:25:40.586] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[16:25:40.590] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:25:40.591] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[16:25:40.802] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:25:40.882] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:25:41.102] [INFO] [StructureBuild] front door marker 'croft' at world (6, 0) = local (4, -2) of 8x6 at (2, 2) front ''[0m
+[32m[16:25:41.865] [INFO] [StructureBuild] [perf] phases ms: setup=22 overlap=4 realize=211 pad=75 excav=238 place+register=744 (place=743 grass=0 nav=0) fixtures=0 TOTAL=1294[0m
+[       OK ] StructureLocationsTest.BuildReportsItsLocationsWithOrWithoutARegistry (2775 ms)
+[ RUN      ] StructureLocationsTest.EveryShippedTypologyReportsOneLocation
+[32m[16:25:41.892] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:41.976] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:41.978] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:41.978] [INFO] [StructureBuild] floorplan: typology 'apothecary' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:25:41.978] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology apothecary][0m
+[32m[16:25:41.981] [INFO] [StructureBuild] program validation: OK [typology apothecary][0m
+[32m[16:25:42.243] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:25:42.391] [INFO] [StructureBuild] front door marker 'apothecary' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:25:43.444] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=120 realize=91 pad=50 excav=166 place+register=1033 (place=1032 grass=0 nav=0) fixtures=0 TOTAL=1469[0m
+[ locations ] apothecary      8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:25:43.561] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:43.563] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:43.563] [INFO] [StructureBuild] floorplan: typology 'bakery' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:25:43.563] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology bakery][0m
+[32m[16:25:43.565] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:25:43.566] [INFO] [StructureBuild] program validation: OK [typology bakery][0m
+[32m[16:25:43.672] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:25:43.827] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:25:43.999] [INFO] [StructureBuild] front door marker 'bakery' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:25:44.846] [INFO] [StructureBuild] [perf] phases ms: setup=10 overlap=100 realize=106 pad=53 excav=187 place+register=832 (place=831 grass=0 nav=0) fixtures=0 TOTAL=1288[0m
+[ locations ] bakery          8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:25:44.956] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:44.957] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:44.957] [INFO] [StructureBuild] floorplan: typology 'blacksmith' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:25:44.957] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology blacksmith][0m
+[32m[16:25:44.959] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:25:44.959] [INFO] [StructureBuild] program validation: OK [typology blacksmith][0m
+[32m[16:25:45.055] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:25:45.208] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:25:45.366] [INFO] [StructureBuild] front door marker 'blacksmith' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:25:46.196] [INFO] [StructureBuild] [perf] phases ms: setup=7 overlap=102 realize=96 pad=50 excav=172 place+register=816 (place=815 grass=0 nav=0) fixtures=0 TOTAL=1243[0m
+[ locations ] blacksmith      8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:25:46.306] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:46.308] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:46.308] [INFO] [StructureBuild] floorplan: typology 'butcher' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:25:46.308] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology butcher][0m
+[32m[16:25:46.310] [INFO] [StructureBuild] program validation: OK [typology butcher][0m
+[32m[16:25:46.609] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:25:46.773] [INFO] [StructureBuild] front door marker 'butcher' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:25:47.646] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=152 realize=91 pad=55 excav=176 place+register=859 (place=858 grass=0 nav=0) fixtures=0 TOTAL=1341[0m
+[ locations ] butcher         8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:25:47.814] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:47.816] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:47.816] [INFO] [StructureBuild] floorplan: typology 'croft' 8x6 front '' shape '' seed 2494828605 exterior doors: (4,0 w1 h2)[0m
+[32m[16:25:47.817] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[16:25:47.819] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:25:47.819] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[16:25:47.956] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:25:48.041] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:25:48.274] [INFO] [StructureBuild] front door marker 'croft' at world (6, 0) = local (4, -2) of 8x6 at (2, 2) front ''[0m
+[32m[16:25:49.277] [INFO] [StructureBuild] [perf] phases ms: setup=13 overlap=3 realize=136 pad=80 excav=252 place+register=983 (place=982 grass=0 nav=0) fixtures=0 TOTAL=1467[0m
+[ locations ] croft           8 x  6: 1 location(s) (Home), floor top micro 147
+[32m[16:25:49.441] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:49.443] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:49.444] [INFO] [StructureBuild] floorplan: typology 'general_store' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:25:49.444] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology general_store][0m
+[32m[16:25:49.447] [INFO] [StructureBuild] program validation: OK [typology general_store][0m
+[32m[16:25:49.847] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:25:50.071] [INFO] [StructureBuild] front door marker 'general_store' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:25:50.819] [INFO] [StructureBuild] [perf] phases ms: setup=13 overlap=176 realize=145 pad=77 excav=242 place+register=729 (place=728 grass=0 nav=0) fixtures=0 TOTAL=1382[0m
+[ locations ] general_store   8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:25:50.922] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:50.923] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:50.924] [INFO] [StructureBuild] floorplan: typology 'hall_house' 16x8 front '' shape '' seed 2494828605 exterior doors: (4,0 w1 h2) (4,8 w1 h2)[0m
+[32m[16:25:50.924] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology hall_house][0m
+[32m[16:25:50.926] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:25:50.926] [INFO] [StructureBuild] program validation: OK [typology hall_house][0m
+[32m[16:25:51.186] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 53 -> cap 59 (micro)[0m
+[32m[16:25:52.262] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 128, fill 128)[0m
+[32m[16:25:52.758] [INFO] [StructureBuild] front door marker 'hall_house' at world (6, 0) = local (4, -2) of 16x8 at (2, 2) front ''[0m
+[32m[16:25:52.794] [INFO] [StructureGenerator] Placing 43201 voxels in 2 steps[0m
+[32m[16:25:54.673] [INFO] [StructureGenerator]   step 1: 25000/43201 (25000 placed, 0 failed)[0m
+[32m[16:25:58.110] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=937 realize=260 pad=138 excav=531 place+register=5316 (place=5315 grass=0 nav=0) fixtures=0 TOTAL=7190[0m
+[ locations ] hall_house     16 x  8: 1 location(s) (Home), floor top micro 147
+[32m[16:25:58.331] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:25:58.333] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:25:58.334] [INFO] [StructureBuild] floorplan: typology 'longhouse' 16x6 front '' shape '' seed 2494828605 exterior doors: (8,0 w1 h2) (8,6 w1 h2)[0m
+[32m[16:25:58.334] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology longhouse][0m
+[33m[16:25:58.336] [WARN] [StructureBuild] place_hearths: hearth 'fireplace' in 'hall' displaced 1 window(s) on its wall[0m
+[32m[16:25:58.336] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:25:58.337] [INFO] [StructureBuild] program validation: OK [typology longhouse][0m
+[32m[16:25:58.611] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:25:59.416] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 96, fill 96)[0m
+[32m[16:25:59.780] [INFO] [StructureBuild] front door marker 'longhouse' at world (10, 0) = local (8, -2) of 16x6 at (2, 2) front ''[0m
+[32m[16:25:59.819] [INFO] [StructureGenerator] Placing 29310 voxels in 2 steps[0m
+[32m[16:26:01.607] [INFO] [StructureGenerator]   step 1: 25000/29310 (25000 placed, 0 failed)[0m
+[32m[16:26:02.499] [INFO] [StructureBuild] [perf] phases ms: setup=12 overlap=708 realize=274 pad=96 excav=402 place+register=2680 (place=2679 grass=0 nav=0) fixtures=0 TOTAL=4172[0m
+[ locations ] longhouse      16 x  6: 1 location(s) (Home), floor top micro 147
+[32m[16:26:02.633] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:26:02.634] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:26:02.634] [INFO] [StructureBuild] floorplan: typology 'manor_hall' 20x13 front '' shape '' seed 2494828605 exterior doors: (0,6 w1 h2)[0m
+[32m[16:26:02.634] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology manor_hall][0m
+[32m[16:26:02.639] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:26:02.639] [INFO] [StructureBuild] program validation: OK [typology manor_hall][0m
+[32m[16:26:03.172] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 68 -> cap 74 (micro)[0m
+[32m[16:26:03.771] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 260, fill 260)[0m
+[32m[16:26:04.929] [INFO] [StructureBuild] front door marker 'manor_hall' at world (0, 8) = local (-2, 6) of 20x13 at (2, 2) front ''[0m
+[32m[16:26:05.029] [INFO] [StructureGenerator] Placing 85193 voxels in 4 steps[0m
+[32m[16:26:07.173] [INFO] [StructureGenerator]   step 1: 25000/85193 (25000 placed, 0 failed)[0m
+[32m[16:26:11.779] [INFO] [StructureGenerator]   step 2: 50000/85193 (50000 placed, 0 failed)[0m
+[32m[16:26:19.361] [INFO] [StructureGenerator]   step 3: 75000/85193 (75000 placed, 0 failed)[0m
+[32m[16:26:24.127] [INFO] [StructureBuild] [perf] phases ms: setup=11 overlap=332 realize=532 pad=266 excav=1254 place+register=19101 (place=19097 grass=0 nav=0) fixtures=0 TOTAL=21496[0m
+[ locations ] manor_hall     20 x 13: 1 location(s) (Home), floor top micro 147
+[32m[16:26:24.354] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:26:24.355] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:26:24.356] [INFO] [StructureBuild] floorplan: typology 'tavern' 16x7 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:26:24.356] [INFO] [StructureBuild] generate_room_layout: auto-filled 2 story(ies) -> 7 rooms total [typology tavern][0m
+[32m[16:26:24.358] [INFO] [StructureBuild] place_hearths: sited 2 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:26:24.358] [INFO] [StructureBuild] program validation: OK [typology tavern][0m
+[32m[16:26:24.646] [INFO] [StructureRealizer] place_chimney: 2 stack(s) painted into the shell, apex 80 -> cap 86 (micro)[0m
+[32m[16:26:29.058] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 112, fill 112)[0m
+[32m[16:26:29.894] [INFO] [StructureBuild] front door marker 'tavern' at world (0, 5) = local (-2, 3) of 16x7 at (2, 2) front ''[0m
+[32m[16:26:30.011] [INFO] [StructureGenerator] Placing 53289 voxels in 3 steps[0m
+[32m[16:26:32.027] [INFO] [StructureGenerator]   step 1: 25000/53289 (25000 placed, 0 failed)[0m
+[32m[16:26:36.670] [INFO] [StructureGenerator]   step 2: 50000/53289 (50000 placed, 0 failed)[0m
+[32m[16:26:37.668] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=4232 realize=287 pad=179 excav=949 place+register=7660 (place=7657 grass=0 nav=0) fixtures=0 TOTAL=13315[0m
+[ locations ] tavern         16 x  7: 1 location(s) (Tavern), floor top micro 147
+[32m[16:26:37.858] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:26:37.859] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:26:37.860] [INFO] [StructureBuild] floorplan: typology 'tenement' 8x5 front '' shape '' seed 2494828605 exterior doors: (0,2 w1 h2)[0m
+[32m[16:26:37.860] [INFO] [StructureBuild] generate_room_layout: auto-filled 2 story(ies) -> 4 rooms total [typology tenement][0m
+[32m[16:26:37.862] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:26:37.862] [INFO] [StructureBuild] program validation: OK [typology tenement][0m
+[32m[16:26:37.971] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 74 -> cap 80 (micro)[0m
+[32m[16:26:39.149] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 40, fill 40)[0m
+[32m[16:26:39.337] [INFO] [StructureBuild] front door marker 'tenement' at world (0, 4) = local (-2, 2) of 8x5 at (2, 2) front ''[0m
+[32m[16:26:40.368] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=1136 realize=108 pad=41 excav=204 place+register=1014 (place=1013 grass=0 nav=0) fixtures=0 TOTAL=2512[0m
+[ locations ] tenement        8 x  5: 1 location(s) (Home), floor top micro 147
+[32m[16:26:40.493] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:26:40.495] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:26:40.495] [INFO] [StructureBuild] floorplan: typology 'tower_house' 8x8 front '' shape '' seed 2494828605 exterior doors: (0,4 w1 h2)[0m
+[32m[16:26:40.495] [INFO] [StructureBuild] generate_room_layout: auto-filled 3 story(ies) -> 3 rooms total [typology tower_house][0m
+[32m[16:26:40.498] [INFO] [StructureBuild] program validation: OK [typology tower_house][0m
+[32m[16:26:42.156] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 64, fill 64)[0m
+[32m[16:26:42.566] [INFO] [StructureBuild] front door marker 'tower_house' at world (0, 6) = local (-2, 4) of 8x8 at (2, 2) front ''[0m
+[32m[16:26:42.593] [INFO] [StructureGenerator] Placing 27392 voxels in 2 steps[0m
+[32m[16:26:45.437] [INFO] [StructureGenerator]   step 1: 25000/27392 (25000 placed, 0 failed)[0m
+[32m[16:26:46.076] [INFO] [StructureBuild] [perf] phases ms: setup=10 overlap=1385 realize=194 pad=77 excav=436 place+register=3483 (place=3482 grass=0 nav=0) fixtures=0 TOTAL=5585[0m
+[ locations ] tower_house     8 x  8: 1 location(s) (Custom), floor top micro 147
+[32m[16:26:46.231] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:26:46.233] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:26:46.234] [INFO] [StructureBuild] floorplan: typology 'town_hall' 16x7 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:26:46.234] [INFO] [StructureBuild] generate_room_layout: auto-filled 2 story(ies) -> 7 rooms total [typology town_hall][0m
+[32m[16:26:46.236] [INFO] [StructureBuild] program validation: OK [typology town_hall][0m
+[32m[16:26:50.920] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 112, fill 112)[0m
+[32m[16:26:51.519] [INFO] [StructureBuild] front door marker 'town_hall' at world (0, 5) = local (-2, 3) of 16x7 at (2, 2) front ''[0m
+[32m[16:26:51.566] [INFO] [StructureGenerator] Placing 49832 voxels in 2 steps[0m
+[32m[16:26:53.494] [INFO] [StructureGenerator]   step 1: 25000/49832 (25000 placed, 0 failed)[0m
+[32m[16:26:58.754] [INFO] [StructureBuild] [perf] phases ms: setup=10 overlap=4244 realize=311 pad=128 excav=644 place+register=7189 (place=7187 grass=0 nav=0) fixtures=0 TOTAL=12526[0m
+[ locations ] town_hall      16 x  7: 1 location(s) (Work), floor top micro 147
+[       OK ] StructureLocationsTest.EveryShippedTypologyReportsOneLocation (76957 ms)
+[----------] 11 tests from StructureLocationsTest (80948 ms total)
+
+[----------] 11 tests from WorldForgeBuildFlowTest
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite
+[32m[16:26:58.862] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 10 ms (hash 18364600777176986354)[0m
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite (16 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis
+[32m[16:26:58.874] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)[0m
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis (12 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RealizationOrderTownFirst
+[32m[16:26:58.887] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)[0m
+[       OK ] WorldForgeBuildFlowTest.RealizationOrderTownFirst (12 ms)
+[ RUN      ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger
+[32m[16:26:58.899] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 10 ms (hash 18364600777176986354)[0m
+[32m[16:26:58.901] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[32m[16:26:58.901] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[16:26:58.902] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[16:26:58.903] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[16:26:58.903] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)[0m
+[       OK ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger (17 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues
+[32m[16:26:58.918] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 12 ms (hash 18364600777176986354)[0m
+[32m[16:26:58.919] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[33m[16:26:58.920] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: terrain too steep - no buildable plot[0m
+[33m[16:26:58.920] [WARN] [WorldForge] [WORLDFORGE] site 1 (village) REFUSED: terrain too steep - no buildable plot[0m
+[33m[16:26:58.920] [WARN] [WorldForge] [WORLDFORGE] site 2 (village) REFUSED: terrain too steep - no buildable plot[0m
+[32m[16:26:58.921] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (7 units)[0m
+[       OK ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues (16 ms)
+[ RUN      ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite
+[32m[16:26:58.934] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)[0m
+[32m[16:26:58.935] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[33m[16:26:58.935] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: residency_timeout[0m
+[33m[16:26:58.936] [WARN] [WorldForge] [WORLDFORGE] site 1 (village) REFUSED: residency_timeout[0m
+[33m[16:26:58.936] [WARN] [WorldForge] [WORLDFORGE] site 2 (village) REFUSED: residency_timeout[0m
+[32m[16:26:58.937] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (16 units)[0m
+[       OK ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite (16 ms)
+[ RUN      ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun
+[32m[16:26:58.951] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 12 ms (hash 18364600777176986354)[0m
+[32m[16:26:58.952] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[32m[16:26:58.953] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[16:26:58.953] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[16:26:58.954] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[16:26:58.954] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)[0m
+[32m[16:26:58.956] [INFO] [MainThreadJobs] job 1000001 started: worldforge: 0 sites[0m
+[32m[16:26:58.956] [INFO] [MainThreadJobs] job 1000001 complete: worldforge: 0 sites (1 units)[0m
+[       OK ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun (19 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun
+[32m[16:26:58.969] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)[0m
+[32m[16:26:58.971] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 1 sites[0m
+[32m[16:26:58.971] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[16:26:58.972] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 1 sites (5 units)[0m
+[       OK ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun (15 ms)
+[ RUN      ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed
+[32m[16:26:58.985] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)[0m
+[32m[16:26:58.987] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[33m[16:26:58.987] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: unwalkable: 1 of 28 street->door routes blocked, 0 front door(s) unseated (walkability gate) - not checkpointed[0m
+[32m[16:26:58.988] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 0 residents, 0 lot failures[0m
+[32m[16:26:58.988] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 0 residents, 0 lot failures[0m
+[32m[16:26:58.989] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)[0m
+[       OK ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed (17 ms)
+[ RUN      ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled
+[32m[16:26:59.002] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 0 bridges, 82 segments in 11 ms (hash 18364600777176986354)[0m
+[32m[16:26:59.004] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[32m[16:26:59.004] [INFO] [MainThreadJobs] job 1000000 cancelled (20/21 units done)[0m
+[       OK ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled (14 ms)
+[ RUN      ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely
+[       OK ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely (0 ms)
+[----------] 11 tests from WorldForgeBuildFlowTest (158 ms total)
+
+[----------] 20 tests from WorldForgePlanTest
+[ RUN      ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable
+[       OK ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable (7 ms)
+[ RUN      ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount
+[32m[16:26:59.207] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 181 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount (195 ms)
+[ RUN      ] WorldForgePlanTest.TierMixIsOneTownTwoVillages
+[32m[16:26:59.395] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 174 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.TierMixIsOneTownTwoVillages (187 ms)
+[ RUN      ] WorldForgePlanTest.SitesNotInWater
+[32m[16:26:59.580] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 173 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.SitesNotInWater (185 ms)
+[ RUN      ] WorldForgePlanTest.SitesRespectMinSpacing
+[32m[16:26:59.768] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 175 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.SitesRespectMinSpacing (187 ms)
+[ RUN      ] WorldForgePlanTest.SitesWithinRegion
+[32m[16:26:59.961] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 179 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.SitesWithinRegion (192 ms)
+[ RUN      ] WorldForgePlanTest.SiteCountClamped
+[32m[16:27:00.244] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 20 roads, 4 bridges, 1158 segments in 263 ms (hash 10626291692739442491)[0m
+[       OK ] WorldForgePlanTest.SiteCountClamped (283 ms)
+[ RUN      ] WorldForgePlanTest.RoadsConnectAllSites
+[32m[16:27:00.437] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 180 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.RoadsConnectAllSites (193 ms)
+[ RUN      ] WorldForgePlanTest.RoadsAvoidStandingWater
+[32m[16:27:00.629] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 179 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.RoadsAvoidStandingWater (191 ms)
+[ RUN      ] WorldForgePlanTest.RoadCenterlinesContinuous
+[32m[16:27:00.820] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 178 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.RoadCenterlinesContinuous (191 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsMarkedWhereOrder3
+[32m[16:27:00.983] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 1 bridges, 52 segments in 153 ms (hash 5394667485311540574)[0m
+[       OK ] WorldForgePlanTest.CrossingsMarkedWhereOrder3 (162 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsGetBridgeSpans
+[32m[16:27:01.150] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 1 bridges, 52 segments in 157 ms (hash 5394667485311540574)[0m
+[       OK ] WorldForgePlanTest.CrossingsGetBridgeSpans (166 ms)
+[ RUN      ] WorldForgePlanTest.SitePinsSeatedVerbatim
+[32m[16:27:01.317] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 3 roads, 1 bridges, 120 segments in 157 ms (hash 9500444297633199528)[0m
+[       OK ] WorldForgePlanTest.SitePinsSeatedVerbatim (167 ms)
+[ RUN      ] WorldForgePlanTest.RoadsReachTheFootprintEdge
+[32m[16:27:01.504] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 174 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.RoadsReachTheFootprintEdge (187 ms)
+[ RUN      ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar
+[32m[16:27:01.692] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 174 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar (187 ms)
+[ RUN      ] WorldForgePlanTest.RoadQueryPerf
+[32m[16:27:01.878] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 174 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.RoadQueryPerf (220 ms)
+[ RUN      ] WorldForgePlanTest.PlanDeterminism
+[32m[16:27:02.110] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 177 ms (hash 7792085882321095912)[0m
+[32m[16:27:02.291] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 177 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.PlanDeterminism (395 ms)
+[ RUN      ] WorldForgePlanTest.SiteSeedDerivation
+[32m[16:27:02.496] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 175 ms (hash 7792085882321095912)[0m
+[32m[16:27:02.676] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 176 ms (hash 7792085882321095912)[0m
+[32m[16:27:02.857] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 176 ms (hash 15177877851190361490)[0m
+[       OK ] WorldForgePlanTest.SiteSeedDerivation (549 ms)
+[ RUN      ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly
+[       OK ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly (1 ms)
+[ RUN      ] WorldForgePlanTest.RasterCapSurfaces
+[32m[16:27:03.048] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 176 ms (hash 7792085882321095912)[0m
+[33m[16:27:03.219] [WARN] [WorldForge] [WORLDFORGE] road raster segment cap (20) reached: 399 segment(s) are NOT indexed - roads past the cap are invisible to roadAt (fewer roads, or a wider raster index, before this plan is used)[0m
+[32m[16:27:03.225] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 20 segments in 160 ms (hash 7792085882321095912)[0m
+[       OK ] WorldForgePlanTest.RasterCapSurfaces (378 ms)
+[----------] 20 tests from WorldForgePlanTest (4233 ms total)
+
+[----------] 5 tests from WorldForgeRecipeTest
+[ RUN      ] WorldForgeRecipeTest.RecipeSeedAuthority
+[32m[16:27:03.242] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:27:03.910] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 963 bodies[0m
+[32m[16:27:03.911] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=2771 maxOrder=4 drainageComplete=1[0m
+[32m[16:27:04.585] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1014 bodies[0m
+[32m[16:27:04.585] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1247 maxOrder=4 drainageComplete=1[0m
+[32m[16:27:04.585] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] WorldForgeRecipeTest.RecipeSeedAuthority (1348 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeSeedZeroKeepsConstructorSeed
+[32m[16:27:04.590] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:27:04.591] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] WorldForgeRecipeTest.RecipeSeedZeroKeepsConstructorSeed (5 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeWorldForgeRoundTrip
+[       OK ] WorldForgeRecipeTest.RecipeWorldForgeRoundTrip (0 ms)
+[ RUN      ] WorldForgeRecipeTest.LegacyRecipeDisabledAndKeyless
+[       OK ] WorldForgeRecipeTest.LegacyRecipeDisabledAndKeyless (0 ms)
+[ RUN      ] WorldForgeRecipeTest.GeneratorBakesPlanOnlyWhenEnabled
+[32m[16:27:04.596] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:27:05.272] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[16:27:05.272] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+[32m[16:27:05.276] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:27:05.412] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 56 segments in 134 ms (hash 7247371439836729452)[0m
+[32m[16:27:05.412] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:27:05.417] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:27:05.554] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 56 segments in 136 ms (hash 7247371439836729452)[0m
+[32m[16:27:05.554] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] WorldForgeRecipeTest.GeneratorBakesPlanOnlyWhenEnabled (964 ms)
+[----------] 5 tests from WorldForgeRecipeTest (2318 ms total)
+
+[----------] 1 test from WorldForgeStressTest
+[ RUN      ] WorldForgeStressTest.VersionOnePlanHashesArePinned
+[32m[16:27:05.560] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:27:06.247] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[16:27:06.247] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[16:27:06.836] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 573 ms (hash 9693137997320541182)[0m
+[32m[16:27:06.836] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[32m[16:27:06.869] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:27:07.533] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[16:27:07.533] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[32m[16:27:08.026] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 488 ms (hash 18197215997962677593)[0m
+[32m[16:27:08.026] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (2480 ms)
+[----------] 1 test from WorldForgeStressTest (2480 ms total)
+
+[----------] Global test environment tear-down
+[==========] 157 tests from 14 test suites ran. (482249 ms total)
+[  PASSED  ] 157 tests.
+EXIT 0 2026-11-10 16:27:08

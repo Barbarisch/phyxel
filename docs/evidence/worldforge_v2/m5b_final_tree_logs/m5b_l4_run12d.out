@@ -1,0 +1,119 @@
+CivLabE0 game.json: worldforge {'siteCount': 8, 'regionRadius': 2048, 'minSpacing': 400, 'civ': True, 'civEpochs': 0}
+exe: C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Release/phyxel.exe 2026-11-12_09:24:07  commit: dd22222e  tree: SettlementMapPlanner.cpp 02b8296fbf26e8f9 SettlementBuildService.cpp 8d72c6efc338a827 StreetPaver.cpp 5778709fc55782df WorldForgePlan.cpp e853c24d401be4cc WorldGenerator.cpp c66a59896cc842e1
+--- the box plan's sites (the derived rects: hamlet 56 x 44, village 104 x 64, town 140 x 60, city 160 x 160)
+  site 0 town at 13512 -9928 140 x 60 surfaceY 171.4 SnowGrass
+  site 1 village at -7912 -9928 104 x 64 surfaceY 95.6 SnowGrass
+  site 2 village at 2776 8392 104 x 64 surfaceY 160.2 Snow
+  site 3 hamlet at -7944 2264 56 x 44 surfaceY 54.1 GrassForest
+  site 4 hamlet at -7912 14600 56 x 44 surfaceY 18.4 Grass
+  site 5 hamlet at 14568 15592 56 x 44 surfaceY 18.0 Grass
+--- CONTROL FIRST: focus on village 1 at -7912 -9928 (fresh world), build_settlement legacy_layout
+{"focused":true,"holder":"worldforge_focus","success":true,"surface_y":101,"x":-7912,"z":-9928}
+
+--- CONTROL engine log (saved to m5b_l4_m5b1_control_log.txt)
+[09:27:03.801] [INFO] [Settlement] main_street terrain: axis Z offset 77, 8 plots (0 dropped unbuildable)
+[09:27:03.802] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (1 streets)
+[09:27:09.686] [INFO] [Settlement] streets: paved 60255 micros over 25920 columns (20754 level, 1719 fill, 3447 cut honored, 67 cubes removed, 2560 corridor cells band-cleared), spurs 0 ok / 0 too steep, Gravel, 3056 ms
+[09:27:43.070] [INFO] [Settlement] door spurs: 8 planned from 8 realized doors, 0 too steep, 1515 micros over 425 columns, 1627 ms
+[09:27:43.333] [INFO] [Settlement] fences: 7 parcels fenced, 1 unfenced by policy, 0 runs dropped (alley < 2 cells to a neighbour wall), 20494 micros (picket, 8-micro tall, posts @16)
+[09:27:48.398] [WARN] [Settlement] walkability: BLOCKED (ONE-WAY, a drop) croft @-7881,-9913: street -> door pinch (-70936,905,-89177)->(-70935,905,-89177) gap 1 micro; reached 24679/10511
+[09:27:48.428] [INFO] [Settlement] walkability gate: 20 walkable, 1 blocked over 21 routes (8 front doors of 8 built, 0 skipped)
+[09:27:48.428] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes, 0 front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome
+--- CONTROL pose (-7912,150,-9836) yaw -90 pitch -35
+stats control_village1_elevated (first raw sample): {"characters":{"build_ms":0.0081,"considered":11,"culled":11,"draw_calls_main":0,"draw_calls_shadow":0,"drawn_main":0,"drawn_shadow":0,"dropped":0,"parts_batched":0},"chunk_update_timing":{"buffer_create":{"avg_ms":6.1601642710472284e-06,"count":1461,"last_ms":0.0,"max_ms":0.008},"buffer_realloc":{"avg_ms":0.0013958333333333333,"count":48,"last_ms":0.002,"max_ms":0.003},"buffer_upload":{"avg_ms":0.013954566420664206,"count":4336,"last_ms":0.008,"max_ms":34.522},"dirty_update_total":{"avg_ms":11.684773529411764,"count":1020,"last_ms":24.192,"max_ms":210.829},"load_chunk_init":{"avg_ms":0.0,"count":0,"last_ms":0.0,"max_ms":0.0},"load_db_decode":{"avg_ms":0.0,"count":0,"last_ms":0.0,"max_ms":0.
+shot control: screenshots/screenshot_20261112_092855_196.png
+--- a FRESH engine and DB for the map job
+town 0 at 13512 -9928 140 x 60 surfaceY 171.4 SnowGrass
+village 1 at -7912 -9928 104 x 64 surfaceY 95.6 SnowGrass
+village 2 at 2776 8392 104 x 64 surfaceY 160.2 Snow
+--- building the street-tier sites 0,1,2 in one worldforge_build job
+{"job_id":1000000,"plan_hash":"8612466224093850392","sites_queued":3,"success":true}
+job 1000000
+--- job
+{"elapsed_seconds":571.743,"id":1000000,"label":"worldforge: 3 sites","main_thread":true,"message":"complete","progress":1.0,"result":{"plan_hash":"8612466224093850392","sites":[{"buildings":24,"id":0,"lot_failures":0,"residents":0,"status":"built","tier":"town"},{"buildings":11,"id":1,"lot_failures":0,"residents":0,"status":"built","tier":"village"},{"buildings":13,"id":2,"lot_failures":0,"residents":0,"status":"built","tier":"village"}],"success":true},"state":"complete","type":"worldforge_build","units_done":3877,"units_total":3877}
+ledger entries 3 planHash 8612466224093850392
+site 0 status built buildings 24 lotFailures 0 error 
+   MAP: tier town lots 24 ways 19 (primary 1 nodes 21 ) nodes 122 areas 1 entry 0 target 24 BAKE_MS 81.4 origin {'x': 13442, 'y': 171, 'z': -9958}
+site 1 status built buildings 11 lotFailures 0 error 
+   MAP: tier village lots 11 ways 8 (primary 1 nodes 37 ) nodes 61 areas 0 entry 0 target 11 BAKE_MS 63.6 origin {'x': -7964, 'y': 95, 'z': -9960}
+site 2 status built buildings 13 lotFailures 0 error 
+   MAP: tier village lots 13 ways 4 (primary 1 nodes 2 ) nodes 21 areas 0 entry 0 target 13 BAKE_MS 79.8 origin {'x': 2724, 'y': 160, 'z': 8360}
+record: site 1 built village
+{"focused":true,"holder":"worldforge_focus","success":true,"surface_y":101,"x":-7912,"z":-9928}
+
+   node 0 (-7865,-9921) y 97 alongZ: Gravel in 9 of 9 columns across [1, 75, 108, 108, 108, 108, 108, 27, 27] own column 108
+   node 3 (-7868,-9928) y 97 alongX: Gravel in 9 of 9 columns across [10, 71, 81, 81, 81, 81, 81, 81, 81] own column 81
+   node 6 (-7876,-9934) y 97 alongX: Gravel in 7 of 9 columns across [0, 10, 81, 81, 81, 81, 81, 63, 0] own column 81
+   node 9 (-7880,-9935) y 97 alongX: Gravel in 7 of 9 columns across [10, 71, 81, 81, 81, 81, 81, 0, 0] own column 81
+   node 12 (-7899,-9942) y 97 alongX: Gravel in 8 of 9 columns across [0, 10, 81, 81, 81, 81, 81, 98, 81] own column 81
+   node 15 (-7904,-9943) y 97 alongX: Gravel in 6 of 9 columns across [0, 63, 81, 81, 81, 81, 81, 0, 0] own column 81
+   node 18 (-7907,-9945) y 97 alongX: Gravel in 6 of 9 columns across [0, 0, 810, 81, 81, 81, 81, 63, 0] own column 81
+   node 21 (-7924,-9946) y 97 alongX: Gravel in 7 of 9 columns across [0, 0, 810, 810, 81, 81, 81, 121, 626] own column 81
+   node 24 (-7951,-9920) y 97 alongX: Gravel in 9 of 9 columns across [100, 696, 810, 792, 81, 81, 81, 726, 341] own column 81
+   node 27 (-7954,-9919) y 97 alongX: Gravel in 8 of 9 columns across [100, 810, 810, 81, 81, 81, 145, 764] own column 81
+MICRO PROBE: primary way width 5; 10 nodes probed, 10 carry Gravel in their own column, ribbon width across the section median 7.5 columns (expected 5 +- 1)
+{"legend":"terrain biome colors + NW hillshade | blue water (depth-shaded) | tan/gray roads | brown bridge decks | squares: magenta-red city, red town, orange village, yellow hamlet, light grey outpos
+
+{"daynight":{"ambientStrength":1.0,"dayLengthSeconds":1200.0,"dayNumber":1,"enabled":true,"hour":11,"isNight":false,"minute":0,"paused":true,"skyColor":{"b":0.9
+
+--- capture poses
+0 town 13512 -9928 town0_elevated 13512 209 -9838 -90 -35
+0 town 13512 -9928 town0_oblique 13412 184 -9868 -45 -25
+0 town 13512 -9928 town0_street_a 13560 158 -9917 153.4 -6
+0 town 13512 -9928 town0_street_b 13550 158 -9913 172.9 -6
+1 village -7912 -9928 village1_elevated -7912 152 -9836 -90 -35
+1 village -7912 -9928 village1_oblique -7994 127 -9866 -45 -25
+1 village -7912 -9928 village1_street_a -7880 100 -9935 -159.8 -6
+1 village -7912 -9928 village1_street_b -7947 100 -9923 149.0 -6
+2 village 2776 8392 village2_elevated 2776 229 8484 -90 -35
+2 village 2776 8392 village2_oblique 2694 204 8454 -45 -25
+{"focused":true,"holder":"worldforge_focus","success":true,"surface_y":152,"x":13512,"z":-9928}
+
+{"legend":"terrain biome colors + NW hillshade | blue water (depth-shaded) | tan/gray roads | brown bridge decks | squares: magenta-red city, red town, orange v
+
+stats town0_elevated (first raw sample): {"characters":{"build_ms":0.0084,"considered":25,"culled":25,"draw_calls_main":0,"draw_calls_shadow":0,"drawn_main":0,"drawn_shadow":0,"dropped":0,"parts_batched":0},"chunk_update_timing":{"buffer_create":{"avg_ms":5.768676088837611e-07,"count":3467,"last_ms":0.0,"max_ms":0.001},"buffer_realloc":{"avg_ms":0.002139344262295082,"count":122,"last_ms":0.003,"max_ms":0.004},"buffer_upload":{"avg_ms":0.007924831804281345,"count":16350,"last_ms":0.008,"max_ms":17.166},"dirty_update_total":{"avg_ms":15.529744391320339,"count":2719,"last_ms":314.59,"max_ms":1037.192},"load_chunk_init":{"avg_ms":0.0,"count":0,"last_ms":0.0,"max_ms":0.0},"load_db_decode":{"avg_ms":0.0,"count":0,"last_ms":0.0,"max_ms":0
+shot town0_elevated at (13512,209,-9838) yaw -90 pitch -35: screenshots/screenshot_20261112_094244_144.png
+shot town0_oblique at (13412,184,-9868) yaw -45 pitch -25: screenshots/screenshot_20261112_094257_554.png
+shot town0_street_a at (13560,158,-9917) yaw 153.4 pitch -6: screenshots/screenshot_20261112_094311_121.png
+shot town0_street_b at (13550,158,-9913) yaw 172.9 pitch -6: screenshots/screenshot_20261112_094324_696.png
+{"focused":true,"holder":"worldforge_focus","success":true,"surface_y":101,"x":-7912,"z":-9928}
+
+{"legend":"terrain biome colors + NW hillshade | blue water (depth-shaded) | tan/gray roads | brown bridge decks | squares: magenta-red city, red town, orange v
+
+stats village1_elevated (first raw sample): {"characters":{"build_ms":0.0085,"considered":14,"culled":14,"draw_calls_main":0,"draw_calls_shadow":0,"drawn_main":0,"drawn_shadow":0,"dropped":0,"parts_batched":0},"chunk_update_timing":{"buffer_create":{"avg_ms":8.250825082508251e-07,"count":4848,"last_ms":0.0,"max_ms":0.001},"buffer_realloc":{"avg_ms":0.002139344262295082,"count":122,"last_ms":0.003,"max_ms":0.004},"buffer_upload":{"avg_ms":0.008026340390431675,"count":18185,"last_ms":0.013,"max_ms":17.166},"dirty_update_total":{"avg_ms":15.291540702423088,"count":3673,"last_ms":6.415,"max_ms":1037.192},"load_chunk_init":{"avg_ms":0.0,"count":0,"last_ms":0.0,"max_ms":0.0},"load_db_decode":{"avg_ms":0.0,"count":0,"last_ms":0.0,"max_ms":0.
+shot village1_elevated at (-7912,150,-9836) yaw -90 pitch -35: screenshots/screenshot_20261112_094526_586.png
+shot village1_oblique at (-7994,127,-9866) yaw -45 pitch -25: screenshots/screenshot_20261112_094540_103.png
+shot village1_street_a at (-7880,100,-9935) yaw -159.8 pitch -6: screenshots/screenshot_20261112_094553_562.png
+shot village1_street_b at (-7947,100,-9923) yaw 149.0 pitch -6: screenshots/screenshot_20261112_094607_070.png
+{"focused":true,"holder":"worldforge_focus","success":true,"surface_y":171,"x":2776,"z":8392}
+
+{"legend":"terrain biome colors + NW hillshade | blue water (depth-shaded) | tan/gray roads | brown bridge decks | squares: magenta-red city, red town, orange v
+
+stats village2_elevated (first raw sample): {"characters":{"build_ms":0.0103,"considered":17,"culled":17,"draw_calls_main":0,"draw_calls_shadow":0,"drawn_main":0,"drawn_shadow":0,"dropped":0,"parts_batched":0},"chunk_update_timing":{"buffer_create":{"avg_ms":8.588114050154586e-07,"count":5822,"last_ms":0.0,"max_ms":0.001},"buffer_realloc":{"avg_ms":0.002139344262295082,"count":122,"last_ms":0.003,"max_ms":0.004},"buffer_upload":{"avg_ms":0.008130240763802407,"count":19272,"last_ms":0.0,"max_ms":17.166},"dirty_update_total":{"avg_ms":14.912451948051949,"count":4235,"last_ms":6.878,"max_ms":1037.192},"load_chunk_init":{"avg_ms":0.0,"count":0,"last_ms":0.0,"max_ms":0.0},"load_db_decode":{"avg_ms":0.0,"count":0,"last_ms":0.0,"max_ms":0.0}
+shot village2_elevated at (2776,229,8484) yaw -90 pitch -35: screenshots/screenshot_20261112_094808_770.png
+shot village2_oblique at (2694,204,8454) yaw -45 pitch -25: screenshots/screenshot_20261112_094822_174.png
+--- engine log: the maps, the ways, the gates, the walls
+[09:27:43.070] [INFO] [Settlement] door spurs: 8 planned from 8 realized doors, 0 too steep, 1515 micros over 425 columns, 1627 ms
+[09:27:44.104] [INFO] [Settlement] street sweep: 995 cells cleared over 999 band cells (0 inside a building's footprint kept, 4 inside one of 16 placed props' boxes kept), 61770 paving micros re-stamped
+[09:27:48.428] [INFO] [Settlement] walkability gate: 20 walkable, 1 blocked over 21 routes (8 front doors of 8 built, 0 skipped)
+[09:27:48.428] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes, 0 front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome
+[09:30:03.356] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3066084745: 24 lots, 19 ways, 122 nodes, entry 0, sampler generator, 0 dropped, bake 81.4237 ms
+[09:30:11.057] [INFO] [Settlement] ways: 10710 paved columns inside lot footprints dropped
+[09:30:56.927] [INFO] [Settlement] ways: paved 352820 micros over 93911 columns (62970 level, 22237 fill, 19414 cut honored, 603 cubes removed, 10901 corridor cells band-cleared) for 19 ways / 103 legs, Cobblestone, 45861 ms
+[09:34:32.391] [INFO] [Settlement] door spurs: 24 planned from 24 realized doors, 0 too steep, 1768 micros over 317 columns, 1063 ms
+[09:34:37.167] [INFO] [Settlement] street sweep: 4093 cells cleared over 4098 band cells (0 inside a building's footprint kept, 5 inside one of 44 placed props' boxes kept), 354588 paving micros re-stamped
+[09:34:46.267] [INFO] [Settlement] walkability gate: 72 walkable, 0 blocked over 72 routes (24 front doors of 24 built, 0 skipped)
+[09:34:49.903] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 24 buildings, 0 residents, 0 lot failures
+[09:35:11.035] [INFO] [Settlement] [M5A-MAP] medieval/village seed 863255309: 11 lots, 8 ways, 61 nodes, entry 0, sampler generator, 0 dropped, bake 63.6231 ms
+[09:35:47.756] [INFO] [Settlement] ways: paved 241316 micros over 68959 columns (40862 level, 14719 fill, 13378 cut honored, 331 cubes removed, 8219 corridor cells band-cleared) for 8 ways / 53 legs, Gravel, 28797 ms
+[09:37:04.228] [INFO] [Settlement] door spurs: 11 planned from 11 realized doors, 0 too steep, 2963 micros over 472 columns, 1046 ms
+[09:37:08.897] [INFO] [Settlement] street sweep: 3114 cells cleared over 3114 band cells (0 inside a building's footprint kept, 0 inside one of 11 placed props' boxes kept), 244279 paving micros re-stamped
+[09:37:16.381] [INFO] [Settlement] walkability gate: 34 walkable, 0 blocked over 34 routes (11 front doors of 11 built, 0 skipped)
+[09:37:29.400] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 11 buildings, 0 residents, 0 lot failures
+[09:37:45.190] [INFO] [Settlement] [M5A-MAP] medieval/village seed 2537977282: 13 lots, 4 ways, 21 nodes, entry 0, sampler generator, 0 dropped, bake 79.8316 ms
+[09:37:50.027] [INFO] [Settlement] ways: paved 63586 micros over 38307 columns (32023 level, 1230 fill, 5054 cut honored, 100 cubes removed, 4016 corridor cells band-cleared) for 4 ways / 17 legs, Gravel, 237 ms
+[09:38:58.556] [INFO] [Settlement] door spurs: 13 planned from 13 realized doors, 0 too steep, 3720 micros over 904 columns, 1186 ms
+[09:39:00.395] [INFO] [Settlement] street sweep: 1598 cells cleared over 1602 band cells (0 inside a building's footprint kept, 4 inside one of 20 placed props' boxes kept), 67306 paving micros re-stamped
+[09:39:06.660] [INFO] [Settlement] walkability gate: 40 walkable, 0 blocked over 40 routes (13 front doors of 13 built, 0 skipped)
+[09:39:17.505] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 13 buildings, 0 residents, 0 lot failures
+engines left: 0

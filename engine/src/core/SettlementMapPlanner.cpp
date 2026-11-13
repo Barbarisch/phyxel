@@ -37,8 +37,8 @@ Footprint naturalFootprint(const RoomProgramRegistry* rooms, const std::string& 
     if (!rooms) return f;   // the stand-in (tests without a room program): an 8 x 6 long-wall house
     const RoomProgram* rp = rooms->get(typ);
     if (!rp) return f;
-    const int natLong = std::max(1, static_cast<int>(std::lround(rp->bays * rp->bayLength)));
-    const int natShort = std::max(1, static_cast<int>(std::lround(rp->widthMax > 0 ? rp->widthMax : rp->widthMin)));
+    const NaturalFootprint nf = naturalFootprintOf(*rp);   // M5b-1: the ONE derivation (RoomProgram.cpp)
+    const int natLong = nf.longU, natShort = nf.shortU;
     const bool longToStreet = (rp->entrance == "long_wall");
     f.fDim = longToStreet ? natLong : natShort;
     f.dDim = longToStreet ? natShort : natLong;
@@ -242,13 +242,23 @@ void planClusterAsBuilt(const SettlementMapInput& in, const BuildabilityMap& sit
     if (map.lots.empty()) map.refusal = "terrain too steep - no buildable plots";
 }
 
-// ── the cluster tier by INTEREST-MAP GROWTH (step 3)
-void planClusterGrowth(const SettlementMapInput& in, const BuildabilityMap& site, SettlementMap& map, std::map<std::pair<int, int>, int>& nodeIndex) {
+// ── INTEREST-MAP GROWTH (M5a step 3 on the cluster tier; M5b-1 on EVERY tier - the design check of
+// 2026-11-06): seat the lot of highest interest, connect it, update the maps, repeat to the program's band.
+// A STREET tier first ROUTES its primary way on the same cost grid (the M4 corridor cost, water blocked) -
+// from the first arriving road to the second, else to the far edge's middle half - at the program's
+// main_width; a market area sits on the primary's middle cell when the program has one; a semi_organic
+// tier adds a second axis from that cell to the two side edges. Then the growth: a lot whose door-approach
+// cell lies on or beside a way's paved BAND fronts that way (no new way - the rows emerge from the road
+// bell), a lot off every way connects by a lane of lane_width (the bell's floor keeps it a candidate: the
+// infill). The cluster tier's growth is byte-for-byte M5a's (a croft always connects by a path of its own).
+void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, SettlementMap& map, std::map<std::pair<int, int>, int>& nodeIndex, bool streetTier) {
     const SettlementTierPreset& tier = *in.tier;
     const int W = in.W, D = in.D;
+    const size_t N = static_cast<size_t>(W) * D;
     Grid g; g.W = W; g.D = D;
-    g.h.resize(static_cast<size_t>(W) * D); g.blocked.assign(static_cast<size_t>(W) * D, 0); g.onNet.assign(static_cast<size_t>(W) * D, 0);
-    std::vector<uint8_t> waterMask(static_cast<size_t>(W) * D, 0), lotMask(static_cast<size_t>(W) * D, 0), netMask(static_cast<size_t>(W) * D, 0);
+    g.h.resize(N); g.blocked.assign(N, 0); g.onNet.assign(N, 0);
+    std::vector<uint8_t> waterMask(N, 0), lotMask(N, 0), netMask(N, 0), reserved(N, 0), entryMask(N, 0);
+    std::vector<int> wayOf(N, -1);   // the way whose paved band covers the cell (-1 = none)
     bool anyWater = false;
     for (int z = 0; z < D; ++z) for (int x = 0; x < W; ++x) {
         const SiteCell& c = site.at(x, z);
@@ -258,8 +268,91 @@ void planClusterGrowth(const SettlementMapInput& in, const BuildabilityMap& site
     std::vector<float> waterDist, netDist, lotDist;
     chamfer(W, D, waterMask, waterDist);
     // the entry: the arriving road's end, or (no road) the site edge nearest the first lot, set at its connection
-    std::vector<uint8_t> entryMask(static_cast<size_t>(W) * D, 0);
     for (const auto& e : in.entries) if (g.inside(e.x, e.z)) entryMask[static_cast<size_t>(g.idx(e.x, e.z))] = 1;
+    // register a routed way: nodes at its direction changes, its steepest grade, the centre cells on the network
+    // (the reuse discount) and its paved BAND (the cells within half its width, Chebyshev) kept clear of lots
+    // and owned by it; the first way that starts or ends on an entry sets the entry node
+    auto registerWay = [&](const std::vector<int>& path, const char* highway, float width, int cls) -> int {
+        MapWay w; w.id = static_cast<int>(map.ways.size()); w.highway = highway; w.width = width; w.cls = cls;
+        const int r = std::max(0, static_cast<int>(std::lround(width)) / 2);
+        float worst = 0.0f;
+        for (size_t k = 0; k < path.size(); ++k) {
+            const int cx = path[k] % W, cz = path[k] / W;
+            if (k > 0) {
+                const int px = path[k - 1] % W, pz = path[k - 1] / W;
+                const float stepLen = (cx != px && cz != pz) ? 1.41421356f : 1.0f;
+                worst = std::max(worst, std::fabs(static_cast<float>(g.h[static_cast<size_t>(path[k])] - g.h[static_cast<size_t>(path[k - 1])])) / stepLen);
+            }
+            bool keepNode = (k == 0 || k + 1 == path.size());
+            if (!keepNode) {
+                const int px = path[k - 1] % W, pz = path[k - 1] / W, nx = path[k + 1] % W, nz = path[k + 1] / W;
+                keepNode = (cx - px != nx - cx) || (cz - pz != nz - cz);   // a direction change
+            }
+            if (keepNode) w.nodes.push_back(nodeAt(map, nodeIndex, cx, cz, g.h[static_cast<size_t>(path[k])]));
+            g.onNet[static_cast<size_t>(path[k])] = 1;
+            for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) {
+                if (dx * dx + dz * dz > r * r) continue;   // a disc: every band cell within r of the centre line (chain 91)
+                const int bx = cx + dx, bz = cz + dz;
+                if (!g.inside(bx, bz)) continue;
+                const size_t bi = static_cast<size_t>(g.idx(bx, bz));
+                netMask[bi] = 1;
+                if (wayOf[bi] < 0) wayOf[bi] = w.id;
+            }
+        }
+        w.grade = worst;
+        if (map.entryNode < 0 && !path.empty() && !w.nodes.empty()) {
+            if (entryMask[static_cast<size_t>(path.front())]) map.entryNode = w.nodes.front();
+            else if (entryMask[static_cast<size_t>(path.back())]) map.entryNode = w.nodes.back();
+        }
+        map.ways.push_back(w);
+        return w.id;
+    };
+    int marketCx = -1, marketCz = -1;
+    if (streetTier) {
+        glm::ivec2 entry = in.entries.empty() ? glm::ivec2(0, D / 2)
+                                              : glm::ivec2(std::clamp(in.entries.front().x, 0, W - 1), std::clamp(in.entries.front().z, 0, D - 1));
+        if (in.entries.empty()) entryMask[static_cast<size_t>(g.idx(entry.x, entry.y))] = 1;
+        std::vector<uint8_t> goal(N, 0); bool haveSecond = false;
+        for (size_t i = 1; i < in.entries.size(); ++i) {   // a second arriving road: the main street runs through
+            const auto& e = in.entries[i];
+            if (!g.inside(e.x, e.z) || (e.x == entry.x && e.z == entry.y)) continue;
+            goal[static_cast<size_t>(g.idx(e.x, e.z))] = 1; haveSecond = true;
+        }
+        if (!haveSecond) {   // the far edge's middle half, opposite the edge the entry sits on (nearest edge for an interior one)
+            const int dl = entry.x, dr = W - 1 - entry.x, db = entry.y, dt = D - 1 - entry.y;
+            const int m = std::min({dl, dr, db, dt});
+            if (m == dl)      for (int z = D / 4; z < (3 * D) / 4; ++z) goal[static_cast<size_t>(g.idx(W - 1, z))] = 1;
+            else if (m == dr) for (int z = D / 4; z < (3 * D) / 4; ++z) goal[static_cast<size_t>(g.idx(0, z))] = 1;
+            else if (m == db) for (int x = W / 4; x < (3 * W) / 4; ++x) goal[static_cast<size_t>(g.idx(x, D - 1))] = 1;
+            else              for (int x = W / 4; x < (3 * W) / 4; ++x) goal[static_cast<size_t>(g.idx(x, 0))] = 1;
+        }
+        for (size_t i = 0; i < N; ++i) if (waterMask[i]) goal[i] = 0;   // a goal under water is no goal
+        const std::vector<int> spine = connect(g, g.idx(entry.x, entry.y), goal, in.reuse);
+        if (spine.empty()) { map.refusal = "no dry route for the main street from the entry to the far edge"; return; }
+        const float mainW = static_cast<float>(std::max(1, tier.street.mainWidth));
+        const int cls = (tier.name == "town" || tier.name == "city") ? 3 : 2;
+        registerWay(spine, "primary", mainW, cls);
+        const int mid = spine[spine.size() / 2];
+        marketCx = mid % W; marketCz = mid / W;
+        if (tier.pub.marketW > 0 && tier.pub.marketD > 0 && tier.pub.marketW <= W && tier.pub.marketD <= D) {
+            // the market place on the primary's middle cell (the town's widened street, the city's crossing);
+            // reserved from lots, open to ways
+            MapArea a; a.id = static_cast<int>(map.areas.size()); a.landuse = "market";
+            a.rect = {std::clamp(marketCx - tier.pub.marketW / 2, 0, W - tier.pub.marketW), std::clamp(marketCz - tier.pub.marketD / 2, 0, D - tier.pub.marketD), tier.pub.marketW, tier.pub.marketD};
+            map.areas.push_back(a);
+            for (int z = a.rect.z; z < a.rect.z1(); ++z) for (int x = a.rect.x; x < a.rect.x1(); ++x) reserved[static_cast<size_t>(g.idx(x, z))] = 1;
+        }
+        if (tier.morphology == "semi_organic") {   // the crossroads: a second axis through the middle cell to both side edges
+            const bool alongX = std::abs(spine.back() % W - spine.front() % W) >= std::abs(spine.back() / W - spine.front() / W);
+            for (int side = 0; side < 2; ++side) {
+                std::vector<uint8_t> g2(N, 0);
+                if (alongX) { const int zz = side == 0 ? 0 : D - 1; for (int x = W / 4; x < (3 * W) / 4; ++x) if (!waterMask[static_cast<size_t>(g.idx(x, zz))]) g2[static_cast<size_t>(g.idx(x, zz))] = 1; }
+                else        { const int xx = side == 0 ? 0 : W - 1; for (int z = D / 4; z < (3 * D) / 4; ++z) if (!waterMask[static_cast<size_t>(g.idx(xx, z))]) g2[static_cast<size_t>(g.idx(xx, z))] = 1; }
+                const std::vector<int> axis = connect(g, mid, g2, in.reuse);
+                if (!axis.empty()) registerWay(axis, "primary", mainW, cls);
+            }
+        }
+    }
     // the target count: the program's band, drawn by seed (today's cluster branch ignored the band - max_plots 25)
     const int band = std::max(1, tier.buildingsMax - tier.buildingsMin + 1);
     const int target = std::min(in.lotCap, tier.buildingsMin + static_cast<int>(in.seed % static_cast<unsigned>(band)));
@@ -271,6 +364,7 @@ void planClusterGrowth(const SettlementMapInput& in, const BuildabilityMap& site
     // `sources` entry each (GROUNDED / REASONED, see BellSpec); the defaults there are the shipped hamlet's
     const BellSpec& B = tier.bells;
     const float roadD0 = static_cast<float>(B.roadPreferredU), roadS0 = static_cast<float>(std::max(2, B.roadSpreadU));
+    const float roadFloor = std::clamp(B.roadFloor, 0.0f, 1.0f);
     const float reliefR0 = std::max(1.0f, static_cast<float>(B.reliefHalfU));
     const float waterW0 = static_cast<float>(B.waterPreferredU), waterW1 = static_cast<float>(std::max(1, B.waterSpreadU)), waterFloor = std::clamp(B.waterFloor, 0.0f, 1.0f);
     const float socG0 = static_cast<float>(B.socialGapU), socG1 = static_cast<float>(std::max(2, B.socialSpreadU));
@@ -279,15 +373,29 @@ void planClusterGrowth(const SettlementMapInput& in, const BuildabilityMap& site
         MapLot tmp; tmp.rect = s.rect; tmp.footprint = s.footprint; tmp.orientation = o;
         return lotDoorApproach(tmp);
     };
+    // the city's core ring round the market: its own palette (the shops), and the program's typology caps
+    const bool coreRing = streetTier && tier.coreRing > 0 && !tier.coreTypologyWeights.empty() && marketCx >= 0;
+    std::map<std::string, int> typCounts;
+    auto capped = [&](const std::string& t) { auto it = tier.typologyCaps.find(t); return it != tier.typologyCaps.end() && typCounts[t] >= it->second; };
+    static const int NB4[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
     int seated = 0;
     while (seated < target) {
         bool placed = false;
         const int redraws = static_cast<int>(std::max<size_t>(1, tier.typologyWeights.size()));
         for (int salt = 0; salt < redraws && !placed; ++salt) {
-            const std::string typ = drawTypology(tier.typologyWeights, seated, in.seed, static_cast<unsigned>(salt));
-            const Footprint f = naturalFootprint(in.rooms, typ);
-            const int setb = tier.setback.min + static_cast<int>((in.seed / 7u + static_cast<unsigned>(seated) * 13u) % static_cast<unsigned>(std::max(1, tier.setback.max - tier.setback.min + 1)));
-            const int depth = std::clamp(f.dDim + setb + 1, tier.plot.depthMin, std::max(tier.plot.depthMin, tier.plot.depthMax));
+            struct Draw { std::string typ; Footprint f; int setb = 1, depth = 10; bool ok = false; };
+            Draw dr[2];   // 0 = the tier's palette, 1 = the core ring's (the city)
+            for (int pal = 0; pal < 2; ++pal) {
+                if (pal == 1 && !coreRing) break;
+                const auto& weights = pal == 1 ? tier.coreTypologyWeights : tier.typologyWeights;
+                dr[pal].typ = drawTypology(weights, seated, in.seed, static_cast<unsigned>(salt));
+                if (streetTier && capped(dr[pal].typ)) continue;   // the caps bind counts (CityForgePlan M4) - redraw
+                dr[pal].f = naturalFootprint(in.rooms, dr[pal].typ);
+                dr[pal].setb = tier.setback.min + static_cast<int>((in.seed / 7u + static_cast<unsigned>(seated) * 13u) % static_cast<unsigned>(std::max(1, tier.setback.max - tier.setback.min + 1)));
+                dr[pal].depth = std::clamp(dr[pal].f.dDim + dr[pal].setb + 1, tier.plot.depthMin, std::max(tier.plot.depthMin, tier.plot.depthMax));
+                dr[pal].ok = true;
+            }
+            if (!dr[0].ok && !dr[1].ok) continue;
             chamfer(W, D, netMask, netDist);
             chamfer(W, D, lotMask, lotDist);
             const bool haveNet = std::any_of(netMask.begin(), netMask.end(), [](uint8_t v) { return v != 0; });
@@ -295,25 +403,31 @@ void planClusterGrowth(const SettlementMapInput& in, const BuildabilityMap& site
             std::vector<float> accessDist;
             if (haveNet) accessDist = netDist;
             else if (haveEntry) chamfer(W, D, entryMask, accessDist);
-            // every candidate (x, z, orientation): fully buildable, off every way, clear of seated lots by the
-            // side gap. A summed-area table of the unusable cells makes the rect test O(1); the lot's relief is
-            // the buildability map's window relief at the lot's centre (the window, 6, is half a lot - the rule
+            // every candidate (x, z, orientation): fully buildable, off every way's band and the market, clear of seated
+            // lots by the side gap. A summed-area table of the unusable cells makes the rect test O(1); the lot's relief
+            // is the buildability map's window relief at the lot's centre (the window, 6, is half a lot - the rule
             // selectBuildablePlots sums over; here the centre's max-min).
             std::vector<int> bad(static_cast<size_t>(W + 1) * (D + 1), 0);
             for (int z = 0; z < D; ++z) for (int x = 0; x < W; ++x) {
                 const SiteCell& c = site.at(x, z);
-                const int v = (c.cls == Buildability::TooSteep || c.cls == Buildability::Water || lotMask[static_cast<size_t>(g.idx(x, z))] || netMask[static_cast<size_t>(g.idx(x, z))]) ? 1 : 0;
+                const size_t ci = static_cast<size_t>(g.idx(x, z));
+                const int v = (c.cls == Buildability::TooSteep || c.cls == Buildability::Water || lotMask[ci] || netMask[ci] || reserved[ci]) ? 1 : 0;
                 bad[static_cast<size_t>(z + 1) * (W + 1) + (x + 1)] = v + bad[static_cast<size_t>(z) * (W + 1) + (x + 1)] + bad[static_cast<size_t>(z + 1) * (W + 1) + x] - bad[static_cast<size_t>(z) * (W + 1) + x];
             }
             auto badIn = [&](const Rect& r) {
                 return bad[static_cast<size_t>(r.z1()) * (W + 1) + r.x1()] - bad[static_cast<size_t>(r.z) * (W + 1) + r.x1()] - bad[static_cast<size_t>(r.z1()) * (W + 1) + r.x] + bad[static_cast<size_t>(r.z) * (W + 1) + r.x];
             };
-            struct Cand { int x, z, o; float interest; LotShape shape; };
+            struct Cand { int x, z, o, pal; float interest; LotShape shape; };
             std::vector<Cand> cands;
             for (int o = 0; o < 4; ++o)
                 for (int z = 0; z < D; z += stride)
                     for (int x = 0; x < W; x += stride) {
-                        const LotShape s = lotShape(x, z, o, f, setb, depth);
+                        // the palette is a property of the POSITION: inside the core ring (Chebyshev from the market's
+                        // centre to the candidate's origin cell) the shops' palette, else the tier's
+                        const int pal = (coreRing && std::max(std::abs(x - marketCx), std::abs(z - marketCz)) <= tier.coreRing) ? 1 : 0;
+                        if (!dr[pal].ok) continue;
+                        const Draw& d = dr[pal];
+                        const LotShape s = lotShape(x, z, o, d.f, d.setb, d.depth);
                         if (s.rect.x1() > W || s.rect.z1() > D) continue;
                         if (badIn(s.rect) > 0) continue;
                         bool ok = true;
@@ -323,7 +437,7 @@ void planClusterGrowth(const SettlementMapInput& in, const BuildabilityMap& site
                         const glm::ivec2 door = doorCell(s, o);
                         if (!g.inside(door.x, door.y) || g.blocked[static_cast<size_t>(g.idx(door.x, door.y))]) continue;
                         float interest = 1.0f;
-                        if (!accessDist.empty()) interest *= bell(accessDist[static_cast<size_t>(g.idx(door.x, door.y))], roadD0, roadS0);
+                        if (!accessDist.empty()) interest *= roadFloor + (1.0f - roadFloor) * bell(accessDist[static_cast<size_t>(g.idx(door.x, door.y))], roadD0, roadS0);
                         interest *= bell(static_cast<float>(relief), 0.0f, reliefR0);
                         if (anyWater) {
                             const float wd = waterDist[static_cast<size_t>(g.idx(s.rect.x + s.rect.w / 2, s.rect.z + s.rect.d / 2))];
@@ -331,8 +445,8 @@ void planClusterGrowth(const SettlementMapInput& in, const BuildabilityMap& site
                         }
                         // the distance is measured from the candidate's CENTRE to the nearest seated lot's edge, so the
                         // preferred value is the gap plus half the toft's depth (stated in the bells' sources entry)
-                        if (seated > 0) interest *= bell(lotDist[static_cast<size_t>(g.idx(s.rect.x + s.rect.w / 2, s.rect.z + s.rect.d / 2))], socG0 + static_cast<float>(depth) * 0.5f, socG1);
-                        if (interest > 1e-6f) cands.push_back({x, z, o, interest, s});
+                        if (seated > 0) interest *= bell(lotDist[static_cast<size_t>(g.idx(s.rect.x + s.rect.w / 2, s.rect.z + s.rect.d / 2))], socG0 + static_cast<float>(d.depth) * 0.5f, socG1);
+                        if (interest > 1e-6f) cands.push_back({x, z, o, pal, interest, s});
                     }
             std::stable_sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) {
                 if (a.interest != b.interest) return a.interest > b.interest;
@@ -341,54 +455,53 @@ void planClusterGrowth(const SettlementMapInput& in, const BuildabilityMap& site
                 return a.o < b.o;
             });
             for (const auto& c : cands) {
-                // connect: from the door approach to the nearest way cell / entry (the first lot with no road: the nearest edge)
+                const Draw& d = dr[c.pal];
                 const glm::ivec2 door = doorCell(c.shape, c.o);
-                std::vector<uint8_t> goal = haveNet ? netMask : entryMask;
-                if (!haveNet && !haveEntry) {
-                    // the nearest point of the site's boundary to the door becomes the entry
-                    const int dl = door.x, dr = W - 1 - door.x, db = door.y, dt = D - 1 - door.y;
-                    const int m = std::min({dl, dr, db, dt});
-                    const glm::ivec2 e = (m == dl) ? glm::ivec2(0, door.y) : (m == dr) ? glm::ivec2(W - 1, door.y) : (m == db) ? glm::ivec2(door.x, 0) : glm::ivec2(door.x, D - 1);
-                    entryMask[static_cast<size_t>(g.idx(e.x, e.y))] = 1;
-                    goal = entryMask;
+                const int di = g.idx(door.x, door.y);
+                int wayId = -1;
+                // M5b-1: a door-approach cell ON a way fronts that way on every tier (chain 91: a one-cell path became a
+                // one-node way on the hamlet); on a street tier a door cell BESIDE a way's paved band fronts it too
+                if (haveNet && wayOf[static_cast<size_t>(di)] >= 0) wayId = wayOf[static_cast<size_t>(di)];
+                else if (streetTier && haveNet) {
+                    for (const auto& nb : NB4) {
+                        const int nx = door.x + nb[0], nz = door.y + nb[1];
+                        if (g.inside(nx, nz) && wayOf[static_cast<size_t>(g.idx(nx, nz))] >= 0) { wayId = wayOf[static_cast<size_t>(g.idx(nx, nz))]; break; }
+                    }
                 }
-                Grid gg = g;   // the candidate's own lot blocks nothing yet; its door starts outside the rect
-                std::vector<int> path = connect(gg, g.idx(door.x, door.y), goal, in.reuse);
-                if (path.empty()) continue;
+                std::vector<int> path;
+                if (wayId < 0) {
+                    // connect: from the door approach to the nearest way cell / entry (the first lot with no road: the nearest edge)
+                    std::vector<uint8_t> goal = haveNet ? netMask : entryMask;
+                    if (!haveNet && !haveEntry) {
+                        // the nearest point of the site's boundary to the door becomes the entry
+                        const int dl = door.x, dr2 = W - 1 - door.x, db = door.y, dt = D - 1 - door.y;
+                        const int m = std::min({dl, dr2, db, dt});
+                        const glm::ivec2 e = (m == dl) ? glm::ivec2(0, door.y) : (m == dr2) ? glm::ivec2(W - 1, door.y) : (m == db) ? glm::ivec2(door.x, 0) : glm::ivec2(door.x, D - 1);
+                        entryMask[static_cast<size_t>(g.idx(e.x, e.y))] = 1;
+                        goal = entryMask;
+                    }
+                    Grid gg = g;   // the candidate's own lot blocks nothing yet; its door starts outside the rect
+                    path = connect(gg, di, goal, in.reuse);
+                    if (path.empty()) continue;
+                }
                 // seat the lot
                 MapLot l; l.id = static_cast<int>(map.lots.size()); l.rect = c.shape.rect; l.footprint = c.shape.footprint;
-                l.typology = typ; l.stories = f.stories; l.orientation = c.o; l.setback = setb; l.interest = c.interest;
-                // the way: the path's cells, collinear runs merged, from the door to the network
-                MapWay w; w.id = static_cast<int>(map.ways.size());
-                w.highway = tier.street.laneWidth > 0 ? "lane" : "path";
-                w.width = tier.street.laneWidth > 0 ? static_cast<float>(tier.street.laneWidth)
-                                                    : static_cast<float>(std::max(1, static_cast<int>(std::lround((2.0f * in.agent.halfWidthMicro + 1.0f) / 9.0f))));
-                w.cls = 0;
-                float worst = 0.0f;
-                for (size_t k = 0; k < path.size(); ++k) {
-                    const int cx = path[k] % W, cz = path[k] / W;
-                    if (k > 0) {
-                        const int px = path[k - 1] % W, pz = path[k - 1] / W;
-                        const float stepLen = (cx != px && cz != pz) ? 1.41421356f : 1.0f;
-                        worst = std::max(worst, std::fabs(static_cast<float>(g.h[static_cast<size_t>(path[k])] - g.h[static_cast<size_t>(path[k - 1])])) / stepLen);
-                    }
-                    bool keepNode = (k == 0 || k + 1 == path.size());
-                    if (!keepNode) {
-                        const int px = path[k - 1] % W, pz = path[k - 1] / W, nx = path[k + 1] % W, nz = path[k + 1] / W;
-                        keepNode = (cx - px != nx - cx) || (cz - pz != nz - cz);   // a direction change
-                    }
-                    if (keepNode) w.nodes.push_back(nodeAt(map, nodeIndex, cx, cz, g.h[static_cast<size_t>(path[k])]));
-                    netMask[static_cast<size_t>(path[k])] = 1; g.onNet[static_cast<size_t>(path[k])] = 1;
+                l.typology = d.typ; l.stories = d.f.stories; l.orientation = c.o; l.setback = d.setb; l.interest = c.interest;
+                if (wayId < 0) {
+                    // the way: the path's cells, collinear runs merged, from the door to the network - a lane of the
+                    // program's lane_width where the tier has one, else the agent's path
+                    const bool lane = tier.street.laneWidth > 0;
+                    const float wd = lane ? static_cast<float>(tier.street.laneWidth)
+                                          : static_cast<float>(std::max(1, static_cast<int>(std::lround((2.0f * in.agent.halfWidthMicro + 1.0f) / 9.0f))));
+                    wayId = registerWay(path, lane ? "lane" : "path", wd, lane ? 1 : 0);
                 }
-                w.grade = worst;
-                if (map.entryNode < 0 && entryMask[static_cast<size_t>(path.back())]) map.entryNode = w.nodes.back();
-                l.way = w.id;
-                map.ways.push_back(w);
+                l.way = wayId;
                 map.lots.push_back(l);
                 for (int zz = l.rect.z; zz < l.rect.z1(); ++zz) for (int xx = l.rect.x; xx < l.rect.x1(); ++xx) {
                     lotMask[static_cast<size_t>(g.idx(xx, zz))] = 1;
                     if (!g.onNet[static_cast<size_t>(g.idx(xx, zz))]) g.blocked[static_cast<size_t>(g.idx(xx, zz))] = 1;   // the toft is fenced; a way already there stays
                 }
+                ++typCounts[d.typ];
                 ++seated; placed = true;
                 break;
             }
@@ -418,9 +531,16 @@ SettlementMap planSettlementMapAsBuilt(const SettlementMapInput& in) {
     map.era = in.era; map.seed = in.seed; map.originX = in.originX; map.originY = in.originY; map.originZ = in.originZ;
     map.W = in.W; map.D = in.D;
     if (!in.tier || in.W <= 0 || in.D <= 0 || !in.heightAt) { map.refusal = "no tier preset or site"; return map; }
-    map.tier = in.tier->name; map.morphology = "cluster (as built)";
     const BuildabilityMap site = analyzeSite(in.W, in.D, in.maxRelief, in.heightAt, in.waterAt ? in.waterAt : std::function<bool(int, int)>(), 1, 6);
-    planClusterAsBuilt(in, site, map);
+    map.tier = in.tier->name;
+    if (in.tier->morphology == "cluster") { map.morphology = "cluster (as built)"; planClusterAsBuilt(in, site, map); }
+    else {
+        // M5b-1: the street tiers AS BUILT (the main-street scenario's axis chooser + row layout) stay as
+        // the CONTROL of CityAxesFollowTerrain once the planner routes the street tiers' ways
+        map.morphology = in.tier->morphology + " (as built)";
+        std::map<std::pair<int, int>, int> nodeIndex;
+        planStreetTiers(in, site, map, nodeIndex);
+    }
     return map;
 }
 
@@ -450,12 +570,13 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
     const SettlementMapInput& in2 = cached;
     const int window = std::max(1, 6);
     const BuildabilityMap site = analyzeSite(in2.W, in2.D, in2.maxRelief, in2.heightAt, in2.waterAt, 1, window);
+    map.buildableFraction = static_cast<float>(site.buildableFraction());
     std::map<std::pair<int, int>, int> nodeIndex;
     if (in.tier->morphology == "cluster") {
-        if (kClusterGrowth) planClusterGrowth(in2, site, map, nodeIndex);
+        if (kClusterGrowth) planGrowth(in2, site, map, nodeIndex, false);
         else planClusterAsBuilt(in2, site, map);
     } else {
-        planStreetTiers(in2, site, map, nodeIndex);
+        planGrowth(in2, site, map, nodeIndex, true);   // M5b-1: the street tiers grown from the map (planStreetTiers = the as-built control)
     }
     if (static_cast<int>(map.lots.size()) > in.lotCap) {
         // the M5 stress cap: the per-lot connection's search budget is sized for 400 lots per site
@@ -533,22 +654,51 @@ SettlementPaths pathsForMapWays(const std::vector<std::vector<glm::ivec2>>& wayC
 MapProjection projectMap(const SettlementMap& map) {
     MapProjection p;
     for (const auto& l : map.lots) { Plot pl; pl.rect = l.rect; p.layout.plots.push_back(pl); }
+    // M5b-1: the ways are POLYLINES paved by the ribbon paver; the axis-aligned rect of a 2-node way stays for
+    // the legacy consumers (the as-built control's streets), every other way that reaches the site edge adds an
+    // EDGE rect of its width there (the wall's gates read layout.streets: planTownWall cuts a gate where a street
+    // leaves the site), and the primary's bounding box is msl.mainStreet (the response's main_street)
     for (const auto& w : map.ways) {
-        if (w.nodes.size() != 2 || w.width <= 0.0f) continue;
-        const MapNode* a = map.node(w.nodes[0]); const MapNode* b = map.node(w.nodes[1]);
-        if (!a || !b) continue;
-        if (a->z == b->z) {   // along X
-            const int x0 = std::min(a->x, b->x), x1 = std::max(a->x, b->x) + 1;
-            const int wd = static_cast<int>(std::lround(w.width));
-            const Rect r{x0, a->z - wd / 2, x1 - x0, wd};
-            p.layout.streets.push_back(r);
-            if (w.highway == "primary") { p.msl.mainStreet = r; p.mainStreet = true; }
-        } else if (a->x == b->x) {
-            const int z0 = std::min(a->z, b->z), z1 = std::max(a->z, b->z) + 1;
-            const int wd = static_cast<int>(std::lround(w.width));
-            const Rect r{a->x - wd / 2, z0, wd, z1 - z0};
-            p.layout.streets.push_back(r);
-            if (w.highway == "primary") { p.msl.mainStreet = r; p.mainStreet = true; }
+        if (w.nodes.size() < 2 || w.width <= 0.0f) continue;
+        const int wd = std::max(1, static_cast<int>(std::lround(w.width)));
+        bool rectEmitted = false;
+        if (w.nodes.size() == 2) {
+            const MapNode* a = map.node(w.nodes[0]); const MapNode* b = map.node(w.nodes[1]);
+            if (a && b && a->z == b->z) {   // along X
+                const int x0 = std::min(a->x, b->x), x1 = std::max(a->x, b->x) + 1;
+                p.layout.streets.push_back(Rect{x0, a->z - wd / 2, x1 - x0, wd}); rectEmitted = true;
+            } else if (a && b && a->x == b->x) {
+                const int z0 = std::min(a->z, b->z), z1 = std::max(a->z, b->z) + 1;
+                p.layout.streets.push_back(Rect{a->x - wd / 2, z0, wd, z1 - z0}); rectEmitted = true;
+            }
+        }
+        int minx = INT_MAX, minz = INT_MAX, maxx = INT_MIN, maxz = INT_MIN;
+        for (int nid : w.nodes) if (const MapNode* n = map.node(nid)) { minx = std::min(minx, n->x); maxx = std::max(maxx, n->x); minz = std::min(minz, n->z); maxz = std::max(maxz, n->z); }
+        if (minx > maxx) continue;
+        if (w.highway == "primary" && !p.mainStreet) {
+            p.msl.mainStreet = Rect{minx - wd / 2, minz - wd / 2, maxx - minx + wd, maxz - minz + wd};
+            p.mainStreet = true; p.primaryWay = w.id;
+            const MapNode* mid = map.node(w.nodes[w.nodes.size() / 2]);
+            if (mid) {   // the well's verge: the first cell beside the band at the middle node that is inside no lot
+                const int r = wd / 2;
+                const glm::ivec2 tries[4] = {{mid->x, mid->z - r - 1}, {mid->x, mid->z + r + 1}, {mid->x - r - 1, mid->z}, {mid->x + r + 1, mid->z}};
+                for (const auto& t : tries) {
+                    if (t.x < 0 || t.y < 0 || t.x >= map.W || t.y >= map.D) continue;
+                    bool inLot = false;
+                    for (const auto& l : map.lots) if (t.x >= l.rect.x && t.x < l.rect.x1() && t.y >= l.rect.z && t.y < l.rect.z1()) { inLot = true; break; }
+                    if (!inLot) { p.wellCell = t; p.hasWell = true; break; }
+                }
+            }
+        }
+        if (!rectEmitted) {
+            const MapNode* ends[2] = {map.node(w.nodes.front()), map.node(w.nodes.back())};
+            for (const MapNode* n : ends) {
+                if (!n) continue;
+                if (n->x <= 0)             p.layout.streets.push_back(Rect{0, n->z - wd / 2, wd + 1, wd});
+                else if (n->x >= map.W - 1) p.layout.streets.push_back(Rect{map.W - wd - 1, n->z - wd / 2, wd + 1, wd});
+                else if (n->z <= 0)        p.layout.streets.push_back(Rect{n->x - wd / 2, 0, wd, wd + 1});
+                else if (n->z >= map.D - 1) p.layout.streets.push_back(Rect{n->x - wd / 2, map.D - wd - 1, wd, wd + 1});
+            }
         }
     }
     for (const auto& a : map.areas) if (a.landuse == "market") { p.msl.marketSquare = a.rect; p.msl.hasSquare = true; }

@@ -1,0 +1,36 @@
+PREDICTIONS for chain 89 (mode m5b2: SettlementMapTest.* : StreetPaverTest.* : RoomProgramTest.* : StructureLocationsTest.* :
+SettlementBuildServiceTest.* : WorldForgePlanTest.* : WorldForgeStressTest.VersionOnePlanHashesArePinned : CityLayoutTest.* :
+MainStreetLayoutTest.* : SettlementLayoutTest.* : WorldForgeBuildFlowTest.* : SettlementProgramTest.* : WorldForgeRecipeTest.* :
+SettlementWalkabilityTest.*), the M5b-1 GREEN run: the one natural-footprint function, the way-ribbon paver, the street tiers
+grown from a routed primary way, the derived site rects (D43 (b)) with the civ city mapped (D45). Written BEFORE the launch.
+  PM5b1.7 EveryTypologysNaturalFootprintPassesTheForge GREEN: the manor_hall 20 x 13 (1.54); 13 checked, 0 refused.
+  PM5b1.8 the ribbon: WayRibbonCoversTheCentrelineToItsWidth GREEN - ok, > 40 cells due, 0 not wholly paved, 0 columns
+    beyond 3.5 cubes, 0 step breaks; ProbeWalksTheWayRibbonAcrossADiagonal GREEN - the paved walk WALKABLE across the
+    ridge's cut and the diagonal leg, the bare terrain BLOCKED (the 18-micro ridge).
+  PM5b1.9 WaysStayOutOfWater GREEN on all four tiers (0 wet segments): the primary and the lanes route on the cost grid
+    with water blocked and the far-edge goal band [D/4, 3D/4) lies north of the hill rig's creek (z 2..3).
+  PM5b1.10 CityAxesFollowTerrain: the planner's primary steepest step <= 1 on the village, town and city; the controls
+    4 on the town and city, 0 on the village (reported). GREEN.
+  PM5b1.11 SiteRectsSeatTheBand GREEN: the hamlet's literal 40 x 32 report unchanged (10 of 20, smallest 48 x 40), the
+    DERIVED 56 x 44 >= 48 x 40 and seats every seed's target (20 of 20). The street tiers under the GROWTH: UNCERTAIN
+    whether the literal presets seat the minimum on every flat seed (the rows seated 8 / 20 / 43; the growth packs by
+    the bells, the frontage on a primary + lanes) - a shortfall is a measurement, recorded, and the derived preset
+    for that tier is re-derived from the search in the next chain.
+  PM5b1.12 MapInvariantsHoldOnEveryTier GREEN on the grown street tiers (0 overlaps: the rects avoid the lot and band
+    masks; 0 ways through a footprint: the primary is routed before any lot and lanes route round blocked lots;
+    every lot's door on its way: fronting lots within half the band + 1.5 of the polyline, lane lots at the lane's
+    first node). UNCERTAIN: a fronting lot whose door cell is DIAGONALLY beside the band connects by a 2-cell lane
+    (NB4 only) - still on its way.
+  PM5b1.13 DerivedSiteRectsSeatTheMinimumOnTheHill: every tier at its derived rect on the hill seats >= its minimum
+    with 0 wet segments, 3 seeds each. UNCERTAIN on the city 160 x 160 (48 lots x the growth's cost: the bake in
+    Debug ~2-5 s per seed) and on the town's minimum 15 on the hillside.
+  PM5b1.14 the M5a pins unchanged: EveryLotTouchesAWay, WaysAvoidTheSteepBand, DoorsReachTheEntryOnTheMapStandIn,
+    MapIsIdenticalFromPlanTwice (hamlet + town), MapIsOrderIndependentOfItsSamplers, BakeTime - GREEN; the hamlet's
+    map byte-identical to M5a's (the cluster branch unchanged: no fronting, no floor).
+  PM5b1.15 StructureLocationsTest GREEN with the manor_hall at 20 x 13 through naturalFootprintOf (13 of 13 build);
+    CityLayoutTest / MainStreetLayoutTest / SettlementLayoutTest GREEN - UNCERTAIN: a pinned city building count
+    could move with the manor_hall's short side 17 -> 13 (one lot's frontage); recorded if so.
+  PM5b1.16 WorldForgeStressTest.VersionOnePlanHashesArePinned GREEN (derivedSiteRects is false on the version-1 path);
+    WorldForgePlanTest / BuildFlow / Recipe / Program / BuildService / Walkability GREEN. UNCERTAIN: a civ-enabled plan
+    compared across two bakes stays equal (determinism), but any test pinning a civ-enabled plan's site tier or rect
+    (hamlet 40 x 32 -> 56 x 44, city -> "city") moves - recorded and re-pinned with the reason.

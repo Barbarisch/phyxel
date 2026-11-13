@@ -56,9 +56,11 @@ struct SettlementMapInput {
 /// Bake the map. Never throws; a refused site carries `refusal` and whatever was planned before it.
 SettlementMap planSettlementMap(const SettlementMapInput& in);
 
-/// The cluster tier AS BUILT before M5a (selectBuildablePlots on the flattest 12 x 12 windows, the
-/// natural footprint centred, facing +Z, NO ways - today's paths are an MST of the realized doors,
-/// planned after the build): the CONTROL SettlementMapTest measures the growth planner against.
+/// The tiers AS BUILT before the growth - the cluster tier before M5a (selectBuildablePlots on the flattest
+/// 12 x 12 windows, the natural footprint centred, facing +Z, NO ways - the paths were an MST of the realized
+/// doors, planned after the build) and, since M5b-1, the street tiers' main-street scenario (chooseStreetAxis +
+/// planMainStreetLayout / planCityLayout emitted as the map): the CONTROLS SettlementMapTest measures the
+/// growth planner against (EveryLotTouchesAWay, CityAxesFollowTerrain).
 SettlementMap planSettlementMapAsBuilt(const SettlementMapInput& in);
 
 /// L3 on the MAP before any voxel: the lots' footprints stand as solid blocks on flat ground
@@ -75,6 +77,9 @@ struct MapProjection {
     SettlementLayout layout;
     MainStreetLayout msl;
     bool mainStreet = false;   ///< true when the map carries a primary way (the street tiers)
+    int primaryWay = -1;       ///< M5b-1: the primary way's id (msl.mainStreet is its bounding box)
+    glm::ivec2 wellCell{0, 0}; ///< M5b-1: the village well's cell - the primary's middle node's verge (settlement-local)
+    bool hasWell = false;
 };
 MapProjection projectMap(const SettlementMap& map);
 

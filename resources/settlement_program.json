@@ -39,7 +39,7 @@
             "typology_weights": "peasant-dominated mix: crofts + longhouses are the excavated dwelling stock at Wharram Percy (Beresford & Hurst); a lone hall_house = the yeoman holding. Ratio REASONED, not counted from a specific site plan",
             "plot.depth": "toft (house-yard) depths 'tens of metres', scale-compressed to the settlement footprint — DESIGN DECISION disclosed; burgage/toft depth cite: Tait, PSAS 138 (2009) via room_program.json shop entries",
             "street.material": "unpaved rural tracks — paving in rural hamlets is unattested; Dirt is the honest surface (REASONED)",
-            "bells.road_access": "REASONED, derived from this program's values: preferred_u = setback.max (the front yard's depth, read as the door-approach cell's preferred distance to its way - a different quantity, the lot edge to the way, which the growth makes 0 by construction), spread_u = plot.depth_max; the FORM (a bell per factor, multiplied) is Emilien et al. 2012 'Procedural generation of villages' (interest maps). NEEDS-RESEARCH per tier (D40)",
+            "bells.road_access": "REASONED, derived from this program's values: preferred_u = setback.max (the front yard's depth, read as the door-approach cell's preferred distance to its way - a different quantity, the lot edge to the way, which the growth makes 0 by construction), spread_u = plot.depth_max; the FORM (a bell per factor, multiplied) is Emilien et al. 2012 'Procedural generation of villages' (interest maps). NEEDS-RESEARCH per tier (D40); floor 0 (M5b-1): the hamlet's bell has no floor - a croft off every path connects by a path of its own (the cluster growth as measured in M5a)",
             "bells.slope": "REASONED: relief_half_u = half the buildable relief cap (analyzeSite max_relief 6) - Flat (<= 1) preferred, SlopeOk tolerated; the cap itself is the shipped terrain-mode rule",
             "bells.water": "REASONED: near, not in - the same bell idea as the WorldForge site score's water term; 16 u = a toft's depth beyond the creek bank; floor 0.3 so a dry site still seats its crofts. NEEDS-RESEARCH per tier (D40: a grounding pass as its own task)",
             "bells.sociability": "REASONED: gap_u = plot.side_gap + 2 (a handful of dwellings a gap apart - the cluster morphology's own description), spread_u = plot.depth_max; the distance is measured from the candidate's CENTRE to the nearest seated lot's edge, so the code's preferred value is gap_u + half the toft's depth. NEEDS-RESEARCH per tier (D40)"
@@ -47,7 +47,8 @@
           "bells": {
             "road_access": {
               "preferred_u": 3,
-              "spread_u": 14
+              "spread_u": 14,
+              "floor": 0.0
             },
             "slope": {
               "relief_half_u": 3
@@ -109,7 +110,30 @@
             "plot.frontage": "from_typology = burgage principle: plot width set by the building's frame width; frontage grounding rides on room_program.json width_max cites (Tait, PSAS 138 (2009): burgage frontages c. 5-17 m, modal 8 m)",
             "plot.depth": "tofts extend back from the street row into crofts (Wharram Percy plan); 12-20 m is scale-compressed — DESIGN DECISION disclosed",
             "typology_weights": "one tavern + one smith per small village is the classic service minimum (Medievalists.net inn record via room_program tavern entry; smith ubiquity REASONED); dwelling mix as hamlet. Weights REASONED, not censused",
-            "public.well": "shared village water source (well/spring) — common-provision REASONED; asset + placement land in Phase 3/4"
+            "public.well": "shared village water source (well/spring) — common-provision REASONED; asset + placement land in Phase 3/4",
+            "bells.road_access": "REASONED (M5b-1, the forms Emilien et al. 2012 'Procedural generation of villages', interest maps): a street tier's lot FRONTS its way - preferred_u 1 = the door-approach cell adjacent to the way's paved band (chamfer distance 1), spread_u 3 so a lot four cells off the frontage scores ~0.3; floor 0.05 keeps a lot off every way a candidate once the frontage is full, and the growth then connects it by a lane of lane_width (the organic infill: Schofield & Vince, Medieval Towns - axes + accretion). NEEDS-RESEARCH per tier (D40)",
+            "bells.slope": "REASONED: as the hamlet's - relief_half_u = half the buildable relief cap (analyzeSite max_relief 6)",
+            "bells.water": "REASONED: as the hamlet's - near, not in; 16 u = a toft's depth beyond the bank; floor 0.3. NEEDS-RESEARCH per tier (D40)",
+            "bells.sociability": "REASONED: gap_u = plot.side_gap + 2 (3), spread_u = plot.depth_max (20); measured from the candidate's CENTRE to the nearest seated lot's edge, so the code's preferred value is gap_u + half the toft's depth. NEEDS-RESEARCH per tier (D40)"
+          },
+          "bells": {
+            "road_access": {
+              "preferred_u": 1,
+              "spread_u": 3,
+              "floor": 0.05
+            },
+            "slope": {
+              "relief_half_u": 3
+            },
+            "water": {
+              "preferred_u": 16,
+              "spread_u": 16,
+              "floor": 0.3
+            },
+            "sociability": {
+              "gap_u": 3,
+              "spread_u": 20
+            }
           }
         },
         "town": {
@@ -167,7 +191,30 @@
             "setback": "urban row-houses build to the street frontage line (setback 0-1): burgage frontage occupation, Tait 2009",
             "buildings": "REASONED band; smallest boroughs were a few dozen burgages (Beresford, New Towns of the Middle Ages — NEEDS-RESEARCH for a specific count)",
             "public.market_square": "12x12 REASONED placeholder — Phase 4 grounds the square dims before building it",
-            "typology_weights": "full shop set appears at market-town tier (market function = the town's raison d'être); ratios REASONED"
+            "typology_weights": "full shop set appears at market-town tier (market function = the town's raison d'être); ratios REASONED",
+            "bells.road_access": "REASONED (M5b-1, the forms Emilien et al. 2012 'Procedural generation of villages', interest maps): a street tier's lot FRONTS its way - preferred_u 1 = the door-approach cell adjacent to the way's paved band (chamfer distance 1), spread_u 3 so a lot four cells off the frontage scores ~0.3; floor 0.05 keeps a lot off every way a candidate once the frontage is full, and the growth then connects it by a lane of lane_width (the organic infill: Schofield & Vince, Medieval Towns - axes + accretion). NEEDS-RESEARCH per tier (D40)",
+            "bells.slope": "REASONED: as the hamlet's - relief_half_u = half the buildable relief cap (analyzeSite max_relief 6)",
+            "bells.water": "REASONED: as the hamlet's - near, not in; 16 u = a toft's depth beyond the bank; floor 0.3. NEEDS-RESEARCH per tier (D40)",
+            "bells.sociability": "REASONED: gap_u = plot.side_gap + 2 (2), spread_u = plot.depth_max (24); measured from the candidate's CENTRE to the nearest seated lot's edge, so the code's preferred value is gap_u + half the toft's depth. NEEDS-RESEARCH per tier (D40)"
+          },
+          "bells": {
+            "road_access": {
+              "preferred_u": 1,
+              "spread_u": 3,
+              "floor": 0.05
+            },
+            "slope": {
+              "relief_half_u": 3
+            },
+            "water": {
+              "preferred_u": 16,
+              "spread_u": 16,
+              "floor": 0.3
+            },
+            "sociability": {
+              "gap_u": 2,
+              "spread_u": 24
+            }
           }
         },
         "city": {
@@ -271,7 +318,30 @@
             "core_typology_weights.town_hall": "the moot hall stands ON the market place — the civic building fronts the town's public space (Schofield & Vince; the surviving market houses at Thaxted/Ledbury sit in the market street). Capped at 1: a town has ONE seat of government. Core-ring membership is how the engine expresses market adjacency today; a RESERVED civic plot on the square is the better form and is logged as owed",
             "typology_caps": "REASONED service-count bound: a quarter of ~30-65 buildings supports a FEW of each trade, not 16 smithies (the measured density-1.5 glut, CityForgePlan). Weighted draws redraw past a capped typology; caps bind COUNTS, weights still set flavour",
             "core_ring": "REASONED ~24 m 'market frontage' radius — the first plot rows around the square; no measured source",
-            "typology_weights": "dwelling-heavy fringe mix + a manor_hall (urban magnate house); ratios REASONED"
+            "typology_weights": "dwelling-heavy fringe mix + a manor_hall (urban magnate house); ratios REASONED",
+            "bells.road_access": "REASONED (M5b-1, the forms Emilien et al. 2012 'Procedural generation of villages', interest maps): a street tier's lot FRONTS its way - preferred_u 1 = the door-approach cell adjacent to the way's paved band (chamfer distance 1), spread_u 3 so a lot four cells off the frontage scores ~0.3; floor 0.05 keeps a lot off every way a candidate once the frontage is full, and the growth then connects it by a lane of lane_width (the organic infill: Schofield & Vince, Medieval Towns - axes + accretion). NEEDS-RESEARCH per tier (D40)",
+            "bells.slope": "REASONED: as the hamlet's - relief_half_u = half the buildable relief cap (analyzeSite max_relief 6)",
+            "bells.water": "REASONED: as the hamlet's - near, not in; 16 u = a toft's depth beyond the bank; floor 0.3. NEEDS-RESEARCH per tier (D40)",
+            "bells.sociability": "REASONED: gap_u = plot.side_gap + 2 (2), spread_u = plot.depth_max (18); measured from the candidate's CENTRE to the nearest seated lot's edge, so the code's preferred value is gap_u + half the toft's depth. NEEDS-RESEARCH per tier (D40)"
+          },
+          "bells": {
+            "road_access": {
+              "preferred_u": 1,
+              "spread_u": 3,
+              "floor": 0.05
+            },
+            "slope": {
+              "relief_half_u": 3
+            },
+            "water": {
+              "preferred_u": 16,
+              "spread_u": 16,
+              "floor": 0.3
+            },
+            "sociability": {
+              "gap_u": 2,
+              "spread_u": 18
+            }
           }
         }
       }

@@ -1,0 +1,9 @@
+PREDICTIONS for chain 117 (mode m5b6), written BEFORE the launch. The tree: the doorsteps unit reads a paved approach
+cell's level as its paving (centre column, else the highest) and clears above it.
+  PM5b1.92 the set GREEN (42 of 42) - no unit test reads the unit.
+PREDICTIONS for chain 118 (mode m5b3vt = the town arm alone), the same tree:
+  PM5b1.93 the blacksmith @13538 and apothecary @13553 read "1378p" at their door (the paving kept) and their routes
+    PASS (a riser of 2 into the doorway).
+  PM5b1.94 the TOWN gate PASSES: 72 walkable, 0 blocked, 0 skipped over 72 routes, 24 doors of 24 built. UNCERTAIN: a
+    door whose paved cell the clearing had hollowed elsewhere now keeps a surface the stoop reads differently - a new
+    red is read as found.

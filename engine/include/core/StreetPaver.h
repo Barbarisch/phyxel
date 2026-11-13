@@ -23,6 +23,7 @@
 
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -69,6 +70,22 @@ PavingPlan planStreetPaving(const std::vector<Rect>& streets, glm::ivec2 originC
                             const std::function<int(int, int)>& groundMicroAt,
                             const AgentBox& box, const std::string& material);
 
+/// M5b-1 (the M5b design check of 2026-11-06, item 3a): ONE paver for every map way. A way is a
+/// polyline of settlement cells (world cubes here) with a paved width; each consecutive pair is
+/// graded along its centreline (planTerrainPath, the slope-limited lower envelope) and the surface
+/// is broadcast LEVEL across the width perpendicular to travel (±width/2, the hamlet's agent-wide
+/// ribbon generalized to the tier's street width). Diagonal legs are paved as a ribbon round the
+/// rasterized centre line, never as an axis-aligned rect. First writer wins at junctions.
+/// Deterministic. StreetPaverTest: coverage to the width, no column beyond it, step-up across
+/// adjacent columns, a TraversalProbe walk end to end across a diagonal leg.
+struct WayRibbon {
+    std::vector<glm::ivec2> cells;   ///< the way's node cells in order (world cubes; >= 2)
+    int widthCubes = 1;              ///< the paved width (cubes; the program's street / lane width)
+};
+PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
+                         const std::function<int(int, int)>& groundMicroAt,
+                         const AgentBox& box, const std::string& material);
+
 /// M0 (docs/WorldForgeV2Plan.md §5 M0, "site prep reordered"): door spurs ONLY, planned AFTER
 /// the buildings exist so each spur runs from the REALIZED door (the recorded front-door
 /// marker), never from a footprint midpoint, and a refused lot gets no spur at all.
@@ -82,6 +99,44 @@ PavingPlan planDoorSpurs(const std::vector<DoorAnchor>& doors,
                          const std::vector<glm::ivec4>& streetColumns,       // (x, startRow, z, surface) micro
                          const std::function<int(int, int)>& groundMicroAt,
                          const AgentBox& box, const std::string& material);
+
+/// The DOORSTEPS (the realizer's "doorsteps" unit, M5b-1 chain 98): a stoop of steps from a door's threshold down
+/// to the ground outside it, one cell per step along the door's outward normal. `groundFeet[k]` is the standing
+/// level the ground offers in the (k + 1)-th cell outside the door (INT_MIN = no ground found); returns, per cell,
+/// the standing level the step fill must raise that cell to (INT_MIN = no fill). Every riser between consecutive
+/// standing levels, the threshold included, must be <= `stepUpMicro`. Deterministic; pure.
+std::vector<int> planDoorstepFills(int thresholdFeet, const std::vector<int>& groundFeet, int stepUpMicro);
+
+/// M5b-1 (chains 101 / 105, DESIGN DECISION): a lot that fronts a graded way is BUILT AT THE WAY'S LEVEL at its door -
+/// the SMALLEST pad cube whose threshold (pad top + `thresholdAbovePadMicro`) stands at or above the way's standing
+/// level `wayFeetMicro` less one micro (T - W in [-1, 7]): a walker outside a door whose head room is the carve's
+/// 18 micro cannot stand HIGHER than the threshold + 1 (the lintel), so the way is never above the threshold by more
+/// than one; the descent from the threshold to the way (<= 7) is the doorsteps' (planDoorstepLevels). The ways are
+/// graded (a causeway over a dip, a cutting through a rise) while the natural ground under the lot is not.
+int padCubeForStreet(int wayFeetMicro, int thresholdAbovePadMicro, int stepUpMicro);
+
+/// The DOORSTEPS as LEVELS (chain 105): the standing level each approach cell outside the door must take so the walk
+/// from the threshold `thresholdFeet` reaches the first PAVED cell (the way, an anchor that is never touched) with
+/// every riser <= `stepUpMicro` and no cell above the previous level (the lintel). `groundFeet[i]` is the (i + 1)-th
+/// cell's standing level as found (INT_MIN = no ground), `paved[i]` whether it is a paved column. Returns per cell the
+/// target standing level (INT_MIN = leave as found): below the ground it is a CUT, above it a FILL. Without a paved
+/// cell in reach the descent rule of planDoorstepFills stands (fills only). If the unpaved cells cannot bring the
+/// descent within a step of the way, the way's EDGE cell takes one sill (the one exception that touches paving).
+std::vector<int> planDoorstepLevels(int thresholdFeet, const std::vector<int>& groundFeet, const std::vector<bool>& paved,
+                                    int stepUpMicro);
+
+/// The late STREET SWEEP's selection (M0 row "street sweep protects cells owned by placed objects", register O9): of
+/// the road band's cube cells, the ones the sweep clears. Never a cell inside a building's footprint (x, z, w, d in
+/// cubes, any height - chain 103: a setback-0 doorway cube), never a cell inside a placed object's cube AABB
+/// (inclusive min / max - the well on the way's verge and the yard props are placed BEFORE the sweep and are voxels
+/// in the same chunks). The sweep exists for construction debris; debris lying inside an object's box is kept with it.
+struct SweepPlan {
+    std::vector<glm::ivec3> cells;
+    int keptForBuildings = 0;
+    int keptForObjects = 0;
+};
+SweepPlan planStreetSweep(const std::vector<glm::ivec3>& band, const std::vector<glm::ivec4>& footprints,
+                          const std::vector<std::pair<glm::ivec3, glm::ivec3>>& objectBoxes);
 
 }  // namespace Core
 }  // namespace Phyxel

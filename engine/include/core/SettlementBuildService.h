@@ -188,6 +188,9 @@ public:
     };
     static DoorApproach doorApproach(const glm::ivec3& marker, const glm::ivec4& foot,
                                      const std::function<bool(int, int)>& seats);
+    /// M5b-1: the approach of a RECORDED door (the forge's LocationMarker::doorWall / doorNormal) - no
+    /// inference from the marker's side, no seat scan; `found` is true.
+    static DoorApproach doorApproachAt(const glm::ivec2& doorWall, const glm::ivec2& normal);
 
     /// M0 ("canopy margin"): the parcel-clearing margin in cubes = the widest crown half-width
     /// among the trees the site's biome can grow (template half-footprints), never below

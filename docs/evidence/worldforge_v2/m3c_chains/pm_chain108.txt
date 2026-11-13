@@ -1,0 +1,11 @@
+PREDICTIONS for chain 108 (mode m5b6), written BEFORE the launch. The tree: the spur anchors at the threshold; the
+doorsteps' anchors are the ways' paving snapshot; the levels rule cuts above / fills below with or without an anchor; the
+pad offset 12 (logged per door as threshold - pad*9).
+  PM5b1.77 the set GREEN (42 of 42): the levels test's new no-anchor bump case 1398 / 1398 / none; the pad test's values
+    883 -> 97, 892 -> 98, 1363 -> 150, 1396 -> 154.
+PREDICTIONS for chain 109 (the arms), the same tree:
+  PM5b1.78 every door's "[threshold - pad*9 = N]" reads 12 on the requested pads (the relation the pad rule assumes).
+  PM5b1.79 the VILLAGE gate PASSES, 34 over 11, 0 skipped: the cutting lots' setback cells cut to 883 ("stooped with
+    cuts"), the crofts' approaches filled to the line, the spurs mostly "too steep" (their grade cap) and harmless.
+  PM5b1.80 the TOWN street -> door routes PASS; the hall_house @13477's door -> solar UNCERTAIN (read; a forge finding
+    if it stands). The set's count read from the run.

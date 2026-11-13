@@ -1,0 +1,4 @@
+PREDICTIONS for chain 111 (mode m5b6): chain 110's PM5b1.81 unchanged (the set GREEN, 42 of 42) - the one edit since is
+the predicted-door block's position in the realizer (after the front hint); no test reads it.
+PREDICTIONS for chain 112 (mode m5b3vt = the town arm alone): chain 110's PM5b1.82-83 unchanged (hall_house @13517 PASSES;
+the tavern @13573 and the hall_house @13477 door -> solar stay RED as recorded forge findings; 68 / 2 of 70).

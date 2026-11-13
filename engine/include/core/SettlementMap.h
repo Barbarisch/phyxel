@@ -71,6 +71,7 @@ struct SettlementMap {
     float bakeMs = 0.0f;       ///< the planner's wall time (diagnostic, never hashed)
     std::string refusal;       ///< non-empty = the planner refused the site, with the reason
     int droppedLots = 0;       ///< lots dropped for unbuildable ground (surfaced, like droppedPlots)
+    float buildableFraction = -1.0f;   ///< the site analysis' buildable fraction (diagnostic; -1 = not analysed) - a refusal reports HOW unbuildable the site was
     int targetLots = 0;        ///< the count the growth aimed at (the program's band by seed); seated < target is silent above the minimum
 
     bool ok() const { return refusal.empty(); }

@@ -16,6 +16,7 @@ nlohmann::json SettlementMap::toJson() const {
     j["refusal"] = refusal;
     j["dropped_lots"] = droppedLots;
     j["target_lots"] = targetLots;
+    j["buildable_fraction"] = buildableFraction;
     nlohmann::json ns = nlohmann::json::array();
     for (const auto& n : nodes) ns.push_back({{"id", n.id}, {"x", n.x}, {"z", n.z}, {"y", n.y}});
     j["nodes"] = ns;
@@ -51,6 +52,7 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
     m.refusal = j.value("refusal", std::string());
     m.droppedLots = j.value("dropped_lots", 0);
     m.targetLots = j.value("target_lots", 0);
+    m.buildableFraction = j.value("buildable_fraction", -1.0f);
     if (j.contains("nodes") && j["nodes"].is_array())
         for (const auto& n : j["nodes"]) m.nodes.push_back({n.value("id", 0), n.value("x", 0), n.value("z", 0), n.value("y", 0)});
     if (j.contains("ways") && j["ways"].is_array())

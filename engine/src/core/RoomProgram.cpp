@@ -1,6 +1,9 @@
 #include "core/RoomProgram.h"
 
 #include <algorithm>
+#include <cmath>
+
+#include <algorithm>
 #include <cctype>
 #include <fstream>
 
@@ -103,6 +106,21 @@ RoomProgram RoomProgramRegistry::parse(const std::string& name, const nlohmann::
             if (it.value().is_string()) p.sources[it.key()] = it.value().get<std::string>();
 
     return p;
+}
+
+NaturalFootprint naturalFootprintOf(const RoomProgram& rp) {
+    NaturalFootprint f;
+    f.longU = std::max(1, static_cast<int>(std::lround(rp.bays * rp.bayLength)));
+    // the short side: width_max, kept inside the forge's own proportion bound (length / proportion_min)
+    // and never under width_min - chain 88 (M5b-1 red): width_max alone gave the manor_hall 20 x 17 and
+    // the forge refused it as too square (1.18 < 1.50); 20 x 13 passes (1.54)
+    f.shortU = std::max(1, static_cast<int>(std::lround(rp.widthMax > 0 ? rp.widthMax : rp.widthMin)));
+    if (rp.proportionMin > 0.0) {
+        const int widest = static_cast<int>(std::floor(static_cast<double>(f.longU) / rp.proportionMin + 1e-9));
+        f.shortU = std::min(f.shortU, std::max(1, widest));
+    }
+    if (rp.widthMin > 0.0) f.shortU = std::max(f.shortU, static_cast<int>(std::lround(rp.widthMin)));
+    return f;
 }
 
 bool RoomProgramRegistry::loadFromJson(const nlohmann::json& j) {

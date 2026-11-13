@@ -1,0 +1,15 @@
+PREDICTIONS for chain 104 (mode m5b6 = StreetPaverTest, StructureLocationsTest, SpawnGateTest), written BEFORE the launch.
+The tree: the forge honours "pad_y" (the settlement's street-level seat sets it); the street sweep keeps out of every
+building footprint cube; the spur paver keeps out of the whole footprint rect; the gate's start falls back to the cells in
+front of the door when the marker's column seats nothing. No unit test moves by design (the rules are the realizer's and
+the forge's - their red is chain 103's arms); the spur change touches the spur tests' footprint masking.
+  PM5b1.69 the set GREEN, 41 of 41 as chain 102: the spur tests' doors sit outside their footprints (the mask grew by the
+    wall ring, which no test's spur path crosses). UNCERTAIN only there: a spur test whose path hugged a wall reads red.
+PREDICTIONS for chain 105 (mode m5b3v = the arms), the same tree:
+  PM5b1.70 every "prepare_pad" line reads "(requested)" on the street-tier lots and its y equals the "seat:" pad.
+  PM5b1.71 the VILLAGE gate PASSES (34 routes over 11 doors, 0 skipped): the thresholds within a step of their ways,
+    the stoops the rest.
+  PM5b1.72 the TOWN gate PASSES: the pit lots' doorway floors equal their thresholds (the sweep kept their cubes), the
+    one-way drops gone, the skipped hall_house measured from the cells in front of its door. UNCERTAIN: lots seated a
+    cube or two off their natural ground change the gate's door -> room routes (the rooms move with the pad) - predicted
+    unchanged in verdict; a new red is recorded as found.

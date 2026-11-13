@@ -1,0 +1,22 @@
+PREDICTIONS for chain 88 (mode m5b1: SettlementMapTest.* : StreetPaverTest.* : RoomProgramTest.*), the M5b-1 RED run on
+the tree at the rulings of 2026-11-06 (D43 (b), D44 (a), D45 as recommended) with three declarations carrying TODAY's
+rules (naturalFootprintOf = width_max for the short side; planWayPaving a stub returning ok = false; the street tiers'
+as-built map as planSettlementMapAsBuilt's control). Written BEFORE the launch, hashed by the START line.
+  PM5b1.1 RoomProgramTest.EveryTypologysNaturalFootprintPassesTheForge RED on exactly ONE typology: the manor_hall
+    (20 x 17, ratio 1.18 below its min 1.50); the other twelve pass (no proportion_min set -> the bound 1.0; every
+    natural long side >= its short side). 13 checked, 1 refused.
+  PM5b1.2 StreetPaverTest.WayRibbonCoversTheCentrelineToItsWidth RED: ok 0, 0 columns, cells due > 60, every due
+    cell missing (cellsMissing == cellsDue), 0 beyond, 0 step breaks.
+  PM5b1.3 StreetPaverTest.ProbeWalksTheWayRibbonAcrossADiagonal RED at the ASSERT on plan.ok (no walk measured).
+  PM5b1.4 SettlementMapTest.CityAxesFollowTerrain RED on all three street tiers: the control and the planner are
+    the same as-built spine, both with a steepest step of 4 on the primary way (the spine along X from the west
+    entry crosses a bench). UNCERTAIN: chooseStreetAxis may pick the Z axis or an offset row that clears one
+    bench - the two-bench rig is built so no east-west row clears both; a Z-axis spine (north-south at some x)
+    could clear both if x avoids 18..21 and 44..47 - then the control reads 0 and the rig is corrected (recorded).
+  PM5b1.5 SettlementMapTest.SiteRectsSeatTheBand RED on the hamlet: 40 x 32 on the flat seats the target on fewer
+    than 20 of 20 seeds (the seeds whose target is 6, seed % 4 == 3: 3, 7, 11, 15, 19, and possibly some with 5);
+    the search finds a rect under 80 x 64. The street tiers (as-built rows, no target: the minimum is the bar)
+    pass at their presets - village >= 6, town >= 15, city 160 x 120 >= 20. UNCERTAIN on the city's minimum.
+  PM5b1.6 the rest of SettlementMapTest unchanged from chain 84: WaysStayOutOfWater red (town 2, city 3 segments),
+    every other pin green; StreetPaverTest's nine existing tests green; RoomProgramTest's two green.
+  Totals: 3 files' tests - expected 5 red (the four above + the water pin), the rest green.

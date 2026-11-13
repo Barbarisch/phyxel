@@ -1,0 +1,278 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = StreetPaverTest.*:StructureLocationsTest.*:SpawnGateTest.*
+[==========] Running 42 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 17 tests from SpawnGateTest
+[ RUN      ] SpawnGateTest.ACharacterRequestedInsideAThinWallIsNotSpawnedThere
+[       OK ] SpawnGateTest.ACharacterRequestedInsideAThinWallIsNotSpawnedThere (0 ms)
+[ RUN      ] SpawnGateTest.ACubeGranularCheckIsBlindToTheThinWallThatTrapsCharacters
+[       OK ] SpawnGateTest.ACubeGranularCheckIsBlindToTheThinWallThatTrapsCharacters (0 ms)
+[ RUN      ] SpawnGateTest.AClearSpawnIsLeftExactlyWhereItWasAsked
+[       OK ] SpawnGateTest.AClearSpawnIsLeftExactlyWhereItWasAsked (0 ms)
+[ RUN      ] SpawnGateTest.StandingFlushAgainstAWallIsNotEmbedded
+[       OK ] SpawnGateTest.StandingFlushAgainstAWallIsNotEmbedded (0 ms)
+[ RUN      ] SpawnGateTest.FullyEncasedSpawnIsRefusedNotSilentlyAccepted
+[       OK ] SpawnGateTest.FullyEncasedSpawnIsRefusedNotSilentlyAccepted (0 ms)
+[ RUN      ] SpawnGateTest.TheSameBuriedSpawnResolvesWhenTheSearchReachesOpenAir
+[       OK ] SpawnGateTest.TheSameBuriedSpawnResolvesWhenTheSearchReachesOpenAir (0 ms)
+[ RUN      ] SpawnGateTest.EscapingAThinWallIsAShortStepNotALeapThroughIt
+[       OK ] SpawnGateTest.EscapingAThinWallIsAShortStepNotALeapThroughIt (0 ms)
+[ RUN      ] SpawnGateTest.WithoutASolidityQueryTheGateStandsDownInsteadOfRefusing
+[       OK ] SpawnGateTest.WithoutASolidityQueryTheGateStandsDownInsteadOfRefusing (0 ms)
+[ RUN      ] SpawnGateTest.ClimbEscapesAPocketWhereTheFeetAreClearButTheBodyIsNot
+[       OK ] SpawnGateTest.ClimbEscapesAPocketWhereTheFeetAreClearButTheBodyIsNot (0 ms)
+[ RUN      ] SpawnGateTest.ClimbingAnUnresolvableColumnStaysWithinAQueryBudget
+[       OK ] SpawnGateTest.ClimbingAnUnresolvableColumnStaysWithinAQueryBudget (0 ms)
+[ RUN      ] SpawnGateTest.TheQueryCounterActuallyRegistersWork
+[       OK ] SpawnGateTest.TheQueryCounterActuallyRegistersWork (0 ms)
+[ RUN      ] SpawnGateTest.AClearSpawnDoesNotClimb
+[       OK ] SpawnGateTest.AClearSpawnDoesNotClimb (0 ms)
+[ RUN      ] SpawnGateTest.TheDefaultHumanoidBoxDeclaresAGapClearThatAWideBodyCannotFit
+[       OK ] SpawnGateTest.TheDefaultHumanoidBoxDeclaresAGapClearThatAWideBodyCannotFit (0 ms)
+[ RUN      ] SpawnGateTest.TheClimbHonoursTheSuppliedBodySize
+[       OK ] SpawnGateTest.TheClimbHonoursTheSuppliedBodySize (0 ms)
+[ RUN      ] SpawnGateTest.VerifyPlacedBodyAnswersDifferentlyForDifferentBodies
+[       OK ] SpawnGateTest.VerifyPlacedBodyAnswersDifferentlyForDifferentBodies (0 ms)
+[ RUN      ] SpawnGateTest.VerifyPlacedBodyLeavesAWellPlacedCharacterExactlyWhereItIs
+[       OK ] SpawnGateTest.VerifyPlacedBodyLeavesAWellPlacedCharacterExactlyWhereItIs (0 ms)
+[ RUN      ] SpawnGateTest.VerifyPlacedBodyWithoutAWorldMakesNoClaim
+[       OK ] SpawnGateTest.VerifyPlacedBodyWithoutAWorldMakesNoClaim (0 ms)
+[----------] 17 tests from SpawnGateTest (4 ms total)
+
+[----------] 14 tests from StreetPaverTest
+[ RUN      ] StreetPaverTest.PlanCoversEveryStreetColumnIncludingCuts
+[       OK ] StreetPaverTest.PlanCoversEveryStreetColumnIncludingCuts (10 ms)
+[ RUN      ] StreetPaverTest.AdjacentPavedColumnsStayWithinStepUp
+[       OK ] StreetPaverTest.AdjacentPavedColumnsStayWithinStepUp (13 ms)
+[ RUN      ] StreetPaverTest.BuildingInteriorIsNeverPaved
+[       OK ] StreetPaverTest.BuildingInteriorIsNeverPaved (7 ms)
+[ RUN      ] StreetPaverTest.DoorSpurReachesTheStreetAtItsSurface
+[       OK ] StreetPaverTest.DoorSpurReachesTheStreetAtItsSurface (11 ms)
+[ RUN      ] StreetPaverTest.ProbeWalksThePavedStreetEndToEnd
+[       OK ] StreetPaverTest.ProbeWalksThePavedStreetEndToEnd (917 ms)
+[ RUN      ] StreetPaverTest.DoorOnTheStreetEdgeCountsAsConnected
+[       OK ] StreetPaverTest.DoorOnTheStreetEdgeCountsAsConnected (6 ms)
+[ RUN      ] StreetPaverTest.EmptyStreetsReturnNotOk
+[       OK ] StreetPaverTest.EmptyStreetsReturnNotOk (0 ms)
+[ RUN      ] StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers
+[       OK ] StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers (7 ms)
+[ RUN      ] StreetPaverTest.DoorSpursMeetTheStampedStreetAndNeverRepaveIt
+[       OK ] StreetPaverTest.DoorSpursMeetTheStampedStreetAndNeverRepaveIt (16 ms)
+[ RUN      ] StreetPaverTest.WayRibbonCoversTheCentrelineToItsWidth
+[ M5b ] way ribbon: ok 1, 10175 columns; 79 cells due, 0 not wholly paved; 0 columns beyond the width; 0 step breaks
+[       OK ] StreetPaverTest.WayRibbonCoversTheCentrelineToItsWidth (53 ms)
+[ RUN      ] StreetPaverTest.ProbeWalksTheWayRibbonAcrossADiagonal
+[ M5b ] way ribbon walk: paved WALKABLE, bare terrain (the control) blocked
+[       OK ] StreetPaverTest.ProbeWalksTheWayRibbonAcrossADiagonal (3155 ms)
+[ RUN      ] StreetPaverTest.DoorstepsStoopTheWholeDescentToTheStreet
+[       OK ] StreetPaverTest.DoorstepsStoopTheWholeDescentToTheStreet (0 ms)
+[ RUN      ] StreetPaverTest.PadCubeForStreetPutsTheThresholdAtOrAboveTheWay
+[       OK ] StreetPaverTest.PadCubeForStreetPutsTheThresholdAtOrAboveTheWay (0 ms)
+[ RUN      ] StreetPaverTest.DoorstepLevelsCutAndFillTheApproachToTheWay
+[       OK ] StreetPaverTest.DoorstepLevelsCutAndFillTheApproachToTheWay (0 ms)
+[----------] 14 tests from StreetPaverTest (4199 ms total)
+
+[----------] 11 tests from StructureLocationsTest
+[ RUN      ] StructureLocationsTest.TavernEmitsTavernMarkerOutsideDoor
+[32m[16:27:18.934] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.TavernEmitsTavernMarkerOutsideDoor (237 ms)
+[ RUN      ] StructureLocationsTest.TypologyMapsToLocationType
+[32m[16:27:19.171] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.TypologyMapsToLocationType (183 ms)
+[ RUN      ] StructureLocationsTest.PrefersFrontWallDoor
+[32m[16:27:19.355] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.PrefersFrontWallDoor (376 ms)
+[ RUN      ] StructureLocationsTest.DoorlessShellFallsBackToCentre
+[       OK ] StructureLocationsTest.DoorlessShellFallsBackToCentre (39 ms)
+[ RUN      ] StructureLocationsTest.SnapToStandableFixesDeadAnchor
+[       OK ] StructureLocationsTest.SnapToStandableFixesDeadAnchor (0 ms)
+[ RUN      ] StructureLocationsTest.SnapToStandableKeepsTheMarkerInItsColumnAcrossAOneCubeStep
+[       OK ] StructureLocationsTest.SnapToStandableKeepsTheMarkerInItsColumnAcrossAOneCubeStep (0 ms)
+[ RUN      ] StructureLocationsTest.SnapToStandableFollowsTheDoorNormalBeforeTurningACorner
+[       OK ] StructureLocationsTest.SnapToStandableFollowsTheDoorNormalBeforeTurningACorner (0 ms)
+[ RUN      ] StructureLocationsTest.DerivedLocationRecordsTheDoorItAnchored
+[32m[16:27:19.772] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.DerivedLocationRecordsTheDoorItAnchored (121 ms)
+[ RUN      ] StructureLocationsTest.DeterministicAndOriginRelative
+[32m[16:27:19.893] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] StructureLocationsTest.DeterministicAndOriginRelative (61 ms)
+[ RUN      ] StructureLocationsTest.BuildReportsItsLocationsWithOrWithoutARegistry
+[32m[16:27:20.040] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:20.042] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:20.042] [INFO] [StructureBuild] floorplan: typology 'croft' 8x6 front '' shape '' seed 2494828605 exterior doors: (4,0 w1 h2)[0m
+[32m[16:27:20.042] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[16:27:20.044] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:27:20.044] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[16:27:20.144] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:27:20.204] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:27:20.360] [INFO] [StructureBuild] front door marker 'croft' at world (6, 0) = local (4, -2) of 8x6 at (2, 2) front ''[0m
+[32m[16:27:21.022] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=5 realize=100 pad=53 excav=169 place+register=649 (place=648 grass=0 nav=0) fixtures=0 TOTAL=985[0m
+[32m[16:27:21.145] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:21.147] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:21.147] [INFO] [StructureBuild] floorplan: typology 'croft' 8x6 front '' shape '' seed 2494828605 exterior doors: (4,0 w1 h2)[0m
+[32m[16:27:21.147] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[16:27:21.149] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:27:21.149] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[16:27:21.249] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:27:21.308] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:27:21.472] [INFO] [StructureBuild] front door marker 'croft' at world (6, 0) = local (4, -2) of 8x6 at (2, 2) front ''[0m
+[32m[16:27:22.139] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=4 realize=99 pad=54 excav=177 place+register=653 (place=652 grass=0 nav=0) fixtures=0 TOTAL=996[0m
+[       OK ] StructureLocationsTest.BuildReportsItsLocationsWithOrWithoutARegistry (2215 ms)
+[ RUN      ] StructureLocationsTest.EveryShippedTypologyReportsOneLocation
+[32m[16:27:22.170] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:22.261] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:22.263] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:22.263] [INFO] [StructureBuild] floorplan: typology 'apothecary' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:27:22.264] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology apothecary][0m
+[32m[16:27:22.266] [INFO] [StructureBuild] program validation: OK [typology apothecary][0m
+[32m[16:27:22.539] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:27:22.705] [INFO] [StructureBuild] front door marker 'apothecary' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:27:23.440] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=121 realize=96 pad=55 excav=178 place+register=721 (place=721 grass=0 nav=0) fixtures=0 TOTAL=1180[0m
+[ locations ] apothecary      8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:27:23.560] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:23.561] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:23.562] [INFO] [StructureBuild] floorplan: typology 'bakery' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:27:23.562] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology bakery][0m
+[32m[16:27:23.564] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:27:23.564] [INFO] [StructureBuild] program validation: OK [typology bakery][0m
+[32m[16:27:23.669] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:27:23.825] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:27:23.995] [INFO] [StructureBuild] front door marker 'bakery' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:27:24.799] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=99 realize=105 pad=55 excav=185 place+register=788 (place=788 grass=0 nav=0) fixtures=0 TOTAL=1241[0m
+[ locations ] bakery          8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:27:24.918] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:24.920] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:24.920] [INFO] [StructureBuild] floorplan: typology 'blacksmith' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:27:24.920] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology blacksmith][0m
+[32m[16:27:24.922] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:27:24.922] [INFO] [StructureBuild] program validation: OK [typology blacksmith][0m
+[32m[16:27:25.026] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:27:25.200] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:27:25.368] [INFO] [StructureBuild] front door marker 'blacksmith' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:27:26.139] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=118 realize=104 pad=55 excav=182 place+register=756 (place=755 grass=0 nav=0) fixtures=0 TOTAL=1224[0m
+[ locations ] blacksmith      8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:27:26.248] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:26.249] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:26.250] [INFO] [StructureBuild] floorplan: typology 'butcher' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:27:26.250] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology butcher][0m
+[32m[16:27:26.252] [INFO] [StructureBuild] program validation: OK [typology butcher][0m
+[32m[16:27:26.498] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:27:26.652] [INFO] [StructureBuild] front door marker 'butcher' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:27:27.326] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=107 realize=87 pad=51 excav=166 place+register=661 (place=660 grass=0 nav=0) fixtures=0 TOTAL=1080[0m
+[ locations ] butcher         8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:27:27.433] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:27.434] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:27.435] [INFO] [StructureBuild] floorplan: typology 'croft' 8x6 front '' shape '' seed 2494828605 exterior doors: (4,0 w1 h2)[0m
+[32m[16:27:27.435] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[16:27:27.436] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:27:27.436] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[16:27:27.527] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:27:27.580] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:27:27.731] [INFO] [StructureBuild] front door marker 'croft' at world (6, 0) = local (4, -2) of 8x6 at (2, 2) front ''[0m
+[32m[16:27:28.465] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=2 realize=90 pad=51 excav=162 place+register=722 (place=721 grass=0 nav=0) fixtures=0 TOTAL=1035[0m
+[ locations ] croft           8 x  6: 1 location(s) (Home), floor top micro 147
+[32m[16:27:28.585] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:28.587] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:28.587] [INFO] [StructureBuild] floorplan: typology 'general_store' 8x6 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:27:28.587] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology general_store][0m
+[32m[16:27:28.589] [INFO] [StructureBuild] program validation: OK [typology general_store][0m
+[32m[16:27:28.860] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 48, fill 48)[0m
+[32m[16:27:29.004] [INFO] [StructureBuild] front door marker 'general_store' at world (0, 5) = local (-2, 3) of 8x6 at (2, 2) front ''[0m
+[32m[16:27:29.666] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=121 realize=98 pad=50 excav=156 place+register=649 (place=649 grass=0 nav=0) fixtures=0 TOTAL=1083[0m
+[ locations ] general_store   8 x  6: 1 location(s) (Work), floor top micro 147
+[32m[16:27:29.776] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:29.777] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:29.777] [INFO] [StructureBuild] floorplan: typology 'hall_house' 16x8 front '' shape '' seed 2494828605 exterior doors: (4,0 w1 h2) (4,8 w1 h2)[0m
+[32m[16:27:29.777] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology hall_house][0m
+[32m[16:27:29.779] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:27:29.779] [INFO] [StructureBuild] program validation: OK [typology hall_house][0m
+[32m[16:27:30.050] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 53 -> cap 59 (micro)[0m
+[32m[16:27:31.059] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 128, fill 128)[0m
+[32m[16:27:31.539] [INFO] [StructureBuild] front door marker 'hall_house' at world (6, 0) = local (4, -2) of 16x8 at (2, 2) front ''[0m
+[32m[16:27:31.578] [INFO] [StructureGenerator] Placing 43201 voxels in 2 steps[0m
+[32m[16:27:33.354] [INFO] [StructureGenerator]   step 1: 25000/43201 (25000 placed, 0 failed)[0m
+[32m[16:27:36.256] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=870 realize=270 pad=139 excav=517 place+register=4679 (place=4677 grass=0 nav=0) fixtures=0 TOTAL=6483[0m
+[ locations ] hall_house     16 x  8: 1 location(s) (Home), floor top micro 147
+[32m[16:27:36.429] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:36.431] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:36.431] [INFO] [StructureBuild] floorplan: typology 'longhouse' 16x6 front '' shape '' seed 2494828605 exterior doors: (8,0 w1 h2) (8,6 w1 h2)[0m
+[32m[16:27:36.431] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology longhouse][0m
+[33m[16:27:36.433] [WARN] [StructureBuild] place_hearths: hearth 'fireplace' in 'hall' displaced 1 window(s) on its wall[0m
+[32m[16:27:36.433] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:27:36.433] [INFO] [StructureBuild] program validation: OK [typology longhouse][0m
+[32m[16:27:36.640] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 47 -> cap 53 (micro)[0m
+[32m[16:27:37.279] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 96, fill 96)[0m
+[32m[16:27:37.624] [INFO] [StructureBuild] front door marker 'longhouse' at world (10, 0) = local (8, -2) of 16x6 at (2, 2) front ''[0m
+[32m[16:27:37.652] [INFO] [StructureGenerator] Placing 29310 voxels in 2 steps[0m
+[32m[16:27:39.464] [INFO] [StructureGenerator]   step 1: 25000/29310 (25000 placed, 0 failed)[0m
+[32m[16:27:40.113] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=531 realize=206 pad=108 excav=371 place+register=2462 (place=2461 grass=0 nav=0) fixtures=0 TOTAL=3687[0m
+[ locations ] longhouse      16 x  6: 1 location(s) (Home), floor top micro 147
+[32m[16:27:40.260] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:27:40.261] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:27:40.261] [INFO] [StructureBuild] floorplan: typology 'manor_hall' 20x13 front '' shape '' seed 2494828605 exterior doors: (0,6 w1 h2)[0m
+[32m[16:27:40.261] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 2 rooms total [typology manor_hall][0m
+[32m[16:27:40.265] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:27:40.265] [INFO] [StructureBuild] program validation: OK [typology manor_hall][0m
+[32m[16:27:40.801] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 68 -> cap 74 (micro)[0m
+[32m[16:27:41.390] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 260, fill 260)[0m
+[32m[16:27:42.298] [INFO] [StructureBuild] front door marker 'manor_hall' at world (0, 8) = local (-2, 6) of 20x13 at (2, 2) front ''[0m
+[32m[16:27:42.371] [INFO] [StructureGenerator] Placing 85193 voxels in 4 steps[0m
+[32m[16:27:44.466] [INFO] [StructureGenerator]   step 1: 25000/85193 (25000 placed, 0 failed)[0m
+[32m[16:27:49.069] [INFO] [StructureGenerator]   step 2: 50000/85193 (50000 placed, 0 failed)[0m
+[32m[16:27:56.271] [INFO] [StructureGenerator]   step 3: 75000/85193 (75000 placed, 0 failed)[0m
+[32m[16:28:00.421] [INFO] [StructureBuild] [perf] phases ms: setup=10 overlap=332 realize=535 pad=257 excav=977 place+register=18052 (place=18049 grass=0 nav=0) fixtures=0 TOTAL=20163[0m
+[ locations ] manor_hall     20 x 13: 1 location(s) (Home), floor top micro 147
+[32m[16:28:00.659] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:28:00.660] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:28:00.660] [INFO] [StructureBuild] floorplan: typology 'tavern' 16x7 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:28:00.660] [INFO] [StructureBuild] generate_room_layout: auto-filled 2 story(ies) -> 7 rooms total [typology tavern][0m
+[32m[16:28:00.663] [INFO] [StructureBuild] place_hearths: sited 2 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:28:00.663] [INFO] [StructureBuild] program validation: OK [typology tavern][0m
+[32m[16:28:00.942] [INFO] [StructureRealizer] place_chimney: 2 stack(s) painted into the shell, apex 80 -> cap 86 (micro)[0m
+[32m[16:28:04.893] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 112, fill 112)[0m
+[32m[16:28:05.469] [INFO] [StructureBuild] front door marker 'tavern' at world (0, 5) = local (-2, 3) of 16x7 at (2, 2) front ''[0m
+[32m[16:28:05.521] [INFO] [StructureGenerator] Placing 53289 voxels in 3 steps[0m
+[32m[16:28:07.451] [INFO] [StructureGenerator]   step 1: 25000/53289 (25000 placed, 0 failed)[0m
+[32m[16:28:11.939] [INFO] [StructureGenerator]   step 2: 50000/53289 (50000 placed, 0 failed)[0m
+[32m[16:28:12.925] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=3834 realize=278 pad=116 excav=626 place+register=7405 (place=7403 grass=0 nav=0) fixtures=0 TOTAL=12268[0m
+[ locations ] tavern         16 x  7: 1 location(s) (Tavern), floor top micro 147
+[32m[16:28:13.110] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:28:13.112] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:28:13.113] [INFO] [StructureBuild] floorplan: typology 'tenement' 8x5 front '' shape '' seed 2494828605 exterior doors: (0,2 w1 h2)[0m
+[32m[16:28:13.113] [INFO] [StructureBuild] generate_room_layout: auto-filled 2 story(ies) -> 4 rooms total [typology tenement][0m
+[32m[16:28:13.115] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:28:13.115] [INFO] [StructureBuild] program validation: OK [typology tenement][0m
+[32m[16:28:13.226] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 74 -> cap 80 (micro)[0m
+[32m[16:28:14.135] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 40, fill 40)[0m
+[32m[16:28:14.349] [INFO] [StructureBuild] front door marker 'tenement' at world (0, 4) = local (-2, 2) of 8x5 at (2, 2) front ''[0m
+[32m[16:28:15.453] [INFO] [StructureBuild] [perf] phases ms: setup=10 overlap=862 realize=111 pad=46 excav=232 place+register=1085 (place=1084 grass=0 nav=0) fixtures=0 TOTAL=2346[0m
+[ locations ] tenement        8 x  5: 1 location(s) (Home), floor top micro 147
+[32m[16:28:15.593] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:28:15.595] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:28:15.595] [INFO] [StructureBuild] floorplan: typology 'tower_house' 8x8 front '' shape '' seed 2494828605 exterior doors: (0,4 w1 h2)[0m
+[32m[16:28:15.595] [INFO] [StructureBuild] generate_room_layout: auto-filled 3 story(ies) -> 3 rooms total [typology tower_house][0m
+[32m[16:28:15.599] [INFO] [StructureBuild] program validation: OK [typology tower_house][0m
+[32m[16:28:17.253] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 64, fill 64)[0m
+[32m[16:28:17.646] [INFO] [StructureBuild] front door marker 'tower_house' at world (0, 6) = local (-2, 4) of 8x8 at (2, 2) front ''[0m
+[32m[16:28:17.673] [INFO] [StructureGenerator] Placing 27392 voxels in 2 steps[0m
+[32m[16:28:20.160] [INFO] [StructureGenerator]   step 1: 25000/27392 (25000 placed, 0 failed)[0m
+[32m[16:28:20.749] [INFO] [StructureBuild] [perf] phases ms: setup=12 overlap=1350 realize=235 pad=67 excav=419 place+register=3076 (place=3075 grass=0 nav=0) fixtures=0 TOTAL=5159[0m
+[ locations ] tower_house     8 x  8: 1 location(s) (Custom), floor top micro 147
+[32m[16:28:20.909] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:28:20.911] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:28:20.911] [INFO] [StructureBuild] floorplan: typology 'town_hall' 16x7 front '' shape '' seed 2494828605 exterior doors: (0,3 w1 h2)[0m
+[32m[16:28:20.911] [INFO] [StructureBuild] generate_room_layout: auto-filled 2 story(ies) -> 7 rooms total [typology town_hall][0m
+[32m[16:28:20.913] [INFO] [StructureBuild] program validation: OK [typology town_hall][0m
+[32m[16:28:25.485] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (median of the terrain tops) (cut 112, fill 112)[0m
+[32m[16:28:26.103] [INFO] [StructureBuild] front door marker 'town_hall' at world (0, 5) = local (-2, 3) of 16x7 at (2, 2) front ''[0m
+[32m[16:28:26.154] [INFO] [StructureGenerator] Placing 49832 voxels in 2 steps[0m
+[32m[16:28:28.320] [INFO] [StructureGenerator]   step 1: 25000/49832 (25000 placed, 0 failed)[0m
+[32m[16:28:33.174] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=4167 realize=274 pad=129 excav=666 place+register=7021 (place=7019 grass=0 nav=0) fixtures=0 TOTAL=12265[0m
+[ locations ] town_hall      16 x  7: 1 location(s) (Work), floor top micro 147
+[       OK ] StructureLocationsTest.EveryShippedTypologyReportsOneLocation (71093 ms)
+[----------] 11 tests from StructureLocationsTest (74329 ms total)
+
+[----------] Global test environment tear-down
+[==========] 42 tests from 3 test suites ran. (78534 ms total)
+[  PASSED  ] 42 tests.
+EXIT 0 2026-11-10 16:28:33

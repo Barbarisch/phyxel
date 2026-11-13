@@ -1,0 +1,11 @@
+PREDICTIONS for chain 120 (mode m5b2 - the map, paver, program, locations, build-service, layout, plan, hash, flow, recipe
+and walkability sets; the FINAL-TREE run after the chain-93 gate fix), written BEFORE the launch. The tree since chain 92:
+the forge's door record + the snap's in-column step + the settlement's recorded-door approach (chains 95-96 green), the
+forge's two INFO lines, WaysStayOutOfWater's STATUS header removed (a comment; the test body unchanged since chain 89).
+  PM5b1.50 the whole set GREEN, 150 of 150 as chain 92 plus THREE added (DoorstepsStoopTheWholeDescentToTheStreet, PadCubeForStreetPutsTheThresholdAtOrAboveTheWay and DoorstepLevelsCutAndFillTheApproachToTheWay in StreetPaverTest; the others live in
+    StructureLocationsTest and SettlementMapLiveSiteTest, outside this set) = 153: the planner, the paver and the hash pins never read a location marker.
+  PM5b1.51 VersionOnePlanHashesArePinned GREEN (9693137997320541182 / 18197215997962677593): no plan input moved.
+  PM5b1.52 SettlementBuildServiceTest GREEN as in chain 96 (22 of 22; its dressing-order pin reads unit labels only).
+PREDICTIONS for chain 121 (mode m5b4 - the broad set named in pm_chain94.txt): as pm_chain94.txt PM5b1.35-38, GREEN; the
+  count read from the run.
+  AMENDED 2026-11-09 before the launch: mode m5b2 DOES include StructureLocationsTest, which gained three tests since chain 92 (the in-column snap, the door record, the snap along the normal) - the count predicted is 156, not 153; the tree also carries chains 99-117's fixes (the stoop as levels, the street-level seat, the footprint guards), none read by this set.

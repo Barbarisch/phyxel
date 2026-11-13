@@ -1,0 +1,36 @@
+PREDICTIONS for chain 132 (m5b_stp_chain 132, filter SettlementTerrainPlanTest.*) and chains 133-136 (the final-tree
+set again: m5b2, m5b6, m5b3v, m5b4). Written 2026-11-10 after chain 126 (133 ok, 9 failed) and BEFORE patch 18 is built.
+
+THE RED (chain 126, already on record, this tree): 8 of SettlementTerrainPlanTest's 10 fail. Two causes, read from the
+messages: (1) the tests ask for a VILLAGE on a 48 x 28 site; since M5b-1 the village is grown from the map to the
+program's band (min 6) and that site seats 5 on flat ground -> "no buildable, connectable lot for the tier's minimum
+(5 of 6 seated)" (the M5a scenario laid rows there and never checked the minimum). (2) the map branch's refusal lost
+the legacy refusal's "buildable_fraction" (how unbuildable the site was) - a contract the test names.
+PM5b1.38 (chain 126) therefore MISSED. The ninth failure, EarthworkTest.HairpinBankHasNoCliffStepWithItsControl
+(15 cliff steps), is the standing M4 red recorded in m5a_red_green.txt:351 - PM5b1.37 named the earthwork set green
+and did not except it: MISSED as written.
+
+PATCH 18: (a) code - SettlementMap.buildableFraction (the site analysis' fraction, diagnostic, in the map JSON), the
+map branch's refusal echoes buildable_fraction + seated_lots + target_lots, the program echo carries target_lots;
+(b) the test rig - the village sites go 48 x 28 -> 96 x 28 on a 3-chunk world (a RIG change after a run, stated: the
+tier now has a minimum the old rig cannot seat; terrain functions unchanged); (c) two assertions restated for growth,
+AFTER the run, stated: PartlyBuildable's "dropped_plots > 0" becomes "no lot rect reaches the ramp (z > 16), fewer lots
+than the flat control at the same seed, target_lots echoed" (growth does not drop lots, it does not seat them);
+Creek's "dropped_plots > 0" is removed (growth seats the lot elsewhere) - the no-building-over-the-band assertion and
+its control stay.
+
+  PM5b1.109 (chain 132): 10 ok, 0 failed. Sub-predictions, each UNCERTAIN where said:
+    a. flat 96 x 28: the village seats >= 6 (5 on 48 x 28; twice the frontage). Expect 8-11 lots.
+    b. sawtooth: refused, buildable_fraction present and < 0.5.
+    c. half ramp (flat 96 x 16): UNCERTAIN - I expect a refusal below 6 (3 seated on 48 x 16) with buildable_fraction
+       0.5-0.65, i.e. the test passes through its refusal branch and the new lot assertions do NOT execute. If it
+       plans, the lot assertions run. Which branch ran is read from the run and recorded.
+    d. seeds 3 and 9 on the 1-step checkerboard differ (non-null both).
+    e. canopy (generator sampler, real Perlin ground under a 96 x 28 rect at the origin): UNCERTAIN - 3 of 6 seated on
+       48 x 28; if it is refused again the test's tier is the question and that is decided after, stated.
+    f. creek: the dry control plans; the wet plan has no building across the band.
+  PM5b1.110 (133 m5b2): 157 ok, 0 failed (the map JSON gains one field; the round-trip test compares through
+    fromJson/toJson, so it stays green). (134 m5b6): 42 ok, 0 failed.
+  PM5b1.111 (135 m5b3v): village 34 / 0 over 11 doors, town 72 / 0 over 24 doors, 0 lot failures - identical to chain
+    131 (the patch changes no geometry).
+  PM5b1.112 (136 m5b4): 141 ok, 1 failed - the hairpin pin alone.

@@ -302,6 +302,16 @@ public:
         int width, depth;
     };
     static TierPreset tierPreset(const std::string& tier);
+    /// M5b-1 (D43 (b), ruled 2026-11-06): the site rects DERIVED from the program for civ-seeded box plans
+    /// (WorldForgeParams::derivedSiteRects, set by the generator on the civ path, never serialized - the
+    /// version-1 plans keep the literal presets above and their pinned hashes). hamlet 56 x 44: the smallest
+    /// 5:4 rect that seats the band's maximum on every flat seed measured 48 x 40 (chain 88,
+    /// SettlementMapTest.SiteRectsSeatTheBand) x 1.25 in area for the slope and water dropouts (REASONED,
+    /// re-measured by the same test on the hill rig); village 104 x 64 (chain 89: the L4-tested 80 x 48 seated the
+    /// grown band's target on 4 of 6 flat seeds, the smallest 92 x 56, x 1.25 area); town 140 x 60 the L4-tested
+    /// size (the same test measures it against the grown map); city 160 x 160 = the program's reference_site
+    /// (MEASURED, CityForgePlan M4). Every tier of the civ ladder has a rect here ("outpost" = the hamlet's).
+    static TierPreset tierPresetDerived(const std::string& tier);
 
     /// The canonical settlement seed for a site position (closes the "settlement seed is
     /// caller-supplied" gap): pure hash of (worldSeed, world position), the same derivation

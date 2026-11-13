@@ -1,0 +1,39 @@
+PREDICTIONS for chains 138-145 - the response to the solution-auditor's FAIL of 2026-11-10 (verdict in the ledger).
+Written BEFORE patch 20 is applied or built. Chain 134 was STOPPED BY ME at 119 ok (8 minutes in) so the audit's
+findings could go into ONE tree; chains 135-137 never started. PM5b1.110-112 are neither met nor missed and are
+restated here against the real chain numbers (the auditor's numbering finding: pm_chain134.txt never existed).
+
+PATCH 20: (engine) the leftover "(void)objectBoxes;" removed from planStreetSweep - no behaviour. (tests)
+ColumnCacheTest gains ACopyAssignedGeneratorOwnsItsCacheIterators (its own test, so it can be seen red) and
+AMovedGeneratorKeepsAConsistentCache; SettlementTerrainPlanTest: two tests RENAMED for what they now measure
+(PartlyBuildableTerrainSeatsNoLotOnTheRamp, WaterInsideFootprintIsNotBuildable) and
+AVillageSiteBelowItsMinimumIsRefusedWithTheCount added (the old 48 x 28 rig, pinned as measured: 5 seated).
+
+CHAIN 138 = THE MUTATION (two deliberate breaks, then reverted; filter SettlementTerrainPlanTest.*:ColumnCacheTest.*):
+  M1: the planner's candidate table no longer counts TooSteep cells as unusable.
+  M2: WorldGenerator::LruCaches copies member-wise (the pre-fix behaviour).
+  PM5b1.114: under M2, ACopiedGeneratorOwnsItsCacheIterators AND ACopyAssignedGeneratorOwnsItsCacheIterators FAIL
+    ("iterators point into the SOURCE's lists"); the moved-generator test passes (a move owns its nodes).
+  PM5b1.115: under M1, PartlyBuildableTerrainSeatsNoLotOnTheRamp FAILS at "a lot's rect reaches the ramp" on the
+    hamlet arm. UNCERTAIN: the relief bell (interest falls with the window relief) and the path cost may keep every
+    lot off a 3-per-cell ramp even with the table broken - if it stays green, the assertion has NO teeth against
+    this mutation and that is recorded as the finding, the test not called a guard of the filter.
+    Also under M1: ImpossibleTerrain may plan on the sawtooth (it would then FAIL at "a settlement was planned on
+    sawtooth cliffs") - UNCERTAIN for the same reason.
+  The mutation is reverted by the same script; the three files' hashes must equal their pre-mutation values.
+
+CHAIN 139 (same filter, the patch-20 tree): 11 + 4 = 15 ok, 0 failed (PM5b1.116). The pin: village 48 x 28 flat
+  refused with seated_lots 5.
+THE FINAL SET on the patch-20 tree:
+  CHAIN 140 (m5b2): 157 ok, 0 failed, both version-1 hashes pinned (PM5b1.110 restated).
+  CHAIN 141 (m5b6): 42 ok, 0 failed.
+  CHAIN 142 (SettlementMapLiveSiteTest.*, all five arms incl. the hamlet and the legacy control): 5 ok, 0 failed;
+    village gate 34 / 0 over 11 doors of 11, town 72 / 0 over 24 of 24, 0 lot failures (PM5b1.111 restated).
+    UNCERTAIN: the two hamlet arms and the headless door-passage arm were last run before chain 109; I expect green.
+  CHAIN 143 (m5b4): 142 ok, 1 failed (143 tests: the 142 + the new terrain-plan test) - the hairpin alone
+    (PM5b1.112 restated).
+  CHAIN 144 (terrain mode: the generator / hydrology / golden suites, never run since the LruCaches change):
+    0 failed. The count is read from the run. UNCERTAIN: ColumnCostBench's timing bounds on a laptop under load.
+L4 RUN 12, FOURTH LAUNCH (Release editor rebuilt from the patch-20 tree): 3 of 3 sites built, the gates 72 / 34 / 40
+  with 0 blocked and 0 skipped, the control refused 20 / 1, no crash report (PM5b1.117). If any gate count differs
+  from the third launch, "patch 18 is diagnostic only" is FALSE.

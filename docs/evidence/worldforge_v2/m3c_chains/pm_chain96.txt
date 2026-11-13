@@ -1,0 +1,20 @@
+PREDICTIONS for chain 96 (mode m5b5, the same unit set as chain 95), written BEFORE the launch - THE GREEN RUN of the
+chain-93 gate finding. The tree: the snap tries the anchor's own column one cube up / down before any lateral step;
+the settlement's gate, door spurs, cluster paths and doorsteps read the forge's RECORDED door (doorApproachAt) when
+the building's location carries one, the marker-side inference otherwise; the headless rebuild test runs three cases
+and pins recorded door == inferred door on the flat pad.
+  PM5b1.44 SnapToStandableKeepsTheMarkerInItsColumnAcrossAOneCubeStep GREEN on both arms ((10, 18, 20) / (10, 16, 20)).
+  PM5b1.45 SnapToStandableFixesDeadAnchor GREEN unchanged (the dead column's dy +-1 cells are solid; lateral ring 1 as
+    before); SpawnGateTest GREEN (its cube-granular snap case does not touch dy +-1 in column - UNCERTAIN: if its
+    rig's anchor column is standable one cube up, the snap now returns that cell and the test's expectation moves;
+    read, not pre-loosened).
+  PM5b1.46 DerivedLocationRecordsTheDoorItAnchored GREEN; the headless rebuild GREEN 3 of 3 with the recorded door
+    equal to the inferred wall on every case.
+  PM5b1.47 SettlementWalkabilityTest and SettlementBuildServiceTest GREEN (the dressing-order pin reads unit labels only).
+PREDICTIONS for chain 97 (mode m5b3v = the village and town arms on the baseline world), the same tree:
+  PM5b1.48 the VILLAGE gate PASSES: the two crofts' routes end at the north door's inside cell (the forge's door), the
+    blacksmith's passage is its real door's inside cell and SEATS (the skipped route is measured: 33 routes over 11
+    doors, 0 skipped); lots, ways, paved columns as chain 93 (the map is unchanged).
+  PM5b1.49 the TOWN gate: the six blocked routes shared the displaced-marker premise (every "street -> door" goal was
+    the inside of a wall the marker's side named); predicted PASSED, 72 routes over 24 doors. UNCERTAIN: a route that
+    stays blocked is a SECOND finding (the way's grade against the pad, a doorstep) and is recorded as such.

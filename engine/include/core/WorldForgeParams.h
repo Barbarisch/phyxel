@@ -41,6 +41,11 @@ struct WorldForgeParams {
     // so the box plan refines them on its 16 u grid like any scored site (owner pins stay verbatim).
     // Set by the generator when it seeds the box from the civ plan; never serialized.
     bool pinRefine = false;
+    // M5b-1 (D43 (b), ruled 2026-11-06): the site rects come from the program-derived presets
+    // (WorldForgePlan::tierPresetDerived) instead of the literal version-1 presets. Set by the generator
+    // on the civ path only (the civ world's hamlet 40 x 32 seated 5 / 3 / 2 against its 3-6 band); never
+    // serialized, like pinRefine, so no persisted recipe and no version-1 plan hash moves.
+    bool derivedSiteRects = false;
     // ── M3b (D23): the history ledger. civEpochs = number of 25-year epochs simulated after the
     // founding (0 = no history: the plan is M3a's bit for bit); civShockEpoch = the epoch of the one
     // population shock (−1 = none); civShockFraction = the share of every population index the
@@ -95,7 +100,7 @@ struct WorldForgeParams {
     float rockCutMaxU = 36.0f;
 
     bool operator==(const WorldForgeParams& o) const {
-        if (civ != o.civ || civDensityScale != o.civDensityScale || pinTiers != o.pinTiers || pinRefine != o.pinRefine) return false;
+        if (civ != o.civ || civDensityScale != o.civDensityScale || pinTiers != o.pinTiers || pinRefine != o.pinRefine || derivedSiteRects != o.derivedSiteRects) return false;
         if (civEpochs != o.civEpochs || civShockEpoch != o.civShockEpoch || civShockFraction != o.civShockFraction || civAbandonShare != o.civAbandonShare) return false;
         if (routeReuseFraction != o.routeReuseFraction) return false;
         if (era != o.era) return false;

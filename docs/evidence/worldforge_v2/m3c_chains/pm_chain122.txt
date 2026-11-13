@@ -1,0 +1,30 @@
+PREDICTIONS for chains 122-126, written 2026-11-10 BEFORE any launch (chain 121's orphaned run still executing; its
+result is recorded separately). Register O9: the sweep's named M0 test.
+
+The tree for chain 122 (RED stage, m5b1_patch15.py red): the street sweep's cell selection extracted AS BUILT into
+Core::planStreetSweep (building footprints guarded, placed objects NOT consulted); the service records the cube AABB of
+every prop it places before the sweep (the well, the yard props) and calls the function; the new test
+SettlementBuildServiceTest.SweepNeverErasesPlacedObjectCells.
+
+CHAIN 122 (mode m5b2, the RED):
+  PM5b1.95 SweepNeverErasesPlacedObjectCells FAILS: "the sweep selected 4 of the well's 4 band cells"; keptForObjects 0
+    against 4; the selection 99 cells against 95. The control half (no objects -> 99 cells, 0 kept) PASSES inside the
+    same test. Every other test of the set green: 156 ok, 1 failed.
+
+The tree for chain 123 (GREEN stage, m5b1_patch15.py green): the function skips a band cell inside any object's box.
+
+CHAIN 123 (mode m5b2):
+  PM5b1.96 157 ok, 0 failed; both version-1 plan hashes pinned (9693137997320541182 / 18197215997962677593).
+CHAIN 124 (mode m5b6):
+  PM5b1.97 42 ok, 0 failed (no test of this set reads the sweep).
+CHAIN 125 (mode m5b3v, the village and town live arms on the final tree):
+  PM5b1.98 the gates stand as in chains 109 / 118: village 34 walkable / 0 blocked / 0 skipped over 11 doors, town
+    72 / 0 / 0 over 24 doors of 24 built.
+  PM5b1.99 the sweep's log line reports "N inside one of M placed props' boxes kept" with M > 0 on both tiers. N is
+    UNCERTAIN: the village well stands on the way's verge and its template is wider than one cube, so N > 0 there is
+    my expectation (the M0 row was live, unmeasured); N = 0 means the row was never live on these seeds. Either is
+    recorded as found - this is a measurement, not a pass / fail.
+  UNCERTAIN: a prop box kept in the band can leave a solid cell where the gate's route walked through swept air; a
+    new blocked route is read as found.
+CHAIN 126 (mode m5b4, the broad regression on the final tree):
+  PM5b1.100 the totals of chain 121 repeat (no suite of this set reads the sweep or the prop boxes), 0 failed.

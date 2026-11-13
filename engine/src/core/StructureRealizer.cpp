@@ -129,6 +129,12 @@ std::vector<LocationMarker> StructureRealizer::deriveLocations(const BuildingPro
         else if (door->z == 0) local = {cx, 0, -2};
         else                   local = {cx, 0, D + 1};
         local.y = 0;   // outdoor grade: worldOrigin.y is the standing level beside the pad
+        // the door itself: the wall cube it is cut through (inside the footprint) and the outward normal
+        m.hasDoor = true;
+        if (door->x == 0)      { m.doorWall = {worldOrigin.x, worldOrigin.z + cz};         m.doorNormal = {-1, 0}; }
+        else if (door->x == W) { m.doorWall = {worldOrigin.x + W - 1, worldOrigin.z + cz}; m.doorNormal = {+1, 0}; }
+        else if (door->z == 0) { m.doorWall = {worldOrigin.x + cx, worldOrigin.z};         m.doorNormal = {0, -1}; }
+        else                   { m.doorWall = {worldOrigin.x + cx, worldOrigin.z + D - 1}; m.doorNormal = {0, +1}; }
     } else {
         local = {W / 2, floorTopMicro / 9, D / 2};
     }

@@ -1,0 +1,14 @@
+PREDICTIONS for chain 100 (mode m5b6, the same set as chain 99), written BEFORE the launch - THE GREEN RUN of chain 98's
+two findings. The tree: planDoorstepFills carries the descent from the previous cell's level (every riser <= 4, the walk
+continues outward past a level apron); the snap follows `preferDir` (the door's normal: the own column +-2..3, then the
+cells outward) before any lateral step and the build service passes the door normal; the realizer's doorsteps unit reads
+each cell's ground as the lowest column top, clears the approach band and every stepped cell above that ground, 6 cells.
+  PM5b1.58 DoorstepsStoopTheWholeDescentToTheStreet GREEN (apron: none, 897, 893, none; simple: 865, none; every riser <= 4).
+  PM5b1.59 SnapToStandableFollowsTheDoorNormalBeforeTurningACorner GREEN at (10, 19, 20).
+  PM5b1.60 the eave case, the in-column step and the door record GREEN; SpawnGateTest GREEN; the ribbon / spur tests GREEN.
+PREDICTIONS for chain 101 (mode m5b3v = the village and town arms), the same tree:
+  PM5b1.61 the VILLAGE gate PASSES: the hall_house @-7903 and blacksmith @-7882 faces stooped (fills at the second and
+    third cells), the crofts' markers in front of their doors (the start in the way band), every route measured (34).
+  PM5b1.62 the TOWN gate: predicted PASSED on the six (the apothecary's and hall houses' starts 8-23 micro below their
+    passages are the same face), 72 routes over 24 doors with 0 skipped. UNCERTAIN: a route that stays blocked is a
+    THIRD finding, read from its section before anything moves.
