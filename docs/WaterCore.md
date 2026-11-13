@@ -13500,6 +13500,23 @@ remove them** (51.12's second cause; `/design-check` READY).
 
   This is the "bake re-floods after the carve" option the 2026-10-09 gap logged beside the drain. Its cost is the open question:
   a true minimum means sampling inside every cell. It is measured before it is designed.
+- **Step 2's cost, measured** (`DISABLED_DiagCellMinimumCost`, Release, one thread):
+  - one generated column costs 13.9 us;
+  - a full bake of 65,536 cells:
+
+    | Sample spacing | Samples | Time, one thread | Misses the true minimum by (40 cells, exhaustive 1 m) |
+    |---|---|---|---|
+    | 32 m | 1.0 M | ~15 s | p50 2, p90 5, max 8 m |
+    | 16 m | 4.2 M | ~58 s | p50 1, p90 3, max 5 m |
+    | 8 m | 16.8 M | ~233 s | p50 0, p90 2, max 3 m |
+    | 4 m | 67 M | ~930 s | p50 0, p90 1, max 1 m |
+
+  - The bake is not stored with the world today: it re-runs at every load (0.3 s now).
+  - A sampled minimum still misses by up to its row's figure, and a wall that high can remain. Subtracting that figure as slack
+    lowers every lake by it.
+
+  **The owner's call** (it sets world-load time and the lakes' look): the spacing, whether the bake is stored per world (paid
+  once), and the slack.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

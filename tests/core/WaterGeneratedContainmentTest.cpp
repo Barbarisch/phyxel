@@ -344,3 +344,37 @@ TEST(WaterGeneratedContainmentTest, TheFloodsFlagOffLeavesTheBakeAsItWas) {
     EXPECT_EQ(a.hydrology()->levels(), c.hydrology()->levels());
     EXPECT_NE(a.hydrology()->levels(), b.hydrology()->levels()) << "the flag must change the bake on this world";
 }
+
+// 51.13 step 2 measurement: what flooding each bake cell's LOWER BOUND would cost. (1) the cost of one generated-column sample;
+// (2) over 40 cells (exhaustive 1 m minimum each), how far a minimum sampled every s m misses the true one (s = 4, 8, 16, 32).
+TEST(WaterGeneratedContainmentTest, DISABLED_DiagCellMinimumCost) {
+    using clk = std::chrono::steady_clock;
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, false));
+    volatile int sink = 0;
+    const int n = 50000;
+    auto t0 = clk::now();
+    for (int i = 0; i < n; ++i) sink += g.sampleSurface(-6000 + (i * 7919) % 12000, -6000 + (i * 104729) % 12000).surfaceY;
+    const double us = std::chrono::duration<double, std::micro>(clk::now() - t0).count() / n;
+    std::printf("sampleColumn: %.1f us a column (%d scattered columns)\n", us, n);
+    for (int s : {32, 16, 8, 4})
+        std::printf("  a full bake (65,536 cells) at every %2d m: %8.0f samples, ~%.0f s\n", s, 65536.0 * (128 / s) * (128 / s),
+                    65536.0 * (128 / s) * (128 / s) * us * 1e-6);
+    const int strides[4] = {4, 8, 16, 32};
+    std::vector<float> miss[4];
+    for (int k = 0; k < 40; ++k) {
+        const int x0 = -2304 + (k % 8) * 128, z0 = -3200 + (k / 8) * 512;
+        float exact = 1e30f, sm[4] = {1e30f, 1e30f, 1e30f, 1e30f};
+        for (int z = 0; z < 128; ++z) for (int x = 0; x < 128; ++x) {
+            const float f = static_cast<float>(g.sampleSurface(x0 + x, z0 + z).surfaceY + 1);
+            exact = std::min(exact, f);
+            for (int q = 0; q < 4; ++q) if (x % strides[q] == 0 && z % strides[q] == 0) sm[q] = std::min(sm[q], f);
+        }
+        for (int q = 0; q < 4; ++q) miss[q].push_back(sm[q] - exact);
+    }
+    for (int q = 0; q < 4; ++q) {
+        std::sort(miss[q].begin(), miss[q].end());
+        std::printf("  every %2d m misses the true minimum by: p50 %.0f, p90 %.0f, max %.0f m (40 cells)\n", strides[q],
+                    miss[q][20], miss[q][36], miss[q].back());
+    }
+}
