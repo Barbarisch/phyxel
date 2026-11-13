@@ -811,6 +811,7 @@ RenderCoordinator::~RenderCoordinator() {
     if (m_lightOccupancy) m_lightOccupancy->cleanup();
     releaseVoxFoundBuffer();
     releaseVoxFoundTexBuffer();
+    releaseVoxFoundCull();
     if (m_matSimBuffer != VK_NULL_HANDLE && vulkanDevice) {   // MatSim P1b raw-cell view buffer
         vkUnmapMemory(vulkanDevice->getDevice(), m_matSimMemory);
         vkDestroyBuffer(vulkanDevice->getDevice(), m_matSimBuffer, nullptr);
@@ -2609,6 +2610,118 @@ std::vector<Core::VoxFound::PreviewChunk> RenderCoordinator::voxFoundVisibleRang
     return out;
 }
 
+// docs/VoxelFoundationPlan.md F2.11 (§4.6 item 5 + item 3's per-block part): the GPU draw-building pass. Uploads the
+// preview's clusters when it changes (plus the per-command chunk-origin table voxfound_face_mdi.vert reads), sets this
+// frame slot's per-chunk mask from the CPU chunk decision (F2.9 distance + frustum, F2.10 occlusion), and records the
+// per-cluster frustum cull. Called before the scene render pass; renderVoxFoundPreview then draws ONE multidraw.
+void RenderCoordinator::releaseVoxFoundCull() {
+    if (vulkanDevice && m_voxFoundOriginBuffer != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(vulkanDevice->getDevice());
+        vkDestroyBuffer(vulkanDevice->getDevice(), m_voxFoundOriginBuffer, nullptr);
+        vkFreeMemory(vulkanDevice->getDevice(), m_voxFoundOriginMemory, nullptr);
+    }
+    m_voxFoundOriginBuffer = VK_NULL_HANDLE;
+    m_voxFoundOriginMemory = VK_NULL_HANDLE;
+    m_voxFoundCull.reset();
+    m_voxFoundCullRevision = UINT64_MAX;
+}
+
+void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
+    m_voxFoundCullRecorded = false;
+    if (!m_voxFoundMdi || m_voxFoundCullFailed || !m_voxFoundPreview || !m_voxFoundPreview->shown ||
+        m_voxFoundPreview->clusters.empty() || !vulkanDevice || !camera || !renderPipeline)
+        return;
+    if (!vulkanDevice->supportsGpuDrivenSubmission() || !vulkanDevice->supportsShaderDrawParameters()) {
+        m_voxFoundCullFailed = true;
+        LOG_WARN("RenderCoordinator", "voxfound MDI: device lacks multidraw / gl_DrawID; per-chunk draws stay");
+        return;
+    }
+    const auto& pv = *m_voxFoundPreview;
+    if (!m_voxFoundCull) {
+        m_voxFoundCull = std::make_unique<Core::VoxFound::ClusterCullGpu>();
+        std::string err;
+        if (!m_voxFoundCull->init(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice(), "shaders",
+                                  Vulkan::VulkanDevice::maxFramesInFlight(), &err)) {
+            LOG_ERROR("RenderCoordinator", "voxfound MDI: " + err);
+            m_voxFoundCull.reset();
+            m_voxFoundCullFailed = true;
+            return;
+        }
+    }
+    if (m_voxFoundCullRevision != pv.revision) {
+        std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(pv.clusters.size());
+        for (size_t i = 0; i < cl.size(); ++i) {
+            const auto& c = pv.clusters[i];
+            cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk};
+        }
+        std::string err;
+        if (!m_voxFoundCull->upload(cl, vulkanDevice->chunkIndexCount(), uint32_t(pv.chunks.size()),
+                                    vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(), &err)) {
+            LOG_ERROR("RenderCoordinator", "voxfound MDI upload: " + err);
+            m_voxFoundCullFailed = true;
+            return;
+        }
+        // per command: its chunk's origin in whole metres (exact), read through gl_DrawIDARB
+        if (m_voxFoundOriginBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(vulkanDevice->getDevice(), m_voxFoundOriginBuffer, nullptr);
+            vkFreeMemory(vulkanDevice->getDevice(), m_voxFoundOriginMemory, nullptr);
+            m_voxFoundOriginBuffer = VK_NULL_HANDLE;
+        }
+        const VkDeviceSize bytes = std::max<VkDeviceSize>(16, VkDeviceSize(cl.size()) * sizeof(glm::ivec4));
+        vulkanDevice->createBuffer(bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                   m_voxFoundOriginBuffer, m_voxFoundOriginMemory);
+        void* mapped = nullptr;
+        if (m_voxFoundOriginBuffer == VK_NULL_HANDLE ||
+            vkMapMemory(vulkanDevice->getDevice(), m_voxFoundOriginMemory, 0, bytes, 0, &mapped) != VK_SUCCESS) {
+            m_voxFoundCullFailed = true;
+            return;
+        }
+        auto* o = static_cast<glm::ivec4*>(mapped);
+        for (size_t i = 0; i < cl.size(); ++i)
+            o[i] = glm::ivec4(glm::ivec3(glm::round(pv.chunks[pv.clusters[i].chunk].originMetres)), 0);
+        vkUnmapMemory(vulkanDevice->getDevice(), m_voxFoundOriginMemory);
+        m_voxFoundCullRevision = pv.revision;
+    }
+    // this frame's per-chunk decision (F2.9 + F2.10), by index into pv.chunks
+    std::vector<uint32_t> mask(pv.chunks.size(), 0u);
+    for (const auto& r : voxFoundVisibleRanges())
+        for (size_t i = 0; i < pv.chunks.size(); ++i)
+            if (pv.chunks[i].chunk == r.chunk) {
+                mask[i] = 1u;
+                break;
+            }
+    m_voxFoundCull->setChunkVisible(uint32_t(currentFrame), mask);
+    // the camera frustum in anchor space (the boxes are relative to pv.anchorMetres)
+    const glm::vec3 camRel = glm::vec3(glm::dvec3(camera->getPosition()) - pv.anchorMetres);
+    const glm::mat4 view = glm::lookAt(camRel, camRel + camera->getFront(), camera->getUp());
+    Utils::Frustum fr;
+    fr.extractFromMatrix(cachedProjectionMatrix * view, Utils::Frustum::ClipConvention::ReverseZeroToOne);
+    glm::vec4 planes[6];
+    for (int k = 0; k < 6; ++k) planes[k] = glm::vec4(fr.planes[size_t(k)].normal, fr.planes[size_t(k)].distance);
+    m_voxFoundCull->record(cmd, uint32_t(currentFrame), planes);
+    m_voxFoundCullRecorded = true;
+}
+
+std::array<uint32_t, 3> RenderCoordinator::voxFoundCullStats() {
+    std::array<uint32_t, 3> s{0, 0, 0};
+    if (!m_voxFoundCull || m_voxFoundCull->clusterCount() == 0 || !vulkanDevice) return s;
+    // the commands are device-local: copy the last-submitted frame's slot back (debug route, waits for the queue)
+    const uint32_t slot = uint32_t((currentFrame + 1) % Vulkan::VulkanDevice::maxFramesInFlight());
+    std::vector<uint32_t> cmdv;
+    if (!m_voxFoundCull->readCommands(vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(), slot,
+                                      cmdv, nullptr) || cmdv.empty())
+        return s;
+    const uint32_t* cmd = cmdv.data();
+    s[0] = m_voxFoundCull->clusterCount();
+    for (uint32_t i = 0; i < s[0]; ++i)
+        if (cmd[i * 5 + 1]) {
+            ++s[1];
+            s[2] += cmd[i * 5 + 1];
+        }
+    return s;
+}
+
 // docs/VoxelFoundationPlan.md F2.3: the preview's leaf sprigs, drawn as today's cutout leaf cards
 // (FoliageRenderPipeline::renderVoxFound). Same buffer policy as the faces.
 void RenderCoordinator::renderVoxFoundSprigs() {
@@ -2698,6 +2811,26 @@ void RenderCoordinator::renderVoxFoundPreview() {
         m_voxFoundTexRevision = m_voxFoundPreview->revision;
     }
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
+    // F2.11: the GPU draw-building pass ran this frame -> ONE indirect multidraw over every cluster
+    if (m_voxFoundCullRecorded && m_voxFoundCull && m_voxFoundOriginBuffer != VK_NULL_HANDLE &&
+        renderPipeline->ensureVoxFoundMdiPipeline("shaders/voxfound_face_mdi.vert.spv")) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundMdiPipeline());
+        vulkanDevice->bindVertexBuffers(currentFrame);
+        vulkanDevice->bindIndexBuffer(currentFrame);
+        vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
+        renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer, m_voxFoundOriginBuffer);
+        const VkDeviceSize off = 0;
+        vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
+        // the camera split into whole metres + the rest (voxfound_face_mdi.vert): camFrac, camInt
+        const glm::dvec3 cam(camera->getPosition());
+        const glm::dvec3 camInt = glm::floor(cam);
+        vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam),
+                                    glm::vec3(camInt));
+        vkCmdDrawIndexedIndirect(cmd, m_voxFoundCull->commands(uint32_t(currentFrame)), 0,
+                                 m_voxFoundCull->clusterCount(), 20);
+        m_voxFoundDrawn = 0;   // decided on the device; read back by voxFoundCullStats() (the stats route)
+        return;
+    }
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundPipeline());
     vulkanDevice->bindVertexBuffers(currentFrame);
     vulkanDevice->bindIndexBuffer(currentFrame);
@@ -4462,6 +4595,12 @@ void RenderCoordinator::drawFrame() {
                                  m_lastAmbientColor,
                                  vulkanDevice->getOccupancyBox(),
                                  sunDirection, m_lastSunColor);
+    }
+
+    // F2.11: the 1/8 m preview's GPU draw-building pass (compute, so outside the render pass)
+    {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), vulkanDevice->getCommandBuffer(currentFrame), "VoxFound Cull");
+        recordVoxFoundCull(vulkanDevice->getCommandBuffer(currentFrame));
     }
 
     // Begin Scene Render Pass (Offscreen)

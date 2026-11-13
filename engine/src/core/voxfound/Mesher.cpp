@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <sstream>
 #include <unordered_map>
 
@@ -388,6 +389,56 @@ std::vector<char> occlusionReach(const std::vector<OccChunk>& known, const std::
         }
     }
     return reached;
+}
+
+}  // namespace Phyxel::Core::VoxFound
+
+namespace Phyxel::Core::VoxFound {
+
+// ---- F2.11 face clusters (§4.6 item 5 + item 3's per-block part) ------------------------------------------------
+void faceBox(PackedFace f, glm::ivec3& lo, glm::ivec3& hi) {
+    const Quad q = unpackFace(f);
+    lo = q.o;
+    if (q.dir > 0) lo[q.axis] += 1;   // a + face sits on the voxel's far plane
+    hi = lo;
+    hi[(q.axis + 1) % 3] += q.du;
+    hi[(q.axis + 2) % 3] += q.dv;
+}
+
+std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int clusterBlocks) {
+    const int cellV = std::max(1, clusterBlocks) * 8;
+    auto cellKey = [&](PackedFace f) {
+        const glm::ivec3 c = unpackFace(f).o / cellV;   // chunk-local, non-negative
+        return (uint32_t(c.x) << 16) | (uint32_t(c.y) << 8) | uint32_t(c.z);
+    };
+    std::stable_sort(faces.begin(), faces.end(),
+                     [&](PackedFace a, PackedFace b) { return cellKey(a) < cellKey(b); });
+    std::vector<FaceCluster> out;
+    for (size_t i = 0; i < faces.size();) {
+        const uint32_t k = cellKey(faces[i]);
+        FaceCluster c;
+        c.first = uint32_t(i);
+        c.lo = glm::ivec3(std::numeric_limits<int>::max());
+        c.hi = glm::ivec3(std::numeric_limits<int>::min());
+        for (; i < faces.size() && cellKey(faces[i]) == k; ++i) {
+            glm::ivec3 lo, hi;
+            faceBox(faces[i], lo, hi);
+            c.lo = glm::min(c.lo, lo);
+            c.hi = glm::max(c.hi, hi);
+        }
+        c.count = uint32_t(i) - c.first;
+        out.push_back(c);
+    }
+    return out;
+}
+
+bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi) {
+    for (int i = 0; i < 6; ++i) {
+        const glm::vec3 n(planes[i]);
+        const glm::vec3 p(n.x >= 0.0f ? hi.x : lo.x, n.y >= 0.0f ? hi.y : lo.y, n.z >= 0.0f ? hi.z : lo.z);
+        if (glm::dot(n, p) + planes[i].w < 0.0f) return false;
+    }
+    return true;
 }
 
 }  // namespace Phyxel::Core::VoxFound

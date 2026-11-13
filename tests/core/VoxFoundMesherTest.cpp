@@ -652,3 +652,89 @@ TEST(VoxFoundMesher, OcclusionWalkHidesWhatIsBehindASolidChunk) {
     EXPECT_TRUE(over);
     EXPECT_EQ(r, (std::vector<char>{1, 1, 1}));
 }
+
+// ---- F2.11 (§4.6 item 5 + item 3's per-block part): face clusters ---------------------------------------------
+// Written red against stubs (one cluster with an empty box; every box "in view").
+
+TEST(VoxFoundMesher, FaceBoxMatchesTheDrawnQuad) {
+    // a +Y face at (3,4,5) spanning du=2 along z ((1+1)%3) and dv=3 along x: the plane y = 5, z 5..7, x 3..6
+    Quad q;
+    q.o = {3, 4, 5};
+    q.axis = 1;
+    q.dir = 1;
+    q.du = 2;
+    q.dv = 3;
+    q.material = 1;
+    glm::ivec3 lo, hi;
+    faceBox(packFace(q), lo, hi);
+    EXPECT_EQ(lo, glm::ivec3(3, 5, 5));
+    EXPECT_EQ(hi, glm::ivec3(6, 5, 7));
+    // the same face pointing -Y sits on the voxel's own lower plane
+    q.dir = -1;
+    faceBox(packFace(q), lo, hi);
+    EXPECT_EQ(lo, glm::ivec3(3, 4, 5));
+    EXPECT_EQ(hi, glm::ivec3(6, 4, 7));
+}
+
+TEST(VoxFoundMesher, ClustersKeepEveryFaceAndBoundIt) {
+    // generated terrain (engine Perlin s7, 32 x 32 m) meshed with run merge, then clustered at every granularity
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    float gLo = 1e9f, gHi = -1e9f;   // the area spans the actual ground (the first version sat inside solid rock)
+    for (int x = -1; x <= 32; ++x)
+        for (int z = -1; z <= 32; ++z) {
+            gLo = std::min(gLo, gen.sampleSurface(x, z).bedHeight);
+            gHi = std::max(gHi, gen.sampleSurface(x, z).bedHeight);
+        }
+    const int y0 = int(std::floor(gLo)) - 2;
+    const VoxelArea a = buildTerrainArea(gen, {0, y0, 0}, {32, int(std::ceil(gHi)) + 3 - y0, 32});
+    std::vector<PackedFace> faces;
+    for (const Quad& q : meshRuns(a.grid, Outside::Air)) faces.push_back(packFace(q));
+    ASSERT_GT(faces.size(), 100u);
+    for (int cb : {1, 2, 4, 8, 32}) {
+        std::vector<PackedFace> f = faces;
+        const std::vector<FaceCluster> cl = clusterFaces(f, cb);
+        // same faces (as a multiset), every face in exactly one cluster, clusters contiguous and in order
+        std::vector<uint64_t> k0, k1;
+        for (const auto& x : faces) k0.push_back(x.key());
+        for (const auto& x : f) k1.push_back(x.key());
+        std::sort(k0.begin(), k0.end());
+        std::sort(k1.begin(), k1.end());
+        ASSERT_EQ(k0, k1) << "clusterBlocks " << cb;
+        uint32_t next = 0;
+        const int cellV = cb * 8;
+        for (const FaceCluster& c : cl) {
+            ASSERT_EQ(c.first, next) << "clusterBlocks " << cb;
+            ASSERT_GT(c.count, 0u);
+            glm::ivec3 ulo(std::numeric_limits<int>::max()), uhi(std::numeric_limits<int>::min()), cell(-1);
+            for (uint32_t i = c.first; i < c.first + c.count; ++i) {
+                glm::ivec3 lo, hi;
+                faceBox(f[i], lo, hi);
+                ulo = glm::min(ulo, lo);
+                uhi = glm::max(uhi, hi);
+                const glm::ivec3 o = unpackFace(f[i]).o / cellV;
+                if (i == c.first) cell = o;
+                ASSERT_EQ(o, cell) << "a cluster mixes cells, clusterBlocks " << cb;
+            }
+            EXPECT_EQ(c.lo, ulo);
+            EXPECT_EQ(c.hi, uhi);
+            next += c.count;
+        }
+        EXPECT_EQ(next, uint32_t(f.size()));
+        if (cb == 1) EXPECT_GT(cl.size(), 100u) << "per-block clusters";
+        std::printf("[clusters] %zu faces, clusterBlocks %d -> %zu clusters\n", f.size(), cb, cl.size());
+    }
+}
+
+TEST(VoxFoundMesher, BoxInFrustumIsThePVertexTest) {
+    // a box [0,1]^3 against single planes (the other five planes accept everything)
+    glm::vec4 p[6];
+    for (auto& q : p) q = glm::vec4(0, 0, 0, 1);
+    p[0] = glm::vec4(1, 0, 0, -0.5f);   // inside where x >= 0.5: the box straddles -> in
+    EXPECT_TRUE(boxInFrustum(p, glm::vec3(0), glm::vec3(1)));
+    p[0] = glm::vec4(1, 0, 0, -2.0f);   // inside where x >= 2: the box is fully outside -> out
+    EXPECT_FALSE(boxInFrustum(p, glm::vec3(0), glm::vec3(1)));
+    p[0] = glm::vec4(-1, 0, 0, 1.0f);   // inside where x <= 1: touching counts as in
+    EXPECT_TRUE(boxInFrustum(p, glm::vec3(0), glm::vec3(1)));
+    p[0] = glm::vec4(0, 0.6f, 0.8f, -1.5f);   // tilted plane: farthest corner (0,1,1) gives 1.4 - 1.5 < 0 -> out
+    EXPECT_FALSE(boxInFrustum(p, glm::vec3(0), glm::vec3(1)));
+}

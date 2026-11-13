@@ -65,15 +65,17 @@ bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
     // range are the static pipeline's, so this layout stays compatible with it for set 0 and push constants:
     // the shared set 0 is bound once with getGraphicsLayout() and only set 1 is bound with this layout.
     if (voxFoundSetLayout == VK_NULL_HANDLE) {
-        VkDescriptorSetLayoutBinding b{};
-        b.binding = 0;
-        b.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b.descriptorCount = 1;
-        b.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        VkDescriptorSetLayoutBinding b[2]{};
+        for (uint32_t i = 0; i < 2; ++i) {   // 0 = face texture table, 1 = F2.11 per-draw chunk origins
+            b[i].binding = i;
+            b[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            b[i].descriptorCount = 1;
+            b[i].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        }
         VkDescriptorSetLayoutCreateInfo li{};
         li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        li.bindingCount = 1;
-        li.pBindings = &b;
+        li.bindingCount = 2;
+        li.pBindings = b;
         if (vkCreateDescriptorSetLayout(device, &li, nullptr, &voxFoundSetLayout) != VK_SUCCESS) {
             LOG_ERROR("RenderPipeline", "voxfound preview: set-1 layout creation failed");
             return false;
@@ -94,7 +96,7 @@ bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
         }
     }
     if (voxFoundPool == VK_NULL_HANDLE) {
-        VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1};
+        VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2};
         VkDescriptorPoolCreateInfo pi{};
         pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         pi.maxSets = 1;
@@ -110,6 +112,7 @@ bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
             return false;
         }
         voxFoundSetBuffer = VK_NULL_HANDLE;
+        voxFoundSetOrigins = VK_NULL_HANDLE;
     }
     if (voxFoundVertModule == VK_NULL_HANDLE) {
         auto code = Utils::readFile(vertSpvPath);
@@ -138,19 +141,55 @@ bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
                                voxFoundLayout);
 }
 
-void RenderPipeline::bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table) {
+bool RenderPipeline::ensureVoxFoundMdiPipeline(const std::string& vertSpvPath) {
+    if (voxFoundMdiPipeline != VK_NULL_HANDLE) return true;
+    if (!ensureVoxFoundPipeline("shaders/voxfound_face.vert.spv")) return false;   // the layout + set 1
+    if (voxFoundMdiVertModule == VK_NULL_HANDLE) {
+        auto code = Utils::readFile(vertSpvPath);
+        if (code.empty()) {
+            LOG_WARN("RenderPipeline", "voxfound preview: cannot read " + vertSpvPath);
+            return false;
+        }
+        voxFoundMdiVertModule = createShaderModule(code);
+    }
+    VkVertexInputBindingDescription bind{};
+    bind.binding = 1;
+    bind.stride = 8;
+    bind.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    std::vector<VkVertexInputAttributeDescription> attrs(2);
+    for (uint32_t i = 0; i < 2; ++i) {
+        attrs[i].binding = 1;
+        attrs[i].location = 1 + i;
+        attrs[i].format = VK_FORMAT_R32_UINT;
+        attrs[i].offset = 4 * i;
+    }
+    return buildStaticPipeline(fragShaderModule, VK_TRUE, Graphics::DepthConvention::sceneDepthCompareOp(),
+                               VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                                   VK_COLOR_COMPONENT_A_BIT,
+                               voxFoundMdiPipeline, "voxfound preview (indirect)", voxFoundMdiVertModule, &bind,
+                               &attrs, voxFoundLayout);
+}
+
+void RenderPipeline::bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins) {
     if (voxFoundSet == VK_NULL_HANDLE || table == VK_NULL_HANDLE) return;
-    if (voxFoundSetBuffer != table) {   // written once per buffer: the table buffer is never reallocated
-        VkDescriptorBufferInfo bi{table, 0, VK_WHOLE_SIZE};
-        VkWriteDescriptorSet w{};
-        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        w.dstSet = voxFoundSet;
-        w.dstBinding = 0;
-        w.descriptorCount = 1;
-        w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        w.pBufferInfo = &bi;
-        vkUpdateDescriptorSets(vulkanDevice.getDevice(), 1, &w, 0, nullptr);
+    const VkBuffer origins = drawOrigins != VK_NULL_HANDLE ? drawOrigins : table;   // placeholder for direct draws
+    if (voxFoundSetBuffer != table || voxFoundSetOrigins != origins) {
+        // The table buffer is never reallocated; the origin table is (region rebuild), and a frame in flight may
+        // still read this set, so wait first (debug path, rare).
+        if (voxFoundSetBuffer != VK_NULL_HANDLE) vkDeviceWaitIdle(vulkanDevice.getDevice());
+        VkDescriptorBufferInfo bi[2] = {{table, 0, VK_WHOLE_SIZE}, {origins, 0, VK_WHOLE_SIZE}};
+        VkWriteDescriptorSet w[2]{};
+        for (uint32_t i = 0; i < 2; ++i) {
+            w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            w[i].dstSet = voxFoundSet;
+            w[i].dstBinding = i;
+            w[i].descriptorCount = 1;
+            w[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            w[i].pBufferInfo = &bi[i];
+        }
+        vkUpdateDescriptorSets(vulkanDevice.getDevice(), 2, w, 0, nullptr);
         voxFoundSetBuffer = table;
+        voxFoundSetOrigins = origins;
     }
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, voxFoundLayout, 1, 1, &voxFoundSet, 0, nullptr);
 }
@@ -962,6 +1001,14 @@ void RenderPipeline::cleanup() {
         vkDestroyShaderModule(device, voxFoundVertModule, nullptr);
         voxFoundVertModule = VK_NULL_HANDLE;
     }
+    if (voxFoundMdiPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, voxFoundMdiPipeline, nullptr);
+        voxFoundMdiPipeline = VK_NULL_HANDLE;
+    }
+    if (voxFoundMdiVertModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, voxFoundMdiVertModule, nullptr);
+        voxFoundMdiVertModule = VK_NULL_HANDLE;
+    }
     if (voxFoundLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device, voxFoundLayout, nullptr);
         voxFoundLayout = VK_NULL_HANDLE;
@@ -971,6 +1018,7 @@ void RenderPipeline::cleanup() {
         voxFoundPool = VK_NULL_HANDLE;
         voxFoundSet = VK_NULL_HANDLE;
         voxFoundSetBuffer = VK_NULL_HANDLE;
+        voxFoundSetOrigins = VK_NULL_HANDLE;
     }
     if (voxFoundSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device, voxFoundSetLayout, nullptr);

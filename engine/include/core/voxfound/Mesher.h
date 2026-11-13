@@ -168,4 +168,20 @@ std::vector<char> occlusionReach(const std::vector<OccChunk>& known, const std::
                                  glm::ivec3 cameraChunk, const std::function<bool(glm::ivec3)>& openSpace,
                                  size_t maxNodes, bool* budgetExceeded = nullptr);
 
+// ---- F2.11 (§4.6 item 5 + item 3's per-block part): face clusters for the GPU draw-building pass ---------------
+/// The box a face record covers, in chunk-local voxels (hi exclusive; zero thickness along the face's axis).
+void faceBox(PackedFace f, glm::ivec3& lo, glm::ivec3& hi);
+/// A run of faces drawn as one indirect command, with the exact union of their boxes (chunk-local voxels).
+struct FaceCluster {
+    glm::ivec3 lo{0}, hi{0};
+    uint32_t first = 0, count = 0;
+};
+/// Reorders `faces` (one chunk's solid faces, no sprigs) so the faces of each cluster are contiguous. A face belongs
+/// to the cell of `clusterBlocks`^3 blocks that holds its origin voxel (clusterBlocks 1 = per block, the plan's
+/// unit). Clusters come in cell order; empty cells have none.
+std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int clusterBlocks);
+/// The cull pass's test, CPU reference: is the box [lo, hi] (metres) on the inner side of all six planes?
+/// planes[i] = (n, d), inside where dot(n, p) + d >= 0 (the p-vertex test: conservative, never drops a visible box).
+bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi);
+
 }  // namespace Phyxel::Core::VoxFound

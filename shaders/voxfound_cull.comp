@@ -1,0 +1,36 @@
+#version 450
+//
+// voxfound_cull.comp — docs/VoxelFoundationPlan.md F2.11 (§4.6 item 5 + item 3's per-block part): the GPU
+// draw-building pass of the 1/8 m store. One invocation per face cluster (Mesher.h clusterFaces); each cluster owns
+// one VkDrawIndexedIndirectCommand, and this pass writes only its instanceCount: the cluster's face count when its
+// chunk is visible (the CPU's per-chunk distance + frustum + occlusion decision, F2.9/F2.10) and its box is inside
+// the camera frustum, else 0. Same p-vertex test as the CPU reference VoxFound::boxInFrustum.
+// Boxes and planes are relative to the region's anchor (metres), so the numbers stay small (exact-ish floats).
+
+layout(local_size_x = 64) in;
+
+struct Cluster {
+    vec4 lo;   // xyz box min; w = chunk index (uint bits)
+    vec4 hi;   // xyz box max; w = face count (uint bits)
+};
+layout(std430, binding = 0) readonly buffer Clusters { Cluster clusters[]; };
+layout(std430, binding = 1) readonly buffer ChunkVisible { uint chunkVisible[]; };
+layout(std430, binding = 2) buffer Commands { uint commands[]; };   // 5 words per command
+
+layout(push_constant) uniform PC {
+    vec4 planes[6];   // inside where dot(xyz, p) + w >= 0
+    uint count;
+} pc;
+
+void main() {
+    const uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+    const Cluster c = clusters[i];
+    bool vis = chunkVisible[floatBitsToUint(c.lo.w)] != 0u;
+    for (int k = 0; k < 6 && vis; ++k) {
+        const vec3 n = pc.planes[k].xyz;
+        const vec3 p = vec3(n.x >= 0.0 ? c.hi.x : c.lo.x, n.y >= 0.0 ? c.hi.y : c.lo.y, n.z >= 0.0 ? c.hi.z : c.lo.z);
+        if (dot(n, p) + pc.planes[k].w < 0.0) vis = false;
+    }
+    commands[i * 5u + 1u] = vis ? floatBitsToUint(c.hi.w) : 0u;
+}

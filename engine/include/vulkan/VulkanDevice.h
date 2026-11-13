@@ -810,6 +810,7 @@ public:
     /// be established before GPU-driven submission was even expressible.
     uint32_t getInstanceApiVersion() const { return instanceApiVersion_; }
     uint32_t getDeviceApiVersion() const { return deviceApiVersion_; }
+    static int maxFramesInFlight() { return MAX_FRAMES_IN_FLIGHT; }
     bool supportsMultiDrawIndirect() const { return multiDrawIndirectSupported_; }
     bool supportsDrawIndirectFirstInstance() const { return drawIndirectFirstInstanceSupported_; }
     bool supportsShaderDrawParameters() const { return shaderDrawParametersAvailable_; }

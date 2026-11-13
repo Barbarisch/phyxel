@@ -22,9 +22,12 @@
 #include <vector>
 
 #include "core/WorldGenerator.h"
+#include "core/voxfound/ClusterCullGpu.h"
 #include "core/voxfound/FaceBuilderGpu.h"
 #include "core/voxfound/Mesher.h"
 #include "core/voxfound/StorageLab.h"
+#include "utils/Frustum.h"
+#include <glm/gtc/matrix_transform.hpp>
 
 using namespace Phyxel;
 using namespace Phyxel::Core;
@@ -453,4 +456,67 @@ TEST_F(VoxFoundFaceBuilderGpu, RefusesNeighboursOfTheWrongSize) {
     std::string err;
     EXPECT_FALSE(gpu.build(g, n, f, &err));
     EXPECT_NE(err.find("Neighbours"), std::string::npos) << err;
+}
+
+// ---- F2.11: the GPU draw-building pass (voxfound_cull.comp) equals the CPU reference -----------------------------
+// Red first: record() was a stub (no dispatch), so every command kept its full instance count.
+TEST_F(VoxFoundFaceBuilderGpu, ClusterCullEqualsTheReference) {
+    ClusterCullGpu cull;
+    std::string err;
+    ASSERT_TRUE(cull.init(device, physicalDevice, "shaders", 2, &err)) << err;
+    std::mt19937 rng(11);
+    std::uniform_real_distribution<float> pos(-200.0f, 200.0f), ext(0.0f, 24.0f);
+    std::uniform_int_distribution<int> cnt(1, 500), chunkOf(0, 6), coin(0, 3);
+    std::vector<ClusterCullGpu::Cluster> cl(5000);
+    uint32_t first = 0;
+    for (auto& c : cl) {
+        c.lo = glm::vec3(pos(rng), pos(rng) * 0.25f, pos(rng));
+        c.hi = c.lo + glm::vec3(ext(rng), ext(rng), ext(rng));
+        c.count = uint32_t(cnt(rng));
+        c.firstInstance = first;
+        first += c.count;
+        c.chunk = uint32_t(chunkOf(rng));
+    }
+    ASSERT_TRUE(cull.upload(cl, 36u, 7u, queue, queueFamilyIndex, &err)) << err;
+    for (uint32_t slot = 0; slot < 2; ++slot) {
+        // a real camera: perspective, looking from (10, 30, 80) towards (-40, 0, -60), reverse-Z like the engine
+        const glm::mat4 proj = glm::perspective(glm::radians(70.0f), 16.0f / 9.0f, 0.1f, 300.0f);
+        const glm::vec3 eye = slot == 0 ? glm::vec3(10, 30, 80) : glm::vec3(-90, 10, -20);
+        const glm::mat4 view = glm::lookAt(eye, glm::vec3(-40, 0, -60), glm::vec3(0, 1, 0));
+        Utils::Frustum fr;
+        fr.extractFromMatrix(proj * view, Utils::Frustum::ClipConvention::ForwardZeroToOne);
+        glm::vec4 planes[6];
+        for (int k = 0; k < 6; ++k) planes[k] = glm::vec4(fr.planes[size_t(k)].normal, fr.planes[size_t(k)].distance);
+        std::vector<uint32_t> mask(7);
+        for (auto& m : mask) m = coin(rng) != 0 ? 1u : 0u;
+        cull.setChunkVisible(slot, mask);
+        ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, slot, planes, &err)) << err;
+        std::vector<uint32_t> cmdv;
+        ASSERT_TRUE(cull.readCommands(queue, queueFamilyIndex, slot, cmdv, &err)) << err;
+        const uint32_t* cmd = cmdv.data();
+        ASSERT_NE(cmd, nullptr);
+        size_t visible = 0, bad = 0, nearEdge = 0;
+        for (size_t i = 0; i < cl.size(); ++i) {
+            EXPECT_EQ(cmd[i * 5 + 0], 36u);
+            EXPECT_EQ(cmd[i * 5 + 4], cl[i].firstInstance);
+            const bool want = mask[cl[i].chunk] != 0 && boxInFrustum(planes, cl[i].lo, cl[i].hi);
+            const uint32_t expected = want ? cl[i].count : 0u;
+            visible += want;
+            if (cmd[i * 5 + 1] == expected) continue;
+            // only a box within 1 mm of a plane may differ (fused multiply-add on the device)
+            float closest = 1e30f;
+            for (int k = 0; k < 6; ++k) {
+                const glm::vec3 n(planes[k]);
+                const glm::vec3 p(n.x >= 0 ? cl[i].hi.x : cl[i].lo.x, n.y >= 0 ? cl[i].hi.y : cl[i].lo.y,
+                                  n.z >= 0 ? cl[i].hi.z : cl[i].lo.z);
+                closest = std::min(closest, std::abs(glm::dot(n, p) + planes[k].w));
+            }
+            (closest < 1e-3f ? nearEdge : bad)++;
+        }
+        std::printf("[cluster cull] slot %u: %zu of %zu clusters visible, %zu wrong, %zu differ within 1 mm of a plane\n",
+                    slot, visible, cl.size(), bad, nearEdge);
+        EXPECT_GT(visible, 100u) << "the camera sees part of the field";
+        EXPECT_LT(visible, cl.size() - 100) << "and culls part of it";
+        EXPECT_EQ(bad, 0u);
+    }
 }

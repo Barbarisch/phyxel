@@ -413,9 +413,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (Mesher.h blockFaceConnectivity / occlusionReach, {"occlusion":bool}). Red-first unit tests, 21/21. Gate forest:
       0 occluded (predicted), 0 px, no measurable cost; its win needs caves/interiors (1/8 m generators can't yet).
       Screenshot paths from /api/screenshot are relative to the ENGINE cwd (repo root) -- run rigs from there.
-      NEXT (plan §4.6 order): item 5, the GPU draw-building pass + indirect draws, carrying item 3's per-block AABB
-      test; then item 6 shadow caster culling (+2 ms measured). Content: the 3 missing 1/8 m plant templates (fern,
-      shrub_flat, tree_apple); spruce size.
+      F2.11 (2026-11-13): §4.6 item 5 + item 3 per block. ClusterCullGpu + voxfound_cull.comp (one indirect command per
+      face cluster, GPU writes instanceCount) + voxfound_face_mdi.vert (origin per draw via gl_DrawIDARB). 0 px.
+      Per-block clusters (26k draws) measured WORSE (+0.2-1.0 ms); 4-block default is neutral. Fixed on the way:
+      host-visible buffers + a global pre-dispatch barrier made the cull pass ~1 ms (now 0.01 ms).
+      TRAP: VulkanDevice never enables the 1.2 drawIndirectCount FEATURE (only checks the version) -- don't call
+      vkCmdDrawIndexedIndirectCount without enabling it. Multi-line bash -c / heredocs fail here: use script files.
+      NEXT (plan §4.6 order): item 6, shadow caster culling for the preview (all 480k faces go to mid AND near today,
+      +2 ms measured) -- through the same cluster pass with the light frustum. Then the depth prepass (on-screen
+      overdraw). Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

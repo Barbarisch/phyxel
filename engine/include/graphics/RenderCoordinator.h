@@ -23,6 +23,7 @@
 #include "graphics/VoxelLightOccupancyGpu.h"     // M1b: sub-voxel occupancy on the GPU
 #include "core/WaterManager.h"               // WaterSurfaceCell (WaterCore debug feed)
 #include "core/voxfound/Preview.h"           // F2.2 1/8 m face preview
+#include "core/voxfound/ClusterCullGpu.h"    // F2.11 GPU draw-building pass
 #include <array>
 #include <functional>
 #include <future>
@@ -636,6 +637,11 @@ public:
     void setVoxFoundOcclusion(bool on) { m_voxFoundOcclusion = on; }
     bool voxFoundOcclusion() const { return m_voxFoundOcclusion; }
     uint32_t voxFoundRangesOccluded() const { return m_voxFoundRangesOccluded; }
+    /// F2.11: faces drawn by the GPU draw-building pass + one indirect multidraw (default on) vs per-chunk direct draws.
+    void setVoxFoundMdi(bool on) { m_voxFoundMdi = on; }
+    bool voxFoundMdi() const { return m_voxFoundMdi; }
+    /// F2.11: clusters and the faces their commands drew, read back from the most recently completed frame slot.
+    std::array<uint32_t, 3> voxFoundCullStats();   // {clusters, clusters drawn, faces drawn}; waits for the queue
     /// F2.4 shadow casters drawn by the last shadow passes: mid faces, near faces, mid sprigs.
     std::array<uint32_t, 3> voxFoundShadowCasters() const {
         return {m_voxFoundShadowFaces[0], m_voxFoundShadowFaces[1], m_voxFoundShadowSprigs};
@@ -1512,6 +1518,16 @@ private:
     uint32_t       m_voxFoundDrawn = 0;
     bool           m_voxFoundChunkCull = true;
     bool           m_voxFoundOcclusion = true;                       // F2.10 (§4.6 item 4), today's default is on
+    // F2.11 (§4.6 item 5 + item 3 per block): GPU draw-building pass + one indirect multidraw for the faces.
+    bool           m_voxFoundMdi = true;
+    std::unique_ptr<Core::VoxFound::ClusterCullGpu> m_voxFoundCull;
+    bool           m_voxFoundCullFailed = false;
+    uint64_t       m_voxFoundCullRevision = UINT64_MAX;
+    VkBuffer       m_voxFoundOriginBuffer = VK_NULL_HANDLE;          // per command: its chunk origin (ivec4 metres)
+    VkDeviceMemory m_voxFoundOriginMemory = VK_NULL_HANDLE;
+    bool           m_voxFoundCullRecorded = false;                   // this frame's cull pass was recorded
+    void recordVoxFoundCull(VkCommandBuffer cmd);
+    void releaseVoxFoundCull();
     uint32_t       m_voxFoundRangesDrawn = 0, m_voxFoundRangesCulled = 0;
     mutable uint32_t m_voxFoundRangesOccluded = 0;
     /// F2.9: the ranges that pass today's per-chunk distance + frustum test (all ranges with the cull off).

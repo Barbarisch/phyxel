@@ -13345,6 +13345,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             voxFoundPreview.faces.clear();
             voxFoundPreview.sprigs.clear();
             voxFoundPreview.chunks.clear();
+            voxFoundPreview.clusters.clear();
             ++voxFoundPreview.revision;
             response = {{"cleared", true}};
             return;
@@ -13366,16 +13367,19 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // on the device but draws it or not -- so one session can alternate today / new store without rebuilding.
         // {"chunk_cull":bool}: F2.9 per-chunk distance + frustum culling of the preview's main-view draws (default on).
         // {"occlusion":bool}: F2.10 today's occlusion walk over the preview's chunks (default on).
+        // {"mdi":bool}: F2.11 GPU draw-building pass + one indirect multidraw for the faces (default on).
         if (cmd.params.contains("occlusion")) renderCoordinator->setVoxFoundOcclusion(cmd.params.value("occlusion", true));
+        if (cmd.params.contains("mdi")) renderCoordinator->setVoxFoundMdi(cmd.params.value("mdi", true));
         if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview") || cmd.params.contains("chunk_cull") ||
-            cmd.params.contains("occlusion")) {
+            cmd.params.contains("occlusion") || cmd.params.contains("mdi")) {
             if (cmd.params.contains("hide_world")) renderCoordinator->setHideWorld(cmd.params.value("hide_world", false));
             if (cmd.params.contains("show_preview")) voxFoundPreview.shown = cmd.params.value("show_preview", true);
             if (cmd.params.contains("chunk_cull")) renderCoordinator->setVoxFoundChunkCull(cmd.params.value("chunk_cull", true));
             if (!cmd.params.contains("type") && !cmd.params.contains("region")) {
                 response = {{"hide_world", renderCoordinator->hideWorld()}, {"show_preview", voxFoundPreview.shown},
                             {"chunk_cull", renderCoordinator->voxFoundChunkCull()},
-                            {"occlusion", renderCoordinator->voxFoundOcclusion()}};
+                            {"occlusion", renderCoordinator->voxFoundOcclusion()},
+                            {"mdi", renderCoordinator->voxFoundMdi()}};
                 return;
             }
         }
@@ -13389,6 +13393,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"chunk_cull", renderCoordinator->voxFoundChunkCull()},
                         {"ranges_occluded", renderCoordinator->voxFoundRangesOccluded()},
                         {"occlusion", renderCoordinator->voxFoundOcclusion()},
+                        {"mdi", renderCoordinator->voxFoundMdi()},
+                        {"clusters", renderCoordinator->voxFoundCullStats()[0]},
+                        {"clusters_drawn", renderCoordinator->voxFoundCullStats()[1]},
+                        {"cluster_faces_drawn", renderCoordinator->voxFoundCullStats()[2]},
+                        {"cluster_blocks", voxFoundPreview.clusterBlocks},
                         {"preview_faces", voxFoundPreview.faces.size()},
                         {"preview_sprigs", voxFoundPreview.sprigs.size()}};
             return;
@@ -13528,6 +13537,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             for (int f = 0; f < 6; ++f) voxFoundPreview.faceTex[m * 6 + f] = tex[m][f];
         voxFoundPreview.faces = packed;
         voxFoundPreview.chunks.clear();   // one area: drawn at originMetres
+        voxFoundPreview.clusters.clear();   // F2.11 MDI is for region previews only
         // Sprig instance: today's leaf texture (face 0, as ChunkRenderManager), full sky, no block light.
         voxFoundPreview.sprigs.resize(sprigRecs.size());
         for (size_t i = 0; i < sprigRecs.size(); ++i) {
@@ -13614,6 +13624,10 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
 
     std::vector<PackedFace> faces, sprigRecs;
     std::vector<PreviewChunk> chunks;
+    std::vector<PreviewCluster> clusters;   // F2.11
+    // F2.11 measured (VoxelFoundationPlan.md): 1-block clusters (26k indirect commands) cost +0.2-1.0 ms whole frame,
+    // 2 blocks +0.0-0.26, 4 blocks neutral -> 4 is the default; 1 stays available to measure.
+    const int clusterBlocks = std::clamp(cmd.params.value("cluster_blocks", 4), 1, 32);
     std::vector<std::string> palette;
     double gpuMs = 0.0, genMs = 0.0, buildMs = 0.0;
     size_t solid = 0;
@@ -13641,7 +13655,20 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         pc.originMetres = glm::dvec3(rc.originVoxel) / double(kVoxelsPerM);
         pc.firstFace = uint32_t(faces.size());
         pc.firstSprig = uint32_t(sprigRecs.size());
-        for (const PackedFace& f : out) (isSprig(f) ? sprigRecs : faces).push_back(f);
+        std::vector<PackedFace> solidFaces;
+        for (const PackedFace& f : out) (isSprig(f) ? sprigRecs : solidFaces).push_back(f);
+        // F2.11: group the chunk's faces into clusters of clusterBlocks^3 blocks, one indirect command each
+        for (const FaceCluster& c : clusterFaces(solidFaces, clusterBlocks)) {
+            PreviewCluster pcl;
+            const glm::vec3 base = glm::vec3((rc.chunk - lo) * kChunkM);
+            pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
+            pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
+            pcl.firstFace = pc.firstFace + c.first;
+            pcl.count = c.count;
+            pcl.chunk = uint32_t(chunks.size());
+            clusters.push_back(pcl);
+        }
+        faces.insert(faces.end(), solidFaces.begin(), solidFaces.end());
         pc.faceCount = uint32_t(faces.size()) - pc.firstFace;
         pc.sprigCount = uint32_t(sprigRecs.size()) - pc.firstSprig;
         pc.chunk = rc.chunk;
@@ -13671,6 +13698,9 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         voxFoundPreview.sprigs[i] = {(sprigRecs[i].a & 0xFFFFFFu) | (15u << 24), m < leafTex.size() ? leafTex[m] : 0u};
     }
     voxFoundPreview.chunks = std::move(chunks);
+    voxFoundPreview.clusters = std::move(clusters);
+    voxFoundPreview.anchorMetres = glm::dvec3(lo * kChunkM);
+    voxFoundPreview.clusterBlocks = clusterBlocks;
     voxFoundPreview.shown = true;
     voxFoundPreview.originMetres = glm::dvec3(lo * kChunkM);
     ++voxFoundPreview.revision;
@@ -13681,6 +13711,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                                    "; faces by FaceBuilderGpu with each chunk's real neighbours"},
                 {"chunks_from", {lo.x, lo.y, lo.z}}, {"chunks_to", {hi.x, hi.y, hi.z}},
                 {"chunks", rb.chunks},
+                {"clusters", voxFoundPreview.clusters.size()}, {"cluster_blocks", clusterBlocks},
                 {"chunks_with_geometry", std::count_if(voxFoundPreview.chunks.begin(), voxFoundPreview.chunks.end(),
                                                        [](const PreviewChunk& c) { return c.faceCount || c.sprigCount; })},
                 {"chunks_fully_blocking", std::count_if(voxFoundPreview.chunks.begin(), voxFoundPreview.chunks.end(),

@@ -53,7 +53,13 @@ public:
     VkPipeline getVoxFoundPipeline() const { return voxFoundPipeline; }
     // F2.5: the preview draws the 8 B PackedFace with no texture word; its texture comes from a material/face
     // table at set 1 (Preview.h faceTex). Bind set 0 with getGraphicsLayout() as usual (compatible), then this.
-    void bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table);
+    /// F2.11: binding 1 of set 1 = the per-indirect-draw chunk origin table read by voxfound_face_mdi.vert (null = the
+    /// table buffer is bound there as a placeholder; the direct-draw shader never reads it). A changed buffer is
+    /// written after vkDeviceWaitIdle (a frame in flight may still use the set; region rebuilds are rare).
+    void bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins = VK_NULL_HANDLE);
+    /// F2.11: the same pipeline state with shaders/voxfound_face_mdi.vert (chunk origin per indirect draw).
+    bool ensureVoxFoundMdiPipeline(const std::string& vertSpvPath);
+    VkPipeline getVoxFoundMdiPipeline() const { return voxFoundMdiPipeline; }
     bool hasDepthPrepass() const { return depthPrepassPipeline != VK_NULL_HANDLE && graphicsPipelineAfterPrepass != VK_NULL_HANDLE; }
     void bindDepthPrepassPipeline(VkCommandBuffer commandBuffer);
     void bindGraphicsPipelineAfterPrepass(VkCommandBuffer commandBuffer);
@@ -173,6 +179,9 @@ private:
     VkDescriptorPool voxFoundPool = VK_NULL_HANDLE;
     VkDescriptorSet voxFoundSet = VK_NULL_HANDLE;
     VkBuffer voxFoundSetBuffer = VK_NULL_HANDLE;                // the buffer voxFoundSet was last written with
+    VkBuffer voxFoundSetOrigins = VK_NULL_HANDLE;               // F2.11: what binding 1 was last written with
+    VkShaderModule voxFoundMdiVertModule = VK_NULL_HANDLE;      // F2.11
+    VkPipeline voxFoundMdiPipeline = VK_NULL_HANDLE;
     void createDepthPrepassPipelines();   // best effort: leaves them null (feature unavailable) on failure
     void destroyDepthPrepassPipelines();
     bool createDescriptorSetLayout();

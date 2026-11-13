@@ -370,7 +370,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 2 | Greedy face merging (cube; sub/micro fine merge, default ON) | `ChunkRenderManager` `s_fineGreedyMerge` | §4.1: in-block, then across blocks. **Consequence for §4.2:** a cross-block quad is up to 256 voxels long, so the extents need 8+8 bits, not 3+3 | **GPU done** (F2.1): run merge across the whole chunk, one thread per slice row |
 | 3 | Distance + frustum culling per chunk | `RenderCoordinator` LEVEL 1/2 | Same per chunk, plus per block AABB in the GPU draw-building pass | per chunk done (F2.9, measured: −0.6/−0.85 ms at ground poses, 0 px); per block owed with item 5 |
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
-| 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | owed |
+| 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | owed |
 | 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | owed |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
@@ -663,6 +663,42 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   type), and structures at 1/8 m are FC work (§7a.3). Its win is measured when the gate scene grows a settlement.
 - The on-screen overdraw F2.9 found (trees in front of trees) is finer than any chunk test. That is the block-level
   part of items 3/4, in the GPU draw-building pass (item 5), and the depth prepass.
+
+**F2.11 2026-11-13 — §4.6 item 5 (indirect draws) with item 3's per-block part: the GPU draw-building pass.**
+- Built:
+  - `clusterFaces` (Mesher.h) groups each chunk's faces by the cell of `clusterBlocks`³ blocks holding their origin
+    voxel, each with the exact union box (`faceBox`). `boxInFrustum` is the CPU reference test.
+  - `ClusterCullGpu` + `shaders/voxfound_cull.comp`: one indirect command per cluster; each frame one thread per
+    cluster writes its `instanceCount` (face count, or 0 when its chunk was rejected by the CPU's F2.9/F2.10 decision or
+    its box is outside the frustum). Boxes and planes are relative to the region's anchor (small floats).
+  - `shaders/voxfound_face_mdi.vert`: the face shader with the chunk origin per draw (`gl_DrawIDARB` → a static table
+    of whole-metre origins; camera split into whole metres + rest, so nothing large is subtracted in float).
+  - ONE `vkCmdDrawIndexedIndirect` over all clusters. No indirect-count: `VulkanDevice` only checks the 1.2 API
+    version and never enables the `drawIndirectCount` feature, so culled clusters are zero-instance commands.
+  - `voxfound_preview {"mdi":bool}` (default on), `"cluster_blocks"` at build (default 4, below), stats `clusters`,
+    `clusters_drawn`, `cluster_faces_drawn`. Shadow casters still draw per chunk (item 6).
+- Red first: `FaceBoxMatchesTheDrawnQuad`, `ClustersKeepEveryFaceAndBoundIt`, `BoxInFrustumIsThePVertexTest` failed on
+  stubs; `ClusterCullEqualsTheReference` (GPU, 5,000 random clusters, 7-chunk mask, two real cameras) failed with the
+  dispatch stubbed out (3,623 / 3,055 commands wrong). Green: 0 wrong, 0 within 1 mm of a plane; GPU tests 12/12.
+  (My first cluster-test area sat inside solid rock — 6 faces — a test-input error, fixed to span the ground.)
+- Pixels (wind 0, GI probes off): MDI vs per-chunk draws 0 px at all 5 poses (control 0 px), 4-block clusters.
+- Measured on the gate scene (Release, perf_harness 8 pairs × 5 poses each; `docs/evidence/voxfound_f211_*`):
+  - First version, 1-block clusters, buffers HOST-VISIBLE: +0.8 to +2.1 ms. The cull scope read ~1 ms. Two causes,
+    both fixed: the cluster and command buffers lived in host memory, and a global barrier before the dispatch made
+    it wait for every earlier indirect draw (the mid-shadow multidraw). After: the pass costs **0.008-0.010 ms**.
+  - Device-local, by cluster size (MDI − per-chunk, whole frame):
+
+    | cluster | clusters | faces drawn at canopy_close (vs 321,539 per-chunk) | whole frame |
+    |---|---|---|---|
+    | 1 block (the plan's unit) | 26,090 | 167,303 | +0.2 to +1.0 ms, worse at all 5 poses |
+    | 2 blocks | 8,807 | — | −0.06 to +0.26 ms |
+    | 4 blocks | 2,385 | 189,602 | −0.10 to +0.06 ms, neutral (3 CIs include 0) |
+
+  - So per-block culling removes up to 48 % of the faces and still loses: the per-command cost of 26k tiny draws
+    exceeds what the dropped faces cost. Same lesson as F2.9: faces outside the view were already cheap; the time is in
+    what is on screen. **Default 4-block clusters**: no cost, the GPU-driven structure the plan wants from the start
+    (item 5), and the base for the shadow-caster culling next (item 6). Per-block (1) stays selectable for re-measuring
+    when the scene or the GPU changes.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

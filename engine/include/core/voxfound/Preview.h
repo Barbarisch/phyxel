@@ -38,7 +38,17 @@ struct PreviewChunk {
     FaceConnect connect{0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F};      // F2.10: block-solidity visibility (Mesher.h)
 };
 
+/// F2.11: a run of one chunk's faces drawn by one indirect command (Mesher.h clusterFaces), box in metres relative to
+/// Preview::anchorMetres. `chunk` indexes Preview::chunks.
+struct PreviewCluster {
+    glm::vec3 lo{0.0f}, hi{0.0f};
+    uint32_t firstFace = 0, count = 0, chunk = 0;
+};
+
 struct Preview {
+    std::vector<PreviewCluster> clusters;   // F2.11 (region previews only; empty = per-chunk direct draws)
+    glm::dvec3 anchorMetres{0.0};           // F2.11: origin of the cluster boxes
+    int clusterBlocks = 0;                  // F2.11: blocks per cluster side the faces were grouped by
     glm::dvec3 originMetres{0.0};    // world position of voxel (0,0,0)'s min corner (used when `chunks` is empty)
     std::vector<PackedFace> faces;   // drawn as-is, 8 B each
     std::vector<PreviewChunk> chunks;   // empty: one area, every face/sprig at originMetres
