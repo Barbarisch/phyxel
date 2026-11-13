@@ -9,8 +9,7 @@
 
 layout(location = 0) in uint vertexID;   // face corner 0-3 (shared vertex buffer)
 layout(location = 1) in uint inFaceA;    // x 0-7 | y 8-15 | z 16-23 | axis 24-25 | dir>0 bit 26
-layout(location = 2) in uint inFaceB;    // du-1 0-7 | dv-1 8-15 | material 16-23
-layout(location = 3) in uint inTexWord;  // unused here (bound: the pipeline supplies the full PreviewFace layout)
+layout(location = 2) in uint inFaceB;    // du-1 0-7 | dv-1 8-15 | material 16-23 (8 B record, F2.5)
 
 layout(push_constant) uniform PushConstants {
     mat4 lightSpaceMatrix;

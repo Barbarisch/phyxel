@@ -470,7 +470,7 @@ bool ShadowMap::createPipeline() {
 
 // docs/VoxelFoundationPlan.md F2.4 — the 1/8 m face preview's caster pipeline. Mirrors createPipeline() state
 // exactly (BACK cull, the same depth bias, static viewport, LESS) and reuses its layout; only the vertex shader and
-// the instance layout (binding 1: PreviewFace, 12 B = three uints at locations 1-3) differ.
+// the instance layout (binding 1: PackedFace, 8 B = two uints at locations 1-2) differ.
 VkPipeline ShadowMap::ensureVoxFoundPipeline() {
     if (voxFoundPipeline != VK_NULL_HANDLE || voxFoundFailed) return voxFoundPipeline;
     if (pipelineLayout == VK_NULL_HANDLE || renderPass == VK_NULL_HANDLE) return VK_NULL_HANDLE;
@@ -496,15 +496,15 @@ VkPipeline ShadowMap::ensureVoxFoundPipeline() {
     stages[1].module = fragMod;
     stages[1].pName = "main";
 
-    // Binding 0 = the shared corner-ID vertex buffer (as the chunk pipeline); binding 1 = PreviewFace.
+    // Binding 0 = the shared corner-ID vertex buffer (as the chunk pipeline); binding 1 = PackedFace (8 B).
     std::vector<VkVertexInputBindingDescription> bindings = {Vulkan::Vertex::getBindingDescription()};
     std::vector<VkVertexInputAttributeDescription> attrs = Vulkan::Vertex::getAttributeDescriptions();
     VkVertexInputBindingDescription inst{};
     inst.binding = 1;
-    inst.stride = 12;
+    inst.stride = 8;
     inst.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
     bindings.push_back(inst);
-    for (uint32_t i = 0; i < 3; ++i) {
+    for (uint32_t i = 0; i < 2; ++i) {
         VkVertexInputAttributeDescription a{};
         a.binding = 1;
         a.location = 1 + i;

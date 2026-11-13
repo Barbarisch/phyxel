@@ -60,6 +60,57 @@ bool RenderPipeline::createGraphicsPipeline() {
 bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
     if (voxFoundPipeline != VK_NULL_HANDLE) return true;
     if (pipelineLayout == VK_NULL_HANDLE || fragShaderModule == VK_NULL_HANDLE) return false;
+    VkDevice device = vulkanDevice.getDevice();
+    // Set 1 = the material/face texture table (one storage buffer, vertex stage). Set 0 and the push-constant
+    // range are the static pipeline's, so this layout stays compatible with it for set 0 and push constants:
+    // the shared set 0 is bound once with getGraphicsLayout() and only set 1 is bound with this layout.
+    if (voxFoundSetLayout == VK_NULL_HANDLE) {
+        VkDescriptorSetLayoutBinding b{};
+        b.binding = 0;
+        b.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        b.descriptorCount = 1;
+        b.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        VkDescriptorSetLayoutCreateInfo li{};
+        li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        li.bindingCount = 1;
+        li.pBindings = &b;
+        if (vkCreateDescriptorSetLayout(device, &li, nullptr, &voxFoundSetLayout) != VK_SUCCESS) {
+            LOG_ERROR("RenderPipeline", "voxfound preview: set-1 layout creation failed");
+            return false;
+        }
+    }
+    if (voxFoundLayout == VK_NULL_HANDLE) {
+        const VkDescriptorSetLayout sets[2] = {vulkanDevice.getDescriptorSetLayout(), voxFoundSetLayout};
+        const VkPushConstantRange pcr = VulkanDevice::getPushConstantRange();
+        VkPipelineLayoutCreateInfo pli{};
+        pli.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pli.setLayoutCount = 2;
+        pli.pSetLayouts = sets;
+        pli.pushConstantRangeCount = 1;
+        pli.pPushConstantRanges = &pcr;
+        if (vkCreatePipelineLayout(device, &pli, nullptr, &voxFoundLayout) != VK_SUCCESS) {
+            LOG_ERROR("RenderPipeline", "voxfound preview: pipeline layout creation failed");
+            return false;
+        }
+    }
+    if (voxFoundPool == VK_NULL_HANDLE) {
+        VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1};
+        VkDescriptorPoolCreateInfo pi{};
+        pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pi.maxSets = 1;
+        pi.poolSizeCount = 1;
+        pi.pPoolSizes = &ps;
+        VkDescriptorSetAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        ai.descriptorSetCount = 1;
+        ai.pSetLayouts = &voxFoundSetLayout;
+        if (vkCreateDescriptorPool(device, &pi, nullptr, &voxFoundPool) != VK_SUCCESS ||
+            (ai.descriptorPool = voxFoundPool, vkAllocateDescriptorSets(device, &ai, &voxFoundSet) != VK_SUCCESS)) {
+            LOG_ERROR("RenderPipeline", "voxfound preview: descriptor set allocation failed");
+            return false;
+        }
+        voxFoundSetBuffer = VK_NULL_HANDLE;
+    }
     if (voxFoundVertModule == VK_NULL_HANDLE) {
         auto code = Utils::readFile(vertSpvPath);
         if (code.empty()) {
@@ -68,13 +119,13 @@ bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
         }
         voxFoundVertModule = createShaderModule(code);
     }
-    // Instance (binding 1): uint a, uint b (the PackedFace) + uint texture word, 12 bytes.
+    // Instance (binding 1): uint a, uint b — the 8 B PackedFace record, nothing else (F2.5).
     VkVertexInputBindingDescription bind{};
     bind.binding = 1;
-    bind.stride = 12;
+    bind.stride = 8;
     bind.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
-    std::vector<VkVertexInputAttributeDescription> attrs(3);
-    for (uint32_t i = 0; i < 3; ++i) {
+    std::vector<VkVertexInputAttributeDescription> attrs(2);
+    for (uint32_t i = 0; i < 2; ++i) {
         attrs[i].binding = 1;
         attrs[i].location = 1 + i;
         attrs[i].format = VK_FORMAT_R32_UINT;
@@ -83,14 +134,33 @@ bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
     return buildStaticPipeline(fragShaderModule, VK_TRUE, Graphics::DepthConvention::sceneDepthCompareOp(),
                                VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                    VK_COLOR_COMPONENT_A_BIT,
-                               voxFoundPipeline, "voxfound preview", voxFoundVertModule, &bind, &attrs);
+                               voxFoundPipeline, "voxfound preview", voxFoundVertModule, &bind, &attrs,
+                               voxFoundLayout);
+}
+
+void RenderPipeline::bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table) {
+    if (voxFoundSet == VK_NULL_HANDLE || table == VK_NULL_HANDLE) return;
+    if (voxFoundSetBuffer != table) {   // written once per buffer: the table buffer is never reallocated
+        VkDescriptorBufferInfo bi{table, 0, VK_WHOLE_SIZE};
+        VkWriteDescriptorSet w{};
+        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w.dstSet = voxFoundSet;
+        w.dstBinding = 0;
+        w.descriptorCount = 1;
+        w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        w.pBufferInfo = &bi;
+        vkUpdateDescriptorSets(vulkanDevice.getDevice(), 1, &w, 0, nullptr);
+        voxFoundSetBuffer = table;
+    }
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, voxFoundLayout, 1, 1, &voxFoundSet, 0, nullptr);
 }
 
 bool RenderPipeline::buildStaticPipeline(VkShaderModule fragModule, VkBool32 depthWrite,
                                          VkCompareOp depthCompare, VkColorComponentFlags colorWriteMask,
                                          VkPipeline& out, const char* what, VkShaderModule vertModule,
                                          const VkVertexInputBindingDescription* instBinding,
-                                         const std::vector<VkVertexInputAttributeDescription>* instAttrs) {
+                                         const std::vector<VkVertexInputAttributeDescription>* instAttrs,
+                                         VkPipelineLayout layout) {
     // Vertex input - use both vertex and instance data
     auto vertexBindingDescription = Vertex::getBindingDescription();
     auto vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
@@ -215,7 +285,7 @@ bool RenderPipeline::buildStaticPipeline(VkShaderModule fragModule, VkBool32 dep
     pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
-    pipelineInfo.layout = pipelineLayout;
+    pipelineInfo.layout = layout != VK_NULL_HANDLE ? layout : pipelineLayout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
 
@@ -891,6 +961,20 @@ void RenderPipeline::cleanup() {
     if (voxFoundVertModule != VK_NULL_HANDLE) {
         vkDestroyShaderModule(device, voxFoundVertModule, nullptr);
         voxFoundVertModule = VK_NULL_HANDLE;
+    }
+    if (voxFoundLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device, voxFoundLayout, nullptr);
+        voxFoundLayout = VK_NULL_HANDLE;
+    }
+    if (voxFoundPool != VK_NULL_HANDLE) {   // frees voxFoundSet with it
+        vkDestroyDescriptorPool(device, voxFoundPool, nullptr);
+        voxFoundPool = VK_NULL_HANDLE;
+        voxFoundSet = VK_NULL_HANDLE;
+        voxFoundSetBuffer = VK_NULL_HANDLE;
+    }
+    if (voxFoundSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device, voxFoundSetLayout, nullptr);
+        voxFoundSetLayout = VK_NULL_HANDLE;
     }
 
     if (debugGraphicsPipeline != VK_NULL_HANDLE) {

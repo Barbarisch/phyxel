@@ -422,8 +422,8 @@ The outer box faces are counted (`outside: air`), so these are dioramas. Eye che
     Check: same tree, same pose, today's path vs preview, compare pixel values on those faces.
   - thin dark horizontal slits across a bush — EXPLAINED in F2.3: F2.2 drew leaf voxels as solid cubes, but the
     engine never draws leaves as cubes (leaf cards, below). The slits were the leaf cubes' own faces.
-- Draw instance is 12 B in this stopgap: the PackedFace plus a texture word looked up on the host. The 8 B path needs a
-  material-to-texture table on the device.
+- Draw instance was 12 B in this stopgap (PackedFace + a host-looked-up texture word). Done in F2.5: the draw instance is
+  the 8 B record and the texture comes from a table on the device.
 
 **F2.3 2026-11-12 — leaves are today's leaf CARDS, not voxels.** My F2.2 mistake: I drew leaf voxels as solid faces
 without reading how the engine draws leaves. How today works (`ChunkRenderManager.cpp` ~960/1396/1561/1695,
@@ -487,6 +487,26 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
 - Forest (F2.2 spot, 84 trees, `voxfound_f24_forest_cards_shadows.png`): 36,778 solid faces + 15,579 sprigs, all
   drawn in the main, mid, near (faces) and mid (sprigs) passes; dappled canopy shadows on ground and trunks.
 - Tests: CPU 7/7 + GPU 7/7 on rebuilt exes (forest sprigs 14,716 at 4.5/m², GPU = CPU exactly).
+
+**F2.5 2026-11-12 — the draw instance is the 8 B face record.** (§4.2, §4.6.)
+- `voxfound_face.vert` reads the `PackedFace` as-is (binding 1, stride 8, locations 1-2). The texture word
+  (index | flags << 16) comes from `faceTex[material * 6 + faceID]`, a storage buffer at **set 1** of the preview's own
+  pipeline layout (`RenderPipeline::ensureVoxFoundPipeline`: set 0 = the shared scene set, set 1 = the table, the static
+  push-constant range). Set 0 stays bound with the static layout (compatible); only set 1 is bound with the new one
+  (`bindVoxFoundFaceTex`). The shared set 0 was NOT grown: it serves every scene shader and is rewritten per frame.
+- `material` is the area's PALETTE index, so the table is per palette: 256 × 6 words = 6 KB, always full size, so no
+  8-bit material reads past it. The buffer is made once and never reallocated (its descriptor is written once, so a
+  recycled handle cannot alias it). Per-chunk palettes later: one buffer of palettes and a per-chunk base (a dynamic
+  storage-buffer offset avoids touching the push range).
+- The shadow caster drops the unused third attribute (stride 8).
+- Bytes: forest with cards 36,778 faces → 294,224 B drawn (was 441,336); leaves as voxels 80,552 → 644,416 B (was
+  966,624). Plus the 6 KB table.
+- Check (`rec8_shot.py`, seed-7 forest at (8160, 96), camera (116, 26, 58) yaw -90 pitch -22, leaves as voxels so
+  nothing in the box sways): box x 500-1196, y 45-670 of the 1600 × 900 frame.
+  - Control (two shots, same 12 B build): 0 differing px. (The left of the viewport is lab-world grass in the wind.)
+  - 12 B build vs 8 B build: **0 differing px.** All 80,552 faces drawn in main, mid and near (`stats`).
+  - Mutation (shader reads face slot `faceID ^ 1`): 36.6% of the box differs, so the comparison can fail.
+  - Cards mode (sprigs sway): 14.4% differs before vs after against a 14.9% same-build control; by eye identical.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

@@ -1495,6 +1495,11 @@ private:
     uint32_t       m_voxFoundDrawn = 0;
     void renderVoxFoundPreview();
     void releaseVoxFoundBuffer();
+    VkBuffer       m_voxFoundTexBuffer = VK_NULL_HANDLE;           // F2.5 face texture table, fixed size, made once
+    VkDeviceMemory m_voxFoundTexMemory = VK_NULL_HANDLE;           // (never reallocated: its descriptor is written
+    void*          m_voxFoundTexMapped = nullptr;                  //  once, so a recycled handle can't alias)
+    uint64_t       m_voxFoundTexRevision = UINT64_MAX;
+    void releaseVoxFoundTexBuffer();
     VkBuffer       m_voxFoundSprigBuffer = VK_NULL_HANDLE;         // F2.3 leaf sprigs
     VkDeviceMemory m_voxFoundSprigMemory = VK_NULL_HANDLE;
     void*          m_voxFoundSprigMapped = nullptr;

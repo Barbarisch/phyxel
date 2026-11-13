@@ -37,7 +37,7 @@ public:
     VkPipeline getDynamicShadowPipeline() const { return dynamicPipeline; }
     VkPipelineLayout getDynamicShadowLayout() const { return dynamicPipelineLayout; }
 
-    /// docs/VoxelFoundationPlan.md F2.4: caster pipeline for the 1/8 m face preview (12 B PreviewFace instances,
+    /// docs/VoxelFoundationPlan.md F2.4: caster pipeline for the 1/8 m face preview (8 B PackedFace instances,
     /// voxfound_face_shadow.vert). Same layout (getPipelineLayout) and state as the chunk pipeline. Created on
     /// first call; VK_NULL_HANDLE if it cannot be built (logged once).
     VkPipeline ensureVoxFoundPipeline();

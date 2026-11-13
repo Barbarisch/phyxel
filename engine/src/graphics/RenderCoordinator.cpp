@@ -810,6 +810,7 @@ RenderCoordinator::~RenderCoordinator() {
     // device is still alive.
     if (m_lightOccupancy) m_lightOccupancy->cleanup();
     releaseVoxFoundBuffer();
+    releaseVoxFoundTexBuffer();
     if (m_matSimBuffer != VK_NULL_HANDLE && vulkanDevice) {   // MatSim P1b raw-cell view buffer
         vkUnmapMemory(vulkanDevice->getDevice(), m_matSimMemory);
         vkDestroyBuffer(vulkanDevice->getDevice(), m_matSimBuffer, nullptr);
@@ -2517,6 +2518,18 @@ void RenderCoordinator::releaseVoxFoundBuffer() {
     releaseVoxFoundSprigBuffer();
 }
 
+void RenderCoordinator::releaseVoxFoundTexBuffer() {
+    if (m_voxFoundTexBuffer == VK_NULL_HANDLE || !vulkanDevice) return;
+    vkDeviceWaitIdle(vulkanDevice->getDevice());
+    if (m_voxFoundTexMapped) vkUnmapMemory(vulkanDevice->getDevice(), m_voxFoundTexMemory);
+    vkDestroyBuffer(vulkanDevice->getDevice(), m_voxFoundTexBuffer, nullptr);
+    vkFreeMemory(vulkanDevice->getDevice(), m_voxFoundTexMemory, nullptr);
+    m_voxFoundTexBuffer = VK_NULL_HANDLE;
+    m_voxFoundTexMemory = VK_NULL_HANDLE;
+    m_voxFoundTexMapped = nullptr;
+    m_voxFoundTexRevision = UINT64_MAX;
+}
+
 void RenderCoordinator::releaseVoxFoundSprigBuffer() {
     if (m_voxFoundSprigBuffer == VK_NULL_HANDLE || !vulkanDevice) return;
     vkDeviceWaitIdle(vulkanDevice->getDevice());
@@ -2576,7 +2589,7 @@ void RenderCoordinator::renderVoxFoundPreview() {
         releaseVoxFoundBuffer();
         size_t cap = 1u << 16;
         while (cap < faces.size()) cap *= 2;
-        const VkDeviceSize bytes = VkDeviceSize(cap) * sizeof(Core::VoxFound::PreviewFace);
+        const VkDeviceSize bytes = VkDeviceSize(cap) * sizeof(Core::VoxFound::PackedFace);
         vulkanDevice->createBuffer(bytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                    m_voxFoundBuffer, m_voxFoundMemory);
@@ -2589,8 +2602,29 @@ void RenderCoordinator::renderVoxFoundPreview() {
     }
     if (!m_voxFoundMapped) return;
     if (m_voxFoundRevision != m_voxFoundPreview->revision) {
-        std::memcpy(m_voxFoundMapped, faces.data(), faces.size() * sizeof(Core::VoxFound::PreviewFace));
+        std::memcpy(m_voxFoundMapped, faces.data(), faces.size() * sizeof(Core::VoxFound::PackedFace));
         m_voxFoundRevision = m_voxFoundPreview->revision;
+    }
+    // F2.5 texture table (Preview.h faceTex): fixed size, made once, re-filled with the faces.
+    constexpr VkDeviceSize kTexBytes = Core::VoxFound::kFaceTexWords * sizeof(uint32_t);
+    if (m_voxFoundTexBuffer == VK_NULL_HANDLE) {
+        vulkanDevice->createBuffer(kTexBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                   m_voxFoundTexBuffer, m_voxFoundTexMemory);
+        if (m_voxFoundTexBuffer == VK_NULL_HANDLE || m_voxFoundTexMemory == VK_NULL_HANDLE ||
+            vkMapMemory(vulkanDevice->getDevice(), m_voxFoundTexMemory, 0, kTexBytes, 0, &m_voxFoundTexMapped) !=
+                VK_SUCCESS) {
+            m_voxFoundTexMapped = nullptr;
+            return;
+        }
+    }
+    if (!m_voxFoundTexMapped) return;
+    if (m_voxFoundTexRevision != m_voxFoundPreview->revision) {
+        const auto& t = m_voxFoundPreview->faceTex;
+        std::memset(m_voxFoundTexMapped, 0, size_t(kTexBytes));
+        std::memcpy(m_voxFoundTexMapped, t.data(),
+                    std::min(t.size(), Core::VoxFound::kFaceTexWords) * sizeof(uint32_t));
+        m_voxFoundTexRevision = m_voxFoundPreview->revision;
     }
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundPipeline());
@@ -2599,6 +2633,7 @@ void RenderCoordinator::renderVoxFoundPreview() {
     vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
     vulkanDevice->bindIndexBuffer(currentFrame);
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
+    renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer);
     const glm::dvec3 origin = m_voxFoundPreview->originMetres;
     vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), camera->relativeTo(origin),
                                 glm::vec3(origin));

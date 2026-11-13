@@ -379,7 +379,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       preview (not needed for the canopy match; real fix = ambient over the new store, §4.4).
       TRAP: an A/B pose BETWEEN two trees sees one lit side and one shadowed side -- compare trees only from the
       same pose relative to each trunk. PowerShell 5.1 strips quotes in JSON args: f22_preview.py takes @file.
-      NEXT: device-side texture table (8 B draw record); uniform-block skip; chunk-border neighbours; then a
+      F2.5 (2026-11-12): draw instance = the 8 B PackedFace; texture word from a 256x6 table at set 1 of the
+      preview's own layout (set 0 untouched). 12 B vs 8 B build: 0 differing px (rec8_shot.py, leaves as voxels).
+      LAUNCH TRAP: phyxel.exe links python312 -- put the uv cpython-3.12.13 dir on PATH or it exits silently
+      (the MCP launch_engine did exactly that this session); the test exes' post-build steps fail the same way.
+      NEXT: uniform-block skip; chunk-border neighbours; then a
       whole-frame A/B against today on the same generated scene (the F2 gate); regenerate spruce templates to
       today's size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

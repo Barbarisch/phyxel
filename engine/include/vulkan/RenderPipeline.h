@@ -47,10 +47,13 @@ public:
     //   prepass : voxel_depth.frag, depth write ON, scene compare, colour writes OFF
     //   shading : voxel.frag,       depth write OFF, or-equal compare, colour writes ON
     // docs/VoxelFoundationPlan.md F2.2 — the 1/8 m face preview: the static pipeline's state and
-    // voxel.frag, with shaders/voxfound_face.vert reading the 12-byte preview face instance
-    // (PackedFace a, b + texture word). Built on first use; false (and logged) when the .spv is missing.
+    // voxel.frag, with shaders/voxfound_face.vert reading the 8-byte PackedFace record
+    // as the instance (F2.5) and its own layout (set 0 shared + set 1 texture table). Built on first use; false (and logged) when the .spv is missing.
     bool ensureVoxFoundPipeline(const std::string& vertSpvPath);
     VkPipeline getVoxFoundPipeline() const { return voxFoundPipeline; }
+    // F2.5: the preview draws the 8 B PackedFace with no texture word; its texture comes from a material/face
+    // table at set 1 (Preview.h faceTex). Bind set 0 with getGraphicsLayout() as usual (compatible), then this.
+    void bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table);
     bool hasDepthPrepass() const { return depthPrepassPipeline != VK_NULL_HANDLE && graphicsPipelineAfterPrepass != VK_NULL_HANDLE; }
     void bindDepthPrepassPipeline(VkCommandBuffer commandBuffer);
     void bindGraphicsPipelineAfterPrepass(VkCommandBuffer commandBuffer);
@@ -161,9 +164,15 @@ private:
                              VkColorComponentFlags colorWriteMask, VkPipeline& out, const char* what,
                              VkShaderModule vertModule = VK_NULL_HANDLE,
                              const VkVertexInputBindingDescription* instBinding = nullptr,
-                             const std::vector<VkVertexInputAttributeDescription>* instAttrs = nullptr);
+                             const std::vector<VkVertexInputAttributeDescription>* instAttrs = nullptr,
+                             VkPipelineLayout layout = VK_NULL_HANDLE);   // null = pipelineLayout
     VkShaderModule voxFoundVertModule = VK_NULL_HANDLE;
     VkPipeline voxFoundPipeline = VK_NULL_HANDLE;
+    VkDescriptorSetLayout voxFoundSetLayout = VK_NULL_HANDLE;   // set 1: face texture table
+    VkPipelineLayout voxFoundLayout = VK_NULL_HANDLE;           // set 0 (shared) + set 1, static push range
+    VkDescriptorPool voxFoundPool = VK_NULL_HANDLE;
+    VkDescriptorSet voxFoundSet = VK_NULL_HANDLE;
+    VkBuffer voxFoundSetBuffer = VK_NULL_HANDLE;                // the buffer voxFoundSet was last written with
     void createDepthPrepassPipelines();   // best effort: leaves them null (feature unavailable) on failure
     void destroyDepthPrepassPipelines();
     bool createDescriptorSetLayout();

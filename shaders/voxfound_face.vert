@@ -4,12 +4,11 @@
 // (FaceBuilderGpu / voxfound_faces.comp) through TODAY's voxel.frag — the same lighting, shadows, materials
 // and tonemap as static_voxel.vert, so a side-by-side shows only the grid change.
 //
-// Instance (binding 1, 12 bytes): the 8-byte PackedFace (Mesher.h)
+// Instance (binding 1, 8 bytes): the PackedFace record itself (Mesher.h), nothing added (§4.6, F2.5)
 //   a: x 0-7 | y 8-15 | z 16-23 | axis 24-25 | dir>0 bit 26     (voxels, relative to the chunk origin)
-//   b: du-1 0-7 | dv-1 8-15 | material 16-23
-// plus a texture word (bits 0-15 texture index, 16-31 flags) the host looks up per material and face.
-// PREVIEW STOPGAP: the texture word makes the draw instance 12 B; the 8 B record path reads the texture
-// from a material table on the device instead (§4.6, owed).
+//   b: du-1 0-7 | dv-1 8-15 | material 16-23                       (material = the area's palette index)
+// Texture word (bits 0-15 texture index, 16-31 flags) from the device table at set 1 (Preview.h faceTex):
+// faceTex[material * 6 + faceID], 256 * 6 words, so every 8-bit material is in range.
 //
 // Geometry: the same unit-quad corner table and faceID order as static_voxel.vert (0 +Z, 1 -Z, 2 +X,
 // 3 -X, 4 +Y, 5 -Y), drawn with the same 36-index cube and FRONT culling, so winding matches.
@@ -19,7 +18,10 @@
 layout(location = 0) in uint vertexID;
 layout(location = 1) in uint inFaceA;
 layout(location = 2) in uint inFaceB;
-layout(location = 3) in uint inTexWord;
+
+layout(std430, set = 1, binding = 0) readonly buffer VoxFoundFaceTex {
+    uint faceTex[];   // 256 * 6
+};
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -110,8 +112,9 @@ void main() {
     vChunkBaseRel = pushConstants.chunkBaseOffset;
     vTint = vec3(1.0);
     vState = 0u;
-    textureIndex = inTexWord & 0xFFFFu;
-    flags = (inTexWord >> 16) & 0xFFFFu;
+    const uint texWord = faceTex[((inFaceB >> 16) & 0xFFu) * 6u + faceID];
+    textureIndex = texWord & 0xFFFFu;
+    flags = (texWord >> 16) & 0xFFFFu;
     texCoord = uv;
     vSkyLight = 1.0;
 }

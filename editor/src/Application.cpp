@@ -13485,13 +13485,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         for (size_t m = 0; m < area.palette.size(); ++m)
             for (int f = 0; f < 6; ++f)
                 tex[m][f] = m == 0 ? 0 : Core::MaterialRegistry::instance().getTextureIndex(area.palette[m], f);
-        voxFoundPreview.faces.resize(packed.size());
-        for (size_t i = 0; i < packed.size(); ++i) {
-            const Quad q = unpackFace(packed[i]);
-            const int faceID = q.axis == 2 ? (q.dir > 0 ? 0 : 1) : q.axis == 0 ? (q.dir > 0 ? 2 : 3) : (q.dir > 0 ? 4 : 5);
-            voxFoundPreview.faces[i] = {packed[i].a, packed[i].b,
-                                        q.material < tex.size() ? uint32_t(tex[q.material][faceID]) : 0u};
-        }
+        // F2.5: the 8 B record is drawn as-is; the texture comes from this device table (Preview.h).
+        voxFoundPreview.faceTex.assign(kFaceTexWords, 0u);
+        for (size_t m = 0; m < tex.size() && m < 256; ++m)
+            for (int f = 0; f < 6; ++f) voxFoundPreview.faceTex[m * 6 + f] = tex[m][f];
+        voxFoundPreview.faces = packed;
         // Sprig instance: today's leaf texture (face 0, as ChunkRenderManager), full sky, no block light.
         voxFoundPreview.sprigs.resize(sprigRecs.size());
         for (size_t i = 0; i < sprigRecs.size(); ++i) {
@@ -13521,7 +13519,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     {"sprigs_per_m2", cmd.params.value("sprigs_per_m2", kSprigsPerM2)},
                     {"sprig_instance_bytes", sprigRecs.size() * sizeof(PreviewSprig)},
                     {"face_record_bytes", packed.size() * sizeof(PackedFace)},
-                    {"preview_instance_bytes", packed.size() * sizeof(PreviewFace)},
+                    {"preview_instance_bytes", packed.size() * sizeof(PackedFace)},
+                    {"face_tex_table_bytes", kFaceTexWords * sizeof(uint32_t)},
                     {"gpu_face_build_ms", voxFoundBuilder->lastGpuMs()},
                     {"generate_ms", ms(t0, t1)},
                     {"build_wall_ms", ms(t1, t2)},

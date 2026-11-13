@@ -378,12 +378,12 @@
     },
     "voxfound_face.vert": {
       "built": true,
-      "sources": "75cf409ed34164ac6bd12119f6a57ace9343b8abcaa4a6c4457390be63e1d480",
+      "sources": "a6b34aa0c08d78f82d6fdd0e209ad47be2eab64b49054740ea4df0d4ec2266d6",
       "spv_present": true
     },
     "voxfound_face_shadow.vert": {
       "built": true,
-      "sources": "01b9aaa18e8c896b006a3541a1f594226af516714e39e38d166193ad707e3333",
+      "sources": "3f8d051847cfe818ee1e933e7f7d31f44d823a3eeaaf9efb12a19a4c78b3d529",
       "spv_present": true
     },
     "voxfound_faces.comp": {
