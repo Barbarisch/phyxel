@@ -13404,6 +13404,61 @@ it should jsut be a few splash particles for affect." Owner, 2026-11-12: "follow
 - **Status: built, not signed off.** Open for the owner: the look (above, especially (a) the jet keeping its sprayed water and
   (b) scraps reaching the surface at once), and the pool factor, now with 0 of 15 live grows at 1.0 (51.11 and its re-measure).
 
+**51.12 (2026-11-13) BUILT, ON for new worlds - a carved channel drains the basin it crosses or passes: RiverCarve's lake wall is
+gone** (51.7c's open list: 51.4c item 2; the fix D4 logged on 2026-10-09 (16.9, `StructurePipelineGaps.md`): "the basin's level
+becomes its outlet bed"; `/design-check` READY). Not signed off.
+- **Measured first** (`WaterGeneratedContainmentTest.DISABLED_DiagRiverCarveLakeWall`, new). It runs the bench world's own recipe
+  (`tests/core/golden/rivercarve_recipe.json`, copied from its `world_meta`). It counts every wet column standing beside a dry column
+  whose ground is below the water, and classifies why the flood stopped there: a carved `river` column, the hydraulic rule (`drains`)
+  or `unreached`. In the 51.4c view (x -2112..-1344, z -1216..-448) the counts were:
+  - 493,480 wet columns;
+  - faces: river 595, drains 190, unreached 1,327;
+  - the worst, **81.8 m: a lake at 107.80 beside a carved river column whose ground top is 26**.
+
+  The cause, from the bake cells round it (`DISABLED_DiagCellsRoundTheWorstWall`): the order-5 trunk's own 128 m cells are dry,
+  and the 107.8 water seeds from one-cell pits BESIDE it (order 1-2). The coarse rim between them is >= 107.8. The fine valley the
+  generator carves along the trunk (relief driven to 0 over a few channel widths, plus the meander) is ~80 m lower, and the flood
+  runs into it. So a carve cuts the rim of a basin it passes, not only one it crosses.
+- **Built** (`HydrologyMap::drainCarvedBasins`, run in the bake after the flow field and before the body index and the cache):
+  - For each inland body (4-connected cells at one level above sea), the new level is:
+    - **crossed** by an order >= 3 cell: the carved river's surface in the exit cell (the D8 chain's last cell in the body);
+    - otherwise, with one **beside** it (any of its cells' 8 neighbours): the lowest carved surface among those cells.
+  - The carved surface is `WorldGenerator::carvedRiverSurfaceInCell`: the minimum, over the cell's order >= 3 columns, of the
+    river span `waterSpansForBlock` gives (bed top + carve depth), memoized per cell.
+  - A lower surface becomes the body's level. A cell stays wet at it where the coarse height is below it, else goes dry, and
+    `filled` follows. The level only ever falls.
+  - The recipe owns it: **`WorldRecipe::carveDrainsBasins`**, written only when true. A world made before it reads false, so its
+    unsaved chunks agree with its saved lakes; `makeRecipe` sets it for new worlds. The bake cache key now carries the flag and,
+    when it is on, every biome's height scale and offset (the carved surface depends on them).
+- **Tests** (unit, Release):
+  - `ACarvedChannelDrainsTheBasinItCrosses` (x -1920..-1536, z -1216..-832). Red first, with the flag on and nothing built: river
+    256 faces, worst 81.8 m. The control (flag off): wet 114,310; faces river 195, drains 190, unreached 456; worst 81.8 m. Green:
+    **wet 5,920; faces 0 / 0 / 0**. The first green try, crossed bodies only, still left river 217 and 81.8 m, which is what found
+    the beside case.
+  - `TheDrainTouchesOnlyBasinsACarvedChannelCrosses`, the whole bake: 3,541 bodies, 435 drained, 0 unresolved, 4,849 cells
+    changed, all to dry. 0 in bodies no channel crosses or passes; 0 raised; sea untouched.
+  - `ADrainedBasinIsTheSameChunkedOrWhole`: 128 x 128, 2,536 wet, 0 differ.
+  - `TerrainRecipeTest.CarveDrainsBasinsIsOffForOldWorldsOnForNewAndRoundTrips`.
+  - The terrain / water / WorldForge / flora / settlement unit suites: 557 / 557. Integration water: 87 / 89 (the known two, as
+    in 51.11).
+- **The whole 51.4c view now** (`PHYXEL_DRAIN=1` on the diagnostic): wet 493,480 -> 25,734; river faces 595 -> 0, drains 190 -> 0,
+  unreached 1,327 -> 382. The bbox corner region to the north: river 442 -> 0.
+- **Not fixed - a second cause, logged:** walls remain where no channel is near: the 108.59 body's unreached faces (worst 18.6 m), and
+  north of it drains 1,450 / unreached 485 (worst 35.6 m). The bake floods heights taken at its 128 m cell CORNERS from base +
+  relief, without the biome blend (`heightScale` / `heightOffset`) that the generated terrain has, so a coarse rim can stand where
+  the fine terrain has none. A drain cannot fix that; the bake would have to see the fine rim. The river spans' own edges (bed +
+  carve depth stepping down a steep reach, D4's representation) are counted apart: 174 faces in the view, worst 3.4 m.
+- **Cost:** the bake is +7.3 s once per world configuration (RiverCarve recipe, cache cleared: 0.29 s off, 7.55 s on). No
+  per-frame work. Live, WaterBench_RiverCarve (its recipe flag set; the DB had one stored chunk, backed up in the scratchpad), the
+  bench's camera, `water_skin_river_live.py --tag drain512_river`:
+  - the **wall of water is gone** (`drain512_river_on.png` against 51.4c's `skin_river_on.png`): the valley shows its terrain and
+    the river; trees stand where the false lake was;
+  - A/B/A at rest, skin on 33.0 fps (CPU 30.4, GPU 29.6 ms), off again 34.1 fps (51.4c: 13.7 fps, CPU ~74 ms). The first off window
+    caught streaming (60 fps / CPU 53.5 ms / worst 186 ms);
+  - not clean: the GPU read 100 % with the owner's stream client running, so these frame figures are not this change's alone.
+- **Status: built, not signed off.** For the owner: the look (`drain512_river_on.png` / `_off.png`). Open: the second cause above,
+  the synced-mode patch that does not sleep (51.7) and the per-world summary cache (51.4f).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

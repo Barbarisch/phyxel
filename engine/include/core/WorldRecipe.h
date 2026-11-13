@@ -66,6 +66,10 @@ struct WorldRecipe {
     // flows on that height, option (a), 25.21). A world made before the carve has no key -> false, so its unsaved chunks
     // regenerate with the shelf its saved ones have; new worlds get it from makeRecipe(). Written only when true.
     bool creekCarve = false;
+    // WaterCore.md 51.12: a carved (order >= 3) channel drains the bake basin it crosses - the basin's level becomes the river's
+    // surface where the channel leaves it. Changes the bake's lake levels, so a world made before it has no key -> false (its
+    // unsaved chunks must agree with its saved lakes); new worlds get it from makeRecipe(). Written only when true.
+    bool carveDrainsBasins = false;
 
     std::string toJson() const {
         nlohmann::json root;
@@ -105,6 +109,7 @@ struct WorldRecipe {
         }
         if (worldforge.enabled) root["worldforge"] = worldforge.toJson();
         if (creekCarve) root["creekCarve"] = true;
+        if (carveDrainsBasins) root["carveDrainsBasins"] = true;
         return root.dump(2);
     }
 
@@ -157,6 +162,7 @@ struct WorldRecipe {
             if (root.contains("worldforge"))
                 r.worldforge = WorldForgeParams::fromJson(root["worldforge"]);
             r.creekCarve = root.value("creekCarve", false);
+            r.carveDrainsBasins = root.value("carveDrainsBasins", false);
         } catch (...) {
             // Bad/empty input -> caller falls back to synthesizing from the category library.
         }

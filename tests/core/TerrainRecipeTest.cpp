@@ -102,3 +102,15 @@ TEST(TerrainRecipeTest, HeightSplineRoundTripsThroughRecipeJson) {
 
 }  // namespace
 }  // namespace Phyxel
+
+// WaterCore.md 51.12: carveDrainsBasins is a bake input that changes lake levels, so a world made before it must keep it OFF
+// (its unsaved chunks have to agree with its saved lakes) while a new world gets it ON; and it round-trips through world_meta.
+TEST(TerrainRecipeTest, CarveDrainsBasinsIsOffForOldWorldsOnForNewAndRoundTrips) {
+    EXPECT_FALSE(Phyxel::WorldRecipe::fromJson(R"({"version":1,"seed":7,"climateFrequency":0.002,"biomes":[]})").carveDrainsBasins);
+    Phyxel::WorldGenerator g(Phyxel::WorldGenerator::GenerationType::Perlin, 7u);
+    const Phyxel::WorldRecipe made = g.makeRecipe();
+    EXPECT_TRUE(made.carveDrainsBasins);
+    EXPECT_TRUE(Phyxel::WorldRecipe::fromJson(made.toJson()).carveDrainsBasins);
+    Phyxel::WorldRecipe off = made; off.carveDrainsBasins = false;
+    EXPECT_EQ(off.toJson().find("carveDrainsBasins"), std::string::npos) << "written only when true (old recipes stay byte-identical)";
+}

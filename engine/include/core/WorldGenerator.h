@@ -197,6 +197,9 @@ public:
     /// WaterCore.md 25.22: is the 1/3 m creek-bed carve on (the recipe's flag)?
     bool creekCarve() const { return m_creekCarve; }
     void setCreekCarve(bool on) { m_creekCarve = on; }
+    bool carveDrainsBasins() const { return m_carveDrainsBasins; }
+    // 51.12: a bake input - changing it re-bakes the hydrology.
+    void setCarveDrainsBasins(bool on) { if (on != m_carveDrainsBasins) { m_carveDrainsBasins = on; rebuildCoarseModel(); } }
     /// The 1/3 m subcube layers the carve leaves in a creek column's surface voxel (0-2): floor(3 (bedHeight - surfaceY)).
     static int creekLayers(const ColumnSample& c);
     /// World Y of the top of the solids generateChunk DRAWS in this column - the carve (creek, flag on), the 2/3 shelf
@@ -390,7 +393,10 @@ private:
     // process-wide — the bake is cheap and its identity depends on biome tuning the hydro
     // key can't see (see WorldForgePlan::bake).
     WorldForgeParams m_worldForgeParams;
-    bool m_creekCarve = false;   // 25.22: from the recipe (WorldRecipe::creekCarve)
+    bool m_creekCarve = false;
+    bool m_carveDrainsBasins = false;   // 51.12: from the recipe (WorldRecipe::carveDrainsBasins); a bake input
+    // 51.12: the carved river's water surface (min over the cell's order >= 3 columns), NO_WATER if none - the drain's exit.
+    float carvedRiverSurfaceInCell(int cell);   // 25.22: from the recipe (WorldRecipe::creekCarve)
     std::shared_ptr<const WorldForgePlan> m_worldForge;
     void bakeWorldForgePlan();
 

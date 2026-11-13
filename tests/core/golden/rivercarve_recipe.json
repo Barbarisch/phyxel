@@ -1,0 +1,480 @@
+{
+  "biomes": [
+    {
+      "extremeness": {
+        "heightScale": 1.2999999523162842
+      },
+      "flora": {
+        "density": 0.800000011920929,
+        "fullness": 0.8500000238418579,
+        "items": [
+          {
+            "template": "forge_spruce_m",
+            "weight": 4
+          },
+          {
+            "template": "forge_spruce_s",
+            "weight": 3
+          },
+          {
+            "template": "forge_spruce_l",
+            "weight": 2
+          },
+          {
+            "template": "forge_pine_m",
+            "weight": 3
+          },
+          {
+            "template": "forge_fir_m",
+            "weight": 3
+          },
+          {
+            "template": "forge_fir_l",
+            "weight": 2
+          },
+          {
+            "template": "forge_pine_l",
+            "weight": 2
+          },
+          {
+            "template": "forge_dead_s",
+            "weight": 1
+          }
+        ],
+        "mode": "pool",
+        "spacing": 5
+      },
+      "floraLayers": [
+        {
+          "density": 0.3499999940395355,
+          "fullness": 0.8500000238418579,
+          "items": [
+            {
+              "template": "bush_round",
+              "weight": 2
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 2
+            },
+            {
+              "template": "forge_bush_s",
+              "weight": 1
+            }
+          ],
+          "mode": "pool",
+          "spacing": 4
+        }
+      ],
+      "name": "Snow"
+    },
+    {
+      "extremeness": {
+        "heightScale": 0.5
+      },
+      "flora": {
+        "density": 0.30000001192092896,
+        "fullness": 0.8500000238418579,
+        "items": [
+          {
+            "template": "forge_palm_m",
+            "weight": 2
+          },
+          {
+            "template": "forge_dead_s",
+            "weight": 2
+          },
+          {
+            "template": "forge_bush_s",
+            "weight": 3
+          }
+        ],
+        "mode": "pool",
+        "spacing": 14
+      },
+      "floraLayers": [
+        {
+          "density": 0.15000000596046448,
+          "fullness": 0.8500000238418579,
+          "items": [
+            {
+              "template": "forge_bush_s",
+              "weight": 2
+            },
+            {
+              "template": "forge_dead_s",
+              "weight": 1
+            }
+          ],
+          "mode": "pool",
+          "spacing": 8
+        }
+      ],
+      "name": "Desert"
+    },
+    {
+      "extremeness": {
+        "heightScale": 0.699999988079071
+      },
+      "flora": {
+        "density": 0.6499999761581421,
+        "fullness": 0.8500000238418579,
+        "items": [
+          {
+            "template": "forge_acacia_m",
+            "weight": 4
+          },
+          {
+            "template": "forge_acacia_l",
+            "weight": 2
+          }
+        ],
+        "mode": "pool",
+        "spacing": 6
+      },
+      "floraLayers": [
+        {
+          "density": 0.5,
+          "fullness": 0.8500000238418579,
+          "items": [
+            {
+              "template": "forge_bush_s",
+              "weight": 3
+            },
+            {
+              "template": "bush_round",
+              "weight": 2
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 2
+            }
+          ],
+          "mode": "pool",
+          "spacing": 4
+        }
+      ],
+      "name": "Savanna"
+    },
+    {
+      "extremeness": {
+        "heightScale": 1.0
+      },
+      "flora": {
+        "density": 0.8999999761581421,
+        "fullness": 0.8500000238418579,
+        "items": [
+          {
+            "template": "forge_oak_m",
+            "weight": 5
+          },
+          {
+            "template": "forge_oak_l",
+            "weight": 4
+          },
+          {
+            "template": "forge_oak_hero",
+            "weight": 3
+          },
+          {
+            "template": "forge_birch_l",
+            "weight": 2
+          },
+          {
+            "template": "forge_birch_m",
+            "weight": 2
+          },
+          {
+            "template": "forge_pine_l",
+            "weight": 2
+          }
+        ],
+        "mode": "pool",
+        "spacing": 4
+      },
+      "floraLayers": [
+        {
+          "density": 0.699999988079071,
+          "fullness": 0.8500000238418579,
+          "items": [
+            {
+              "template": "fern",
+              "weight": 4
+            },
+            {
+              "template": "bush_leafy_m",
+              "weight": 3
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 3
+            },
+            {
+              "template": "forge_bush_m",
+              "weight": 2
+            },
+            {
+              "template": "forge_bush_s",
+              "weight": 2
+            },
+            {
+              "template": "bush_round",
+              "weight": 2
+            },
+            {
+              "template": "shrub_round",
+              "weight": 1
+            },
+            {
+              "template": "shrub_flat",
+              "weight": 1
+            }
+          ],
+          "mode": "pool",
+          "spacing": 3
+        }
+      ],
+      "name": "Forest"
+    },
+    {
+      "extremeness": {
+        "heightScale": 0.6000000238418579
+      },
+      "flora": {
+        "density": 0.6000000238418579,
+        "fullness": 0.8500000238418579,
+        "items": [
+          {
+            "template": "forge_oak_sparse",
+            "weight": 3
+          },
+          {
+            "template": "forge_oak_m",
+            "weight": 2
+          },
+          {
+            "template": "tree_apple",
+            "weight": 2
+          }
+        ],
+        "mode": "pool",
+        "spacing": 5
+      },
+      "floraLayers": [
+        {
+          "density": 0.3499999940395355,
+          "fullness": 0.8500000238418579,
+          "items": [
+            {
+              "template": "bush_flower",
+              "weight": 2
+            },
+            {
+              "template": "bush_round",
+              "weight": 2
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 2
+            },
+            {
+              "template": "fern",
+              "weight": 1
+            },
+            {
+              "template": "shrub_flat",
+              "weight": 1
+            }
+          ],
+          "mode": "pool",
+          "spacing": 4
+        }
+      ],
+      "name": "Plains"
+    },
+    {
+      "extremeness": {
+        "heightScale": 1.100000023841858
+      },
+      "flora": {
+        "density": 0.9700000286102295,
+        "fullness": 0.8500000238418579,
+        "items": [
+          {
+            "template": "forge_bush_glow_green",
+            "weight": 1
+          },
+          {
+            "template": "forge_bush_glow_blue",
+            "weight": 1
+          },
+          {
+            "template": "forge_bush_m",
+            "weight": 1
+          },
+          {
+            "template": "fern",
+            "weight": 1
+          },
+          {
+            "template": "forge_oak_m",
+            "weight": 2
+          },
+          {
+            "template": "bush_leafy_m",
+            "weight": 1
+          },
+          {
+            "template": "bush_leafy_s",
+            "weight": 1
+          },
+          {
+            "template": "bush_round",
+            "weight": 1
+          }
+        ],
+        "mode": "pool",
+        "spacing": 3
+      },
+      "floraLayers": [
+        {
+          "density": 1.0,
+          "fullness": 0.8500000238418579,
+          "items": [
+            {
+              "template": "forge_elder_oak_xxl",
+              "weight": 3
+            },
+            {
+              "template": "forge_redwood_xxl",
+              "weight": 2
+            },
+            {
+              "template": "forge_enchanted_oak",
+              "weight": 2
+            }
+          ],
+          "mode": "pool",
+          "spacing": 24
+        }
+      ],
+      "name": "EnchantedForest"
+    },
+    {
+      "extremeness": {
+        "heightScale": 1.0
+      },
+      "flora": {
+        "density": 0.9700000286102295,
+        "fullness": 0.8500000238418579,
+        "items": [
+          {
+            "template": "forge_jungle_l",
+            "weight": 4
+          },
+          {
+            "template": "forge_jungle_m",
+            "weight": 4
+          },
+          {
+            "template": "forge_palm_m",
+            "weight": 2
+          }
+        ],
+        "mode": "pool",
+        "spacing": 3
+      },
+      "floraLayers": [
+        {
+          "density": 0.8500000238418579,
+          "fullness": 0.8500000238418579,
+          "items": [
+            {
+              "template": "fern",
+              "weight": 4
+            },
+            {
+              "template": "bush_leafy_m",
+              "weight": 3
+            },
+            {
+              "template": "forge_bush_m",
+              "weight": 2
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 2
+            },
+            {
+              "template": "bush_round",
+              "weight": 1
+            }
+          ],
+          "mode": "pool",
+          "spacing": 3
+        }
+      ],
+      "name": "Jungle"
+    },
+    {
+      "extremeness": {
+        "heightScale": 0.699999988079071
+      },
+      "flora": {
+        "density": 0.15000000596046448,
+        "fullness": 0.8500000238418579,
+        "items": [
+          {
+            "template": "forge_dead_s",
+            "weight": 3
+          },
+          {
+            "template": "forge_bush_s",
+            "weight": 2
+          }
+        ],
+        "mode": "pool",
+        "spacing": 12
+      },
+      "floraLayers": [
+        {
+          "density": 0.20000000298023224,
+          "fullness": 0.8500000238418579,
+          "items": [
+            {
+              "template": "forge_bush_s",
+              "weight": 2
+            },
+            {
+              "template": "shrub_flat",
+              "weight": 2
+            },
+            {
+              "template": "bush_round",
+              "weight": 1
+            }
+          ],
+          "mode": "pool",
+          "spacing": 6
+        }
+      ],
+      "name": "Tundra"
+    }
+  ],
+  "climateFrequency": 0.0012000000569969416,
+  "creekCarve": true,
+  "heightSpline": [
+    {
+      "x": 0.0,
+      "y": -24.0
+    },
+    {
+      "x": 1.0,
+      "y": 112.0
+    }
+  ],
+  "seaLevelY": 16.0,
+  "seed": 20260729,
+  "type": "Mountains",
+  "version": 1
+}

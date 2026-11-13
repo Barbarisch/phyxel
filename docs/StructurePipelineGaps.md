@@ -1066,6 +1066,11 @@ The residual sits INSIDE wet 128 m bake cells that the order-5 carve runs throug
 so the coarse cell is 'lake at 108' while the fine valley floor is at 20. Fix is bake-side: a carved channel
 drains the basin it crosses (the basin's level becomes its outlet bed), or the bake re-floods after the carve.
 Also open: creek spans (orders 1-2 on the 2/3 shelf) need a float-bottom WaterSpan.
+**RESOLVED 2026-11-13 by WaterCore.md 51.12** (`HydrologyMap::drainCarvedBasins`, recipe `carveDrainsBasins`, on for new worlds):
+a carved channel crossing OR beside a basin drains it to the carved river's surface; RiverCarve's 81.8 m lake wall is gone.
+**Still open (found by it):** walls where no channel is near - the bake floods 128 m cell-corner samples of base + relief
+WITHOUT the biome blend (`heightScale`/`heightOffset`) the terrain has, so a coarse rim stands where the fine terrain has none
+(RiverCarve: up to 35.6 m, `WaterGeneratedContainmentTest.DISABLED_DiagRiverCarveLakeWall` with PHYXEL_DRAIN=1).
 
 ## 2026-10-09 — WaterCore Phase G1, the shoreline band (docs/WaterCore.md 18.5)
 - **Sheet/band height seam in shallow water.** The sea sheet draws the full Gerstner swell (0.45 m,

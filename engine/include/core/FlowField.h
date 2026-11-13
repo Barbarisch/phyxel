@@ -92,6 +92,13 @@ public:
     // (full channelDepth at the centreline, 0 at the edge). channelAt applies this per river cell.
     static ChannelHit segmentChannel(float px, float pz, float ax, float az, float bx, float bz, int order);
 
+    // Per-cell (row-major z*cellsX + x) order and D8 drainage target (self = sink), for the bake's basin drain
+    // (WaterCore.md 51.12). Out-of-range -> 0 / the cell itself.
+    int orderOfCell(int c) const { return (c >= 0 && static_cast<size_t>(c) < m_order.size()) ? m_order[c] : 0; }
+    int downstreamOfCell(int c) const {
+        return (c >= 0 && static_cast<size_t>(c) < m_downstream.size()) ? m_downstream[c] : c;
+    }
+
     int maxAccum() const { return m_maxAccum; }
     int cellsX() const { return m_cellsX; }
     int cellsZ() const { return m_cellsZ; }
