@@ -624,6 +624,14 @@ public:
     /// GPU-side face count drawn by the preview last frame (0 = off).
     uint32_t voxFoundPreviewFacesDrawn() const { return m_voxFoundDrawn; }
     uint32_t voxFoundPreviewSprigsDrawn() const { return m_voxFoundSprigsDrawn; }
+    /// F2.9 (§4.6 item 3, per-chunk part): the preview's chunk ranges go through today's LEVEL 1/2 test (inclusion
+    /// distance from the chunk centre, frustum vs the chunk's 32 m box) before the main-view draws. On by default;
+    /// off exists to measure it.
+    void setVoxFoundChunkCull(bool on) { m_voxFoundChunkCull = on; }
+    bool voxFoundChunkCull() const { return m_voxFoundChunkCull; }
+    /// Chunk ranges drawn / culled by the last main-view face draw.
+    uint32_t voxFoundRangesDrawn() const { return m_voxFoundRangesDrawn; }
+    uint32_t voxFoundRangesCulled() const { return m_voxFoundRangesCulled; }
     /// F2.4 shadow casters drawn by the last shadow passes: mid faces, near faces, mid sprigs.
     std::array<uint32_t, 3> voxFoundShadowCasters() const {
         return {m_voxFoundShadowFaces[0], m_voxFoundShadowFaces[1], m_voxFoundShadowSprigs};
@@ -1498,6 +1506,10 @@ private:
     size_t         m_voxFoundCapacity = 0;                         // faces
     uint64_t       m_voxFoundRevision = UINT64_MAX;
     uint32_t       m_voxFoundDrawn = 0;
+    bool           m_voxFoundChunkCull = true;
+    uint32_t       m_voxFoundRangesDrawn = 0, m_voxFoundRangesCulled = 0;
+    /// F2.9: the ranges that pass today's per-chunk distance + frustum test (all ranges with the cull off).
+    std::vector<Core::VoxFound::PreviewChunk> voxFoundVisibleRanges() const;
     void renderVoxFoundPreview();
     void releaseVoxFoundBuffer();
     VkBuffer       m_voxFoundTexBuffer = VK_NULL_HANDLE;           // F2.5 face texture table, fixed size, made once

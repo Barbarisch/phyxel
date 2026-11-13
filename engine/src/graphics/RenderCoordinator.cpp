@@ -2549,6 +2549,27 @@ void RenderCoordinator::releaseVoxFoundSprigBuffer() {
     m_voxFoundSprigRevision = UINT64_MAX;
 }
 
+// docs/VoxelFoundationPlan.md F2.9 (§4.6 item 3, per-chunk part): today's LEVEL 1 + 2 chunk test
+// (renderStaticGeometry) applied to the preview's chunk ranges -- inclusion distance from the chunk centre, then the
+// camera frustum against the chunk's 32 m box (records are chunk-relative 8-bit, so a range never leaves it).
+std::vector<Core::VoxFound::PreviewChunk> RenderCoordinator::voxFoundVisibleRanges() const {
+    std::vector<Core::VoxFound::PreviewChunk> all = m_voxFoundPreview->ranges();
+    if (!m_voxFoundChunkCull || !camera) return all;
+    const glm::vec3 cameraPos = camera->getPosition();
+    const glm::mat4 view = glm::lookAt(cameraPos, cameraPos + camera->getFront(), camera->getUp());
+    Utils::Frustum frustum;
+    frustum.extractFromMatrix(cachedProjectionMatrix * view, Utils::Frustum::ClipConvention::ReverseZeroToOne);
+    std::vector<Core::VoxFound::PreviewChunk> out;
+    out.reserve(all.size());
+    for (const auto& r : all) {
+        const glm::vec3 lo(r.originMetres), hi = lo + glm::vec3(32.0f);
+        if (glm::length((lo + hi) * 0.5f - cameraPos) > chunkInclusionDistance) continue;
+        if (!frustum.intersects(Utils::AABB(lo, hi))) continue;
+        out.push_back(r);
+    }
+    return out;
+}
+
 // docs/VoxelFoundationPlan.md F2.3: the preview's leaf sprigs, drawn as today's cutout leaf cards
 // (FoliageRenderPipeline::renderVoxFound). Same buffer policy as the faces.
 void RenderCoordinator::renderVoxFoundSprigs() {
@@ -2577,7 +2598,7 @@ void RenderCoordinator::renderVoxFoundSprigs() {
         m_voxFoundSprigRevision = m_voxFoundPreview->revision;
     }
     // F2.8: one draw per chunk range, each at its own origin (records are chunk-relative)
-    for (const auto& r : m_voxFoundPreview->ranges()) {
+    for (const auto& r : voxFoundVisibleRanges()) {   // F2.9: per-chunk distance + frustum
         if (r.sprigCount == 0) continue;
         foliagePipeline->renderVoxFound(vulkanDevice->getCommandBuffer(currentFrame),
                                         vulkanDevice->getDescriptorSet(currentFrame), m_voxFoundSprigBuffer,
@@ -2644,7 +2665,10 @@ void RenderCoordinator::renderVoxFoundPreview() {
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
     renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer);
     // F2.8: one draw per chunk range, each at its own origin (records are chunk-relative)
-    for (const auto& r : m_voxFoundPreview->ranges()) {
+    const auto visible = voxFoundVisibleRanges();   // F2.9: per-chunk distance + frustum
+    m_voxFoundRangesDrawn = uint32_t(visible.size());
+    m_voxFoundRangesCulled = uint32_t(m_voxFoundPreview->ranges().size() - visible.size());
+    for (const auto& r : visible) {
         if (r.faceCount == 0) continue;
         const VkDeviceSize off = VkDeviceSize(r.firstFace) * sizeof(Core::VoxFound::PackedFace);
         vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);

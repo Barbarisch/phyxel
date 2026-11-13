@@ -403,9 +403,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       update() NEVER RUNS (API + render work; camera sync, sim do not). Always launch perf/pose work with
       --project <dir>. A load_definition camera applies because the loader sets the render camera directly.
       Run GPU tests from build/ (cwd), or they skip silently (shader path relative; 0 passed, exit 0).
-      NEXT: frustum culling of the face records per chunk/block (§4.6 item 3) and shadow caster culling (item 6),
-      each measured on/off on the VoxFoundGate scene; the 3 missing 1/8 m plant templates (fern, shrub_flat,
-      tree_apple); regenerate spruce templates to today's size; grow the gate scene (settlement, streaming).
+      F2.9 (2026-11-13): §4.6 item 3 per-chunk part (today's distance + frustum test on preview chunk ranges,
+      {"chunk_cull":bool}). 0 px on/off; -0.57 / -0.85 ms at the ground poses, noise elsewhere. Prediction (-30-60%
+      face cost) WRONG: off-screen faces were already cheap; the cost is on-screen overdraw.
+      PIXEL-TEST TRAP: GI probes re-trace stochastically every frame -> 22-58% of pixels differ between two shots of
+      a still scene. For pixel equality: /api/debug/foliage {"windStrength":0} AND /api/debug/gi {"enabled":false},
+      control shot first (scratchpad f29_pix.py pattern).
+      NEXT (plan §4.6 order): item 4 occlusion + the depth prepass for the preview (on-screen overdraw is the main
+      cost); item 3's per-block part with item 5 (GPU draw-building pass + indirect draws); item 6 shadow caster
+      culling (+2 ms). Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

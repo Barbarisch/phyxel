@@ -13364,11 +13364,14 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         }
         // F2.8 A/B switches: {"hide_world":bool} stops drawing today's world; {"show_preview":bool} keeps the preview
         // on the device but draws it or not -- so one session can alternate today / new store without rebuilding.
-        if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview")) {
+        // {"chunk_cull":bool}: F2.9 per-chunk distance + frustum culling of the preview's main-view draws (default on).
+        if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview") || cmd.params.contains("chunk_cull")) {
             if (cmd.params.contains("hide_world")) renderCoordinator->setHideWorld(cmd.params.value("hide_world", false));
             if (cmd.params.contains("show_preview")) voxFoundPreview.shown = cmd.params.value("show_preview", true);
+            if (cmd.params.contains("chunk_cull")) renderCoordinator->setVoxFoundChunkCull(cmd.params.value("chunk_cull", true));
             if (!cmd.params.contains("type") && !cmd.params.contains("region")) {
-                response = {{"hide_world", renderCoordinator->hideWorld()}, {"show_preview", voxFoundPreview.shown}};
+                response = {{"hide_world", renderCoordinator->hideWorld()}, {"show_preview", voxFoundPreview.shown},
+                            {"chunk_cull", renderCoordinator->voxFoundChunkCull()}};
                 return;
             }
         }
@@ -13377,6 +13380,9 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"faces_drawn", renderCoordinator->voxFoundPreviewFacesDrawn()},
                         {"sprigs_drawn", renderCoordinator->voxFoundPreviewSprigsDrawn()},
                         {"shadow_faces_mid", sc[0]}, {"shadow_faces_near", sc[1]}, {"shadow_sprigs_mid", sc[2]},
+                        {"ranges_drawn", renderCoordinator->voxFoundRangesDrawn()},
+                        {"ranges_culled", renderCoordinator->voxFoundRangesCulled()},
+                        {"chunk_cull", renderCoordinator->voxFoundChunkCull()},
                         {"preview_faces", voxFoundPreview.faces.size()},
                         {"preview_sprigs", voxFoundPreview.sprigs.size()}};
             return;

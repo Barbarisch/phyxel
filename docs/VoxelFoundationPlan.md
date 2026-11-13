@@ -368,7 +368,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 |---|---|---|---|---|
 | 1 | Hidden-face culling (cube, subcube, microcube; across chunk borders) | `ChunkRenderManager`, RenderOptimization Phase 1 | Per block, from the 64 B solidity masks: a face survives only if the neighbour voxel is air. Block and chunk borders read the neighbour block's mask. Uniform blocks: all-solid interior blocks and all-air blocks emit nothing without a voxel loop | **GPU done inside one chunk** (F2.1, `FaceBuilderGpu`, exact vs CPU); uniform-block skip done (F2.6); chunk-border neighbours done (F2.7) |
 | 2 | Greedy face merging (cube; sub/micro fine merge, default ON) | `ChunkRenderManager` `s_fineGreedyMerge` | §4.1: in-block, then across blocks. **Consequence for §4.2:** a cross-block quad is up to 256 voxels long, so the extents need 8+8 bits, not 3+3 | **GPU done** (F2.1): run merge across the whole chunk, one thread per slice row |
-| 3 | Distance + frustum culling per chunk | `RenderCoordinator` LEVEL 1/2 | Same per chunk, plus per block AABB in the GPU draw-building pass | owed |
+| 3 | Distance + frustum culling per chunk | `RenderCoordinator` LEVEL 1/2 | Same per chunk, plus per block AABB in the GPU draw-building pass | per chunk done (F2.9, measured: −0.6/−0.85 ms at ground poses, 0 px); per block owed with item 5 |
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | owed |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | owed |
@@ -610,6 +610,37 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   every record in every pass (faces × 3 passes + sprigs × 2 = 15.1 MB); today culls per chunk.
 - Next levers, in order of the measured cost: frustum culling per chunk/block for the faces (item 3) and caster culling
   for the shadows (item 6), then the depth prepass; then the scene grows (streaming radius, settlements).
+
+**F2.9 2026-11-13 — §4.6 item 3, the per-chunk part: today's distance + frustum test on the preview's chunks.**
+- Built: `RenderCoordinator::voxFoundVisibleRanges` = today's LEVEL 1 + 2 (`renderStaticGeometry`): inclusion
+  distance from the chunk centre, then the camera frustum against the chunk's 32 m box, before the main-view face and
+  sprig draws. Shadow casters are not culled yet (item 6). `voxfound_preview {"chunk_cull":bool}` (default on),
+  stats `ranges_drawn` / `ranges_culled`.
+- Prediction written before the run: overview poses change ≤ 0.1 ms; ground poses: face + sprig scopes −30-60%;
+  0 px change.
+- Pixels (same pose, today's world hidden, wind 0, GI probes off — the probes re-trace stochastically every frame, which
+  alone changed 22-58% of pixels by 1-14 levels between two shots): control 0 px, cull on vs off **0 px** at
+  forest_floor_open (12 of 31 chunks culled) and canopy_close (10 culled). Red check, done AFTER green (my order was
+  wrong): the box shifted one chunk in x changes 45% of the pixels at forest_floor_open (control 0 px); canopy_close
+  did not see that mutant.
+- Whole frame, cull off vs on (Release, perf_harness 8 pairs × 240 frames, `docs/evidence/voxfound_f29_ab.jsonl`):
+
+  | Pose | off | on | on − off (95% CI) |
+  |---|---|---|---|
+  | overview_south | 8.03 ms | 7.98 | −0.05 [−0.16, +0.05] |
+  | top_down | 7.83 | 7.75 | −0.12 [−0.19, +0.14] |
+  | forest_floor_open | 44.87 | 44.34 | −0.57 [−0.83, −0.28] |
+  | east_low | 42.74 | 42.67 | −0.04 [−0.23, +0.02] |
+  | canopy_close | 26.04 | 24.83 | −0.85 [−1.56, −0.61] |
+
+- **The prediction was wrong at the ground poses.** Culling 20 % / 33 % of the faces cut the face scope by 7 % / 14 %
+  (4.99 → 4.66 ms, 4.95 → 4.25 ms) and the sprigs by 0.5 % / 6 %. Faces behind the camera were already cheap: they
+  are clipped right after the vertex stage. The cost is in what IS in view (overdraw and fragment work), so the next
+  levers for the main view are the depth prepass (today has one, the preview not) and occlusion (item 4), not more
+  frustum precision. In a scene this small (31 chunks, all within ~180 m), chunk culling has little to remove; it
+  scales with the scene, which is why it stays on.
+- Not done in item 3: the per-block AABB test in a GPU draw-building pass. That pass is item 5 (indirect draws) — they
+  are built together.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.
