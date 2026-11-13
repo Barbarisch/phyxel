@@ -34,6 +34,8 @@ static_assert(sizeof(PreviewSprig) == 8, "voxfound_foliage.vert instance stride"
 struct PreviewChunk {
     glm::dvec3 originMetres{0.0};
     uint32_t firstFace = 0, faceCount = 0, firstSprig = 0, sprigCount = 0;
+    glm::ivec3 chunk{0};                                          // F2.10: engine chunk coordinate
+    FaceConnect connect{0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F};      // F2.10: block-solidity visibility (Mesher.h)
 };
 
 struct Preview {

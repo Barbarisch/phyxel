@@ -2567,6 +2567,45 @@ std::vector<Core::VoxFound::PreviewChunk> RenderCoordinator::voxFoundVisibleRang
         if (!frustum.intersects(Utils::AABB(lo, hi))) continue;
         out.push_back(r);
     }
+    m_voxFoundRangesOccluded = 0;
+    // F2.10 (§4.6 item 4): today's occlusion walk (applyOcclusionCulling: same 512 m bound, same 20,000-node budget,
+    // absent / air chunks pass sight) over the preview's chunks, with connectivity from block solidity. Only for a
+    // region preview (its chunks have coordinates). Chunks beyond the bound are always kept.
+    if (m_voxFoundOcclusion && !m_voxFoundPreview->chunks.empty() && out.size() >= 2) {
+        constexpr float kOcclusionMaxDist = 512.0f;
+        const float bound = std::min(chunkInclusionDistance, kOcclusionMaxDist);
+        std::vector<Core::VoxFound::OccChunk> known;
+        known.reserve(all.size());
+        for (const auto& r : all) known.push_back({r.chunk, r.connect});
+        std::vector<glm::ivec3> cand;
+        std::vector<size_t> candIdx;
+        for (size_t i = 0; i < out.size(); ++i) {
+            const glm::vec3 ctr = glm::vec3(out[i].originMetres) + glm::vec3(16.0f);
+            if (glm::length(ctr - cameraPos) > bound) continue;   // beyond the walk: kept
+            cand.push_back(out[i].chunk);
+            candIdx.push_back(i);
+        }
+        auto openSpace = [&](glm::ivec3 c) {
+            const glm::vec3 lo = glm::vec3(c * 32);
+            if (glm::length(lo + glm::vec3(16.0f) - cameraPos) > bound) return false;
+            return frustum.intersects(Utils::AABB(lo, lo + glm::vec3(32.0f)));
+        };
+        const glm::ivec3 camChunk(glm::floor(cameraPos / 32.0f));
+        bool over = false;
+        const std::vector<char> reached =
+            Core::VoxFound::occlusionReach(known, cand, camChunk, openSpace, 20000, &over);
+        if (!over) {
+            std::vector<char> drop(out.size(), 0);
+            for (size_t k = 0; k < cand.size(); ++k)
+                if (!reached[k]) drop[candIdx[k]] = 1;
+            std::vector<Core::VoxFound::PreviewChunk> kept;
+            kept.reserve(out.size());
+            for (size_t i = 0; i < out.size(); ++i)
+                if (!drop[i]) kept.push_back(out[i]);
+            m_voxFoundRangesOccluded = uint32_t(out.size() - kept.size());
+            out.swap(kept);
+        }
+    }
     return out;
 }
 

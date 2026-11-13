@@ -578,3 +578,77 @@ TEST(VoxFoundMesher, ChunksAreInvisible) {
                     "sprigs %zu\n", name, whole.size(), oldWay.size(), sprWhole.size());
     }
 }
+
+// ---- F2.10 (§4.6 item 4): occlusion from block solidity ---------------------------------------------------------
+// Written red against stubs that connect every face and reach every chunk (no culling).
+namespace {
+VoxelGrid filled(glm::ivec3 d, uint8_t m) {
+    VoxelGrid g;
+    g.resize(d);
+    for (auto& v : g.mat) v = m;
+    return g;
+}
+}  // namespace
+
+TEST(VoxFoundMesher, BlockConnectivityFollowsTodaysRule) {
+    const CardSet none;
+    // all air: every face sees every face; all solid: nothing
+    const FaceConnect air = blockFaceConnectivity(filled({16, 16, 16}, 0), none);
+    const FaceConnect rock = blockFaceConnectivity(filled({16, 16, 16}, 1), none);
+    for (int f = 0; f < 6; ++f) {
+        EXPECT_EQ(air[f], 0x3F) << "face " << f;
+        EXPECT_EQ(rock[f], 0) << "face " << f;
+    }
+    // a one-block-thick solid wall across x in [8,16) of a 24x16x16 grid: -X and +X no longer see each other,
+    // every other pair still does (the Y/Z faces span both sides)
+    VoxelGrid wall = filled({24, 16, 16}, 0);
+    for (int x = 8; x < 16; ++x)
+        for (int y = 0; y < 16; ++y)
+            for (int z = 0; z < 16; ++z) wall.set({x, y, z}, 1);
+    const FaceConnect w = blockFaceConnectivity(wall, none);
+    EXPECT_FALSE(facesConnected(w, 0, 1));
+    EXPECT_FALSE(facesConnected(w, 1, 0));
+    for (int a = 0; a < 6; ++a)
+        for (int b = 0; b < 6; ++b)
+            if (!((a == 0 && b == 1) || (a == 1 && b == 0)))
+                EXPECT_TRUE(facesConnected(w, a, b)) << a << "->" << b;
+    // one air voxel on a block corner of the wall: that block passes sight (block-level is conservative)
+    VoxelGrid holed = wall;
+    holed.set({15, 7, 8}, 0);
+    EXPECT_TRUE(facesConnected(blockFaceConnectivity(holed, none), 0, 1));
+    // the wall made of a see-through material (leaf cards, glass) does not block
+    VoxelGrid leafy = wall;
+    for (auto& v : leafy.mat)
+        if (v == 1) v = 2;
+    CardSet leaves;
+    leaves.set(2);
+    EXPECT_TRUE(facesConnected(blockFaceConnectivity(leafy, leaves), 0, 1));
+    EXPECT_FALSE(facesConnected(blockFaceConnectivity(leafy, none), 0, 1));
+}
+
+TEST(VoxFoundMesher, OcclusionWalkHidesWhatIsBehindASolidChunk) {
+    const FaceConnect solid{0, 0, 0, 0, 0, 0}, open{0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F};
+    const std::vector<glm::ivec3> row{{1, 0, 0}, {2, 0, 0}, {3, 0, 0}};
+    auto corridor = [](glm::ivec3 c) { return c.y == 0 && c.z == 0 && c.x >= -1 && c.x <= 4; };
+    // camera in (0,0,0), a solid chunk at (1,0,0): it is seen, the two behind it are not
+    std::vector<char> r = occlusionReach({{{1, 0, 0}, solid}}, row, {0, 0, 0}, corridor, 1000);
+    EXPECT_EQ(r, (std::vector<char>{1, 0, 0}));
+    // the same chunk open: all three seen
+    r = occlusionReach({{{1, 0, 0}, open}}, row, {0, 0, 0}, corridor, 1000);
+    EXPECT_EQ(r, (std::vector<char>{1, 1, 1}));
+    // open space above the row: sight goes around the solid chunk and reaches the rest
+    auto twoRows = [](glm::ivec3 c) { return c.z == 0 && c.y >= 0 && c.y <= 1 && c.x >= -1 && c.x <= 4; };
+    r = occlusionReach({{{1, 0, 0}, solid}}, row, {0, 0, 0}, twoRows, 1000);
+    EXPECT_EQ(r, (std::vector<char>{1, 1, 1}));
+    // a chunk whose -X face does not lead to its +X face blocks like a solid one
+    FaceConnect noThrough = open;
+    noThrough[0] &= uint8_t(~(1u << 1));
+    noThrough[1] &= uint8_t(~(1u << 0));
+    r = occlusionReach({{{1, 0, 0}, noThrough}}, row, {0, 0, 0}, corridor, 1000);
+    EXPECT_EQ(r, (std::vector<char>{1, 0, 0}));
+    // over budget: keep everything, and say so
+    bool over = false;
+    r = occlusionReach({{{1, 0, 0}, solid}}, row, {0, 0, 0}, corridor, 1, &over);
+    EXPECT_TRUE(over);
+    EXPECT_EQ(r, (std::vector<char>{1, 1, 1}));
+}

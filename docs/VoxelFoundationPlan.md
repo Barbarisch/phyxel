@@ -369,7 +369,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 1 | Hidden-face culling (cube, subcube, microcube; across chunk borders) | `ChunkRenderManager`, RenderOptimization Phase 1 | Per block, from the 64 B solidity masks: a face survives only if the neighbour voxel is air. Block and chunk borders read the neighbour block's mask. Uniform blocks: all-solid interior blocks and all-air blocks emit nothing without a voxel loop | **GPU done inside one chunk** (F2.1, `FaceBuilderGpu`, exact vs CPU); uniform-block skip done (F2.6); chunk-border neighbours done (F2.7) |
 | 2 | Greedy face merging (cube; sub/micro fine merge, default ON) | `ChunkRenderManager` `s_fineGreedyMerge` | §4.1: in-block, then across blocks. **Consequence for §4.2:** a cross-block quad is up to 256 voxels long, so the extents need 8+8 bits, not 3+3 | **GPU done** (F2.1): run merge across the whole chunk, one thread per slice row |
 | 3 | Distance + frustum culling per chunk | `RenderCoordinator` LEVEL 1/2 | Same per chunk, plus per block AABB in the GPU draw-building pass | per chunk done (F2.9, measured: −0.6/−0.85 ms at ground poses, 0 px); per block owed with item 5 |
-| 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | owed |
+| 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | owed |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | owed |
 | 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | owed |
@@ -641,6 +641,28 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   scales with the scene, which is why it stays on.
 - Not done in item 3: the per-block AABB test in a GPU draw-building pass. That pass is item 5 (indirect draws) — they
   are built together.
+
+**F2.10 2026-11-13 — §4.6 item 4: occlusion, rebuilt from block solidity.**
+- Built (Mesher.h): `blockFaceConnectivity` = today's `Chunk::computeVisibilityMask` (which chunk faces see each
+  other through the chunk) computed over 8³ BLOCKS: a block blocks sight only if all 512 voxels are solid and not
+  see-through (leaf cards, materials with alpha < 0.99, today's rule); flood over the passing blocks. Block level is
+  conservative (one air voxel opens its block), so it can only connect more than voxels would, never cut a view.
+  `occlusionReach` = today's walk (`applyOcclusionCulling`): breadth-first from the camera's chunk, same 512 m bound,
+  same 20,000-node budget (over budget keeps everything), absent / air chunks pass sight. Each region chunk stores its
+  connectivity (`PreviewChunk::connect`), empty chunks included (a solid chunk with no faces still blocks); the walk
+  runs after the frustum test. `voxfound_preview {"occlusion":bool}` (default on, like today), stats `ranges_occluded`.
+- Red first: both new tests (`BlockConnectivityFollowsTodaysRule`: all air, all solid, a one-block wall, a wall with
+  one air voxel, a see-through wall; `OcclusionWalkHidesWhatIsBehindASolidChunk`: solid / open / detour / one-way /
+  over budget) failed on stubs that connect everything; green after: mesher tests 21/21.
+- Prediction written before the run: 0 chunks occluded on the gate forest at all 5 poses (sight crosses the open
+  forest through sky chunks; no chunk is solid through). Measured: 0 occluded everywhere, `chunks_fully_blocking` 0,
+  0 px on vs off (control 0 px), whole frame within noise at all 5 poses (largest |median| 0.12 ms, every CI includes
+  0; `docs/evidence/voxfound_f210_ab.jsonl`).
+- So item 4 is built and costs nothing measurable, but this scene cannot show a win. Today's occlusion only wins in
+  caves and interiors, and the 1/8 m generators can't make either yet: `buildTerrainArea` is a heightfield (no Caves
+  type), and structures at 1/8 m are FC work (§7a.3). Its win is measured when the gate scene grows a settlement.
+- The on-screen overdraw F2.9 found (trees in front of trees) is finer than any chunk test. That is the block-level
+  part of items 3/4, in the GPU draw-building pass (item 5), and the depth prepass.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

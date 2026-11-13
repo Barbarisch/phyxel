@@ -17,8 +17,10 @@
 // of its voxels. `o` is the min voxel of the quad's voxels; it spans `du` voxels along u = (axis+1)%3 and
 // `dv` along v = (axis+2)%3.
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -141,5 +143,29 @@ struct SprigParams {
 PackedFace packSprig(glm::ivec3 cell, uint8_t material);
 inline bool isSprig(PackedFace f) { return ((f.a >> 24) & 3u) == 3u; }
 std::vector<PackedFace> foliageSprigs(const VoxelGrid& g, Edges outside, const SprigParams& p);
+
+// ---- F2.10 (§4.6 item 4): occlusion from BLOCK solidity ------------------------------------------------------
+/// Today's chunk visibility graph (Chunk::computeVisibilityMask: m_faceConnect[f] = the faces sight can reach from
+/// face f through the chunk), rebuilt from 8^3 blocks: a block BLOCKS sight only if every voxel in it is solid and
+/// not in `seeThrough` (leaf cards, transparent materials); any other block passes sight. Flood over the passing
+/// blocks; a face is touched by a component that has a block on that face. Faces 0 -X 1 +X 2 -Y 3 +Y 4 -Z 5 +Z.
+/// Block-level is conservative: a block with one air voxel passes, so it can only connect MORE than voxels would.
+/// Grid sides must be multiples of 8.
+using FaceConnect = std::array<uint8_t, 6>;
+FaceConnect blockFaceConnectivity(const VoxelGrid& g, const CardSet& seeThrough);
+inline bool facesConnected(const FaceConnect& c, int a, int b) { return (c[a] >> b) & 1u; }
+
+/// Today's occlusion walk (RenderCoordinator::applyOcclusionCulling), on any set of chunks: breadth-first from the
+/// camera's chunk, entering a neighbour through face d only if the current chunk connects its entry face to d.
+/// `known`: chunks with a connectivity (absent coords pass sight freely). A coord may be entered if it is a candidate
+/// or `openSpace(coord)` (today: inside the frustum and the 512 m bound). Returns, per candidate, whether the walk
+/// reached it. `maxNodes` exceeded -> *budgetExceeded = true and every candidate is returned reached (never a hole).
+struct OccChunk {
+    glm::ivec3 coord{0};
+    FaceConnect connect{};
+};
+std::vector<char> occlusionReach(const std::vector<OccChunk>& known, const std::vector<glm::ivec3>& candidates,
+                                 glm::ivec3 cameraChunk, const std::function<bool(glm::ivec3)>& openSpace,
+                                 size_t maxNodes, bool* budgetExceeded = nullptr);
 
 }  // namespace Phyxel::Core::VoxFound

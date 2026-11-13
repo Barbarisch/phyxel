@@ -632,6 +632,10 @@ public:
     /// Chunk ranges drawn / culled by the last main-view face draw.
     uint32_t voxFoundRangesDrawn() const { return m_voxFoundRangesDrawn; }
     uint32_t voxFoundRangesCulled() const { return m_voxFoundRangesCulled; }
+    /// F2.10 (§4.6 item 4): today's occlusion walk over the preview's chunks (connectivity from block solidity).
+    void setVoxFoundOcclusion(bool on) { m_voxFoundOcclusion = on; }
+    bool voxFoundOcclusion() const { return m_voxFoundOcclusion; }
+    uint32_t voxFoundRangesOccluded() const { return m_voxFoundRangesOccluded; }
     /// F2.4 shadow casters drawn by the last shadow passes: mid faces, near faces, mid sprigs.
     std::array<uint32_t, 3> voxFoundShadowCasters() const {
         return {m_voxFoundShadowFaces[0], m_voxFoundShadowFaces[1], m_voxFoundShadowSprigs};
@@ -1507,7 +1511,9 @@ private:
     uint64_t       m_voxFoundRevision = UINT64_MAX;
     uint32_t       m_voxFoundDrawn = 0;
     bool           m_voxFoundChunkCull = true;
+    bool           m_voxFoundOcclusion = true;                       // F2.10 (§4.6 item 4), today's default is on
     uint32_t       m_voxFoundRangesDrawn = 0, m_voxFoundRangesCulled = 0;
+    mutable uint32_t m_voxFoundRangesOccluded = 0;
     /// F2.9: the ranges that pass today's per-chunk distance + frustum test (all ranges with the cull off).
     std::vector<Core::VoxFound::PreviewChunk> voxFoundVisibleRanges() const;
     void renderVoxFoundPreview();

@@ -13365,13 +13365,17 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F2.8 A/B switches: {"hide_world":bool} stops drawing today's world; {"show_preview":bool} keeps the preview
         // on the device but draws it or not -- so one session can alternate today / new store without rebuilding.
         // {"chunk_cull":bool}: F2.9 per-chunk distance + frustum culling of the preview's main-view draws (default on).
-        if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview") || cmd.params.contains("chunk_cull")) {
+        // {"occlusion":bool}: F2.10 today's occlusion walk over the preview's chunks (default on).
+        if (cmd.params.contains("occlusion")) renderCoordinator->setVoxFoundOcclusion(cmd.params.value("occlusion", true));
+        if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview") || cmd.params.contains("chunk_cull") ||
+            cmd.params.contains("occlusion")) {
             if (cmd.params.contains("hide_world")) renderCoordinator->setHideWorld(cmd.params.value("hide_world", false));
             if (cmd.params.contains("show_preview")) voxFoundPreview.shown = cmd.params.value("show_preview", true);
             if (cmd.params.contains("chunk_cull")) renderCoordinator->setVoxFoundChunkCull(cmd.params.value("chunk_cull", true));
             if (!cmd.params.contains("type") && !cmd.params.contains("region")) {
                 response = {{"hide_world", renderCoordinator->hideWorld()}, {"show_preview", voxFoundPreview.shown},
-                            {"chunk_cull", renderCoordinator->voxFoundChunkCull()}};
+                            {"chunk_cull", renderCoordinator->voxFoundChunkCull()},
+                            {"occlusion", renderCoordinator->voxFoundOcclusion()}};
                 return;
             }
         }
@@ -13383,6 +13387,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"ranges_drawn", renderCoordinator->voxFoundRangesDrawn()},
                         {"ranges_culled", renderCoordinator->voxFoundRangesCulled()},
                         {"chunk_cull", renderCoordinator->voxFoundChunkCull()},
+                        {"ranges_occluded", renderCoordinator->voxFoundRangesOccluded()},
+                        {"occlusion", renderCoordinator->voxFoundOcclusion()},
                         {"preview_faces", voxFoundPreview.faces.size()},
                         {"preview_sprigs", voxFoundPreview.sprigs.size()}};
             return;
@@ -13619,9 +13625,11 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         const auto t1 = std::chrono::steady_clock::now();
         genMs += std::chrono::duration<double, std::milli>(t1 - tGen).count();
         SprigParams sp;
+        CardSet seeThrough;   // F2.10 occlusion: leaf cards and transparent materials pass sight (today: alpha < 0.99)
         for (size_t m = 1; m < pal.size(); ++m) {
             const auto* md = Core::MaterialRegistry::instance().getMaterial(pal[m]);
             if (md && md->billboarded) sp.cards.set(uint8_t(m));
+            if (md && (md->billboarded || md->alpha < 0.99f)) seeThrough.set(uint8_t(m));
         }
         sp.worldOriginVoxel = rc.originVoxel;
         sp.threshold24 = sprigThreshold24(sprigsPerM2, kVoxelsPerM);
@@ -13636,7 +13644,9 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         for (const PackedFace& f : out) (isSprig(f) ? sprigRecs : faces).push_back(f);
         pc.faceCount = uint32_t(faces.size()) - pc.firstFace;
         pc.sprigCount = uint32_t(sprigRecs.size()) - pc.firstSprig;
-        if (pc.faceCount || pc.sprigCount) chunks.push_back(pc);
+        pc.chunk = rc.chunk;
+        pc.connect = blockFaceConnectivity(rc.grid, seeThrough);
+        chunks.push_back(pc);   // kept even with nothing to draw: a solid chunk still blocks sight (F2.10)
         palette = pal;
         tGen = std::chrono::steady_clock::now();
         buildMs += std::chrono::duration<double, std::milli>(tGen - t1).count();
@@ -13670,7 +13680,13 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                                    (flora ? " + engine flora plan stamped from " + floraDir : "") +
                                    "; faces by FaceBuilderGpu with each chunk's real neighbours"},
                 {"chunks_from", {lo.x, lo.y, lo.z}}, {"chunks_to", {hi.x, hi.y, hi.z}},
-                {"chunks", rb.chunks}, {"chunks_drawn", voxFoundPreview.chunks.size()},
+                {"chunks", rb.chunks},
+                {"chunks_with_geometry", std::count_if(voxFoundPreview.chunks.begin(), voxFoundPreview.chunks.end(),
+                                                       [](const PreviewChunk& c) { return c.faceCount || c.sprigCount; })},
+                {"chunks_fully_blocking", std::count_if(voxFoundPreview.chunks.begin(), voxFoundPreview.chunks.end(),
+                                                        [](const PreviewChunk& c) {
+                                                            return c.connect == FaceConnect{0, 0, 0, 0, 0, 0};
+                                                        })},
                 {"solid_voxels", solid},
                 {"faces", voxFoundPreview.faces.size()}, {"sprigs", voxFoundPreview.sprigs.size()},
                 {"face_bytes", voxFoundPreview.faces.size() * sizeof(PackedFace)},

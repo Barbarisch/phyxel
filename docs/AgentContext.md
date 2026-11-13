@@ -409,9 +409,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       PIXEL-TEST TRAP: GI probes re-trace stochastically every frame -> 22-58% of pixels differ between two shots of
       a still scene. For pixel equality: /api/debug/foliage {"windStrength":0} AND /api/debug/gi {"enabled":false},
       control shot first (scratchpad f29_pix.py pattern).
-      NEXT (plan §4.6 order): item 4 occlusion + the depth prepass for the preview (on-screen overdraw is the main
-      cost); item 3's per-block part with item 5 (GPU draw-building pass + indirect draws); item 6 shadow caster
-      culling (+2 ms). Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
+      F2.10 (2026-11-13): §4.6 item 4 -- today's occlusion walk on block-solidity connectivity
+      (Mesher.h blockFaceConnectivity / occlusionReach, {"occlusion":bool}). Red-first unit tests, 21/21. Gate forest:
+      0 occluded (predicted), 0 px, no measurable cost; its win needs caves/interiors (1/8 m generators can't yet).
+      Screenshot paths from /api/screenshot are relative to the ENGINE cwd (repo root) -- run rigs from there.
+      NEXT (plan §4.6 order): item 5, the GPU draw-building pass + indirect draws, carrying item 3's per-block AABB
+      test; then item 6 shadow caster culling (+2 ms measured). Content: the 3 missing 1/8 m plant templates (fern,
+      shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

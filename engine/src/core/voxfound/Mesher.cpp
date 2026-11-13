@@ -280,3 +280,114 @@ std::vector<PackedFace> foliageSprigs(const VoxelGrid& g, Edges outside, const S
     return out;
 }
 }  // namespace Phyxel::Core::VoxFound
+
+namespace Phyxel::Core::VoxFound {
+
+// ---- F2.10 occlusion (§4.6 item 4) ----------------------------------------------------------------------------
+FaceConnect blockFaceConnectivity(const VoxelGrid& g, const CardSet& seeThrough) {
+    const glm::ivec3 nb = g.dim / 8;
+    const int total = nb.x * nb.y * nb.z;
+    auto bi = [&](glm::ivec3 b) { return b.z + nb.z * (b.y + nb.y * b.x); };
+    // a block blocks sight only if all 512 voxels are solid and not see-through
+    std::vector<uint8_t> blocking(size_t(total), 0);
+    for (int bx = 0; bx < nb.x; ++bx)
+        for (int by = 0; by < nb.y; ++by)
+            for (int bz = 0; bz < nb.z; ++bz) {
+                bool all = true;
+                for (int x = 0; x < 8 && all; ++x)
+                    for (int y = 0; y < 8 && all; ++y)
+                        for (int z = 0; z < 8; ++z) {
+                            const uint8_t m = g.mat[g.idx({bx * 8 + x, by * 8 + y, bz * 8 + z})];
+                            if (m == 0 || seeThrough.has(m)) {
+                                all = false;
+                                break;
+                            }
+                        }
+                blocking[size_t(bi({bx, by, bz}))] = all ? 1 : 0;
+            }
+    FaceConnect out{0, 0, 0, 0, 0, 0};
+    std::vector<int> comp(size_t(total), -1);
+    std::vector<glm::ivec3> stack;
+    const glm::ivec3 dir[6] = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
+    int id = 0;
+    for (int bx = 0; bx < nb.x; ++bx)
+        for (int by = 0; by < nb.y; ++by)
+            for (int bz = 0; bz < nb.z; ++bz) {
+                const glm::ivec3 s(bx, by, bz);
+                if (blocking[size_t(bi(s))] || comp[size_t(bi(s))] != -1) continue;
+                uint8_t faces = 0;
+                comp[size_t(bi(s))] = id;
+                stack.assign(1, s);
+                while (!stack.empty()) {
+                    const glm::ivec3 c = stack.back();
+                    stack.pop_back();
+                    if (c.x == 0) faces |= 1u << 0;
+                    if (c.x == nb.x - 1) faces |= 1u << 1;
+                    if (c.y == 0) faces |= 1u << 2;
+                    if (c.y == nb.y - 1) faces |= 1u << 3;
+                    if (c.z == 0) faces |= 1u << 4;
+                    if (c.z == nb.z - 1) faces |= 1u << 5;
+                    for (const glm::ivec3& d : dir) {
+                        const glm::ivec3 n = c + d;
+                        if (n.x < 0 || n.y < 0 || n.z < 0 || n.x >= nb.x || n.y >= nb.y || n.z >= nb.z) continue;
+                        const size_t ni = size_t(bi(n));
+                        if (blocking[ni] || comp[ni] != -1) continue;
+                        comp[ni] = id;
+                        stack.push_back(n);
+                    }
+                }
+                for (int f = 0; f < 6; ++f)
+                    if (faces & (1u << f)) out[size_t(f)] |= faces;
+                ++id;
+            }
+    return out;
+}
+
+std::vector<char> occlusionReach(const std::vector<OccChunk>& known, const std::vector<glm::ivec3>& candidates,
+                                 glm::ivec3 cam, const std::function<bool(glm::ivec3)>& openSpace, size_t maxNodes,
+                                 bool* budgetExceeded) {
+    if (budgetExceeded) *budgetExceeded = false;
+    auto key = [](glm::ivec3 c) -> int64_t {
+        return (int64_t(c.x + (1 << 20)) << 42) | (int64_t(c.y + (1 << 20)) << 21) | int64_t(c.z + (1 << 20));
+    };
+    std::unordered_map<int64_t, const FaceConnect*> conn;
+    for (const auto& k : known) conn[key(k.coord)] = &k.connect;
+    std::unordered_map<int64_t, size_t> cand;
+    for (size_t i = 0; i < candidates.size(); ++i) cand[key(candidates[i])] = i;
+    std::vector<char> reached(candidates.size(), 0);
+    size_t left = candidates.size();
+    std::unordered_map<int64_t, char> seen;
+    std::vector<std::pair<glm::ivec3, int>> q;   // BFS queue (index walk)
+    const glm::ivec3 dir[6] = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
+    seen[key(cam)] = 1;
+    q.push_back({cam, -1});
+    if (auto it = cand.find(key(cam)); it != cand.end()) {
+        reached[it->second] = 1;
+        --left;
+    }
+    for (size_t head = 0; head < q.size() && left > 0; ++head) {
+        if (seen.size() > maxNodes) {
+            if (budgetExceeded) *budgetExceeded = true;
+            return std::vector<char>(candidates.size(), 1);   // never a hole
+        }
+        const auto [c, entry] = q[head];
+        const auto ci = conn.find(key(c));
+        for (int d = 0; d < 6; ++d) {
+            if (entry >= 0 && ci != conn.end() && !facesConnected(*ci->second, entry, d)) continue;
+            const glm::ivec3 n = c + dir[d];
+            const int64_t k = key(n);
+            if (seen.count(k)) continue;
+            const auto cit = cand.find(k);
+            if (cit == cand.end() && !openSpace(n)) continue;
+            seen[k] = 1;
+            if (cit != cand.end()) {
+                reached[cit->second] = 1;
+                --left;
+            }
+            q.push_back({n, d ^ 1});
+        }
+    }
+    return reached;
+}
+
+}  // namespace Phyxel::Core::VoxFound
