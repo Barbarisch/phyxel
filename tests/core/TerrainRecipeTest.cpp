@@ -117,6 +117,11 @@ TEST(TerrainRecipeTest, CarveDrainsBasinsIsOffForOldWorldsOnForNewAndRoundTrips)
     const Phyxel::WorldRecipe back = Phyxel::WorldRecipe::fromJson(on.toJson());
     EXPECT_TRUE(back.bakeFloodsTerrain);
     EXPECT_EQ(back.bakeMinStride, 16);
+    EXPECT_TRUE(made.levelRivers);   // 51.14: new worlds' rivers hold level water
+    EXPECT_FALSE(Phyxel::WorldRecipe::fromJson(R"({"version":1,"seed":7,"climateFrequency":0.002,"biomes":[]})").levelRivers);
+    EXPECT_TRUE(back.levelRivers);
+    Phyxel::WorldRecipe noLevel = made; noLevel.levelRivers = false;
+    EXPECT_EQ(noLevel.toJson().find("levelRivers"), std::string::npos) << "written only when true";
     EXPECT_TRUE(Phyxel::WorldRecipe::fromJson(made.toJson()).carveDrainsBasins);
     Phyxel::WorldRecipe off = made; off.carveDrainsBasins = false;
     EXPECT_EQ(off.toJson().find("carveDrainsBasins"), std::string::npos) << "written only when true (old recipes stay byte-identical)";

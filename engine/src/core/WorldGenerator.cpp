@@ -272,10 +272,11 @@ struct HydroBakeKey {
     bool drains = false;
     bool floods = false;
     int  minStride = 0;   // 51.13: the cell-minimum sample spacing (0 when floods is off)
+    bool levelRivers = false;   // 51.14: carves river beds below the stage - the drain's exit surface and the cell minima change
     std::vector<float> biomeHeight;   // (heightScale, heightOffset) per biome, in order; empty when the drain is off
     bool operator==(const HydroBakeKey& o) const {
         if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq ||
-            seaLevel != o.seaLevel || drains != o.drains || floods != o.floods || minStride != o.minStride ||
+            seaLevel != o.seaLevel || drains != o.drains || floods != o.floods || minStride != o.minStride || levelRivers != o.levelRivers ||
             biomeHeight != o.biomeHeight) return false;
         if (spline.size() != o.spline.size()) return false;
         for (size_t i = 0; i < spline.size(); ++i)
@@ -363,9 +364,10 @@ void WorldGenerator::rebuildCoarseModel() {
     key.drains = m_carveDrainsBasins;
     key.floods = m_bakeFloodsTerrain;
     key.minStride = m_bakeFloodsTerrain ? m_bakeMinStride : 0;
+    key.levelRivers = m_levelRivers;
     m_shoreLip = false;     // 51.13: no sample taken while this bake is made may carry the shore guarantee
     m_bakeSeconds = 0.0;
-    if (key.drains || key.floods)
+    if (key.drains || key.floods || key.levelRivers)   // 51.14: the stage is base + the biome offset
         for (const auto& b : m_biomes) { key.biomeHeight.push_back(b.heightScale); key.biomeHeight.push_back(b.heightOffset); }
     bool cacheHit = false;
     {
@@ -924,7 +926,7 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
     const int px = minX - kWaterBlockMargin, pz = minZ - kWaterBlockMargin;
     const size_t pn = static_cast<size_t>(pw) * static_cast<size_t>(pd);
 
-    std::vector<float> ground(pn), baked(pn), level(pn), filled(pn), rdepth(pn);
+    std::vector<float> ground(pn), baked(pn), level(pn), filled(pn), rdepth(pn), rstage(pn);
     std::vector<int>   surf(pn);
     std::vector<uint8_t> river(pn, 0);
 
@@ -964,6 +966,7 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
                     surf[i]   = cs.surfaceY;  // x-major, z-minor
                     river[i]  = cs.riverOrder >= 3 ? 1 : 0;   // Phase D4: a carved channel column holds its river span
                     rdepth[i] = cs.channelDepth;
+                    rstage[i] = cs.riverStage;
                     filled[i] = m_hydro->filledAt(static_cast<float>(cx * 32 + lx) + 0.5f,
                                                   static_cast<float>(cz * 32 + lz) + 0.5f);
                     ground[i] = static_cast<float>(surf[i]) + 1.0f;   // top face of the solid voxel
@@ -986,6 +989,7 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
             // (creek shelves at 2/3) need a float bottom in WaterSpan and stay a logged gap.
             if (river[src]) {
                 WaterSpan rs; rs.bottomY = surf[src] + 1; rs.topY = static_cast<float>(rs.bottomY) + rdepth[src];
+                if (m_levelRivers && rstage[src] > -1e29f) rs.topY = rstage[src];   // 51.14: the level stage
                 if (rs.depth() >= kMinSpanDepthFwd) { spans[dst] = rs; hasSpan[dst] = 1; }
                 continue;
             }
@@ -1079,6 +1083,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         float mwx = static_cast<float>(wx), mwz = static_cast<float>(wz);
         float creekSwale = 0.0f;   // bounded creek dip (water-as-terrain-stage P2), voxels
         bool nearCreek = false;    // 25.22: within the swale - the only columns the carve's corner fill looks at
+        float nearRiverDist = 1e30f; int nearRiverOrder = 0;   // 51.14: the nearest order >= 3 channel (warped distance)
         if (m_flow) {
             const glm::vec2 m = meanderedChannelPos(static_cast<float>(wx), static_cast<float>(wz));
             mwx = m.x;
@@ -1090,6 +1095,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         if (m_flow) {
             const float maxValleyHalf = FlowField::channelHalfWidth(6) * kValleyWidthMul;  // widest order
             const FlowField::NearestChannel nc = m_flow->nearestChannel(mwx, mwz, maxValleyHalf);
+            nearRiverDist = nc.dist; nearRiverOrder = nc.order;   // 51.14: the bank guarantee's reach
             if (nc.order >= 3) {
                 const float valleyHalf = FlowField::channelHalfWidth(nc.order) * kValleyWidthMul;
                 relief *= smoothstep01(0.0f, valleyHalf, nc.dist);  // 0 at centreline → full at edge
@@ -1112,6 +1118,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             }
         }
         col.bedHeight = coarse.baseHeight + relief * blendScale + blendOffset - creekSwale;   // 25.22: the continuous height
+        col.valleyFloor = coarse.baseHeight + blendOffset;   // 51.14: the relief-free height (the valley floor at a centreline)
         col.surfaceY = static_cast<int>(std::floor(col.bedHeight));
 
         // P2 river carve: lower the smooth valley floor further where the network runs a channel
@@ -1127,7 +1134,30 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 // to a full-voxel trench here, which is exactly the wrong outcome for a sub-voxel
                 // creek. riverOrder is still recorded for every order: the water runtime and the
                 // flora gate both consume it (no trees standing in the creek line).
-                if (ch.order >= 3) { col.surfaceY -= static_cast<int>(std::lround(ch.depth)); col.bedHeight -= ch.depth; }
+                if (ch.order >= 3) {
+                    const int carved = col.surfaceY - static_cast<int>(std::lround(ch.depth));
+                    col.bedHeight -= ch.depth;
+                    col.surfaceY = carved;
+                    if (m_levelRivers) {
+                        // WaterCore.md 51.14 RIVERS HOLD LEVEL WATER. D4's span (bed + this carve depth, <= 1 m) draped a film over
+                        // ground that still carries the relief term inside the channel (2.8 m on average across one, RiverCarve),
+                        // so water stood over water in steps (10-14 thousand faces > 0.25 m a 768 m region). The water stands at
+                        // the relief-free height instead - the valley floor the valley shaping drives the ground to at a
+                        // centreline: level across the channel and smooth along it (neighbours differ by <= 0.02 m). The bed is cut
+                        // at least kMinRiverDepth below it (deeper at the centreline), never raised: depth in [m, m + 1).
+                        constexpr float kMinRiverDepth = 1.0f / 3.0f;   // the subcube step; a look default (the owner's call)
+                        const float S = col.valleyFloor;
+                        const float m = std::max(ch.depth, kMinRiverDepth);
+                        const int stageBed = static_cast<int>(std::floor(S - m)) - 1;   // bed top = floor(S - m) <= S - m
+                        // Cut only where the carved ground is within kMaxRiverCut of the stage. Higher ground (the relief term left
+                        // toward a wide channel's edges, up to ~10 m) stays as BANK above the water - cutting it to the stage made
+                        // 4-8+ m gorge walls along every river (51.14's first try: 2,812 bank faces >= 8 m in the view).
+                        constexpr float kMaxRiverCut = 1.0f;   // = the D4 carve depth (orders 3-5)
+                        if (static_cast<float>(carved + 1) <= S + kMaxRiverCut) col.surfaceY = std::min(carved, stageBed);
+                        col.bedHeight = std::min(col.bedHeight, static_cast<float>(col.surfaceY + 1));
+                        col.riverStage = S;
+                    }
+                }
                 col.riverOrder = ch.order;
                 col.channelDepth = ch.depth;
                 // Creek BED RECESS (water-as-terrain-stage P2): the inner band of an order 1-2
@@ -1168,13 +1198,29 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 L = std::max(L, m_hydro->waterLevelAt(fx - cs, fz));
                 L = std::max(L, m_hydro->waterLevelAt(fx, fz + cs));
                 L = std::max(L, m_hydro->waterLevelAt(fx, fz - cs));
-                if (L > HydrologyMap::NO_WATER * 0.5f && static_cast<float>(col.surfaceY + 1) < L) {
-                    const int lifted = static_cast<int>(std::ceil(L)) - 1;
+                // 51.14: a creek shelf's drawn top is below surfaceY + 1 (25.22's 1/3 m carve) - compare what is drawn, or a lake
+                // stands up to 1 m over the shelf at a creek mouth (11 faces in the 51.4c view, found when the census read it).
+                const float top = (col.creekBed && m_levelRivers) ? drawnTop(col) : static_cast<float>(col.surfaceY + 1);
+                if (L > HydrologyMap::NO_WATER * 0.5f && top < L) {
+                    const int lifted = std::max(col.surfaceY, static_cast<int>(std::ceil(L)) - 1);
                     col.shoreLift = lifted - col.surfaceY;
                     col.surfaceY = lifted;
                     col.bedHeight = static_cast<float>(lifted) + 1.0f;
                     col.creekBed = false;   // a lifted column is bank, not a creek's shelf
                 }
+            }
+            // 51.14: a creek SHELF beside or in a lake cell, drawn below a level its full voxel would hold, loses the shelf. The column
+            // flood reads whole-voxel tops (a span's bottom is a whole voxel), so the lake stops at surfaceY + 1 >= L and stood over
+            // the 1/3-2/3 m shelf as a wall (11 faces in the 51.4c view, inside the lake's own cell where the lift above never looks).
+            if (m_levelRivers && col.creekBed) {
+                const float cs = m_hydro->cellSize();
+                float L = m_hydro->waterLevelAt(fx, fz);
+                L = std::max(L, m_hydro->waterLevelAt(fx + cs, fz));
+                L = std::max(L, m_hydro->waterLevelAt(fx - cs, fz));
+                L = std::max(L, m_hydro->waterLevelAt(fx, fz + cs));
+                L = std::max(L, m_hydro->waterLevelAt(fx, fz - cs));
+                if (L > HydrologyMap::NO_WATER * 0.5f && drawnTop(col) < L && static_cast<float>(col.surfaceY + 1) >= L)
+                    col.creekBed = false;
             }
         }
 
@@ -1260,6 +1306,25 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 col.roadClass = rh.cls;
                 col.roadDist = rh.dist;
                 col.surfaceMat = WorldForgePlan::roadMaterial(rh.cls);
+            }
+        }
+
+        // WaterCore.md 51.14 THE RIVER BANK GUARANTEE: a column that is not a carved channel but lies within reach of one (its
+        // half-width + 3, warped distance) never has its top below its own valley floor - the stage of the river beside it, to
+        // within the floor's slope (<= 0.02 m between neighbours, measured). Relief is never negative, so ordinary banks already
+        // hold; this catches the terms that cut below the floor - a creek swale at a mouth, road grading. After the roads, which
+        // would otherwise cut it again. Pure: this column's own floor and channel distance.
+        if (m_levelRivers && col.riverOrder < 3 && nearRiverOrder >= 3 &&
+            nearRiverDist < FlowField::channelHalfWidth(nearRiverOrder) + 3.0f) {
+            const float top = (col.creekBed ? drawnTop(col) : static_cast<float>(col.surfaceY + 1));
+            if (top < col.valleyFloor) {
+                const int lifted = static_cast<int>(std::ceil(col.valleyFloor)) - 1;
+                if (lifted > col.surfaceY || col.creekBed) {
+                    col.shoreLift += std::max(0, lifted - col.surfaceY);
+                    col.surfaceY = std::max(col.surfaceY, lifted);
+                    col.bedHeight = static_cast<float>(col.surfaceY) + 1.0f;
+                    col.creekBed = false;   // a lifted column is bank, not a creek's shelf
+                }
             }
         }
     }
@@ -1643,6 +1708,7 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     r.carveDrainsBasins = true;   // 51.12: new worlds' carved channels drain the basins they cross
     r.bakeFloodsTerrain = true;   // 51.13 step 2: new worlds' lakes flood the cell minima and the shore guarantee holds them
     r.bakeMinStride = m_bakeMinStride;
+    r.levelRivers = true;   // 51.14: new worlds' rivers hold level water
     return r;
 }
 
@@ -1661,7 +1727,8 @@ float WorldGenerator::carvedRiverSurfaceInCell(int cell) {
             if (!ch.hit || ch.order < 3) continue;
             const ColumnSample cs = sampleColumn(x, z);
             if (cs.riverOrder < 3) continue;
-            const float top = static_cast<float>(cs.surfaceY + 1) + cs.channelDepth;
+            float top = static_cast<float>(cs.surfaceY + 1) + cs.channelDepth;
+            if (m_levelRivers && cs.riverStage > -1e29f) top = cs.riverStage;   // 51.14: the river stands at its stage
             if (best <= HydrologyMap::NO_WATER * 0.5f || top < best) best = top;
         }
     return best;
@@ -1696,6 +1763,7 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     m_creekCarve = recipe.creekCarve;   // 25.22
     m_carveDrainsBasins = recipe.carveDrainsBasins;   // 51.12: a bake input - the rebuild below re-bakes with it
     m_bakeFloodsTerrain = recipe.bakeFloodsTerrain;   // 51.13: likewise
+    m_levelRivers = recipe.levelRivers;   // 51.14: terrain and a bake input - the rebuild below re-bakes with it
     // 51.13: clamped here - 0 would never advance the sampling loop, and above one cell (128 m) the "minimum" is the corner
     // sample alone, step 1's failure (it moved the walls).
     m_bakeMinStride = std::clamp(recipe.bakeMinStride, 1, 128);

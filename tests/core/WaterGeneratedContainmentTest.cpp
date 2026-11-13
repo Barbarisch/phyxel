@@ -30,13 +30,14 @@ namespace {
 
 // drains: WorldRecipe::carveDrainsBasins (51.12). The bench's own recipe predates it (no key -> false).
 // floods: WorldRecipe::bakeFloodsTerrain (51.13), also absent from the bench's recipe.
-bool loadRiverCarve(WorldGenerator& g, bool drains = false, bool floods = false) {
+bool loadRiverCarve(WorldGenerator& g, bool drains = false, bool floods = false, bool levels = false) {
     std::ifstream f("tests/core/golden/rivercarve_recipe.json");
     if (!f) return false;
     std::stringstream ss; ss << f.rdbuf();
     WorldRecipe r = WorldRecipe::fromJson(ss.str());
     r.carveDrainsBasins = drains;
     r.bakeFloodsTerrain = floods;
+    r.levelRivers = levels;   // 51.14
     g.applyRecipe(r);
     return g.hydrology() != nullptr;
 }
@@ -48,6 +49,10 @@ struct Census {
     // A wet column that is itself a carved river column holds a river span (bed + carve depth, D4) - its edges are the river
     // representation's, not a lake's: counted apart, never in the wall faces.
     long riverSpanEdges = 0; float worstRiverSpanEdge = 0.0f; int rex = 0, rez = 0;
+    // 51.14: water over water where either side is a river column, the exposed face higher than 0.25 m.
+    long riverSteps = 0; float worstRiverStep = 0.0f; int rsx = 0, rsz = 0;
+    long riverColumns = 0, riverWet = 0;
+    long bankOver[5] = {0, 0, 0, 0, 0};   // a river column's dry neighbour: its top over the water, < 1 | 1-2 | 2-4 | 4-8 | >= 8 m
     float worstBy[3] = {0, 0, 0}; int wbx[3] = {0, 0, 0}, wbz[3] = {0, 0, 0}, wbg[3] = {0, 0, 0}; float wbl[3] = {0, 0, 0};
 };
 
@@ -56,6 +61,10 @@ void report(const char* name, int x0, int z0, int w, int d, const Census& c) {
     std::printf("  wet %ld | wall faces: river %ld, drains %ld, unreached %ld | steps %ld\n", c.wet, c.wallRiver, c.wallDrains,
                 c.wallUnreached, c.steps);
     std::printf("  river-span edges (not lake walls) %ld, worst %.1f m at (%d, %d)\n", c.riverSpanEdges, c.worstRiverSpanEdge, c.rex, c.rez);
+    std::printf("  river steps (water over water) %ld, worst %.2f m at (%d, %d); river columns %ld, wet %ld\n", c.riverSteps,
+                c.worstRiverStep, c.rsx, c.rsz, c.riverColumns, c.riverWet);
+    std::printf("  river banks over the water: <1 m %ld | 1-2 %ld | 2-4 %ld | 4-8 %ld | >=8 %ld\n", c.bankOver[0], c.bankOver[1],
+                c.bankOver[2], c.bankOver[3], c.bankOver[4]);
     static const char* kWhy[3] = {"river", "drains", "unreached"};
     for (int k = 0; k < 3; ++k)
         if (c.worstBy[k] > 0) std::printf("  worst %-9s %.1f m at (%d, %d): level %.2f, ground top %d\n", kWhy[k], c.worstBy[k], c.wbx[k], c.wbz[k], c.wbl[k], c.wbg[k]);
@@ -67,11 +76,14 @@ Census census(WorldGenerator& g, int x0, int z0, int w, int d) {
     g.waterSpansForBlock(x0, z0, w, d, spans, has);
     const HydrologyMap* h = g.hydrology();
     std::vector<int> surf(static_cast<size_t>(w) * d), order(static_cast<size_t>(w) * d);
+    std::vector<float> drawn(static_cast<size_t>(w) * d);
     for (int z = 0; z < d; ++z) for (int x = 0; x < w; ++x) {
         const auto cs = g.sampleSurface(x0 + x, z0 + z);
         surf[static_cast<size_t>(z) * w + x] = cs.surfaceY; order[static_cast<size_t>(z) * w + x] = cs.riverOrder;
+        drawn[static_cast<size_t>(z) * w + x] = g.drawnTop(cs);   // 51.14: a creek shelf's top is below surfaceY + 1
     }
     Census c;
+    for (size_t i = 0; i < order.size(); ++i) if (order[i] >= 3) { ++c.riverColumns; if (has[i]) ++c.riverWet; }
     static const int kN[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
     for (int z = 0; z < d; ++z) for (int x = 0; x < w; ++x) {
         const size_t i = static_cast<size_t>(z) * w + x;
@@ -83,12 +95,23 @@ Census census(WorldGenerator& g, int x0, int z0, int w, int d) {
             const int nx = x + n[0], nz = z + n[1];
             if (nx < 0 || nz < 0 || nx >= w || nz >= d) continue;
             const size_t j = static_cast<size_t>(nz) * w + nx;
-            const float groundTop = static_cast<float>(surf[j]) + 1.0f;
+            const float groundTop = drawn[j];
             if (has[j]) {
                 if (spans[j].topY < T - 0.25f && order[i] < 3 && order[j] < 3 && groundTop < T - 0.25f) ++c.steps;
+                const float face = T - std::max(spans[j].topY, groundTop);
+                if ((order[i] >= 3 || order[j] >= 3) && face > 0.25f) {
+                    ++c.riverSteps;
+                    if (face > c.worstRiverStep) { c.worstRiverStep = face; c.rsx = x0 + nx; c.rsz = z0 + nz; }
+                }
                 continue;
             }
-            if (groundTop >= T - kMinSpanDepth) continue;   // the ground holds it
+            if (groundTop >= T - kMinSpanDepth) {   // the ground holds it
+                if (order[i] >= 3) {
+                    const float b = groundTop - T;
+                    c.bankOver[b < 1 ? 0 : b < 2 ? 1 : b < 4 ? 2 : b < 8 ? 3 : 4]++;
+                }
+                continue;
+            }
             if (order[i] >= 3) {
                 ++c.riverSpanEdges;
                 if (T - groundTop > c.worstRiverSpanEdge) { c.worstRiverSpanEdge = T - groundTop; c.rex = x0 + nx; c.rez = z0 + nz; }
@@ -321,7 +344,9 @@ TEST(WaterGeneratedContainmentTest, NoWallOfWaterStandsAnywhere) {
         }
     }
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
-    ASSERT_TRUE(loadRiverCarve(g, true, true));
+    // 51.14: every new-world flag. The census reads the DRAWN top since 51.14 (a creek shelf is below surfaceY + 1), which found
+    // 11 faces at creek mouths in the view that 51.13's guarantee missed; 51.14 fixes them under its own flag.
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
     for (const auto& r : regions) {
         const Census c = census(g, r.x0, r.z0, 768, 768);
         report(r.name, r.x0, r.z0, 768, 768, c);
@@ -474,4 +499,279 @@ TEST(WaterGeneratedContainmentTest, DISABLED_DiagLakeShorePose) {
     const float yaw = std::atan2(-dir.y, -dir.x) * 57.29578f;
     std::printf("shore (%d, %d), ground there %d; camera ground %d\nPOSE %.1f,%.1f,%.1f,%.1f,%.1f\n", shoreX, shoreZ,
                 g.sampleSurface(shoreX, shoreZ).surfaceY + 1, ground, c.x, camY, c.y, yaw, -14.0f);
+}
+
+// 51.14 measurement: the river spans' own edges (D4's bed + carve depth). With both flags on, in both regions: every face where a
+// river-span column's water stands above a neighbour's ground with no water there (an edge), by the neighbour's kind and the
+// height; and the river-to-river water steps (a lower river span beside a higher one: a vertical face of water over water).
+TEST(WaterGeneratedContainmentTest, DISABLED_DiagRiverSpanEdges) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true));
+    struct Region { const char* name; int x0, z0; } regions[2] = {{"north", -2112, -3136}, {"51.4c view", -2112, -1216}};
+    const int W = 768;
+    const char* stageEnv = std::getenv("PHYXEL_STAGE");   // 1: river spans topped at the valley floor (the 51.14 candidate)
+    const bool stage = stageEnv && stageEnv[0] == '1';
+    for (const auto& r : regions) {
+        std::vector<WaterSpan> sp; std::vector<uint8_t> has;
+        g.waterSpansForBlock(r.x0, r.z0, W, W, sp, has);
+        std::vector<WorldGenerator::ColumnSample> cs(static_cast<size_t>(W) * W);
+        for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) cs[static_cast<size_t>(z) * W + x] = g.sampleSurface(r.x0 + x, r.z0 + z);
+        long sh[5] = {0, 0, 0, 0, 0}; float worstS = 0;
+        if (stage) {
+            for (size_t i = 0; i < cs.size(); ++i) {
+                if (cs[i].riverOrder < 3) continue;
+                WaterSpan rs; rs.bottomY = cs[i].surfaceY + 1; rs.topY = cs[i].valleyFloor;
+                has[i] = rs.depth() >= kMinSpanDepth ? 1 : 0;
+                if (has[i]) sp[i] = rs;
+            }
+            for (int z = 0; z + 1 < W; ++z) for (int x = 0; x + 1 < W; ++x) {
+                const size_t i = static_cast<size_t>(z) * W + x;
+                if (cs[i].riverOrder < 3) continue;
+                for (size_t j : {i + 1, i + static_cast<size_t>(W)}) {
+                    if (cs[j].riverOrder < 3) continue;
+                    const float g2 = std::fabs(cs[i].valleyFloor - cs[j].valleyFloor);
+                    sh[g2 < 0.1f ? 0 : g2 < 0.25f ? 1 : g2 < 0.5f ? 2 : g2 < 1.0f ? 3 : 4]++; worstS = std::max(worstS, g2);
+                }
+            }
+            std::printf("[%s] STAGE: valley-floor difference between river neighbours <0.1 %ld | <0.25 %ld | <0.5 %ld | <1 %ld | >=1 %ld; worst %.2f\n",
+                        r.name, sh[0], sh[1], sh[2], sh[3], sh[4], worstS);
+        }
+        long riverCols = 0, riverWet = 0, riverNoSpan = 0;
+        long edgeBy[3] = {0, 0, 0};   // neighbour: river column without a span / creek or plain bank / lake-wet? (n/a)
+        long hist[5] = {0, 0, 0, 0, 0};   // <0.5, <1, <2, <3, >=3 m
+        long stepHist[5] = {0, 0, 0, 0, 0};
+        float worstEdge = 0, worstStep = 0; int ex = 0, ez = 0, sx = 0, sz = 0;
+        double sumTilt = 0; long nTilt = 0;
+        static const int kN[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        auto bucket = [](float h) { return h < 0.5f ? 0 : h < 1.0f ? 1 : h < 2.0f ? 2 : h < 3.0f ? 3 : 4; };
+        for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) {
+            const size_t i = static_cast<size_t>(z) * W + x;
+            if (cs[i].riverOrder < 3) continue;
+            ++riverCols;
+            if (!has[i]) { ++riverNoSpan; continue; }
+            ++riverWet;
+            const float T = sp[i].topY;
+            for (const auto& n : kN) {
+                const int nx = x + n[0], nz = z + n[1];
+                if (nx < 0 || nz < 0 || nx >= W || nz >= W) continue;
+                const size_t j = static_cast<size_t>(nz) * W + nx;
+                if (has[j]) {
+                    if (cs[j].riverOrder >= 3) { const float dT = T - sp[j].topY; if (dT > 0) { sumTilt += dT; ++nTilt; } }
+                    if (sp[j].topY < T - 0.25f) {
+                        const float h = T - std::max(sp[j].topY, static_cast<float>(cs[j].surfaceY + 1));
+                        if (h > 0.25f) { stepHist[bucket(h)]++; if (h > worstStep) { worstStep = h; sx = r.x0 + nx; sz = r.z0 + nz; } }
+                    }
+                    continue;
+                }
+                const float h = T - static_cast<float>(cs[j].surfaceY + 1);
+                if (h <= kMinSpanDepth) continue;
+                edgeBy[cs[j].riverOrder >= 3 ? 0 : 1]++;
+                hist[bucket(h)]++;
+                if (h > worstEdge) { worstEdge = h; ex = r.x0 + nx; ez = r.z0 + nz; }
+            }
+        }
+        std::printf("[%s] river columns %ld: with a span %ld, without %ld; mean |dT| between river neighbours %.2f m\n", r.name,
+                    riverCols, riverWet, riverNoSpan, nTilt ? sumTilt / nTilt : 0.0);
+        std::printf("  edges (water over dry ground): beside a span-less river column %ld, beside a bank %ld; worst %.2f m at (%d, %d)\n",
+                    edgeBy[0], edgeBy[1], worstEdge, ex, ez);
+        std::printf("  edge heights <0.5 %ld | 0.5-1 %ld | 1-2 %ld | 2-3 %ld | >=3 %ld\n", hist[0], hist[1], hist[2], hist[3], hist[4]);
+        std::printf("  water-over-water steps >0.25 m: <0.5 %ld | 0.5-1 %ld | 1-2 %ld | 2-3 %ld | >=3 %ld; worst %.2f m at (%d, %d)\n",
+                    stepHist[0], stepHist[1], stepHist[2], stepHist[3], stepHist[4], worstStep, sx, sz);
+        if (worstEdge > 0) {
+            std::printf("  around the worst edge (x across, z down): surfaceY+1 / order / span top\n");
+            for (int dz = -3; dz <= 3; ++dz) {
+                std::printf("   ");
+                for (int dx = -3; dx <= 3; ++dx) {
+                    const int lx = ex - r.x0 + dx, lz = ez - r.z0 + dz;
+                    if (lx < 0 || lz < 0 || lx >= W || lz >= W) { std::printf("        -        "); continue; }
+                    const size_t k = static_cast<size_t>(lz) * W + lx;
+                    if (has[k]) std::printf(" %4d/%d/%6.2f", cs[k].surfaceY + 1, cs[k].riverOrder, sp[k].topY);
+                    else        std::printf(" %4d/%d/  dry ", cs[k].surfaceY + 1, cs[k].riverOrder);
+                }
+                std::printf("\n");
+            }
+        }
+    }
+}
+
+// 51.14 measurement: why the river bed sits at the valley floor - the carve depth against the bed, column by column.
+TEST(WaterGeneratedContainmentTest, DISABLED_DiagRiverBedAgainstTheFloor) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true));
+    long n = 0, hist[6] = {0, 0, 0, 0, 0, 0}; double sumD = 0, sumRel = 0; float maxD = 0;
+    int shown = 0;
+    for (int z = -1216; z < -448; ++z) for (int x = -2112; x < -1344; ++x) {
+        const auto c = g.sampleSurface(x, z);
+        if (c.riverOrder < 3) continue;
+        ++n; sumD += c.channelDepth; maxD = std::max(maxD, c.channelDepth);
+        const float above = static_cast<float>(c.surfaceY + 1) - c.valleyFloor;   // bed top over the stage
+        sumRel += c.bedHeight + c.channelDepth - c.valleyFloor;                  // the relief term left at this column
+        hist[above < -2 ? 0 : above < -1 ? 1 : above < 0 ? 2 : above < 1 ? 3 : above < 3 ? 4 : 5]++;
+        if (c.channelDepth > 0.9f * maxD && shown < 8 && (x + z) % 37 == 0) {
+            ++shown;
+            std::printf("  (%d, %d) order %d depth %.2f valleyFloor %.2f bedHeight %.2f surfaceY+1 %d shoreLift %d\n", x, z, c.riverOrder,
+                        c.channelDepth, c.valleyFloor, c.bedHeight, c.surfaceY + 1, c.shoreLift);
+        }
+    }
+    std::printf("river columns %ld: mean carve depth %.2f (max %.2f), mean relief term left %.2f\n", n, sumD / n, maxD, sumRel / n);
+    std::printf("bed top - valley floor: <-2 %ld | -2..-1 %ld | -1..0 %ld | 0..1 %ld | 1..3 %ld | >=3 %ld\n", hist[0], hist[1], hist[2], hist[3],
+                hist[4], hist[5]);
+}
+
+// WaterCore.md 51.14 - RIVERS HOLD LEVEL WATER. With every new-world flag on (drain, cell-minimum flood, level rivers), in both
+// RiverCarve regions: no river water stands over dry ground (an edge) or over lower water by more than 0.25 m (a step), and the
+// lakes stay wall-free. The control (level rivers off) reproduces the D4 draped film: thousands of steps.
+TEST(WaterGeneratedContainmentTest, RiversHoldLevelWater) {
+    struct Region { const char* name; int x0, z0; } regions[2] = {{"north", -2112, -3136}, {"51.4c view", -2112, -1216}};
+    {
+        WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+        ASSERT_TRUE(loadRiverCarve(g, true, true, false));
+        for (const auto& r : regions) {
+            const Census c = census(g, r.x0, r.z0, 768, 768);
+            report(r.name, r.x0, r.z0, 768, 768, c);
+            ASSERT_GT(c.riverSteps + c.riverSpanEdges, 1000) << "control: the D4 river steps must reproduce in " << r.name;
+        }
+    }
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
+    for (const auto& r : regions) {
+        const Census c = census(g, r.x0, r.z0, 768, 768);
+        report(r.name, r.x0, r.z0, 768, 768, c);
+        EXPECT_EQ(c.riverSpanEdges, 0) << r.name << ": worst river edge " << c.worstRiverSpanEdge << " m at (" << c.rex << ", " << c.rez << ")";
+        EXPECT_EQ(c.riverSteps, 0) << r.name << ": worst river step " << c.worstRiverStep << " m at (" << c.rsx << ", " << c.rsz << ")";
+        EXPECT_EQ(c.wallRiver + c.wallDrains + c.wallUnreached, 0)
+            << r.name << ": worst lake wall at (" << c.wx << ", " << c.wz << "): level " << c.wLevel << " (" << c.wWhy << ")";
+        // The river's CENTRE stays wet. (The first prediction, >= 90 % of every carved column, was wrong: level water fills the low
+        // part of the channel and the relief left toward its edges stands as bank - 41-44 % of all carved columns hold water at the
+        // 1 m cut limit, DiagRiverCutLimit. The width is a look trade against bank height, the owner's call.)
+        long centre = 0, centreWet = 0, lifted = 0; int maxLift = 0;
+        for (int z = r.z0; z < r.z0 + 768; ++z) for (int x = r.x0; x < r.x0 + 768; ++x) {
+            const auto cs = g.sampleSurface(x, z);
+            if (cs.riverOrder >= 3 && cs.channelDepth > 0.8f) {
+                ++centre;
+                if (cs.riverStage - static_cast<float>(cs.surfaceY + 1) >= kMinSpanDepth) ++centreWet;
+            }
+            if ((x - r.x0) % 2 == 0 && (z - r.z0) % 2 == 0 && cs.shoreLift > 0) { ++lifted; maxLift = std::max(maxLift, cs.shoreLift); }
+        }
+        std::printf("  %s: river centre band (carve depth > 0.8) %ld columns, wet %ld (%.0f %%); all carved columns wet %.0f %%\n", r.name,
+                    centre, centreWet, 100.0 * centreWet / std::max(1L, centre), 100.0 * c.riverWet / std::max(1L, c.riverColumns));
+        EXPECT_GE(centreWet * 10, centre * 9) << r.name << ": the river's centre must stay wet";
+        std::printf("  %s: shore + bank guarantees lifted %ld of %d sampled columns, largest %d m\n", r.name, lifted, 384 * 384, maxLift);
+    }
+}
+
+// 51.14 - the level river and its bank guarantee are the same chunked or whole: a window across the 51.4c view's worst D4 edge,
+// spans in 32 x 32 blocks against one pass, and the column cache against the direct sample.
+TEST(WaterGeneratedContainmentTest, TheLevelRiverIsTheSameChunkedOrWhole) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
+    const int x0 = -1792, z0 = -1280, W = 128;
+    std::vector<WaterSpan> whole; std::vector<uint8_t> hasWhole;
+    g.waterSpansForBlock(x0, z0, W, W, whole, hasWhole);
+    long differ = 0, staged = 0, cacheDiffer = 0;
+    for (int bz = 0; bz < W; bz += 32) for (int bx = 0; bx < W; bx += 32) {
+        std::vector<WaterSpan> part; std::vector<uint8_t> hasPart;
+        g.waterSpansForBlock(x0 + bx, z0 + bz, 32, 32, part, hasPart);
+        for (int z = 0; z < 32; ++z) for (int x = 0; x < 32; ++x) {
+            const size_t i = static_cast<size_t>(bz + z) * W + (bx + x), k = static_cast<size_t>(z) * 32 + x;
+            if (hasWhole[i] != hasPart[k] || (hasWhole[i] && (whole[i].topY != part[k].topY || whole[i].bottomY != part[k].bottomY))) ++differ;
+        }
+    }
+    const auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    for (int cz = floorDiv(z0, 32); cz < floorDiv(z0 + W, 32); ++cz) for (int cx = floorDiv(x0, 32); cx < floorDiv(x0 + W, 32); ++cx) {
+        const auto cols = g.columnsForChunkForTest(glm::ivec2(cx, cz));
+        for (int lx = 0; lx < 32; ++lx) for (int lz = 0; lz < 32; ++lz) {
+            const auto& a = (*cols)[static_cast<size_t>(lx) * 32 + lz];
+            const auto b = g.sampleSurface(cx * 32 + lx, cz * 32 + lz);
+            if (a.surfaceY != b.surfaceY || a.riverStage != b.riverStage || a.shoreLift != b.shoreLift || a.creekBed != b.creekBed) ++cacheDiffer;
+            if (b.riverOrder >= 3 && b.riverStage > -1e29f) ++staged;
+        }
+    }
+    std::printf("window x %d z %d (%d^2): %ld river columns with a stage; %ld differ chunked vs whole, %ld cache vs direct\n", x0, z0, W,
+                staged, differ, cacheDiffer);
+    EXPECT_GT(staged, 100) << "the window must hold a river";
+    EXPECT_EQ(differ, 0);
+    EXPECT_EQ(cacheDiffer, 0);
+}
+
+// 51.14 - the flag off leaves the D4 river: every river column's span is bed + carve depth and no column carries a stage.
+TEST(WaterGeneratedContainmentTest, TheLevelRiversFlagOffLeavesD4sRiver) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, false));
+    const int x0 = -1792, z0 = -1280, W = 128;
+    std::vector<WaterSpan> sp; std::vector<uint8_t> has;
+    g.waterSpansForBlock(x0, z0, W, W, sp, has);
+    long river = 0, bad = 0;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) {
+        const auto c = g.sampleSurface(x0 + x, z0 + z);
+        if (c.riverStage > -1e29f) ++bad;
+        if (c.riverOrder < 3) continue;
+        ++river;
+        const size_t i = static_cast<size_t>(z) * W + x;
+        if (has[i] && (sp[i].bottomY != c.surfaceY + 1 || sp[i].topY != static_cast<float>(c.surfaceY + 1) + c.channelDepth)) ++bad;
+    }
+    std::printf("flag off: %ld river columns, %ld not as D4 made them\n", river, bad);
+    EXPECT_GT(river, 100);
+    EXPECT_EQ(bad, 0);
+}
+
+// 51.14 measurement: the river's wet share against the cut limit (kMaxRiverCut). An uncut river column today has its carved top more
+// than 1 m over the stage; it would be cut (and wet) at a limit c when that excess is <= c.
+TEST(WaterGeneratedContainmentTest, DISABLED_DiagRiverCutLimit) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
+    struct Region { const char* name; int x0, z0; } regions[2] = {{"north", -2112, -3136}, {"51.4c view", -2112, -1216}};
+    const float lim[6] = {1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f};
+    for (const auto& r : regions) {
+        long n = 0, cut = 0, wouldBe[6] = {0, 0, 0, 0, 0, 0}, centreDry = 0, centre = 0;
+        for (int z = r.z0; z < r.z0 + 768; ++z) for (int x = r.x0; x < r.x0 + 768; ++x) {
+            const auto c = g.sampleSurface(x, z);
+            if (c.riverOrder < 3 || c.riverStage < -1e29f) continue;
+            ++n;
+            const float e = static_cast<float>(c.surfaceY + 1) - c.riverStage;
+            if (c.channelDepth > 0.8f) { ++centre; if (e > 1.0f) ++centreDry; }
+            if (e <= 0.0f) { ++cut; for (auto& w : wouldBe) ++w; continue; }
+            for (int k = 0; k < 6; ++k) if (e <= lim[k]) ++wouldBe[k];
+        }
+        std::printf("[%s] staged river columns %ld, wet now %ld; centre band (depth > 0.8) %ld, of it dry %ld\n", r.name, n, cut, centre, centreDry);
+        for (int k = 0; k < 6; ++k) std::printf("  cut limit %.1f m: wet %ld (%.0f %%)\n", lim[k], wouldBe[k], 100.0 * wouldBe[k] / n);
+    }
+}
+
+// 51.14 measurement: a camera pose for the look - low over a level river reach near the bench camera, looking along the water.
+TEST(WaterGeneratedContainmentTest, DISABLED_DiagRiverPose) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
+    const glm::vec2 cam(-1728.0f, -1320.0f);
+    // the wet river column nearest the camera whose 31 x 31 neighbourhood is the most wet (a broad reach, not a sliver)
+    int bx = INT_MIN, bz = INT_MIN; long bestWet = 0; float bestD = 1e30f;
+    for (int z = -1700; z < -900; z += 4) for (int x = -2100; x < -1350; x += 4) {
+        const auto c = g.sampleSurface(x, z);
+        if (c.riverOrder < 3 || c.riverStage - static_cast<float>(c.surfaceY + 1) < 0.3f) continue;
+        long wet = 0;
+        for (int dz = -15; dz <= 15; dz += 3) for (int dx = -15; dx <= 15; dx += 3) {
+            const auto n = g.sampleSurface(x + dx, z + dz);
+            if (n.riverOrder >= 3 && n.riverStage - static_cast<float>(n.surfaceY + 1) >= 0.05f) ++wet;
+        }
+        const float d = glm::length(glm::vec2(x, z) - cam);
+        if (wet > bestWet + 5 || (wet + 5 >= bestWet && d < bestD)) { if (wet > bestWet) bestWet = wet; bx = x; bz = z; bestD = d; }
+    }
+    ASSERT_NE(bx, INT_MIN);
+    // the reach's direction: principal axis of the wet columns within 40 m
+    double sx = 0, sz = 0, sxx = 0, szz = 0, sxz = 0; long n = 0;
+    for (int dz = -40; dz <= 40; dz += 2) for (int dx = -40; dx <= 40; dx += 2) {
+        const auto c = g.sampleSurface(bx + dx, bz + dz);
+        if (c.riverOrder < 3 || c.riverStage - static_cast<float>(c.surfaceY + 1) < 0.05f) continue;
+        sx += dx; sz += dz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; ++n;
+    }
+    const double mx = sx / n, mz = sz / n, cxx = sxx / n - mx * mx, czz = szz / n - mz * mz, cxz = sxz / n - mx * mz;
+    const double ang = 0.5 * std::atan2(2 * cxz, cxx - czz);
+    const glm::vec2 along(static_cast<float>(std::cos(ang)), static_cast<float>(std::sin(ang)));
+    const auto c0 = g.sampleSurface(bx, bz);
+    const glm::vec2 p = glm::vec2(bx, bz) - along * 28.0f;
+    const int ground = g.sampleSurface(static_cast<int>(p.x), static_cast<int>(p.y)).surfaceY + 1;
+    const float camY = std::max(c0.riverStage + 5.0f, static_cast<float>(ground) + 2.5f);
+    const float yaw = std::atan2(along.y, along.x) * 57.29578f;
+    std::printf("reach at (%d, %d): stage %.2f, bed %d, %ld of 121 wet nearby, %ld wet within 40 m\nPOSE %.1f,%.1f,%.1f,%.1f,%.1f\n", bx, bz,
+                c0.riverStage, c0.surfaceY + 1, bestWet, n, p.x, camY, p.y, yaw, -12.0f);
 }

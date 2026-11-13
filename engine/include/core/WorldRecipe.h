@@ -79,6 +79,11 @@ struct WorldRecipe {
     // 51.13: the spacing (m) of the samples a cell's minimum is taken from. Persisted: it decides lake levels and how much the shore
     // guarantee lifts, so a later default must never silently change an existing world. Written with bakeFloodsTerrain.
     int bakeMinStride = 8;
+    // WaterCore.md 51.14: RIVERS HOLD LEVEL WATER. A carved channel's water stands at the relief-free valley floor (level across the
+    // channel, smooth along it) and its bed is carved at least 1/3 m below that, instead of D4's film draped 1 m over the ground. It
+    // changes terrain (river beds, a few banks) and the bake (the cell minima see the beds), so absent -> false; new worlds get it
+    // from makeRecipe(). Written only when true.
+    bool levelRivers = false;
 
     std::string toJson() const {
         nlohmann::json root;
@@ -120,6 +125,7 @@ struct WorldRecipe {
         if (creekCarve) root["creekCarve"] = true;
         if (carveDrainsBasins) root["carveDrainsBasins"] = true;
         if (bakeFloodsTerrain) { root["bakeFloodsTerrain"] = true; root["bakeMinStride"] = bakeMinStride; }
+        if (levelRivers) root["levelRivers"] = true;
         return root.dump(2);
     }
 
@@ -175,6 +181,7 @@ struct WorldRecipe {
             r.carveDrainsBasins = root.value("carveDrainsBasins", false);
             r.bakeFloodsTerrain = root.value("bakeFloodsTerrain", false);
             r.bakeMinStride = root.value("bakeMinStride", 8);
+            r.levelRivers = root.value("levelRivers", false);
         } catch (...) {
             // Bad/empty input -> caller falls back to synthesizing from the category library.
         }

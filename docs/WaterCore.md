@@ -13573,6 +13573,76 @@ stupid."* That is the decision: zero walls, not a smaller residual. `/design-che
   - Next: the river spans' own steps (bed + carve depth stepping down a steep reach; worst 3.4 m in the view). They are floating
     water too, and the owner's rule covers them.
 
+**51.14 (2026-11-13) BUILT, ON for new worlds - rivers hold level water: no river stands over its banks or over itself in steps**
+(51.13's named next; the owner's *"obviously walls of floating water cant exist"* covers rivers. `/design-check` READY with four
+conditions, all met or reported below).
+- **Measured first** (`DISABLED_DiagRiverSpanEdges`, `DiagRiverBedAgainstTheFloor`, both RiverCarve regions, 51.12 + 51.13 on):
+  - D4's river span (the bed top + the parabolic carve depth) is a FILM draped over the ground. The carve is at most 1.0 m
+    (orders 3-5), and the ground inside a channel still carries the relief term: on average 2.8 m across one.
+  - So river water stood over river water in steps: north 10,410 faces > 0.25 m (103 of them >= 3 m), view 14,086 (656 >= 3 m).
+    Also over dry ground: 171 / 175 faces, worst 2.4 / 3.4 m.
+  - Mean height difference between neighbouring river columns: 0.73 / 0.80 m.
+- **Built** (recipe flag `levelRivers`: absent = off for old worlds, on in `makeRecipe`, in the hydro cache key):
+  1. **The stage.** A carved column's water stands at its RELIEF-FREE height, `valleyFloor` = coarse base + biome offset.
+     That is the height the valley shaping drives the ground to at a centreline. It is level across a channel and smooth along
+     it: neighbours differ by <= 0.02 m (measured).
+     - `ColumnSample::valleyFloor` (every column) and `riverStage` (carved columns) are new fields.
+  2. **The carve.** The bed is cut to `floor(S - max(d, 1/3)) - 1`, so each cut column holds 1/3 m or more of water, deeper at
+     the centreline.
+     - It cuts only where the D4 carve's top is within `kMaxRiverCut` = 1 m of the stage. Higher ground (the relief left toward a
+       wide channel's edges) stays as BANK above the water.
+     - The first try cut every carved column. That made gorge walls along every river: 2,812 bank faces >= 8 m in the view.
+  3. **The span** is [bed top, stage].
+  4. **The river bank guarantee** (after the road grading, which could cut it again). A non-channel column within the channel's
+     half-width + 3 never has its top below its own valley floor.
+  5. **A creek shelf beside or in a lake cell**, drawn below a level its full voxel would hold, loses its shelf. The census now
+     reads the DRAWN top (a 25.22 shelf is 1/3-2/3 m below `surfaceY + 1`). That found 11 one-metre faces at a creek mouth in
+     the view, inside the lake's own cell, where 51.13's lift never looks. They are fixed under this flag; 51.13's lift also
+     compares the drawn top under it.
+  6. **51.12's drain** exits at the stage.
+  - **API:** `water_bake_info.level_rivers`; `terrain_column` gains `shore_lift`, `valley_floor` and `river_stage`.
+- **Tests** (`WaterGeneratedContainmentTest`):
+  - `RiversHoldLevelWater`. Control (flag off) red: the numbers above. **Green, both regions: river edges 0, river steps 0, lake
+    walls 0** (river / drains / unreached).
+    - **Bank lifts:** 0 north, 3 of 147,456 sampled in the view (the 51.13 ones).
+    - Banks over the water, view: < 1 m 29, 1-2 m 2,313, 2-4 m 658, 4-8 m 137, >= 8 m 34.
+  - **The wet share, against my prediction.** I wrote ">= 90 % of carved columns wet". **Wrong:** 44 % north, 41 % view.
+    - Level water fills the low part of a channel; the relief left toward its edges is bank.
+    - The river's centre band (carve depth > 0.8) is wet: 96 % / 92 %. The test asserts that (>= 90 %) and prints the
+      full-width share.
+    - `DISABLED_DiagRiverCutLimit`, the trade: the cut limit 1 / 2 / 3 / 6 m gives 41 / 53 / 63 / 82 % of the view's carved
+      columns wet. Banks are cut that much deeper.
+  - `NoWallOfWaterStandsAnywhere` now runs every new-world flag (its census reads the drawn top): 0 / 0.
+  - `TheLevelRiverIsTheSameChunkedOrWhole`: 128 x 128 across the view's worst D4 edge, 1,796 staged columns; 0 differ chunked
+    vs whole, 0 cache vs direct.
+  - `TheLevelRiversFlagOffLeavesD4sRiver`: off, every river span is bed + carve depth and no column carries a stage (0 of 1,796).
+  - `TerrainRecipeTest` pin: new worlds on, absent off, round-trips, written only when true.
+  - **Unit** (terrain / water / WorldForge / roads / flora / settlement / structure / hydrology / WorldGenerator): **729 / 729**.
+    WorldForge, roads and bridges stayed green (condition 2).
+- **Cost:** generation only, no per-frame work. The bake is 7.0-9.1 s across the suite's runs, against 9.8-10.4 s in 51.13, so no
+  increase (condition 3).
+- **Live** (WaterBench_RiverCarve, the flag set in its recipe and then back on; backup `rivercarve_default_before514.db` in the
+  scratchpad), pose from `DISABLED_DiagRiverPose` (a reach at (-1728, -1040), stage 20.06, camera 28 m upstream, 5 m above the
+  water, looking along it). `water_skin_river_live.py --tag level514_river` / `--tag level514_river_before`:
+  - **`level514_river_before_on.png` (flag off, looked at):** water lies on EVERY terrace step of the canyon's walls. Sheets on
+    each grass ledge climb the slope in stairs; every step is a wall of water. This is the defect, in frame.
+  - **`level514_river_on.png` (flag on, same pose, looked at):** one narrow river along the canyon floor, flat, meeting its
+    banks on both sides. The ledges are dry grass. Lighter squares are the bed seen through the water. The canyon itself (steep
+    terraced walls, dark) is the terrain, unchanged by this step.
+  - `_off.png` (skin off) shows the same near the camera: near water is the record tiles' job.
+  - At rest, skin on: 38.3 fps (CPU 26.2, GPU 25.4 ms) after; 37.7 fps (CPU 26.6, GPU 26.0) before. No measurable difference.
+    The first "off" window in both runs caught streaming (46.7 / 10.4 fps).
+- **Status: built, not signed off.** For the owner:
+  1. the look (`level514_river_on.png` against `_before_on.png`);
+  2. how wide rivers are. At the 1 m cut, rivers fill their channel's low half; a deeper cut makes them wider, between taller
+     banks (the table above). That is a look decision (condition 4), as is the 1/3 m minimum depth.
+- **Not done here:**
+  - creeks (orders 1-2) still have no generated span (the logged gap: a span's bottom is a whole voxel);
+  - a river's stage need not fall downstream (the valley floor is smooth, not monotone). No wall results; the appearance flow
+    reads the bake's direction.
+- **Environment, not this change:** `phyxel_e2e_tests` test discovery fails in the build (`python312.dll` is not on the
+  discovery step's PATH). It does not build into the unit or integration runs.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

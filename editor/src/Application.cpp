@@ -13879,7 +13879,10 @@ void Application::registerWaterCommands() {
         auto one = [&](int x, int z) {
             const WorldGenerator::ColumnSample c = g->sampleSurface(x, z);
             return nlohmann::json{{"x", x}, {"z", z}, {"surface_y", c.surfaceY}, {"bed_height", c.bedHeight}, {"drawn_top", g->drawnTop(c)},
-                                  {"creek_bed", c.creekBed}, {"river_order", c.riverOrder}, {"channel_depth", c.channelDepth}};
+                                  {"creek_bed", c.creekBed}, {"river_order", c.riverOrder}, {"channel_depth", c.channelDepth},
+                                  // 51.13 / 51.14: the shore and bank guarantees' lift, the relief-free floor, the river's stage
+                                  {"shore_lift", c.shoreLift}, {"valley_floor", c.valleyFloor},
+                                  {"river_stage", c.riverStage > -1e29f ? nlohmann::json(c.riverStage) : nlohmann::json(nullptr)}};
         };
         if (cmd.params.contains("points")) {
             nlohmann::json a = nlohmann::json::array();
@@ -15301,7 +15304,7 @@ void Application::registerWaterCommands() {
         r = {{"generator_sea_level", g->getTerrainParams().seaLevelY},
              // WaterCore.md 51.12 / 51.13: which bake ran (recipe flags) and what the drain did
              {"carve_drains_basins", g->carveDrainsBasins()}, {"bake_floods_terrain", g->bakeFloodsTerrain()},
-             {"bake_min_stride", g->bakeMinStride()}, {"bake_seconds", g->bakeSeconds()}};
+             {"bake_min_stride", g->bakeMinStride()}, {"bake_seconds", g->bakeSeconds()}, {"level_rivers", g->levelRivers()}};
         if (const HydrologyMap* hd = g->hydrology()) {
             r["basins_drained"] = hd->basinsDrained();
             r["basins_unresolved"] = hd->basinsUnresolved();

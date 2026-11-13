@@ -1075,7 +1075,7 @@ WITHOUT the biome blend (`heightScale`/`heightOffset`) the terrain has, so a coa
 surface moved the walls (north region 35.6 -> 16.0 m, the 51.4c view 18.6 -> 24.0 m and a new lake). Open: flood each cell's
 lower bound (provably wall-free at cell borders); its sampling cost is the question.
 **RESOLVED 2026-11-13 (WaterCore 51.13 step 2):** the bake floods 8 m-sampled cell minima and the terrain's shore guarantee lifts
-any column the sampling missed - 0 lake-wall faces in both RiverCarve regions. Open: river spans' own steps (worst 3.4 m).
+any column the sampling missed - 0 lake-wall faces in both RiverCarve regions. Open: river spans' own steps (worst 3.4 m). **RESOLVED 2026-11-13 (WaterCore 51.14):** rivers stand at the relief-free valley floor, beds cut at least 1/3 m below it - 0 river edges and 0 river steps in both regions.
 
 ## 2026-10-09 — WaterCore Phase G1, the shoreline band (docs/WaterCore.md 18.5)
 - **Sheet/band height seam in shallow water.** The sea sheet draws the full Gerstner swell (0.45 m,

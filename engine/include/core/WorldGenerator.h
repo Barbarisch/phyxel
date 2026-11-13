@@ -176,6 +176,10 @@ public:
         int   bridgePierTopY = INT_MIN; // pier column: solid Stone fills (surfaceY, pierTopY]
                                       // from the carved bed up to under the deck (INT_MIN = none)
         int   shoreLift   = 0;        // WaterCore.md 51.13: metres the shore guarantee raised this column (0 = none)
+        float valleyFloor = 16.0f;    // WaterCore.md 51.14: the height with NO relief term (base + biome offset) - where the
+                                      // valley shaping drives the ground at a river's centreline; smooth in world position
+        float riverStage  = -1e30f;   // WaterCore.md 51.14 (levelRivers): the carved river's water surface here (= valleyFloor),
+                                      // -1e30 where this is no carved channel column or the flag is off
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
@@ -205,6 +209,9 @@ public:
     // 51.13: a bake input - changing it re-bakes the hydrology.
     void setBakeFloodsTerrain(bool on) { if (on != m_bakeFloodsTerrain) { m_bakeFloodsTerrain = on; rebuildCoarseModel(); } }
     int bakeMinStride() const { return m_bakeMinStride; }
+    bool levelRivers() const { return m_levelRivers; }
+    // 51.14: changes terrain and therefore the bake (its cell minima) - re-bakes.
+    void setLevelRivers(bool on) { if (on != m_levelRivers) { m_levelRivers = on; clearColumnCache(); rebuildCoarseModel(); } }
     // 51.13: the memoized chunk-column samples, for the chunked-vs-direct equality test of the shore guarantee.
     std::shared_ptr<const std::vector<ColumnSample>> columnsForChunkForTest(const glm::ivec2& c) { return columnsForChunk(c); }
     double bakeSeconds() const { return m_bakeSeconds; }
@@ -408,6 +415,7 @@ private:
     bool m_carveDrainsBasins = false;   // 51.12: from the recipe (WorldRecipe::carveDrainsBasins); a bake input
     bool m_bakeFloodsTerrain = false;   // 51.13: from the recipe (WorldRecipe::bakeFloodsTerrain); a bake input
     int  m_bakeMinStride = 8;           // 51.13: from the recipe (WorldRecipe::bakeMinStride); a bake input, 1..128
+    bool m_levelRivers = false;         // 51.14: from the recipe (WorldRecipe::levelRivers); terrain AND a bake input
     // 51.13: the SHORE GUARANTEE is live - set once a bake with bakeFloodsTerrain is in place, false while one is being made (the
     // bake samples the terrain WITHOUT it; its worker copies are made while it is false).
     bool m_shoreLip = false;
