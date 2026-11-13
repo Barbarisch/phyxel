@@ -1074,6 +1074,8 @@ WITHOUT the biome blend (`heightScale`/`heightOffset`) the terrain has, so a coa
 2026-11-13 (WaterCore 51.13): the formula half is built (`bakeFloodsTerrain`) and stays OFF - a corner sample of the generated
 surface moved the walls (north region 35.6 -> 16.0 m, the 51.4c view 18.6 -> 24.0 m and a new lake). Open: flood each cell's
 lower bound (provably wall-free at cell borders); its sampling cost is the question.
+**RESOLVED 2026-11-13 (WaterCore 51.13 step 2):** the bake floods 8 m-sampled cell minima and the terrain's shore guarantee lifts
+any column the sampling missed - 0 lake-wall faces in both RiverCarve regions. Open: river spans' own steps (worst 3.4 m).
 
 ## 2026-10-09 — WaterCore Phase G1, the shoreline band (docs/WaterCore.md 18.5)
 - **Sheet/band height seam in shallow water.** The sea sheet draws the full Gerstner swell (0.45 m,

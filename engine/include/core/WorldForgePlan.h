@@ -182,6 +182,10 @@ private:
         float cellSize = 8.0f;
         int cellsX = 0, cellsZ = 0;
         std::vector<uint16_t> nearestSeg;
+        // WaterCore.md 51.13 (drift: a road junction's grade): up to kNearRoads segments per cell, the nearest of each DIFFERENT
+        // road within reach (0xFFFF = empty) - so roadAt can blend overlapping roads' grades instead of flipping between them.
+        static constexpr int kNearRoads = 4;
+        std::vector<uint16_t> nearRoadSeg;
     } m_raster;
     // Global segment table (all roads concatenated; raster values index this).
     struct Segment {

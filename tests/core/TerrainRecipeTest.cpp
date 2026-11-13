@@ -110,10 +110,13 @@ TEST(TerrainRecipeTest, CarveDrainsBasinsIsOffForOldWorldsOnForNewAndRoundTrips)
     Phyxel::WorldGenerator g(Phyxel::WorldGenerator::GenerationType::Perlin, 7u);
     const Phyxel::WorldRecipe made = g.makeRecipe();
     EXPECT_TRUE(made.carveDrainsBasins);
-    EXPECT_FALSE(made.bakeFloodsTerrain);   // 51.13: built, OFF for new worlds until step 2
+    EXPECT_TRUE(made.bakeFloodsTerrain);   // 51.13 step 2: new worlds have no wall of water
+    EXPECT_EQ(made.bakeMinStride, 8);
     EXPECT_FALSE(Phyxel::WorldRecipe::fromJson(R"({"version":1,"seed":7,"climateFrequency":0.002,"biomes":[]})").bakeFloodsTerrain);
-    Phyxel::WorldRecipe on = made; on.bakeFloodsTerrain = true;
-    EXPECT_TRUE(Phyxel::WorldRecipe::fromJson(on.toJson()).bakeFloodsTerrain);
+    Phyxel::WorldRecipe on = made; on.bakeMinStride = 16;
+    const Phyxel::WorldRecipe back = Phyxel::WorldRecipe::fromJson(on.toJson());
+    EXPECT_TRUE(back.bakeFloodsTerrain);
+    EXPECT_EQ(back.bakeMinStride, 16);
     EXPECT_TRUE(Phyxel::WorldRecipe::fromJson(made.toJson()).carveDrainsBasins);
     Phyxel::WorldRecipe off = made; off.carveDrainsBasins = false;
     EXPECT_EQ(off.toJson().find("carveDrainsBasins"), std::string::npos) << "written only when true (old recipes stay byte-identical)";

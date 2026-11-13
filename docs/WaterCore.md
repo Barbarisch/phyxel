@@ -9105,6 +9105,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | D6 | 2026-10-25 | During A3's cost runs the agent alternated the push with the OLD floating rule (`pressure_force:false`) as a control, on the owner's visible bench, without warning. Blocks were launched | rule 4 of `PerformanceTiers.md` asked for the push's own cost, and an on/off comparison was the agent's choice of method | none good: a control must itself be physically sane | nobody | **no good reason.** Owner: "in no circumstance should we be running code that results in voxels floating up as if gravity turned off". Remedy: the off rule is refused by the API, the tools compare against fewer or no bodies, the push's own share comes from timers, and A2g makes the fallback safe (built 2026-10-25, §33). CLOSED |
 | D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
 | D7 | 2026-10-28 | L4 is designed to pace EVERY wake (near and far), not only a far one (42.3) | L4: "pace a far wake" | 42.2 measured that the wake's timing changes nothing until a body reaches the water, and nothing shows on the water before that either, so a paced wake within the body's deadline needs no distance to be safe; pacing only far wakes would leave the near hitch, the one the player sees, in place | the agent; **the owner's call** (scope): pacing applies to all wakes unless the owner says far only (`wake_pace_near` would then be a knob) | CLOSED 2026-10-29: the owner took the recommendation ("go with your recommendations") - all wakes, and on by default (42.6) |
+| D8 | 2026-11-13 | WorldForge `roadAt` blends overlapping roads' grades at a junction (51.13) | not in the plan: a WorldForge defect | 51.13 changed where lakes are, so the WorldForge plan's roads moved, and two roads meeting near a site flipped the surface between their own grade profiles column by column (92.0 -> 93.7 in 2 m). `RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains` failed. The defect is older than 51.13 (the old layout only missed it), but it blocked shipping the owner's "no wall of water" by default | the agent, under the owner's "keep going". Reported in 51.13 | **good reason** (a blocker, fixed at its cause, not waived). The roads test, WorldForge and RoadField pass 51 / 51; the mountain stress test's steep-step share fell 0.46 % -> 0.35 %. CLOSED |
 
 ### 30.6 The plan-check log (newest last)
 
@@ -13456,6 +13457,9 @@ becomes its outlet bed"; `/design-check` READY). Not signed off.
   - A/B/A at rest, skin on 33.0 fps (CPU 30.4, GPU 29.6 ms), off again 34.1 fps (51.4c: 13.7 fps, CPU ~74 ms). The first off window
     caught streaming (60 fps / CPU 53.5 ms / worst 186 ms);
   - not clean: the GPU read 100 % with the owner's stream client running, so these frame figures are not this change's alone.
+    **Corrected 2026-11-13 (51.13):** that reading was taken WITH THE BENCH RUNNING. In 51.13's run the GPU read 100 % with
+    the bench up and 0 % a few seconds after it was stopped, with the same stream client still running. The bench fills the GPU
+    itself; "shared" was not established. The ~33 fps is the RiverCarve scene's own cost (GPU ~30 ms a frame).
 - **Status: built, not signed off.** For the owner: the look (`drain512_river_on.png` / `_off.png`). Open: the second cause above,
   the synced-mode patch that does not sleep (51.7) and the per-world summary cache (51.4f).
 - **Correction (2026-11-13, the owner on `drain512_river_on.png`):** that still is not a look image. It shows a dark slot canyon
@@ -13517,6 +13521,57 @@ remove them** (51.12's second cause; `/design-check` READY).
 
   **The owner's call** (it sets world-load time and the lakes' look): the spacing, whether the bake is stored per world (paid
   once), and the slack.
+
+**51.13 step 2 (2026-11-13) BUILT, ON for new worlds - no wall of water: the bake floods each cell's minimum, and the terrain holds
+every water it records** (the owner, asked to choose a spacing: *"obviously walls of floating water cant exist. that woudl look
+stupid."* That is the decision: zero walls, not a smaller residual. `/design-check` READY with four conditions, all met below).
+- **Built:**
+  1. **The bake floods each 128 m cell's MINIMUM** of the generated top face, sampled every `bakeMinStride` m (8). Worker threads
+     (`hardware_concurrency`, at most 32) each use their own generator copy, and each cell is written to its own slot. The flow
+     field keeps the coarse height. This reuses step 1's flag and plumbing; the flag was on for no world, so it is safe to
+     redefine.
+  2. **THE SHORE GUARANTEE** (`sampleColumn`): a non-river column whose own cell is dry, beside a cell holding water at level L,
+     is raised so its top is at least L (`ColumnSample::shoreLift` records by how much). It is off while a bake is made.
+  - **Why zero walls:** on minima, Priority-Flood gives every dry 4-neighbour of a lake cell a minimum at or above the level.
+    The guarantee lifts whatever the sampling missed. Inside lake cells every column below the level is wet. The column flood
+    cannot cross a rim at or above the level. 51.12's drain only lowers levels.
+  - **Recipe:** `bakeFloodsTerrain` + `bakeMinStride` (clamped 1..128 at `applyRecipe`; above 128 m it would be step 1's corner
+    sample). Both are on in `makeRecipe`, absent for old worlds, and in the cache key. `water_bake_info` echoes
+    `bake_min_stride` and `bake_seconds`.
+- **Tests:**
+  - `NoWallOfWaterStandsAnywhere`, both RiverCarve regions (768 x 768 each). Red first (the step-1 meaning): north 296 faces,
+    51.4c view 618, 0 lifts. The control (drain only): 1,935 / 382 faces. **Green: 0 faces in both** (river 0, drains 0,
+    unreached 0). Wet columns: north 16,787, view 14,766.
+  - **Lifts:** north 0, view 3 of 147,456 sampled columns, largest 1 m. The sampled minimum nearly always holds the water
+    without help.
+  - `TheShoreGuaranteeIsTheSameChunkedOrWhole`: a window round a lifted column (-1920, -838). 167 wet, 8 lifted; 0 differ
+    chunked vs whole; 0 differ between the column cache and the direct sample.
+  - `ADrainedBasinIsTheSameChunkedOrWhole` (both flags): 0 differ. `TheFloodsFlagOffLeavesTheBakeAsItWas`: off = bit-identical.
+  - `TerrainRecipeTest`: new worlds on, stride 8, absent = off, round-trips.
+  - Unit (terrain / water / WorldForge / flora / settlement / structure): 666 / 666, after drift row **D8** (the road junction
+    grade, below). Integration water: 87 / 89 (the known two).
+- **Cost:** the bake takes 9.8-10.4 s (threads), up from 0.3 s, once per world load: the bake is not stored with the world. That
+  is under the 30 s line set at the design check, so storing it per world is not forced now, but every load pays it. No
+  per-frame work.
+- **D8, the road junction** (30.5): the new lakes moved WorldForge's roads, and `GradedRoadsAreStepWalkableOnMountains` failed
+  with 2-cube steps where two roads meet near a site. Each column took the nearest road's grade, and the two profiles differ by
+  1.4-1.7 m there. `WorldForgePlan::roadAt` now blends every road whose corridor reaches the point by (1 - d/R)^2. That is
+  continuous, and exactly the nearest road's grade wherever only one road reaches. The raster keeps up to 4 roads a cell.
+- **Live** (WaterBench_RiverCarve, both flags in its recipe, `water_skin_river_live.py --tag drain513_lake`):
+  - The pose was found by `DISABLED_DiagLakeShorePose`: the lake nearest the bench camera (body 1178, level 90, 29,198
+    columns), a real shore point, the camera 30 m back and 8 m above the water, looking across it. The cursor is no longer
+    drawn (`-draw_mouse 0`).
+  - **`drain513_lake_on.png` (looked at before it was handed over):** a lake filling a grassy bowl. The water meets the banks
+    at a shoreline on the right and far side, with no wall anywhere in frame. A large tree trunk covers the left third.
+  - `_off.png` (skin off): only a near strip of the water is drawn and the far bowl is dry grass. Far water is the skin's job
+    (51.4g); the record tiles draw only near.
+  - At rest: 32.5 fps skin on, 32.1 off again (GPU ~30.5 ms). The GPU read 100 % with the bench up and 0 % after it stopped:
+    the bench's own load, not a shared GPU.
+- **Status: built, not signed off.**
+  - For the owner: the look (`drain513_lake_on.png`), and the bake's ~10 s at every load (storing it per world would make it
+    once).
+  - Next: the river spans' own steps (bed + carve depth stepping down a steep reach; worst 3.4 m in the view). They are floating
+    water too, and the owner's rule covers them.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

@@ -1,4 +1,7 @@
 #include "core/WorldGenerator.h"
+#include <chrono>
+#include <atomic>
+#include <thread>
 #include "core/WorldForgePlan.h"
 #include "core/WorldRecipe.h"
 #include "core/MapCoarseSource.h"
@@ -268,10 +271,12 @@ struct HydroBakeKey {
     // lakes and must not share an entry.
     bool drains = false;
     bool floods = false;
+    int  minStride = 0;   // 51.13: the cell-minimum sample spacing (0 when floods is off)
     std::vector<float> biomeHeight;   // (heightScale, heightOffset) per biome, in order; empty when the drain is off
     bool operator==(const HydroBakeKey& o) const {
         if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq ||
-            seaLevel != o.seaLevel || drains != o.drains || floods != o.floods || biomeHeight != o.biomeHeight) return false;
+            seaLevel != o.seaLevel || drains != o.drains || floods != o.floods || minStride != o.minStride ||
+            biomeHeight != o.biomeHeight) return false;
         if (spline.size() != o.spline.size()) return false;
         for (size_t i = 0; i < spline.size(); ++i)
             if (spline[i].x != o.spline[i].x || spline[i].y != o.spline[i].y) return false;
@@ -357,6 +362,9 @@ void WorldGenerator::rebuildCoarseModel() {
                      seaLvl, m_continentalHeightSpline.points()};
     key.drains = m_carveDrainsBasins;
     key.floods = m_bakeFloodsTerrain;
+    key.minStride = m_bakeFloodsTerrain ? m_bakeMinStride : 0;
+    m_shoreLip = false;     // 51.13: no sample taken while this bake is made may carry the shore guarantee
+    m_bakeSeconds = 0.0;
     if (key.drains || key.floods)
         for (const auto& b : m_biomes) { key.biomeHeight.push_back(b.heightScale); key.biomeHeight.push_back(b.heightOffset); }
     bool cacheHit = false;
@@ -368,6 +376,7 @@ void WorldGenerator::rebuildCoarseModel() {
                 m_flow = e.second.flow;
                 m_waterBodies = e.second.bodies;
                 cacheHit = true;
+                m_shoreLip = m_bakeFloodsTerrain;   // 51.13: the cached bake was made with the same flag
                 break;
             }
     }
@@ -402,11 +411,45 @@ void WorldGenerator::rebuildCoarseModel() {
     // the terrain does not have - free-standing walls. With the recipe's flag on, a corner's height is the generated column's
     // top face, the same ground waterSpansForBlock tests the water against. Captures `this`: used only in this scope (the map
     // and the body index keep no copy). m_worldForge is null here (reset at the top), so no road grading enters the sample.
+    //
+    // STEP 2 (the guarantee): a cell's height is its MINIMUM generated top face, sampled every m_bakeMinStride m inside it. Flooded
+    // on minima, Priority-Flood leaves every dry 4-neighbour of a lake cell at a minimum >= the lake's level; the shore guarantee
+    // (sampleColumn) lifts any column of such a cell the sampling missed. Measured (51.13): 13.9 us a column, so the 256 x 256
+    // grid at 8 m is ~17 M samples - spread over worker threads, each with its own generator copy (sampleColumn is not
+    // thread-safe on one instance); every cell is written to its own slot, so the interleaving cannot change the grid.
+    const auto bakeT0 = std::chrono::steady_clock::now();
+    std::vector<float> cellMin;
     HydrologyMap::HeightFunc hydroHeight = heightAt;
-    if (m_bakeFloodsTerrain)
-        hydroHeight = [this](float x, float z) -> float {
-            return static_cast<float>(sampleColumn(static_cast<int>(std::floor(x)), static_cast<int>(std::floor(z))).surfaceY + 1);
+    if (m_bakeFloodsTerrain) {
+        const int n = kHydroCells, stride = m_bakeMinStride, side = static_cast<int>(kHydroCell);
+        cellMin.assign(static_cast<size_t>(n) * n, 0.0f);
+        const unsigned workers = std::max(1u, std::min(32u, std::thread::hardware_concurrency()));
+        std::vector<std::unique_ptr<WorldGenerator>> copies;
+        for (unsigned t = 0; t < workers; ++t) copies.push_back(std::make_unique<WorldGenerator>(*this));
+        std::atomic<int> nextRow{0};
+        std::vector<std::thread> pool;
+        for (unsigned t = 0; t < workers; ++t)
+            pool.emplace_back([&, t]() {
+                WorldGenerator& g = *copies[t];
+                for (int j = nextRow++; j < n; j = nextRow++)
+                    for (int i = 0; i < n; ++i) {
+                        const int x0 = static_cast<int>(std::floor(kHydroOrigin + i * kHydroCell));
+                        const int z0 = static_cast<int>(std::floor(kHydroOrigin + j * kHydroCell));
+                        float m = 1e30f;
+                        for (int dz = 0; dz < side; dz += stride)
+                            for (int dx = 0; dx < side; dx += stride)
+                                m = std::min(m, static_cast<float>(g.sampleColumn(x0 + dx, z0 + dz).surfaceY + 1));
+                        cellMin[static_cast<size_t>(j) * n + i] = m;
+                    }
+            });
+        for (auto& th : pool) th.join();
+        // The map samples a cell at its corner, the body index at its centre: both land in the cell (floor), both read its minimum.
+        hydroHeight = [&cellMin, n](float x, float z) -> float {
+            const int i = std::clamp(static_cast<int>(std::floor((x - kHydroOrigin) / kHydroCell + 1e-3f)), 0, n - 1);
+            const int j = std::clamp(static_cast<int>(std::floor((z - kHydroOrigin) / kHydroCell + 1e-3f)), 0, n - 1);
+            return cellMin[static_cast<size_t>(j) * n + i];
         };
+    }
     m_hydro = std::make_shared<HydrologyMap>(hydroHeight, kHydroOrigin, kHydroOrigin,
                                              kHydroCells, kHydroCells, kHydroCell, seaLvl);
     // 51.12: the bake sees the carve - a carved channel drains the basin it crosses. Before the body index (it labels the
@@ -426,7 +469,13 @@ void WorldGenerator::rebuildCoarseModel() {
     // Body identity rides the bake (tangible-water Phase A). Built HERE because volumeEst needs
     // the flood's height function, which is not retained anywhere after this scope.
     m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, hydroHeight);
-    if (m_bakeFloodsTerrain) clearColumnCache();   // samples taken during the bake saw the previous backings
+    m_bakeSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - bakeT0).count();
+    if (m_bakeFloodsTerrain) {
+        m_shoreLip = true;     // the bake is in place: the terrain now holds every water it records
+        clearColumnCache();    // samples taken during the bake carry neither the new bake nor the guarantee
+        LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Lakes flood the cell minima (every " << m_bakeMinStride
+                     << " m): bake " << m_bakeSeconds << " s");
+    }
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Water bodies labeled: "
              << m_waterBodies->bodies().size() << " bodies");
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << kHydroCells << "x" << kHydroCells
@@ -1104,6 +1153,31 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             }
         }
 
+        // WaterCore.md 51.13 THE SHORE GUARANTEE: no wall of water. A column whose own bake cell is dry, beside a cell holding water
+        // at level L, never has its top below L - the cell minima the bake flooded put such a cell's sampled minimum at >= L, and
+        // this lifts whatever the sampling missed (51.13 measured <= 3 m at 8 m spacing). Carved river columns (order >= 3) keep
+        // their channel and their own span. Reads only the bake at this column's cell and its four neighbours: a pure function of
+        // world position, so a chunk and a whole region agree. Off while a bake is made (m_shoreLip) - the bake must see the
+        // terrain without it.
+        if (m_shoreLip && m_hydro && col.riverOrder < 3) {
+            const float fx = static_cast<float>(wx) + 0.5f, fz = static_cast<float>(wz) + 0.5f;
+            if (!m_hydro->hasWater(fx, fz)) {
+                const float cs = m_hydro->cellSize();
+                float L = HydrologyMap::NO_WATER;
+                L = std::max(L, m_hydro->waterLevelAt(fx + cs, fz));
+                L = std::max(L, m_hydro->waterLevelAt(fx - cs, fz));
+                L = std::max(L, m_hydro->waterLevelAt(fx, fz + cs));
+                L = std::max(L, m_hydro->waterLevelAt(fx, fz - cs));
+                if (L > HydrologyMap::NO_WATER * 0.5f && static_cast<float>(col.surfaceY + 1) < L) {
+                    const int lifted = static_cast<int>(std::ceil(L)) - 1;
+                    col.shoreLift = lifted - col.surfaceY;
+                    col.surfaceY = lifted;
+                    col.bedHeight = static_cast<float>(lifted) + 1.0f;
+                    col.creekBed = false;   // a lifted column is bank, not a creek's shelf
+                }
+            }
+        }
+
         // P1 slope + altitude/temperature material overrides (docs/TerrainGenerationV2.md §P1).
         // These layer physical surfacing ON TOP of the biome material: a sand seabed below sea
         // level, exposed rock past the angle of repose, and a lapse-rate snow line. Moderate,
@@ -1567,8 +1641,8 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     r.worldforge = m_worldForgeParams;
     r.creekCarve = true;   // 25.22: new worlds carve creek beds to 1/3 m
     r.carveDrainsBasins = true;   // 51.12: new worlds' carved channels drain the basins they cross
-    // 51.13: bakeFloodsTerrain stays OFF for new worlds - a corner sample of the generated surface moved the walls instead of
-    // removing them (WaterCore.md 51.13); only the cell's lower bound (step 2) guarantees none.
+    r.bakeFloodsTerrain = true;   // 51.13 step 2: new worlds' lakes flood the cell minima and the shore guarantee holds them
+    r.bakeMinStride = m_bakeMinStride;
     return r;
 }
 
@@ -1622,6 +1696,9 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     m_creekCarve = recipe.creekCarve;   // 25.22
     m_carveDrainsBasins = recipe.carveDrainsBasins;   // 51.12: a bake input - the rebuild below re-bakes with it
     m_bakeFloodsTerrain = recipe.bakeFloodsTerrain;   // 51.13: likewise
+    // 51.13: clamped here - 0 would never advance the sampling loop, and above one cell (128 m) the "minimum" is the corner
+    // sample alone, step 1's failure (it moved the walls).
+    m_bakeMinStride = std::clamp(recipe.bakeMinStride, 1, 128);
     terrainParams.climateFrequency = recipe.climateFrequency;
     terrainParams.seaLevelY = recipe.seaLevelY;   // rebake below re-floods against this outlet
     // Override per-biome tuning by name; biome category fields (materials, climate) untouched.

@@ -607,3 +607,22 @@ TEST(RoadFieldSeamTest, GradedRoadsAreStepWalkableOnMountains) {
     EXPECT_EQ(tall, 0) << tall << "/" << steps
                        << " centerline steps exceed 1 cube on the graded network";
 }
+
+// 51.13 diagnostic: the water under the graded-road failures (seed 424242, makeRecipe + WorldForge 8 sites).
+TEST(RoadFieldSeamTest, DISABLED_DiagWaterUnderTheRoadSteps) {
+    WorldGenerator gen(WorldGenerator::GenerationType::Mountains, 424242);
+    WorldRecipe r = gen.makeRecipe();
+    r.worldforge.enabled = true; r.worldforge.siteCount = 8; r.worldforge.regionRadius = 2048.0f; r.worldforge.minSpacing = 400.0f;
+    gen.applyRecipe(r);
+    const HydrologyMap* h = gen.hydrology();
+    for (auto p : {glm::ivec2(279, -1602), glm::ivec2(278, -1602), glm::ivec2(280, -1602), glm::ivec2(-448, -1184), glm::ivec2(-449, -1184)}) {
+        const auto c = gen.sampleSurface(p.x, p.y);
+        WaterSpan sp; const bool wet = gen.waterSpanAt(p.x, p.y, sp);
+        const auto rh = gen.worldForge()->roadAt(static_cast<float>(p.x), static_cast<float>(p.y));
+        std::printf("  col road %d dist %.2f | roadAt cls %d dist %.2f grade %.2f | sea %.1f\n", c.roadClass, c.roadDist, rh.cls, rh.dist,
+                    rh.gradeY, gen.getTerrainParams().seaLevelY);
+        std::printf("(%d, %d) surf %d lift %d | bake level %.2f filled %.2f | span %s %.2f..%.2f\n", p.x, p.y, c.surfaceY, c.shoreLift,
+                    h->waterLevelAt(p.x + 0.5f, p.y + 0.5f), h->filledAt(p.x + 0.5f, p.y + 0.5f), wet ? "yes" : "no",
+                    wet ? static_cast<float>(sp.bottomY) : 0.f, wet ? sp.topY : 0.f);
+    }
+}

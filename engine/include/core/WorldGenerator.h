@@ -175,6 +175,7 @@ public:
                                       // clear — traversability is the invariant)
         int   bridgePierTopY = INT_MIN; // pier column: solid Stone fills (surfaceY, pierTopY]
                                       // from the carved bed up to under the deck (INT_MIN = none)
+        int   shoreLift   = 0;        // WaterCore.md 51.13: metres the shore guarantee raised this column (0 = none)
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
@@ -203,6 +204,10 @@ public:
     bool bakeFloodsTerrain() const { return m_bakeFloodsTerrain; }
     // 51.13: a bake input - changing it re-bakes the hydrology.
     void setBakeFloodsTerrain(bool on) { if (on != m_bakeFloodsTerrain) { m_bakeFloodsTerrain = on; rebuildCoarseModel(); } }
+    int bakeMinStride() const { return m_bakeMinStride; }
+    // 51.13: the memoized chunk-column samples, for the chunked-vs-direct equality test of the shore guarantee.
+    std::shared_ptr<const std::vector<ColumnSample>> columnsForChunkForTest(const glm::ivec2& c) { return columnsForChunk(c); }
+    double bakeSeconds() const { return m_bakeSeconds; }
     /// The 1/3 m subcube layers the carve leaves in a creek column's surface voxel (0-2): floor(3 (bedHeight - surfaceY)).
     static int creekLayers(const ColumnSample& c);
     /// World Y of the top of the solids generateChunk DRAWS in this column - the carve (creek, flag on), the 2/3 shelf
@@ -402,6 +407,11 @@ private:
     bool m_creekCarve = false;
     bool m_carveDrainsBasins = false;   // 51.12: from the recipe (WorldRecipe::carveDrainsBasins); a bake input
     bool m_bakeFloodsTerrain = false;   // 51.13: from the recipe (WorldRecipe::bakeFloodsTerrain); a bake input
+    int  m_bakeMinStride = 8;           // 51.13: from the recipe (WorldRecipe::bakeMinStride); a bake input, 1..128
+    // 51.13: the SHORE GUARANTEE is live - set once a bake with bakeFloodsTerrain is in place, false while one is being made (the
+    // bake samples the terrain WITHOUT it; its worker copies are made while it is false).
+    bool m_shoreLip = false;
+    double m_bakeSeconds = 0.0;         // 51.13: the last fresh bake's wall time (0 on a cache hit)
     // 51.12: the carved river's water surface (min over the cell's order >= 3 columns), NO_WATER if none - the drain's exit.
     float carvedRiverSurfaceInCell(int cell);   // 25.22: from the recipe (WorldRecipe::creekCarve)
     std::shared_ptr<const WorldForgePlan> m_worldForge;

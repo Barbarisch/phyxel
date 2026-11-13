@@ -792,6 +792,9 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         R.cellsZ = static_cast<int>(std::ceil((hi.y - lo.y) / rcell)) + 1;
         R.nearestSeg.assign(static_cast<size_t>(R.cellsX) * R.cellsZ, 0xFFFF);
         std::vector<float> bestDist(R.nearestSeg.size(), 1e30f);
+        constexpr int K = Raster::kNearRoads;
+        R.nearRoadSeg.assign(R.nearestSeg.size() * K, 0xFFFF);
+        std::vector<float> nearDist(R.nearRoadSeg.size(), 1e30f);
         for (size_t si = 0; si < plan->m_segments.size(); ++si) {
             const auto& s = plan->m_segments[si];
             const float reach = roadHalfWidth(s.cls) + 2.0f * rcell;
@@ -812,6 +815,19 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                         bestDist[cellIdx] = d;
                         R.nearestSeg[cellIdx] = static_cast<uint16_t>(si);
                     }
+                    // The nearest segment of each different road (up to K, the farthest replaced first). Ties keep the
+                    // first-seen (lower index) segment, so the list is a pure function of the plan.
+                    uint16_t* slots = &R.nearRoadSeg[cellIdx * K];
+                    float* sd = &nearDist[cellIdx * K];
+                    int same = -1, empty = -1, far = 0;
+                    for (int k = 0; k < K; ++k) {
+                        if (slots[k] == 0xFFFF) { if (empty < 0) empty = k; continue; }
+                        if (plan->m_segments[slots[k]].roadIdx == s.roadIdx) same = k;
+                        if (sd[k] > sd[far] || slots[far] == 0xFFFF) far = k;
+                    }
+                    if (same >= 0) { if (d < sd[same]) { sd[same] = d; slots[same] = static_cast<uint16_t>(si); } }
+                    else if (empty >= 0) { sd[empty] = d; slots[empty] = static_cast<uint16_t>(si); }
+                    else if (d < sd[far]) { sd[far] = d; slots[far] = static_cast<uint16_t>(si); }
                 }
         }
     }
@@ -903,6 +919,38 @@ WorldForgePlan::RoadHit WorldForgePlan::roadAt(float worldX, float worldZ) const
             if (s.vert + 1 < prof.size())
                 hit.gradeY = prof[s.vert] * (1.0f - t) + prof[s.vert + 1] * t;
         }
+    }
+    // WaterCore.md 51.13 (drift row): AT A JUNCTION THE GRADE IS BLENDED, NOT PICKED. Two roads near a site overlap with their own
+    // grade profiles; taking the nearest one's grade flipped the surface between them column by column (RoadFieldSeamTest:
+    // 92.0 -> 93.7 in 2 m, 108.2 -> 109.6 in 1 m - steps a walker cannot climb). Every road whose corridor (half-width + the
+    // generator's 3 u grading shoulder) reaches this point weighs in by (1 - d/R)^2: continuous in position, and exactly the
+    // nearest road's grade wherever only one road reaches (everywhere but junctions).
+    if (hit.cls > 0 && !m_raster.nearRoadSeg.empty()) {
+        constexpr float kGradeShoulder = 3.0f;   // = WorldGenerator's kGradeBlend (the grading shoulder)
+        const size_t cell = static_cast<size_t>(cz) * m_raster.cellsX + cx;
+        float wSum = 0.0f, gSum = 0.0f; int reaching = 0;
+        for (int k = 0; k < Raster::kNearRoads; ++k) {
+            const uint16_t si = m_raster.nearRoadSeg[cell * Raster::kNearRoads + k];
+            if (si == 0xFFFF) continue;
+            const uint16_t r = m_segments[si].roadIdx;
+            float bd = 1e30f, bg = -1e30f; int bcls = 0;
+            for (int di = -1; di <= 1; ++di) {
+                const int i = static_cast<int>(si) + di;
+                if (i < 0 || i >= static_cast<int>(m_segments.size()) || m_segments[i].roadIdx != r) continue;
+                const Segment& s = m_segments[i];
+                const glm::vec2 ab = s.b - s.a;
+                const float len2 = glm::dot(ab, ab);
+                const float t = len2 > 0.0f ? glm::clamp(glm::dot(p - s.a, ab) / len2, 0.0f, 1.0f) : 0.0f;
+                const float d = glm::length(p - (s.a + ab * t));
+                const auto& prof = m_roads[r].gradeProfile;
+                if (d < bd && s.vert + 1 < prof.size()) { bd = d; bg = prof[s.vert] * (1.0f - t) + prof[s.vert + 1] * t; bcls = s.cls; }
+            }
+            const float R = roadHalfWidth(bcls) + kGradeShoulder;
+            if (bg <= -1e29f || bd >= R) continue;
+            const float w = (1.0f - bd / R) * (1.0f - bd / R);
+            wSum += w; gSum += w * bg; ++reaching;
+        }
+        if (reaching >= 2 && wSum > 0.0f) hit.gradeY = gSum / wSum;
     }
     return hit;
 }

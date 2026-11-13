@@ -305,30 +305,37 @@ TEST(WaterGeneratedContainmentTest, DISABLED_DiagBakeHeightAgainstTheTerrain) {
     std::printf("stride check cell (%d, %d): min every 1 m %.1f, every %d m %.1f\n", x0, z0, m1, stride, m4);
 }
 
-// 51.13 - the acceptance test, step 1 of 2. The bbox-corner region north of the 51.4c lake, where 51.12 left walls with no channel
-// near (drain on: drains 1,450 / unreached 485 faces, worst 35.6 m). Control: the drain on, the new flag off - must reproduce them.
-// Prediction (written before the build): with the bake flooding the generated surface the drains + unreached faces fall by more than
-// half and the worst lake wall falls below 20 m. What remains is the terrain dipping INSIDE a cell (step 2), reported, not hidden.
-TEST(WaterGeneratedContainmentTest, TheBakeFloodsTheGeneratedSurface) {
-    const int x0 = -2112, z0 = -3136, w = 768, d = 768;
-    long before = 0;
+// 51.13 step 2 - THE ACCEPTANCE TEST: no wall of water stands anywhere (the owner, 2026-11-13: "obviously walls of floating water
+// cant exist"). Both RiverCarve regions, both bake flags on: zero lake-wall faces - a wet non-river column beside a dry column whose
+// ground is below its water, whatever the reason the flood stopped. River spans' own steps are reported apart (the next item).
+// Control: the drain alone (51.12) - the census must still see its walls in both regions.
+TEST(WaterGeneratedContainmentTest, NoWallOfWaterStandsAnywhere) {
+    struct Region { const char* name; int x0, z0; } regions[2] = {{"north", -2112, -3136}, {"51.4c view", -2112, -1216}};
     {
         WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
         ASSERT_TRUE(loadRiverCarve(g, true, false));
-        const Census c = census(g, x0, z0, w, d);
-        report("control: drain on, floods off", x0, z0, w, d, c);
-        before = c.wallDrains + c.wallUnreached;
-        ASSERT_GT(before, 1000) << "control: 51.12's residual walls must reproduce (drains 1,450 + unreached 485)";
-        ASSERT_GT(c.worstWall, 30.0f);
+        for (const auto& r : regions) {
+            const Census c = census(g, r.x0, r.z0, 768, 768);
+            report(r.name, r.x0, r.z0, 768, 768, c);
+            ASSERT_GT(c.wallRiver + c.wallDrains + c.wallUnreached, 300) << "control: 51.12's walls must reproduce in " << r.name;
+        }
     }
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
     ASSERT_TRUE(loadRiverCarve(g, true, true));
-    const Census c = census(g, x0, z0, w, d);
-    report("drain on, floods on", x0, z0, w, d, c);
-    EXPECT_LT(c.wallDrains + c.wallUnreached, before / 2);
-    EXPECT_EQ(c.wallRiver, 0);
-    EXPECT_LT(c.worstWall, 20.0f) << "worst wall at (" << c.wx << ", " << c.wz << "): level " << c.wLevel << ", ground top "
-                                  << c.wGround + 1 << " (" << c.wWhy << ")";
+    for (const auto& r : regions) {
+        const Census c = census(g, r.x0, r.z0, 768, 768);
+        report(r.name, r.x0, r.z0, 768, 768, c);
+        EXPECT_EQ(c.wallRiver + c.wallDrains + c.wallUnreached, 0)
+            << r.name << ": worst wall at (" << c.wx << ", " << c.wz << "): level " << c.wLevel << ", ground top " << c.wGround + 1
+            << " (" << c.wWhy << ")";
+        long lifted = 0; int maxLift = 0;
+        for (int z = r.z0; z < r.z0 + 768; z += 2) for (int x = r.x0; x < r.x0 + 768; x += 2) {   // every 4th column
+            const int l = g.sampleSurface(x, z).shoreLift;
+            if (l > 0) { ++lifted; maxLift = std::max(maxLift, l); }
+        }
+        std::printf("  %s: shore guarantee lifted %ld of %d sampled columns (every 2nd x and z), largest lift %d m\n", r.name,
+                    lifted, 384 * 384, maxLift);
+    }
 }
 
 // 51.13 - the off flag changes nothing: with bakeFloodsTerrain off the bake's levels and filled are bit-identical to a generator that
@@ -377,4 +384,94 @@ TEST(WaterGeneratedContainmentTest, DISABLED_DiagCellMinimumCost) {
         std::printf("  every %2d m misses the true minimum by: p50 %.0f, p90 %.0f, max %.0f m (40 cells)\n", strides[q],
                     miss[q][20], miss[q][36], miss[q].back());
     }
+}
+
+// 51.13 - chunking must not change the SHORE GUARANTEE: find a lifted column in the 51.4c view (both flags on), then a 128 x 128
+// window round it (chunk-aligned) must resolve the same as a whole as in its 16 chunk-sized blocks, and the chunk column cache must
+// return the lifted surface the direct sample does.
+TEST(WaterGeneratedContainmentTest, TheShoreGuaranteeIsTheSameChunkedOrWhole) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true));
+    int lx = INT_MIN, lz = INT_MIN;
+    for (int z = -1216; z < -448 && lx == INT_MIN; ++z)
+        for (int x = -2112; x < -1344; ++x)
+            if (g.sampleSurface(x, z).shoreLift > 0) { lx = x; lz = z; break; }
+    ASSERT_NE(lx, INT_MIN) << "no lifted column in the 51.4c view - the test would be vacuous";
+    auto fd = [](int a) { return a >= 0 ? a / 32 : -((-a + 31) / 32); };
+    const int x0 = (fd(lx) - 1) * 32, z0 = (fd(lz) - 1) * 32, n = 128;
+    std::vector<WaterSpan> whole; std::vector<uint8_t> wholeHas;
+    g.waterSpansForBlock(x0, z0, n, n, whole, wholeHas);
+    long differ = 0, wet = 0, lifted = 0, cacheDiffer = 0;
+    for (int bz = 0; bz < n; bz += 32) for (int bx = 0; bx < n; bx += 32) {
+        std::vector<WaterSpan> part; std::vector<uint8_t> partHas;
+        g.waterSpansForBlock(x0 + bx, z0 + bz, 32, 32, part, partHas);
+        for (int z = 0; z < 32; ++z) for (int x = 0; x < 32; ++x) {
+            const size_t i = static_cast<size_t>(bz + z) * n + (bx + x), j = static_cast<size_t>(z) * 32 + x;
+            wet += wholeHas[i];
+            if (wholeHas[i] != partHas[j] ||
+                (partHas[j] && (whole[i].bottomY != part[j].bottomY || whole[i].topY != part[j].topY))) ++differ;
+        }
+    }
+    for (int z = 0; z < n; ++z) for (int x = 0; x < n; ++x) {
+        const auto direct = g.sampleSurface(x0 + x, z0 + z);
+        lifted += direct.shoreLift > 0;
+        const auto cols = g.columnsForChunkForTest(glm::ivec2(fd(x0 + x), fd(z0 + z)));
+        const auto& c = (*cols)[static_cast<size_t>((x0 + x) - fd(x0 + x) * 32) * 32 + ((z0 + z) - fd(z0 + z) * 32)];
+        if (c.surfaceY != direct.surfaceY || c.shoreLift != direct.shoreLift) ++cacheDiffer;
+    }
+    std::printf("lifted column (%d, %d); window x %d z %d: %ld wet, %ld lifted, %ld differ chunked vs whole, %ld cache vs direct\n",
+                lx, lz, x0, z0, wet, lifted, differ, cacheDiffer);
+    EXPECT_GT(lifted, 0);
+    EXPECT_EQ(differ, 0);
+    EXPECT_EQ(cacheDiffer, 0);
+}
+
+// 51.13 look capture helper: the lake (both flags on) nearest the bench camera (-1728, -1320), a real shore point on it, and a camera
+// 30 m back from the shore looking across the water. Prints the pose for water_skin_river_live.py --pose.
+TEST(WaterGeneratedContainmentTest, DISABLED_DiagLakeShorePose) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true));
+    const HydrologyMap& h = *g.hydrology();
+    const WaterBodyIndex& wb = *g.waterBodies();
+    const glm::vec2 cam(-1728.0f, -1320.0f);
+    const WaterBodyIndex::Body* best = nullptr; float bestD = 1e30f;
+    for (const auto& b : wb.bodies()) {
+        if (b.cls == WaterBodyIndex::Class::Ocean || b.areaCells < 2) continue;
+        const glm::vec2 c(h.originX() + (b.bboxMin.x + b.bboxMax.x + 1) * 0.5f * h.cellSize(),
+                          h.originZ() + (b.bboxMin.y + b.bboxMax.y + 1) * 0.5f * h.cellSize());
+        const float d = glm::length(c - cam);
+        if (d < bestD) { bestD = d; best = &b; }
+    }
+    ASSERT_NE(best, nullptr);
+    const int x0 = static_cast<int>(h.originX() + best->bboxMin.x * h.cellSize()) - 64;
+    const int z0 = static_cast<int>(h.originZ() + best->bboxMin.y * h.cellSize()) - 64;
+    const int w = std::min(768, static_cast<int>((best->bboxMax.x - best->bboxMin.x + 1) * h.cellSize()) + 128);
+    const int d = std::min(768, static_cast<int>((best->bboxMax.y - best->bboxMin.y + 1) * h.cellSize()) + 128);
+    std::vector<WaterSpan> sp; std::vector<uint8_t> has;
+    g.waterSpansForBlock(x0, z0, w, d, sp, has);
+    int wx = INT_MIN, wz = INT_MIN; float wd = 1e30f; long wet = 0;
+    for (int z = 0; z < d; ++z) for (int x = 0; x < w; ++x) {
+        const size_t i = static_cast<size_t>(z) * w + x;
+        if (!has[i] || std::fabs(sp[i].topY - best->level) > 0.01f) continue;
+        ++wet;
+        const float dd = glm::length(glm::vec2(x0 + x, z0 + z) - cam);
+        if (dd < wd) { wd = dd; wx = x0 + x; wz = z0 + z; }
+    }
+    std::printf("body %d (%s) level %.2f area %d cells, %ld wet columns at its level in the window; nearest wet (%d, %d)\n", best->id,
+                best->cls == WaterBodyIndex::Class::Lake ? "lake" : "pond", best->level, best->areaCells, wet, wx, wz);
+    ASSERT_NE(wx, INT_MIN);
+    const glm::vec2 dir = glm::normalize(cam - glm::vec2(wx, wz));
+    glm::vec2 p(wx, wz); int shoreX = wx, shoreZ = wz;
+    for (int s = 0; s < 400; ++s) {
+        p += dir;
+        const int px = static_cast<int>(std::lround(p.x)), pz = static_cast<int>(std::lround(p.y));
+        WaterSpan one;
+        if (!g.waterSpanAt(px, pz, one) && g.sampleSurface(px, pz).surfaceY + 1 >= best->level) { shoreX = px; shoreZ = pz; break; }
+    }
+    const glm::vec2 c = glm::vec2(shoreX, shoreZ) + dir * 30.0f;
+    const int ground = g.sampleSurface(static_cast<int>(c.x), static_cast<int>(c.y)).surfaceY + 1;
+    const float camY = std::max(best->level + 8.0f, static_cast<float>(ground) + 3.0f);
+    const float yaw = std::atan2(-dir.y, -dir.x) * 57.29578f;
+    std::printf("shore (%d, %d), ground there %d; camera ground %d\nPOSE %.1f,%.1f,%.1f,%.1f,%.1f\n", shoreX, shoreZ,
+                g.sampleSurface(shoreX, shoreZ).surfaceY + 1, ground, c.x, camY, c.y, yaw, -14.0f);
 }

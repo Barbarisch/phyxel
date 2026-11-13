@@ -16,7 +16,7 @@ POSE = {"x": -1728.0, "y": 115.0, "z": -1320.0, "yaw": 90.0, "pitch": -28.0}   #
 
 
 def grab(ff, title, crop, png):
-    subprocess.run([ff, "-y", "-loglevel", "error", "-f", "gdigrab", "-i", f"title={title}", "-frames:v", "1", "-vf", f"crop={crop}", str(png)], check=True)
+    subprocess.run([ff, "-y", "-loglevel", "error", "-f", "gdigrab", "-draw_mouse", "0", "-i", f"title={title}", "-frames:v", "1", "-vf", f"crop={crop}", str(png)], check=True)
 
 
 def main():
