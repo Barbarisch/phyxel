@@ -11,12 +11,12 @@ namespace {
 
 // Material of the exposed face of voxel p looking along (axis, dir), or 0 when there is no face.
 // A card voxel (leaf, F2.3) draws no faces, but its neighbours still see it as solid.
-uint8_t faceAt(const VoxelGrid& g, Outside outside, glm::ivec3 p, int axis, int dir, const CardSet* cards) {
+uint8_t faceAt(const VoxelGrid& g, Edges outside, glm::ivec3 p, int axis, int dir, const CardSet* cards) {
     const uint8_t m = g.mat[g.idx(p)];
     if (m == 0 || (cards && cards->has(m))) return 0;
     glm::ivec3 q = p;
     q[axis] += dir;
-    if (!g.in(q)) return outside == Outside::Air ? m : 0;
+    if (!g.in(q)) return outside.solidOutside(p, axis, dir) ? 0 : m;
     return g.mat[g.idx(q)] == 0 ? m : 0;
 }
 
@@ -30,7 +30,7 @@ glm::ivec3 axisPoint(int axis, int s, int u, int v) {
 
 }  // namespace
 
-std::vector<Quad> meshCulled(const VoxelGrid& g, Outside outside, const CardSet* cards) {
+std::vector<Quad> meshCulled(const VoxelGrid& g, Edges outside, const CardSet* cards) {
     std::vector<Quad> out;
     for (size_t i = 0; i < g.size(); ++i) {
         if (g.mat[i] == 0) continue;
@@ -47,7 +47,7 @@ std::vector<Quad> meshCulled(const VoxelGrid& g, Outside outside, const CardSet*
     return out;
 }
 
-std::vector<Quad> meshGreedy(const VoxelGrid& g, Outside outside, int blockLimit, const CardSet* cards) {
+std::vector<Quad> meshGreedy(const VoxelGrid& g, Edges outside, int blockLimit, const CardSet* cards) {
     std::vector<Quad> out;
     std::vector<uint8_t> mask;
     for (int axis = 0; axis < 3; ++axis) {
@@ -87,7 +87,7 @@ std::vector<Quad> meshGreedy(const VoxelGrid& g, Outside outside, int blockLimit
     return out;
 }
 
-std::vector<Quad> meshRuns(const VoxelGrid& g, Outside outside, const CardSet* cards) {
+std::vector<Quad> meshRuns(const VoxelGrid& g, Edges outside, const CardSet* cards) {
     std::vector<Quad> out;
     std::vector<uint8_t> mask;
     for (int axis = 0; axis < 3; ++axis) {
@@ -149,7 +149,7 @@ Quad unpackFace(PackedFace f) {
     return q;
 }
 
-size_t coverageErrors(const VoxelGrid& g, Outside outside, const std::vector<Quad>& quads, std::string* why,
+size_t coverageErrors(const VoxelGrid& g, Edges outside, const std::vector<Quad>& quads, std::string* why,
                       const CardSet* cards) {
     // key = voxel index * 6 + face slot
     auto key = [&](glm::ivec3 p, int axis, int dir) { return g.idx(p) * 6 + size_t(axis * 2 + (dir > 0)); };
@@ -207,6 +207,53 @@ uint32_t sprigHash24(glm::ivec3 c) {
     return h & 0xFFFFFFu;
 }
 
+void Neighbours::resize(glm::ivec3 d, bool s) {
+    dim = d;
+    for (int a = 0; a < 3; ++a)
+        for (int k = 0; k < 2; ++k) bits[2 * a + k].assign((planeBits(d, a) + 31) / 32, s ? ~0u : 0u);
+}
+
+void Neighbours::set(int axis, int dir, int u, int v, bool s) {
+    const size_t b = size_t(u) + size_t(dim[(axis + 1) % 3]) * size_t(v);
+    uint32_t& w = bits[2 * axis + (dir > 0)][b >> 5];
+    w = s ? (w | (1u << (b & 31))) : (w & ~(1u << (b & 31)));
+}
+
+VoxelGrid subGrid(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size) {
+    VoxelGrid g;
+    g.resize(size);
+    for (int x = 0; x < size.x; ++x)
+        for (int y = 0; y < size.y; ++y)
+            for (int z = 0; z < size.z; ++z) {
+                const glm::ivec3 w = lo + glm::ivec3(x, y, z);
+                if (!world.in(w)) continue;
+                const size_t i = world.idx(w), j = g.idx({x, y, z});
+                g.mat[j] = world.mat[i];
+                g.part[j] = world.part[i];
+                g.fixed[j] = world.fixed[i];
+            }
+    return g;
+}
+
+Neighbours neighboursOf(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size, Outside beyond) {
+    Neighbours n;
+    n.resize(size, false);
+    for (int a = 0; a < 3; ++a) {
+        const int ua = (a + 1) % 3, va = (a + 2) % 3;
+        for (int dir : {-1, 1})
+            for (int v = 0; v < size[va]; ++v)
+                for (int u = 0; u < size[ua]; ++u) {
+                    glm::ivec3 w = lo;
+                    w[a] += dir < 0 ? -1 : size[a];
+                    w[ua] += u;
+                    w[va] += v;
+                    const bool s = world.in(w) ? world.mat[world.idx(w)] != 0 : beyond == Outside::Skip;
+                    n.set(a, dir, u, v, s);
+                }
+    }
+    return n;
+}
+
 PackedFace packSprig(glm::ivec3 c, uint8_t material) {
     PackedFace f;
     f.a = uint32_t(c.x & 0xFF) | (uint32_t(c.y & 0xFF) << 8) | (uint32_t(c.z & 0xFF) << 16) | (3u << 24);
@@ -214,7 +261,7 @@ PackedFace packSprig(glm::ivec3 c, uint8_t material) {
     return f;
 }
 
-std::vector<PackedFace> foliageSprigs(const VoxelGrid& g, Outside outside, const SprigParams& p) {
+std::vector<PackedFace> foliageSprigs(const VoxelGrid& g, Edges outside, const SprigParams& p) {
     std::vector<PackedFace> out;
     for (size_t i = 0; i < g.size(); ++i) {
         const uint8_t m = g.mat[i];
@@ -226,7 +273,7 @@ std::vector<PackedFace> foliageSprigs(const VoxelGrid& g, Outside outside, const
             for (int d : {-1, 1}) {
                 glm::ivec3 q = c;
                 q[a] += d;
-                if (g.in(q) ? g.mat[g.idx(q)] == 0 : outside == Outside::Air) { exposed = true; break; }
+                if (g.in(q) ? g.mat[g.idx(q)] == 0 : !outside.solidOutside(c, a, d)) { exposed = true; break; }
             }
         if (exposed) out.push_back(packSprig(c, m));
     }

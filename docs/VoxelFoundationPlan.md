@@ -366,7 +366,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 
 | # | Today | Where today | On the new store | Status |
 |---|---|---|---|---|
-| 1 | Hidden-face culling (cube, subcube, microcube; across chunk borders) | `ChunkRenderManager`, RenderOptimization Phase 1 | Per block, from the 64 B solidity masks: a face survives only if the neighbour voxel is air. Block and chunk borders read the neighbour block's mask. Uniform blocks: all-solid interior blocks and all-air blocks emit nothing without a voxel loop | **GPU done inside one chunk** (F2.1, `FaceBuilderGpu`, exact vs CPU); uniform-block skip done (F2.6); neighbour chunks at the border owed |
+| 1 | Hidden-face culling (cube, subcube, microcube; across chunk borders) | `ChunkRenderManager`, RenderOptimization Phase 1 | Per block, from the 64 B solidity masks: a face survives only if the neighbour voxel is air. Block and chunk borders read the neighbour block's mask. Uniform blocks: all-solid interior blocks and all-air blocks emit nothing without a voxel loop | **GPU done inside one chunk** (F2.1, `FaceBuilderGpu`, exact vs CPU); uniform-block skip done (F2.6); chunk-border neighbours done (F2.7) |
 | 2 | Greedy face merging (cube; sub/micro fine merge, default ON) | `ChunkRenderManager` `s_fineGreedyMerge` | §4.1: in-block, then across blocks. **Consequence for §4.2:** a cross-block quad is up to 256 voxels long, so the extents need 8+8 bits, not 3+3 | **GPU done** (F2.1): run merge across the whole chunk, one thread per slice row |
 | 3 | Distance + frustum culling per chunk | `RenderCoordinator` LEVEL 1/2 | Same per chunk, plus per block AABB in the GPU draw-building pass | owed |
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | owed |
@@ -526,6 +526,34 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
 - Device time, best of 5 (`UniformBlockSkipTiming`): terrain 256×160×256 1.064 → 0.641 ms (7.48 M spans skipped);
   forest 256³ 0.914 → 0.391 ms (11.4 M spans). Same records both ways. Includes the block pass.
 - Live: the forest preview (leaves as voxels) with the skip on: 80,552 faces, 0 differing px against the F2.5 shot.
+- CAVEAT (found in F2.7): absolute device times move several-fold between sessions on this machine. Later the same
+  day the F2.6 kernel measured terrain 3.0 → 2.4 ms and forest 0.98-1.47 → 0.43-0.81 ms on the same exe. Only
+  on/off pairs from ONE run compare; the skip's win held in every run (terrain ~20-25%, forest ~45-60%).
+
+**F2.7 2026-11-12 — chunk borders: border faces are decided by the real neighbour voxels.** (§4.6 item 1, done.)
+- `Neighbours` (Mesher.h): the solidity of the one-voxel layer outside each grid face, one bit per voxel, 6 planes,
+  ≤ 48 KB per chunk. Only solidity: a border voxel never emits a face in this chunk, it only hides or exposes ours
+  (cards count as solid, as everywhere). `Edges` is built implicitly from an `Outside` mode or from `Neighbours`, so
+  every mesher, `foliageSprigs`, `coverageErrors` and `FaceBuilderGpu::build` take either; all-air planes reproduce
+  Outside::Air and all-solid planes Outside::Skip exactly (test). `subGrid` / `neighboursOf` cut a chunk and its
+  planes out of a larger grid. GPU: the planes go to binding 4 (`dim.w == 2`); a plane set sized for another grid is
+  refused.
+- The CLAUDE.md rule "chunks must not be visible", pinned: the region meshed as chunks (each with its Neighbours) has
+  EXACTLY the unit faces and sprigs of the region meshed whole. Merging can differ at chunk borders (a quad cannot
+  cross one), which is cost, not looks, so the comparison is per unit face.
+  - CPU (`ChunksAreInvisible`): a 50×40×37 world (3-material heightfield, caves, leaf voxels, a floating slab across
+    borders) in 16³ chunks with remainders, beyond-region air and skip: 11,068 / 6,555 unit faces, equal. Without
+    neighbours (the F2.1 build per chunk): 17,752 / 6,277 — the borders were visible.
+  - GPU (`ChunksAreInvisible`): the seed-7 forest in 96³ chunks (27 chunks, 147,391 unit faces, 14,716 sprigs) and a
+    70×45×33 synthetic world in 24×16×20 chunks, beyond air and skip: union of the GPU chunk builds == the whole
+    region (CPU, no chunks), and each chunk GPU == CPU with the same Neighbours.
+  - Red first: with the neighbours ignored (stubs) both CPU tests and the GPU test failed (forest sprigs 16,894 vs
+    14,716: border leaf cells wrongly exposed).
+- Cost: the kernel reads the planes only for voxels on the grid border; same-exe timing of the F2.6 kernel vs this
+  one: terrain 2.40-2.42 vs 2.55 ms, forest 0.43-0.81 vs 0.50 ms (within the run-to-run spread).
+- Not yet: the live preview still builds one area as one grid; chunked building (and where the planes come from in
+  a streaming world: the neighbour chunk's store, or "unknown = solid" until it streams in) lands with the
+  whole-frame A/B.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

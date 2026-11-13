@@ -11,7 +11,8 @@
 // shaders/voxfound_faces.comp.
 //
 // Uniform-block skip (F2.6): per-8^3-block flags let rows jump over blocks that cannot hold a face.
-// Not yet: neighbour chunks at the grid border (§4.6 item 1), partial rebuild of changed rows (§4.6 item 9).
+// Chunk borders (F2.7): `outside` may be the real Neighbours planes, so border faces match the whole world.
+// Not yet: partial rebuild of changed rows (§4.6 item 9).
 
 #include <memory>
 #include <string>
@@ -40,10 +41,11 @@ public:
 
     /// Build g's faces on the device into `out` (order unspecified). Refuses (false + reason) a grid with
     /// a side of 0 or more than kMaxChunkVoxels. Grows its face buffer and rebuilds when the faces
-    /// overflow it, so the result is always complete.
+    /// overflow it, so the result is always complete. `outside`: an Outside mode, or Neighbours (refused unless
+    /// sized for g).
     /// `sprigs` (F2.3, optional): its card materials emit no faces (meshRuns with cards), and a fourth pass
     /// appends their leaf sprigs (foliageSprigs) to `out` as axis-3 records (isSprig). Exact vs the CPU pair.
-    bool build(const VoxelGrid& g, Outside outside, std::vector<PackedFace>& out, std::string* err,
+    bool build(const VoxelGrid& g, Edges outside, std::vector<PackedFace>& out, std::string* err,
                const SprigParams* sprigs = nullptr);
 
     /// Device time of the last build's face pass (ms, from timestamps; < 0 when unavailable).
@@ -80,6 +82,7 @@ private:
     std::unique_ptr<Vulkan::ComputePipeline> m_faces;
 
     Buffer m_voxels, m_out, m_counter, m_stagingIn, m_stagingOut, m_blocks;   // m_blocks: one word per 8^3 block
+    Buffer m_border;   // F2.7 Neighbours planes (48 KB, host-visible)
     size_t m_blockWords = 0, m_voxelWords = 0, m_capacity = 0, m_initialCapacity = 1u << 16;
     double m_lastGpuMs = -1.0;
     bool m_blockSkip = true;

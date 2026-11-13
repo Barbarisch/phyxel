@@ -52,17 +52,53 @@ struct CardSet {
 /// (their neighbour is unknown; in a world they are usually hidden).
 enum class Outside { Air, Skip };
 
+/// CHUNK BORDERS (F2.7, §4.6 item 1). The solidity of the one-voxel layer just outside each face of a grid, taken
+/// from the neighbour chunks, so a face on the grid's border is decided by the real neighbour voxel. Only solidity
+/// is needed: a border voxel never emits a face here (its own chunk draws it); it only hides or exposes ours. A card
+/// (leaf) voxel is solid, as everywhere. One bit per voxel: plane [2*axis + (dir > 0)], bit u + nu * v with
+/// u = (axis+1)%3, v = (axis+2)%3 coordinates of the grid voxel the plane touches. At most 6 * 256^2 bits = 48 KB.
+/// All-air planes reproduce Outside::Air exactly; all-solid planes reproduce Outside::Skip.
+struct Neighbours {
+    glm::ivec3 dim{0};                    // must equal the grid's dim
+    std::vector<uint32_t> bits[6];
+    static size_t planeBits(glm::ivec3 d, int axis) { return size_t(d[(axis + 1) % 3]) * size_t(d[(axis + 2) % 3]); }
+    void resize(glm::ivec3 d, bool solid);
+    bool solid(int axis, int dir, int u, int v) const {
+        const size_t b = size_t(u) + size_t(dim[(axis + 1) % 3]) * size_t(v);
+        return (bits[2 * axis + (dir > 0)][b >> 5] >> (b & 31)) & 1u;
+    }
+    void set(int axis, int dir, int u, int v, bool s);
+};
+
+/// What lies outside a grid: one Outside mode for every side, or the real neighbours. Built implicitly from either,
+/// so every mesher below takes both.
+struct Edges {
+    Outside mode = Outside::Air;
+    const Neighbours* n = nullptr;
+    Edges(Outside o) : mode(o) {}
+    Edges(const Neighbours& nb) : n(&nb) {}
+    /// Is the voxel one step from in-grid voxel p along (axis, dir), outside the grid, solid?
+    bool solidOutside(glm::ivec3 p, int axis, int dir) const {
+        return n ? n->solid(axis, dir, p[(axis + 1) % 3], p[(axis + 2) % 3]) : mode == Outside::Skip;
+    }
+};
+
+/// The chunk [lo, lo + size) of a larger grid, and its border solidity from that grid. Voxels beyond the larger grid
+/// are air for Outside::Air and solid for Outside::Skip.
+VoxelGrid subGrid(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size);
+Neighbours neighboursOf(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size, Outside beyond);
+
 /// `cards` (optional, every mesher below): voxels of these materials emit no faces but still hide others.
-std::vector<Quad> meshCulled(const VoxelGrid& g, Outside outside, const CardSet* cards = nullptr);
+std::vector<Quad> meshCulled(const VoxelGrid& g, Edges outside, const CardSet* cards = nullptr);
 /// blockLimit 0 = merge across the whole grid; > 0 = no quad crosses a multiple of blockLimit.
-std::vector<Quad> meshGreedy(const VoxelGrid& g, Outside outside, int blockLimit = 0, const CardSet* cards = nullptr);
+std::vector<Quad> meshGreedy(const VoxelGrid& g, Edges outside, int blockLimit = 0, const CardSet* cards = nullptr);
 
 /// RUN MERGE (F2.1, the form the GPU builds). Per slice row: maximal runs of one material along u. A run
 /// stacks onto the run in the previous row when start, width and material are all equal. Rows are
 /// independent, so the GPU builds it with one thread per row and no ordering between threads, and this CPU
 /// version is its exact reference (same quads, as a set). Exact coverage like greedy, merges across block
 /// borders like greedy, but it does not search for wider rectangles, so it can produce more quads.
-std::vector<Quad> meshRuns(const VoxelGrid& g, Outside outside, const CardSet* cards = nullptr);
+std::vector<Quad> meshRuns(const VoxelGrid& g, Edges outside, const CardSet* cards = nullptr);
 
 /// The compact face record (§4.2, §4.6): 8 bytes, position relative to a chunk of at most 256 voxels a
 /// side (today's InstanceData is 16 B with a 5+5+5-bit cube position).
@@ -79,7 +115,7 @@ Quad unpackFace(PackedFace f);
 /// Exactness check for a merged mesh: every exposed unit face (as meshCulled defines it) is covered by
 /// exactly one quad of the same material, and no quad covers anything else. Returns the number of unit
 /// faces in error (missing + doubled + extra + wrong material); `why` gets the first few.
-size_t coverageErrors(const VoxelGrid& g, Outside outside, const std::vector<Quad>& quads,
+size_t coverageErrors(const VoxelGrid& g, Edges outside, const std::vector<Quad>& quads,
                       std::string* why = nullptr, const CardSet* cards = nullptr);
 
 /// LEAF SPRIGS (F2.3). Today one FoliageInstanceData is emitted per EXPOSED leaf subcube (any face neighbour
@@ -104,6 +140,6 @@ struct SprigParams {
 };
 PackedFace packSprig(glm::ivec3 cell, uint8_t material);
 inline bool isSprig(PackedFace f) { return ((f.a >> 24) & 3u) == 3u; }
-std::vector<PackedFace> foliageSprigs(const VoxelGrid& g, Outside outside, const SprigParams& p);
+std::vector<PackedFace> foliageSprigs(const VoxelGrid& g, Edges outside, const SprigParams& p);
 
 }  // namespace Phyxel::Core::VoxFound

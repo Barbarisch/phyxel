@@ -388,7 +388,7 @@
     },
     "voxfound_faces.comp": {
       "built": true,
-      "sources": "728248ea1474c4590d0f07e23e0df61219f067156fa7ee1ed8878e4421f55326",
+      "sources": "35e8e552c312b98589306790ee1672af8506719f4a42cae93810458c20464248",
       "spv_present": true
     },
     "voxfound_foliage.vert": {

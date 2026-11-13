@@ -387,7 +387,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       0.914 -> 0.391 ms device. Mutation lesson: a 7-layer block pass passed the first rig -- rigs for per-block
       logic need lone voxels on block CORNERS (first and last layer).
       Bash heredocs fail in this environment (cwd temp file error): write scripts to the scratchpad and run them.
-      NEXT: chunk-border neighbours; then a
+      F2.7 (2026-11-12): chunk borders. Mesher.h Neighbours (border solidity bits) + Edges (implicit from Outside
+      or Neighbours); subGrid/neighboursOf; GPU binding 4. ChunksAreInvisible (CPU + GPU, forest in 96^3 chunks):
+      chunked unit faces + sprigs == whole region. GPU TIMING TRAP: absolute ms swing several-fold between
+      sessions -- compare only on/off pairs from one run (or A/B kernels on the same exe by swapping the .spv).
+      NEXT: build the preview as chunks with Neighbours; then a
       whole-frame A/B against today on the same generated scene (the F2 gate); regenerate spruce templates to
       today's size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

@@ -18,6 +18,7 @@
 #include <limits>
 #include <random>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "core/WorldGenerator.h"
@@ -46,7 +47,7 @@ std::vector<uint64_t> keys(const std::vector<PackedFace>& f) {
     return k;
 }
 
-std::vector<PackedFace> cpuFaces(const VoxelGrid& g, Outside o, const SprigParams* sp = nullptr) {
+std::vector<PackedFace> cpuFaces(const VoxelGrid& g, Edges o, const SprigParams* sp = nullptr) {
     std::vector<PackedFace> f;
     for (const Quad& q : meshRuns(g, o, sp ? &sp->cards : nullptr)) f.push_back(packFace(q));
     if (sp)
@@ -85,7 +86,7 @@ protected:
         VulkanTestFixture::TearDown();
     }
     // Builds on the GPU and compares with the CPU reference; returns the face count.
-    size_t same(const VoxelGrid& g, Outside o, const std::string& name, const SprigParams* sp = nullptr) {
+    size_t same(const VoxelGrid& g, Edges o, const std::string& name, const SprigParams* sp = nullptr) {
         std::vector<PackedFace> f;
         std::string err;
         EXPECT_TRUE(gpu.build(g, o, f, &err, sp)) << name << ": " << err;
@@ -338,4 +339,118 @@ TEST_F(VoxFoundFaceBuilderGpu, UniformBlockSkipTiming) {
         std::printf("[facebuilder] skip timing %s %dx%dx%d: off %.3f ms, on %.3f ms, %zu spans skipped, %zu records\n",
                     c.name, c.a.grid.dim.x, c.a.grid.dim.y, c.a.grid.dim.z, best[0], best[1], spans, faces[1]);
     }
+}
+
+// ---- F2.7 chunk borders: GPU build with Neighbours; the chunks must be invisible ----
+
+namespace {
+using UnitFace = std::tuple<int, int, int, int, int, int>;   // world x, y, z, axis, dir, material
+
+void addUnitFaces(const std::vector<PackedFace>& faces, glm::ivec3 lo, std::vector<UnitFace>& out,
+                  std::vector<std::tuple<int, int, int, int>>& sprigs) {
+    for (const PackedFace& f : faces) {
+        if (isSprig(f)) {
+            sprigs.emplace_back(lo.x + int(f.a & 0xFF), lo.y + int((f.a >> 8) & 0xFF), lo.z + int((f.a >> 16) & 0xFF),
+                                int(f.b >> 16));
+            continue;
+        }
+        const Quad q = unpackFace(f);
+        const int ua = (q.axis + 1) % 3, va = (q.axis + 2) % 3;
+        for (int i = 0; i < q.du; ++i)
+            for (int j = 0; j < q.dv; ++j) {
+                glm::ivec3 p = q.o + lo;
+                p[ua] += i;
+                p[va] += j;
+                out.emplace_back(p.x, p.y, p.z, int(q.axis), int(q.dir), int(q.material));
+            }
+    }
+}
+}  // namespace
+
+TEST_F(VoxFoundFaceBuilderGpu, ChunksAreInvisible) {
+    // Whole region (CPU meshCulled + foliageSprigs, no chunks) vs the union of GPU chunk builds, each with its
+    // Neighbours. Also each chunk GPU == CPU (meshRuns with the same Neighbours) as a set.
+    namespace fs = std::filesystem;
+    fs::path root = fs::current_path();
+    for (int i = 0; i < 6 && !fs::exists(root / "resources" / "templates_g8"); ++i) root = root.parent_path();
+    ASSERT_TRUE(fs::exists(root / "resources" / "templates_g8"));
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    gen.loadBiomes((root / "resources" / "biomes.json").string());
+    float lo = std::numeric_limits<float>::max();
+    for (int x = 8159; x <= 8192; ++x)
+        for (int z = 95; z <= 128; ++z) lo = std::min(lo, gen.sampleSurface(x, z).bedHeight);
+    VoxelArea forest = buildTerrainArea(gen, {8160, int(std::floor(lo)) - 2, 96}, {32, 32, 32});
+    stampFlora(forest, gen, (root / "resources" / "templates_g8" / "nature").string());
+    SprigParams fsp;
+    for (size_t m = 0; m < forest.palette.size(); ++m)
+        for (const char* leaf : {"Leaf", "LeafBirch", "LeafSpruce", "LeafJungle", "LeafAutumn"})
+            if (forest.palette[m] == leaf) fsp.cards.set(uint8_t(m));
+    fsp.worldOriginVoxel = forest.originVoxel;
+    fsp.threshold24 = sprigThreshold24(kSprigsPerM2, kVoxelsPerM);
+
+    // Synthetic: random 3-material content with air pockets and card voxels, 70 x 45 x 33, chunk 24 x 16 x 20.
+    VoxelGrid synth = box({70, 45, 33});
+    std::mt19937 rng(17);
+    for (size_t i = 0; i < synth.size(); ++i) {
+        const glm::ivec3 p = synth.pos(i);
+        const unsigned r = rng() % 100;
+        synth.mat[i] = p.y < 20 ? (r < 90 ? 1 : 0) : (r < 20 ? 3 : r < 35 ? 2 : 0);
+    }
+    SprigParams ssp;
+    ssp.cards.set(2);
+    ssp.worldOriginVoxel = {-500, 64, 31};
+    ssp.threshold24 = 1u << 23;
+
+    struct Case { const char* name; const VoxelGrid* g; const SprigParams* sp; glm::ivec3 cs; Outside beyond; };
+    const Case cases[] = {{"forest 96^3 chunks", &forest.grid, &fsp, {96, 96, 96}, Outside::Skip},
+                          {"synthetic 24x16x20, beyond air", &synth, &ssp, {24, 16, 20}, Outside::Air},
+                          {"synthetic 24x16x20, beyond skip", &synth, &ssp, {24, 16, 20}, Outside::Skip}};
+    for (const Case& c : cases) {
+        std::vector<UnitFace> whole, chunked;
+        std::vector<std::tuple<int, int, int, int>> sprWhole, sprChunked;
+        {
+            std::vector<PackedFace> wf;
+            for (const Quad& q : meshCulled(*c.g, c.beyond, &c.sp->cards)) wf.push_back(packFace(q));
+            for (const PackedFace& f : foliageSprigs(*c.g, c.beyond, *c.sp)) wf.push_back(f);
+            addUnitFaces(wf, {0, 0, 0}, whole, sprWhole);
+        }
+        int chunks = 0;
+        for (int x = 0; x < c.g->dim.x; x += c.cs.x)
+            for (int y = 0; y < c.g->dim.y; y += c.cs.y)
+                for (int z = 0; z < c.g->dim.z; z += c.cs.z) {
+                    const glm::ivec3 o(x, y, z), size = glm::min(c.cs, c.g->dim - o);
+                    const VoxelGrid sub = subGrid(*c.g, o, size);
+                    const Neighbours nb = neighboursOf(*c.g, o, size, c.beyond);
+                    SprigParams sp = *c.sp;
+                    sp.worldOriginVoxel = c.sp->worldOriginVoxel + o;
+                    std::vector<PackedFace> f;
+                    std::string err;
+                    ASSERT_TRUE(gpu.build(sub, nb, f, &err, &sp)) << c.name << ": " << err;
+                    const auto cpu = keys(cpuFaces(sub, nb, &sp)), got = keys(f);
+                    EXPECT_TRUE(cpu == got) << c.name << " chunk (" << x << "," << y << "," << z
+                                            << ") GPU vs CPU: " << firstDiff(cpu, got);
+                    addUnitFaces(f, o, chunked, sprChunked);
+                    ++chunks;
+                }
+        std::sort(whole.begin(), whole.end());
+        std::sort(chunked.begin(), chunked.end());
+        std::sort(sprWhole.begin(), sprWhole.end());
+        std::sort(sprChunked.begin(), sprChunked.end());
+        EXPECT_EQ(chunked.size(), whole.size()) << c.name;
+        EXPECT_TRUE(chunked == whole) << c.name << ": GPU chunk faces differ from the whole region";
+        EXPECT_TRUE(sprChunked == sprWhole) << c.name << ": sprigs " << sprChunked.size() << " vs " << sprWhole.size();
+        EXPECT_GT(sprWhole.size(), 0u) << c.name;
+        std::printf("[facebuilder] chunks invisible, %s: %d chunks, %zu unit faces, %zu sprigs\n", c.name, chunks,
+                    whole.size(), sprWhole.size());
+    }
+}
+
+TEST_F(VoxFoundFaceBuilderGpu, RefusesNeighboursOfTheWrongSize) {
+    VoxelGrid g = box({8, 8, 8});
+    Neighbours n;
+    n.resize({8, 8, 9}, false);
+    std::vector<PackedFace> f;
+    std::string err;
+    EXPECT_FALSE(gpu.build(g, n, f, &err));
+    EXPECT_NE(err.find("Neighbours"), std::string::npos) << err;
 }

@@ -458,3 +458,123 @@ TEST(VoxFoundMesher, MeasuredFaceCountsOnABuildingShellOnBothGrids) {
     }
     std::printf("[mesher] shell greedy 1/8 m vs 1/9 m: %.2fx\n", double(counts[1]) / double(counts[0]));
 }
+
+// ---- F2.7 chunk borders: Neighbours planes (the real voxels across the grid's border) ----
+
+namespace {
+using UnitFace = std::tuple<int, int, int, int, int, int>;   // world x, y, z, axis, dir, material
+
+void addUnitFaces(const std::vector<Quad>& quads, glm::ivec3 lo, std::vector<UnitFace>& out) {
+    for (const Quad& q : quads) {
+        const int ua = (q.axis + 1) % 3, va = (q.axis + 2) % 3;
+        for (int i = 0; i < q.du; ++i)
+            for (int j = 0; j < q.dv; ++j) {
+                glm::ivec3 p = q.o + lo;
+                p[ua] += i;
+                p[va] += j;
+                out.emplace_back(p.x, p.y, p.z, int(q.axis), int(q.dir), int(q.material));
+            }
+    }
+}
+
+// Terrain-like world with every border situation: a heightfield of 3 materials, caves through it, leaf (card)
+// blobs above, a floating slab, sides not multiples of the chunk size.
+VoxelGrid borderWorld() {
+    VoxelGrid g = box({50, 40, 37});
+    std::mt19937 rng(99);
+    for (int x = 0; x < 50; ++x)
+        for (int z = 0; z < 37; ++z) {
+            const int h = 14 + int(6.0 * std::sin(x * 0.21) + 5.0 * std::cos(z * 0.17));
+            for (int y = 0; y < h && y < 40; ++y) {
+                const bool cave = std::abs(y - 9) < 2 && ((x / 5 + z / 7) % 3 == 0);
+                if (!cave) g.set({x, y, z}, y == h - 1 ? 3 : y < h - 4 ? 1 : 4);
+            }
+        }
+    for (int i = 0; i < 1500; ++i) {
+        const glm::ivec3 c(int(rng() % 50), 24 + int(rng() % 14), int(rng() % 37));
+        g.set(c, 2);                                                   // leaf voxels
+    }
+    for (int x = 10; x < 40; ++x)
+        for (int z = 12; z < 20; ++z) g.set({x, 33, z}, 1);            // a floating slab across chunk borders
+    return g;
+}
+}  // namespace
+
+TEST(VoxFoundMesher, NeighbourPlanesReproduceBothOutsideModes) {
+    VoxelGrid g = box({13, 7, 5});
+    std::mt19937 rng(5);
+    for (size_t i = 0; i < g.size(); ++i) { const unsigned r = rng() % 100; g.mat[i] = r < 40 ? 1 : r < 55 ? 2 : 0; }
+    SprigParams sp;
+    sp.cards.set(2);
+    sp.threshold24 = 1u << 24;
+    for (Outside o : {Outside::Air, Outside::Skip}) {
+        Neighbours n;
+        n.resize(g.dim, o == Outside::Skip);
+        auto k = [](const std::vector<Quad>& qs) {
+            std::vector<uint64_t> v;
+            for (const Quad& q : qs) v.push_back(packFace(q).key());
+            std::sort(v.begin(), v.end());
+            return v;
+        };
+        EXPECT_EQ(k(meshRuns(g, n, &sp.cards)), k(meshRuns(g, o, &sp.cards))) << (o == Outside::Air ? "air" : "skip");
+        auto s = [](std::vector<PackedFace> f) {
+            std::vector<uint64_t> v;
+            for (const PackedFace& p : f) v.push_back(p.key());
+            std::sort(v.begin(), v.end());
+            return v;
+        };
+        EXPECT_EQ(s(foliageSprigs(g, n, sp)), s(foliageSprigs(g, o, sp))) << (o == Outside::Air ? "air" : "skip");
+    }
+}
+
+TEST(VoxFoundMesher, ChunksAreInvisible) {
+    // CLAUDE.md "Chunks must not be visible": the region meshed as chunks (each with its Neighbours from the region)
+    // has EXACTLY the unit faces and sprigs of the region meshed whole. Merging may differ at chunk borders (a quad
+    // cannot cross one); that is cost, not looks, so the comparison is per unit face.
+    const VoxelGrid world = borderWorld();
+    SprigParams sp;
+    sp.cards.set(2);
+    sp.worldOriginVoxel = {-77, 300, 5};
+    sp.threshold24 = sprigThreshold24(kSprigsPerM2, kVoxelsPerM);
+    const glm::ivec3 cs(16, 16, 16);
+    for (Outside beyond : {Outside::Air, Outside::Skip}) {
+        const char* name = beyond == Outside::Air ? "beyond air" : "beyond skip";
+        std::vector<UnitFace> whole, chunked, oldWay;
+        addUnitFaces(meshCulled(world, beyond, &sp.cards), {0, 0, 0}, whole);
+        std::vector<std::tuple<int, int, int, int>> sprWhole, sprChunked;
+        for (const PackedFace& f : foliageSprigs(world, beyond, sp))
+            sprWhole.emplace_back(int(f.a & 0xFF), int((f.a >> 8) & 0xFF), int((f.a >> 16) & 0xFF), int(f.b >> 16));
+        int chunks = 0;
+        for (int x = 0; x < world.dim.x; x += cs.x)
+            for (int y = 0; y < world.dim.y; y += cs.y)
+                for (int z = 0; z < world.dim.z; z += cs.z) {
+                    const glm::ivec3 lo(x, y, z), size = glm::min(cs, world.dim - lo);
+                    const VoxelGrid sub = subGrid(world, lo, size);
+                    const Neighbours nb = neighboursOf(world, lo, size, beyond);
+                    addUnitFaces(meshRuns(sub, nb, &sp.cards), lo, chunked);
+                    addUnitFaces(meshRuns(sub, beyond, &sp.cards), lo, oldWay);   // no neighbours: today's F2.1 build
+                    SprigParams csp = sp;
+                    csp.worldOriginVoxel = sp.worldOriginVoxel + lo;
+                    for (const PackedFace& f : foliageSprigs(sub, nb, csp))
+                        sprChunked.emplace_back(x + int(f.a & 0xFF), y + int((f.a >> 8) & 0xFF),
+                                                z + int((f.a >> 16) & 0xFF), int(f.b >> 16));
+                    ++chunks;
+                }
+        std::sort(whole.begin(), whole.end());
+        std::sort(chunked.begin(), chunked.end());
+        std::sort(oldWay.begin(), oldWay.end());
+        std::sort(sprWhole.begin(), sprWhole.end());
+        std::sort(sprChunked.begin(), sprChunked.end());
+        EXPECT_EQ(chunks, 4 * 3 * 3) << name;
+        EXPECT_GT(whole.size(), 1000u) << name;
+        EXPECT_GT(sprWhole.size(), 10u) << name;
+        EXPECT_EQ(chunked.size(), whole.size()) << name;
+        EXPECT_TRUE(chunked == whole) << name << ": the chunked faces differ from the whole-region faces";
+        EXPECT_TRUE(sprChunked == sprWhole) << name << ": chunked sprigs " << sprChunked.size() << " vs whole "
+                                            << sprWhole.size();
+        // Teeth: without neighbours the chunk borders ARE visible (extra or missing faces at every cut).
+        EXPECT_FALSE(oldWay == whole) << name;
+        std::printf("[mesher] chunks invisible (%s): whole %zu unit faces; chunks without neighbours %zu; "
+                    "sprigs %zu\n", name, whole.size(), oldWay.size(), sprWhole.size());
+    }
+}

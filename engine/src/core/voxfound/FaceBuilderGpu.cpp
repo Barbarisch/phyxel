@@ -54,7 +54,7 @@ bool FaceBuilderGpu::init(VkDevice device, VkPhysicalDevice physical, VkQueue qu
             m_timestampMs = double(props.limits.timestampPeriod) * 1e-6;
     }
     m_faces = std::make_unique<Vulkan::ComputePipeline>();
-    if (!m_faces->create(device, shaderDir + "/voxfound_faces.comp.spv", 4, sizeof(FacesPC))) {
+    if (!m_faces->create(device, shaderDir + "/voxfound_faces.comp.spv", 5, sizeof(FacesPC))) {
         if (err) *err = "FaceBuilderGpu: cannot create the pipeline from " + shaderDir +
                         "/voxfound_faces.comp.spv (run build_shaders.bat?)";
         shutdown();
@@ -70,6 +70,7 @@ void FaceBuilderGpu::shutdown() {
     destroyBuffer(m_out);
     destroyBuffer(m_counter);
     destroyBuffer(m_blocks);
+    destroyBuffer(m_border);
     m_blockWords = 0;
     destroyBuffer(m_stagingIn);
     destroyBuffer(m_stagingOut);
@@ -168,17 +169,22 @@ bool FaceBuilderGpu::ensureBuffers(size_t voxelWords, size_t faces, std::string*
         if (!createBuffer(m_counter, 16, false, err)) return false;
         rebind = true;
     }
+    if (!m_border.buf) {   // 6 planes of up to 256 x 256 bits: fixed, host-visible, written before each submit
+        if (!createBuffer(m_border, 6 * (size_t(kMaxChunkVoxels) * kMaxChunkVoxels / 32) * 4, true, err)) return false;
+        rebind = true;
+    }
     if (rebind) {
         m_faces->bindBuffer(0, m_voxels.buf, m_voxels.bytes);
         m_faces->bindBuffer(1, m_out.buf, m_out.bytes);
         m_faces->bindBuffer(2, m_counter.buf, m_counter.bytes);
         m_faces->bindBuffer(3, m_blocks.buf, m_blocks.bytes);
+        m_faces->bindBuffer(4, m_border.buf, m_border.bytes);
         m_faces->updateDescriptors();
     }
     return true;
 }
 
-bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<PackedFace>& out, std::string* err,
+bool FaceBuilderGpu::build(const VoxelGrid& g, Edges outside, std::vector<PackedFace>& out, std::string* err,
                            const SprigParams* sprigs) {
     out.clear();
     if (!initialized()) { if (err) *err = "FaceBuilderGpu: not initialised"; return false; }
@@ -195,6 +201,20 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<Pack
     if (!ensureBuffers(words, std::max(m_capacity, m_initialCapacity), err, blocks)) return false;
     std::memset(m_stagingIn.mapped, 0, words * 4);
     std::memcpy(m_stagingIn.mapped, g.mat.data(), n);
+    if (outside.n) {   // F2.7 border planes, in the kernel's order (Mesher.h Neighbours), each whole words
+        const Neighbours& nbs = *outside.n;
+        auto* dst = static_cast<uint32_t*>(m_border.mapped);
+        size_t at = 0;
+        for (int k = 0; k < 6; ++k) {
+            const size_t w = (Neighbours::planeBits(g.dim, k / 2) + 31) / 32;
+            if (nbs.dim != g.dim || nbs.bits[k].size() != w) {
+                if (err) *err = "FaceBuilderGpu: Neighbours sized for another grid (dim or plane size differs)";
+                return false;
+            }
+            std::memcpy(dst + at, nbs.bits[k].data(), w * 4);
+            at += w;
+        }
+    }
 
     for (int attempt = 0; attempt < 2; ++attempt) {
         VkCommandBufferAllocateInfo cai{};
@@ -232,7 +252,7 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<Pack
             const int rows = axis < 3 ? 2 * g.dim[axis] * g.dim[(axis + 2) % 3] : axis == 3 ? int(n) : int(blocks);
             FacesPC pc{};
             pc.dim[0] = g.dim.x; pc.dim[1] = g.dim.y; pc.dim[2] = g.dim.z;
-            pc.dim[3] = outside == Outside::Air ? 0 : 1;
+            pc.dim[3] = outside.n ? 2 : outside.mode == Outside::Air ? 0 : 1;
             pc.job[0] = axis; pc.job[1] = rows; pc.job[2] = int32_t(m_capacity); pc.job[3] = m_blockSkip ? 1 : 0;
             if (sprigs) {
                 std::memcpy(pc.cards, sprigs->cards.bits, sizeof(pc.cards));
