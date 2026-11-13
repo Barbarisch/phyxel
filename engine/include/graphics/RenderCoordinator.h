@@ -402,6 +402,10 @@ public:
 
     // Occlusion culling (chunk visibility graph). Default ON (Phase 3).
     void setOcclusionCullingEnabled(bool e) { m_occlusionCullingEnabled = e; }
+    /// F2.8 A/B (docs/VoxelFoundationPlan.md): stop drawing today's world (chunk geometry, its grass and leaf cards,
+    /// and their shadow casters) so the 1/8 m preview of the same scene is measured alone, in the same session.
+    void setHideWorld(bool h) { m_hideWorld = h; }
+    bool hideWorld() const { return m_hideWorld; }
     bool isOcclusionCullingEnabled() const { return m_occlusionCullingEnabled; }
     int  getLastOcclusionCulled() const { return m_lastOcclusionCulled; }
     
@@ -1213,6 +1217,7 @@ private:
     // air-connected chunks. Conservative — no false holes. PHYXEL_OCCLUSION=0
     // env var / POST /api/debug/occlusion disables for A/B.
     bool m_occlusionCullingEnabled = true;
+    bool m_hideWorld = false;   // F2.8 A/B switch, see setHideWorld
     int  m_lastOcclusionCulled = 0;   // chunks removed by occlusion last frame (debug stat)
     void applyOcclusionCulling(const glm::vec3& cameraPos, const Utils::Frustum& cameraFrustum);
     // Scratch containers reused across applyOcclusionCulling() calls (cleared, not

@@ -670,6 +670,8 @@ private:
     void registerWaterCommands();
     void registerMatSimCommands();       // matsim_*: the MatSim lab (docs/MaterialSimPlan.md)
     void handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::json& response);   // F2.2 1/8 m preview
+    void handleVoxFoundRegion(const Core::APICommand& cmd, int generationType, const std::string& typeName,
+                              uint32_t seed, nlohmann::json& response);   // F2.8 (type = WorldGenerator::GenerationType)
     void registerSettlementCommands();   // build_settlement: compose a settlement (subdivide+populate+build each)
     void registerWorldForgeCommands();   // worldforge_*: world-scale plan preview/apply/status/map (docs/WorldForge.md)
     void registerDoorCommands();

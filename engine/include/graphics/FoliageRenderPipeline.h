@@ -77,10 +77,11 @@ public:
     /// originAbs (world metres). Today's cards, params, wind and foliage.frag; voxfound_foliage.vert decodes
     /// the position. Call in the scene pass. Main view only (no shadow casting yet).
     void renderVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer, uint32_t count,
-                        const glm::dvec3& originAbs);
+                        const glm::dvec3& originAbs, VkDeviceSize bufferOffset = 0);
     /// F2.4: the same sprigs into the (mid) shadow map — renderShadow's twin (voxfound_foliage_shadow.vert).
+    /// F2.8: `bufferOffset` (bytes) selects one chunk's slice of a shared buffer.
     void renderShadowVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer, uint32_t count,
-                              const glm::dvec3& originAbs);
+                              const glm::dvec3& originAbs, VkDeviceSize bufferOffset = 0);
 
     // ---- KINEMATIC foliage (F3): leaf cards riding moving coherent fragments ----
     // A felled tree's canopy stays card-rendered while it falls: instances live in a

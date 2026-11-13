@@ -357,8 +357,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       GOTCHAS (this build): MCP launch_engine fails silently here (python312 DLL not on PATH) -- start phyxel.exe
       from PowerShell with the uv python dir on PATH; MCP tools talk to 8090, so call the 8120 HTTP API directly.
       POST /api/camera does NOT move the render camera (status bar camera unchanged, no "Syncing Free Camera"
-      log, even with mode:"free") -- unexplained; workaround: load_definition with a NEW world "name" and the
-      camera pose (a same-name reload ignores the camera).
+      log, even with mode:"free") -- EXPLAINED 2026-11-13 (F2.8): launched without --project, the launcher stays
+      active and update() (which holds the camera sync) never runs. Launch with --project.
       F2.3 LEAF CARDS (2026-11-12): leaves are NEVER drawn as voxels in this engine -- billboarded materials
       (Leaf*) stay in the store/occupancy, emit no faces, and each exposed leaf cell becomes one 8 B card instance
       (foliage.vert fans 5 cutout cards). F2.2 drew them as cubes (my mistake; the "dark slits" in the bush). Now:
@@ -391,9 +391,21 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       or Neighbours); subGrid/neighboursOf; GPU binding 4. ChunksAreInvisible (CPU + GPU, forest in 96^3 chunks):
       chunked unit faces + sprigs == whole region. GPU TIMING TRAP: absolute ms swing several-fold between
       sessions -- compare only on/off pairs from one run (or A/B kernels on the same exe by swapping the .spv).
-      NEXT: build the preview as chunks with Neighbours; then a
-      whole-frame A/B against today on the same generated scene (the F2 gate); regenerate spruce templates to
-      today's size.
+      F2.8 (2026-11-13): FIRST F2 GATE RUN. Region preview built chunk by chunk (forEachRegionChunk + Neighbours,
+      voxfound_preview {"region":...}); A/B switches hide_world / show_preview in ONE session. Scene = project
+      VoxFoundGate (C:\Users\jack\Documents\PhyxelProjects\VoxFoundGate, game.json = Perlin s7 forest, chunks
+      254..257 x 0..1 x 2..5; copy in docs/evidence/voxfound_f28_gate_game.json). Release, perf_harness 8 pairs x 5
+      poses: SAME TIER at all poses (B-A +0.75 / +0.65 ms at the 7 ms overview poses, -3.2..-4.7 ms at the 25-48 ms
+      ground poses). Leaf cards dominate both. The new faces cost more in main + shadow (no frustum / caster culling).
+      Fixed on the way: stampFlora ground came from the area's own clamped column (chunk-dependent trees);
+      GET /api/camera now reports the RENDER camera (was the input manager's).
+      !! LAUNCH TRAP (the real "/api/camera desync"): phyxel.exe WITHOUT --project sits on the project launcher and
+      update() NEVER RUNS (API + render work; camera sync, sim do not). Always launch perf/pose work with
+      --project <dir>. A load_definition camera applies because the loader sets the render camera directly.
+      Run GPU tests from build/ (cwd), or they skip silently (shader path relative; 0 passed, exit 0).
+      NEXT: frustum culling of the face records per chunk/block (§4.6 item 3) and shadow caster culling (item 6),
+      each measured on/off on the VoxFoundGate scene; the 3 missing 1/8 m plant templates (fern, shrub_flat,
+      tree_apple); regenerate spruce templates to today's size; grow the gate scene (settlement, streaming).
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

@@ -11,6 +11,7 @@
 #include <fstream>
 #include <map>
 #include <sstream>
+#include <stdexcept>
 
 #include "core/WorldGenerator.h"
 
@@ -119,12 +120,20 @@ GridTemplate loadGridTemplate(const std::string& path) {
     return t;
 }
 
-FloraStampStats stampFlora(VoxelArea& a, WorldGenerator& gen, const std::string& dir, int marginM) {
+FloraStampStats stampFlora(VoxelArea& a, WorldGenerator& gen, const std::string& dir, int marginM,
+                           const glm::ivec4* window) {
     FloraStampStats st;
     const glm::ivec3 oM = a.originVoxel / kVoxelsPerM;
     const glm::ivec3 szM = a.grid.dim / kVoxelsPerM;
-    const auto plan = gen.planFlora(oM.x - marginM, oM.z - marginM, oM.x + szM.x - 1 + marginM,
-                                    oM.z + szM.z - 1 + marginM, 0);
+    auto plan = gen.planFlora(oM.x - marginM, oM.z - marginM, oM.x + szM.x - 1 + marginM,
+                              oM.z + szM.z - 1 + marginM, 0);
+    // F2.8 "chunks must not be visible": overlapping trees overwrite in a fixed WORLD order, not in the order
+    // this query rectangle happened to return them.
+    std::sort(plan.begin(), plan.end(), [](const auto& a, const auto& b) {
+        if (a.worldX != b.worldX) return a.worldX < b.worldX;
+        if (a.worldZ != b.worldZ) return a.worldZ < b.worldZ;
+        return a.templateName < b.templateName;
+    });
     std::map<std::string, GridTemplate> cache;
     std::map<std::string, uint8_t> ids;
     for (size_t i = 1; i < a.palette.size(); ++i) ids[a.palette[i]] = uint8_t(i);
@@ -136,15 +145,26 @@ FloraStampStats stampFlora(VoxelArea& a, WorldGenerator& gen, const std::string&
         ids.emplace(n, id);
         return id;
     };
-    // ground top at a voxel column of the area (first air above the highest solid), in area voxels
+    // Ground top at a voxel column (first air above the terrain), in area voxels, from the TERRAIN FUNCTION at that
+    // world column -- the same bilinear bedHeight and "centre below h + 0.5" rule as buildTerrainArea. F2.8: it
+    // used to scan the area's own column, clamped to the area, after earlier trees were stamped, so a tree
+    // rooted outside the area (or under another canopy) sat at a height that depended on the area.
     auto groundTop = [&](int vx, int vz) {
-        vx = std::clamp(vx, 0, a.grid.dim.x - 1);
-        vz = std::clamp(vz, 0, a.grid.dim.z - 1);
-        for (int vy = a.grid.dim.y - 1; vy >= 0; --vy)
-            if (a.grid.mat[a.grid.idx({vx, vy, vz})] != 0) return vy + 1;
-        return 0;
+        const float wx = float(oM.x) + (vx + 0.5f) / kVoxelsPerM, wz = float(oM.z) + (vz + 0.5f) / kVoxelsPerM;
+        const int ix = int(std::floor(wx - 0.5f)), iz = int(std::floor(wz - 0.5f));
+        const float tx = (wx - 0.5f) - float(ix), tz = (wz - 0.5f) - float(iz);
+        const float h00 = gen.sampleSurface(ix, iz).bedHeight, h10 = gen.sampleSurface(ix + 1, iz).bedHeight;
+        const float h01 = gen.sampleSurface(ix, iz + 1).bedHeight, h11 = gen.sampleSurface(ix + 1, iz + 1).bedHeight;
+        const float h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+        // first voxel (absolute) whose centre is at or above h + 0.5
+        int vyAbs = int(std::floor((h + 0.5f) * kVoxelsPerM - 0.5f)) - 1;
+        while ((float(vyAbs) + 0.5f) / kVoxelsPerM < h + 0.5f) ++vyAbs;
+        while ((float(vyAbs - 1) + 0.5f) / kVoxelsPerM >= h + 0.5f) --vyAbs;
+        return vyAbs - a.originVoxel.y;
     };
     for (const auto& p : plan) {
+        if (window && (p.worldX < window->x || p.worldZ < window->y || p.worldX > window->z || p.worldZ > window->w))
+            continue;
         ++st.placements;
         if (p.procedural) {  // in-engine ProceduralTree (a port of the deprecated gen_tree.py): not on the grid yet
             ++st.procedural;
@@ -178,6 +198,55 @@ FloraStampStats stampFlora(VoxelArea& a, WorldGenerator& gen, const std::string&
         }
     }
     return st;
+}
+
+RegionBuild forEachRegionChunk(
+    WorldGenerator& gen, glm::ivec3 lo, glm::ivec3 hi, const std::string* floraDir,
+    const std::function<void(const RegionChunk&, const std::vector<std::string>& palette)>& each,
+    const glm::ivec4* plantWindow) {
+    RegionBuild rb;
+    std::map<std::string, uint8_t> ids{{"air", 0}};
+    const glm::ivec3 inner(kChunkM * kVoxelsPerM);
+    for (int cx = lo.x; cx <= hi.x; ++cx)
+        for (int cy = lo.y; cy <= hi.y; ++cy)
+            for (int cz = lo.z; cz <= hi.z; ++cz) {
+                const glm::ivec3 c(cx, cy, cz);
+                // the chunk plus a 1 m margin: the margin's inner voxel layer is the chunk's border
+                VoxelArea a = buildTerrainArea(gen, c * kChunkM - 1, glm::ivec3(kChunkM + 2));
+                if (floraDir) {
+                    const FloraStampStats f = stampFlora(a, gen, *floraDir, 24, plantWindow);
+                    rb.flora.placements += f.placements;
+                    rb.flora.stamped += f.stamped;
+                    rb.flora.procedural += f.procedural;
+                    rb.flora.missing += f.missing;
+                    rb.flora.cellsWritten += f.cellsWritten;
+                    for (const auto& [n, k] : f.stampedByName) rb.flora.stampedByName[n] += k;
+                    for (const auto& n : f.missingNames)
+                        if (std::find(rb.flora.missingNames.begin(), rb.flora.missingNames.end(), n) ==
+                            rb.flora.missingNames.end())
+                            rb.flora.missingNames.push_back(n);
+                }
+                uint8_t remap[256] = {};
+                for (size_t m = 1; m < a.palette.size(); ++m) {
+                    auto it = ids.find(a.palette[m]);
+                    if (it == ids.end()) {
+                        if (rb.palette.size() >= 256) throw std::runtime_error("region palette over 256 materials");
+                        it = ids.emplace(a.palette[m], uint8_t(rb.palette.size())).first;
+                        rb.palette.push_back(a.palette[m]);
+                    }
+                    remap[m] = it->second;
+                }
+                for (uint8_t& v : a.grid.mat) v = remap[v];
+                RegionChunk rc;
+                rc.chunk = c;
+                rc.originVoxel = c * kChunkM * kVoxelsPerM;
+                const glm::ivec3 off(kVoxelsPerM);
+                rc.grid = subGrid(a.grid, off, inner);
+                rc.border = neighboursOf(a.grid, off, inner, Outside::Air);  // the margin covers every border voxel
+                ++rb.chunks;
+                each(rc, rb.palette);
+            }
+    return rb;
 }
 
 size_t BlockStats::estimatedBytes() const { return blocks * 8 + detailed * (512 + 64); }

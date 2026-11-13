@@ -356,7 +356,8 @@ bool FoliageRenderPipeline::createShadowPipeline(const char* vertSpv, VkPipeline
 // docs/VoxelFoundationPlan.md F2.4 — the 1/8 m sprigs' canopy shadows: renderShadow's twin for one buffer,
 // voxfound_foliage_shadow.vert (position decode only). Mid cascade, like today's foliage.
 void FoliageRenderPipeline::renderShadowVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer,
-                                                 uint32_t count, const glm::dvec3& originAbs) {
+                                                 uint32_t count, const glm::dvec3& originAbs,
+                                                 VkDeviceSize bufferOffset) {
     if (!m_params.enabled || buffer == VK_NULL_HANDLE || count == 0 || m_shadowPipeline == VK_NULL_HANDLE) return;
     if (m_voxFoundShadowPipeline == VK_NULL_HANDLE) {
         if (m_voxFoundShadowFailed) return;
@@ -385,7 +386,7 @@ void FoliageRenderPipeline::renderShadowVoxFound(VkCommandBuffer cmd, VkDescript
     pc.absBaseY = float(originAbs.y);
     pc.absBaseZ = float(originAbs.z);
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FoliagePush), &pc);
-    VkDeviceSize offset = 0;
+    VkDeviceSize offset = bufferOffset;
     vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &offset);
     vkCmdDraw(cmd, 6u * m_params.cardsPerVoxel, count, 0, 0);
 }
@@ -470,7 +471,8 @@ void FoliageRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
 // params, wind and foliage.frag as render(); only the vertex shader's position decode differs
 // (voxfound_foliage.vert). Pipeline created on first use.
 void FoliageRenderPipeline::renderVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer,
-                                           uint32_t count, const glm::dvec3& originAbs) {
+                                           uint32_t count, const glm::dvec3& originAbs,
+                                           VkDeviceSize bufferOffset) {
     if (!m_params.enabled || buffer == VK_NULL_HANDLE || count == 0 || m_pipelineLayout == VK_NULL_HANDLE) return;
     if (m_voxFoundPipeline == VK_NULL_HANDLE) {
         if (m_voxFoundFailed) return;
@@ -502,7 +504,7 @@ void FoliageRenderPipeline::renderVoxFound(VkCommandBuffer cmd, VkDescriptorSet 
     pc.absBaseY = float(originAbs.y);
     pc.absBaseZ = float(originAbs.z);
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FoliagePush), &pc);
-    VkDeviceSize offset = 0;
+    VkDeviceSize offset = bufferOffset;
     vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &offset);
     vkCmdDraw(cmd, 6u * m_params.cardsPerVoxel, count, 0, 0);
 }

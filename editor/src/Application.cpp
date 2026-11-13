@@ -871,15 +871,25 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     apiServer->setCameraHandler([this]() -> nlohmann::json {
         nlohmann::json cam;
+        // position / yaw / pitch are the RENDER camera's (what the frame is drawn from). They used to be the input
+        // manager's, which drives the render camera only in Free mode: a pose read-back could then "verify" a pose
+        // the picture was not taken from (docs/VoxelFoundationPlan.md F2.8). The input values stay as input_*.
         if (inputManager) {
             auto pos = inputManager->getCameraPosition();
-            cam["position"] = {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}};
-            cam["yaw"] = inputManager->getYaw();
-            cam["pitch"] = inputManager->getPitch();
+            cam["input_position"] = {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}};
+            cam["input_yaw"] = inputManager->getYaw();
+            cam["input_pitch"] = inputManager->getPitch();
         }
         if (camera) {
-            auto front = camera->getFront();
+            const auto pos = camera->getPosition();
+            cam["position"] = {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}};
+            cam["yaw"] = camera->getYaw();
+            cam["pitch"] = camera->getPitch();
+            const auto front = camera->getFront();
             cam["front"] = {{"x", front.x}, {"y", front.y}, {"z", front.z}};
+            const auto m = camera->getMode();
+            cam["mode"] = m == Graphics::CameraMode::Free ? "free"
+                          : m == Graphics::CameraMode::FirstPerson ? "first_person" : "third_person";
         }
         if (cameraManager) {
             cam["activeSlot"] = cameraManager->getActiveSlotName();
@@ -13334,6 +13344,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             if (renderCoordinator) renderCoordinator->setVoxFoundPreview(nullptr);
             voxFoundPreview.faces.clear();
             voxFoundPreview.sprigs.clear();
+            voxFoundPreview.chunks.clear();
             ++voxFoundPreview.revision;
             response = {{"cleared", true}};
             return;
@@ -13348,6 +13359,16 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             voxFoundPreview.castSprigs = c.value("sprigs", voxFoundPreview.castSprigs);
             if (!cmd.params.contains("type") && !cmd.params.contains("templates")) {
                 response = {{"cast_faces", voxFoundPreview.castFaces}, {"cast_sprigs", voxFoundPreview.castSprigs}};
+                return;
+            }
+        }
+        // F2.8 A/B switches: {"hide_world":bool} stops drawing today's world; {"show_preview":bool} keeps the preview
+        // on the device but draws it or not -- so one session can alternate today / new store without rebuilding.
+        if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview")) {
+            if (cmd.params.contains("hide_world")) renderCoordinator->setHideWorld(cmd.params.value("hide_world", false));
+            if (cmd.params.contains("show_preview")) voxFoundPreview.shown = cmd.params.value("show_preview", true);
+            if (!cmd.params.contains("type") && !cmd.params.contains("region")) {
+                response = {{"hide_world", renderCoordinator->hideWorld()}, {"show_preview", voxFoundPreview.shown}};
                 return;
             }
         }
@@ -13381,6 +13402,10 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             return;
         }
         const uint32_t seed = cmd.params.value("seed", 7u);
+        if (cmd.params.contains("region")) {
+            handleVoxFoundRegion(cmd, int(type), typeName, seed, response);
+            return;
+        }
         const int x0 = cmd.params.value("x", 0), z0 = cmd.params.value("z", 0);
         const int size = cmd.params.value("size", 32);
         const bool flora = cmd.params.value("flora", false);
@@ -13490,6 +13515,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         for (size_t m = 0; m < tex.size() && m < 256; ++m)
             for (int f = 0; f < 6; ++f) voxFoundPreview.faceTex[m * 6 + f] = tex[m][f];
         voxFoundPreview.faces = packed;
+        voxFoundPreview.chunks.clear();   // one area: drawn at originMetres
         // Sprig instance: today's leaf texture (face 0, as ChunkRenderManager), full sky, no block light.
         voxFoundPreview.sprigs.resize(sprigRecs.size());
         for (size_t i = 0; i < sprigRecs.size(); ++i) {
@@ -13529,6 +13555,129 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     {"flora_stamped", fs.stamped},
                     {"flora_missing", fs.missing}};
         return;
+}
+
+// docs/VoxelFoundationPlan.md F2.8 -- the preview of a REGION of whole engine chunks, built as chunks: each 32 m
+// chunk is generated alone (VoxFound::forEachRegionChunk: terrain + flora over the chunk and a 1 m margin), its
+// faces built on the GPU with its real border (Neighbours), and drawn at its true world position. Body:
+// {region:{from:[cx,cy,cz], to:[cx,cy,cz]}, type, seed, flora, leaves, sprigs_per_m2, hide_world}. Blocking
+// (a debug route): generation is CPU, one chunk at a time.
+void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generationType, const std::string& typeName,
+                                       uint32_t seed, nlohmann::json& response) {
+    using namespace Core::VoxFound;
+    const auto& rj = cmd.params["region"];
+    auto vec3Of = [&](const char* k) -> glm::ivec3 {
+        if (!rj.contains(k) || !rj[k].is_array() || rj[k].size() != 3)
+            throw std::runtime_error(std::string("region.") + k + " must be [cx,cy,cz] (engine chunk coordinates)");
+        return {rj[k][0].get<int>(), rj[k][1].get<int>(), rj[k][2].get<int>()};
+    };
+    const glm::ivec3 a = vec3Of("from"), b = vec3Of("to");
+    const glm::ivec3 lo = glm::min(a, b), hi = glm::max(a, b);
+    const glm::ivec3 nC = hi - lo + 1;
+    const int count = nC.x * nC.y * nC.z;
+    if (count > 256) {
+        response = {{"error", "region over 256 chunks"}, {"chunks", count}};
+        return;
+    }
+    WorldGenerator gen(static_cast<WorldGenerator::GenerationType>(generationType), seed);
+    gen.loadBiomes("resources/biomes.json");
+    // The SAME generator as the loaded world: GameDefinitionLoader applies the world DB's stored recipe (biome and
+    // flora tuning) when it generates, so the preview applies it too ("recipe":"none" opts out).
+    std::string recipeUsed = "biomes.json";
+    if (cmd.params.value("recipe", std::string("world")) == "world" && chunkManager) {
+        if (WorldStorage* st = chunkManager->getWorldStorage(); st && st->hasMeta("recipe")) {
+            gen.applyRecipe(WorldRecipe::fromJson(st->getMeta("recipe")));
+            recipeUsed = "world.db";
+        }
+    }
+    const bool flora = cmd.params.value("flora", false);
+    const std::string floraDir = "resources/templates_g8/nature";
+    // "flora_window":"bounded" (default) plants what today's bounded static region plants (decorateFlora over the
+    // region's columns, 8-column inset); "open" plants everything (a streaming world).
+    const bool bounded = cmd.params.value("flora_window", std::string("bounded")) == "bounded";
+    const glm::ivec4 window(lo.x * kChunkM + 8, lo.z * kChunkM + 8, (hi.x + 1) * kChunkM - 1 - 8,
+                            (hi.z + 1) * kChunkM - 1 - 8);
+    const bool leafCards = cmd.params.value("leaves", std::string("cards")) != "voxels";
+    const double sprigsPerM2 = cmd.params.value("sprigs_per_m2", kSprigsPerM2);
+
+    std::vector<PackedFace> faces, sprigRecs;
+    std::vector<PreviewChunk> chunks;
+    std::vector<std::string> palette;
+    double gpuMs = 0.0, genMs = 0.0, buildMs = 0.0;
+    size_t solid = 0;
+    std::string err;
+    auto tGen = std::chrono::steady_clock::now();
+    const RegionBuild rb = forEachRegionChunk(gen, lo, hi, flora ? &floraDir : nullptr,
+                                              [&](const RegionChunk& rc, const std::vector<std::string>& pal) {
+        if (!err.empty()) return;
+        const auto t1 = std::chrono::steady_clock::now();
+        genMs += std::chrono::duration<double, std::milli>(t1 - tGen).count();
+        SprigParams sp;
+        for (size_t m = 1; m < pal.size(); ++m) {
+            const auto* md = Core::MaterialRegistry::instance().getMaterial(pal[m]);
+            if (md && md->billboarded) sp.cards.set(uint8_t(m));
+        }
+        sp.worldOriginVoxel = rc.originVoxel;
+        sp.threshold24 = sprigThreshold24(sprigsPerM2, kVoxelsPerM);
+        std::vector<PackedFace> out;
+        if (!voxFoundBuilder->build(rc.grid, Edges(rc.border), out, &err, leafCards ? &sp : nullptr)) return;
+        gpuMs += voxFoundBuilder->lastGpuMs();
+        solid += rc.grid.solidCount();
+        PreviewChunk pc;
+        pc.originMetres = glm::dvec3(rc.originVoxel) / double(kVoxelsPerM);
+        pc.firstFace = uint32_t(faces.size());
+        pc.firstSprig = uint32_t(sprigRecs.size());
+        for (const PackedFace& f : out) (isSprig(f) ? sprigRecs : faces).push_back(f);
+        pc.faceCount = uint32_t(faces.size()) - pc.firstFace;
+        pc.sprigCount = uint32_t(sprigRecs.size()) - pc.firstSprig;
+        if (pc.faceCount || pc.sprigCount) chunks.push_back(pc);
+        palette = pal;
+        tGen = std::chrono::steady_clock::now();
+        buildMs += std::chrono::duration<double, std::milli>(tGen - t1).count();
+    }, bounded ? &window : nullptr);
+    if (!err.empty()) {
+        response = {{"error", err}};
+        return;
+    }
+    palette = rb.palette;
+    voxFoundPreview.faceTex.assign(kFaceTexWords, 0u);
+    std::vector<uint16_t> leafTex(palette.size(), 0);
+    for (size_t m = 1; m < palette.size() && m < 256; ++m)
+        for (int f = 0; f < 6; ++f) {
+            const uint16_t t = Core::MaterialRegistry::instance().getTextureIndex(palette[m], f);
+            voxFoundPreview.faceTex[m * 6 + f] = t;
+            if (f == 0) leafTex[m] = t;
+        }
+    voxFoundPreview.faces = std::move(faces);
+    voxFoundPreview.sprigs.resize(sprigRecs.size());
+    for (size_t i = 0; i < sprigRecs.size(); ++i) {   // as the single-area preview: leaf texture face 0, full sky
+        const uint32_t m = (sprigRecs[i].b >> 16) & 0xFFu;
+        voxFoundPreview.sprigs[i] = {(sprigRecs[i].a & 0xFFFFFFu) | (15u << 24), m < leafTex.size() ? leafTex[m] : 0u};
+    }
+    voxFoundPreview.chunks = std::move(chunks);
+    voxFoundPreview.shown = true;
+    voxFoundPreview.originMetres = glm::dvec3(lo * kChunkM);
+    ++voxFoundPreview.revision;
+    renderCoordinator->setVoxFoundPreview(&voxFoundPreview);
+    response = {{"provenance", "engine WorldGenerator (" + typeName + " seed " + std::to_string(seed) +
+                                   ") at 1/8 m, generated chunk by chunk by VoxFound::forEachRegionChunk" +
+                                   (flora ? " + engine flora plan stamped from " + floraDir : "") +
+                                   "; faces by FaceBuilderGpu with each chunk's real neighbours"},
+                {"chunks_from", {lo.x, lo.y, lo.z}}, {"chunks_to", {hi.x, hi.y, hi.z}},
+                {"chunks", rb.chunks}, {"chunks_drawn", voxFoundPreview.chunks.size()},
+                {"solid_voxels", solid},
+                {"faces", voxFoundPreview.faces.size()}, {"sprigs", voxFoundPreview.sprigs.size()},
+                {"face_bytes", voxFoundPreview.faces.size() * sizeof(PackedFace)},
+                {"sprig_bytes", voxFoundPreview.sprigs.size() * sizeof(PreviewSprig)},
+                {"face_tex_table_bytes", kFaceTexWords * sizeof(uint32_t)},
+                {"gpu_face_build_ms_sum", gpuMs}, {"generate_ms", genMs}, {"build_wall_ms", buildMs},
+                {"palette", palette}, {"leaves", leafCards ? "cards" : "voxels"},
+                {"flora_stamped_per_chunk_sum", rb.flora.stamped}, {"flora_missing", rb.flora.missingNames},
+                {"recipe", recipeUsed}, {"flora_window", bounded ? "bounded" : "open"},
+                {"flora_planned_today_rect", flora && bounded
+                     ? gen.planFlora(lo.x * kChunkM, lo.z * kChunkM, (hi.x + 1) * kChunkM - 1, (hi.z + 1) * kChunkM - 1).size()
+                     : size_t(0)},
+                {"hide_world", renderCoordinator->hideWorld()}};
 }
 
 // ============================================================================

@@ -17,12 +17,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
 
 #include <glm/glm.hpp>
 
+#include "core/voxfound/Mesher.h"
 #include "core/voxfound/VoxelGrid.h"
 
 namespace Phyxel { class WorldGenerator; }
@@ -65,7 +67,35 @@ struct FloraStampStats {
     std::map<std::string, int> stampedByName;
     std::vector<std::string> missingNames;
 };
-FloraStampStats stampFlora(VoxelArea& area, WorldGenerator& gen, const std::string& templateDir, int marginM = 24);
+/// `plantWindow` (optional; x = min X, y = min Z, z = max X, w = max Z, world columns, inclusive): only plants whose
+/// column lies inside are stamped -- planFlora(rect, inset) on a bounded world is exactly the plants inside the inset
+/// rect, so this reproduces today's bounded decoration (GameDefinitionLoader: decorateFlora, inset 8) chunk by chunk.
+FloraStampStats stampFlora(VoxelArea& area, WorldGenerator& gen, const std::string& templateDir, int marginM = 24,
+                           const glm::ivec4* plantWindow = nullptr);
+
+/// F2.8: a region of whole 32 m engine chunks at 1/8 m, generated ONE CHUNK AT A TIME (each chunk is
+/// buildTerrainArea + stampFlora over the chunk plus a 1 m margin), so a region costs one chunk of memory at a
+/// time. Each chunk comes with its border solidity (Neighbours, from the margin), so faces built per chunk equal
+/// the region built whole (F2.7). Materials are indices into ONE region palette (stable once assigned).
+/// "Chunks must not be visible": the voxels of every chunk equal the region generated whole (tested).
+constexpr int kChunkM = 32;
+struct RegionChunk {
+    glm::ivec3 chunk{0};          // engine chunk coordinate (origin = chunk * kChunkM metres)
+    glm::ivec3 originVoxel{0};    // world 1/8 m position of grid voxel (0,0,0)
+    VoxelGrid grid;               // 256^3, materials index Region::palette
+    Neighbours border;            // solidity of the voxel layer outside each face
+};
+struct RegionBuild {
+    std::vector<std::string> palette{"air"};
+    FloraStampStats flora;        // summed over the chunks (a tree spanning chunks counts once per chunk)
+    size_t chunks = 0;
+};
+/// Calls `each(chunk, palette so far)` for every chunk in [chunkLo, chunkHi] (inclusive), x-major.
+/// `floraDir` null = bare terrain. `plantWindow`: as stampFlora (null = every plant, a streaming world).
+RegionBuild forEachRegionChunk(
+    WorldGenerator& gen, glm::ivec3 chunkLo, glm::ivec3 chunkHi, const std::string* floraDir,
+    const std::function<void(const RegionChunk&, const std::vector<std::string>& palette)>& each,
+    const glm::ivec4* plantWindow = nullptr);
 
 struct BlockStats {
     size_t blocks = 0, uniformAir = 0, uniformSolid = 0, detailed = 0;

@@ -30,11 +30,24 @@ struct PreviewSprig {
 };
 static_assert(sizeof(PreviewSprig) == 8, "voxfound_foliage.vert instance stride");
 
+/// F2.8: one chunk's slice of the face and sprig lists, drawn at its own origin (records are chunk-relative).
+struct PreviewChunk {
+    glm::dvec3 originMetres{0.0};
+    uint32_t firstFace = 0, faceCount = 0, firstSprig = 0, sprigCount = 0;
+};
+
 struct Preview {
-    glm::dvec3 originMetres{0.0};    // world position of voxel (0,0,0)'s min corner
+    glm::dvec3 originMetres{0.0};    // world position of voxel (0,0,0)'s min corner (used when `chunks` is empty)
     std::vector<PackedFace> faces;   // drawn as-is, 8 B each
+    std::vector<PreviewChunk> chunks;   // empty: one area, every face/sprig at originMetres
+    /// The ranges to draw: `chunks`, or one range covering everything at originMetres.
+    std::vector<PreviewChunk> ranges() const {
+        if (!chunks.empty()) return chunks;
+        return {PreviewChunk{originMetres, 0u, uint32_t(faces.size()), 0u, uint32_t(sprigs.size())}};
+    }
     std::vector<uint32_t> faceTex = std::vector<uint32_t>(kFaceTexWords, 0u);   // the device table, see above
     std::vector<PreviewSprig> sprigs;
+    bool shown = true;               // F2.8 A/B: false = kept on the device but not drawn in any pass
     bool castFaces = true;           // F2.4 diagnosis switches: which parts write the shadow maps
     bool castSprigs = true;
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves

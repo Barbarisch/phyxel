@@ -308,3 +308,80 @@ TEST(VoxFoundStorageLab, BlockStoreChurnMatchesReferenceAtEveryBatch) {
         ASSERT_LE(double(store.memoryBytes()), 1.1 * double(st.estimatedBytes())) << "batch " << batch;
     }
 }
+
+
+// ---- F2.8: a region generated chunk by chunk equals the region generated whole ------------------
+// CLAUDE.md "chunks must not be visible": the live preview generates one 32 m chunk (+1 m margin) at a time.
+// Every voxel of every chunk, and every chunk's border solidity, must equal the same region generated as ONE
+// area. Engine content: WorldGenerator Perlin seed 7 (the F2.2 forest, chunks x 255..256, z 3..4) + the
+// engine's flora plan stamped from resources/templates_g8/nature.
+TEST(VoxFoundStorageLab, RegionChunksEqualTheRegionGeneratedWhole) {
+    const std::string root = repoRoot();
+    ASSERT_FALSE(root.empty());
+    const std::string dir = root + "/resources/templates_g8/nature";
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    ASSERT_TRUE(gen.loadBiomes(root + "/resources/biomes.json"));
+    const int cx0 = 255, cx1 = 256, cz0 = 3, cz1 = 4;
+    float gLo = std::numeric_limits<float>::max(), gHi = -gLo;
+    for (int x = cx0 * kChunkM; x < (cx1 + 1) * kChunkM; ++x)
+        for (int z = cz0 * kChunkM; z < (cz1 + 1) * kChunkM; ++z) {
+            const float h = gen.sampleSurface(x, z).bedHeight;
+            gLo = std::min(gLo, h);
+            gHi = std::max(gHi, h);
+        }
+    const int cy0 = int(std::floor((std::floor(gLo) - 2) / float(kChunkM)));
+    const int cy1 = int(std::floor((std::ceil(gHi) + 26) / float(kChunkM)));
+    const glm::ivec3 cLo(cx0, cy0, cz0), cHi(cx1, cy1, cz1), nC = cHi - cLo + 1;
+    std::printf("[region] ground %.1f..%.1f m -> chunks y %d..%d (%d chunks)\n", gLo, gHi, cy0, cy1,
+                nC.x * nC.y * nC.z);
+
+    VoxelArea whole = buildTerrainArea(gen, cLo * kChunkM, nC * kChunkM);
+    const FloraStampStats wf = stampFlora(whole, gen, dir);
+    ASSERT_GT(wf.stamped, 10u) << "the forest has trees";
+    const int n = kChunkM * kVoxelsPerM;
+    const glm::ivec3 wd = whole.grid.dim;
+    auto wholeSolid = [&](glm::ivec3 p) { return whole.grid.mat[whole.grid.idx(p)] != 0; };
+    size_t badVox = 0, badBorder = 0, checkedBorder = 0, solidSeen = 0;
+    std::string first;
+    const RegionBuild rb = forEachRegionChunk(gen, cLo, cHi, &dir, [&](const RegionChunk& rc,
+                                                                       const std::vector<std::string>& pal) {
+        const glm::ivec3 off = (rc.chunk - cLo) * n;
+        EXPECT_EQ(rc.originVoxel, rc.chunk * n);
+        for (int x = 0; x < n; ++x)
+            for (int y = 0; y < n; ++y)
+                for (int z = 0; z < n; ++z) {
+                    const glm::ivec3 p(x, y, z);
+                    const std::string& want = whole.palette[whole.grid.mat[whole.grid.idx(off + p)]];
+                    const std::string& got = pal[rc.grid.mat[rc.grid.idx(p)]];
+                    solidSeen += got != "air";
+                    if (want != got && badVox++ < 3)
+                        first += "chunk (" + std::to_string(rc.chunk.x) + "," + std::to_string(rc.chunk.y) + "," +
+                                 std::to_string(rc.chunk.z) + ") voxel (" + std::to_string(x) + "," +
+                                 std::to_string(y) + "," + std::to_string(z) + ") whole " + want + " chunk " + got +
+                                 "; ";
+                }
+        // border planes that face another chunk of the region: the outside voxel is in `whole`
+        for (int axis = 0; axis < 3; ++axis)
+            for (int dir = -1; dir <= 1; dir += 2) {
+                const int a = (dir < 0 ? -1 : n) + off[axis];
+                if (a < 0 || a >= wd[axis]) continue;
+                const int ua = (axis + 1) % 3, va = (axis + 2) % 3;
+                for (int u = 0; u < n; ++u)
+                    for (int v = 0; v < n; ++v) {
+                        glm::ivec3 q;
+                        q[axis] = a;
+                        q[ua] = off[ua] + u;
+                        q[va] = off[va] + v;
+                        ++checkedBorder;
+                        badBorder += rc.border.solid(axis, dir, u, v) != wholeSolid(q);
+                    }
+            }
+    });
+    std::printf("[region] %zu chunks, %zu solid voxels, whole-region flora stamped %zu; voxel mismatches %zu, "
+                "border mismatches %zu of %zu\n",
+                rb.chunks, solidSeen, wf.stamped, badVox, badBorder, checkedBorder);
+    EXPECT_EQ(rb.chunks, size_t(nC.x * nC.y * nC.z));
+    EXPECT_GT(checkedBorder, 0u);
+    EXPECT_EQ(badVox, 0u) << first;
+    EXPECT_EQ(badBorder, 0u);
+}

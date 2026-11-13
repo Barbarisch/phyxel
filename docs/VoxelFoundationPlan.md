@@ -555,6 +555,62 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   a streaming world: the neighbour chunk's store, or "unknown = solid" until it streams in) lands with the
   whole-frame A/B.
 
+**F2.8 2026-11-13 — the first F2 gate run: the same generated scene, today's store vs the 1/8 m store, whole frame.**
+- Built:
+  - `VoxFound::forEachRegionChunk` (StorageLab.h): a region of whole 32 m engine chunks, generated one chunk at a time
+    (terrain + flora over the chunk and a 1 m margin), each with its border solidity (`Neighbours`). One region palette.
+  - The preview draws a list of chunk ranges, each at its own origin, in the main pass and in the shadow casters
+    (`Preview::chunks`). `voxfound_preview {"region":{"from":[cx,cy,cz],"to":[...]}}`.
+  - A/B switches in one session: `{"hide_world":true}` stops today's world drawing and casting (chunks, cards,
+    grass); `{"show_preview":false}` keeps the preview on the device but undrawn.
+- "Chunks must not be visible", pinned on generation (`RegionChunksEqualTheRegionGeneratedWhole`): the forest
+  (8 chunks, 142 trees) generated chunk by chunk equals it generated whole, voxel for voxel and border for border.
+  Red first: trunk cells (LogJungle) where the whole region has air, and 64,415 of 1,572,864 border bits wrong — trees
+  sat at a height that depended on the chunk. `stampFlora` read the ground by scanning the area's
+  own column (clamped at the area edge, after earlier trees were stamped). It now takes the ground from the terrain
+  function at that world column, and stamps overlapping trees in a fixed world order.
+- Same generator on both sides: the preview applies the loaded world's stored recipe (as `GameDefinitionLoader`
+  does) and plants inside today's bounded window (`decorateFlora`, 8-column inset; `planFlora(rect, inset)` is exactly
+  the plants inside the inset rect). Check: 166 planned plants on both sides. Content gap, owed to the library (§7a):
+  `fern`, `shrub_flat`, `tree_apple` have no 1/8 m template, so those plants are missing on the new side.
+- Two harness traps found and fixed on the way (both made earlier pose checks unreliable):
+  - The editor launched WITHOUT `--project` stays on the project launcher. Then `update()` never runs: API and
+    rendering work, but the camera sync and simulation do not. That was the "`/api/camera` desync". Measure with a
+    project (here `VoxFoundGate`, whose `game.json` is the scene).
+  - `GET /api/camera` returned the input manager's camera, not the render camera, so `perf_harness.py`'s pose
+    read-back could pass for a pose the frame was not drawn from. It now returns the render camera (input values as
+    `input_*`).
+- **The run** (Release, RTX 4090, 1600 × 900, IMMEDIATE present). Scene: `VoxFoundGate` game.json, WorldGenerator
+  Perlin s7 with flora, static region chunks x 254..257, y 0..1, z 2..5 (128 × 128 m forest). A = today's store
+  (`GameDefinitionLoader`); B = the same chunks at 1/8 m (480,349 faces + 225,471 sprigs, built in 24.6 s, 41 ms of
+  GPU face building), today's world hidden. `perf_harness.py`, 8 interleaved pairs × 240 GPU frames per pose,
+  pose read-back verified. Evidence `docs/evidence/voxfound_f28_*`.
+
+  | Pose | today (A) | 1/8 m (B) | B − A (95% CI) |
+  |---|---|---|---|
+  | overview_south (8192, 70, 230) | 7.09 ms | 7.88 ms | +0.75 [+0.70, +1.26] |
+  | top_down (8192, 140, 128) | 7.14 | 7.81 | +0.65 [+0.46, +0.88] |
+  | forest_floor_open (8200, 29.5, 150) | 47.95 | 43.84 | −4.07 [−4.32, −3.89] |
+  | east_low (8275, 35, 128) | 45.48 | 42.24 | −3.20 [−3.26, −2.93] |
+  | canopy_close (8160, 38, 100) | 29.83 | 25.13 | −4.74 [−4.97, −4.51] |
+
+  (A first `forest_floor` pose had the camera inside a trunk in both stores; dropped, replaced by `forest_floor_open`.)
+- **Same tier at all 5 poses.** Where the new store costs more, why (per-scope medians):
+  - Its own faces: main view 0.3-5.0 ms vs today's chunk geometry 0.12-2.1 ms (+ today's depth prepass 0.2-0.35).
+    No frustum culling yet (§4.6 item 3) and no depth prepass: all 480k faces go through the vertex stage every frame.
+  - Its shadows: +1.7-2.2 ms. All 480k faces are drawn into mid AND near, with no caster culling (item 6).
+  - The near poses are dominated by LEAF CARDS in both stores: today's cards 16-35 ms, the new sprigs 9-29 ms. That is
+    why both run at 20-35 fps there. Today's card count is 421,848 instances for 389,092 distinct sprigs (the micro-leaf
+    duplicates, F2.3); the new side draws 225,471.
+  - Not like for like, in B's favour: no grass blades (today 0.2-1.3 ms) and the three missing plant templates.
+- Memory and bytes: today 78,299 chunk quads × 16 B = 1.25 MB + 421,848 cards × 8 B = 3.37 MB; new 480,349 faces × 8 B
+  = 3.84 MB + 225,471 sprigs × 8 B = 1.80 MB + 6 KB table (1.22× today). Faces are 6.1× today's quads here (the §9a
+  proxy predicted far more; today's trees are already 1/9 m). The preview's buffers are host-visible (total GPU memory
+  moved 2 MiB), so a device-local face pool may change its draw cost; owed with item 10. Per frame the new store reads
+  every record in every pass (faces × 3 passes + sprigs × 2 = 15.1 MB); today culls per chunk.
+- Next levers, in order of the measured cost: frustum culling per chunk/block for the faces (item 3) and caster culling
+  for the shadows (item 6), then the depth prepass; then the scene grows (streaming radius, settlements).
+
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.
 

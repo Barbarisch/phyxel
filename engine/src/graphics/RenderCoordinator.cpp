@@ -1399,6 +1399,12 @@ size_t RenderCoordinator::renderStaticGeometry(StaticDrawPass pass) {
     } tierRestore{this, &tierStatsBefore, pass == StaticDrawPass::DepthPrepass};
 
     size_t renderedChunks = 0;
+    // F2.8 A/B (docs/VoxelFoundationPlan.md): today's world hidden. An empty visible list also hides the grass
+    // and leaf cards, which ride on it.
+    if (m_hideWorld) {
+        visibleChunkIndices.clear();
+        return 0;
+    }
 
     // Draw indexed cubes using chunk manager with proper culling
     if (chunkManager && !chunkManager->chunks.empty()) {
@@ -2547,7 +2553,7 @@ void RenderCoordinator::releaseVoxFoundSprigBuffer() {
 // (FoliageRenderPipeline::renderVoxFound). Same buffer policy as the faces.
 void RenderCoordinator::renderVoxFoundSprigs() {
     m_voxFoundSprigsDrawn = 0;
-    if (!m_voxFoundPreview || m_voxFoundPreview->sprigs.empty() || !foliagePipeline || !vulkanDevice) return;
+    if (!m_voxFoundPreview || !m_voxFoundPreview->shown || m_voxFoundPreview->sprigs.empty() || !foliagePipeline || !vulkanDevice) return;
     const auto& sprigs = m_voxFoundPreview->sprigs;
     if (sprigs.size() > m_voxFoundSprigCapacity) {
         releaseVoxFoundSprigBuffer();
@@ -2570,10 +2576,15 @@ void RenderCoordinator::renderVoxFoundSprigs() {
         std::memcpy(m_voxFoundSprigMapped, sprigs.data(), sprigs.size() * sizeof(Core::VoxFound::PreviewSprig));
         m_voxFoundSprigRevision = m_voxFoundPreview->revision;
     }
-    m_voxFoundSprigsDrawn = static_cast<uint32_t>(sprigs.size());
-    foliagePipeline->renderVoxFound(vulkanDevice->getCommandBuffer(currentFrame),
-                                    vulkanDevice->getDescriptorSet(currentFrame), m_voxFoundSprigBuffer,
-                                    m_voxFoundSprigsDrawn, m_voxFoundPreview->originMetres);
+    // F2.8: one draw per chunk range, each at its own origin (records are chunk-relative)
+    for (const auto& r : m_voxFoundPreview->ranges()) {
+        if (r.sprigCount == 0) continue;
+        foliagePipeline->renderVoxFound(vulkanDevice->getCommandBuffer(currentFrame),
+                                        vulkanDevice->getDescriptorSet(currentFrame), m_voxFoundSprigBuffer,
+                                        r.sprigCount, r.originMetres,
+                                        VkDeviceSize(r.firstSprig) * sizeof(Core::VoxFound::PreviewSprig));
+        m_voxFoundSprigsDrawn += r.sprigCount;
+    }
 }
 
 // docs/VoxelFoundationPlan.md F2.2: the 1/8 m face preview — faces built by the GPU face builder, drawn by
@@ -2582,7 +2593,7 @@ void RenderCoordinator::renderVoxFoundSprigs() {
 // next list for one frame; a regrow waits for the device first).
 void RenderCoordinator::renderVoxFoundPreview() {
     m_voxFoundDrawn = 0;
-    if (!m_voxFoundPreview || m_voxFoundPreview->faces.empty() || !renderPipeline || !vulkanDevice || !camera) return;
+    if (!m_voxFoundPreview || !m_voxFoundPreview->shown || m_voxFoundPreview->faces.empty() || !renderPipeline || !vulkanDevice || !camera) return;
     if (!renderPipeline->ensureVoxFoundPipeline("shaders/voxfound_face.vert.spv")) return;
     const auto& faces = m_voxFoundPreview->faces;
     if (faces.size() > m_voxFoundCapacity) {
@@ -2629,16 +2640,19 @@ void RenderCoordinator::renderVoxFoundPreview() {
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundPipeline());
     vulkanDevice->bindVertexBuffers(currentFrame);
-    VkDeviceSize off = 0;
-    vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
     vulkanDevice->bindIndexBuffer(currentFrame);
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
     renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer);
-    const glm::dvec3 origin = m_voxFoundPreview->originMetres;
-    vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), camera->relativeTo(origin),
-                                glm::vec3(origin));
-    m_voxFoundDrawn = static_cast<uint32_t>(faces.size());
-    vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), m_voxFoundDrawn, 0);
+    // F2.8: one draw per chunk range, each at its own origin (records are chunk-relative)
+    for (const auto& r : m_voxFoundPreview->ranges()) {
+        if (r.faceCount == 0) continue;
+        const VkDeviceSize off = VkDeviceSize(r.firstFace) * sizeof(Core::VoxFound::PackedFace);
+        vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
+        vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(),
+                                    camera->relativeTo(r.originMetres), glm::vec3(r.originMetres));
+        vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), r.faceCount, 0);
+        m_voxFoundDrawn += r.faceCount;
+    }
 }
 
 // Occlusion culling via the per-chunk visibility graph ("cave culling"). BFS from
@@ -2999,7 +3013,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
     // commands select each chunk's slice via firstInstance. The per-chunk origin comes from the
     // SSBO indexed by gl_DrawIDARB, which is why this needs shaderDrawParameters (C2.0b) and
     // drawIndirectFirstInstance (C2.0). MID cascade only (the near pass's caster set is tiny).
-    if (cascade == kCascadeMid && s_gpuDrivenShadow && chunkManager && !chunkManager->chunks.empty() &&
+    if (!m_hideWorld && cascade == kCascadeMid && s_gpuDrivenShadow && chunkManager && !chunkManager->chunks.empty() &&
         vulkanDevice->supportsGpuDrivenSubmission() && map.getIndirectMapped(currentFrame)) {
         Utils::Frustum lightFrustumG;
         if (s_shadowFrustumCull) lightFrustumG.extractFromMatrix(lightSpaceMatrix, Utils::Frustum::ClipConvention::ForwardZeroToOne);
@@ -3162,7 +3176,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
     // approximates the terrain that chunks would write — while drawing ~900 chunks made
     // every 4th (cadence) frame's shadow pass spike to ~20 ms (measured: visible judder).
     // The far map's casters are the far field itself: tiles + tree/structure meshes below.
-    if (!chunksDrawnViaMultidraw && cascade != kCascadeFar &&
+    if (!m_hideWorld && !chunksDrawnViaMultidraw && cascade != kCascadeFar &&
         chunkManager && !chunkManager->chunks.empty()) {
         for (const auto& chunk : chunkManager->chunks) {
              if (chunk->getNumInstances() == 0) continue;
@@ -3251,7 +3265,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
     // after a change casts the previous list).
     if (cascade != kCascadeFar) m_voxFoundShadowFaces[cascade == kCascadeNear ? 1 : 0] = 0;
     if (cascade == kCascadeMid) m_voxFoundShadowSprigs = 0;
-    if (cascade != kCascadeFar && m_voxFoundPreview && m_voxFoundPreview->castFaces &&
+    if (cascade != kCascadeFar && m_voxFoundPreview && m_voxFoundPreview->shown && m_voxFoundPreview->castFaces &&
         m_voxFoundBuffer != VK_NULL_HANDLE && m_voxFoundMapped &&
         m_voxFoundRevision == m_voxFoundPreview->revision && !m_voxFoundPreview->faces.empty() && camera) {
         VkPipeline vp = map.ensureVoxFoundPipeline();
@@ -3265,16 +3279,21 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
             }
             vulkanDevice->bindVertexBuffers(currentFrame);
             vulkanDevice->bindIndexBuffer(currentFrame);
-            VkDeviceSize off = 0;
-            vkCmdBindVertexBuffers(commandBuffer, 1, 1, &m_voxFoundBuffer, &off);
             struct { glm::mat4 lightSpaceMatrix; glm::vec3 chunkBaseOffset; uint32_t useChunkDataSsbo; uint32_t drawIndexBase; } pc;
             pc.lightSpaceMatrix = lightSpaceMatrix;
-            pc.chunkBaseOffset = camera->relativeTo(m_voxFoundPreview->originMetres);
             pc.useChunkDataSsbo = 0u;
             pc.drawIndexBase = 0u;
-            vkCmdPushConstants(commandBuffer, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
-            vkCmdDrawIndexed(commandBuffer, 36u, uint32_t(m_voxFoundPreview->faces.size()), 0, 0, 0);
-            m_voxFoundShadowFaces[cascade == kCascadeNear ? 1 : 0] = uint32_t(m_voxFoundPreview->faces.size());
+            uint32_t cast = 0;
+            for (const auto& r : m_voxFoundPreview->ranges()) {   // F2.8: per chunk range
+                if (r.faceCount == 0) continue;
+                const VkDeviceSize off = VkDeviceSize(r.firstFace) * sizeof(Core::VoxFound::PackedFace);
+                vkCmdBindVertexBuffers(commandBuffer, 1, 1, &m_voxFoundBuffer, &off);
+                pc.chunkBaseOffset = camera->relativeTo(r.originMetres);
+                vkCmdPushConstants(commandBuffer, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+                vkCmdDrawIndexed(commandBuffer, 36u, r.faceCount, 0, 0, 0);
+                cast += r.faceCount;
+            }
+            m_voxFoundShadowFaces[cascade == kCascadeNear ? 1 : 0] = cast;
         }
     }
 
@@ -3365,6 +3384,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
     // Same shadow-sphere culling as the static chunks above.
     // -------------------------------------------------------------------------
     if (cascade == kCascadeMid && foliagePipeline && foliagePipeline->params().enabled && chunkManager) {
+      if (!m_hideWorld) {   // F2.8 A/B: today's world hidden (the preview's sprigs below still cast)
         // MID cascade only: foliage_shadow.vert projects with ubo.lightSpaceMatrix (the mid
         // matrix). Near receivers still get canopy shadows because they take
         // min(nearFactor, midFactor) — a mid-only caster can never vanish up close.
@@ -3388,14 +3408,18 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
         m_shadowFoliageChunks = int(foliageDraws.size());
         foliagePipeline->renderShadow(commandBuffer,
                                       vulkanDevice->getDescriptorSet(currentFrame), foliageDraws);
+      }
         // F2.4: the 1/8 m preview's sprigs cast canopy shadows exactly like today's cards (same cascade).
-        if (m_voxFoundPreview && m_voxFoundPreview->castSprigs && m_voxFoundSprigBuffer != VK_NULL_HANDLE &&
+        if (m_voxFoundPreview && m_voxFoundPreview->shown && m_voxFoundPreview->castSprigs && m_voxFoundSprigBuffer != VK_NULL_HANDLE &&
             m_voxFoundSprigRevision == m_voxFoundPreview->revision && !m_voxFoundPreview->sprigs.empty()) {
-            foliagePipeline->renderShadowVoxFound(commandBuffer, vulkanDevice->getDescriptorSet(currentFrame),
-                                                  m_voxFoundSprigBuffer,
-                                                  uint32_t(m_voxFoundPreview->sprigs.size()),
-                                                  m_voxFoundPreview->originMetres);
-            m_voxFoundShadowSprigs = uint32_t(m_voxFoundPreview->sprigs.size());
+            for (const auto& r : m_voxFoundPreview->ranges()) {   // F2.8: per chunk range
+                if (r.sprigCount == 0) continue;
+                foliagePipeline->renderShadowVoxFound(commandBuffer, vulkanDevice->getDescriptorSet(currentFrame),
+                                                      m_voxFoundSprigBuffer, r.sprigCount, r.originMetres,
+                                                      VkDeviceSize(r.firstSprig) *
+                                                          sizeof(Core::VoxFound::PreviewSprig));
+                m_voxFoundShadowSprigs += r.sprigCount;
+            }
         }
     }
 
@@ -3404,7 +3428,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
     // grass radius as the visible pass (a blade culled from view must not cast either) and
     // driven by the SAME per-chunk density LOD, so shadows track the blades exactly.
     // -------------------------------------------------------------------------
-    if (cascade == kCascadeNear && grassPipeline && grassPipeline->params().enabled && chunkManager) {
+    if (!m_hideWorld && cascade == kCascadeNear && grassPipeline && grassPipeline->params().enabled && chunkManager) {
         // NEAR cascade ONLY (docs/NearShadowCascade.md): a blade's 0.080 u shadow proxy is
         // 0.71 of a mid-map texel — sub-texel casters rasterize sporadically and the result
         // was a random scatter of blobs changing 40.1% of the view (strictly worse than

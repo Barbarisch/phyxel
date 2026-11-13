@@ -1,0 +1,29 @@
+﻿{
+    "name":  "F2.8 gate scene: Perlin s7 forest 4x2x4 chunks",
+    "description":  "Engine-generated static region (Perlin seed 7, flora on), chunks x 254..257, y 0..1, z 2..5; the 1/8 m preview builds the same chunks",
+    "world":  {
+                  "type":  "Perlin",
+                  "seed":  7,
+                  "streaming":  false,
+                  "flora":  true,
+                  "from":  {
+                               "x":  254,
+                               "y":  0,
+                               "z":  2
+                           },
+                  "to":  {
+                             "x":  257,
+                             "y":  1,
+                             "z":  5
+                         }
+              },
+    "camera":  {
+                   "position":  {
+                                    "x":  8192,
+                                    "y":  70,
+                                    "z":  230
+                                },
+                   "yaw":  -90,
+                   "pitch":  -25
+               }
+}
