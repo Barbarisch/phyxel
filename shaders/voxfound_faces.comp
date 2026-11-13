@@ -16,11 +16,18 @@ layout(local_size_x = 64) in;
 
 layout(std430, binding = 0) readonly buffer Vox { uint vox[]; };      // material bytes, 4 per word, VoxelGrid order
 layout(std430, binding = 1) writeonly buffer Faces { uvec2 faces[]; };
-layout(std430, binding = 2) buffer Counter { uint faceCount; };
+layout(std430, binding = 2) buffer Counter { uint faceCount; uint skippedSpans; };
+// UNIFORM-BLOCK SKIP (§4.6 item 1, F2.6): one word per 8^3 block, written by the block pass (job.x == 4) before
+// the row passes. bit 0 = EMITS NOTHING (every voxel is air or a card material); bit 1 = HIDES EVERYTHING (no air).
+// A face at p exists only if p is solid, not a card, and its neighbour q across the face is air, so a row may jump
+// to the end of p's block when p's block emits nothing or q's block hides everything (q in the grid). Blocks at the
+// grid's far edge are partial; their flags describe only their in-grid voxels.
+layout(std430, binding = 3) buffer Blocks { uint blockFlags[]; };
 
 layout(push_constant) uniform PC {
     ivec4 dim;     // xyz = grid size (each 1..256); w = outside: 0 air, 1 skip
-    ivec4 job;     // x = axis (3 = the sprig pass); y = invocations in this dispatch; z = face capacity
+    ivec4 job;     // x = axis (3 = the sprig pass, 4 = the block pass); y = invocations in this dispatch;
+                   // z = face capacity; w = 1: rows use the uniform-block skip
     uvec4 cards0;  // CardSet bits 0-127: materials drawn as leaf cards (no faces; F2.3)
     uvec4 cards1;  // CardSet bits 128-255
     ivec4 origin;  // xyz = absolute cell of voxel (0,0,0); w = sprig keep threshold (24-bit hash)
@@ -64,6 +71,24 @@ uint faceAt(int u, int v) {
     return matAt(q) == 0u ? m : 0u;
 }
 
+ivec3 blockDim() { return (pc.dim.xyz + 7) >> 3; }
+uint blockAt(ivec3 p) {
+    const ivec3 b = p >> 3, nb = blockDim();
+    return blockFlags[b.z + nb.z * (b.y + nb.y * b.x)];
+}
+
+// True when no face can exist at any u' in [u, end of u's block) of this row (see Blocks above).
+bool spanEmpty(int u, int v) {
+    ivec3 p;
+    p[AX] = S;
+    p[UA] = u;
+    p[VA] = v;
+    if ((blockAt(p) & 1u) != 0u) return true;
+    ivec3 q = p;
+    q[AX] += DIR;
+    return inGrid(q) && (blockAt(q) & 2u) != 0u;
+}
+
 // Does row r hold exactly the maximal run [u, u+w) of material m?
 bool sameRun(int u, int w, int r, uint m, int nu) {
     if (u > 0 && faceAt(u - 1, r) == m) return false;
@@ -76,6 +101,23 @@ bool sameRun(int u, int w, int r, uint m, int nu) {
 void main() {
     const uint id = gl_GlobalInvocationID.x;
     if (id >= uint(pc.job.y)) return;
+    if (pc.job.x == 4) {
+        // BLOCK pass: one invocation per 8^3 block, flags over its in-grid voxels.
+        const ivec3 nb = blockDim();
+        const int bi = int(id);
+        const ivec3 b = ivec3(bi / (nb.y * nb.z), (bi / nb.z) % nb.y, bi % nb.z);
+        const ivec3 lo = b * 8, hi = min(lo + 8, pc.dim.xyz);
+        bool emitsNothing = true, hidesAll = true;
+        for (int x = lo.x; x < hi.x; ++x)
+            for (int y = lo.y; y < hi.y; ++y)
+                for (int z = lo.z; z < hi.z; ++z) {
+                    const uint m = matAt(ivec3(x, y, z));
+                    if (m == 0u) hidesAll = false;
+                    else if (!isCard(m)) emitsNothing = false;
+                }
+        blockFlags[bi] = (emitsNothing ? 1u : 0u) | (hidesAll ? 2u : 0u);
+        return;
+    }
     if (pc.job.x == 3) {
         // SPRIG pass (F2.3, VoxFound::foliageSprigs): one invocation per voxel. A card voxel with any face
         // neighbour air (outside the grid: air when dim.w == 0, never when skip) is a sprig, kept when today's
@@ -109,7 +151,13 @@ void main() {
     const int v = int(rem % uint(nv));
 
     int u = 0;
+    uint skipped = 0u;
     while (u < nu) {
+        if (pc.job.w != 0 && spanEmpty(u, v)) {   // jump to the end of this block along u
+            u = (u | 7) + 1;
+            ++skipped;
+            continue;
+        }
         const uint m = faceAt(u, v);
         if (m == 0u) { ++u; continue; }
         int w = 1;
@@ -129,4 +177,5 @@ void main() {
         }
         u += w;
     }
+    if (skipped != 0u) atomicAdd(skippedSpans, skipped);
 }

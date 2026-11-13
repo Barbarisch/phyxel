@@ -10,8 +10,8 @@
 // meshRuns (as a set) — pinned by VoxFoundFaceBuilderGpu (tests/integration). Kernel:
 // shaders/voxfound_faces.comp.
 //
-// Not yet: neighbour chunks at the grid border (§4.6 item 1), the block solidity masks / uniform-block
-// skip, partial rebuild of changed rows (§4.6 item 9). This is the exact core those build on.
+// Uniform-block skip (F2.6): per-8^3-block flags let rows jump over blocks that cannot hold a face.
+// Not yet: neighbour chunks at the grid border (§4.6 item 1), partial rebuild of changed rows (§4.6 item 9).
 
 #include <memory>
 #include <string>
@@ -51,6 +51,12 @@ public:
     /// Face-buffer capacity in faces (it grows on overflow).
     size_t capacity() const { return m_capacity; }
     void setInitialCapacity(size_t faces) { m_initialCapacity = faces; }
+    /// F2.6 uniform-block skip (default on): a first pass flags each 8^3 block "emits nothing" (all air or card
+    /// material) / "hides everything" (no air), and each slice row jumps to the end of a block wherever no face can
+    /// exist. Output is identical either way; off exists to measure it.
+    void setUniformBlockSkip(bool on) { m_blockSkip = on; }
+    /// Row spans the last build jumped over (0 with the skip off).
+    uint32_t lastSkippedSpans() const { return m_lastSkippedSpans; }
 
 private:
     struct Buffer {
@@ -62,7 +68,7 @@ private:
     bool createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible, std::string* err);
     void destroyBuffer(Buffer& b);
     uint32_t findMemoryType(uint32_t filter, VkMemoryPropertyFlags props) const;
-    bool ensureBuffers(size_t voxelWords, size_t faces, std::string* err);
+    bool ensureBuffers(size_t voxelWords, size_t faces, std::string* err, size_t blockWords = 0);
 
     VkDevice m_device = VK_NULL_HANDLE;
     VkPhysicalDevice m_physical = VK_NULL_HANDLE;
@@ -73,9 +79,11 @@ private:
     double m_timestampMs = 0.0;
     std::unique_ptr<Vulkan::ComputePipeline> m_faces;
 
-    Buffer m_voxels, m_out, m_counter, m_stagingIn, m_stagingOut;
-    size_t m_voxelWords = 0, m_capacity = 0, m_initialCapacity = 1u << 16;
+    Buffer m_voxels, m_out, m_counter, m_stagingIn, m_stagingOut, m_blocks;   // m_blocks: one word per 8^3 block
+    size_t m_blockWords = 0, m_voxelWords = 0, m_capacity = 0, m_initialCapacity = 1u << 16;
     double m_lastGpuMs = -1.0;
+    bool m_blockSkip = true;
+    uint32_t m_lastSkippedSpans = 0;
 };
 
 }  // namespace Phyxel::Core::VoxFound

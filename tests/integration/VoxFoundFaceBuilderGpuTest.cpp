@@ -229,3 +229,113 @@ TEST_F(VoxFoundFaceBuilderGpu, ForestWithFloraEqualsTheReference) {
                 "sprigs %zu, GPU %.3f ms\n", x0, z0, flora.stamped, all - sprigs, meshRuns(a.grid, Outside::Skip).size(),
                 sprigs, gpu.lastGpuMs());
 }
+
+// ---- F2.6 uniform-block skip: rows jump over 8^3 blocks that cannot hold a face; output unchanged ----
+
+namespace {
+// Awkward size (no side a multiple of 8, so every far-edge block is partial) with every block kind the skip
+// distinguishes: solid stone below y 30 (hides everything), air above y 46 (emits nothing), a random band between,
+// a solid block with ONE air voxel (must not count as hiding everything), a block of card material (emits nothing
+// but hides its neighbours), and a card block that touches stone.
+VoxelGrid skipRig() {
+    VoxelGrid g = box({37, 70, 19});
+    std::mt19937 rng(77);
+    for (int x = 0; x < 37; ++x)
+        for (int y = 0; y < 70; ++y)
+            for (int z = 0; z < 19; ++z) {
+                uint8_t m = 0;
+                if (y < 30) m = 1;
+                else if (y < 46) { const unsigned r = rng() % 100; m = r < 35 ? 1 : r < 45 ? 3 : r < 55 ? 2 : 0; }
+                g.set({x, y, z}, m);
+            }
+    g.set({11, 13, 4}, 0);                                              // one air voxel in block (1,1,0)
+    // Lone voxels on block CORNERS, so a block pass that misses a block's first or last layer is caught
+    // (a mutation reading 7 layers per block passed the rig without these).
+    g.set({15, 15, 7}, 0);                                              // air, last layer of stone block (1,1,0)
+    g.set({16, 16, 8}, 0);                                              // air, first layer of stone block (2,2,1)
+    g.set({7, 55, 7}, 1);                                               // stone, last layer of air block (0,6,0)
+    g.set({8, 56, 8}, 1);                                               // stone, first layer of air block (1,7,1)
+    g.set({36, 10, 18}, 0);                                             // air, last in-grid layer of edge block (4,1,2)
+    for (int x = 16; x < 24; ++x)
+        for (int y = 48; y < 56; ++y)
+            for (int z = 8; z < 16; ++z) g.set({x, y, z}, 2);           // a whole card block in the air
+    for (int x = 24; x < 32; ++x)
+        for (int y = 24; y < 32; ++y)
+            for (int z = 0; z < 8; ++z) g.set({x, y, z}, 2);            // a card block touching stone and the band
+    return g;
+}
+}  // namespace
+
+TEST_F(VoxFoundFaceBuilderGpu, UniformBlockSkipSkipsAndStaysExact) {
+    const VoxelGrid g = skipRig();
+    SprigParams sp;
+    sp.cards.set(2);
+    sp.worldOriginVoxel = {-3, 5, 999};
+    sp.threshold24 = 1u << 24;
+    for (bool skip : {false, true}) {
+        gpu.setUniformBlockSkip(skip);
+        for (Outside o : {Outside::Air, Outside::Skip})
+            for (const SprigParams* p : {(const SprigParams*)nullptr, (const SprigParams*)&sp}) {
+                const std::string name = std::string(skip ? "skip on" : "skip off") + (o == Outside::Air ? " air" : " skip") +
+                                         (p ? " cards" : "");
+                same(g, o, name, p);
+                if (skip) EXPECT_GT(gpu.lastSkippedSpans(), 0u) << name << ": the rig has uniform blocks";
+                else EXPECT_EQ(gpu.lastSkippedSpans(), 0u) << name;
+            }
+    }
+}
+
+TEST_F(VoxFoundFaceBuilderGpu, UniformBlockSkipTiming) {
+    // Measurement, not a gate: device time of the same build with the skip off and on (best of 5 each).
+    namespace fs = std::filesystem;
+    fs::path root = fs::current_path();
+    for (int i = 0; i < 6 && !fs::exists(root / "resources" / "templates_g8"); ++i) root = root.parent_path();
+    ASSERT_TRUE(fs::exists(root / "resources" / "templates_g8"));
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    gen.loadBiomes((root / "resources" / "biomes.json").string());
+    struct Case { const char* name; VoxelArea a; SprigParams sp; bool cards; };
+    std::vector<Case> cases;
+    {
+        float lo = std::numeric_limits<float>::max(), hi = -lo;
+        for (int x = -1; x <= 32; ++x)
+            for (int z = -1; z <= 32; ++z) {
+                const float h = gen.sampleSurface(x, z).bedHeight;
+                lo = std::min(lo, h);
+                hi = std::max(hi, h);
+            }
+        const int y0 = int(std::floor(lo)) - 8, y1 = int(std::ceil(hi)) + 8;
+        cases.push_back({"perlin s7 (0,0)", buildTerrainArea(gen, {0, y0, 0}, {32, y1 - y0, 32}), {}, false});
+    }
+    {
+        float lo = std::numeric_limits<float>::max();
+        for (int x = 8159; x <= 8192; ++x)
+            for (int z = 95; z <= 128; ++z) lo = std::min(lo, gen.sampleSurface(x, z).bedHeight);
+        VoxelArea a = buildTerrainArea(gen, {8160, int(std::floor(lo)) - 2, 96}, {32, 32, 32});
+        stampFlora(a, gen, (root / "resources" / "templates_g8" / "nature").string());
+        SprigParams sp;
+        for (size_t m = 0; m < a.palette.size(); ++m)
+            for (const char* leaf : {"Leaf", "LeafBirch", "LeafSpruce", "LeafJungle", "LeafAutumn"})
+                if (a.palette[m] == leaf) sp.cards.set(uint8_t(m));
+        sp.worldOriginVoxel = a.originVoxel;
+        sp.threshold24 = sprigThreshold24(kSprigsPerM2, kVoxelsPerM);
+        cases.push_back({"forest (8160,96)", std::move(a), sp, true});
+    }
+    for (const Case& c : cases) {
+        double best[2] = {1e30, 1e30};
+        size_t faces[2] = {0, 0}, spans = 0;
+        for (int on = 0; on < 2; ++on) {
+            gpu.setUniformBlockSkip(on != 0);
+            for (int rep = 0; rep < 5; ++rep) {
+                std::vector<PackedFace> f;
+                std::string err;
+                ASSERT_TRUE(gpu.build(c.a.grid, Outside::Skip, f, &err, c.cards ? &c.sp : nullptr)) << err;
+                best[on] = std::min(best[on], gpu.lastGpuMs());
+                faces[on] = f.size();
+                if (on) spans = gpu.lastSkippedSpans();
+            }
+        }
+        EXPECT_EQ(faces[0], faces[1]) << c.name;
+        std::printf("[facebuilder] skip timing %s %dx%dx%d: off %.3f ms, on %.3f ms, %zu spans skipped, %zu records\n",
+                    c.name, c.a.grid.dim.x, c.a.grid.dim.y, c.a.grid.dim.z, best[0], best[1], spans, faces[1]);
+    }
+}

@@ -11,7 +11,7 @@ namespace {
 constexpr uint32_t kGroup = 64;
 struct FacesPC {
     int32_t dim[4];     // xyz, w = outside (0 air, 1 skip)
-    int32_t job[4];     // axis (3 = sprig pass), invocations, capacity, -
+    int32_t job[4];     // axis (3 = sprig pass, 4 = block pass), invocations, capacity, uniform-block skip
     uint32_t cards[8];  // CardSet bits (F2.3)
     int32_t origin[4];  // absolute cell of voxel 0; w = sprig keep threshold
 };
@@ -54,7 +54,7 @@ bool FaceBuilderGpu::init(VkDevice device, VkPhysicalDevice physical, VkQueue qu
             m_timestampMs = double(props.limits.timestampPeriod) * 1e-6;
     }
     m_faces = std::make_unique<Vulkan::ComputePipeline>();
-    if (!m_faces->create(device, shaderDir + "/voxfound_faces.comp.spv", 3, sizeof(FacesPC))) {
+    if (!m_faces->create(device, shaderDir + "/voxfound_faces.comp.spv", 4, sizeof(FacesPC))) {
         if (err) *err = "FaceBuilderGpu: cannot create the pipeline from " + shaderDir +
                         "/voxfound_faces.comp.spv (run build_shaders.bat?)";
         shutdown();
@@ -69,6 +69,8 @@ void FaceBuilderGpu::shutdown() {
     destroyBuffer(m_voxels);
     destroyBuffer(m_out);
     destroyBuffer(m_counter);
+    destroyBuffer(m_blocks);
+    m_blockWords = 0;
     destroyBuffer(m_stagingIn);
     destroyBuffer(m_stagingOut);
     m_voxelWords = 0;
@@ -135,8 +137,15 @@ void FaceBuilderGpu::destroyBuffer(Buffer& b) {
     b = Buffer{};
 }
 
-bool FaceBuilderGpu::ensureBuffers(size_t voxelWords, size_t faces, std::string* err) {
+bool FaceBuilderGpu::ensureBuffers(size_t voxelWords, size_t faces, std::string* err, size_t blockWords) {
     bool rebind = false;
+    if (blockWords > m_blockWords) {
+        vkDeviceWaitIdle(m_device);
+        destroyBuffer(m_blocks);
+        if (!createBuffer(m_blocks, blockWords * 4, false, err)) return false;
+        m_blockWords = blockWords;
+        rebind = true;
+    }
     if (voxelWords > m_voxelWords) {
         vkDeviceWaitIdle(m_device);
         destroyBuffer(m_voxels);
@@ -163,6 +172,7 @@ bool FaceBuilderGpu::ensureBuffers(size_t voxelWords, size_t faces, std::string*
         m_faces->bindBuffer(0, m_voxels.buf, m_voxels.bytes);
         m_faces->bindBuffer(1, m_out.buf, m_out.bytes);
         m_faces->bindBuffer(2, m_counter.buf, m_counter.bytes);
+        m_faces->bindBuffer(3, m_blocks.buf, m_blocks.bytes);
         m_faces->updateDescriptors();
     }
     return true;
@@ -180,7 +190,9 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<Pack
         }
     const size_t n = g.size();
     const size_t words = (n + 3) / 4;
-    if (!ensureBuffers(words, std::max(m_capacity, m_initialCapacity), err)) return false;
+    const glm::ivec3 nb = (g.dim + 7) / 8;
+    const size_t blocks = size_t(nb.x) * size_t(nb.y) * size_t(nb.z);
+    if (!ensureBuffers(words, std::max(m_capacity, m_initialCapacity), err, blocks)) return false;
     std::memset(m_stagingIn.mapped, 0, words * 4);
     std::memcpy(m_stagingIn.mapped, g.mat.data(), n);
 
@@ -211,13 +223,17 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<Pack
             vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_queries, 0);
         }
         m_faces->bind(cmd);
-        for (int axis = 0; axis < (sprigs ? 4 : 3); ++axis) {
-            // axis 3 = the sprig pass: one invocation per voxel.
-            const int rows = axis < 3 ? 2 * g.dim[axis] * g.dim[(axis + 2) % 3] : int(n);
+        // Pass order: [4 = block flags, then a barrier], 0-2 = the row passes, [3 = sprigs].
+        std::vector<int> passes;
+        if (m_blockSkip) passes.push_back(4);
+        for (int a = 0; a < (sprigs ? 4 : 3); ++a) passes.push_back(a);
+        for (int axis : passes) {
+            // axis 3 = the sprig pass: one invocation per voxel; axis 4 = one per 8^3 block.
+            const int rows = axis < 3 ? 2 * g.dim[axis] * g.dim[(axis + 2) % 3] : axis == 3 ? int(n) : int(blocks);
             FacesPC pc{};
             pc.dim[0] = g.dim.x; pc.dim[1] = g.dim.y; pc.dim[2] = g.dim.z;
             pc.dim[3] = outside == Outside::Air ? 0 : 1;
-            pc.job[0] = axis; pc.job[1] = rows; pc.job[2] = int32_t(m_capacity);
+            pc.job[0] = axis; pc.job[1] = rows; pc.job[2] = int32_t(m_capacity); pc.job[3] = m_blockSkip ? 1 : 0;
             if (sprigs) {
                 std::memcpy(pc.cards, sprigs->cards.bits, sizeof(pc.cards));
                 pc.origin[0] = sprigs->worldOriginVoxel.x;
@@ -227,6 +243,14 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<Pack
             }
             m_faces->pushConstants(cmd, &pc, sizeof(pc));
             m_faces->dispatch(cmd, (uint32_t(rows) + kGroup - 1) / kGroup);
+            if (axis == 4) {   // the row passes read the block flags
+                VkMemoryBarrier fb{};
+                fb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+                fb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                fb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                                     1, &fb, 0, nullptr, 0, nullptr);
+            }
         }
         if (m_queries) vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, m_queries, 1);
         mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
@@ -235,7 +259,7 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<Pack
                              nullptr, 0, nullptr);
         // Read back the counter and the whole face buffer (a test/reference path; the draw path keeps the
         // faces on the device).
-        VkBufferCopy c0{0, 0, 4};
+        VkBufferCopy c0{0, 0, 8};   // faceCount, skippedSpans
         vkCmdCopyBuffer(cmd, m_counter.buf, m_stagingOut.buf, 1, &c0);
         VkBufferCopy c1{0, 16, VkDeviceSize(m_capacity * 8)};
         vkCmdCopyBuffer(cmd, m_out.buf, m_stagingOut.buf, 1, &c1);
@@ -266,6 +290,7 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Outside outside, std::vector<Pack
         const auto* base = static_cast<const uint8_t*>(m_stagingOut.mapped);
         uint32_t count = 0;
         std::memcpy(&count, base, 4);
+        std::memcpy(&m_lastSkippedSpans, base + 4, 4);
         if (count <= m_capacity) {
             out.resize(count);
             std::memcpy(out.data(), base + 16, size_t(count) * 8);

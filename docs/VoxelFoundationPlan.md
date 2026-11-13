@@ -366,7 +366,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 
 | # | Today | Where today | On the new store | Status |
 |---|---|---|---|---|
-| 1 | Hidden-face culling (cube, subcube, microcube; across chunk borders) | `ChunkRenderManager`, RenderOptimization Phase 1 | Per block, from the 64 B solidity masks: a face survives only if the neighbour voxel is air. Block and chunk borders read the neighbour block's mask. Uniform blocks: all-solid interior blocks and all-air blocks emit nothing without a voxel loop | **GPU done inside one chunk** (F2.1, `FaceBuilderGpu`, exact vs CPU); neighbour chunks at the border and the uniform-block skip owed |
+| 1 | Hidden-face culling (cube, subcube, microcube; across chunk borders) | `ChunkRenderManager`, RenderOptimization Phase 1 | Per block, from the 64 B solidity masks: a face survives only if the neighbour voxel is air. Block and chunk borders read the neighbour block's mask. Uniform blocks: all-solid interior blocks and all-air blocks emit nothing without a voxel loop | **GPU done inside one chunk** (F2.1, `FaceBuilderGpu`, exact vs CPU); uniform-block skip done (F2.6); neighbour chunks at the border owed |
 | 2 | Greedy face merging (cube; sub/micro fine merge, default ON) | `ChunkRenderManager` `s_fineGreedyMerge` | §4.1: in-block, then across blocks. **Consequence for §4.2:** a cross-block quad is up to 256 voxels long, so the extents need 8+8 bits, not 3+3 | **GPU done** (F2.1): run merge across the whole chunk, one thread per slice row |
 | 3 | Distance + frustum culling per chunk | `RenderCoordinator` LEVEL 1/2 | Same per chunk, plus per block AABB in the GPU draw-building pass | owed |
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | owed |
@@ -507,6 +507,25 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   - 12 B build vs 8 B build: **0 differing px.** All 80,552 faces drawn in main, mid and near (`stats`).
   - Mutation (shader reads face slot `faceID ^ 1`): 36.6% of the box differs, so the comparison can fail.
   - Cards mode (sprigs sway): 14.4% differs before vs after against a 14.9% same-build control; by eye identical.
+
+**F2.6 2026-11-12 — uniform-block skip in the face builder.** (§4.6 item 1, the in-chunk half.)
+- A block pass (`voxfound_faces.comp` job 4, one invocation per 8³ block, before the row passes) writes two flags per
+  block over its in-grid voxels: EMITS NOTHING (every voxel air or a card material) and HIDES EVERYTHING (no air).
+  A face at p exists only if p is solid, not a card, and q across it is air, so a row jumps to the end of p's block
+  when p's block emits nothing or q's block (q in the grid) hides everything. Output is unchanged; the CPU reference
+  is untouched. `FaceBuilderGpu::setUniformBlockSkip` (default on) / `lastSkippedSpans`.
+- Flags are computed on the device from the voxels, not kept as stored solidity masks yet (§3 storage keeps them
+  later; the kernel only needs the two bits).
+- Exactness: every GPU test now runs with the skip on (9/9). New rig `UniformBlockSkipSkipsAndStaysExact`: 37×70×19
+  (all far-edge blocks partial), stone / random band / air, a card block in air and one touching stone, lone air and
+  stone voxels on block corners, both Outside modes, with and without cards; skip off reports 0 spans, on > 0.
+  Red first: stub `lastSkippedSpans` = 0 failed the 4 skip-on cases.
+- Mutations: "hides everything" ignoring air → 13,166 faces missing (caught). A block pass reading only 7 layers per
+  block PASSED the first rig; the corner voxels were added for it and now catch it (6 faces of the corner stone
+  voxel missing).
+- Device time, best of 5 (`UniformBlockSkipTiming`): terrain 256×160×256 1.064 → 0.641 ms (7.48 M spans skipped);
+  forest 256³ 0.914 → 0.391 ms (11.4 M spans). Same records both ways. Includes the block pass.
+- Live: the forest preview (leaves as voxels) with the skip on: 80,552 faces, 0 differing px against the F2.5 shot.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

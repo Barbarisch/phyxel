@@ -383,7 +383,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       preview's own layout (set 0 untouched). 12 B vs 8 B build: 0 differing px (rec8_shot.py, leaves as voxels).
       LAUNCH TRAP: phyxel.exe links python312 -- put the uv cpython-3.12.13 dir on PATH or it exits silently
       (the MCP launch_engine did exactly that this session); the test exes' post-build steps fail the same way.
-      NEXT: uniform-block skip; chunk-border neighbours; then a
+      F2.6 (2026-11-12): uniform-block skip in the face builder (block pass + row jumps), exact, forest build
+      0.914 -> 0.391 ms device. Mutation lesson: a 7-layer block pass passed the first rig -- rigs for per-block
+      logic need lone voxels on block CORNERS (first and last layer).
+      Bash heredocs fail in this environment (cwd temp file error): write scripts to the scratchpad and run them.
+      NEXT: chunk-border neighbours; then a
       whole-frame A/B against today on the same generated scene (the F2 gate); regenerate spruce templates to
       today's size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
