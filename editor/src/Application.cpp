@@ -13370,8 +13370,16 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // {"mdi":bool}: F2.11 GPU draw-building pass + one indirect multidraw for the faces (default on).
         if (cmd.params.contains("occlusion")) renderCoordinator->setVoxFoundOcclusion(cmd.params.value("occlusion", true));
         if (cmd.params.contains("mdi")) renderCoordinator->setVoxFoundMdi(cmd.params.value("mdi", true));
+        // {"shadow_cull":bool}: F2.12 today's per-chunk caster test + the light frustum (faces mid/near, sprigs mid).
+        // {"shadow_mdi":bool}: F2.12 per-cluster light-frustum cull + one indirect multidraw per cascade (faces);
+        // default OFF (measured slower).
+        if (cmd.params.contains("shadow_cull"))
+            renderCoordinator->setVoxFoundShadowCull(cmd.params.value("shadow_cull", true));
+        if (cmd.params.contains("shadow_mdi"))
+            renderCoordinator->setVoxFoundShadowMdi(cmd.params.value("shadow_mdi", true));
         if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview") || cmd.params.contains("chunk_cull") ||
-            cmd.params.contains("occlusion") || cmd.params.contains("mdi")) {
+            cmd.params.contains("occlusion") || cmd.params.contains("mdi") || cmd.params.contains("shadow_cull") ||
+            cmd.params.contains("shadow_mdi")) {
             if (cmd.params.contains("hide_world")) renderCoordinator->setHideWorld(cmd.params.value("hide_world", false));
             if (cmd.params.contains("show_preview")) voxFoundPreview.shown = cmd.params.value("show_preview", true);
             if (cmd.params.contains("chunk_cull")) renderCoordinator->setVoxFoundChunkCull(cmd.params.value("chunk_cull", true));
@@ -13379,7 +13387,9 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 response = {{"hide_world", renderCoordinator->hideWorld()}, {"show_preview", voxFoundPreview.shown},
                             {"chunk_cull", renderCoordinator->voxFoundChunkCull()},
                             {"occlusion", renderCoordinator->voxFoundOcclusion()},
-                            {"mdi", renderCoordinator->voxFoundMdi()}};
+                            {"mdi", renderCoordinator->voxFoundMdi()},
+                            {"shadow_cull", renderCoordinator->voxFoundShadowCull()},
+                            {"shadow_mdi", renderCoordinator->voxFoundShadowMdi()}};
                 return;
             }
         }
@@ -13398,6 +13408,14 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"clusters_drawn", renderCoordinator->voxFoundCullStats()[1]},
                         {"cluster_faces_drawn", renderCoordinator->voxFoundCullStats()[2]},
                         {"cluster_blocks", voxFoundPreview.clusterBlocks},
+                        {"shadow_cull", renderCoordinator->voxFoundShadowCull()},
+                        {"shadow_mdi", renderCoordinator->voxFoundShadowMdi()},
+                        {"shadow_ranges_mid", renderCoordinator->voxFoundShadowCullStats(0)[0]},
+                        {"shadow_ranges_near", renderCoordinator->voxFoundShadowCullStats(1)[0]},
+                        {"shadow_clusters_mid", renderCoordinator->voxFoundShadowCullStats(0)[1]},
+                        {"shadow_clusters_near", renderCoordinator->voxFoundShadowCullStats(1)[1]},
+                        {"shadow_cluster_faces_mid", renderCoordinator->voxFoundShadowCullStats(0)[2]},
+                        {"shadow_cluster_faces_near", renderCoordinator->voxFoundShadowCullStats(1)[2]},
                         {"preview_faces", voxFoundPreview.faces.size()},
                         {"preview_sprigs", voxFoundPreview.sprigs.size()}};
             return;

@@ -393,7 +393,7 @@
     },
     "voxfound_face_shadow.vert": {
       "built": true,
-      "sources": "3f8d051847cfe818ee1e933e7f7d31f44d823a3eeaaf9efb12a19a4c78b3d529",
+      "sources": "cb907d4b315aa9b111f5c6ee7d61f467e36f189afb05e5113348e3fbc70de463",
       "spv_present": true
     },
     "voxfound_faces.comp": {

@@ -28,6 +28,7 @@
 #include <random>
 #include <tuple>
 
+#include <glm/gtc/matrix_transform.hpp>
 #include <nlohmann/json.hpp>
 
 #include "core/BuildingProgram.h"
@@ -737,4 +738,63 @@ TEST(VoxFoundMesher, BoxInFrustumIsThePVertexTest) {
     EXPECT_TRUE(boxInFrustum(p, glm::vec3(0), glm::vec3(1)));
     p[0] = glm::vec4(0, 0.6f, 0.8f, -1.5f);   // tilted plane: farthest corner (0,1,1) gives 1.4 - 1.5 < 0 -> out
     EXPECT_FALSE(boxInFrustum(p, glm::vec3(0), glm::vec3(1)));
+}
+
+// ---- F2.12 (§4.6 item 6): shadow-caster culling --------------------------------------------------------------------
+namespace {
+// a cascade's light matrix exactly as RenderCoordinator::fitShadowVolume builds it (camera-relative world -> light clip)
+glm::mat4 testLightMatrix(glm::vec3 center, float radius, glm::vec3 lightDir) {
+    lightDir = glm::normalize(lightDir);
+    const glm::vec3 up = std::abs(lightDir.y) > 0.99f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
+    const float back = 120.0f;
+    const glm::mat4 view = glm::lookAt(center - lightDir * (radius + back), center, up);
+    glm::mat4 proj = glm::orthoRH_ZO(-radius, radius, -radius, radius, 0.0f, 2.0f * radius + 2.0f * back);
+    proj[1][1] *= -1;
+    return proj * view;
+}
+}  // namespace
+
+TEST(VoxFoundMesher, LightPlanesMatchTheClipVolume) {
+    // a point (a zero-size box) is inside the planes exactly when its clip position is in [-1,1]^2 x [0,1]
+    const glm::vec3 center(12.0f, -8.0f, -30.0f), lightDir(0.4f, -0.8f, 0.3f), frameOrigin(-130.5f, -20.0f, 77.25f);
+    const glm::mat4 L = testLightMatrix(center, 60.0f, lightDir);
+    glm::vec4 planes[6];
+    clipPlanesZeroToOne(L, frameOrigin, planes);
+    std::mt19937 rng(5);
+    std::uniform_real_distribution<float> d(-260.0f, 260.0f);
+    size_t in = 0, out = 0, wrong = 0;
+    for (int i = 0; i < 20000; ++i) {
+        const glm::vec3 p = center - frameOrigin + glm::vec3(d(rng), d(rng), d(rng));   // frame coordinates
+        const glm::vec4 c = L * glm::vec4(p + frameOrigin, 1.0f);
+        const float margin = std::min({c.w - std::abs(c.x), c.w - std::abs(c.y), c.z, c.w - c.z});
+        if (std::abs(margin) < 1e-4f) continue;   // on a plane: either answer
+        const bool want = margin > 0.0f;
+        (want ? in : out)++;
+        if (boxInFrustum(planes, p, p) != want) ++wrong;
+    }
+    std::printf("[light planes] %zu inside, %zu outside, %zu wrong\n", in, out, wrong);
+    EXPECT_GT(in, 500u);
+    EXPECT_GT(out, 500u);
+    EXPECT_EQ(wrong, 0u);
+    for (int k = 0; k < 6; ++k) EXPECT_NEAR(glm::length(glm::vec3(planes[k])), 1.0f, 1e-4f) << "plane " << k;
+}
+
+TEST(VoxFoundMesher, CasterBoxFollowsTodaysRuleAndTheLightBox) {
+    // mid cascade: fitted sphere radius 60 around the centre, caster reach = 60 + 160 (today's margin)
+    const glm::vec3 center(12.0f, -8.0f, -30.0f), lightDir = glm::normalize(glm::vec3(0.4f, -0.8f, 0.3f));
+    const glm::vec3 frameOrigin(-130.5f, -20.0f, 77.25f);
+    const glm::mat4 L = testLightMatrix(center, 60.0f, lightDir);
+    glm::vec4 planes[6];
+    clipPlanesZeroToOne(L, frameOrigin, planes);
+    const glm::vec3 c = center - frameOrigin;   // the sphere centre in frame coordinates
+    const float reach = 60.0f + 160.0f;
+    auto kept = [&](glm::vec3 boxCentre) {
+        return casterBoxKept(boxCentre - glm::vec3(16.0f), boxCentre + glm::vec3(16.0f), c, reach, planes);
+    };
+    const glm::vec3 side = glm::normalize(glm::cross(lightDir, glm::vec3(0, 1, 0)));   // across the light
+    EXPECT_TRUE(kept(c)) << "a chunk at the centre casts";
+    EXPECT_TRUE(kept(c - lightDir * 150.0f)) << "toward the sun, inside the reach and the depth range: casts";
+    EXPECT_FALSE(kept(c + glm::vec3(500.0f, 0.0f, 0.0f))) << "beyond the reach: today's distance test drops it";
+    EXPECT_FALSE(kept(c + side * 150.0f)) << "inside the reach but beside the light box: the light frustum drops it";
+    EXPECT_TRUE(kept(c + side * 70.0f)) << "straddling the light box's side: kept";
 }

@@ -812,6 +812,7 @@ RenderCoordinator::~RenderCoordinator() {
     releaseVoxFoundBuffer();
     releaseVoxFoundTexBuffer();
     releaseVoxFoundCull();
+    releaseVoxFoundShadowCull();
     if (m_matSimBuffer != VK_NULL_HANDLE && vulkanDevice) {   // MatSim P1b raw-cell view buffer
         vkUnmapMemory(vulkanDevice->getDevice(), m_matSimMemory);
         vkDestroyBuffer(vulkanDevice->getDevice(), m_matSimBuffer, nullptr);
@@ -2722,6 +2723,141 @@ std::array<uint32_t, 3> RenderCoordinator::voxFoundCullStats() {
     return s;
 }
 
+// docs/VoxelFoundationPlan.md F2.12 (§4.6 item 6): shadow-caster culling of the preview. The per-chunk part is
+// today's caster test (renderShadowPass: chunk centre within the cascade's fitted radius + caster margin) plus the
+// light frustum, both done in the region's anchor frame (small floats; the light matrix maps CAMERA-RELATIVE world,
+// so its planes are moved to the anchor with VoxFound::clipPlanesZeroToOne). `pad` grows the 32 m box (sprig cards
+// overhang their chunk). Today's own light-frustum chunk test (s_shadowFrustumCull) is off by default and compares
+// ABSOLUTE chunk boxes with that camera-relative matrix -- not reused here.
+std::vector<Core::VoxFound::PreviewChunk> RenderCoordinator::voxFoundCasterRanges(const glm::mat4& lightSpaceMatrix,
+                                                                                   const glm::vec3& cullCenter,
+                                                                                   float reach, float pad) const {
+    std::vector<Core::VoxFound::PreviewChunk> all = m_voxFoundPreview->ranges();
+    if (!m_voxFoundShadowCull || !camera) return all;
+    const glm::dvec3 anchor = m_voxFoundPreview->anchorMetres;
+    glm::vec4 planes[6];
+    Core::VoxFound::clipPlanesZeroToOne(lightSpaceMatrix, glm::vec3(anchor - glm::dvec3(camera->getPosition())),
+                                        planes);
+    const glm::vec3 centre(glm::dvec3(cullCenter) - anchor);
+    std::vector<Core::VoxFound::PreviewChunk> out;
+    out.reserve(all.size());
+    for (const auto& r : all) {
+        const glm::vec3 lo(r.originMetres - anchor);
+        if (Core::VoxFound::casterBoxKept(lo - glm::vec3(pad), lo + glm::vec3(32.0f + pad), centre, reach + pad,
+                                          planes))
+            out.push_back(r);
+    }
+    return out;
+}
+
+void RenderCoordinator::releaseVoxFoundShadowCull() {
+    if (vulkanDevice && m_voxFoundShadowOriginBuffer != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(vulkanDevice->getDevice());
+        vkDestroyBuffer(vulkanDevice->getDevice(), m_voxFoundShadowOriginBuffer, nullptr);
+        vkFreeMemory(vulkanDevice->getDevice(), m_voxFoundShadowOriginMemory, nullptr);
+    }
+    m_voxFoundShadowOriginBuffer = VK_NULL_HANDLE;
+    m_voxFoundShadowOriginMemory = VK_NULL_HANDLE;
+    m_voxFoundShadowOriginBytes = 0;
+    m_voxFoundShadowCullGpu.reset();
+    m_voxFoundShadowCullRevision = UINT64_MAX;
+}
+
+// The per-cluster part: the cluster cull pass (F2.11) run once per cascade with the light frustum's planes, the
+// per-chunk decision above as its chunk mask, 36-index commands (M5). Recorded before the shadow render passes.
+void RenderCoordinator::recordVoxFoundShadowCull(VkCommandBuffer cmd, int cascade, const glm::mat4& lightSpaceMatrix,
+                                                 const glm::vec3& cullCenter, float reach) {
+    m_voxFoundShadowCullRecorded[cascade] = false;
+    if (!m_voxFoundShadowMdi || m_voxFoundShadowCullFailed || !m_voxFoundPreview || !m_voxFoundPreview->shown ||
+        !m_voxFoundPreview->castFaces || m_voxFoundPreview->clusters.empty() || !vulkanDevice || !camera)
+        return;
+    if (!vulkanDevice->supportsGpuDrivenSubmission() || !vulkanDevice->supportsShaderDrawParameters()) {
+        m_voxFoundShadowCullFailed = true;
+        return;
+    }
+    const auto& pv = *m_voxFoundPreview;
+    const uint32_t frames = uint32_t(Vulkan::VulkanDevice::maxFramesInFlight());
+    if (!m_voxFoundShadowCullGpu) {
+        m_voxFoundShadowCullGpu = std::make_unique<Core::VoxFound::ClusterCullGpu>();
+        std::string err;
+        if (!m_voxFoundShadowCullGpu->init(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice(), "shaders",
+                                           frames * 2u, &err)) {
+            LOG_ERROR("RenderCoordinator", "voxfound shadow MDI: " + err);
+            m_voxFoundShadowCullGpu.reset();
+            m_voxFoundShadowCullFailed = true;
+            return;
+        }
+    }
+    if (m_voxFoundShadowCullRevision != pv.revision) {
+        std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(pv.clusters.size());
+        for (size_t i = 0; i < cl.size(); ++i) {
+            const auto& c = pv.clusters[i];
+            cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk};
+        }
+        std::string err;
+        if (!m_voxFoundShadowCullGpu->upload(cl, 36u, uint32_t(pv.chunks.size()), vulkanDevice->getGraphicsQueue(),
+                                             vulkanDevice->getGraphicsQueueFamily(), &err)) {
+            LOG_ERROR("RenderCoordinator", "voxfound shadow MDI upload: " + err);
+            m_voxFoundShadowCullFailed = true;
+            return;
+        }
+        // per command: its chunk's origin minus the anchor, whole metres (exact floats), read via gl_DrawIDARB
+        if (m_voxFoundShadowOriginBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(vulkanDevice->getDevice(), m_voxFoundShadowOriginBuffer, nullptr);
+            vkFreeMemory(vulkanDevice->getDevice(), m_voxFoundShadowOriginMemory, nullptr);
+            m_voxFoundShadowOriginBuffer = VK_NULL_HANDLE;
+        }
+        const VkDeviceSize bytes = std::max<VkDeviceSize>(16, VkDeviceSize(cl.size()) * sizeof(glm::vec4));
+        vulkanDevice->createBuffer(bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                   m_voxFoundShadowOriginBuffer, m_voxFoundShadowOriginMemory);
+        void* mapped = nullptr;
+        if (m_voxFoundShadowOriginBuffer == VK_NULL_HANDLE ||
+            vkMapMemory(vulkanDevice->getDevice(), m_voxFoundShadowOriginMemory, 0, bytes, 0, &mapped) != VK_SUCCESS) {
+            m_voxFoundShadowCullFailed = true;
+            return;
+        }
+        auto* o = static_cast<glm::vec4*>(mapped);
+        for (size_t i = 0; i < cl.size(); ++i)
+            o[i] = glm::vec4(glm::vec3(glm::round(pv.chunks[pv.clusters[i].chunk].originMetres - pv.anchorMetres)), 0.0f);
+        vkUnmapMemory(vulkanDevice->getDevice(), m_voxFoundShadowOriginMemory);
+        m_voxFoundShadowOriginBytes = bytes;
+        m_voxFoundShadowCullRevision = pv.revision;
+    }
+    const auto kept = voxFoundCasterRanges(lightSpaceMatrix, cullCenter, reach, 0.0f);
+    std::vector<uint32_t> mask(pv.chunks.size(), 0u);
+    for (const auto& r : kept)
+        for (size_t i = 0; i < pv.chunks.size(); ++i)
+            if (pv.chunks[i].chunk == r.chunk) {
+                mask[i] = 1u;
+                break;
+            }
+    const uint32_t slot = uint32_t(currentFrame) * 2u + uint32_t(cascade);
+    m_voxFoundShadowCullGpu->setChunkVisible(slot, mask);
+    glm::vec4 planes[6];
+    Core::VoxFound::clipPlanesZeroToOne(lightSpaceMatrix,
+                                        glm::vec3(pv.anchorMetres - glm::dvec3(camera->getPosition())), planes);
+    m_voxFoundShadowCullGpu->record(cmd, slot, planes);
+    m_voxFoundShadowCullRecorded[cascade] = true;
+}
+
+std::array<uint32_t, 3> RenderCoordinator::voxFoundShadowCullStats(int cascade) {
+    std::array<uint32_t, 3> s{m_voxFoundShadowRanges[cascade & 1], 0, 0};
+    if (!m_voxFoundShadowCullGpu || m_voxFoundShadowCullGpu->clusterCount() == 0 || !vulkanDevice) return s;
+    const uint32_t frame = uint32_t((currentFrame + 1) % Vulkan::VulkanDevice::maxFramesInFlight());
+    std::vector<uint32_t> cmdv;
+    if (!m_voxFoundShadowCullGpu->readCommands(vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(),
+                                               frame * 2u + uint32_t(cascade & 1), cmdv, nullptr) ||
+        cmdv.empty())
+        return s;
+    for (uint32_t i = 0; i < m_voxFoundShadowCullGpu->clusterCount(); ++i)
+        if (cmdv[i * 5 + 1]) {
+            ++s[1];
+            s[2] += cmdv[i * 5 + 1];
+        }
+    return s;
+}
+
 // docs/VoxelFoundationPlan.md F2.3: the preview's leaf sprigs, drawn as today's cutout leaf cards
 // (FoliageRenderPipeline::renderVoxFound). Same buffer policy as the faces.
 void RenderCoordinator::renderVoxFoundSprigs() {
@@ -3480,16 +3616,41 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
             pc.useChunkDataSsbo = 0u;
             pc.drawIndexBase = 0u;
             uint32_t cast = 0;
-            for (const auto& r : m_voxFoundPreview->ranges()) {   // F2.8: per chunk range
-                if (r.faceCount == 0) continue;
-                const VkDeviceSize off = VkDeviceSize(r.firstFace) * sizeof(Core::VoxFound::PackedFace);
+            const int ci = cascade == kCascadeNear ? 1 : 0;
+            // F2.12 (§4.6 item 6): today's per-chunk caster test + the light frustum (reach = fitted radius + the
+            // cascade's caster margin, as the chunk loop above)
+            const float reach = cullRadius + ((cascade == kCascadeNear) ? 48.0f : 160.0f);
+            const auto casters = voxFoundCasterRanges(lightSpaceMatrix, cullCenter, reach, 0.0f);
+            m_voxFoundShadowRanges[ci] = uint32_t(casters.size());
+            VkDescriptorSet originSet = VK_NULL_HANDLE;
+            if (m_voxFoundShadowCullRecorded[ci] && m_voxFoundShadowCullGpu && m_voxFoundShadowOriginBuffer != VK_NULL_HANDLE)
+                originSet = map.voxFoundOriginSet(m_voxFoundShadowOriginBuffer, m_voxFoundShadowOriginBytes,
+                                                m_voxFoundShadowCullRevision);
+            if (originSet != VK_NULL_HANDLE) {
+                // F2.12: per-cluster light-frustum cull (recorded before the pass) + ONE indirect multidraw
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, map.getPipelineLayout(), 0, 1,
+                                        &originSet, 0, nullptr);
+                const VkDeviceSize off = 0;
                 vkCmdBindVertexBuffers(commandBuffer, 1, 1, &m_voxFoundBuffer, &off);
-                pc.chunkBaseOffset = camera->relativeTo(r.originMetres);
+                pc.chunkBaseOffset = glm::vec3(m_voxFoundPreview->anchorMetres - glm::dvec3(camera->getPosition()));
+                pc.useChunkDataSsbo = 1u;
                 vkCmdPushConstants(commandBuffer, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
-                vkCmdDrawIndexed(commandBuffer, 36u, r.faceCount, 0, 0, 0);
-                cast += r.faceCount;
+                vkCmdDrawIndexedIndirect(commandBuffer,
+                                         m_voxFoundShadowCullGpu->commands(uint32_t(currentFrame) * 2u + uint32_t(ci)),
+                                         0, m_voxFoundShadowCullGpu->clusterCount(), 20);
+                cast = 0;   // decided on the device; read back by voxFoundShadowCullStats()
+            } else {
+                for (const auto& r : casters) {   // F2.8: per chunk range
+                    if (r.faceCount == 0) continue;
+                    const VkDeviceSize off = VkDeviceSize(r.firstFace) * sizeof(Core::VoxFound::PackedFace);
+                    vkCmdBindVertexBuffers(commandBuffer, 1, 1, &m_voxFoundBuffer, &off);
+                    pc.chunkBaseOffset = camera->relativeTo(r.originMetres);
+                    vkCmdPushConstants(commandBuffer, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+                    vkCmdDrawIndexed(commandBuffer, 36u, r.faceCount, 0, 0, 0);
+                    cast += r.faceCount;
+                }
             }
-            m_voxFoundShadowFaces[cascade == kCascadeNear ? 1 : 0] = cast;
+            m_voxFoundShadowFaces[ci] = cast;
         }
     }
 
@@ -3608,7 +3769,21 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
         // F2.4: the 1/8 m preview's sprigs cast canopy shadows exactly like today's cards (same cascade).
         if (m_voxFoundPreview && m_voxFoundPreview->shown && m_voxFoundPreview->castSprigs && m_voxFoundSprigBuffer != VK_NULL_HANDLE &&
             m_voxFoundSprigRevision == m_voxFoundPreview->revision && !m_voxFoundPreview->sprigs.empty()) {
-            for (const auto& r : m_voxFoundPreview->ranges()) {   // F2.8: per chunk range
+            // F2.12: today's card caster rule (fitted radius + 160, and the foliage radius from the camera, as the
+            // card loop above) + the light frustum; the box grows 2 m because cards overhang their chunk.
+            std::vector<Core::VoxFound::PreviewChunk> sprigCasters;
+            if (m_voxFoundShadowCull && camera) {
+                const float folRadius = foliagePipeline->params().radius + 27.8f;
+                const glm::vec3 camPos = camera->getPosition();
+                for (const auto& r : voxFoundCasterRanges(lightSpaceMatrix, cullCenter, cullRadius + 160.0f, 2.0f)) {
+                    const glm::vec3 ctr = glm::vec3(r.originMetres) + glm::vec3(16.0f);
+                    if (glm::dot(ctr - camPos, ctr - camPos) > folRadius * folRadius) continue;
+                    sprigCasters.push_back(r);
+                }
+            } else {
+                sprigCasters = m_voxFoundPreview->ranges();
+            }
+            for (const auto& r : sprigCasters) {   // F2.8: per chunk range
                 if (r.sprigCount == 0) continue;
                 foliagePipeline->renderShadowVoxFound(commandBuffer, vulkanDevice->getDescriptorSet(currentFrame),
                                                       m_voxFoundSprigBuffer, r.sprigCount, r.originMetres,
@@ -4503,6 +4678,15 @@ void RenderCoordinator::drawFrame() {
         // Mid cascade (the original single map), then the near cascade (tight map whose
         // texels resolve blade-scale casters — docs/NearShadowCascade.md).
         // One scope per cascade so each one's cost is attributable (I1).
+        // F2.12 (§4.6 item 6): the preview's per-cascade cluster cull (compute, so before the shadow render passes).
+        m_voxFoundShadowCullRecorded[0] = m_voxFoundShadowCullRecorded[1] = false;
+        if (m_voxFoundPreview && m_voxFoundPreview->shown && m_voxFoundShadowMdi) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VoxFound Shadow Cull");
+            recordVoxFoundShadowCull(cmd, 0, lightSpaceMatrix, shadowCullCenter, shadowCullRadius + 160.0f);
+            if (shadowMapNear && s_nearShadowEnabled)
+                recordVoxFoundShadowCull(cmd, 1, m_nearLightSpaceMatrix, m_nearShadowCullCenter,
+                                         m_nearShadowCullRadius + 48.0f);
+        }
         {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Mid");
             renderShadowPass(cmd, *shadowMap, lightSpaceMatrix, shadowCullCenter,

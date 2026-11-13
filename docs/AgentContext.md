@@ -419,9 +419,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       host-visible buffers + a global pre-dispatch barrier made the cull pass ~1 ms (now 0.01 ms).
       TRAP: VulkanDevice never enables the 1.2 drawIndirectCount FEATURE (only checks the version) -- don't call
       vkCmdDrawIndexedIndirectCount without enabling it. Multi-line bash -c / heredocs fail here: use script files.
-      NEXT (plan §4.6 order): item 6, shadow caster culling for the preview (all 480k faces go to mid AND near today,
-      +2 ms measured) -- through the same cluster pass with the light frustum. Then the depth prepass (on-screen
-      overdraw). Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
+      F2.12 (2026-11-13): §4.6 item 6 caster culling. Mesher.h clipPlanesZeroToOne / casterBoxKept (today's chunk
+      caster rule + light frustum, in the anchor frame). {"shadow_cull":bool} default ON: 0 px, -0.40 ms at
+      overview_south, noise elsewhere. {"shadow_mdi":bool} (per-cluster light frustum + one multidraw per cascade)
+      measured SLOWER (+0.09..+0.36 ms at 3/5 poses; 36-index per-command cost) -> default OFF. The near fit covers the
+      whole 128 m region from inside it, so ground poses still cast all 480k faces into both maps (volume, not culling).
+      TRAP: today's s_shadowFrustumCull (off) tests ABSOLUTE chunk boxes against the camera-relative light matrix.
+      PIXEL RIG: diff the VIEWPORT box (y 45-670, x 242-1196); the full frame differs in the status-bar counters.
+      NEXT: the depth prepass for the preview (F2.8's lever list; today has one, the preview not), then §4.6 item 7
+      (distance tiers / LOD). Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;
       main-thread re-mesh 2-13 ms/chunk), not static rendering (good, measured). Moving matter: per-face records, only

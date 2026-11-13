@@ -1,0 +1,103 @@
+{
+ "chunk": {
+  "A": [
+   [
+    "POST",
+    "/api/debug/voxfound_preview",
+    {
+     "hide_world": true,
+     "show_preview": true,
+     "chunk_cull": true,
+     "occlusion": true,
+     "mdi": true,
+     "shadow_cull": false,
+     "shadow_mdi": false
+    }
+   ]
+  ],
+  "B": [
+   [
+    "POST",
+    "/api/debug/voxfound_preview",
+    {
+     "hide_world": true,
+     "show_preview": true,
+     "chunk_cull": true,
+     "occlusion": true,
+     "mdi": true,
+     "shadow_cull": true,
+     "shadow_mdi": false
+    }
+   ]
+  ]
+ },
+ "cluster": {
+  "A": [
+   [
+    "POST",
+    "/api/debug/voxfound_preview",
+    {
+     "hide_world": true,
+     "show_preview": true,
+     "chunk_cull": true,
+     "occlusion": true,
+     "mdi": true,
+     "shadow_cull": true,
+     "shadow_mdi": false
+    }
+   ]
+  ],
+  "B": [
+   [
+    "POST",
+    "/api/debug/voxfound_preview",
+    {
+     "hide_world": true,
+     "show_preview": true,
+     "chunk_cull": true,
+     "occlusion": true,
+     "mdi": true,
+     "shadow_cull": true,
+     "shadow_mdi": true
+    }
+   ]
+  ]
+ },
+ "poses": {
+  "overview_south": [
+   8192,
+   70,
+   230,
+   -90,
+   -30
+  ],
+  "top_down": [
+   8192,
+   140,
+   128,
+   -90,
+   -85
+  ],
+  "forest_floor_open": [
+   8200,
+   29.5,
+   150,
+   -90,
+   -5
+  ],
+  "east_low": [
+   8275,
+   35,
+   128,
+   180,
+   -10
+  ],
+  "canopy_close": [
+   8160,
+   38,
+   100,
+   45,
+   -15
+  ]
+ }
+}

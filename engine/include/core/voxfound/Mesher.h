@@ -184,4 +184,15 @@ std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int cluste
 /// planes[i] = (n, d), inside where dot(n, p) + d >= 0 (the p-vertex test: conservative, never drops a visible box).
 bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi);
 
+// ---- F2.12 (§4.6 item 6): shadow-caster culling ------------------------------------------------------------------
+/// The six planes of a zero-to-one clip matrix `clip` (e.g. a cascade's ortho lightSpaceMatrix, which maps
+/// CAMERA-RELATIVE world to light clip), expressed in a frame whose origin sits at `frameOrigin` (camera-relative):
+/// p_cameraRelative = p_frame + frameOrigin. Inside where dot(n, p) + w >= 0 and -w <= x, y <= w, 0 <= z <= w;
+/// normalized (|n| = 1, so w is a distance in metres). Same convention as boxInFrustum.
+void clipPlanesZeroToOne(const glm::mat4& clip, glm::vec3 frameOrigin, glm::vec4 planes[6]);
+/// Today's chunk caster test (RenderCoordinator::renderShadowPass) for a box [lo, hi] in any frame: its centre within
+/// `reach` (cullRadius + the cascade's caster margin) of `cullCenter`, and (the light-frustum part, done in the same
+/// frame as the box) the box inside `lightPlanes`.
+bool casterBoxKept(glm::vec3 lo, glm::vec3 hi, glm::vec3 cullCenter, float reach, const glm::vec4 lightPlanes[6]);
+
 }  // namespace Phyxel::Core::VoxFound

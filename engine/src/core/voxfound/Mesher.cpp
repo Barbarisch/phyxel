@@ -441,4 +441,24 @@ bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi) {
     return true;
 }
 
+void clipPlanesZeroToOne(const glm::mat4& clip, glm::vec3 frameOrigin, glm::vec4 planes[6]) {
+    // p_cameraRelative = p_frame + frameOrigin, so the matrix in the frame is clip * translate(frameOrigin); its rows
+    // give the planes (Gribb-Hartmann, zero-to-one depth: near = row 2, far = row 3 - row 2).
+    const glm::dmat4 m = glm::dmat4(clip) * glm::dmat4(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+                                                       double(frameOrigin.x), double(frameOrigin.y),
+                                                       double(frameOrigin.z), 1.0);
+    auto row = [&](int i) { return glm::dvec4(m[0][i], m[1][i], m[2][i], m[3][i]); };
+    const glm::dvec4 r0 = row(0), r1 = row(1), r2 = row(2), r3 = row(3);
+    const glm::dvec4 p[6] = {r3 + r0, r3 - r0, r3 + r1, r3 - r1, r2, r3 - r2};
+    for (int i = 0; i < 6; ++i) {
+        const double len = glm::length(glm::dvec3(p[i]));
+        planes[i] = len > 0.0 ? glm::vec4(p[i] / len) : glm::vec4(0, 0, 0, 1);
+    }
+}
+
+bool casterBoxKept(glm::vec3 lo, glm::vec3 hi, glm::vec3 cullCenter, float reach, const glm::vec4 lightPlanes[6]) {
+    if (glm::length((lo + hi) * 0.5f - cullCenter) > reach) return false;   // today's distance test
+    return boxInFrustum(lightPlanes, lo, hi);                                // the light frustum
+}
+
 }  // namespace Phyxel::Core::VoxFound

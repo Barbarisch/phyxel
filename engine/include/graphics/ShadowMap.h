@@ -41,6 +41,10 @@ public:
     /// voxfound_face_shadow.vert). Same layout (getPipelineLayout) and state as the chunk pipeline. Created on
     /// first call; VK_NULL_HANDLE if it cannot be built (logged once).
     VkPipeline ensureVoxFoundPipeline();
+    /// F2.12: a set of the chunk-data layout (set 0 of getPipelineLayout) bound to an external per-draw origin table
+    /// (the preview's per-cluster chunk origins), for voxfound_face_shadow.vert's multidraw path. Rewritten (after a
+    /// device wait) when the buffer or its generation changes (a recycled handle must not skip the rewrite). VK_NULL_HANDLE on failure.
+    VkDescriptorSet voxFoundOriginSet(VkBuffer buffer, VkDeviceSize bytes, uint64_t generation);
 
     // ---- C2.1 (docs/ContinuousLodPlan.md): per-draw chunk data for multidraw ----
     /// One multidraw per arena BLOCK needs the per-chunk origin out of push constants,
@@ -90,6 +94,10 @@ private:
     VkPipeline dynamicPipeline = VK_NULL_HANDLE;
     VkPipeline voxFoundPipeline = VK_NULL_HANDLE;   // F2.4 (lazy)
     bool voxFoundFailed = false;
+    VkDescriptorPool voxFoundOriginPool = VK_NULL_HANDLE;   // F2.12 (lazy)
+    VkDescriptorSet  voxFoundOriginSetHandle = VK_NULL_HANDLE;
+    VkBuffer         voxFoundOriginBound = VK_NULL_HANDLE;
+    uint64_t         voxFoundOriginGeneration = UINT64_MAX;
 
     // (The old m_shadowRange member + UI slider were DEAD — nothing in the render path read
     // them; the live reach knob is RenderCoordinator::s_shadowDistance, POST /api/debug/shadow.

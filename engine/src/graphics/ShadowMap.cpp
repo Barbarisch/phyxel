@@ -61,6 +61,9 @@ void ShadowMap::cleanup() {
         if (indirectMemory[f] != VK_NULL_HANDLE) { vkFreeMemory(vkDevice, indirectMemory[f], nullptr); indirectMemory[f] = VK_NULL_HANDLE; }
     }
     if (chunkDataPool != VK_NULL_HANDLE) { vkDestroyDescriptorPool(vkDevice, chunkDataPool, nullptr); chunkDataPool = VK_NULL_HANDLE; for (uint32_t f = 0; f < kFrames; ++f) chunkDataSet[f] = VK_NULL_HANDLE; }
+    if (voxFoundOriginPool != VK_NULL_HANDLE) { vkDestroyDescriptorPool(vkDevice, voxFoundOriginPool, nullptr); voxFoundOriginPool = VK_NULL_HANDLE; }
+    voxFoundOriginSetHandle = VK_NULL_HANDLE;
+    voxFoundOriginBound = VK_NULL_HANDLE;
     if (chunkDataLayout != VK_NULL_HANDLE) { vkDestroyDescriptorSetLayout(vkDevice, chunkDataLayout, nullptr); chunkDataLayout = VK_NULL_HANDLE; }
 
     if (pipeline != VK_NULL_HANDLE) {
@@ -576,6 +579,47 @@ VkPipeline ShadowMap::ensureVoxFoundPipeline() {
         return fail("vkCreateGraphicsPipelines failed");
     }
     return voxFoundPipeline;
+}
+
+VkDescriptorSet ShadowMap::voxFoundOriginSet(VkBuffer buffer, VkDeviceSize bytes, uint64_t generation) {
+    if (buffer == VK_NULL_HANDLE || chunkDataLayout == VK_NULL_HANDLE) return VK_NULL_HANDLE;
+    VkDevice vkDevice = device->getDevice();
+    if (voxFoundOriginPool == VK_NULL_HANDLE) {
+        VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1};
+        VkDescriptorPoolCreateInfo pi{};
+        pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pi.maxSets = 1;
+        pi.poolSizeCount = 1;
+        pi.pPoolSizes = &size;
+        if (vkCreateDescriptorPool(vkDevice, &pi, nullptr, &voxFoundOriginPool) != VK_SUCCESS) {
+            voxFoundOriginPool = VK_NULL_HANDLE;
+            return VK_NULL_HANDLE;
+        }
+        VkDescriptorSetAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        ai.descriptorPool = voxFoundOriginPool;
+        ai.descriptorSetCount = 1;
+        ai.pSetLayouts = &chunkDataLayout;
+        if (vkAllocateDescriptorSets(vkDevice, &ai, &voxFoundOriginSetHandle) != VK_SUCCESS) {
+            voxFoundOriginSetHandle = VK_NULL_HANDLE;
+            return VK_NULL_HANDLE;
+        }
+    }
+    if (voxFoundOriginBound != buffer || voxFoundOriginGeneration != generation) {
+        if (voxFoundOriginBound != VK_NULL_HANDLE) vkDeviceWaitIdle(vkDevice);   // in-flight frames may use the set
+        VkDescriptorBufferInfo bi{buffer, 0, bytes};
+        VkWriteDescriptorSet w{};
+        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w.dstSet = voxFoundOriginSetHandle;
+        w.dstBinding = 0;
+        w.descriptorCount = 1;
+        w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        w.pBufferInfo = &bi;
+        vkUpdateDescriptorSets(vkDevice, 1, &w, 0, nullptr);
+        voxFoundOriginBound = buffer;
+        voxFoundOriginGeneration = generation;
+    }
+    return voxFoundOriginSetHandle;
 }
 
 void ShadowMap::beginRenderPass(VkCommandBuffer commandBuffer) {

@@ -371,7 +371,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 3 | Distance + frustum culling per chunk | `RenderCoordinator` LEVEL 1/2 | Same per chunk, plus per block AABB in the GPU draw-building pass | per chunk done (F2.9, measured: −0.6/−0.85 ms at ground poses, 0 px); per block owed with item 5 |
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
-| 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | owed |
+| 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
 | 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | owed |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
@@ -699,6 +699,54 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
     what is on screen. **Default 4-block clusters**: no cost, the GPU-driven structure the plan wants from the start
     (item 5), and the base for the shadow-caster culling next (item 6). Per-block (1) stays selectable for re-measuring
     when the scene or the GPU changes.
+
+**F2.12 2026-11-13 — §4.6 item 6: shadow-caster culling of the preview.**
+- Built:
+  - `clipPlanesZeroToOne` (Mesher.h): the six planes of a zero-to-one clip matrix (a cascade's ortho light matrix,
+    which maps CAMERA-RELATIVE world) moved into any frame, here the region's anchor (small floats).
+    `casterBoxKept` = today's chunk caster rule (centre within the cascade's fitted radius + caster margin: 160 mid,
+    48 near) AND the box inside the light frustum.
+  - Per chunk (`voxfound_preview {"shadow_cull":bool}`, default on): faces into mid and near, sprigs into mid (plus
+    today's card rule, the foliage radius from the camera; box +2 m for card overhang).
+  - Per cluster (`{"shadow_mdi":bool}`): the F2.11 cluster pass run once per cascade with the light planes and the
+    per-chunk decision as its mask (36-index commands, M5), then one indirect multidraw per cascade.
+    `voxfound_face_shadow.vert` reads the per-draw chunk origin (relative to the anchor) from the shadow layout's own
+    set 0 when `useChunkDataSsbo` = 1 (`ShadowMap::voxFoundOriginSet`); the per-chunk path is unchanged.
+  - Stats: `shadow_ranges_mid/near`, `shadow_clusters_mid/near`, `shadow_cluster_faces_mid/near`.
+- Found in today's code, not reused: today's light-frustum chunk test (`s_shadowFrustumCull`, default OFF) compares
+  ABSOLUTE chunk boxes with the camera-relative light matrix, so switched on it would cull the wrong chunks far from
+  the origin.
+- Red first: `LightPlanesMatchTheClipVolume` (20,000 points vs the clip volume of a matrix built like
+  `fitShadowVolume`) and `CasterBoxFollowsTodaysRuleAndTheLightBox` failed on stubs; green: 0 wrong, mesher tests
+  26/26, GPU tests 12/12.
+- Prediction (written before the run, scratch `f212_prediction.txt`): per chunk, 0 mid ranges dropped, 0-30 % near,
+  whole frame within noise; per cluster, near faces −20-50 %, whole frame −0.1 to −0.6 ms at the ground poses.
+- Measured culling (stats): mid drops nothing at any pose (the region is inside the mid reach and light box).
+  Near, per chunk: 7 of 32 chunks dropped at overview_south, 1 at top_down, 0 at the ground poses; per cluster, near
+  faces 250k (−48 %) / 448k (−7 %) / 468-480k (0-3 %) of 480k. The near fit is the 40 m slice's bounding sphere
+  + 48 m margin (radius ~99 m, reach ~147 m), so with the camera inside the 128 m region its map covers all of it.
+- Pixels (viewport box; the full frame differs only in the status-bar counters): no culling vs per chunk vs per
+  cluster equal to the control at all 5 poses (0-5 px, max 1 level, the same pixels as the shot-to-shot control).
+  Sensitivity: face casters off changes 7.4 % / 9.8 % of the viewport at overview_south / canopy_close (control 0).
+- Whole frame (Release, perf_harness 8 pairs × 240 frames; `docs/evidence/voxfound_f212_*`):
+
+  | Pose | per chunk − none | per cluster − per chunk |
+  |---|---|---|
+  | overview_south | **−0.40 [−0.44, −0.16]** (near scope 1.21 → 0.47 ms) | −0.02 [−0.33, +0.22] (near scope 0.47 → 0.65) |
+  | top_down | −0.00 [−0.17, +0.20] | **+0.09 [+0.04, +0.13]** |
+  | forest_floor_open | +0.01 [−0.13, +0.05] | **+0.36 [+0.21, +1.51]** |
+  | east_low | −0.01 [−0.02, +0.07] | −0.26 [−0.69, +0.00] |
+  | canopy_close | −0.02 [−0.10, +0.09] | **+0.29 [+0.21, +0.35]** |
+
+- Both predictions wrong in part: per chunk saves 0.40 ms where it drops chunks (predicted noise); per cluster loses
+  at 3 poses. At overview_south the cluster path draws FEWER near faces (250k vs 337k) for MORE time (0.65 vs
+  0.47 ms), and the mid scope grows while culling nothing: 2,385 36-index commands cost more than 32 direct draws
+  (the cull pass itself is < 0.05 ms). Same lesson as F2.11, stronger in the shadow pass.
+- **Defaults: per-chunk caster culling ON; per-cluster shadow multidraw OFF** (selectable for re-measuring when the
+  scene grows beyond the cascades or the per-command cost changes, e.g. with indirect-count).
+- What this does not fix: the preview still casts ~480k faces into BOTH maps at the ground poses (~1.9 ms near +
+  ~2.5 ms mid). That is caster VOLUME inside the light box, which only a coarser caster (LOD, item 7) or a tighter
+  near fit removes, not culling.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

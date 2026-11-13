@@ -646,6 +646,17 @@ public:
     std::array<uint32_t, 3> voxFoundShadowCasters() const {
         return {m_voxFoundShadowFaces[0], m_voxFoundShadowFaces[1], m_voxFoundShadowSprigs};
     }
+    /// F2.12 (§4.6 item 6): today's per-chunk caster test (distance from the cascade's fitted centre + margin) plus the
+    /// light frustum, on the preview's chunks (faces mid + near, sprigs mid). Default on.
+    void setVoxFoundShadowCull(bool on) { m_voxFoundShadowCull = on; }
+    bool voxFoundShadowCull() const { return m_voxFoundShadowCull; }
+    /// F2.12: the faces cast through the cluster cull pass per cascade (light frustum per cluster) + one indirect
+    /// multidraw per cascade. Default OFF: measured +0.09..+0.36 ms whole frame at 3 of 5 gate poses (per-command cost).
+    void setVoxFoundShadowMdi(bool on) { m_voxFoundShadowMdi = on; }
+    bool voxFoundShadowMdi() const { return m_voxFoundShadowMdi; }
+    /// F2.12: per cascade (0 mid, 1 near): {chunk ranges kept by the caster test, clusters drawn, faces drawn} (the
+    /// cluster numbers read back from the most recently completed frame; waits for the queue).
+    std::array<uint32_t, 3> voxFoundShadowCullStats(int cascade);
 
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
     // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
@@ -1547,6 +1558,23 @@ private:
     uint32_t       m_voxFoundSprigsDrawn = 0;
     uint32_t       m_voxFoundShadowFaces[2] = {0, 0};              // F2.4 casters drawn: [mid, near]
     uint32_t       m_voxFoundShadowSprigs = 0;
+    // F2.12 (§4.6 item 6): shadow-caster culling
+    bool           m_voxFoundShadowCull = true;
+    bool           m_voxFoundShadowMdi = false;   // measured slower (F2.12): selectable, off
+    std::unique_ptr<Core::VoxFound::ClusterCullGpu> m_voxFoundShadowCullGpu;   // slots: frame * 2 + cascade
+    bool           m_voxFoundShadowCullFailed = false;
+    uint64_t       m_voxFoundShadowCullRevision = UINT64_MAX;
+    VkBuffer       m_voxFoundShadowOriginBuffer = VK_NULL_HANDLE;   // per command: chunk origin - anchor (vec4 m)
+    VkDeviceMemory m_voxFoundShadowOriginMemory = VK_NULL_HANDLE;
+    VkDeviceSize   m_voxFoundShadowOriginBytes = 0;
+    bool           m_voxFoundShadowCullRecorded[2] = {false, false};
+    uint32_t       m_voxFoundShadowRanges[2] = {0, 0};
+    std::vector<Core::VoxFound::PreviewChunk> voxFoundCasterRanges(const glm::mat4& lightSpaceMatrix,
+                                                                    const glm::vec3& cullCenter, float reach,
+                                                                    float pad) const;
+    void recordVoxFoundShadowCull(VkCommandBuffer cmd, int cascade, const glm::mat4& lightSpaceMatrix,
+                                  const glm::vec3& cullCenter, float reach);
+    void releaseVoxFoundShadowCull();
     void renderVoxFoundSprigs();
     void releaseVoxFoundSprigBuffer();
     bool  m_waterEnabled = false;
