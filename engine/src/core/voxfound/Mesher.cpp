@@ -693,6 +693,18 @@ void lodSplitCards(const VoxelGrid& g, const CardSet& cards, VoxelGrid& solid, V
         }
 }
 
+VoxelGrid lodLeafMass(const LodGrid& leaves, double fill, uint8_t fallback) {
+    VoxelGrid g;
+    g.resize(leaves.grid.dim);
+    const double need = std::max(1.0, fill * double(uint64_t(1) << (3 * leaves.level)));
+    for (size_t i = 0; i < g.size(); ++i) {
+        if (double(leaves.count[i]) < need) continue;
+        const uint8_t m = leaves.surfMat[i] ? leaves.surfMat[i] : leaves.volMat[i] ? leaves.volMat[i] : fallback;
+        g.mat[i] = m;
+    }
+    return g;
+}
+
 bool casterBoxKept(glm::vec3 lo, glm::vec3 hi, glm::vec3 cullCenter, float reach, const glm::vec4 lightPlanes[6]) {
     if (glm::length((lo + hi) * 0.5f - cullCenter) > reach) return false;   // today's distance test
     return boxInFrustum(lightPlanes, lo, hi);                                // the light frustum

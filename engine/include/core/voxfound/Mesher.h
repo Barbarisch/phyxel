@@ -250,6 +250,10 @@ LodTopStats lodTopStats(const LodGrid& ref, const LodGrid& coarse, const CardSet
 /// ground cell's surface vote sees the ground); the leaf pyramid is the leaf mass where it is drawn (F2.14c handoff).
 /// Level 0 keeps today's rule (card voxels hide their neighbours).
 void lodSplitCards(const VoxelGrid& g, const CardSet& cards, VoxelGrid& solid, VoxelGrid& leaves);
+/// F2.14h: the leaf mass of a LEAF pyramid level (leaf voxels only) at fill t: a cell is mass when it covers at least
+/// t x 8^k level-0 leaf voxels (t = 1/2 is the half-solid rule; lower = fatter, as the cards overhang their cells).
+/// Material = the cell's surface vote, else its volume vote, else `fallback`.
+VoxelGrid lodLeafMass(const LodGrid& leaves, double fill, uint8_t fallback);
 
 // ---- F2.14 (§3.5a point 3 "no fixed distances / no visible steps"): the level by size on screen ------------------
 /// The CPU reference of what voxfound_face*.vert + voxel.frag and voxfound_cull.comp compute. Level k's voxel

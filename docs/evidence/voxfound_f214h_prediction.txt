@@ -1,0 +1,37 @@
+F2.14h prediction (written 2026-11-14 before any code): the coarse canopy's shape vs the cards (§4.6 item 7
+continued; the last look gap of the leaf-mass handoff).
+
+Design: build {"lod_leaf_fill":t} (0 = off, the F2.14c/f mass). With t > 0 the leaf mass at levels >= h comes from the
+LEAF pyramid (F2.14g's lodSplitCards, leaf voxels only), thresholded: a cell is leaf mass when its leaf count >= t x
+8^k (lodLeafMass; material = its surface vote, else its volume vote, else the fallback leaf material). The solid
+geometry stays the default one pyramid (cards hide their neighbours). {"lod_alt":{...}} builds a second variant for
+an interleaved A/B ({"lod_alt_on":bool} swaps it).
+
+1. Unit (red first): lodLeafMass on a rig -- a cell with 3/8 leaf cover is mass at t = 1/4, air at t = 1/2; counts
+   exact; a cell whose leaves touch no air takes the volume vote or the fallback. Red on a stub.
+2. Gate vs the cards (F2.14f rig: h=2, lod_levels 3, P=8, today's world hidden, wind 0, GI off; A = sprigs everywhere,
+   B0 = t 0 mass, B = t mass), t in {1/2, 1/4, 1/8}: top_down px changed vs A 24.3 % (t 0) -> t 1/2 ~same (+-3),
+   t 1/4 15-20 %, t 1/8 12-18 % (fatter fills the gaps, then overshoots the card outline); overview_south 10.9 % ->
+   6-9 % at the best t. Luma stays within +-6 of A. Coverage lost px (background) stays ~0; gained (fattening against
+   the sky) rises with lower t: <= 2,000 px at t 1/8.
+3. Faces at levels 2 / 3 (h=2): t 1/2 ~= F2.14c's 142k / 31k (+-20 %); t 1/4 x1.3-1.8; t 1/8 x1.6-2.5.
+4. Whole frame at the chosen t vs t 0, P=8: |delta| <= 0.3 ms from above; ground poses +0..+0.5 ms (more mass faces).
+
+--- Measured (f214h_gate.json, f214h_blocks.json; controls 0.000 %):
+1. Unit: red on the stub, green (CPU 52/52).
+2. Per-pixel px changed vs the cards (> 24 levels), top_down / overview_south: old mass 24.26 / 10.93 %; fill 1/2
+   24.45 / 10.98; 1/4 24.07 / 11.56; 1/8 25.68 / 13.26 -- predicted 15-20 % at 1/4: WRONG (no fill improves it).
+   Luma (cards 107.85 top_down): old 106.2, 1/2 105.8, 1/4 114.5 (+6.6: outside +-6), 1/8 119.4. Mass error over the
+   pixels where the old mass still differs from the cards: 64.9 -> 65.2 / 50.3 / 46.2. Coverage lost / gained vs the
+   background (top_down): 471 / 30 -> 478 / 29, 130 / 286, 56 / 507 -- lower fill fills the gaps and fattens.
+   At the scale a level-2 voxel covers at P=8 (8x8 px blocks, % of blocks > 12 apart / mean): top_down old 33.5 % / 10.9,
+   1/2 34.0 / 11.1, 1/4 40.8 / 11.3, 1/8 49.3 / 14.3; overview 13.3 -> 13.3, 20.4, 27.2. Lower fill is WORSE at the
+   representable scale: a fatter mass is a uniformly lit surface where the card canopy has internal shade (leaves
+   shadowing leaves, gaps onto darker layers). The gap is sub-voxel shading, not the outline. Default fill stays 0.
+3. Faces (h=2, levels 2 / 3, leaf mass): old 142,231 / 31,112; 1/2 160,480 / 31,229; 1/4 165,515 / 36,077; 1/8
+   167,032 / 35,581 -- predicted x1.3-1.8 at 1/4 and x1.6-2.5 at 1/8: WRONG (x1.16 / x1.17): most 1/2 m and 1 m leaf
+   cells are already nearly full.
+4. Whole frame fill 1/4 vs the old mass, P=8: VOID. Two runs (f214h_ab_P8_void.*, f214h_ab_P8.*) read 1.5-2.5x the
+   usual frame times after the first pose, with CIs of several ms; the GPU was shared with another application (a game,
+   Wow.exe, running at the same time -- seen in nvidia-smi). Not a defect of the build. Owed: rerun with the GPU free.
+   (This also explains the slow F2.14f session that was voided earlier.)

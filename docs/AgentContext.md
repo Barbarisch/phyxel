@@ -466,8 +466,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       {"lod_card_ab":true} + {"lod_cards_split":bool}). Fixes hidden tops/Stone/holes at P=32 but shows canopy-interior
       branches at P=8 (farther from level 0 at 8/10 points). Finding: those interior faces cut SPRIG overdraw 2-3.7 ms
       at ground poses (early depth). TRAP: voxfound_preview with lod_* + show_preview in ONE call drops show_preview.
-      NEXT (the plan's F2 list, §4.6 item 7 continued): coarse canopy shape vs the cards (leaf threshold on the leaf
-      pyramid). Then item 8 (face direction culling), 9 (incremental rebuild), 10 (face pool), T-junctions.
+      F2.14h (2026-11-14): leaf-fill knob (lodLeafMass, {"lod_leaf_fill":t}, {"lod_alt":{...}} + {"lod_alt_on"}): no
+      fill closes the canopy gap (sub-voxel shading, not outline) -> off. Whole-frame A/B VOID: a game (Wow.exe) shared
+      the GPU. TRAP: before any perf run check nvidia-smi --query-compute-apps for other GPU apps; the user games.
+      NEXT (the plan's F2 list): item 8 (face direction culling), then 9 (incremental rebuild), 10 (face pool),
+      T-junctions. Owed perf reruns when the GPU is free: F2.14h fill 1/4 vs old mass.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

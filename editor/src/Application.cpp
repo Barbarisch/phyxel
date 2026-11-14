@@ -13387,7 +13387,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // state). Re-selects the levels (a face re-upload).
         if ((cmd.params.contains("lod_auto") || cmd.params.contains("lod_px") || cmd.params.contains("lod_casters") ||
              cmd.params.contains("lod_sprig") || cmd.params.contains("lod_max") ||
-             cmd.params.contains("lod_leaf_look") || cmd.params.contains("lod_cards_split")) &&
+             cmd.params.contains("lod_leaf_look") || cmd.params.contains("lod_cards_split") ||
+             cmd.params.contains("lod_alt_on")) &&
             !cmd.params.contains("type") && !cmd.params.contains("region")) {
             bool ok = true;
             if (cmd.params.contains("lod_casters")) voxFoundPreview.lodCasters = cmd.params.value("lod_casters", false);
@@ -13402,6 +13403,15 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             if (cmd.params.contains("lod_cards_split")) {
                 const bool want = cmd.params.value("lod_cards_split", true);
                 const bool alt = want != voxFoundPreview.lodSplit;
+                if (alt && voxFoundPreview.levelsAlt.empty()) ok = false;
+                else if (alt != voxFoundPreview.lodUseAlt) {
+                    voxFoundPreview.lodUseAlt = alt;
+                    if (!voxFoundPreview.lodFirst.empty()) ok = voxFoundPreview.selectLod();
+                }
+            }
+            // {"lod_alt_on":bool}: F2.14h -- draw the alternate variant's coarse levels (built with lod_alt/lod_card_ab)
+            if (cmd.params.contains("lod_alt_on")) {
+                const bool alt = cmd.params.value("lod_alt_on", false);
                 if (alt && voxFoundPreview.levelsAlt.empty()) ok = false;
                 else if (alt != voxFoundPreview.lodUseAlt) {
                     voxFoundPreview.lodUseAlt = alt;
@@ -13760,14 +13770,27 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // from level 0 at P=8 -- so it is off. false = one pyramid, cards hide their neighbours (F2.13-F2.14f).
     // {"lod_card_ab":true} also builds the other way as an alternate level set ({"lod_cards_split":bool} swaps it).
     const bool splitCards = cmd.params.value("lod_split_cards", false);
-    const int nVariants = cmd.params.value("lod_card_ab", false) ? 2 : 1;
-    auto variantSplit = [&](int v) { return leafCards && (v == 0 ? splitCards : !splitCards); };
-    // per variant: the region's level 3 (lodLevels > 3), of the main pyramid and (split) of the leaf pyramid
+    // F2.14h: {"lod_leaf_fill":t} (0 = off, the default) -- the leaf mass (levels >= lod_sprig_level) comes from the
+    // LEAF pyramid, a cell being mass when it covers >= t x 8^k leaf voxels (Mesher.h lodLeafMass); the solid geometry
+    // keeps its meshing. {"lod_alt":{"split_cards":bool,"leaf_fill":t}} builds a second variant ({"lod_alt_on":bool}
+    // swaps it; {"lod_card_ab":true} = the alt with split flipped, F2.14g).
+    const double leafFill = std::clamp(cmd.params.value("lod_leaf_fill", 0.0), 0.0, 1.0);
+    bool vSplit[2] = {splitCards, !splitCards};
+    double vFill[2] = {leafFill, leafFill};
+    int nVariants = cmd.params.value("lod_card_ab", false) ? 2 : 1;
+    if (cmd.params.contains("lod_alt") && cmd.params["lod_alt"].is_object()) {
+        nVariants = 2;
+        vSplit[1] = cmd.params["lod_alt"].value("split_cards", splitCards);
+        vFill[1] = std::clamp(cmd.params["lod_alt"].value("leaf_fill", leafFill), 0.0, 1.0);
+    }
+    auto variantSplit = [&](int v) { return leafCards && vSplit[v]; };
+    auto variantLeaf = [&](int v) { return leafCards && (vSplit[v] || vFill[v] > 0.0); };   // needs the leaf pyramid
+    // per variant: the region's level 3 (lodLevels > 3), of the main pyramid and of the leaf pyramid (if needed)
     std::vector<LodGrid> regionMain(static_cast<size_t>(nVariants)), regionLeaf(static_cast<size_t>(nVariants));
     if (lodLevels > 3)
         for (int v = 0; v < nVariants; ++v) {
             regionMain[size_t(v)] = lodEmpty(nC * kChunkM, 3);
-            if (variantSplit(v)) regionLeaf[size_t(v)] = lodEmpty(nC * kChunkM, 3);
+            if (variantLeaf(v)) regionLeaf[size_t(v)] = lodEmpty(nC * kChunkM, 3);
         }
     // F2.14c: {"lod_sprig_level":h} (1..lod_levels; 0 = off, the default) -- levels >= h build leaves as SOLID coarse
     // leaf mass (today's chunk-LOD handoff of cards); the sprigs then belong to the levels below h and dissolve by
@@ -13812,10 +13835,19 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // leaf-mass levels (F2.14c) draw leaves as solid faces, the others keep them as cards (no faces, hiding their
     // neighbours). Two pyramids (F2.14g): `main` holds no leaves and is meshed alone; `leaf` is meshed (as solid faces)
     // only at leaf-mass levels, in its own grid.
-    auto meshCoarse = [&](int v, int k, const VoxelGrid& main, const VoxelGrid* leaf, glm::ivec3 off, glm::ivec3 inner,
+    auto meshCoarse = [&](int v, int k, const VoxelGrid& main, const LodGrid* leafLod, glm::ivec3 off, glm::ivec3 inner,
                           const SprigParams& noSprigs, uint32_t chunkIndex, glm::ivec3 chunk) -> bool {
         const bool leafMass = sprigLevel > 0 && k >= sprigLevel;   // F2.14c: no card set = leaves are solid
         std::vector<PackedFace> solidFaces, leafFaces;
+        // F2.14h: the leaf grid to mesh -- thresholded at the variant's fill, or the leaf pyramid level as built
+        VoxelGrid leafGrid;
+        if (leafLod) {
+            uint8_t fallback = 0;
+            for (int m = 1; m < 256 && !fallback; ++m)
+                if (noSprigs.cards.has(uint8_t(m))) fallback = uint8_t(m);
+            leafGrid = vFill[v] > 0.0 ? lodLeafMass(*leafLod, vFill[v], fallback) : leafLod->grid;
+        }
+        const VoxelGrid* leaf = leafLod ? &leafGrid : nullptr;
         auto meshOne = [&](const VoxelGrid& g, const SprigParams* cardsArg, bool allLeaf) -> bool {
             const VoxelGrid cg = subGrid(g, off, inner);
             const Neighbours cb = neighboursOf(g, off, inner, Outside::Air);
@@ -13830,7 +13862,10 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                         .push_back(lodScaleFace(f, k));
             return true;
         };
-        if (leaf) {   // two pyramids
+        if (leaf && !vSplit[v]) {   // F2.14h: one pyramid for the solid geometry, the leaf mass from the leaf pyramid
+            if (!meshOne(main, leafCards ? &noSprigs : nullptr, false)) return false;   // cards: no faces, hide
+            if (leafMass && !meshOne(*leaf, nullptr, true)) return false;
+        } else if (leaf) {   // two pyramids
             if (!meshOne(main, nullptr, false)) return false;
             if (leafMass) {
                 if (!meshOne(*leaf, nullptr, true)) return false;
@@ -13894,17 +13929,19 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
             for (int v = 0; v < nVariants; ++v) {
                 // levels 1..chunkLevels of the main pyramid and (split) of the leaf pyramid
                 std::vector<LodGrid> mainLv, leafLv;
-                if (variantSplit(v)) {
+                if (variantLeaf(v)) {
                     VoxelGrid aSolid, aLeaf;
                     lodSplitCards(*rc.area, sp.cards, aSolid, aLeaf);
-                    if (!buildLevels(aSolid, chunkLevels, mainLv) || !buildLevels(aLeaf, chunkLevels, leafLv)) return;
+                    if (!buildLevels(variantSplit(v) ? aSolid : *rc.area, chunkLevels, mainLv) ||
+                        !buildLevels(aLeaf, chunkLevels, leafLv))
+                        return;
                 } else if (!buildLevels(*rc.area, chunkLevels, mainLv)) {
                     return;
                 }
                 for (int k = 1; k <= chunkLevels; ++k) {
                     const int sc = 1 << k;
                     const glm::ivec3 off(rc.areaMarginVoxels / sc), inner(kChunkM * kVoxelsPerM / sc);
-                    if (!meshCoarse(v, k, mainLv[size_t(k - 1)].grid, leafLv.empty() ? nullptr : &leafLv[size_t(k - 1)].grid,
+                    if (!meshCoarse(v, k, mainLv[size_t(k - 1)].grid, leafLv.empty() ? nullptr : &leafLv[size_t(k - 1)],
                                     off, inner, noSprigs, uint32_t(chunks.size()), rc.chunk))
                         return;
                 }
@@ -13962,7 +13999,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
             for (int v = 0; v < nVariants && err.empty(); ++v)
                 for (size_t i = 0; i < chunks.size() && err.empty(); ++i)
                     if (!meshCoarse(v, k, regionMain[size_t(v)].grid,
-                                    regionLeaf[size_t(v)].grid.size() ? &regionLeaf[size_t(v)].grid : nullptr,
+                                    regionLeaf[size_t(v)].grid.size() ? &regionLeaf[size_t(v)] : nullptr,
                                     (chunks[i].chunk - lo) * n, glm::ivec3(n), sp, uint32_t(i), chunks[i].chunk))
                         break;
         }
@@ -13990,7 +14027,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     voxFoundPreview.levels = std::move(sets[0]);
     voxFoundPreview.levelsAlt.clear();   // F2.14g A/B
     if (nVariants > 1) voxFoundPreview.levelsAlt = std::move(sets[1]);
-    voxFoundPreview.lodSplit = variantSplit(0);
+    voxFoundPreview.lodSplit = variantSplit(0);   // (F2.14h: lod_alt_on swaps whatever the alt variant is)
     voxFoundPreview.lodUseAlt = false;
     voxFoundPreview.lodSprigLevel = sprigLevel;   // F2.14c
     // F2.14: with coarser levels built, all of them go on the device (level 0 first) for selection by size on screen
@@ -14002,8 +14039,14 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     ++voxFoundPreview.revision;
     renderCoordinator->setVoxFoundPreview(&voxFoundPreview);
     nlohmann::json lodFaces = nlohmann::json::array(), lodVolume = nlohmann::json::array(),
-                   lodLeafFaces = nlohmann::json::array(), lodFacesAlt = nlohmann::json::array();
-    for (size_t k = 1; k < voxFoundPreview.levelsAlt.size(); ++k) lodFacesAlt.push_back(voxFoundPreview.levelsAlt[k].faces.size());
+                   lodLeafFaces = nlohmann::json::array(), lodFacesAlt = nlohmann::json::array(),
+                   lodLeafFacesAlt = nlohmann::json::array();
+    for (size_t k = 1; k < voxFoundPreview.levelsAlt.size(); ++k) {
+        lodFacesAlt.push_back(voxFoundPreview.levelsAlt[k].faces.size());
+        uint64_t leaf = 0;
+        for (uint32_t n : voxFoundPreview.levelsAlt[k].leafCount) leaf += n;
+        lodLeafFacesAlt.push_back(leaf);
+    }
     for (size_t k = 0; k < voxFoundPreview.levels.size(); ++k) {
         lodFaces.push_back(voxFoundPreview.levels[k].faces.size());
         uint64_t leaf = 0;   // F2.14c
@@ -14036,6 +14079,8 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 {"region_lod_ms", regionLodMs}, {"lod_top_view", topView},
                 {"lod_gpu", lodGpu}, {"lod_level_ms", lodLevelMs}, {"lod_gpu_device_ms_sum", lodGpuDeviceMs},
                 {"lod_split_cards", voxFoundPreview.lodSplit}, {"lod_faces_alt", lodFacesAlt},
+                {"lod_leaf_fill", vFill[0]}, {"lod_alt_leaf_fill", nVariants > 1 ? vFill[1] : 0.0},
+                {"lod_leaf_mass_faces_alt", lodLeafFacesAlt},
                 {"palette", palette}, {"leaves", leafCards ? "cards" : "voxels"},
                 {"flora_stamped_per_chunk_sum", rb.flora.stamped}, {"flora_missing", rb.flora.missingNames},
                 {"recipe", recipeUsed}, {"flora_window", bounded ? "bounded" : "open"},

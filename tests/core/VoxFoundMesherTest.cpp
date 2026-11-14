@@ -1053,6 +1053,39 @@ TEST(VoxFoundMesher, CoarseLevelsFromTwoPyramidsKeepTheGroundUnderTheCanopy) {
     }
 }
 
+TEST(VoxFoundMesher, LeafMassFillThresholdsTheLeafPyramid) {
+    // F2.14h: three level-1 cells (2x2x2 voxels each) of leaves (5, a card material) along x: cell 0 holds 3 leaf
+    // voxels (3/8), cell 1 all 8, cell 2 one (1/8). At fill 1/2 only cell 1 is mass; at 1/4 cells 0 and 1; at 1/8 all.
+    // Cell 1 is surrounded by leaves on two sides but its outer voxels touch air, so its material comes from the
+    // surface vote; a grid that is ALL leaves (no air anywhere inside) has no surface: volume vote.
+    VoxelGrid g;
+    g.resize({6, 2, 2});
+    g.set({0, 0, 0}, 5); g.set({1, 0, 0}, 5); g.set({0, 1, 0}, 5);
+    for (int x = 2; x < 4; ++x)
+        for (int y = 0; y < 2; ++y)
+            for (int z = 0; z < 2; ++z) g.set({x, y, z}, 5);
+    g.set({4, 0, 0}, 5);
+    const LodGrid l1 = lodDown(lodBase(g));
+    ASSERT_EQ(l1.grid.dim, glm::ivec3(3, 1, 1));
+    EXPECT_EQ(l1.count[0] + l1.count[1] + l1.count[2], 12u);
+    struct Case { double fill; uint8_t expect[3]; };
+    for (const Case c : {Case{0.5, {0, 5, 0}}, Case{0.25, {5, 5, 0}}, Case{0.125, {5, 5, 5}}}) {
+        const VoxelGrid m = lodLeafMass(l1, c.fill, 7);
+        ASSERT_EQ(m.dim, l1.grid.dim);
+        for (int x = 0; x < 3; ++x)
+            EXPECT_EQ(int(m.mat[m.idx({x, 0, 0})]), int(c.expect[x])) << "fill " << c.fill << " cell " << x;
+    }
+    VoxelGrid full;   // all leaves: nothing touches air inside the grid -> surface vote empty -> volume vote
+    full.resize({2, 2, 2});
+    for (uint8_t& v : full.mat) v = 6;
+    EXPECT_EQ(int(lodLeafMass(lodDown(lodBase(full)), 0.5, 7).mat[0]), 6);
+    VoxelGrid sparse;   // one leaf voxel in a 2^3 cell, below half: kept at 1/8 with its surface vote
+    sparse.resize({2, 2, 2});
+    sparse.set({0, 0, 0}, 6);
+    const LodGrid sl = lodDown(lodBase(sparse));
+    EXPECT_EQ(int(lodLeafMass(sl, 0.125, 7).mat[0]), sl.surfMat[0] ? int(sl.surfMat[0]) : 7);
+}
+
 TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {
     // cost inputs for item 7 (not a gate): the §9a forest spot, faces and solid volume per level
     const std::string root = repoRoot();
