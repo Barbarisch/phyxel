@@ -15,6 +15,9 @@
 #include "core/WaterOccupancy.h"
 #include "core/FlowField.h"
 #include <chrono>
+#include <string>
+#include <filesystem>
+#include <thread>
 #include <cstdlib>
 #include <vector>
 #include <fstream>
@@ -717,6 +720,206 @@ TEST(WaterGeneratedContainmentTest, TheLevelRiversFlagOffLeavesD4sRiver) {
 
 // 51.14 measurement: the river's wet share against the cut limit (kMaxRiverCut). An uncut river column today has its carved top more
 // than 1 m over the stage; it would be cut (and wet) at a limit c when that excess is <= c.
+// ===== 51.17: the bake stored per world (the owner's decision 2026-11-14: "paid once") =====
+namespace {
+constexpr uint32_t kRcSeed = 20260729u;
+std::string tempHydroStore(const char* tag) {
+    return (std::filesystem::temp_directory_path() /
+            (std::string("phyxel_hydro_") + tag + "_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
+             ".hydro")).string();
+}
+struct RmStore { std::string p; ~RmStore() { std::error_code ec; std::filesystem::remove(p, ec); } };
+// One "session": the in-process cache cleared first, so the bake comes from the file or from scratch - never from memory.
+void storedSession(WorldGenerator& g, const std::string& path) {
+    WorldGenerator::clearHydroBakeCache();
+    g.setBakeStore(path);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
+}
+long levelsDiffer(const WorldGenerator& a, const WorldGenerator& b) {
+    const auto& la = a.hydrology()->levels();
+    const auto& lb = b.hydrology()->levels();
+    if (la.size() != lb.size()) return -1;
+    long d = 0;
+    for (size_t i = 0; i < la.size(); ++i) if (la[i] != lb[i]) ++d;
+    return d;
+}
+long spansDiffer(WorldGenerator& a, WorldGenerator& b, int x0, int z0, int w, int d) {
+    std::vector<WaterSpan> sa, sb; std::vector<uint8_t> ha, hb;
+    a.waterSpansForBlock(x0, z0, w, d, sa, ha);
+    b.waterSpansForBlock(x0, z0, w, d, sb, hb);
+    long diff = 0;
+    if (sa.size() != sb.size() || ha != hb) return -1;
+    for (size_t i = 0; i < sa.size(); ++i) if (sa[i].bottomY != sb[i].bottomY || sa[i].topY != sb[i].topY) ++diff;
+    return diff;
+}
+void printStore(const char* name, const WorldGenerator& g) {
+    const auto& s = g.bakeStoreStats();
+    std::printf("[bake store] %s: %s, load %.1f ms, verify %.1f ms (%d minima, %d drain), %d drain cells, %ld bytes | bake %.2f s: "
+                "flow %.2f, minima %.2f, flood %.2f, drain %.2f, bodies %.2f\n", name, WorldGenerator::bakeStoreStateName(s.state),
+                s.loadMs, s.verifyMs, s.verifiedMinima, s.verifiedDrain, s.drainCells, s.fileBytes, g.bakeSeconds(),
+                g.bakePhaseSeconds(0), g.bakePhaseSeconds(1), g.bakePhaseSeconds(2), g.bakePhaseSeconds(3), g.bakePhaseSeconds(4));
+}
+// The file's layout (format 1): "PXHB", uint32 format, uint64 key, int32 n, then n*n float cell minima, then uint32 count and
+// count x {int32 cell, float surface}.
+constexpr size_t kMinimaOffset = 4 + 4 + 8 + 4;
+void patchFloat(const std::string& path, size_t offset, float delta) {
+    std::fstream f(path, std::ios::in | std::ios::out | std::ios::binary);
+    ASSERT_TRUE(f.good());
+    float v = 0.0f;
+    f.seekg(static_cast<std::streamoff>(offset)); f.read(reinterpret_cast<char*>(&v), 4);
+    v += delta;
+    f.seekp(static_cast<std::streamoff>(offset)); f.write(reinterpret_cast<const char*>(&v), 4);
+}
+}  // namespace
+
+// (a) A second session reads the file: the bake is the same, bit for bit, and the expensive phases are gone.
+TEST(WaterGeneratedContainmentTest, TheStoredBakeEqualsAFreshOne) {
+    const std::string path = tempHydroStore("eq");
+    RmStore rm{path};
+    WorldGenerator ref(WorldGenerator::GenerationType::Mountains, kRcSeed);
+    storedSession(ref, "");   // no store: the reference bake
+    printStore("reference (no store)", ref);
+    EXPECT_EQ(ref.bakeStoreStats().state, WorldGenerator::BsOff);
+
+    WorldGenerator s1(WorldGenerator::GenerationType::Mountains, kRcSeed);
+    storedSession(s1, path);
+    printStore("session 1 (no file)", s1);
+    EXPECT_EQ(s1.bakeStoreStats().state, WorldGenerator::BsWritten);
+    EXPECT_TRUE(std::filesystem::exists(path));
+    EXPECT_EQ(levelsDiffer(ref, s1), 0);
+
+    WorldGenerator s2(WorldGenerator::GenerationType::Mountains, kRcSeed);
+    storedSession(s2, path);
+    printStore("session 2 (the file)", s2);
+    EXPECT_EQ(s2.bakeStoreStats().state, WorldGenerator::BsLoaded);
+    EXPECT_EQ(s2.bakeStoreStats().verifiedMinima, WorldGenerator::kBakeVerifyMinima);
+    EXPECT_GT(s2.bakeStoreStats().verifiedDrain, 0);
+    EXPECT_LT(s2.bakePhaseSeconds(1) + s2.bakePhaseSeconds(3), 0.5) << "the minima and the drain must come from the file";
+    const long dl = levelsDiffer(ref, s2);
+    ASSERT_NE(ref.waterBodies(), nullptr); ASSERT_NE(s2.waterBodies(), nullptr);
+    const size_t bodiesRef = ref.waterBodies()->bodies().size(), bodies2 = s2.waterBodies()->bodies().size();
+    const long ds = spansDiffer(ref, s2, -2112, -1216, 256, 256);   // the 51.4c view
+    std::printf("[bake store] session 2 vs reference: levels differ %ld of %zu, bodies %zu vs %zu, spans differ %ld (256 x 256)\n", dl,
+                ref.hydrology()->levels().size(), bodies2, bodiesRef, ds);
+    EXPECT_EQ(dl, 0);
+    EXPECT_EQ(bodies2, bodiesRef);
+    EXPECT_EQ(ds, 0);
+    // The streaming generator's case: a second generator in the same process shares s2's bake and reports how it was made.
+    WorldGenerator s3(WorldGenerator::GenerationType::Mountains, kRcSeed);
+    s3.setBakeStore(path);
+    ASSERT_TRUE(loadRiverCarve(s3, true, true, true));
+    printStore("a second generator, same process", s3);
+    EXPECT_TRUE(s3.bakeStoreStats().fromMemory);
+    EXPECT_EQ(s3.bakeStoreStats().state, WorldGenerator::BsLoaded);
+}
+
+// (b) another key, (c) a verified cell wrong, (d) the known gap: an UNVERIFIED cell wrong is accepted - it may move a lake, but no
+// wall of water may stand anywhere (the shore guarantee reads the live bake).
+TEST(WaterGeneratedContainmentTest, TheStoredBakeTrustsItsKeyAndHoldsNoWall) {
+    const std::string path = tempHydroStore("key");
+    RmStore rm{path};
+    WorldGenerator ref(WorldGenerator::GenerationType::Mountains, kRcSeed);
+    storedSession(ref, path);   // writes the file; also the reference
+    printStore("session 1", ref);
+    ASSERT_TRUE(std::filesystem::exists(path));
+    const std::string good = path + ".good";
+    RmStore rmGood{good};
+    std::filesystem::copy_file(path, good, std::filesystem::copy_options::overwrite_existing);
+
+    // (b) the key: the bytes of another world's key
+    {   // the key's first byte flipped
+        std::fstream f(path, std::ios::in | std::ios::out | std::ios::binary);
+        ASSERT_TRUE(f.good());
+        char b = 0; f.seekg(8); f.read(&b, 1); b = static_cast<char>(b ^ 0x5A); f.seekp(8); f.write(&b, 1);
+    }
+    {
+        WorldGenerator g(WorldGenerator::GenerationType::Mountains, kRcSeed);
+        storedSession(g, path);
+        printStore("(b) another key", g);
+        EXPECT_EQ(g.bakeStoreStats().state, WorldGenerator::BsRejectedKey);
+        EXPECT_EQ(levelsDiffer(ref, g), 0);
+    }
+    // (c) a verified minimum 1 m off
+    const int n = ref.hydrology()->cellsX();
+    const std::vector<int> verified = WorldGenerator::bakeStoreVerifyCells(n);
+    ASSERT_EQ(static_cast<int>(verified.size()), WorldGenerator::kBakeVerifyMinima);
+    std::filesystem::copy_file(good, path, std::filesystem::copy_options::overwrite_existing);
+    patchFloat(path, kMinimaOffset + 4 * static_cast<size_t>(verified[0]), 1.0f);
+    {
+        WorldGenerator g(WorldGenerator::GenerationType::Mountains, kRcSeed);
+        storedSession(g, path);
+        printStore("(c) a verified cell wrong", g);
+        EXPECT_EQ(g.bakeStoreStats().state, WorldGenerator::BsRejectedVerify);
+        EXPECT_EQ(levelsDiffer(ref, g), 0);
+    }
+    // (d) an unverified dry cell beside a lake (above sea), inside the 51.4c view, its minimum 6 m low
+    const HydrologyMap* h = ref.hydrology();
+    const auto& lv = h->levels();
+    auto wet = [&](int i, int j) { return lv[static_cast<size_t>(j) * n + i] > HydrologyMap::NO_WATER * 0.5f; };
+    int pick = -1; float best = 1e30f;   // the one nearest the 51.4c view's centre (-1728, -832)
+    for (int j = 1; j < n - 1; ++j) for (int i = 1; i < n - 1; ++i) {
+        if (wet(i, j) || std::find(verified.begin(), verified.end(), j * n + i) != verified.end()) continue;
+        const int nb[4][2] = {{i + 1, j}, {i - 1, j}, {i, j + 1}, {i, j - 1}};
+        bool edge = false;
+        for (const auto& q : nb)
+            if (wet(q[0], q[1]) && lv[static_cast<size_t>(q[1]) * n + q[0]] > h->seaLevel() + 0.01f) edge = true;
+        if (!edge) continue;
+        const float x = h->originX() + (i + 0.5f) * h->cellSize() + 1728.0f, z = h->originZ() + (j + 0.5f) * h->cellSize() + 832.0f;
+        if (x * x + z * z < best) { best = x * x + z * z; pick = j * n + i; }
+    }
+    ASSERT_GE(pick, 0) << "no dry lake-edge cell in the view";
+    std::filesystem::copy_file(good, path, std::filesystem::copy_options::overwrite_existing);
+    patchFloat(path, kMinimaOffset + 4 * static_cast<size_t>(pick), -6.0f);
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, kRcSeed);
+    storedSession(g, path);
+    printStore("(d) an unverified cell 6 m low", g);
+    EXPECT_EQ(g.bakeStoreStats().state, WorldGenerator::BsLoaded) << "the known gap: the store trusts its key past the verified cells";
+    const int pi = pick % n, pj = pick / n;
+    const int cx0 = static_cast<int>(h->originX() + pi * h->cellSize()), cz0 = static_cast<int>(h->originZ() + pj * h->cellSize());
+    const long dl = levelsDiffer(ref, g);
+    const int rx0 = cx0 - 320, rz0 = cz0 - 320;
+    const Census c = census(g, rx0, rz0, 768, 768);
+    report("(d) around the wrong cell", rx0, rz0, 768, 768, c);
+    std::printf("[bake store] (d) cell (%d, %d) at (%d, %d): levels differ %ld cells; walls %ld\n", pi, pj, cx0, cz0, dl,
+                c.wallRiver + c.wallDrains + c.wallUnreached);
+    EXPECT_EQ(c.wallRiver + c.wallDrains + c.wallUnreached, 0) << "a stale stored minimum stood water as a wall";
+}
+
+TEST(WaterGeneratedContainmentTest, TheBakeStoreShipsOn) {
+    EXPECT_TRUE(WorldGenerator::s_bakeStoreOn);
+    EXPECT_EQ(WorldGenerator::kHydroBakeVersion, 1u);
+}
+
+// 51.17 (measure first): where a fresh bake's time goes on RiverCarve (all new-world flags on), and how many cells sit on a lake's
+// edge (a wet cell with a dry 4-neighbour, or a dry cell with a wet one) - the cells whose minimum sets a level or a shore.
+TEST(WaterGeneratedContainmentTest, DISABLED_DiagBakeSplit) {
+    WorldGenerator::clearHydroBakeCache();
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 1);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
+    const HydrologyMap* h = g.hydrology();
+    const int n = h->cellsX();
+    const auto& lv = h->levels();
+    auto wet = [&](int i, int j) { return lv[static_cast<size_t>(j) * n + i] > HydrologyMap::NO_WATER * 0.5f; };
+    long wetCells = 0, edge = 0, wetNotSea = 0;
+    for (int j = 0; j < n; ++j) for (int i = 0; i < n; ++i) {
+        const bool w = wet(i, j);
+        if (w) { ++wetCells; if (lv[static_cast<size_t>(j) * n + i] > h->seaLevel() + 0.01f) ++wetNotSea; }
+        bool e = false;
+        const int di[4] = {1, -1, 0, 0}, dj[4] = {0, 0, 1, -1};
+        for (int k = 0; k < 4; ++k) {
+            const int a = i + di[k], b = j + dj[k];
+            if (a < 0 || b < 0 || a >= n || b >= n) continue;
+            if (wet(a, b) != w) e = true;
+        }
+        if (e) ++edge;
+    }
+    std::printf("[bake split] threads %u, stride %d: bake %.2f s + flow %.2f s | minima %.2f, flood %.2f, drain %.2f, bodies %.2f s\n",
+                std::thread::hardware_concurrency(), g.bakeMinStride(), g.bakeSeconds(), g.bakePhaseSeconds(0), g.bakePhaseSeconds(1),
+                g.bakePhaseSeconds(2), g.bakePhaseSeconds(3), g.bakePhaseSeconds(4));
+    std::printf("[bake split] cells %d, wet %ld (above sea %ld), on a lake's edge %ld (%.1f %%)\n", n * n, wetCells, wetNotSea,
+                edge, 100.0 * edge / (n * n));
+}
+
 TEST(WaterGeneratedContainmentTest, DISABLED_DiagRiverCutLimit) {
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
     ASSERT_TRUE(loadRiverCarve(g, true, true, true));

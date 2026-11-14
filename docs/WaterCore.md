@@ -13715,7 +13715,7 @@ read on its own thread.
     0.109 ms (session 1) vs 0.108 ms (session 2) a frame - no per-frame cost. Not measured: the cost of a 64-summary append on the
     main thread in isolation (~160 KB written; it ran inside session 1's fill without a visible step in the trace).
 - **Status: built, not signed off** (nothing on screen changes: by construction and by the tests). Not covered: the hydrology
-  bake's ~10 s at every load (51.13, the owner's call) is a separate cost the cache does not touch.
+  bake's ~10 s at every load (51.13) is a separate cost the cache does not touch - stored per world since 51.17 item 3.
 - **§51's open list (51.7c) is now empty.** What is left is the owner's: the sign-offs (51.12-51.13 looks; 51.14's look signed off 2026-11-14; the river width / cut
   limit, the 1/3 m minimum depth, the 51.13 bake time) and 51.11's pool factor.
 
@@ -13731,6 +13731,54 @@ read on its own thread.
 4. **The pool factor stays 1.0** (`kPatchPoolFactor`; 0 of 15 live grows, the memory bound <= 1.5x the peak holds).
 - **Not delegable - looks still the owner's to see:** 51.12/51.13's lake (`drain513_lake_on.png`) and 51.11's droplets
   (`cosm511_clip.mp4`). A look cannot be signed off by recommendation.
+
+**51.17 item 3 (2026-11-14) BUILT, ON - the hydrology bake stored per world: a second load bakes in 0.09 s, not 9.1 s** (the
+owner's decision above; no drift). `/design-check` READY with three conditions, all met below.
+- **Measured first** (`DISABLED_DiagBakeSplit`, RiverCarve's recipe, every new-world flag, 32 threads; the phases are now timed in
+  `rebuildCoarseModel`): a fresh bake 10.3-10.5 s = the flow field 0.12 + **the cell minima 7.15** (17 M `sampleColumn` calls) +
+  the flood 0.01 + **the drain 3.17** (`carvedRiverSurfaceInCell`, one thread) + the body index 0.00. 50 % of the 65,536 cells sit
+  on a lake's edge, so verifying "the cells that matter" would have cost half the bake - not the design.
+- **Built** (`WorldGenerator::setBakeStore`, `bakeStoreStats`, `kHydroBakeVersion`, `s_bakeStoreOn`):
+  - **Only the two expensive INPUTS are stored**, never the outputs: the cell minima (256 x 256 floats) and the drain's carved river
+    surface per asked cell (191 on RiverCarve). The flow field, flood, drain logic and body index re-run from them at every load
+    (0.13 s), so every bake rule stays live code.
+  - **The file** `<world>.db.hydro` beside the world DB (263,696 B on RiverCarve): a pure cache, never part of the save, deletable.
+    `GameDefinitionLoader` sets it on both generators before `applyRecipe`; only bakes with the flood or the drain on use it.
+    Written after a fresh bake (or when the drain asked a cell the file lacked) through a temp file and a rename.
+  - **The key:** FNV-1a 64 over every in-process cache key field (type, seed, climate, sea, spline, drain / flood / stride /
+    level-river flags, the biome heights), the region constants, the format and `kHydroBakeVersion` (**1**). **Rule: bump
+    `kHydroBakeVersion` with any change to `sampleColumn`'s surface or to `carvedRiverSurfaceInCell`.**
+  - **The verification:** at load, 32 minima cells (a fixed golden-ratio spread, `bakeStoreVerifyCells`) and 8 drain cells
+    (evenly through the stored list) are recomputed and compared bit-exact; any difference drops the file and bakes fresh (logged
+    as a warning naming the version rule). Cost 70-88 ms (condition 1: 8 drain cells ~65 ms, under the 0.1 s bound).
+  - **Why a stale unverified cell is safe for the owner's rule:** the drain's sample reads the half-made bake only in the shore
+    guarantee (off during a bake) and road grading (no WorldForge plan during a bake, river columns never graded), so each stored
+    value is a fact of the terrain; and the 51.13 shore guarantee lifts every dry-cell column beside a lake from the LIVE bake, so a
+    wrong minimum can move a lake, never stand water as a wall. Test (d) proves it.
+  - **API:** `water_bake_info` gains `bake_store {on, state (off | none | loaded | written | rejected_key | rejected_verify),
+    load_ms, verify_ms, verified_minima, verified_drain, drain_cells, file_bytes, from_memory}` and `bake_phases {flow, minima,
+    flood, drain, bodies}`. A generator sharing another's bake in the same process (the streaming generator always does) reports
+    that bake (`from_memory: true`) - found live: it first read "off" with zeros.
+- **Tests** (`WaterGeneratedContainmentTest`, the RiverCarve golden recipe, the in-process cache cleared between sessions -
+  condition 2). Red first (the API stubbed): session 2 "off", 8.9 s, no file. Green:
+  - `TheStoredBakeEqualsAFreshOne`: session 1 `written` (263,696 B); **session 2 `loaded`, bake 0.08-0.10 s (minima 0.07-0.09 =
+    the verification, drain 0.00); 0 of 65,536 levels differ, 2,492 bodies both, 0 spans differ over 256 x 256 (the 51.4c view)**;
+    a second generator in the process reports `from_memory`.
+  - `TheStoredBakeTrustsItsKeyAndHoldsNoWall`: (b) the key's byte flipped - `rejected_key`, 0 levels differ; (c) a verified
+    minimum +1 m - `rejected_verify`, 0 differ; **(d) the known gap, measured:** an unverified dry lake-edge cell (113, 121) at
+    (-1920, -896) 6 m low is accepted (`loaded`), moves 3 cells of lake, and the wall census around it (768 x 768, condition 3) reads
+    **0 walls, 0 river steps**.
+  - `TheBakeStoreShipsOn` (the default and the version pinned).
+  - Unit (water / terrain / hydrology / WorldGenerator / WorldForge / roads / flora / settlement / structure / river / flow):
+    **737 / 737** (4 skipped, as before).
+- **Live** (WaterBench_RiverCarve, `bakestore517_s1.json` / `_s2.json`, the engine log):
+  - **Session 1** (no file): the bake 9.09 s, the file written; from the API server starting to streaming enabled **9.49 s**.
+  - **Session 2:** `loaded`, read 0.43 ms, verified 73.6 ms, the bake 0.085 s; API server to streaming enabled **0.48 s**.
+  - **Whole start-up, unchanged by this:** launch to the API answering was 195 s / 217 s - the texture arrays' BC7 preparation
+    before the API (~3.5 min) dominates and varies; the bake was 9 s of it. No per-frame work (load only): frame cost not measured
+    because nothing runs per frame.
+- **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
+  than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

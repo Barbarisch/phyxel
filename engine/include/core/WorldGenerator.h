@@ -215,6 +215,7 @@ public:
     // 51.13: the memoized chunk-column samples, for the chunked-vs-direct equality test of the shore guarantee.
     std::shared_ptr<const std::vector<ColumnSample>> columnsForChunkForTest(const glm::ivec2& c) { return columnsForChunk(c); }
     double bakeSeconds() const { return m_bakeSeconds; }
+    double bakePhaseSeconds(int i) const { return (i >= 0 && i < 5) ? m_bakePhase[i] : 0.0; }   // 51.17: see m_bakePhase
     /// The 1/3 m subcube layers the carve leaves in a creek column's surface voxel (0-2): floor(3 (bedHeight - surfaceY)).
     static int creekLayers(const ColumnSample& c);
     /// World Y of the top of the solids generateChunk DRAWS in this column - the carve (creek, flag on), the 2/3 shelf
@@ -330,6 +331,39 @@ public:
     // object and a determinism comparison becomes a tautology).
     static void clearHydroBakeCache();
 
+    // WaterCore.md 51.17 - THE BAKE STORED PER WORLD (the owner's decision: paid once). A fresh bake with the flood or the drain on
+    // spends ~7 s on the cell minima and ~3 s on the drain's carved river surfaces (RiverCarve, 32 threads); both are pure samples of
+    // the generated terrain. The store keeps ONLY those two inputs in a file beside the world DB (<world>.db.hydro: a pure cache,
+    // never part of the save, deletable); the flow field, flood, drain logic and body index always re-run from them (~0.13 s).
+    // Key: every bake input + the region + kHydroBakeVersion + the format - another key ignores and rewrites the file. Verification
+    // (a change that forgot the bump): kBakeVerifyMinima / kBakeVerifyDrain stored cells are recomputed at load and compared
+    // bit-exact; any difference rejects the whole file. BUMP kHydroBakeVersion WITH ANY CHANGE TO sampleColumn's SURFACE OR TO
+    // carvedRiverSurfaceInCell. An unverified stale cell can move a lake, never stand water as a wall (the 51.13 shore guarantee
+    // reads the live bake) - pinned by TheStoredBakeTrustsItsKeyAndHoldsNoWall.
+    static constexpr uint32_t kHydroBakeVersion = 1;   // 1 = 51.14's terrain
+    static constexpr int kBakeVerifyMinima = 32;
+    static constexpr int kBakeVerifyDrain = 8;
+    static bool s_bakeStoreOn;   // default true (pinned by TheBakeStoreShipsOn)
+    enum BakeStoreState { BsOff = 0, BsNone, BsLoaded, BsWritten, BsRejectedKey, BsRejectedVerify };
+    static const char* bakeStoreStateName(int state);
+    struct BakeStoreStats {
+        int state = BsOff;          // BakeStoreState of the last bake on this generator
+        double loadMs = 0.0;        // reading the file
+        double verifyMs = 0.0;      // recomputing the verified cells
+        int verifiedMinima = 0, verifiedDrain = 0;
+        int drainCells = 0;         // the drain surfaces in the file after this bake
+        long fileBytes = 0;
+        // This generator shares a bake made by another one in this process (the in-memory cache); the fields above, the bake
+        // time and the phases are THAT bake's (the streaming generator always shares the up-front generator's).
+        bool fromMemory = false;
+    };
+    /// The file the next bake reads and writes ("" = none). Set BEFORE applyRecipe (which bakes).
+    void setBakeStore(const std::string& path) { m_bakeStorePath = path; }
+    const std::string& bakeStorePath() const { return m_bakeStorePath; }
+    const BakeStoreStats& bakeStoreStats() const { return m_bakeStoreStats; }
+    /// The minima cells a load verifies (a fixed spread over the n x n grid).
+    static std::vector<int> bakeStoreVerifyCells(int n);
+
     // A planned piece of flora: which template to stamp, the surface column it belongs to,
     // and the surface Y its trunk base sits on. The caller (which owns ObjectTemplateManager)
     // centers the template footprint on the column and stamps it. Kept template-agnostic so
@@ -420,6 +454,10 @@ private:
     // bake samples the terrain WITHOUT it; its worker copies are made while it is false).
     bool m_shoreLip = false;
     double m_bakeSeconds = 0.0;         // 51.13: the last fresh bake's wall time (0 on a cache hit)
+    // 51.17: a fresh bake's phases, wall seconds: the flow field, the cell minima, the flood, the drain, the body index (0 on a hit)
+    double m_bakePhase[5] = {0, 0, 0, 0, 0};
+    std::string m_bakeStorePath;            // 51.17
+    BakeStoreStats m_bakeStoreStats;        // 51.17
     // 51.12: the carved river's water surface (min over the cell's order >= 3 columns), NO_WATER if none - the drain's exit.
     float carvedRiverSurfaceInCell(int cell);   // 25.22: from the recipe (WorldRecipe::creekCarve)
     std::shared_ptr<const WorldForgePlan> m_worldForge;

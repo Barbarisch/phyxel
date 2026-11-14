@@ -1,0 +1,24 @@
+{
+ "bake_store": {
+  "drain_cells": 0,
+  "file_bytes": 0,
+  "load_ms": 0.0,
+  "on": true,
+  "state": "off",
+  "verified_drain": 0,
+  "verified_minima": 0,
+  "verify_ms": 0.0
+ },
+ "bake_phases": {
+  "bodies": 0.0,
+  "drain": 0.0,
+  "flood": 0.0,
+  "flow": 0.0,
+  "minima": 0.0
+ },
+ "bake_seconds": 0.0,
+ "bake_floods_terrain": true,
+ "carve_drains_basins": true,
+ "level_rivers": true,
+ "basins_drained": 149
+}

@@ -13,6 +13,10 @@
 #include "core/WorldConstants.h"
 #include "utils/Logger.h"
 #include <algorithm>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <map>
 #include <random>
 #include <cmath>
 #include <climits>
@@ -257,8 +261,8 @@ WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed)
 // same (seed, type) many times in one process, and an in-session world reload reconstructs the
 // generator; memoize so they reuse one bake instead of re-running Priority-Flood each time. The
 // backings are immutable + const-read, so sharing the shared_ptrs across generators is safe (exactly
-// like the streaming worker's generator copy already does). NOT persisted across process restarts —
-// the bake is cheap enough that a fresh world-load re-bake is fine; world.db persistence is deferred.
+// like the streaming worker's generator copy already does). Across process restarts the bake's two expensive inputs (the cell
+// minima and the drain's carved surfaces) are stored per world since WaterCore.md 51.17 (setBakeStore, <world>.db.hydro).
 namespace {
 struct HydroBakeKey {
     int genType;
@@ -288,11 +292,113 @@ struct HydroBake {
     std::shared_ptr<HydrologyMap> hydro;
     std::shared_ptr<FlowField> flow;
     std::shared_ptr<WaterBodyIndex> bodies;   // tangible-water Phase A: body identity rides the bake
+    // 51.17: how the bake was made, reported by every generator sharing it
+    WorldGenerator::BakeStoreStats store;
+    double seconds = 0.0;
+    double phase[5] = {0, 0, 0, 0, 0};
 };
 std::mutex g_hydroCacheMutex;
 std::vector<std::pair<HydroBakeKey, HydroBake>> g_hydroCache;  // small: a handful of distinct configs
 constexpr size_t kHydroCacheCap = 64;
+
+// ── 51.17: the bake's expensive inputs stored per world (see WorldGenerator.h, kHydroBakeVersion) ──────────────────────────────
+constexpr uint32_t kHydroStoreFormat = 1;
+struct Fnv64 {
+    uint64_t h = 1469598103934665603ull;
+    void bytes(const void* p, size_t n) {
+        const unsigned char* c = static_cast<const unsigned char*>(p);
+        for (size_t i = 0; i < n; ++i) { h ^= c[i]; h *= 1099511628211ull; }
+    }
+    template <typename T> void put(const T& v) { bytes(&v, sizeof(T)); }
+};
+uint64_t hydroStoreKey(const HydroBakeKey& k) {
+    Fnv64 f;
+    f.bytes("PXHB", 4);
+    f.put(kHydroStoreFormat); f.put(WorldGenerator::kHydroBakeVersion);
+    f.put(kHydroCells); f.put(kHydroCell); f.put(kHydroOrigin);
+    f.put(k.genType); f.put(k.seed); f.put(k.climateFreq); f.put(k.seaLevel);
+    f.put(static_cast<uint32_t>(k.spline.size()));
+    for (const auto& p : k.spline) { f.put(p.x); f.put(p.y); }
+    f.put(static_cast<uint8_t>(k.drains)); f.put(static_cast<uint8_t>(k.floods)); f.put(k.minStride);
+    f.put(static_cast<uint8_t>(k.levelRivers));
+    f.put(static_cast<uint32_t>(k.biomeHeight.size()));
+    for (float v : k.biomeHeight) f.put(v);
+    return f.h;
+}
+// 1 = read (key matched), 0 = no file, 2 = another key, 3 = torn / malformed.
+int readHydroStore(const std::string& path, uint64_t key, std::vector<float>& minima, std::map<int, float>& drain, long& bytes) {
+    minima.clear(); drain.clear(); bytes = 0;
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return 0;
+    f.seekg(0, std::ios::end); bytes = static_cast<long>(f.tellg()); f.seekg(0);
+    char magic[4] = {}; uint32_t format = 0; uint64_t k = 0; int32_t n = 0;
+    f.read(magic, 4); f.read(reinterpret_cast<char*>(&format), 4); f.read(reinterpret_cast<char*>(&k), 8);
+    if (!f || std::memcmp(magic, "PXHB", 4) != 0 || format != kHydroStoreFormat) return 3;
+    if (k != key) return 2;
+    f.read(reinterpret_cast<char*>(&n), 4);
+    if (!f || (n != 0 && n != kHydroCells)) return 3;
+    minima.resize(static_cast<size_t>(n) * n);
+    if (n) f.read(reinterpret_cast<char*>(minima.data()), static_cast<std::streamsize>(minima.size() * sizeof(float)));
+    uint32_t count = 0;
+    f.read(reinterpret_cast<char*>(&count), 4);
+    if (!f || count > static_cast<uint32_t>(kHydroCells) * kHydroCells) { minima.clear(); return 3; }
+    for (uint32_t i = 0; i < count; ++i) {
+        int32_t cell = 0; float v = 0.0f;
+        f.read(reinterpret_cast<char*>(&cell), 4); f.read(reinterpret_cast<char*>(&v), 4);
+        if (!f) { minima.clear(); drain.clear(); return 3; }
+        drain[cell] = v;
+    }
+    return 1;
+}
+long writeHydroStore(const std::string& path, uint64_t key, const std::vector<float>& minima, const std::map<int, float>& drain) {
+    const std::string tmp = path + ".tmp";
+    {
+        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
+        if (!f) return -1;
+        const uint32_t format = kHydroStoreFormat;
+        const int32_t n = minima.empty() ? 0 : kHydroCells;
+        f.write("PXHB", 4); f.write(reinterpret_cast<const char*>(&format), 4); f.write(reinterpret_cast<const char*>(&key), 8);
+        f.write(reinterpret_cast<const char*>(&n), 4);
+        if (n) f.write(reinterpret_cast<const char*>(minima.data()), static_cast<std::streamsize>(minima.size() * sizeof(float)));
+        const uint32_t count = static_cast<uint32_t>(drain.size());
+        f.write(reinterpret_cast<const char*>(&count), 4);
+        for (const auto& [cell, v] : drain) {
+            const int32_t c = cell;
+            f.write(reinterpret_cast<const char*>(&c), 4); f.write(reinterpret_cast<const char*>(&v), 4);
+        }
+        if (!f) return -1;
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp, path, ec);   // replaces the old file
+    if (ec) { std::filesystem::remove(tmp, ec); return -1; }
+    return static_cast<long>(std::filesystem::file_size(path, ec));
+}
 }  // namespace
+
+bool WorldGenerator::s_bakeStoreOn = true;   // 51.17
+
+const char* WorldGenerator::bakeStoreStateName(int state) {
+    switch (state) {
+        case BsOff: return "off";
+        case BsNone: return "none";
+        case BsLoaded: return "loaded";
+        case BsWritten: return "written";
+        case BsRejectedKey: return "rejected_key";
+        case BsRejectedVerify: return "rejected_verify";
+    }
+    return "?";
+}
+
+std::vector<int> WorldGenerator::bakeStoreVerifyCells(int n) {
+    // A fixed spread: the golden-ratio walk over the grid, distinct cells.
+    std::vector<int> out;
+    const uint64_t total = static_cast<uint64_t>(n) * static_cast<uint64_t>(n);
+    for (uint64_t j = 1; out.size() < static_cast<size_t>(kBakeVerifyMinima) && j < total + 1; ++j) {
+        const int c = static_cast<int>((j * 2654435761ull) % total);
+        if (std::find(out.begin(), out.end(), c) == out.end()) out.push_back(c);
+    }
+    return out;
+}
 
 void WorldGenerator::clearHydroBakeCache() {
     std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
@@ -367,6 +473,8 @@ void WorldGenerator::rebuildCoarseModel() {
     key.levelRivers = m_levelRivers;
     m_shoreLip = false;     // 51.13: no sample taken while this bake is made may carry the shore guarantee
     m_bakeSeconds = 0.0;
+    for (double& t : m_bakePhase) t = 0.0;
+    m_bakeStoreStats = BakeStoreStats{};
     if (key.drains || key.floods || key.levelRivers)   // 51.14: the stage is base + the biome offset
         for (const auto& b : m_biomes) { key.biomeHeight.push_back(b.heightScale); key.biomeHeight.push_back(b.heightOffset); }
     bool cacheHit = false;
@@ -377,6 +485,10 @@ void WorldGenerator::rebuildCoarseModel() {
                 m_hydro = e.second.hydro;
                 m_flow = e.second.flow;
                 m_waterBodies = e.second.bodies;
+                m_bakeStoreStats = e.second.store;   // 51.17: report the bake this generator shares
+                m_bakeStoreStats.fromMemory = true;
+                m_bakeSeconds = e.second.seconds;
+                for (int p = 0; p < 5; ++p) m_bakePhase[p] = e.second.phase[p];
                 cacheHit = true;
                 m_shoreLip = m_bakeFloodsTerrain;   // 51.13: the cached bake was made with the same flag
                 break;
@@ -406,6 +518,7 @@ void WorldGenerator::rebuildCoarseModel() {
                                         (32.0 * 32.0) / (kHydroCell * kHydroCell))));
     // The drainage network stays on the coarse height (its ridge/valley structure makes the trunk rivers; see above) and is
     // built FIRST: the generated surface the lakes flood below (51.13) carries the valley and carve that need it.
+    const auto flowT0 = std::chrono::steady_clock::now();
     m_flow  = std::make_shared<FlowField>(heightAt, kHydroOrigin, kHydroOrigin,
                                           kHydroCells, kHydroCells, kHydroCell, seaLvl, riverThresh);
     // 51.13: THE LAKES FLOOD THE TERRAIN THE GENERATOR MAKES. The coarse height above stood a median 16.9 m (max 35.8) above the
@@ -420,10 +533,86 @@ void WorldGenerator::rebuildCoarseModel() {
     // grid at 8 m is ~17 M samples - spread over worker threads, each with its own generator copy (sampleColumn is not
     // thread-safe on one instance); every cell is written to its own slot, so the interleaving cannot change the grid.
     const auto bakeT0 = std::chrono::steady_clock::now();
+    m_bakePhase[0] = std::chrono::duration<double>(bakeT0 - flowT0).count();
+    auto phaseT = bakeT0;
+    auto phaseMark = [&phaseT, this](int i) {
+        const auto now = std::chrono::steady_clock::now();
+        m_bakePhase[i] = std::chrono::duration<double>(now - phaseT).count();
+        phaseT = now;
+    };
     std::vector<float> cellMin;
     HydrologyMap::HeightFunc hydroHeight = heightAt;
-    if (m_bakeFloodsTerrain) {
-        const int n = kHydroCells, stride = m_bakeMinStride, side = static_cast<int>(kHydroCell);
+    // 51.17: the store. Read before anything is computed; both stored inputs are verified before either is used.
+    const bool useStore = s_bakeStoreOn && !m_bakeStorePath.empty() && (m_bakeFloodsTerrain || m_carveDrainsBasins);
+    const uint64_t storeKey = useStore ? hydroStoreKey(key) : 0;
+    std::vector<float> storedMin;
+    std::map<int, float> storedDrain;
+    bool storeLoaded = false;
+    auto cellMinimum = [stride = m_bakeMinStride](WorldGenerator& g, int i, int j) {
+        const int side = static_cast<int>(kHydroCell);
+        const int x0 = static_cast<int>(std::floor(kHydroOrigin + i * kHydroCell));
+        const int z0 = static_cast<int>(std::floor(kHydroOrigin + j * kHydroCell));
+        float m = 1e30f;
+        for (int dz = 0; dz < side; dz += stride)
+            for (int dx = 0; dx < side; dx += stride)
+                m = std::min(m, static_cast<float>(g.sampleColumn(x0 + dx, z0 + dz).surfaceY + 1));
+        return m;
+    };
+    if (useStore) {
+        m_bakeStoreStats.state = BsNone;
+        const auto t0 = std::chrono::steady_clock::now();
+        const int r = readHydroStore(m_bakeStorePath, storeKey, storedMin, storedDrain, m_bakeStoreStats.fileBytes);
+        m_bakeStoreStats.loadMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        const size_t nn = static_cast<size_t>(kHydroCells) * kHydroCells;
+        if (r == 2) m_bakeStoreStats.state = BsRejectedKey;
+        else if (r == 1 && (m_bakeFloodsTerrain ? storedMin.size() == nn : storedMin.empty())) {
+            // Verification (a change that forgot the version bump): recompute a fixed spread of each input, bit-exact.
+            const auto v0 = std::chrono::steady_clock::now();
+            bool same = true;
+            if (m_bakeFloodsTerrain) {
+                const std::vector<int> cells = bakeStoreVerifyCells(kHydroCells);
+                std::vector<float> fresh(cells.size(), 0.0f);
+                std::vector<std::thread> pool;
+                for (size_t c = 0; c < cells.size(); ++c)
+                    pool.emplace_back([&, c]() {
+                        WorldGenerator g(*this);
+                        fresh[c] = cellMinimum(g, cells[c] % kHydroCells, cells[c] / kHydroCells);
+                    });
+                for (auto& th : pool) th.join();
+                for (size_t c = 0; c < cells.size(); ++c) {
+                    if (fresh[c] != storedMin[static_cast<size_t>(cells[c])]) same = false;
+                    ++m_bakeStoreStats.verifiedMinima;
+                }
+            }
+            if (same && m_carveDrainsBasins && !storedDrain.empty()) {
+                std::vector<std::pair<int, float>> all(storedDrain.begin(), storedDrain.end());
+                const size_t k = std::min(all.size(), static_cast<size_t>(kBakeVerifyDrain));
+                for (size_t c = 0; c < k && same; ++c) {
+                    const auto& e = all[c * all.size() / k];
+                    if (carvedRiverSurfaceInCell(e.first) != e.second) same = false;
+                    ++m_bakeStoreStats.verifiedDrain;
+                }
+            }
+            m_bakeStoreStats.verifyMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - v0).count();
+            if (same) { storeLoaded = true; m_bakeStoreStats.state = BsLoaded; }
+            else {
+                m_bakeStoreStats.state = BsRejectedVerify;
+                LOG_WARN("WorldGenerator", "[WORLD_GENERATOR] The stored bake (" + m_bakeStorePath + ") differs from the terrain at a "
+                         "verified cell - dropped and re-baked. A change to the terrain must bump WorldGenerator::kHydroBakeVersion.");
+            }
+        }
+        if (!storeLoaded) { storedMin.clear(); storedDrain.clear(); }
+    }
+    if (m_bakeFloodsTerrain && storeLoaded) {
+        cellMin = storedMin;
+        const int n = kHydroCells;
+        hydroHeight = [&cellMin, n](float x, float z) -> float {
+            const int i = std::clamp(static_cast<int>(std::floor((x - kHydroOrigin) / kHydroCell + 1e-3f)), 0, n - 1);
+            const int j = std::clamp(static_cast<int>(std::floor((z - kHydroOrigin) / kHydroCell + 1e-3f)), 0, n - 1);
+            return cellMin[static_cast<size_t>(j) * n + i];
+        };
+    } else if (m_bakeFloodsTerrain) {
+        const int n = kHydroCells;
         cellMin.assign(static_cast<size_t>(n) * n, 0.0f);
         const unsigned workers = std::max(1u, std::min(32u, std::thread::hardware_concurrency()));
         std::vector<std::unique_ptr<WorldGenerator>> copies;
@@ -434,15 +623,7 @@ void WorldGenerator::rebuildCoarseModel() {
             pool.emplace_back([&, t]() {
                 WorldGenerator& g = *copies[t];
                 for (int j = nextRow++; j < n; j = nextRow++)
-                    for (int i = 0; i < n; ++i) {
-                        const int x0 = static_cast<int>(std::floor(kHydroOrigin + i * kHydroCell));
-                        const int z0 = static_cast<int>(std::floor(kHydroOrigin + j * kHydroCell));
-                        float m = 1e30f;
-                        for (int dz = 0; dz < side; dz += stride)
-                            for (int dx = 0; dx < side; dx += stride)
-                                m = std::min(m, static_cast<float>(g.sampleColumn(x0 + dx, z0 + dz).surfaceY + 1));
-                        cellMin[static_cast<size_t>(j) * n + i] = m;
-                    }
+                    for (int i = 0; i < n; ++i) cellMin[static_cast<size_t>(j) * n + i] = cellMinimum(g, i, j);
             });
         for (auto& th : pool) th.join();
         // The map samples a cell at its corner, the body index at its centre: both land in the cell (floor), both read its minimum.
@@ -452,13 +633,17 @@ void WorldGenerator::rebuildCoarseModel() {
             return cellMin[static_cast<size_t>(j) * n + i];
         };
     }
+    phaseMark(1);
     m_hydro = std::make_shared<HydrologyMap>(hydroHeight, kHydroOrigin, kHydroOrigin,
                                              kHydroCells, kHydroCells, kHydroCell, seaLvl);
+    phaseMark(2);
     // 51.12: the bake sees the carve - a carved channel drains the basin it crosses. Before the body index (it labels the
     // levels) and before the cache (the entry is immutable once shared). m_worldForge is null here (reset above), so the
     // columns sampled carry no road grading; river columns never read the bake (grading is riverOrder == 0 only).
+    // 51.17: the drain's carved surfaces, seeded from the store (verified above); a cell the file lacks is computed and added.
+    std::map<int, float> memo = storedDrain;   // a river cell beside several bodies is scanned once
+    const size_t storedDrainCells = memo.size();
     if (m_carveDrainsBasins) {
-        std::unordered_map<int, float> memo;   // a river cell beside several bodies is scanned once
         m_hydro->drainCarvedBasins(*m_flow, hydroHeight, [this, &memo](int cell) {
             auto it = memo.find(cell);
             if (it != memo.end()) return it->second;
@@ -470,7 +655,24 @@ void WorldGenerator::rebuildCoarseModel() {
     }
     // Body identity rides the bake (tangible-water Phase A). Built HERE because volumeEst needs
     // the flood's height function, which is not retained anywhere after this scope.
+    phaseMark(3);
     m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, hydroHeight);
+    phaseMark(4);
+    // 51.17: write the store after a fresh bake (none, another key, rejected) or when the drain asked a cell the file lacked.
+    if (useStore) {
+        m_bakeStoreStats.drainCells = static_cast<int>(memo.size());
+        if (!storeLoaded || memo.size() != storedDrainCells) {
+            const long bytes = writeHydroStore(m_bakeStorePath, storeKey, m_bakeFloodsTerrain ? cellMin : std::vector<float>{}, memo);
+            if (bytes < 0) LOG_WARN("WorldGenerator", "[WORLD_GENERATOR] Could not write the stored bake " + m_bakeStorePath);
+            else {
+                m_bakeStoreStats.fileBytes = bytes;
+                if (m_bakeStoreStats.state == BsNone) m_bakeStoreStats.state = BsWritten;
+            }
+        }
+        LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Stored bake " << bakeStoreStateName(m_bakeStoreStats.state) << ": load "
+                     << m_bakeStoreStats.loadMs << " ms, verify " << m_bakeStoreStats.verifyMs << " ms, " << m_bakeStoreStats.fileBytes
+                     << " bytes");
+    }
     m_bakeSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - bakeT0).count();
     if (m_bakeFloodsTerrain) {
         m_shoreLip = true;     // the bake is in place: the terrain now holds every water it records
@@ -502,7 +704,9 @@ void WorldGenerator::rebuildCoarseModel() {
         for (const auto& e : g_hydroCache)
             if (e.first == key) present = true;  // someone else inserted it; ours is identical
         if (!present) {
-            g_hydroCache.push_back({key, {m_hydro, m_flow, m_waterBodies}});
+            HydroBake b{m_hydro, m_flow, m_waterBodies, m_bakeStoreStats, m_bakeSeconds, {}};
+            for (int p = 0; p < 5; ++p) b.phase[p] = m_bakePhase[p];
+            g_hydroCache.push_back({key, b});
             if (g_hydroCache.size() > kHydroCacheCap) g_hydroCache.erase(g_hydroCache.begin());
         }
     }

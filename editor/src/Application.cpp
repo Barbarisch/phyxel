@@ -15317,6 +15317,15 @@ void Application::registerWaterCommands() {
              // WaterCore.md 51.12 / 51.13: which bake ran (recipe flags) and what the drain did
              {"carve_drains_basins", g->carveDrainsBasins()}, {"bake_floods_terrain", g->bakeFloodsTerrain()},
              {"bake_min_stride", g->bakeMinStride()}, {"bake_seconds", g->bakeSeconds()}, {"level_rivers", g->levelRivers()}};
+        {   // 51.17: the stored bake and where a fresh bake's time went
+            const auto& bs = g->bakeStoreStats();
+            r["bake_store"] = {{"on", WorldGenerator::s_bakeStoreOn}, {"state", WorldGenerator::bakeStoreStateName(bs.state)},
+                               {"load_ms", bs.loadMs}, {"verify_ms", bs.verifyMs}, {"verified_minima", bs.verifiedMinima},
+                               {"verified_drain", bs.verifiedDrain}, {"drain_cells", bs.drainCells}, {"file_bytes", bs.fileBytes},
+                               {"from_memory", bs.fromMemory}};
+            r["bake_phases"] = {{"flow", g->bakePhaseSeconds(0)}, {"minima", g->bakePhaseSeconds(1)}, {"flood", g->bakePhaseSeconds(2)},
+                                {"drain", g->bakePhaseSeconds(3)}, {"bodies", g->bakePhaseSeconds(4)}};
+        }
         if (const HydrologyMap* hd = g->hydrology()) {
             r["basins_drained"] = hd->basinsDrained();
             r["basins_unresolved"] = hd->basinsUnresolved();

@@ -481,6 +481,11 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         LOG_INFO("GameDefinitionLoader", "World: worldforge params from game.json (siteCount=" +
                  std::to_string(recipe.worldforge.siteCount) + ")");
     }
+    // WaterCore.md 51.17: the bake's expensive inputs stored beside the world DB (a pure cache; set before any applyRecipe bakes)
+    std::string bakeStorePath;
+    if (WorldStorage* storage = sub.chunkManager ? sub.chunkManager->getWorldStorage() : nullptr)
+        if (!storage->getDbPath().empty() && storage->getDbPath() != ":memory:") bakeStorePath = storage->getDbPath() + ".hydro";
+    generator.setBakeStore(bakeStorePath);
     if (WorldStorage* storage = sub.chunkManager ? sub.chunkManager->getWorldStorage() : nullptr) {
         if (storage->hasMeta("recipe")) {
             recipe = WorldRecipe::fromJson(storage->getMeta("recipe"));
@@ -543,6 +548,7 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         sub.chunkManager->configureStreamingGeneration(true, genType, seed);
         if (WorldGenerator* sg = sub.chunkManager->getStreamingGenerator()) {
             sg->getTerrainParams() = generator.getTerrainParams();
+            sg->setBakeStore(bakeStorePath);   // 51.17 (an in-process cache hit after the up-front generator's bake)
             sg->applyRecipe(recipe);   // streamed chunks use the same per-world tuning
             if (mapData) sg->setHeightmapSource(mapData);  // after applyRecipe (which rebuilds coarse)
         }
