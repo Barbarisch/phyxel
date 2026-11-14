@@ -14,6 +14,7 @@
 // the byte-identical record (SettlementMapTest.MapIsIdenticalFromPlanTwice).
 // ============================================================================
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -75,10 +76,24 @@ struct MapLot {
     std::vector<Rect> parcel;
     bool inParcel(int x, int z) const;   ///< settlement-local cubes
     int parcelArea() const;              ///< cells in the mask
-    /// The Chebyshev distance (cubes) from (x,z) to the nearest parcel cell: 0 inside, `reach + 1` beyond `reach`.
-    /// The terrace's skirt runs off THIS (the planner's copy and the realizer's unit both call it).
-    int parcelDistance(int x, int z, int reach) const;
+    /// The parcel as ONE rect (D51 as revised): the single rect of `parcel`; the nominal toft when the record
+    /// carries none or more than one. The planner's terrace, projectMap and through it the realizer all read THIS.
+    Rect parcelRect() const;
 };
+
+/// M5b-2 (the audit of 7cbdf70b, claim 5; closes O21 d): the terrace of one parcel - THE rule, called by the planner
+/// (over its own ground) and by the realizer's "terracing parcel" unit (over the chunks' terrain top). The parcel is
+/// graded to the MEDIAN of its ground; a skirt of `skirt` cells ramps one cube a cell back to the ground beyond.
+/// `cells` holds every cell of the parcel grown by the skirt with its target top cube (x outer, z inner), changed
+/// or not. `groundAt` is read for every parcel cell (the median) and every skirt cell, never written. ok = false:
+/// a parcel thinner than 2 cells, or no sampler. Frame: whatever `parcel` and `groundAt` share.
+struct ParcelTerrace {
+    bool ok = false;
+    int grade = 0;
+    struct Cell { int x = 0, z = 0, target = 0; };
+    std::vector<Cell> cells;
+};
+ParcelTerrace planParcelTerrace(const Rect& parcel, int skirt, const std::function<int(int, int)>& groundAt);
 
 struct MapArea {
     int id = 0;

@@ -1,5 +1,8 @@
 #include "core/SettlementMap.h"
 
+#include <algorithm>
+#include <vector>
+
 namespace Phyxel {
 namespace Core {
 
@@ -16,13 +19,29 @@ int MapLot::parcelArea() const {
     return n;
 }
 
-int MapLot::parcelDistance(int x, int z, int reach) const {
-    if (inParcel(x, z)) return 0;
-    for (int r = 1; r <= reach; ++r) {
-        for (int i = -r; i <= r; ++i)
-            if (inParcel(x + i, z - r) || inParcel(x + i, z + r) || inParcel(x - r, z + i) || inParcel(x + r, z + i)) return r;
-    }
-    return reach + 1;
+Rect MapLot::parcelRect() const { return parcel.size() == 1 ? parcel[0] : rect; }
+
+ParcelTerrace planParcelTerrace(const Rect& pr, int skirt, const std::function<int(int, int)>& groundAt) {
+    ParcelTerrace t;
+    if (pr.w < 2 || pr.d < 2 || !groundAt) return t;
+    std::vector<int> tops;
+    tops.reserve(static_cast<size_t>(pr.w) * pr.d);
+    for (int x = pr.x; x < pr.x1(); ++x) for (int z = pr.z; z < pr.z1(); ++z) tops.push_back(groundAt(x, z));
+    std::sort(tops.begin(), tops.end());
+    t.ok = true; t.grade = tops[tops.size() / 2];
+    t.cells.reserve(static_cast<size_t>(pr.w + 2 * skirt) * (pr.d + 2 * skirt));
+    for (int x = pr.x - skirt; x < pr.x1() + skirt; ++x)
+        for (int z = pr.z - skirt; z < pr.z1() + skirt; ++z) {
+            int target = t.grade;
+            const int dx = std::max({pr.x - x, x - (pr.x1() - 1), 0}), dz = std::max({pr.z - z, z - (pr.z1() - 1), 0});
+            const int dist = std::max(dx, dz);
+            if (dist > 0) {   // the skirt: ramp grade -> natural, at most one cube a cell
+                const int nat = groundAt(x, z);
+                target = (nat > t.grade) ? std::min(nat, t.grade + dist) : std::max(nat, t.grade - dist);
+            }
+            t.cells.push_back({x, z, target});
+        }
+    return t;
 }
 
 nlohmann::json SettlementMap::toJson() const {

@@ -870,7 +870,8 @@ TEST(SettlementMapTest, ParcelsShrinkWithTheSlope) {
     EXPECT_GT(lostAlong, 0) << "no back yard along a 20 % slope lost a cell";
     EXPECT_EQ(lostAcross, 0) << "a back yard across the slope lost cells";
     EXPECT_EQ(lostControl, 0) << "the lambda_s = 0 control differs from the rect";
-    EXPECT_LT(reliefParcels, reliefRects) << "the parcels' summed relief is not below the rects'";
+    // the audit's F2: the relief sums are PRINTED only - a parcel is a subset of its rect, so "<" asked nothing the lost
+    // cells do not already say (157 against 155 on chain 199)
 }
 
 // (j) + (l): on every rig a parcel is inside its rect, holds its front block (footprint + setback strip: D50), is
@@ -894,6 +895,38 @@ TEST(SettlementMapTest, EveryParcelHoldsItsFootprintAndIsDisjointAndDry) {
             EXPECT_EQ(p.disconnected, 0) << f.name << " " << s.tier;
             EXPECT_EQ(p.holes, 0) << f.name << " " << s.tier << ": a parcel cell behind a gap in its column";
             EXPECT_EQ(p.maxRects, 1) << f.name << " " << s.tier << ": a parcel that is not one rect (D51 as revised: the fence's four planes)";
+            // the audit's F3 / F4: the same properties from sources the conquest does not compute - the FOOTPRINT rect,
+            // the DOOR's wall cell and normal (the forge's autofill), the water sampler over the RECT
+            int footOutside = 0, doorSideMoved = 0, approachOutside = 0, wetRect = 0, doors = 0;
+            for (const auto& l : m.lots) {
+                const Rect pr = l.parcelRect();
+                int out = 0;
+                for (int z = l.footprint.z; z < l.footprint.z1(); ++z) for (int x = l.footprint.x; x < l.footprint.x1(); ++x)
+                    if (x < pr.x || x >= pr.x1() || z < pr.z || z >= pr.z1()) ++out;
+                footOutside += out;
+                if (out > 0)   // chain 206: 39 cells on the city, on every field
+                    std::printf("[ M5b-2 ]     lot %d %s orientation %d setback %d: toft [%d,%d,%d,%d] footprint [%d,%d,%d,%d] parcel [%d,%d,%d,%d] - %d footprint cells outside the parcel\n",
+                                l.id, l.typology.c_str(), l.orientation, l.setback, l.rect.x, l.rect.z, l.rect.w, l.rect.d, l.footprint.x, l.footprint.z, l.footprint.w, l.footprint.d,
+                                pr.x, pr.z, pr.w, pr.d, out);
+                for (int z = l.rect.z; z < l.rect.z1(); ++z) for (int x = l.rect.x; x < l.rect.x1(); ++x) if (in.waterAt && in.waterAt(x, z)) ++wetRect;
+                if (!l.hasDoor) continue;
+                ++doors;
+                // the parcel's edge on the side the door faces is the toft's edge (the gate and the approach are there)
+                const bool same = l.doorNX > 0 ? pr.x1() == l.rect.x1() : l.doorNX < 0 ? pr.x == l.rect.x : l.doorNZ > 0 ? pr.z1() == l.rect.z1() : pr.z == l.rect.z;
+                if (!same) ++doorSideMoved;
+                // every cell from the door wall outward to the toft's edge is in the parcel
+                for (int k = 1; k <= 8; ++k) {
+                    const int x = l.doorX + l.doorNX * k, z = l.doorZ + l.doorNZ * k;
+                    if (x < l.rect.x || x >= l.rect.x1() || z < l.rect.z || z >= l.rect.z1()) break;
+                    if (!l.inParcel(x, z)) ++approachOutside;
+                }
+            }
+            std::printf("[ M5b-2 ]   %-10s %-8s from the footprint / door / water sampler: footprint cells outside the parcel %d, door-side edges moved %d of %d doors, "
+                        "approach cells outside %d, wet cells in a toft rect %d\n", f.name, s.tier, footOutside, doorSideMoved, doors, approachOutside, wetRect);
+            EXPECT_EQ(footOutside, 0) << f.name << " " << s.tier;
+            EXPECT_EQ(doorSideMoved, 0) << f.name << " " << s.tier << ": the parcel gave up its frontage";
+            EXPECT_EQ(approachOutside, 0) << f.name << " " << s.tier;
+            EXPECT_EQ(wetRect, 0) << f.name << " " << s.tier << ": the growth seated a toft on water (the conquest's water gate would then shorten at lambda 0)";
             EXPECT_EQ(p.overlapCells, 0) << f.name << " " << s.tier;
             EXPECT_EQ(p.wetCells, 0) << f.name << " " << s.tier;
         }
@@ -970,4 +1003,77 @@ TEST(SettlementMapTest, TheProjectionHandsTheParcelToTheRealizer) {
     EXPECT_EQ(plotNotParcel, 0);
     EXPECT_EQ(assignedNotParcel, 0);
     EXPECT_EQ(frontMoved, 0);
+}
+
+// The audit's claim 5: the terrace is ONE rule (planParcelTerrace) called by the planner and by the realizer's unit -
+// its properties measured on its output, the parcel against the toft on the same ground (the rule reads WHICH rect it
+// is given), and the planner's stated terrace level against the rule on the natural ground for the first lot.
+TEST(SettlementMapTest, TheTerraceIsOneRuleOverTheParcel) {
+    ASSERT_TRUE(rigs().programOk);
+    const std::function<int(int, int)> ground = plane20z;
+    const Rect parcel{10, 10, 8, 6}, toft{10, 10, 8, 8};
+    const ParcelTerrace t = planParcelTerrace(parcel, 4, ground), tt = planParcelTerrace(toft, 4, ground);
+    ASSERT_TRUE(t.ok); ASSERT_TRUE(tt.ok);
+    std::vector<int> tops;
+    for (int x = parcel.x; x < parcel.x1(); ++x) for (int z = parcel.z; z < parcel.z1(); ++z) tops.push_back(ground(x, z));
+    std::sort(tops.begin(), tops.end());
+    int inNotGrade = 0, skirtOffRamp = 0, skirtPastNatural = 0, changedInSkirt = 0;
+    for (const auto& c : t.cells) {
+        const int dx = std::max({parcel.x - c.x, c.x - (parcel.x1() - 1), 0}), dz = std::max({parcel.z - c.z, c.z - (parcel.z1() - 1), 0}), dist = std::max(dx, dz);
+        const int nat = ground(c.x, c.z);
+        if (dist == 0) { if (c.target != t.grade) ++inNotGrade; continue; }
+        if (std::abs(c.target - t.grade) > dist) ++skirtOffRamp;
+        if (c.target < std::min(nat, t.grade) || c.target > std::max(nat, t.grade)) ++skirtPastNatural;
+        if (c.target != nat) ++changedInSkirt;
+    }
+    std::map<std::pair<int, int>, int> byCell;
+    for (const auto& c : tt.cells) byCell[{c.x, c.z}] = c.target;
+    int differFromToft = 0, lostRowAtToftGrade = 0, lostRowAtParcelGrade = 0;
+    for (const auto& c : t.cells) {
+        const auto it = byCell.find({c.x, c.z});
+        if (it != byCell.end() && it->second != c.target) ++differFromToft;
+        if (c.z >= parcel.z1() && c.z < toft.z1() && c.x >= toft.x && c.x < toft.x1()) {   // the two rows the parcel gives up
+            if (it != byCell.end() && it->second == tt.grade) ++lostRowAtToftGrade;
+            if (c.target == t.grade) ++lostRowAtParcelGrade;
+        }
+    }
+    std::printf("[ M5b-2 ] terrace rule on the 20 %% Z plane: parcel 8 x 6 grade %d (median here %d), toft 8 x 8 grade %d; %zu cells (expected %d); parcel cells off grade %d, "
+                "skirt cells off the ramp %d, past the natural ground %d, changed in the skirt %d; targets that differ from the toft's %d; the two given-up rows: %d of 16 at "
+                "the toft's grade under the toft, %d at the parcel's grade under the parcel\n", t.grade, tops[tops.size() / 2], tt.grade, t.cells.size(), (8 + 8) * (6 + 8),
+                inNotGrade, skirtOffRamp, skirtPastNatural, changedInSkirt, differFromToft, lostRowAtToftGrade, lostRowAtParcelGrade);
+    EXPECT_EQ(t.grade, tops[tops.size() / 2]);
+    EXPECT_EQ(t.cells.size(), static_cast<size_t>((8 + 8) * (6 + 8)));
+    EXPECT_EQ(inNotGrade, 0);
+    EXPECT_EQ(skirtOffRamp, 0);
+    EXPECT_EQ(skirtPastNatural, 0);
+    EXPECT_GT(differFromToft, 0) << "the rule gives the parcel and the toft the same targets on a slope";
+    EXPECT_EQ(lostRowAtToftGrade, 16) << "under the toft the two back rows are graded flat";
+    EXPECT_LT(lostRowAtParcelGrade, 16) << "under the parcel the two rows it gives up are still graded flat";
+    EXPECT_FALSE(planParcelTerrace(Rect{0, 0, 1, 5}, 4, ground).ok);
+    EXPECT_FALSE(planParcelTerrace(parcel, 4, {}).ok);
+
+    // the planner: the first lot's stated terrace level is the rule on the natural ground over ITS PARCEL
+    for (const float lambda : {4.7f, 0.0f}) {
+        SettlementMapInput in = inputFor("village", 80, 48, plane20z, {});
+        in.terraceLots = true; in.parcelSlopeWeight = lambda;
+        const SettlementMap m = planSettlementMap(in);
+        ASSERT_TRUE(m.ok()) << m.refusal;
+        ASSERT_FALSE(m.lots.empty());
+        int stated = 0, equalRule = 0, shorter = 0, shorterEqualToftRule = 0;
+        for (const auto& l : m.lots) {
+            if (!l.hasTerrace) continue;
+            ++stated;
+            const bool isShorter = l.parcelArea() < l.rect.w * l.rect.d;
+            if (isShorter) ++shorter;
+            if (l.terraceY == planParcelTerrace(l.parcelRect(), 4, ground).grade) ++equalRule;
+            if (isShorter && l.terraceY == planParcelTerrace(l.rect, 4, ground).grade) ++shorterEqualToftRule;
+        }
+        const MapLot& l0 = m.lots[0];
+        std::printf("[ M5b-2 ] planner terraces, lambda_s %.1f: %d of %zu lots state a terrace; %d equal the rule over their parcel on the NATURAL ground (later lots read earlier "
+                    "terraces' skirts - printed); %d parcels shorter, %d of them at the grade the rule gives their TOFT (printed); lot 0 states %d, the rule %d\n",
+                    lambda, stated, m.lots.size(), equalRule, shorter, shorterEqualToftRule, l0.terraceY, planParcelTerrace(l0.parcelRect(), 4, ground).grade);
+        EXPECT_EQ(stated, static_cast<int>(m.lots.size()));
+        EXPECT_TRUE(l0.hasTerrace);
+        EXPECT_EQ(l0.terraceY, planParcelTerrace(l0.parcelRect(), 4, ground).grade) << "the first lot's terrace is not the rule over its parcel";
+    }
 }

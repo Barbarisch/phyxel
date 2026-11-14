@@ -1295,8 +1295,9 @@ TEST(SettlementMapLiveSiteTest, ThePlannedParcelsOfTheLiveSites) {
 // the toft's back row the parcel does not hold carries NO fence micro in the parcel build and carries the fence in the
 // control (the measure discriminates on a planner output); the terrace units' summed cut + fill; both gates.
 TEST(SettlementMapLiveSiteTest, TheVillageFencesAndTerracesItsParcelsNotItsTofts) {
-    struct Arm { nlohmann::json out; long leftFence = 0, cutFill = 0; int leftCells = 0, lotsWithFenceInLeft = 0; };
+    struct Arm { nlohmann::json out; long leftFence = 0, cutFill = 0, backFence = 0; int leftCells = 0, lotsWithFenceInLeft = 0, backCells = 0; };
     std::vector<std::array<int, 4>> leftRows;   // world cells the parcel build leaves outside the parcel: x, z, lot, 0
+    std::vector<std::array<int, 4>> backRows;   // the audit's F6: the parcel's own cells that touch one of those - its new back row
     Arm arms[2];
     for (int a = 0; a < 2; ++a) {
         LiveSiteRig rig;
@@ -1310,23 +1311,32 @@ TEST(SettlementMapLiveSiteTest, TheVillageFencesAndTerracesItsParcelsNotItsTofts
             for (const auto& l : m.lots)
                 for (int z = l.rect.z; z < l.rect.z1(); ++z) for (int x = l.rect.x; x < l.rect.x1(); ++x)
                     if (!l.inParcel(x, z)) leftRows.push_back({m.originX + x, m.originZ + z, l.id, 0});
+                    else if ((z + 1 < l.rect.z1() && !l.inParcel(x, z + 1)) || (z - 1 >= l.rect.z && !l.inParcel(x, z - 1)) ||
+                             (x + 1 < l.rect.x1() && !l.inParcel(x + 1, z)) || (x - 1 >= l.rect.x && !l.inParcel(x - 1, z)))
+                        backRows.push_back({m.originX + x, m.originZ + z, l.id, 0});
         const std::string fenceMat = arms[a].out.value("fence_material", std::string());
         ASSERT_FALSE(fenceMat.empty());
         const int oy = static_cast<int>(rig.site->surfaceY);
         std::map<int, long> perLot;
-        for (const auto& c : leftRows) {
-            const int top = settlementTopScan(&rig.cm, oy, c[0], c[1], /*floraBlind=*/true);
+        const auto fenceMicrosAt = [&](int wx, int wz) {
+            const int top = settlementTopScan(&rig.cm, oy, wx, wz, /*floraBlind=*/true);
             long n = 0;
             for (int y = top - 1; y <= top + 3; ++y) {   // the fence stands on the ground's top face; the scan's top may be the fence itself
-                const glm::ivec3 wp(c[0], y, c[1]);
+                const glm::ivec3 wp(wx, y, wz);
                 Chunk* ch = rig.cm.getChunkAtFast(wp);
                 if (!ch) continue;
                 const glm::ivec3 lp = wp - ch->getWorldOrigin();
                 for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) for (int k = 0; k < 3; ++k)
                     for (const Microcube* mc : ch->getMicrocubesAt(lp, glm::ivec3(i, j, k))) if (mc && mc->getMaterialName() == fenceMat) ++n;
             }
+            return n;
+        };
+        for (const auto& c : leftRows) {
+            const long n = fenceMicrosAt(c[0], c[1]);
             arms[a].leftFence += n; perLot[c[2]] += n; ++arms[a].leftCells;
         }
+        for (const auto& c : backRows) { arms[a].backFence += fenceMicrosAt(c[0], c[1]); ++arms[a].backCells; }
+        std::printf("[ M5b-2 ]   %s: %ld fence micros in the %d cells of the parcels' NEW back rows\n", a == 0 ? "parcels" : "control", arms[a].backFence, arms[a].backCells);
         for (const auto& [lot, n] : perLot) {
             if (n > 0) ++arms[a].lotsWithFenceInLeft;
             std::printf("[ M5b-2 ]   %s: lot %d - %ld fence micros (%s) in the toft cells outside its parcel\n", a == 0 ? "parcels" : "control", lot, n, fenceMat.c_str());
@@ -1345,5 +1355,8 @@ TEST(SettlementMapLiveSiteTest, TheVillageFencesAndTerracesItsParcelsNotItsTofts
     EXPECT_EQ(arms[1].out["terrace"].value("parcels_shorter", -1), 0);
     EXPECT_EQ(arms[0].leftFence, 0) << "a fence stands in a toft cell outside the parcel";
     EXPECT_GT(arms[1].leftFence, 0) << "the control carries no fence where the toft's back row is - the measure reads nothing";
+    // the audit's F6: the fence STANDS on the parcel's new back row (in the control that row is open yard crossed by the
+    // two side fences only)
+    EXPECT_GT(arms[0].backFence, arms[1].backFence) << "no back fence on the parcels' new back rows";
     EXPECT_LT(arms[0].cutFill, arms[1].cutFill) << "the terraces over the parcels move no less ground than over the tofts";
 }

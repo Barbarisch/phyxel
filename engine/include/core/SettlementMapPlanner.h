@@ -77,7 +77,9 @@ struct SettlementMapInput {
     /// column. False = no parcel is written (the lot's rect: the control).
     bool parcels = true;
     /// lambda_s, REASONED (the design check of 2026-11-06): a step at the TooSteep gradient (relief 6 over 13 cubes,
-    /// 0.46) costs twice a flat step: 1 / 0.46^2 = 4.7. 0 = the planner control (parcel == rect on any ground).
+    /// 0.46) costs twice a flat step: 1 / 0.46^2 = 4.7. 0 = the planner control: NO SLOPE shortening (the audit's
+    /// F1: not "the rect on any ground" as first written - the conquest never takes a water cell at any weight;
+    /// the growth seats no rect on water, so a rect holds none and the two coincide as built).
     float parcelSlopeWeight = 4.7f;
 };
 

@@ -1048,3 +1048,70 @@ the audit's conditions + increment E (2026-11-14; predictions PM5b1a.50-.53 in m
   projectMap now hands the parcel rect to layout.plots and msl.assigned: the realizer's clearing, terrace, fences and
     yard props follow it with no realizer edit. NOT measured: any of those four on a parcel that differs from its
     rect - no voxel has been placed on this tree.
+--- increment B: the realizer on parcels, the LIVE arms (Debug; written 2026-11-14 10:25) --------------------------------------
+  chain 200 (plan only, live ground): village 5 of 11 parcels one back row shorter (72 cells), town 9 of 24 (100);
+    lambda_s 0 -> 0 and 0. 1 ok / 0 failed.
+  chain 201 (SettlementMapLiveSiteTest.* + StructureRealizerTest.*): 30 ok / 0 failed.
+    TheVillageFencesAndTerracesItsParcelsNotItsTofts - an A/B on a planner input, not a time-ordered red / green
+    (the control arm is the red): in the 72 toft cells the parcels give up, 0 fence micros with parcels, 3400 with
+    lambda_s 0 (on all 5 lots); terrace cut + fill 2955 against 3298 (10.4 % less; guessed 1-5 %); both gates 34 / 0.
+    The village and town arms' door / approach / gate counts are those of chain 190.
+  NOT measured: clearing and yard props on a shortened parcel (they read the same projected rect; no check of their
+    own); what the left-natural row looks like (it lies inside the terrace's skirt); one world; the effect on these
+    sites is one row per yard - no live site has a deeply shortened parcel.
+--- M5b-2: SOLUTION-AUDITOR on 7cbdf70b (read-only; chains 195-201; written 2026-11-14 10:29), raw ------------------------
+  Claim 1 (headless conquest): SUPPORTED, weak spots in the tests (F2, F3, F4). Claim 2 (red-before-green): PARTLY -
+    "Chain 195 ... all five failures are written == 0 or shorter == 0. The feature was absent, so this is not red on
+    the property. Genuine property-red: lost cells 0 -> 300 (196), maxRects == 1 red on the rolling field (198),
+    projection plots 4 of 10 wrong (198)." Claim 3 (chain 200): SUPPORTED. Claim 4 (real voxels): SUPPORTED as an
+    A/B on a planner input; evidence postdates the code (hashes on the START line match the files). Claim 5 (the
+    two terrace copies): PARTLY - "The code argument holds; the tests do not check the shortened lots' cells
+    directly ... It does not exercise the back-side skirt ... Do not say 'grade the same cells to the same
+    targets' as measured."
+  F1 (medium): "lambda = 0 is the control, parcel == rect on any ground" FAILS with water - conquerParcel skips water
+    at any lambda; every lambda-0 rig is dry. Say "no slope shortening".
+  F2 (low-medium): the relief assertion (157 vs 155) is nearly vacuous (a subset's relief can never exceed the rect's).
+  F3 (low): frontMissing / holes / disconnected / outside / overlap are by-construction truths for one rect;
+    inFrontBlock in the test duplicates the planner's front(); only maxRects == 1 was ever seen red; a wrong front
+    block would slip through.
+  F4 (low): wetCells can fail only on the 5 % hill; the front block takes no water gate.
+  F5 (low): the height cache CLAMPS at the site edge - back rows at the edge (village lot 7 at z = 0) see half the
+    gradient; the planner under-shortens there, unmeasured.
+  F6 (low): the fence measure shows no fence in the left-out cells, not a fence on the new edge (only the 716-micro
+    drop supports that); which lot is unfenced by policy is not logged.
+  F7 (low): the lost row is unowned land (the growth blocks the full rect); clearing now clears parcel + margin -
+    trees in the left-out row unchecked; yard props unchecked; a 1-cube step beside the fence unmeasured.
+  F8 (low): parcelRect falls back to the full rect when parcel.size() != 1 while inParcel uses the mask; raw
+    l.orientation in conquerParcel vs the mod-4 in lotDoorApproach; the w < 2 || d < 2 skip tests the rect.
+  F9 (info): flat-ground maps are not byte-identical - every lot serializes a parcel field. F10 (info): the live
+    results are one row each on one seed each; lambda 4.7 REASONED; D50-D52 PROPOSED.
+  Must NOT be claimed: slope-aware parcels in general; the two terrace copies identical as tested; lambda 0 an exact
+    control on any ground; relief reduced; the by-construction checks as evidence; red on the property for chain 195.
+  "VERDICT: FAIL as an unqualified 'done'. Claims 1, 3 and 4 hold as worded. Claim 2 only partly holds, and claim 5
+  is argued but not measured on the back-side skirt. The lambda = 0 control claim is false with water. The relief
+  assertion and the by-construction checks are weak, and the leg is still PROPOSED/in-progress."
+  PLAN (after the running set reaches its live run; sources are not edited while it runs): one terrace function
+  called by both the planner and the realizer (ends the second copy - O21 d - and makes claim 5 true by construction,
+  with a mutation-style test); F1 wording + a wet-yard rig; F2 the relief assertion removed (printed); F3 the front
+  block checked from the DOOR and footprint, not the planner's formula; F5 one-sided gradient at the site edge; F6 a
+  positive fence check on the parcel's back row; F7 clearing / yard props counted in the left-out row; F8.
+--- M5b-2: the first closure set (stopped), the audit's fixes, a map defect found (written 2026-11-14 11:09) -------------------
+  on 7cbdf70b: chain 202 unit set 167 ok / 0 failed; chain 203 paver set 42 / 0; Release build 20 0 errors; L4 run 20
+    (tag m5b2_a; worldforge_build on CivLab): 3 of 3 built, gates 72 / 0, 34 / 0, 40 / 0, parcels shorter 9 of 24 /
+    5 of 11 / 1 of 13, control refused 20 / 1. Misses: village 2 (guessed 2-6 shorter, 1); the bake +54 % / +15 % /
+    +61 % against run 19 (guessed under +20 %; noise not separated). The set was STOPPED by me there (chain 204
+    killed, 205 not started): the audit's fixes change the planner and the realizer.
+  patch 45 (the audit): planParcelTerrace is the ONE terrace rule - the planner and the realizer's unit call it
+    (O21 d: the second copy is gone; parcelDistance removed); MapLot::parcelRect; the gradient window clipped to the
+    site with its real span (F5); orientation mod 4 (F8); the relief assertion removed (F2); the parcel checked from
+    the footprint, the door and the water sampler over the toft (F3 / F4); TheTerraceIsOneRuleOverTheParcel; the
+    back-row fence count (F6); "unfenced by policy" logged per plot.
+  chain 206: 21 ok / 1 failed - MISS (predicted 22 / 0), and a real FIND: the city's manor_hall (13 x 20) stood 3
+    cells out of the back of its 18-deep toft (39 cells, every field) - a map defect older than this leg (the toft's
+    depth was clamped to plot.depth_max below setback + the building's depth); chain 207 named the lot.
+  patch 47: the toft's depth >= setback + the footprint's depth. chain 208: 22 ok / 0 failed.
+  F1 (lambda 0 and water): the wet-toft count is 0 on 16 maps - the growth seats no toft on water, so the conquest's
+    water gate never fires and lambda 0 == the toft AS BUILT; the header now says "no slope shortening". NOT tested:
+    a toft with water in it (none can be planned).
+  F7 NOT addressed: clearing and yard props on the given-up row are unmeasured (the live rig carries no flora); the
+    given-up row is unowned land inside the growth's blocked rect.

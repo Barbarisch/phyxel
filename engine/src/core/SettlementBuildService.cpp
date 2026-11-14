@@ -963,12 +963,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     if (!chunkManager) return;
                     const int SK = 4;             // skirt width blending plot grade -> natural
                     const int px0 = ox + pr.x, pz0 = oz + pr.z, pw = pr.w, pd = pr.d;
-                    if (pw < 2 || pd < 2) return;
-                    std::vector<int> tops;
-                    for (int x = px0; x < px0 + pw; ++x)
-                        for (int z = pz0; z < pz0 + pd; ++z) tops.push_back(terrainTopAt(x, z));
-                    std::sort(tops.begin(), tops.end());
-                    const int grade = tops[tops.size() / 2];      // median plot grade
+                    // M5b-2 (closes O21 d): THE terrace rule - Core::planParcelTerrace, the function the planner
+                    // calls for its own ground (the median over the parcel, the skirt ramping one cube a cell)
+                    const Core::ParcelTerrace tplan = Core::planParcelTerrace(Core::Rect{px0, pz0, pw, pd}, SK, terrainTopAt);
+                    if (!tplan.ok) return;
                     std::vector<glm::ivec3> tcut;
                     Core::StructureResult tfill;
                     auto addT = [&](int x, int y, int z, const char* mat) {
@@ -976,20 +974,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         vp.material = mat; vp.level = Core::VoxelLevel::Cube;
                         tfill.voxels.push_back(vp);
                     };
-                    for (int x = px0 - SK; x < px0 + pw + SK; ++x)
-                        for (int z = pz0 - SK; z < pz0 + pd + SK; ++z) {
-                            const bool inPlot = x >= px0 && x < px0 + pw && z >= pz0 && z < pz0 + pd;
-                            int target;
-                            if (inPlot) {
-                                target = grade;
-                            } else {               // skirt: ramp grade -> natural, <=1/cube
-                                const int dx = std::max({px0 - x, x - (px0 + pw - 1), 0});
-                                const int dz = std::max({pz0 - z, z - (pz0 + pd - 1), 0});
-                                const int dist = std::max(dx, dz);
-                                const int nat = terrainTopAt(x, z);
-                                target = (nat > grade) ? std::min(nat, grade + dist)
-                                                       : std::max(nat, grade - dist);
-                            }
+                    for (const auto& tc : tplan.cells) {
+                            const int x = tc.x, z = tc.z, target = tc.target;
                             // cur stays RAW (flora-inclusive): everything above the graded target —
                             // including a tree on the parcel — is cleared by the cut loop.
                             const int cur = groundTopAt(x, z);
@@ -1655,7 +1641,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     const auto& ap = msl.assigned[pi];
                     gate = ap.streetSide;   // M5a: a map lot's gate opens onto ITS way (the side the path arrives on)
                     if (!Core::shouldFencePlot(static_cast<int>(pi), seed, pr, ap.footprint,
-                                               fencePol)) { ++unfenced; continue; }
+                                               fencePol)) {
+                        ++unfenced;
+                        LOG_INFO_FMT("Settlement", "fences: plot " << pi << " (" << ap.typology << ") unfenced by policy");   // the audit's F6
+                        continue;
+                    }
                     // The gate must land on the FRONT DOOR: the paver's spur anchor is the
                     // footprint's front-wall midpoint — project it onto the gate side's run.
                     doorRunMicroX = (ap.footprint.x + ap.footprint.w / 2) * 9 + 4;

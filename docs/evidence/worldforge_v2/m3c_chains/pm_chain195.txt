@@ -99,3 +99,75 @@ PM5b2.7  chain 201 (written 2026-11-14 08:59; patch 44 = test only; filter Settl
   UNCHANGED from chain 190, but the terraces of 5 lots moved, so seats / way levels may shift: any difference from
   chain 190 is recorded. Town arm: 1 differs (lot 4), 23 imposed, gate 72 / 0 - same caveat (9 parcels shorter).
   The restore test, the seat tests: unchanged.
+
+RESULT chain 201 (written 2026-11-14 10:25; RUN EXIT 0 10:25:14; realizer c8a7748899cc39be, planner eefe7aa9af1f958c, live test
+  e610e0026fba6f66): 30 ok / 0 failed - the count AS PREDICTED (PM5b2.7).
+  parcels vs control on the village's VOXELS: parcels arm 5 shorter, 72 toft cells outside parcels, 0 fence micros in
+  them, terrace cut 1679 + fill 1276 = 2955, fence 18446 micros over 10 parcels (1 unfenced by policy), gate 34 / 0.
+  Control (lambda 0): 0 shorter, 3400 fence micros in the same 72 cells over all 5 lots (902 / 812 / 586 / 586 /
+  514), cut 1927 + fill 1371 = 3298, fence 19162 micros, gate 34 / 0. Cut + fill 10.4 % less - OUTSIDE my guess of
+  1-5 % (the direction as predicted, the size not).
+  village arm: 0 differ, 10 imposed of 11, 1 map-silent, gate 34 / 0; town arm: 1 differs (lot 4, same levels), 23
+  imposed, gate 72 / 0, terrace cut 2672 + fill 2078 with 9 parcels shorter - both UNCHANGED from chain 190 on the
+  door / approach counts.
+PM5b2.8  the closure set on this tree (written 2026-11-14 10:25): chain 202 unit set 167 ok / 0 failed (161 + 6 new SettlementMapTest
+  tests); chain 203 paver set 42 / 0; Release build 20 0 errors; L4 run 20 (tag m5b2_a): 3 of 3 built, gates 72 / 0,
+  34 / 0, 40 / 0, imposed 23 / 10 / 9, restore 0 of 328 / 11 of 673 / 0 of 0, "parcels:" lines town 9 of 24, village
+  1 5 of 11, village 2 NOT KNOWN (guess 2-6 of 13); control refused 20 / 1 and prints no "parcels:" line (legacy:
+  the line is gated on a map site); chain 204 terrain 108 / 1 (the O4 lip); chain 205 broad regression 142 / 1 of
+  143 (the hairpin). Bake ms with parcels printed from run 20 against run 19's 164.7 / 77.5 / 86.4 (Release): the
+  parcelDistance scan adds time - guess under +20 %.
+
+RESULTS of the first closure set on 7cbdf70b (written 2026-11-14 11:01) - STOPPED BY ME after the live run: the audit (ledger)
+  means the planner and the realizer change, so chains 204 / 205 on this tree would certify nothing kept. Chain 204
+  was killed mid-run (no result); chain 205 never started.
+  chain 202: 167 ok / 0 failed. chain 203: 42 ok / 0 failed. Release build 20: 0 errors (exe 10:37:53). AS PREDICTED.
+  L4 run 20 (tag m5b2_a): 3 of 3 built; gates 72 / 0, 34 / 0, 40 / 0; imposed 23 / 10 / 9, 0 not standing; restore 0
+  of 328 / 11 of 673 / 0 of 0; control refused 20 / 1, no "parcels:" line; town 9 of 24 shorter (100 cells), village 1
+  5 of 11 (72). AS PREDICTED. MISSES: village 2 has 1 of 13 shorter (20 cells) - I guessed 2-6; the bake is town
+  253.5 ms, village 1 89.5, village 2 139.3 against run 19's 164.7 / 77.5 / 86.4 = +54 % / +15 % / +61 % - I guessed
+  under +20 % (earlier Release town bakes ranged 163-237 ms run to run, so part may be noise; not separated).
+  SEEN, not predicted and not new: the town fences 6 parcels and leaves 18 unfenced by policy (6 runs dropped).
+  Extract: m5b_l4/m5b_l4_m5b2_a_ground.txt.
+PM5b2.9  patch 45 (the audit's fixes: planParcelTerrace as the ONE terrace rule in planner + realizer, parcelDistance
+  removed, MapLot::parcelRect, the gradient window clipped to the site with its real span, orientation mod 4, the
+  relief assertion removed, footprint / door / wet-rect checks, TheTerraceIsOneRuleOverTheParcel, the back-row fence
+  count, "unfenced by policy" logged per plot).
+  chain 206 (SettlementMapTest.*): 22 tests, 22 ok / 0 failed. NOT red-before-green for the refactor: the terrace
+  rule must give the SAME map as chain 199 on every rig where no yard touches the site edge; the clipped window can
+  only RAISE the gradient at an edge, so lost cells >= chain 199's (planes 300; rolling 59 / 198 / 89) - if a count
+  falls, the patch is wrong. The terrace-rule test: 224 cells, 0 / 0 / 0 off-rule, differ from the toft > 0, 16 of
+  16 given-up cells at the toft's grade under the toft, 0 under the parcel (COMPUTED by hand on the 20 % Z plane:
+  parcel grade 32, toft grade 32, the rows z 16-17 natural 33 -> ramp 33). Planner: lot 0 states the rule's grade
+  at both weights. New checks: footprint cells outside 0, door-side edges moved 0, approach cells outside 0, wet
+  toft cells 0 (the growth seats no toft on water - if > 0 the audit's F1 is live, not moot).
+
+RESULT chain 206 (written 2026-11-14 11:05; patch 45; planner 76a41a2c013c1301, realizer 41eb4536b81ae0cd; RUN EXIT 1 11:04:37): 21 ok /
+  1 failed - PM5b2.9 MISSED (predicted 22 / 0). The failure is the NEW footprint check (the audit's F3), and it is
+  not about parcels: on the CITY, on all four fields, 39 footprint cells lie outside the parcel - chain 207 (a print
+  added, the one test) names it: lot 0, the manor_hall, footprint 13 x 20 on a toft 18 deep with setback 1 - the
+  footprint runs 3 cells out of the BACK of its own toft (13 x 3 = 39). A map defect that predates M5b-2 (lotShape
+  takes the drawn toft depth without checking it holds setback + the footprint's depth); no test read the footprint
+  against its rect until now. The rest as predicted: planes lost 310 (>= 300), rolling 96 / 214 / 89 (>= 59 / 198 /
+  89), the terrace rule 224 cells 0 / 0 / 0, 16 targets differ from the toft's, 16 of 16 / 0 of 16; lot 0 states 33
+  = the rule at both weights; door-side edges moved 0, approach cells outside 0, wet toft cells 0 on 16 maps; the
+  sloped rig unchanged. Printed, honest: on the village 20 % Z all 4 shorter parcels state the SAME grade the rule
+  gives their toft - on that rig the shorter parcel does not move the median.
+PM5b2.10  patch 47: lotShape's depth = max(the drawn depth, setback + the footprint's depth) - the toft always holds
+  its building. chain 208 (SettlementMapTest.*): 22 ok / 0 failed; the city's footprint cells outside 0 on four
+  fields; the city's map CHANGES (lot 0's toft 3 deeper: its lot count or later lots may move - printed against
+  27 lots); hamlet / village / town maps predicted UNCHANGED (no typology of theirs is deeper than its toft: the
+  lost-cell counts stay 310 on the planes and 96 / 214 on the rolling village / town).
+
+RESULT chain 208 (written 2026-11-14 11:09; planner 6ab70a27ff54528c; RUN EXIT 0 11:08:44): 22 ok / 0 failed - AS PREDICTED (PM5b2.10).
+  City: 0 footprint cells outside on four fields, still 27 lots; its yards changed (flat: 308 yard cells along X,
+  chain 199 had 263; rolling lost 113, was 89). Planes 310, rolling village 96, town 214 - unchanged from chain 206.
+PM5b2.11  chain 209 (written 2026-11-14 11:09; SettlementMapLiveSiteTest.* + StructureRealizerTest.*, ~95 min; tree = 7cbdf70b +
+  patches 45-47): 30 ok / 0 failed. The terrace is now one function in both places: the village / town arms' door,
+  approach and gate counts UNCHANGED from chain 201 (0 differ / 10 imposed / 34-0; 1 differs / 23 imposed / 72-0).
+  The clipped gradient window can lengthen a loss at the site edge (village lot 7's yard backs onto z = 0): village
+  parcels shorter 5 (the test pins 5), cells lost >= 72 (if lot 7 loses a second row: 82); town >= 100, 9 or more
+  shorter. A/B test: 0 fence micros in the given-up cells with parcels, > 0 in the control; back-row fence micros
+  parcels > control (NEW, never run: the control's back row holds only the two side fences' crossings - REASONED);
+  terrace cut + fill parcels < control (was 2955 / 3298). If the realizer's cut / fill with lambda 0 is not 1927 +
+  1371 again, the shared function changed the terrace on rect parcels - that would be a defect of patch 45.
