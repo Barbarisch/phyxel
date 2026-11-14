@@ -469,8 +469,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F2.14h (2026-11-14): leaf-fill knob (lodLeafMass, {"lod_leaf_fill":t}, {"lod_alt":{...}} + {"lod_alt_on"}): no
       fill closes the canopy gap (sub-voxel shading, not outline) -> off. Whole-frame A/B VOID: a game (Wow.exe) shared
       the GPU. TRAP: before any perf run check nvidia-smi --query-compute-apps for other GPU apps; the user games.
-      NEXT (the plan's F2 list): item 8 (face direction culling), then 9 (incremental rebuild), 10 (face pool),
-      T-junctions. Owed perf reruns when the GPU is free: F2.14h fill 1/4 vs old mass.
+      F2.15 (2026-11-14): item 8, face direction culling, main view: per-(cell, direction) clusters over the same face
+      buffer + a cull-pass test (faceGroupMayFaceCamera); {"dir_clusters"} / {"dir_cull"} default ON. 0 px,
+      -0.30..-0.45 ms at 4/5 poses; commands x4.6 cost +0.68 at forest_floor_open (neutral there).
+      NEXT (the plan's F2 list): item 8's rest (shadow casters by light direction; fewer commands), then item 9
+      (incremental rebuild), 10 (face pool), T-junctions.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

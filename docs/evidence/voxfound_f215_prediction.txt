@@ -1,0 +1,35 @@
+F2.15 prediction (written 2026-11-14 before any code): §4.6 item 8, face direction culling.
+
+Design: clusterFaces sorts each cluster's faces by (cell, direction), so a cell's six direction groups are contiguous
+sub-ranges of it. Each Level keeps BOTH cluster lists over the same face buffer: per cell (F2.11) and per (cell,
+direction). The cull pass (voxfound_cull.comp) gets a direction test per command: a group of +axis faces lies on
+planes in [lo, hi] of the axis, so it can face the camera only if cam > lo (minus a 1 cm margin); a -axis group only
+if cam < hi. CPU reference VoxFound::faceGroupMayFaceCamera. Runtime: {"dir_clusters":bool} uploads the per-direction
+list, {"dir_cull":bool} turns the test on (main view, multidraw path; shadows and the direct path unchanged).
+
+1. Unit (red first): for random faces in random boxes and random cameras, no face that faces the camera (dot(normal,
+   cam - point on face) > 0) is in a group the test rejects; and for a camera outside a box, the groups on its far
+   side ARE rejected. Red on a stub (rejects none / rejects all).
+2. Pixels: per-direction clusters with the test on vs off: 0 px (only back faces go); per-cell vs per-direction
+   clusters, test off: 0 px (same faces, same order within a level and chunk).
+3. Commands: per-direction clusters x4-5.5 the per-cell count (not every cell has all six directions). Faces passed
+   to the vertex stage with the test on: 45-60 % of the visible clusters' faces (about half face away; groups that
+   straddle the camera plane stay).
+4. Whole frame (P harness, 8 pairs x 5 poses, LOD off = the default), A = per-cell, C = per-direction + test:
+   ground poses -0.2..-0.8 ms (the face scope was 3-5 ms there; F2.9's frustum culling of 20-33 % of faces saved
+   7-14 % of it, so dropping ~half saves ~15-25 % of it, minus the command overhead); from above +-0.2 ms. B (per-
+   direction, no test) vs A: the command overhead alone, 0..+0.3 ms (F2.11: 2-block clusters, a similar command
+   count, cost 0..+0.26).
+
+--- Measured (gate region, LOD off; f215_gate.json, f215_ab_AC / f215_ab_AB):
+1. Unit: red on the stubs (no direction / rejects none), green (CPU 53/53). GPU: the cull pass equals the CPU
+   reference on 6,000 random clusters (2,345 dropped, 0 wrong; that test was written after the implementation) --
+   GPU 18/18.
+2. Pixels: A (per cell) vs B (per direction, test off) vs C (test on): 0 px at all 5 poses, controls 0 (held).
+3. Commands: 2,385 -> 10,889 (x4.57; held). Faces to the vertex stage with the test, C / B: 0.60 / 0.58 / 0.59 / 0.62 /
+   0.55 (predicted 0.45-0.60: held at 3 poses, a little above at 2).
+4. Whole frame, C - A: overview -0.45*, top_down -0.38*, forest_floor_open -0.01 (n.s.), east_low -0.31*,
+   canopy_close -0.30* ms. Predicted -0.2..-0.8 at the ground (held at 2 of 3 ground poses) and +-0.2 from above
+   (WRONG: better, -0.4). B - A (the commands alone): +0.09* / +0.07 / +0.68* / +0.10 / +0.26* (predicted 0..+0.3:
+   WRONG at forest_floor_open, where the overhead eats the whole gain). Baselines sane (forest_floor_open 42 ms;
+   no other GPU application running). Default ON.

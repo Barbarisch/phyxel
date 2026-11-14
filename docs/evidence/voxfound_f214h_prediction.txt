@@ -35,3 +35,6 @@ an interleaved A/B ({"lod_alt_on":bool} swaps it).
    usual frame times after the first pose, with CIs of several ms; the GPU was shared with another application (a game,
    Wow.exe, running at the same time -- seen in nvidia-smi). Not a defect of the build. Owed: rerun with the GPU free.
    (This also explains the slow F2.14f session that was voided earlier.)
+4b. Rerun with the GPU free (f214h_ab_P8.*): fill 1/4 - old mass, P=8: overview +0.107*, top_down +0.221*,
+   forest_floor_open -0.082 (n.s.), east_low +0.171*, canopy_close +0.178* ms. Held (<= 0.3 from above, 0..+0.5 at
+   the ground).

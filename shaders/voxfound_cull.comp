@@ -28,7 +28,7 @@ void main() {
     const uint i = gl_GlobalInvocationID.x;
     if (i >= pc.count) return;
     const Cluster c = clusters[i];
-    const uint bits = floatBitsToUint(c.lo.w);   // chunk index 0-23 | level 24-27 (F2.14)
+    const uint bits = floatBitsToUint(c.lo.w);   // chunk index 0-23 | level 24-27 (F2.14) | direction + 1 28-31 (F2.15)
     bool vis = chunkVisible[bits & 0xFFFFFFu] != 0u;
     // F2.14: a cluster of level k is drawn only where a fragment in its box may keep level k (Mesher.h
     // lodLevelsForBox: nearest point - slack with the lowest Bayer value, farthest corner + slack with the highest);
@@ -51,6 +51,14 @@ void main() {
         const vec3 n = pc.planes[k].xyz;
         const vec3 p = vec3(n.x >= 0.0 ? c.hi.x : c.lo.x, n.y >= 0.0 ? c.hi.y : c.lo.y, n.z >= 0.0 ? c.hi.z : c.lo.z);
         if (dot(n, p) + pc.planes[k].w < 0.0) vis = false;
+    }
+    // F2.15 (§4.6 item 8): a direction group can face the camera only if the camera is on the front side of at least
+    // one plane its faces can lie on (Mesher.h faceGroupMayFaceCamera; 1 cm margin)
+    const uint dirBits = bits >> 28u;
+    if (vis && (pc.lod & 0x200u) != 0u && dirBits != 0u) {
+        const int dir = int(dirBits) - 1, axis = dir / 2;
+        const float cam = pc.lodCam[axis];
+        vis = (dir & 1) != 0 ? cam > c.lo[axis] - 0.01 : cam < c.hi[axis] + 0.01;
     }
     commands[i * 5u + 1u] = vis ? floatBitsToUint(c.hi.w) : 0u;
 }

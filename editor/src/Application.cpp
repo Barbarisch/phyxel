@@ -13450,6 +13450,19 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             if (!ok) response["error"] = "coarser levels not built (lod_levels)";
             return;
         }
+        // {"dir_clusters":bool, "dir_cull":bool}: F2.15 (§4.6 item 8) -- the multidraw uses the per-direction clusters,
+        // and the cull pass drops direction groups that cannot face the camera (both ON by default, F2.15)
+        if ((cmd.params.contains("dir_clusters") || cmd.params.contains("dir_cull")) && !cmd.params.contains("type") &&
+            !cmd.params.contains("region")) {
+            if (cmd.params.contains("dir_clusters")) voxFoundPreview.dirClusters = cmd.params.value("dir_clusters", false);
+            if (cmd.params.contains("dir_cull")) voxFoundPreview.dirCull = cmd.params.value("dir_cull", false);
+            ++voxFoundPreview.revision;   // re-upload the cluster table
+            response = {{"dir_clusters", voxFoundPreview.dirClusters}, {"dir_cull", voxFoundPreview.dirCull},
+                        {"clusters", voxFoundPreview.clusters.size()}, {"clusters_dir", voxFoundPreview.clustersDir.size()},
+                        {"lod_clusters", voxFoundPreview.lodClusters.size()},
+                        {"lod_clusters_dir", voxFoundPreview.lodClustersDir.size()}};
+            return;
+        }
         // {"lod_draw":k}: F2.13 draw pyramid level k (built with {"lod_levels":n}) for the whole region, no rebuild.
         if (cmd.params.contains("lod_draw") && !cmd.params.contains("type") && !cmd.params.contains("region")) {
             const int k = cmd.params.value("lod_draw", 0);
@@ -13812,17 +13825,22 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         for (int part = 0; part < 2; ++part) {
             std::vector<PackedFace>& fs = part ? leafFaces : solidFaces;   // clusterFaces reorders in place
             const uint32_t partFirst = first + (part ? uint32_t(solidFaces.size()) : 0u);
-            for (const FaceCluster& c : clusterFaces(fs, clusterBlocks)) {
-                PreviewCluster pcl;
-                const glm::vec3 base = glm::vec3((chunk - lo) * kChunkM);
-                pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
-                pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
-                pcl.firstFace = partFirst + c.first;
-                pcl.count = c.count;
-                pcl.chunk = chunkIndex;
-                pcl.leafMass = part == 1;
-                L.clusters.push_back(pcl);
-            }
+            const std::vector<FaceCluster> cells = clusterFaces(fs, clusterBlocks);
+            // F2.15: the same faces cut into direction groups (contiguous within each cell)
+            const std::vector<FaceCluster> groups = splitByDirection(fs, cells);
+            for (int d = 0; d < 2; ++d)
+                for (const FaceCluster& c : d ? groups : cells) {
+                    PreviewCluster pcl;
+                    const glm::vec3 base = glm::vec3((chunk - lo) * kChunkM);
+                    pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
+                    pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
+                    pcl.firstFace = partFirst + c.first;
+                    pcl.count = c.count;
+                    pcl.chunk = chunkIndex;
+                    pcl.leafMass = part == 1;
+                    pcl.dir = c.dir;
+                    (d ? L.clustersDir : L.clusters).push_back(pcl);
+                }
         }
         L.faces.insert(L.faces.end(), solidFaces.begin(), solidFaces.end());
         L.faces.insert(L.faces.end(), leafFaces.begin(), leafFaces.end());

@@ -412,8 +412,11 @@ std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int cluste
         const glm::ivec3 c = unpackFace(f).o / cellV;   // chunk-local, non-negative
         return (uint32_t(c.x) << 16) | (uint32_t(c.y) << 8) | uint32_t(c.z);
     };
-    std::stable_sort(faces.begin(), faces.end(),
-                     [&](PackedFace a, PackedFace b) { return cellKey(a) < cellKey(b); });
+    // F2.15: (cell, direction), so a cell's direction groups are contiguous sub-ranges (splitByDirection)
+    std::stable_sort(faces.begin(), faces.end(), [&](PackedFace a, PackedFace b) {
+        const uint32_t ka = cellKey(a), kb = cellKey(b);
+        return ka != kb ? ka < kb : faceDirIndex(a) < faceDirIndex(b);
+    });
     std::vector<FaceCluster> out;
     for (size_t i = 0; i < faces.size();) {
         const uint32_t k = cellKey(faces[i]);
@@ -431,6 +434,36 @@ std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int cluste
         out.push_back(c);
     }
     return out;
+}
+
+int faceDirIndex(PackedFace f) {
+    const Quad q = unpackFace(f);
+    return int(q.axis) * 2 + (q.dir > 0 ? 1 : 0);
+}
+std::vector<FaceCluster> splitByDirection(const std::vector<PackedFace>& faces, const std::vector<FaceCluster>& cells) {
+    std::vector<FaceCluster> out;
+    for (const FaceCluster& c : cells)
+        for (uint32_t i = c.first; i < c.first + c.count;) {
+            FaceCluster g;
+            g.first = i;
+            g.dir = faceDirIndex(faces[i]);
+            g.lo = glm::ivec3(std::numeric_limits<int>::max());
+            g.hi = glm::ivec3(std::numeric_limits<int>::min());
+            for (; i < c.first + c.count && faceDirIndex(faces[i]) == g.dir; ++i) {
+                glm::ivec3 lo, hi;
+                faceBox(faces[i], lo, hi);
+                g.lo = glm::min(g.lo, lo);
+                g.hi = glm::max(g.hi, hi);
+            }
+            g.count = i - g.first;
+            out.push_back(g);
+        }
+    return out;
+}
+bool faceGroupMayFaceCamera(int dirIndex, glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float margin) {
+    if (dirIndex < 0) return true;
+    const int axis = dirIndex / 2;
+    return (dirIndex & 1) ? cam[axis] > lo[axis] - margin : cam[axis] < hi[axis] + margin;
 }
 
 bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi) {

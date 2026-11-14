@@ -2661,7 +2661,9 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
     // level test is on); else level 0's
     if (m_voxFoundCullRevision != pv.revision) {
         // F2.14f: the leaf mass last (its own multidraw + pipeline) when its look is on
-        const auto& all = pv.lodClusters.empty() ? pv.clusters : pv.lodClusters;
+        // F2.15: the per-direction clusters when asked for
+        const auto& all = pv.lodClusters.empty() ? (pv.dirClusters ? pv.clustersDir : pv.clusters)
+                                                 : (pv.dirClusters ? pv.lodClustersDir : pv.lodClusters);
         m_voxFoundCullOrder.clear();
         for (int pass = 0; pass < 2; ++pass)
             for (const auto& c : all)
@@ -2674,7 +2676,7 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
         std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(srcClusters.size());
         for (size_t i = 0; i < cl.size(); ++i) {
             const auto& c = srcClusters[i];
-            cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk, c.level};
+            cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk, c.level, c.dir};
         }
         std::string err;
         if (!m_voxFoundCull->upload(cl, vulkanDevice->chunkIndexCount(), uint32_t(pv.chunks.size()),
@@ -2739,7 +2741,8 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
         lod.c = Core::VoxFound::lodScaleFromCode(voxFoundLodCode());
         lod.maxLevel = pv.lodMaxLevel;
     }
-    m_voxFoundCull->record(cmd, uint32_t(currentFrame), planes, lodOn ? &lod : nullptr);
+    const bool dirCull = pv.dirClusters && pv.dirCull;   // F2.15
+    m_voxFoundCull->record(cmd, uint32_t(currentFrame), planes, lodOn ? &lod : nullptr, dirCull ? &camRel : nullptr);
     m_voxFoundCullRecorded = true;
 }
 

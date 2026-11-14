@@ -175,11 +175,21 @@ void faceBox(PackedFace f, glm::ivec3& lo, glm::ivec3& hi);
 struct FaceCluster {
     glm::ivec3 lo{0}, hi{0};
     uint32_t first = 0, count = 0;
+    int dir = -1;   // F2.15: -1 = every direction; else axis * 2 + (normal positive ? 1 : 0)
 };
 /// Reorders `faces` (one chunk's solid faces, no sprigs) so the faces of each cluster are contiguous. A face belongs
 /// to the cell of `clusterBlocks`^3 blocks that holds its origin voxel (clusterBlocks 1 = per block, the plan's
-/// unit). Clusters come in cell order; empty cells have none.
+/// unit). Clusters come in cell order; empty cells have none. F2.15: within a cell the faces are ordered by direction
+/// (faceDirIndex), so splitByDirection can cut each cluster into its direction groups over the same buffer.
 std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int clusterBlocks);
+/// F2.15 (§4.6 item 8): a face's direction, axis * 2 + (normal positive ? 1 : 0).
+int faceDirIndex(PackedFace f);
+/// F2.15: the clusters of clusterFaces cut into their direction groups (same faces, same order; box per group).
+std::vector<FaceCluster> splitByDirection(const std::vector<PackedFace>& faces, const std::vector<FaceCluster>& cells);
+/// F2.15: can any face of a direction group in the box [lo, hi] face the camera? A +axis face on the plane x = p faces
+/// it only if cam.x > p, and the group's planes lie in [lo.x, hi.x]: so iff cam.x > lo.x - margin (-axis: cam.x <
+/// hi.x + margin). Conservative: a group straddling the camera plane stays. Same test as voxfound_cull.comp.
+bool faceGroupMayFaceCamera(int dirIndex, glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float margin = 0.01f);
 /// The cull pass's test, CPU reference: is the box [lo, hi] (metres) on the inner side of all six planes?
 /// planes[i] = (n, d), inside where dot(n, p) + d >= 0 (the p-vertex test: conservative, never drops a visible box).
 bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi);

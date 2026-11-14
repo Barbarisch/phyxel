@@ -46,6 +46,7 @@ struct PreviewCluster {
     uint32_t firstFace = 0, count = 0, chunk = 0;
     uint32_t level = 0;   // F2.14: the pyramid level its faces belong to (Preview::lodClusters)
     bool leafMass = false;   // F2.14c: coarse leaf mass (dropped from the draw lists while lodSprigOn is false)
+    int dir = -1;            // F2.15: its faces' direction (Mesher.h faceDirIndex); -1 = all six
 };
 
 struct Preview {
@@ -79,8 +80,15 @@ struct Preview {
         std::vector<uint32_t> firstFace, faceCount;
         std::vector<uint32_t> leafCount;   // F2.14c: the LAST leafCount faces of a chunk's range are coarse leaf mass
         std::vector<PreviewCluster> clusters;
+        std::vector<PreviewCluster> clustersDir;   // F2.15: the same faces cut into direction groups
     };
     std::vector<Level> levels;
+    /// F2.15 (§4.6 item 8): dirClusters = the multidraw uses the per-direction clusters (clustersDir /
+    /// lodClustersDir); dirCull = the cull pass drops direction groups that cannot face the camera. Default ON
+    /// (measured: 0 px; -0.30..-0.45 ms whole frame at 4 of 5 poses, neutral at the fifth; VoxelFoundationPlan F2.15).
+    std::vector<PreviewCluster> clustersDir, lodClustersDir;
+    bool dirClusters = true;
+    bool dirCull = true;
     int drawLevel = 0;
     /// Draws level k for the whole region: copies its faces, ranges and clusters into the drawn fields and bumps
     /// the revision (the renderer re-uploads). Returns false if level k was not built.
@@ -89,6 +97,7 @@ struct Preview {
         const Level& L = levels[size_t(k)];
         faces = L.faces;
         clusters = L.clusters;
+        clustersDir = L.clustersDir;
         for (size_t i = 0; i < chunks.size(); ++i) {
             chunks[i].firstFace = L.firstFace[i];
             chunks[i].faceCount = L.faceCount[i];
@@ -131,6 +140,7 @@ struct Preview {
         const size_t nLevels = std::min(levels.size(), size_t(std::max(lodLevelCap, 0)) + 1);
         faces.clear();
         lodClusters.clear();
+        lodClustersDir.clear();
         lodFirst.assign(nLevels, {});
         lodCount.assign(nLevels, {});
         for (size_t k = 0; k < nLevels; ++k) {
@@ -142,14 +152,16 @@ struct Preview {
                 const uint32_t leaf = (!lodSprigOn && i < L.leafCount.size()) ? L.leafCount[i] : 0u;
                 lodCount[k].push_back(L.faceCount[i] - leaf);
             }
-            for (PreviewCluster c : L.clusters) {
-                if (c.leafMass && !lodSprigOn) continue;   // F2.14c: handoff off = no leaf mass, sprigs everywhere
-                c.firstFace += base;
-                c.level = uint32_t(k);
-                lodClusters.push_back(c);
-            }
+            for (int d = 0; d < 2; ++d)
+                for (PreviewCluster c : d ? L.clustersDir : L.clusters) {
+                    if (c.leafMass && !lodSprigOn) continue;   // F2.14c: handoff off = no leaf mass, sprigs everywhere
+                    c.firstFace += base;
+                    c.level = uint32_t(k);
+                    (d ? lodClustersDir : lodClusters).push_back(c);
+                }
         }
         clusters = levels[0].clusters;
+        clustersDir = levels[0].clustersDir;
         for (size_t i = 0; i < chunks.size(); ++i) {
             chunks[i].firstFace = levels[0].firstFace[i];
             chunks[i].faceCount = levels[0].faceCount[i];

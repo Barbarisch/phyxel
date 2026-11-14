@@ -31,6 +31,7 @@ public:
         uint32_t count = 0;             // faces
         uint32_t chunk = 0;             // index into the chunk mask (< 2^24)
         uint32_t level = 0;             // F2.14: pyramid level of its faces (< 16)
+        int dir = -1;                   // F2.15: its faces' direction (Mesher.h faceDirIndex), -1 = all
     };
     /// F2.14: draw a cluster only when its level may be kept by a fragment in its box (Mesher.h lodLevelsForBox).
     /// Without it, only level-0 clusters are drawn.
@@ -57,10 +58,13 @@ public:
     /// The per-chunk decision for frame `slot` (1 = visible), size = chunkCount.
     void setChunkVisible(uint32_t slot, const std::vector<uint32_t>& visible);
     /// Records the cull dispatch for frame `slot` and a barrier to the indirect + vertex stages.
-    void record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 planes[6], const LodCull* lod = nullptr);
+    /// F2.15: `dirCam` (camera, same frame as the boxes) turns on the direction test (Mesher.h
+    /// faceGroupMayFaceCamera) for clusters that have a direction.
+    void record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 planes[6], const LodCull* lod = nullptr,
+                const glm::vec3* dirCam = nullptr);
     /// Runs record() on its own command buffer and waits (tests).
     bool cullNow(VkQueue queue, uint32_t queueFamily, uint32_t slot, const glm::vec4 planes[6], std::string* err,
-                 const LodCull* lod = nullptr);
+                 const LodCull* lod = nullptr, const glm::vec3* dirCam = nullptr);
 
     uint32_t clusterCount() const { return m_count; }
     VkBuffer commands(uint32_t slot) const { return slot < m_commands.size() ? m_commands[slot].buf : VK_NULL_HANDLE; }

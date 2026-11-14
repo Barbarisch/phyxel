@@ -523,6 +523,50 @@ TEST_F(VoxFoundFaceBuilderGpu, ClusterCullEqualsTheReference) {
 
 // ---- F2.14: the cull pass draws a cluster of level k only where a fragment in its box may keep level k -----------
 // Red first: the F2.11 shader ignores the level (every cluster drawn), and must draw only level 0 without the test.
+TEST_F(VoxFoundFaceBuilderGpu, ClusterCullDropsDirectionGroupsLikeTheReference) {
+    // F2.15 (section 4.6 item 8): with the direction test on, a command keeps its count exactly when the frustum keeps
+    // the cluster AND Mesher.h faceGroupMayFaceCamera does (clusters with no direction ignore the test)
+    ClusterCullGpu cull;
+    std::string err;
+    ASSERT_TRUE(cull.init(device, physicalDevice, "shaders", 1, &err)) << err;
+    std::mt19937 rng(23);
+    std::uniform_real_distribution<float> pos(-100.0f, 100.0f), ext(0.0f, 16.0f);
+    std::uniform_int_distribution<int> cnt(1, 300), dirOf(-1, 5);
+    std::vector<ClusterCullGpu::Cluster> cl(6000);
+    uint32_t first = 0;
+    for (auto& c : cl) {
+        c.lo = glm::vec3(pos(rng), pos(rng) * 0.25f, pos(rng));
+        c.hi = c.lo + glm::vec3(ext(rng), ext(rng), ext(rng));
+        c.count = uint32_t(cnt(rng));
+        c.firstInstance = first;
+        first += c.count;
+        c.dir = dirOf(rng);
+    }
+    ASSERT_TRUE(cull.upload(cl, 36u, 1u, queue, queueFamilyIndex, &err)) << err;
+    cull.setChunkVisible(0, {1u});
+    glm::vec4 planes[6];
+    for (auto& p : planes) p = glm::vec4(0.0f, 0.0f, 0.0f, 1e6f);   // everything inside: isolate the direction test
+    const glm::vec3 cam(3.5f, 2.0f, -7.25f);
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 0, planes, &err, nullptr, &cam)) << err;
+    std::vector<uint32_t> cmdv;
+    ASSERT_TRUE(cull.readCommands(queue, queueFamilyIndex, 0, cmdv, &err)) << err;
+    size_t dropped = 0, bad = 0;
+    for (size_t i = 0; i < cl.size(); ++i) {
+        const bool want = faceGroupMayFaceCamera(cl[i].dir, cl[i].lo, cl[i].hi, cam);
+        dropped += !want;
+        if (cmdv[i * 5 + 1] != (want ? cl[i].count : 0u)) ++bad;
+    }
+    std::printf("[cluster cull] direction test: %zu of %zu clusters dropped, %zu wrong\n", dropped, cl.size(), bad);
+    EXPECT_GT(dropped, cl.size() / 5);
+    EXPECT_EQ(bad, 0u);
+    // the test off: nothing dropped
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 0, planes, &err)) << err;
+    ASSERT_TRUE(cull.readCommands(queue, queueFamilyIndex, 0, cmdv, &err)) << err;
+    size_t off = 0;
+    for (size_t i = 0; i < cl.size(); ++i) off += cmdv[i * 5 + 1] != cl[i].count;
+    EXPECT_EQ(off, 0u);
+}
+
 TEST_F(VoxFoundFaceBuilderGpu, ClusterCullPicksLevelsLikeTheReference) {
     ClusterCullGpu cull;
     std::string err;

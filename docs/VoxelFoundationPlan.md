@@ -373,7 +373,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
 | 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look done (F2.14f: own pipeline shaded as cards, luma 74.7 → 106.2 vs the cards' 107.9, mass error halved; +0.14/+0.16 ms at the ground; handoff still off); two pyramids built (F2.14g: no hidden tops, holes at P=32 gone, but farther from level 0 at P=8 — off; found: canopy-interior faces cut sprig overdraw 2-3.7 ms); leaf-fill knob built (F2.14h: no fill closes the canopy gap — it is sub-voxel shading; off; its whole-frame A/B owed, voided by a shared GPU) |
-| 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
+| 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | main view done (F2.15: direction groups per 4-block cluster in the cull pass, 0 px, −0.30..−0.45 ms at 4 of 5 poses, neutral at the fifth; default on); shadow casters (light direction) and a lower command count owed |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
 
@@ -1109,11 +1109,34 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
     gaps onto darker layers).
   - Faces (levels 2 / 3): 142,231 / 31,112 → 160,480 / 31,229 (½), 165,515 / 36,077 (¼), 167,032 / 35,581 (⅛) —
     predicted ×1.3-2.5: WRONG (×1.17): most ½ m and 1 m leaf cells are already nearly full.
-- Whole frame: VOID — two runs read 1.5-2.5× the usual frame times with multi-ms CIs while another application (a
-  game) shared the GPU. Owed: rerun with the GPU free.
+- Whole frame, fill ¼ − the old mass at P=8 (`voxfound_f214h_ab_P8.*`, rerun with the GPU free; two earlier runs
+  were void, another application shared the GPU): overview +0.11*, top_down +0.22*, forest_floor_open −0.08 (n.s.),
+  east_low +0.17*, canopy_close +0.18* ms (held, ≤ 0.3).
 - Default: fill 0 (off). The handoff stays off: its remaining look gap is the canopy's internal shading, which neither
   the colour (F2.14f) nor the outline (this) closes. That would need shading the mass by its own depth into the canopy
   (an occlusion term from the leaf pyramid) — recorded, not taken: item 7's part list is done.
+
+**F2.15 2026-11-14 — §4.6 item 8: face direction culling.**
+- Built: `clusterFaces` orders each cluster's faces by (cell, direction), so a cell's six direction groups are
+  contiguous sub-ranges; `splitByDirection` cuts the clusters into those groups over the SAME face buffer, and every
+  Level keeps both lists (`clusters`, `clustersDir`). The cull pass (`voxfound_cull.comp`, direction in bits 28-31 of
+  the cluster word) drops a group that cannot face the camera: +axis faces lie on planes in [lo, hi] of the axis, so
+  they can face it only if cam > lo − 1 cm (−axis: cam < hi + 1 cm); CPU reference `faceGroupMayFaceCamera`.
+  `{"dir_clusters":bool}` / `{"dir_cull":bool}`, both default ON. Main view, multidraw path; shadows (their own light
+  direction) and the direct path are unchanged.
+- Red first: `DirectionGroupsNeverHideAFaceThatFacesTheCamera` (random content, 40 cameras inside and outside: no face
+  that faces the camera is dropped, groups behind are), red on stubs; GPU `ClusterCullDropsDirectionGroupsLikeTheReference`
+  (6,000 random clusters, 2,345 dropped, 0 different from the CPU; written after the implementation). CPU 53/53, GPU
+  18/18.
+- Measured vs the prediction (`voxfound_f215_prediction.txt`; gate region, LOD off):
+  - Pixels (`voxfound_f215_gate.json`): per cell vs per direction vs per direction + test: 0 px at all 5 poses (held).
+  - Commands 2,385 → 10,889 (×4.57, held); faces reaching the vertex stage with the test 55-62 % (predicted 45-60 %).
+  - Whole frame, per direction + test − per cell (`voxfound_f215_ab_AC.*`): overview −0.45*, top_down −0.38*,
+    forest_floor_open −0.01 (n.s.), east_low −0.31*, canopy_close −0.30* ms. The extra commands alone
+    (`voxfound_f215_ab_AB.*`): +0.09* / +0.07 / +0.68* / +0.10 / +0.26* — at forest_floor_open they eat the whole gain
+    (predicted ≤ +0.3: wrong there); from above the win is twice the predicted ±0.2.
+- Default ON. Next levers inside item 8: the shadow casters (cull by the light's direction), and fewer commands
+  (direction groups only where a cell's faces span the camera plane, else the whole cell).
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

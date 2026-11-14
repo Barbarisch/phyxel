@@ -1086,6 +1086,54 @@ TEST(VoxFoundMesher, LeafMassFillThresholdsTheLeafPyramid) {
     EXPECT_EQ(int(lodLeafMass(sl, 0.125, 7).mat[0]), sl.surfMat[0] ? int(sl.surfMat[0]) : 7);
 }
 
+TEST(VoxFoundMesher, DirectionGroupsNeverHideAFaceThatFacesTheCamera) {
+    // F2.15 (§4.6 item 8): random content, clusters cut into direction groups; for cameras inside and outside the
+    // content, every face that faces the camera is in a group the test keeps, and groups wholly behind are dropped.
+    std::mt19937 rng(7);
+    VoxelGrid g;
+    g.resize({48, 40, 56});
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    for (uint8_t& v : g.mat) v = u(rng) < 0.35f ? uint8_t(1 + (rng() % 3)) : 0;
+    std::vector<PackedFace> faces;
+    for (const Quad& q : meshRuns(g, Outside::Air)) faces.push_back(packFace(q));
+    const size_t total = faces.size();
+    const std::vector<FaceCluster> cells = clusterFaces(faces, 2);
+    const std::vector<FaceCluster> groups = splitByDirection(faces, cells);
+    // the groups partition each cell's range, one direction each, in order
+    size_t covered = 0, ci = 0;
+    for (const FaceCluster& gr : groups) {
+        ASSERT_GE(gr.dir, 0) << "a group with no direction";
+        while (ci < cells.size() && gr.first >= cells[ci].first + cells[ci].count) ++ci;
+        ASSERT_LT(ci, cells.size());
+        EXPECT_GE(gr.first, cells[ci].first);
+        EXPECT_LE(gr.first + gr.count, cells[ci].first + cells[ci].count);
+        for (uint32_t i = gr.first; i < gr.first + gr.count; ++i) EXPECT_EQ(faceDirIndex(faces[i]), gr.dir);
+        covered += gr.count;
+    }
+    EXPECT_EQ(covered, total);
+    EXPECT_GT(groups.size(), cells.size() * 3) << "most cells should hold several directions";
+    size_t missed = 0, dropped = 0, checks = 0;
+    std::uniform_real_distribution<float> cu(-60.0f, 120.0f);
+    for (int t = 0; t < 40; ++t) {
+        const glm::vec3 cam(cu(rng), cu(rng), cu(rng));
+        for (const FaceCluster& gr : groups) {
+            const bool keep = faceGroupMayFaceCamera(gr.dir, glm::vec3(gr.lo), glm::vec3(gr.hi), cam);
+            dropped += !keep;
+            for (uint32_t i = gr.first; i < gr.first + gr.count; ++i) {
+                glm::ivec3 lo, hi;
+                faceBox(faces[i], lo, hi);
+                const int axis = gr.dir / 2;
+                const bool positive = (gr.dir & 1) != 0;
+                const bool front = positive ? cam[axis] > float(lo[axis]) : cam[axis] < float(lo[axis]);
+                ++checks;
+                if (front && !keep) ++missed;
+            }
+        }
+    }
+    EXPECT_EQ(missed, 0u) << "a face that faces the camera was culled (" << checks << " checks)";
+    EXPECT_GT(dropped, groups.size() * 40 / 4) << "too few groups dropped";
+}
+
 TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {
     // cost inputs for item 7 (not a gate): the §9a forest spot, faces and solid volume per level
     const std::string root = repoRoot();
