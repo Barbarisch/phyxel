@@ -9106,6 +9106,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
 | D7 | 2026-10-28 | L4 is designed to pace EVERY wake (near and far), not only a far one (42.3) | L4: "pace a far wake" | 42.2 measured that the wake's timing changes nothing until a body reaches the water, and nothing shows on the water before that either, so a paced wake within the body's deadline needs no distance to be safe; pacing only far wakes would leave the near hitch, the one the player sees, in place | the agent; **the owner's call** (scope): pacing applies to all wakes unless the owner says far only (`wake_pace_near` would then be a knob) | CLOSED 2026-10-29: the owner took the recommendation ("go with your recommendations") - all wakes, and on by default (42.6) |
 | D8 | 2026-11-13 | WorldForge `roadAt` blends overlapping roads' grades at a junction (51.13) | not in the plan: a WorldForge defect | 51.13 changed where lakes are, so the WorldForge plan's roads moved, and two roads meeting near a site flipped the surface between their own grade profiles column by column (92.0 -> 93.7 in 2 m). `RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains` failed. The defect is older than 51.13 (the old layout only missed it), but it blocked shipping the owner's "no wall of water" by default | the agent, under the owner's "keep going". Reported in 51.13 | **good reason** (a blocker, fixed at its cause, not waived). The roads test, WorldForge and RoadField pass 51 / 51; the mountain stress test's steep-step share fell 0.46 % -> 0.35 %. CLOSED |
+| D9 | 2026-11-14 | Why the frame rate swings during and after a splash | not in the plan: the owner's concern on signing off 51.11 / 51.13 (*"i am concerned with the fps fluctuating so much"*) | `cosm511_clip.json`'s own samples: after the splash the fps runs 12-367; dips to ~12 fps recur every ~1.2-3.6 s for 9 s (wide take 5.0 / 8.6 / 9.8 s; close 3.7 / 4.9 / 7.3 / 8.5 s), and 19-48 fps in the first second. Recorded with the screen recorder running and another session's engine live, so how much is the water is NOT known | the owner's concern; scope and order the owner's | OPEN - proposed: measure a splash on a clean GPU, recorder off, per frame (CPU, GPU, the water's own share), find what the ~80 ms frames are |
 
 ### 30.6 The plan-check log (newest last)
 
@@ -13731,6 +13732,9 @@ read on its own thread.
 4. **The pool factor stays 1.0** (`kPatchPoolFactor`; 0 of 15 live grows, the memory bound <= 1.5x the peak holds).
 - **Not delegable - looks still the owner's to see:** 51.12/51.13's lake (`drain513_lake_on.png`) and 51.11's droplets
   (`cosm511_clip.mp4`). A look cannot be signed off by recommendation.
+
+- **Signed off by the owner 2026-11-14** (*"looks good"*), shown `drain513_lake_on.png` and `cosm511_clip.mp4`: the 51.12 / 51.13
+  lake look and 51.11's droplets. With a concern: *"i am concerned with the fps fluctuating so much"* - drift D9 (§30.5).
 
 **51.17 item 3 (2026-11-14) BUILT, ON - the hydrology bake stored per world: a second load bakes in 0.09 s, not 9.1 s** (the
 owner's decision above; no drift). `/design-check` READY with three conditions, all met below.
