@@ -421,6 +421,11 @@
       "sources": "6f93d3b4aefe4d53cd277bef37068628ae8b031fe9771857fbc934d82b7f5c1f",
       "spv_present": true
     },
+    "voxfound_lod.comp": {
+      "built": true,
+      "sources": "2ba46bc299b16ac2fc84684d265521fd07c8e7f0565203a435e49bd4fbd96f86",
+      "spv_present": true
+    },
     "water.frag": {
       "built": true,
       "sources": "8b069bf08b53310dd0e4c74ff10291d3b4d783f6c941dc70d067092ade04ed62",

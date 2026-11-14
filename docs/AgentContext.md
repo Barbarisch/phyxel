@@ -455,7 +455,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       not against "preview hidden" -- the card-cells-as-air fix covered "holes" that level 0 also shows (sprig gaps)
       and was farther from level 0 at 9/10 points: reverted. Owed: coarse card cell holding the ground surface should
       draw that ground (P=32 only here). Perf: no saving in a 128 m region (+0.1-0.2 ms at P=32).
-      NEXT (the plan's F2 list, §4.6 item 7 continued): GPU level build; leaf-mass look; ground under coarse canopy.
+      F2.14e (2026-11-14): GPU level build (LodBuilderGpu, shaders/voxfound_lod.comp; build {"lod_gpu":bool}, default
+      true): exact vs CPU every channel (VoxFoundLodBuilderGpu), 0.58 ms per 272^3 chunk area; region level time
+      11.7 -> 2.4 s (host copies dominate), region request 38.5 -> 30.5 s (generation 23-25 s is now the cost).
+      NEXT (the plan's F2 list, §4.6 item 7 continued): leaf-mass look; ground under coarse canopy cells. Then item 8
+      (face direction culling), 9 (incremental rebuild), 10 (face pool), T-junctions.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

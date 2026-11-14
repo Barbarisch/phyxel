@@ -372,7 +372,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
-| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build owed |
+| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look owed |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
@@ -1009,6 +1009,26 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   coarser levels cannot save; the extra band (two levels drawn where they meet) costs a little at P=32. Their win is
   at the streaming radius and beyond (§3.5a point 3), with the far tiers' handoff.
 - Default: selection stays OFF (`lod_auto`); a build without `lod_levels` > 3 is unchanged.
+
+**F2.14e 2026-11-14 — §4.6 item 7 continued: the GPU port of the level build.**
+- Built: `LodBuilderGpu` + `shaders/voxfound_lod.comp`: levels 1..n of a chunk's 1 m margin area on the device, one
+  thread per coarse cell, no ordering between threads. Pass 0 = level 1 straight from the voxel bytes (lodBase fused
+  in: a voxel's surface = it touches air inside the grid); pass 1 = level k+1 from level k (lodDown's cell step: count
+  sum, surface and volume votes with lowest-material ties, the half-solid rule); pass 2 = lodDown's neighbour step
+  (reads only count / surf / votes, writes mat). Every level's channels are concatenated in one buffer each and read
+  back as LodGrids. The region build uses it for each chunk's levels 1-3 (`{"lod_gpu":bool}`, default true; false =
+  the CPU reference); the region pyramid (levels 4-7) stays CPU (0.16-0.29 s per region).
+- Red first: `VoxFoundLodBuilderGpu` (tests/integration; random content at 5 sizes with up to 9 materials, a thin
+  surface layer that makes the neighbour step decide every top cell, the engine forest chunk area — 272³ voxels,
+  87 plants — and refusals), red on a stub, then exact on the first build: every channel of every level equals the
+  CPU lodBase + lodDown (2.87 M cells on the forest area). GPU 17/17, CPU 50/50.
+- Measured vs the prediction (`voxfound_f214e_prediction.txt`): device time 0.58 ms per chunk area (held, < 5 ms).
+  Whole gate region (32 chunks, lod_levels 7, `voxfound_f214e_check.json`): identical faces and solid volume at every
+  level; level time 11.74 s (CPU) → 2.41 s (GPU; 34 ms of it on the device, the rest host copies and unpacking the
+  read-back channels) — predicted < 1.5 s, WRONG; region request 38.5 → 30.5 s — predicted ~24 s, WRONG: terrain +
+  flora generation is 23-25 s of it, now the dominant cost. Pixels: the GPU build vs a CPU rebuild 0 px at
+  overview_south P=8 (CPU built twice: 0 px; the session's first capture was 6 px off by one colour level from both).
+- Not a frame-time item (a build path); next lever for build time is the generation itself, which is not in item 7.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

@@ -3748,6 +3748,7 @@ void Application::cleanup() {
     matSimLab.reset();   // its GPU buffers and pipelines go while the device still exists
     if (renderCoordinator) renderCoordinator->setVoxFoundPreview(nullptr);
     voxFoundBuilder.reset();   // F2.2: same reason
+    voxFoundLodBuilder.reset();   // F2.14e: same reason
     renderCoordinator.reset();
     voxelInteractionSystem.reset();
     raycastVisualizer.reset();
@@ -13716,6 +13717,22 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // the deepest the 3-bit maxLevel of the flags holds (32 m and above need a re-layout).
     const int lodLevels = std::clamp(cmd.params.value("lod_levels", 0), 0, 7);
     const int chunkLevels = std::min(lodLevels, 3);   // built per chunk with its 1 m margin (F2.13)
+    // F2.14e: {"lod_gpu":bool} (default true) builds a chunk's levels 1..3 on the device (LodBuilderGpu, exact vs the
+    // CPU lodBase + lodDown, VoxFoundLodBuilderGpu); false = the CPU reference. lod_level_ms = the time spent on them.
+    const bool lodGpu = cmd.params.value("lod_gpu", true);
+    double lodLevelMs = 0.0, lodGpuDeviceMs = 0.0;
+    if (lodGpu && chunkLevels > 0 && !voxFoundLodBuilder) {
+        voxFoundLodBuilder = std::make_unique<LodBuilderGpu>();
+        std::string gerr;
+        const std::string spv = Core::AssetManager::instance().resolveShader("voxfound_lod.comp.spv");
+        if (!voxFoundLodBuilder->init(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice(),
+                                      vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(),
+                                      std::filesystem::path(spv).parent_path().string(), &gerr)) {
+            voxFoundLodBuilder.reset();
+            response = {{"error", "LodBuilderGpu init: " + gerr}};
+            return;
+        }
+    }
     LodGrid regionLod;                                // level 3 of the whole region (lodLevels > 3)
     if (lodLevels > 3) regionLod = lodEmpty(nC * kChunkM, 3);
     // F2.14c: {"lod_sprig_level":h} (1..lod_levels; 0 = off, the default) -- levels >= h build leaves as SOLID coarse
@@ -13798,7 +13815,17 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         pc.originMetres = glm::dvec3(rc.originVoxel) / double(kVoxelsPerM);
         pc.firstSprig = uint32_t(sprigRecs.size());
         LodGrid lod;
-        if (lodLevels > 0 && rc.area) lod = lodBase(*rc.area);
+        std::vector<LodGrid> gpuLevels;   // F2.14e: levels 1..chunkLevels from the device
+        if (lodLevels > 0 && rc.area) {
+            const auto tl = std::chrono::steady_clock::now();
+            if (lodGpu) {
+                if (!voxFoundLodBuilder->build(*rc.area, chunkLevels, gpuLevels, &err)) return;
+                lodGpuDeviceMs += voxFoundLodBuilder->lastGpuMs();
+            } else {
+                lod = lodBase(*rc.area);
+            }
+            lodLevelMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tl).count();
+        }
         for (int k = 0; k <= chunkLevels; ++k) {
             if (k == 0) {
                 std::vector<PackedFace> solidFaces, leafFaces;
@@ -13806,7 +13833,9 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 levelSolid[0] += rc.grid.solidCount();
                 addLevel(levels, 0, uint32_t(chunks.size()), rc.chunk, solidFaces, leafFaces);
             } else if (rc.area) {
-                lod = lodDown(lod);
+                const auto tl = std::chrono::steady_clock::now();
+                lod = lodGpu ? std::move(gpuLevels[size_t(k - 1)]) : lodDown(lod);
+                lodLevelMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tl).count();
                 const int sc = 1 << k;
                 const glm::ivec3 off(rc.areaMarginVoxels / sc), inner(kChunkM * kVoxelsPerM / sc);
                 SprigParams noSprigs = sp;
@@ -13926,6 +13955,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 {"face_tex_table_bytes", kFaceTexWords * sizeof(uint32_t)},
                 {"gpu_face_build_ms_sum", gpuMs}, {"generate_ms", genMs}, {"build_wall_ms", buildMs},
                 {"region_lod_ms", regionLodMs}, {"lod_top_view", topView},
+                {"lod_gpu", lodGpu}, {"lod_level_ms", lodLevelMs}, {"lod_gpu_device_ms_sum", lodGpuDeviceMs},
                 {"palette", palette}, {"leaves", leafCards ? "cards" : "voxels"},
                 {"flora_stamped_per_chunk_sum", rb.flora.stamped}, {"flora_missing", rb.flora.missingNames},
                 {"recipe", recipeUsed}, {"flora_window", bounded ? "bounded" : "open"},

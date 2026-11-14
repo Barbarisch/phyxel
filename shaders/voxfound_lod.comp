@@ -1,0 +1,130 @@
+#version 450
+// docs/VoxelFoundationPlan.md F2.14e — the GPU level build (LodBuilderGpu). The CPU reference is Mesher.cpp lodBase +
+// lodDown; this must equal it exactly, every channel (VoxFoundLodBuilderGpu). One thread per COARSE cell; each thread
+// writes only its own cell, so there is no ordering between threads.
+//   job.x = 0: level 1 from the voxel bytes (lodBase fused in);  1: level k+1 from level k (the cell step);
+//           2: the neighbour step of the level just built (reads count / surf / votes only, writes mat).
+// Cells of every level >= 1 are concatenated in one buffer per channel; fine.w / coarse.w are the offsets (in cells).
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 0) readonly buffer Voxels { uint vox[]; };   // level-0 materials, 4 bytes per word
+layout(std430, binding = 1) buffer Mat { uint lmat[]; };              // the drawn material
+layout(std430, binding = 2) buffer Votes { uint votes[]; };           // surfMat | volMat << 8
+layout(std430, binding = 3) buffer Count { uint lcount[]; };          // level-0 solid voxels covered
+layout(std430, binding = 4) buffer Surf { uint lsurf[]; };            // level-0 voxels covered that touch air
+
+layout(push_constant) uniform PC {
+    ivec4 fine;     // xyz = fine dims, w = fine offset (pass 1)
+    ivec4 coarse;   // xyz = coarse dims, w = coarse offset
+    ivec4 job;      // x = pass, y = coarse level, z = coarse cells
+} pc;
+
+uint cellIndex(ivec3 p, ivec3 d) { return uint(p.z) + uint(d.z) * (uint(p.y) + uint(d.y) * uint(p.x)); }
+bool inGrid(ivec3 p, ivec3 d) { return all(greaterThanEqual(p, ivec3(0))) && all(lessThan(p, d)); }
+uint voxelAt(ivec3 p) {   // level-0 material (the fine grid in pass 0)
+    const uint i = cellIndex(p, pc.fine.xyz);
+    return (vox[i >> 2] >> ((i & 3u) * 8u)) & 0xFFu;
+}
+
+// A small vote: (material, weight) pairs, winner = largest weight, ties to the lowest material (Mesher.cpp Vote).
+uint vm[8];
+uint vw[8];
+int vn;
+void voteReset() { vn = 0; }
+void voteAdd(uint m, uint w) {
+    for (int j = 0; j < vn; ++j)
+        if (vm[j] == m) { vw[j] += w; return; }
+    vm[vn] = m;
+    vw[vn] = w;
+    ++vn;
+}
+uint voteWinner() {
+    if (vn == 0) return 0u;
+    int best = 0;
+    for (int j = 1; j < vn; ++j)
+        if (vw[j] > vw[best] || (vw[j] == vw[best] && vm[j] < vm[best])) best = j;
+    return vm[best];
+}
+
+const ivec3 kDirs[6] = ivec3[6](ivec3(1, 0, 0), ivec3(-1, 0, 0), ivec3(0, 1, 0), ivec3(0, -1, 0), ivec3(0, 0, 1),
+                                ivec3(0, 0, -1));
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (id >= uint(pc.job.z)) return;
+    const ivec3 cd = pc.coarse.xyz;
+    const ivec3 c = ivec3(int(id / uint(cd.z * cd.y)), int((id / uint(cd.z)) % uint(cd.y)), int(id % uint(cd.z)));
+    const uint o = uint(pc.coarse.w) + id;
+    const uint level = uint(pc.job.y);
+
+    if (pc.job.x == 2) {   // the neighbour step: a solid cell covering no surface
+        if (lmat[o] == 0u || lsurf[o] != 0u) return;
+        voteReset();
+        const uint full = 1u << (3u * level);
+        for (int k = 0; k < 6; ++k) {
+            const ivec3 q = c + kDirs[k];
+            if (!inGrid(q, cd)) continue;
+            const uint j = uint(pc.coarse.w) + cellIndex(q, cd);
+            if (lcount[j] * 2u >= full) continue;   // a solid neighbour (by count)
+            if (lsurf[j] != 0u) voteAdd(votes[j] & 0xFFu, lsurf[j]);
+        }
+        if (vn > 0) lmat[o] = voteWinner();
+        return;
+    }
+
+    // the cell step: surface vote (every child, air ones too) and volume vote (solid children only)
+    uint total = 0u, surfTotal = 0u;
+    uint sm[8], sw[8];
+    int sn = 0;
+    voteReset();   // the volume vote lives in vm / vw
+    for (int k = 0; k < 8; ++k) {
+        const ivec3 p = 2 * c + ivec3(k & 1, (k >> 1) & 1, (k >> 2) & 1);
+        uint count, surf, surfMat, volMat, solid;
+        if (pc.job.x == 0) {   // lodBase: one voxel
+            const uint m = voxelAt(p);
+            count = m != 0u ? 1u : 0u;
+            surf = 0u;
+            if (m != 0u)
+                for (int d = 0; d < 6; ++d) {
+                    const ivec3 q = p + kDirs[d];
+                    if (inGrid(q, pc.fine.xyz) && voxelAt(q) == 0u) { surf = 1u; break; }   // outside: unknown
+                }
+            surfMat = surf != 0u ? m : 0u;
+            volMat = m;
+            solid = m;
+        } else {
+            const uint i = uint(pc.fine.w) + cellIndex(p, pc.fine.xyz);
+            count = lcount[i];
+            surf = lsurf[i];
+            surfMat = votes[i] & 0xFFu;
+            volMat = (votes[i] >> 8) & 0xFFu;
+            solid = lmat[i];
+        }
+        total += count;
+        if (surf != 0u) {
+            int j = 0;
+            while (j < sn && sm[j] != surfMat) ++j;
+            if (j == sn) { sm[sn] = surfMat; sw[sn] = 0u; ++sn; }
+            sw[j] += surf;
+            surfTotal += surf;
+        }
+        if (solid != 0u) voteAdd(volMat, count);
+    }
+    uint surfWin = 0u;
+    if (sn > 0) {
+        int best = 0;
+        for (int j = 1; j < sn; ++j)
+            if (sw[j] > sw[best] || (sw[j] == sw[best] && sm[j] < sm[best])) best = j;
+        surfWin = sm[best];
+    }
+    const uint halfCells = (1u << (3u * level)) / 2u;
+    uint mat = 0u, vol = 0u;
+    if (total >= halfCells && vn > 0) {
+        vol = voteWinner();
+        mat = surfTotal != 0u ? surfWin : vol;
+    }
+    lcount[o] = total;
+    lsurf[o] = surfTotal;
+    votes[o] = surfWin | (vol << 8);
+    lmat[o] = mat;
+}

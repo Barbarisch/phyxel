@@ -1,0 +1,76 @@
+{
+ "cpu": {
+  "lod_faces": [
+   480349,
+   127280,
+   32796,
+   9325,
+   2342,
+   539,
+   167,
+   103
+  ],
+  "lod_solid_volume_vs_l0": [
+   1.0,
+   1.007391539234843,
+   1.002879632319697,
+   0.9977592296843459,
+   0.9841282235256852,
+   0.9673357599729727,
+   0.9321408530843447,
+   1.006424571453534
+  ],
+  "lod_level_ms": 11737.9528,
+  "lod_gpu_device_ms_sum": 0.0,
+  "build_wall_ms": 15099.690399999998,
+  "generate_ms": 23002.5612,
+  "region_lod_ms": 294.1748,
+  "error": null,
+  "request_wall_s": 38.5
+ },
+ "gpu": {
+  "lod_faces": [
+   480349,
+   127280,
+   32796,
+   9325,
+   2342,
+   539,
+   167,
+   103
+  ],
+  "lod_solid_volume_vs_l0": [
+   1.0,
+   1.007391539234843,
+   1.002879632319697,
+   0.9977592296843459,
+   0.9841282235256852,
+   0.9673357599729727,
+   0.9321408530843447,
+   1.006424571453534
+  ],
+  "lod_level_ms": 2405.618299999999,
+  "lod_gpu_device_ms_sum": 33.933536,
+  "build_wall_ms": 5600.883,
+  "generate_ms": 24595.926999999996,
+  "region_lod_ms": 158.4858,
+  "error": null,
+  "request_wall_s": 30.5
+ },
+ "overview_south P8": {
+  "cpu_vs_gpu_px": 6,
+  "control_px": 0
+ },
+ "overview_south P32": {
+  "cpu_vs_gpu_px": 6,
+  "control_px": 0
+ },
+ "top_down P8": {
+  "cpu_vs_gpu_px": 0,
+  "control_px": 0
+ },
+ "top_down P32": {
+  "cpu_vs_gpu_px": 0,
+  "control_px": 1
+ }
+}

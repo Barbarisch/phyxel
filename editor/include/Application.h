@@ -103,6 +103,7 @@
 #include "core/water/WaterCoreManager.h"
 #include "core/matsim/MatSimLab.h"
 #include "core/voxfound/FaceBuilderGpu.h"
+#include "core/voxfound/LodBuilderGpu.h"
 #include "core/voxfound/Preview.h"
 #include "core/water/WadeDrag.h"
 #include "core/water/ShoreBand.h"
@@ -291,6 +292,7 @@ private:
     std::unique_ptr<Core::Water::WaterCoreManager> waterCore;          // WaterCore active volumes (Phase B; docs/WaterCore.md)
     std::unique_ptr<Core::MatSim::MatSimLab> matSimLab;                // MatSim lab box (docs/MaterialSimPlan.md), inert until create
     std::unique_ptr<Core::VoxFound::FaceBuilderGpu> voxFoundBuilder;   // F2.2 1/8 m face preview builder (lazy)
+    std::unique_ptr<Core::VoxFound::LodBuilderGpu> voxFoundLodBuilder;   // F2.14e GPU level build (lazy)
     Core::VoxFound::Preview voxFoundPreview;                           // F2.2 what the renderer draws (setVoxFoundPreview)
     void applyWaterSpanEdit(int x, int y, int z, bool solid);          // Phase D2: edits never create water (docs/WaterCore.md 16.3)
     long m_waterHeldEdits = 0;                                          // Phase D2: edits held because a run reaches into a non-resident chunk

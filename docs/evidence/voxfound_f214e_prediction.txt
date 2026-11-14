@@ -1,0 +1,25 @@
+F2.14e prediction (written 2026-11-14 before any code): the GPU port of the level build (§4.6 item 7 continued).
+
+Design: LodBuilderGpu + shaders/voxfound_lod.comp, levels 1..n of one chunk's area (the 1 m margin area, up to
+272^3 voxels) on the device. Pass 0 = level 1 straight from the voxel bytes (lodBase fused in: count, surface =
+touches air INSIDE the grid, both votes); pass 1 = level k+1 from level k (lodDown's cell step); pass 2 = lodDown's
+neighbour step (solid cells covering no surface take their air face neighbours' surface vote). One thread per coarse
+cell, no ordering between threads (each writes only its own cell; pass 2 reads only count/surf/votes, writes mat).
+All levels read back (mat, count, surf, surfMat, volMat) as LodGrids. The region pyramid (levels 4..7) stays CPU (it
+is 0.26 s per region). Build param {"lod_gpu":bool}, default true once exact.
+
+1. Exactness (red first, GPU integration test): every channel of levels 1..3 equals lodBase + lodDown on the CPU,
+   on hand rigs (odd votes, ties, the neighbour step, grid-edge surfaces) and the engine forest area with flora.
+   Red on a stub. Accepted only on exact equality.
+2. Device time per chunk area (272^3 voxels, levels 1-3): < 5 ms. Upload 20 MB + read back ~45 MB: < 15 ms per chunk.
+3. Region build (32 chunks, lod_levels 7): the CPU level time today is ~15 s of the ~38 s; with the GPU it drops to
+   < 1.5 s -> region build wall ~24 s (from ~38). Identical faces per level (the same LodGrids).
+4. Frame cost: none (a build path); pixels: 0 px change (same faces) -- checked with lod_auto P=8 at 2 poses.
+
+--- Measured: 1. exact (VoxFoundLodBuilderGpu 4/4: random rigs, the neighbour-step rig, the engine forest chunk area
+272^3 with 87 plants, 2.87 M cells, every channel; red first on a stub). 2. device 0.58 ms per chunk area (held).
+3. region (32 chunks, lod_levels 7): identical faces and volume at every level; level time 11.74 s (CPU) -> 2.41 s
+(GPU; 34 ms of it on the device, the rest host copies and channel unpacking) -- prediction < 1.5 s WRONG; request
+38.5 s -> 30.5 s (prediction ~24 s WRONG: terrain + flora generation is 23-25 s of it). 4. pixels: GPU vs a CPU
+rebuild 0 px at overview_south P=8 (CPU built twice: 0 px); the first capture of the session was 6 px off by one
+colour level from both (session drift, not the levels).

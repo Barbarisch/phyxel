@@ -290,6 +290,7 @@ echo Compiling MatSim GPU kernels (docs/MaterialSimPlan.md P1b/6d: block rules +
 echo Compiling voxel-foundation face builder (docs/VoxelFoundationPlan.md F2.1)...
 %GLSLANG% -V -Ishaders shaders\voxfound_faces.comp -o shaders\voxfound_faces.comp.spv || goto :shader_error
 %GLSLANG% -V -Ishaders shaders\voxfound_cull.comp -o shaders\voxfound_cull.comp.spv || goto :shader_error
+%GLSLANG% -V -Ishaders shaders\voxfound_lod.comp -o shaders\voxfound_lod.comp.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\voxfound_face.vert -o shaders\voxfound_face.vert.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\voxfound_face_mdi.vert -o shaders\voxfound_face_mdi.vert.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\voxfound_foliage.vert -o shaders\voxfound_foliage.vert.spv || goto :shader_error

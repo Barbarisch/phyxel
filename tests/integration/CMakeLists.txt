@@ -24,6 +24,7 @@ set(INTEGRATION_TEST_SOURCES
     WaterTallCellTest.cpp
     MatSimGpuParityTest.cpp
     VoxFoundFaceBuilderGpuTest.cpp
+    VoxFoundLodBuilderGpuTest.cpp
     MatSimParticlesGpuTest.cpp
 )
 
