@@ -653,6 +653,8 @@ public:
     /// F2.14 coarse casters: faces cast per level [mid, near][level 0-3] and each cascade's texel floor (last pass).
     std::array<std::array<uint32_t, 4>, 2> voxFoundShadowFacesByLevel() const { return m_voxFoundShadowFacesByLevel; }
     std::array<float, 2> voxFoundShadowFloor() const { return {m_voxFoundShadowFloor[0], m_voxFoundShadowFloor[1]}; }
+    /// F2.14c: chunks whose sprigs were skipped last frame (wholly past the sprig handoff level).
+    uint32_t voxFoundSprigChunksHandedOff() const { return m_voxFoundSprigChunksHandedOff; }
     /// F2.12 (§4.6 item 6): today's per-chunk caster test (distance from the cascade's fitted centre + margin) plus the
     /// light frustum, on the preview's chunks (faces mid + near, sprigs mid). Default on.
     void setVoxFoundShadowCull(bool on) { m_voxFoundShadowCull = on; }
@@ -1567,6 +1569,7 @@ private:
     uint32_t       m_voxFoundShadowFaces[2] = {0, 0};              // F2.4 casters drawn: [mid, near]
     std::array<std::array<uint32_t, 4>, 2> m_voxFoundShadowFacesByLevel{};   // F2.14 coarse casters
     float          m_voxFoundShadowFloor[2] = {0.0f, 0.0f};        // F2.14 lodTexelFloor per cascade
+    uint32_t       m_voxFoundSprigChunksHandedOff = 0;             // F2.14c
     uint32_t       m_voxFoundShadowSprigs = 0;
     // F2.12 (§4.6 item 6): shadow-caster culling
     bool           m_voxFoundShadowCull = true;

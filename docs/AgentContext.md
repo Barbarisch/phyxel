@@ -443,8 +443,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (kLodCasterLag): without it a stipple of shadow dots on open ground (screen-pixel vs shadow-texel dither).
       Single-level chunks go through the plain caster pipeline. Win only from above at P=8 (-1.2/-2.4 ms); +0.2..+1.2
       elsewhere (band chunks draw two whole levels at 32 m bound granularity).
-      NEXT (the plan's F2 list, §4.6 item 7 continued): sprig/grass handoff at distance (tier 8), levels > 1 m, GPU
-      level build. Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
+      F2.14c (2026-11-14): sprig -> coarse leaf mass handoff (build {"lod_sprig_level":h}, runtime {"lod_sprig":bool};
+      default OFF). Sprig dither = vFade threshold 2(h+1/2-L) into foliage.frag (unchanged). No holes, but LOOKS FAIL:
+      the mass is the cutout leaf CARD texture on solid faces (darker, patterned; not shadows -- checked casters off);
+      whole frame only -0.2/-0.7 from above, +0.5..+0.7 at ground. Owed: a leaf-mass appearance matching the cards.
+      NEXT (the plan's F2 list, §4.6 item 7 continued): levels > 1 m (wider margin), GPU level build; leaf-mass look.
+      Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;

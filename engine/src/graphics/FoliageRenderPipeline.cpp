@@ -36,8 +36,12 @@ struct FoliagePush {
     // point of the shared WindSystem is that a front crossing the meadow also moves the
     // trees. Omitting it here would give bands in the grass and blobs in the canopy.
     float     windAniso;
+    // F2.14c (docs/VoxelFoundationPlan.md): voxfound_foliage.vert only -- the size-on-screen handoff of sprigs to coarse
+    // leaf mass. lodHandoff 0 = off. foliage.vert and the shadow shaders declare the block without these (a prefix).
+    float     lodC;
+    float     lodHandoff;
 };
-static_assert(sizeof(FoliagePush) == 72, "FoliagePush must match the foliage.vert push-constant block");
+static_assert(sizeof(FoliagePush) == 80, "FoliagePush must match the foliage.vert push-constant block (+ the F2.14c tail)");
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -472,7 +476,7 @@ void FoliageRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
 // (voxfound_foliage.vert). Pipeline created on first use.
 void FoliageRenderPipeline::renderVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer,
                                            uint32_t count, const glm::dvec3& originAbs,
-                                           VkDeviceSize bufferOffset) {
+                                           VkDeviceSize bufferOffset, float lodC, int lodHandoff) {
     if (!m_params.enabled || buffer == VK_NULL_HANDLE || count == 0 || m_pipelineLayout == VK_NULL_HANDLE) return;
     if (m_voxFoundPipeline == VK_NULL_HANDLE) {
         if (m_voxFoundFailed) return;
@@ -503,6 +507,8 @@ void FoliageRenderPipeline::renderVoxFound(VkCommandBuffer cmd, VkDescriptorSet 
     pc.absBaseX = float(originAbs.x);
     pc.absBaseY = float(originAbs.y);
     pc.absBaseZ = float(originAbs.z);
+    pc.lodC = lodC;
+    pc.lodHandoff = float(lodHandoff);
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FoliagePush), &pc);
     VkDeviceSize offset = bufferOffset;
     vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &offset);

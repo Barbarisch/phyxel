@@ -13381,10 +13381,21 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // voxel (the tier knob, default 1); off = level 0 everywhere. Needs {"lod_levels":n} at build time.
         // {"lod_casters":bool}: F2.14 with lod_auto, the face shadow casters draw the levels too (each caster fragment
         // at the level the camera sees it at, floored by the cascade's texel). Default off.
-        if ((cmd.params.contains("lod_auto") || cmd.params.contains("lod_px") || cmd.params.contains("lod_casters")) &&
+        // {"lod_sprig":bool}: F2.14c A/B -- with a build's lod_sprig_level, true (default) draws the coarse leaf mass and
+        // hands the sprigs off to it; false drops the mass from the draw lists and keeps sprigs everywhere (the F2.14
+        // state). Re-selects the levels (a face re-upload).
+        if ((cmd.params.contains("lod_auto") || cmd.params.contains("lod_px") || cmd.params.contains("lod_casters") ||
+             cmd.params.contains("lod_sprig")) &&
             !cmd.params.contains("type") && !cmd.params.contains("region")) {
             bool ok = true;
             if (cmd.params.contains("lod_casters")) voxFoundPreview.lodCasters = cmd.params.value("lod_casters", false);
+            if (cmd.params.contains("lod_sprig")) {
+                const bool on = cmd.params.value("lod_sprig", true);
+                if (on != voxFoundPreview.lodSprigOn) {
+                    voxFoundPreview.lodSprigOn = on;
+                    if (!voxFoundPreview.lodFirst.empty()) ok = voxFoundPreview.selectLod();
+                }
+            }
             if (cmd.params.contains("lod_px"))
                 voxFoundPreview.lodPxPerVoxel = std::clamp(cmd.params.value("lod_px", 1.0f), 0.125f, 64.0f);
             if (cmd.params.contains("lod_auto")) {
@@ -13393,7 +13404,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 voxFoundPreview.lodOn = on && ok;
             }
             response = {{"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel},
-                        {"lod_casters", voxFoundPreview.lodCasters}, {"ok", ok},
+                        {"lod_casters", voxFoundPreview.lodCasters}, {"lod_sprig", voxFoundPreview.lodSprigOn},
+                        {"lod_sprig_level", voxFoundPreview.lodSprigLevel}, {"ok", ok},
                         {"levels_built", voxFoundPreview.levels.size()}, {"faces_on_device", voxFoundPreview.faces.size()}};
             if (!ok) response["error"] = "coarser levels not built (lod_levels)";
             return;
@@ -13442,6 +13454,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"lod_focal_px", renderCoordinator->voxFoundFocalPx()},
                         {"lod_code", renderCoordinator->voxFoundLodCode()},
                         {"lod_casters", voxFoundPreview.lodCasters},
+                        {"lod_sprig", voxFoundPreview.lodSprigOn}, {"lod_sprig_level", voxFoundPreview.lodSprigLevel},
+                        {"sprig_chunks_handed_off", renderCoordinator->voxFoundSprigChunksHandedOff()},
                         {"shadow_faces_by_level_mid", renderCoordinator->voxFoundShadowFacesByLevel()[0]},
                         {"shadow_faces_by_level_near", renderCoordinator->voxFoundShadowFacesByLevel()[1]},
                         {"shadow_lod_floor", renderCoordinator->voxFoundShadowFloor()},
@@ -13689,6 +13703,10 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // without a rebuild. A debug view to see and measure each level; per-region selection is F2.14. Leaf sprigs and
     // occlusion connectivity stay at level 0.
     const int lodLevels = std::clamp(cmd.params.value("lod_levels", 0), 0, 3);
+    // F2.14c: {"lod_sprig_level":h} (1..lod_levels; 0 = off, the default) -- levels >= h build leaves as SOLID coarse
+    // leaf mass (today's chunk-LOD handoff of cards); the sprigs then belong to the levels below h and dissolve by
+    // size on screen with lod_auto (voxfound_foliage.vert, VoxFound::lodSprigFade).
+    const int sprigLevel = std::clamp(cmd.params.value("lod_sprig_level", 0), 0, lodLevels);
     std::vector<Preview::Level> levels(size_t(lodLevels) + 1);
     std::vector<size_t> levelSolid(levels.size(), 0);
     std::vector<std::string> palette;
@@ -13720,7 +13738,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         LodGrid lod;
         if (lodLevels > 0 && rc.area) lod = lodBase(*rc.area);
         for (int k = 0; k <= lodLevels; ++k) {
-            std::vector<PackedFace> solidFaces;
+            std::vector<PackedFace> solidFaces, leafFaces;   // F2.14c: leafFaces = coarse leaf mass, kept LAST
             if (k == 0) {
                 for (const PackedFace& f : out) (isSprig(f) ? sprigRecs : solidFaces).push_back(f);
                 levelSolid[0] += rc.grid.solidCount();
@@ -13733,28 +13751,39 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 SprigParams noSprigs = sp;
                 noSprigs.threshold24 = 0;   // leaves stay cards (no faces); their sprigs come from level 0
                 std::vector<PackedFace> coarse;
-                if (!voxFoundBuilder->build(cg, Edges(cb), coarse, &err, leafCards ? &noSprigs : nullptr)) return;
+                const bool leafMass = sprigLevel > 0 && k >= sprigLevel;   // F2.14c: no card set = leaves are solid
+                if (!voxFoundBuilder->build(cg, Edges(cb), coarse, &err, (leafCards && !leafMass) ? &noSprigs : nullptr))
+                    return;
                 gpuMs += voxFoundBuilder->lastGpuMs();
                 levelSolid[size_t(k)] += cg.solidCount();
                 for (const PackedFace& f : coarse)
-                    if (!isSprig(f)) solidFaces.push_back(lodScaleFace(f, k));
+                    if (!isSprig(f))
+                        (leafMass && sp.cards.has(uint8_t((f.b >> 16) & 0xFFu)) ? leafFaces : solidFaces)
+                            .push_back(lodScaleFace(f, k));
             }
             Preview::Level& L = levels[size_t(k)];
             const uint32_t first = uint32_t(L.faces.size());
             // F2.11: group the chunk's faces into clusters of clusterBlocks^3 blocks, one indirect command each
-            for (const FaceCluster& c : clusterFaces(solidFaces, clusterBlocks)) {
-                PreviewCluster pcl;
-                const glm::vec3 base = glm::vec3((rc.chunk - lo) * kChunkM);
-                pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
-                pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
-                pcl.firstFace = first + c.first;
-                pcl.count = c.count;
-                pcl.chunk = uint32_t(chunks.size());
-                L.clusters.push_back(pcl);
+            for (int part = 0; part < 2; ++part) {   // solid faces, then the leaf mass (its own clusters, tagged)
+                std::vector<PackedFace>& fs = part ? leafFaces : solidFaces;   // clusterFaces reorders in place
+                const uint32_t partFirst = first + (part ? uint32_t(solidFaces.size()) : 0u);
+                for (const FaceCluster& c : clusterFaces(fs, clusterBlocks)) {
+                    PreviewCluster pcl;
+                    const glm::vec3 base = glm::vec3((rc.chunk - lo) * kChunkM);
+                    pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
+                    pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
+                    pcl.firstFace = partFirst + c.first;
+                    pcl.count = c.count;
+                    pcl.chunk = uint32_t(chunks.size());
+                    pcl.leafMass = part == 1;
+                    L.clusters.push_back(pcl);
+                }
             }
             L.faces.insert(L.faces.end(), solidFaces.begin(), solidFaces.end());
+            L.faces.insert(L.faces.end(), leafFaces.begin(), leafFaces.end());
             L.firstFace.push_back(first);
             L.faceCount.push_back(uint32_t(L.faces.size()) - first);
+            L.leafCount.push_back(uint32_t(leafFaces.size()));
         }
         pc.firstFace = levels[0].firstFace.back();
         pc.faceCount = levels[0].faceCount.back();
@@ -13786,6 +13815,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     }
     voxFoundPreview.chunks = std::move(chunks);
     voxFoundPreview.levels = std::move(levels);
+    voxFoundPreview.lodSprigLevel = sprigLevel;   // F2.14c
     // F2.14: with coarser levels built, all of them go on the device (level 0 first) for selection by size on screen
     if (voxFoundPreview.levels.size() < 2 || !voxFoundPreview.selectLod()) voxFoundPreview.selectLevel(0);
     voxFoundPreview.anchorMetres = glm::dvec3(lo * kChunkM);
@@ -13794,9 +13824,13 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     voxFoundPreview.originMetres = glm::dvec3(lo * kChunkM);
     ++voxFoundPreview.revision;
     renderCoordinator->setVoxFoundPreview(&voxFoundPreview);
-    nlohmann::json lodFaces = nlohmann::json::array(), lodVolume = nlohmann::json::array();
+    nlohmann::json lodFaces = nlohmann::json::array(), lodVolume = nlohmann::json::array(),
+                   lodLeafFaces = nlohmann::json::array();
     for (size_t k = 0; k < voxFoundPreview.levels.size(); ++k) {
         lodFaces.push_back(voxFoundPreview.levels[k].faces.size());
+        uint64_t leaf = 0;   // F2.14c
+        for (uint32_t n : voxFoundPreview.levels[k].leafCount) leaf += n;
+        lodLeafFaces.push_back(leaf);
         lodVolume.push_back(levelSolid[0] ? double(levelSolid[k]) * double(uint64_t(1) << (3 * k)) / double(levelSolid[0])
                                           : 0.0);
     }
@@ -13808,6 +13842,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 {"chunks", rb.chunks},
                 {"clusters", voxFoundPreview.clusters.size()}, {"cluster_blocks", clusterBlocks},
                 {"lod_levels", lodLevels}, {"lod_faces", lodFaces}, {"lod_solid_volume_vs_l0", lodVolume},
+                {"lod_sprig_level", sprigLevel}, {"lod_leaf_mass_faces", lodLeafFaces},
                 {"chunks_with_geometry", std::count_if(voxFoundPreview.chunks.begin(), voxFoundPreview.chunks.end(),
                                                        [](const PreviewChunk& c) { return c.faceCount || c.sprigCount; })},
                 {"chunks_fully_blocking", std::count_if(voxFoundPreview.chunks.begin(), voxFoundPreview.chunks.end(),

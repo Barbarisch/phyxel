@@ -1,0 +1,222 @@
+{
+ "overview_south P4": {
+  "B_vs_A_changed_pct": 1.269,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 59,
+  "gained_px": 34,
+  "covered_A_px": 431270,
+  "covered_B_px": 431237,
+  "luma_A": 104.36,
+  "luma_B": 104.07,
+  "sprigs_A": 225471,
+  "sprigs_B": 225471,
+  "sprig_chunks_handed_off_B": 0,
+  "faces_A": 224914,
+  "faces_B": 348892,
+  "by_level_B": [
+   70126,
+   126550,
+   152216,
+   0
+  ]
+ },
+ "overview_south P8": {
+  "B_vs_A_changed_pct": 20.601,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 1207,
+  "gained_px": 155,
+  "covered_A_px": 431429,
+  "covered_B_px": 428983,
+  "luma_A": 104.48,
+  "luma_B": 93.34,
+  "sprigs_A": 225471,
+  "sprigs_B": 55480,
+  "sprig_chunks_handed_off_B": 16,
+  "faces_A": 59875,
+  "faces_B": 229067,
+  "by_level_B": [
+   0,
+   19303,
+   174698,
+   35066
+  ]
+ },
+ "top_down P4": {
+  "B_vs_A_changed_pct": 1.012,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 0,
+  "gained_px": 4,
+  "covered_A_px": 413557,
+  "covered_B_px": 413564,
+  "luma_A": 107.77,
+  "luma_B": 107.52,
+  "sprigs_A": 225471,
+  "sprigs_B": 225471,
+  "sprig_chunks_handed_off_B": 0,
+  "faces_A": 148478,
+  "faces_B": 275919,
+  "by_level_B": [
+   62,
+   118094,
+   157763,
+   0
+  ]
+ },
+ "top_down P8": {
+  "B_vs_A_changed_pct": 49.177,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 886,
+  "gained_px": 22,
+  "covered_A_px": 413664,
+  "covered_B_px": 409002,
+  "luma_A": 107.85,
+  "luma_B": 74.67,
+  "sprigs_A": 225471,
+  "sprigs_B": 204072,
+  "sprig_chunks_handed_off_B": 16,
+  "faces_A": 38894,
+  "faces_B": 194682,
+  "by_level_B": [
+   0,
+   11,
+   158199,
+   36472
+  ]
+ },
+ "forest_floor_open P4": {
+  "B_vs_A_changed_pct": 0.0,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 0,
+  "gained_px": 0,
+  "covered_A_px": 364054,
+  "covered_B_px": 364054,
+  "luma_A": 56.08,
+  "luma_B": 56.08,
+  "sprigs_A": 177921,
+  "sprigs_B": 177921,
+  "sprig_chunks_handed_off_B": 0,
+  "faces_A": 345567,
+  "faces_B": 345567,
+  "by_level_B": [
+   287148,
+   58328,
+   91,
+   0
+  ]
+ },
+ "forest_floor_open P8": {
+  "B_vs_A_changed_pct": 0.007,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 0,
+  "gained_px": 3,
+  "covered_A_px": 363092,
+  "covered_B_px": 363095,
+  "luma_A": 56.02,
+  "luma_B": 56.02,
+  "sprigs_A": 177921,
+  "sprigs_B": 177921,
+  "sprig_chunks_handed_off_B": 0,
+  "faces_A": 170288,
+  "faces_B": 234670,
+  "by_level_B": [
+   82416,
+   73173,
+   79031,
+   50
+  ]
+ },
+ "east_low P4": {
+  "B_vs_A_changed_pct": 0.004,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 0,
+  "gained_px": 1,
+  "covered_A_px": 460218,
+  "covered_B_px": 460219,
+  "luma_A": 118.26,
+  "luma_B": 118.26,
+  "sprigs_A": 225471,
+  "sprigs_B": 225471,
+  "sprig_chunks_handed_off_B": 0,
+  "faces_A": 379347,
+  "faces_B": 436498,
+  "by_level_B": [
+   255466,
+   109951,
+   71081,
+   0
+  ]
+ },
+ "east_low P8": {
+  "B_vs_A_changed_pct": 0.512,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 3,
+  "gained_px": 15,
+  "covered_A_px": 460241,
+  "covered_B_px": 460269,
+  "luma_A": 118.38,
+  "luma_B": 118.22,
+  "sprigs_A": 225471,
+  "sprigs_B": 188517,
+  "sprig_chunks_handed_off_B": 8,
+  "faces_A": 132894,
+  "faces_B": 264277,
+  "by_level_B": [
+   33222,
+   67511,
+   147205,
+   16339
+  ]
+ },
+ "canopy_close P4": {
+  "B_vs_A_changed_pct": 0.0,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 0,
+  "gained_px": 0,
+  "covered_A_px": 329401,
+  "covered_B_px": 329401,
+  "luma_A": 40.56,
+  "luma_B": 40.56,
+  "sprigs_A": 137714,
+  "sprigs_B": 137714,
+  "sprig_chunks_handed_off_B": 0,
+  "faces_A": 216873,
+  "faces_B": 218467,
+  "by_level_B": [
+   180591,
+   35116,
+   2760,
+   0
+  ]
+ },
+ "canopy_close P8": {
+  "B_vs_A_changed_pct": 0.036,
+  "control_A_A2_pct": 0.0,
+  "control_B_B2_pct": 0.0,
+  "lost_px": 9,
+  "gained_px": 0,
+  "covered_A_px": 328760,
+  "covered_B_px": 328745,
+  "luma_A": 40.51,
+  "luma_B": 40.52,
+  "sprigs_A": 137714,
+  "sprigs_B": 137714,
+  "sprig_chunks_handed_off_B": 0,
+  "faces_A": 124155,
+  "faces_B": 165229,
+  "by_level_B": [
+   70065,
+   44162,
+   50273,
+   729
+  ]
+ }
+}

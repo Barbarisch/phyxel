@@ -2908,12 +2908,29 @@ void RenderCoordinator::renderVoxFoundSprigs() {
         m_voxFoundSprigRevision = m_voxFoundPreview->revision;
     }
     // F2.8: one draw per chunk range, each at its own origin (records are chunk-relative)
+    // F2.14c: with lod_auto and a build's leaf mass (lod_sprig_level h), sprigs belong to the levels below h. A chunk
+    // whose lowest possible level (box + 2 m card overhang) is >= h keeps no sprig and is skipped; the rest dither per
+    // sprig in voxfound_foliage.vert (VoxFound::lodSprigFade).
+    const auto& pv = *m_voxFoundPreview;
+    const int handoff = (pv.lodOn && pv.lodSprigOn && pv.lodSprigLevel > 0 && pv.lodSprigLevel <= pv.lodMaxLevel)
+                            ? pv.lodSprigLevel : 0;
+    const float lodC = handoff ? Core::VoxFound::lodScaleFromCode(voxFoundLodCode()) : 0.0f;
+    const glm::dvec3 cam(camera->getPosition());
+    m_voxFoundSprigChunksHandedOff = 0;
     for (const auto& r : voxFoundVisibleRanges()) {   // F2.9: per-chunk distance + frustum
         if (r.sprigCount == 0) continue;
+        if (handoff) {
+            const glm::vec3 lo(r.originMetres - cam);
+            if (Core::VoxFound::lodLevelsForBox(lo - glm::vec3(2.0f), lo + glm::vec3(34.0f), glm::vec3(0.0f), lodC,
+                                                pv.lodMaxLevel).x >= handoff) {
+                ++m_voxFoundSprigChunksHandedOff;
+                continue;
+            }
+        }
         foliagePipeline->renderVoxFound(vulkanDevice->getCommandBuffer(currentFrame),
                                         vulkanDevice->getDescriptorSet(currentFrame), m_voxFoundSprigBuffer,
                                         r.sprigCount, r.originMetres,
-                                        VkDeviceSize(r.firstSprig) * sizeof(Core::VoxFound::PreviewSprig));
+                                        VkDeviceSize(r.firstSprig) * sizeof(Core::VoxFound::PreviewSprig), lodC, handoff);
         m_voxFoundSprigsDrawn += r.sprigCount;
     }
 }

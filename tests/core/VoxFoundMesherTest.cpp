@@ -1143,6 +1143,36 @@ TEST(VoxFoundMesher, LodCasterIsNeverCoarserThanTheSurfaceItShadows) {
         }
 }
 
+// F2.14c: sprigs (levels < h) hand off to coarse leaf mass (levels >= h). The sprig dither runs per SPRIG-covered pixel
+// with its own L (the card centre's distance), the mass per pixel: wherever the canopy is, at least one of them is kept
+// for every pair of Bayer values (no hole), even with the two L a little apart; the fade threshold is the same test;
+// sprigs are gone a little past the band and mass is absent before it.
+TEST(VoxFoundMesher, LodSprigsHandOffToLeafMassWithoutAHole) {
+    for (int h = 1; h <= 3; ++h)
+        for (float L = -1.0f; L <= 5.0f; L += 0.003f) {
+            for (int i = 0; i < 16; ++i) {
+                const float u = lodBayer(i % 4, i / 4);
+                const bool kept = lodSprigKeeps(L, u, h);
+                ASSERT_EQ(kept, u < lodSprigFade(L, h)) << "fade threshold != keep test at L=" << L;
+                ASSERT_EQ(kept, lodPickLevel(L - kLodSlack, u, 3) < h);
+            }
+            for (float dL : {0.0f, 0.03f, -0.03f})   // sprig L vs mass L (card centre vs the mass fragment)
+                for (int i = 0; i < 16; ++i)
+                    for (int j = 0; j < 16; ++j) {
+                        const float us = lodBayer(i % 4, i / 4), up = lodBayer(j % 4, j / 4);
+                        bool mass = false;
+                        for (int k = h; k <= 3; ++k) mass = mass || lodKeeps(k, L + dL, up, 3);
+                        ASSERT_TRUE(lodSprigKeeps(L, us, h) || mass) << "canopy hole at L=" << L << " h=" << h;
+                    }
+            if (L >= float(h) + 0.75f) ASSERT_LE(lodSprigFade(L, h), 0.0f) << "sprigs drawn past the band";
+            if (L <= float(h) - 0.75f) {
+                for (int i = 0; i < 16; ++i)
+                    for (int k = h; k <= 3; ++k) ASSERT_FALSE(lodKeeps(k, L, lodBayer(i % 4, i / 4), 3));
+                ASSERT_GE(lodSprigFade(L, h), 1.0f) << "sprigs thinned before the band";
+            }
+        }
+}
+
 TEST(VoxFoundMesher, LodFlagBitsLeaveTheStaticFlagsAlone) {
     for (int k = 0; k <= 7; ++k)
         for (int code : {0, 77, 255}) {

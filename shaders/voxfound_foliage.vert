@@ -51,6 +51,11 @@ layout(push_constant) uniform PushConstants {
     float absBaseY;
     float absBaseZ;
     float windAniso;   // gust-front crosswind stretch; must match grass (one wind field)
+    // F2.14c (docs/VoxelFoundationPlan.md): sprigs hand off to coarse leaf mass at pyramid level lodHandoff by size on
+    // screen (0 = off). A sprig is kept where the main view keeps a level below the handoff: Bayer u < 2(h + 1/2 - L),
+    // L = log2(distance) + lodC -- fed to foliage.frag's vFade dither (VoxFound::lodSprigFade, the CPU reference).
+    float lodC;
+    float lodHandoff;
 } pc;
 
 layout(location = 0) out flat uint vTex;    // leaf texture index
@@ -136,7 +141,8 @@ void main() {
     // safety cull (zero-area = no fragments at all).
     float dist = length(ubo.cameraPosition - center);
     vFade = 1.0 - smoothstep(pc.radius * 0.9, pc.radius, dist);
-    float scale = pc.cardSize * (0.8 + 0.4 * h2) * (dist > pc.radius ? 0.0 : 1.0);
+    if (pc.lodHandoff > 0.0) vFade = min(vFade, 2.0 * (pc.lodHandoff + 0.5 - (log2(max(dist, 1e-3)) + pc.lodC)));
+    float scale = pc.cardSize * (0.8 + 0.4 * h2) * ((dist > pc.radius || vFade <= 0.0) ? 0.0 : 1.0);
 
     vec3 worldPos = center + (q.x * rightW + q.y * upW) * scale;
     // Pivot about the sprig base: displacement ∝ height within the sprig, so the base stays

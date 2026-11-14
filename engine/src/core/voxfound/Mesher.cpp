@@ -589,6 +589,9 @@ int lodPickLevel(float L, float u, int maxLevel) {
 bool lodKeeps(int level, float L, float u, int maxLevel, float slack) {
     return lodPickLevel(L - slack, u, maxLevel) <= level && level <= lodPickLevel(L + slack, u, maxLevel);
 }
+bool lodSprigKeeps(float L, float u, int handoff) { return lodPickLevel(L - kLodSlack, u, 7) < handoff; }
+// pick(L - 1/4, u) < h  <=>  L - 1/4 + (u - 1/2)/2 < h  <=>  u < 2(h + 1/2 - L)
+float lodSprigFade(float L, int handoff) { return 2.0f * (float(handoff) + 0.5f - L); }
 bool lodCasterKeeps(int level, float L, float u, int maxLevel, float floor) {
     return lodKeeps(level, std::max(L - kLodCasterLag, floor), u, maxLevel);
 }

@@ -254,6 +254,12 @@ float lodTexelFloor(float texelMetres);
 /// the fine one) where the screen shows the fine one, which then shadows itself in a stipple (seen, top_down P=8).
 /// With a one-level lag a caster only goes coarse where every pixel of the main view already has.
 constexpr float kLodCasterLag = 1.0f;   // = voxfound_face_shadow_lod.frag's "- 1.0"
+/// F2.14c: leaf sprigs hand off to coarse leaf mass at level `handoff` (levels >= handoff build leaves as solid faces;
+/// sprigs belong to the levels below). A sprig is kept where the main view would keep a level below the handoff:
+/// pick(L - slack, u) < handoff. lodSprigFade is that test as a threshold on u (kept iff u < fade), which is how
+/// voxfound_foliage.vert feeds it to foliage.frag's dither (discard if vFade < bayer).
+bool lodSprigKeeps(float L, float u, int handoff);
+float lodSprigFade(float L, int handoff);
 /// The caster keep test (voxfound_face_shadow_lod.frag): lodKeeps at max(L - kLodCasterLag, floor).
 bool lodCasterKeeps(int level, float L, float u, int maxLevel, float floor);
 /// The bits the face vertex shaders OR into the flags word (static faces use bits 0-15 only): 16-19 level,

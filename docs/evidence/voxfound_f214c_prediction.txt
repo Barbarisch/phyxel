@@ -1,0 +1,20 @@
+F2.14 part 3 -- leaf sprigs hand off to coarse leaf mass at distance (tier 8b's handoff, kept). PREDICTION, before code.
+
+Design: a handoff level h (build knob lod_sprig_level, 1..3). Pyramid levels >= h build leaf cells as SOLID faces (the
+leaf material on a half-solid coarse voxel = "coarse leaf mass", as today's chunk LOD does); levels < h keep leaves as
+cards (no faces). Sprigs belong to levels < h: a sprig is kept where the main view's test would keep a level < h,
+i.e. pick(L - 1/4, u) < h  <=>  u < 2(h + 1/2 - L). That threshold goes into foliage.frag's existing vFade dither (same
+4x4 Bayer, same indexing), computed per sprig in voxfound_foliage.vert (L from the sprig centre's camera distance);
+foliage.frag is unchanged. Cost: a chunk (box + 2 m card overhang) whose lowest level is >= h skips its sprigs; cards
+with threshold <= 0 collapse to zero area. Shadows: sprig casters unchanged (level 0), face casters as F2.14b.
+
+Numbers I expect (f = 1086 px; d(L) = 2^L * f / (8P)):
+1. Sprig fade band at h=2: P=8 from ~57 m (L=1.75) to gone at ~114 m (L=2.75); P=4 double (114-228 m).
+2. Coarse leaf mass is sparse: a 1/8 m canopy is mostly air inside 1/2 m cells, so the half-solid rule drops much of
+   it. Expect level-2 leaf mass to read THINNER than the sprig canopy from a distance (risk: see-through canopies) --
+   this is the main looks risk; the gate compares canopy coverage (pixels covered) M vs sprigs-everywhere.
+3. Sprigs drawn: overview_south/top_down at P=8 h=2 fall by > 80 % (most of the region is beyond 114 m? NO: overview
+   camera is ~100-200 m away -> 60-95 %); ground poses 20-50 % (trees beyond 60 m).
+4. Whole frame at P=8 h=2 vs lod_auto without handoff: from above -3 to -6 ms (sprigs + their overdraw were most of
+   the ground poses' cost per F2.13); ground poses -1 to -4 ms. At P=4 about half.
+5. Faces added: level-2 leaf mass adds < 30 k faces region-wide (level 2 total was 32.8 k without leaves).

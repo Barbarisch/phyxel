@@ -44,6 +44,7 @@ struct PreviewCluster {
     glm::vec3 lo{0.0f}, hi{0.0f};
     uint32_t firstFace = 0, count = 0, chunk = 0;
     uint32_t level = 0;   // F2.14: the pyramid level its faces belong to (Preview::lodClusters)
+    bool leafMass = false;   // F2.14c: coarse leaf mass (dropped from the draw lists while lodSprigOn is false)
 };
 
 struct Preview {
@@ -63,6 +64,7 @@ struct Preview {
     bool shown = true;               // F2.8 A/B: false = kept on the device but not drawn in any pass
     bool castFaces = true;           // F2.4 diagnosis switches: which parts write the shadow maps
     bool castSprigs = true;
+    int lodSprigLevel = 0;           // F2.14c: levels >= this were built with leaves as solid mass; 0 = no handoff
     bool lodCasters = false;         // F2.14: with lodOn, the face casters draw the levels too (per caster fragment)
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves
 
@@ -71,6 +73,7 @@ struct Preview {
     struct Level {
         std::vector<PackedFace> faces;
         std::vector<uint32_t> firstFace, faceCount;
+        std::vector<uint32_t> leafCount;   // F2.14c: the LAST leafCount faces of a chunk's range are coarse leaf mass
         std::vector<PreviewCluster> clusters;
     };
     std::vector<Level> levels;
@@ -104,6 +107,7 @@ struct Preview {
     std::vector<std::vector<uint32_t>> lodFirst, lodCount;
     int lodMaxLevel = 0;
     bool lodOn = false;
+    bool lodSprigOn = true;   // F2.14c A/B: false = the build's leaf mass is not drawn and sprigs never hand off
     float lodPxPerVoxel = 1.0f;
     bool selectLod() {
         if (levels.empty() || levels[0].firstFace.size() != chunks.size()) return false;
@@ -119,9 +123,11 @@ struct Preview {
             faces.insert(faces.end(), L.faces.begin(), L.faces.end());
             for (size_t i = 0; i < chunks.size(); ++i) {
                 lodFirst[k].push_back(base + L.firstFace[i]);
-                lodCount[k].push_back(L.faceCount[i]);
+                const uint32_t leaf = (!lodSprigOn && i < L.leafCount.size()) ? L.leafCount[i] : 0u;
+                lodCount[k].push_back(L.faceCount[i] - leaf);
             }
             for (PreviewCluster c : L.clusters) {
+                if (c.leafMass && !lodSprigOn) continue;   // F2.14c: handoff off = no leaf mass, sprigs everywhere
                 c.firstFace += base;
                 c.level = uint32_t(k);
                 lodClusters.push_back(c);

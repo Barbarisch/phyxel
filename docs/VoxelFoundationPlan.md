@@ -372,7 +372,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
-| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig/grass handoff, levels > 1 m, GPU level build owed |
+| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels > 1 m, GPU level build owed |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
@@ -927,6 +927,36 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   per command) — not taken here.
 - **Default: OFF** (`lod_casters`). Kept selectable: it is the right shape for big views from above; it becomes a
   candidate once the band overlap is bounded per cluster, or with levels above 1 m where whole chunks leave the band.
+
+**F2.14c 2026-11-14 — §4.6 item 7 continued: leaf sprigs hand off to coarse leaf mass (tier 8b's handoff).**
+- Design: build knob `lod_sprig_level` h (1..lod_levels, default 0 = off). Levels ≥ h build leaf cells as SOLID faces
+  (no card set: the half-solid coarse leaf mass, as today's chunk LOD does, `LodChunkMesh.cpp:43`), kept LAST in each
+  chunk's range and in their own tagged clusters, so `{"lod_sprig":false}` drops them from the draw lists without a
+  rebuild (the A/B switch; false = the F2.14 state). Sprigs belong to levels < h: kept where the main view keeps a level
+  below h, `pick(L − ¼, u) < h ⇔ u < 2(h + ½ − L)` (`lodSprigKeeps`/`lodSprigFade`), fed per sprig to foliage.frag's
+  existing `vFade` dither (same Bayer table and indexing) by `voxfound_foliage.vert` (FoliagePush +lodC +lodHandoff,
+  80 B; foliage.frag untouched). Cost: chunks (box + 2 m card overhang) wholly past h skip their sprigs; faded-out cards
+  collapse to zero area. Sprig and face casters unchanged.
+- Red first: `LodSprigsHandOffToLeafMassWithoutAHole` (threshold = keep test; for every pair of Bayer values the sprig
+  or the mass is kept, also with the two L 0.03 apart; sprigs gone past h + ¾, mass absent before h − ¾); red on stubs;
+  CPU 48/48, GPU 13/13.
+- Built (h = 2, same region): level-2 leaf mass 142,231 faces, level-3 31,112 (prediction "< 30 k" at level 2 — WRONG
+  ×5: the 1/8 m canopy is dense enough that most ½ m cells are half solid).
+- Gate (5 poses × P 4/8, `voxfound_f214c_gate.json`): coverage holds — canopy pixels lost ≤ 1,207 of 431 k (overview
+  P=8), gained ≤ 155, controls 0.000 %. **Looks FAIL:** at P=8 the far canopy is darker and blockier (top_down 49 % of
+  pixels change, mean luma 108 → 75; overview 20.6 %) and the dither band reads as a crosshatch on mid-distance trees
+  (`voxfound_f214c_sheet_*_P8.png`). Dug in: NOT shadows — with every preview caster off the gap stays (131.7 → 103.9);
+  the mass is the leaf CARD texture (a cutout sprite) drawn on solid faces by voxel.frag
+  (`voxfound_f214c_leafmass_zoom_top_down_noshadow.png`: tiled leaf pattern with dark gaps), while cards get
+  foliage.frag's shading. Today's tier 2 has the same mass and is OFF by default; there is no look to copy.
+  At P=4 the band starts at ~114 m and only 1.0-1.3 % of pixels change from above.
+- Whole frame at P=8, B (handoff) − A (none), 8 pairs × 5 poses (`voxfound_f214c_ab_P8.*`, all CIs exclude 0):
+  overview_south −0.20, top_down −0.71, forest_floor_open +0.61, east_low +0.73, canopy_close +0.51 ms. Prediction
+  (−3 to −6 from above, −1 to −4 at the ground) WRONG: from above the whole frame is ~6 ms and the sprigs were not most
+  of it; at the ground the camera is inside the region so few sprigs leave, and the mass faces add cost.
+- **Default: OFF** (`lod_sprig_level` 0). Owed before it can ship: a leaf-mass appearance that matches the card canopy
+  at that size (opaque, the cards' average colour and shading; a voxel.frag/receiver change with its own gate), then
+  re-measure. Grass: nothing to hand off yet — the preview draws no grass blades (F2.2).
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

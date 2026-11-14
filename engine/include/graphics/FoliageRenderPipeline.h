@@ -76,8 +76,11 @@ public:
     /// cell x|y<<8|z<<16|sky<<24, tex word as FoliageInstanceData) whose cell (0,0,0) min corner is at
     /// originAbs (world metres). Today's cards, params, wind and foliage.frag; voxfound_foliage.vert decodes
     /// the position. Call in the scene pass. Main view only (no shadow casting yet).
+    /// F2.14c: lodHandoff > 0 = sprigs hand off to coarse leaf mass at that pyramid level by size on screen (scale
+    /// lodC = VoxFound::lodScaleFromCode), dithered through foliage.frag's vFade (VoxFound::lodSprigFade).
     void renderVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer, uint32_t count,
-                        const glm::dvec3& originAbs, VkDeviceSize bufferOffset = 0);
+                        const glm::dvec3& originAbs, VkDeviceSize bufferOffset = 0, float lodC = 0.0f,
+                        int lodHandoff = 0);
     /// F2.4: the same sprigs into the (mid) shadow map — renderShadow's twin (voxfound_foliage_shadow.vert).
     /// F2.8: `bufferOffset` (bytes) selects one chunk's slice of a shared buffer.
     void renderShadowVoxFound(VkCommandBuffer cmd, VkDescriptorSet uboSet, VkBuffer buffer, uint32_t count,
