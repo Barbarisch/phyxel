@@ -1,0 +1,3 @@
+[32m[21:08:47.164] [INFO] [Settlement] ground under flora: 0 columns restored to the generator's surface (0 cubes, 0 not at the surface on re-read), 0 under the surface left as they stand (not a tree's cell), of 328 sampled, 34 ms[0m
+[32m[21:13:16.774] [INFO] [Settlement] ground under flora: 11 columns restored to the generator's surface (11 cubes, 0 not at the surface on re-read), 0 under the surface left as they stand (not a tree's cell), of 673 sampled, 31 ms[0m
+[32m[21:15:21.093] [INFO] [Settlement] ground under flora: 0 columns restored to the generator's surface (0 cubes, 0 not at the surface on re-read), 0 under the surface left as they stand (not a tree's cell), of 0 sampled, 15 ms[0m

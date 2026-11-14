@@ -1,0 +1,79 @@
+PREDICTIONS for chain 174 - M5b-1a, O21 (a): the scope of the unit "restoring ground under flora" (the audit's F1 / F4).
+Written 2026-11-13 19:35 BEFORE the test patch (m5b1a_patch33_test.py) is applied or built. Tree: commit 72809aa8
+(realizer 29472088, planner 21ecbd5c) + the test only - NO engine source changes in this chain. This is the RED run.
+
+The test: SettlementMapLiveSiteTest.TheGroundRestoreTouchesOnlyFloraAndOnlyMapSites - the first village's rig WITH
+flora (each chunk decorated by ObjectTemplateManager::decorateChunk from the rig's generator - new for this rig), a
+fixture (one bare column: its surface cube removed, 81 StoneTiles micros laid as the cell's bottom layer), the legacy
+control planned, the map plan's units run up to and including the restoring unit.
+
+PM5b1a.29  The rig with flora reproduces L4 run 14's finding: > 0 columns hold only flora in the cell(s) between the
+           flora-blind top and the generator's surface. REASONED count: 11 inside rect + 4 if the rig's flora is the
+           live world's (same recipe, same templates) - the mechanism I believe (NOT measured): on a slope a tree's
+           bottom layer, stamped at its own column's surfaceY + 1, lands in an uphill neighbour's surface cell and
+           replaces the cube. If the count is 0 the rig does not reproduce it and the test is not a test of the unit.
+PM5b1a.30  RED 1: the legacy control's plan carries 1 unit labelled "restoring ground under flora" (expected 0).
+PM5b1a.31  RED 2: after the unit the fixture cell holds 1 voxel (a cube), 81 expected; its flora-blind top reads the
+           generator's surface (expected one under).
+PM5b1a.32  The flora-only pits all read the generator's surface after the unit (this part holds on the current code).
+PM5b1a.33  Whether any pit column holds NON-flora content before the fixture (the "49 columns" kind): unknown at the
+           village; L4 run 14 counted delta -1 only, 11 columns - I expect 0 such columns.
+The test fails on .30 and .31 and nothing else. Wall time: unknown - decorating ~100 chunks in Debug is new; guess
+2-6 min for the rig.
+
+RESULT, chain 174 (19:34 -> 19:41, exe 19:34:12, 1 failed as intended; the test took 434 s):
+PM5b1a.29  PARTLY MISSED. The rig with flora shows the SAME 11 columns as L4 run 14 (local (6,56) ... (23,51), each one
+           cube under) - the count and the places MET. But "hold only flora" matched 0 of 11: each cell is 729 micros,
+           27-189 of them flora and 540-702 NOT flora - the terrain cube is subdivided and the tree's micros replace
+           some. My "replaces the cube" was wrong, and the test's own classification with it.
+PM5b1a.30  MET (red): the legacy control carries the unit (1 of 34 units).
+PM5b1a.31  MET (red): the fixture cell holds 1 voxel after the unit (81 before), its top reads 101 (100 before).
+PM5b1a.32  not measured as written (0 "flora-only" pits); the 11 columns all changed (counted as "other content changed").
+PM5b1a.33  MISSED in the letter (11 columns hold non-flora content - the terrain's own micros); no column of another kind.
+CONSEQUENCE: the scope rule drafted before the run (patch 34: flora and nothing else) would have skipped all 11 - it
+is replaced (patch 35) by: one cell deep, >= 1 flora voxel, every other voxel of the generator's surface material.
+The test's classification is changed to the same rule; the red of .30 / .31 above was shown on the test as first
+written, the changed lines only classify the pits.
+
+PREDICTIONS for chain 175 (patches 34 + 35 applied; written 19:45 before the build):
+PM5b1a.34  The 11 columns' other material is ONE material equal to the generator's surfaceMat (REASONED: the cube
+           was the generator's surface cube): 11 of 11 "a pit under flora". If the materials differ the unit skips them
+           and the test fails on floraPits > 0 or on restored.
+PM5b1a.35  Legacy control: 0 units with the label. Fixture: 81 voxels after, top one under. Restored 11 of 11, 0 left
+           low, 0 other columns changed. 1 ok / 0 failed.
+
+RESULT, chain 175 (19:42 -> 19:49, exe 19:42:35; realizer db4b7509, test c79495f8): 1 ok / 0 failed.
+PM5b1a.34  MET: 11 of 11 cells' other material is {SnowGrass} = the generator's surfaceMat.
+PM5b1a.35  MET: legacy control 0 units with the label (33 units); fixture 81 voxels after, top 100 (one under);
+           restored 11 of 11, 0 left low, 0 other columns changed.
+
+PREDICTIONS for chains 176-178 (same tree, written 19:52 before they start):
+PM5b1a.36  chain 176 SettlementMapLiveSiteTest.* + StructureRealizerTest.*: 28 ok / 0 failed (27 of chain 169 + the new
+           test); the gates as chain 169 (hamlet control 28 / 0, hamlet map 16 / 0, village 34 / 0, town 72 / 0). The
+           other arms have no flora, so the unit restores 0 there as before; the legacy control arm now has no such unit.
+PM5b1a.37  chain 177 unit set 159 / 0; chain 178 paver set 42 / 0.
+
+RESULT, chains 176-178 (exe 19:42:35, realizer db4b7509): PM5b1a.36 MET - chain 176 28 ok / 0 failed (19:50 -> 20:52;
+gates hamlet control 28 / 0 over 9 of 9, hamlet map 16 / 0 over 6 of 6, village 34 / 0 over 11 of 11, town 72 / 0 over
+24 of 24). PM5b1a.37 MET - chain 177 159 / 0, chain 178 42 / 0.
+
+PREDICTIONS for Release build 17 + L4 run 17 (tag m5b1a_scope; written 21:05 before the build):
+PM5b1a.38  Build: 0 errors. L4: 3 of 3 built, 0 lot failures; gates town 72 / 0 over 24, village 1 34 / 0 over 11,
+           village 2 40 / 0 over 13; 0 "seat DISAGREES"; control refused at 20 / 1.
+PM5b1a.39  "ground under flora" lines: the CONTROL prints none (run 16: one, 11 restored of 681). Village 1: 11
+           restored, 0 not at the surface, 0 left as they stand. Town: 0 restored (run 16: 0 of 328); left-as-they-stand
+           UNKNOWN (run 16 had no such count; the 49 columns stand ABOVE the surface and are not candidates) - I expect 0.
+           Village 2: 0 sampled.
+PM5b1a.40  The control's outcome with the unit gone: run 12 (before the unit existed) refused at 20 / 1 - same expected.
+
+RESULT, Release build 17 (21:02:55 -> 21:03:07, 0 errors, exe 21:03:07, realizer db4b7509) + L4 run 17 (tag
+m5b1a_scope, 21:05 -> 21:16; generator: worldforge_build on CivLabE0, control = build_settlement legacy_layout on
+village 1, fresh engine + DB after it):
+PM5b1a.38  MET: 3 of 3 built, 0 lot failures; gates town 72 / 0 over 24 of 24, village 1 34 / 0 over 11 of 11, village
+           2 40 / 0 over 13 of 13; 0 "seat DISAGREES"; spurs 24 / 11 / 13 planned, 0 too steep; control refused 20 / 1.
+PM5b1a.39  MET: the control prints no "ground under flora" line; town 0 restored, 0 left, of 328; village 1 11
+           restored, 0 not at the surface, 0 left, of 673; village 2 0 of 0.
+PM5b1a.40  MET (20 / 1 refused, 8 doors of 8).
+NOT measured on this tree: the terrain set, the broad regression (owed at the leg's closure), a site where a
+candidate column is LEFT (the "left as they stand" count is 0 everywhere live - the skip path is exercised only by
+the rig's fixture), a biome other than SnowGrass at a pit.

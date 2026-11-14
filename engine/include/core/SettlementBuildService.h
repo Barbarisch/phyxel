@@ -138,6 +138,11 @@ public:
         /// M5b-1a: one record per BUILT building - {lot, typology, door: [x, z] (world cubes, the wall cell the
         /// forge cut the door through), normal: [nx, nz]} ("door" absent when the forge recorded none).
         std::shared_ptr<nlohmann::json> builtDoors;
+        /// M5b-1a increment D: one record per front door the doorsteps unit handled on a MAP lot - {lot, typology,
+        /// threshold (the forge's, world micro), map_threshold, read: [levels] (the standing level per approach cell
+        /// up to the first paved one, as the unit read / planned them from the chunks), map: [levels] (the map
+        /// lot's approach), agree}. Diagnostic; never hashed.
+        std::shared_ptr<nlohmann::json> approaches;
         /// M0 (WorldForgeV2Plan §5 M0): the walkability gate's result, filled by the gate
         /// unit after every building, stoop, fence and sweep has landed:
         /// {routes[], walkable, blocked, skipped}. Empty object until the gate ran.

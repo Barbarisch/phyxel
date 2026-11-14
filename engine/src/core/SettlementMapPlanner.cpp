@@ -732,6 +732,38 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
             l.wayLevel = wayTop + 1;
             l.padY = padCubeForStreet(l.wayLevel, off, 4);   // 4 = the agent's step-up, as the realizer's seat
             l.threshold = l.padY * 9 + off;
+            // increment D: the approach. The realizer's doorsteps unit reads, per cell outward (<= 6), whether the cell
+            // is PAVED by a way (any paving column in it) and that cell's standing level (the centre column's top + 1);
+            // the unpaved cells before it take planDoorstepLevels' line from the threshold - which depends on the
+            // threshold, the way's level and the step alone, not on the ground found in them (hence the INT_MAX: every
+            // unpaved cell is given its level). The same function, the same inputs, from the planner's paving plan.
+            {
+                constexpr int kMaxSteps = 6, kStepUp = 4;
+                std::vector<int> ground; std::vector<bool> paved; int kw = -1;
+                for (int k = 1; k <= kMaxSteps && kw < 0; ++k) {
+                    const glm::ivec2 c = wall + n * k;
+                    // chain 180 (3 of 35 doors differed, each at a cell the way paves only at its EDGE): the way's level
+                    // in such a cell is its PAVING's - the seat's own stamp rule above (the centre column, the lowest
+                    // paved column otherwise) - not the ground at the cell's centre
+                    int lowest = INT_MAX;
+                    for (int dz = 0; dz < 9; ++dz) for (int dx = 0; dx < 9; ++dx) {
+                        const auto it = surf.find(key(c.x * 9 + dx, c.y * 9 + dz));
+                        if (it != surf.end()) lowest = std::min(lowest, it->second);
+                    }
+                    if (lowest == INT_MAX) { ground.push_back(INT_MAX); paved.push_back(false); continue; }
+                    const auto ct = surf.find(key(c.x * 9 + 4, c.y * 9 + 4));
+                    ground.push_back((ct != surf.end() ? ct->second : lowest) + 1);
+                    paved.push_back(true); kw = k - 1;
+                }
+                if (kw >= 0) {
+                    const std::vector<int> levels = planDoorstepLevels(l.threshold, ground, paved, kStepUp);
+                    for (int i = 0; i <= kw; ++i) {
+                        const size_t si = static_cast<size_t>(i);
+                        l.approach.push_back({l.doorX + n.x * (i + 1), l.doorZ + n.y * (i + 1), levels[si] != INT_MIN ? levels[si] : ground[si]});
+                    }
+                    l.hasApproach = true;
+                }
+            }
         }
     }
     map.bakeMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();

@@ -1,0 +1,909 @@
+{
+ "areas": [],
+ "bake_ms": 113.27760314941406,
+ "buildable_fraction": 0.9968449473381042,
+ "dropped_lots": 0,
+ "entry_node": 0,
+ "era": "medieval",
+ "lots": [
+  {
+   "door": [
+    49,
+    22
+   ],
+   "door_normal": [
+    0,
+    -1
+   ],
+   "footprint": [
+    41,
+    22,
+    16,
+    6
+   ],
+   "ground": "graded",
+   "id": 0,
+   "interest": 0.4226157069206238,
+   "orientation": 2,
+   "pad_y": 99,
+   "rect": [
+    39,
+    20,
+    20,
+    12
+   ],
+   "setback": 2,
+   "stories": 1,
+   "style": "stone_keep",
+   "terrace_y": 99,
+   "threshold": 905,
+   "typology": "longhouse",
+   "way": 1,
+   "way_level": 901
+  },
+  {
+   "door": [
+    65,
+    24
+   ],
+   "door_normal": [
+    0,
+    -1
+   ],
+   "footprint": [
+    61,
+    24,
+    16,
+    8
+   ],
+   "ground": "graded",
+   "id": 1,
+   "interest": 0.36421898007392883,
+   "orientation": 2,
+   "pad_y": 97,
+   "rect": [
+    60,
+    23,
+    18,
+    12
+   ],
+   "setback": 1,
+   "stories": 1,
+   "style": "stone_manor",
+   "terrace_y": 99,
+   "threshold": 885,
+   "typology": "hall_house",
+   "way": 0,
+   "way_level": 883
+  },
+  {
+   "door": [
+    95,
+    22
+   ],
+   "door_normal": [
+    0,
+    1
+   ],
+   "footprint": [
+    91,
+    17,
+    8,
+    6
+   ],
+   "ground": "graded",
+   "id": 2,
+   "interest": 0.36711373925209045,
+   "orientation": 0,
+   "pad_y": 97,
+   "rect": [
+    89,
+    13,
+    12,
+    12
+   ],
+   "setback": 2,
+   "stories": 1,
+   "style": "timber_cottage",
+   "terrace_y": 96,
+   "threshold": 885,
+   "typology": "croft",
+   "way": 2,
+   "way_level": 883
+  },
+  {
+   "door": [
+    85,
+    30
+   ],
+   "door_normal": [
+    0,
+    -1
+   ],
+   "footprint": [
+    82,
+    30,
+    6,
+    8
+   ],
+   "ground": "graded",
+   "id": 3,
+   "interest": 0.6404682993888855,
+   "orientation": 2,
+   "pad_y": 97,
+   "rect": [
+    81,
+    29,
+    8,
+    12
+   ],
+   "setback": 1,
+   "stories": 1,
+   "style": "stone_manor",
+   "terrace_y": 99,
+   "threshold": 885,
+   "typology": "blacksmith",
+   "way": 0,
+   "way_level": 883
+  },
+  {
+   "door": [
+    79,
+    14
+   ],
+   "door_normal": [
+    0,
+    1
+   ],
+   "footprint": [
+    75,
+    9,
+    8,
+    6
+   ],
+   "ground": "graded",
+   "id": 4,
+   "interest": 0.36533379554748535,
+   "orientation": 0,
+   "pad_y": 97,
+   "rect": [
+    73,
+    5,
+    12,
+    12
+   ],
+   "setback": 2,
+   "stories": 1,
+   "style": "timber_cottage",
+   "terrace_y": 95,
+   "threshold": 885,
+   "typology": "croft",
+   "way": 0,
+   "way_level": 883
+  },
+  {
+   "door": [
+    49,
+    10
+   ],
+   "door_normal": [
+    0,
+    1
+   ],
+   "footprint": [
+    45,
+    5,
+    8,
+    6
+   ],
+   "ground": "graded",
+   "id": 5,
+   "interest": 0.31106531620025635,
+   "orientation": 0,
+   "pad_y": 97,
+   "rect": [
+    44,
+    0,
+    10,
+    12
+   ],
+   "setback": 1,
+   "stories": 1,
+   "style": "stone_keep",
+   "terrace_y": 95,
+   "threshold": 887,
+   "typology": "croft",
+   "way": 0,
+   "way_level": 883
+  },
+  {
+   "door": [
+    90,
+    44
+   ],
+   "door_normal": [
+    0,
+    -1
+   ],
+   "footprint": [
+    86,
+    44,
+    16,
+    8
+   ],
+   "ground": "graded",
+   "id": 6,
+   "interest": 0.17655107378959656,
+   "orientation": 2,
+   "rect": [
+    84,
+    42,
+    20,
+    12
+   ],
+   "setback": 2,
+   "stories": 1,
+   "style": "stone_keep",
+   "terrace_y": 99,
+   "typology": "hall_house",
+   "way": 3
+  },
+  {
+   "door": [
+    64,
+    10
+   ],
+   "door_normal": [
+    0,
+    1
+   ],
+   "footprint": [
+    60,
+    5,
+    8,
+    6
+   ],
+   "ground": "graded",
+   "id": 7,
+   "interest": 0.20925411581993103,
+   "orientation": 0,
+   "pad_y": 95,
+   "rect": [
+    59,
+    0,
+    10,
+    12
+   ],
+   "setback": 1,
+   "stories": 1,
+   "style": "stone_keep",
+   "terrace_y": 94,
+   "threshold": 869,
+   "typology": "croft",
+   "way": 4,
+   "way_level": 865
+  },
+  {
+   "door": [
+    19,
+    45
+   ],
+   "door_normal": [
+    0,
+    -1
+   ],
+   "footprint": [
+    16,
+    45,
+    7,
+    16
+   ],
+   "ground": "graded",
+   "id": 8,
+   "interest": 0.1735813468694687,
+   "orientation": 2,
+   "pad_y": 99,
+   "rect": [
+    14,
+    43,
+    11,
+    19
+   ],
+   "setback": 2,
+   "stories": 2,
+   "style": "timber_cottage",
+   "terrace_y": 100,
+   "threshold": 903,
+   "typology": "tavern",
+   "way": 5,
+   "way_level": 901
+  },
+  {
+   "door": [
+    35,
+    34
+   ],
+   "door_normal": [
+    0,
+    -1
+   ],
+   "footprint": [
+    32,
+    34,
+    7,
+    16
+   ],
+   "ground": "graded",
+   "id": 9,
+   "interest": 0.17679625749588013,
+   "orientation": 2,
+   "pad_y": 101,
+   "rect": [
+    31,
+    33,
+    9,
+    18
+   ],
+   "setback": 1,
+   "stories": 2,
+   "style": "stone_manor",
+   "terrace_y": 102,
+   "threshold": 921,
+   "typology": "tavern",
+   "way": 6,
+   "way_level": 919
+  },
+  {
+   "door": [
+    8,
+    51
+   ],
+   "door_normal": [
+    0,
+    -1
+   ],
+   "footprint": [
+    5,
+    51,
+    6,
+    8
+   ],
+   "ground": "graded",
+   "id": 10,
+   "interest": 0.26895755529403687,
+   "orientation": 2,
+   "pad_y": 99,
+   "rect": [
+    3,
+    49,
+    10,
+    12
+   ],
+   "setback": 2,
+   "stories": 1,
+   "style": "timber_cottage",
+   "terrace_y": 100,
+   "threshold": 903,
+   "typology": "blacksmith",
+   "way": 7,
+   "way_level": 901
+  }
+ ],
+ "morphology": "main_street",
+ "nodes": [
+  {
+   "id": 0,
+   "x": 99,
+   "y": 97,
+   "z": 39
+  },
+  {
+   "id": 1,
+   "x": 99,
+   "y": 97,
+   "z": 37
+  },
+  {
+   "id": 2,
+   "x": 96,
+   "y": 97,
+   "z": 34
+  },
+  {
+   "id": 3,
+   "x": 96,
+   "y": 97,
+   "z": 32
+  },
+  {
+   "id": 4,
+   "x": 91,
+   "y": 97,
+   "z": 27
+  },
+  {
+   "id": 5,
+   "x": 89,
+   "y": 97,
+   "z": 27
+  },
+  {
+   "id": 6,
+   "x": 88,
+   "y": 97,
+   "z": 26
+  },
+  {
+   "id": 7,
+   "x": 87,
+   "y": 97,
+   "z": 26
+  },
+  {
+   "id": 8,
+   "x": 86,
+   "y": 97,
+   "z": 25
+  },
+  {
+   "id": 9,
+   "x": 84,
+   "y": 97,
+   "z": 25
+  },
+  {
+   "id": 10,
+   "x": 78,
+   "y": 97,
+   "z": 19
+  },
+  {
+   "id": 11,
+   "x": 66,
+   "y": 97,
+   "z": 19
+  },
+  {
+   "id": 12,
+   "x": 65,
+   "y": 97,
+   "z": 18
+  },
+  {
+   "id": 13,
+   "x": 64,
+   "y": 97,
+   "z": 18
+  },
+  {
+   "id": 14,
+   "x": 63,
+   "y": 97,
+   "z": 17
+  },
+  {
+   "id": 15,
+   "x": 60,
+   "y": 97,
+   "z": 17
+  },
+  {
+   "id": 16,
+   "x": 59,
+   "y": 97,
+   "z": 16
+  },
+  {
+   "id": 17,
+   "x": 58,
+   "y": 97,
+   "z": 16
+  },
+  {
+   "id": 18,
+   "x": 57,
+   "y": 97,
+   "z": 15
+  },
+  {
+   "id": 19,
+   "x": 54,
+   "y": 97,
+   "z": 15
+  },
+  {
+   "id": 20,
+   "x": 53,
+   "y": 97,
+   "z": 14
+  },
+  {
+   "id": 21,
+   "x": 40,
+   "y": 97,
+   "z": 14
+  },
+  {
+   "id": 22,
+   "x": 17,
+   "y": 97,
+   "z": 37
+  },
+  {
+   "id": 23,
+   "x": 16,
+   "y": 97,
+   "z": 37
+  },
+  {
+   "id": 24,
+   "x": 13,
+   "y": 97,
+   "z": 40
+  },
+  {
+   "id": 25,
+   "x": 12,
+   "y": 97,
+   "z": 40
+  },
+  {
+   "id": 26,
+   "x": 11,
+   "y": 97,
+   "z": 41
+  },
+  {
+   "id": 27,
+   "x": 10,
+   "y": 97,
+   "z": 41
+  },
+  {
+   "id": 28,
+   "x": 9,
+   "y": 97,
+   "z": 42
+  },
+  {
+   "id": 29,
+   "x": 8,
+   "y": 97,
+   "z": 42
+  },
+  {
+   "id": 30,
+   "x": 6,
+   "y": 97,
+   "z": 44
+  },
+  {
+   "id": 31,
+   "x": 5,
+   "y": 97,
+   "z": 44
+  },
+  {
+   "id": 32,
+   "x": 4,
+   "y": 97,
+   "z": 45
+  },
+  {
+   "id": 33,
+   "x": 3,
+   "y": 97,
+   "z": 45
+  },
+  {
+   "id": 34,
+   "x": 2,
+   "y": 97,
+   "z": 46
+  },
+  {
+   "id": 35,
+   "x": 1,
+   "y": 97,
+   "z": 46
+  },
+  {
+   "id": 36,
+   "x": 0,
+   "y": 97,
+   "z": 47
+  },
+  {
+   "id": 37,
+   "x": 49,
+   "y": 99,
+   "z": 19
+  },
+  {
+   "id": 38,
+   "x": 48,
+   "y": 98,
+   "z": 18
+  },
+  {
+   "id": 39,
+   "x": 48,
+   "y": 98,
+   "z": 16
+  },
+  {
+   "id": 40,
+   "x": 95,
+   "y": 97,
+   "z": 25
+  },
+  {
+   "id": 41,
+   "x": 93,
+   "y": 97,
+   "z": 27
+  },
+  {
+   "id": 42,
+   "x": 94,
+   "y": 99,
+   "z": 41
+  },
+  {
+   "id": 43,
+   "x": 96,
+   "y": 99,
+   "z": 41
+  },
+  {
+   "id": 44,
+   "x": 97,
+   "y": 98,
+   "z": 40
+  },
+  {
+   "id": 45,
+   "x": 98,
+   "y": 98,
+   "z": 40
+  },
+  {
+   "id": 46,
+   "x": 64,
+   "y": 96,
+   "z": 12
+  },
+  {
+   "id": 47,
+   "x": 67,
+   "y": 96,
+   "z": 12
+  },
+  {
+   "id": 48,
+   "x": 72,
+   "y": 96,
+   "z": 17
+  },
+  {
+   "id": 49,
+   "x": 19,
+   "y": 99,
+   "z": 42
+  },
+  {
+   "id": 50,
+   "x": 33,
+   "y": 99,
+   "z": 28
+  },
+  {
+   "id": 51,
+   "x": 32,
+   "y": 98,
+   "z": 27
+  },
+  {
+   "id": 52,
+   "x": 32,
+   "y": 98,
+   "z": 26
+  },
+  {
+   "id": 53,
+   "x": 39,
+   "y": 98,
+   "z": 19
+  },
+  {
+   "id": 54,
+   "x": 40,
+   "y": 98,
+   "z": 19
+  },
+  {
+   "id": 55,
+   "x": 43,
+   "y": 98,
+   "z": 16
+  },
+  {
+   "id": 56,
+   "x": 35,
+   "y": 100,
+   "z": 32
+  },
+  {
+   "id": 57,
+   "x": 32,
+   "y": 99,
+   "z": 29
+  },
+  {
+   "id": 58,
+   "x": 8,
+   "y": 98,
+   "z": 48
+  },
+  {
+   "id": 59,
+   "x": 14,
+   "y": 98,
+   "z": 42
+  },
+  {
+   "id": 60,
+   "x": 18,
+   "y": 98,
+   "z": 42
+  }
+ ],
+ "origin": {
+  "x": -7964,
+  "y": 95,
+  "z": -9960
+ },
+ "refusal": "",
+ "seed": 863255309,
+ "size": {
+  "d": 64,
+  "w": 104
+ },
+ "target_lots": 11,
+ "tier": "village",
+ "ways": [
+  {
+   "cls": 2,
+   "grade": 0.0,
+   "highway": "primary",
+   "id": 0,
+   "nodes": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+   ],
+   "width": 5.0
+  },
+  {
+   "cls": 1,
+   "grade": 0.7071067690849304,
+   "highway": "lane",
+   "id": 1,
+   "nodes": [
+    37,
+    38,
+    39
+   ],
+   "width": 3.0
+  },
+  {
+   "cls": 1,
+   "grade": 0.0,
+   "highway": "lane",
+   "id": 2,
+   "nodes": [
+    40,
+    41
+   ],
+   "width": 3.0
+  },
+  {
+   "cls": 1,
+   "grade": 0.7071067690849304,
+   "highway": "lane",
+   "id": 3,
+   "nodes": [
+    42,
+    43,
+    44,
+    45
+   ],
+   "width": 3.0
+  },
+  {
+   "cls": 1,
+   "grade": 0.0,
+   "highway": "lane",
+   "id": 4,
+   "nodes": [
+    46,
+    47,
+    48
+   ],
+   "width": 3.0
+  },
+  {
+   "cls": 1,
+   "grade": 0.7071067690849304,
+   "highway": "lane",
+   "id": 5,
+   "nodes": [
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55
+   ],
+   "width": 3.0
+  },
+  {
+   "cls": 1,
+   "grade": 0.7071067690849304,
+   "highway": "lane",
+   "id": 6,
+   "nodes": [
+    56,
+    57
+   ],
+   "width": 3.0
+  },
+  {
+   "cls": 1,
+   "grade": 0.0,
+   "highway": "lane",
+   "id": 7,
+   "nodes": [
+    58,
+    59,
+    60
+   ],
+   "width": 3.0
+  }
+ ]
+}

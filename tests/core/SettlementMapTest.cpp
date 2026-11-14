@@ -582,3 +582,131 @@ TEST(SettlementMapTest, EveryLotAtAPavedWayCarriesItsPad) {
         }
 }
 
+// M5b-1a increment D (predictions pm_chain179.txt). Every lot that carries a seat and has a paved way within 6 cells
+// of its door carries its APPROACH: door + normal * k with the standing level of each cell. On the record: the cells
+// are the door's, in order; from the threshold no cell stands above the previous level and none more than a step (4)
+// below it, up to the last (the way's cell, whose riser is printed, not asserted: a way more than two steps under a
+// door is left as found by planDoorstepLevels and reported).
+TEST(SettlementMapTest, EveryLotCarriesItsDoorPadAndApproach) {
+    ASSERT_TRUE(rigs().programOk);
+    ASSERT_TRUE(rigs().roomsOk);
+    struct Site { const char* tier; int W, D; };
+    for (const Site s : {Site{"hamlet", 40, 32}, Site{"village", 80, 48}, Site{"town", 140, 60}, Site{"city", 160, 120}})
+        for (const bool hill : {true, false}) {
+            SettlementMapInput in = inputFor(s.tier, s.W, s.D, hill ? std::function<int(int, int)>(hillHeight) : std::function<int(int, int)>(flatHeight),
+                                             hill ? std::function<bool(int, int)>(hillWater) : std::function<bool(int, int)>());
+            in.styles = {"timber_cottage", "stone_manor", "stone_keep"}; in.varietySeed = 1;
+            in.thresholdAbovePad = {{"timber_cottage", 12}, {"stone_manor", 12}, {"stone_keep", 14}};
+            in.originX = 1000; in.originZ = -2000;
+            const SettlementMap m = planSettlementMap(in);
+            ASSERT_TRUE(m.ok()) << s.tier << ": " << m.refusal;
+            int seated = 0, with = 0, wrongCells = 0, badRiser = 0, wayRiserOut = 0, cells = 0, longest = 0;
+            for (const auto& l : m.lots) {
+                if (!l.hasSeat) continue;
+                ++seated;
+                if (!l.hasApproach) continue;
+                ++with;
+                longest = std::max(longest, static_cast<int>(l.approach.size()));
+                int level = l.threshold;
+                for (size_t i = 0; i < l.approach.size(); ++i) {
+                    const auto& a = l.approach[i];
+                    ++cells;
+                    if (a.x != l.doorX + l.doorNX * static_cast<int>(i + 1) || a.z != l.doorZ + l.doorNZ * static_cast<int>(i + 1)) ++wrongCells;
+                    const int riser = level - a.level;   // > 0 = a step down, outward
+                    if (i + 1 < l.approach.size()) { if (riser < 0 || riser > 4) ++badRiser; }
+                    else if (riser < -1 || riser > 4) ++wayRiserOut;
+                    level = a.level;
+                }
+            }
+            std::printf("[ map approach ] %s %s: %zu lots, %d seated, %d carry an approach (%d cells, the longest %d); %d cells not on the door's line, "
+                        "%d unpaved risers outside [0, 4], %d risers onto the way outside [-1, 4] (printed)\n", s.tier, hill ? "hill" : "flat", m.lots.size(),
+                        seated, with, cells, longest, wrongCells, badRiser, wayRiserOut);
+            EXPECT_GT(with, 0) << s.tier << (hill ? " hill" : " flat") << ": no seated lot carries an approach";
+            EXPECT_EQ(wrongCells, 0) << s.tier;
+            EXPECT_EQ(badRiser, 0) << s.tier << ": an approach cell stands above the previous level or more than a step below it";
+        }
+}
+
+// M5b-1a increment E (sequencing amendment 3): the SLOPED headless rig. The four shapes only the 10-17 minute live-site
+// arms caught, counted on the MAP (micro levels; a lot's ground = the natural standing level, (height + 1) * 9):
+//   cut      - the way stands a cube or more BELOW the lot's ground at its door wall cell
+//   fill     - the way stands a cube or more ABOVE it
+//   climb    - the natural ground along the lot's frontage (the row of cells just outside its door wall) ranges over
+//              2 cubes or more (the plan's ">= 1.5 cubes", in whole cubes; the GROUND, not the way's paving - the map
+//              does not carry the paving's surface along a frontage)
+//   setback0 - the first cell outside the door is the way (an approach of one cell)
+struct SlopedShapes { int lots = 0, seated = 0, with = 0, cut = 0, fill = 0, climb = 0, setback0 = 0, badRiser = 0, wayRiserOut = 0, wrongThreshold = 0, noDoor = 0; };
+SlopedShapes slopedShapes(const SettlementMap& m, const SettlementMapInput& in) {
+    SlopedShapes r;
+    r.lots = static_cast<int>(m.lots.size());
+    for (const auto& l : m.lots) {
+        if (!l.hasDoor) { ++r.noDoor; continue; }
+        if (!l.hasSeat) continue;
+        ++r.seated;
+        const int doorGround = (in.heightAt(l.doorX, l.doorZ) + 1) * 9;
+        if (l.wayLevel <= doorGround - 9) ++r.cut;
+        if (l.wayLevel >= doorGround + 9) ++r.fill;
+        int lo = INT_MAX, hi = INT_MIN;
+        if (l.doorNZ != 0) {
+            const int z = l.doorNZ > 0 ? l.footprint.z1() : l.footprint.z - 1;
+            for (int x = l.footprint.x; x < l.footprint.x1(); ++x) { const int h = in.heightAt(x, z); lo = std::min(lo, h); hi = std::max(hi, h); }
+        } else {
+            const int x = l.doorNX > 0 ? l.footprint.x1() : l.footprint.x - 1;
+            for (int z = l.footprint.z; z < l.footprint.z1(); ++z) { const int h = in.heightAt(x, z); lo = std::min(lo, h); hi = std::max(hi, h); }
+        }
+        if (hi - lo >= 2) ++r.climb;
+        const auto oi = in.thresholdAbovePad.find(l.style);
+        if (l.threshold != l.padY * 9 + (oi != in.thresholdAbovePad.end() ? oi->second : 12)) ++r.wrongThreshold;
+        if (!l.hasApproach) continue;
+        ++r.with;
+        if (l.approach.size() == 1) ++r.setback0;
+        int level = l.threshold;
+        for (size_t i = 0; i < l.approach.size(); ++i) {
+            const int riser = level - l.approach[i].level;
+            if (i + 1 < l.approach.size()) { if (riser < 0 || riser > 4) ++r.badRiser; }
+            else if (riser < -1 || riser > 4) ++r.wayRiserOut;
+            level = l.approach[i].level;
+        }
+    }
+    return r;
+}
+// The rig's field (cubes; base 30): a 12 % rise along +X with a 2-cube roll across it and a 1.5-cube ripple along it.
+// Picked by chain 188's scan of five fields x two tiers x three seeds (m3c_chains/pm_chain179.txt): the only field on
+// which every tier / seed tried shows a cut AND a fill; a plain plane (15 % along X, 20 % along Z, 10 % + 10 %) showed
+// fills and no cut on any of 18 maps.
+int slopeRolling(int x, int z) { return 30 + static_cast<int>(std::floor(0.12f * static_cast<float>(x) + 2.0f * std::sin(static_cast<float>(z) / 6.0f) + 1.5f * std::sin(static_cast<float>(x) / 5.0f))); }
+
+// A PIN, not red-before-green (stated): the rig is what it claims - each of the four shapes occurs on it and none on
+// the flat control - and on it every seated lot carries its threshold (pad * 9 + the style's offset) and an approach
+// whose unpaved risers stay in [0, 4]. MAP level only: nothing is realized here (the realizer on a synthetic sloped
+// field is NOT built - the live-site arms remain the only place the four shapes meet voxels).
+TEST(SettlementMapTest, TheSlopedRigCarriesTheFourShapes) {
+    ASSERT_TRUE(rigs().programOk);
+    ASSERT_TRUE(rigs().roomsOk);
+    struct Site { const char* tier; int W, D; unsigned seed; };
+    for (const Site st : {Site{"town", 140, 60, 23u}, Site{"village", 80, 48, 7u}})
+        for (const bool sloped : {true, false}) {
+            SettlementMapInput in = inputFor(st.tier, st.W, st.D, sloped ? std::function<int(int, int)>(slopeRolling) : std::function<int(int, int)>(flatHeight), {}, st.seed);
+            in.styles = {"timber_cottage", "stone_manor", "stone_keep"}; in.varietySeed = 1;
+            in.thresholdAbovePad = {{"timber_cottage", 12}, {"stone_manor", 12}, {"stone_keep", 14}};
+            in.originX = 1000; in.originZ = -2000;
+            const SettlementMap m = planSettlementMap(in);
+            ASSERT_TRUE(m.ok()) << st.tier << ": " << m.refusal;
+            const SlopedShapes r = slopedShapes(m, in);
+            std::printf("[ sloped rig ] %s %s seed %u: %d lots (%d dropped, %d without a door), %d seated, %d with an approach | cut %d fill %d climb %d setback0 %d | "
+                        "unpaved risers out %d, way risers out %d (printed), wrong thresholds %d, bake %.1f ms\n", st.tier, sloped ? "sloped" : "flat", st.seed, r.lots,
+                        m.droppedLots, r.noDoor, r.seated, r.with, r.cut, r.fill, r.climb, r.setback0, r.badRiser, r.wayRiserOut, r.wrongThreshold, m.bakeMs);
+            EXPECT_GT(r.seated, 0) << st.tier;
+            EXPECT_EQ(r.with, r.seated) << st.tier << ": a seated lot carries no approach";
+            EXPECT_EQ(r.badRiser, 0) << st.tier;
+            EXPECT_EQ(r.wrongThreshold, 0) << st.tier;
+            if (sloped) {
+                EXPECT_GT(r.cut, 0) << st.tier << ": no way a cube or more below a lot's ground at its door";
+                EXPECT_GT(r.fill, 0) << st.tier << ": no way a cube or more above one";
+                EXPECT_GT(r.climb, 0) << st.tier << ": no frontage whose ground ranges over 2 cubes";
+                EXPECT_GT(r.setback0, 0) << st.tier << ": no lot whose door opens straight onto the way";
+            } else {   // the control: the measures read nothing where there is no relief
+                EXPECT_EQ(r.cut + r.fill + r.climb, 0) << st.tier << ": a shape counted on the flat field";
+            }
+        }
+}

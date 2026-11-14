@@ -1,0 +1,189 @@
+PREDICTIONS for chains 179 / 180 - M5b-1a increment D, step 1: the door's APPROACH on the map lot
+(MapLot::approach [{x, z, level}], stated by the planner from its paving plan through planDoorstepLevels), and the
+realizer's doorsteps unit RECORDING what it reads from the chunks against it (Plan::approaches, WARN "approach
+DISAGREES"). No behaviour change in the realizer: the unit still imposes its own reading. Written 2026-11-13 21:40
+BEFORE patch 36 is applied or built. Tree: 72809aa8 + patches 33-35 (O21 a) + 36.
+
+NOT red-before-green by a run: the field does not exist, so the new headless test cannot be run red (it would not
+compile). The falsifiable part is the AGREEMENT on the live rig - the planner's approach against the realizer's
+independent chunk reading - which can fail and which I do not know the outcome of.
+
+PM5b1a.41  chain 179, SettlementMapTest.*: builds; EveryLotCarriesItsDoorPadAndApproach ok on the 8 sites (> 0 lots
+           with an approach each; 0 cells off the door's line; 0 unpaved risers outside [0, 4] - by construction of
+           planDoorstepLevels, so a failure means my call is wrong). The JSON round-trip test stays ok. The count of
+           risers onto the way outside [-1, 4] is printed; I expect 0 on flat, a few on hill (unknown).
+           The whole suite: every test of chain 170's subset ok. Map bake: grows by < 5 % (REASONED: 6 cells x 81
+           lookups a lot).
+PM5b1a.42  chain 180, SettlementMapLiveSiteTest.*: 28 tests; the gates unchanged (28 / 0, 16 / 0, 34 / 0, 72 / 0) -
+           nothing the realizer does has changed. The AGREEMENT (village, town): my guess is that MOST doors agree
+           and SOME do not - candidates for a difference, unranked: (a) the realizer reads the anchor after the
+           spurs, the sweep's re-stamp and the neighbours' doorsteps, the planner from the paving plan alone; (b) a
+           cell paved only at its edge - the realizer's centre column reads whatever stands there (a spur's paving,
+           a pad's apron), the planner the terraced ground; (c) the forge's threshold is not the map's on a lot
+           without a seat; (d) kMaxSteps cells where the realizer finds no ground. Guess: village >= 8 of 11 agree,
+           town >= 18 of 24. If any differ the two new EXPECTs fail and the differences are the finding to work
+           before step 2 (the unit imposing the map's levels).
+
+CORRECTION: the header's "21:40" is wrong - the clock read 21:29 when this file was written (checked after).
+RESULT, chain 179 (21:29 -> 21:31, exe 21:29:50; planner 9a8be92e, realizer a53a7e29): SettlementMapTest.* 14 ok /
+0 failed. PM5b1a.41 MET on the asserted part: every site > 0 approaches (hamlet 2 / 3, village 5 / 4, town 21 / 22,
+city 27 / 27 - every seated lot carries one), 0 cells off the line, 0 unpaved risers outside [0, 4]. Risers onto the
+way outside [-1, 4]: flat 0 everywhere; village hill 1, town hill 3, hamlet / city hill 0. Bake growth: not compared.
+Chain 180 narrowed to the two arms that assert the agreement (village, town) - the full suite is owed at closure.
+
+RESULT, chain 180 (21:32 -> 21:55, exe 21:29:50): 0 ok / 2 failed - on the new EXPECT only (approachDiffers == 0).
+PM5b1a.42  MET in kind, better than the guess in count: gates unchanged (village 34 / 0 over 11 of 11, town 72 / 0
+           over 24 of 24; seats 10 of 10 and 23 of 23 equal). Approaches: village 10 of 11 agree, town 22 of 24.
+           The three that differ, all at the ANCHOR cell (candidate (b)):
+             village lot 3 blacksmith  T 885: map [885, 891], read [883, 883]
+             town lot 4 hall_house     T 1407: map [1403, 1399], read [1403, 1401]
+             town lot 7 butcher        T 1409: map [1405, 1404], read [1405, 1405]
+           In each the way paves the anchor cell only at its edge: the planner took the GROUND at the cell's centre
+           (891: six ABOVE the threshold - not a way level at all), the realizer's centre column reads what stands
+           there after the spur.
+PREDICTION for chain 181 (patch 37: the anchor's level is the way's PAVING in the cell - the centre column, else the
+lowest paved column, the seat's own stamp rule; written 21:58 before the build):
+PM5b1a.43  village lot 3 agrees (REASONED: the seat's way level there reads 883-884 by the same rule). The two town
+           lots: NOT KNOWN - the realizer's 1401 / 1405 is a spur's paving at the centre, the planner will state the
+           way's lowest paved column in the cell; they agree only if the spur meets the way at the way's level.
+           Guess: 1 of the 2 agrees. Everything else as chain 180.
+
+RESULT, chain 181 (21:56 -> 22:19, exe 21:56:25; planner with patch 37): 5 ok / 1 failed.
+PM5b1a.43  MET for the village (11 doors, 0 differ, 1 where the map states none; gate 34 / 0). Town: 23 of 24 agree
+           (I guessed 1 of the 2 would; both changed - lot 7 agrees, lot 4 differs the other way): lot 4 hall_house,
+           T 1407: map [1405, 1405], read [1403, 1401]. The realizer's line: ground feet outward "1386->1403 1401p
+           1405p ..." - the second cell is paved by the way at its edge (1405) and its CENTRE column stands at 1401;
+           the unit aims at 1401, steps down to it and up 4 onto the way. The map's line (1407 -> 1405 -> 1405) is the
+           better stair. Gate 72 / 0 either way. The headless risers onto the way outside [-1, 4]: town hill 3 -> 0,
+           village hill 1 (unchanged; not looked at).
+
+PREDICTIONS for chain 182 - increment D step 2 (patch 38): the doorsteps unit IMPOSES a map lot's approach (cells
+before the way cut / filled to the map's level; the way's cell only raised), then re-reads what stands in each cell
+(centre column) - "stands" per door; tests assert imposed == approaches with a map approach and 0 not standing.
+Written 22:22 before the build. The RED for this step is chain 181's town arm (the unit's own reading is not the
+map's at lot 4); there is no separate red run of the new assertions.
+PM5b1a.44  Village: 10 imposed of 11 doors (1 has no map approach), 0 not standing; gate 34 / 0 over 11 of 11.
+PM5b1a.45  Town: 23 imposed of 24, lot 4's cells stand at [1405, 1405] after (the second cell's low columns filled
+           to the way's level); 0 not standing; gate 72 / 0 over 24 of 24. RISKS I see: (a) a cell before the way
+           whose centre column holds something the unit does not own (a fence post, a prop) reads above the level ->
+           "not standing"; (b) the raised way cell blocks or pinches a neighbour's route -> the gate; (c) the forge's
+           threshold differs from the map's on some lot -> not imposed, the first EXPECT fails.
+
+RESULT, chain 182 (22:21 -> 22:44, exe 22:21:20; realizer 6de64d6f): 2 ok / 0 failed.
+PM5b1a.44  MET: village 10 imposed of 11 doors, 0 not standing; gate 34 / 0 over 11 of 11.
+PM5b1a.45  MET: town 23 imposed of 24, 0 not standing; lot 4 reads "1386->1405 1401p->1405 1405p ..." (the way's
+           edge cell raised from 1401 to 1405); gate 72 / 0 over 24 of 24. None of the three risks showed.
+
+PREDICTIONS for the closure set of O21 (a) + increment D (same tree; written 22:46 before any of it starts):
+PM5b1a.46  chain 183 SettlementMapLiveSiteTest.* + StructureRealizerTest.*: 28 ok / 0 failed; gates as chain 176.
+           The hamlet arms: the cluster tier - whether its doors go through the doorsteps unit at all I have not
+           checked; the hamlet tests do not assert approaches.
+PM5b1a.47  chain 184 unit set: 160 ok / 0 failed (159 + EveryLotCarriesItsDoorPadAndApproach) IF the new test is in
+           that mode's filter (SettlementMapTest.* is, I believe); chain 185 paver set 42 / 0.
+PM5b1a.48  Release build 18: 0 errors. L4 run 18 (tag m5b1a_d): 3 of 3 built, 0 lot failures; gates town 72 / 0 over
+           24, village 1 34 / 0 over 11, village 2 40 / 0 over 13; 0 "seat DISAGREES"; "approaches imposed": town 23,
+           village 1 10, village 2 UNKNOWN (13 doors; never run headless), 0 "NOT AS STATED" on town / village 1;
+           "approach DISAGREES": town 1 (lot 4), village 1 0, village 2 unknown. Control refused 20 / 1, no restoring
+           line, no approach lines (legacy has no map lots).
+PM5b1a.49  chain 186 terrain 108 ok / 1 failed (O4 lip); chain 187 broad regression 143 ok / 1 failed (the hairpin) of
+           144 IF the new SettlementMapTest is in its filter, else 142 / 1.
+
+RESULTS, the closure set (read 2026-11-14 03:22; every run on the tree 72809aa8 + patches 33-38, realizer 6de64d6f,
+planner b468629b; Debug exe 22:21:20, Release exe 23:58:11):
+PM5b1a.46  MET: chain 183 28 ok / 0 failed (22:44 -> 23:46).
+PM5b1a.47  MET: chain 184 160 ok / 0 failed (the new SettlementMapTest IS in the unit set's filter); chain 185 42 / 0.
+PM5b1a.48  PARTLY MISSED. Release build 18 0 errors. L4 run 18: 3 of 3 built, 0 lot failures; gates 72 / 0 over 24,
+           34 / 0 over 11, 40 / 0 over 13; 0 "seat DISAGREES"; 0 spurs too steep; 0 "NOT AS STATED" on any site;
+           town 23 imposed + 1 "approach DISAGREES" (lot 4), village 1 10 imposed, 0 DISAGREES - as predicted.
+           The restoring unit as run 17: town 0 of 328, village 1 11 of 673 (0 low on re-read), village 2 0 of 0.
+           MISS 1 (the control): the control is refused 20 / 1 and prints no restoring line, but it DOES print
+             "doorsteps: 0 approaches imposed from the map, 0 not standing as stated". I predicted no approach line.
+             Nothing is imposed (0), so the control's ground is as before; the line itself is noise on a site that
+             has no map. To fix: print it only on a map site.
+           THE UNKNOWN (village 2, never run headless): 9 imposed of 13 doors, 0 not standing, and 3 lines
+             "approach DISAGREES ... the map states [] from threshold -1" (lots 0 tavern, 2 croft, 4 longhouse).
+             Read from the per-door lines: at each of the three the way's first paved cell is the FOURTH cell out
+             from the door wall; the map's seat (increments A-C, SettlementMapPlanner.cpp:707) looks 3 cells out,
+             so the lot carries NO seat and so no approach, and the realizer used its own reading. The 13th door
+             (hall_house @2744,8363) has no paved cell within 6 cells at all. So at village 2 the map states the
+             approach of 9 of 13 doors; 4 of 13 are still the realizer's reading alone. The WARN's wording is
+             wrong for these (the map does not disagree, it is silent). This is the not-imposed branch taken live
+             for the first time - by "no seat", not by a threshold that differs. It was not caught headless because
+             neither Debug rig site has a door whose way is 4-6 cells out.
+PM5b1a.49  MET: chain 186 108 ok / 1 failed (RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope, the O4
+           lip); chain 187 142 ok / 1 failed of 143 (EarthworkTest.HairpinBankHasNoCliffStepWithItsControl) - the
+           new SettlementMapTest is NOT in the broad regression's filter (the "else" arm of the prediction).
+
+THE AUDIT'S CONDITIONS + increment E's scan (patch 39; predictions written 2026-11-14 before chain 188 is built):
+Patch 39 = TEST changes (three more fixtures in TheGroundRestore..., the tree's voxels counted, every sampled column
+compared; approachDiffers asserted again: village == 0, town <= 1; SettlementMapTest.SlopedRigScan, prints only) +
+LOG changes in the realizer (the "approaches imposed" line on map sites only; "approach NOT ON THE MAP" for a lot
+without a seat; the restore's skip count split in two). The pit RULE is not changed yet - chain 188 is the RED.
+PM5b1a.50  chain 188 TheGroundRestoreTouchesOnlyFloraAndOnlyMapSites: FAILS on fixture (a) (81 Log micros, no
+           surface material: the rule as built counts flora > 0 and nothing else wrong -> the cell is cleared and a
+           cube stands in it: "0... 1 voxels after", top moved up by one). Fixtures (b) and (c) and the StoneTiles one
+           are kept (81 of 81). 11 of 11 pits restored. The tree's voxels in the 11 cells: some hundreds before
+           (11 x 27..189), 0 after; in the cells above: unchanged. 0 other columns changed. UNSURE: whether fixture
+           (c)'s column (micros of the surface material, no cube) reads its top one cube down under the flora-blind
+           scan - if the scan counts those micros as ground the fixture is not "under the surface" and proves nothing.
+PM5b1a.51  chain 188 SlopedRigScan: no assertion besides the registries; I expect every field to plan (maybe a
+           refusal on slopeZ20 - a 20 % cross slope against a relief cap of 6 over a lot), "cut" and "fill" > 0 on the
+           cross-slope fields, "setback0" > 0 on the town, "climb" > 0 on slopeX15 / slopeDiag; unpaved risers out 0
+           (by construction), way risers out possibly > 0 (the village hill showed 1). No number here is a gate.
+
+RESULT, chain 188 (03:28 -> 03:36, exe 03:28:29, realizer 691cd6ad): 1 ok / 1 failed - the RED.
+PM5b1a.50  MET: fixture (a) erased (81 voxels -> 1, top 101 -> 102); (b), (c) and the StoneTiles floor kept 81 of
+           81; 11 of 11 pits restored; the tree's voxels in the 11 cells 837 before, 0 after; in the cells above 640
+           before, 640 after; of 9600 sampled columns 0 others changed. Fixture (c) does read one cube down (the
+           unsure point: it is a valid fixture).
+PM5b1a.51  PARTLY MISSED: all 30 maps planned, no refusal. "cut" is 0 on EVERY plane field (18 maps: slopeX15,
+           slopeZ20, slopeDiag) - I expected cuts on the cross slopes; only the fields with a roll show any (rolling
+           town 1/1/3, slopeRolling 1/0/1 village and 1/2/3 town). fill > 0 on 26 of 30; setback0 > 0 on 25 of 30;
+           climb > 0 on 20 of 30. Unpaved risers out 0 on all; way risers out 1 on 4 maps; wrong thresholds 0.
+           Unseated lots are common on the villages (slopeX15 seed 11: 4 seated of 8).
+PREDICTIONS for chain 189 (patch 40: the pit rule = solid cell (729 micros of volume) + surface material + flora;
+the scan replaced by SettlementMapTest.TheSlopedRigCarriesTheFourShapes on slopeRolling, town seed 23 and village
+seed 7, each with a flat control):
+PM5b1a.52  TheGroundRestore...: passes; fixture (a) kept 81 of 81; 11 of 11 restored (every pit measured 729 voxels
+           in chain 174 - if any pit is not solid it is now left low and the test fails on floraLeftLow).
+PM5b1a.53  TheSlopedRig...: passes; town sloped cut 3 fill 3 climb 3 setback0 15, village sloped 1 / 1 / 2 / 2 (the
+           scan's numbers); flat controls cut + fill + climb 0. RISK: with == seated on the flat controls (never
+           looked at); a flat frontage counted as a "fill" if the way's paving stands a cube proud (should not).
+
+RESULT, chain 189 (03:37 -> 03:46, exe 03:37:05, realizer d783df75): 16 ok / 0 failed.
+PM5b1a.52  MET: fixture (a) kept 81 of 81 (red in 188); (b), (c), the StoneTiles floor kept; 11 of 11 restored, 0
+           left low (every pit is a solid cell); tree voxels 837 -> 0 in the cells, 640 -> 640 above; 0 of 9600
+           other columns changed.
+PM5b1a.53  MET: town sloped cut 3 fill 3 climb 3 setback0 15 (19 seated of 22); village sloped 1 / 1 / 2 / 2 (5
+           seated of 8); flat controls 0 / 0 / 0. NOTICED (not predicted): the FLAT village seats 4 of 9 lots, the
+           flat town 21 of 22 - on the village most lots carry NO seat (and so no approach) even on a flat field.
+           The same silence as village 2 live (4 of 13). Open item, below.
+PREDICTIONS for the second closure set (tree = 72809aa8 + patches 33-40, realizer d783df75; written 03:47):
+PM5b1a.54  chain 190 SettlementMapLiveSiteTest.* + StructureRealizerTest.*: 28 ok / 0 failed; village approachDiffers
+           0, town 1; imposed 10 / 23; gates 34 / 0, 72 / 0.
+PM5b1a.55  chain 191 unit set 161 ok / 0 failed (160 + TheSlopedRig...); chain 192 paver set 42 / 0.
+PM5b1a.56  Release build 19 0 errors; L4 run 19 (tag m5b1a_e): as run 18 on every count (3 of 3; gates 72 / 0, 34 / 0,
+           40 / 0; imposed 23 / 10 / 9; restore 0 of 328, 11 of 673, 0 of 0 with "0 one cube under ... 0 more than one
+           cube"); the control prints NO "approaches imposed" line; village 2 prints 3 "approach NOT ON THE MAP" and 0
+           "approach DISAGREES"; town 1 "approach DISAGREES" (lot 4).
+PM5b1a.57  chain 193 terrain 108 / 1 (the O4 lip); chain 194 broad regression 142 / 1 of 143 (the hairpin).
+
+RESULTS of the second closure set (tree = 72809aa8 + patches 33-40, realizer d783df75; written 2026-11-14 07:20, chain 194 still running)
+PM5b1a.54  chain 190: 28 ok / 0 failed (RUN EXIT 0 04:49:41). village arm: 11 doors, 0 differ, 1 where the map states
+           none, 10 imposed, 0 not standing; gate 34 / 0. town arm: 24 doors, 1 differs (lot 4: map [1405,1405], read
+           [1403,1401], threshold 1407 both), 1 where the map states none, 23 imposed, 0 not standing; gate 72 / 0.
+           AS PREDICTED on every count.
+PM5b1a.55  chain 191: 161 ok / 0 failed; chain 192: 42 ok / 0 failed. AS PREDICTED.
+PM5b1a.56  Release build 19: 0 errors, SettlementBuildService.obj (Release) 05:00:01, phyxel.exe 05:00:03. L4 run 19
+           (tag m5b1a_e, generator worldforge_build on CivLab): 3 of 3 sites built; gates 72 / 0, 34 / 0, 40 / 0;
+           imposed 23 / 10 / 9, 0 not standing; restore 0 of 328, 11 of 673, 0 of 0; the control (legacy village 1)
+           refused 20 walkable / 1 blocked and prints NO "approaches imposed" line; village 2 prints 3 "approach NOT ON
+           THE MAP" (lots 0, 2, 4) and 0 "approach DISAGREES"; the town prints 1 "approach DISAGREES" (lot 4).
+           AS PREDICTED on every count. Extract: m5b_l4/m5b_l4_m5b1a_e_ground.txt (75 lines).
+           NOT PREDICTED, seen: village 2's 13th door (hall_house @2744,8363) is neither imposed nor warned - 9 imposed
+           + 3 warned = 12 of 13; its read ends "- -" (no ground within the band), so the map-silent branch with an
+           empty read prints nothing. Same door as run 18's "no way within 6". Recorded, open.
+PM5b1a.57  chain 193: 108 ok / 1 failed (RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope, the standing O4
+           lip). AS PREDICTED. chain 194: pending.
+           chain 194 (written 2026-11-14 08:24): 142 ok / 1 failed of 143 (EarthworkTest.HairpinBankHasNoCliffStepWithItsControl, the
+           standing M4 hairpin; RUN EXIT 1 08:23:47). AS PREDICTED.

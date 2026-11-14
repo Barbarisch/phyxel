@@ -63,6 +63,12 @@ struct MapLot {
     int threshold = 0;               ///< the ground floor's standing level (world micro) = padY * 9 + the style's offset
     bool hasTerrace = false;         ///< the parcel is graded to one level before anything is built on it (terrain mode)
     int terraceY = 0;                ///< that level: the top cube (world y) - the median of the parcel's ground when its turn came
+    // increment D: the door's APPROACH - the cells door + normal * k (k = 1..n) and the STANDING level each offers once
+    // the doorsteps are laid (planDoorstepLevels from the threshold to the way). The last cell is the first PAVED one
+    // (the way - the anchor: its own level, or one sill on its edge). Empty: no seat, or no paved cell within 6 cells.
+    struct ApproachCell { int x = 0, z = 0, level = 0; };   ///< settlement-local cubes; world micro
+    bool hasApproach = false;
+    std::vector<ApproachCell> approach;
 };
 
 struct MapArea {

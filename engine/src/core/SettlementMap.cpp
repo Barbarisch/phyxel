@@ -33,6 +33,11 @@ nlohmann::json SettlementMap::toJson() const {
         if (!l.style.empty()) lj["style"] = l.style;
         if (l.hasSeat) { lj["way_level"] = l.wayLevel; lj["pad_y"] = l.padY; lj["threshold"] = l.threshold; }
         if (l.hasTerrace) lj["terrace_y"] = l.terraceY;
+        if (l.hasApproach) {   // increment D
+            nlohmann::json ap = nlohmann::json::array();
+            for (const auto& a : l.approach) ap.push_back({{"x", a.x}, {"z", a.z}, {"level", a.level}});
+            lj["approach"] = std::move(ap);
+        }
         ls.push_back(std::move(lj));
     }
     j["lots"] = ls;
@@ -86,6 +91,11 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
             }
             ml.style = l.value("style", std::string());
             if (l.contains("terrace_y")) { ml.hasTerrace = true; ml.terraceY = l.value("terrace_y", 0); }
+            if (l.contains("approach") && l["approach"].is_array()) {
+                ml.hasApproach = true;
+                for (const auto& a : l["approach"])
+                    if (a.is_object()) ml.approach.push_back({a.value("x", 0), a.value("z", 0), a.value("level", 0)});
+            }
             if (l.contains("pad_y") && l.contains("way_level") && l.contains("threshold")) {
                 ml.hasSeat = true; ml.wayLevel = l.value("way_level", 0); ml.padY = l.value("pad_y", 0); ml.threshold = l.value("threshold", 0);
             }

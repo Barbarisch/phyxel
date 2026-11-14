@@ -1,0 +1,8 @@
+[00:01:00.558] [INFO] [Settlement] main_street terrain: axis Z offset 77, 8 plots (0 dropped unbuildable)
+[00:01:00.559] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (1 streets)
+[00:01:06.466] [INFO] [Settlement] streets: paved 60255 micros over 25920 columns (20754 level, 1719 fill, 3447 cut honored, 67 cubes removed, 2560 corridor cells band-cleared), spurs 0 ok / 0 too steep, Gravel, 3039 ms
+[00:01:37.653] [INFO] [Settlement] door spurs: 8 planned from 8 realized doors, 0 too steep, 1515 micros over 425 columns, 1529 ms
+[00:01:37.914] [INFO] [Settlement] fences: 7 parcels fenced, 1 unfenced by policy, 0 runs dropped (alley < 2 cells to a neighbour wall), 20494 micros (picket, 8-micro tall, posts @16)
+[00:01:42.844] [WARN] [Settlement] walkability: BLOCKED (ONE-WAY, a drop) croft @-7881,-9913: street -> door pinch (-70936,905,-89177)->(-70935,905,-89177) gap 1 micro; reached 24679/10511
+[00:01:42.872] [INFO] [Settlement] walkability gate: 20 walkable, 1 blocked over 21 routes (8 front doors of 8 built, 0 skipped)
+[00:01:42.873] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes, 0 front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome

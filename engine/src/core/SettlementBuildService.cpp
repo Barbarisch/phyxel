@@ -234,6 +234,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     res.lotFailures = std::make_shared<nlohmann::json>(nlohmann::json::array());
     res.seats       = std::make_shared<nlohmann::json>(nlohmann::json::array());
     res.builtDoors  = std::make_shared<nlohmann::json>(nlohmann::json::array());
+    res.approaches  = std::make_shared<nlohmann::json>(nlohmann::json::array());
     res.residents = std::make_shared<nlohmann::json>(nlohmann::json::object());
     res.walkability = std::make_shared<nlohmann::json>(nlohmann::json::object());
 
@@ -795,30 +796,63 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // stands on the pit and it is not found) and before anything is graded. Only columns with something standing
         // directly on the ground are sampled (sampleSurface is the full column). The cells are CLEARED as cells
         // (run 15: removeCube + addCube on a bole's sub-voxel cell left the column as it was), and the result re-read.
-        if (terrain && chunkManager && chunkManager->getStreamingGenerator() && chunkManager->getStreamingGenerator()->hydrology()) {
-            units.push_back({"restoring ground under flora", [chunkManager, ox, oz, W, D, terrainTopAt, terraceTop, terraceFill]() {
+        // O21 (a) (the audit's F1 / F4, chain 174 red): SCOPED. Only a MAP site (the map is what is planned on the
+        // generator's surface; {"legacy_layout": true} is the layout as built before M5a, untouched), and only a column
+        // one cube under the generator's surface whose surface cell is the terrain cube subdivided by
+        // a tree (pitUnderFlora below; a micro floor, paving, a fence on ground cut under the generator's surface is not
+        // a pit under a tree - such a column is counted as skipped and left as it stands). The top cell takes the generator's own surface material.
+        if (mapLots && terrain && chunkManager && chunkManager->getStreamingGenerator() && chunkManager->getStreamingGenerator()->hydrology()) {
+            units.push_back({"restoring ground under flora", [chunkManager, ox, oz, W, D, terrainTopAt, isFloraMat, terraceFill]() {
                 WorldGenerator* gen = chunkManager->getStreamingGenerator();
                 if (!gen) return;
                 const auto t0 = std::chrono::steady_clock::now();
                 constexpr int M = 8;   // the terraces' skirt (4) and the ways' edges reach past the site rect
-                int sampled = 0;
+                int sampled = 0, skipped = 0, skippedDeep = 0;
                 std::vector<glm::ivec3> healedCols;   // (wx, generator surfaceY, wz)
                 std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
                 Core::StructureResult fill;
+                // chain 174 (measured, the rig with flora, the same 11 columns as L4 run 14): the cell under a tree is the
+                // terrain cube SUBDIVIDED into 729 micros with 27-189 of them replaced by the tree's. A pit under flora:
+                // >= 1 flora voxel in the cell, every other voxel of ONE material, the generator's surface material.
+                auto pitUnderFlora = [chunkManager, isFloraMat](const glm::ivec3& wp, const std::string& surfaceMat) {
+                    Chunk* ch = chunkManager->getChunkAtFast(wp);
+                    if (!ch) return false;
+                    const glm::ivec3 lp = wp - ch->getWorldOrigin();
+                    // chain 188 (the audit's F4, red): flora MATERIAL alone is not a tree - 81 Log micros with no
+                    // terrain in the cell passed "flora > 0" and were cleared. The measured signature is the terrain
+                    // cube SUBDIVIDED: the cell is SOLID (729 micros of volume), holds the surface material AND flora.
+                    int flora = 0, surf = 0, volume = 0;
+                    auto ok = [&](const std::string& m, int vol) {
+                        volume += vol;
+                        if (isFloraMat(m)) { ++flora; return true; }
+                        if (m == surfaceMat) { ++surf; return true; }
+                        return false;
+                    };
+                    if (const Cube* c = ch->getCubeAt(lp)) if (!ok(c->getMaterialName(), 729)) return false;
+                    for (const Subcube* sc : ch->getSubcubesAt(lp)) if (sc && !ok(sc->getMaterialName(), 27)) return false;
+                    for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz)
+                        for (const Microcube* mc : ch->getMicrocubesAt(lp, glm::ivec3(sx, sy, sz)))
+                            if (mc && !ok(mc->getMaterialName(), 1)) return false;
+                    return flora > 0 && surf > 0 && volume == 729;
+                };
                 for (int x = -M; x < W + M; ++x)
                     for (int z = -M; z < D + M; ++z) {
                         const int wx = ox + x, wz = oz + z;
                         const int top = terrainTopAt(wx, wz);
                         if (!chunkManager->hasVoxelAt(glm::ivec3(wx, top + 1, wz))) continue;   // bare ground
                         ++sampled;
-                        const int g = gen->sampleSurface(wx, wz).surfaceY;
+                        const auto col = gen->sampleSurface(wx, wz);
+                        const int g = col.surfaceY;
                         if (g <= top) continue;
+                        // one cell only (every measured pit is one cube deep); anything deeper is left and counted
+                        if (g != top + 1) { ++skippedDeep; continue; }
+                        if (!pitUnderFlora(glm::ivec3(wx, g, wz), col.surfaceMat)) { ++skipped; continue; }
                         healedCols.push_back(glm::ivec3(wx, g, wz));
                         for (int y = top + 1; y <= g; ++y) {
                             const glm::ivec3 wp(wx, y, wz);
                             if (Chunk* ch = chunkManager->getChunkAtFast(wp)) byChunk[ch].push_back(wp - ch->getWorldOrigin());
                             Core::VoxelPlacement vp; vp.position = wp;
-                            vp.material = (y == g) ? terraceTop : terraceFill; vp.level = Core::VoxelLevel::Cube;
+                            vp.material = (y == g) ? col.surfaceMat : terraceFill; vp.level = Core::VoxelLevel::Cube;
                             fill.voxels.push_back(vp);
                         }
                     }
@@ -829,7 +863,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 if (stillLow)
                     LOG_WARN_FMT("Settlement", "ground under flora: " << stillLow << " of " << healedCols.size() << " columns do NOT read the generator's surface after the restore");
                 LOG_INFO_FMT("Settlement", "ground under flora: " << healedCols.size() << " columns restored to the generator's surface (" << fill.voxels.size()
-                             << " cubes, " << stillLow << " not at the surface on re-read) of " << sampled << " sampled, "
+                             << " cubes, " << stillLow << " not at the surface on re-read), " << skipped << " one cube under the surface left as they stand (the cell fails the pit rule), " << skippedDeep
+                             << " more than one cube under it left as they stand, of "
+                             << sampled << " sampled, "
                              << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() << " ms");
             }});
         }
@@ -2110,9 +2146,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // before the nav rebuild. Measurement-driven: reads the paving under the doorstep
         // and stoops up to the threshold in <= 4-micro risers, one cell per step outward.
         if (mainStreetMode && chunkManager) {
+            // increment D: the map lots, for the record of what this unit reads against the map's approach
+            auto stepLots = std::make_shared<std::vector<Core::MapLot>>(mapLots ? siteMap.lots : std::vector<Core::MapLot>());
             units.push_back({"doorsteps",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 sharedFrontDoors, sharedWayPaved, emitMicro, fl9, pathsJsonP,
+                 sharedFrontDoors, sharedWayPaved, emitMicro, fl9, pathsJsonP, stepLots, ox, oz, approachesP = res.approaches,
                  stepMat = (programMode && tierP ? tierP->street.material : std::string("Cobblestone"))]() {
             if (!chunkManager) return;
             constexpr int kStepUpMicro = 4;          // AnimatedVoxelCharacter::m_maxStepHeight = 4/9 m
@@ -2155,6 +2193,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             };
             int stooped = 0, steps = 0, skipped = 0;
             Core::StructureResult out;
+            struct Imposed { int rec, wallX, wallZ, nx, nz; };
+            std::vector<Imposed> imposed;   // increment D: the doors whose approach is the map's, re-read after the stoops are placed
             for (const auto& fd : *sharedFrontDoors) {
                 if (fd.thresholdMicro < 0) { ++skipped; continue; }
                 const int fx = fd.foot.x, fz = fd.foot.y, fw = fd.foot.z, fdp = fd.foot.w;
@@ -2215,7 +2255,54 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // M5b-1 chain 105: the LEVELS - the unpaved cells between the door and the way take the line from the
                 // threshold down to the way (<= 4 a cell, never above the threshold: the lintel); a cell above its
                 // level is CUT, below it FILLED; the way's cells are anchors (one sill on its edge at most)
-                const std::vector<int> fills = Core::planDoorstepLevels(threshold, groundFeet, pavedCell, kStepUpMicro);
+                std::vector<int> fills = Core::planDoorstepLevels(threshold, groundFeet, pavedCell, kStepUpMicro);
+                const Core::MapLot* stepLot = nullptr; int stepRec = -1;
+                if (fd.hasDoor && approachesP) {   // increment D: what was read here against the map's approach
+                    for (size_t li = 0; li < stepLots->size(); ++li) {
+                        const Core::MapLot& ml = (*stepLots)[li];
+                        if (!ml.hasDoor || ox + ml.doorX != wallX || oz + ml.doorZ != wallZ) continue;
+                        int kw = -1;
+                        for (size_t i = 0; i < groundFeet.size(); ++i) {
+                            if (groundFeet[i] == INT_MIN) break;
+                            if (pavedCell[i]) { kw = static_cast<int>(i); break; }
+                        }
+                        nlohmann::json read = nlohmann::json::array(), stated = nlohmann::json::array();
+                        for (int i = 0; i <= kw; ++i) read.push_back(fills[static_cast<size_t>(i)] != INT_MIN ? fills[static_cast<size_t>(i)] : groundFeet[static_cast<size_t>(i)]);
+                        for (const auto& a : ml.approach) stated.push_back(a.level);
+                        const bool agree = (read == stated) && (!ml.hasSeat || ml.threshold == threshold);
+                        nlohmann::json rec = {{"lot", li}, {"typology", fd.typology}, {"threshold", threshold}, {"read", read}, {"map", stated}, {"agree", agree}};
+                        if (ml.hasSeat) rec["map_threshold"] = ml.threshold;
+                        // L4 run 18 (village 2: 3 of 13 lots): a lot WITHOUT a seat states nothing - the map is SILENT
+                        // on its approach (its way's first paved cell is beyond the seat's reach), it does not disagree
+                        rec["map_silent"] = !ml.hasSeat;
+                        approachesP->push_back(rec);
+                        stepLot = &ml; stepRec = static_cast<int>(approachesP->size()) - 1;
+                        if (!ml.hasSeat) {
+                            if (!read.empty())
+                                LOG_WARN_FMT("Settlement", "approach NOT ON THE MAP: lot " << li << " " << fd.typology << " carries no seat (no paving within the seat's reach of its door); "
+                                             "the doorsteps read " << read.dump() << " from threshold " << threshold << " and stand as read");
+                        } else if (!agree)
+                            LOG_WARN_FMT("Settlement", "approach DISAGREES: lot " << li << " " << fd.typology << ": the map states " << stated.dump() << " from threshold "
+                                         << ml.threshold << ", the doorsteps read " << read.dump() << " from threshold " << threshold);
+                        break;
+                    }
+                }
+                // increment D, step 2 (chain 181: 34 of 35 doors read the map's approach; the one that does not reads a
+                // dip at the centre of a cell the way paves at its edge and steps down into it and up again): a MAP lot's
+                // approach is IMPOSED - each cell before the way takes the map's level (cut or filled), the way's cell is
+                // only ever RAISED to the way's level (its paving is never cut). Only when the forge's threshold is the
+                // map's; otherwise the reading above stands (and the record says so).
+                if (stepLot && stepLot->hasApproach && stepLot->hasSeat && stepLot->threshold == threshold) {
+                    const int kwm = static_cast<int>(stepLot->approach.size()) - 1;
+                    for (size_t i = 0; i < fills.size(); ++i) {
+                        const int g = groundFeet[i];
+                        if (g == INT_MIN || static_cast<int>(i) > kwm) { fills[i] = INT_MIN; continue; }
+                        const int lv = stepLot->approach[i].level;
+                        fills[i] = (static_cast<int>(i) < kwm) ? (lv != g ? lv : INT_MIN) : (lv > g ? lv : INT_MIN);
+                    }
+                    imposed.push_back({stepRec, wallX, wallZ, nx, nz});
+                    (*approachesP)[static_cast<size_t>(stepRec)]["imposed"] = true;
+                }
                 // DOOR-APPROACH BAND (G-72): the two cells outside the door, and every cell that takes a level, must be
                 // air over the paving / the step up to the character's height - the parcel fence ran across the
                 // hall's doorstep (its gate sat at the front wall's midpoint, the door did not).
@@ -2277,6 +2364,27 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             if (!out.voxels.empty()) {
                 placed = Core::StructureGenerator::place(chunkManager, out).placed;
             }
+            // increment D: what STANDS in each imposed approach cell now (the centre column's top + 1, the gate's convention)
+            int imposedOff = 0;
+            for (const auto& im : imposed) {
+                nlohmann::json& rec = (*approachesP)[static_cast<size_t>(im.rec)];
+                nlohmann::json after = nlohmann::json::array();
+                const nlohmann::json stated = rec.value("map", nlohmann::json::array());
+                for (size_t i = 0; i < stated.size(); ++i) {
+                    const int cx = im.wallX + im.nx * static_cast<int>(i + 1), cz = im.wallZ + im.nz * static_cast<int>(i + 1);
+                    const int t = topBelow(cx, cz, stated[i].get<int>() + 18);
+                    after.push_back(t == INT_MIN ? INT_MIN : t + 1);
+                }
+                rec["after"] = after;
+                rec["stands"] = (after == stated);
+                if (after != stated) {
+                    ++imposedOff;
+                    LOG_WARN_FMT("Settlement", "approach NOT AS STATED: lot " << rec.value("lot", -1) << " " << rec.value("typology", std::string("?"))
+                                 << ": the map states " << stated.dump() << ", after the doorsteps the cells stand at " << after.dump());
+                }
+            }
+            if (stepLots && !stepLots->empty())   // a map site only (L4 run 18: the legacy control printed "0 imposed")
+                LOG_INFO_FMT("Settlement", "doorsteps: " << imposed.size() << " approaches imposed from the map, " << imposedOff << " not standing as stated");
             LOG_INFO_FMT("Settlement", "doorsteps: " << stooped << " of " << sharedFrontDoors->size()
                          << " front doors stooped (" << steps << " steps, " << placed
                          << " micros; " << skipped << " without a threshold); approach band cleared "
