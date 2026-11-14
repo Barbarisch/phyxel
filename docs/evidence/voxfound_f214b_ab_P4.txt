@@ -1,0 +1,11 @@
+﻿scope: GPU Frame
+  overview_south: A: median 7.344 ms (n=8)  B: median 8.055 ms (n=8)
+    B - A: paired median +0.707 ms over 8 pairs, 95% CI [+0.613, +0.918]  (excludes 0)
+  top_down: A: median 7.747 ms (n=8)  B: median 8.312 ms (n=8)
+    B - A: paired median +0.557 ms over 8 pairs, 95% CI [+0.543, +0.572]  (excludes 0)
+  forest_floor_open: A: median 43.176 ms (n=8)  B: median 43.381 ms (n=8)
+    B - A: paired median +0.225 ms over 8 pairs, 95% CI [+0.178, +0.265]  (excludes 0)
+  east_low: A: median 42.757 ms (n=8)  B: median 45.729 ms (n=8)
+    B - A: paired median +1.155 ms over 8 pairs, 95% CI [+0.170, +2.575]  (excludes 0)
+  canopy_close: A: median 38.016 ms (n=8)  B: median 38.685 ms (n=8)
+    B - A: paired median +0.775 ms over 8 pairs, 95% CI [-12.534, +1.037]  (includes 0)

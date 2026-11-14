@@ -396,6 +396,16 @@
       "sources": "cb907d4b315aa9b111f5c6ee7d61f467e36f189afb05e5113348e3fbc70de463",
       "spv_present": true
     },
+    "voxfound_face_shadow_lod.frag": {
+      "built": true,
+      "sources": "e472fa8de937811eedbedbec70357c433141401389ba30c61985740ee6ee5225",
+      "spv_present": true
+    },
+    "voxfound_face_shadow_lod.vert": {
+      "built": true,
+      "sources": "844ab3d3a1107c2869a5e640f25afd91655c5f7f00ebd97d3812a8cb012f8e9e",
+      "spv_present": true
+    },
     "voxfound_faces.comp": {
       "built": true,
       "sources": "35e8e552c312b98589306790ee1672af8506719f4a42cae93810458c20464248",

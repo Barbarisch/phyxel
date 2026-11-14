@@ -41,6 +41,18 @@ public:
     /// voxfound_face_shadow.vert). Same layout (getPipelineLayout) and state as the chunk pipeline. Created on
     /// first call; VK_NULL_HANDLE if it cannot be built (logged once).
     VkPipeline ensureVoxFoundPipeline();
+    /// F2.14 (§4.6 item 7): the same caster with the per-fragment level test (voxfound_face_shadow_lod.vert/.frag:
+    /// the main view's size-on-screen keep test at the caster fragment, floored by the cascade's texel). Own layout:
+    /// set 0 = the chunk-data layout, push = VoxFoundLodShadowPC (vertex + fragment). Lazy; VK_NULL_HANDLE on failure.
+    VkPipeline ensureVoxFoundLodPipeline();
+    VkPipelineLayout getVoxFoundLodLayout() const { return voxFoundLodLayout; }
+    struct VoxFoundLodShadowPC {
+        glm::mat4 lightSpaceMatrix;
+        glm::vec3 chunkBaseOffset;   // CAMERA-RELATIVE origin of voxel (0,0,0) of the draw
+        uint32_t lodBits;            // the voxel.frag flag bits: maxLevel << 20 | 1 << 23 | code << 24
+        uint32_t level;              // this draw's level
+        float lodFloor;              // log2(8 * texel): the coarsest level the shadow map cannot tell from 1/8 m
+    };
     /// F2.12: a set of the chunk-data layout (set 0 of getPipelineLayout) bound to an external per-draw origin table
     /// (the preview's per-cluster chunk origins), for voxfound_face_shadow.vert's multidraw path. Rewritten (after a
     /// device wait) when the buffer or its generation changes (a recycled handle must not skip the rewrite). VK_NULL_HANDLE on failure.
@@ -94,6 +106,10 @@ private:
     VkPipeline dynamicPipeline = VK_NULL_HANDLE;
     VkPipeline voxFoundPipeline = VK_NULL_HANDLE;   // F2.4 (lazy)
     bool voxFoundFailed = false;
+    VkPipeline voxFoundLodPipeline = VK_NULL_HANDLE;           // F2.14 (lazy)
+    VkPipelineLayout voxFoundLodLayout = VK_NULL_HANDLE;
+    bool voxFoundLodFailed = false;
+    VkPipeline buildVoxFoundPipeline(const char* vertSpv, const char* fragSpv, VkPipelineLayout layout);
     VkDescriptorPool voxFoundOriginPool = VK_NULL_HANDLE;   // F2.12 (lazy)
     VkDescriptorSet  voxFoundOriginSetHandle = VK_NULL_HANDLE;
     VkBuffer         voxFoundOriginBound = VK_NULL_HANDLE;

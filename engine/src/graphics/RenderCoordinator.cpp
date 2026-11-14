@@ -3685,7 +3685,85 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
             if (m_voxFoundShadowCullRecorded[ci] && m_voxFoundShadowCullGpu && m_voxFoundShadowOriginBuffer != VK_NULL_HANDLE)
                 originSet = map.voxFoundOriginSet(m_voxFoundShadowOriginBuffer, m_voxFoundShadowOriginBytes,
                                                 m_voxFoundShadowCullRevision);
-            if (originSet != VK_NULL_HANDLE) {
+            // F2.14 (§4.6 item 7): coarse casters. Each caster fragment keeps the level the CAMERA sees it at (the
+            // main view's test at the caster's own position), floored by the light's view: a level the shadow map
+            // cannot tell from 1/8 m (lodTexelFloor of this cascade's texel). Per-chunk draws, one level per draw;
+            // the per-cluster shadow multidraw is not LOD'd (it falls back to this path while lodCasters is on).
+            const auto& pv = *m_voxFoundPreview;
+            const bool lodCast = pv.lodOn && pv.lodCasters && !pv.lodFirst.empty() &&
+                                 pv.lodFirst[0].size() == pv.chunks.size();
+            VkPipeline lp = lodCast ? map.ensureVoxFoundLodPipeline() : VK_NULL_HANDLE;
+            for (auto& n : m_voxFoundShadowFacesByLevel[ci]) n = 0;
+            if (lp != VK_NULL_HANDLE) {
+                const int code = voxFoundLodCode();
+                const float c = Core::VoxFound::lodScaleFromCode(code);
+                ShadowMap::VoxFoundLodShadowPC lpc{};
+                lpc.lightSpaceMatrix = lightSpaceMatrix;
+                lpc.lodBits = Core::VoxFound::lodFlagBits(0, pv.lodMaxLevel, code);
+                lpc.lodFloor = Core::VoxFound::lodTexelFloor(2.0f * cullRadius / float(std::max(1u, map.getWidth())));
+                m_voxFoundShadowFloor[ci] = lpc.lodFloor;
+                const glm::dvec3 cam(camera->getPosition());
+                // A chunk whose box allows ONE level keeps it at every fragment (every fragment keeps some level --
+                // LodCasterIsNeverCoarserThanTheSurfaceItShadows), so it needs no per-fragment test: it is drawn first
+                // with the plain caster pipeline (no discard, early depth on). Only band chunks pay for the test.
+                struct Item { const Core::VoxFound::PreviewChunk* r; size_t chi; glm::ivec2 levels; };
+                std::vector<Item> items;
+                items.reserve(casters.size());
+                for (const auto& r : casters) {
+                    size_t chi = pv.chunks.size();
+                    for (size_t i = 0; i < pv.chunks.size(); ++i)
+                        if (pv.chunks[i].chunk == r.chunk) { chi = i; break; }
+                    if (chi == pv.chunks.size()) continue;
+                    const glm::vec3 lo(r.originMetres - cam);
+                    items.push_back({&r, chi, Core::VoxFound::lodLevelsForBox(lo, lo + glm::vec3(32.0f), glm::vec3(0.0f),
+                                                                              c - Core::VoxFound::kLodCasterLag,
+                                                                              pv.lodMaxLevel, lpc.lodFloor)});
+                }
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vp);
+                if (map.getChunkDataSet(currentFrame) != VK_NULL_HANDLE) {
+                    VkDescriptorSet set = map.getChunkDataSet(currentFrame);
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, map.getPipelineLayout(), 0, 1,
+                                            &set, 0, nullptr);
+                }
+                for (const auto& it : items) {
+                    if (it.levels.x != it.levels.y) continue;
+                    const int k = it.levels.x;
+                    const uint32_t count = pv.lodCount[size_t(k)][it.chi];
+                    if (count == 0) continue;
+                    const VkDeviceSize off = VkDeviceSize(pv.lodFirst[size_t(k)][it.chi]) * sizeof(Core::VoxFound::PackedFace);
+                    vkCmdBindVertexBuffers(commandBuffer, 1, 1, &m_voxFoundBuffer, &off);
+                    pc.chunkBaseOffset = camera->relativeTo(it.r->originMetres);
+                    vkCmdPushConstants(commandBuffer, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+                    vkCmdDrawIndexed(commandBuffer, 36u, count, 0, 0, 0);
+                    cast += count;
+                    if (k < 4) m_voxFoundShadowFacesByLevel[ci][size_t(k)] += count;
+                }
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, lp);
+                if (map.getChunkDataSet(currentFrame) != VK_NULL_HANDLE) {
+                    VkDescriptorSet set = map.getChunkDataSet(currentFrame);
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, map.getVoxFoundLodLayout(),
+                                            0, 1, &set, 0, nullptr);
+                }
+                for (const auto& it : items) {
+                    if (it.levels.x == it.levels.y) continue;
+                    const auto& r = *it.r;
+                    const size_t chi = it.chi;
+                    const glm::ivec2 levels = it.levels;
+                    for (int k = levels.x; k <= levels.y; ++k) {
+                        const uint32_t count = pv.lodCount[size_t(k)][chi];
+                        if (count == 0) continue;
+                        const VkDeviceSize off = VkDeviceSize(pv.lodFirst[size_t(k)][chi]) * sizeof(Core::VoxFound::PackedFace);
+                        vkCmdBindVertexBuffers(commandBuffer, 1, 1, &m_voxFoundBuffer, &off);
+                        lpc.chunkBaseOffset = camera->relativeTo(r.originMetres);
+                        lpc.level = uint32_t(k);
+                        vkCmdPushConstants(commandBuffer, map.getVoxFoundLodLayout(),
+                                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(lpc), &lpc);
+                        vkCmdDrawIndexed(commandBuffer, 36u, count, 0, 0, 0);
+                        cast += count;
+                        if (k < 4) m_voxFoundShadowFacesByLevel[ci][size_t(k)] += count;
+                    }
+                }
+            } else if (originSet != VK_NULL_HANDLE) {
                 // F2.12: per-cluster light-frustum cull (recorded before the pass) + ONE indirect multidraw
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, map.getPipelineLayout(), 0, 1,
                                         &originSet, 0, nullptr);

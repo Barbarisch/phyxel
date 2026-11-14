@@ -38,7 +38,9 @@ built for the debug region preview only (`voxfound_preview {"lod_levels":3}` bui
 for the whole region). F2.14 added selection by size on screen with a dithered cross-fade, preview only
 (`{"lod_auto":true,"lod_px":P}`, default OFF): per fragment, L = log2(d) + log2(8P/f), Bayer band 1/2 level, keep-slack
 1/4 level (both levels draw where they meet; gates 0 holes / 0 fattening); level 1 starts at f/(4P) (272 m at P=1,
-34 m at P=8, f = 1086 px). Shadows and occlusion still use level 0; no sprig/grass handoff. Still not a tier and it
+34 m at P=8, f = 1086 px). Coarse face casters (F2.14b, `{"lod_casters":true}`, default OFF) run the same test one
+level behind the main view (kLodCasterLag = 1) floored at the cascade texel; they save 1.2-2.4 ms only from above at
+P=8 and cost elsewhere. Occlusion uses level 0; no sprig/grass handoff. Still not a tier and it
 touches none of the 8 tiers above; it gets a row when it ships ON with coarse casters (candidate knob P=4 / P=8),
 meant to replace tier 2 (§3.5a point 3).
 

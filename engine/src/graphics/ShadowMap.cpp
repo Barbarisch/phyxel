@@ -75,6 +75,9 @@ void ShadowMap::cleanup() {
         voxFoundPipeline = VK_NULL_HANDLE;
     }
     voxFoundFailed = false;
+    if (voxFoundLodPipeline != VK_NULL_HANDLE) { vkDestroyPipeline(vkDevice, voxFoundLodPipeline, nullptr); voxFoundLodPipeline = VK_NULL_HANDLE; }
+    if (voxFoundLodLayout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(vkDevice, voxFoundLodLayout, nullptr); voxFoundLodLayout = VK_NULL_HANDLE; }
+    voxFoundLodFailed = false;
     if (pipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(vkDevice, pipelineLayout, nullptr);
         pipelineLayout = VK_NULL_HANDLE;
@@ -477,13 +480,45 @@ bool ShadowMap::createPipeline() {
 VkPipeline ShadowMap::ensureVoxFoundPipeline() {
     if (voxFoundPipeline != VK_NULL_HANDLE || voxFoundFailed) return voxFoundPipeline;
     if (pipelineLayout == VK_NULL_HANDLE || renderPass == VK_NULL_HANDLE) return VK_NULL_HANDLE;
+    voxFoundPipeline = buildVoxFoundPipeline("voxfound_face_shadow.vert.spv", "shadow.frag.spv", pipelineLayout);
+    voxFoundFailed = voxFoundPipeline == VK_NULL_HANDLE;
+    return voxFoundPipeline;
+}
+
+VkPipeline ShadowMap::ensureVoxFoundLodPipeline() {
+    if (voxFoundLodPipeline != VK_NULL_HANDLE || voxFoundLodFailed) return voxFoundLodPipeline;
+    if (chunkDataLayout == VK_NULL_HANDLE || renderPass == VK_NULL_HANDLE) return VK_NULL_HANDLE;
+    if (voxFoundLodLayout == VK_NULL_HANDLE) {
+        VkPushConstantRange pc{};
+        pc.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        pc.offset = 0;
+        pc.size = sizeof(VoxFoundLodShadowPC);
+        VkPipelineLayoutCreateInfo li{};
+        li.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        li.setLayoutCount = 1;
+        li.pSetLayouts = &chunkDataLayout;
+        li.pushConstantRangeCount = 1;
+        li.pPushConstantRanges = &pc;
+        if (vkCreatePipelineLayout(device->getDevice(), &li, nullptr, &voxFoundLodLayout) != VK_SUCCESS) {
+            LOG_ERROR("ShadowMap", "voxfound LOD caster pipeline: layout creation failed");
+            voxFoundLodLayout = VK_NULL_HANDLE;
+            voxFoundLodFailed = true;
+            return VK_NULL_HANDLE;
+        }
+    }
+    voxFoundLodPipeline = buildVoxFoundPipeline("voxfound_face_shadow_lod.vert.spv", "voxfound_face_shadow_lod.frag.spv",
+                                                voxFoundLodLayout);
+    voxFoundLodFailed = voxFoundLodPipeline == VK_NULL_HANDLE;
+    return voxFoundLodPipeline;
+}
+
+VkPipeline ShadowMap::buildVoxFoundPipeline(const char* vertSpv, const char* fragSpv, VkPipelineLayout layout) {
     auto fail = [&](const char* why) {
-        LOG_ERROR("ShadowMap", "voxfound caster pipeline: {}", why);
-        voxFoundFailed = true;
+        LOG_ERROR("ShadowMap", "voxfound caster pipeline ({}): {}", vertSpv, why);
         return VK_NULL_HANDLE;
     };
-    auto vertCode = Utils::readFile(Core::AssetManager::instance().resolveShader("voxfound_face_shadow.vert.spv"));
-    auto fragCode = Utils::readFile(Core::AssetManager::instance().resolveShader("shadow.frag.spv"));
+    auto vertCode = Utils::readFile(Core::AssetManager::instance().resolveShader(vertSpv));
+    auto fragCode = Utils::readFile(Core::AssetManager::instance().resolveShader(fragSpv));
     if (vertCode.empty() || fragCode.empty()) return fail("shader files missing (run build_shaders.bat)");
     VkShaderModule vertMod = createShaderModule(device->getDevice(), vertCode);
     VkShaderModule fragMod = createShaderModule(device->getDevice(), fragCode);
@@ -569,16 +604,14 @@ VkPipeline ShadowMap::ensureVoxFoundPipeline() {
     info.pMultisampleState = &multisampling;
     info.pDepthStencilState = &depthStencil;
     info.pColorBlendState = &colorBlending;
-    info.layout = pipelineLayout;
+    info.layout = layout;
     info.renderPass = renderPass;
-    const VkResult r = vkCreateGraphicsPipelines(device->getDevice(), VK_NULL_HANDLE, 1, &info, nullptr, &voxFoundPipeline);
+    VkPipeline out = VK_NULL_HANDLE;
+    const VkResult r = vkCreateGraphicsPipelines(device->getDevice(), VK_NULL_HANDLE, 1, &info, nullptr, &out);
     vkDestroyShaderModule(device->getDevice(), vertMod, nullptr);
     vkDestroyShaderModule(device->getDevice(), fragMod, nullptr);
-    if (r != VK_SUCCESS) {
-        voxFoundPipeline = VK_NULL_HANDLE;
-        return fail("vkCreateGraphicsPipelines failed");
-    }
-    return voxFoundPipeline;
+    if (r != VK_SUCCESS) return fail("vkCreateGraphicsPipelines failed");
+    return out;
 }
 
 VkDescriptorSet ShadowMap::voxFoundOriginSet(VkBuffer buffer, VkDeviceSize bytes, uint64_t generation) {

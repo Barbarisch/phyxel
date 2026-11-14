@@ -589,14 +589,18 @@ int lodPickLevel(float L, float u, int maxLevel) {
 bool lodKeeps(int level, float L, float u, int maxLevel, float slack) {
     return lodPickLevel(L - slack, u, maxLevel) <= level && level <= lodPickLevel(L + slack, u, maxLevel);
 }
-glm::ivec2 lodLevelsForBox(glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float c, int maxLevel) {
+bool lodCasterKeeps(int level, float L, float u, int maxLevel, float floor) {
+    return lodKeeps(level, std::max(L - kLodCasterLag, floor), u, maxLevel);
+}
+float lodTexelFloor(float texelMetres) { return std::log2(std::max(texelMetres, 1e-6f) * 8.0f); }
+glm::ivec2 lodLevelsForBox(glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float c, int maxLevel, float floor) {
     const glm::vec3 nearest = glm::clamp(cam, lo, hi);
     const glm::vec3 farthest(std::abs(cam.x - lo.x) > std::abs(cam.x - hi.x) ? lo.x : hi.x,
                              std::abs(cam.y - lo.y) > std::abs(cam.y - hi.y) ? lo.y : hi.y,
                              std::abs(cam.z - lo.z) > std::abs(cam.z - hi.z) ? lo.z : hi.z);
     // the extreme Bayer values are 0.5/16 and 15.5/16
-    return {lodPickLevel(lodLevelAt(glm::length(nearest - cam), c) - kLodSlack, 0.5f / 16.0f, maxLevel),
-            lodPickLevel(lodLevelAt(glm::length(farthest - cam), c) + kLodSlack, 15.5f / 16.0f, maxLevel)};
+    return {lodPickLevel(std::max(lodLevelAt(glm::length(nearest - cam), c), floor) - kLodSlack, 0.5f / 16.0f, maxLevel),
+            lodPickLevel(std::max(lodLevelAt(glm::length(farthest - cam), c), floor) + kLodSlack, 15.5f / 16.0f, maxLevel)};
 }
 uint32_t lodFlagBits(int level, int maxLevel, int code) {
     return (uint32_t(level) & 0xFu) << 16 | (uint32_t(maxLevel) & 0x7u) << 20 | 1u << 23 | (uint32_t(code) & 0xFFu) << 24;

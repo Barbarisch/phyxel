@@ -1,0 +1,25 @@
+F2.14 part 2 -- coarse shadow casters chosen per caster fragment. PREDICTION, written before any code.
+
+Design: the preview's face casters (mid + near cascades) draw the LOD levels with the SAME per-fragment keep test as the
+main view (L = log2(camera distance of the CASTER fragment) + c, Bayer of the shadow texel, band 1/2, slack 1/4),
+floored by the light's view: L_eff = max(L, log2(8 * texel)), texel = 2*fitRadius/mapSize of that cascade. Cost bound
+per chunk with lodLevelsForBox (camera) and the floor. New shadow pipeline variant (own 92 B push, a fragment shader
+with the discard); the per-cluster shadow multidraw (default OFF) is not LOD'd -- with lod on it falls back to the
+per-chunk path.
+
+Numbers I expect:
+1. Texel floor: mid texel ~0.10 m (8192 over ~850 m), near ~0.04 m (4096 over ~180 m): both < 1/8 m, so the floor is
+   level 0 = INERT in this window. All the saving comes from size on screen.
+2. Faces cast (mid), P=8 (level 1 from 34 m): overview_south/top_down (camera ~100+ m from most of the region) fall
+   from ~480k to < 60k (like the main view: 59,875 / 38,894). Ground poses: roughly the main view's ratio,
+   forest_floor_open ~-40 %, east_low ~-70 %.
+3. Whole frame B-A at P=8 (B = casters LOD'd too, A = main view LOD'd only, both lod_auto P=8): overview_south and
+   top_down -1.5 to -2.5 ms (the mid caster cost of ~2.5 ms at level 0 drops to ~0.3); ground poses -0.5 to -1.5 ms
+   (near cascade stays mostly level 0; part of the mid list goes coarse). At P=4 about half of that.
+4. Risk: the discard in the shadow fragment shader turns off early depth for these draws; I expect it to cost < 0.2 ms
+   (the shadow fragment work is tiny). A per-fragment discard that costs more than it saves would show at P=2.
+5. Looks: shadow shapes far from the camera become blockier, at the size of the visible geometry (same level).
+   Self-shadow mismatch only inside the dither band (two different dither patterns: screen pixel vs shadow texel);
+   expect < 0.5 % of viewport pixels changed vs level-0 casters at P=4, < 2 % at P=8, no visible acne.
+   Gate: shadow-only difference (lod casters vs level-0 casters, the main view identical) and an eye check at the
+   same poses.

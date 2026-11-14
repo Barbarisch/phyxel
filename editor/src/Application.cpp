@@ -13379,9 +13379,12 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             renderCoordinator->setVoxFoundShadowMdi(cmd.params.value("shadow_mdi", true));
         // {"lod_auto":bool, "lod_px":P}: F2.14 the main view picks each fragment's level by size on screen, P pixels per
         // voxel (the tier knob, default 1); off = level 0 everywhere. Needs {"lod_levels":n} at build time.
-        if ((cmd.params.contains("lod_auto") || cmd.params.contains("lod_px")) && !cmd.params.contains("type") &&
-            !cmd.params.contains("region")) {
+        // {"lod_casters":bool}: F2.14 with lod_auto, the face shadow casters draw the levels too (each caster fragment
+        // at the level the camera sees it at, floored by the cascade's texel). Default off.
+        if ((cmd.params.contains("lod_auto") || cmd.params.contains("lod_px") || cmd.params.contains("lod_casters")) &&
+            !cmd.params.contains("type") && !cmd.params.contains("region")) {
             bool ok = true;
+            if (cmd.params.contains("lod_casters")) voxFoundPreview.lodCasters = cmd.params.value("lod_casters", false);
             if (cmd.params.contains("lod_px"))
                 voxFoundPreview.lodPxPerVoxel = std::clamp(cmd.params.value("lod_px", 1.0f), 0.125f, 64.0f);
             if (cmd.params.contains("lod_auto")) {
@@ -13389,7 +13392,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 if (on && voxFoundPreview.lodFirst.empty()) ok = voxFoundPreview.levels.size() > 1 && voxFoundPreview.selectLod();
                 voxFoundPreview.lodOn = on && ok;
             }
-            response = {{"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel}, {"ok", ok},
+            response = {{"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel},
+                        {"lod_casters", voxFoundPreview.lodCasters}, {"ok", ok},
                         {"levels_built", voxFoundPreview.levels.size()}, {"faces_on_device", voxFoundPreview.faces.size()}};
             if (!ok) response["error"] = "coarser levels not built (lod_levels)";
             return;
@@ -13437,6 +13441,10 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel},
                         {"lod_focal_px", renderCoordinator->voxFoundFocalPx()},
                         {"lod_code", renderCoordinator->voxFoundLodCode()},
+                        {"lod_casters", voxFoundPreview.lodCasters},
+                        {"shadow_faces_by_level_mid", renderCoordinator->voxFoundShadowFacesByLevel()[0]},
+                        {"shadow_faces_by_level_near", renderCoordinator->voxFoundShadowFacesByLevel()[1]},
+                        {"shadow_lod_floor", renderCoordinator->voxFoundShadowFloor()},
                         {"cluster_blocks", voxFoundPreview.clusterBlocks},
                         {"shadow_cull", renderCoordinator->voxFoundShadowCull()},
                         {"shadow_mdi", renderCoordinator->voxFoundShadowMdi()},

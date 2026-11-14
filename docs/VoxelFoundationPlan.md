@@ -372,7 +372,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
-| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse shadow casters owed (F2.14 next) |
+| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig/grass handoff, levels > 1 m, GPU level build owed |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
@@ -881,6 +881,52 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   Candidate tier values once casters follow: P=4 (no visible change) and P=8 (slightly blocky far trunks).
 - Not done here, owed to F2.14 next: coarse shadow casters chosen from the light's view (measured alone), the leaf
   sprigs and grass at distance (tier 8 handoff), levels above 1 m, the GPU port of the level build.
+
+**F2.14b 2026-11-13 — §4.6 item 7 continued: coarse shadow casters.**
+- Design (`voxfound_face_shadow_lod.vert/.frag`, `ShadowMap::ensureVoxFoundLodPipeline`, own layout: set 0 = chunk data,
+  92 B push, vertex + fragment; `voxfound_preview {"lod_casters":true}` with lod_auto):
+  - Each CASTER fragment runs the main view's keep test at its own camera distance (Bayer of the shadow texel), so a
+    caster is drawn at the level the camera sees it at.
+  - The light's view: L is floored at `lodTexelFloor` = log2(8 × texel), the level whose voxel the shadow map cannot
+    tell from 1/8 m. Measured texels: mid 0.113 m (floor −0.15), near 0.043 m (floor −1.54), so the floor is INERT in
+    this window (predicted). It matters only for coarser maps or larger cascades.
+  - **Casters lag the main view by one level (`kLodCasterLag` = 1).** Found by eye at top_down P=8 (first version, no
+    lag): a regular grid of shadow dots on open ground, 0.22 % of the viewport. Cause: the dither picks per screen
+    pixel in the main view and per shadow TEXEL in the caster; inside a band a texel could hold the coarse ground
+    (half-solid, it may stand above the fine one) where the screen shows the fine one, which then shadows itself. Rule
+    now: no caster texel is ever coarser than the finest level any pixel can show there (and never more than one level
+    finer). Pinned by `LodCasterIsNeverCoarserThanTheSurfaceItShadows` (red at lag 0, failing at L = 0.52, the band case).
+  - Cost bound per 32 m chunk (`lodLevelsForBox` with c − lag and the floor). A chunk whose box allows one level keeps it
+    at every fragment, so it is drawn with the plain caster pipeline (no discard, early depth); only band chunks pay
+    for the per-fragment test. The per-cluster shadow multidraw is not LOD'd (with lod_casters on it is not used).
+- Red first: `LodCasterFloorIsTheShadowTexelAndTheBoxCoversIt` (stub floor), `LodCasterIsNeverCoarserThanTheSurfaceItShadows`
+  (lag 0); then CPU 47/47, GPU 13/13.
+- Prediction (scratch `f214b_prediction.txt`, before code): floor inert — held. "From above −1.5 to −2.5 ms at P=8,
+  ground −0.5 to −1.5, P=4 half of that" — WRONG at the ground and at P=4 (below).
+- Gate (5 poses × P 4/8, main view already by size on screen in both A and B, so only the casters differ;
+  `docs/evidence/voxfound_f214b_gate.json`): B vs A changes ≤ 0.055 % of the viewport (overview_south P=8; was 0.217 %
+  with the stipple before the lag), mostly darker, scattered single pixels on trunk edges; controls 0.000 %; face casters
+  off entirely changes 0.84-5.98 % (the rig sees the casters). Eye check (`voxfound_f214b_sheet_*.png`): no pattern.
+- Faces cast (mid; near is similar): P=8 overview_south 480k → 282k, top_down 480k → 368k; but at the ground poses and at
+  P=4 casters RISE (e.g. 480k → 606k): a chunk inside the band draws both levels whole. With the lag, level 1 starts at
+  68 m (P=8) / 136 m (P=4), where much of this 128 m region is band.
+- Whole frame, B − A ms (Release, perf_harness 8 pairs × 5 poses × 240 frames, `voxfound_f214b_ab_P*.jsonl`; * = CI
+  excludes 0). v1 = every LOD caster through the discard shader; v2 = single-level chunks on the plain pipeline:
+
+  | Pose | P=4 v1 | P=4 v2 | P=8 v1 | P=8 v2 |
+  |---|---|---|---|---|
+  | overview_south | +2.60* | +0.71* | −1.19* | −2.43* |
+  | top_down | +2.47* | +0.56* | −1.02* | −1.16* |
+  | forest_floor_open | +0.34 | +0.23* | +0.92* | +1.01* |
+  | east_low | +0.57* | +1.16* | +0.41* | +0.45* |
+  | canopy_close | −0.06 | +0.78 | +0.99* | +0.41* |
+
+  The win exists only where most casters are past the lagged band (from above at P=8). Elsewhere the two-levels-per-band-
+  chunk overlap and the discard cost more than the coarse levels save. The lever that would change this is a finer cost
+  bound than the 32 m chunk (per cluster, CPU ranges or the light-frustum multidraw of F2.12, which then measured slower
+  per command) — not taken here.
+- **Default: OFF** (`lod_casters`). Kept selectable: it is the right shape for big views from above; it becomes a
+  candidate once the band overlap is bounded per cluster, or with levels above 1 m where whole chunks leave the band.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

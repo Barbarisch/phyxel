@@ -438,8 +438,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Level 1 starts at f/(4P) (272 m at P=1 -> P=1 is a no-op in the gate region). Gates 0 holes / 0 fattening (score
       with a margin -- a single threshold flags near-background pixels). P=8 -3.3/-3.5 ms from above, ground neutral,
       canopy_close +0.9 (band overdraw). Default OFF until coarse casters.
-      NEXT (the plan's F2 list, §4.6 item 7 continued): coarse shadow casters chosen from the light's view (measured
-      alone), then sprig/grass handoff, levels > 1 m, GPU level build. Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
+      F2.14b (2026-11-13): coarse casters ({"lod_casters":true}, default OFF): voxfound_face_shadow_lod.vert/.frag, own
+      layout; texel floor log2(8*texel) inert here (mid 0.113 m). Casters MUST lag the main view one level
+      (kLodCasterLag): without it a stipple of shadow dots on open ground (screen-pixel vs shadow-texel dither).
+      Single-level chunks go through the plain caster pipeline. Win only from above at P=8 (-1.2/-2.4 ms); +0.2..+1.2
+      elsewhere (band chunks draw two whole levels at 32 m bound granularity).
+      NEXT (the plan's F2 list, §4.6 item 7 continued): sprig/grass handoff at distance (tier 8), levels > 1 m, GPU
+      level build. Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;

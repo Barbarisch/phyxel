@@ -294,6 +294,8 @@ echo Compiling voxel-foundation face builder (docs/VoxelFoundationPlan.md F2.1).
 %GLSLANG% -V -I. shaders\voxfound_face_mdi.vert -o shaders\voxfound_face_mdi.vert.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\voxfound_foliage.vert -o shaders\voxfound_foliage.vert.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\voxfound_face_shadow.vert -o shaders\voxfound_face_shadow.vert.spv || goto :shader_error
+%GLSLANG% -V -I. shaders\voxfound_face_shadow_lod.vert -o shaders\voxfound_face_shadow_lod.vert.spv || goto :shader_error
+%GLSLANG% -V -I. shaders\voxfound_face_shadow_lod.frag -o shaders\voxfound_face_shadow_lod.frag.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\voxfound_foliage_shadow.vert -o shaders\voxfound_foliage_shadow.vert.spv || goto :shader_error
 echo Compiling water surface mesh shaders...
 %GLSLANG% -V -I. shaders\water_surface.vert -o shaders\water_surface.vert.spv || goto :shader_error

@@ -1077,6 +1077,72 @@ TEST(VoxFoundMesher, LodBoxRangeCoversEveryFragmentInIt) {
     EXPECT_EQ(lodLevelsForBox(glm::vec3(-1.0f), glm::vec3(1.0f), glm::vec3(0.0f), std::log2(8.0f / f), 3).x, 0);
 }
 
+// F2.14 casters: the light's view floors the level at the voxel one shadow texel wide; the box range must still cover
+// every caster fragment (which keeps level k when lodKeeps(k, max(L, floor), u)).
+TEST(VoxFoundMesher, LodCasterFloorIsTheShadowTexelAndTheBoxCoversIt) {
+    EXPECT_NEAR(lodTexelFloor(0.125f), 0.0f, 1e-5f);    // a 1/8 m texel: level 0
+    EXPECT_NEAR(lodTexelFloor(0.5f), 2.0f, 1e-5f);      // a 1/2 m texel: level 2
+    EXPECT_LT(lodTexelFloor(0.104f), 0.0f);             // today's mid cascade (8192 over ~850 m): inert
+    std::mt19937 rng(2142);
+    std::uniform_real_distribution<float> pos(-200.0f, 200.0f), size(0.5f, 32.0f), t01(0.0f, 1.0f), fl(-1.0f, 3.5f);
+    const float f = 1086.0f;
+    int raised = 0;
+    for (int t = 0; t < 3000; ++t) {
+        const glm::vec3 lo(pos(rng), pos(rng) * 0.2f, pos(rng));
+        const glm::vec3 hi = lo + glm::vec3(size(rng), size(rng), size(rng));
+        const glm::vec3 cam(pos(rng), pos(rng) * 0.3f, pos(rng));
+        const float c = std::log2(8.0f * float(1 << (t % 4)) / f);
+        const float floorL = fl(rng);
+        const glm::ivec2 r = lodLevelsForBox(lo, hi, cam, c, 3, floorL);
+        const glm::ivec2 r0 = lodLevelsForBox(lo, hi, cam, c, 3);
+        ASSERT_LE(r.x, r.y);
+        ASSERT_GE(r.x, r0.x);   // a floor never makes a box finer
+        raised += r.x > r0.x ? 1 : 0;
+        for (int s = 0; s < 40; ++s) {
+            const glm::vec3 p = lo + (hi - lo) * glm::vec3(t01(rng), t01(rng), t01(rng));
+            const float L = std::max(lodLevelAt(glm::length(p - cam), c), floorL);
+            for (int i = 0; i < 16; ++i)
+                for (int k = 0; k <= 3; ++k)
+                    if (lodKeeps(k, L, lodBayer(i % 4, i / 4), 3))
+                        ASSERT_TRUE(k >= r.x && k <= r.y) << "a kept caster fragment's level is not drawn for its box";
+        }
+    }
+    EXPECT_GT(raised, 300);   // the floor does change boxes
+    // the camera inside the box with a floor of 2.5 draws level 2 and up only, never 1/8 m
+    EXPECT_EQ(lodLevelsForBox(glm::vec3(-1.0f), glm::vec3(1.0f), glm::vec3(0.0f), std::log2(8.0f / f), 3, 2.5f).x, 2);
+}
+
+// F2.14 casters: at any distance, no caster texel (any Bayer value) may keep a level COARSER than the finest level a
+// screen pixel (any Bayer value) may show there -- else the coarse caster shadows the fine surface (the stipple). And
+// casters must still go coarse: at every L, some caster level >= the main view's finest minus 1.
+TEST(VoxFoundMesher, LodCasterIsNeverCoarserThanTheSurfaceItShadows) {
+    for (int floorCase = 0; floorCase < 2; ++floorCase)
+        for (float L = -1.0f; L <= 5.0f; L += 0.005f) {
+            const float floorL = floorCase ? -0.15f : -1e9f;   // today's mid texel floor (inert)
+            int viewFinest = 99, casterCoarsest = -1, casterFinest = 99;
+            for (int i = 0; i < 16; ++i) {
+                const float u = lodBayer(i % 4, i / 4);
+                for (int k = 0; k <= 3; ++k) {
+                    if (lodKeeps(k, L, u, 3)) viewFinest = std::min(viewFinest, k);
+                    if (lodCasterKeeps(k, L, u, 3, floorL)) {
+                        casterCoarsest = std::max(casterCoarsest, k);
+                        casterFinest = std::min(casterFinest, k);
+                    }
+                }
+            }
+            ASSERT_LE(casterCoarsest, viewFinest) << "L=" << L << ": a caster is coarser than a surface it shadows";
+            ASSERT_GE(casterFinest, viewFinest - 1) << "L=" << L << ": casters lag more than one level";
+            ASSERT_GE(casterCoarsest, 0) << "L=" << L << ": a texel keeps no caster level (a hole in the shadow)";
+        }
+    // each texel keeps at least one caster level (no hole), at every L and u
+    for (float L = -1.0f; L <= 5.0f; L += 0.01f)
+        for (int i = 0; i < 16; ++i) {
+            int n = 0;
+            for (int k = 0; k <= 3; ++k) n += lodCasterKeeps(k, L, lodBayer(i % 4, i / 4), 3, -1e9f) ? 1 : 0;
+            ASSERT_GE(n, 1);
+        }
+}
+
 TEST(VoxFoundMesher, LodFlagBitsLeaveTheStaticFlagsAlone) {
     for (int k = 0; k <= 7; ++k)
         for (int code : {0, 77, 255}) {

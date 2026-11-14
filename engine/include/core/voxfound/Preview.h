@@ -63,6 +63,7 @@ struct Preview {
     bool shown = true;               // F2.8 A/B: false = kept on the device but not drawn in any pass
     bool castFaces = true;           // F2.4 diagnosis switches: which parts write the shadow maps
     bool castSprigs = true;
+    bool lodCasters = false;         // F2.14: with lodOn, the face casters draw the levels too (per caster fragment)
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves
 
     /// F2.13 (§4.6 item 7): the pyramid levels built with a region (index = level; level k voxels are 2^k / 8 m,

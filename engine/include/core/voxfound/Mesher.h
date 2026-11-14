@@ -244,7 +244,18 @@ float lodBayer(int px, int py);
 int lodPickLevel(float L, float u, int maxLevel);
 bool lodKeeps(int level, float L, float u, int maxLevel, float slack = kLodSlack);
 /// The levels a fragment anywhere in the box may keep (camera position in the box's frame): x = lowest, y = highest.
-glm::ivec2 lodLevelsForBox(glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float c, int maxLevel);
+/// `floor` (F2.14 casters): L is raised to at least `floor` first, as voxfound_face_shadow_lod.frag does.
+glm::ivec2 lodLevelsForBox(glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float c, int maxLevel, float floor = -1e9f);
+/// F2.14, the light's view: the continuous level whose voxel is one shadow texel, log2(8 * texel). A caster finer than
+/// that is not seen by the shadow map, so casters keep L >= this (inert while texel < 1/8 m: the result is < 0).
+float lodTexelFloor(float texelMetres);
+/// F2.14 casters lag the main view by this many levels. The dither picks per SCREEN pixel in the main view and per
+/// shadow TEXEL in the caster, so inside a band a texel could hold the coarse surface (half-solid: it may stand above
+/// the fine one) where the screen shows the fine one, which then shadows itself in a stipple (seen, top_down P=8).
+/// With a one-level lag a caster only goes coarse where every pixel of the main view already has.
+constexpr float kLodCasterLag = 1.0f;   // = voxfound_face_shadow_lod.frag's "- 1.0"
+/// The caster keep test (voxfound_face_shadow_lod.frag): lodKeeps at max(L - kLodCasterLag, floor).
+bool lodCasterKeeps(int level, float L, float u, int maxLevel, float floor);
 /// The bits the face vertex shaders OR into the flags word (static faces use bits 0-15 only): 16-19 level,
 /// 20-22 maxLevel, bit 23 = LOD test on, 24-31 the scale code.
 uint32_t lodFlagBits(int level, int maxLevel, int code);
