@@ -4072,13 +4072,20 @@ void Application::update(float deltaTime) {
             // this thread), made when the skin is on and the generator or the world changed
             if (Core::Water::WaterCoreManager::s_skin.on) {
                 const WorldGenerator* sg = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
-                if (sg != m_skinGenFrom || waterCore->worldResets() != m_skinGenResets) {
-                    m_skinGenFrom = sg; m_skinGenResets = waterCore->worldResets();
+                const bool genCache = Core::Water::WaterCoreManager::s_skin.genCache;
+                if (sg != m_skinGenFrom || waterCore->worldResets() != m_skinGenResets || genCache != m_skinGenCacheOn) {
+                    m_skinGenFrom = sg; m_skinGenResets = waterCore->worldResets(); m_skinGenCacheOn = genCache;
                     if (sg && sg->hydrology()) {
                         waterCore->setSkinGeneratorSource([sg]() -> Core::Water::WaterSkin::GeneratorSource {
                             auto copy = std::make_shared<WorldGenerator>(*sg);   // one per worker, copied on this thread
                             return [copy](const glm::ivec2& c, std::vector<Core::Water::ColumnRuns>& out) { generatedWaterRuns(*copy, c, out); };
                         });
+                        // 51.16: the generator summaries cached beside the world DB (a pure cache, keyed by the recipe + the water version)
+                        std::string cachePath;
+                        if (genCache && chunkManager)
+                            if (auto* ws = chunkManager->m_streamingManager.getWorldStorage(); ws && !ws->getDbPath().empty() && ws->getDbPath() != ":memory:")
+                                cachePath = ws->getDbPath() + ".watergen";
+                        waterCore->setSkinGeneratorCache(cachePath, generatedWaterCacheKey(*sg));
                     } else waterCore->setSkinGeneratorSource(nullptr);
                 }
             }
@@ -14346,6 +14353,7 @@ void Application::registerWaterCommands() {
             k.baseCellM = b;
         }
         if (cmd.params.contains("on")) k.on = cmd.params.value("on", false);
+        if (cmd.params.contains("gen_cache")) k.genCache = cmd.params.value("gen_cache", true);   // 51.16: applied next frame (the source is remade)
         if (cmd.params.contains("far_m")) k.farM = std::clamp(cmd.params.value("far_m", 1024.0f), 0.0f, maxChunkRenderDistance);
         if (cmd.params.contains("ring_cells")) k.ringCells = (std::clamp(cmd.params.value("ring_cells", 64), 8, 256) + 3) / 4 * 4;
         if (cmd.params.contains("summaries_per_call")) k.summariesPerCall = std::clamp(cmd.params.value("summaries_per_call", 32), 1, 1024);
@@ -14360,6 +14368,10 @@ void Application::registerWaterCommands() {
              {"pending", s.pending}, {"fields_rebuilt_last_call", s.fieldsRebuiltLastCall}, {"ms_last_call", s.msLastCall}, {"ms_max", s.msMax},
              {"generator_threads", k.generatorThreads}, {"generator_source", waterCore->hasSkinGeneratorSource()}, {"gen_pending", s.genPending}, {"mask_tiles", s.maskTiles}, {"record_pending", waterCore->recordDrawStats().pending},
              {"gen_built", s.genBuilt}, {"gen_held", s.genHeld}};
+        const auto& gc = waterCore->skinGenCacheStats();   // 51.16
+        r["gen_cache"] = {{"on", k.genCache}, {"state", Core::Water::WaterSkin::genCacheStateName(gc.state)}, {"columns_loaded", gc.columnsLoaded},
+                          {"hits", gc.hits}, {"misses", gc.misses}, {"bypassed_stored", gc.bypassedStored}, {"written", gc.written},
+                          {"verified", gc.verified}, {"load_ms", gc.loadMs}, {"file_bytes", gc.fileBytes}};
     });
     // §27 W1 step 0: {id} where the volume's water is - m^3 in air / inside ground / in unknown occupancy / above full cells
     reg.on("water_av_census", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {

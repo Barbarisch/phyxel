@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -57,6 +58,8 @@ public:
         int summariesPerCall = 32;    ///< chunk columns summarized per call, nearest first (bounds a frame; late, never blank)
         int generatorThreads = 2;     ///< step 2: workers for never-loaded columns (~35 ms a chunk column each, measured); read when the
                                       ///< source is set
+        bool genCache = true;         ///< 51.16: the generator summaries cached per world (a file beside the world DB); pinned by
+                                      ///< TheGenCacheShipsOn. Changes WHEN the skin is ready, never what it draws
     };
     static inline bool s_wholeCellsForTest = false;
     static inline bool s_maskInRangeForTest = false;
@@ -122,6 +125,31 @@ public:
     using GeneratorFactory = std::function<GeneratorSource()>;
     void setGeneratorSource(GeneratorFactory factory, int threads = 2);
     bool hasGeneratorSource() const { return static_cast<bool>(m_worker); }
+    /// 51.16: a per-world cache FILE of the generator's summaries (a pure cache: never part of the save, deletable). `key` names
+    /// what made them (generatedWaterCacheKey: the recipe + kGeneratedWaterVersion); a file with another key is ignored and
+    /// rewritten. Loaded on its own thread; generator jobs wait for it, then the kGenCacheVerify cached columns nearest the viewer
+    /// are regenerated and compared bit-exact - any difference drops the whole file (code changed without the version bump).
+    /// A column with STORED (edited) chunks never uses or writes the cache (its summary is the generator's runs with the stored
+    /// chunks cut in, 51.4f). New generator summaries are appended in batches. Empty path: off. Call after setGeneratorSource
+    /// (which flushes and closes any cache: a cache belongs to its source).
+    void setGeneratorCache(const std::string& path, uint64_t key);
+    void flushGeneratorCache();   ///< appends the summaries not yet written (also on close and every kGenCacheBatch)
+    enum GenCacheState { GcOff = 0, GcLoading, GcVerifying, GcLoaded, GcRejectedKey, GcRejectedVerify, GcNone };
+    static const char* genCacheStateName(int s);
+    struct GenCacheStats {
+        int state = GcOff;
+        long columnsLoaded = 0;   ///< summaries read from the file
+        long hits = 0;            ///< summaries taken from the cache (no generator job)
+        long misses = 0;          ///< generator jobs asked while a cache was in use
+        long bypassedStored = 0;  ///< columns with stored chunks: the generator + stored path, never the cache
+        long written = 0;         ///< summaries appended to the file
+        int verified = 0;         ///< cached columns regenerated and compared at load
+        double loadMs = 0.0;      ///< the file read (on the loader thread)
+        long fileBytes = 0;
+    };
+    const GenCacheStats& genCacheStats() const { return m_gcStats; }
+    static constexpr int kGenCacheVerify = 2;
+    static constexpr int kGenCacheBatch = 64;
     void update(const Settings& s, const Inputs& in);
     const std::vector<const WaterSurfaceField*>& fields() const { return m_out; }
     const Stats& stats() const { return m_stats; }
@@ -152,6 +180,9 @@ private:
     void buildSummary(int ccx, int ccz, Summary& s, const std::vector<ColumnRuns>& runs);
     struct Worker;
     std::unique_ptr<Worker> m_worker;
+    struct GenCache;                          // 51.16
+    std::unique_ptr<GenCache> m_gc;
+    GenCacheStats m_gcStats;
     uint64_t m_genEpoch = 0;
     bool aggregate(int level, int sizeM, long gx, long gz, SkinCell& out) const;
     bool aggregateCell(int level, int sizeM, long gx, long gz, SkinCell& out) const;   // the cell without its sub-cells   // the cell of size sizeM at world cell index (gx, gz)

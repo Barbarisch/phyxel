@@ -22,6 +22,8 @@
 #include <cstdio>
 #include <map>
 #include <set>
+#include <filesystem>
+#include <string>
 
 using namespace Phyxel;
 using namespace Phyxel::Core::Water;
@@ -367,7 +369,31 @@ TEST(WaterSkinGeneratorTest, AnEditedUnloadedChunkDrawsItsStoredWater) {
             if (ecx >= cx0 && ecx <= cx1 && ecz >= cz0 && ecz <= cz1) out.push_back(glm::ivec3(ecx, ecy, ecz));
         },
         [&](int cx, int cy, int cz, std::vector<ColumnRuns>& out) { ++storedAsks; out.clear(); (void)cx; (void)cy; (void)cz; });   // drained: no water stored
+    // 51.16: the control (no edits) writes a generator cache; `bc` - b's world with the cache - must still draw the stored water
+    const std::string cachePath = (std::filesystem::temp_directory_path() / ("phyxel_watergen_edit_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".watergen")).string();
+    struct Rm { std::string p; ~Rm() { std::error_code ec; std::filesystem::remove(p, ec); } } rmCache{cachePath};
+    control.setSkinGeneratorCache(cachePath, generatedWaterCacheKey(g));
     settle(b); settle(control);
+    for (int i = 0; i < 60000 && (control.skinGenCacheStats().state == WaterSkin::GcLoading || control.skinGenCacheStats().state == WaterSkin::GcVerifying); ++i) { settle(control); }
+    control.flushSkinGeneratorCache();
+    WaterCoreManager bc(ground);
+    bc.setSpanIo(noWrite, nothing);
+    bc.setRecordResidency([] { return uint64_t(1); }, [](int, int) { return uint64_t(0); });
+    bc.setViewPoint(view);
+    bc.setSkinGeneratorSource([&g]() -> WaterSkin::GeneratorSource {
+        auto copy = std::make_shared<WorldGenerator>(g);
+        return [copy](const glm::ivec2& col, std::vector<ColumnRuns>& out) { generatedWaterRuns(*copy, col, out); };
+    });
+    int storedAsksC = 0;
+    bc.setSkinStoredChunks(
+        [&](int cx0, int cz0, int cx1, int cz1, std::vector<glm::ivec3>& out) {
+            out.clear();
+            if (ecx >= cx0 && ecx <= cx1 && ecz >= cz0 && ecz <= cz1) out.push_back(glm::ivec3(ecx, ecy, ecz));
+        },
+        [&](int, int, int, std::vector<ColumnRuns>& out) { ++storedAsksC; out.clear(); });
+    bc.setSkinGeneratorCache(cachePath, generatedWaterCacheKey(g));
+    for (int k = 0; k < 3; ++k) settle(bc);   // the load, the verification, the hits
+    int differCache = 0;
     int points = 0, drawnA = 0, drawnB = 0, drawnC = 0, differ = 0, differControl = 0;
     for (int z = -140; z <= 140; z += 2) for (int x = -140; x <= 140; x += 2) {
         const float px = view.x + x + 0.5f, pz = view.z + z + 0.5f;
@@ -376,10 +402,165 @@ TEST(WaterSkinGeneratorTest, AnEditedUnloadedChunkDrawsItsStoredWater) {
         ++points; drawnA += da; drawnB += db; drawnC += dc;
         if (da != db || (da && ta != tb)) ++differ;
         if (da != dc || (da && ta != tc)) ++differControl;
+        float tbc = 0.0f; const bool dbc = bc.skinDrawnAtWorld(px, pz, tbc);
+        if (da != dbc || (da && ta != tbc)) ++differCache;
     }
+    const auto& gc = bc.skinGenCacheStats();
+    std::printf("[skin gen] with the cache (%s, %ld hits, %ld bypassed for stored chunks, %d stored reads): differ %d\n",
+                WaterSkin::genCacheStateName(gc.state), gc.hits, gc.bypassedStored, storedAsksC, differCache);
+    EXPECT_EQ(differCache, 0) << "51.16: the cache hid the edited chunk's stored water";
+    EXPECT_GT(gc.hits, 0);
+    EXPECT_GE(gc.bypassedStored, 1);
     std::printf("[skin gen] edited chunk (%d, %d, %d) drained: %d points - loaded %d drawn, unloaded with the store %d (differ %d, %d stored reads), without the store %d (differ %d)\n",
                 ecx, ecy, ecz, points, drawnA, drawnB, differ, storedAsks, drawnC, differControl);
     EXPECT_EQ(differ, 0);
     EXPECT_GT(differControl, 0);   // the control measures the edit
     EXPECT_EQ(storedAsks, 1);
+}
+
+// 51.16: the far skin's per-world cache of the GENERATOR summaries (docs/WaterCore.md 51.16). A second session reads the summaries
+// from the file instead of regenerating them; what the skin draws must not change. Predictions, written before the first run:
+//   - cache-filled == generator-filled: 0 of the compared 4 m cells (presence, wet, top, bottom, columns, extent) and 0 drawn points
+//     differ; the second session's generator jobs = the kGenCacheVerify verified columns only; hits > 0.
+//   - CONTROLS: a file of another key is rejected (rejected_key, 0 hits); a file whose column NEXT TO THE VIEWER was written from
+//     different water is rejected by the load's verification (rejected_verify, and the skin is the generator's: 0 differ); a file
+//     whose FAR column was written wrong is ACCEPTED - the known gap (the cache trusts its key beyond the verified columns), printed.
+namespace {
+struct CacheRig {
+    WorldGenerator& g;
+    glm::vec3 view;
+    std::string path;
+    static void settle(WaterCoreManager& m) {
+        for (int i = 0; i < 60000; ++i) {
+            m.surfaceFields(); m.skinFields();
+            const int st = m.skinGenCacheStats().state;
+            if (st != WaterSkin::GcLoading && st != WaterSkin::GcVerifying && m.recordDrawStats().pending == 0 && m.skinStats().pending == 0
+                && m.skinStats().genPending == 0) return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        ADD_FAILURE() << "never settled";
+    }
+    // a session: nothing resident, the generator source (optionally one column's water drained - a "wrong" source), the cache
+    void run(WaterCoreManager& m, uint64_t key, bool cache, glm::ivec2 drainCol = glm::ivec2(1 << 30)) {
+        auto noWrite = [](const std::vector<ColumnRuns>&, float, float, long* u, long* c) { if (u) *u = 0; if (c) *c = 0; };
+        auto nothing = [](const glm::ivec3&, const glm::ivec3&, std::vector<ColumnRuns>& out) { out.clear(); };
+        m.setSpanIo(noWrite, nothing);
+        m.setRecordResidency([] { return uint64_t(1); }, [](int, int) { return uint64_t(0); });
+        m.setViewPoint(view);
+        WorldGenerator* gp = &g;
+        m.setSkinGeneratorSource([gp, drainCol]() -> WaterSkin::GeneratorSource {
+            auto copy = std::make_shared<WorldGenerator>(*gp);
+            return [copy, drainCol](const glm::ivec2& col, std::vector<ColumnRuns>& out) {
+                generatedWaterRuns(*copy, col, out);
+                if (col == drainCol) out.clear();
+            };
+        });
+        if (cache) m.setSkinGeneratorCache(path, key);
+        settle(m);
+        m.flushSkinGeneratorCache();
+    }
+    // 4 m cells round the view (presence and every field) and drawn points: how many differ
+    void compare(const WaterCoreManager& a, const WaterCoreManager& b, int& cells, int& cellsDiffer, int& points, int& pointsDiffer) const {
+        cells = cellsDiffer = points = pointsDiffer = 0;
+        const int c0x = static_cast<int>(std::floor((view.x - 160.0f) / 4.0f)), c0z = static_cast<int>(std::floor((view.z - 160.0f) / 4.0f));
+        for (int cz = c0z; cz < c0z + 80; ++cz) for (int cx = c0x; cx < c0x + 80; ++cx) {
+            SkinCell p, q;
+            const bool hp = a.skinCellForTest(cx, cz, p), hq = b.skinCellForTest(cx, cz, q);
+            ++cells;
+            if (hp != hq || (hp && (!(p == q) || p.x0 != q.x0 || p.z0 != q.z0 || p.x1 != q.x1 || p.z1 != q.z1))) ++cellsDiffer;
+        }
+        for (int z = -140; z <= 140; z += 2) for (int x = -140; x <= 140; x += 2) {
+            const float px = view.x + x + 0.5f, pz = view.z + z + 0.5f;
+            float ta = 0.0f, tb = 0.0f;
+            const bool da = a.skinDrawnAtWorld(px, pz, ta), db = b.skinDrawnAtWorld(px, pz, tb);
+            ++points;
+            if (da != db || (da && ta != tb)) ++pointsDiffer;
+        }
+    }
+};
+std::string tempCachePath(const char* tag) {
+    const auto p = std::filesystem::temp_directory_path() / (std::string("phyxel_watergen_") + tag + "_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".watergen");
+    return p.string();
+}
+}  // namespace
+
+TEST(WaterSkinGeneratorTest, TheCachedSkinEqualsTheGeneratedSkin) {
+    struct Guard {
+        float drawM = WaterCoreManager::s_locality.drawM; WaterCoreManager::SkinSettings skin = WaterCoreManager::s_skin;
+        ~Guard() { WaterCoreManager::s_locality.drawM = drawM; WaterCoreManager::s_skin = skin; }
+    } guard;
+    WaterCoreManager::s_locality.drawM = 48.0f;
+    WaterCoreManager::s_skin.on = true;
+    WaterCoreManager::s_skin.farM = 128.0f;
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    int wx = 0, wz = 0;
+    ASSERT_TRUE(findWetColumn(g, wx, wz));
+    const glm::ivec2 near(floorDiv(wx, 32), floorDiv(wz, 32));
+    std::vector<ColumnRuns> centre; generatedWaterRuns(g, near, centre);
+    float top = 0.0f; for (const auto& c : centre) for (const auto& r : c.runs) top = std::max(top, r.topY);
+    CacheRig rig{g, glm::vec3(near.x * 32.0f + 16.0f, top + 6.0f, near.y * 32.0f + 16.0f), tempCachePath("eq")};
+    struct Rm { std::vector<std::string> p; ~Rm() { for (auto& f : p) { std::error_code ec; std::filesystem::remove(f, ec); } } } rm{{rig.path}};
+    const uint64_t key = generatedWaterCacheKey(g);
+    auto line = [](const char* n, const WaterCoreManager& m) {
+        const auto& c = m.skinGenCacheStats();
+        std::printf("[gen cache] %-34s state %-15s loaded %ld hits %ld misses %ld bypassed %ld written %ld verified %d | generator jobs %ld | load %.1f ms, file %ld B\n",
+                    n, WaterSkin::genCacheStateName(c.state), c.columnsLoaded, c.hits, c.misses, c.bypassedStored, c.written, c.verified, m.skinStats().genBuilt, c.loadMs, c.fileBytes);
+    };
+    auto ground = [](const glm::ivec3& m) { return m.y < 0 ? 1 : 0; };
+    int cells = 0, cd = 0, pts = 0, pd = 0;
+    // the reference: no cache (today)
+    WaterCoreManager ref(ground); rig.run(ref, key, false);
+    line("no cache (reference)", ref);
+    // session 1 writes the file, session 2 reads it
+    WaterCoreManager s1(ground); rig.run(s1, key, true);
+    line("session 1 (writes)", s1);
+    WaterCoreManager s2(ground); rig.run(s2, key, true);
+    line("session 2 (reads)", s2);
+    rig.compare(ref, s2, cells, cd, pts, pd);
+    std::printf("[gen cache] session 2 against the generator: %d cells, %d differ; %d points, %d differ\n", cells, cd, pts, pd);
+    EXPECT_GT(s1.skinGenCacheStats().written, 0) << "session 1 wrote nothing";
+    EXPECT_EQ(s2.skinGenCacheStats().state, WaterSkin::GcLoaded);
+    EXPECT_GT(s2.skinGenCacheStats().hits, 0) << "session 2 took nothing from the cache";
+    EXPECT_EQ(s2.skinStats().genBuilt, static_cast<long>(s2.skinGenCacheStats().verified)) << "session 2 ran generator jobs beyond the verified columns";
+    EXPECT_EQ(s2.skinGenCacheStats().verified, WaterSkin::kGenCacheVerify);
+    EXPECT_GT(pts - pd, 0);
+    EXPECT_EQ(cd, 0); EXPECT_EQ(pd, 0);
+    // CONTROL 1: another key (a copy of the file - a rejected file is rewritten)
+    const std::string other = tempCachePath("key"); rm.p.push_back(other);
+    { std::error_code ec; std::filesystem::copy_file(rig.path, other, ec); ASSERT_FALSE(ec) << "session 1 left no file to copy: " << ec.message(); }
+    { CacheRig r2 = rig; r2.path = other; WaterCoreManager k(ground); r2.run(k, key + 1, true); line("CONTROL another key", k);
+      EXPECT_EQ(k.skinGenCacheStats().state, WaterSkin::GcRejectedKey); EXPECT_EQ(k.skinGenCacheStats().hits, 0);
+      r2.compare(ref, k, cells, cd, pts, pd); EXPECT_EQ(pd, 0); }
+    // CONTROL 2: the column next to the viewer written from different water (a code change without the version bump) - verified
+    {   CacheRig r3 = rig; r3.path = tempCachePath("near"); rm.p.push_back(r3.path);
+        WaterCoreManager w(ground); r3.run(w, key, true, near);
+        WaterCoreManager v(ground); r3.run(v, key, true);
+        line("CONTROL near column wrong", v);
+        EXPECT_EQ(v.skinGenCacheStats().state, WaterSkin::GcRejectedVerify);
+        r3.compare(ref, v, cells, cd, pts, pd);
+        std::printf("[gen cache] near column wrong: %d points differ from the generator (rejected: expect 0)\n", pd);
+        EXPECT_EQ(pd, 0); }
+    // CONTROL 3 (the known gap): a FAR wet column written wrong - outside the verified ones, accepted
+    {   glm::ivec2 far(1 << 30);
+        for (int z = -140; z <= 140 && far.x == (1 << 30); z += 4) for (int x = -140; x <= 140; x += 4) {
+            if (std::abs(x) < 72 && std::abs(z) < 72) continue;
+            const float px = rig.view.x + x + 0.5f, pz = rig.view.z + z + 0.5f; float t = 0.0f;
+            if (ref.skinDrawnAtWorld(px, pz, t)) { far = glm::ivec2(floorDiv(static_cast<int>(std::floor(px)), 32), floorDiv(static_cast<int>(std::floor(pz)), 32)); break; }
+        }
+        if (far.x == (1 << 30)) std::printf("[gen cache] no far wet column in reach: the gap control did not run\n");
+        else {
+            CacheRig r4 = rig; r4.path = tempCachePath("far"); rm.p.push_back(r4.path);
+            WaterCoreManager w(ground); r4.run(w, key, true, far);
+            WaterCoreManager v(ground); r4.run(v, key, true);
+            line("GAP far column wrong", v);
+            r4.compare(ref, v, cells, cd, pts, pd);
+            std::printf("[gen cache] KNOWN GAP: column (%d, %d) written wrong, outside the verified columns - accepted, %d points differ\n", far.x, far.y, pd);
+            EXPECT_EQ(v.skinGenCacheStats().state, WaterSkin::GcLoaded);
+            EXPECT_GT(pd, 0) << "the gap control measured nothing";
+        }
+    }
+}
+
+TEST(WaterSkinGeneratorTest, TheGenCacheShipsOn) {
+    EXPECT_TRUE(WaterSkin::Settings{}.genCache) << "51.16: the generator summary cache ships on";
 }

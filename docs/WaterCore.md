@@ -13041,7 +13041,7 @@ stops being resident - the re-route already happens then.
 - Live (RiverCarve, no edits there - the path's query cost): the reach filled in 164 s, the skin's call 0.008 ms at rest (worst 15.5 ms
   - a scan), 37.7 / 37.9 fps on / off. Not tested live: an edit saved and unloaded (the CPU test carries it).
 - Left: a world's first generator fill still takes minutes every session (a cache of the generator's summaries keyed by the recipe
-  would make it once per world - pure, cannot go stale; not built). Water unit + storage tests 425 / 425.
+  would make it once per world - pure, cannot go stale; not built). **BUILT 2026-11-13 as 51.16:** session 2 on RiverCarve fills in 4.7 s (166 s without). Water unit + storage tests 425 / 425.
   Tests: water unit 379 / 379. Integration water 81 / 84: the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` (a
   device state freed a cycle late at cycles 8 and 11 - timing) with ANOTHER application holding the GPU at ~50 % (a game, not this
   work); it passed on the idle GPU after 51.4b and touches none of the changed code (create / step / the ripple layer). Re-run
@@ -13670,6 +13670,52 @@ synced-mode patch that does not sleep (51.7)"; no drift). A defect fix in a test
   with another session's engine holding the GPU. It runs through the moved sleep pass, so it was measured, not waved off: 10 runs
   each under the same load - **this change 3 pass / 7 fail, the code before it 2 pass / 8 fail**. The load's, not this change's.
 - Open after §51 (51.7c's list): the per-world summary cache (51.4f).
+
+**51.16 (2026-11-13) BUILT, ON - the far skin's generator summaries cached per world: a second session fills the reach in 4.7 s, not
+166 s** (51.4f "Left", the last item of 51.7c's open list; no drift). `/design-check` READY with two amendments, both built: (1) a
+column with STORED (edited) chunks never uses or writes the cache - its summary is the generator's runs with the stored chunks cut
+in BEFORE summarizing (`WaterSkin.cpp`, 51.4f), so "the stored water after the cache" (my first design) was wrong; (2) the file is
+read on its own thread.
+- **Built** (`WaterSkin::setGeneratorCache`, `flushGeneratorCache`, `genCacheStats`):
+  - **The file** `<world>.db.watergen` beside the world DB: a pure cache, never part of the save, deletable. Header "PXWG", format,
+    key; per chunk column cx, cz and either the 85 summary cells (2,550 B) or one byte for a dry column. A torn last record is
+    dropped at load; a rewrite goes through a temp file renamed over the old.
+  - **The key** (`generatedWaterCacheKey`): FNV-1a 64 of the generator's own `makeRecipe().toJson()` (seed, type, biomes, every
+    water flag), `kGeneratedWaterVersion` (`WaterSkinSource.h`, **1** = 51.14) and the format. **Rule: bump
+    `kGeneratedWaterVersion` with any change to what `generatedWaterRuns` returns** - 51.12, 51.13 and 51.14 would each have bumped
+    it. Another key: the file is ignored and rewritten.
+  - **The load's verification** (against a change that forgot the bump): the `kGenCacheVerify` = 2 cached columns nearest the
+    viewer are regenerated and compared bit-exact (every field, the extent too); any difference drops the whole file. Generator jobs
+    are held while the file loads and verifies (~2 s live: two cold columns).
+  - **Hits** in the skin's scan (no generator job); new generator summaries appended every `kGenCacheBatch` = 64, on a source
+    change and on close.
+  - **Editor:** the cache is made with the skin's generator source. **API:** `water_av_skin {"gen_cache": bool}` (default on,
+    applied next frame - the source is remade) and `gen_cache {on, state, columns_loaded, hits, misses, bypassed_stored, written,
+    verified, load_ms, file_bytes}` in its answer.
+- **Tests** (`WaterSkinGeneratorTest`, CPU, Mountains seed 7, 109 chunk columns in reach). Red first (the API stubbed): session 2
+  0 hits, 109 generator jobs again, nothing written. Green:
+  - `TheCachedSkinEqualsTheGeneratedSkin`: session 1 writes 109 (274 KB); **session 2: 109 hits, generator jobs 2 (the
+    verified), 0 of 6,400 cells and 0 of 19,881 drawn points differ** from the no-cache skin.
+  - Controls: another key - `rejected_key`, 0 hits, 0 differ. The column next to the viewer written from different water -
+    `rejected_verify`, 0 differ. **The known gap, measured:** a FAR column written wrong is accepted (`loaded`) and 96 points differ -
+    the cache trusts its key beyond the verified columns; the version bump is the contract.
+  - `AnEditedUnloadedChunkDrawsItsStoredWater` re-run with a cache from the unedited world: 108 hits, 1 bypassed (the edited
+    column), **0 differ** from the loaded world.
+  - `TheGenCacheShipsOn` (the default pinned).
+  - Unit (water / terrain / hydrology / WorldGenerator / WorldForge / roads / flora / settlement / structure): **718 / 718**.
+- **Live** (WaterBench_RiverCarve, `tools/water_gencache_live.py`, `gencache516_s1.json` / `_s2.json` / `_s2_settled.json`):
+  - **Session 1** (no file): the reach (3,859 chunk columns) filled in **166 s** (51.4f: 164 s); 3,840 written, **0.91 MB** (my
+    "<= 11 MB" assumed wet columns; most are dry).
+  - **Session 2:** verifying until 1.5-2.1 s, then 3,840 hits at once; the 16 columns not in the file generated by **4.7 s**
+    (prediction: under 5 s). The file read 10.9 ms (loader thread). On close the 15 new summaries were appended (+5,235 B).
+  - **Whole frame - NOT clean:** another session's engine held the GPU through both runs (GPU frame 100 ms in session 1, 65 ms in
+    session 2 settled; 51.14 measured 25 ms idle), so fps (9.9 / 15.6) say nothing about this change. The editor's water CPU at rest:
+    0.109 ms (session 1) vs 0.108 ms (session 2) a frame - no per-frame cost. Not measured: the cost of a 64-summary append on the
+    main thread in isolation (~160 KB written; it ran inside session 1's fill without a visible step in the trace).
+- **Status: built, not signed off** (nothing on screen changes: by construction and by the tests). Not covered: the hydrology
+  bake's ~10 s at every load (51.13, the owner's call) is a separate cost the cache does not touch.
+- **§51's open list (51.7c) is now empty.** What is left is the owner's: the sign-offs (51.12-51.14 looks, the river width / cut
+  limit, the 1/3 m minimum depth, the 51.13 bake time) and 51.11's pool factor.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

@@ -706,6 +706,10 @@ public:
     /// 51.4 step 2: chunk columns with no resident chunk are summarized from the generator, on the skin's worker (WaterSkin.h)
     void setSkinGeneratorSource(WaterSkin::GeneratorFactory factory) { m_skin.setGeneratorSource(std::move(factory), s_skin.generatorThreads); }
     bool hasSkinGeneratorSource() const { return m_skin.hasGeneratorSource(); }
+    /// 51.16: the generator summaries' per-world cache file (WaterSkin::setGeneratorCache); empty path = off
+    void setSkinGeneratorCache(const std::string& path, uint64_t key) { m_skin.setGeneratorCache(path, key); }
+    void flushSkinGeneratorCache() { m_skin.flushGeneratorCache(); }
+    const WaterSkin::GenCacheStats& skinGenCacheStats() const { return m_skin.genCacheStats(); }
     /// 51.4f: the world's stored (edited) chunks - a non-resident chunk column's water there is the store's, not the generator's
     using SkinStoredChunks = std::function<void(int, int, int, int, std::vector<glm::ivec3>&)>;
     using SkinStoredRuns = std::function<void(int, int, int, std::vector<ColumnRuns>&)>;

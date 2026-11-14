@@ -3,7 +3,12 @@
 #include "core/water/WaterLocality.h"
 
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <unordered_set>
 #include <cmath>
 #include <cstring>
 #include <climits>
@@ -99,11 +104,138 @@ struct WaterSkin::Worker {
     }
 };
 
+// 51.16: the generator summaries' per-world cache file. Layout (little-endian, as written by this build):
+//   header  "PXWG", uint32 format (1), uint64 key
+//   records int32 cx, int32 cz, uint8 full; full: 85 cells x {int32 wet, float top, float bottom, int32 x0, z0, x1, z1, uint16 cols}
+//           (full = 0: every cell is SkinCell{} - a dry column, 9 bytes)
+// A truncated last record (a crash mid-append) is dropped at load; a later record of the same column replaces an earlier one.
+namespace {
+constexpr char kGcMagic[4] = {'P', 'X', 'W', 'G'};
+constexpr uint32_t kGcFormat = 1;
+using Cells = std::array<SkinCell, 85>;
+bool cellsDefault(const Cells& c) {
+    const SkinCell d{};
+    for (const SkinCell& k : c) if (k.wet != d.wet || k.top != d.top || k.bottom != d.bottom || k.x0 != d.x0 || k.z0 != d.z0 || k.x1 != d.x1 || k.z1 != d.z1 || k.cols != d.cols) return false;
+    return true;
+}
+bool cellsSame(const SkinCell* a, const SkinCell* b) {   // every stored field, the extent included (operator== skips it when dry)
+    for (int k = 0; k < 85; ++k)
+        if (a[k].wet != b[k].wet || a[k].top != b[k].top || a[k].bottom != b[k].bottom || a[k].cols != b[k].cols || a[k].x0 != b[k].x0
+            || a[k].z0 != b[k].z0 || a[k].x1 != b[k].x1 || a[k].z1 != b[k].z1) return false;
+    return true;
+}
+template <class T> void put(std::string& b, const T& v) { b.append(reinterpret_cast<const char*>(&v), sizeof(T)); }
+void putRecord(std::string& b, uint64_t key, const Cells& c) {
+    put(b, static_cast<int32_t>(key >> 32)); put(b, static_cast<int32_t>(key & 0xffffffffull));
+    const uint8_t full = cellsDefault(c) ? 0 : 1;
+    put(b, full);
+    if (!full) return;
+    for (const SkinCell& k : c) { put(b, static_cast<int32_t>(k.wet)); put(b, k.top); put(b, k.bottom); put(b, static_cast<int32_t>(k.x0)); put(b, static_cast<int32_t>(k.z0));
+                                  put(b, static_cast<int32_t>(k.x1)); put(b, static_cast<int32_t>(k.z1)); put(b, k.cols); }
+}
+std::string header(uint64_t key) { std::string b(kGcMagic, 4); put(b, kGcFormat); put(b, key); return b; }
+}  // namespace
+
+struct WaterSkin::GenCache {
+    std::string path;
+    uint64_t key = 0;
+    std::thread loader;
+    std::atomic<bool> loadDone{false};
+    // the loader's result (read by the main thread once loadDone)
+    int loadResult = GcNone;
+    std::unordered_map<uint64_t, Cells> loaded;
+    double loadMs = 0.0;
+    long bytes = 0;
+    // the main thread's
+    std::unordered_map<uint64_t, Cells> entries;
+    std::vector<uint64_t> toWrite;
+    bool rewrite = false;               // the file must be started afresh (none, another key, rejected)
+    std::unordered_set<uint64_t> verifyKeys;
+    bool verifyBad = false, verifyRequeue = false;
+    ~GenCache() { if (loader.joinable()) loader.join(); }
+    void load() {
+        const auto t0 = std::chrono::steady_clock::now();
+        std::ifstream f(path, std::ios::binary);
+        if (f) {
+            std::string buf((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+            bytes = static_cast<long>(buf.size());
+            const size_t hs = 4 + sizeof(uint32_t) + sizeof(uint64_t);
+            uint32_t fmt = 0; uint64_t k = 0;
+            if (buf.size() >= hs && std::memcmp(buf.data(), kGcMagic, 4) == 0) { std::memcpy(&fmt, buf.data() + 4, 4); std::memcpy(&k, buf.data() + 8, 8); }
+            if (buf.size() < hs || std::memcmp(buf.data(), kGcMagic, 4) != 0 || fmt != kGcFormat || k != key) loadResult = GcRejectedKey;
+            else {
+                size_t p = hs;
+                constexpr size_t cellBytes = 4 + 4 + 4 + 16 + 2;
+                while (p + 9 <= buf.size()) {
+                    int32_t cx = 0, cz = 0; uint8_t full = 0;
+                    std::memcpy(&cx, buf.data() + p, 4); std::memcpy(&cz, buf.data() + p + 4, 4); std::memcpy(&full, buf.data() + p + 8, 1);
+                    if (full > 1 || (full && p + 9 + 85 * cellBytes > buf.size())) break;   // torn or corrupt: stop here
+                    Cells c{};
+                    const char* q = buf.data() + p + 9;
+                    if (full) for (SkinCell& s : c) {
+                        int32_t v[7]; std::memcpy(&v[0], q, 4); std::memcpy(&s.top, q + 4, 4); std::memcpy(&s.bottom, q + 8, 4); std::memcpy(&v[3], q + 12, 16); std::memcpy(&s.cols, q + 28, 2);
+                        s.wet = v[0]; s.x0 = v[3]; s.z0 = v[4]; s.x1 = v[5]; s.z1 = v[6];
+                        q += cellBytes;
+                    }
+                    loaded[(static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz)] = c;
+                    p += 9 + (full ? 85 * cellBytes : 0);
+                }
+                loadResult = GcLoaded;
+            }
+        } else loadResult = GcNone;
+        loadMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        loadDone = true;
+    }
+};
+
+void WaterSkin::setGeneratorCache(const std::string& path, uint64_t key) {
+    if (m_gc) { flushGeneratorCache(); m_gc.reset(); }
+    m_gcStats = GenCacheStats{};
+    if (path.empty() || !m_worker) return;   // off (a cache belongs to a generator source)
+    m_gc = std::make_unique<GenCache>();
+    m_gc->path = path; m_gc->key = key;
+    m_gcStats.state = GcLoading;
+    GenCache* gc = m_gc.get();
+    m_gc->loader = std::thread([gc] { gc->load(); });   // the read never on the caller's thread (a 2 km reach: up to ~11 MB)
+    m_scanValid = false;
+}
+
+void WaterSkin::flushGeneratorCache() {
+    GenCache* gc = m_gc.get();
+    if (!gc || gc->toWrite.empty()) return;
+    std::string b;
+    std::error_code ec;
+    if (gc->rewrite) {   // afresh: the header and every entry held, through a temp file renamed over the old (never a torn header)
+        b = header(gc->key);
+        for (const auto& [k, c] : gc->entries) putRecord(b, k, c);
+        const std::string tmp = gc->path + ".tmp";
+        { std::ofstream f(tmp, std::ios::binary | std::ios::trunc); f.write(b.data(), static_cast<std::streamsize>(b.size())); if (!f) return; }
+        std::filesystem::rename(tmp, gc->path, ec);
+        if (ec) return;
+        gc->rewrite = false;
+        m_gcStats.written += static_cast<long>(gc->entries.size());
+    } else {
+        for (uint64_t k : gc->toWrite) putRecord(b, k, gc->entries[k]);
+        std::ofstream f(gc->path, std::ios::binary | std::ios::app);
+        f.write(b.data(), static_cast<std::streamsize>(b.size()));
+        if (!f) return;
+        m_gcStats.written += static_cast<long>(gc->toWrite.size());
+    }
+    gc->toWrite.clear();
+    m_gcStats.fileBytes = static_cast<long>(std::filesystem::file_size(gc->path, ec));
+}
+const char* WaterSkin::genCacheStateName(int s) {
+    static const char* n[] = {"off", "loading", "verifying", "loaded", "rejected_key", "rejected_verify", "none"};
+    return s >= 0 && s <= GcNone ? n[s] : "?";
+}
+
 WaterSkin::WaterSkin() = default;
 
 WaterSkin::~WaterSkin() { setGeneratorSource(nullptr); }
 
 void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads) {
+    if (m_gc) { flushGeneratorCache(); m_gc.reset(); }   // 51.16: written, closed (a cache belongs to its source)
+    m_gcStats.state = GcOff;
     if (m_worker) {
         { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->stop = true; }
         m_worker->cv.notify_all();
@@ -124,6 +256,7 @@ void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads) {
 void WaterSkin::clear() {
     m_sum.clear(); m_fieldMap.clear(); m_out.clear(); m_levelKeys.clear(); m_keyValid = false; m_resSeen = ~0ull; m_scanValid = false; m_lastPending = 0;
     if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->queue.clear(); m_worker->queuedColumns = 0; m_worker->done.clear(); }
+    if (m_gc && !m_gc->verifyKeys.empty()) m_gc->verifyRequeue = true;   // 51.16: the verification's jobs went with the queue
 }
 
 void WaterSkin::buildSummary(int ccx, int ccz, Summary& s, const std::vector<ColumnRuns>& runs) {
@@ -238,11 +371,52 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     // step 2: the generator's summaries that came back (a column made resident since keeps the record's)
     int genDrained = 0;
     auto resident = [&](int cx, int cz) { return !m_worker || !in.residentColumn || !*in.residentColumn || (*in.residentColumn)(cx, cz) != 0; };
+    // 51.16: the cache file read - its entries verified first (the kGenCacheVerify nearest the viewer regenerated), generator jobs
+    // held meanwhile (a held job would only make what the file may already hold)
+    if (m_gc && m_gcStats.state == GcLoading && m_gc->loadDone) {
+        GenCache& gc = *m_gc;
+        gc.loader.join();
+        m_gcStats.loadMs = gc.loadMs; m_gcStats.fileBytes = gc.bytes; m_gcStats.columnsLoaded = static_cast<long>(gc.loaded.size());
+        gc.entries = std::move(gc.loaded); gc.loaded.clear();
+        if (gc.loadResult != GcLoaded) { gc.entries.clear(); gc.rewrite = true; m_gcStats.state = gc.loadResult; }
+        else if (gc.entries.empty()) { gc.rewrite = true; m_gcStats.state = GcLoaded; }
+        else {
+            std::vector<std::pair<float, uint64_t>> near;
+            for (const auto& [k, c] : gc.entries) {
+                const float cx = static_cast<float>(static_cast<int32_t>(k >> 32)) * 32.0f + 16.0f, cz = static_cast<float>(static_cast<int32_t>(k & 0xffffffffull)) * 32.0f + 16.0f;
+                near.push_back({(cx - in.view.x) * (cx - in.view.x) + (cz - in.view.z) * (cz - in.view.z), k});
+            }
+            std::sort(near.begin(), near.end());
+            for (size_t i = 0; i < near.size() && static_cast<int>(i) < kGenCacheVerify; ++i) gc.verifyKeys.insert(near[i].second);
+            gc.verifyRequeue = true;
+            m_gcStats.state = GcVerifying;
+        }
+        m_scanValid = false;
+    }
+    if (m_gc && m_worker && m_gc->verifyRequeue && !m_gc->verifyKeys.empty()) {
+        m_gc->verifyRequeue = false;
+        { std::lock_guard<std::mutex> lk(m_worker->mu); std::vector<uint64_t> b(m_gc->verifyKeys.begin(), m_gc->verifyKeys.end()); m_worker->queuedColumns += b.size(); m_worker->queue.push_back(std::move(b)); }
+        m_worker->cv.notify_all();
+    }
     if (m_worker) {
         std::vector<std::pair<uint64_t, std::vector<ColumnRuns>>> done;
         { std::lock_guard<std::mutex> lk(m_worker->mu); done.swap(m_worker->done); }
         genDrained = static_cast<int>(done.size());
         for (auto& [key, runs] : done) {
+            if (m_gc && m_gc->verifyKeys.count(key)) {   // 51.16: a verified column - the generator's against the file's, bit-exact
+                const int vx = static_cast<int>(static_cast<int32_t>(key >> 32)), vz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
+                Summary fresh;
+                buildSummary(vx, vz, fresh, runs);
+                ++m_stats.genBuilt; ++m_gcStats.verified;
+                if (!cellsSame(fresh.cells, m_gc->entries[key].data())) m_gc->verifyBad = true;
+                m_gc->verifyKeys.erase(key);
+                if (m_gc->verifyKeys.empty()) {
+                    if (m_gc->verifyBad) { m_gc->entries.clear(); m_gc->rewrite = true; m_gcStats.state = GcRejectedVerify; }   // the whole file: code changed unbumped
+                    else m_gcStats.state = GcLoaded;
+                    m_scanValid = false;
+                }
+                continue;
+            }
             const auto it = m_sum.find(key);
             if (it == m_sum.end() || !it->second.requested) continue;   // forgotten meanwhile
             Summary& sm = it->second;
@@ -275,6 +449,12 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
             buildSummary(cx, cz, sm, runs);
             sm.fromGen = true; sm.spanRev = in.spanRevision; sm.res = 0;
             ++m_stats.genBuilt;
+            // 51.16: written to the cache - a column with stored chunks never (its summary is not the generator's alone)
+            if (m_gc && sm.storedCy.empty() && m_gcStats.state != GcLoading && m_gcStats.state != GcVerifying && !m_gc->entries.count(key)) {
+                Cells c; std::copy(std::begin(sm.cells), std::end(sm.cells), c.begin());
+                m_gc->entries.emplace(key, c); m_gc->toWrite.push_back(key);
+                if (static_cast<int>(m_gc->toWrite.size()) >= kGenCacheBatch) flushGeneratorCache();
+            }
         }
     }
     // the summaries: chunk columns within reach of a drawn cell, nearest first, a budget per call
@@ -325,6 +505,21 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                     sm.storedCy = cys; sm.storedRuns.clear();
                     for (int cy : cys) { std::vector<ColumnRuns> r; (*in.storedRuns)(static_cast<int>(cx), cy, static_cast<int>(cz), r); sm.storedRuns.insert(sm.storedRuns.end(), r.begin(), r.end()); }
                 } else if (it != m_sum.end()) { it->second.storedCy.clear(); it->second.storedRuns.clear(); }
+                if (m_gc) {   // 51.16
+                    const int st = m_gcStats.state;
+                    if (st == GcLoading || st == GcVerifying) { ++m_stats.pending; continue; }   // held: the file may hold it
+                    if (!cys.empty()) ++m_gcStats.bypassedStored;
+                    else if (const auto ce = m_gc->entries.find(key); st == GcLoaded && ce != m_gc->entries.end()) {
+                        Summary& sm = m_sum[key];
+                        std::copy(ce->second.begin(), ce->second.end(), std::begin(sm.cells));
+                        sm.built = true; sm.fromGen = true; sm.requested = false; sm.spanRev = in.spanRevision; sm.res = 0;
+                        sm.storedCy.clear(); sm.storedRuns.clear();
+                        sm.version = ++m_sumVersion;
+                        ++m_gcStats.hits;
+                        continue;
+                    }
+                    ++m_gcStats.misses;
+                }
                 genAsk.push_back({d2, key});
             }
             continue;

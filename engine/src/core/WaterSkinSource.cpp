@@ -2,6 +2,8 @@
 
 #include "core/WorldGenerator.h"
 #include "core/WorldForgePlan.h"
+#include "core/WorldRecipe.h"
+#include <string>
 
 namespace Phyxel {
 
@@ -23,6 +25,14 @@ void generatedWaterRuns(WorldGenerator& gen, const glm::ivec2& colChunk, std::ve
             c.runs.push_back(r);
             out.push_back(std::move(c));
         }
+}
+
+uint64_t generatedWaterCacheKey(const WorldGenerator& gen) {
+    constexpr uint32_t kSummaryFormat = 1;   // WaterSkin's cache file layout (bump with it)
+    const std::string s = gen.makeRecipe().toJson() + "|water " + std::to_string(kGeneratedWaterVersion) + "|format " + std::to_string(kSummaryFormat);
+    uint64_t h = 1469598103934665603ull;
+    for (const unsigned char c : s) { h ^= c; h *= 1099511628211ull; }
+    return h;
 }
 
 }  // namespace Phyxel
