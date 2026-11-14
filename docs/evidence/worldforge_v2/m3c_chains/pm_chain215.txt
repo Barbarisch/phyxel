@@ -30,7 +30,7 @@ PM5c1.2  chain 216 (written 2026-11-14 16:42; same filter; patch 49b: the planne
   which moves seats / approaches - TheSlopedRigCarriesTheFourShapes and the parcel tests assert on shapes that
   could move; I predict they hold (the rolling rig's front blocks hold the footprint and the door).
 
-RESULT chain 216 (written 2026-11-14 16:47; RUN EXIT 1 16:44:13): 23 ok / 1 failed - as predicted. (a) green: hamlet 4 of
+RESULT chain 216 (written 2026-11-14 16:45; RUN EXIT 1 16:44:13): 23 ok / 1 failed - as predicted. (a) green: hamlet 4 of
   4 preserve, village 6 of 10, town 0 of 22, city 0 of 27; 0 off the vocabulary / table; the 22 older tests hold.
   (b) red on "the rig cannot tell the two rules apart", and the per-lot print says WHY - my guess of >= 3 MISSED
   for a reason that is not the rig's: the village's tofts are 12 deep and the front block is 7-10 of those rows
