@@ -1,0 +1,535 @@
+{
+ "pose": {
+  "x": 79.0,
+  "y": 32.0,
+  "z": 103.0,
+  "yaw": -90.0,
+  "pitch": -34.0
+ },
+ "window_s": 8.0,
+ "knobs": {
+  "seed_whole_map_test": false
+ },
+ "defaults": {
+  "line_sweeps": {
+   "count": 0,
+   "max_ny": 64,
+   "omega": 1.0
+  },
+  "tall": {
+   "default": 0.5,
+   "sweeps": 20
+  },
+  "partial_wake": {
+   "default": true,
+   "quiet_scale": 10.0,
+   "rest_ticks": 0,
+   "surface": true
+  }
+ },
+ "record": {
+  "box": [
+   4,
+   16,
+   2,
+   153,
+   18,
+   151
+  ],
+  "m3": 45000.0,
+  "slept_boxes": 1,
+  "success": true,
+  "unwritten_columns": 0
+ },
+ "rest": {
+  "app_water_cpu_ms_last": {
+   "bodies": 0.0065,
+   "exchange": 0.0001,
+   "feed": 0.0207,
+   "motion": 0.0,
+   "pressure": 0.0009,
+   "solids": 0.0016,
+   "total": 0.0628,
+   "update": 0.0297
+  },
+  "app_water_cpu_ms_worst_frame": {
+   "bodies": 0.0815,
+   "exchange": 0.0,
+   "feed": 0.16,
+   "motion": 0.0,
+   "pressure": 0.0015,
+   "solids": 0.0005,
+   "total": 0.2699,
+   "update": 0.0227
+  },
+  "frames": 1263,
+  "phases": {
+   "ripples.1 surfaceFields (= surf.*)": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 0.1129,
+    "ms_per_frame": 0.021730562153602497
+   },
+   "ripples.2 masks + layers": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 0.0286,
+    "ms_per_frame": 0.00289398258115598
+   },
+   "surf.5 rest": {
+    "calls_per_frame": 2.0,
+    "max_ms_per_call": 0.001,
+    "ms_per_frame": 0.00025019794140934015
+   },
+   "surf.6 record tiles' surfaces": {
+    "calls_per_frame": 2.0,
+    "max_ms_per_call": 0.1104,
+    "ms_per_frame": 0.026347901821061
+   }
+  },
+  "tiler_last": {
+   "build_ms": 0.0,
+   "ms": 0.0742,
+   "rebuilt": 0
+  }
+ },
+ "splash": {
+  "strength": 8.0,
+  "success": true,
+  "woken": [
+   9
+  ]
+ },
+ "after": {
+  "app_water_cpu_ms_last": {
+   "bodies": 0.0105,
+   "exchange": 0.0002,
+   "feed": 0.0381,
+   "motion": 0.0046,
+   "pressure": 0.002,
+   "solids": 0.0014,
+   "total": 11.3234,
+   "update": 11.261
+  },
+  "app_water_cpu_ms_worst_frame": {
+   "bodies": 0.0077,
+   "exchange": 0.0002,
+   "feed": 0.811,
+   "motion": 0.0063,
+   "pressure": 0.0018,
+   "solids": 0.0013,
+   "total": 142.3898,
+   "update": 141.5553
+  },
+  "frames": 543,
+  "phases": {
+   "collect.1 fence wait": {
+    "calls_per_frame": 0.7624309392265194,
+    "max_ms_per_call": 129.3529,
+    "ms_per_frame": 5.22593406998158
+   },
+   "collect.2 lists + copies": {
+    "calls_per_frame": 0.7624309392265194,
+    "max_ms_per_call": 9.7944,
+    "ms_per_frame": 0.22155469613259682
+   },
+   "collect.3 stats + record + sleep": {
+    "calls_per_frame": 0.7624309392265194,
+    "max_ms_per_call": 1.0146,
+    "ms_per_frame": 0.027327071823204416
+   },
+   "gpu.01 settle (collect the call before)": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 130.5569,
+    "ms_per_frame": 5.396180294659299
+   },
+   "gpu.02 grow pool": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.0084,
+    "ms_per_frame": 0.0011136279926335162
+   },
+   "gpu.03 partial wake (freeze test)": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.213,
+    "ms_per_frame": 0.08915395948434625
+   },
+   "gpu.03b the bodies' box (44.2)": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.0537,
+    "ms_per_frame": 0.014705524861878455
+   },
+   "gpu.04 residency: which bricks": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 8.6894,
+    "ms_per_frame": 0.9837766114180478
+   },
+   "gpu.05 residency: apply": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 1.8552,
+    "ms_per_frame": 0.2782226519337016
+   },
+   "gpu.06 compact": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.0252,
+    "ms_per_frame": 0.005231675874769795
+   },
+   "gpu.07 partition + tables": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 2.8325,
+    "ms_per_frame": 0.09874861878453042
+   },
+   "gpu.08 record the commands": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 11.0167,
+    "ms_per_frame": 0.3300937384898712
+   },
+   "gpu.09 submit": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.2869,
+    "ms_per_frame": 0.0698359116022099
+   },
+   "mgr.1 upload (world changes)": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.0007,
+    "ms_per_frame": 5.5985267034990596e-05
+   },
+   "mgr.2 record / wake tiles": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 30.7701,
+    "ms_per_frame": 0.26637992633517477
+   },
+   "mgr.3 tall cells": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 1.345,
+    "ms_per_frame": 0.527290976058932
+   },
+   "mgr.4 the GPU step (= gpu.* + collect.*)": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 139.8994,
+    "ms_per_frame": 7.281160957642735
+   },
+   "mgr.5 after the step": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.0036,
+    "ms_per_frame": 0.0012438305709023937
+   },
+   "motion.1 takeMotion scan": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 6.0301,
+    "ms_per_frame": 0.051429650092081065
+   },
+   "ripples.1 surfaceFields (= surf.*)": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 1.2358,
+    "ms_per_frame": 0.08240276243093923
+   },
+   "ripples.2 masks + layers": {
+    "calls_per_frame": 1.0,
+    "max_ms_per_call": 7.9634,
+    "ms_per_frame": 0.5845863720073661
+   },
+   "surf.0 (before)": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.0012,
+    "ms_per_frame": 0.00011123388581952148
+   },
+   "surf.1 read the GPU surface": {
+    "calls_per_frame": 0.7624309392265194,
+    "max_ms_per_call": 2.2127,
+    "ms_per_frame": 0.6366981583793737
+   },
+   "surf.2 seed patches": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.2704,
+    "ms_per_frame": 0.0047110497237569035
+   },
+   "surf.3 CPU fallback (extract)": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 0.0025,
+    "ms_per_frame": 0.0005368324125230198
+   },
+   "surf.4 mark recorded columns": {
+    "calls_per_frame": 0.7642725598526704,
+    "max_ms_per_call": 1.2027,
+    "ms_per_frame": 0.012524125230202666
+   },
+   "surf.5 rest": {
+    "calls_per_frame": 2.8802946593001844,
+    "max_ms_per_call": 0.0103,
+    "ms_per_frame": 0.0024994475138121197
+   },
+   "surf.6 record tiles' surfaces": {
+    "calls_per_frame": 2.8802946593001844,
+    "max_ms_per_call": 0.0666,
+    "ms_per_frame": 0.03931786372007357
+   }
+  },
+  "tiler_last": {
+   "build_ms": 0.0,
+   "ms": 0.0639,
+   "rebuilt": 0
+  }
+ },
+ "kernels": {
+  "calls": 352,
+  "ms_per_call": {
+   "brick_record": 0.07544818181818197,
+   "classify": 0.3262360000000001,
+   "compaction": 0.17984645454545423,
+   "extrapolate": 0.2978895454545459,
+   "forces": 0.12109281818181815,
+   "reduce": 0.5523910000000001,
+   "reduce_surface": 0.002191363636363632,
+   "residency": 0.1062966363636364,
+   "settle": 0.09547599999999994,
+   "sources": 0.05110600000000012,
+   "surface_copy": 0.5631924545454546,
+   "surface_kernel": 0.049100636363636346,
+   "sweep_births": 0.08245363636363628,
+   "sweeps": 2.944226636363639,
+   "transport": 0.8868393636363625,
+   "vel_advect": 0.17724390909090942,
+   "vel_update": 0.3778874545454546
+  },
+  "total_ms_per_call": 6.888918090909095
+ },
+ "tile_events": [
+  {
+   "awake_nbrs": 0,
+   "cause": "M",
+   "ms": 10.2167,
+   "since_s": -1.0,
+   "t": 310041.6315712,
+   "tx": 9,
+   "tz": 9,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 0,
+   "cause": "W",
+   "ms": 10.5356,
+   "since_s": -1.0,
+   "t": 310041.6421175,
+   "tx": 10,
+   "tz": 9,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 0,
+   "cause": "W",
+   "ms": 8.5523,
+   "since_s": -1.0,
+   "t": 310041.6506774,
+   "tx": 9,
+   "tz": 10,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 0,
+   "cause": "W",
+   "ms": 13.7262,
+   "since_s": -1.0,
+   "t": 310041.6644083,
+   "tx": 10,
+   "tz": 10,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 2,
+   "cause": "M",
+   "ms": 22.0512,
+   "since_s": -1.0,
+   "t": 310041.7480266,
+   "tx": 9,
+   "tz": 8,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 2,
+   "cause": "M",
+   "ms": 8.6867,
+   "since_s": -1.0,
+   "t": 310041.7567206,
+   "tx": 10,
+   "tz": 8,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 3,
+   "cause": "L",
+   "ms": 14.1609,
+   "since_s": -1.0,
+   "t": 310041.7972052,
+   "tx": 8,
+   "tz": 9,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 2,
+   "cause": "L",
+   "ms": 9.1772,
+   "since_s": -1.0,
+   "t": 310041.8063915,
+   "tx": 8,
+   "tz": 10,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 3,
+   "cause": "L",
+   "ms": 20.468,
+   "since_s": -1.0,
+   "t": 310041.8540382,
+   "tx": 11,
+   "tz": 9,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 3,
+   "cause": "L",
+   "ms": 8.5998,
+   "since_s": -1.0,
+   "t": 310041.8626453,
+   "tx": 8,
+   "tz": 8,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 3,
+   "cause": "L",
+   "ms": 22.1169,
+   "since_s": -1.0,
+   "t": 310041.9130726,
+   "tx": 11,
+   "tz": 10,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 3,
+   "cause": "L",
+   "ms": 8.3506,
+   "since_s": -1.0,
+   "t": 310041.921427,
+   "tx": 9,
+   "tz": 11,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 4,
+   "cause": "L",
+   "ms": 19.9311,
+   "since_s": -1.0,
+   "t": 310041.9784184,
+   "tx": 10,
+   "tz": 11,
+   "vol": 9
+  },
+  {
+   "awake_nbrs": 3,
+   "cause": "L",
+   "ms": 9.2329,
+   "since_s": -1.0,
+   "t": 310041.9876557,
+   "tx": 11,
+   "tz": 8,
+   "vol": 9
+  }
+ ],
+ "tile_phases": {
+  "gpu_last": {
+   "read_host": 0.0,
+   "read_settle": 0.0,
+   "read_submit": 0.0,
+   "record_build_parts": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "seed_host": 5.0784,
+   "seed_parts": [
+    1.9366,
+    0.5973,
+    1.4011,
+    1.1027,
+    0.0406
+   ],
+   "seed_settle": 0.0001,
+   "seed_submit": 1.9336
+  },
+  "record_last": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "record_max": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "record_names": [
+   "gpu_read",
+   "runs",
+   "spans",
+   "gpu_flags",
+   "draw"
+  ],
+  "records": 0,
+  "seed_max": {
+   "host": 5.268,
+   "parts": [
+    1.9637,
+    0.6006,
+    1.5848,
+    1.2402,
+    0.0562
+   ],
+   "pool_grows": 0,
+   "seeds": 14,
+   "settle": 12.8158,
+   "submit": 9.558
+  },
+  "wake_last": [
+   0.0163,
+   0.6787,
+   1.1203,
+   7.2944,
+   0.1007,
+   0.0225
+  ],
+  "wake_max": [
+   0.0969,
+   1.3073,
+   3.3168,
+   20.2451,
+   0.2085,
+   0.0503
+  ],
+  "wake_names": [
+   "span_read",
+   "occupancy",
+   "seed_surface",
+   "gpu_upload",
+   "span_clear",
+   "draw"
+  ],
+  "wakes": 14
+ },
+ "droplets": {
+  "alive": 0,
+  "births": 24026,
+  "born_m3": 1.1019271114381366,
+  "cap": 20000,
+  "cosmetic": true,
+  "cpu_scraps": 0,
+  "cpu_sprays": 0,
+  "enabled": true,
+  "in_flight_m3": 0.0,
+  "landed_m3": 1.1019271114381366,
+  "landings": 24027,
+  "lateral": 1.0,
+  "refused_m3": 0.0,
+  "size": 1.0
+ }
+}

@@ -9106,7 +9106,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
 | D7 | 2026-10-28 | L4 is designed to pace EVERY wake (near and far), not only a far one (42.3) | L4: "pace a far wake" | 42.2 measured that the wake's timing changes nothing until a body reaches the water, and nothing shows on the water before that either, so a paced wake within the body's deadline needs no distance to be safe; pacing only far wakes would leave the near hitch, the one the player sees, in place | the agent; **the owner's call** (scope): pacing applies to all wakes unless the owner says far only (`wake_pace_near` would then be a knob) | CLOSED 2026-10-29: the owner took the recommendation ("go with your recommendations") - all wakes, and on by default (42.6) |
 | D8 | 2026-11-13 | WorldForge `roadAt` blends overlapping roads' grades at a junction (51.13) | not in the plan: a WorldForge defect | 51.13 changed where lakes are, so the WorldForge plan's roads moved, and two roads meeting near a site flipped the surface between their own grade profiles column by column (92.0 -> 93.7 in 2 m). `RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains` failed. The defect is older than 51.13 (the old layout only missed it), but it blocked shipping the owner's "no wall of water" by default | the agent, under the owner's "keep going". Reported in 51.13 | **good reason** (a blocker, fixed at its cause, not waived). The roads test, WorldForge and RoadField pass 51 / 51; the mountain stress test's steep-step share fell 0.46 % -> 0.35 %. CLOSED |
-| D9 | 2026-11-14 | Why the frame rate swings during and after a splash | not in the plan: the owner's concern on signing off 51.11 / 51.13 (*"i am concerned with the fps fluctuating so much"*) | `cosm511_clip.json`'s own samples: after the splash the fps runs 12-367; dips to ~12 fps recur every ~1.2-3.6 s for 9 s (wide take 5.0 / 8.6 / 9.8 s; close 3.7 / 4.9 / 7.3 / 8.5 s), and 19-48 fps in the first second. Recorded with the screen recorder running and another session's engine live, so how much is the water is NOT known | the owner's concern; scope and order the owner's | OPEN - proposed: measure a splash on a clean GPU, recorder off, per frame (CPU, GPU, the water's own share), find what the ~80 ms frames are |
+| D9 | 2026-11-14 | Why the frame rate swings during and after a splash | not in the plan: the owner's concern on signing off 51.11 / 51.13 (*"i am concerned with the fps fluctuating so much"*) | `cosm511_clip.json`'s own samples: after the splash the fps runs 12-367; dips to ~12 fps recur every ~1.2-3.6 s for 9 s (wide take 5.0 / 8.6 / 9.8 s; close 3.7 / 4.9 / 7.3 / 8.5 s), and 19-48 fps in the first second. Recorded with the screen recorder running and another session's engine live, so how much is the water is NOT known | the owner's concern; scope and order the owner's | MEASURED 2026-11-14 (the D9 entry by 51.17): the recurring ~80 ms dips were the clip's own polling (`water_av_list`'s once-a-second download of the whole lake); the water's own cost is ~0.5 s at each splash. What to fix next: the owner's |
 
 ### 30.6 The plan-check log (newest last)
 
@@ -13736,8 +13736,8 @@ read on its own thread.
 - **Signed off by the owner 2026-11-14** (*"looks good"*), shown `drain513_lake_on.png` and `cosm511_clip.mp4`: the 51.12 / 51.13
   lake look and 51.11's droplets. With a concern: *"i am concerned with the fps fluctuating so much"* - drift D9 (§30.5).
 
-**D9 (2026-11-14) the fps swings after a splash - measuring. Status: TOOL BUILT; a dry run on a SHARED GPU; the clean run waits for
-the GPU** (the owner: *"yes"* to the proposed measurement).
+**D9 (2026-11-14) the fps swings after a splash - MEASURED on a clean GPU: the recurring dips were the clip's own polling; the
+water's own cost is a ~0.5 s burst at each splash** (the owner: *"yes"* to the proposed measurement).
 - **Built:** the engine's `frame_trace` ring now holds 8,192 frames and, per frame, the API drain, the water block (and its manager
   update) and the GPU's last resolved frame; `POST /api/debug/frame_trace {"since", "timing": true}` returns them. Tool
   `tools/water_splash_frames.py`: the clip's rig (WaterBench_Creek, the 150 m record lake, the close pose, the 2 m / strength 8
@@ -13753,6 +13753,40 @@ the GPU** (the owner: *"yes"* to the proposed measurement).
     (~4 s): 54 fps mean, p95 53 ms; with the polling 30 fps.
   - The GPU frame stayed 7-9 ms, so the time is the water's CPU side; how much of it is waiting for a GPU the other engine held is
     NOT known - the next step is this run with the GPU to ourselves.
+- **Clean run** (`d9_frames.json`, 2 reps x 12 s per condition, interleaved; the GPU otherwise idle - the other engine had exited,
+  3 % before the run; no recorder):
+  | condition | fps mean | frames > 33 ms | worst | the water a frame (mean) |
+  |---|---|---|---|---|
+  | rest | 278-322 | 0 | 6 ms | 0.6 ms |
+  | rest + the clip's polling | 308-309 | 0 | 5.7 ms | 0.6 ms |
+  | splash | 184-188 | 6 | 127-150 ms | 2.1 ms |
+  | splash + the clip's polling | 171-176 | 15 | 148-159 ms | 2.1-2.2 ms |
+  - The dry run's "40-65 ms of every frame for ~4 s" was the shared GPU: clean, the water's long frames last ~0.4 s.
+  - **Prediction result: both.** The splash makes a burst (all splash windows, polled or not); the polling adds ~80 ms frames every
+    ~1.2 s for the rest of the window, only in the polled splash windows (none at rest). The clip's "~12 fps every 1.2-3.6 s" is the
+    second.
+- **The recurring ~80 ms frames = `water_av_list`** (`tools/water_d9_split_poll.py`, `d9_split_poll.json`; the splash with only
+  `water_av_list` polled / only `engine_timing` / both / none): 6-7 frames of 79-112 ms with `water_av_list`, **0 with `engine_timing`
+  alone**; with none only the splash's own burst (water 35-115 ms a frame, over by 0.5 s after it), nothing recurring. The time is in the API drain (74-105 ms; the trace records a frame's API and water time one row
+  before the frame delta that pays for them). Cause, in the code: its `total_mass` calls `WaterCoreManager::totalMass()`, which
+  `syncFromGpu`s every volume - a download of the whole woken lake from the GPU - rate-limited to once a second (§15.11). The game never
+  calls it: a measurement artefact. Every earlier clip that polled `water_av_list` while water moved (51.11's `cosm511_clip`
+  included) shows these dips.
+- **The splash's own burst, split** (`water_splash_phases.py --pose close`, `d9_phases_r1/_r2.json`, the GPU idle): one frame of
+  127-160 ms at the splash - the splash API call itself 90-119 ms (51.3d's patch wake, 80-91 ms) - then ~5 frames of 45-57 ms (water
+  43-50 ms, its manager update 23-30) over ~0.3 s, then 185-200 fps (rest ~300). The worst single parts after the splash: **the fence
+  wait on the water's GPU call, 79-129 ms in ONE call** (51.9b's open "mgr.4 the fence wait - not yet split"); 14 tile wakes (4 by
+  the splash's write, 2 by the margin, 8 by droplet landings) of 8-22 ms each at 2 a call (`mgr.2` worst 24-31 ms); one residency
+  apply 40 ms (r2). 0 pool grows. The GPU kernel timing is a mean of single-tick calls only, so which device stage makes the one long
+  call is NOT known yet.
+- **Tested and NOT supported: the fixed tick's catch-up** (`tools/water_d9_tick_ab.py`, `d9_tick_ab.json`): after a long frame the
+  water runs up to 4 ticks in one call; with the fixed tick off (one tick of the frame's dt, a diagnostic, restored after) the burst
+  was the same (24 vs 25 frames > 33 ms, 1,414 vs 1,446 ms in them; 0 ticks dropped either way). NOT clean: the other session's engine
+  (VoxFoundGate, port 8120) restarted during this run and held the GPU at 99 %; the arms were interleaved, so they shared that load.
+- **Not measured:** which GPU stage the one long call spends its time in (needs per-call device timestamps); the recorder's own cost.
+- **Next - the owner's (D9's scope):** (1) the measurement fix: the clips stop polling `total_mass` (or it reads without the
+  download), so a clip no longer shows dips the game does not have; (2) the splash burst (~0.5 s, ~1 frame of 130-160 ms + ~5 of
+  ~50 ms): split the long fence wait per call, then the patch wake's 90-119 ms - continuing 51.3d / 51.9b's own open items.
 
 **51.17 item 3 (2026-11-14) BUILT, ON - the hydrology bake stored per world: a second load bakes in 0.09 s, not 9.1 s** (the
 owner's decision above; no drift). `/design-check` READY with three conditions, all met below.
