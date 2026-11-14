@@ -1015,7 +1015,7 @@ static LakeSplash runRecordedLake(VkDevice device, VkPhysicalDevice pd, VkQueue 
 // skin; points every 2 m within drawM + 24 m of the camera, on the lake: drawn by nothing (a hole) or by the skin AND a record tile /
 // a volume (a double); the books (record + live volumes - placed). Prediction: 0 hole frames, 0 doubles, |books| < 1e-3 m^3 every
 // frame. (The pops of a coarse shore are TheShoreSwapsAreSmall's, CPU; this lake's straight shores do not swap.)
-struct FlySplash { long frames = 0, liveFrames = 0, holeFrames = 0, holesMax = 0, doubleFrames = 0; double booksWorst = 0.0, booksEnd = 0.0, skinMsLive = 0.0, skinMsLiveMax = 0.0; long skinRebuiltLive = 0; bool woke = false, slept = false; int phase = 0; };
+struct FlySplash { long frames = 0, liveFrames = 0, holeFrames = 0, holesMax = 0, doubleFrames = 0; double booksWorst = 0.0, booksEnd = 0.0, skinMsLive = 0.0, skinMsLiveMax = 0.0; long skinRebuiltLive = 0; bool woke = false, slept = false; int phase = 0; long awakeMax = 0; float sleptAfterS = -1.0f; };
 static FlySplash runFlyToSplash(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool realtime, bool redMask) {
     FlySplash o;
     const auto drawBefore = WaterCoreManager::s_recordDraw; const float drawMBefore = WaterCoreManager::s_locality.drawM;
@@ -1044,6 +1044,7 @@ static FlySplash runFlyToSplash(VkDevice device, VkPhysicalDevice pd, VkQueue qu
     glm::vec3 view(c.x, eye, farZ);
     mgr.setViewPoint(view);
     for (int k = 0; k < 600 && (k < 2 || mgr.recordDrawStats().pending > 0 || mgr.skinStats().pending > 0); ++k) { mgr.update(dt); mgr.surfaceFields(); mgr.skinFields(); }
+    int splashFrame = 0;
     int hold = 0;   // phase 0 in, 1 hold at the splash, 2 out, 3 hold far until slept, 4 in again, 5 done
     for (int k = 0; k < 60 * 120 && o.phase < 5; ++k) {
         if (o.phase == 0) {
@@ -1053,7 +1054,7 @@ static FlySplash runFlyToSplash(VkDevice device, VkPhysicalDevice pd, VkQueue qu
                 const std::vector<int> ids = mgr.wakeSleptNear(glm::vec3(c.x, 1.9f, c.y), 2.0f);
                 if (ids.empty()) { ADD_FAILURE() << "the splash woke nothing"; return o; }
                 mgr.addImpulse(glm::vec3(c.x, 1.9f, c.y), 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
-                o.woke = true;
+                o.woke = true; splashFrame = k;
             }
         }
         else if (o.phase == 1) { if (++hold >= 120) o.phase = 2; }
@@ -1062,13 +1063,18 @@ static FlySplash runFlyToSplash(VkDevice device, VkPhysicalDevice pd, VkQueue qu
         else if (o.phase == 4) { view.z = std::max(nearZ, view.z - step); if (view.z <= nearZ) o.phase = 5; }
         mgr.setViewPoint(view);
         mgr.update(dt);
+        if (!realtime) {   // 51.15: update() steps nothing with realtime off - the synced run steps each volume and sleeps the rested
+            for (const AvRecord& r : mgr.list()) mgr.step(r.id, 1, dt, nullptr);
+            mgr.sleepRested();
+        }
         mgr.surfaceFields();
         const auto ts = std::chrono::steady_clock::now();
         mgr.skinFields();
         const double sms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ts).count();
         const bool live = !mgr.list().empty();
         if (live) { ++o.liveFrames; o.skinMsLive += sms; o.skinMsLiveMax = std::max(o.skinMsLiveMax, sms); o.skinRebuiltLive += mgr.skinStats().fieldsRebuiltLastCall; }
-        if (o.woke && !live) o.slept = true;
+        if (live) for (const AvRecord& r : mgr.list()) o.awakeMax = std::max(o.awakeMax, static_cast<long>(r.awakeColumns));   // a GPU step filled it (the patch was stepped)
+        if (o.woke && !live && !o.slept) { o.slept = true; o.sleptAfterS = (k - splashFrame) * dt; }
         ++o.frames;
         if (!realtime) {   // the books: every step synced (realtime readers see the grid once a second - stale, not wrong)
             const double books = record.total() + (live ? mgr.totalMass() : 0.0) - placed;
@@ -1109,8 +1115,8 @@ TEST_F(WaterRecordTilesTest, TheFlyInToASplashAndOutHasNoHolesAndTheBooksExact) 
     const FlySplash red = runFlyToSplash(device, physicalDevice, queue, queueFamilyIndex, true, true);
     const FlySplash b = runFlyToSplash(device, physicalDevice, queue, queueFamilyIndex, false, false);
     auto line = [](const char* n, const FlySplash& s) {
-        std::printf("  %-42s %ld frames (patch live in %ld; slept %d, phase %d): holes in %ld (max %ld), doubles in %ld; books worst %.6f, at the end %+.6f m^3\n",
-                    n, s.frames, s.liveFrames, int(s.slept), s.phase, s.holeFrames, s.holesMax, s.doubleFrames, s.booksWorst, s.booksEnd);
+        std::printf("  %-42s %ld frames (patch live in %ld; slept %d after %.1f s, phase %d; awake columns max %ld): holes in %ld (max %ld), doubles in %ld; books worst %.6f, at the end %+.6f m^3\n",
+                    n, s.frames, s.liveFrames, int(s.slept), s.sleptAfterS, s.phase, s.awakeMax, s.holeFrames, s.holesMax, s.doubleFrames, s.booksWorst, s.booksEnd);
     };
     std::printf("  the skin while the patch lives (realtime): %.3f ms a frame mean, %.2f max, %.1f fields rebuilt a frame | red control %.3f / %.2f / %.1f\n",
                 a.skinMsLive / std::max(1L, a.liveFrames), a.skinMsLiveMax, double(a.skinRebuiltLive) / std::max(1L, a.liveFrames),
@@ -1119,8 +1125,10 @@ TEST_F(WaterRecordTilesTest, TheFlyInToASplashAndOutHasNoHolesAndTheBooksExact) 
     line("RED CONTROL (a volume's whole box masked)", red);
     line("synced each step (the books)", b);
     for (const FlySplash* s : {&a, &red}) EXPECT_EQ(s->phase, 5) << "the flight did not finish (the patch never slept?)";
-    // the synced run: flown in, splashed and out (phase >= 3). Its patch did NOT sleep in 120 s (realtime: ~19 s) - logged in 51.7
-    EXPECT_GE(b.phase, 3);
+    // 51.15: the synced run's patch is STEPPED and sleeps - 51.7's synced harness called update(), which steps nothing when realtime
+    // is off, so its patch never moved and never slept (and its "books every frame" measured still water)
+    EXPECT_EQ(b.phase, 5) << "the synced flight did not finish (the patch never slept)";
+    for (const FlySplash* s : {&a, &b}) EXPECT_GT(s->awakeMax, 0) << "the patch was never stepped (no step ever reported an awake column)";
     for (const FlySplash* s : {&a, &red, &b}) EXPECT_GT(s->liveFrames, 60) << "CONTROL: the patch lived through part of the flight";
     EXPECT_LT(std::abs(a.booksEnd), 1e-3) << "the realtime flight's books after the sleep";
     EXPECT_EQ(a.holeFrames, 0);

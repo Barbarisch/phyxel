@@ -13148,6 +13148,9 @@ and a record tile / volume).
 - **Found, not fixed:** in the synced run the patch did NOT sleep in 120 s (6,316 frames live; realtime: ~19 s). The record step
   counts the water's own time, so it is not the clock; likely the per-column freeze's read-back differs between the modes. The game
   runs realtime; logged.
+  **Corrected 2026-11-13 (51.15):** the cause was the TEST. With realtime off, `update()` returns before it steps or sleeps anything,
+  so the synced run's patch was never stepped; "the books every frame" above measured still water. Fixed in 51.15; the synced patch
+  now sleeps after 18.8 s.
 - **Live (Creek, `tools/water_skin_flyout.py --splash --tag s4_splash_flyout`, the S4 clip: far -> in -> a splash at the lake's
   centre -> out with the patch alive; off | on side by side, `s4_splash_flyout.mp4`):** the patch lives t 17-36 s, through the whole
   fly-out. Skin OFF: the live patch is a notched island (its recorded tiles drawn by nobody beyond 48 m - the defect the skin's box
@@ -13642,6 +13645,31 @@ conditions, all met or reported below).
     reads the bake's direction.
 - **Environment, not this change:** `phyxel_e2e_tests` test discovery fails in the build (`python312.dll` is not on the
   discovery step's PATH). It does not build into the unit or integration runs.
+
+**51.15 (2026-11-13) FIXED - the synced-mode patch that did not sleep was the test's harness, not the water** (51.7c's open list: "the
+synced-mode patch that does not sleep (51.7)"; no drift). A defect fix in a test, so no `/design-check` (no feature).
+- **Measured first, by reading:** `WaterCoreManager::update()` runs residency and kept memory, then `if (!m_realtime) return;`. It
+  steps nothing and runs no auto-sleep with realtime off, and `step()` has no auto-sleep either. 51.7's synced run
+  (`runFlyToSplash(realtime = false)`) called only `update()`, so its patch was created, seeded and never stepped. 51.7's guess (the
+  per-column freeze's read-back differs between the modes) was wrong. The game always runs realtime: no game defect.
+- **What the wrong harness hid:** 51.7's "the books every frame: worst 0.000004 m^3 over 7,200 frames" was water that never moved.
+- **Red first** (`TheFlyInToASplashAndOutHasNoHolesAndTheBooksExact`, two new checks): the synced flight must finish (the patch
+  sleeps), and in both runs some step must report awake columns (the GPU step's own count; `list()`'s kinetic energy is the CPU
+  mirror's and read 0 in the realtime run too, so it was dropped as the measure).
+  - Red: synced phase 3, awake columns max **0**, never slept. Control (realtime): awake max **617**, slept after 19.3 s.
+- **Fix:** update()'s auto-sleep pass is now `WaterCoreManager::sleepRested()` (public; update() calls it, unchanged). The synced
+  harness steps each live volume (`step()`) and calls `sleepRested()` - the engine's own sleep rule, not a copy.
+- **Green** (prediction: sleeps in about the realtime time, ~19 s; books < 1e-3 every frame): synced awake max 617, **slept after
+  18.8 s** (realtime 19.3 s), phase 5, 2,955 frames; **books worst 0.000026 m^3 every frame** with the patch moving, -0.000011 at the
+  end; realtime unchanged (0 holes, 0 doubles, red control 1,003 hole frames).
+- **Others checked:** every other test that calls `update()` with realtime off does so for residency only (`WaterRecordSeamTest`,
+  `update(0)`) or picks `step()` itself when not live. None had this blind spot.
+- **Cost:** none in the game (the same sleep code, moved). The test runs 2,955 synced frames instead of 7,200 (194 s total).
+- **Tests:** unit (water / terrain / hydrology / WorldGenerator) **472 / 472**. Integration water **86 / 89**: the known two, and
+  `ARippleLayerBeyondTheReachHoldsNoDeviceState` (51.4f's timing failure: a dropped ripple layer frees its device state a cycle late)
+  with another session's engine holding the GPU. It runs through the moved sleep pass, so it was measured, not waved off: 10 runs
+  each under the same load - **this change 3 pass / 7 fail, the code before it 2 pass / 8 fail**. The load's, not this change's.
+- Open after §51 (51.7c's list): the per-world summary cache (51.4f).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

@@ -306,6 +306,10 @@ public:
     static void setKernelTiming(bool on, bool reset);
     static std::vector<std::pair<std::string, double>> kernelTiming(long& calls);
     static bool unitCapture();
+    /// Phase D (16.2): every auto-sleep volume at rest (no droplets in flight, no rings running, past its wake grace) writes back and
+    /// frees itself. update() runs it each realtime frame; a synced harness that steps volumes itself (step()) calls it after the
+    /// steps (51.15: with realtime off, update() steps nothing and sleeps nothing).
+    void sleepRested();
     /// Realtime auto-sleep records since the last drain (the application logs them).
     std::vector<WriteBackRecord> drainAutoSleepRecords() { std::vector<WriteBackRecord> r; r.swap(m_autoSlept); return r; }
     std::vector<AvRecord> list() const;

@@ -531,6 +531,11 @@ void WaterCoreManager::update(float dt) {
     { const auto t = UClock::now(); stepDroplets(dt); m_updateCpu.droplets = ums(t); }   // 21: flight + landing (deposits reach a GPU volume at its next step)
     { const auto t = UClock::now(); stepRipples(dt); m_updateCpu.ripples = ums(t); }     // 22: the sub-cell wave layer
     const auto tSleep = UClock::now();
+    sleepRested();
+    m_updateCpu.sleep = ums(tSleep);
+}
+
+void WaterCoreManager::sleepRested() {
     // Phase D (16.2): a volume that slept this tick writes back and frees itself (auto_sleep). Ids
     // first - sleep() destroys. A refused write-back (held or non-resident columns) leaves the
     // volume alive and is reported through the drained records, never silent.
@@ -542,7 +547,6 @@ void WaterCoreManager::update(float dt) {
         if (!rec.ok) { for (auto& av : m_avs) if (av->id == id) av->autoSleep = false; }   // once: do not retry every tick
         m_autoSlept.push_back(std::move(rec));
     }
-    m_updateCpu.sleep = ums(tSleep);
 }
 
 bool WaterCoreManager::unitMap(int id, std::vector<glm::vec4>& units, glm::ivec3& dims, glm::ivec3& cellOffset, float& h) const {
