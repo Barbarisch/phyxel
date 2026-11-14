@@ -1266,6 +1266,11 @@ float RenderCoordinator::cameraSubmergence(float& depthBelow) const {
     // long enough to read as a fade, short enough to feel immediate.
     const float BAND = 0.35f;
 
+    if (m_waterDepthQuery) {   // 52 W4.1: the new water (the host falls back to the old CA water only while a world runs it)
+        depthBelow = std::max(0.0f, m_waterDepthQuery(eye));
+        return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
+    }
+
     if (m_waterManager) {
         // The submergence walk moved to WaterManager::sampleWater (small-scale Phase 4.1) so the
         // camera fog, buoyancy and wading all read the SAME facts. Two deliberate upgrades over
@@ -4482,7 +4487,7 @@ void RenderCoordinator::drawFrame() {
 
         // Underwater fog (WaterSystemV3 Phase 1 item 5) — AFTER the surfaces so it also fogs the
         // underside of the water above the camera, but BEFORE the HUD so the HUD stays readable.
-        if (drawWaterPlane) {
+        if (waterPipeline && (drawWaterPlane || m_waterDepthQuery)) {   // 52 W4.1: any water the camera is in, not only the sea plane's world
             float depthBelow = 0.0f;
             const float submergence = cameraSubmergence(depthBelow);
             if (submergence > 0.0f) {

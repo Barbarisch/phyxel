@@ -3282,8 +3282,9 @@ struct RunMerge {
 };
 }  // namespace
 
-bool WaterCoreManager::columnRuns(int wx, int wz, ColumnLevels& out) const {
+bool WaterCoreManager::columnRuns(int wx, int wz, ColumnLevels& out, bool* fromRecord) const {
     out = ColumnLevels{};
+    if (fromRecord) *fromRecord = false;
     for (const WaterSurfaceField* fp : m_fields) {
         const WaterSurfaceField& f = *fp;
         // L6 (§40.4): a draw tile exists only within drawM of the viewer and holds only +-kRecordBandVoxels round its height - read
@@ -3313,6 +3314,7 @@ bool WaterCoreManager::columnRuns(int wx, int wz, ColumnLevels& out) const {
         out.flow = sum / static_cast<float>(wet);
         return true;
     }
+    if (fromRecord) *fromRecord = true;
     return recordColumnRuns(wx, wz, out);
 }
 

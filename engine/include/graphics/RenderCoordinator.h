@@ -575,6 +575,10 @@ public:
     /// G3: the per-body look of a world column (the span grid packs it per column, the underwater overlay
     /// reads it at the eye). Unset = the derived look everywhere.
     void setWaterLookResolver(std::function<Core::Water::WaterLook(int, int, float)> r) { m_waterLookResolver = std::move(r); ++m_waterLookRevision; }   ///< (x, z, stored top or NaN)
+    /// WaterCore 52 W4.1: the camera's depth under the water it is in (m, 0 = not in water), from the new water (the host's reader:
+    /// the awake volumes, else the record). Set = the camera's underwater test asks it, and the underwater fog draws whenever it says
+    /// submerged, not only with the sea plane on (a generated lake on the new water drew no fog: w4_readers_before_underwater.png).
+    void setWaterDepthQuery(std::function<float(const glm::vec3&)> q) { m_waterDepthQuery = std::move(q); }
     void bumpWaterLookRevision() { ++m_waterLookRevision; m_spanGridCooldown = 0; }
     void setWaterCoreRenderMode(Core::Water::WaterCoreRenderMode m) { m_waterCoreMode = m; }
     Core::Water::WaterCoreRenderMode waterCoreRenderMode() const { return m_waterCoreMode; }
@@ -1126,6 +1130,7 @@ private:
     const Core::Water::WaterSurfaceField* m_waterShoreField = nullptr;   // Phase G
     const Core::Water::WaterSurfaceField* m_waterFineField = nullptr;    // G4
     std::function<Core::Water::WaterLook(int, int, float)> m_waterLookResolver;   // G3
+    std::function<float(const glm::vec3&)> m_waterDepthQuery;                     // 52 W4.1
     uint64_t m_waterCoreBoxRevision = 0;
     int    m_spanGridCooldown = 0;
     // v4 W1 water-look override (see setWaterLook). Neutral values = today's look exactly.

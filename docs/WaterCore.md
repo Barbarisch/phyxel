@@ -13801,7 +13801,7 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
 - **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
   than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
 
-## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE (the inventory); W4.1 next
+## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 BUILT, not signed off; W4.2 next
 
 **What W4 is (§27, §0a):** generated lakes, rivers and sea are the record and the new core simulates and draws them - DONE by §51
 (record tiles near, the skin far, 51.4c / 51.12-51.14). What is NOT done: **the old CA water is still in the engine, and five readers
@@ -13833,6 +13833,34 @@ the replacement passes first, one commit per deletion, tests moved, one revert a
   set it get the same world (their water is the record). The routes and tools that only describe the CA are removed or re-pointed.
 - **W4.3 - delete.** `WaterSimulation` + `water_flow.comp`, `WaterManager`, `RippleField`, the cell renderer - one commit each, per §9.
 - **Not in W4** (logged, left): the sea to the horizon and shores (W6); rivers that flow (W5).
+
+**52.1 W4.1 (2026-11-14) BUILT, not signed off - every reader of water asks the new water** (`/design-check` READY with two
+fold-ins: a lock for the physics workers, the fog's gate). Measured first on today's code (`tools/water_w4_readers_live.py`,
+WaterBench_RiverCarve, `water.enabled` off as shipped, the 51.13 lake at x -2228, z -1350: water 90, ground 87):
+- **Red, and the prediction was wrong** (`w4_readers_before.json`): I predicted the readers read 0 (the old water off). They read
+  the old water's BAKED TABLE, which answers with the old water off, at a level 1 m above the record's: the camera 1 m under the
+  surface read 2.0 m deep, and a box half under read 1.0 (`old_submerged_fraction`). And the fog is gated on the sea plane, so
+  **BEFORE (broken): `w4_readers_before_underwater.png` - 1 m under a generated lake the player sees a sunny grass field, no water.**
+- **Built:** `WaterReaders.h` (pure: `sampleWaterAt`, `submergedFractionFromRuns` - the old five-point rule -, `cameraDepthFromRuns`;
+  the wade rule, A2e). `Application::readerColumn`: `columnRuns` (the awake volumes, else the record), the old water only while a world
+  runs it (`m_oldWaterOn` = `water.enabled`); one mutex, because the physics velocity phase reads in parallel and `columnRuns` fills
+  `m_recordCols` on a miss. CPU bodies' buoyancy and current, the camera (`RenderCoordinator::setWaterDepthQuery`), and wading's
+  fallback read it. The underwater fog draws whenever the camera is in water, not only with the sea plane on. `columnRuns(..., fromRecord)`.
+  Route `water_query {points, boxes}` (the same functions; echoes `source` and the old water's answer as a control).
+- **Tests:** `WaterReadersTest` (red: did not build): the run a point is in, a half-under box 0.5, a dry cave under a pond 0, a
+  shore box 2 of 5 points, the camera depth; `ABoxAcrossAChunkBorderReadsTheSameWater` (18 boxes on the +-32 / 0 borders equal the
+  whole-region read; control - one side's spans cut - differs). With `WaterRunRead`, `WadeDrag`, `WaterBuoyancy`: 30 / 30. The
+  unit suite 4,528 passed (20 skipped); integration water 87 / 89, the known two (`GpuFlipBulkParityAndRunup`,
+  `ShortWaveMatchesAllFineAndTheBooksAreExact`).
+- **Live after** (`w4_readers_after.json`): the camera 1.0 m deep (was 2.0), the box **0.5** (the old table: 1.0), `source` record;
+  dry land 0 / 0. **AFTER: `w4_readers_after_underwater.png` - the underwater fog draws in the generated lake.**
+- **Whole frame** (`w4_readers_cost.json`, the first interleaved pair, settled; later pairs had another session's engine on the GPU):
+  under 39.9 fps / above 39.6, GPU 24.8 ms both, the water's CPU 0.21 ms both - no measurable cost. **Not measured:** CPU bodies in
+  water (no route spawns a CPU rigid body: `spawn_template` is static only).
+- **Seen, logged, left (the 2026-11-14 rule):** the fog in a generated lake is a near-opaque pale-blue wall (the existing fog's look,
+  untuned; a look item for track B); grass blades grow on lake beds (a flora / generation item).
+- **Next: W4.2** - the old water off everywhere: the debris tiles still fall back to its table (`DebrisRuntime::setWaterSource`), and
+  `water.enabled` still starts it.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

@@ -2215,6 +2215,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_coupling",       waterEndpoint("water_coupling"));       // Phase E: coupling status + A/B
     srv.Post("/api/debug/water_av_watch",       waterEndpoint("water_av_watch"));       // 20: per-frame surface recorder
     srv.Post("/api/debug/water_av_column",      waterEndpoint("water_av_column"));      // 26.13: the drawn surface at voxel columns (no read-back)
+    srv.Post("/api/debug/water_query",          waterEndpoint("water_query"));          // 52 W4.1: what the readers of water read (bodies, camera)
     srv.Post("/api/debug/water_av_census",      waterEndpoint("water_av_census"));
     srv.Post("/api/debug/water_av_record_draw", waterEndpoint("water_av_record_draw")); // §27 W1a: recorded water drawn by the pond surface
     srv.Post("/api/debug/water_locality", waterEndpoint("water_locality")); // §40 (L1): the viewer distances every water system reads

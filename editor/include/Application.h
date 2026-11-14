@@ -102,6 +102,7 @@
 #include "core/WaterManager.h"
 #include "core/water/WaterCoreManager.h"
 #include "core/water/WadeDrag.h"
+#include "core/water/WaterReaders.h"
 #include "core/water/ShoreBand.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
@@ -357,6 +358,14 @@ private:
     // A4 (WaterCore 48): wading. The characters' water hooks read the core first (the run the feet are in), then the old CA water.
     float wadeDepthAt(const glm::vec3& probe) const;        // m of water above probe.y - 0.05 (the feet)
     glm::vec3 wadeFlowAt(const glm::vec3& probe) const;     // m/s, the water's horizontal velocity there
+    // WaterCore 52 W4.1: the column every reader of water reads (CPU bodies, the camera, water_query): the new water, then the old CA
+    // water only while the world runs it (m_oldWaterOn = game.json water.enabled). src (optional): "core" | "record" | "old" | "none".
+    bool readerColumn(int wx, int wz, Core::Water::WaterRunsAt& r, const char** src = nullptr) const;
+    bool m_oldWaterOn = false;
+    mutable std::mutex m_waterReadMutex;   // the CPU-body readers run on the physics workers; see readerColumn
+    std::function<float(const glm::vec3&, const glm::vec3&)> m_bodyWaterQuery;   // what VoxelDynamicsWorld::setWaterQuery was given
+    std::function<glm::vec3(const glm::vec3&)> m_bodyFlowQuery;                  // ... setWaterFlowQuery
+    std::function<float(const glm::vec3&)> m_cameraDepthQuery;                   // ... RenderCoordinator::setWaterDepthQuery
     std::vector<Scene::AnimatedVoxelCharacter*> waterCharacters() const;   // the player, entities, NPCs (deduplicated)
     bool m_waterCharactersOn = Core::Water::kWadeCharactersByDefault;   // water_coupling {characters}
     std::unordered_map<const Scene::AnimatedVoxelCharacter*, uint32_t> m_waterCharIds;   // never reused (the solid hold's id)

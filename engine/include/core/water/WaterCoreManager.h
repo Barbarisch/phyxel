@@ -494,7 +494,7 @@ public:
     /// top alone, a dry cave or room under a pond was under the pond's level, and a wood block there would rise through the air. top[0]
     /// equals columnWater's surface wherever that is wet (pinned by WaterRunRead.TheTopRunIsColumnWatersSurface). Flow = columnWater's.
     struct ColumnLevels { int n = 0; float top[2] = {-1e30f, -1e30f}; float bottom[2] = {-1e30f, -1e30f}; int more = 0; glm::vec2 flow{0.0f}; };
-    bool columnRuns(int wx, int wz, ColumnLevels& out) const;
+    bool columnRuns(int wx, int wz, ColumnLevels& out, bool* fromRecord = nullptr) const;   ///< 52 W4.1: fromRecord = the record answered
     bool recordColumnRuns(int wx, int wz, ColumnLevels& out) const;   ///< 37: the record's (the chunk spans') runs, cached like recordColumnWater
     /// 27.21: a signature of what columnWater reads over world columns [x0, x1] x [z0, z1] - the (source, version) of every surface
     /// field that owns a column there, in order. Equal signatures = the same answers (the tiler trusts the same version: an asleep

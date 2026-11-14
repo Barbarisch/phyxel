@@ -1,0 +1,124 @@
+{
+ "pose": {
+  "x": -2169.1,
+  "y": 98.0,
+  "z": -1350.0,
+  "yaw": -176.1,
+  "pitch": -14.0
+ },
+ "lake_column": {
+  "surface_y": 90.0,
+  "u": 0.0,
+  "w": 0.0,
+  "x": -2228,
+  "z": -1350,
+  "ground_y": 87
+ },
+ "lake": {
+  "camera": {
+   "pose": {
+    "x": -2227.5,
+    "y": 89.0,
+    "z": -1349.5,
+    "yaw": -176.1,
+    "pitch": 0.0
+   },
+   "camera_submergence": 1.0,
+   "camera_depth_below": 1.0,
+   "plane_enabled": false
+  },
+  "box": {
+   "boxes": [
+    {
+     "max": [
+      -2227.0,
+      90.5,
+      -1349.0
+     ],
+     "min": [
+      -2228.0,
+      89.5,
+      -1350.0
+     ],
+     "old_submerged_fraction": 1.0,
+     "submerged_fraction": 0.5
+    }
+   ],
+   "installed": true,
+   "old_water_on": false,
+   "points": [
+    {
+     "camera_depth": 1.0,
+     "depth_below": 1.0,
+     "flow": [
+      0.0,
+      0.0
+     ],
+     "in_water": true,
+     "p": [
+      -2227.5,
+      89.0,
+      -1349.5
+     ],
+     "source": "record",
+     "surface_y": 90.0
+    }
+   ],
+   "success": true
+  },
+  "still": "w4_readers_after_underwater.png"
+ },
+ "dry": {
+  "camera": {
+   "pose": {
+    "x": -2169.1,
+    "y": 97.0,
+    "z": -1350.0,
+    "yaw": -176.1,
+    "pitch": 0.0
+   },
+   "camera_submergence": 0.0,
+   "camera_depth_below": 0.0,
+   "plane_enabled": false
+  },
+  "box": {
+   "boxes": [
+    {
+     "max": [
+      -2168.60009765625,
+      98.5,
+      -1349.5
+     ],
+     "min": [
+      -2169.60009765625,
+      97.5,
+      -1350.5
+     ],
+     "old_submerged_fraction": 0.0,
+     "submerged_fraction": 0.0
+    }
+   ],
+   "installed": true,
+   "old_water_on": false,
+   "points": [
+    {
+     "camera_depth": 0.0,
+     "depth_below": 0.0,
+     "flow": [
+      0.0,
+      0.0
+     ],
+     "in_water": false,
+     "p": [
+      -2169.10009765625,
+      97.0,
+      -1350.0
+     ],
+     "source": "none",
+     "surface_y": null
+    }
+   ],
+   "success": true
+  }
+ }
+}

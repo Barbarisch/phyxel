@@ -1,0 +1,50 @@
+[
+ {
+  "pose": "under",
+  "fps": 39.9,
+  "dt_p50": 24.65,
+  "dt_p95": 27.95,
+  "gpu_med": 24.76,
+  "water_mean": 0.214
+ },
+ {
+  "pose": "above",
+  "fps": 39.6,
+  "dt_p50": 24.86,
+  "dt_p95": 28.5,
+  "gpu_med": 24.84,
+  "water_mean": 0.206
+ },
+ {
+  "pose": "under",
+  "fps": 16.7,
+  "dt_p50": 25.59,
+  "dt_p95": 125.16,
+  "gpu_med": 25.22,
+  "water_mean": 4.568
+ },
+ {
+  "pose": "above",
+  "fps": 13.8,
+  "dt_p50": 28.25,
+  "dt_p95": 143.35,
+  "gpu_med": 25.63,
+  "water_mean": 11.615
+ },
+ {
+  "pose": "under",
+  "fps": 19.0,
+  "dt_p50": 27.91,
+  "dt_p95": 143.14,
+  "gpu_med": 25.71,
+  "water_mean": 11.362
+ },
+ {
+  "pose": "above",
+  "fps": 19.6,
+  "dt_p50": 26.97,
+  "dt_p95": 52.73,
+  "gpu_med": 25.84,
+  "water_mean": 8.243
+ }
+]

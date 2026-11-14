@@ -3651,7 +3651,9 @@ float Application::wadeDepthAt(const glm::vec3& probe) const {
             return Core::Water::wadeDepthFromRuns(L.n, L.top, L.bottom, probe.y);   // 0 in a dry room under a pond
         }
     }
-    return waterManager ? waterManager->sampleWater(probe).depthBelow : 0.0f;
+    // 52 W4.1: the old CA water only while the world runs it - off (the default), its baked table still answered, at a level that
+    // is not the record's (52.1: 1 m high at the RiverCarve lake), so a wader on a dry shore read wet
+    return (waterManager && m_oldWaterOn) ? waterManager->sampleWater(probe).depthBelow : 0.0f;
 }
 
 glm::vec3 Application::wadeFlowAt(const glm::vec3& probe) const {
@@ -3660,7 +3662,38 @@ glm::vec3 Application::wadeFlowAt(const glm::vec3& probe) const {
         if (waterCore->columnRuns(Core::Water::wadeColumn(probe.x), Core::Water::wadeColumn(probe.z), L))
             return glm::vec3(L.flow.x, 0.0f, L.flow.y);
     }
-    return waterManager ? waterManager->flowAtWorld(probe) : glm::vec3(0.0f);
+    return (waterManager && m_oldWaterOn) ? waterManager->flowAtWorld(probe) : glm::vec3(0.0f);
+}
+
+// 52 W4.1: the column every reader of water reads - the new water (columnRuns: the awake volumes' fields, else the record's spans),
+// then the old CA water only while a world runs it (water.enabled; W4.2 removes it). Thread safety: VoxelDynamicsWorld reads its
+// water queries from the parallel velocity phase, and columnRuns fills the record-column cache on a miss (m_recordCols, unlocked)
+// - so every reader serializes here. Nothing it reads is written meanwhile: the fields, the chunks and the old region change only
+// on the main thread, which is inside the physics step while its workers read.
+bool Application::readerColumn(int wx, int wz, Core::Water::WaterRunsAt& r, const char** src) const {
+    std::lock_guard<std::mutex> lock(m_waterReadMutex);
+    r = Core::Water::WaterRunsAt{};
+    if (waterCore) {
+        Core::Water::WaterCoreManager::ColumnLevels L;
+        bool fromRecord = false;
+        if (waterCore->columnRuns(wx, wz, L, &fromRecord) && L.n > 0) {
+            r.n = std::min(L.n, 2);
+            for (int k = 0; k < 2; ++k) { r.top[k] = L.top[k]; r.bottom[k] = L.bottom[k]; }
+            r.flow = L.flow;
+            if (src) *src = fromRecord ? "record" : "core";
+            return true;
+        }
+    }
+    if (waterManager && m_oldWaterOn) {
+        float s = 0.0f; glm::vec2 f(0.0f);
+        if (waterManager->columnWater(wx, wz, s, f)) {   // the old water has no bottoms: one run reaching down (as DebrisRuntime reads it)
+            r.n = 1; r.top[0] = s; r.bottom[0] = -1e30f; r.flow = f;
+            if (src) *src = "old";
+            return true;
+        }
+    }
+    if (src) *src = "none";
+    return false;
 }
 
 std::vector<Scene::AnimatedVoxelCharacter*> Application::waterCharacters() const {
@@ -7094,17 +7127,25 @@ void Application::autoLoadGameDefinition() {
             // Buoyancy + water drag for dynamic bodies (small-scale Phase 4.2): the CPU
             // rigid-body world reads submersion through this injected query — physics never
             // links WaterManager. Null-safe: a missing manager reads as dry.
+            // 52 W4.1: every reader asks the NEW water (readerColumn: the awake volumes, else the record), the old CA water only
+            // while this world runs it. Before, these read the old water alone - off by default, so a crate in a generated lake
+            // read the old baked table (1 m off the record's level at the RiverCarve lake) and the camera drew no underwater fog.
+            m_oldWaterOn = water.value("enabled", false);
+            const Core::Water::ColumnRunsFn column = [this](int wx, int wz, Core::Water::WaterRunsAt& r) { return readerColumn(wx, wz, r); };
+            m_bodyWaterQuery = [column](const glm::vec3& mn, const glm::vec3& mx) -> float {
+                return Core::Water::submergedFractionFromRuns(column, mn, mx);
+            };
+            // Current forces (tangible-water Phase E): moving water carries floating bodies - the flow of the run the point is in
+            // (the record holds none: rivers that flow are W5)
+            m_bodyFlowQuery = [column](const glm::vec3& p) -> glm::vec3 {
+                const Core::Water::WaterPointSample s = Core::Water::sampleWaterAt(column, p);
+                return s.inWater ? glm::vec3(s.flow.x, 0.0f, s.flow.y) : glm::vec3(0.0f);
+            };
+            m_cameraDepthQuery = [column](const glm::vec3& eye) -> float { return Core::Water::cameraDepthFromRuns(column, eye); };
+            if (renderCoordinator) renderCoordinator->setWaterDepthQuery(m_cameraDepthQuery);
             if (chunkManager && chunkManager->physicsWorld && chunkManager->physicsWorld->getVoxelWorld()) {
-                chunkManager->physicsWorld->getVoxelWorld()->setWaterQuery(
-                    [this](const glm::vec3& mn, const glm::vec3& mx) -> float {
-                        return waterManager ? waterManager->submergedFraction(mn, mx) : 0.0f;
-                    });
-                // Current forces (tangible-water Phase E): moving water carries floating
-                // bodies — same dependency-inversion, same thread-safety contract.
-                chunkManager->physicsWorld->getVoxelWorld()->setWaterFlowQuery(
-                    [this](const glm::vec3& p) -> glm::vec3 {
-                        return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
-                    });
+                chunkManager->physicsWorld->getVoxelWorld()->setWaterQuery(m_bodyWaterQuery);
+                chunkManager->physicsWorld->getVoxelWorld()->setWaterFlowQuery(m_bodyFlowQuery);
             }
         }
 
@@ -14776,6 +14817,38 @@ void Application::registerWaterCommands() {
     // at those world points every frame (up to 8 points, 20000 frames); {} returns the rows; {stop: true} ends it.
     // 26.13: the drawn surface at voxel columns - {points: [[x, z], ...]} (up to 64) -> per point the surface y (m) and the surface
     // velocity (u, w m/s; the top cells') from the volumes' surface fields (no read-back; null = no volume water there)
+    // 52 W4.1: what the readers of water read - {points: [[x, y, z]], boxes: [[minx, miny, minz, maxx, maxy, maxz]]}, at most 64 of
+    // each (a typo cannot stall the main thread). Calls the SAME functions the physics world and the camera were given (empty until a
+    // game definition loads: "installed": false). Echoes per point: in_water, surface_y, depth_below (m), flow (m/s), source
+    // (core | record | old | none), camera_depth (the camera's query there); per box: submerged_fraction (0-1) and, the control,
+    // old_submerged_fraction (the old CA water's own answer - what CPU bodies read before W4.1).
+    reg.on("water_query", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        const Core::Water::ColumnRunsFn column = [this](int wx, int wz, Core::Water::WaterRunsAt& w) { return readerColumn(wx, wz, w); };
+        nlohmann::json pts = nlohmann::json::array(), boxes = nlohmann::json::array();
+        if (cmd.params.contains("points"))
+            for (const auto& p : cmd.params["points"]) {
+                if (!p.is_array() || p.size() < 3 || pts.size() >= 64) continue;
+                const glm::vec3 q(p[0].get<float>(), p[1].get<float>(), p[2].get<float>());
+                const char* src = "none";
+                Core::Water::WaterRunsAt w;
+                readerColumn(static_cast<int>(std::floor(q.x)), static_cast<int>(std::floor(q.z)), w, &src);
+                const Core::Water::WaterPointSample s = Core::Water::sampleWaterAt(column, q);
+                nlohmann::json o = {{"p", {q.x, q.y, q.z}}, {"in_water", s.inWater}, {"surface_y", s.inWater ? nlohmann::json(s.surfaceY) : nlohmann::json()},
+                                    {"depth_below", s.depthBelow}, {"flow", {s.flow.x, s.flow.y}}, {"source", src}};
+                if (m_cameraDepthQuery) o["camera_depth"] = m_cameraDepthQuery(q);
+                pts.push_back(o);
+            }
+        if (cmd.params.contains("boxes"))
+            for (const auto& b : cmd.params["boxes"]) {
+                if (!b.is_array() || b.size() < 6 || boxes.size() >= 64) continue;
+                const glm::vec3 mn(b[0].get<float>(), b[1].get<float>(), b[2].get<float>()), mx(b[3].get<float>(), b[4].get<float>(), b[5].get<float>());
+                nlohmann::json o = {{"min", {mn.x, mn.y, mn.z}}, {"max", {mx.x, mx.y, mx.z}}};
+                o["submerged_fraction"] = m_bodyWaterQuery ? nlohmann::json(m_bodyWaterQuery(mn, mx)) : nlohmann::json();
+                o["old_submerged_fraction"] = waterManager ? nlohmann::json(waterManager->submergedFraction(mn, mx)) : nlohmann::json();
+                boxes.push_back(o);
+            }
+        r = {{"success", true}, {"installed", static_cast<bool>(m_bodyWaterQuery)}, {"old_water_on", m_oldWaterOn}, {"points", pts}, {"boxes", boxes}};
+    });
     reg.on("water_av_column", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         nlohmann::json out = nlohmann::json::array();
