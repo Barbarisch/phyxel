@@ -571,4 +571,35 @@ bool casterBoxKept(glm::vec3 lo, glm::vec3 hi, glm::vec3 cullCenter, float reach
     return boxInFrustum(lightPlanes, lo, hi);                                // the light frustum
 }
 
+// ---- F2.14: the level by size on screen (the shaders mirror these: voxel.frag phxVoxFoundLodKeeps, voxfound_cull) ----
+int lodScaleCode(float pxPerVoxel, float focalPx) {
+    if (!(pxPerVoxel > 0.0f) || !(focalPx > 0.0f)) return 0;
+    const float c = std::log2(8.0f * pxPerVoxel / focalPx);
+    return std::clamp(int(std::lround((c + 16.0f) * 8.0f)), 0, 255);
+}
+float lodScaleFromCode(int code) { return float(code) / 8.0f - 16.0f; }
+float lodLevelAt(float distance, float c) { return std::log2(std::max(distance, 1e-3f)) + c; }
+float lodBayer(int px, int py) {
+    static constexpr int kBayer[4][4] = {{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
+    return (float(kBayer[py & 3][px & 3]) + 0.5f) / 16.0f;
+}
+int lodPickLevel(float L, float u, int maxLevel) {
+    return std::clamp(int(std::floor(L + kLodBand * (u - 0.5f))), 0, maxLevel);
+}
+bool lodKeeps(int level, float L, float u, int maxLevel, float slack) {
+    return lodPickLevel(L - slack, u, maxLevel) <= level && level <= lodPickLevel(L + slack, u, maxLevel);
+}
+glm::ivec2 lodLevelsForBox(glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float c, int maxLevel) {
+    const glm::vec3 nearest = glm::clamp(cam, lo, hi);
+    const glm::vec3 farthest(std::abs(cam.x - lo.x) > std::abs(cam.x - hi.x) ? lo.x : hi.x,
+                             std::abs(cam.y - lo.y) > std::abs(cam.y - hi.y) ? lo.y : hi.y,
+                             std::abs(cam.z - lo.z) > std::abs(cam.z - hi.z) ? lo.z : hi.z);
+    // the extreme Bayer values are 0.5/16 and 15.5/16
+    return {lodPickLevel(lodLevelAt(glm::length(nearest - cam), c) - kLodSlack, 0.5f / 16.0f, maxLevel),
+            lodPickLevel(lodLevelAt(glm::length(farthest - cam), c) + kLodSlack, 15.5f / 16.0f, maxLevel)};
+}
+uint32_t lodFlagBits(int level, int maxLevel, int code) {
+    return (uint32_t(level) & 0xFu) << 16 | (uint32_t(maxLevel) & 0x7u) << 20 | 1u << 23 | (uint32_t(code) & 0xFFu) << 24;
+}
+
 }  // namespace Phyxel::Core::VoxFound

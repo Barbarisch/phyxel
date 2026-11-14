@@ -10,10 +10,12 @@ namespace Phyxel::Core::VoxFound {
 namespace {
 struct CullPC {
     glm::vec4 planes[6];
+    glm::vec4 lodCam;   // F2.14: xyz camera (box frame), w = c
     uint32_t count;
-    uint32_t pad[3];
+    uint32_t lod;       // F2.14: bit 8 = level test on, bits 0-7 = maxLevel (off: level-0 clusters only)
+    uint32_t pad[2];
 };
-static_assert(sizeof(CullPC) == 112, "voxfound_cull.comp push constants");
+static_assert(sizeof(CullPC) == 128, "voxfound_cull.comp push constants");
 struct GpuCluster {
     glm::vec4 lo, hi;
 };
@@ -159,7 +161,7 @@ bool ClusterCullGpu::upload(const std::vector<Cluster>& clusters, uint32_t index
     auto* gc = static_cast<GpuCluster*>(staging.mapped);
     for (uint32_t i = 0; i < m_count; ++i) {
         const Cluster& c = clusters[i];
-        uint32_t ch = c.chunk, n = c.count;
+        uint32_t ch = (c.chunk & 0xFFFFFFu) | (c.level & 0xFu) << 24, n = c.count;   // F2.14: level in bits 24-27
         float fch, fn;
         std::memcpy(&fch, &ch, 4);
         std::memcpy(&fn, &n, 4);
@@ -222,7 +224,7 @@ bool ClusterCullGpu::readCommands(VkQueue queue, uint32_t family, uint32_t slot,
     return ok;
 }
 
-void ClusterCullGpu::record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 planes[6]) {
+void ClusterCullGpu::record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 planes[6], const LodCull* lod) {
     if (!initialized() || m_count == 0 || slot >= m_slots || !m_pipe) return;
     // No barrier BEFORE the dispatch: this slot's commands were last read by the frame that used this slot before, and
     // the CPU waited for that frame's fence before recording this one. (A first version had an indirect-read ->
@@ -231,6 +233,10 @@ void ClusterCullGpu::record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 
     CullPC pc{};
     for (int k = 0; k < 6; ++k) pc.planes[k] = planes[k];
     pc.count = m_count;
+    if (lod) {
+        pc.lodCam = glm::vec4(lod->cam, lod->c);
+        pc.lod = 0x100u | uint32_t(std::clamp(lod->maxLevel, 0, 15));
+    }
     m_pipe->bind(cmd, slot);
     m_pipe->pushConstants(cmd, &pc, sizeof(pc));
     m_pipe->dispatch(cmd, (m_count + 63) / 64);
@@ -242,7 +248,8 @@ void ClusterCullGpu::record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 
                          nullptr, 0, nullptr);
 }
 
-bool ClusterCullGpu::cullNow(VkQueue queue, uint32_t family, uint32_t slot, const glm::vec4 planes[6], std::string* err) {
+bool ClusterCullGpu::cullNow(VkQueue queue, uint32_t family, uint32_t slot, const glm::vec4 planes[6], std::string* err,
+                             const LodCull* lod) {
     VkCommandPoolCreateInfo pci{};
     pci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     pci.queueFamilyIndex = family;
@@ -263,7 +270,7 @@ bool ClusterCullGpu::cullNow(VkQueue queue, uint32_t family, uint32_t slot, cons
     bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(cmd, &bi);
-    record(cmd, slot, planes);
+    record(cmd, slot, planes, lod);
     VkMemoryBarrier mb{};
     mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;

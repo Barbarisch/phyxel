@@ -952,3 +952,139 @@ TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {
         prev = faces;
     }
 }
+
+// ---- F2.14 (§3.5a point 3, §4.6 item 7): the level chosen by size on screen, dithered between levels ----------------
+TEST(VoxFoundMesher, LodLevelIsSizeOnScreen) {
+    const float f = 870.0f;
+    for (float P : {1.0f, 2.0f, 4.0f}) {
+        const float c = std::log2(8.0f * P / f);
+        EXPECT_NEAR(lodScaleFromCode(lodScaleCode(P, f)), c, 1.0f / 16.0f + 1e-5f) << P;
+        for (int k = 0; k <= 3; ++k) {
+            // level k's voxel (2^k / 8 m) covers exactly P pixels at this distance
+            const float d = (float(1 << k) / 8.0f) * f / P;
+            EXPECT_NEAR(lodLevelAt(d, c), float(k), 1e-4f) << "P " << P << " level " << k;
+            EXPECT_NEAR(lodLevelAt(2.0f * d, c), float(k) + 1.0f, 1e-4f);   // twice as far: one level coarser
+        }
+    }
+    EXPECT_EQ(lodScaleCode(1e9f, 1.0f), 255);   // clamped to the 8 bits
+    EXPECT_EQ(lodScaleCode(1e-9f, 1.0f), 0);
+}
+
+TEST(VoxFoundMesher, LodPickRampsAcrossTheBandWithoutAPop) {
+    std::vector<float> us;
+    for (int y = 0; y < 4; ++y)
+        for (int x = 0; x < 4; ++x) us.push_back(lodBayer(x, y));
+    std::vector<float> sorted = us;
+    std::sort(sorted.begin(), sorted.end());
+    for (int i = 0; i < 16; ++i) EXPECT_FLOAT_EQ(sorted[size_t(i)], (float(i) + 0.5f) / 16.0f);   // a permutation
+    EXPECT_FLOAT_EQ(lodBayer(5, 6), lodBayer(1, 2));                                               // tiles every 4 px
+    EXPECT_EQ(lodPickLevel(-5.0f, 0.5f, 3), 0);
+    EXPECT_EQ(lodPickLevel(10.0f, 0.5f, 3), 3);
+    const float dL = 1.0f / 64.0f;
+    for (int k = 1; k <= 3; ++k) {
+        float prev = -1.0f;
+        // half a level either side of switch k (further down, switch k-1's band is in play)
+        for (float L = float(k) - 0.5f; L <= float(k) + 0.5f; L += dL) {
+            int coarser = 0;
+            for (float u : us) {
+                const int p = lodPickLevel(L, u, 3);
+                ASSERT_TRUE(p == k - 1 || p == k) << "L " << L;   // only the two levels meeting here
+                coarser += p == k ? 1 : 0;
+            }
+            const float share = float(coarser) / 16.0f;
+            if (L <= float(k) - kLodBand * 0.5f) EXPECT_EQ(share, 0.0f) << "L " << L;
+            if (L >= float(k) + kLodBand * 0.5f) EXPECT_EQ(share, 1.0f) << "L " << L;
+            if (prev >= 0.0f) {
+                EXPECT_GE(share, prev) << "L " << L;                                          // monotone
+                EXPECT_LE(share - prev, dL / kLodBand + 1.0f / 16.0f + 1e-6f) << "L " << L;   // no pop
+            }
+            prev = share;
+        }
+    }
+}
+
+TEST(VoxFoundMesher, LodLevelsNeverLeaveAHoleWhereTheyMeet) {
+    std::vector<float> us;
+    for (int i = 0; i < 16; ++i) us.push_back(lodBayer(i % 4, i / 4));
+    // Without slack the levels partition the pixels exactly: at one L, exactly one level keeps.
+    for (float L = -1.0f; L <= 4.5f; L += 1.0f / 128.0f)
+        for (float u : us) {
+            int kept = 0;
+            for (int k = 0; k <= 3; ++k) kept += lodKeeps(k, L, u, 3, 0.0f) ? 1 : 0;
+            ASSERT_EQ(kept, 1) << "L " << L << " u " << u;
+        }
+    EXPECT_TRUE(lodKeeps(2, 2.0f, 0.5f, 3));
+    EXPECT_FALSE(lodKeeps(0, 2.0f, 0.5f, 3));
+    // Different levels' surfaces at one pixel lie at slightly different distances. With the slack, any surfaces whose
+    // L lie within kLodSlack of each other leave no pixel where every level discards; at most 2 levels keep at one L.
+    std::mt19937 rng(14);
+    std::uniform_real_distribution<float> base(-1.0f, 4.0f), off(0.0f, kLodSlack);
+    auto holes = [&](float slack) {
+        int h = 0;
+        for (int t = 0; t < 20000; ++t) {
+            const float b = base(rng);
+            float Lj[4];
+            for (float& l : Lj) l = b + off(rng);
+            for (float u : us) {
+                bool any = false;
+                for (int k = 0; k <= 3; ++k) any = any || lodKeeps(k, Lj[k], u, 3, slack);
+                h += any ? 0 : 1;
+            }
+        }
+        return h;
+    };
+    EXPECT_EQ(holes(kLodSlack), 0);
+    EXPECT_GT(holes(0.0f), 0) << "sensitivity: without the slack such surfaces DO leave holes";
+    for (float L = -1.0f; L <= 4.5f; L += 1.0f / 128.0f)
+        for (float u : us) {
+            int kept = 0;
+            for (int k = 0; k <= 3; ++k) kept += lodKeeps(k, L, u, 3) ? 1 : 0;
+            ASSERT_GE(kept, 1);
+            ASSERT_LE(kept, 2) << "overdraw stays bounded";
+        }
+}
+
+TEST(VoxFoundMesher, LodBoxRangeCoversEveryFragmentInIt) {
+    std::mt19937 rng(214);
+    std::uniform_real_distribution<float> pos(-200.0f, 200.0f), size(0.5f, 32.0f), t01(0.0f, 1.0f);
+    const float f = 870.0f;
+    int widened = 0;
+    for (int t = 0; t < 3000; ++t) {
+        const glm::vec3 lo(pos(rng), pos(rng) * 0.2f, pos(rng));
+        const glm::vec3 hi = lo + glm::vec3(size(rng), size(rng), size(rng));
+        const glm::vec3 cam(pos(rng), pos(rng) * 0.3f, pos(rng));
+        const float P = float(1 << (t % 4));
+        const float c = std::log2(8.0f * P / f);
+        const glm::ivec2 r = lodLevelsForBox(lo, hi, cam, c, 3);
+        ASSERT_LE(r.x, r.y);
+        widened += r.y > r.x ? 1 : 0;
+        for (int s = 0; s < 40; ++s) {
+            const glm::vec3 p = lo + (hi - lo) * glm::vec3(s < 8 ? float(s & 1) : t01(rng),
+                                                           s < 8 ? float((s >> 1) & 1) : t01(rng),
+                                                           s < 8 ? float((s >> 2) & 1) : t01(rng));
+            const float L = lodLevelAt(glm::length(p - cam), c);
+            for (int i = 0; i < 16; ++i)
+                for (int k = 0; k <= 3; ++k)
+                    if (lodKeeps(k, L, lodBayer(i % 4, i / 4), 3))
+                        ASSERT_TRUE(k >= r.x && k <= r.y) << "a kept fragment's level is not drawn for its box";
+        }
+    }
+    EXPECT_GT(widened, 0);
+    // a small box far away draws one level (here L ~ 2.50: mid-way between switches); the camera inside a box draws
+    // from level 0
+    EXPECT_EQ(lodLevelsForBox(glm::vec3(355.0f), glm::vec3(356.0f), glm::vec3(0.0f), std::log2(8.0f / f), 3),
+              glm::ivec2(2, 2));
+    EXPECT_EQ(lodLevelsForBox(glm::vec3(-1.0f), glm::vec3(1.0f), glm::vec3(0.0f), std::log2(8.0f / f), 3).x, 0);
+}
+
+TEST(VoxFoundMesher, LodFlagBitsLeaveTheStaticFlagsAlone) {
+    for (int k = 0; k <= 7; ++k)
+        for (int code : {0, 77, 255}) {
+            const uint32_t b = lodFlagBits(k, 7 - k % 8, code);
+            EXPECT_EQ(b & 0xFFFFu, 0u);   // static faces' flags live in bits 0-15
+            EXPECT_EQ((b >> 16) & 0xFu, uint32_t(k));
+            EXPECT_EQ((b >> 20) & 0x7u, uint32_t(7 - k % 8));
+            EXPECT_EQ((b >> 23) & 1u, 1u);
+            EXPECT_EQ(b >> 24, uint32_t(code));
+        }
+}

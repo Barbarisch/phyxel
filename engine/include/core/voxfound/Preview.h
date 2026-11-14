@@ -43,6 +43,7 @@ struct PreviewChunk {
 struct PreviewCluster {
     glm::vec3 lo{0.0f}, hi{0.0f};
     uint32_t firstFace = 0, count = 0, chunk = 0;
+    uint32_t level = 0;   // F2.14: the pyramid level its faces belong to (Preview::lodClusters)
 };
 
 struct Preview {
@@ -85,6 +86,53 @@ struct Preview {
             chunks[i].faceCount = L.faceCount[i];
         }
         drawLevel = k;
+        lodClusters.clear();
+        lodFirst.clear();
+        lodCount.clear();
+        lodMaxLevel = 0;
+        ++revision;
+        return true;
+    }
+
+    /// F2.14 (§3.5a point 3): the level chosen by size on screen (Mesher.h lodPickLevel / lodKeeps, per FRAGMENT).
+    /// selectLod() puts EVERY built level in `faces`, level 0 first, so `chunks` and `clusters` keep naming level 0
+    /// (what the shadow passes and occlusion read); lodFirst/lodCount[level][chunk] are each level's chunk ranges and
+    /// lodClusters every level's clusters, tagged with their level. lodOn = the main view picks levels by size on
+    /// screen at lodPxPerVoxel pixels per voxel (the tier knob); off = level 0 everywhere, as before.
+    std::vector<PreviewCluster> lodClusters;
+    std::vector<std::vector<uint32_t>> lodFirst, lodCount;
+    int lodMaxLevel = 0;
+    bool lodOn = false;
+    float lodPxPerVoxel = 1.0f;
+    bool selectLod() {
+        if (levels.empty() || levels[0].firstFace.size() != chunks.size()) return false;
+        for (const Level& L : levels)
+            if (L.firstFace.size() != chunks.size()) return false;
+        faces.clear();
+        lodClusters.clear();
+        lodFirst.assign(levels.size(), {});
+        lodCount.assign(levels.size(), {});
+        for (size_t k = 0; k < levels.size(); ++k) {
+            const Level& L = levels[k];
+            const uint32_t base = uint32_t(faces.size());
+            faces.insert(faces.end(), L.faces.begin(), L.faces.end());
+            for (size_t i = 0; i < chunks.size(); ++i) {
+                lodFirst[k].push_back(base + L.firstFace[i]);
+                lodCount[k].push_back(L.faceCount[i]);
+            }
+            for (PreviewCluster c : L.clusters) {
+                c.firstFace += base;
+                c.level = uint32_t(k);
+                lodClusters.push_back(c);
+            }
+        }
+        clusters = levels[0].clusters;
+        for (size_t i = 0; i < chunks.size(); ++i) {
+            chunks[i].firstFace = levels[0].firstFace[i];
+            chunks[i].faceCount = levels[0].faceCount[i];
+        }
+        lodMaxLevel = int(levels.size()) - 1;
+        drawLevel = 0;
         ++revision;
         return true;
     }

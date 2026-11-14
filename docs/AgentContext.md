@@ -432,9 +432,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       else volume (a volume vote showed dirt on 39 % of the floor at 1 m vs 6 %). {"lod_levels":3} builds,
       {"lod_draw":k} swaps without rebuild. Whole region: 1/4 m -3.2..-5.2 ms, 1/2 m -4.4..-6.8, 1 m -4.3..-6.5 (mostly
       shadow casters). Up close coarse levels are blocky; 1 m loses thin trunks -> F2.14 gates.
-      NEXT (the plan's F2 list, §4.6 item 7 continued): F2.14 = level per block region by size on screen (pixels per
-      voxel, tier knob), dithered cross-fade, "no holes where levels meet" gate, coarse shadow casters. Then item 8
-      (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
+      F2.14 (2026-11-13): level by size on screen, PER FRAGMENT in voxel.frag (flags bits 16-31 = level/max/on/code;
+      L = log2(d) + log2(8P/f), Bayer 4x4 band 1/2 level, keep-slack 1/4 level so both levels draw where they meet).
+      Cost bound per cluster (cull pass, lo.w bits 24-27) / per chunk via lodLevelsForBox. {"lod_auto":true,"lod_px":P}.
+      Level 1 starts at f/(4P) (272 m at P=1 -> P=1 is a no-op in the gate region). Gates 0 holes / 0 fattening (score
+      with a margin -- a single threshold flags near-background pixels). P=8 -3.3/-3.5 ms from above, ground neutral,
+      canopy_close +0.9 (band overdraw). Default OFF until coarse casters.
+      NEXT (the plan's F2 list, §4.6 item 7 continued): coarse shadow casters chosen from the light's view (measured
+      alone), then sprig/grass handoff, levels > 1 m, GPU level build. Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
       spot-checks. Finding: the C/S/M hierarchy's cost is STORAGE (cube 3 B vs microcube ~136 B heap object + string;

@@ -50,7 +50,7 @@ layout(std430, set = 1, binding = 1) readonly buffer VoxFoundDrawOrigin {
 
 layout(push_constant) uniform PushConstants {
     vec3 camFrac;          // camInt - cameraPos (metres, small)
-    uint debugMode;
+    uint lodBits;          // F2.14: LOD on bit 23 + scale code 24-31 (0 = off); the level bits come per command (w)
     vec3 camInt;           // the camera position rounded down to whole metres (exact in float below 2^24)
 } pushConstants;
 
@@ -126,7 +126,9 @@ void main() {
     vState = 0u;
     const uint texWord = faceTex[((inFaceB >> 16) & 0xFFu) * 6u + faceID];
     textureIndex = texWord & 0xFFFFu;
-    flags = (texWord >> 16) & 0xFFFFu;
+    // F2.14: voxel.frag picks the level per pixel when the on bit is pushed (the level bits alone do nothing)
+    flags = ((texWord >> 16) & 0xFFFFu) |
+            (pushConstants.lodBits != 0u ? (pushConstants.lodBits | uint(drawOrigin[gl_DrawIDARB].w)) : 0u);
     texCoord = uv;
     vSkyLight = 1.0;
 }

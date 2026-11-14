@@ -1,0 +1,30 @@
+F2.14 prediction — written 2026-11-13 BEFORE any F2.14 code exists.
+
+What is built (§3.5a point 3 "no fixed distances / no visible steps", §4.6 item 7 continued):
+- Continuous level at a fragment: L(d) = log2(d * 8 * P / f), d = metres from the camera to the FRAGMENT's world
+  position, f = focal length in pixels (0.5 * H * proj[1][1]; 45 deg FOV -> f = 1.207 H), P = the target pixels per
+  voxel (the tier knob). Level k's voxel (2^k / 8 m) covers P pixels exactly at L = k.
+- Pick with a dithered band: pick(L, u) = clamp(floor(L + w (u - 1/2)), 0, maxLevel), u = 4x4 Bayer at the pixel,
+  w = 1/2 level. Inside the band the share of pixels on the coarser level ramps linearly 0 -> 1: no pop.
+- A fragment of level k is KEPT iff pick(L - s, u) <= k <= pick(L + s, u), slack s = 1/4 level (19 % in distance):
+  levels whose surfaces at a pixel lie within that distance ratio cannot both discard ("no holes where levels meet").
+  Appearance is a function of the fragment's world position and the pixel only — never of chunk or cluster.
+- Cost bound per CLUSTER (4 m regions, never per chunk): a cluster of level k is drawn iff k lies in
+  [pick(L(dmin) - s, 0), pick(L(dmax) + s, 1)] of its box. The GPU cull pass does this test (all levels' clusters in
+  one list); the per-chunk direct path does it per chunk box.
+- Shadow casters stay level 0 in this part (coarse casters chosen from the light's view = next part, measured alone).
+
+Predictions, gate region (Perlin s7 + flora, chunks 254..257 x 0..1 x 2..5), Release, perf_harness 8 pairs x 5
+poses, whole frame, LOD selection ON vs OFF (OFF = today's level 0 everywhere):
+1. f at the harness window: H ~ 720 -> f ~ 870 px. P = 1 puts the 0->1 switch at ~110 m and 1->2 at ~220 m:
+   - faces drawn by the main view: overview_south / top_down -15..-50 %; ground poses -0..-15 %.
+   - whole frame: within -0.6 .. +0.3 ms everywhere (main view only; shadows unchanged; the discard test may cost
+     a little at the ground poses).
+2. P = 4 (switches ~27 / 55 / 110 m): faces drawn -50..-85 % at every pose; whole frame -0.3 .. -2.0 ms (the main
+   face scope fell 1.2-2.2 ms in F2.13 when the WHOLE region went coarse; selection keeps the near field at 1/8 m).
+3. Hole gate (wind 0, GI off, world hidden, empty / level-k-only / level-k+1-only / blended at the same pose):
+   pixels empty in the blend but covered by BOTH single-level frames = 0 with s = 1/4; > 0 with s = 0 (sensitivity).
+4. Fattening gate: pixels covered in the blend but empty in every single-level frame = 0.
+5. Looks at P = 1 vs level 0 everywhere: < 1 % of viewport pixels differ by > 24/255 beyond the control pair's own
+   difference (a 1 m voxel only appears where it is <= 1 px). At P = 4 visibly coarser far away, nothing pops when
+   the camera moves (dither band).

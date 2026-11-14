@@ -35,8 +35,12 @@ non-render distance systems (streaming residency, sim LOD) listed below the line
 **Voxel-foundation block pyramid (2026-11-13, `docs/VoxelFoundationPlan.md` F2.13) — NOT a tier yet.** The 1/8 m
 store's LOD pyramid (`VoxFound::LodGrid`, levels 1/8 → 1 m, half-solid rule, surface material, chunk-independent) is
 built for the debug region preview only (`voxfound_preview {"lod_levels":3}` builds, `{"lod_draw":k}` draws one level
-for the whole region). No distance selection, no fade, no handoff yet; it touches none of the 8 tiers above. When
-selection by size on screen lands (F2.14) it is meant to replace tier 2 (§3.5a point 3) and this ledger gets a row.
+for the whole region). F2.14 added selection by size on screen with a dithered cross-fade, preview only
+(`{"lod_auto":true,"lod_px":P}`, default OFF): per fragment, L = log2(d) + log2(8P/f), Bayer band 1/2 level, keep-slack
+1/4 level (both levels draw where they meet; gates 0 holes / 0 fattening); level 1 starts at f/(4P) (272 m at P=1,
+34 m at P=8, f = 1086 px). Shadows and occlusion still use level 0; no sprig/grass handoff. Still not a tier and it
+touches none of the 8 tiers above; it gets a row when it ships ON with coarse casters (candidate knob P=4 / P=8),
+meant to replace tier 2 (§3.5a point 3).
 
 **No far tier exists for:** water (other session owns Phase B), kinematic voxel LOD
 (8d is cull-only — no face coarsening at distance), GPU debris, VFX.

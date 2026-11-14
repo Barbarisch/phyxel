@@ -19,14 +19,34 @@ layout(std430, binding = 2) buffer Commands { uint commands[]; };   // 5 words p
 
 layout(push_constant) uniform PC {
     vec4 planes[6];   // inside where dot(xyz, p) + w >= 0
+    vec4 lodCam;      // F2.14: xyz camera (box frame), w = c (Mesher.h lodScaleFromCode)
     uint count;
+    uint lod;         // F2.14: bit 8 = level test on, bits 0-7 = maxLevel
 } pc;
 
 void main() {
     const uint i = gl_GlobalInvocationID.x;
     if (i >= pc.count) return;
     const Cluster c = clusters[i];
-    bool vis = chunkVisible[floatBitsToUint(c.lo.w)] != 0u;
+    const uint bits = floatBitsToUint(c.lo.w);   // chunk index 0-23 | level 24-27 (F2.14)
+    bool vis = chunkVisible[bits & 0xFFFFFFu] != 0u;
+    // F2.14: a cluster of level k is drawn only where a fragment in its box may keep level k (Mesher.h
+    // lodLevelsForBox: nearest point - slack with the lowest Bayer value, farthest corner + slack with the highest);
+    // without the level test, level 0 only.
+    const int level = int((bits >> 24u) & 0xFu);
+    if ((pc.lod & 0x100u) == 0u) {
+        vis = vis && level == 0;
+    } else if (vis) {
+        const int maxLevel = int(pc.lod & 0xFFu);
+        const vec3 cam = pc.lodCam.xyz;
+        const vec3 nearest = clamp(cam, c.lo.xyz, c.hi.xyz);
+        const vec3 farthest = mix(c.hi.xyz, c.lo.xyz, greaterThan(abs(cam - c.lo.xyz), abs(cam - c.hi.xyz)));
+        const float lNear = log2(max(length(nearest - cam), 1e-3)) + pc.lodCam.w;
+        const float lFar = log2(max(length(farthest - cam), 1e-3)) + pc.lodCam.w;
+        const int lo = clamp(int(floor(lNear - 0.25 + 0.5 * (0.5 / 16.0 - 0.5))), 0, maxLevel);
+        const int hi = clamp(int(floor(lFar + 0.25 + 0.5 * (15.5 / 16.0 - 0.5))), 0, maxLevel);
+        vis = level >= lo && level <= hi;
+    }
     for (int k = 0; k < 6 && vis; ++k) {
         const vec3 n = pc.planes[k].xyz;
         const vec3 p = vec3(n.x >= 0.0 ? c.hi.x : c.lo.x, n.y >= 0.0 ? c.hi.y : c.lo.y, n.z >= 0.0 ? c.hi.z : c.lo.z);

@@ -2649,11 +2649,14 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
             return;
         }
     }
+    // F2.14: with the pyramid on the device, every level's clusters (the cull pass keeps level 0 only unless the
+    // level test is on); else level 0's
+    const auto& srcClusters = pv.lodClusters.empty() ? pv.clusters : pv.lodClusters;
     if (m_voxFoundCullRevision != pv.revision) {
-        std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(pv.clusters.size());
+        std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(srcClusters.size());
         for (size_t i = 0; i < cl.size(); ++i) {
-            const auto& c = pv.clusters[i];
-            cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk};
+            const auto& c = srcClusters[i];
+            cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk, c.level};
         }
         std::string err;
         if (!m_voxFoundCull->upload(cl, vulkanDevice->chunkIndexCount(), uint32_t(pv.chunks.size()),
@@ -2679,8 +2682,12 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
             return;
         }
         auto* o = static_cast<glm::ivec4*>(mapped);
+        // w = the command's level bits for voxel.frag (Mesher.h lodFlagBits without the on bit and the scale code,
+        // which the push constants add per frame)
         for (size_t i = 0; i < cl.size(); ++i)
-            o[i] = glm::ivec4(glm::ivec3(glm::round(pv.chunks[pv.clusters[i].chunk].originMetres)), 0);
+            o[i] = glm::ivec4(glm::ivec3(glm::round(pv.chunks[srcClusters[i].chunk].originMetres)),
+                              int(Core::VoxFound::lodFlagBits(int(srcClusters[i].level), pv.lodMaxLevel, 0) &
+                                  ~(1u << 23)));
         vkUnmapMemory(vulkanDevice->getDevice(), m_voxFoundOriginMemory);
         m_voxFoundCullRevision = pv.revision;
     }
@@ -2700,7 +2707,15 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
     fr.extractFromMatrix(cachedProjectionMatrix * view, Utils::Frustum::ClipConvention::ReverseZeroToOne);
     glm::vec4 planes[6];
     for (int k = 0; k < 6; ++k) planes[k] = glm::vec4(fr.planes[size_t(k)].normal, fr.planes[size_t(k)].distance);
-    m_voxFoundCull->record(cmd, uint32_t(currentFrame), planes);
+    // F2.14: the level test, with the same quantized scale voxel.frag decodes
+    Core::VoxFound::ClusterCullGpu::LodCull lod;
+    const bool lodOn = pv.lodOn && !pv.lodClusters.empty();
+    if (lodOn) {
+        lod.cam = camRel;
+        lod.c = Core::VoxFound::lodScaleFromCode(voxFoundLodCode());
+        lod.maxLevel = pv.lodMaxLevel;
+    }
+    m_voxFoundCull->record(cmd, uint32_t(currentFrame), planes, lodOn ? &lod : nullptr);
     m_voxFoundCullRecorded = true;
 }
 
@@ -2715,10 +2730,17 @@ std::array<uint32_t, 3> RenderCoordinator::voxFoundCullStats() {
         return s;
     const uint32_t* cmd = cmdv.data();
     s[0] = m_voxFoundCull->clusterCount();
+    // F2.14: per level, from the cluster table the commands were built from (same order)
+    const auto* lodCl = m_voxFoundPreview && m_voxFoundPreview->lodClusters.size() == s[0]
+                            ? &m_voxFoundPreview->lodClusters
+                            : nullptr;
+    m_voxFoundFacesByLevel.assign(size_t(lodCl ? m_voxFoundPreview->lodMaxLevel + 1 : 1), 0u);
     for (uint32_t i = 0; i < s[0]; ++i)
         if (cmd[i * 5 + 1]) {
             ++s[1];
             s[2] += cmd[i * 5 + 1];
+            const size_t k = lodCl ? std::min<size_t>((*lodCl)[i].level, m_voxFoundFacesByLevel.size() - 1) : 0;
+            m_voxFoundFacesByLevel[k] += cmd[i * 5 + 1];
         }
     return s;
 }
@@ -2960,7 +2982,11 @@ void RenderCoordinator::renderVoxFoundPreview() {
         // the camera split into whole metres + the rest (voxfound_face_mdi.vert): camFrac, camInt
         const glm::dvec3 cam(camera->getPosition());
         const glm::dvec3 camInt = glm::floor(cam);
-        vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam),
+        // F2.14: debugMode carries the LOD on bit + this window's scale code; the level bits come per command
+        const uint32_t lodBits = m_voxFoundPreview->lodOn && !m_voxFoundPreview->lodClusters.empty()
+                                     ? (1u << 23) | (uint32_t(voxFoundLodCode()) << 24)
+                                     : 0u;
+        vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam), lodBits,
                                     glm::vec3(camInt));
         vkCmdDrawIndexedIndirect(cmd, m_voxFoundCull->commands(uint32_t(currentFrame)), 0,
                                  m_voxFoundCull->clusterCount(), 20);
@@ -2976,15 +3002,48 @@ void RenderCoordinator::renderVoxFoundPreview() {
     const auto visible = voxFoundVisibleRanges();   // F2.9: per-chunk distance + frustum
     m_voxFoundRangesDrawn = uint32_t(visible.size());
     m_voxFoundRangesCulled = uint32_t(m_voxFoundPreview->ranges().size() - visible.size());
+    const auto& pv = *m_voxFoundPreview;
+    const bool lodOn = pv.lodOn && !pv.lodFirst.empty() && pv.lodFirst[0].size() == pv.chunks.size();
+    m_voxFoundFacesByLevel.assign(size_t(std::max(1, lodOn ? pv.lodMaxLevel + 1 : 1)), 0u);
+    const int code = lodOn ? voxFoundLodCode() : 0;
+    const float c = Core::VoxFound::lodScaleFromCode(code);
+    const glm::dvec3 cam(camera->getPosition());
     for (const auto& r : visible) {
-        if (r.faceCount == 0) continue;
-        const VkDeviceSize off = VkDeviceSize(r.firstFace) * sizeof(Core::VoxFound::PackedFace);
-        vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
-        vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(),
-                                    camera->relativeTo(r.originMetres), glm::vec3(r.originMetres));
-        vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), r.faceCount, 0);
-        m_voxFoundDrawn += r.faceCount;
+        // F2.14: the levels a fragment in this chunk's box may keep (cost bound only; voxel.frag decides per pixel)
+        size_t ci = pv.chunks.size();
+        if (lodOn)
+            for (size_t i = 0; i < pv.chunks.size(); ++i)
+                if (pv.chunks[i].chunk == r.chunk) { ci = i; break; }
+        glm::ivec2 levels(0, 0);
+        if (lodOn && ci < pv.chunks.size()) {
+            const glm::vec3 lo(r.originMetres - cam);
+            levels = Core::VoxFound::lodLevelsForBox(lo, lo + glm::vec3(32.0f), glm::vec3(0.0f), c, pv.lodMaxLevel);
+        }
+        for (int k = levels.x; k <= levels.y; ++k) {
+            const bool lodRange = lodOn && ci < pv.chunks.size();
+            const uint32_t first = lodRange ? pv.lodFirst[size_t(k)][ci] : r.firstFace;
+            const uint32_t count = lodRange ? pv.lodCount[size_t(k)][ci] : r.faceCount;
+            if (count == 0) continue;
+            const VkDeviceSize off = VkDeviceSize(first) * sizeof(Core::VoxFound::PackedFace);
+            vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
+            vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(),
+                                        camera->relativeTo(r.originMetres),
+                                        lodRange ? Core::VoxFound::lodFlagBits(k, pv.lodMaxLevel, code) : 0u,
+                                        glm::vec3(r.originMetres));
+            vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), count, 0);
+            m_voxFoundDrawn += count;
+            m_voxFoundFacesByLevel[size_t(k)] += count;
+        }
     }
+}
+
+float RenderCoordinator::voxFoundFocalPx() const {
+    if (!windowManager) return 0.0f;
+    return 0.5f * float(windowManager->getHeight()) * std::abs(cachedProjectionMatrix[1][1]);
+}
+
+int RenderCoordinator::voxFoundLodCode() const {
+    return Core::VoxFound::lodScaleCode(m_voxFoundPreview ? m_voxFoundPreview->lodPxPerVoxel : 1.0f, voxFoundFocalPx());
 }
 
 // Occlusion culling via the per-chunk visibility graph ("cave culling"). BFS from

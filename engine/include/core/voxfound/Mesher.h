@@ -224,4 +224,29 @@ LodGrid lodDown(const LodGrid& fine);
 /// must fit the record (du, dv <= 256).
 PackedFace lodScaleFace(PackedFace f, int level);
 
+// ---- F2.14 (§3.5a point 3 "no fixed distances / no visible steps"): the level by size on screen ------------------
+/// The CPU reference of what voxfound_face*.vert + voxel.frag and voxfound_cull.comp compute. Level k's voxel
+/// (2^k / 8 m) covers P pixels (the tier knob) at distance d when L(d) = log2(8 P d / f) = k, f = focal length in
+/// pixels. L is continuous and is evaluated at every FRAGMENT's world position, so looks depend on world position and
+/// the pixel only (never on chunk or cluster); a cluster's box only bounds which levels are drawn (cost).
+/// Pick: floor(L + band (u - 1/2)) clamped to [0, maxLevel], u = the pixel's 4x4 Bayer value: across a band of
+/// kLodBand levels around each switch the share of pixels on the coarser level ramps linearly (no pop).
+/// Keep: a level-k fragment is drawn iff pick(L - slack) <= k <= pick(L + slack): two levels whose surfaces at a pixel
+/// lie within kLodSlack levels (2^0.25 = 19 % in distance) can never both discard there (no holes where levels meet).
+constexpr float kLodBand = 0.5f;
+constexpr float kLodSlack = 0.25f;
+/// c = log2(8 P / f), so L(d) = log2(d) + c. It travels to voxel.frag as 8 bits: c = code / 8 - 16.
+int lodScaleCode(float pxPerVoxel, float focalPx);
+float lodScaleFromCode(int code);
+float lodLevelAt(float distance, float c);
+/// The 4x4 Bayer value of a pixel, (index + 0.5) / 16 (the tiers 5 / 8b pattern).
+float lodBayer(int px, int py);
+int lodPickLevel(float L, float u, int maxLevel);
+bool lodKeeps(int level, float L, float u, int maxLevel, float slack = kLodSlack);
+/// The levels a fragment anywhere in the box may keep (camera position in the box's frame): x = lowest, y = highest.
+glm::ivec2 lodLevelsForBox(glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float c, int maxLevel);
+/// The bits the face vertex shaders OR into the flags word (static faces use bits 0-15 only): 16-19 level,
+/// 20-22 maxLevel, bit 23 = LOD test on, 24-31 the scale code.
+uint32_t lodFlagBits(int level, int maxLevel, int code);
+
 }  // namespace Phyxel::Core::VoxFound

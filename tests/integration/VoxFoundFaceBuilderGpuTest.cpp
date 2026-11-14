@@ -520,3 +520,56 @@ TEST_F(VoxFoundFaceBuilderGpu, ClusterCullEqualsTheReference) {
         EXPECT_EQ(bad, 0u);
     }
 }
+
+// ---- F2.14: the cull pass draws a cluster of level k only where a fragment in its box may keep level k -----------
+// Red first: the F2.11 shader ignores the level (every cluster drawn), and must draw only level 0 without the test.
+TEST_F(VoxFoundFaceBuilderGpu, ClusterCullPicksLevelsLikeTheReference) {
+    ClusterCullGpu cull;
+    std::string err;
+    ASSERT_TRUE(cull.init(device, physicalDevice, "shaders", 1, &err)) << err;
+    std::mt19937 rng(214);
+    std::uniform_real_distribution<float> pos(-300.0f, 300.0f), ext(0.5f, 8.0f);
+    std::uniform_int_distribution<int> lvl(0, 3);
+    std::vector<ClusterCullGpu::Cluster> cl(4000);
+    for (size_t i = 0; i < cl.size(); ++i) {
+        cl[i].lo = glm::vec3(pos(rng), pos(rng) * 0.2f, pos(rng));
+        cl[i].hi = cl[i].lo + glm::vec3(ext(rng), ext(rng), ext(rng));
+        cl[i].count = 7;
+        cl[i].firstInstance = uint32_t(i * 7);
+        cl[i].chunk = 0;
+        cl[i].level = uint32_t(lvl(rng));
+    }
+    ASSERT_TRUE(cull.upload(cl, 36u, 1u, queue, queueFamilyIndex, &err)) << err;
+    cull.setChunkVisible(0, {1u});
+    glm::vec4 all[6];
+    for (auto& p : all) p = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);   // every plane passes: only the level decides
+    std::vector<uint32_t> cmdv;
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 0, all, &err)) << err;
+    ASSERT_TRUE(cull.readCommands(queue, queueFamilyIndex, 0, cmdv, &err)) << err;
+    for (size_t i = 0; i < cl.size(); ++i)
+        ASSERT_EQ(cmdv[i * 5 + 1], cl[i].level == 0 ? 7u : 0u) << "without the level test only level 0 draws";
+    ClusterCullGpu::LodCull lod;
+    lod.cam = glm::vec3(12.0f, 25.0f, -7.0f);
+    lod.c = lodScaleFromCode(lodScaleCode(2.0f, 870.0f));
+    lod.maxLevel = 3;
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 0, all, &err, &lod)) << err;
+    ASSERT_TRUE(cull.readCommands(queue, queueFamilyIndex, 0, cmdv, &err)) << err;
+    size_t drawn = 0, bad = 0, nearSwitch = 0;
+    int perLevel[4] = {0, 0, 0, 0};
+    for (size_t i = 0; i < cl.size(); ++i) {
+        const glm::ivec2 r = lodLevelsForBox(cl[i].lo, cl[i].hi, lod.cam, lod.c, 3);
+        const bool want = int(cl[i].level) >= r.x && int(cl[i].level) <= r.y;
+        drawn += want;
+        perLevel[cl[i].level] += want;
+        if (cmdv[i * 5 + 1] == (want ? 7u : 0u)) continue;
+        // only a box whose range ends within 1e-4 levels of a switch may differ (log2 on the device)
+        const glm::ivec2 a = lodLevelsForBox(cl[i].lo, cl[i].hi, lod.cam, lod.c - 1e-4f, 3),
+                         b = lodLevelsForBox(cl[i].lo, cl[i].hi, lod.cam, lod.c + 1e-4f, 3);
+        (a != b ? nearSwitch : bad)++;
+    }
+    std::printf("[cluster lod] %zu of %zu drawn (per level %d %d %d %d), %zu wrong, %zu within 1e-4 of a switch\n",
+                drawn, cl.size(), perLevel[0], perLevel[1], perLevel[2], perLevel[3], bad, nearSwitch);
+    for (int k = 0; k < 4; ++k) EXPECT_GT(perLevel[k], 20) << "every level is drawn somewhere: " << k;
+    EXPECT_LT(drawn, cl.size() * 3 / 4) << "and most clusters of the wrong level are not";
+    EXPECT_EQ(bad, 0u);
+}

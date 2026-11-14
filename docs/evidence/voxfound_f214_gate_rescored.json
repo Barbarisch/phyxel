@@ -1,0 +1,107 @@
+{
+ "overview_south P2": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 0,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 429735
+ },
+ "overview_south P4": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 6,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 429735
+ },
+ "overview_south P8": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 162,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 429735
+ },
+ "top_down P2": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 0,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 413049
+ },
+ "top_down P4": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 1,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 413049
+ },
+ "top_down P8": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 37,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 413049
+ },
+ "forest_floor_open P2": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 0,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 342003
+ },
+ "forest_floor_open P4": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 0,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 342003
+ },
+ "forest_floor_open P8": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 33,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 342003
+ },
+ "east_low P2": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 0,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 452994
+ },
+ "east_low P4": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 1,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 452994
+ },
+ "east_low P8": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 22,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 452994
+ },
+ "canopy_close P2": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 0,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 298789
+ },
+ "canopy_close P4": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 0,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 298789
+ },
+ "canopy_close P8": {
+  "hole": 0,
+  "fattening": 0,
+  "detector": 0,
+  "sensitivity_6x6": 36,
+  "covered_by_every_level_px": 298789
+ }
+}

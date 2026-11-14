@@ -1,0 +1,1 @@
+{"A": [["POST", "/api/debug/voxfound_preview", {"lod_auto": false}]], "B": [["POST", "/api/debug/voxfound_preview", {"lod_auto": true, "lod_px": 2}]]}

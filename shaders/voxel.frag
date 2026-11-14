@@ -243,6 +243,24 @@ void main() {
     // unaffected.
     if ((flags & 2u) != 0u) discard;
 
+    // VOXEL-FOUNDATION LOD (docs/VoxelFoundationPlan.md F2.14, §3.5a point 3). Only voxfound_face*.vert set bit 23
+    // (static faces' flags are 16 bits). The level is picked PER FRAGMENT from its distance -- a pure function of world
+    // position and the pixel, never of chunk -- and dithered over a half-level band with the 4x4 Bayer of tiers 5/8b;
+    // a quarter-level slack keeps two levels' slightly different surfaces from both discarding at one pixel (no holes
+    // where levels meet). CPU reference + tests: Mesher.h lodKeeps (kLodBand 0.5, kLodSlack 0.25).
+    if ((flags & (1u << 23u)) != 0u) {
+        const float lodC = float(flags >> 24u) / 8.0 - 16.0;
+        const int lodLevel = int((flags >> 16u) & 0xFu), lodMax = int((flags >> 20u) & 7u);
+        const float lodL = log2(max(length(inWorldPos), 1e-3)) + lodC;   // inWorldPos is camera-relative
+        const ivec2 bp = ivec2(gl_FragCoord.xy) & 3;
+        const int bayer[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);
+        const float lodU = (float(bayer[bp.y * 4 + bp.x]) + 0.5) / 16.0;
+        const float lodD = 0.5 * (lodU - 0.5);
+        const int lodLo = clamp(int(floor(lodL - 0.25 + lodD)), 0, lodMax);
+        const int lodHi = clamp(int(floor(lodL + 0.25 + lodD)), 0, lodMax);
+        if (lodLevel < lodLo || lodLevel > lodHi) discard;
+    }
+
     // Sample albedo + normal/roughness for this face (handles the mixed-res class split).
     vec4 textureColor;
     vec3 nrmRaw;

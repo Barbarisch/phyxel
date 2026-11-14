@@ -41,7 +41,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 layout(push_constant) uniform PushConstants {
     vec3 chunkBaseOffset;  // CAMERA-RELATIVE origin of voxel (0,0,0), metres
-    uint debugMode;
+    uint lodBits;          // F2.14: Mesher.h lodFlagBits of this draw's level (0 = level selection off)
     vec3 chunkBaseAbs;     // absolute origin, metres (varied-hash seed)
 } pushConstants;
 
@@ -114,7 +114,7 @@ void main() {
     vState = 0u;
     const uint texWord = faceTex[((inFaceB >> 16) & 0xFFu) * 6u + faceID];
     textureIndex = texWord & 0xFFFFu;
-    flags = (texWord >> 16) & 0xFFFFu;
+    flags = ((texWord >> 16) & 0xFFFFu) | pushConstants.lodBits;   // F2.14: voxel.frag picks the level per pixel
     texCoord = uv;
     vSkyLight = 1.0;
 }

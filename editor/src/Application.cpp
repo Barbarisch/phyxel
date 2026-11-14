@@ -13377,6 +13377,23 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             renderCoordinator->setVoxFoundShadowCull(cmd.params.value("shadow_cull", true));
         if (cmd.params.contains("shadow_mdi"))
             renderCoordinator->setVoxFoundShadowMdi(cmd.params.value("shadow_mdi", true));
+        // {"lod_auto":bool, "lod_px":P}: F2.14 the main view picks each fragment's level by size on screen, P pixels per
+        // voxel (the tier knob, default 1); off = level 0 everywhere. Needs {"lod_levels":n} at build time.
+        if ((cmd.params.contains("lod_auto") || cmd.params.contains("lod_px")) && !cmd.params.contains("type") &&
+            !cmd.params.contains("region")) {
+            bool ok = true;
+            if (cmd.params.contains("lod_px"))
+                voxFoundPreview.lodPxPerVoxel = std::clamp(cmd.params.value("lod_px", 1.0f), 0.125f, 64.0f);
+            if (cmd.params.contains("lod_auto")) {
+                const bool on = cmd.params.value("lod_auto", true);
+                if (on && voxFoundPreview.lodFirst.empty()) ok = voxFoundPreview.levels.size() > 1 && voxFoundPreview.selectLod();
+                voxFoundPreview.lodOn = on && ok;
+            }
+            response = {{"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel}, {"ok", ok},
+                        {"levels_built", voxFoundPreview.levels.size()}, {"faces_on_device", voxFoundPreview.faces.size()}};
+            if (!ok) response["error"] = "coarser levels not built (lod_levels)";
+            return;
+        }
         // {"lod_draw":k}: F2.13 draw pyramid level k (built with {"lod_levels":n}) for the whole region, no rebuild.
         if (cmd.params.contains("lod_draw") && !cmd.params.contains("type") && !cmd.params.contains("region")) {
             const int k = cmd.params.value("lod_draw", 0);
@@ -13416,6 +13433,10 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"clusters", renderCoordinator->voxFoundCullStats()[0]},
                         {"clusters_drawn", renderCoordinator->voxFoundCullStats()[1]},
                         {"cluster_faces_drawn", renderCoordinator->voxFoundCullStats()[2]},
+                        {"faces_by_level", renderCoordinator->voxFoundFacesByLevel()},   // F2.14, last measured
+                        {"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel},
+                        {"lod_focal_px", renderCoordinator->voxFoundFocalPx()},
+                        {"lod_code", renderCoordinator->voxFoundLodCode()},
                         {"cluster_blocks", voxFoundPreview.clusterBlocks},
                         {"shadow_cull", renderCoordinator->voxFoundShadowCull()},
                         {"shadow_mdi", renderCoordinator->voxFoundShadowMdi()},
@@ -13757,7 +13778,8 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     }
     voxFoundPreview.chunks = std::move(chunks);
     voxFoundPreview.levels = std::move(levels);
-    voxFoundPreview.selectLevel(0);
+    // F2.14: with coarser levels built, all of them go on the device (level 0 first) for selection by size on screen
+    if (voxFoundPreview.levels.size() < 2 || !voxFoundPreview.selectLod()) voxFoundPreview.selectLevel(0);
     voxFoundPreview.anchorMetres = glm::dvec3(lo * kChunkM);
     voxFoundPreview.clusterBlocks = clusterBlocks;
     voxFoundPreview.shown = true;

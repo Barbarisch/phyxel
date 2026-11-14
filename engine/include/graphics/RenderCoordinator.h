@@ -642,6 +642,10 @@ public:
     bool voxFoundMdi() const { return m_voxFoundMdi; }
     /// F2.11: clusters and the faces their commands drew, read back from the most recently completed frame slot.
     std::array<uint32_t, 3> voxFoundCullStats();   // {clusters, clusters drawn, faces drawn}; waits for the queue
+    /// F2.14: main-view faces drawn per pyramid level (direct path: last frame; indirect: last voxFoundCullStats()).
+    std::vector<uint32_t> voxFoundFacesByLevel() const { return m_voxFoundFacesByLevel; }
+    float voxFoundFocalPx() const;   // focal length in pixels of this window (0.5 * height * proj[1][1])
+    int voxFoundLodCode() const;     // VoxFound::lodScaleCode(the preview's pixels per voxel, voxFoundFocalPx())
     /// F2.4 shadow casters drawn by the last shadow passes: mid faces, near faces, mid sprigs.
     std::array<uint32_t, 3> voxFoundShadowCasters() const {
         return {m_voxFoundShadowFaces[0], m_voxFoundShadowFaces[1], m_voxFoundShadowSprigs};
@@ -1540,6 +1544,7 @@ private:
     void recordVoxFoundCull(VkCommandBuffer cmd);
     void releaseVoxFoundCull();
     uint32_t       m_voxFoundRangesDrawn = 0, m_voxFoundRangesCulled = 0;
+    std::vector<uint32_t> m_voxFoundFacesByLevel;                    // F2.14
     mutable uint32_t m_voxFoundRangesOccluded = 0;
     /// F2.9: the ranges that pass today's per-chunk distance + frustum test (all ranges with the cull off).
     std::vector<Core::VoxFound::PreviewChunk> voxFoundVisibleRanges() const;

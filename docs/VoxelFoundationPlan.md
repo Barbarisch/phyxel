@@ -372,7 +372,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
-| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + cross-fade owed (F2.14) |
+| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse shadow casters owed (F2.14 next) |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
@@ -810,6 +810,77 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   knob), the dithered cross-fade between levels with the "no holes where levels meet" gate, coarse shadow casters
   chosen from the light's view, the leaf sprigs and grass at distance (tier 8 handoff), levels above 1 m (need a
   wider margin or the region pyramid), and the GPU port of the level build.
+
+**F2.14 2026-11-13 — §4.6 item 7 continued: the level by size on screen + the dithered cross-fade.**
+- Design (Mesher.h `lodLevelAt`, `lodPickLevel`, `lodKeeps`, `lodLevelsForBox`, `lodFlagBits`):
+  - The level is continuous: `L(d) = log2(d) + c`, `c = log2(8P/f)`, where P is pixels per voxel (THE tier knob) and
+    f = ½·height·proj[1][1] (1086.4 px in the harness window, 45° FOV). Level k's voxel is P px wide at L = k.
+    Level 1 starts at d = f/(4P): 272 m at P=1, 136 m at P=2, 68 m at P=4, 34 m at P=8.
+  - Per FRAGMENT (`voxel.frag`, flags bits 16-31: level, max level, on bit, 8-bit code for c): distance from the
+    fragment's world position, and a 4×4 Bayer value u of the pixel. `pick = floor(L + ½(u − ½))` ramps the share of
+    the coarser level across a band of ½ level; a fragment of level k is KEPT when
+    `pick(L − ¼) ≤ k ≤ pick(L + ¼)` (slack ¼ level). Looks depend on world position and pixel only, never on the chunk.
+  - The slack makes both levels draw where they meet, so the band overlaps instead of leaving a gap: the coarser
+    level is half-solid by construction (F2.13) and the finer one draws over it, so neither a hole nor fattening
+    appears in the overlap (gate below). At most two levels are kept at any fragment (pinned).
+  - Cost: per cluster (GPU cull pass, level in `lo.w` bits 24-27, 128 B push with the camera and c) and per chunk on
+    the direct path, `lodLevelsForBox` bounds the levels any fragment of the box can keep (nearest point − slack at
+    the lowest Bayer value, farthest corner + slack at the highest). Only those levels' faces are drawn.
+  - Preview: `voxfound_preview {"lod_auto":true,"lod_px":P}` concatenates all levels (`Preview::selectLod`); the level-0
+    clusters/chunks stay as they were, so shadows and occlusion use level 0 (coarse casters are the next part).
+- Red first: `LodLevelIsSizeOnScreen`, `LodPickRampsAcrossTheBandWithoutAPop`, `LodLevelsNeverLeaveAHoleWhereTheyMeet`
+  (exact partition at slack 0, no hole with slack, a hole when slack is removed = the test sees one, ≤ 2 levels),
+  `LodBoxRangeCoversEveryFragmentInIt`, `LodFlagBitsLeaveTheStaticFlagsAlone`, and on the GPU
+  `ClusterCullPicksLevelsLikeTheReference` (4,000 clusters: 1,939 drawn, 205/752/783/199 per level, 0 differ from the
+  CPU reference). All red on stubs; then CPU 45/45, GPU 13/13. (One test bug on the way: the ramp sweep started at
+  k − 1, inside the band of switch k − 1, and saw a third level; the sweep is k ± ½.)
+- Prediction (scratch `f214_prediction.txt`, before any code) said "level 1 from ~110 m at P=1". WRONG by about a
+  factor 2.5: I used the wrong focal length; level 1 starts at f/(4P) = 272 m. So **P=1 is a no-op in this region**
+  (its far corner is ~260 m): every pose draws exactly the level-0 faces.
+- Faces drawn in the main view (off → on; `[L0, L1, L2, L3]`):
+
+  | Pose | off | P=2 | P=4 | P=8 |
+  |---|---|---|---|---|
+  | overview_south | 477,779 | 588,344 | 224,914 [70k,127k,28k] | 59,875 |
+  | top_down | 446,740 | 564,823 | 148,478 | 38,894 |
+  | forest_floor_open | 287,263 | 287,511 | 345,567 | 170,288 |
+  | east_low | 439,593 | 493,019 | 379,347 | 132,894 |
+  | canopy_close | 189,602 | 193,086 | 216,873 | 124,155 |
+
+  Inside the band BOTH levels draw, so faces RISE where most of the view sits in a band (P=2 everywhere; P=4 at the
+  ground poses). That overlap is the price of the no-hole rule, and it is overdraw, not extra pixels.
+- Gates (5 poses × P 2/4/8, wind 0, GI off, world hidden; per pixel against an empty frame E and the four single-level
+  frames L0..L3; `docs/evidence/voxfound_f214_gate_rescored.json`):
+  - **0 holes** (empty in the mix, covered in EVERY single level) and **0 fattening** (covered in the mix, empty in
+    every single level), every pose and P.
+  - First scoring used one threshold and flagged 1-14 "holes" / 0-13 "fattening" px. Dug in (`f214_where.py`): every
+    one was a pixel within ~10 of the background in every frame (mix = one level, within 2 colour steps), straddling
+    the threshold. Rescored with a margin: empty ≤ 10, covered > 30, in between not scored.
+  - The scorer works: a synthetic 6×6 hole is found (36 px every time), and it finds REAL empties where coarse levels
+    lose thin parts vs level 0 (up to 162 px at overview_south P=8). Controls E/E2 0 px, mix/mix repeat 0.0 %.
+  - Changed vs level 0 (> 24/255): P=2 0-0.08 %, P=4 0.04-0.65 %, P=8 0.22-1.93 % of pixels.
+- Looks (`docs/evidence/voxfound_f214_sheet_*.png`, L0 | P=4 | P=8 at the same pose): P=4 cannot be told from level 0 at
+  overview_south and east_low. P=8: distant trunks and trunk bases slightly blockier; no seam or band visible.
+  Shadows identical (casters are level 0).
+- Whole frame, B − A (A = level 0 everywhere, B = by size on screen; Release, perf_harness 8 pairs × 5 poses × 240
+  frames, `docs/evidence/voxfound_f214_ab_P*.jsonl`; * = CI excludes 0):
+
+  | Pose | P=2 | P=4 | P=8 |
+  |---|---|---|---|
+  | overview_south | +2.55* | −1.28* | −3.27* |
+  | top_down | +0.76* | −1.39* | −3.52* |
+  | forest_floor_open | −0.77 | +1.64 | +1.04 |
+  | east_low | +0.60 | −0.52 | −0.42 |
+  | canopy_close | −0.55 | +2.62 | +0.88* |
+
+  As the face counts say: P=2 costs where the view is mostly band (overlap, nothing coarse yet); P=8 saves 3.3-3.5 ms
+  from above. At the ground poses the main-view faces were never the cost (the sprigs and the level-0 shadow casters
+  are, F2.13), so nothing moves there; canopy_close pays a little for the band overdraw.
+- **Default: OFF** in the preview, and P is not yet a tier: the from-above win only pays off with the coarse casters
+  (next), and the band overdraw at canopy_close is a cost to cut first (e.g. a narrower band where P is large).
+  Candidate tier values once casters follow: P=4 (no visible change) and P=8 (slightly blocky far trunks).
+- Not done here, owed to F2.14 next: coarse shadow casters chosen from the light's view (measured alone), the leaf
+  sprigs and grass at distance (tier 8 handoff), levels above 1 m, the GPU port of the level build.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.
