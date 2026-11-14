@@ -1351,7 +1351,14 @@ TEST(SettlementMapLiveSiteTest, TheVillageFencesAndTerracesItsParcelsNotItsTofts
         EXPECT_EQ(arms[a].out.value("gate", std::string()), "passed") << (a == 0 ? "parcels" : "control");
     }
     EXPECT_GT(leftRows.size(), 0u) << "the village has no parcel shorter than its toft";
-    EXPECT_EQ(arms[0].out["terrace"].value("parcels_shorter", -1), 5);       // chain 200, plan only
+    {   // chain 209: the literal 5 (chain 200, before the gradient window was clipped to the site) read 6 - the count is
+        // the SAME build's map's, and there is one
+        const Core::SettlementMap m0 = Core::SettlementMap::fromJson(arms[0].out["map"]);
+        int shorter = 0;
+        for (const auto& l : m0.lots) if (l.parcelArea() < l.rect.w * l.rect.d) ++shorter;
+        EXPECT_GT(shorter, 0);
+        EXPECT_EQ(arms[0].out["terrace"].value("parcels_shorter", -1), shorter);
+    }
     EXPECT_EQ(arms[1].out["terrace"].value("parcels_shorter", -1), 0);
     EXPECT_EQ(arms[0].leftFence, 0) << "a fence stands in a toft cell outside the parcel";
     EXPECT_GT(arms[1].leftFence, 0) << "the control carries no fence where the toft's back row is - the measure reads nothing";

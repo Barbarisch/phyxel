@@ -171,3 +171,44 @@ PM5b2.11  chain 209 (written 2026-11-14 11:09; SettlementMapLiveSiteTest.* + Str
   parcels > control (NEW, never run: the control's back row holds only the two side fences' crossings - REASONED);
   terrace cut + fill parcels < control (was 2955 / 3298). If the realizer's cut / fill with lambda 0 is not 1927 +
   1371 again, the shared function changed the terrace on rect parcels - that would be a defect of patch 45.
+
+RESULT chain 209 (written 2026-11-14 12:36; tree 902df0b9; RUN EXIT 1 12:35:26): 29 ok / 1 failed - PM5b2.11 MISSED (predicted 30 / 0).
+  The failure: TheVillageFences... pins parcels_shorter == 5 (chain 200's number, under the fixed 12-cube divisor);
+  with the window clipped to the site the village has 6 shorter parcels and 92 cells left natural (I predicted 5 and
+  72-82). Every other assertion of that test held: 0 fence micros in the 92 given-up cells with parcels, 3998 in
+  the control over 6 lots; the parcels' new back rows (82 cells) carry 3762 fence micros with parcels, 2848 in the
+  control; terrace cut 1641 + fill 1229 = 2870 against 1927 + 1371 = 3298 (13.0 % less); both gates 34 / 0.
+  The control's cut / fill is EXACTLY chain 201's (1927 + 1371): the shared terrace function grades rect parcels as
+  the old unit did. Town: 9 shorter, 110 cells (was 100). Village / town arms: 0 differ, 10 imposed, 34 / 0; 1
+  differs, 23 imposed, 72 / 0 - unchanged. As predicted on those.
+PM5b2.12  patch 48 (test only): the literal 5 becomes "the record's count equals the count of shorter parcels in the
+  SAME build's map, and is > 0" - a pin on a number that the F5 fix legitimately moved is replaced by a relation;
+  stated: this assertion is changed after a run. No other bound touched. chain 210 (that test alone, ~18 min):
+  1 ok / 0 failed, the numbers of chain 209 again (6 / 92 / 0 / 3998 / 3762 / 2848 / 2870 / 3298).
+PM5b2.13  the closure set on the final tree (902df0b9 + patch 48, a test-only change), after chain 210: chain 211 unit
+  set 168 ok / 0 failed (167 + TheTerraceIsOneRuleOverTheParcel); 212 paver set 42 / 0; Release build 21 0 errors;
+  L4 run 21 (tag m5b2_b): 3 of 3 built, gates 72 / 0, 34 / 0, 40 / 0, imposed 23 / 10 / 9, restore 0 of 328 / 11 of
+  673 / 0 of 0, parcels town 9 of 24 (110 cells), village 1 6 of 11 (92), village 2 >= 1 of 13 (>= 20), control
+  refused 20 / 1; 213 terrain 108 / 1 (the O4 lip); 214 broad regression 142 / 1 of 143 (the hairpin). Bake ms
+  printed against run 20's 253.5 / 89.5 / 139.3 (parcelDistance is gone: predicted NOT higher than run 20).
+
+RESULT chain 210 (written 2026-11-14 14:34; tree 902df0b9 + patch 48; RUN EXIT 0 12:54:38): 1 ok / 0 failed - as predicted
+  (PM5b2.12). The numbers of chain 209 again: 6 shorter / 92 cells; given-up cells 0 fence micros with parcels, 3998
+  in the control (lots 0, 1, 2, 4, 5, 7: 902 / 812 / 586 / 586 / 514 / 598); new back rows (82 cells) 3762 against
+  2848; terrace 1641 + 1229 = 2870 against 1927 + 1371 = 3298; both gates 34 / 0; fence record 18214 micros with
+  parcels, 19162 in the control (10 fenced, 1 unfenced by policy in both).
+RESULT the closure set (PM5b2.13; same tree; the test exe of 12:36:17, the Release exe of 13:06:04):
+  chain 211 unit set  168 ok / 0 failed (EXIT 0 13:04:00) - as predicted.
+  chain 212 paver set  42 ok / 0 failed (EXIT 0 13:05:20) - as predicted.
+  Release build 21     0 errors (13:06:05) - as predicted.
+  L4 run 21 (tag m5b2_b, Release, generator: worldforge_build -> SettlementBuildService per site): 3 of 3 BUILT, 0 lot
+    failures; gates 72 / 0, 34 / 0, 40 / 0; approaches imposed 23 / 10 / 9, 0 not standing as stated; restore 0 of
+    328 / 11 of 673 / 0 of 0; parcels town 9 of 24 (110 cells), village 1 6 of 11 (92), village 2 1 of 13 (20);
+    the control refused 20 / 1 and logs no "parcels:" line - all as predicted. Standing lines seen again, not new:
+    town lot 4 "approach DISAGREES" (map [1405,1405], read [1403,1401]); village 2 lots 0, 2, 4 "approach NOT ON
+    THE MAP" (seatless). Bake 179.3 / 80.3 / 136.0 ms against run 20's 253.5 / 89.5 / 139.3 - not higher, as
+    predicted; ONE sample each, so the 29 % drop on the town is not separated from run-to-run noise.
+  chain 213 terrain    108 ok / 1 failed (EXIT 1 13:37:18): RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope
+    (the O4 river lip, standing) - as predicted.
+  chain 214 broad regression: started 13:37:24; result below.
+  chain 214 broad regression (written 2026-11-14 16:30; EXIT 1 16:29:56): 142 ok / 1 failed of 143 - EarthworkTest.HairpinBankHasNoCliffStepWithItsControl (the M4 hairpin, standing) - as predicted.
