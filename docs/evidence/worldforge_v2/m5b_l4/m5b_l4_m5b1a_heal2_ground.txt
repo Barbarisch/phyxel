@@ -1,0 +1,122 @@
+[15:03:22.562] [INFO] [Settlement] ground under flora: 11 columns restored to the generator's surface (11 cubes, 0 not at the surface on re-read) of 681 sampled, 23 ms
+[15:03:22.625] [WARN] [Settlement] [GROUND-CHECK] 0 of 8064 columns differ (chunks - generator, delta:count), local box x 2147483647..-2147483648 z 2147483647..-2147483648
+[15:03:23.095] [INFO] [Settlement] terrace: parcel graded (cut 373, fill 351)
+[15:03:23.435] [INFO] [Settlement] terrace: parcel graded (cut 374, fill 356)
+[15:03:23.475] [INFO] [Settlement] terrace: parcel graded (cut 130, fill 120)
+[15:03:23.896] [INFO] [Settlement] terrace: parcel graded (cut 213, fill 133)
+[15:03:24.096] [INFO] [Settlement] terrace: parcel graded (cut 205, fill 208)
+[15:03:24.461] [INFO] [Settlement] terrace: parcel graded (cut 154, fill 99)
+[15:03:24.835] [INFO] [Settlement] terrace: parcel graded (cut 217, fill 181)
+[15:03:25.429] [INFO] [Settlement] terrace: parcel graded (cut 282, fill 145)
+[15:06:10.183] [INFO] [Settlement] ground under flora: 0 columns restored to the generator's surface (0 cubes, 0 not at the surface on re-read) of 328 sampled, 27 ms
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,38): chunks flora-blind 171, raw 171; generator surfaceY 163, naturalGroundAt 163.31
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,39): chunks flora-blind 171, raw 171; generator surfaceY 163, naturalGroundAt 163.633
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,40): chunks flora-blind 171, raw 171; generator surfaceY 163, naturalGroundAt 163.97
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,41): chunks flora-blind 171, raw 171; generator surfaceY 164, naturalGroundAt 164.32
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,42): chunks flora-blind 171, raw 171; generator surfaceY 164, naturalGroundAt 164.684
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,43): chunks flora-blind 171, raw 171; generator surfaceY 165, naturalGroundAt 165.063
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,44): chunks flora-blind 171, raw 171; generator surfaceY 165, naturalGroundAt 165.457
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,45): chunks flora-blind 171, raw 171; generator surfaceY 165, naturalGroundAt 165.866
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,46): chunks flora-blind 171, raw 171; generator surfaceY 166, naturalGroundAt 166.29
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,47): chunks flora-blind 171, raw 171; generator surfaceY 166, naturalGroundAt 166.73
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,48): chunks flora-blind 171, raw 171; generator surfaceY 167, naturalGroundAt 167.186
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,49): chunks flora-blind 171, raw 171; generator surfaceY 167, naturalGroundAt 167.658
+[15:06:10.311] [WARN] [Settlement] [GROUND-CHECK] local (-4,50): chunks flora-blind 171, raw 171; generator surfaceY 168, naturalGroundAt 168.145
+[15:06:10.312] [WARN] [Settlement] [GROUND-CHECK] local (-4,51): chunks flora-blind 171, raw 171; generator surfaceY 168, naturalGroundAt 168.649
+[15:06:10.312] [WARN] [Settlement] [GROUND-CHECK] local (-4,52): chunks flora-blind 171, raw 171; generator surfaceY 169, naturalGroundAt 169.167
+[15:06:10.312] [WARN] [Settlement] [GROUND-CHECK] local (-4,53): chunks flora-blind 171, raw 171; generator surfaceY 169, naturalGroundAt 169.701
+[15:06:10.402] [WARN] [Settlement] [GROUND-CHECK] 49 of 10064 columns differ (chunks - generator, delta:count -4:4 -3:3 -2:3 -1:3 1:4 2:4 3:4 4:4 5:4 6:5 7:5 8:6), local box x -4..-3 z 38..63
+[15:06:10.817] [INFO] [Settlement] terrace: parcel graded (cut 231, fill 192)
+[15:06:10.988] [INFO] [Settlement] terrace: parcel graded (cut 99, fill 77)
+[15:06:11.298] [INFO] [Settlement] terrace: parcel graded (cut 146, fill 103)
+[15:06:11.598] [INFO] [Settlement] terrace: parcel graded (cut 121, fill 75)
+[15:06:12.388] [INFO] [Settlement] terrace: parcel graded (cut 345, fill 262)
+[15:06:12.899] [INFO] [Settlement] terrace: parcel graded (cut 218, fill 167)
+[15:06:12.936] [INFO] [Settlement] terrace: parcel graded (cut 51, fill 55)
+[15:06:13.436] [INFO] [Settlement] terrace: parcel graded (cut 168, fill 109)
+[15:06:13.498] [INFO] [Settlement] terrace: parcel graded (cut 0, fill 0)
+[15:06:13.526] [INFO] [Settlement] terrace: parcel graded (cut 20, fill 20)
+[15:06:13.684] [INFO] [Settlement] terrace: parcel graded (cut 112, fill 92)
+[15:06:14.031] [INFO] [Settlement] terrace: parcel graded (cut 80, fill 40)
+[15:06:14.068] [INFO] [Settlement] terrace: parcel graded (cut 0, fill 0)
+[15:06:14.360] [INFO] [Settlement] terrace: parcel graded (cut 105, fill 66)
+[15:06:14.490] [INFO] [Settlement] terrace: parcel graded (cut 141, fill 126)
+[15:06:14.866] [INFO] [Settlement] terrace: parcel graded (cut 130, fill 81)
+[15:06:14.908] [INFO] [Settlement] terrace: parcel graded (cut 6, fill 3)
+[15:06:15.355] [INFO] [Settlement] terrace: parcel graded (cut 144, fill 85)
+[15:06:15.381] [INFO] [Settlement] terrace: parcel graded (cut 96, fill 95)
+[15:06:15.522] [INFO] [Settlement] terrace: parcel graded (cut 38, fill 23)
+[15:06:15.863] [INFO] [Settlement] terrace: parcel graded (cut 123, fill 82)
+[15:06:15.944] [INFO] [Settlement] terrace: parcel graded (cut 51, fill 42)
+[15:06:16.021] [INFO] [Settlement] terrace: parcel graded (cut 65, fill 63)
+[15:06:16.338] [INFO] [Settlement] terrace: parcel graded (cut 329, fill 342)
+[15:06:53.749] [INFO] [Settlement] seat: hall_house @13517,-9922 at the way's level: paved surface 1386 at (13521,-9914) -> pad y 153 (natural 152)
+[15:07:00.040] [INFO] [Settlement] seat: blacksmith @13538,-9927 at the way's level: paved surface 1377 at (13541,-9919) -> pad y 152 (natural 151)
+[15:07:01.757] [INFO] [Settlement] seat: tavern @13545,-9934 at the way's level: paved surface 1377 at (13548,-9918) -> pad y 152 (natural 151)
+[15:07:08.169] [INFO] [Settlement] seat: apothecary @13553,-9930 at the way's level: paved surface 1377 at (13556,-9922) -> pad y 152 (natural 151)
+[15:07:13.672] [INFO] [Settlement] seat: hall_house @13560,-9932 at the way's level: paved surface 1404 at (13564,-9923) -> pad y 155 (natural 153)
+[15:07:22.021] [INFO] [Settlement] seat: croft @13561,-9911 at the way's level: paved surface 1431 at (13565,-9912) -> pad y 158 (natural 159)
+[15:07:29.405] [INFO] [Settlement] seat: general_store @13538,-9904 at the way's level: paved surface 1440 at (13537,-9901) -> pad y 159 (natural 159)
+[15:07:34.449] [INFO] [Settlement] seat: butcher @13509,-9911 at the way's level: paved surface 1404 at (13518,-9908) -> pad y 155 (natural 156)
+[15:07:43.507] [INFO] [Settlement] seat: general_store @13523,-9938 at the way's level: paved surface 1359 at (13526,-9930) -> pad y 150 (natural 150)
+[15:07:45.778] [INFO] [Settlement] seat: bakery @13530,-9940 at the way's level: paved surface 1359 at (13533,-9932) -> pad y 150 (natural 150)
+[15:07:49.684] [INFO] [Settlement] seat: hall_house @13514,-9944 at the way's level: paved surface 1359 at (13522,-9940) -> pad y 150 (natural 151)
+[15:08:11.115] [INFO] [Settlement] seat: bakery @13519,-9953 at the way's level: paved surface 1359 at (13522,-9945) -> pad y 150 (natural 150)
+[15:08:18.220] [INFO] [Settlement] seat: croft @13527,-9953 at the way's level: paved surface 1359 at (13526,-9949) -> pad y 150 (natural 150)
+[15:08:25.656] [INFO] [Settlement] seat: croft @13573,-9950 at the way's level: paved surface 1395 at (13577,-9944) -> pad y 154 (natural 154)
+[15:08:28.405] [INFO] [Settlement] seat: hall_house @13500,-9956 at the way's level: paved surface 1377 at (13508,-9952) -> pad y 152 (natural 153)
+[15:08:46.313] [INFO] [Settlement] seat: croft @13499,-9939 at the way's level: paved surface 1377 at (13506,-9935) -> pad y 152 (natural 153)
+[15:08:50.871] [INFO] [Settlement] seat: general_store @13548,-9956 at the way's level: paved surface 1359 at (13556,-9953) -> pad y 150 (natural 150)
+[15:08:53.327] [INFO] [Settlement] seat: croft @13498,-9929 at the way's level: paved surface 1386 at (13504,-9925) -> pad y 153 (natural 154)
+[15:09:05.213] [INFO] [Settlement] seat: general_store @13481,-9941 at the way's level: paved surface 1395 at (13484,-9943) -> pad y 154 (natural 155)
+[15:09:14.136] [INFO] [Settlement] seat: croft @13558,-9958 at the way's level: paved surface 1359 at (13557,-9954) -> pad y 150 (natural 152)
+[15:09:20.668] [INFO] [Settlement] seat: croft @13552,-9946 at the way's level: paved surface 1359 at (13558,-9942) -> pad y 150 (natural 150)
+[15:09:27.304] [INFO] [Settlement] seat: blacksmith @13503,-9920 at the way's level: paved surface 1395 at (13511,-9917) -> pad y 154 (natural 155)
+[15:09:37.187] [INFO] [Settlement] seat: tavern @13573,-9916 at the way's level: paved surface 1440 at (13576,-9917) -> pad y 159 (natural 160)
+[15:10:15.282] [INFO] [Settlement] ground under flora: 11 columns restored to the generator's surface (11 cubes, 0 not at the surface on re-read) of 673 sampled, 32 ms
+[15:10:15.425] [WARN] [Settlement] [GROUND-CHECK] 0 of 8064 columns differ (chunks - generator, delta:count), local box x 2147483647..-2147483648 z 2147483647..-2147483648
+[15:10:16.799] [INFO] [Settlement] terrace: parcel graded (cut 315, fill 145)
+[15:10:17.250] [INFO] [Settlement] terrace: parcel graded (cut 239, fill 143)
+[15:10:17.393] [INFO] [Settlement] terrace: parcel graded (cut 96, fill 74)
+[15:10:17.563] [INFO] [Settlement] terrace: parcel graded (cut 60, fill 42)
+[15:10:17.789] [INFO] [Settlement] terrace: parcel graded (cut 137, fill 111)
+[15:10:18.266] [INFO] [Settlement] terrace: parcel graded (cut 153, fill 103)
+[15:10:19.282] [INFO] [Settlement] terrace: parcel graded (cut 259, fill 254)
+[15:10:20.049] [INFO] [Settlement] terrace: parcel graded (cut 192, fill 102)
+[15:10:21.037] [INFO] [Settlement] terrace: parcel graded (cut 231, fill 143)
+[15:10:21.378] [INFO] [Settlement] terrace: parcel graded (cut 150, fill 153)
+[15:10:21.489] [INFO] [Settlement] terrace: parcel graded (cut 95, fill 101)
+[15:10:47.389] [INFO] [Settlement] seat: longhouse @-7923,-9938 at the way's level: paved surface 900 at (-7915,-9940) -> pad y 99 (natural 99)
+[15:10:51.400] [INFO] [Settlement] seat: hall_house @-7903,-9936 at the way's level: paved surface 882 at (-7899,-9939) -> pad y 97 (natural 99)
+[15:10:58.681] [INFO] [Settlement] seat: croft @-7873,-9943 at the way's level: paved surface 882 at (-7869,-9936) -> pad y 97 (natural 96)
+[15:10:59.872] [INFO] [Settlement] seat: blacksmith @-7882,-9930 at the way's level: paved surface 882 at (-7879,-9932) -> pad y 97 (natural 99)
+[15:11:10.817] [INFO] [Settlement] seat: croft @-7889,-9951 at the way's level: paved surface 882 at (-7885,-9943) -> pad y 97 (natural 95)
+[15:11:12.029] [INFO] [Settlement] seat: croft @-7919,-9955 at the way's level: paved surface 882 at (-7915,-9948) -> pad y 97 (natural 95)
+[15:11:15.667] [INFO] [Settlement] seat: croft @-7904,-9955 at the way's level: paved surface 864 at (-7900,-9949) -> pad y 95 (natural 94)
+[15:11:16.687] [INFO] [Settlement] seat: tavern @-7948,-9915 at the way's level: paved surface 900 at (-7945,-9917) -> pad y 99 (natural 100)
+[15:11:23.955] [INFO] [Settlement] seat: tavern @-7932,-9926 at the way's level: paved surface 918 at (-7929,-9927) -> pad y 101 (natural 102)
+[15:11:33.986] [INFO] [Settlement] seat: blacksmith @-7959,-9909 at the way's level: paved surface 900 at (-7956,-9911) -> pad y 99 (natural 100)
+[15:12:17.780] [INFO] [Settlement] ground under flora: 0 columns restored to the generator's surface (0 cubes, 0 not at the surface on re-read) of 0 sampled, 10 ms
+[15:12:17.914] [WARN] [Settlement] [GROUND-CHECK] 0 of 8064 columns differ (chunks - generator, delta:count), local box x 2147483647..-2147483648 z 2147483647..-2147483648
+[15:12:17.931] [INFO] [Settlement] terrace: parcel graded (cut 2, fill 1)
+[15:12:17.956] [INFO] [Settlement] terrace: parcel graded (cut 0, fill 0)
+[15:12:18.290] [INFO] [Settlement] terrace: parcel graded (cut 136, fill 75)
+[15:12:18.747] [INFO] [Settlement] terrace: parcel graded (cut 170, fill 84)
+[15:12:19.168] [INFO] [Settlement] terrace: parcel graded (cut 162, fill 84)
+[15:12:19.199] [INFO] [Settlement] terrace: parcel graded (cut 22, fill 22)
+[15:12:20.008] [INFO] [Settlement] terrace: parcel graded (cut 519, fill 547)
+[15:12:20.196] [INFO] [Settlement] terrace: parcel graded (cut 152, fill 141)
+[15:12:20.226] [INFO] [Settlement] terrace: parcel graded (cut 84, fill 84)
+[15:12:20.533] [INFO] [Settlement] terrace: parcel graded (cut 188, fill 152)
+[15:12:20.564] [INFO] [Settlement] terrace: parcel graded (cut 20, fill 20)
+[15:12:21.022] [INFO] [Settlement] terrace: parcel graded (cut 159, fill 83)
+[15:12:21.033] [INFO] [Settlement] terrace: parcel graded (cut 33, fill 33)
+[15:12:26.602] [INFO] [Settlement] seat: croft @2746,8383 at the way's level: paved surface 1548 at (2754,8387) -> pad y 171 (natural 172)
+[15:12:28.189] [INFO] [Settlement] seat: tavern @2761,8405 at the way's level: paved surface 1548 at (2758,8408) -> pad y 171 (natural 171)
+[15:12:42.955] [INFO] [Settlement] seat: croft @2761,8415 at the way's level: paved surface 1548 at (2758,8419) -> pad y 171 (natural 172)
+[15:12:47.813] [INFO] [Settlement] seat: tavern @2736,8416 at the way's level: paved surface 1548 at (2754,8419) -> pad y 171 (natural 170)
+[15:12:49.818] [INFO] [Settlement] seat: croft @2793,8386 at the way's level: paved surface 1584 at (2797,8393) -> pad y 175 (natural 175)
+[15:12:50.564] [INFO] [Settlement] seat: longhouse @2787,8399 at the way's level: paved surface 1575 at (2795,8396) -> pad y 174 (natural 175)
+[15:12:56.843] [INFO] [Settlement] seat: croft @2807,8390 at the way's level: paved surface 1584 at (2805,8394) -> pad y 175 (natural 176)
+[15:13:02.900] [INFO] [Settlement] seat: croft @2781,8387 at the way's level: paved surface 1566 at (2785,8395) -> pad y 173 (natural 172)
+[15:13:08.564] [INFO] [Settlement] seat: longhouse @2806,8377 at the way's level: paved surface 1593 at (2814,8384) -> pad y 176 (natural 176)

@@ -130,6 +130,14 @@ public:
         /// retry_error}). Empty = every lot built (possibly on its re-roll). Filled
         /// by the building units as they run.
         std::shared_ptr<nlohmann::json> lotFailures;
+        /// M5b-1a (2026-11-13): one record per building SEATED AT A WAY - {lot, typology, style, pad_y (world cube),
+        /// way_level (world micro, the standing level read at the door approach), offset_used (the threshold above
+        /// the pad top the seat assumed, micro), threshold (the forge's floor top, world micro), offset_measured
+        /// (threshold - pad_y * 9)}. Filled by the building units as they run. Diagnostic; never hashed.
+        std::shared_ptr<nlohmann::json> seats;
+        /// M5b-1a: one record per BUILT building - {lot, typology, door: [x, z] (world cubes, the wall cell the
+        /// forge cut the door through), normal: [nx, nz]} ("door" absent when the forge recorded none).
+        std::shared_ptr<nlohmann::json> builtDoors;
         /// M0 (WorldForgeV2Plan §5 M0): the walkability gate's result, filled by the gate
         /// unit after every building, stoop, fence and sweep has landed:
         /// {routes[], walkable, blocked, skipped}. Empty object until the gate ran.

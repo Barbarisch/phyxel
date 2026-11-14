@@ -663,3 +663,199 @@ SOLUTION-AUDITOR, SECOND PASS, 2026-11-12 (read-only, the final tree): VERDICT: 
   Conditions: the three texts corrected; resources/asset_requests.json left OUT of the commit. Standing notes: Debug
   only for unit / golden evidence; the hairpin baseline not re-measured; O9's voxel count owed.
 
+==== M5b-1a: THE LOT'S APPROACH AS MAP DATA (sequencing amendment 1; design check 2026-11-13 in the plan; D47-D49
+     PROPOSED, built on the recommendation - the owner said "keep goin." without ruling) ====
+INCREMENT A - the threshold above the pad as a pure function of the style (predictions pm_chain147.txt).
+CHAIN 147 (patch 21 = instrumentation only: Plan::seats; build 07:27:02-07:27:40, 0 errors; run to 07:32:48,
+  m5b_stp_r147.txt; SettlementBuildService.cpp 8ce45fe8): SettlementMapLiveSiteTest.
+  EverySeatUsesItsStylesOwnThresholdOffset FAILED - the RED. Hamlet 3 through its map, every lot stone_keep:
+    seat lot 1: pad_y 53, way level 487, threshold 491, offset used 12, measured 14  <- wrong
+    seat lots 3, 4: offset used 14, measured 14
+  PM5b1a.1 MET on the offsets (exactly 1 seat wrong, the first), MISSED on the count: I expected 6 seats over 6
+    lots; 3 SEATS over 6 lots. FINDING (was my stated uncertainty): half the hamlet's lots find no paving stamp at
+    their door approach and are seated on the natural ground, not at a way. Not examined here; it belongs to
+    increments C / D (the pad level from the map, not from the stamp).
+  PM5b1a.2 MET: gate passed, 16 walkable / 0 blocked, 0 lot failures in one style.
+PATCH 22: StructureRealizer::thresholdAbovePadMicro(style, substructure) = 9 + crawl * 9 + the floor's micro
+  thickness; the realizer fills the per-style offsets from the style registry at plan time; the measurement is only
+  the check in Plan::seats. StructureRealizerTest.ThresholdAbovePadIsWhatRealizeBuilds pins the function against
+  realizeShell on every shipped style x {slab, crawlspace} (a pin written with the function, not red-before-green).
+CHAIN 148 (build 07:33:03-07:34:43, 0 errors; run to 07:39:44, m5b_stp_r148.txt; SettlementBuildService.cpp
+  07a18362, StructureRealizer.cpp 86544838): 2 ok, 0 failed. Every seat 14 / 14 (PM5b1a.3 MET); the pin: 12 / 21
+  (timber_cottage, stone_manor: slab / crawlspace), 14 / 23 (stone_keep) - the function equals the shell on all six.
+  The first lot's pad_y stayed 53 (I had allowed it could drop a cube; it did not: T - W is 4 either way).
+  EXPLAINS register O19's "pad offset 14 vs 12": the village's first seats were stone_keep. NOT measured: any other
+  suite on this tree; the village / town arms; whether a live build's levels changed.
+INCREMENT B - the door's wall cell + normal and the style on the map lot (predictions pm_chain149.txt).
+CHAIN 149 (patch 23 = the data model + the red tests + Plan::builtDoors, no planner change; build 07:42:34-07:43:09,
+  0 errors; run to 07:48:26, m5b_stp_r149.txt): 0 ok, 2 failed - the RED (PM5b1a.4 MET).
+  SettlementMapTest.EveryLotCarriesItsDoorAndStyle: hamlet 3 / 4, village 8 / 9, town 22 / 22, city 27 / 27 lots
+    (hill / flat) - every one of the 122 without a door and without a style.
+  SettlementMapLiveSiteTest.TheForgesDoorIsTheMapsDoor (hamlet 3): 6 built over 6 lots, 6 lots without a map door.
+PATCH 24: predictLotDoor in the planner (the forge's autofill with the forge's seed - the realizer-side prediction of
+  chain 111, moved); every lot gets door / normal and the style (pickBuildingVariant by lot index); the realizer reads
+  them (its own prediction block stays only for a lot without a map door); a map lot has no re-roll (D49); a forge
+  door differing from the map's is a recorded lot failure with both doors (D48 - the building is NOT removed: stated).
+CHAIN 150 (build 07:48:40-07:49:02, 0 errors; run to 08:03:57, m5b_stp_r150.txt; planner 9728ec32, realizer
+  4bd763d3): 3 ok, 0 failed.
+  PM5b1a.5 MET: 122 lots, 0 without a door, 0 off the perimeter, 0 bad normals, 0 without a palette style, 3 styles
+    seen on every rig; 0 doors off the front side (the fallback was never taken); the lots round-trip through JSON.
+  PM5b1a.6 MET: hamlet 3 - 6 of 6 forge doors equal the map's, gate passed 16 walkable / 0 blocked, 0 lot failures.
+  PM5b1a.7 MET: the stress - 62 lots planned over four flat tiers, 27 distinct (typology, w, d, orientation) built
+    headless by the forge (shape rect / L alternating, the lot's style): 27 doors equal, 0 differ, 0 refused. Covered:
+    apothecary, bakery, blacksmith, butcher, croft, general_store, hall_house, longhouse, manor_hall, tavern,
+    tenement. NOT covered: any typology the four tiers did not plan on these rects at seed 7; orientation 1 on the
+    small typologies; D48's failure path and D49's no-re-roll path were never TAKEN (no mismatch, no refusal) - they
+    are untested code.
+CHAINS 151 / 152 / 153 (pm_chain149 called them "chain 151"): m5b2 158 ok / 0 failed (to 08:12:07); m5b6 42 / 0
+  (to 08:13:28); SettlementTerrainPlanTest.* + ColumnCacheTest.* + StructureRealizerTest.* 33 / 0 (to 08:16:34).
+  PM5b1a.8 MET. NOT run on this tree: the village / town live arms, the broad regression, the terrain mode, L4.
+CORRECTION to D47 as proposed (read from StreetPaver.cpp:153-235 before increment C): the stamped surface is NOT a
+  centreline profile - it is the centreline grade broadcast across the capsule, first writer at junctions, then the
+  2-D slope-limited lower envelope over the column set. A stored per-way profile would not give the level at a
+  door's approach cell. Increment C therefore runs the paver's own pure plan (planWayPaving) in the planner and puts
+  each lot's way level / pad / threshold on the map (closer to D47 (b)); recorded in the plan.
+INCREMENT C - the lot's way level, pad and threshold on the map (predictions pm_chain154.txt, pm_chain160.txt).
+CHAIN 154 (patch 25 = the data model + the red tests; run to 08:24:21, m5b_stp_r154.txt): 0 ok, 2 failed - the RED
+  (PM5b1a.9 MET): 0 of 122 lots carry a seat; hamlet 3: 3 seats, 3 without a map pad. Bake BEFORE the fill (Debug):
+  hamlet 8-10 ms, village 39-45, town 261-276, city 1274-1378; hamlet 3 live 55.7 ms.
+PATCH 26: the planner runs planWayPaving over its own ground (ribbons as the realizer's), reads the way at each door
+  with the realizer's stamp rule, pad_y = padCubeForStreet; the realizer seats a map lot at the MAP's pad and records
+  what the stamp reads (stamp_pad_y, way_level) as the check.
+CHAIN 155 (run to 08:30:07, m5b_stp_r155.txt): 2 ok, 0 failed. Map test: 111 of 122 lots carry a seat (hamlet 2 / 3 of
+  3 / 4, village 5 / 4 of 8 / 9, town 21 / 22 of 22, city 27 / 27), threshold - way level in [2, 4] on every rig,
+  0 bad thresholds (PM5b1a.10 MET). Hamlet 3: 3 of 3 seats equal the map (pad 53, way level 487) (PM5b1a.11 MET -
+  on ONE level). Bake AFTER (Debug): hamlet 21-22 ms, village 140-142, town 482-518, city 1817-1830; hamlet 3 live
+  64.6 ms. The planner's bake grew x 1.4 (city) to x 3.5 (village) - against O15.
+PATCH 27 (tests only, after the fact - a stress, not red-before-green): mapAgreement() in the village and town arms.
+CHAIN 156 (to 09:00:15, m5b_stp_r156.txt): 0 ok, 2 failed. PM5b1a.13 / .14 MISSED - A REGRESSION OF PATCH 26:
+  village: gate BLOCKED 31 walkable / 3 blocked over 11 of 11; 3 of 10 seats differ (lot 7: stamp way level 865, map
+    874; lot 9: 919 / 910; lot 10: 901 / 892); 0 of 11 doors differ.
+  town: gate BLOCKED 66 / 6 over 24 of 24; 6 of 23 seats differ by 9-11 micro; 0 of 24 doors differ.
+  The blocked routes are the differing lots: the pad given was the map's, the paving beside it a cube off.
+CHAINS 157 / 158 / 159 (same tree): m5b2 159 / 0, m5b6 42 / 0, terrain-plan + column-cache + realizer 33 / 0 - NONE of
+  the headless sets saw the regression (the flat and hill rigs have no terrace and no road).
+CAUSE 1 (read from the code, then measured by chain 160): the realizer terraces every parcel to its median before the
+  ways unit; the planner graded the ways over un-terraced ground.
+PATCH 28: SettlementMapInput::terraceLots; the planner applies the terrace rule parcel by parcel in lot order and
+  records terrace_y on the lot.
+CHAIN 160 (to 09:40:12, m5b_stp_r160.txt): 1 ok, 1 failed. Village: 10 of 10 seats equal, gate 34 / 0 over 11 of 11.
+  Town: 22 of 23 equal; lot 7 butcher: map way level 1414, the stamp 1405; gate 71 / 1. PM5b1a.15 MET on the village,
+  MISSED on the town by one seat; .16 missed on the town.
+CHAIN 161 (the diagnostic, to 09:46:19, m5b_stp_r161.txt): round the butcher's door the chunks AS GENERATED stand up to
+  2 cubes below naturalGroundAt (local x 72..84, z 46..58) before any unit runs; the town's params carry an arriving
+  road at (76, 50). CAUSE 2, measured: the M4 road's graded earthwork is emitted into the chunks and is not in
+  naturalGroundAt; the approach cell (76, 50) is 156 natural, 155 in the chunks.
+PATCH 29: SettlementMapInput::gradeHeightAt (the generator's sampleSurface().surfaceY) for the terraces and the ways'
+  grading; the site analysis and the growth keep the natural ground. The diagnostic is DISABLED_.
+CHAIN 162 (build 09:47:56, 0 errors; run to 10:10:52, m5b_stp_r162.txt; planner 21ecbd5c, realizer c61c140d): 2 ok,
+  0 failed. Village: 11 lots / 8 ways (unchanged), 10 of 10 seats equal, 0 of 11 doors differ, gate 34 walkable /
+  0 blocked over 11 of 11, 0 lot failures. Town: 24 lots / 19 ways (unchanged), 23 of 23 seats equal, 0 of 24 doors
+  differ, gate 72 / 0 over 24 of 24, 0 lot failures. PM5b1a.17 MET. Map bake (Debug, live): village 420 -> 447 ->
+  558 ms, town 777 -> 829 -> 1383 ms across patches 26 / 28 / 29 - the emitted-ground sampler is the larger step.
+NOT MEASURED / OPEN after increment C: Release bake times; one lot on each site has no seat (seated on the natural
+  ground, the pad the forge's median - not on the map); the planner's terrace is a second copy of the realizer's
+  rule (two implementations, agreement measured on two sites only); a retaining tier above surfaceY; any world other
+  than CivLabE0's baseline; the approach cells with their levels (increment D) and the sloped headless rig
+  (increment E) are NOT built.
+
+CHAINS 163 / 164 / 165 (the patch-29 tree; Debug test exe 2026-11-13 09:47:53): m5b2 159 ok / 0 failed (to 10:20:05);
+  m5b6 42 / 0 (to 10:21:24); chain 165 = terrain-plan + column-cache + realizer suites + the seven other live-site
+  tests: 40 ok / 0 failed (to 10:57:56). PM5b1a.18 MET. Legacy control hamlet 28 walkable / 0 blocked over 9 of 9;
+  hamlet from its map 16 / 0 over 6 of 6 (four builds of it, each 16 / 0); 3 of 3 hamlet seats equal the map, 6 of 6
+  doors equal; the 27-lot door stress 27 equal / 0 differ / 0 refused. Hamlet 3's map bake 102.2 ms (Debug; 55.7
+  before increment C). The predictions for these three chains were written two minutes AFTER their launch (stated in
+  pm_chain160.txt); no result had been read.
+THE CLOSURE SET of increments A-C (predictions pm_chain166.txt; the patch-29 tree: planner 21ecbd5c, realizer c61c140d):
+CHAIN 166 (terrain mode, Debug exe 09:47:53, to 11:07:48, m4b4r_r166_terrain.txt): 108 ok, 1 failed -
+  RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope (the O4 lip, standing). PM5b1a.19 MET.
+RELEASE BUILD 13 (to 11:09:13): 0 errors, exe 11:09:12.
+L4 RUN 13 (Release, CivLabE0, tag m5b1a; generator: worldforge_build, one job over sites 0, 1, 2; the control: the
+  first village through build_settlement legacy_layout on a fresh world, then a fresh engine and DB):
+  control 20 walkable / 1 blocked over 8 doors of 8 - refused (as run 12);
+  town 24 lots / 19 ways, map bake 237.5 ms, gate 72 / 0 over 24 of 24, BUILT 24 buildings, 0 lot failures;
+  village 1 11 lots / 8 ways, bake 121.9 ms, gate 34 / 0 over 11 of 11, BUILT 11, 0 lot failures;
+  village 2 13 lots / 4 ways, bake 96.9 ms, gate 40 / 0 over 13 of 13, BUILT 13, 0 lot failures;
+  no crash report after crash_20261110_103834. The COUNTS of PM5b1a.20 MET.
+  NOT PREDICTED - A FINDING AGAINST INCREMENT C: village 1 lot 10 (blacksmith): the map states way level 901 -> pad
+  99, the paving stamp read 892 -> pad 98, the pad given was the map's, and its door spur is "too steep" (drop 11
+  micro over 6 cells; 10 spurs planned of 11 doors; run 12 on the committed tree: 11 of 11). The gate counted 34 / 0
+  all the same. The Debug live rig on the same sources (chain 162) has this lot equal (stamp 900). Measured so far:
+  the map is identical in both; the realizer's terrace cut / fill differs on parcels 9 and 11 and the "ways: paved"
+  line differs (rig 242159 micros / 40237 level; L4 241316 / 40862) - and L4 run 12 read 241316 / 40862 too: the
+  village's CHUNK GROUND differs between the L4 world and the rig's world and did before this leg. A pad read from
+  the stamp absorbed it; a pad stated by the map does not. Cause NOT known (pm_chain168.txt; my first guess, the
+  control's residue, was wrong - the script uses a fresh DB). Release map bake (the first Release figures of this
+  leg): town 237 ms, villages 122 / 97 ms.
+CHAIN 167 (broad regression, to 14:10:32, m4b4r_r167_m5b4.txt): 142 ok, 1 failed -
+  EarthworkTest.HairpinBankHasNoCliffStepWithItsControl (standing). PM5b1a.21 MET.
+PATCH 30 (about 14:13 - the "14:45" in pm_chain168.txt is a wrong clock reading, corrected there; no behaviour change): a standing WARN "seat DISAGREES" (map pad / way level against the stamp's) and
+  the env-gated "ground check" unit (chunks against the generator's surfaceY before any terrace).
+L4 RUN 14 (Release exe 14:14:25, realizer 1d9b9db0, ground check on; evidence m5b_l4/m5b_l4_m5b1a_gc_ground.txt) - THE RED:
+  village 1: 11 of 8064 columns stand one cube BELOW the generator's surfaceY (local box x 6..23, z 49..57); in the
+  control (trees standing) their raw top is 101..109, in the map job after the clearing raw = flora-blind: a pit
+  where a tree stood. One "seat DISAGREES" (blacksmith: map 901 -> pad 99, stamp 892 -> pad 98), spurs 10 of 11.
+  Village 2: 0 of 8064. Town: 49 of 10064, all at local x -4..-3 (outside the rect), chunks flat at 171 against a
+  generator surface of 163..169 - UNEXPLAINED, OPEN; no town seat disagrees. PM5b1a.22 / .23 MET.
+PATCH 31 (a unit "restoring ground under flora" after the clearing, removeVoxels + place).
+L4 RUN 15 (exe 14:37:42, realizer ee4b3af9; m5b_l4_m5b1a_heal_ground.txt): PM5b1a.24 MISSED - no change on village 1
+  (map job: 0 restored of 240 sampled; control: 11 "restored", the check still 11; DISAGREES 1; spurs 10 of 11).
+  Two defects of the patch: it ran after the clearing (nothing left standing on the pits), and removeCube / addCube
+  left a bole's cell as it was (the second read from the code, not separately measured).
+PATCH 32: the unit BEFORE the clearing, Chunk::clearCellsBulk then the fill, every restored column re-read.
+L4 RUN 16 (exe 15:00:37, realizer 29472088; m5b_l4_m5b1a_heal2_ground.txt) - THE GREEN: village 1: 11 restored, 0 not
+  at the surface on re-read, ground check 0 of 8064, 0 "seat DISAGREES" in the whole job, spurs 11 of 11 / 0 too
+  steep; gates town 72 / 0 over 24 of 24, village 1 34 / 0 over 11 of 11, village 2 40 / 0 over 13 of 13; 3 of 3
+  built, 0 lot failures; control 20 / 1 refused; no new crash report. PM5b1a.26 MET. Release map bake across runs
+  13-16: town 163-237 ms, village 1 82-129 ms, village 2 97-107 ms. The restoring unit: 10-32 ms, 0-681 columns
+  sampled.
+  NOT MEASURED: why the Debug live rig shows no pit at this village; a site whose flora stands on SLOPED ground
+  where surfaceY and the bole differ by more than one cube; the town's 49 columns; a world other than CivLabE0.
+  The walkability gate counted 34 / 0 with the too-steep spur in runs 13-15: the gate does NOT see this defect.
+
+  MEASURED 15:57 (chain 169, in progress): on the Debug live rig the restoring unit samples 0 columns on every arm -
+  the rig has NO flora (stated in the rig's header: "no flora (nothing to clear)"). That is why chain 162 could not
+  see the pit, and it means NO Debug test exercises the restoring unit: its red and green are L4 runs 14 and 16 only
+  (one site, 11 columns). A live-rig arm with flora is owed (carried with increment E).
+THE DEBUG SETS ON THE PATCH-32 TREE (realizer 29472088, planner 21ecbd5c; Debug exe 15:23:26; predictions PM5b1a.27 / .28):
+CHAIN 169 (SettlementMapLiveSiteTest.* + StructureRealizerTest.*, to 16:18:56, m5b_stp_r169.txt): 27 ok, 0 failed.
+  legacy control hamlet 28 walkable / 0 blocked over 9 of 9; hamlet from its map 16 / 0 over 6 of 6, 3 seats over 6
+  lots all equal the map; village 34 / 0 over 11 of 11, 10 seats over 11 lots, 0 pads / 0 way levels / 0 doors differ,
+  map bake 560.3 ms; town 72 / 0 over 24 of 24, 23 seats over 24 lots, 0 differ, map bake 1349.6 ms. The restoring
+  unit sampled 0 columns on every arm (no flora in the rig). PM5b1a.27 MET.
+CHAIN 170 (m5b2, to 16:27:20): 159 ok, 0 failed. CHAIN 171 (m5b6, to 16:28:54): 42 ok, 0 failed.
+CHAINS 172 (terrain) / 173 (broad regression), on the same tree (realizer 29472088, planner 21ecbd5c, Debug exe 15:23:26),
+against PM5b1a.28:
+  chain 172  terrain set, 16:29:00 -> 16:37:46: 108 ok, 1 failed of 109 - the failure is
+             RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope (the O4 river lip, standing). As predicted.
+  chain 173  broad regression, 16:37:53 -> 19:29:37: 142 ok, 1 failed of 143 - the failure is
+             EarthworkTest.HairpinBankHasNoCliffStepWithItsControl (the M4 hairpin, standing). As predicted.
+  Both ended AFTER the audit (~16:40); the audit read the tree with these two unmeasured. No source changed between.
+THE AUDIT (solution-auditor, read-only, 2026-11-13 ~16:40, on the patch-32 tree with chains 172 / 173 unmeasured), raw:
+  "VERDICT: PASS for committing as "built with open items", on three conditions. 1. Write the chain 169-171 results
+  into the ledger. 2. Add F1 and F4 to F6 to the open items. In particular, disclose that the restore unit runs on
+  the legacy control path (SettlementBuildService.cpp:798, no mapLots gate) and that its harm potential is
+  unmeasured. 3. Resolve or explain the stray resources/asset_requests.json change. Without F1 and F4 disclosed, FAIL."
+  Its findings, taken into the open items of this leg (none fixed in code - a source edit now would put the tree
+  ahead of every run above):
+  F1  the restoring unit is NOT scoped to map lots: it runs under legacy_layout too. In L4 runs 15 / 16 the CONTROL
+      restored 11 columns - the A/B control is no longer the layout exactly as built before M5a (its verdict stayed
+      20 walkable / 1 blocked, refused).
+  F4  HARM POTENTIAL OF THE RESTORING UNIT, UNMEASURED: it samples every column with ANY voxel standing directly on
+      the flora-blind top - sub / micro content (paving, fences, a micro floor, an earlier build) as well as flora -
+      and where the generator's surfaceY is higher it CLEARS those cells and fills cubes. A settlement built over an
+      already built site (terrace cuts leave surfaceY above the ground) would lose micro floors and paving and have
+      its cuts refilled; a neighbouring site's content within 8 cubes of the rect can be reached; the fill is the
+      site centre's biome material on every column. Nothing tests any of these. Measured: 11 columns, each one cube
+      low, one village, one world. OWED FIRST in the next increment: restrict the unit to flora cells, and the test
+      the audit names (a live-rig arm with flora and a pre-built micro parcel: 0 non-flora cells erased; the legacy
+      control's chunks identical with and without the unit).
+  F5  untested behaviour: the branch "a seat the MAP states where the stamp read nothing" (0 log lines in any run);
+      D49 leaves a refused map lot EMPTY where it was re-rolled to another typology before (never taken); the
+      per-style threshold offset applies to the legacy path too (covered only by the legacy control hamlet, 28 / 0).
+  F6  the town's 49 columns stand ABOVE the generator's surface (flat 171 against 163..169; deltas -4..+8): the
+      signature of a bridge or earthwork the planner's ground model does not see. The planner's model is wrong
+      there; no seat happened to depend on it.
+  F7  the agreement tests assert seats > 0, not seats == lots: one unseated lot per site is tolerated by design.
+  F3  resources/asset_requests.json is rewritten by the test runs (key order, a sign_butcher request): incidental,
+      left OUT of the commit as in M5b-1.

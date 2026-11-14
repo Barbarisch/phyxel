@@ -485,3 +485,100 @@ TEST(SettlementMapTest, DerivedSiteRectsSeatTheMinimumOnTheHill) {
         }
     }
 }
+
+// M5b-1a increment B (2026-11-13; predictions pm_chain149.txt). The lot's DOOR is map data: the wall cell the forge
+// will cut it through and its outward normal, predicted by the forge's own deterministic autofill; and the lot pins
+// its STYLE (D49). Measured on the serialized record (what the ledger stores and the API exports): every lot of
+// every tier carries a door ON ITS FOOTPRINT'S PERIMETER whose normal is a unit axis pointing OUT of the footprint,
+// and a style of the palette. RED as built (chain 149): no lot carries either. Whether the door is on the lot's
+// FRONT side is printed, not asserted (the prediction falls back to any exterior door).
+TEST(SettlementMapTest, EveryLotCarriesItsDoorAndStyle) {
+    ASSERT_TRUE(rigs().programOk);
+    ASSERT_TRUE(rigs().roomsOk) << "the room program did not load - no door can be predicted";
+    const std::vector<std::string> palette = {"timber_cottage", "stone_manor", "stone_keep"};
+    struct Site { const char* tier; int W, D; };
+    for (const Site s : {Site{"hamlet", 40, 32}, Site{"village", 80, 48}, Site{"town", 140, 60}, Site{"city", 160, 120}})
+        for (const bool hill : {true, false}) {
+            SettlementMapInput in = inputFor(s.tier, s.W, s.D, hill ? std::function<int(int, int)>(hillHeight) : std::function<int(int, int)>(flatHeight),
+                                             hill ? std::function<bool(int, int)>(hillWater) : std::function<bool(int, int)>());
+            in.styles = palette; in.varietySeed = 1;
+            in.originX = 1000; in.originZ = -2000;   // a world corner off the origin: the door's seed is the WORLD position
+            const SettlementMap m = planSettlementMap(in);
+            ASSERT_TRUE(m.ok()) << s.tier << ": " << m.refusal;
+            const nlohmann::json j = m.toJson();
+            const nlohmann::json lots = j.value("lots", nlohmann::json::array());
+            ASSERT_GT(lots.size(), 0u);
+            int noDoor = 0, offPerimeter = 0, badNormal = 0, noStyle = 0, offFront = 0;
+            std::set<std::string> stylesSeen;
+            for (const auto& l : lots) {
+                const auto f = l["footprint"];
+                const int fx = f[0].get<int>(), fz = f[1].get<int>(), fw = f[2].get<int>(), fd = f[3].get<int>();
+                const std::string st = l.value("style", std::string());
+                if (std::find(palette.begin(), palette.end(), st) == palette.end()) ++noStyle; else stylesSeen.insert(st);
+                if (!l.contains("door") || !l.contains("door_normal")) { ++noDoor; continue; }
+                const int dx = l["door"][0].get<int>(), dz = l["door"][1].get<int>();
+                const int nx = l["door_normal"][0].get<int>(), nz = l["door_normal"][1].get<int>();
+                const bool inside = dx >= fx && dx < fx + fw && dz >= fz && dz < fz + fd;
+                const bool edge = dx == fx || dx == fx + fw - 1 || dz == fz || dz == fz + fd - 1;
+                if (!inside || !edge) ++offPerimeter;
+                const bool unit = (std::abs(nx) + std::abs(nz)) == 1;
+                const int ox = dx + nx, oz = dz + nz;
+                const bool outward = !(ox >= fx && ox < fx + fw && oz >= fz && oz < fz + fd);
+                if (!unit || !outward) ++badNormal;
+                static const int kN[4][2] = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}};   // orientation 0 = +Z, 1 = +X, 2 = -Z, 3 = -X
+                const int o = ((l.value("orientation", 0) % 4) + 4) % 4;
+                if (nx != kN[o][0] || nz != kN[o][1]) ++offFront;
+            }
+            std::printf("[ map door ] %s %s: %zu lots - %d without a door, %d off the perimeter, %d with a bad normal, %d not on the front side "
+                        "(printed, not asserted), %d without a palette style (%zu styles seen)\n", s.tier, hill ? "hill" : "flat", lots.size(),
+                        noDoor, offPerimeter, badNormal, offFront, noStyle, stylesSeen.size());
+            EXPECT_EQ(noDoor, 0) << s.tier << ": " << noDoor << " of " << lots.size() << " lots carry no door";
+            EXPECT_EQ(offPerimeter, 0) << s.tier << ": a door's wall cell is not on its footprint's perimeter";
+            EXPECT_EQ(badNormal, 0) << s.tier << ": a door's normal is not a unit axis pointing out of the footprint";
+            EXPECT_EQ(noStyle, 0) << s.tier << ": " << noStyle << " of " << lots.size() << " lots carry no style of the palette";
+            // the record round-trips
+            const SettlementMap back = SettlementMap::fromJson(j);
+            EXPECT_EQ(back.toJson().value("lots", nlohmann::json::array()), lots) << s.tier << ": the lots do not round-trip through JSON";
+        }
+}
+
+// M5b-1a increment C (2026-11-13; predictions pm_chain154.txt). A lot whose door meets a paved way is BUILT AT THE
+// WAY'S LEVEL: the map states the way's standing level at the door, the pad cube and the threshold. On the record:
+// threshold == pad_y * 9 + the style's offset, and threshold - way_level in [-1, 7] (padCubeForStreet's contract: the
+// way never stands more than one micro above the threshold - the lintel - and the descent is the doorsteps').
+// RED as built (chain 154): no lot carries a seat. The count of lots without one is printed, not asserted.
+TEST(SettlementMapTest, EveryLotAtAPavedWayCarriesItsPad) {
+    ASSERT_TRUE(rigs().programOk);
+    ASSERT_TRUE(rigs().roomsOk);
+    const std::map<std::string, int> offsets = {{"timber_cottage", 12}, {"stone_manor", 12}, {"stone_keep", 14}};   // chain 148's pin
+    struct Site { const char* tier; int W, D; };
+    for (const Site s : {Site{"hamlet", 40, 32}, Site{"village", 80, 48}, Site{"town", 140, 60}, Site{"city", 160, 120}})
+        for (const bool hill : {true, false}) {
+            SettlementMapInput in = inputFor(s.tier, s.W, s.D, hill ? std::function<int(int, int)>(hillHeight) : std::function<int(int, int)>(flatHeight),
+                                             hill ? std::function<bool(int, int)>(hillWater) : std::function<bool(int, int)>());
+            in.styles = {"timber_cottage", "stone_manor", "stone_keep"}; in.varietySeed = 1;
+            in.thresholdAbovePad = offsets;
+            in.originX = 1000; in.originZ = -2000;
+            const SettlementMap m = planSettlementMap(in);
+            ASSERT_TRUE(m.ok()) << s.tier << ": " << m.refusal;
+            const nlohmann::json lots = m.toJson().value("lots", nlohmann::json::array());
+            int seated = 0, badThreshold = 0, outOfBand = 0, lo = INT_MAX, hi = INT_MIN;
+            for (const auto& l : lots) {
+                if (!l.contains("pad_y")) continue;
+                ++seated;
+                const std::string st = l.value("style", std::string());
+                const int off = offsets.count(st) ? offsets.at(st) : 12;
+                const int T = l.value("threshold", INT_MIN), W = l.value("way_level", INT_MIN), pad = l.value("pad_y", INT_MIN);
+                if (T != pad * 9 + off) ++badThreshold;
+                if (T - W < -1 || T - W > 7) ++outOfBand;
+                lo = std::min(lo, T - W); hi = std::max(hi, T - W);
+            }
+            std::printf("[ map seat ] %s %s: %zu lots, %d carry a seat (%zu do not - printed, not asserted); threshold - way level in [%d, %d]; "
+                        "%d with a threshold that is not pad * 9 + the style's offset, %d outside [-1, 7]; bake %.1f ms\n", s.tier, hill ? "hill" : "flat",
+                        lots.size(), seated, lots.size() - static_cast<size_t>(seated), seated ? lo : 0, seated ? hi : 0, badThreshold, outOfBand, m.bakeMs);
+            EXPECT_GT(seated, 0) << s.tier << (hill ? " hill" : " flat") << ": no lot carries a seat (way level, pad, threshold)";
+            EXPECT_EQ(badThreshold, 0) << s.tier;
+            EXPECT_EQ(outOfBand, 0) << s.tier << ": a lot's threshold is not within [-1, 7] of its way";
+        }
+}
+

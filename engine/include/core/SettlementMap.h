@@ -50,6 +50,19 @@ struct MapLot {
     int way = -1;                    ///< the way the lot fronts (-1 = none - an invariant violation)
     int setback = 1;                 ///< the drawn front-yard depth (cubes)
     float interest = 0.0f;           ///< the planner's interest when the lot was seated (diagnostic)
+    // M5b-1a (2026-11-13, sequencing amendment 1): the lot's APPROACH as map data - what the planner, the forge and
+    // the realizer each inferred on their own until M5b-1.
+    bool hasDoor = false;            ///< the planner predicted the front door (false: no room program / no exterior door)
+    int doorX = 0, doorZ = 0;        ///< the WALL cell the door is cut through (settlement-local cubes, inside the footprint)
+    int doorNX = 0, doorNZ = 0;      ///< its outward normal (a unit axis); the approach runs door + normal * k
+    std::string style;               ///< the building style the lot is built in (structure_styles.json key; "" = the realizer draws it)
+    // increment C: the SEAT - a lot whose door meets a paved way is built at the way's level (padCubeForStreet)
+    bool hasSeat = false;            ///< false: the door meets no paving within reach - seated on the natural ground by the realizer
+    int wayLevel = 0;                ///< the way's STANDING level at the door (world micro: the paving's surface + 1)
+    int padY = 0;                    ///< the pad's top cube (world y) the forge levels the footprint to
+    int threshold = 0;               ///< the ground floor's standing level (world micro) = padY * 9 + the style's offset
+    bool hasTerrace = false;         ///< the parcel is graded to one level before anything is built on it (terrain mode)
+    int terraceY = 0;                ///< that level: the top cube (world y) - the median of the parcel's ground when its turn came
 };
 
 struct MapArea {

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <cstdio>
+#include <set>
 #include <unordered_set>
 
 #include "core/StructureRealizer.h"
@@ -505,3 +507,30 @@ TEST(StructureRealizerTest, VoxelCountIsReasonable) {
     EXPECT_LT(rep.total(), 20000) << rep.summary();
     EXPECT_LT(rep.total(), rep.microCells() / 4);
 }
+
+// M5b-1a (2026-11-13): thresholdAbovePadMicro is the settlement seat's (and the map's) statement of where the ground
+// floor will stand above the pad. It must be what realizeShell BUILDS: the shell's floorTopMicro is measured from the
+// building's origin, which stands one cube (9 micro) above the pad. Every shipped style x {slab, crawlspace}; a style
+// file that fails to load is a failure, not a skip. A PIN of the function against the realizer (written with the
+// function - the red for the behaviour is SettlementMapLiveSiteTest.EverySeatUsesItsStylesOwnThresholdOffset).
+TEST(StructureRealizerTest, ThresholdAbovePadIsWhatRealizeBuilds) {
+    StyleProfileRegistry reg;
+    ASSERT_TRUE(reg.loadFromFile("resources/structure_styles.json")) << "the shipped styles did not load (run from the repo root)";
+    ASSERT_GE(reg.size(), 3u);
+    std::set<int> seen;
+    for (const auto& name : reg.styles()) {
+        for (const char* sub : {"slab", "crawlspace"}) {
+            auto j = nlohmann::json::parse(kCottage);
+            j["style"] = name; j["substructure"] = sub;
+            const auto r = StructureRealizer::realizeShell(BuildingProgram::fromJson(j), *reg.get(name));
+            ASSERT_TRUE(r.ok) << name << " / " << sub << ": " << r.error;
+            const int predicted = StructureRealizer::thresholdAbovePadMicro(*reg.get(name), sub);
+            std::printf("[ threshold ] %s / %s: floor top %d above the origin -> %d above the pad; the function %d\n", name.c_str(), sub,
+                        r.floorTopMicro, r.floorTopMicro + 9, predicted);
+            EXPECT_EQ(predicted, r.floorTopMicro + 9) << name << " / " << sub;
+            seen.insert(predicted);
+        }
+    }
+    EXPECT_GE(seen.size(), 3u) << "the shipped styles and substructures gave fewer than three distinct thresholds - the pin does not vary";
+}
+

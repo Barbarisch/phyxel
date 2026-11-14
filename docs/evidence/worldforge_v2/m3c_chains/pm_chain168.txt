@@ -1,0 +1,92 @@
+PREDICTIONS for L4 run 14 - M5b-1a, the one lot of L4 run 13 whose map pad is not the stamp's.
+Written 2026-11-13 14:45 BEFORE patch 30 is applied or built.
+
+THE CLOSURE SET (pm_chain166.txt), as measured: chain 166 terrain 108 ok / 1 failed (the O4 lip) - MET; Release
+build 13 0 errors - MET; chain 167 broad regression 142 ok / 1 failed (the hairpin) of 143 - MET; L4 run 13: 3 of 3
+built, gates town 72 / 0 over 24 of 24, village 1 34 / 0 over 11 of 11, village 2 40 / 0 over 13 of 13, control 20 / 1
+refused, no crash report after crash_20261110_103834 - the COUNTS MET.
+NOT PREDICTED, FOUND IN THE LOG: village 1, lot 10 (blacksmith): the map states way level 901 -> pad 99; the paving
+stamp read 892 -> pad 98; the pad given was the map's; its door spur is "too steep" (drop 11 micro over 6 cells):
+10 spurs planned of 11 doors where L4 run 12 (the committed tree) planned 11 of 11. The gate still counted 34 / 0.
+The Debug live rig on the SAME sources (chain 162) reads 10 of 10 seats equal at this village (stamp 900 at lot 10).
+MEASURED SO FAR: the map is the same in both (lot 10 rect [3,49,10,12], way level 901, terrace 100). The realizer's
+terraces differ on parcels 9 and 11 (Debug rig cut 231 / fill 143 and 95 / 101; Release L4 221 / 138 and 154 / 80) and
+the "ways: paved" line differs (Debug 242159 micros, 40237 level; L4 241316, 40862) - AND L4 run 12, before any of
+this leg's code, already read 241316 / 40862. So the CHUNK GROUND of this village differs between the L4 world and the
+live rig's world, and did before M5b-1a; with the pad read from the stamp (run 12) that was absorbed, with the pad
+stated by the map (run 13) it is not. My first guess (the control build's residue) was WRONG: the script starts a
+fresh engine and DB after the control.
+CAUSE: NOT KNOWN. Guesses, unranked: something in the L4 world's chunks that is neither Log* nor Leaf* and is not the
+generator's surfaceY (a decoration, a boulder, megaflora roots); a Debug / Release difference in the generator; the
+rig's recipe differing from CivLabE0's.
+
+PATCH 30 (no behaviour change): (1) a standing WARN "seat DISAGREES" when the map's pad or way level is not the paving
+stamp's; (2) an env-gated diagnostic unit "ground check" (PHYXEL_SETTLEMENT_GROUND_CHECK): before any terrace, the
+columns of the site rect + 4 where the chunks' flora-blind top is not the generator's sampleSurface().surfaceY -
+count, delta histogram, bounding box, 16 samples with the raw top and naturalGroundAt.
+L4 RUN 14 (Release build 14, tag m5b1a_gc, the env var set):
+  PM5b1a.22: the same counts as run 13 (3 of 3 built; 72 / 0, 34 / 0, 40 / 0; control 20 / 1 refused); exactly ONE
+    "seat DISAGREES" line in the job (village 1 blacksmith: 901 / 99 against 892 / 98); the town and village 2: 0.
+  PM5b1a.23, UNCERTAIN: the ground check on village 1 reports > 0 differing columns, with some inside local x -1..17,
+    z 39..66 (lots 8 and 10 and their skirts). On the town and village 2 I do not know; 0 would fit their agreeing
+    seats but is not required by them. If village 1 reports 0 the chunk-vs-generator explanation is refuted and the
+    difference is elsewhere (the terrace unit's order or reads).
+
+CORRECTION: the times written above ("14:45") are wrong - the clock read 14:10 when the closure set ended; this file
+was written about 14:13, before patch 30 (build 14 started 14:14:13).
+ADDED 2026-11-13 ~14:40, after L4 run 14 and BEFORE patch 31:
+L4 RUN 14 (Release exe 14:14:25, realizer 1d9b9db0): PM5b1a.22 MET (same counts; exactly one "seat DISAGREES":
+  village 1 blacksmith 901 / 99 against 892 / 98; town 0, village 2 0). PM5b1a.23 MET on village 1: 11 of 8064 columns
+  differ, all chunks = generator - 1, local box x 6..23 z 49..57. In the CONTROL (trees standing) the raw top of the
+  same 11 columns is 101..109 (a tree); in the map job, after the parcel clearing, raw = flora-blind = 99 / 100: a
+  PIT one cube deep where a tree stood. MEASURED CAUSE: the tree's bole occupies the surface cube; the flora-blind
+  scan and the clearing leave the column one cube below the generator's surfaceY; the way was graded over it.
+  Village 2: 0 of 8064 differ. Town: 49 of 10064 differ, all at local x -4..-3 (outside the site rect), z 38..63,
+  chunks = raw = 171 flat where the generator's surfaceY runs 163..169 and below (deltas -4..+8): something emitted
+  at a level 171 that surfaceY does not report - not explained; it did not move a town seat. OPEN.
+  Why the Debug live rig does not show the pits is NOT measured (its flora differs or is absent - a guess).
+PATCH 31: a unit "restoring ground under flora" before the ground check and the terraces: over the site rect + 8,
+  each column with anything standing directly on its flora-blind top is sampled; where the generator's surfaceY is
+  higher the cells between are replaced by the biome's fill / surface cube.
+L4 RUN 15 (Release build 15, tag m5b1a_heal, the ground check on - it now runs AFTER the restoring unit):
+  PM5b1a.24: village 1: "ground under flora" restores 11 columns (the control run restores the same 11); the ground
+    check then reads 0 of 8064; 0 "seat DISAGREES" in the whole job; door spurs 11 planned of 11, 0 too steep; gate
+    34 / 0 over 11 of 11. UNCERTAIN: more than 11 restored (the unit reaches 8 past the rect, the check 4); the
+    paving totals of village 1 move, and with them possibly a route.
+  PM5b1a.25: town 72 / 0 over 24, village 2 40 / 0 over 13, 0 DISAGREES, 3 of 3 built; the town's 49 columns at
+    x -4..-3 still differ (they stand ABOVE the generator; the unit only raises). Control 20 / 1 refused - UNCERTAIN,
+    the control's ground changes too.
+
+ADDED 2026-11-13 15:05, after L4 run 15 and BEFORE patch 32:
+L4 RUN 15 (Release exe 14:37:42, realizer ee4b3af9): PM5b1a.24 MISSED. Patch 31 did NOT fix it.
+  control: "11 columns restored (11 cubes) of 414 sampled", and the ground check right after STILL reads 11 of 8064;
+  map job village 1: "0 columns restored of 240 sampled", ground check 11 of 8064, one "seat DISAGREES" (901 / 99
+  against 892 / 98), spurs 10 of 11, gate 34 / 0. PM5b1a.25 MET (town 72 / 0, village 2 40 / 0, 49 town columns
+  still differ, control 20 / 1 refused). No new crash report.
+  TWO DEFECTS OF PATCH 31, read from the run and the code: (1) the unit sat AFTER the parcel clearing - in the map job
+  nothing stood on the pits any more, so none was sampled; (2) where it did act (the control) the columns did not
+  change: removeVoxels is removeCube per cell and the placement addCube - on a bole's sub-voxel cell that leaves the
+  column as it was (read from StructureGenerator.cpp:884-904; not separately measured).
+PATCH 32: the unit moved BEFORE the clearing; the cells cleared with Chunk::clearCellsBulk (the clearing unit's call)
+  then filled; the healed columns RE-READ, the count not at the generator's surface logged.
+L4 RUN 16 (Release build 16, tag m5b1a_heal2, ground check on):
+  PM5b1a.26: village 1 (control and map job): 11 columns restored, 0 not at the surface on re-read, the ground check
+    0 of 8064; 0 "seat DISAGREES" in the job; village 1 spurs 11 of 11; gates 72 / 0, 34 / 0, 40 / 0; 3 of 3 built.
+    UNCERTAIN: more than 11 (the unit reaches 8 past the rect, the check 4); a restored column under a tree that the
+    WAYS' band clearing later removes; the control's verdict.
+
+ADDED 2026-11-13 15:25, after L4 run 16, BEFORE chains 169-173 are launched:
+L4 RUN 16 (Release exe 15:00:37, realizer 29472088): PM5b1a.26 MET. Village 1 (control and map job): 11 columns
+  restored, 0 not at the surface on re-read, ground check 0 of 8064; 0 "seat DISAGREES" in the job; village 1 spurs
+  11 of 11, 0 too steep (2963 micros over 472 columns - run 12's and the Debug rig's figures); "ways: paved" 242159
+  micros / 40237 level - the Debug rig's figures; gates town 72 / 0 over 24, village 1 34 / 0 over 11, village 2
+  40 / 0 over 13; 3 of 3 built, 0 lot failures; control 20 / 1 refused; no new crash report. The town's 49 columns
+  at x -4..-3 still differ (OPEN, unexplained). Village 2: 0 columns sampled - nothing stands on its ground.
+THE DEBUG SETS ON THE PATCH-32 TREE (the realizer changed; nothing run before 15:00 certifies it):
+  PM5b1a.27: chain 169 = SettlementMapLiveSiteTest.* (9 tests: the village and town arms with mapAgreement, the
+    legacy control, the hamlet from its map, the three hamlet agreement tests, the 27-lot stress, the headless door
+    passage) + StructureRealizerTest.*: 0 failed; the gates as chain 162 / 165 (village 34 / 0, town 72 / 0, hamlet
+    map 16 / 0, legacy control 28 / 0); seats 10 of 10, 23 of 23, 3 of 3. UNCERTAIN: the legacy control hamlet and
+    the hamlet now pass through the restoring unit too - a restored column can move a count.
+  PM5b1a.28: chain 170 m5b2 159 ok / 0 failed; chain 171 m5b6 42 / 0; chain 172 terrain 108 / 1 (the O4 lip);
+    chain 173 broad regression 142 / 1 (the hairpin) of 143.

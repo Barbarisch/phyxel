@@ -66,6 +66,11 @@ int StructureRealizer::thicknessMicro(double cubes) {
     return std::max(1, std::min(t, 9));
 }
 
+int StructureRealizer::thresholdAbovePadMicro(const StyleProfile& style, const std::string& substructure) {
+    const int crawlH = (substructure == "crawlspace") ? 1 : (substructure == "basement") ? 3 : 0;   // as realize()
+    return 9 + crawlH * 9 + thicknessMicro(style.thicknessOf("floor", 0.333));
+}
+
 namespace {
 LocationType locationTypeForTypology(const std::string& t) {
     if (t == "tavern") return LocationType::Tavern;

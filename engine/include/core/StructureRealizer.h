@@ -67,6 +67,13 @@ public:
     /// the realized wall band exactly (a raw >9-micro value would over-inset furniture off a clamped
     /// 1-cube wall).
     static int thicknessMicro(double cubes);
+
+    /// M5b-1a (2026-11-13): the ground story's THRESHOLD above the pad's top cube, in micro - what realize() builds:
+    /// the building's origin stands one cube above the pad (9), plus the crawlspace (9 a cube; "basement" 3 cubes),
+    /// plus the style's floor thickness (thicknessMicro: 3 for 0.333, 5 for 0.5). A pure function of the style and
+    /// the substructure, so a caller that must MEET the threshold (the settlement seat, the map's pad level) never
+    /// measures it from a building already built. Pinned against realize() by StructureRealizerTest.
+    static int thresholdAbovePadMicro(const StyleProfile& style, const std::string& substructure);
 };
 
 } // namespace Core

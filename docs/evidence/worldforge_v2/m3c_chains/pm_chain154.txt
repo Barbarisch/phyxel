@@ -1,0 +1,49 @@
+PREDICTIONS for chains 154-156 - M5b-1a increment C: the lot's WAY LEVEL, PAD and THRESHOLD on the map.
+Written 2026-11-13 BEFORE patch 25 is applied or built. (D47 as corrected in the ledger: the planner runs the paver's
+own pure plan; no per-way profile is stored.)
+
+PATCH 25 = the DATA MODEL and the RED TESTS, no planner change: MapLot gains hasSeat / wayLevel (world micro, the
+standing level of the way at the door) / padY (world cube) / threshold (world micro), serialized as "way_level",
+"pad_y", "threshold" only when hasSeat; SettlementMapInput gains thresholdAbovePad (style -> micro; the realizer fills
+it from StructureRealizer::thresholdAbovePadMicro). Tests:
+  SettlementMapTest.EveryLotAtAPavedWayCarriesItsPad - the four tiers on the hill and the flat rig: at least one lot
+    per rig carries a seat; for each, threshold == pad_y * 9 + its style's offset and threshold - way_level in [-1, 7]
+    (padCubeForStreet's contract); the count of lots WITHOUT a seat is printed, not asserted.
+  SettlementMapLiveSiteTest.TheSeatIsTheMapsPad - hamlet 3 through its map: every building the realizer seated at a
+    way (Plan::seats) has a map lot whose pad_y equals the pad the building was given and whose way_level equals the
+    level the realizer read from the paving STAMP; and no map lot states a seat the realizer did not take.
+CHAIN 154 (the two tests):
+  PM5b1a.9: BOTH RED: no lot of any rig carries a seat; the live test: 3 seats (lots 1, 3, 4 as chains 147-150),
+    3 "map lot carries no pad".
+
+PATCH 26: the planner builds the ways' ribbons exactly as the realizer does (world cubes, the rounded width), runs
+planWayPaving on its own ground sampler ((height + 1) * 9 per cube column - the realizer's surfMicro), and reads the
+way at each door with the realizer's own rule (the centre column of the first paved cell 1..3 out along the normal,
+else that cell's lowest column, else the highest column in the 3 x 3 round the approach cell); pad_y =
+padCubeForStreet(way level, the style's offset, 4). A lot whose door meets no paving within that reach carries NO seat
+(the realizer seats it on the natural ground as today - unchanged, stated as open). The realizer seats a map lot at
+the MAP'S pad; its reading of the stamp stays in Plan::seats as the check (stamp_pad_y, way_level).
+CHAIN 155 (the two tests):
+  PM5b1a.10: the map test GREEN. UNCERTAIN: "at least one seated lot per rig" on the hamlet's 3- and 4-lot rigs.
+  PM5b1a.11: the live test GREEN: 3 seats, each map pad_y 53 = the pad given, map way_level 487 = the stamp's.
+    UNCERTAIN, and the point of the increment: the planner samples the GENERATOR's natural ground, the ways unit
+    grades over the CHUNK scan after the site prep (vegetation clearing, terraces); and the stamp drops the columns
+    inside lot footprints. If the two differ anywhere the levels differ and that is the finding - reported with both
+    numbers, nothing adjusted to hide it. ALSO UNCERTAIN: a lot the map seats that the stamp did not (or the
+    reverse) - the hamlet's other 3 lots.
+  The bake time is read from the run (the paver's plan now runs inside the bake): hamlet 3 live read 37-92 ms before;
+  I expect it to at least double. Recorded against O15.
+CHAIN 156 = m5b2 + m5b6 + the terrain-plan / column-cache / realizer suites on the patch-26 tree: 0 failed
+  (159 = 158 + the new map test; 42; 33) (PM5b1a.12).
+
+ADDED 2026-11-13 08:35, after chain 155 (154 red, 155 green as predicted) and BEFORE patch 27 / chain 156:
+PATCH 27 (tests only): mapAgreement() - doors and seats, the map against the realizer - called in the village and the
+town live arms. Written after the fact: a stress of increments B and C on the sloped sites, not red-before-green.
+CHAIN 156 (the village + town arms; this replaces the "chain 156" named above, which runs as 157-159):
+  PM5b1a.13: both arms pass their gates with chain 142's counts (village 34 walkable / 0 blocked over 11 doors of
+    11; town 72 / 0 over 24 of 24; 0 lot failures) and the agreement reads 0 doors differ.
+  PM5b1a.14, UNCERTAIN (the hamlet's three seats were one level, 487): 0 pads differ, 0 way levels differ, 0 seats
+    without a map pad, 0 map pads not taken. A way level that differs between the map (the generator's ground) and
+    the stamp (the chunks after site prep, columns inside footprints dropped) is the finding the increment exists to
+    expose; the pad GIVEN is the map's either way, so a difference can also move a gate count - reported as found.
+CHAINS 157 / 158 / 159: m5b2 159 ok, m5b6 42, the terrain-plan / column-cache / realizer suites 33; 0 failed.

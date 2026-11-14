@@ -1,0 +1,23 @@
+[14:41:04.444] [INFO] [Settlement] door spurs: 8 planned from 8 realized doors, 0 too steep, 1515 micros over 425 columns, 1570 ms
+[14:41:05.633] [INFO] [Settlement] street sweep: 995 cells cleared over 999 band cells (0 inside a building's footprint kept, 4 inside one of 16 placed props' boxes kept), 61770 paving micros re-stamped
+[14:41:09.949] [INFO] [Settlement] walkability gate: 20 walkable, 1 blocked over 21 routes (8 front doors of 8 built, 0 skipped)
+[14:41:09.949] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes, 0 front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome
+[14:43:14.211] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3066084745: 24 lots, 19 ways, 122 nodes, entry 0, sampler generator, 0 dropped, bake 162.704 ms
+[14:43:20.548] [INFO] [Settlement] ways: 10710 paved columns inside lot footprints dropped
+[14:43:59.876] [INFO] [Settlement] ways: paved 352820 micros over 93911 columns (62970 level, 22237 fill, 19414 cut honored, 603 cubes removed, 10901 corridor cells band-cleared) for 19 ways / 103 legs, Cobblestone, 39324 ms
+[14:46:49.555] [INFO] [Settlement] door spurs: 24 planned from 24 realized doors, 0 too steep, 1768 micros over 317 columns, 791 ms
+[14:46:52.969] [INFO] [Settlement] street sweep: 4093 cells cleared over 4098 band cells (0 inside a building's footprint kept, 5 inside one of 44 placed props' boxes kept), 354588 paving micros re-stamped
+[14:47:00.879] [INFO] [Settlement] walkability gate: 72 walkable, 0 blocked over 72 routes (24 front doors of 24 built, 0 skipped)
+[14:47:03.765] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 24 buildings, 0 residents, 0 lot failures
+[14:47:18.149] [INFO] [Settlement] [M5A-MAP] medieval/village seed 863255309: 11 lots, 8 ways, 61 nodes, entry 0, sampler generator, 0 dropped, bake 86.8113 ms
+[14:47:47.987] [INFO] [Settlement] ways: paved 241316 micros over 68959 columns (40862 level, 14719 fill, 13378 cut honored, 331 cubes removed, 8219 corridor cells band-cleared) for 8 ways / 53 legs, Gravel, 24087 ms
+[14:48:38.175] [INFO] [Settlement] door spurs: 10 planned from 11 realized doors, 1 too steep, 2848 micros over 447 columns, 858 ms
+[14:48:41.474] [INFO] [Settlement] street sweep: 3111 cells cleared over 3111 band cells (0 inside a building's footprint kept, 0 inside one of 11 placed props' boxes kept), 244164 paving micros re-stamped
+[14:48:47.062] [INFO] [Settlement] walkability gate: 34 walkable, 0 blocked over 34 routes (11 front doors of 11 built, 0 skipped)
+[14:48:56.050] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 11 buildings, 0 residents, 0 lot failures
+[14:49:08.423] [INFO] [Settlement] [M5A-MAP] medieval/village seed 2537977282: 13 lots, 4 ways, 21 nodes, entry 0, sampler generator, 0 dropped, bake 99.0509 ms
+[14:49:11.971] [INFO] [Settlement] ways: paved 63586 micros over 38307 columns (32023 level, 1230 fill, 5054 cut honored, 100 cubes removed, 4016 corridor cells band-cleared) for 4 ways / 17 legs, Gravel, 191 ms
+[14:49:59.788] [INFO] [Settlement] door spurs: 13 planned from 13 realized doors, 0 too steep, 3720 micros over 904 columns, 708 ms
+[14:50:01.337] [INFO] [Settlement] street sweep: 1598 cells cleared over 1602 band cells (0 inside a building's footprint kept, 4 inside one of 20 placed props' boxes kept), 67306 paving micros re-stamped
+[14:50:05.849] [INFO] [Settlement] walkability gate: 40 walkable, 0 blocked over 40 routes (13 front doors of 13 built, 0 skipped)
+[14:50:13.672] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 13 buildings, 0 residents, 0 lot failures

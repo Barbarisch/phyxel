@@ -1,0 +1,19 @@
+PREDICTIONS for the closure set of M5b-1a increments A-C (the patch-29 tree). Written 2026-11-13 11:00 BEFORE launch.
+Increments D (the approach cells with their levels) and E (the sloped headless rig) are NOT built and are carried
+open; this set closes A-C only, so the tree can be audited and committed in a measured state.
+
+CHAIN 166 (terrain mode): 108 ok, 1 failed = RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope (register
+  O4, the standing red), 2 skipped (ColumnCostBench) - as chain 145 (PM5b1a.19). Nothing in this leg touches the
+  generator.
+RELEASE EDITOR BUILD 13: 0 errors.
+L4 RUN 13 (Release, CivLabE0, worldforge_build sites 0-2 in one job; tag m5b1a): 3 of 3 sites built, 0 lot failures;
+  gates town 72 walkable / 0 blocked over 24 of 24, village 1 34 / 0 over 11 of 11, village 2 40 / 0 over 13 of 13,
+  0 skipped; the legacy-layout control 20 / 1 - refused; no new crash report (PM5b1a.20) - every count as run 12's
+  fourth launch. UNCERTAIN: village 2 has not been built on this tree at all (the test arms cover village 1 and the
+  town); its seats take the map's pad now, and a pad that differs from the stamp's blocks a route (chain 156).
+  The engine log's "seat:" lines are the only seat record L4 has (Plan::seats is not exported by the job) - read
+  for "at the MAP's pad" lines (a seat where the stamp read nothing): I expect none.
+  The Release map bake times are read from the M5A-MAP lines (run 12d: town 81.4, village 1 63.6, village 2 79.8
+  ms): I expect each to rise by x 1.5 to x 3 - recorded against O15.
+CHAIN 167 (m5b4, the broad regression, ~3 h): 143 tests, 142 ok, 1 failed = EarthworkTest.
+  HairpinBankHasNoCliffStepWithItsControl (the standing M4 red); both version-1 plan hashes pinned (PM5b1a.21).

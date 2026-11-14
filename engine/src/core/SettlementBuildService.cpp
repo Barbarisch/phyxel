@@ -39,6 +39,8 @@
 #include "core/StreetPaver.h"
 #include "core/StructureBuildService.h"
 #include "core/StructureGenerator.h"
+#include "core/StructureRealizer.h"   // thresholdAbovePadMicro (M5b-1a)
+#include "core/StyleProfile.h"
 #include "scene/behaviors/ScheduledBehavior.h"
 #include "utils/Logger.h"
 
@@ -230,6 +232,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     res.paths       = std::make_shared<nlohmann::json>(nlohmann::json::object());
     res.yardProps   = std::make_shared<nlohmann::json>(nlohmann::json::object());
     res.lotFailures = std::make_shared<nlohmann::json>(nlohmann::json::array());
+    res.seats       = std::make_shared<nlohmann::json>(nlohmann::json::array());
+    res.builtDoors  = std::make_shared<nlohmann::json>(nlohmann::json::array());
     res.residents = std::make_shared<nlohmann::json>(nlohmann::json::object());
     res.walkability = std::make_shared<nlohmann::json>(nlohmann::json::object());
 
@@ -470,6 +474,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // sampler's bed height off channels, coasts and roads) - the field the box plan was routed on
                 mapSampler = "generator";
                 mi.heightAt = [mapGen, ox, oz](int x, int z) { return static_cast<int>(std::floor(mapGen->naturalGroundAt(ox + x, oz + z))); };
+                // M5b-1a (chain 161): the ground AS EMITTED for the terraces and the ways' grading - an arriving road's
+                // earthwork is in the chunks and not in naturalGroundAt
+                mi.gradeHeightAt = [mapGen, ox, oz](int x, int z) { return mapGen->sampleSurface(ox + x, oz + z).surfaceY; };
             } else if (chunkManager && terrain) {
                 mapSampler = "chunks";
                 mi.heightAt = [terrainTopAt, ox, oz](int x, int z) { return terrainTopAt(ox + x, oz + z); };
@@ -495,6 +502,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 for (const auto& e : p["entries"]) if (e.is_object()) mi.entries.push_back({e.value("x", 0), e.value("z", 0), e.value("cls", 1)});
             mi.maxRelief = p.value("max_relief", 6);
             mi.reuse = p.value("route_reuse", 0.5f);
+            mi.styles = styles; mi.varietySeed = varietySeed;   // M5b-1a (D49): the map lot pins the style
+            mi.terraceLots = terrain && chunkManager != nullptr;   // the "terracing parcel" units below run exactly then
+            {   // increment C: the threshold above the pad per style, for the map's pad / threshold
+                Core::StyleProfileRegistry mapStyleReg;
+                mapStyleReg.loadFromFile("resources/structure_styles.json");
+                for (const auto& sn : styles) {
+                    const Core::StyleProfile* sp = mapStyleReg.get(sn);
+                    mi.thresholdAbovePad[sn] = Core::StructureRealizer::thresholdAbovePadMicro(sp ? *sp : Core::StyleProfile{}, "slab");
+                }
+            }
             if (p.value("map_water_check", false) && mi.waterAt && chunkManager && terrain) {   // (also run below the legacy branch)
                 // audit E8: the planner's water (channelHitAt + the hydrology level above the natural ground) against
                 // the realizer's waterAt (placed spans + channel + waterSpanAt's flood) over every cell of the site
@@ -678,8 +695,20 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // M5b-1 (chain 107): the WAYS' paved columns alone (a snapshot taken when the door spurs begin) - the doorsteps'
         // anchors; a spur's own paving is the door's approach, never the way the approach must reach
         auto sharedWayPaved = std::make_shared<std::set<std::pair<int, int>>>();
-        // M5b-1 (chain 109): threshold - pad * 9 as MEASURED per style on the buildings already built here (12 or 14 live)
+        // M5b-1a (2026-11-13, chain 147 red): threshold - pad * 9 per style from the FORGE'S OWN floor assembly
+        // (StructureRealizer::thresholdAbovePadMicro: 12 or 14 on the shipped styles) - a pure function of the style.
+        // Until chain 147 it was MEASURED on the buildings already built here and 12 until one was: the first building
+        // of a 0.5-floor style was seated 2 micro off (order-dependent). An unknown style takes the forge's fallback
+        // profile, as the forge does.
         auto sharedPadOffset = std::make_shared<std::map<std::string, int>>();
+        {
+            Core::StyleProfileRegistry styleReg;
+            styleReg.loadFromFile("resources/structure_styles.json");
+            for (const auto& sn : styles) {
+                const Core::StyleProfile* sp = styleReg.get(sn);
+                (*sharedPadOffset)[sn] = Core::StructureRealizer::thresholdAbovePadMicro(sp ? *sp : Core::StyleProfile{}, "slab");
+            }
+        }
         // Road-band cells (world coords, walkable headroom over the paving) recorded by
         // the street unit for the late "street sweep": construction can drop debris on a
         // finished road (a building's site prep UNDERMINES a roadside tree -> U4 topples
@@ -759,6 +788,51 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
             }
         }
+        // M5b-1a (L4 runs 14 / 15, measured): a tree's bole is emitted INTO the surface cell - under 11 columns of
+        // village 1 the chunks' flora-blind top stood one cube below the generator's surfaceY, and a cleared tree left
+        // a pit there; the way graded over the pit (892 where the map, planned on the generator's surface, states 901).
+        // The ground under flora is restored to the generator's surface BEFORE the clearing (run 15: after it nothing
+        // stands on the pit and it is not found) and before anything is graded. Only columns with something standing
+        // directly on the ground are sampled (sampleSurface is the full column). The cells are CLEARED as cells
+        // (run 15: removeCube + addCube on a bole's sub-voxel cell left the column as it was), and the result re-read.
+        if (terrain && chunkManager && chunkManager->getStreamingGenerator() && chunkManager->getStreamingGenerator()->hydrology()) {
+            units.push_back({"restoring ground under flora", [chunkManager, ox, oz, W, D, terrainTopAt, terraceTop, terraceFill]() {
+                WorldGenerator* gen = chunkManager->getStreamingGenerator();
+                if (!gen) return;
+                const auto t0 = std::chrono::steady_clock::now();
+                constexpr int M = 8;   // the terraces' skirt (4) and the ways' edges reach past the site rect
+                int sampled = 0;
+                std::vector<glm::ivec3> healedCols;   // (wx, generator surfaceY, wz)
+                std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
+                Core::StructureResult fill;
+                for (int x = -M; x < W + M; ++x)
+                    for (int z = -M; z < D + M; ++z) {
+                        const int wx = ox + x, wz = oz + z;
+                        const int top = terrainTopAt(wx, wz);
+                        if (!chunkManager->hasVoxelAt(glm::ivec3(wx, top + 1, wz))) continue;   // bare ground
+                        ++sampled;
+                        const int g = gen->sampleSurface(wx, wz).surfaceY;
+                        if (g <= top) continue;
+                        healedCols.push_back(glm::ivec3(wx, g, wz));
+                        for (int y = top + 1; y <= g; ++y) {
+                            const glm::ivec3 wp(wx, y, wz);
+                            if (Chunk* ch = chunkManager->getChunkAtFast(wp)) byChunk[ch].push_back(wp - ch->getWorldOrigin());
+                            Core::VoxelPlacement vp; vp.position = wp;
+                            vp.material = (y == g) ? terraceTop : terraceFill; vp.level = Core::VoxelLevel::Cube;
+                            fill.voxels.push_back(vp);
+                        }
+                    }
+                for (auto& [ch, cells] : byChunk) { ch->clearCellsBulk(cells); chunkManager->markChunkDirty(ch); }
+                if (!fill.voxels.empty()) Core::StructureGenerator::place(chunkManager, fill);
+                int stillLow = 0;
+                for (const auto& c : healedCols) if (terrainTopAt(c.x, c.z) != c.y) ++stillLow;
+                if (stillLow)
+                    LOG_WARN_FMT("Settlement", "ground under flora: " << stillLow << " of " << healedCols.size() << " columns do NOT read the generator's surface after the restore");
+                LOG_INFO_FMT("Settlement", "ground under flora: " << healedCols.size() << " columns restored to the generator's surface (" << fill.voxels.size()
+                             << " cubes, " << stillLow << " not at the surface on re-read) of " << sampled << " sampled, "
+                             << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() << " ms");
+            }});
+        }
         if (chunkManager) {
             std::vector<Core::Rect> prects;
             prects.reserve(layout.plots.size());
@@ -798,6 +872,37 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // ONE unit and grade it into the terrain BEFORE any building seats — so the yard is flat,
         // the floor lands flush, and the fence sits on level ground. One PARCEL = one work unit.
         if (terrain && chunkManager) {
+            // M5b-1a (L4 run 13): DIAGNOSTIC, off unless PHYXEL_SETTLEMENT_GROUND_CHECK is set (sampleSurface is the
+            // full column, ~7 ms each on Release). The map's terraces and way levels are planned on the generator's
+            // emitted surface; this counts the columns of the site (+ the skirt) where the CHUNKS, before any terrace,
+            // stand elsewhere - flora-blind and raw.
+            if (std::getenv("PHYXEL_SETTLEMENT_GROUND_CHECK") && chunkManager->getStreamingGenerator()) {
+                units.push_back({"ground check", [chunkManager, ox, oz, W, D, terrainTopAt, groundTopAt]() {
+                    WorldGenerator* gen = chunkManager->getStreamingGenerator();
+                    if (!gen) return;
+                    int n = 0, differ = 0, x0 = INT_MAX, x1 = INT_MIN, z0 = INT_MAX, z1 = INT_MIN, shown = 0;
+                    std::map<int, int> hist;
+                    for (int x = -4; x < W + 4; ++x)
+                        for (int z = -4; z < D + 4; ++z) {
+                            ++n;
+                            const int chunkTop = terrainTopAt(ox + x, oz + z);
+                            const int genTop = gen->sampleSurface(ox + x, oz + z).surfaceY;
+                            if (chunkTop == genTop) continue;
+                            ++differ; ++hist[chunkTop - genTop];
+                            x0 = std::min(x0, x); x1 = std::max(x1, x); z0 = std::min(z0, z); z1 = std::max(z1, z);
+                            if (shown < 16) {
+                                ++shown;
+                                LOG_WARN_FMT("Settlement", "[GROUND-CHECK] local (" << x << "," << z << "): chunks flora-blind " << chunkTop
+                                             << ", raw " << groundTopAt(ox + x, oz + z) << "; generator surfaceY " << genTop
+                                             << ", naturalGroundAt " << gen->naturalGroundAt(ox + x, oz + z));
+                            }
+                        }
+                    std::string h;
+                    for (const auto& [d, c] : hist) h += " " + std::to_string(d) + ":" + std::to_string(c);
+                    LOG_WARN_FMT("Settlement", "[GROUND-CHECK] " << differ << " of " << n << " columns differ (chunks - generator, delta:count" << h
+                                 << "), local box x " << x0 << ".." << x1 << " z " << z0 << ".." << z1);
+                }});
+            }
             for (size_t pi = 0; pi < layout.plots.size(); ++pi) {
                 const Core::Rect pr = layout.plots[pi].rect;   // by value into the unit
                 const std::string ph = "terracing parcel " + std::to_string(pi + 1) + "/" +
@@ -882,8 +987,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // (TheQueuedBuildingsAreTheMapsLots, red on chain 69)
             const auto variantMix =
                 (mainStreetMode || mapLots) ? std::vector<std::string>{b.typology} : mix;
-            const Core::BuildingVariant var =
+            Core::BuildingVariant var =
                 Core::pickBuildingVariant(static_cast<int>(i), variantMix, styles, varietySeed);
+            // M5b-1a (D49): a map lot is built in the style the MAP states (the same draw, pinned at plan time)
+            const Core::MapLot* mlot = (mapLots && i < siteMap.lots.size()) ? &siteMap.lots[i] : nullptr;
+            if (mlot && !mlot->style.empty()) var.style = mlot->style;
             // M3 repair-then-refuse: the plan-time FALLBACK variant for this lot — a
             // salted re-pick (different typology/style/shape where the mix allows) the
             // work unit tries once if the first variant's build REFUSES at a forge gate.
@@ -949,7 +1057,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 case 'E': front = "x1"; break;
                 default: break;
             }
-            if (mapLots && approachCell.x != INT_MIN) {
+            // M5b-1a (increment B): the door is the MAP's - the planner predicted it with the forge's own autofill
+            // (predictLotDoor); the realizer no longer predicts it. The block below stays ONLY for a map whose lot
+            // carries no door (no room program at plan time).
+            glm::ivec2 mapDoor(INT_MIN, INT_MIN), mapDoorN(0, 0);
+            if (mlot && mlot->hasDoor) {
+                mapDoor = {ox + mlot->doorX, oz + mlot->doorZ}; mapDoorN = {mlot->doorNX, mlot->doorNZ};
+                approachCell = mapDoor + mapDoorN * 2;
+                approachNormal = mapDoorN;
+            }
+            if (mapLots && approachCell.x != INT_MIN && mapDoor.x == INT_MIN) {
                 // M5b-1 (chain 109, after the front hint): the DOOR is not always at the frontage's midpoint (a hall house's cross-passage door
                 // sits at the hall / service boundary, four cells from it) and a way can climb 17 micro along one
                 // frontage; the autofill is deterministic in (typology, footprint, front, the position seed), so the
@@ -1007,7 +1124,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                           locationRegistry, npcManager, pushUndo, addPointLight, keepClear,
                                           itemPropManager, hostDeps = deps, bp, bp2, seatInUnit,
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
-                                          lotIndex = static_cast<int>(i), approachCell, approachNormal, sharedStamp, sharedPadOffset,
+                                          lotIndex = static_cast<int>(i), approachCell, approachNormal, sharedStamp, sharedPadOffset, seats = res.seats, builtDoors = res.builtDoors, mapDoor, mapDoorN, noReroll = (mlot != nullptr), mapPadY = (mlot && mlot->hasSeat) ? mlot->padY : INT_MIN,
+                                          mapWayLevel = (mlot && mlot->hasSeat) ? mlot->wayLevel : INT_MIN,
                                           typ1 = var.typology, typ2 = var2.typology,
                                           sharedFrontDoors, sharedBuilt]() mutable {
                 if (!chunkManager) return;
@@ -1049,18 +1167,37 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                     if (c.x >= ax * 9 && c.x < ax * 9 + 9 && c.z >= az * 9 && c.z < az * 9 + 9 && c.w > wayTop) { wayTop = c.w; at = {ax, az}; }
                             }
                         if (wayTop != INT_MIN) {
-                            // threshold = pad * 9 + offset: the offset MEASURED on this settlement's earlier buildings of the
-                            // same style (chain 109: 12 on the town's, 14 on the village's), 12 until one is measured
+                            // threshold = pad * 9 + offset: the style's own (computed at plan time, above); the measured
+                            // value is only the CHECK in Plan::seats
                             const std::string styleName = p.value("style", std::string());
                             const int kThresholdAbovePad = sharedPadOffset->count(styleName) ? sharedPadOffset->at(styleName) : 12;
                             constexpr int kStepUp = 4;
-                            const int padY = Core::padCubeForStreet(wayTop + 1, kThresholdAbovePad, kStepUp);
+                            const int stampPadY = Core::padCubeForStreet(wayTop + 1, kThresholdAbovePad, kStepUp);
+                            // M5b-1a (increment C): the MAP states the pad (the planner ran the paver's own plan over its
+                            // own ground); what the stamp reads here is the CHECK, recorded in Plan::seats
+                            const int padY = (mapPadY != INT_MIN) ? mapPadY : stampPadY;
+                            if (mapPadY != INT_MIN && (mapPadY != stampPadY || mapWayLevel != wayTop + 1))
+                                LOG_WARN_FMT("Settlement", "seat DISAGREES: " << p.value("typology", std::string("?")) << ": the map states way level "
+                                             << mapWayLevel << " -> pad y " << mapPadY << ", the paving stamp reads " << (wayTop + 1) << " -> pad y "
+                                             << stampPadY << " (the pad given is the map's)");
+                            p["seat_stamp_pad_y"] = stampPadY;
                             p["position"]["y"] = padY;
                             p["pad_y"] = padY;   // the forge's prepare_pad levels the footprint HERE (else the terrain median)
+                            p["seat_way_level"] = wayTop + 1;               // M5b-1a: the record (Plan::seats)
+                            p["seat_offset_used"] = kThresholdAbovePad;
                             LOG_INFO_FMT("Settlement", "seat: " << p.value("typology", std::string("?")) << " @" << p["position"].value("x", 0) << ","
                                          << p["position"].value("z", 0) << " at the way's level: paved surface " << wayTop << " at (" << at.x << "," << at.y
                                          << ") -> pad y " << padY << " (natural " << natural << ")");
                         }
+                    }
+                    // a seat the MAP states where the stamp read nothing: the map still decides
+                    if (mapPadY != INT_MIN && !p.contains("pad_y")) {
+                        p["position"]["y"] = mapPadY;
+                        p["pad_y"] = mapPadY;
+                        const std::string styleName = p.value("style", std::string());
+                        p["seat_offset_used"] = sharedPadOffset->count(styleName) ? sharedPadOffset->at(styleName) : 12;
+                        LOG_INFO_FMT("Settlement", "seat: " << p.value("typology", std::string("?")) << " at the MAP's pad y " << mapPadY
+                                     << " (the paving stamp read nothing at its door)");
                     }
                 };
                 // M0: ONE mapping from the settlement's deps to a building's (Deps::structureDeps).
@@ -1084,8 +1221,33 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             fd.normal = {D.value("nx", 0), D.value("nz", 0)};
                         }
                         fd.padY = prog.value("pad_y", prog["position"].value("y", INT_MIN));
-                        if (fd.padY != INT_MIN && fd.thresholdMicro >= 0 && prog.contains("pad_y"))
-                            (*sharedPadOffset)[prog.value("style", std::string())] = fd.thresholdMicro - fd.padY * 9;
+                        if (builtDoors) {
+                            nlohmann::json bd = {{"lot", lotIndex}, {"typology", prog.value("typology", std::string("?"))}};
+                            if (fd.hasDoor) { bd["door"] = {fd.door.x, fd.door.y}; bd["normal"] = {fd.normal.x, fd.normal.y}; }
+                            builtDoors->push_back(std::move(bd));
+                        }
+                        // D48: the forge's door is not the map's - the pad and the approach were planned for another door.
+                        // The building already stands (the door is known only once it is built); the lot is RECORDED as
+                        // failed, with both doors.
+                        if (mapDoor.x != INT_MIN && (!fd.hasDoor || fd.door != mapDoor || fd.normal != mapDoorN)) {
+                            LOG_WARN_FMT("Settlement", "lot " << lotIndex << " (" << prog.value("typology", std::string("?")) << "): DOOR MISMATCH - the map states ("
+                                         << mapDoor.x << "," << mapDoor.y << ") n (" << mapDoorN.x << "," << mapDoorN.y << "), the forge cut ("
+                                         << fd.door.x << "," << fd.door.y << ") n (" << fd.normal.x << "," << fd.normal.y << ")" << (fd.hasDoor ? "" : " [no door recorded]"));
+                            if (lotFailures)
+                                lotFailures->push_back({{"lot", lotIndex}, {"typology", prog.value("typology", std::string("?"))},
+                                                        {"error", "door mismatch: the forge's door differs from the map's"}, {"built", true},
+                                                        {"map_door", {mapDoor.x, mapDoor.y, mapDoorN.x, mapDoorN.y}},
+                                                        {"forge_door", fd.hasDoor ? nlohmann::json::array({fd.door.x, fd.door.y, fd.normal.x, fd.normal.y}) : nlohmann::json()}});
+                        }
+                        if (fd.padY != INT_MIN && fd.thresholdMicro >= 0 && prog.contains("pad_y")) {
+                            if (seats)
+                                seats->push_back({{"lot", lotIndex}, {"typology", prog.value("typology", std::string("?"))},
+                                                  {"style", prog.value("style", std::string())}, {"pad_y", fd.padY},
+                                                  {"way_level", prog.value("seat_way_level", INT_MIN)},
+                                                  {"offset_used", prog.value("seat_offset_used", INT_MIN)},
+                                                  {"threshold", fd.thresholdMicro}, {"offset_measured", fd.thresholdMicro - fd.padY * 9},
+                                                  {"stamp_pad_y", prog.value("seat_stamp_pad_y", INT_MIN)}, {"map_pad_y", mapPadY}, {"map_way_level", mapWayLevel}});
+                        }
                         sharedFrontDoors->push_back(fd);
                         break;   // one front door per building
                     }
@@ -1093,6 +1255,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 seat(bp, bw, bd);
                 const auto res1 = Core::StructureBuildService::buildV2(bp, deps);
                 if (!res1.contains("error")) { ++*sharedBuilt; recordDoor(res1, bp, bw, bd); return; }
+                if (noReroll) {
+                    // D49: a map lot pins its typology AND style - there is no other variant to try
+                    LOG_WARN_FMT("Settlement", "lot " << lotIndex << " (" << typ1 << ") refused: " << res1["error"].dump()
+                                 << " - a map lot has no re-roll (D49); lot left EMPTY (recorded)");
+                    if (lotFailures)
+                        lotFailures->push_back({{"lot", lotIndex}, {"typology", typ1}, {"retry_typology", ""},
+                                                {"error", res1.value("error", std::string())},
+                                                {"retry_error", "no re-roll for a map lot (D49)"}});
+                    return;
+                }
                 LOG_WARN_FMT("Settlement", "lot " << lotIndex << " (" << typ1 << ") refused: "
                              << res1["error"].dump() << " — re-rolling the variant");
                 seat(bp2, bw2, bd2);

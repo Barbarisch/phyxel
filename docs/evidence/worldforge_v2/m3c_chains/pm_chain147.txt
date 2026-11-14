@@ -1,0 +1,28 @@
+PREDICTIONS for chains 147-148 - M5b-1a (the lot's approach as map data), increment A: the threshold above the pad
+as a pure function of the style. Written 2026-11-13 BEFORE patch 21 is applied or built.
+
+READ FROM THE CODE (not measured): the forge's ground threshold = origin y * 9 + crawl * 9 + thicknessMicro(style
+floor thickness) (StructureRealizer.cpp:172/196, StructureForge.cpp:837); the origin stands one cube above the pad, so
+threshold - pad * 9 = 9 + floor micro for a slab: 12 for a 0.333 floor (timber_cottage, stone_manor), 14 for 0.5
+(stone_keep, lround(4.5) = 5). The realizer does not compute this: it MEASURES it from earlier buildings of the same
+style in the same build (sharedPadOffset) and uses 12 until one is measured.
+
+PATCH 21 = INSTRUMENTATION ONLY (no behaviour): Plan::seats records, per building seated at a way,
+{lot, typology, style, pad_y, way_level, offset_used, threshold, offset_measured}; the rig's realize() takes param
+overrides and exports the seats. New test SettlementMapLiveSiteTest.EverySeatUsesItsStylesOwnThresholdOffset: hamlet 3
+of the baseline world through its map with styles ["stone_keep"]; asserts every seat's offset_used == offset_measured.
+
+CHAIN 147 (patch 21, filter SettlementMapLiveSiteTest.EverySeatUsesItsStylesOwnThresholdOffset):
+  PM5b1a.1: RED. The FIRST building seated at a way reads offset_used 12 against offset_measured 14; every later
+    seat reads 14 / 14. So exactly 1 seat differs. The lot count is the growth's (6 on chains 139-142's tree with the
+    default styles; the styles do not enter the map, so 6 lots, 6 seats expected).
+  PM5b1a.2: the build itself still passes its gate with stone_keep on every lot (0 blocked). UNCERTAIN - this hamlet
+    has never been built in one style; a blocked route here is a finding recorded as found, not part of the red.
+  UNCERTAIN: whether every lot is seated at a way (a seat is recorded only when the way's stamp is found at the
+    approach); if fewer seats than lots are recorded that is stated.
+
+PATCH 22 (after the red): StructureRealizer::thresholdAbovePadMicro(style, substructure); the realizer computes each
+variant's offset from the style registry at plan time; sharedPadOffset removed; the measured offset stays in the
+seats record as the check.
+CHAIN 148 (same filter): PM5b1a.3: GREEN - every seat 14 / 14. The first lot's pad_y may differ from chain 147's
+  (its threshold estimate rises by 2 micro, so the smallest pad cube that clears the way can drop by one cube).

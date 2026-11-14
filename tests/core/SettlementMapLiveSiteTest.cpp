@@ -25,15 +25,21 @@
 #include <climits>
 #include <functional>
 #include <cstdio>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "ForgeTestUtil.h"
 #include "core/ChunkManager.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/PlacedObjectManager.h"
+#include "core/RoomProgram.h"
 #include "core/SettlementBuildService.h"
+#include "core/SettlementMapPlanner.h"
+#include "core/SettlementProgram.h"
 #include "core/TraversalProbe.h"
 #include "core/WorldForgeBuildService.h"
 #include "core/WorldForgePlan.h"
@@ -303,8 +309,9 @@ struct LiveSiteRig {
 };
 
 // Plan the site through the canonical params and run every unit; the gate's verdict + the record for the ledger.
-nlohmann::json realize(LiveSiteRig& rig, bool legacyLayout) {
+nlohmann::json realize(LiveSiteRig& rig, bool legacyLayout, const nlohmann::json& overrides = nlohmann::json::object()) {
     nlohmann::json params = WorldForgeBuildService::settlementParamsFor(*rig.gen->worldForge(), *rig.site);
+    for (auto it = overrides.begin(); it != overrides.end(); ++it) params[it.key()] = it.value();
     if (legacyLayout) params["legacy_layout"] = true;
     std::printf("[ M5a-1 ] params (%s): %s\n", legacyLayout ? "the layout as built, the CONTROL" : "the MAP", params.dump().c_str());
     SettlementBuildService::Deps deps;
@@ -345,6 +352,8 @@ nlohmann::json realize(LiveSiteRig& rig, bool legacyLayout) {
     out["paths"] = plan.paths ? *plan.paths : nlohmann::json::object();   // M5b-1: the ways unit's record (paved columns, legs)
     std::printf("[ M5a-1 ] paths unit: %s\n", out["paths"].dump().c_str());
     out["lot_failures"] = plan.lotFailures ? *plan.lotFailures : nlohmann::json::array();
+    out["seats"] = plan.seats ? *plan.seats : nlohmann::json::array();
+    out["built_doors"] = plan.builtDoors ? *plan.builtDoors : nlohmann::json::array();
     out["map"] = plan.map;
     out["skipped"] = walk.value("skipped", 0);
     out["doors"] = walk.value("doors", -1);    // -1: the gate result carries no door count (chain 74)
@@ -480,11 +489,67 @@ TEST(SettlementMapLiveSiteTest, HamletThreeBuildsFromItsMap) {
 // on crofts and a longhouse. The first village of the baseline world through its map: every realized building must
 // record a door (deriveLocations always emits one marker - a door or the centre fallback), every recorded goal box must
 // be the formula's, and the gate's verdict is reported - a blocked route here is a finding for M5b, recorded as found.
+// M5b-1a (2026-11-13, written AFTER chain 155 - a stress of increments B and C on the sloped sites, not
+// red-before-green): the map against what the realizer did, on any live arm. Doors: the forge's recorded door per
+// built building against the map lot's. Seats: the pad given, and the way's level as read from the paving STAMP,
+// against the map lot's pad_y / way_level; a seat without a map pad; a map pad the realizer did not take.
+struct MapAgreement { int built = 0, doorsDiffer = 0, seats = 0, padDiffers = 0, levelDiffers = 0, noMapSeat = 0, mapOnly = 0; };
+static MapAgreement mapAgreement(const nlohmann::json& out) {
+    MapAgreement a;
+    const auto lots = out["map"].value("lots", nlohmann::json::array());
+    const int ox = out["map"].value("origin", nlohmann::json::object()).value("x", 0), oz = out["map"].value("origin", nlohmann::json::object()).value("z", 0);
+    for (const auto& b : out.value("built_doors", nlohmann::json::array())) {
+        ++a.built;
+        const int li = b.value("lot", -1);
+        if (li < 0 || li >= static_cast<int>(lots.size())) { ++a.doorsDiffer; continue; }
+        const auto& l = lots[static_cast<size_t>(li)];
+        const bool eq = b.contains("door") && l.contains("door") && ox + l["door"][0].get<int>() == b["door"][0].get<int>() &&
+                        oz + l["door"][1].get<int>() == b["door"][1].get<int>() && l["door_normal"] == b["normal"];
+        if (!eq) { ++a.doorsDiffer; std::printf("[ M5b-1a ]   lot %d: the forge's door is not the map's: forge %s, map %s\n", li, b.dump().c_str(), l.value("door", nlohmann::json()).dump().c_str()); }
+    }
+    std::set<int> seated;
+    for (const auto& s : out.value("seats", nlohmann::json::array())) {
+        ++a.seats;
+        const int li = s.value("lot", -1);
+        if (li < 0 || li >= static_cast<int>(lots.size())) { ++a.noMapSeat; continue; }
+        seated.insert(li);
+        const auto& l = lots[static_cast<size_t>(li)];
+        if (!l.contains("pad_y")) { ++a.noMapSeat; std::printf("[ M5b-1a ]   lot %d: seated at pad %d, the map carries no pad\n", li, s.value("pad_y", INT_MIN)); continue; }
+        const int pad = s.value("pad_y", INT_MIN), stampPad = s.value("stamp_pad_y", INT_MIN), way = s.value("way_level", INT_MIN);
+        const int mpad = l.value("pad_y", INT_MIN), mway = l.value("way_level", INT_MIN);
+        const bool pe = pad == mpad && stampPad == mpad, we = way == mway;
+        if (!pe) ++a.padDiffers;
+        if (!we) ++a.levelDiffers;
+        if (!pe || !we)
+            std::printf("[ M5b-1a ]   lot %d %s %s: pad given %d, the stamp's pad %d, map pad %d; the stamp's way level %d, map way level %d (threshold %d, T - stamp W %d)\n", li,
+                        s.value("typology", std::string("?")).c_str(), s.value("style", std::string("?")).c_str(), pad, stampPad, mpad, way, mway,
+                        s.value("threshold", INT_MIN), s.value("threshold", 0) - way);
+    }
+    for (size_t i = 0; i < lots.size(); ++i)
+        if (lots[i].contains("pad_y") && !seated.count(static_cast<int>(i))) {
+            ++a.mapOnly;
+            std::printf("[ M5b-1a ]   lot %zu: the map states pad %d (way level %d); no seat recorded\n", i, lots[i].value("pad_y", INT_MIN), lots[i].value("way_level", INT_MIN));
+        }
+    std::printf("[ M5b-1a ] map agreement: %d built, %d doors differ; %d seats over %zu lots, %d pads differ, %d way levels differ, %d seats without a map pad, "
+                "%d map pads not taken; map bake %.1f ms\n", a.built, a.doorsDiffer, a.seats, lots.size(), a.padDiffers, a.levelDiffers, a.noMapSeat, a.mapOnly,
+                out["map"].value("bake_ms", 0.0));
+    return a;
+}
+
 TEST(SettlementMapLiveSiteTest, TheFirstVillageBuildsFromItsMapWithEveryDoorMeasured) {
     LiveSiteRig rig;
     ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
     const auto out = realize(rig, /*legacyLayout=*/false);
     ASSERT_FALSE(out.contains("plan_error")) << "the planner refused the first village: " << out.dump();
+    {   // M5b-1a: the map against the realizer (doors, seats)
+        const MapAgreement ag = mapAgreement(out);
+        EXPECT_GT(ag.seats, 0);
+        EXPECT_EQ(ag.doorsDiffer, 0) << "a forge door is not the map's";
+        EXPECT_EQ(ag.padDiffers, 0) << "a pad given is not the map's (or the stamp reads another)";
+        EXPECT_EQ(ag.levelDiffers, 0) << "the map's way level is not the paving stamp's";
+        EXPECT_EQ(ag.noMapSeat, 0);
+        EXPECT_EQ(ag.mapOnly, 0);
+    }
     EXPECT_GT(out.value("built", -1), 0);
     EXPECT_EQ(out.value("doors", -1), out.value("built", -2)) << "every built building records a front door for the gate";
     EXPECT_NE(out.value("gate", std::string()), "doorless");
@@ -508,6 +573,15 @@ TEST(SettlementMapLiveSiteTest, TheTownBuildsFromItsGrownMapWithEveryDoorMeasure
     ASSERT_TRUE(rig.setUpTier("town", 32)) << rig.why;
     const auto out = realize(rig, /*legacyLayout=*/false);
     ASSERT_FALSE(out.contains("plan_error")) << "the planner refused the town: " << out.dump();
+    {   // M5b-1a: the map against the realizer (doors, seats)
+        const MapAgreement ag = mapAgreement(out);
+        EXPECT_GT(ag.seats, 0);
+        EXPECT_EQ(ag.doorsDiffer, 0) << "a forge door is not the map's";
+        EXPECT_EQ(ag.padDiffers, 0) << "a pad given is not the map's (or the stamp reads another)";
+        EXPECT_EQ(ag.levelDiffers, 0) << "the map's way level is not the paving stamp's";
+        EXPECT_EQ(ag.noMapSeat, 0);
+        EXPECT_EQ(ag.mapOnly, 0);
+    }
     EXPECT_GE(out["map"].value("lots", nlohmann::json::array()).size(), 15u) << "fewer lots than the town's minimum";
     EXPECT_GT(out["map"].value("ways", nlohmann::json::array()).size(), 0u);
     EXPECT_GT(out.value("built", -1), 0);
@@ -659,6 +733,274 @@ TEST(SettlementMapLiveSiteTest, DoorPassageOfTheLiveBlockedBuildingsRebuiltHeadl
         EXPECT_TRUE(da.found) << c.label << ": doorApproach found no seating opening on the marker's wall";
         EXPECT_EQ(passFeet, floorTop) << c.label << ": the gate's passage cell (" << da.inside.x << ", " << da.inside.y
                                           << ") does not seat the agent on the floor (" << (c.blockedLive ? "BLOCKED live" : "walkable live") << ")";
+    }
+}
+
+// M5b-1a increment A (2026-11-13; predictions pm_chain147.txt). The seat builds a lot at the WAY'S level: the pad is
+// the smallest cube whose threshold (pad top + the offset) clears the way. The offset is the forge's floor assembly
+// (9 + the style's floor thickness in micro: 12 for a 0.333 floor, 14 for stone_keep's 0.5) - a pure function of the
+// style. RED as built: the realizer MEASURED it from earlier buildings of the same style in the same build and used 12
+// until one was measured, so the first building of a 0.5-floor style was seated with the wrong offset (order-dependent).
+// The rig: hamlet 3 of the baseline world through its map, every lot in stone_keep (the default palette mixes three
+// styles; one style makes "the first of its style" the first lot).
+TEST(SettlementMapLiveSiteTest, EverySeatUsesItsStylesOwnThresholdOffset) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUp(3, 24)) << rig.why;
+    const auto out = realize(rig, /*legacyLayout=*/false, {{"styles", nlohmann::json::array({"stone_keep"})}});
+    ASSERT_FALSE(out.contains("plan_error")) << out.dump();
+    const auto seats = out.value("seats", nlohmann::json::array());
+    const size_t lots = out["map"].value("lots", nlohmann::json::array()).size();
+    std::printf("[ M5b-1a ] %zu seats recorded over %zu lots; gate %s, %d walkable, %d blocked, %zu lot failures\n", seats.size(), lots,
+                out.value("gate", std::string("?")).c_str(), out.value("walkable", 0), out.value("blocked", 0), out["lot_failures"].size());
+    ASSERT_GT(seats.size(), 0u) << "no building was seated at a way - the rig measures nothing";
+    int wrong = 0;
+    for (const auto& s : seats) {
+        const int used = s.value("offset_used", INT_MIN), measured = s.value("offset_measured", INT_MIN);
+        std::printf("[ M5b-1a ]   seat lot %d %s %s: pad_y %d, way level %d, threshold %d (T - W %d), offset used %d, measured %d%s\n",
+                    s.value("lot", -1), s.value("typology", std::string("?")).c_str(), s.value("style", std::string("?")).c_str(),
+                    s.value("pad_y", INT_MIN), s.value("way_level", INT_MIN), s.value("threshold", INT_MIN),
+                    s.value("threshold", 0) - s.value("way_level", 0), used, measured, used == measured ? "" : "  <- WRONG OFFSET");
+        EXPECT_EQ(s.value("style", std::string()), "stone_keep");
+        if (used != measured) ++wrong;
+    }
+    EXPECT_EQ(wrong, 0) << wrong << " of " << seats.size() << " buildings were seated with a threshold offset that is not their style's";
+}
+
+// M5b-1a increment B (2026-11-13; predictions pm_chain149.txt): the door the FORGE cuts is the door the MAP states.
+// Hamlet 3 of the baseline world through its map: every built building's recorded door (the wall cell + normal the
+// forge reports) equals its map lot's door + the site origin. RED as built (chain 149): the map carries no door.
+TEST(SettlementMapLiveSiteTest, TheForgesDoorIsTheMapsDoor) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUp(3, 24)) << rig.why;
+    const auto out = realize(rig, /*legacyLayout=*/false);
+    ASSERT_FALSE(out.contains("plan_error")) << out.dump();
+    const auto lots = out["map"].value("lots", nlohmann::json::array());
+    const auto built = out.value("built_doors", nlohmann::json::array());
+    const int ox = out["map"].value("origin", nlohmann::json::object()).value("x", 0), oz = out["map"].value("origin", nlohmann::json::object()).value("z", 0);
+    ASSERT_GT(built.size(), 0u) << "no building recorded - the rig measures nothing";
+    int noMapDoor = 0, noForgeDoor = 0, differ = 0, same = 0;
+    for (const auto& b : built) {
+        const int li = b.value("lot", -1);
+        ASSERT_TRUE(li >= 0 && li < static_cast<int>(lots.size())) << b.dump();
+        const auto& l = lots[static_cast<size_t>(li)];
+        if (!b.contains("door")) { ++noForgeDoor; std::printf("[ M5b-1a ]   lot %d %s: the forge recorded NO door\n", li, b.value("typology", std::string("?")).c_str()); continue; }
+        if (!l.contains("door")) { ++noMapDoor; std::printf("[ M5b-1a ]   lot %d %s: forge door (%d, %d) n (%d, %d); the MAP carries no door\n", li,
+                                                           b.value("typology", std::string("?")).c_str(), b["door"][0].get<int>(), b["door"][1].get<int>(),
+                                                           b["normal"][0].get<int>(), b["normal"][1].get<int>()); continue; }
+        const int mx = ox + l["door"][0].get<int>(), mz = oz + l["door"][1].get<int>();
+        const bool eq = mx == b["door"][0].get<int>() && mz == b["door"][1].get<int>() && l["door_normal"][0] == b["normal"][0] && l["door_normal"][1] == b["normal"][1];
+        std::printf("[ M5b-1a ]   lot %d %s: forge door (%d, %d) n (%d, %d); map door (%d, %d) n (%d, %d)%s\n", li, b.value("typology", std::string("?")).c_str(),
+                    b["door"][0].get<int>(), b["door"][1].get<int>(), b["normal"][0].get<int>(), b["normal"][1].get<int>(), mx, mz,
+                    l["door_normal"][0].get<int>(), l["door_normal"][1].get<int>(), eq ? "" : "  <- DIFFER");
+        if (eq) ++same; else ++differ;
+    }
+    std::printf("[ M5b-1a ] %zu built over %zu lots: %d doors equal, %d differ, %d lots without a map door, %d buildings without a forge door; gate %s, "
+                "%d walkable, %d blocked, %zu lot failures\n", built.size(), lots.size(), same, differ, noMapDoor, noForgeDoor,
+                out.value("gate", std::string("?")).c_str(), out.value("walkable", 0), out.value("blocked", 0), out["lot_failures"].size());
+    EXPECT_EQ(built.size(), lots.size()) << "not every lot built";
+    EXPECT_EQ(noMapDoor, 0) << noMapDoor << " built lots carry no door on the map";
+    EXPECT_EQ(noForgeDoor, 0);
+    EXPECT_EQ(differ, 0) << differ << " doors differ between the forge and the map";
+    EXPECT_EQ(out["lot_failures"].size(), 0u);
+    EXPECT_EQ(out.value("gate", std::string()), "passed");
+}
+
+// M5b-1a increment B, the STRESS (pm_chain149.txt, PM5b1a.7): the map's door against the forge's on every DISTINCT
+// (typology, footprint, orientation) the four tiers plan on a flat field. Each is built headless by the forge with the
+// program the realizer hands it (makeBp: slab, one story of 3, the front hint, the lot's style), at the lot's WORLD
+// position (the autofill's seed) - the footprint shape alternates "rect" / "L" as the realizer's variant draw does.
+// A PIN of predictLotDoor against the forge, written with the function; a mismatch is a finding, listed.
+TEST(SettlementMapLiveSiteTest, TheMapsDoorIsTheForgesDoorOnEveryPlannedLot) {
+    Core::SettlementProgramRegistry program; Core::RoomProgramRegistry rooms;
+    ASSERT_TRUE(program.loadFromFile("resources/settlement_program.json"));
+    ASSERT_TRUE(rooms.loadFromFile("resources/room_program.json"));
+    const int kOX = 1000, kOZ = -2000;
+    struct Site { const char* tier; int W, D; };
+    struct Case { std::string tier, typology, style; int x, z, w, d, orientation; glm::ivec2 door, normal; };
+    std::map<std::tuple<std::string, int, int, int>, Case> distinct;
+    size_t lotsSeen = 0, noDoor = 0;
+    for (const Site st : {Site{"hamlet", 40, 32}, Site{"village", 80, 48}, Site{"town", 140, 60}, Site{"city", 160, 120}}) {
+        Core::SettlementMapInput in;
+        in.tier = program.get("medieval", st.tier); ASSERT_NE(in.tier, nullptr) << st.tier;
+        in.rooms = &rooms; in.seed = 7; in.W = st.W; in.D = st.D; in.originX = kOX; in.originZ = kOZ;
+        in.heightAt = [](int, int) { return 30; };
+        in.entries = {{0, st.D / 2, 1}};
+        in.styles = {"timber_cottage", "stone_manor", "stone_keep"};
+        const Core::SettlementMap m = Core::planSettlementMap(in);
+        ASSERT_TRUE(m.ok()) << st.tier << ": " << m.refusal;
+        for (const auto& l : m.lots) {
+            ++lotsSeen;
+            if (!l.hasDoor) { ++noDoor; continue; }
+            const auto key = std::make_tuple(l.typology, l.footprint.w, l.footprint.d, l.orientation);
+            if (!distinct.count(key))
+                distinct[key] = {st.tier, l.typology, l.style, kOX + l.footprint.x, kOZ + l.footprint.z, l.footprint.w, l.footprint.d, l.orientation,
+                                 {kOX + l.doorX, kOZ + l.doorZ}, {l.doorNX, l.doorNZ}};
+        }
+    }
+    std::printf("[ M5b-1a ] %zu lots planned over four tiers, %zu without a map door, %zu distinct (typology, w, d, orientation)\n", lotsSeen, noDoor, distinct.size());
+    EXPECT_EQ(noDoor, 0u);
+    ASSERT_GT(distinct.size(), 0u);
+    static const char* kFront[4] = {"z1", "x1", "z0", "x0"};
+    int same = 0, differ = 0, refused = 0, k = 0;
+    for (const auto& [key, c] : distinct) {
+        const char* shape = (k++ % 3 == 0) ? "L" : "rect";
+        ChunkManager cm;
+        cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+        ObjectTemplateManager templates{&cm};
+        templates.loadTemplates("resources/templates");
+        PlacedObjectManager placed{&cm, &templates, nullptr};
+        std::vector<std::unique_ptr<Phyxel::Chunk>> owned;
+        for (int cx = floorDiv32(c.x - 4); cx <= floorDiv32(c.x + c.w + 4); ++cx)
+            for (int cz = floorDiv32(c.z - 4); cz <= floorDiv32(c.z + c.d + 4); ++cz) {
+                const glm::ivec3 cc(cx, 0, cz);
+                if (cm.chunkMap.count(cc)) continue;
+                auto ch = std::make_unique<Phyxel::Chunk>(cc * 32);
+                ch->initializeForLoading();
+                for (int x = 0; x < 32; ++x) for (int z = 0; z < 32; ++z) for (int y = 0; y <= 28; ++y) ch->addCube(glm::ivec3(x, y, z));
+                cm.chunkMap[cc] = ch.get();
+                cm.chunks.push_back(std::move(ch));
+            }
+        const nlohmann::json params = {
+            {"schema", "v2"}, {"type", "house"}, {"style", c.style.empty() ? std::string("timber_cottage") : c.style}, {"typology", c.typology},
+            {"period", "medieval"}, {"room_program", "resources/room_program.json"}, {"front", kFront[c.orientation]}, {"footprint_shape", shape},
+            {"position", {{"x", c.x}, {"y", 29}, {"z", c.z}}},
+            {"footprint", nlohmann::json::array({c.w, c.d})},
+            {"substructure", "slab"},
+            {"stories", nlohmann::json::array({nlohmann::json{{"height", 3}}})},
+            {"allow_ungrounded", true}};
+        StructureBuildService::Deps deps;
+        deps.chunkManager = &cm; deps.templates = &templates; deps.placedObjects = &placed;
+        const auto res = StructureBuildService::buildV2(params, deps);
+        if (res.contains("error")) {
+            ++refused;
+            std::printf("[ M5b-1a ]   %s %s %dx%d o%d %s (%s): the forge REFUSED: %s\n", c.tier.c_str(), c.typology.c_str(), c.w, c.d, c.orientation, shape,
+                        c.style.c_str(), res["error"].dump().substr(0, 200).c_str());
+            continue;
+        }
+        bool has = false; glm::ivec2 fdoor(0), fn(0);
+        if (res.contains("locations") && res["locations"].is_array() && !res["locations"].empty() && res["locations"][0].contains("door")) {
+            const auto& D = res["locations"][0]["door"];
+            has = true; fdoor = {D.value("x", 0), D.value("z", 0)}; fn = {D.value("nx", 0), D.value("nz", 0)};
+        }
+        const bool eq = has && fdoor == c.door && fn == c.normal;
+        std::printf("[ M5b-1a ]   %s %s %dx%d o%d %s (%s) at (%d, %d): map door (%d, %d) n (%d, %d); forge %s (%d, %d) n (%d, %d)%s\n", c.tier.c_str(),
+                    c.typology.c_str(), c.w, c.d, c.orientation, shape, c.style.c_str(), c.x, c.z, c.door.x, c.door.y, c.normal.x, c.normal.y,
+                    has ? "door" : "NO DOOR", fdoor.x, fdoor.y, fn.x, fn.y, eq ? "" : "  <- DIFFER");
+        if (eq) ++same; else ++differ;
+    }
+    std::printf("[ M5b-1a ] %zu distinct lots built headless: %d doors equal, %d differ, %d refused by the forge\n", distinct.size(), same, differ, refused);
+    EXPECT_EQ(differ, 0) << differ << " of " << distinct.size() << " distinct lots: the forge's door is not the map's";
+    EXPECT_EQ(refused, 0) << refused << " distinct lots were refused by the forge on a flat pad (no door to compare)";
+}
+
+// M5b-1a increment C (2026-11-13; predictions pm_chain154.txt): the pad a building is given is the pad the MAP states.
+// Hamlet 3 through its map: every building the realizer seated at a way (Plan::seats: the pad it was given, the way's
+// level as the realizer READ it from the paving stamp) has a map lot with the same pad_y and the same way_level; and
+// no map lot states a seat the realizer did not take. RED as built (chain 154): the map carries no seat.
+TEST(SettlementMapLiveSiteTest, TheSeatIsTheMapsPad) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUp(3, 24)) << rig.why;
+    const auto out = realize(rig, /*legacyLayout=*/false);
+    ASSERT_FALSE(out.contains("plan_error")) << out.dump();
+    const auto lots = out["map"].value("lots", nlohmann::json::array());
+    const auto seats = out.value("seats", nlohmann::json::array());
+    ASSERT_GT(seats.size(), 0u) << "no building was seated at a way - the rig measures nothing";
+    std::set<int> seatedLots;
+    int noMapSeat = 0, padDiffers = 0, levelDiffers = 0, same = 0;
+    for (const auto& s : seats) {
+        const int li = s.value("lot", -1);
+        ASSERT_TRUE(li >= 0 && li < static_cast<int>(lots.size())) << s.dump();
+        seatedLots.insert(li);
+        const auto& l = lots[static_cast<size_t>(li)];
+        const int pad = s.value("pad_y", INT_MIN), way = s.value("way_level", INT_MIN), stampPad = s.value("stamp_pad_y", INT_MIN);
+        if (!l.contains("pad_y")) {
+            ++noMapSeat;
+            std::printf("[ M5b-1a ]   lot %d %s: seated at pad %d from the stamp's way level %d; the MAP carries no pad\n", li, s.value("typology", std::string("?")).c_str(), pad, way);
+            continue;
+        }
+        const int mpad = l.value("pad_y", INT_MIN), mway = l.value("way_level", INT_MIN);
+        const bool pe = mpad == pad && (stampPad == INT_MIN || stampPad == mpad), we = (way == INT_MIN) ? false : mway == way;
+        std::printf("[ M5b-1a ]   lot %d %s %s: pad given %d, the stamp's pad %d, map pad %d%s; the stamp's way level %d, map way level %d%s; threshold %d, map %d\n",
+                    li, s.value("typology", std::string("?")).c_str(), s.value("style", std::string("?")).c_str(), pad, stampPad, mpad, pe ? "" : "  <- PAD DIFFERS",
+                    way, mway, we ? "" : "  <- LEVEL DIFFERS", s.value("threshold", INT_MIN), l.value("threshold", INT_MIN));
+        if (!pe) ++padDiffers;
+        if (!we) ++levelDiffers;
+        if (pe && we) ++same;
+    }
+    int mapOnly = 0;
+    for (size_t i = 0; i < lots.size(); ++i)
+        if (lots[i].contains("pad_y") && !seatedLots.count(static_cast<int>(i))) {
+            ++mapOnly;
+            std::printf("[ M5b-1a ]   lot %zu: the MAP states pad %d (way level %d); the realizer recorded no seat for it\n", i, lots[i].value("pad_y", INT_MIN), lots[i].value("way_level", INT_MIN));
+        }
+    std::printf("[ M5b-1a ] %zu seats over %zu lots: %d equal the map, %d pads differ, %d way levels differ, %d without a map seat, %d map seats not taken; "
+                "map bake %.1f ms; gate %s, %d walkable, %d blocked, %zu lot failures\n", seats.size(), lots.size(), same, padDiffers, levelDiffers, noMapSeat, mapOnly,
+                out["map"].value("bake_ms", 0.0), out.value("gate", std::string("?")).c_str(), out.value("walkable", 0), out.value("blocked", 0), out["lot_failures"].size());
+    EXPECT_EQ(noMapSeat, 0) << noMapSeat << " buildings were seated at a way the map states no pad for";
+    EXPECT_EQ(padDiffers, 0);
+    EXPECT_EQ(levelDiffers, 0) << "the map's way level is not the level the realizer read from the paving stamp";
+    EXPECT_EQ(mapOnly, 0) << mapOnly << " map seats were not taken by the realizer";
+    EXPECT_EQ(out["lot_failures"].size(), 0u);
+    EXPECT_EQ(out.value("gate", std::string()), "passed");
+}
+
+// DIAGNOSTIC (chain 161, 2026-11-13): the town's lot 7 - the one seat of chain 160 whose map way level (1414) is not
+// the paving stamp's (1405). The ground the ways unit grades over (the chunks after the terrace units, flora-blind
+// cube tops) against the generator's natural ground, in a window round the door, with each lot's terrace level.
+TEST(SettlementMapLiveSiteTest, DISABLED_DiagTownLotSeven) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("town", 32)) << rig.why;
+    nlohmann::json params = WorldForgeBuildService::settlementParamsFor(*rig.gen->worldForge(), *rig.site);
+    SettlementBuildService::Deps deps;
+    deps.chunkManager = &rig.cm; deps.templates = &rig.templates; deps.placedObjects = &rig.placed;
+    auto plan = SettlementBuildService::plan(params, deps);
+    ASSERT_TRUE(plan.ok()) << plan.error.dump();
+    const auto lots = plan.map.value("lots", nlohmann::json::array());
+    const int ox = plan.map["origin"].value("x", 0), oz = plan.map["origin"].value("z", 0);
+    ASSERT_GT(lots.size(), 7u);
+    for (size_t i = 0; i < lots.size(); ++i)
+        std::printf("[ diag ] lot %zu %s rect %s footprint %s terrace_y %d pad_y %d way_level %d door %s n %s\n", i, lots[i].value("typology", std::string("?")).c_str(),
+                    lots[i]["rect"].dump().c_str(), lots[i]["footprint"].dump().c_str(), lots[i].value("terrace_y", -1), lots[i].value("pad_y", -1), lots[i].value("way_level", -1),
+                    lots[i].value("door", nlohmann::json()).dump().c_str(), lots[i].value("door_normal", nlohmann::json()).dump().c_str());
+    auto cubeTop = [&](int wx, int wz) {
+        for (int y = 260; y > 0; --y)
+            if (const Cube* c = rig.cm.getCubeAt(glm::ivec3(wx, y, wz))) {
+                const std::string m = c->getMaterialName();
+                if (m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0) continue;
+                return y;
+            }
+        return -1;
+    };
+    const int x0 = 60, x1 = 84, z0 = 42, z1 = 58;
+    auto grid = [&](const char* what, const std::function<int(int, int)>& f) {
+        std::printf("[ diag ] %s (local x %d..%d across, z %d..%d down; value - 150):\n", what, x0, x1, z0, z1);
+        for (int z = z1; z >= z0; --z) {
+            std::string line = "[ diag ] z " + std::to_string(z) + ":";
+            for (int x = x0; x <= x1; ++x) { const int v = f(x, z); line += " " + (v < 0 ? std::string("--") : std::to_string(v - 150)); }
+            std::printf("%s\n", line.c_str());
+        }
+    };
+    grid("generator natural ground", [&](int x, int z) { return static_cast<int>(std::floor(rig.gen->naturalGroundAt(ox + x, oz + z))); });
+    grid("chunk cube tops BEFORE any unit", [&](int x, int z) { return cubeTop(ox + x, oz + z); });
+    for (auto& u : plan.units) {
+        if (u.label.find("grading + paving ways") != std::string::npos) break;
+        u.run();
+    }
+    grid("chunk cube tops AFTER the terrace units, before the ways", [&](int x, int z) { return cubeTop(ox + x, oz + z); });
+    for (auto& u : plan.units) if (u.label.find("grading + paving ways") != std::string::npos) { u.run(); break; }
+    grid("top solid micro of each cell's centre column after the ways unit, / 9", [&](int x, int z) {
+        const int mx = (ox + x) * 9 + 4, mz = (oz + z) * 9 + 4;
+        for (int my = 170 * 9; my > 140 * 9; --my) if (rig.cm.occupiedMicro(glm::ivec3(mx, my, mz))) return my / 9;
+        return -1; });
+    std::printf("[ diag ] centre-column top micro along z 49..51 for x 74..80:\n");
+    for (int z = 51; z >= 49; --z) {
+        std::string line = "[ diag ] z " + std::to_string(z) + ":";
+        for (int x = 74; x <= 80; ++x) {
+            const int mx = (ox + x) * 9 + 4, mz = (oz + z) * 9 + 4; int t = -1;
+            for (int my = 170 * 9; my > 140 * 9; --my) if (rig.cm.occupiedMicro(glm::ivec3(mx, my, mz))) { t = my; break; }
+            line += " " + std::to_string(t);
+        }
+        std::printf("%s\n", line.c_str());
     }
 }
 

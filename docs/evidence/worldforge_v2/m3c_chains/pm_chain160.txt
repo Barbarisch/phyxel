@@ -1,0 +1,52 @@
+PREDICTIONS for chain 160 - M5b-1a increment C, the terrace. Written 2026-11-13 09:25 BEFORE patch 28.
+
+CHAIN 156 MISSED PM5b1a.13 and .14 (recorded in the ledger): on the village 3 of 10 seats and on the town 6 of 23 read
+a map way level 9-11 micro off the paving stamp's, the pad GIVEN was the map's, and the gates blocked (village 31
+walkable / 3 blocked, town 66 / 6 - the differing lots). The tree after patch 26 is WORSE than the committed one on
+the sloped sites.
+CAUSE, READ FROM THE CODE (SettlementBuildService.cpp:822-875), not yet measured: in terrain mode every parcel is
+TERRACED to the median of its rect (a 4-cube skirt ramping to the natural ground, one cube a cell) BEFORE the ways
+unit; the ways are graded over the terraced ground; the planner graded them over the natural ground. The stamp's
+levels at the differing lots are all whole cubes (864, 918, 900: a terrace top), the map's one cube away.
+
+PATCH 28: SettlementMapInput::terraceLots (the realizer sets it in terrain mode with a world); the planner applies the
+terrace rule to its own ground, parcel by parcel in lot order (each parcel reads the ground the earlier ones left, its
+own targets computed before any is applied - as the unit does), records the grade on the lot (terraceY, "terrace_y")
+and grades the ways over THAT ground. Ground outside the site rect is read from the caller's sampler, not clamped.
+CHAIN 160 (the village + town arms):
+  PM5b1a.15: the agreement reads 0 pads differ, 0 way levels differ on both (10 and 23 seats), 0 doors differ.
+    UNCERTAIN: the terrace unit reads the CHUNK ground (flora-blind scan) where the planner reads the generator; the
+    skirt of one parcel under the next; anything else that moves ground before the ways (I found only the terraces).
+    If some still differ they are listed with both numbers and the cause is looked for - not assumed.
+  PM5b1a.16: the gates return to chain 142's counts: village 34 walkable / 0 blocked over 11 of 11, town 72 / 0
+    over 24 of 24, 0 lot failures. Follows from .15 only if every pad equals the stamp's.
+  The map test (EveryLotAtAPavedWayCarriesItsPad) is NOT changed and does not set terraceLots: unchanged counts.
+
+ADDED 2026-11-13 09:55, after chains 160 / 161 and BEFORE patch 29:
+CHAIN 160: PM5b1a.15 MET on the village (10 of 10 seats equal, gate 34 / 0), MISSED on the town by ONE seat (22 of
+  23; lot 7 butcher: map way level 1414, the stamp 1405; gate 71 walkable / 1 blocked). PM5b1a.16 missed on the town.
+CHAIN 161 (the diagnostic DiagTownLotSeven, measured): round the butcher's door the CHUNKS as generated differ from
+  the generator's naturalGroundAt before any unit runs - a band at local x 72..84, z 46..58 stands up to 2 cubes
+  lower (and 1 higher at its edges). The town's params carry an arriving road entry at (76, 50): the band is the
+  M4 road's graded earthwork, which the generator EMITS and naturalGroundAt (phases 0-2, "off every channel, coast
+  and road") leaves out. The planner graded the way at the butcher's approach (76, 50) over ground 156; the chunks
+  hold 155 there.
+PATCH 29: SettlementMapInput::gradeHeightAt - the ground AS EMITTED (the generator's sampleSurface().surfaceY, the
+  top solid voxel of the column) - used for the terraces and the ways' grading; the site analysis and the growth
+  keep naturalGroundAt (unchanged maps). The diagnostic test is DISABLED_ (kept, not in any filter).
+CHAIN 162 (the village + town arms):
+  PM5b1a.17: town 23 of 23 seats equal, gate 72 walkable / 0 blocked over 24 of 24; village 10 of 10, 34 / 0.
+    UNCERTAIN: whether surfaceY is the chunk scan's flora-blind top everywhere (a retaining tier of the road's
+    earthwork stands ABOVE surfaceY in the column sample); the terrace medians may move where a lot rect overlaps
+    the road band (lot 7's does), and with them pads that agreed in chain 160.
+  The lot / way counts of the maps must NOT change (the growth does not read the new sampler): village 11 lots /
+    8 ways, town 24 / 19.
+
+ADDED 2026-11-13 10:14 - chains 163-165 were LAUNCHED at 10:12, before this was written; no result of theirs had been
+read (the unit set alone takes 8 minutes). Stated so the order is on the record.
+CHAIN 162: PM5b1a.17 MET (village 10 of 10, 34 / 0; town 23 of 23, 72 / 0; lot / way counts unchanged).
+CHAINS 163 / 164 / 165 on the patch-29 tree: m5b2 159 ok / 0 failed, both version-1 plan hashes pinned; m5b6 42 / 0;
+  chain 165 = the terrain-plan + column-cache + realizer suites (33) + the seven other live-site tests (the legacy
+  control, the hamlet from its map, the three hamlet map-agreement tests, the 27-lot door stress, the headless door
+  passage) = 40 ok / 0 failed (PM5b1a.18). The hamlet's seats: 3 of 3 equal as chain 155. UNCERTAIN: the hamlet
+  sits by no arriving road band I know of, but the emitted-ground sampler is new on it.

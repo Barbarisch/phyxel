@@ -6,10 +6,15 @@
 #include <cmath>
 #include <map>
 #include <queue>
+#include <unordered_map>
 
+#include "core/BuildingProgram.h"
 #include "core/PathPlanner.h"
+#include "core/RoomLayout.h"      // autofillRoomLayout (predictLotDoor, M5b-1a)
 #include "core/RoomProgram.h"
+#include "core/SettlementLayout.h"   // pickBuildingVariant (the lot's style, D49)
 #include "core/SiteAnalysis.h"
+#include "core/StreetPaver.h"        // planWayPaving, padCubeForStreet (the lot's seat, M5b-1a)
 
 namespace Phyxel {
 namespace Core {
@@ -516,6 +521,36 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
 
 void setPathSlopeAversionForTesting(float aversion) { s_pathSlopeAversion = aversion < 0.0f ? kPathSlopeAversion : aversion; }
 
+LotDoor predictLotDoor(const RoomProgramRegistry* rooms, const std::string& typology, const Rect& fp, int orientation,
+                       int worldX, int worldZ) {
+    LotDoor out;
+    if (!rooms || fp.w <= 0 || fp.d <= 0) return out;
+    const RoomProgram* rp = rooms->get(typology);
+    if (!rp) return out;
+    static const char* kFront[4] = {"z1", "x1", "z0", "x0"};   // orientation 0 = +Z ('N') ... 3 = -X ('W')
+    const std::string front = kFront[((orientation % 4) + 4) % 4];
+    // the program the realizer hands the forge for a lot (makeBp): a slab, one story of height 3, the front hint
+    BuildingProgram pp;
+    pp.name = typology; pp.typology = typology; pp.footprintW = fp.w; pp.footprintD = fp.d;
+    pp.substructure = "slab"; pp.front = front;
+    ProgStory st; st.height = 3; pp.stories.push_back(st);
+    const unsigned seed = (static_cast<unsigned>(worldX) * 73856093u) ^ (static_cast<unsigned>(worldZ) * 19349663u) ^ 0x9e3779b9u;
+    if (!autofillRoomLayout(pp, seed ? seed : 1u, rp) || pp.stories.empty()) return out;
+    const ProgPortal* door = nullptr; bool onFront = false;
+    for (const auto& po : pp.stories[0].portals) {
+        if (po.kind != "door" || (po.a != "exterior" && po.b != "exterior")) continue;
+        const bool f = (front == "x0" && po.px == 0) || (front == "x1" && po.px == fp.w) || (front == "z0" && po.pz == 0) || (front == "z1" && po.pz == fp.d);
+        if (!door || (f && !onFront)) { door = &po; onFront = f; }
+    }
+    if (!door) return out;
+    if (door->px == 0)         { out.wall = {fp.x, fp.z + door->pz}; out.normal = {-1, 0}; }
+    else if (door->px == fp.w) { out.wall = {fp.x + fp.w - 1, fp.z + door->pz}; out.normal = {1, 0}; }
+    else if (door->pz == 0)    { out.wall = {fp.x + door->px, fp.z}; out.normal = {0, -1}; }
+    else                       { out.wall = {fp.x + door->px, fp.z + fp.d - 1}; out.normal = {0, 1}; }
+    out.found = true; out.onFront = onFront;
+    return out;
+}
+
 glm::ivec2 lotDoorApproach(const MapLot& lot) {
     const Rect& f = lot.footprint;
     switch (((lot.orientation % 4) + 4) % 4) {
@@ -582,6 +617,122 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
         // the M5 stress cap: the per-lot connection's search budget is sized for 400 lots per site
         map.lots.resize(static_cast<size_t>(in.lotCap));
         map.refusal = "more lots than the cap of " + std::to_string(in.lotCap) + " (the M5 stress cap) - truncated";
+    }
+    // M5b-1a (sequencing amendment 1): each lot's DOOR (the forge's own autofill, seeded by the building's world
+    // corner) and its STYLE (D49: the realizer's draw by lot index, pinned) are map data
+    for (size_t i = 0; i < map.lots.size(); ++i) {
+        MapLot& l = map.lots[i];
+        const LotDoor d = predictLotDoor(in.rooms, l.typology, l.footprint, l.orientation, in.originX + l.footprint.x, in.originZ + l.footprint.z);
+        if (d.found) { l.hasDoor = true; l.doorX = d.wall.x; l.doorZ = d.wall.y; l.doorNX = d.normal.x; l.doorNZ = d.normal.y; }
+        if (!in.styles.empty()) l.style = pickBuildingVariant(static_cast<int>(i), std::vector<std::string>{l.typology}, in.styles, in.varietySeed).style;
+    }
+    // increment C: each lot's SEAT. The ways' paved surface is the paver's own pure plan over this planner's ground
+    // (the ribbons exactly as the realizer builds them: world cubes, the rounded width; the ground the realizer's
+    // surfMicro: (height + 1) * 9 per cube column), less the columns inside lot footprints (the ways unit drops
+    // them); the way is read at each door with the rule the realizer applied to the paving STAMP until now (the
+    // centre column of the first paved cell 1..3 out along the normal, else that cell's lowest column; else the
+    // highest column of the approach cell, then of its 8 neighbours). A door that meets no paving there has no seat.
+    if (!map.ways.empty() && !map.lots.empty()) {
+        auto fl9 = [](int v) { return v >= 0 ? v / 9 : -((-v + 8) / 9); };
+        auto key = [](int x, int z) { return (static_cast<long long>(x) << 32) ^ static_cast<long long>(static_cast<unsigned int>(z)); };
+        std::vector<WayRibbon> ribbons;
+        for (const auto& w : map.ways) {
+            std::vector<glm::ivec2> cells;
+            for (int nid : w.nodes) if (const MapNode* n = map.node(nid)) cells.push_back({in.originX + n->x, in.originZ + n->z});
+            if (cells.size() >= 2) ribbons.push_back({cells, std::max(1, static_cast<int>(std::lround(w.width)))});
+        }
+        const int oX = in.originX, oZ = in.originZ;
+        // the ground the ways are graded over (LOCAL cubes): the natural ground - the cache inside the site rect, the
+        // caller's sampler beyond it - with the parcels' TERRACES applied when the realizer applies them (chain 156:
+        // 9 of 33 seats on the village and the town read a way level one cube off the paving stamp - the ways unit
+        // runs after the terrace units). The rule is the unit's (SettlementBuildService "terracing parcel"): the
+        // parcel takes the median of its rect as it stands when its turn comes, a 4-cube skirt ramps one cube a cell
+        // to the ground beyond; every target of a parcel is computed before any is applied.
+        std::unordered_map<long long, int> terraced, emitted;
+        const auto groundAt = [&](int x, int z) {
+            const auto it = terraced.find(key(x, z));
+            if (it != terraced.end()) return it->second;
+            if (in.gradeHeightAt) {   // the ground AS EMITTED (chain 161: an arriving road's earthwork under a lot's approach)
+                const auto et = emitted.find(key(x, z));
+                if (et != emitted.end()) return et->second;
+                const int h = in.gradeHeightAt(x, z);
+                emitted.emplace(key(x, z), h);
+                return h;
+            }
+            return (x >= 0 && z >= 0 && x < in.W && z < in.D) ? in2.heightAt(x, z) : in.heightAt(x, z);
+        };
+        if (in.terraceLots) {
+            constexpr int SK = 4;
+            for (auto& l : map.lots) {
+                const Rect& pr = l.rect;
+                if (pr.w < 2 || pr.d < 2) continue;
+                std::vector<int> tops;
+                tops.reserve(static_cast<size_t>(pr.w) * pr.d);
+                for (int x = pr.x; x < pr.x1(); ++x) for (int z = pr.z; z < pr.z1(); ++z) tops.push_back(groundAt(x, z));
+                std::sort(tops.begin(), tops.end());
+                const int grade = tops[tops.size() / 2];
+                l.hasTerrace = true; l.terraceY = grade;
+                std::vector<std::pair<long long, int>> targets;
+                for (int x = pr.x - SK; x < pr.x1() + SK; ++x)
+                    for (int z = pr.z - SK; z < pr.z1() + SK; ++z) {
+                        const bool inPlot = x >= pr.x && x < pr.x1() && z >= pr.z && z < pr.z1();
+                        const int nat = groundAt(x, z);
+                        int target = grade;
+                        if (!inPlot) {
+                            const int dx = std::max({pr.x - x, x - (pr.x1() - 1), 0});
+                            const int dz = std::max({pr.z - z, z - (pr.z1() - 1), 0});
+                            const int dist = std::max(dx, dz);
+                            target = (nat > grade) ? std::min(nat, grade + dist) : std::max(nat, grade - dist);
+                        }
+                        if (target != nat) targets.push_back({key(x, z), target});
+                    }
+                for (const auto& t : targets) terraced[t.first] = t.second;
+            }
+        }
+        const std::function<int(int, int)> groundMicro = [&groundAt, fl9, oX, oZ](int mx, int mz) { return (groundAt(fl9(mx) - oX, fl9(mz) - oZ) + 1) * 9; };
+        const PavingPlan pave = planWayPaving(ribbons, groundMicro, in.agent, std::string());
+        std::unordered_map<long long, int> surf;
+        surf.reserve(pave.columns.size());
+        for (const auto& c : pave.columns) {
+            const int cx = fl9(c.x) - oX, cz = fl9(c.z) - oZ;
+            bool inFoot = false;
+            for (const auto& l : map.lots)
+                if (cx >= l.footprint.x && cx < l.footprint.x1() && cz >= l.footprint.z && cz < l.footprint.z1()) { inFoot = true; break; }
+            if (!inFoot) surf.emplace(key(c.x, c.z), c.surface);
+        }
+        for (auto& l : map.lots) {
+            if (!l.hasDoor) continue;
+            const glm::ivec2 wall(oX + l.doorX, oZ + l.doorZ), n(l.doorNX, l.doorNZ);
+            int wayTop = INT_MIN;
+            for (int k = 1; k <= 3 && wayTop == INT_MIN; ++k) {
+                const glm::ivec2 c = wall + n * k;
+                int lowest = INT_MAX;
+                for (int dz = 0; dz < 9; ++dz) for (int dx = 0; dx < 9; ++dx) {
+                    const auto it = surf.find(key(c.x * 9 + dx, c.y * 9 + dz));
+                    if (it != surf.end()) lowest = std::min(lowest, it->second);
+                }
+                const auto ct = surf.find(key(c.x * 9 + 4, c.y * 9 + 4));
+                if (ct != surf.end()) wayTop = ct->second;
+                else if (lowest != INT_MAX) wayTop = lowest;
+            }
+            const glm::ivec2 approach = wall + n * 2;
+            for (int r = 0; r <= 1 && wayTop == INT_MIN; ++r)
+                for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) {
+                    if (std::max(std::abs(dx), std::abs(dz)) != r) continue;
+                    const int ax = approach.x + dx, az = approach.y + dz;
+                    for (int mz = 0; mz < 9; ++mz) for (int mx = 0; mx < 9; ++mx) {
+                        const auto it = surf.find(key(ax * 9 + mx, az * 9 + mz));
+                        if (it != surf.end() && it->second > wayTop) wayTop = it->second;
+                    }
+                }
+            if (wayTop == INT_MIN) continue;
+            const auto oi = in.thresholdAbovePad.find(l.style);
+            const int off = oi != in.thresholdAbovePad.end() ? oi->second : 12;
+            l.hasSeat = true;
+            l.wayLevel = wayTop + 1;
+            l.padY = padCubeForStreet(l.wayLevel, off, 4);   // 4 = the agent's step-up, as the realizer's seat
+            l.threshold = l.padY * 9 + off;
+        }
     }
     map.bakeMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
     return map;

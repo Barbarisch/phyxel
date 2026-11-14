@@ -1,0 +1,38 @@
+PREDICTIONS for chains 149-151 - M5b-1a increment B: the door's wall cell + outward normal and the style on the map
+lot (D48, D49 as proposed). Written 2026-11-13 BEFORE patch 23 is applied or built.
+
+PATCH 23 = the DATA MODEL and the RED TESTS, no planner change: MapLot gains hasDoor / door (x, z settlement-local
+cubes: the wall cell the door is cut through) / doorNormal / style, serialized as "door": [x, z], "door_normal":
+[nx, nz] (only when hasDoor) and "style" (only when non-empty); SettlementMapInput gains styles + varietySeed (not
+read by the planner yet); Plan::builtDoors records per BUILT building {lot, door [x, z] world cubes, normal} from the
+forge's recorded door (instrumentation). Tests:
+  SettlementMapTest.EveryLotCarriesItsDoorAndStyle - hamlet (hill + flat), village, town, city inputs with the three
+    shipped styles: every lot's JSON carries a door on its footprint's PERIMETER whose normal is a unit axis pointing
+    OUT of the footprint, and a style from the palette.
+  SettlementMapLiveSiteTest.TheForgesDoorIsTheMapsDoor - hamlet 3 through its map: every built building's recorded
+    door equals its map lot's door + the origin, normal included.
+CHAIN 149 (filter the two tests):
+  PM5b1a.4: BOTH RED. The map test: every lot of every tier "carries no door" (and no style). The live test: 6 built
+    doors, 6 lots without a map door.
+
+PATCH 24: predictLotDoor (the forge's deterministic autofill run with the forge's floorplan seed - the realizer-side
+prediction of chain 111, lifted into the planner) fills door / doorNormal on every lot; the style is
+pickBuildingVariant's by lot index (what the realizer drew). The realizer READS the lot's door and style; a map lot has
+no variant re-roll (D49); a forge door that differs from the map's is recorded as a lot failure "door mismatch" (D48 -
+STATED DEVIATION: the building is already built when the door is known, it is not removed; the failure is recorded).
+New stress SettlementMapLiveSiteTest.TheMapsDoorIsTheForgesDoorOnEveryPlannedLot: every distinct (typology, footprint,
+orientation) the hamlet / village / town / city maps plan on a flat field, built headless by the forge at the lot's
+world position: the forge's recorded door == the map's.
+CHAIN 150 (the two tests + the stress):
+  PM5b1a.5: the map test GREEN: every lot a door on its perimeter, normal outward, a style of the palette.
+    UNCERTAIN: "on the FRONT side" is NOT asserted - the realizer's prediction falls back to any exterior door when
+    none is on the front wall; how many lots take the fallback is printed, I expect 0.
+  PM5b1a.6: the live test GREEN: 6 of 6 doors equal, 0 lot failures, gate as chain 142's hamlet arm: 16 walkable /
+    0 blocked over 6 doors of 6.
+  PM5b1a.7: the stress GREEN, 0 mismatches. UNCERTAIN: the live prediction was only ever exercised on the lots of
+    the hamlet, village 1 / 2 and the town of the baseline world; a typology or orientation it never met may differ
+    (a mismatch is a finding: the lot is listed, the test stays red, nothing is loosened).
+  The distinct-lot count is read from the run (I expect 15-40).
+CHAIN 151 = the unit set (m5b2 mode) + the paver set (m5b6) + SettlementTerrainPlanTest.* on the patch-24 tree:
+  PM5b1a.8: 0 failed (157 + the new map test = 158; 42; 11). The version-1 plan hashes pinned (the map is out of
+  the plan hash).

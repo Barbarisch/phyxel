@@ -1,0 +1,11 @@
+   node 0 (-7865,-9921) y 97 alongZ: Gravel in 9 of 9 columns across [1, 75, 108, 108, 108, 108, 108, 27, 27] own column 108
+   node 3 (-7868,-9928) y 97 alongX: Gravel in 9 of 9 columns across [10, 71, 81, 81, 81, 81, 81, 81, 81] own column 81
+   node 6 (-7876,-9934) y 97 alongX: Gravel in 7 of 9 columns across [0, 10, 81, 81, 81, 81, 81, 63, 0] own column 81
+   node 9 (-7880,-9935) y 97 alongX: Gravel in 7 of 9 columns across [10, 71, 81, 81, 81, 81, 81, 0, 0] own column 81
+   node 12 (-7899,-9942) y 97 alongX: Gravel in 8 of 9 columns across [0, 10, 81, 81, 81, 81, 81, 98, 81] own column 81
+   node 15 (-7904,-9943) y 97 alongX: Gravel in 6 of 9 columns across [0, 63, 81, 81, 81, 81, 81, 0, 0] own column 81
+   node 18 (-7907,-9945) y 97 alongX: Gravel in 6 of 9 columns across [0, 0, 810, 81, 81, 81, 81, 63, 0] own column 81
+   node 21 (-7924,-9946) y 97 alongX: Gravel in 7 of 9 columns across [0, 0, 810, 810, 81, 81, 81, 121, 626] own column 81
+   node 24 (-7951,-9920) y 97 alongX: Gravel in 9 of 9 columns across [100, 696, 810, 792, 81, 81, 81, 726, 341] own column 81
+   node 27 (-7954,-9919) y 97 alongX: Gravel in 8 of 9 columns across [100, 810, 810, 81, 81, 81, 145, 764] own column 81
+MICRO PROBE: primary way width 5; 10 nodes probed, 10 carry Gravel in their own column, ribbon width across the section median 7.5 columns (expected 5 +- 1)

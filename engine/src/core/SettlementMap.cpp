@@ -25,10 +25,16 @@ nlohmann::json SettlementMap::toJson() const {
         ws.push_back({{"id", w.id}, {"highway", w.highway}, {"nodes", w.nodes}, {"width", w.width}, {"grade", w.grade}, {"cls", w.cls}});
     j["ways"] = ws;
     nlohmann::json ls = nlohmann::json::array();
-    for (const auto& l : lots)
-        ls.push_back({{"id", l.id}, {"rect", l.rect.toJson()}, {"footprint", l.footprint.toJson()}, {"typology", l.typology},
-                      {"stories", l.stories}, {"orientation", l.orientation}, {"ground", l.ground}, {"way", l.way},
-                      {"setback", l.setback}, {"interest", l.interest}});
+    for (const auto& l : lots) {
+        nlohmann::json lj = {{"id", l.id}, {"rect", l.rect.toJson()}, {"footprint", l.footprint.toJson()}, {"typology", l.typology},
+                             {"stories", l.stories}, {"orientation", l.orientation}, {"ground", l.ground}, {"way", l.way},
+                             {"setback", l.setback}, {"interest", l.interest}};
+        if (l.hasDoor) { lj["door"] = {l.doorX, l.doorZ}; lj["door_normal"] = {l.doorNX, l.doorNZ}; }   // M5b-1a
+        if (!l.style.empty()) lj["style"] = l.style;
+        if (l.hasSeat) { lj["way_level"] = l.wayLevel; lj["pad_y"] = l.padY; lj["threshold"] = l.threshold; }
+        if (l.hasTerrace) lj["terrace_y"] = l.terraceY;
+        ls.push_back(std::move(lj));
+    }
     j["lots"] = ls;
     nlohmann::json as = nlohmann::json::array();
     for (const auto& a : areas) as.push_back({{"id", a.id}, {"landuse", a.landuse}, {"rect", a.rect.toJson()}});
@@ -72,6 +78,17 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
             ml.typology = l.value("typology", std::string()); ml.stories = l.value("stories", 1);
             ml.orientation = l.value("orientation", 0); ml.ground = l.value("ground", std::string("graded"));
             ml.way = l.value("way", -1); ml.setback = l.value("setback", 1); ml.interest = l.value("interest", 0.0f);
+            if (l.contains("door") && l["door"].is_array() && l["door"].size() == 2 && l.contains("door_normal") &&
+                l["door_normal"].is_array() && l["door_normal"].size() == 2) {
+                ml.hasDoor = true;
+                ml.doorX = l["door"][0].get<int>(); ml.doorZ = l["door"][1].get<int>();
+                ml.doorNX = l["door_normal"][0].get<int>(); ml.doorNZ = l["door_normal"][1].get<int>();
+            }
+            ml.style = l.value("style", std::string());
+            if (l.contains("terrace_y")) { ml.hasTerrace = true; ml.terraceY = l.value("terrace_y", 0); }
+            if (l.contains("pad_y") && l.contains("way_level") && l.contains("threshold")) {
+                ml.hasSeat = true; ml.wayLevel = l.value("way_level", 0); ml.padY = l.value("pad_y", 0); ml.threshold = l.value("threshold", 0);
+            }
             m.lots.push_back(std::move(ml));
         }
     if (j.contains("areas") && j["areas"].is_array())

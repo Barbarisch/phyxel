@@ -19,6 +19,7 @@
 // ============================================================================
 
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -51,7 +52,40 @@ struct SettlementMapInput {
     AgentBox agent;                               ///< the walk corridor the paths are sized for
     float reuse = 0.5f;                           ///< the M4 reuse discount on cells already on a way (routeReuseFraction)
     int lotCap = 400;                             ///< the M5 stress cap: more lots than this are refused with the reason
+    /// M5b-1a (D49): the style palette and the variety seed the realizer draws a building's style from
+    /// (pickBuildingVariant by lot index) - the map lot PINS the draw. Empty = the lots carry no style.
+    std::vector<std::string> styles;
+    unsigned varietySeed = 1;
+    /// M5b-1a (increment C): the ground floor's threshold above the pad's top cube, per style (micro;
+    /// StructureRealizer::thresholdAbovePadMicro). A style not listed takes 12 (a 0.333 floor on a slab).
+    std::map<std::string, int> thresholdAbovePad;
+    /// M5b-1a (chain 156): the realizer TERRACES every parcel to the median of its rect (a 4-cube skirt) before it
+    /// paves the ways - in terrain mode with a world. True = the planner applies the same rule to its ground, parcel
+    /// by parcel in lot order, and grades the ways over the terraced ground. `heightAt` must then answer OUTSIDE the
+    /// site rect too (the skirt and the ways' edges reach past it).
+    bool terraceLots = false;
+    /// M5b-1a (chain 161): LOCAL (x,z) -> the top solid cube of the column AS EMITTED (the generator's
+    /// sampleSurface().surfaceY: the M4 road earthwork and the carve included) - the ground the realizer's terrace
+    /// and ways units read from the chunks. `heightAt` is the NATURAL ground (no road, no carve): the site analysis
+    /// and the growth read that; the terraces and the ways' grading read THIS (null = heightAt). Must answer
+    /// outside the site rect.
+    std::function<int(int, int)> gradeHeightAt;
 };
+
+/// M5b-1a (sequencing amendment 1): the front door the FORGE will cut for a lot - the wall cell (in the footprint's
+/// own frame: `footprint` may be settlement-local or world, the cell comes back in the same frame) and the outward
+/// normal. The forge's floorplan is deterministic in (typology, footprint size, front, the seed derived from the
+/// building's WORLD min corner - StructureForge::stageFloorplan); this runs the same autofill with the same seed and
+/// takes the exterior door on the front wall (any exterior door when none is there - `onFront` false).
+/// `orientation` as MapLot's (0 = +Z, 1 = +X, 2 = -Z, 3 = -X). found = false: no room program for the typology,
+/// or the autofill gave no exterior door. Pinned against the forge's recorded door by
+/// SettlementMapLiveSiteTest.TheMapsDoorIsTheForgesDoorOnEveryPlannedLot.
+struct LotDoor {
+    bool found = false, onFront = false;
+    glm::ivec2 wall{0, 0}, normal{0, 0};
+};
+LotDoor predictLotDoor(const RoomProgramRegistry* rooms, const std::string& typology, const Rect& footprint, int orientation,
+                       int worldX, int worldZ);
 
 /// Bake the map. Never throws; a refused site carries `refusal` and whatever was planned before it.
 SettlementMap planSettlementMap(const SettlementMapInput& in);
