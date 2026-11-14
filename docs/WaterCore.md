@@ -13635,8 +13635,10 @@ conditions, all met or reported below).
   - `_off.png` (skin off) shows the same near the camera: near water is the record tiles' job.
   - At rest, skin on: 38.3 fps (CPU 26.2, GPU 25.4 ms) after; 37.7 fps (CPU 26.6, GPU 26.0) before. No measurable difference.
     The first "off" window in both runs caught streaming (46.7 / 10.4 fps).
-- **Status: built, not signed off.** For the owner:
-  1. the look (`level514_river_on.png` against `_before_on.png`);
+- **Status: the look SIGNED OFF by the owner 2026-11-14** (`level514_river_on.png`: *"second picture looks right"*; the first
+  report did not say `_before_on.png` was the defect, and the owner read it as the result - label the broken image in every
+  report). Still the owner's:
+  1. ~~the look~~ (signed off);
   2. how wide rivers are. At the 1 m cut, rivers fill their channel's low half; a deeper cut makes them wider, between taller
      banks (the table above). That is a look decision (condition 4), as is the 1/3 m minimum depth.
 - **Not done here:**
@@ -13714,7 +13716,7 @@ read on its own thread.
     main thread in isolation (~160 KB written; it ran inside session 1's fill without a visible step in the trace).
 - **Status: built, not signed off** (nothing on screen changes: by construction and by the tests). Not covered: the hydrology
   bake's ~10 s at every load (51.13, the owner's call) is a separate cost the cache does not touch.
-- **§51's open list (51.7c) is now empty.** What is left is the owner's: the sign-offs (51.12-51.14 looks, the river width / cut
+- **§51's open list (51.7c) is now empty.** What is left is the owner's: the sign-offs (51.12-51.13 looks; 51.14's look signed off 2026-11-14; the river width / cut
   limit, the 1/3 m minimum depth, the 51.13 bake time) and 51.11's pool factor.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
