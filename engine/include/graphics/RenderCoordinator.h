@@ -1545,6 +1545,12 @@ private:
     uint64_t       m_voxFoundCullRevision = UINT64_MAX;
     VkBuffer       m_voxFoundOriginBuffer = VK_NULL_HANDLE;          // per command: its chunk origin (ivec4 metres)
     VkDeviceMemory m_voxFoundOriginMemory = VK_NULL_HANDLE;
+    // F2.14f: with the leaf-mass look on, the cull table is ordered solid clusters first, leaf mass last; the leaf
+    // mass is a second multidraw (its own pipeline) reading its own origin table.
+    std::vector<Core::VoxFound::PreviewCluster> m_voxFoundCullOrder;
+    uint32_t       m_voxFoundMdiSolid = 0;
+    VkBuffer       m_voxFoundOriginLeafBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_voxFoundOriginLeafMemory = VK_NULL_HANDLE;
     bool           m_voxFoundCullRecorded = false;                   // this frame's cull pass was recorded
     void recordVoxFoundCull(VkCommandBuffer cmd);
     void releaseVoxFoundCull();

@@ -96,10 +96,10 @@ bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
         }
     }
     if (voxFoundPool == VK_NULL_HANDLE) {
-        VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2};
+        VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4};
         VkDescriptorPoolCreateInfo pi{};
         pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        pi.maxSets = 1;
+        pi.maxSets = 2;   // F2.14f: + the leaf-mass multidraw's set
         pi.poolSizeCount = 1;
         pi.pPoolSizes = &ps;
         VkDescriptorSetAllocateInfo ai{};
@@ -107,12 +107,15 @@ bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
         ai.descriptorSetCount = 1;
         ai.pSetLayouts = &voxFoundSetLayout;
         if (vkCreateDescriptorPool(device, &pi, nullptr, &voxFoundPool) != VK_SUCCESS ||
-            (ai.descriptorPool = voxFoundPool, vkAllocateDescriptorSets(device, &ai, &voxFoundSet) != VK_SUCCESS)) {
+            (ai.descriptorPool = voxFoundPool, vkAllocateDescriptorSets(device, &ai, &voxFoundSet) != VK_SUCCESS) ||
+            vkAllocateDescriptorSets(device, &ai, &voxFoundSetLeaf) != VK_SUCCESS) {
             LOG_ERROR("RenderPipeline", "voxfound preview: descriptor set allocation failed");
             return false;
         }
         voxFoundSetBuffer = VK_NULL_HANDLE;
         voxFoundSetOrigins = VK_NULL_HANDLE;
+        voxFoundSetLeafBuffer = VK_NULL_HANDLE;
+        voxFoundSetLeafOrigins = VK_NULL_HANDLE;
     }
     if (voxFoundVertModule == VK_NULL_HANDLE) {
         auto code = Utils::readFile(vertSpvPath);
@@ -170,28 +173,70 @@ bool RenderPipeline::ensureVoxFoundMdiPipeline(const std::string& vertSpvPath) {
                                &attrs, voxFoundLayout);
 }
 
-void RenderPipeline::bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins) {
-    if (voxFoundSet == VK_NULL_HANDLE || table == VK_NULL_HANDLE) return;
+bool RenderPipeline::ensureVoxFoundLeafPipelines(const std::string& fragSpvPath) {
+    if (voxFoundLeafPipeline != VK_NULL_HANDLE && voxFoundLeafMdiPipeline != VK_NULL_HANDLE) return true;
+    if (!ensureVoxFoundPipeline("shaders/voxfound_face.vert.spv")) return false;
+    if (voxFoundLeafFragModule == VK_NULL_HANDLE) {
+        auto code = Utils::readFile(fragSpvPath);
+        if (code.empty()) {
+            LOG_WARN("RenderPipeline", "voxfound leaf mass: cannot read " + fragSpvPath);
+            return false;
+        }
+        voxFoundLeafFragModule = createShaderModule(code);
+    }
+    VkVertexInputBindingDescription bind{};
+    bind.binding = 1;
+    bind.stride = 8;
+    bind.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    std::vector<VkVertexInputAttributeDescription> attrs(2);
+    for (uint32_t i = 0; i < 2; ++i) {
+        attrs[i].binding = 1;
+        attrs[i].location = 1 + i;
+        attrs[i].format = VK_FORMAT_R32_UINT;
+        attrs[i].offset = 4 * i;
+    }
+    const VkColorComponentFlags rgba =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    if (voxFoundLeafPipeline == VK_NULL_HANDLE &&
+        !buildStaticPipeline(voxFoundLeafFragModule, VK_TRUE, Graphics::DepthConvention::sceneDepthCompareOp(), rgba,
+                             voxFoundLeafPipeline, "voxfound leaf mass", voxFoundVertModule, &bind, &attrs,
+                             voxFoundLayout))
+        return false;
+    if (voxFoundLeafMdiPipeline == VK_NULL_HANDLE) {
+        if (!ensureVoxFoundMdiPipeline("shaders/voxfound_face_mdi.vert.spv")) return false;
+        if (!buildStaticPipeline(voxFoundLeafFragModule, VK_TRUE, Graphics::DepthConvention::sceneDepthCompareOp(),
+                                 rgba, voxFoundLeafMdiPipeline, "voxfound leaf mass (indirect)", voxFoundMdiVertModule,
+                                 &bind, &attrs, voxFoundLayout))
+            return false;
+    }
+    return true;
+}
+
+void RenderPipeline::bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins, bool leafSet) {
+    VkDescriptorSet set = leafSet ? voxFoundSetLeaf : voxFoundSet;
+    VkBuffer& setBuffer = leafSet ? voxFoundSetLeafBuffer : voxFoundSetBuffer;
+    VkBuffer& setOrigins = leafSet ? voxFoundSetLeafOrigins : voxFoundSetOrigins;
+    if (set == VK_NULL_HANDLE || table == VK_NULL_HANDLE) return;
     const VkBuffer origins = drawOrigins != VK_NULL_HANDLE ? drawOrigins : table;   // placeholder for direct draws
-    if (voxFoundSetBuffer != table || voxFoundSetOrigins != origins) {
+    if (setBuffer != table || setOrigins != origins) {
         // The table buffer is never reallocated; the origin table is (region rebuild), and a frame in flight may
         // still read this set, so wait first (debug path, rare).
-        if (voxFoundSetBuffer != VK_NULL_HANDLE) vkDeviceWaitIdle(vulkanDevice.getDevice());
+        if (setBuffer != VK_NULL_HANDLE) vkDeviceWaitIdle(vulkanDevice.getDevice());
         VkDescriptorBufferInfo bi[2] = {{table, 0, VK_WHOLE_SIZE}, {origins, 0, VK_WHOLE_SIZE}};
         VkWriteDescriptorSet w[2]{};
         for (uint32_t i = 0; i < 2; ++i) {
             w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            w[i].dstSet = voxFoundSet;
+            w[i].dstSet = set;
             w[i].dstBinding = i;
             w[i].descriptorCount = 1;
             w[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             w[i].pBufferInfo = &bi[i];
         }
         vkUpdateDescriptorSets(vulkanDevice.getDevice(), 2, w, 0, nullptr);
-        voxFoundSetBuffer = table;
-        voxFoundSetOrigins = origins;
+        setBuffer = table;
+        setOrigins = origins;
     }
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, voxFoundLayout, 1, 1, &voxFoundSet, 0, nullptr);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, voxFoundLayout, 1, 1, &set, 0, nullptr);
 }
 
 bool RenderPipeline::buildStaticPipeline(VkShaderModule fragModule, VkBool32 depthWrite,
@@ -1005,6 +1050,15 @@ void RenderPipeline::cleanup() {
         vkDestroyPipeline(device, voxFoundMdiPipeline, nullptr);
         voxFoundMdiPipeline = VK_NULL_HANDLE;
     }
+    for (VkPipeline* p : {&voxFoundLeafPipeline, &voxFoundLeafMdiPipeline})   // F2.14f
+        if (*p != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, *p, nullptr);
+            *p = VK_NULL_HANDLE;
+        }
+    if (voxFoundLeafFragModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, voxFoundLeafFragModule, nullptr);
+        voxFoundLeafFragModule = VK_NULL_HANDLE;
+    }
     if (voxFoundMdiVertModule != VK_NULL_HANDLE) {
         vkDestroyShaderModule(device, voxFoundMdiVertModule, nullptr);
         voxFoundMdiVertModule = VK_NULL_HANDLE;
@@ -1019,6 +1073,9 @@ void RenderPipeline::cleanup() {
         voxFoundSet = VK_NULL_HANDLE;
         voxFoundSetBuffer = VK_NULL_HANDLE;
         voxFoundSetOrigins = VK_NULL_HANDLE;
+        voxFoundSetLeaf = VK_NULL_HANDLE;
+        voxFoundSetLeafBuffer = VK_NULL_HANDLE;
+        voxFoundSetLeafOrigins = VK_NULL_HANDLE;
     }
     if (voxFoundSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device, voxFoundSetLayout, nullptr);

@@ -1,0 +1,37 @@
+{
+ "overview_south": {
+  "old_0": 6.791,
+  "new_1": 6.543,
+  "old_2": 6.597,
+  "new_3": 6.27,
+  "new_minus_old": -0.288
+ },
+ "top_down": {
+  "old_0": 7.415,
+  "new_1": 6.238,
+  "old_2": 7.374,
+  "new_3": 6.878,
+  "new_minus_old": -0.837
+ },
+ "forest_floor_open": {
+  "old_0": 43.281,
+  "new_1": 43.629,
+  "old_2": 42.284,
+  "new_3": 43.962,
+  "new_minus_old": 1.013
+ },
+ "east_low": {
+  "old_0": 42.999,
+  "new_1": 43.353,
+  "old_2": 43.395,
+  "new_3": 43.418,
+  "new_minus_old": 0.188
+ },
+ "canopy_close": {
+  "old_0": 23.753,
+  "new_1": 25.213,
+  "old_2": 24.712,
+  "new_3": 25.332,
+  "new_minus_old": 1.04
+ }
+}

@@ -13386,10 +13386,17 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // hands the sprigs off to it; false drops the mass from the draw lists and keeps sprigs everywhere (the F2.14
         // state). Re-selects the levels (a face re-upload).
         if ((cmd.params.contains("lod_auto") || cmd.params.contains("lod_px") || cmd.params.contains("lod_casters") ||
-             cmd.params.contains("lod_sprig") || cmd.params.contains("lod_max")) &&
+             cmd.params.contains("lod_sprig") || cmd.params.contains("lod_max") ||
+             cmd.params.contains("lod_leaf_look")) &&
             !cmd.params.contains("type") && !cmd.params.contains("region")) {
             bool ok = true;
             if (cmd.params.contains("lod_casters")) voxFoundPreview.lodCasters = cmd.params.value("lod_casters", false);
+            // {"lod_leaf_look":bool}: F2.14f A/B -- true (default) draws the leaf mass with its own pipeline, shaded as
+            // leaf cards (voxfound_leafmass.frag); false = through voxel.frag (the F2.14c look). No rebuild.
+            if (cmd.params.contains("lod_leaf_look")) {
+                voxFoundPreview.lodLeafLook = cmd.params.value("lod_leaf_look", true);
+                ++voxFoundPreview.revision;   // the draw lists are re-ordered (leaf mass last)
+            }
             // {"lod_max":n}: F2.14d A/B -- the highest built level the selection uses (re-selects; no rebuild)
             if (cmd.params.contains("lod_max")) {
                 const int cap = std::clamp(cmd.params.value("lod_max", 7), 0, 7);
@@ -13416,6 +13423,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"lod_casters", voxFoundPreview.lodCasters}, {"lod_sprig", voxFoundPreview.lodSprigOn},
                         {"lod_sprig_level", voxFoundPreview.lodSprigLevel}, {"ok", ok},
                         {"lod_max", voxFoundPreview.lodLevelCap}, {"lod_max_level", voxFoundPreview.lodMaxLevel},
+                        {"lod_leaf_look", voxFoundPreview.lodLeafLook},
                         {"levels_built", voxFoundPreview.levels.size()}, {"faces_on_device", voxFoundPreview.faces.size()}};
             if (!ok) response["error"] = "coarser levels not built (lod_levels)";
             return;

@@ -66,6 +66,9 @@ struct Preview {
     bool castFaces = true;           // F2.4 diagnosis switches: which parts write the shadow maps
     bool castSprigs = true;
     int lodSprigLevel = 0;           // F2.14c: levels >= this were built with leaves as solid mass; 0 = no handoff
+    /// F2.14f: the coarse leaf mass is drawn with its own pipeline (voxfound_leafmass.frag: shaded as leaf cards).
+    /// false = through voxel.frag like any face (the F2.14c look: the card texture on solid faces), kept for the A/B.
+    bool lodLeafLook = true;
     bool lodCasters = false;         // F2.14: with lodOn, the face casters draw the levels too (per caster fragment)
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves
 

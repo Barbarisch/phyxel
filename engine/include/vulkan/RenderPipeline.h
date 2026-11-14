@@ -56,10 +56,17 @@ public:
     /// F2.11: binding 1 of set 1 = the per-indirect-draw chunk origin table read by voxfound_face_mdi.vert (null = the
     /// table buffer is bound there as a placeholder; the direct-draw shader never reads it). A changed buffer is
     /// written after vkDeviceWaitIdle (a frame in flight may still use the set; region rebuilds are rare).
-    void bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins = VK_NULL_HANDLE);
+    void bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins = VK_NULL_HANDLE,
+                             bool leafSet = false);
     /// F2.11: the same pipeline state with shaders/voxfound_face_mdi.vert (chunk origin per indirect draw).
     bool ensureVoxFoundMdiPipeline(const std::string& vertSpvPath);
     VkPipeline getVoxFoundMdiPipeline() const { return voxFoundMdiPipeline; }
+    /// F2.14f: the coarse leaf mass, drawn with voxfound_leafmass.frag (shaded as leaf cards) through the same two
+    /// vertex shaders and state. Its multidraw reads its own origin table: bindVoxFoundFaceTex(..., leafSet = true)
+    /// binds a second set-1 descriptor set, so the two multidraws of one frame never rewrite a set in use.
+    bool ensureVoxFoundLeafPipelines(const std::string& fragSpvPath);
+    VkPipeline getVoxFoundLeafPipeline() const { return voxFoundLeafPipeline; }
+    VkPipeline getVoxFoundLeafMdiPipeline() const { return voxFoundLeafMdiPipeline; }
     bool hasDepthPrepass() const { return depthPrepassPipeline != VK_NULL_HANDLE && graphicsPipelineAfterPrepass != VK_NULL_HANDLE; }
     void bindDepthPrepassPipeline(VkCommandBuffer commandBuffer);
     void bindGraphicsPipelineAfterPrepass(VkCommandBuffer commandBuffer);
@@ -182,6 +189,10 @@ private:
     VkBuffer voxFoundSetOrigins = VK_NULL_HANDLE;               // F2.11: what binding 1 was last written with
     VkShaderModule voxFoundMdiVertModule = VK_NULL_HANDLE;      // F2.11
     VkPipeline voxFoundMdiPipeline = VK_NULL_HANDLE;
+    VkDescriptorSet voxFoundSetLeaf = VK_NULL_HANDLE;           // F2.14f: set 1 for the leaf-mass multidraw
+    VkBuffer voxFoundSetLeafBuffer = VK_NULL_HANDLE, voxFoundSetLeafOrigins = VK_NULL_HANDLE;
+    VkShaderModule voxFoundLeafFragModule = VK_NULL_HANDLE;     // F2.14f
+    VkPipeline voxFoundLeafPipeline = VK_NULL_HANDLE, voxFoundLeafMdiPipeline = VK_NULL_HANDLE;
     void createDepthPrepassPipelines();   // best effort: leaves them null (feature unavailable) on failure
     void destroyDepthPrepassPipelines();
     bool createDescriptorSetLayout();

@@ -372,7 +372,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
-| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look owed |
+| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look done (F2.14f: own pipeline shaded as cards, luma 74.7 → 106.2 vs the cards' 107.9, mass error halved; +0.14/+0.16 ms at the ground; handoff still off); coarse canopy shape + ground under coarse canopy cells owed |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
@@ -1029,6 +1029,36 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   flora generation is 23-25 s of it, now the dominant cost. Pixels: the GPU build vs a CPU rebuild 0 px at
   overview_south P=8 (CPU built twice: 0 px; the session's first capture was 6 px off by one colour level from both).
 - Not a frame-time item (a build path); next lever for build time is the generation itself, which is not in item 7.
+
+**F2.14f 2026-11-14 — §4.6 item 7 continued: the leaf-mass appearance (owed by F2.14c).**
+- Built: `shaders/voxfound_leafmass.frag`, its own pipeline pair (`RenderPipeline::ensureVoxFoundLeafPipelines`:
+  `voxfound_face.vert` / `voxfound_face_mdi.vert` + this, the preview's state and layout). The coarse leaf mass is
+  shaded EXACTLY as `foliage.frag` shades a leaf card: albedo = the leaf texture's opaque average (16 taps at mip 1,
+  the texels the cards' alpha cutout keeps), up-facing probe ambient, sun 0.7 × shadow × sun gate with no N·L,
+  backlit transmission, lamps, × 0.91 (the mean card shade), no aerial haze; voxel.frag's LOD discard kept. Leaf-mass
+  clusters are ordered last and drawn by a second multidraw with its own origin table (a second set-1 descriptor set);
+  the direct path draws every leaf range after every solid range. Runtime A/B `{"lod_leaf_look":bool}` (default
+  true). `voxel.frag` is untouched (byte-identical .spv). LightingPipeline.md gains the receiver row.
+- Red: the F2.14c look failure, re-measured in the same session with the new look off (B0): top_down P=8 49.18 % px
+  changed vs the cards (A), luma 107.85 → 74.67; overview_south 20.60 % (`voxfound_f214f_gate.json`, controls 0.000 %).
+- Green (B): top_down luma 106.20 (prediction ±6: held); mean error on the leaf-mass pixels vs the cards 90.9 → 35.8
+  (top_down), 73.1 → 35.4 (overview). Pixels changed vs the cards 24.26 % / 10.93 % — predicted < 20 / < 10 %: WRONG.
+  The rest is SHAPE, not colour (`voxfound_f214f_zoom_top_down_P8.png`): the half-solid ½ m mass is blockier and
+  thinner than the card canopy (cards overhang their cells), so the darker understory shows in its gaps. Owed: the
+  coarse canopy's shape (its extent vs the cards'), gated against the cards.
+- Two traps found on the way, both fixed:
+  - The first build put this shading in a BRANCH of `voxel.frag`. Old vs new `voxel.frag` in separate sessions
+    (old/new/old/new; no hot reload), handoff off so no leaf mass is drawn at all (`voxfound_f214f_shader_sessions.json`):
+    canopy_close 23.75 / 24.71 old vs 25.21 / 25.33 new, forest_floor_open 43.28 / 42.28 vs 43.63 / 43.96 — every
+    preview fragment (and today's static world, which shares the shader) paid ~0.5-1 ms. Hence the own pipeline.
+  - Then the multidraw and the direct draws differed by 81 px (look + handoff on only): where two kept levels'
+    coplanar faces tie in depth the first drawn wins, and the direct path interleaved solid and leaf per chunk (chunk
+    order decided the winner). Same order in both paths now: 0 px in all 8 combinations (`voxfound_f214f_paths.json`).
+- Whole frame, B − B0 at P=8, 8 pairs × 5 poses (`voxfound_f214f_ab_P8_pipe.*`): overview −0.015, top_down −0.002
+  (CIs include 0), forest_floor_open +0.14*, east_low +0.16*, canopy_close +0.02* ms (* CI excludes 0). Prediction
+  (≤ 0.1) WRONG at the two ground poses: the card model per mass fragment (16 taps, two shadow maps, the lamp loop).
+- Default: the handoff stays OFF (`lod_sprig_level` 0): it saved ≤ 0.7 ms from above and cost at the ground (F2.14c),
+  and the shape gap remains. The leaf look is the default whenever the handoff is built.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

@@ -1,0 +1,40 @@
+F2.14f prediction (written 2026-11-14 before any code): the leaf-mass appearance (§4.6 item 7 continued, owed by
+F2.14c).
+
+Design: the coarse leaf mass (levels >= lod_sprig_level) is shaded in voxel.frag EXACTLY as foliage.frag shades a
+leaf card: albedo = the leaf texture's opaque average (16 taps at mip 1, texels with alpha >= 0.5, as the cards'
+cutout keeps), light = probe ambient as an up-facing receiver + sun 0.7 x shadow x sunGate (no N.L: a card has no
+meaningful normal) + backlit transmission + lamps, times the mean card shade 0.91; no aerial haze (cards have none).
+Marked per material: the preview's faceTex word sets flag bit 9 on card (leaf) materials (bits 2-9 are the OIT
+alpha, read only by transparent_voxel.frag, which never draws voxfound faces), and voxel.frag takes the branch only
+with bit 23 (voxfound LOD on) too, so no static face can reach it. Runtime A/B {"lod_leaf_look":bool} (default true).
+
+Gate (same rig as F2.14c: build h=2, lod_auto P=8, today's world hidden, wind 0, GI off), A = lod_sprig false
+(sprigs everywhere = the card look), B = handoff on with the NEW look, B0 = handoff on with the OLD look (the red):
+  B0 reproduces F2.14c's failure: top_down luma ~108 -> ~75, ~49 % px changed (red).
+  B: top_down luma within +-6 of A; px changed vs A < 20 % (from 49); overview_south < 10 % (from 20.6).
+  Remaining difference: the mass is flat (no per-card texture detail, no gaps showing deeper leaves) -- expected.
+Frame cost: B vs B0 at P=8 |delta| <= 0.1 ms (16 taps only on mass fragments, which are far and few).
+Receiver change: LightingPipeline.md §0 row + §9 entry, lighting_doc_check --update/--check.
+
+--- Measured (f214f_gate.json; same session, controls 0.000 % everywhere):
+Red reproduced: B0 (old look) top_down P=8 49.18 % px changed vs A, luma 107.85 -> 74.67; overview_south 20.60 %.
+B (new look): top_down luma 106.20 (held, within +-6); px changed 24.26 % (predicted < 20: WRONG), overview_south
+10.93 % (predicted < 10: WRONG, close); mean error on the mass pixels vs the cards 90.9 -> 35.8 (top_down), 73.1 ->
+35.4 (overview). P=4: the band is far (1.0-1.5 % px either way). The rest is SHAPE, not colour: the half-solid 1/2 m
+mass is blockier and thinner than the card canopy (cards overhang their cells), so the darker understory shows in its
+gaps (f214f_zoom_top_down_P8.png) -- owed with the coarse canopy shape, not this item.
+COST TRAP: the first build put the shading in a branch of voxel.frag. Old vs new voxel.frag, separate sessions
+alternated old/new/old/new, handoff OFF (no leaf mass drawn at all): canopy_close 23.75/24.71 old vs 25.21/25.33 new,
+forest_floor_open 43.28/42.28 old vs 43.63/43.96 new -- ~+0.5-1 ms on every preview fragment (session spread ~1 ms,
+but both new sessions above both old ones at both ground poses). Moved to its own pipeline pair
+(voxfound_leafmass.frag); voxel.frag.spv is byte-identical to HEAD again. Same look numbers to 3 decimals.
+Then the multidraw vs the direct draws differed by 81 px (look on + handoff on only): coplanar ties between kept
+levels resolve to the first drawn, and the direct path interleaved solid/leaf per chunk (chunk-order dependent) while
+the multidraw draws leaf mass last. Direct path now draws every leaf range after every solid range: 0 px in all 8
+combinations (2 poses x look x handoff).
+Whole frame, own pipeline, B (new look) - B0 (old look), handoff on, P=8 (f214f_ab_P8_pipe): overview -0.015,
+top_down -0.002 (CIs include 0), forest_floor_open +0.143*, east_low +0.158*, canopy_close +0.024* (* CI excludes 0).
+Prediction |delta| <= 0.1 WRONG at the two ground poses (+0.14/+0.16: the card model per mass fragment -- 16 taps,
+two shadow maps, the lamp loop -- vs voxel.frag's path). (An earlier B-vs-B0 run is void: its output file appended to
+a previous run's, and that session read ~2x slower than every other.)

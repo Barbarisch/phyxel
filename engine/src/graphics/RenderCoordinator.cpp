@@ -2623,6 +2623,14 @@ void RenderCoordinator::releaseVoxFoundCull() {
     }
     m_voxFoundOriginBuffer = VK_NULL_HANDLE;
     m_voxFoundOriginMemory = VK_NULL_HANDLE;
+    if (vulkanDevice && m_voxFoundOriginLeafBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(vulkanDevice->getDevice(), m_voxFoundOriginLeafBuffer, nullptr);
+        vkFreeMemory(vulkanDevice->getDevice(), m_voxFoundOriginLeafMemory, nullptr);
+    }
+    m_voxFoundOriginLeafBuffer = VK_NULL_HANDLE;
+    m_voxFoundOriginLeafMemory = VK_NULL_HANDLE;
+    m_voxFoundCullOrder.clear();
+    m_voxFoundMdiSolid = 0;
     m_voxFoundCull.reset();
     m_voxFoundCullRevision = UINT64_MAX;
 }
@@ -2651,7 +2659,17 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
     }
     // F2.14: with the pyramid on the device, every level's clusters (the cull pass keeps level 0 only unless the
     // level test is on); else level 0's
-    const auto& srcClusters = pv.lodClusters.empty() ? pv.clusters : pv.lodClusters;
+    if (m_voxFoundCullRevision != pv.revision) {
+        // F2.14f: the leaf mass last (its own multidraw + pipeline) when its look is on
+        const auto& all = pv.lodClusters.empty() ? pv.clusters : pv.lodClusters;
+        m_voxFoundCullOrder.clear();
+        for (int pass = 0; pass < 2; ++pass)
+            for (const auto& c : all)
+                if ((pv.lodLeafLook && c.leafMass) == (pass == 1)) m_voxFoundCullOrder.push_back(c);
+        m_voxFoundMdiSolid = 0;
+        for (const auto& c : m_voxFoundCullOrder) m_voxFoundMdiSolid += (pv.lodLeafLook && c.leafMass) ? 0u : 1u;
+    }
+    const auto& srcClusters = m_voxFoundCullOrder;
     if (m_voxFoundCullRevision != pv.revision) {
         std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(srcClusters.size());
         for (size_t i = 0; i < cl.size(); ++i) {
@@ -2665,30 +2683,36 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
             m_voxFoundCullFailed = true;
             return;
         }
-        // per command: its chunk's origin in whole metres (exact), read through gl_DrawIDARB
-        if (m_voxFoundOriginBuffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(vulkanDevice->getDevice(), m_voxFoundOriginBuffer, nullptr);
-            vkFreeMemory(vulkanDevice->getDevice(), m_voxFoundOriginMemory, nullptr);
-            m_voxFoundOriginBuffer = VK_NULL_HANDLE;
+        // per command: its chunk's origin in whole metres (exact), read through gl_DrawIDARB. Two tables: the solid
+        // multidraw's [0, solid) and the leaf-mass multidraw's [solid, n) (F2.14f; gl_DrawIDARB restarts at 0)
+        const uint32_t nSolid = m_voxFoundMdiSolid, nAll = uint32_t(cl.size());
+        for (int t = 0; t < 2; ++t) {
+            VkBuffer& buf = t ? m_voxFoundOriginLeafBuffer : m_voxFoundOriginBuffer;
+            VkDeviceMemory& mem = t ? m_voxFoundOriginLeafMemory : m_voxFoundOriginMemory;
+            if (buf != VK_NULL_HANDLE) {
+                vkDestroyBuffer(vulkanDevice->getDevice(), buf, nullptr);
+                vkFreeMemory(vulkanDevice->getDevice(), mem, nullptr);
+                buf = VK_NULL_HANDLE;
+            }
+            const uint32_t from = t ? nSolid : 0u, to = t ? nAll : nSolid;
+            const VkDeviceSize bytes = std::max<VkDeviceSize>(16, VkDeviceSize(to - from) * sizeof(glm::ivec4));
+            vulkanDevice->createBuffer(bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, buf,
+                                       mem);
+            void* mapped = nullptr;
+            if (buf == VK_NULL_HANDLE || vkMapMemory(vulkanDevice->getDevice(), mem, 0, bytes, 0, &mapped) != VK_SUCCESS) {
+                m_voxFoundCullFailed = true;
+                return;
+            }
+            auto* o = static_cast<glm::ivec4*>(mapped);
+            // w = the command's level bits for voxel.frag (Mesher.h lodFlagBits without the on bit and the scale code,
+            // which the push constants add per frame)
+            for (uint32_t i = from; i < to; ++i)
+                o[i - from] = glm::ivec4(glm::ivec3(glm::round(pv.chunks[srcClusters[i].chunk].originMetres)),
+                                         int(Core::VoxFound::lodFlagBits(int(srcClusters[i].level), pv.lodMaxLevel, 0) &
+                                             ~(1u << 23)));
+            vkUnmapMemory(vulkanDevice->getDevice(), mem);
         }
-        const VkDeviceSize bytes = std::max<VkDeviceSize>(16, VkDeviceSize(cl.size()) * sizeof(glm::ivec4));
-        vulkanDevice->createBuffer(bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                   m_voxFoundOriginBuffer, m_voxFoundOriginMemory);
-        void* mapped = nullptr;
-        if (m_voxFoundOriginBuffer == VK_NULL_HANDLE ||
-            vkMapMemory(vulkanDevice->getDevice(), m_voxFoundOriginMemory, 0, bytes, 0, &mapped) != VK_SUCCESS) {
-            m_voxFoundCullFailed = true;
-            return;
-        }
-        auto* o = static_cast<glm::ivec4*>(mapped);
-        // w = the command's level bits for voxel.frag (Mesher.h lodFlagBits without the on bit and the scale code,
-        // which the push constants add per frame)
-        for (size_t i = 0; i < cl.size(); ++i)
-            o[i] = glm::ivec4(glm::ivec3(glm::round(pv.chunks[srcClusters[i].chunk].originMetres)),
-                              int(Core::VoxFound::lodFlagBits(int(srcClusters[i].level), pv.lodMaxLevel, 0) &
-                                  ~(1u << 23)));
-        vkUnmapMemory(vulkanDevice->getDevice(), m_voxFoundOriginMemory);
         m_voxFoundCullRevision = pv.revision;
     }
     // this frame's per-chunk decision (F2.9 + F2.10), by index into pv.chunks
@@ -2731,8 +2755,9 @@ std::array<uint32_t, 3> RenderCoordinator::voxFoundCullStats() {
     const uint32_t* cmd = cmdv.data();
     s[0] = m_voxFoundCull->clusterCount();
     // F2.14: per level, from the cluster table the commands were built from (same order)
-    const auto* lodCl = m_voxFoundPreview && m_voxFoundPreview->lodClusters.size() == s[0]
-                            ? &m_voxFoundPreview->lodClusters
+    const auto* lodCl = m_voxFoundPreview && !m_voxFoundPreview->lodClusters.empty() &&
+                                m_voxFoundCullOrder.size() == s[0]
+                            ? &m_voxFoundCullOrder   // the order the commands were built in (F2.14f: leaf mass last)
                             : nullptr;
     m_voxFoundFacesByLevel.assign(size_t(lodCl ? m_voxFoundPreview->lodMaxLevel + 1 : 1), 0u);
     for (uint32_t i = 0; i < s[0]; ++i)
@@ -3005,8 +3030,18 @@ void RenderCoordinator::renderVoxFoundPreview() {
                                      : 0u;
         vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam), lodBits,
                                     glm::vec3(camInt));
-        vkCmdDrawIndexedIndirect(cmd, m_voxFoundCull->commands(uint32_t(currentFrame)), 0,
-                                 m_voxFoundCull->clusterCount(), 20);
+        const uint32_t nAll = m_voxFoundCull->clusterCount(), nSolid = std::min(m_voxFoundMdiSolid, nAll);
+        if (nSolid) vkCmdDrawIndexedIndirect(cmd, m_voxFoundCull->commands(uint32_t(currentFrame)), 0, nSolid, 20);
+        // F2.14f: the leaf mass, its own pipeline (voxfound_leafmass.frag) and origin table
+        if (nAll > nSolid && m_voxFoundOriginLeafBuffer != VK_NULL_HANDLE &&
+            renderPipeline->ensureVoxFoundLeafPipelines("shaders/voxfound_leafmass.frag.spv")) {
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundLeafMdiPipeline());
+            renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer, m_voxFoundOriginLeafBuffer, true);
+            vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam),
+                                        lodBits, glm::vec3(camInt));
+            vkCmdDrawIndexedIndirect(cmd, m_voxFoundCull->commands(uint32_t(currentFrame)), VkDeviceSize(nSolid) * 20,
+                                     nAll - nSolid, 20);
+        }
         m_voxFoundDrawn = 0;   // decided on the device; read back by voxFoundCullStats() (the stats route)
         return;
     }
@@ -3025,6 +3060,11 @@ void RenderCoordinator::renderVoxFoundPreview() {
     const int code = lodOn ? voxFoundLodCode() : 0;
     const float c = Core::VoxFound::lodScaleFromCode(code);
     const glm::dvec3 cam(camera->getPosition());
+    struct LeafDraw {   // F2.14f: drawn after every solid range
+        glm::dvec3 origin;
+        uint32_t first, count, bits;
+    };
+    std::vector<LeafDraw> leafDraws;
     for (const auto& r : visible) {
         // F2.14: the levels a fragment in this chunk's box may keep (cost bound only; voxel.frag decides per pixel)
         size_t ci = pv.chunks.size();
@@ -3041,15 +3081,34 @@ void RenderCoordinator::renderVoxFoundPreview() {
             const uint32_t first = lodRange ? pv.lodFirst[size_t(k)][ci] : r.firstFace;
             const uint32_t count = lodRange ? pv.lodCount[size_t(k)][ci] : r.faceCount;
             if (count == 0) continue;
-            const VkDeviceSize off = VkDeviceSize(first) * sizeof(Core::VoxFound::PackedFace);
-            vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
-            vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(),
-                                        camera->relativeTo(r.originMetres),
-                                        lodRange ? Core::VoxFound::lodFlagBits(k, pv.lodMaxLevel, code) : 0u,
-                                        glm::vec3(r.originMetres));
-            vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), count, 0);
+            // F2.14f: the range's leaf mass (its last faces) goes through its own pipeline when the look is on
+            uint32_t leaf = 0;
+            if (lodRange && pv.lodLeafLook && pv.lodSprigOn && size_t(k) < pv.levels.size() &&
+                ci < pv.levels[size_t(k)].leafCount.size())
+                leaf = std::min(count, pv.levels[size_t(k)].leafCount[ci]);
+            const uint32_t bits = lodRange ? Core::VoxFound::lodFlagBits(k, pv.lodMaxLevel, code) : 0u;
+            if (count > leaf) {
+                vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(),
+                                            camera->relativeTo(r.originMetres), bits, glm::vec3(r.originMetres));
+                const VkDeviceSize off = VkDeviceSize(first) * sizeof(Core::VoxFound::PackedFace);
+                vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
+                vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), count - leaf, 0);
+            }
+            if (leaf) leafDraws.push_back({r.originMetres, first + count - leaf, leaf, bits});
             m_voxFoundDrawn += count;
             m_voxFoundFacesByLevel[size_t(k)] += count;
+        }
+    }
+    // F2.14f: every leaf-mass range AFTER every solid range, as the multidraw orders them (leaf clusters last): where
+    // two kept levels' coplanar faces tie in depth the first drawn wins, so the order must not depend on chunk order
+    if (!leafDraws.empty() && renderPipeline->ensureVoxFoundLeafPipelines("shaders/voxfound_leafmass.frag.spv")) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundLeafPipeline());
+        for (const LeafDraw& d : leafDraws) {
+            vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), camera->relativeTo(d.origin),
+                                        d.bits, glm::vec3(d.origin));
+            const VkDeviceSize off = VkDeviceSize(d.first) * sizeof(Core::VoxFound::PackedFace);
+            vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
+            vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), d.count, 0);
         }
     }
 }
