@@ -13771,6 +13771,7 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
   - `TheBakeStoreShipsOn` (the default and the version pinned).
   - Unit (water / terrain / hydrology / WorldGenerator / WorldForge / roads / flora / settlement / structure / river / flow):
     **737 / 737** (4 skipped, as before).
+  - Integration water: 87 / 89 (the known two: `GpuFlipBulkParityAndRunup`, `ShortWaveMatchesAllFineAndTheBooksAreExact`).
 - **Live** (WaterBench_RiverCarve, `bakestore517_s1.json` / `_s2.json`, the engine log):
   - **Session 1** (no file): the bake 9.09 s, the file written; from the API server starting to streaming enabled **9.49 s**.
   - **Session 2:** `loaded`, read 0.43 ms, verified 73.6 ms, the bake 0.085 s; API server to streaming enabled **0.48 s**.
