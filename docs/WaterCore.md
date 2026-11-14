@@ -42,74 +42,37 @@
 
 ---
 
-## 0a. Where things stand, and the plan (consolidated 2026-10-19)
+## 0a. Where things stand, and the plan (rewritten 2026-11-14; the 2026-10-19 page is in git history, its log is Appendix A)
 
 **The goal.** Water in the world that behaves physically where the player can touch it and looks right everywhere, from a
-puddle to an ocean, ~~inside **2 ms of GPU for all water**~~ *(superseded 2026-10-24: the moonshot look first, then fitted into
-the performance tiers - §30)*. Small bodies are the foundation; large bodies are built on the same water, never the other way
-round.
+puddle to an ocean; the moonshot look first, then fitted into the performance tiers (§30, `PerformanceTiers.md`).
 
-**The scale model (owner, 2026-10-19; the plan is §27).** We will never simulate a whole lake or ocean as cells - a 1 km^2
-lake 3 m deep is ~2 billion 1/9 m cells. So every body of water **exists** as a record (how much, where, its level per
-column, its edges), always, and is **simulated** (the pond model, 1/9 m cells) only **where it counts**: near the player, and
-where something disturbs it or it flows nearby. Everywhere else it is **drawn** from the record with cheap appearance motion
-(waves, scrolling flow, foam) that moves nothing. The two meet where no seam can be seen. The physical rules still hold: the
-record is real water, a dry pit stays dry, edits never create water, each body has its own level.
+**The owner, 2026-11-14:** *"we should prioritize getting the core aspects of the plan done. we have been working on this for a
+month. we keep drilling down into little details and rabbit holes. lets get back to reality."* So: **the core path first, one
+step at a time, each step ending in something the owner can see; no new side investigations.** A defect that blocks the current
+step is fixed at its cause and logged (§30.5); anything else found on the way is logged in one line and left.
 
-**Signed off by the owner, in motion:**
-- the small pond: blasts, debris both ways, floaters, the drawn surface (§19.8); the ripples (§22.12.2);
-- the one water model (§26): the creek as pond water (P1 26.5, 26.14), flat bricks (26.17), a dig without a freeze (26.19),
-  the air fix (26.21), the dam & pond on pond water (26.22), floats in the current (26.25-26.26), the surface fixes (26.9),
-  the still-water guess (26.10);
-- the cost work of 2026-10-18/19: the partial wake's look (`pw_look4`), its freeze test x3 (26.34; x10 since 2026-10-23, 27.24), 20 pressure sweeps (26.35),
-  the partial wake ON by default (26.35).
+**Done, signed off by the owner:**
+- Small water (§19-§26): the pond - blasts, debris, floaters, ripples, the creek as pond water, the dam.
+- Water at scale (§51, replaces W1-W3): near the camera a simulated PATCH, the rest of the near/middle distance the RECORD
+  drawn as the pond surface, far away a cheap SKIN; a splash costs the same in any size of lake; the fly-in / fly-out with no
+  holes (51.7c). Generated worlds: lakes in their basins with no wall of water, rivers level in their channels (51.12-51.14);
+  splash droplets cosmetic (51.11).
 
-**Built, not signed off:** moving solids M0-M2 (§20); clear water S0 (§21.10); the droplet pool (§21.12); the §24 wave items;
-ground bricks (26.18); the column water removed (26.27); the surface tiles, view culling and CPU cuts (26.30 steps 1-3); the
-partial surface (26.33).
+**Built, not signed off:** the small-body items of §32-§49 (a slept pond still water, no block floats up, shoving off, wake
+after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep after W4 (below). The bake stored per world (51.17).
 
-**What water costs today (the limits pass, §27.20, 2026-10-23):** one awake pond fits 2 ms to ~25 x 25 m at 1 m deep
-(~20 x 20 m at 2 m; to the volume cap at 0.3 m); a sleeping pond ~0.37 us per m^2 drawn; each awake body ~0.4-0.5 ms whatever
-its size (~4 small ponds awake at once); 64 sleeping ponds cut the frame rate to 131 fps (the debris water map - fixed 27.21: 587 fps); a 2 m creek
-1.5-2.0 ms up to 100 m long and 2.7 m/s, a 6 m creek 2.7-3.5 ms (over); one volume holds 2 M cells (a ~1,300 m^2 pond at 1 m,
-a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, depth no longer costs - a 3 m pond 3.15 -> 1.87 ms.
-
-**The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; W1b first slice BUILT §27.12 - frozen tiles sleep into the record and wake from it, the books exact live, recording OFF by default; W1c §27.13 - the post-push agitation was the life cycle's ORDER (it collected the call just submitted), fixed: a pushed pond settles and goes back into the record, the books exact; OPEN: a collect between two calls breaks the freeze test, woken tiles cycle in some runs; then the per-tile kernels and W1d-W1e). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
-   PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
-   the 2 M-cell box (the CPU keeps only the woken patch).
-2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
-   distance; at rest it matches the simulated surface where they meet.
-3. **W3 - where it counts.** The rule that picks what is simulated (distance, disturbance, nearby flow), held to the budget,
-   and the hand-off both ways with no visible seam and the books exact.
-4. **W4 - the world on the new water.** Generated lakes, rivers and sea placed as records; the old CA water (`WaterManager`)
-   retired from normal sessions.
-5. **W5 - rivers at scale.** Far reaches as records with a discharge and appearance flow; near reaches simulated, fed and drained
-   at their ends from the record.
-6. **W6 - shores and open sea.** A simulated band at the shore near the player; the swell offshore as appearance (§18.4: the 3-D
-   core cannot carry a swell).
-
-**The current track is large water, W1 -> W4 (owner, 2026-11-01; §50 - step 0 measured, next W1f-W1h in §50.4).** Track A
-(§30.4) is closed for now, its last feel items parked. The list below is the small-body backlog.
-
-**Open small-body items** (polish and features; none blocks the path above):
-- *Found 2026-10-24 (31.9):* debris could not see RECORDED water beyond 48 m of the camera, nor wake it - FIXED in 32 (a slept pond
-  is read from the record and wakes when a body moves through it; the wake is a ~33 ms one-off hitch); the tall-cell floor depended
-  on the volume's box (17 cm in a dam break; water lost after a stone) - BUILT 49.4, not signed off.
-- *M4 (31): the water's push on floaters* - SIGNED OFF and ON by default 2026-10-24 (`water_coupling {pressure_force}`).
-- *Feel:* spiky water on a dropped stone - cause proved, waits for a repeatable rig (26.32) - and a 0.84 m late jet; wood
-  floats high and a floating block's pond never sleeps (M4, §20.6); short waves on a half-full cell keep 0.53-0.82 per swing
-  (§24.11); added mass (§24.10); the still-pond phantom current not re-measured (§19.6); water under a solid lid does not
-  converge (26.23).
-- *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater not wired (§21.4); 1.5-2.3 % black facets at steep tilts
-  (§22.12.2).
-- **OWNER DECISION, 2026-10-11 (reaffirmed 2026-11-12: "follow the plan"): splash droplets are cosmetic.** They take no
-  water from the pond and add none back; landings still drive ripples. BUILT as 51.11 (2026-11-12), not signed off.
-- *Parity:* the CPU-GPU kick gap (§19.2); droplet parity D-T5 (§21.12); the FLIP run-up (§15.15 - the one failing water
-  integration test).
-- *Cost:* the partial wake's +0.036 ms where nothing freezes; the reductions ~0.17-0.19 ms a call.
-- *Not started:* wading (E4), containers, pipes, scoop, volume merge / split, the §23 liquids. Scenarios never run: S7 wading,
-  S9 waterfall, S10 stream over rocks, S13 scoop, S14 pipe, C1-C5.
+**The order of work (owner, 2026-11-14; replaces §30.0's 2026-11-01 order):**
+1. **W4 - the world on the new water (§52).** Every reader of water - floating bodies, currents, wading, debris, the camera's
+   underwater test - reads the new water; the old CA water (`WaterManager`, `WaterSimulation`, `RippleField`, the cell
+   renderer) leaves the engine by the §9 delete ledger. Ends with one water system.
+2. **D9's splash stutter, bounded** (§30.5): a splash freezes ~0.15 s and stutters ~0.3 s (D9 measured). One step to find and
+   cut the largest part; then stop and show the owner.
+3. **W5 - rivers at scale:** generated rivers that FLOW (near reaches simulated, fed and drained from the record; far reaches drawn
+   with flow).
+4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
+5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
+6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
 **Standing rules:** no voxel ever floats up as if gravity were off, in any run, control or demo included (owner 2026-10-25; only a
 material made to do that could, and none exists); small bodies first; one water model - the pond's - for everything simulated (a second kind of water needs
@@ -8909,8 +8872,8 @@ known levers for §30's fit step, with their measured sizes on the awake 60 x 60
 
 ### 30.0 How the plan is kept (owner, 2026-10-24: "make sure if we are drifting we have good reason and it is recorded. i need to be able to run design checks periodically so we stay on track")
 
-**The order of work - REVISED 2026-11-01 by the owner (§50): large water W1 -> W4 NOW (§50.4), then track B; track C
-alongside; track A's remaining items (A6, A8, A9) PARKED.** The order as it stood before:
+**The order of work - REVISED AGAIN 2026-11-14 by the owner: see §0a (W4, D9 bounded, W5, W6, the sign-off sweep, then
+track B). The 2026-11-01 order below it (§50): large water W1 -> W4, then track B; track C alongside; track A's A6, A8, A9 PARKED.** The order as it stood before:
 1. **Track A - small-body water physics (§30.4; closed for now 2026-11-01).** The owner: *"the water physics are the primary concern right now...
    floating debris, or being able to disturb the water on the surface with debris was the keys... we started on the small scale
    first to make sure it felt right before trying to scale up. i dont think we need to change that approach."*
@@ -9117,6 +9080,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | C3 | 2026-10-25 | A2g, commits a9a7f618..this one | ON PLAN | everything maps to A2g (§33); `/design-check` ran before building; the red run used only a sinking stone; the owner was warned before each bench run. One support change beside it: `particle_log {max}` (the stress needed every body logged) | - |
 | C4 | 2026-10-27 | A2f, commits 6a3707dd..f05cc1c1, and the owner's locality direction | ON PLAN, then REVISED | A2f's work all maps to A2f (39.4-39.8), including the test-only wake delay for the owner's look call. The owner's direction changed the plan: §30.0b written, items L1-L5 added, A2f's step 2 moved to L4, its kept memory to L3, and A7 merged. This revision is in the same commit as the direction, before any work under it (rule 3) | - |
 | C5 | 2026-11-01 | after A5, the owner's reorder | REVISED (rule 4, the owner's call) | none: A6 / A8 / A9 parked and W1-W4 moved ahead of track B by the owner; this rewrite is in the same commit as W's step 0 (rule 3, §50) | - |
+| C6 | 2026-11-14 | after §51 closed and D9 was measured, the owner's reorder | REVISED (rule 4, the owner's call): *"i will go with your recommendation, but i think we should prioritize getting the core aspects of the plan done... lets get back to reality"* | none: §0a rewritten (it still described 2026-10-19), the order W4 -> D9 bounded -> W5 -> W6 -> sign-off sweep -> track B; this rewrite is in the same commit as W4's step 0 (rule 3, §52) | - |
 
 ## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: BUILT, SIGNED OFF by the owner and ON by default 2026-10-24 (31.8); two defects found (31.9)
 
@@ -13836,6 +13800,39 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
     because nothing runs per frame.
 - **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
   than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
+
+## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE (the inventory); W4.1 next
+
+**What W4 is (§27, §0a):** generated lakes, rivers and sea are the record and the new core simulates and draws them - DONE by §51
+(record tiles near, the skin far, 51.4c / 51.12-51.14). What is NOT done: **the old CA water is still in the engine, and five readers
+of water still ask it, not the new water.** W4 ends when every reader asks the new water and the old code is deleted (§9's rules:
+the replacement passes first, one commit per deletion, tests moved, one revert away).
+
+**52.0 Step 0 - the inventory (2026-11-14, read from the code):**
+- **When the old water runs:** `water.enabled` in game.json, default OFF (`Application` loadGameDefinition). Off, it never steps;
+  on, it adds the 64 x 32 x 64 CA window round the player, the implicit flat sea outside it, river pins from the bake, springs,
+  waterfalls. The benches run it off. It is still CONSTRUCTED in every session (`Application.cpp:442`).
+- **The five readers still on it:**
+  | reader | asks today | file |
+  |---|---|---|
+  | furniture / props floating (CPU rigid bodies) | `WaterManager::submergedFraction` | `Application` -> `VoxelDynamicsWorld::setWaterQuery` |
+  | the current carrying them | `WaterManager::flowAtWorld` | `VoxelDynamicsWorld::setWaterFlowQuery` |
+  | GPU debris water tiles (buoyancy, drag, current) | `WaterManager::columnWater` | `DebrisRuntime::setWaterSource` |
+  | the camera under water / surface cells | `WaterManager::sampleWater`, `surfaceCells`, `ripple` | `RenderCoordinator` |
+  | characters: wading depth, flow, ripples | the core FIRST, then the CA (48) | `Application::wadeDepthAt` / `WaterHooks` |
+- **Also on it:** ~40 debug routes and MCP tools (`water_stats`, `water_table_level`, `water_validate`, `place_water`, springs,
+  ocean seeds...), the world save's `water_overrides`, `WaterCellRenderPipeline` (whose debug override still draws core surfaces -
+  confirm before deleting), and the tests `WaterSimulationTest` (38), `WaterManagerTest` (55), `RippleFieldTest`.
+
+**The steps (each: acceptance test first with a red control; something the owner can see at the end):**
+- **W4.1 - the readers on the new water.** Floating, currents, debris tiles, the camera, wading read the core's simulated water
+  where it is awake and the RECORD (spans) where it sleeps - never the CA. Acceptance (red first, the old wiring): in a GENERATED
+  lake on a streaming world with `water.enabled` off, a dropped crate floats, GPU debris floats and drifts in a river, a character
+  wades, the camera tints under the surface. The owner's clip: a crate and debris in a generated lake and river. `/design-check` first.
+- **W4.2 - the old water off everywhere.** `water.enabled` no longer starts the CA; the sea-level sheet (kept, §9) stays; games that
+  set it get the same world (their water is the record). The routes and tools that only describe the CA are removed or re-pointed.
+- **W4.3 - delete.** `WaterSimulation` + `water_flow.comp`, `WaterManager`, `RippleField`, the cell renderer - one commit each, per §9.
+- **Not in W4** (logged, left): the sea to the horizon and shores (W6); rivers that flow (W5).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
