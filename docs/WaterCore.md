@@ -13719,6 +13719,19 @@ read on its own thread.
 - **§51's open list (51.7c) is now empty.** What is left is the owner's: the sign-offs (51.12-51.13 looks; 51.14's look signed off 2026-11-14; the river width / cut
   limit, the 1/3 m minimum depth, the 51.13 bake time) and 51.11's pool factor.
 
+**51.17 (2026-11-14) the owner's decisions - "ill go with your recommendations"** (on the open list above, after signing off
+51.14's look). The agent's recommendations, now the owner's decisions:
+1. **River width: the 1 m cut limit (`kMaxRiverCut`) and the 1/3 m minimum depth stay.** The picture the owner signed off
+   (`level514_river_on.png`) is that setting; a deeper cut widens rivers only by cutting taller banks (2 m: 53 % wet, 6 m: 82 %).
+2. **Old worlds keep their rivers** (`levelRivers` stays off when absent from a recipe). Turning it on under a saved world would
+   change only the ground not yet saved, so a seam would show where saved chunks meet new ones - a visible chunk. Bench worlds that
+   need the new rivers get the flag in their recipe (RiverCarve has it) or are regenerated.
+3. **The hydrology bake is stored per world, paid once** (51.13's ~10 s at every load). Pure cost: it changes when, never what -
+   the next build step, with its own `/design-check` and tests (the stored bake must equal a fresh one).
+4. **The pool factor stays 1.0** (`kPatchPoolFactor`; 0 of 15 live grows, the memory bound <= 1.5x the peak holds).
+- **Not delegable - looks still the owner's to see:** 51.12/51.13's lake (`drain513_lake_on.png`) and 51.11's droplets
+  (`cosm511_clip.mp4`). A look cannot be signed off by recommendation.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
