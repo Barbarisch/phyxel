@@ -1,0 +1,46 @@
+M5c-1 (ground treatment by the plot's use and part; D53 restated, D54, D55 - all PROPOSED, not ruled) - predictions,
+each written BEFORE its run. Tree at the start: 4e905408. Results below each prediction, misses recorded.
+
+PM5c1.1  chain 215 (written 2026-11-14 16:35; filter SettlementMapTest.*; the RED patch 49a: the program's ground
+  table parsed [hamlet, village: croft / longhouse / hall_house -> preserve, REASONED; town, city: terrace],
+  SettlementMapInput::groundOverride declared, MapLot::frontBlock() / terraceRect() added - and the PLANNER
+  UNTOUCHED: it still writes "graded" and terraces the parcel). 24 tests in the suite (22 + 2 new):
+    22 ok / 2 failed. The two new tests fail on the PROPERTY:
+    (a) EveryLotStatesItsGroundFromTheProgram - every lot of four tiers says "graded", which is in no vocabulary
+        and is not the table's word; fails on all four tiers.
+    (b) ThePlannerTerracesTheFrontBlockOfAPreserveLot - 0 lots say preserve, so "preserve lots whose stated
+        terrace level is the rule over the front block and NOT the rule over the parcel" is 0 (must be > 0).
+  The 22 existing tests unchanged (the header additions change no behaviour).
+  Guess, for the green run: the village 80 x 48 on the 20 % Z plane has 11 lots, 9-10 of them croft / longhouse /
+  hall_house (tavern and smith are the rest); for a lot whose back yard is >= 5 deep the front block's median sits
+  a cube or more off the parcel's, so the discriminating count should be >= 3 (REASONED - never run).
+
+RESULT chain 215 (written 2026-11-14 16:42; RUN EXIT 1 16:40:30; exe 16:37:36): 22 ok / 2 failed - as predicted. (a) fails
+  on all four tiers and all three arms (4 / 10 / 22 / 27 lots "graded": off the vocabulary and not the table's
+  word; 0 changed by the JSON round trip). (b) fails with 0 preserve lots. BUT the red shows something I did not
+  expect: on this rig "lots where the front block's grade differs from the parcel's on the natural ground" is 0 of
+  10 in BOTH arms - with the planner untouched the two rules give the same grade on every lot. If that holds after
+  the green patch the test cannot discriminate and my guess of >= 3 is wrong. Not understood yet.
+PM5c1.2  chain 216 (written 2026-11-14 16:42; same filter; patch 49b: the planner writes the ground word and terraces
+  l.terraceRect(); patch 49d: a per-lot diagnostic print in test (b), no assertion touched): (a) goes green
+  (0 off vocabulary, 0 off table; hamlet / village > 0 preserve, town / city 0). (b): UNCERTAIN - if the per-lot
+  print shows equal grades on every lot, (b) stays red on "the rig cannot tell the two rules apart" and the rig
+  must change (a steeper plane or deeper tofts), stated when it happens. Prediction: 23 ok / 1 failed.
+  The 22 existing tests: 22 ok. RISK named: village lots that are now "preserve" get a different terrace level,
+  which moves seats / approaches - TheSlopedRigCarriesTheFourShapes and the parcel tests assert on shapes that
+  could move; I predict they hold (the rolling rig's front blocks hold the footprint and the door).
+
+RESULT chain 216 (written 2026-11-14 16:47; RUN EXIT 1 16:44:13): 23 ok / 1 failed - as predicted. (a) green: hamlet 4 of
+  4 preserve, village 6 of 10, town 0 of 22, city 0 of 27; 0 off the vocabulary / table; the 22 older tests hold.
+  (b) red on "the rig cannot tell the two rules apart", and the per-lot print says WHY - my guess of >= 3 MISSED
+  for a reason that is not the rig's: the village's tofts are 12 deep and the front block is 7-10 of those rows
+  (longhouse 20x12 -> front block 20x8; croft 10x12 -> 10x7; hall_house 18x12 -> 18x9), so the back yard is 2-4
+  rows; the front block's median and the parcel's are the same cube on every lot, both arms.
+MEASURED on the LIVE village (L4 run 21's stored map, 11 lots; computed from rect / footprint / orientation / parcel):
+  back yard depth 1-5 rows (4 3 4 3 4 5 2 5 1 1 2), 1-4 of them inside the parcel. The terrace's skirt is 4 cubes.
+  So "preserve = terrace the front block, leave the back yard" (D54) leaves NOTHING as it stands on any lot of the
+  shipped village: the front block's own skirt re-grades the whole back yard. The second treatment is void at the
+  program's plot depths. D54 is WITHDRAWN; patches 49a / 49b / 49d REVERTED (git checkout; nothing was committed;
+  patch 49c - the realizer - was written and never applied). Tree = 4e905408 again.
+  What the measurement says about M5b-2 as well: the conquest works on a back yard of 1-5 rows - that is why its
+  live effect is one or two rows (O22 e).
