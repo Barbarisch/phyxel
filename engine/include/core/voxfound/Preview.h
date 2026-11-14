@@ -5,6 +5,7 @@
 // this; RenderCoordinator::renderVoxFoundPreview draws it with shaders/voxfound_face.vert + voxel.frag in
 // the main scene pass, and casts it into the mid + near shadow cascades (F2.4).
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -109,15 +110,17 @@ struct Preview {
     bool lodOn = false;
     bool lodSprigOn = true;   // F2.14c A/B: false = the build's leaf mass is not drawn and sprigs never hand off
     float lodPxPerVoxel = 1.0f;
+    int lodLevelCap = 7;   // F2.14d A/B: the highest built level selectLod puts on the device (lower = fewer levels)
     bool selectLod() {
         if (levels.empty() || levels[0].firstFace.size() != chunks.size()) return false;
         for (const Level& L : levels)
             if (L.firstFace.size() != chunks.size()) return false;
+        const size_t nLevels = std::min(levels.size(), size_t(std::max(lodLevelCap, 0)) + 1);
         faces.clear();
         lodClusters.clear();
-        lodFirst.assign(levels.size(), {});
-        lodCount.assign(levels.size(), {});
-        for (size_t k = 0; k < levels.size(); ++k) {
+        lodFirst.assign(nLevels, {});
+        lodCount.assign(nLevels, {});
+        for (size_t k = 0; k < nLevels; ++k) {
             const Level& L = levels[k];
             const uint32_t base = uint32_t(faces.size());
             faces.insert(faces.end(), L.faces.begin(), L.faces.end());
@@ -138,7 +141,7 @@ struct Preview {
             chunks[i].firstFace = levels[0].firstFace[i];
             chunks[i].faceCount = levels[0].faceCount[i];
         }
-        lodMaxLevel = int(levels.size()) - 1;
+        lodMaxLevel = int(nLevels) - 1;
         drawLevel = 0;
         ++revision;
         return true;

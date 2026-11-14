@@ -566,6 +566,119 @@ PackedFace lodScaleFace(PackedFace f, int level) {
     return packFace(q);
 }
 
+LodGrid lodEmpty(glm::ivec3 dim, int level) {
+    LodGrid l;
+    l.level = level;
+    l.grid.resize(dim);
+    l.count.assign(l.grid.size(), 0u);
+    l.surf.assign(l.grid.size(), 0u);
+    l.surfMat.assign(l.grid.size(), 0);
+    l.volMat.assign(l.grid.size(), 0);
+    return l;
+}
+LodGrid lodCut(const LodGrid& g, glm::ivec3 lo, glm::ivec3 size) {
+    LodGrid l = lodEmpty(size, g.level);
+    lodPaste(l, g, -lo);   // the part of g that lands inside [0, size)
+    return l;
+}
+void lodPaste(LodGrid& region, const LodGrid& part, glm::ivec3 at) {
+    const glm::ivec3 d = part.grid.dim;
+    for (int x = 0; x < d.x; ++x)
+        for (int y = 0; y < d.y; ++y)
+            for (int z = 0; z < d.z; ++z) {
+                const glm::ivec3 q = at + glm::ivec3(x, y, z);
+                if (!region.grid.in(q)) continue;
+                const size_t i = part.grid.idx({x, y, z}), j = region.grid.idx(q);
+                region.grid.mat[j] = part.grid.mat[i];
+                region.grid.part[j] = part.grid.part[i];
+                region.grid.fixed[j] = part.grid.fixed[i];
+                region.count[j] = part.count[i];
+                region.surf[j] = part.surf[i];
+                region.surfMat[j] = part.surfMat[i];
+                region.volMat[j] = part.volMat[i];
+            }
+}
+
+LodTopStats lodTopStats(const LodGrid& ref, const LodGrid& coarse, const CardSet& cards) {
+    // per column: top (level-0 voxels) + material of the highest solid non-card cell
+    struct Top {
+        std::vector<int> h;
+        std::vector<uint8_t> m;
+    };
+    auto tops = [&](const LodGrid& l) {
+        const glm::ivec3 d = l.grid.dim;
+        const int cell = 1 << l.level;
+        Top t;
+        t.h.assign(size_t(d.x) * size_t(d.z), 0);
+        t.m.assign(t.h.size(), 0);
+        for (int x = 0; x < d.x; ++x)
+            for (int z = 0; z < d.z; ++z)
+                for (int y = d.y - 1; y >= 0; --y) {
+                    const uint8_t m = l.grid.mat[l.grid.idx({x, y, z})];
+                    if (!m || cards.has(m)) continue;
+                    t.h[size_t(x) * size_t(d.z) + size_t(z)] = (y + 1) * cell;
+                    t.m[size_t(x) * size_t(d.z) + size_t(z)] = m;
+                    break;
+                }
+        return t;
+    };
+    auto shares = [](const Top& t) {
+        std::vector<double> s(256, 0.0);
+        double n = 0.0;
+        for (uint8_t m : t.m)
+            if (m) {
+                s[m] += 1.0;
+                n += 1.0;
+            }
+        if (n > 0.0)
+            for (double& v : s) v /= n;
+        return s;
+    };
+    const Top r = tops(ref), c = tops(coarse);
+    LodTopStats st;
+    st.shareRef = shares(r);
+    st.share = shares(c);
+    const int ratio = 1 << (coarse.level - ref.level), cell = 1 << coarse.level;
+    const glm::ivec3 cd = coarse.grid.dim, rd = ref.grid.dim;
+    double sum = 0.0;
+    size_t n = 0;
+    for (int x = 0; x < cd.x; ++x)
+        for (int z = 0; z < cd.z; ++z) {
+            double mean = 0.0;
+            int k = 0;
+            for (int i = 0; i < ratio; ++i)
+                for (int j = 0; j < ratio; ++j) {
+                    const int rx = x * ratio + i, rz = z * ratio + j;
+                    if (rx >= rd.x || rz >= rd.z) continue;
+                    mean += r.h[size_t(rx) * size_t(rd.z) + size_t(rz)];
+                    ++k;
+                }
+            if (!k) continue;
+            const double e = std::abs(double(c.h[size_t(x) * size_t(cd.z) + size_t(z)]) - mean / k) / cell;
+            sum += e;
+            st.maxErrCells = std::max(st.maxErrCells, e);
+            ++n;
+        }
+    st.meanErrCells = n ? sum / double(n) : 0.0;
+    st.shareHidden.assign(256, 0.0);
+    double withTop = 0.0;
+    for (int x = 0; x < cd.x; ++x)
+        for (int z = 0; z < cd.z; ++z) {
+            const size_t ci = size_t(x) * size_t(cd.z) + size_t(z);
+            if (!c.m[ci]) continue;
+            withTop += 1.0;
+            const int y = c.h[ci] / cell;   // the cell right above the top cell
+            if (y < cd.y && cards.has(coarse.grid.mat[coarse.grid.idx({x, y, z})])) {
+                st.hiddenTop += 1.0;
+                st.shareHidden[c.m[ci]] += 1.0;
+            }
+        }
+    if (st.hiddenTop > 0.0)
+        for (double& v : st.shareHidden) v /= st.hiddenTop;
+    if (withTop > 0.0) st.hiddenTop /= withTop;
+    return st;
+}
+
 bool casterBoxKept(glm::vec3 lo, glm::vec3 hi, glm::vec3 cullCenter, float reach, const glm::vec4 lightPlanes[6]) {
     if (glm::length((lo + hi) * 0.5f - cullCenter) > reach) return false;   // today's distance test
     return boxInFrustum(lightPlanes, lo, hi);                                // the light frustum

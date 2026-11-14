@@ -905,6 +905,110 @@ TEST(VoxFoundMesher, LodLevelsAreChunkIndependentAndScaleExactly) {
     }
 }
 
+TEST(VoxFoundMesher, LodLevelsAboveTheMarginComeFromTheRegionExactly) {
+    // F2.14d: levels above 1 m. A chunk's 1 m margin covers its own levels up to 1 m (above); coarser levels need
+    // neighbours further away, so they come from the region: every chunk's exact 1 m level is cut to its inner cells
+    // and pasted into one region level, then lodDown runs on the region. That must equal the pyramid of the region
+    // built whole, every channel (count, surface, both votes, the drawn material), at every level.
+    const std::string root = repoRoot();
+    ASSERT_FALSE(root.empty());
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    ASSERT_TRUE(gen.loadBiomes(root + "/resources/biomes.json"));
+    VoxelArea a = surfaceArea(gen, 8160, 96, 40);
+    stampFlora(a, gen, root + "/resources/templates_g8/nature");
+    // the region: the area padded with air on top to whole 16 m "chunks" (128 voxels), so level 7 (16 m) nests
+    const int kC = 128, kTop = 7;
+    const glm::ivec3 dim(a.grid.dim.x, (a.grid.dim.y + kC - 1) / kC * kC, a.grid.dim.z);
+    ASSERT_EQ(dim.x % kC, 0);
+    ASSERT_EQ(dim.z % kC, 0);
+    const VoxelGrid region = subGrid(a.grid, glm::ivec3(0), dim);
+    std::vector<LodGrid> whole(kTop + 1);
+    whole[0] = lodBase(region);
+    for (int k = 1; k <= kTop; ++k) whole[size_t(k)] = lodDown(whole[size_t(k - 1)]);
+
+    // chunk by chunk, as the engine builds (a 1 m margin, clipped where the region ends), then the region pyramid
+    const glm::ivec3 chunks = dim / kC, margin(8);
+    LodGrid built = lodEmpty(dim / 8, 3);
+    for (int cx = 0; cx < chunks.x; ++cx)
+        for (int cy = 0; cy < chunks.y; ++cy)
+            for (int cz = 0; cz < chunks.z; ++cz) {
+                const glm::ivec3 lo = glm::ivec3(cx, cy, cz) * kC;
+                const glm::ivec3 alo = glm::max(lo - margin, glm::ivec3(0)),
+                                 ahi = glm::min(lo + kC + margin, dim);
+                LodGrid part = lodBase(subGrid(region, alo, ahi - alo));
+                for (int k = 1; k <= 3; ++k) part = lodDown(part);
+                lodPaste(built, lodCut(part, (lo - alo) / 8, glm::ivec3(kC / 8)), lo / 8);
+            }
+    ASSERT_EQ(built.grid.dim, dim / 8);
+    for (int k = 3; k <= kTop; ++k) {
+        if (k > 3) built = lodDown(built);
+        const LodGrid& w = whole[size_t(k)];
+        ASSERT_EQ(built.grid.dim, w.grid.dim) << "level " << k;
+        EXPECT_EQ(built.level, k);
+        size_t diff[5] = {};
+        for (size_t i = 0; i < w.grid.size(); ++i) {
+            diff[0] += built.grid.mat[i] != w.grid.mat[i];
+            diff[1] += built.count[i] != w.count[i];
+            diff[2] += built.surf[i] != w.surf[i];
+            diff[3] += built.surfMat[i] != w.surfMat[i];
+            diff[4] += built.volMat[i] != w.volMat[i];
+        }
+        EXPECT_GT(w.grid.solidCount(), 0u) << "level " << k << " is empty: nothing compared";
+        EXPECT_EQ(diff[0] + diff[1] + diff[2] + diff[3] + diff[4], 0u)
+            << "level " << k << " mat/count/surf/surfMat/volMat differ: " << diff[0] << "/" << diff[1] << "/"
+            << diff[2] << "/" << diff[3] << "/" << diff[4];
+    }
+    // the coarsest level the 3-bit maxLevel holds (7 = 16 m) still fits the record inside a 32 m chunk: a slab of
+    // 2 x 2 level-7 cells scales to a 256-voxel face, its +side face onto the chunk's last voxel (255)
+    VoxelGrid slab;
+    slab.resize({2, 2, 2});
+    for (int x = 0; x < 2; ++x)
+        for (int z = 0; z < 2; ++z) slab.set({x, 0, z}, 1);
+    size_t top = 0;
+    for (const Quad& q : meshRuns(slab, Outside::Air)) {
+        const Quad s = unpackFace(lodScaleFace(packFace(q), 7));
+        if (q.axis == 1 && q.dir > 0) {
+            ++top;
+            EXPECT_EQ(s.o.y, 127);
+            EXPECT_EQ(int(s.du) * int(s.dv), 256 * 256);
+        }
+        if (q.axis == 0 && q.dir > 0) EXPECT_EQ(s.o.x, 255);
+    }
+    EXPECT_EQ(top, 1u);
+    EXPECT_EQ((lodFlagBits(7, 7, 0) >> 16) & 0xFu, 7u);
+    EXPECT_EQ((lodFlagBits(7, 7, 0) >> 20) & 0x7u, 7u);
+}
+
+TEST(VoxFoundMesher, LodTopStatsMeasureTheViewFromAbove) {
+    // F2.14d look gate for coarse levels. Ground 5 voxels deep (material 1) with one card voxel (material 2) on top and
+    // a 3-voxel stone post (material 3) in one column: at level 3 (8-voxel cells) the ground cell is 320/512 solid ->
+    // drawn 8 high (error 3/8 cell); the post's column is still one coarse column with the ground's material (the
+    // post is 3 of 64 columns: it does not win the cell's surface vote).
+    VoxelGrid g;
+    g.resize({16, 16, 16});
+    for (int x = 0; x < 16; ++x)
+        for (int z = 0; z < 16; ++z)
+            for (int y = 0; y < 5; ++y) g.set({x, y, z}, 1);
+    g.set({3, 5, 3}, 2);
+    for (int y = 5; y < 8; ++y) g.set({12, y, 12}, 3);
+    CardSet cards;
+    cards.set(2);
+    const LodGrid l0 = lodBase(g);
+    LodGrid l3 = l0;
+    for (int k = 0; k < 3; ++k) l3 = lodDown(l3);
+    const LodTopStats s = lodTopStats(l0, l3, cards);
+    // ref mean top per coarse column: 5 everywhere, except the post's column (63 x 5 + 8) / 64
+    const double postCol = (63.0 * 5.0 + 8.0) / 64.0;
+    EXPECT_NEAR(s.meanErrCells, (3.0 * 3.0 / 8.0 + (8.0 - postCol) / 8.0) / 4.0, 1e-9);
+    EXPECT_NEAR(s.maxErrCells, 3.0 / 8.0, 1e-9);
+    ASSERT_GE(s.shareRef.size(), 4u);
+    ASSERT_GE(s.share.size(), 4u);
+    EXPECT_NEAR(s.shareRef[1], 255.0 / 256.0, 1e-9);   // the card voxel does not count; the post's top is stone
+    EXPECT_NEAR(s.shareRef[3], 1.0 / 256.0, 1e-9);
+    EXPECT_NEAR(s.share[1], 1.0, 1e-9);
+    EXPECT_NEAR(s.shareRef[2] + s.share[2], 0.0, 1e-12);
+}
+
 TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {
     // cost inputs for item 7 (not a gate): the §9a forest spot, faces and solid volume per level
     const std::string root = repoRoot();
@@ -916,14 +1020,16 @@ TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {
     CardSet cards;
     for (size_t m = 1; m < a.palette.size(); ++m)
         if (a.palette[m].rfind("Leaf", 0) == 0) cards.set(uint8_t(m));
-    LodGrid l = lodBase(a.grid);
+    // F2.14d: up to level 7 (16 m): the area padded with air on top to a multiple of 16 m (the levels nest)
+    LodGrid l = lodBase(subGrid(a.grid, glm::ivec3(0), {a.grid.dim.x, (a.grid.dim.y + 127) / 128 * 128, a.grid.dim.z}));
     const double vol0 = double(a.grid.solidCount());
     size_t faces0 = 0, prev = 0;
     std::map<std::string, double> share0;   // level 0's share of the up-facing area per material
-    for (int k = 0; k <= 3; ++k) {
+    LodGrid l3;
+    for (int k = 0; k <= 7; ++k) {
         if (k) l = lodDown(l);
         const size_t faces = meshRuns(l.grid, Outside::Skip, &cards).size();
-        const double vol = double(l.grid.solidCount()) * double(1 << (3 * k));
+        const double vol = double(l.grid.solidCount()) * double(uint64_t(1) << (3 * k));
         if (!k) faces0 = faces;
         std::printf("[lod] forest (8160,96) level %d (%.3f m): %zu faces (%.3fx L0), solid volume %.4fx L0\n", k,
                     0.125 * (1 << k), faces, double(faces) / double(faces0), vol / vol0);
@@ -936,17 +1042,26 @@ TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {
         for (const auto& [name, m2] : up)
             if (m2 >= 1.0) line += " " + name + " " + std::to_string(int(m2 + 0.5));
         std::printf("[lod]   up-facing m^2:%s\n", line.c_str());
-        // gate (the look from above): every material holding >= 5 % of level 0's up-facing area keeps its share
-        // within 10 percentage points at every level
+        // gate (the look from above) for the levels inside a block (to 1 m): every material holding >= 5 % of level
+        // 0's up-facing area keeps its share within 10 percentage points
         double total = 0.0;
         for (const auto& [name, m2] : up) total += m2;
         for (const auto& [name, m2] : up) {
             if (!k) share0[name] = m2 / total;
         }
         for (const auto& [name, s0] : share0) {
-            if (s0 < 0.05) continue;
+            if (s0 < 0.05 || k > 3) continue;
             const double sk = up.count(name) ? up[name] / total : 0.0;
             EXPECT_NEAR(sk, s0, 0.10) << "level " << k << ": " << name << " share of the ground seen from above";
+        }
+        // F2.14d, above 1 m: this 32 m area has only 8x8 columns at 4 m and 2x2 at 16 m (a column's ground moves by
+        // up to half a cell, thin trunks vanish), so the share is not a gate here (it is measured on the whole gate
+        // region, lod_top_view), nor is the top seen from above vs level 3: an assert of mean <= 0.5 cell was tried
+        // here and failed at 4 / 8 m (0.53 / 0.56, max 4.75 cells = vanished trunk tops; VoxelFoundationPlan F2.14d)
+        if (k == 3) l3 = l;
+        if (k > 3) {
+            const LodTopStats ts = lodTopStats(l3, l, cards);
+            std::printf("[lod]   top vs 1 m: mean %.3f cells, max %.3f\n", ts.meanErrCells, ts.maxErrCells);
         }
         if (k) EXPECT_LT(faces, prev) << "level " << k;
         prev = faces;

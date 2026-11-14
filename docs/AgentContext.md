@@ -447,7 +447,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       default OFF). Sprig dither = vFade threshold 2(h+1/2-L) into foliage.frag (unchanged). No holes, but LOOKS FAIL:
       the mass is the cutout leaf CARD texture on solid faces (darker, patterned; not shadows -- checked casters off);
       whole frame only -0.2/-0.7 from above, +0.5..+0.7 at ground. Owed: a leaf-mass appearance matching the cards.
-      NEXT (the plan's F2 list, §4.6 item 7 continued): levels > 1 m (wider margin), GPU level build; leaf-mass look.
+      F2.14d (2026-11-14): levels 2/4/8/16 m from the REGION pyramid (each chunk's exact 1 m level pasted into one
+      region level, lodDown on the region; lodCut/lodPaste; test: chunkwise == whole, every channel). Build
+      {"lod_levels":<=7}, runtime {"lod_max":n}. 7 = max the 3-bit maxLevel flag holds (32 m+ needs a re-layout).
+      Look gate lodTopStats (view from above vs 1 m): top within 1/2 cell on the region. Coverage: P=8 0 px; P>=16
+      the region's cut edge shifts <= P/2 px (not "0 fattening"). TRAP: judge looks against a LEVEL-0 REFERENCE render,
+      not against "preview hidden" -- the card-cells-as-air fix covered "holes" that level 0 also shows (sprig gaps)
+      and was farther from level 0 at 9/10 points: reverted. Owed: coarse card cell holding the ground surface should
+      draw that ground (P=32 only here). Perf: no saving in a 128 m region (+0.1-0.2 ms at P=32).
+      NEXT (the plan's F2 list, §4.6 item 7 continued): GPU level build; leaf-mass look; ground under coarse canopy.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

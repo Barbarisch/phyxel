@@ -372,7 +372,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
-| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels > 1 m, GPU level build owed |
+| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build owed |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
@@ -957,6 +957,58 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
 - **Default: OFF** (`lod_sprig_level` 0). Owed before it can ship: a leaf-mass appearance that matches the card canopy
   at that size (opaque, the cards' average colour and shading; a voxel.frag/receiver change with its own gate), then
   re-measure. Grass: nothing to hand off yet — the preview draws no grass blades (F2.2).
+
+**F2.14d 2026-11-14 — §4.6 item 7 continued: levels above 1 m (2, 4, 8, 16 m) from the region pyramid.**
+- Design: a chunk's 1 m margin covers its own levels only up to 1 m (a level reads one cell around each cell). Levels
+  4..7 come from the REGION: every chunk's exact 1 m level is cut to its inner 32³ cells and pasted, all channels
+  (count, surface, both votes), into one region level (`lodCut`/`lodPaste`/`lodEmpty`, Mesher.h); `lodDown` runs on the
+  region; each chunk's level-k cut is meshed with its neighbours from the region grid (outside the region = the
+  residency edge, air). `voxfound_preview {"lod_levels":n}` now takes n ≤ 7; runtime `{"lod_max":n}` caps the levels
+  the selection uses (the A/B, no rebuild). 7 is the deepest the 3-bit maxLevel of the flags word holds: level 8
+  (32 m, one cell per chunk) and the levels above chunks need a flags re-layout — not in this step.
+- Red first: `LodLevelsAboveTheMarginComeFromTheRegionExactly` (chunk by chunk with the clipped 1 m margin, pasted,
+  then the region pyramid == the pyramid of the region built whole, every channel, levels 3..7; a level-7 slab still
+  fits the 8 B record inside a 32 m chunk: 256-voxel extents, +side face at 255) — red on stubs. `lodTopStats` (the
+  view from straight above: per column the top non-card cell, its error vs a finer level in coarse cells, material
+  shares, columns whose top is under a card cell) pinned by `LodTopStatsMeasureTheViewFromAbove` — red on a stub.
+  CPU 50/50.
+- Measured vs the prediction (`voxfound_f214d_prediction.txt`, written before any code):
+  - Faces, whole gate region (L3 = 9,325): L4 2,342 / L5 539 / L6 167 / L7 103 (predicted 2.5-3.5k / 0.8-1.2k /
+    250-450 / 80-180: WRONG low at 4-8 m). Solid volume vs L0: −1.6 / −3.3 / −6.8 / +0.6 % (held, ±5 / ±15 %).
+    Region pyramid + meshing: 0.26 s on the ~38 s region build (held, < 1 s).
+  - Unit, one 32 m forest area (`MeasuredLodLevelsOnAGeneratedForest` now runs to level 7): volume 0.93 / 0.92 /
+    0.63 / 1.25 and the old share gate fails from 4 m — WRONG; with 8×8 columns at 4 m and 2×2 at 16 m a column
+    moves by up to half a cell and thin trunks vanish. An assert of top error ≤ 0.5 cell there failed too (0.53 / 0.56
+    at 4 / 8 m, max 4.75 cells = vanished trunk tops). Kept as printed measurements; the gate is the whole region:
+  - Look gate on the whole region (`lod_top_view` in the build response), level k vs the region's 1 m level: mean
+    top error 0.48 / 0.37 / 0.31 / 0.49 cells (held, ≤ 0.5). Bare terrain (flora off): max error EXACTLY 0.5 at every
+    level (the half-solid rule's bound). Shares (≥ 5 %) within 10 points at 2-8 m (held); at 16 m Stone 0 → 11.7 %
+    (FAIL). Dug in: every one of those Stone columns is a hidden top (hidden 8.2 % / 11.7 % at 8 / 16 m = the Stone
+    share): a coarse CARD cell right above holds the ground surface and the leaves, so the ground cell below covers
+    no surface (volume vote: Stone) and the card cell hides its top face — that top is never drawn.
+  - Coverage gate (`voxfound_f214d_gate.json`, lod_max 3 vs 7, today's world hidden, wind 0, GI off; controls 0.000 %
+    everywhere): P=8 0 px at all 5 poses (held: no level ≥ 4 is picked in this region). P=16 ≤ 0.51 % px change,
+    gained ≤ 431 px, lost ≤ 4. P=32: overview_south 9.2 % (gained 13,805), top_down 3.8 %, east_low 1.1 %. ALL
+    16,821 gained px and 765 of 838 lost px lie within P/2 px of the coverage outline (`voxfound_f214d_outline.json`):
+    the region's cut edge seen against the void, moved by up to half a coarse voxel
+    (`voxfound_f214d_os_P32_AB_gained.png`). "0 fattening" was wrong as a PIXEL claim at P ≥ 16: the half-solid rule
+    bounds the shift (≤ P/2 px), it does not make it 0. The other 73 px are holes under the canopy: the hidden ground
+    top above, where the level-0 sprigs leave a gap (`voxfound_f214d_os_farlost.png`).
+- A fix tried and REVERTED: meshing coarse levels with card cells as air (they draw nothing there). Red-first test
+  green, it covered the holes — and the look gate against the LEVEL-0 REFERENCE (`voxfound_f214dc_ref.json`, over the
+  pixels the two meshings differ) put it farther from level 0 at 9 of 10 pose/P points (P=8: 0.1-6.6 → 38-67 mean
+  error; only overview_south P=32 improved, 60 → 28). It exposed the branches inside the canopy and the hidden cells'
+  Stone, and the "holes" it covered at P=8 were background level 0 shows too, through sprig gaps — a coverage metric
+  against the hidden preview cannot tell those apart; a reference render can. (Level-1 faces went 127k → 288k.)
+  Owed: a coarse card cell that holds the ground surface should draw that ground (a non-card surface vote), gated
+  against the level-0 reference. It only shows at P=32 here.
+- Whole frame, lod_max 7 − lod_max 3 at the same P (Release, perf_harness 8 pairs × 5 poses,
+  `voxfound_f214d_ab_P*.{json,jsonl,txt}`): P=8 every CI includes 0 (|median| ≤ 0.08 ms; identical work, held);
+  P=16 every CI includes 0 (top_down +0.28 median); P=32 overview_south +0.09*, east_low +0.21*, canopy_close +0.10*
+  (* CI excludes 0), the others include 0. Held (≤ 0.3 ms): in a 128 m region the 1 m level is already ~9k faces, so
+  coarser levels cannot save; the extra band (two levels drawn where they meet) costs a little at P=32. Their win is
+  at the streaming radius and beyond (§3.5a point 3), with the far tiers' handoff.
+- Default: selection stays OFF (`lod_auto`); a build without `lod_levels` > 3 is unchanged.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

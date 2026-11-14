@@ -1,0 +1,11 @@
+faces 652901
+lod_levels 7
+lod_faces [480349, 127280, 32796, 9325, 2342, 539, 167, 103]
+lod_solid_volume_vs_l0 [1.0, 1.007391539234843, 1.002879632319697, 0.9977592296843459, 0.9841282235256852, 0.9673357599729727, 0.9321408530843447, 1.006424571453534]
+build_wall_ms 14904.042500000005
+region_lod_ms 258.0575
+gpu_face_build_ms_sum 113.83507199999994
+lod_top_view {"4": {"hidden_top": 0.038818359375, "hidden_top_materials": {"Dirt": 0.27, "Grass": 0.019, "GrassForest": 0.17, "GrassSavanna": 0.082, "Log": 0.025, "LogBirch": 0.013, "LogJungle": 0.308, "Stone": 0.107}, "max_err_cells": 6.625, "mean_err_cells": 0.483734130859375, "share_l3_vs_lk": {"Dirt": [0.222, 0.241], "Grass": [0.241, 0.24], "GrassForest": [0.283, 0.282], "GrassSavanna": [0.155, 0.153], "LogJungle": [0.078, 0.064]}}, "5": {"hidden_top": 0.0380859375, "hidden_top_materials": {"GrassForest": 0.026, "LogJungle": 0.026, "Stone": 0.949}, "max_err_cells": 2.8125, "mean_err_cells": 0.3660125732421875, "share_l3_vs_lk": {"Dirt": [0.222, 0.24], "Grass": [0.241, 0.246], "GrassForest": [0.283, 0.264], "GrassSavanna": [0.155, 0.143], "LogJungle": [0.078, 0.057]}}, "6": {"hidden_top": 0.08203125, "hidden_top_materials": {"Stone": 1.0}, "max_err_cells": 1.693359375, "mean_err_cells": 0.31021881103515625, "share_l3_vs_lk": {"Dirt": [0.222, 0.27], "Grass": [0.241, 0.227], "GrassForest": [0.283, 0.199], "GrassSavanna": [0.155, 0.137], "LogJungle": [0.078, 0.074], "Stone": [0.0, 0.082]}}, "7": {"hidden_top": 0.11666666666666667, "hidden_top_materials": {"Stone": 1.0}, "max_err_cells": 1.48974609375, "mean_err_cells": 0.4910850524902344, "share_l3_vs_lk": {"Dirt": [0.222, 0.167], "Grass": [0.241, 0.25], "GrassForest": [0.283, 0.217], "GrassSavanna": [0.155, 0.167], "LogJungle": [0.078, 0.083], "Stone": [0.0, 0.117]}}}
+error null
+wall 38.3s
+{'chunk_cull': True, 'hide_world': True, 'mdi': True, 'occlusion': True, 'shadow_cull': True, 'shadow_mdi': False, 'show_preview': True}

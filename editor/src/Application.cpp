@@ -13385,10 +13385,18 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // hands the sprigs off to it; false drops the mass from the draw lists and keeps sprigs everywhere (the F2.14
         // state). Re-selects the levels (a face re-upload).
         if ((cmd.params.contains("lod_auto") || cmd.params.contains("lod_px") || cmd.params.contains("lod_casters") ||
-             cmd.params.contains("lod_sprig")) &&
+             cmd.params.contains("lod_sprig") || cmd.params.contains("lod_max")) &&
             !cmd.params.contains("type") && !cmd.params.contains("region")) {
             bool ok = true;
             if (cmd.params.contains("lod_casters")) voxFoundPreview.lodCasters = cmd.params.value("lod_casters", false);
+            // {"lod_max":n}: F2.14d A/B -- the highest built level the selection uses (re-selects; no rebuild)
+            if (cmd.params.contains("lod_max")) {
+                const int cap = std::clamp(cmd.params.value("lod_max", 7), 0, 7);
+                if (cap != voxFoundPreview.lodLevelCap) {
+                    voxFoundPreview.lodLevelCap = cap;
+                    if (!voxFoundPreview.lodFirst.empty()) ok = voxFoundPreview.selectLod();
+                }
+            }
             if (cmd.params.contains("lod_sprig")) {
                 const bool on = cmd.params.value("lod_sprig", true);
                 if (on != voxFoundPreview.lodSprigOn) {
@@ -13406,6 +13414,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel},
                         {"lod_casters", voxFoundPreview.lodCasters}, {"lod_sprig", voxFoundPreview.lodSprigOn},
                         {"lod_sprig_level", voxFoundPreview.lodSprigLevel}, {"ok", ok},
+                        {"lod_max", voxFoundPreview.lodLevelCap}, {"lod_max_level", voxFoundPreview.lodMaxLevel},
                         {"levels_built", voxFoundPreview.levels.size()}, {"faces_on_device", voxFoundPreview.faces.size()}};
             if (!ok) response["error"] = "coarser levels not built (lod_levels)";
             return;
@@ -13702,7 +13711,13 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // deepest here) and keeps them all; {"lod_draw":k} (handleVoxFoundPreview) swaps level k in for the whole region
     // without a rebuild. A debug view to see and measure each level; per-region selection is F2.14. Leaf sprigs and
     // occlusion connectivity stay at level 0.
-    const int lodLevels = std::clamp(cmd.params.value("lod_levels", 0), 0, 3);
+    // F2.14d: levels 4..7 (2, 4, 8, 16 m) come from the REGION pyramid (Mesher.h lodPaste): each chunk's exact 1 m
+    // level is pasted into one region level and lodDown runs on the region (outside it = the residency edge). 7 is
+    // the deepest the 3-bit maxLevel of the flags holds (32 m and above need a re-layout).
+    const int lodLevels = std::clamp(cmd.params.value("lod_levels", 0), 0, 7);
+    const int chunkLevels = std::min(lodLevels, 3);   // built per chunk with its 1 m margin (F2.13)
+    LodGrid regionLod;                                // level 3 of the whole region (lodLevels > 3)
+    if (lodLevels > 3) regionLod = lodEmpty(nC * kChunkM, 3);
     // F2.14c: {"lod_sprig_level":h} (1..lod_levels; 0 = off, the default) -- levels >= h build leaves as SOLID coarse
     // leaf mass (today's chunk-LOD handoff of cards); the sprigs then belong to the levels below h and dissolve by
     // size on screen with lod_auto (voxfound_foliage.vert, VoxFound::lodSprigFade).
@@ -13713,6 +13728,53 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     double gpuMs = 0.0, genMs = 0.0, buildMs = 0.0;
     size_t solid = 0;
     std::string err;
+    // one chunk's faces of level k into that level: F2.11 clusters of clusterBlocks^3 blocks (one indirect command
+    // each), solid faces first, then the F2.14c leaf mass (its own clusters, tagged)
+    auto addLevel = [&](std::vector<Preview::Level>& into, int k, uint32_t chunkIndex, glm::ivec3 chunk,
+                        std::vector<PackedFace>& solidFaces, std::vector<PackedFace>& leafFaces) {
+        Preview::Level& L = into[size_t(k)];
+        const uint32_t first = uint32_t(L.faces.size());
+        for (int part = 0; part < 2; ++part) {
+            std::vector<PackedFace>& fs = part ? leafFaces : solidFaces;   // clusterFaces reorders in place
+            const uint32_t partFirst = first + (part ? uint32_t(solidFaces.size()) : 0u);
+            for (const FaceCluster& c : clusterFaces(fs, clusterBlocks)) {
+                PreviewCluster pcl;
+                const glm::vec3 base = glm::vec3((chunk - lo) * kChunkM);
+                pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
+                pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
+                pcl.firstFace = partFirst + c.first;
+                pcl.count = c.count;
+                pcl.chunk = chunkIndex;
+                pcl.leafMass = part == 1;
+                L.clusters.push_back(pcl);
+            }
+        }
+        L.faces.insert(L.faces.end(), solidFaces.begin(), solidFaces.end());
+        L.faces.insert(L.faces.end(), leafFaces.begin(), leafFaces.end());
+        L.firstFace.push_back(first);
+        L.faceCount.push_back(uint32_t(L.faces.size()) - first);
+        L.leafCount.push_back(uint32_t(leafFaces.size()));
+    };
+    // one chunk's cut [off, off + inner) of coarse level k (`level` = that level's grid: the chunk's own area, or the
+    // region's above 1 m), meshed with its real neighbours and scaled to level-0 units. Leaf mass levels (F2.14c)
+    // draw leaves as solid faces; the others keep them as cards (no faces; the sprigs come from level 0)
+    auto meshCoarse = [&](int k, const VoxelGrid& level, glm::ivec3 off, glm::ivec3 inner, const SprigParams& noSprigs,
+                          uint32_t chunkIndex, glm::ivec3 chunk) -> bool {
+        const bool leafMass = sprigLevel > 0 && k >= sprigLevel;   // F2.14c: no card set = leaves are solid
+        const VoxelGrid cg = subGrid(level, off, inner);
+        const Neighbours cb = neighboursOf(level, off, inner, Outside::Air);
+        std::vector<PackedFace> coarse, solidFaces, leafFaces;
+        if (!voxFoundBuilder->build(cg, Edges(cb), coarse, &err, (leafCards && !leafMass) ? &noSprigs : nullptr))
+            return false;
+        gpuMs += voxFoundBuilder->lastGpuMs();
+        levelSolid[size_t(k)] += cg.solidCount();
+        for (const PackedFace& f : coarse)
+            if (!isSprig(f))
+                (leafMass && noSprigs.cards.has(uint8_t((f.b >> 16) & 0xFFu)) ? leafFaces : solidFaces)
+                    .push_back(lodScaleFace(f, k));
+        addLevel(levels, k, chunkIndex, chunk, solidFaces, leafFaces);
+        return true;
+    };
     auto tGen = std::chrono::steady_clock::now();
     const RegionBuild rb = forEachRegionChunk(gen, lo, hi, flora ? &floraDir : nullptr,
                                               [&](const RegionChunk& rc, const std::vector<std::string>& pal) {
@@ -13737,54 +13799,24 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         pc.firstSprig = uint32_t(sprigRecs.size());
         LodGrid lod;
         if (lodLevels > 0 && rc.area) lod = lodBase(*rc.area);
-        for (int k = 0; k <= lodLevels; ++k) {
-            std::vector<PackedFace> solidFaces, leafFaces;   // F2.14c: leafFaces = coarse leaf mass, kept LAST
+        for (int k = 0; k <= chunkLevels; ++k) {
             if (k == 0) {
+                std::vector<PackedFace> solidFaces, leafFaces;
                 for (const PackedFace& f : out) (isSprig(f) ? sprigRecs : solidFaces).push_back(f);
                 levelSolid[0] += rc.grid.solidCount();
+                addLevel(levels, 0, uint32_t(chunks.size()), rc.chunk, solidFaces, leafFaces);
             } else if (rc.area) {
                 lod = lodDown(lod);
                 const int sc = 1 << k;
                 const glm::ivec3 off(rc.areaMarginVoxels / sc), inner(kChunkM * kVoxelsPerM / sc);
-                const VoxelGrid cg = subGrid(lod.grid, off, inner);
-                const Neighbours cb = neighboursOf(lod.grid, off, inner, Outside::Air);
                 SprigParams noSprigs = sp;
                 noSprigs.threshold24 = 0;   // leaves stay cards (no faces); their sprigs come from level 0
-                std::vector<PackedFace> coarse;
-                const bool leafMass = sprigLevel > 0 && k >= sprigLevel;   // F2.14c: no card set = leaves are solid
-                if (!voxFoundBuilder->build(cg, Edges(cb), coarse, &err, (leafCards && !leafMass) ? &noSprigs : nullptr))
-                    return;
-                gpuMs += voxFoundBuilder->lastGpuMs();
-                levelSolid[size_t(k)] += cg.solidCount();
-                for (const PackedFace& f : coarse)
-                    if (!isSprig(f))
-                        (leafMass && sp.cards.has(uint8_t((f.b >> 16) & 0xFFu)) ? leafFaces : solidFaces)
-                            .push_back(lodScaleFace(f, k));
+                if (!meshCoarse(k, lod.grid, off, inner, noSprigs, uint32_t(chunks.size()), rc.chunk)) return;
             }
-            Preview::Level& L = levels[size_t(k)];
-            const uint32_t first = uint32_t(L.faces.size());
-            // F2.11: group the chunk's faces into clusters of clusterBlocks^3 blocks, one indirect command each
-            for (int part = 0; part < 2; ++part) {   // solid faces, then the leaf mass (its own clusters, tagged)
-                std::vector<PackedFace>& fs = part ? leafFaces : solidFaces;   // clusterFaces reorders in place
-                const uint32_t partFirst = first + (part ? uint32_t(solidFaces.size()) : 0u);
-                for (const FaceCluster& c : clusterFaces(fs, clusterBlocks)) {
-                    PreviewCluster pcl;
-                    const glm::vec3 base = glm::vec3((rc.chunk - lo) * kChunkM);
-                    pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
-                    pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
-                    pcl.firstFace = partFirst + c.first;
-                    pcl.count = c.count;
-                    pcl.chunk = uint32_t(chunks.size());
-                    pcl.leafMass = part == 1;
-                    L.clusters.push_back(pcl);
-                }
-            }
-            L.faces.insert(L.faces.end(), solidFaces.begin(), solidFaces.end());
-            L.faces.insert(L.faces.end(), leafFaces.begin(), leafFaces.end());
-            L.firstFace.push_back(first);
-            L.faceCount.push_back(uint32_t(L.faces.size()) - first);
-            L.leafCount.push_back(uint32_t(leafFaces.size()));
         }
+        if (lodLevels > 3 && rc.area)   // F2.14d: this chunk's exact 1 m level into the region level
+            lodPaste(regionLod, lodCut(lod, glm::ivec3(rc.areaMarginVoxels / 8), glm::ivec3(kChunkM)),
+                     (rc.chunk - lo) * kChunkM);
         pc.firstFace = levels[0].firstFace.back();
         pc.faceCount = levels[0].faceCount.back();
         pc.sprigCount = uint32_t(sprigRecs.size()) - pc.firstSprig;
@@ -13798,6 +13830,44 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     if (!err.empty()) {
         response = {{"error", err}};
         return;
+    }
+    // F2.14d: levels 4..lodLevels from the region pyramid, each chunk's cut meshed with its region neighbours
+    double regionLodMs = 0.0;
+    nlohmann::json topView = nlohmann::json::object();   // F2.14d look gate: level k vs the region's 1 m level
+    if (lodLevels > 3 && regionLod.grid.size()) {
+        const auto t0 = std::chrono::steady_clock::now();
+        SprigParams sp;   // the region palette's card set (the per-chunk one grew with the palette)
+        for (size_t m = 1; m < rb.palette.size(); ++m) {
+            const auto* md = Core::MaterialRegistry::instance().getMaterial(rb.palette[m]);
+            if (md && md->billboarded) sp.cards.set(uint8_t(m));
+        }
+        sp.threshold24 = 0;   // leaves stay cards (no faces); their sprigs come from level 0
+        const LodGrid regionL3 = regionLod;
+        for (int k = 4; k <= lodLevels && err.empty(); ++k) {
+            regionLod = lodDown(regionLod);
+            const LodTopStats ts = lodTopStats(regionL3, regionLod, sp.cards);
+            nlohmann::json sh = nlohmann::json::object();
+            for (size_t m = 1; m < rb.palette.size() && m < ts.shareRef.size(); ++m)
+                if (ts.shareRef[m] >= 0.05 || ts.share[m] >= 0.05)
+                    sh[rb.palette[m]] = {std::round(ts.shareRef[m] * 1000.0) / 1000.0,
+                                         std::round(ts.share[m] * 1000.0) / 1000.0};
+            nlohmann::json hid = nlohmann::json::object();
+            for (size_t m = 1; m < rb.palette.size() && m < ts.shareHidden.size(); ++m)
+                if (ts.shareHidden[m] >= 0.01) hid[rb.palette[m]] = std::round(ts.shareHidden[m] * 1000.0) / 1000.0;
+            topView[std::to_string(k)] = {{"mean_err_cells", ts.meanErrCells}, {"max_err_cells", ts.maxErrCells},
+                                          {"share_l3_vs_lk", sh}, {"hidden_top", ts.hiddenTop},
+                                          {"hidden_top_materials", hid}};
+            const int n = (kChunkM * kVoxelsPerM) >> k;   // cells per chunk side at level k
+            for (size_t i = 0; i < chunks.size() && err.empty(); ++i)
+                if (!meshCoarse(k, regionLod.grid, (chunks[i].chunk - lo) * n, glm::ivec3(n), sp, uint32_t(i),
+                                chunks[i].chunk))
+                    break;
+        }
+        regionLodMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        if (!err.empty()) {
+            response = {{"error", err}};
+            return;
+        }
     }
     palette = rb.palette;
     voxFoundPreview.faceTex.assign(kFaceTexWords, 0u);
@@ -13855,6 +13925,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 {"sprig_bytes", voxFoundPreview.sprigs.size() * sizeof(PreviewSprig)},
                 {"face_tex_table_bytes", kFaceTexWords * sizeof(uint32_t)},
                 {"gpu_face_build_ms_sum", gpuMs}, {"generate_ms", genMs}, {"build_wall_ms", buildMs},
+                {"region_lod_ms", regionLodMs}, {"lod_top_view", topView},
                 {"palette", palette}, {"leaves", leafCards ? "cards" : "voxels"},
                 {"flora_stamped_per_chunk_sum", rb.flora.stamped}, {"flora_missing", rb.flora.missingNames},
                 {"recipe", recipeUsed}, {"flora_window", bounded ? "bounded" : "open"},

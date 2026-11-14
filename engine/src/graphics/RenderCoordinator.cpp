@@ -3753,7 +3753,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
                     vkCmdPushConstants(commandBuffer, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
                     vkCmdDrawIndexed(commandBuffer, 36u, count, 0, 0, 0);
                     cast += count;
-                    if (k < 4) m_voxFoundShadowFacesByLevel[ci][size_t(k)] += count;
+                    if (k < 8) m_voxFoundShadowFacesByLevel[ci][size_t(k)] += count;
                 }
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, lp);
                 if (map.getChunkDataSet(currentFrame) != VK_NULL_HANDLE) {
@@ -3777,7 +3777,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
                                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(lpc), &lpc);
                         vkCmdDrawIndexed(commandBuffer, 36u, count, 0, 0, 0);
                         cast += count;
-                        if (k < 4) m_voxFoundShadowFacesByLevel[ci][size_t(k)] += count;
+                        if (k < 8) m_voxFoundShadowFacesByLevel[ci][size_t(k)] += count;
                     }
                 }
             } else if (originSet != VK_NULL_HANDLE) {

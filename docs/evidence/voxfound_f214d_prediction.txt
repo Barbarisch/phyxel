@@ -1,0 +1,57 @@
+F2.14d prediction (written 2026-11-14 before any code): pyramid levels above 1 m (§4.6 item 7 continued).
+
+Design: levels 4..7 (2, 4, 8, 16 m) from a REGION pyramid: each chunk's level 3 (1 m, exact with its 1 m margin,
+F2.13) is cut to its inner 32^3 and pasted (all channels: count, surf, surfMat, volMat) into one region level-3
+grid; lodDown runs on the region; each chunk's level-k cut is meshed with neighbours from the region grid (outside
+the region = air, the residency edge). Level 8 (32 m) needs maxLevel > 7 = a flags re-layout: not in this step.
+Runtime cap {"lod_max":n} picks the highest level selectLod uses (A/B without a rebuild).
+
+1. Unit (red first): chunkwise (margin, cut, paste, lodDown) == lodDown of the whole region, every channel, levels
+   3..6, on a synthetic region of 4x1x2 small chunks. Red on stubs.
+2. Faces, whole gate region (L3 = 9,325): L4 2.5-3.5k, L5 0.8-1.2k, L6 250-450, L7 80-180.
+   Solid volume vs L0: within +-5 % at L4-L5, within +-15 % at L6-L7.
+   Material share gate (>= 5 % materials within 10 points of L0's up-facing share): holds at L4-L5; L6-L7 hold too
+   (ground is mostly grass) -- least sure of this.
+3. Build time: + < 1 s on the ~95 s region build.
+4. Gates (holes / fattening / looks): at P=8 no level >= 4 is ever picked in this region (L at 190 m = 3.5; pick <= 3),
+   so cap 3 vs cap 7 = 0 px. At P=16 (level 4 from 136 m) and P=32 (from 68 m): 0 holes, 0 fattening (coverage
+   lost/gained px ~ controls); visibly blockier far ground; trunks gone at those levels (already at 1 m).
+5. Whole frame, cap 7 - cap 3, same P: P=8 |median| <= 0.1 ms (identical work); P=16/32 |B-A| <= 0.3 ms: the far
+   ground at 1 m is already only ~9k faces. This scene (128 m) is too small to show a cost win; the win is at
+   the streaming radius / km scale. This step proves exactness and the gates, not a saving.
+
+--- Measured (unit, one 32 m forest area): exactness test GREEN (all channels, levels 3..7). Prediction 2 WRONG:
+solid volume vs L0: L4 0.929, L5 0.920, L6 0.627, L7 1.253 (predicted +-5 % / +-15 %); the >= 5 % share gate fails at
+L5-L7 (GrassForest 0.67 -> 0.79 at L5). A 32 m area has 8x8 columns at 4 m and 2x2 at 16 m: a column's ground drops or
+rises by up to half a cell (the half-solid rule) and thin features (trunks, root flares) vanish -- that is what size
+on screen bounds (half a level-k voxel = P/2 px where level k is drawn), but nothing pins it yet.
+
+Addendum prediction (before the code): a look gate fit for coarse levels, the view from straight above, measured on
+the WHOLE gate region (128 x 128 m) in the engine, level k vs level 3 (1 m, which held the share gate vs level 0):
+  mean |top height error| per level-k column <= 0.5 level-k cell at k = 4..7;
+  every material >= 5 % of level 3's top area keeps its share within 10 points at k = 4, 5; may fail at 6, 7.
+
+--- Measured (engine, gate region): the look gate on the region HELD for the top error (mean 0.48/0.37/0.31/0.49
+cells at 2/4/8/16 m; bare terrain max = exactly 0.5 at every level); share held at 2-8 m, FAILED at 16 m (Stone +11.7).
+Dig: every Stone column is a hidden top (8.2 % / 11.7 % hidden = 8.2 % / 11.7 % Stone): a coarse CARD cell right above
+the ground cell hides its top face. Coverage gate: P=8 0 px (held); P=16 <= 431 px gained, <= 4 lost; P=32 13,805
+gained (overview_south). All gained px and 92 % of lost px lie within P/2 px of the coverage outline (the half-cell
+silhouette shift at the region's cut edge, against the void) -- "0 fattening" was WRONG at P >= 16 as a pixel claim;
+the rest (39 / 19 / 15 px) were HOLES under the canopy: background through the hidden ground top where sprigs gap. The
+holes exist at level <= 3 too at P=32 (F2.14 never gated P=32): fix lodDrawGrid (card cells -> air for meshing at
+levels without leaf mass), red-first CoarseCardCellsDoNotHideTheGroundUnderTheCanopy. Measured: L1 127k -> 288k faces,
+L2 33k -> 56k, L3 9.3k -> 11.2k (branches inside the canopy now have faces too).
+
+Prediction for the fix A/B (lod_cards_hide true = F2.13 way vs false = fix), before the run:
+  pixels: P=8 <= 0.1 % changed, P=32 the interior holes covered (old holes covered > 0, new holes 0);
+  whole frame P=8: +0.2..+0.8 ms at the ground poses (level 1-2 faces x2.3 / x1.7 in the band), <= +0.3 from above;
+  P=32: |delta| <= 0.3 ms.
+
+--- The card-cell fix (lodDrawGrid) FAILED the look gate vs the level-0 reference (f214dc_ref.json): over the pixels A
+(cards hide) and B (fix) differ, B is farther from level 0 at 9 of 10 pose/P points (P=8: A err 0.1-6.6 vs B 38-67);
+only overview_south P=32 improves (60 -> 28). The "holes" it covered at P=8 are background level 0 shows too (through
+sprig gaps) -- the coverage metric vs the hidden preview cannot tell them apart; the reference gate can. The blanket fix
+exposed branches inside the canopy and the hidden-top cells' volume-vote Stone. REVERTED (cards hide, as F2.13).
+Owed: a coarse card cell that holds the ground surface should draw that ground (a non-card surface vote), measured
+against the level-0 reference; it shows at P=32 only (overview_south ~570 px).
+The fix A/B perf run is dropped with it; the cap 3 vs cap 7 A/B runs on the reverted code.

@@ -1,0 +1,62 @@
+{
+ "overview_south P16": {
+  "lost": 0,
+  "lost_near_outline": 0,
+  "gained": 227,
+  "gained_near_outline": 227
+ },
+ "overview_south P32": {
+  "lost": 414,
+  "lost_near_outline": 375,
+  "gained": 13805,
+  "gained_near_outline": 13805
+ },
+ "top_down P16": {
+  "lost": 0,
+  "lost_near_outline": 0,
+  "gained": 431,
+  "gained_near_outline": 431
+ },
+ "top_down P32": {
+  "lost": 174,
+  "lost_near_outline": 155,
+  "gained": 1583,
+  "gained_near_outline": 1583
+ },
+ "forest_floor_open P16": {
+  "lost": 0,
+  "lost_near_outline": 0,
+  "gained": 0,
+  "gained_near_outline": 0
+ },
+ "forest_floor_open P32": {
+  "lost": 0,
+  "lost_near_outline": 0,
+  "gained": 191,
+  "gained_near_outline": 191
+ },
+ "east_low P16": {
+  "lost": 4,
+  "lost_near_outline": 4,
+  "gained": 45,
+  "gained_near_outline": 45
+ },
+ "east_low P32": {
+  "lost": 238,
+  "lost_near_outline": 223,
+  "gained": 122,
+  "gained_near_outline": 122
+ },
+ "canopy_close P16": {
+  "lost": 0,
+  "lost_near_outline": 0,
+  "gained": 90,
+  "gained_near_outline": 90
+ },
+ "canopy_close P32": {
+  "lost": 8,
+  "lost_near_outline": 8,
+  "gained": 327,
+  "gained_near_outline": 327
+ }
+}

@@ -42,7 +42,10 @@ for the whole region). F2.14 added selection by size on screen with a dithered c
 level behind the main view (kLodCasterLag = 1) floored at the cascade texel; they save 1.2-2.4 ms only from above at
 P=8 and cost elsewhere. Occlusion uses level 0. Sprig → coarse leaf mass handoff (F2.14c, build
 `lod_sprig_level`, default OFF): sprigs dither out by the same test through foliage.frag's vFade; no holes, but the
-mass (the leaf card texture on solid faces, like tier 2's) looks wrong, and it saves ≤ 0.7 ms. No grass on the preview. Still not a tier and it
+mass (the leaf card texture on solid faces, like tier 2's) looks wrong, and it saves ≤ 0.7 ms. Levels 2/4/8/16 m
+(F2.14d, `{"lod_levels":7}`, runtime cap `{"lod_max":n}`) come from a region pyramid built from each chunk's exact
+1 m level; outside the region is air (the residency edge, where the half-solid silhouette shifts ≤ P/2 px); 32 m and
+above need a flags re-layout. No grass on the preview. Still not a tier and it
 touches none of the 8 tiers above; it gets a row when it ships ON with coarse casters (candidate knob P=4 / P=8),
 meant to replace tier 2 (§3.5a point 3).
 

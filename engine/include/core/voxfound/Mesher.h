@@ -223,6 +223,28 @@ LodGrid lodDown(const LodGrid& fine);
 /// A face meshed at level k, in the level-0 units of the record (position and extents x 2^k). The scaled extents
 /// must fit the record (du, dv <= 256).
 PackedFace lodScaleFace(PackedFace f, int level);
+/// F2.14d: levels above a chunk's 1 m margin come from a REGION pyramid. Each chunk's 1 m level (exact with its margin)
+/// is cut to its inner cells and pasted into one region level; lodDown then runs on the region, so a coarse cell sees
+/// its real neighbours wherever the region has them (outside the region = the residency edge). lodCut = the cells
+/// [lo, lo + size) of every channel (outside = air); lodPaste writes every channel of `part` at `at`; lodEmpty = an
+/// all-air level of `dim` cells.
+LodGrid lodCut(const LodGrid& g, glm::ivec3 lo, glm::ivec3 size);
+void lodPaste(LodGrid& region, const LodGrid& part, glm::ivec3 at);
+LodGrid lodEmpty(glm::ivec3 dim, int level);
+/// F2.14d: the look gate for coarse levels, the view from straight above. Per column, the top of the highest solid
+/// non-card cell (level-0 voxels; 0 when none) and its material. `coarse` vs a finer `ref` of the same region: the
+/// mean / max of |coarse top - mean ref top over the ref columns it covers| in COARSE cells (the half-solid rule
+/// bounds a ground column's error by about half a cell = P/2 pixels where the level is drawn), and each material's
+/// share of the columns with a top (index = material).
+struct LodTopStats {
+    double meanErrCells = 0.0, maxErrCells = 0.0;
+    std::vector<double> shareRef, share;
+    /// coarse columns whose top cell has a CARD cell right above it: that cell hides its top face (cards hide their
+    /// neighbours' faces), so from above the eye sees the sprigs there, not this top; shareHidden = materials of those
+    double hiddenTop = 0.0;
+    std::vector<double> shareHidden;
+};
+LodTopStats lodTopStats(const LodGrid& ref, const LodGrid& coarse, const CardSet& cards);
 
 // ---- F2.14 (§3.5a point 3 "no fixed distances / no visible steps"): the level by size on screen ------------------
 /// The CPU reference of what voxfound_face*.vert + voxel.frag and voxfound_cull.comp compute. Level k's voxel
