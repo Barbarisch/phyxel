@@ -1009,6 +1009,50 @@ TEST(VoxFoundMesher, LodTopStatsMeasureTheViewFromAbove) {
     EXPECT_NEAR(s.shareRef[2] + s.share[2], 0.0, 1e-12);
 }
 
+TEST(VoxFoundMesher, CoarseLevelsFromTwoPyramidsKeepTheGroundUnderTheCanopy) {
+    // F2.14g: dirt (1) 5 voxels deep with a grass (2) top layer, and a canopy of leaves (3, a card material) from
+    // y 6 to 13 over half the area -- at level 3 (8-voxel cells) the canopy shares the ground's cell (y 0..7) and fills
+    // the cell above. From two pyramids, every column's ground keeps an up face with GRASS on top (the leaves neither
+    // hide it nor win its vote); the solid pyramid holds no card material; the leaf pyramid only card material.
+    VoxelGrid g;
+    g.resize({32, 32, 32});
+    for (int x = 0; x < 32; ++x)
+        for (int z = 0; z < 32; ++z) {
+            for (int y = 0; y < 5; ++y) g.set({x, y, z}, 1);
+            g.set({x, 5, z}, 2);
+            if (x < 16)
+                for (int y = 6; y < 14; ++y) g.set({x, y, z}, 3);
+        }
+    CardSet cards;
+    cards.set(3);
+    VoxelGrid solid, leaves;
+    lodSplitCards(g, cards, solid, leaves);
+    ASSERT_EQ(solid.dim, g.dim);
+    ASSERT_EQ(leaves.dim, g.dim);
+    LodGrid s = lodBase(solid), l = lodBase(leaves);
+    for (int k = 0; k < 3; ++k) {
+        s = lodDown(s);
+        l = lodDown(l);
+    }
+    size_t cardInSolid = 0, nonCardInLeaves = 0;
+    for (uint8_t m : s.grid.mat) cardInSolid += cards.has(m);
+    for (uint8_t m : l.grid.mat) nonCardInLeaves += (m != 0 && !cards.has(m));
+    EXPECT_EQ(cardInSolid, 0u);
+    EXPECT_EQ(nonCardInLeaves, 0u);
+    EXPECT_GT(l.grid.solidCount(), 0u) << "the leaf pyramid lost the canopy";
+    // up faces on the solid pyramid's mesh (alone, no card set): one per column, at the ground top, grass
+    std::map<std::pair<int, int>, std::pair<int, uint8_t>> top;   // column -> (top y, material)
+    for (const Quad& q : meshRuns(s.grid, Outside::Skip))
+        if (q.axis == 1 && q.dir > 0)
+            for (int u = 0; u < q.du; ++u)
+                for (int v = 0; v < q.dv; ++v) top[{q.o.x + v, q.o.z + u}] = {q.o.y, q.material};
+    EXPECT_EQ(top.size(), size_t(s.grid.dim.x) * size_t(s.grid.dim.z)) << "a column has no top face";
+    for (const auto& [col, t] : top) {
+        EXPECT_EQ(t.first, 0) << "column " << col.first << "," << col.second << ": top in cell y " << t.first;
+        EXPECT_EQ(t.second, 2) << "column " << col.first << "," << col.second << ": top material " << int(t.second);
+    }
+}
+
 TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {
     // cost inputs for item 7 (not a gate): the §9a forest spot, faces and solid volume per level
     const std::string root = repoRoot();

@@ -114,17 +114,27 @@ struct Preview {
     bool lodSprigOn = true;   // F2.14c A/B: false = the build's leaf mass is not drawn and sprigs never hand off
     float lodPxPerVoxel = 1.0f;
     int lodLevelCap = 7;   // F2.14d A/B: the highest built level selectLod puts on the device (lower = fewer levels)
+    /// F2.14g A/B: the coarse levels meshed the other way (built with lod_card_ab; levelsAlt[0] unused). lodSplit = how
+    /// `levels` was meshed (true: two pyramids, solid + leaves); lodUseAlt = draw levelsAlt's coarse levels instead.
+    std::vector<Level> levelsAlt;
+    bool lodSplit = false;
+    bool lodUseAlt = false;
+    const Level& lodLevelFor(size_t k) const {
+        return (lodUseAlt && k > 0 && k < levelsAlt.size()) ? levelsAlt[k] : levels[k];
+    }
     bool selectLod() {
         if (levels.empty() || levels[0].firstFace.size() != chunks.size()) return false;
         for (const Level& L : levels)
             if (L.firstFace.size() != chunks.size()) return false;
+        for (size_t k = 1; k < levelsAlt.size(); ++k)
+            if (levelsAlt[k].firstFace.size() != chunks.size()) return false;
         const size_t nLevels = std::min(levels.size(), size_t(std::max(lodLevelCap, 0)) + 1);
         faces.clear();
         lodClusters.clear();
         lodFirst.assign(nLevels, {});
         lodCount.assign(nLevels, {});
         for (size_t k = 0; k < nLevels; ++k) {
-            const Level& L = levels[k];
+            const Level& L = lodLevelFor(k);
             const uint32_t base = uint32_t(faces.size());
             faces.insert(faces.end(), L.faces.begin(), L.faces.end());
             for (size_t i = 0; i < chunks.size(); ++i) {

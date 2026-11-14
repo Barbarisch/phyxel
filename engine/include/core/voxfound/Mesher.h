@@ -245,6 +245,11 @@ struct LodTopStats {
     std::vector<double> shareHidden;
 };
 LodTopStats lodTopStats(const LodGrid& ref, const LodGrid& coarse, const CardSet& cards);
+/// F2.14g: coarse levels come from TWO pyramids. `solid` = g with its card (leaf) voxels as air; `leaves` = only the
+/// card voxels. The solid pyramid is meshed alone (leaves never hide ground or trunk faces at a coarse level, and a
+/// ground cell's surface vote sees the ground); the leaf pyramid is the leaf mass where it is drawn (F2.14c handoff).
+/// Level 0 keeps today's rule (card voxels hide their neighbours).
+void lodSplitCards(const VoxelGrid& g, const CardSet& cards, VoxelGrid& solid, VoxelGrid& leaves);
 
 // ---- F2.14 (§3.5a point 3 "no fixed distances / no visible steps"): the level by size on screen ------------------
 /// The CPU reference of what voxfound_face*.vert + voxel.frag and voxfound_cull.comp compute. Level k's voxel

@@ -462,8 +462,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       {"lod_leaf_look":bool}. TRAP: a branch in voxel.frag cost every preview fragment ~0.5-1 ms (shared shader,
       measured old/new sessions) -- never add branches to voxel.frag for a niche path. TRAP: two draw paths must draw
       in the same order (coplanar kept levels tie in depth; first drawn wins) -- leaf mass last in both.
-      NEXT (the plan's F2 list, §4.6 item 7 continued): coarse canopy shape vs the cards; ground under coarse canopy
-      cells. Then item 8 (face direction culling), 9 (incremental rebuild), 10 (face pool), T-junctions.
+      F2.14g (2026-11-14): two pyramids (solid + leaves, lodSplitCards; {"lod_split_cards"}, default OFF; A/B via
+      {"lod_card_ab":true} + {"lod_cards_split":bool}). Fixes hidden tops/Stone/holes at P=32 but shows canopy-interior
+      branches at P=8 (farther from level 0 at 8/10 points). Finding: those interior faces cut SPRIG overdraw 2-3.7 ms
+      at ground poses (early depth). TRAP: voxfound_preview with lod_* + show_preview in ONE call drops show_preview.
+      NEXT (the plan's F2 list, §4.6 item 7 continued): coarse canopy shape vs the cards (leaf threshold on the leaf
+      pyramid). Then item 8 (face direction culling), 9 (incremental rebuild), 10 (face pool), T-junctions.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

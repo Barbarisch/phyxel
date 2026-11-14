@@ -1,0 +1,112 @@
+{
+ "overview_south P8": {
+  "px_A_ne_B": 804,
+  "mean_err_A_vs_L0": 8.05,
+  "mean_err_B_vs_L0": 44.7,
+  "B_closer_px": 108,
+  "A_closer_px": 696,
+  "holes_A": 0,
+  "holes_B": 0,
+  "control_A_px": 0,
+  "control_B_px": 0
+ },
+ "overview_south P32": {
+  "px_A_ne_B": 1009,
+  "mean_err_A_vs_L0": 45.11,
+  "mean_err_B_vs_L0": 32.51,
+  "B_closer_px": 661,
+  "A_closer_px": 342,
+  "holes_A": 273,
+  "holes_B": 0,
+  "control_A_px": 0,
+  "control_B_px": 0
+ },
+ "top_down P8": {
+  "px_A_ne_B": 865,
+  "mean_err_A_vs_L0": 16.07,
+  "mean_err_B_vs_L0": 46.53,
+  "B_closer_px": 201,
+  "A_closer_px": 664,
+  "holes_A": 0,
+  "holes_B": 6,
+  "control_A_px": 0,
+  "control_B_px": 0
+ },
+ "top_down P32": {
+  "px_A_ne_B": 507,
+  "mean_err_A_vs_L0": 37.12,
+  "mean_err_B_vs_L0": 39.39,
+  "B_closer_px": 254,
+  "A_closer_px": 253,
+  "holes_A": 19,
+  "holes_B": 0,
+  "control_A_px": 0,
+  "control_B_px": 0
+ },
+ "forest_floor_open P8": {
+  "px_A_ne_B": 190,
+  "mean_err_A_vs_L0": 5.83,
+  "mean_err_B_vs_L0": 34.35,
+  "B_closer_px": 31,
+  "A_closer_px": 159,
+  "holes_A": 0,
+  "holes_B": 0,
+  "control_A_px": 0,
+  "control_B_px": 0
+ },
+ "forest_floor_open P32": {
+  "px_A_ne_B": 616,
+  "mean_err_A_vs_L0": 17.43,
+  "mean_err_B_vs_L0": 26.21,
+  "B_closer_px": 260,
+  "A_closer_px": 355,
+  "holes_A": 8,
+  "holes_B": 8,
+  "control_A_px": 0,
+  "control_B_px": 0
+ },
+ "east_low P8": {
+  "px_A_ne_B": 1571,
+  "mean_err_A_vs_L0": 4.43,
+  "mean_err_B_vs_L0": 65.95,
+  "B_closer_px": 82,
+  "A_closer_px": 1488,
+  "holes_A": 1,
+  "holes_B": 2,
+  "control_A_px": 0,
+  "control_B_px": 0
+ },
+ "east_low P32": {
+  "px_A_ne_B": 1210,
+  "mean_err_A_vs_L0": 33.62,
+  "mean_err_B_vs_L0": 63.2,
+  "B_closer_px": 447,
+  "A_closer_px": 761,
+  "holes_A": 17,
+  "holes_B": 12,
+  "control_A_px": 0,
+  "control_B_px": 0
+ },
+ "canopy_close P8": {
+  "px_A_ne_B": 47,
+  "mean_err_A_vs_L0": 0.06,
+  "mean_err_B_vs_L0": 37.53,
+  "B_closer_px": 0,
+  "A_closer_px": 47,
+  "holes_A": 0,
+  "holes_B": 0,
+  "control_A_px": 0,
+  "control_B_px": 0
+ },
+ "canopy_close P32": {
+  "px_A_ne_B": 77,
+  "mean_err_A_vs_L0": 46.84,
+  "mean_err_B_vs_L0": 37.51,
+  "B_closer_px": 40,
+  "A_closer_px": 37,
+  "holes_A": 0,
+  "holes_B": 0,
+  "control_A_px": 0,
+  "control_B_px": 0
+ }
+}

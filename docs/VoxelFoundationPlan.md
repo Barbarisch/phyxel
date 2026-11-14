@@ -372,7 +372,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 4 | Occlusion culling (chunk visibility graph, BFS bound 512) | `RenderCoordinator::applyOcclusionCulling` | Rebuilt from block solidity; can work at block granularity, finer than today | chunk walk on block-solidity connectivity done (F2.10, 0 px, no cost; the gate forest has nothing to occlude — win owed to a scene with interiors); block-granularity walk owed |
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
-| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look done (F2.14f: own pipeline shaded as cards, luma 74.7 → 106.2 vs the cards' 107.9, mass error halved; +0.14/+0.16 ms at the ground; handoff still off); coarse canopy shape + ground under coarse canopy cells owed |
+| 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look done (F2.14f: own pipeline shaded as cards, luma 74.7 → 106.2 vs the cards' 107.9, mass error halved; +0.14/+0.16 ms at the ground; handoff still off); two pyramids built (F2.14g: no hidden tops, holes at P=32 gone, but farther from level 0 at P=8 — off; found: canopy-interior faces cut sprig overdraw 2-3.7 ms); coarse canopy shape owed |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | new, to be measured |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
@@ -1059,6 +1059,38 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   (≤ 0.1) WRONG at the two ground poses: the card model per mass fragment (16 taps, two shadow maps, the lamp loop).
 - Default: the handoff stays OFF (`lod_sprig_level` 0): it saved ≤ 0.7 ms from above and cost at the ground (F2.14c),
   and the shape gap remains. The leaf look is the default whenever the handoff is built.
+
+**F2.14g 2026-11-14 — §4.6 item 7 continued: coarse levels from two pyramids (the ground under coarse canopy cells).**
+- Built: `VoxFound::lodSplitCards` splits a chunk's area into a SOLID grid (card voxels → air) and a LEAF grid; each
+  gets its own pyramid (GPU, and its own region pyramid for 2-16 m). A coarse level meshes the solid pyramid alone
+  (leaves never hide ground or trunk faces, and a ground cell's surface vote sees the ground); the leaf pyramid is
+  meshed only where the leaf mass is drawn (F2.14c handoff). Level 0 unchanged. Build `{"lod_split_cards":bool}`
+  (default FALSE, see below); `{"lod_card_ab":true}` also builds the other meshing as an alternate level set
+  (`Preview::levelsAlt`) and `{"lod_cards_split":bool}` swaps it at runtime (interleaved A/B).
+- Red first: `CoarseLevelsFromTwoPyramidsKeepTheGroundUnderTheCanopy` (ground + a canopy sharing its level-3 cell:
+  every column keeps a grass top face, no card material in the solid pyramid, only card material in the leaf
+  pyramid), red on a stub; CPU 51/51.
+- Measured vs the prediction (`voxfound_f214g_prediction.txt`):
+  - Top view (`lod_top_view`, region): hidden tops 3.9-11.7 % → 0 at every level, Stone 8.2 / 11.7 % → 0 at 8 / 16 m,
+    mean top error 0.48 / 0.35 / 0.23 / 0.39 cells, every share within 6.5 points at 2-16 m (held; fixes F2.14d's 16 m
+    share failure).
+  - Faces at ¼ / ½ / 1 m: 295,769 / 54,173 / 11,102 vs 127,280 / 32,796 / 9,325 (+132 / +65 / +19 %; predicted ±30 %:
+    WRONG) — canopy-interior branches are half-solid at ¼ and ½ m and get faces level 0 hides under its leaves.
+  - Look gate against the LEVEL-0 REFERENCE (`voxfound_f214g_ref.json`): holes more than P/2 px from the reference
+    outline at P=32 overview_south 273 → 0, top_down 19 → 0, east_low 17 → 12, forest_floor_open 8 → 8; but over the
+    pixels the two meshings differ, two pyramids are closer to level 0 at only 2 of 10 points (P=32 overview_south and
+    canopy_close; predicted ≥ 8: WRONG). At P=8 one pyramid matches level 0 almost exactly (mean error 0.1-16), two
+    pyramids show the interior branches (34-66).
+  - Whole frame, two − one pyramid (`voxfound_f214g_ab_P*`): P=8 overview +0.06 (n.s.), top_down +0.24*,
+    forest_floor_open −2.32*, east_low −1.30*, canopy_close +0.74*; P=32 −0.06 / −0.08 (n.s.) / −1.61* / −2.64* /
+    +0.39* ms (predicted |Δ| ≤ 0.3: WRONG both ways). Dug in (scopes): the preview's faces cost +1.0-1.2 ms and the
+    SPRIGS save 2.0-3.7 ms — the canopy-interior faces, drawn before the sprigs, fill depth inside the canopies, so the
+    sprigs behind them fail the early depth test. An opaque core inside a canopy is a lever on the largest ground-pose
+    cost (sprig overdraw); not taken here because the core is visible through sprig gaps.
+- Default: ONE pyramid. Two pyramids fix the holes only where they show (P=32) and move P=8 away from level 0. Kept,
+  off, for the canopy-shape step (a leaf threshold on the leaf pyramid alone). Trap found on the way: an API call
+  carrying a `lod_*` key and `show_preview` only applies the `lod_*` branch (the first gate run measured a hidden
+  preview: A = B = background) — send them separately.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

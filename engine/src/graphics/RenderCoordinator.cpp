@@ -3084,8 +3084,8 @@ void RenderCoordinator::renderVoxFoundPreview() {
             // F2.14f: the range's leaf mass (its last faces) goes through its own pipeline when the look is on
             uint32_t leaf = 0;
             if (lodRange && pv.lodLeafLook && pv.lodSprigOn && size_t(k) < pv.levels.size() &&
-                ci < pv.levels[size_t(k)].leafCount.size())
-                leaf = std::min(count, pv.levels[size_t(k)].leafCount[ci]);
+                ci < pv.lodLevelFor(size_t(k)).leafCount.size())
+                leaf = std::min(count, pv.lodLevelFor(size_t(k)).leafCount[ci]);
             const uint32_t bits = lodRange ? Core::VoxFound::lodFlagBits(k, pv.lodMaxLevel, code) : 0u;
             if (count > leaf) {
                 vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(),

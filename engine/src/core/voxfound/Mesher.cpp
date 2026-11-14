@@ -679,6 +679,20 @@ LodTopStats lodTopStats(const LodGrid& ref, const LodGrid& coarse, const CardSet
     return st;
 }
 
+void lodSplitCards(const VoxelGrid& g, const CardSet& cards, VoxelGrid& solid, VoxelGrid& leaves) {
+    solid = g;
+    leaves.resize(g.dim);
+    for (size_t i = 0; i < g.size(); ++i)
+        if (g.mat[i] && cards.has(g.mat[i])) {
+            leaves.mat[i] = g.mat[i];
+            leaves.part[i] = g.part[i];
+            leaves.fixed[i] = g.fixed[i];
+            solid.mat[i] = 0;
+            solid.part[i] = 0;
+            solid.fixed[i] = 0;
+        }
+}
+
 bool casterBoxKept(glm::vec3 lo, glm::vec3 hi, glm::vec3 cullCenter, float reach, const glm::vec4 lightPlanes[6]) {
     if (glm::length((lo + hi) * 0.5f - cullCenter) > reach) return false;   // today's distance test
     return boxInFrustum(lightPlanes, lo, hi);                                // the light frustum

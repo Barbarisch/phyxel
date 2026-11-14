@@ -1,0 +1,43 @@
+F2.14g prediction (written 2026-11-14 before any code): coarse levels from two pyramids (§4.6 item 7 continued; the
+two owed look gaps: the ground under coarse canopy cells, and the coarse canopy shape).
+
+Design: a chunk's area is split into a SOLID grid (card voxels -> air) and a LEAF grid (only card voxels). Each gets
+its own pyramid (lodBase/lodDown or LodBuilderGpu; the region pyramid for 2-16 m, each grid). Coarse level k (>= 1)
+meshes the solid pyramid with neighbours from the solid pyramid only -- leaves no longer hide ground or trunk faces,
+and a ground cell's surface vote sees the ground (its top touches air where the leaves were). Levels >= the handoff
+(lod_sprig_level) also mesh the leaf pyramid as solid faces = the leaf mass, in its own grid (it hides only leaf
+faces). Level 0 unchanged (cards hide neighbours, today's mesher). Build {"lod_split_cards":bool}, default true; the
+old meshing kept as an alternate level set so {"lod_cards_split":bool} swaps it at runtime (interleaved A/B).
+
+1. Unit (red first): a ground + canopy rig at level 3 -- every column's ground top gets an up face with the ground's
+   material; no card material anywhere in the solid pyramid; the leaf pyramid holds exactly the leaf voxels' cells.
+   Red on a stub that returns the grid unsplit.
+2. Region (gate forest), lod_levels 7: solid-pyramid faces L1-L3 within -30..+30 % of 127,280 / 32,796 / 9,325;
+   lod_top_view: hidden_top 0 at every level and no Stone share >= 5 % at 8 / 16 m (was 8.2 / 11.7 %); mean top error
+   still <= 0.5 cell.
+3. Looks against the LEVEL-0 REFERENCE (lod off), over the pixels where old and new meshing differ, P = 8 and 32, 5
+   poses: new closer to level 0 at >= 8 of 10 points; interior holes at P=32 (overview_south ~39 px) -> 0.
+4. Whole frame, new - old, P=8 and P=32: |delta| <= 0.3 ms.
+5. Leaf mass (h=2): faces similar to F2.14c's (142k / 31k at L2 / L3, +-20 %); the shape gap vs the cards (24 % px at
+   top_down P=8) unchanged by this step -- the leaf threshold is a separate, later knob.
+
+--- Measured (region built with lod_card_ab; f214g_build.txt, f214g_ref.json, f214g_ab_P*):
+1. Unit: red on the stub, green (CPU 51/51).
+2. Faces L1-L3 with two pyramids 295,769 / 54,173 / 11,102 vs one pyramid 127,280 / 32,796 / 9,325: +132 % / +65 % /
+   +19 % -- predicted +-30 %: WRONG at 1/4 and 1/2 m (branches inside the canopy are thick enough to be half-solid
+   there, and get faces that level 0 hides under its leaves).
+3. Look gate vs the level-0 reference: holes (> P/2 px from R's outline) at P=32: overview_south 273 -> 0, top_down
+   19 -> 0, east_low 17 -> 12, forest_floor_open 8 -> 8; P=8 0-1 -> 0-6 (top_down 6 new). Over the pixels the two
+   meshings differ (47-1,571 px), two pyramids are CLOSER to level 0 at only 2 of 10 points (overview_south P=32,
+   canopy_close P=32) -- predicted >= 8: WRONG. At P=8 one pyramid matches level 0 almost exactly (mean error 0.1-16)
+   and two pyramids show the canopy-interior branches (34-66). Default stays one pyramid ({"lod_split_cards":false}).
+4. Whole frame, two - one pyramid: P=8 overview +0.06 (n.s.), top_down +0.24*, forest_floor_open -2.32*, east_low
+   -1.30*, canopy_close +0.74*; P=32 -0.06 / -0.08 (n.s.) / -1.61* / -2.64* / +0.39* ms. Predicted |delta| <= 0.3:
+   WRONG both ways. Dug in (scopes): the preview faces cost +1.0-1.2 ms, the SPRIGS -2.0..-3.7 ms -- the canopy-interior
+   branch faces, drawn before the sprigs, fill depth inside the canopies and the sprigs behind them fail early depth.
+   An opaque core inside the canopy is a lever on the largest ground-pose cost (sprig overdraw), not taken here.
+5. Not measured with the handoff (the leaf pyramid's mass); the two-pyramid path is kept, off, for the canopy-shape
+   step (the leaf threshold works on the leaf pyramid alone).
+2b. lod_top_view (f214g_build_split0/1.txt): one pyramid hidden_top 3.9 / 3.8 / 8.2 / 11.7 % with Stone 8.2 / 11.7 % at
+   8 / 16 m (as F2.14d); two pyramids hidden_top 0 at every level, no Stone, mean top error 0.48 / 0.35 / 0.23 / 0.39
+   cells, every share within 6.5 points at 2-16 m. Held.
