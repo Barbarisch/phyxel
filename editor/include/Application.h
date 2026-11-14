@@ -940,8 +940,14 @@ private:
         glm::vec3 camPos{0.0f};
         float camYaw = 0.0f;
         float dtMs = 0.0f;   // frame delta in ms - hitch spikes make orbits snap
+        // WaterCore D9 (the fps swings after a splash): where each frame's time went
+        float apiMs = 0.0f;          // the API drain at the top of this frame (commands run on the main thread)
+        float waterMs = 0.0f;        // the editor's water block this frame (m_waterCpu.total)
+        float waterUpdateMs = 0.0f;  // of which the manager's update (m_waterCpu.update)
+        float gpuMs = -1.0f;         // the GPU's whole command buffer, the last RESOLVED frame (a few frames behind)
     };
-    static constexpr size_t kFrameTraceLen = 240;
+    static constexpr size_t kFrameTraceLen = 8192;   // D9: ~20 s at 400 fps (was 240)
+    float m_frameApiMs = 0.0f;   // D9: this frame's API drain
     std::array<FrameTraceSample, kFrameTraceLen> m_frameTrace{};
     uint64_t m_frameTraceCounter = 0;
 

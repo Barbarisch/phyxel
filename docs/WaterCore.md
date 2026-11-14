@@ -13736,6 +13736,24 @@ read on its own thread.
 - **Signed off by the owner 2026-11-14** (*"looks good"*), shown `drain513_lake_on.png` and `cosm511_clip.mp4`: the 51.12 / 51.13
   lake look and 51.11's droplets. With a concern: *"i am concerned with the fps fluctuating so much"* - drift D9 (§30.5).
 
+**D9 (2026-11-14) the fps swings after a splash - measuring. Status: TOOL BUILT; a dry run on a SHARED GPU; the clean run waits for
+the GPU** (the owner: *"yes"* to the proposed measurement).
+- **Built:** the engine's `frame_trace` ring now holds 8,192 frames and, per frame, the API drain, the water block (and its manager
+  update) and the GPU's last resolved frame; `POST /api/debug/frame_trace {"since", "timing": true}` returns them. Tool
+  `tools/water_splash_frames.py`: the clip's rig (WaterBench_Creek, the 150 m record lake, the close pose, the 2 m / strength 8
+  splash), every frame read only AFTER each window (no polling during it), no recorder; four conditions interleaved - rest,
+  splash, and both again with the clip's polling (`water_av_list` + `engine_timing` 4x a second).
+- **Prediction (written before the run):** if the water makes the dips, the splash windows have > 33 ms frames and the rest windows
+  none; if the clip's polling or recorder made them, only the polled windows (or none) do.
+- **Dry run, NOT clean** (`d9_frames_dryrun_shared_gpu.json`, 1 rep x 6 s): another session's engine (VoxFoundGate, port 8120, not
+  ours) held the GPU at 100 %.
+  - Rest: 146 fps, every frame under 8.5 ms (with and without the polling: the polling costs nothing measurable).
+  - **Splash: the dips are the water.** The splash call itself held the main thread 534 ms (the API drain that frame: the patch's
+    wake). Then the water block took **40-65 ms of every frame** (its manager update 30-48 ms) from the splash to the window's end
+    (~4 s): 54 fps mean, p95 53 ms; with the polling 30 fps.
+  - The GPU frame stayed 7-9 ms, so the time is the water's CPU side; how much of it is waiting for a GPU the other engine held is
+    NOT known - the next step is this run with the GPU to ourselves.
+
 **51.17 item 3 (2026-11-14) BUILT, ON - the hydrology bake stored per world: a second load bakes in 0.09 s, not 9.1 s** (the
 owner's decision above; no drift). `/design-check` READY with three conditions, all met below.
 - **Measured first** (`DISABLED_DiagBakeSplit`, RiverCarve's recipe, every new-world flag, 32 threads; the phases are now timed in

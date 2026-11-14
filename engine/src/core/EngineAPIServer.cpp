@@ -1572,6 +1572,13 @@ void EngineAPIServer::setupRoutes() {
         json result = queueAndWait("frame_trace", json::object());
         res.set_content(result.dump(), "application/json");
     });
+    // POST /api/debug/frame_trace {"since": frame, "timing": true} - WaterCore D9: per-frame time split (dt, API, water, GPU).
+    srv.Post("/api/debug/frame_trace", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        try { if (!req.body.empty()) params = json::parse(req.body); } catch (...) {}
+        json result = queueAndWait("frame_trace", params);
+        res.set_content(result.dump(), "application/json");
+    });
     // POST /api/ui/panel — toggle an editor panel: {"panel": "world_map", "visible": true}.
     srv.Post("/api/ui/panel", [this](const httplib::Request& req, httplib::Response& res) {
         try {

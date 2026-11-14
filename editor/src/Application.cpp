@@ -3139,7 +3139,9 @@ void Application::run() {
             // Frame-pacing phase (PerfProgram I11): API commands run on the main thread, inside the
             // frame they arrive in, so a slow command is a hitch like any other.
             ScopedTimer apiTimer(*performanceProfiler, "API Drain");
+            const auto tApi = std::chrono::steady_clock::now();
             processAPICommands();
+            m_frameApiMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - tApi).count();
         }
 
         // Process deferred file open (set by File > Open menu, must run before rendering)
@@ -4623,6 +4625,11 @@ void Application::update(float deltaTime) {
             s.camYaw = camera->getYaw();
         }
         s.dtMs = deltaTime * 1000.0f;
+        s.apiMs = m_frameApiMs;
+        s.waterMs = static_cast<float>(m_waterCpu.total);
+        s.waterUpdateMs = static_cast<float>(m_waterCpu.update);
+        if (const auto* gp = renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr)
+            s.gpuMs = static_cast<float>(gp->getLastGpuFrameMsAtomic());
         ring[s.frame % kFrameTraceLen] = s;
     }
 
@@ -15828,10 +15835,21 @@ void Application::registerWorldForgeCommands() {
 
     // Diagnostic: dump the per-frame character/camera trace ring (see the update-loop
     // recorder). Full float precision — this exists because the polling API rounds.
-    reg.on("frame_trace", [this](const Core::APICommand&, nlohmann::json& r) {
+    reg.on("frame_trace", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         nlohmann::json rows = nlohmann::json::array();
         const uint64_t n = std::min<uint64_t>(m_frameTraceCounter, kFrameTraceLen);
-        const uint64_t start = m_frameTraceCounter - n;
+        uint64_t start = m_frameTraceCounter - n;
+        // D9: {"since": frame} returns only later frames; {"timing": true} returns the frame-time fields only
+        if (cmd.params.contains("since")) start = std::max<uint64_t>(start, cmd.params.value("since", uint64_t(0)));
+        if (cmd.params.value("timing", false)) {
+            for (uint64_t f = start; f < m_frameTraceCounter; ++f) {
+                const auto& s = m_frameTrace[f % kFrameTraceLen];
+                rows.push_back({s.frame, s.dtMs, s.apiMs, s.waterMs, s.waterUpdateMs, s.gpuMs});
+            }
+            r = {{"success", true}, {"columns", {"f", "dt_ms", "api_ms", "water_ms", "water_update_ms", "gpu_ms"}}, {"frames", rows},
+                 {"next", m_frameTraceCounter}};
+            return;
+        }
         for (uint64_t f = start; f < m_frameTraceCounter; ++f) {
             const auto& s = m_frameTrace[f % kFrameTraceLen];
             rows.push_back({{"f", s.frame},
