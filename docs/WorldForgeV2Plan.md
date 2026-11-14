@@ -256,6 +256,9 @@ inside M0 so they land on the merged generator. The milestone order in §5 stand
 | D47 | **PROPOSED 2026-11-13, building on the recommendation (owner: "keep goin." after the design check - no explicit ruling; reversible until the leg closes): (a) each map way carries its graded centreline PROFILE and the paver stamps from it** **- CORRECTED 2026-11-13 after reading the paver: the stamped surface is the centreline grade broadcast over the capsule, first writer at junctions, then a 2-D slope-limited lower envelope - not a profile; (a) as written cannot state the level at a door. BUILT INSTEAD: the planner runs the paver's own pure plan (`planWayPaving`) and each lot carries its way level, pad and threshold (closer to (b)); the paver / map agreement is measured per seat** (was: (b) the planner calls the paver's plan and keeps only the level at each door) | the seat reads the way's level from the chunk-side paving stamp (`SettlementBuildService.cpp:1022-1050`: centre column, lowest column, a ring of neighbours); M6 needs the way grade as a pure function of the map | the paver and the map disagree at junctions under (b) | owner |
 | D48 | **PROPOSED 2026-11-13 (as D47): a forge door that differs from the map's door REFUSES the lot** (recorded in `lot_failures`, like any forge refusal; was: count it and let the walkability gate decide) | the door is predicted by re-running the forge's deterministic autofill; a mismatch means the map's pad and approach were planned for another door | a silent mismatch ships a stoop at the wrong cell | owner |
 | D49 | **PROPOSED 2026-11-13 (as D47): a map lot PINS its style, and a map lot has no variant re-roll** (the fallback variant could change the style, and with it the threshold the map states; a typology layout ignores the footprint shape, so the re-roll changes nothing else) | `pickBuildingVariant` draws the style by lot index in the realizer; the threshold above the pad is 9 + the style's floor thickness in micro (12 for 0.333, 14 for 0.5 - the unexplained "14 vs 12" of O19) | a refused first variant leaves the lot empty where today a second style is tried (0 lot failures in every live run of M5b-1) | owner |
+| D50 | **PROPOSED 2026-11-14 (M5b-2 re-check): the footprint and the setback strip are in the parcel unconditionally** - the conquest starts from the BACK row of the footprint, not from the way, and spends its fund (the back-yard depth = depth - setback - dDim, + the half cell of D52) on the back yard only | Emilien 2012 s5.3 conquers from the road cells; under D44 (a) the building is already seated, so a conquest from the road could stop short of its own building on a steep lot (a building outside its parcel) | the parcel can never exclude its building; a steep lot keeps a zero-depth back yard, not a refusal | - |
+| D51 | **PROPOSED 2026-11-14: the mask is regularized to a depth PROFILE** - per column across the frontage, the cells from the footprint's back row to the deepest cell the Dijkstra reached contiguously; side-yard columns take the profile of the nearest footprint column, capped by their own reach | Emilien 2012 s5.4 simplifies the conquered contour to straight lines; on our cube grid the polyomino is the record (D5), and an unregularized mask has holes and one-cell notches the fence would have to trace | DESIGN; the fence stays a few straight runs with steps; (m) counts runs per lot and prints the maximum | - |
+| D52 | **PROPOSED 2026-11-14: the slope cost uses the WINDOWED directional gradient and the fund carries half a cell of slack** - step cost 1 + lambda_s x g^2 with g = (h(p + 6 dir) - h(p - 6 dir)) / 12 along the step (the 13-cube window the relief cap already uses), lambda_s = 4.7 (REASONED, the first check: a step at the TooSteep gradient 0.46 costs twice a flat one); a row is lost only when the accumulated slope cost exceeds 0.5 | adjacent-cell differences on integer terrain are 0 or 1: a single cube step would cost 5.7 cells of yard, and without slack ANY slope loses the last row (a knife edge at fund == depth) | REASONED / DESIGN; consequence stated in the check: parcels on <= 5 % ground are their rects | - |
 
 ---
 
@@ -894,6 +897,48 @@ named: `SettlementMapTest.EveryLotCarriesItsDoorPadAndApproach`, `.ApproachIsIde
 orientations x seeds). Stated in advance: the four shapes of the sloped rig were fixed live in M5b-1, so that rig is a
 PIN on today's code, not red-before-green; the bake time (O15, already over its gate at 233 lots) grows by one autofill
 per lot and the way grading - measured per increment.
+**M5b-2 design re-check (2026-11-14, against the tree at 13f2d9e1; the check of 2026-11-06 and D44 (a) stand - this
+records what M5b-1 / M5b-1a changed under it): READY, on three design decisions PROPOSED (D50-D52), proceeding as
+with D47-D49.** *What the tree is now.* A lot's `rect` is frontage x depth with the footprint at the FRONT (`lotShape`,
+SettlementMapPlanner.cpp:60-72: the setback strip, the footprint, then the back yard of depth - setback - dDim); the
+growth blocks the whole rect (:507). The parcel has FIVE consumers, one more than the first check counted: clearing
+(SettlementBuildService.cpp:876), the terrace unit (:943, the rect's median + a 4-cube skirt), the fences (:1710,
+`planParcelFenceRuns(x, z, w, d)` - a rect only), the yard props (:1746, `planYardProps`), and - new in M5b-1a - the
+PLANNER's copy of the terrace rule (SettlementMapPlanner.cpp:662-), from whose terraced ground the ways are graded and
+every seat, threshold and approach is derived. So a parcel mask moves map data that M5b-1a pinned: on a slope the
+terrace region shrinks, the median may move, and with it way levels, pads and approaches. On the flat nothing moves
+(the control). *1. Voxel aesthetic.* Unchanged from the first check; one addition: a Dijkstra mask on integer terrain
+is ragged, and a ragged fence line is a foreign idiom - D51 regularizes the mask to a per-column depth profile.
+*2. Chunk independence.* The conquest reads the injected height sampler only (the same one the growth reads); no
+chunk quantity. Pin: `MapIsOrderIndependentOfItsSamplers` extended to the parcel masks. *3. Pipeline.* Inside the
+planner the conquest runs AFTER the growth (it needs every rect and way cell) and BEFORE the terrace / way grading /
+seat pass, so the planner's terrace and the realizer's read the same mask; the realizer's terrace unit takes the
+mask's cells for the median and the skirt runs off the mask's boundary. Order-independent: one multi-source Dijkstra
+per lot inside its own rect (D44 a: parcel inside rect, rects disjoint - so lots cannot contend and no tie-break
+between lots exists); ties inside a lot by cell index. *4. API.* `MapLot.parcel`: a list of settlement-local cube
+rects [x, z, w, d] whose union is the mask (row runs merged); absent = the rect (old ledgers); echoed by the ledger,
+`worldforge_map`, `worldforge_minimap` (the mask drawn inside the rect's outline). Clamp: fund <= the lot's drawn
+depth. Defaults that change: every map build's parcels on sloped ground; `legacy_layout` keeps rects. Pins that must
+hold byte-identical: the version-1 and Mountains plan hashes (the map is out of `planHash`), every flat-rig map.
+*5. Tests, red first, predictions in `pm_chainN.txt`.* (h) `ParcelsEqualTheToftOnTheFlat` - mask == rect on every
+tier; (i) `ParcelsShrinkWithTheSlope` - NOT on the 5 % hill as first written: with D52 a 20-deep toft on 5 % loses
+nothing (computed: 19 steps x 4.7 x 0.05^2 = 0.22 of a cell, under the half-cell slack), which is the intended
+behaviour, so the 5 % hill becomes a SECOND control (mask == rect, predicted) and the red runs on increment E's
+rolling field and on a 20 % plane (computed: 3 to 4 of 20 rows lost where the slope runs along the depth, none
+where it runs along the frontage); the planner control lambda_s = 0 gives mask == rect on both; (j)
+`ParcelsAreDisjointAndDry`; (l) NEW `EveryParcelHoldsItsFootprintAndFrontage` - footprint + setback strip inside the
+mask, the mask 4-connected, inside the rect; (m) NEW `FenceRunsFollowTheParcelBoundary` (L2) - the traced runs cover
+every boundary edge of the mask once, a post at every vertex, exactly one gate and it on the frontage run; given a
+rect mask the output equals `planParcelFenceRuns` (the control); (n) NEW the JSON round-trip with `parcel`, and a
+record without it reads back as the rect; (k) the live-site arms: the terrace units' cut + fill summed over masks
+against the same build with lambda_s = 0, the fences on the mask boundary, the gate counts, and - because the map
+moves - M5b-1a's seat / approach agreement counts re-measured with every difference from run 19 listed; L4 run 20 on
+CivLab with the control first. Printed, not gated: the count of lots whose frontage row is not adjacent to a way cell
+(O21 (i), the seatless lots - carried, not solved here) and the bake's per-phase ms (O15 asks for a profile before the
+lot count grows). Stress: the 136-lot growth rig with parcels (count), the rolling field (extent), lambda_s x 0, 1,
+4.7, 20 (the sensitivity print), a 2-cell-deep degenerate rect, a lot wholly on a 46 % slope (the fund's floor: D50).
+Not in this leg: fields and the tessellation (M5c, D44 b), yard props re-planned for a short back yard beyond
+dropping the ones outside the mask (counted).
 
 ### M6 — Lazy Realization (M) — *towns exist because you walked there*
 
