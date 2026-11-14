@@ -143,6 +143,11 @@ public:
         /// up to the first paved one, as the unit read / planned them from the chunks), map: [levels] (the map
         /// lot's approach), agree}. Diagnostic; never hashed.
         std::shared_ptr<nlohmann::json> approaches;
+        /// M5b-2: the terrace units' record - {parcels, slope_weight (the planner's lambda_s; 0 = the control),
+        /// parcels_shorter (map lots whose parcel is smaller than the nominal toft), cells_lost, cut (voxels the
+        /// terrace units removed, the resurfaced top cube of each changed column included), fill (voxels placed)}.
+        /// Diagnostic; never hashed.
+        std::shared_ptr<nlohmann::json> terrace;
         /// M0 (WorldForgeV2Plan §5 M0): the walkability gate's result, filled by the gate
         /// unit after every building, stoop, fence and sweep has landed:
         /// {routes[], walkable, blocked, skipped}. Empty object until the gate ran.

@@ -1,0 +1,101 @@
+M5b-2 (parcels as cell masks; design re-check of 2026-11-14 in the plan, D44 a, D50-D52 PROPOSED) - predictions,
+written BEFORE each run. Tree base: 3e292d29. Written 2026-11-14 08:31.
+
+PM5b2.1  chain 195 = RED. Patch 41a: MapLot.parcel + JSON + inParcel / parcelArea / parcelDistance, the planner
+         input's parcels / parcelSlopeWeight (read by nothing yet), five new tests. NO conquest is implemented.
+         Filter SettlementMapTest.*: the 15 existing tests ok, the 5 new FAIL -> 15 ok / 5 failed:
+           ParcelsEqualTheToftOnTheFlat: written 0 of N on all 8 maps (equalRect == lots, so only the 'written' count fails).
+           ParcelsShrinkWithTheSlope: written 0; lost along 0; relief parcels == relief rects. No map refused
+             (0.2 x 13 = 2.6 cubes of relief, under the cap of 6). Lots with depth along the slope > 0 on both planes
+             (REASONED - not known; if 0 the rig is wrong, not the planner).
+           EveryParcelHoldsItsFootprintAndIsDisjointAndDry: only the 'written' count fails; outside / front / disconnected /
+             holes / overlap / wet all 0. The city may be refused on a 20 % plane or the rolling field (printed).
+           ParcelRoundTripsAndAnOldRecordReadsAsTheRect: written 0, shorter 0; notRect 0.
+           ParcelsAreOrderIndependentOfTheSampler: shorter 0 fails; the two JSONs equal.
+         Way centre-line cells inside a parcel: printed; expected > 0 on some map (the growth lets an earlier way
+         stay inside a later rect) - if so the treatment is decided after the number, and stated.
+PM5b2.2  chain 196 = GREEN (patch 41b: the conquest + the planner's terrace over the mask): 20 ok / 0 failed.
+         flat + 5 % hill: every parcel == its rect. 20 % planes: per lot whose depth runs along the slope with a back
+         yard of B rows, rows kept = floor((B + 0.5) / (1 + 4.7 g^2)), g in {2/12, 3/12} by the floor() of the field ->
+         B = 3..6 loses 1 row, B = 2 loses 0 (COMPUTED from the rule; the mix of B is not known). Across: 0. lambda 0: 0.
+         The existing 15 stay ok - but TheSlopedRigCarriesTheFourShapes and the pad / approach tests run on fields
+         where the terrace now covers the mask, not the rect: the counts on the ROLLING field may move (town was cut 3 /
+         fill 3 / climb 3 / setback0 15, 19 seated of 22) - predicted to still satisfy > 0 each; the numbers printed
+         and any difference recorded. The 5 % hill maps are predicted byte-identical in everything but the parcel field.
+
+RESULT chain 195 (written 2026-11-14 08:35; RUN EXIT 1 08:34:58): 15 ok / 5 failed - RED AS PREDICTED, the five
+  new tests, each on the 'written' / 'shorter' / 'lost' counts only (written 0 on every map; lost along the slope 0
+  over 40 lots; relief 157 == 157). No map refused, the city included. Lots with depth along the slope: 40 over the
+  six plane maps (hamlet 3 + 1, village 1 + 9, town 4 + 22). Way centre-line cells inside a lot's rect: 9 (hamlet
+  20 % Z), 15 (town 20 % X), 5 / 12 / 17 / 5 (rolling), 0 elsewhere - as expected > 0; this is the rect's behaviour
+  as built (the growth lets an earlier way stay inside a later rect), NOT changed in this leg, carried as printed.
+
+RESULT chain 196 (written 2026-11-14 08:38; planner ae6b7a372cc5e985; RUN EXIT 1 08:38:09): 18 ok / 2 failed -
+  PM5b2.2 MISSED (predicted 20 / 0). The two failures are ParcelRoundTrips... and ParcelsAreOrderIndependent..., both
+  on 'shorter > 0': their rig (the village on the 20 % X plane) seats ONE lot whose depth runs along X, with 11 yard
+  cells - nothing to lose. The prediction named the wrong plane for the village (chain 195 already printed 1 lot / 11
+  cells; not read before the run). The conquest itself, as computed: 20 % planes lost along the slope 300 cells over
+  40 lots, across it 0, lambda 0 -> 0; flat + 5 % hill every parcel == its rect on 8 maps; outside / front missing /
+  disconnected / holes / overlap / wet all 0 on 16 maps; max 4 rects per parcel (rolling). The relief measure is
+  WEAK: summed over rects 157, over parcels 155 (it passes '<' by 2) - a lost back row rarely moves a lot's max - min.
+  The rolling rig (TheSlopedRigCarriesTheFourShapes): town cut 3 / fill 3 / climb 3 / setback0 15, 19 seated;
+  village 1 / 1 / 2 / 2, 5 seated - UNCHANGED from chain 189 although 16 of the town's 22 parcels are shorter.
+PM5b2.3  chain 197: the two tests moved to the village on the 20 % Z plane (9 lots along Z; chain 196 printed 68
+  cells lost, 4 of 10 parcels shorter). A RIG change, stated; no bound changed. Predicted 20 ok / 0 failed; shorter 4.
+
+RESULT chain 197 (written 2026-11-14 08:41; RUN EXIT 0 08:41:24; SettlementMapTest.cpp after patch 41c): 20 ok / 0 failed. shorter 4
+  of 10 on the village 20 % Z in both moved tests; the two samplers' JSONs equal. AS PREDICTED (PM5b2.3).
+
+D51 REVISED before any realizer consumer is built (written 2026-11-14 08:42): the parcel is regularized to ONE RECT - the
+  front block + the back rows EVERY column reached (uniform depth = the least column reach), not a per-column depth
+  profile. Why: the fence's corner contract (FenceBuilder.h KI-5f: S / W planes at micro row 0 of the first cube row,
+  N / E planes 8 micro inside the last) is written for four planes of a rect; a stepped boundary needs a new corner
+  contract and a tracer, and chain 196 measured up to 4 rects per parcel on the rolling field. A stepped parcel is
+  deferred to M5c (D44 b, field parcels), where non-rect parcels cannot be avoided. With one rect, projectMap hands
+  the parcel rect to layout.plots / msl.assigned and all five realizer consumers (clearing, terrace, fences, yard
+  props, the planner's terrace copy) follow with NO realizer edit. Cost, stated: the least reach is conservative -
+  one steep or wet column shortens the whole yard.
+PM5b2.4  chain 198 = RED (patch 42a, tests only): EveryParcelHolds... gains EXPECT_EQ(maxRects, 1) -> fails on the
+  rolling field (chain 197 printed 4 / 4 / 3 on village / town / city; the hamlet 1) and nowhere else; the new
+  TheProjectionHandsTheParcelToTheRealizer fails (plots carry the nominal rect: 4 of 10 differ on the village 20 % Z).
+  20 ok / 2 failed of 21... counted: 21 tests, 19 ok / 2 failed.
+PM5b2.5  chain 199 = GREEN (patch 42b: the least reach + the projection): 21 ok / 0 failed. Planes: lost cells
+  unchanged (300; their columns were already uniform). Rolling: MORE cells lost than chain 197's 42 / 150 / 68
+  (village / town / city) - not computed, printed. The sloped rig's four-shape counts predicted unchanged again
+  (REASONED from chain 196: unchanged under the profile) - if they move, recorded.
+
+RESULT chain 198 (written 2026-11-14 08:46; RUN EXIT 1 08:46:02): 19 ok / 2 failed - RED AS PREDICTED (rolling village /
+  town / city not one rect; projection: 4 plots and 4 assigned plots of 10 carry the nominal rect, 0 frontage edges
+  moved). The chain's first launch did not build (a newline inside a printf literal in the new test, my patch's
+  quoting); fixed in the test only and relaunched under the same number - m5b_stp_chain_198.txt has two START lines.
+
+RESULT chain 199 (written 2026-11-14 08:49; planner eefe7aa9af1f958c; RUN EXIT 0 08:49:14): 21 ok / 0 failed - AS PREDICTED (PM5b2.5).
+  Planes 300 cells lost (unchanged); rolling lost 59 / 198 / 89 (village / town / city; chain 197: 42 / 150 / 68),
+  every parcel one rect; projection 0 / 0 plots that are not the parcel, 0 frontage edges moved; the sloped rig's
+  counts unchanged (town 3 / 3 / 3 / 15, 19 seated; village 1 / 1 / 2 / 2, 5 seated).
+
+--- increment B: the realizer reads the parcel (written 2026-11-14 08:50) ---
+patch 43: request key parcel_slope_weight (clamped 0..100, default 4.7; 0 = the planner control), Plan::terrace
+  {parcels, slope_weight, parcels_shorter, cells_lost, cut, fill}, the terrace units sum their cut / fill into it;
+  SettlementMapLiveSiteTest.ThePlannedParcelsOfTheLiveSites (PLAN ONLY, no unit runs).
+PM5b2.6  chain 200 (that test alone): 1 ok / 0 failed. lambda 0: 0 parcels shorter on the village and the town.
+  lambda 4.7: NOT KNOWN which site has shorter parcels - the village sits on surface 80..104 over 80 x 48 (a
+  hillside: REASONED some lots lose rows, guess 2-6 of 11), the town on ~171 (guess 3-10 of 24). The record's
+  parcels_shorter / cells_lost equal the map's. If a site shows 0 shorter it cannot carry the terrace comparison.
+  Every parcel one rect.
+
+RESULT chain 200 (written 2026-11-14 08:58; realizer c8a7748899cc39be; RUN EXIT 0 08:58:02): 1 ok / 0 failed. PLAN ONLY.
+  village: 5 of 11 parcels shorter (lots 0, 1, 2, 4, 7 - one back row each), 72 cells left natural of 947 toft cells
+  outside footprints; town: 9 of 24 (100 of 1653). lambda 0: 0 and 0. Every parcel one rect; the build record equals
+  the map. Within the guessed ranges (2-6, 3-10). The effect on these sites is ONE ROW per shortened yard.
+
+PM5b2.7  chain 201 (written 2026-11-14 08:59; patch 44 = test only; filter SettlementMapLiveSiteTest.* +
+  StructureRealizerTest.*; ~95 min): 30 tests (28 + ThePlannedParcels... + TheVillageFences...), predicted 30 ok / 0.
+  The comparison test: parcels arm 5 shorter, 72 toft cells outside parcels, 0 fence micros in them, gate passed
+  34 / 0; control arm 0 shorter, fence micros > 0 in those cells on at least 1 of the 5 lots (the fence policy may
+  leave lots unfenced: NOT known how many), gate passed. Terrace cut + fill: parcels < control (REASONED: each
+  shortened parcel grades one row fewer; the medians may move - the weakest prediction here; a guess of 1-5 % less).
+  The village arm (parcels are now the default): approachDiffers 0, 10 imposed of 11, gate 34 / 0 - predicted
+  UNCHANGED from chain 190, but the terraces of 5 lots moved, so seats / way levels may shift: any difference from
+  chain 190 is recorded. Town arm: 1 differs (lot 4), 23 imposed, gate 72 / 0 - same caveat (9 parcels shorter).
+  The restore test, the seat tests: unchanged.

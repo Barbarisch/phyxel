@@ -18,6 +18,7 @@
 // props, outside the chunk occupancy the gate reads), no snapshots, no residency streaming, Debug. The template library
 // and a PlacedObjectManager ARE wired (chain 76: without the manager no fixture is placed, and the live pinch is a
 // bench and a table two cells inside the croft's west door - the furnisher is the live-only ingredient).
+#include <array>
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
@@ -359,6 +360,9 @@ nlohmann::json realize(LiveSiteRig& rig, bool legacyLayout, const nlohmann::json
     out["seats"] = plan.seats ? *plan.seats : nlohmann::json::array();
     out["built_doors"] = plan.builtDoors ? *plan.builtDoors : nlohmann::json::array();
     out["approaches"] = plan.approaches ? *plan.approaches : nlohmann::json::array();
+    out["terrace"] = plan.terrace ? *plan.terrace : nlohmann::json::object();   // M5b-2
+    out["fence_material"] = plan.program.value("fence_material", std::string());
+    std::printf("[ M5b-2 ] terrace units: %s\n", out["terrace"].dump().c_str());
     out["map"] = plan.map;
     out["skipped"] = walk.value("skipped", 0);
     out["doors"] = walk.value("doors", -1);    // -1: the gate result carries no door count (chain 74)
@@ -1244,4 +1248,102 @@ TEST(SettlementMapLiveSiteTest, TheGroundRestoreTouchesOnlyFloraAndOnlyMapSites)
         if (!expected.count(k) && top(k.first, k.second) != t0) ++otherChanged;
     std::printf("[ O21a ] of %zu sampled columns, %d outside the %d pits and the 4 fixtures changed their flora-blind top\n", topBefore.size(), otherChanged, floraPits);
     EXPECT_EQ(otherChanged, 0);
+}
+
+// M5b-2: the parcels the planner states for the LIVE sites' ground (the generator's samplers, the world's village and
+// town), PLANNED ONLY - no unit runs, no voxel is placed. A measurement that picks the live arm (a site whose parcels
+// all equal their tofts cannot show a terrace difference) and the planner control on real ground: lambda_s = 0
+// gives every parcel == its toft.
+TEST(SettlementMapLiveSiteTest, ThePlannedParcelsOfTheLiveSites) {
+    for (const char* tier : {"village", "town"}) {
+        LiveSiteRig rig;
+        ASSERT_TRUE(rig.setUpTier(tier, 24)) << rig.why;
+        SettlementBuildService::Deps deps;
+        deps.chunkManager = &rig.cm; deps.templates = &rig.templates; deps.placedObjects = &rig.placed;
+        for (const float lambda : {4.7f, 0.0f}) {
+            nlohmann::json params = WorldForgeBuildService::settlementParamsFor(*rig.gen->worldForge(), *rig.site);
+            params["parcel_slope_weight"] = lambda;
+            const auto plan = SettlementBuildService::plan(params, deps);
+            ASSERT_TRUE(plan.ok()) << tier << ": " << plan.error.dump();
+            const Core::SettlementMap m = Core::SettlementMap::fromJson(plan.map);
+            int shorter = 0, lost = 0, yard = 0, notOne = 0;
+            for (const auto& l : m.lots) {
+                if (l.parcel.size() != 1) ++notOne;
+                const int d = l.rect.w * l.rect.d - l.parcelArea();
+                yard += l.rect.w * l.rect.d - l.footprint.w * l.footprint.d;
+                if (d > 0) {
+                    ++shorter; lost += d;
+                    std::printf("[ M5b-2 ]   %s lot %d %s orientation %d: toft [%d,%d,%d,%d] parcel [%d,%d,%d,%d] (%d cells left natural)\n", tier, l.id, l.typology.c_str(),
+                                l.orientation, l.rect.x, l.rect.z, l.rect.w, l.rect.d, l.parcel.empty() ? 0 : l.parcel[0].x, l.parcel.empty() ? 0 : l.parcel[0].z,
+                                l.parcel.empty() ? 0 : l.parcel[0].w, l.parcel.empty() ? 0 : l.parcel[0].d, d);
+                }
+            }
+            const nlohmann::json rec = plan.terrace ? *plan.terrace : nlohmann::json::object();
+            std::printf("[ M5b-2 ] live %s, lambda_s %.1f: %zu lots, %d parcels shorter than the toft, %d cells left natural of %d toft cells outside footprints; not one rect %d; record %s\n",
+                        tier, lambda, m.lots.size(), shorter, lost, yard, notOne, rec.dump().c_str());
+            EXPECT_GT(m.lots.size(), 0u) << tier;
+            EXPECT_EQ(notOne, 0) << tier;
+            EXPECT_EQ(rec.value("parcels_shorter", -1), shorter) << tier << ": the build record is not the map";
+            EXPECT_EQ(rec.value("cells_lost", -1), lost) << tier;
+            if (lambda == 0.0f) EXPECT_EQ(shorter, 0) << tier << ": the lambda_s = 0 control differs from the toft";
+        }
+    }
+}
+
+// M5b-2 (k), L2 on the REAL voxels: the village built from its map with parcels (lambda_s 4.7) against the SAME
+// village with the planner control (lambda_s 0: every parcel its toft). Measured on each lot the planner shortened:
+// the toft's back row the parcel does not hold carries NO fence micro in the parcel build and carries the fence in the
+// control (the measure discriminates on a planner output); the terrace units' summed cut + fill; both gates.
+TEST(SettlementMapLiveSiteTest, TheVillageFencesAndTerracesItsParcelsNotItsTofts) {
+    struct Arm { nlohmann::json out; long leftFence = 0, cutFill = 0; int leftCells = 0, lotsWithFenceInLeft = 0; };
+    std::vector<std::array<int, 4>> leftRows;   // world cells the parcel build leaves outside the parcel: x, z, lot, 0
+    Arm arms[2];
+    for (int a = 0; a < 2; ++a) {
+        LiveSiteRig rig;
+        ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
+        nlohmann::json ov = nlohmann::json::object();
+        if (a == 1) ov["parcel_slope_weight"] = 0.0f;
+        arms[a].out = realize(rig, /*legacyLayout=*/false, ov);
+        ASSERT_FALSE(arms[a].out.contains("plan_error")) << arms[a].out.dump();
+        const Core::SettlementMap m = Core::SettlementMap::fromJson(arms[a].out["map"]);
+        if (a == 0)
+            for (const auto& l : m.lots)
+                for (int z = l.rect.z; z < l.rect.z1(); ++z) for (int x = l.rect.x; x < l.rect.x1(); ++x)
+                    if (!l.inParcel(x, z)) leftRows.push_back({m.originX + x, m.originZ + z, l.id, 0});
+        const std::string fenceMat = arms[a].out.value("fence_material", std::string());
+        ASSERT_FALSE(fenceMat.empty());
+        const int oy = static_cast<int>(rig.site->surfaceY);
+        std::map<int, long> perLot;
+        for (const auto& c : leftRows) {
+            const int top = settlementTopScan(&rig.cm, oy, c[0], c[1], /*floraBlind=*/true);
+            long n = 0;
+            for (int y = top - 1; y <= top + 3; ++y) {   // the fence stands on the ground's top face; the scan's top may be the fence itself
+                const glm::ivec3 wp(c[0], y, c[1]);
+                Chunk* ch = rig.cm.getChunkAtFast(wp);
+                if (!ch) continue;
+                const glm::ivec3 lp = wp - ch->getWorldOrigin();
+                for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) for (int k = 0; k < 3; ++k)
+                    for (const Microcube* mc : ch->getMicrocubesAt(lp, glm::ivec3(i, j, k))) if (mc && mc->getMaterialName() == fenceMat) ++n;
+            }
+            arms[a].leftFence += n; perLot[c[2]] += n; ++arms[a].leftCells;
+        }
+        for (const auto& [lot, n] : perLot) {
+            if (n > 0) ++arms[a].lotsWithFenceInLeft;
+            std::printf("[ M5b-2 ]   %s: lot %d - %ld fence micros (%s) in the toft cells outside its parcel\n", a == 0 ? "parcels" : "control", lot, n, fenceMat.c_str());
+        }
+        arms[a].cutFill = arms[a].out["terrace"].value("cut", 0L) + arms[a].out["terrace"].value("fill", 0L);
+        std::printf("[ M5b-2 ] village %s (lambda_s %.1f): %d parcels shorter, %d toft cells outside parcels sampled, %ld fence micros in them over %d lots; terrace cut %ld + fill %ld = %ld; "
+                    "fences %s; gate %s (%d blocked)\n", a == 0 ? "PARCELS" : "CONTROL", a == 0 ? 4.7 : 0.0, arms[a].out["terrace"].value("parcels_shorter", -1), arms[a].leftCells,
+                    arms[a].leftFence, arms[a].lotsWithFenceInLeft, arms[a].out["terrace"].value("cut", 0L), arms[a].out["terrace"].value("fill", 0L), arms[a].cutFill,
+                    arms[a].out["paths"].dump().substr(0, 0).c_str(), arms[a].out.value("gate", std::string("?")).c_str(), arms[a].out.value("blocked", 0));
+        std::printf("[ M5b-2 ]   fence record: parcels %d, unfenced by policy %d, runs dropped %d, micros %ld\n", arms[a].out["paths"].value("parcels", -1),
+                    arms[a].out["paths"].value("unfenced_by_policy", -1), arms[a].out["paths"].value("fence_runs_dropped_for_alley", -1), arms[a].out["paths"].value("fence_micros", -1L));
+        EXPECT_EQ(arms[a].out.value("gate", std::string()), "passed") << (a == 0 ? "parcels" : "control");
+    }
+    EXPECT_GT(leftRows.size(), 0u) << "the village has no parcel shorter than its toft";
+    EXPECT_EQ(arms[0].out["terrace"].value("parcels_shorter", -1), 5);       // chain 200, plan only
+    EXPECT_EQ(arms[1].out["terrace"].value("parcels_shorter", -1), 0);
+    EXPECT_EQ(arms[0].leftFence, 0) << "a fence stands in a toft cell outside the parcel";
+    EXPECT_GT(arms[1].leftFence, 0) << "the control carries no fence where the toft's back row is - the measure reads nothing";
+    EXPECT_LT(arms[0].cutFill, arms[1].cutFill) << "the terraces over the parcels move no less ground than over the tofts";
 }

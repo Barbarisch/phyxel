@@ -3,6 +3,28 @@
 namespace Phyxel {
 namespace Core {
 
+bool MapLot::inParcel(int x, int z) const {
+    if (parcel.empty()) return x >= rect.x && x < rect.x1() && z >= rect.z && z < rect.z1();
+    for (const auto& r : parcel) if (x >= r.x && x < r.x1() && z >= r.z && z < r.z1()) return true;
+    return false;
+}
+
+int MapLot::parcelArea() const {
+    if (parcel.empty()) return rect.w * rect.d;
+    int n = 0;
+    for (const auto& r : parcel) n += r.w * r.d;   // the rects are disjoint by construction (row runs merged)
+    return n;
+}
+
+int MapLot::parcelDistance(int x, int z, int reach) const {
+    if (inParcel(x, z)) return 0;
+    for (int r = 1; r <= reach; ++r) {
+        for (int i = -r; i <= r; ++i)
+            if (inParcel(x + i, z - r) || inParcel(x + i, z + r) || inParcel(x - r, z + i) || inParcel(x + r, z + i)) return r;
+    }
+    return reach + 1;
+}
+
 nlohmann::json SettlementMap::toJson() const {
     nlohmann::json j;
     j["era"] = era;
@@ -37,6 +59,11 @@ nlohmann::json SettlementMap::toJson() const {
             nlohmann::json ap = nlohmann::json::array();
             for (const auto& a : l.approach) ap.push_back({{"x", a.x}, {"z", a.z}, {"level", a.level}});
             lj["approach"] = std::move(ap);
+        }
+        if (!l.parcel.empty()) {   // M5b-2
+            nlohmann::json pj = nlohmann::json::array();
+            for (const auto& r : l.parcel) pj.push_back(r.toJson());
+            lj["parcel"] = std::move(pj);
         }
         ls.push_back(std::move(lj));
     }
@@ -96,6 +123,8 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
                 for (const auto& a : l["approach"])
                     if (a.is_object()) ml.approach.push_back({a.value("x", 0), a.value("z", 0), a.value("level", 0)});
             }
+            if (l.contains("parcel") && l["parcel"].is_array())   // M5b-2; absent = the rect
+                for (const auto& r : l["parcel"]) if (r.is_array() && r.size() == 4) ml.parcel.push_back(Rect::fromJson(r));
             if (l.contains("pad_y") && l.contains("way_level") && l.contains("threshold")) {
                 ml.hasSeat = true; ml.wayLevel = l.value("way_level", 0); ml.padY = l.value("pad_y", 0); ml.threshold = l.value("threshold", 0);
             }

@@ -69,6 +69,15 @@ struct MapLot {
     struct ApproachCell { int x = 0, z = 0, level = 0; };   ///< settlement-local cubes; world micro
     bool hasApproach = false;
     std::vector<ApproachCell> approach;
+    // M5b-2 (D44 a; D50-D52 PROPOSED): the PARCEL - the conquered subset of `rect`, as settlement-local cube rects
+    // whose union is the mask. `rect` stays the nominal toft and the parcel's bound (the growth blocks it). Empty =
+    // the rect (a record written before M5b-2).
+    std::vector<Rect> parcel;
+    bool inParcel(int x, int z) const;   ///< settlement-local cubes
+    int parcelArea() const;              ///< cells in the mask
+    /// The Chebyshev distance (cubes) from (x,z) to the nearest parcel cell: 0 inside, `reach + 1` beyond `reach`.
+    /// The terrace's skirt runs off THIS (the planner's copy and the realizer's unit both call it).
+    int parcelDistance(int x, int z, int reach) const;
 };
 
 struct MapArea {

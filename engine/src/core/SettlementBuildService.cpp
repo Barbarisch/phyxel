@@ -235,6 +235,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     res.seats       = std::make_shared<nlohmann::json>(nlohmann::json::array());
     res.builtDoors  = std::make_shared<nlohmann::json>(nlohmann::json::array());
     res.approaches  = std::make_shared<nlohmann::json>(nlohmann::json::array());
+    res.terrace     = std::make_shared<nlohmann::json>(nlohmann::json::object());
     res.residents = std::make_shared<nlohmann::json>(nlohmann::json::object());
     res.walkability = std::make_shared<nlohmann::json>(nlohmann::json::object());
 
@@ -505,6 +506,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             mi.reuse = p.value("route_reuse", 0.5f);
             mi.styles = styles; mi.varietySeed = varietySeed;   // M5b-1a (D49): the map lot pins the style
             mi.terraceLots = terrain && chunkManager != nullptr;   // the "terracing parcel" units below run exactly then
+            // M5b-2: lambda_s of the parcel conquest; {"parcel_slope_weight": 0} is the planner CONTROL (parcel == toft)
+            mi.parcelSlopeWeight = std::clamp(p.value("parcel_slope_weight", 4.7f), 0.0f, 100.0f);
             {   // increment C: the threshold above the pad per style, for the map's pad / threshold
                 Core::StyleProfileRegistry mapStyleReg;
                 mapStyleReg.loadFromFile("resources/structure_styles.json");
@@ -939,12 +942,24 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                  << "), local box x " << x0 << ".." << x1 << " z " << z0 << ".." << z1);
                 }});
             }
+            {   // M5b-2: the record (the parcels are the projection's: one rect each, the conquered subset of the toft)
+                int shorter = 0, lost = 0;
+                for (const auto& ml : siteMap.lots) {
+                    const int d = ml.rect.w * ml.rect.d - ml.parcelArea();
+                    if (d > 0) { ++shorter; lost += d; }
+                }
+                *res.terrace = {{"parcels", layout.plots.size()}, {"slope_weight", std::clamp(p.value("parcel_slope_weight", 4.7f), 0.0f, 100.0f)},
+                                {"parcels_shorter", shorter}, {"cells_lost", lost}, {"cut", 0}, {"fill", 0}};
+                if (mapLots)
+                    LOG_INFO_FMT("Settlement", "parcels: " << shorter << " of " << siteMap.lots.size() << " shorter than their toft (" << lost
+                                 << " cells left natural), lambda_s " << (*res.terrace)["slope_weight"].get<float>());
+            }
             for (size_t pi = 0; pi < layout.plots.size(); ++pi) {
                 const Core::Rect pr = layout.plots[pi].rect;   // by value into the unit
                 const std::string ph = "terracing parcel " + std::to_string(pi + 1) + "/" +
                                        std::to_string(layout.plots.size());
                 units.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, pr, ox, oz, oy, terrainTopAt, groundTopAt,
-                                      terraceTop, terraceFill]() {
+                                      terraceTop, terraceFill, terraceP = res.terrace]() {
                     if (!chunkManager) return;
                     const int SK = 4;             // skirt width blending plot grade -> natural
                     const int px0 = ox + pr.x, pz0 = oz + pr.z, pw = pr.w, pd = pr.d;
@@ -988,6 +1003,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     if (!tfill.voxels.empty()) Core::StructureGenerator::place(chunkManager, tfill);
                     LOG_INFO_FMT("Settlement", "terrace: parcel graded (cut " << tcut.size()
                                  << ", fill " << tfill.voxels.size() << ")");
+                    if (terraceP) {   // M5b-2
+                        (*terraceP)["cut"] = terraceP->value("cut", 0L) + static_cast<long>(tcut.size());
+                        (*terraceP)["fill"] = terraceP->value("fill", 0L) + static_cast<long>(tfill.voxels.size());
+                    }
                 }});
             }
             // one REGIONAL physics pass after ALL parcels (never whole-world, never per-parcel)

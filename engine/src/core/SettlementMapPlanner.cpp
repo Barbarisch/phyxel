@@ -561,6 +561,95 @@ glm::ivec2 lotDoorApproach(const MapLot& lot) {
     }
 }
 
+// M5b-2 (D44 a; D50-D52 PROPOSED): the lot's PARCEL - the conquered subset of its rect. The FORM is Emilien et al.
+// 2012 s5.3 (anisotropic conquest: sources spread on the grid until the summed cost reaches a fund; the slope cost
+// quadratic in the directional gradient). Ours, labelled: D50 the front block (the frontage edge through the
+// footprint's back row, the rect's full width) is in the parcel unconditionally and is the source - the building is
+// seated before its parcel is conquered, so a conquest from the way could stop short of it; the fund is the back
+// yard's depth + 0.5 (D52, DESIGN: without the half cell any slope at all loses the last row); the step cost is
+// 1 + lambda * g^2 with g the gradient over a 13-cube window along the step (D52: adjacent integer cubes differ by 0
+// or 1 - one cube step would cost 5.7 cells); lambda REASONED 4.7 (SettlementMapInput::parcelSlopeWeight). D51: the
+// reached set is regularized to a depth profile - per column behind the front block, the cells reached contiguously.
+// Inside the rect only (the rects are disjoint, so lots never contend); water is never conquered.
+static void conquerParcel(MapLot& l, const SettlementMapInput& in, float lambda) {
+    const Rect r = l.rect, f = l.footprint;
+    l.parcel.clear();
+    if (r.w <= 0 || r.d <= 0) return;
+    int bx = 0, bz = 0, B = 0;   // the direction to the back, the back yard's depth
+    switch (l.orientation) {
+        case 0: bz = -1; B = f.z - r.z; break;
+        case 2: bz = 1; B = r.z1() - f.z1(); break;
+        case 1: bx = -1; B = f.x - r.x; break;
+        default: bx = 1; B = r.x1() - f.x1(); break;
+    }
+    const auto front = [&](int x, int z) {
+        switch (l.orientation) { case 0: return z >= f.z; case 2: return z < f.z1(); case 1: return x >= f.x; default: return x < f.x1(); }
+    };
+    const int w = r.w, d = r.d;
+    const auto idx = [&](int x, int z) { return static_cast<size_t>(z - r.z) * w + static_cast<size_t>(x - r.x); };
+    std::vector<uint8_t> reached(static_cast<size_t>(w) * d, 0), mask(static_cast<size_t>(w) * d, 0);
+    if (B > 0) {
+        std::vector<float> cost(static_cast<size_t>(w) * d, 1e9f);
+        using QE = std::pair<float, int>;
+        std::priority_queue<QE, std::vector<QE>, std::greater<QE>> pq;
+        for (int z = r.z; z < r.z1(); ++z) for (int x = r.x; x < r.x1(); ++x)
+            if (front(x, z)) { cost[idx(x, z)] = 0.0f; pq.push({0.0f, static_cast<int>(idx(x, z))}); }
+        const float fund = static_cast<float>(B) + 0.5f;
+        static const int DX[4] = {1, -1, 0, 0}, DZ[4] = {0, 0, 1, -1};
+        while (!pq.empty()) {
+            const QE top = pq.top(); pq.pop();
+            if (top.first > cost[static_cast<size_t>(top.second)]) continue;
+            const int x = r.x + top.second % w, z = r.z + top.second / w;
+            for (int k = 0; k < 4; ++k) {
+                const int nx = x + DX[k], nz = z + DZ[k];
+                if (nx < r.x || nx >= r.x1() || nz < r.z || nz >= r.z1() || front(nx, nz)) continue;
+                if (in.waterAt && in.waterAt(nx, nz)) continue;
+                const float g = static_cast<float>(in.heightAt(nx + 6 * DX[k], nz + 6 * DZ[k]) - in.heightAt(nx - 6 * DX[k], nz - 6 * DZ[k])) / 12.0f;
+                const float nc = top.first + 1.0f + lambda * g * g;
+                if (nc > fund || nc >= cost[idx(nx, nz)]) continue;
+                cost[idx(nx, nz)] = nc; reached[idx(nx, nz)] = 1;
+                pq.push({nc, static_cast<int>(idx(nx, nz))});
+            }
+        }
+    }
+    for (int z = r.z; z < r.z1(); ++z) for (int x = r.x; x < r.x1(); ++x) if (front(x, z)) mask[idx(x, z)] = 1;
+    // D51 as REVISED (pm_chain195.txt): ONE rect - the back rows EVERY column reached (the least column reach). The
+    // fence's corner contract is four planes of a rect (FenceBuilder.h KI-5f); a stepped parcel waits for M5c.
+    const int cols = bx != 0 ? d : w;
+    int depth = B;
+    for (int i = 0; i < cols; ++i) {
+        int k = 1;
+        for (; k <= B; ++k) {
+            const int x = bx != 0 ? (bx < 0 ? f.x - k : f.x1() - 1 + k) : r.x + i;
+            const int z = bx != 0 ? r.z + i : (bz < 0 ? f.z - k : f.z1() - 1 + k);
+            if (!reached[idx(x, z)]) break;
+        }
+        depth = std::min(depth, k - 1);
+    }
+    for (int i = 0; i < cols; ++i)
+        for (int k = 1; k <= depth; ++k) {
+            const int x = bx != 0 ? (bx < 0 ? f.x - k : f.x1() - 1 + k) : r.x + i;
+            const int z = bx != 0 ? r.z + i : (bz < 0 ? f.z - k : f.z1() - 1 + k);
+            mask[idx(x, z)] = 1;
+        }
+    // the record: row runs, merged down the rows where a run repeats exactly
+    std::vector<size_t> open;
+    for (int z = r.z; z < r.z1(); ++z) {
+        std::vector<size_t> next;
+        for (int x = r.x; x < r.x1();) {
+            if (!mask[idx(x, z)]) { ++x; continue; }
+            int x1 = x;
+            while (x1 < r.x1() && mask[idx(x1, z)]) ++x1;
+            bool merged = false;
+            for (const size_t o : open)
+                if (l.parcel[o].x == x && l.parcel[o].w == x1 - x && l.parcel[o].z1() == z) { ++l.parcel[o].d; next.push_back(o); merged = true; break; }
+            if (!merged) { l.parcel.push_back({x, z, x1 - x, 1}); next.push_back(l.parcel.size() - 1); }
+            x = x1;
+        }
+        open = std::move(next);
+    }
+}
+
 SettlementMap planSettlementMapAsBuilt(const SettlementMapInput& in) {
     SettlementMap map;
     map.era = in.era; map.seed = in.seed; map.originX = in.originX; map.originY = in.originY; map.originZ = in.originZ;
@@ -626,6 +715,9 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
         if (d.found) { l.hasDoor = true; l.doorX = d.wall.x; l.doorZ = d.wall.y; l.doorNX = d.normal.x; l.doorNZ = d.normal.y; }
         if (!in.styles.empty()) l.style = pickBuildingVariant(static_cast<int>(i), std::vector<std::string>{l.typology}, in.styles, in.varietySeed).style;
     }
+    // M5b-2: each lot's PARCEL, before the terraces and the ways' grading read it
+    if (in.parcels)
+        for (auto& l : map.lots) conquerParcel(l, in2, in.parcelSlopeWeight);
     // increment C: each lot's SEAT. The ways' paved surface is the paver's own pure plan over this planner's ground
     // (the ribbons exactly as the realizer builds them: world cubes, the rounded width; the ground the realizer's
     // surfMicro: (height + 1) * 9 per cube column), less the columns inside lot footprints (the ways unit drops
@@ -668,22 +760,20 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
                 if (pr.w < 2 || pr.d < 2) continue;
                 std::vector<int> tops;
                 tops.reserve(static_cast<size_t>(pr.w) * pr.d);
-                for (int x = pr.x; x < pr.x1(); ++x) for (int z = pr.z; z < pr.z1(); ++z) tops.push_back(groundAt(x, z));
+                for (int x = pr.x; x < pr.x1(); ++x) for (int z = pr.z; z < pr.z1(); ++z) if (l.inParcel(x, z)) tops.push_back(groundAt(x, z));   // M5b-2: the mask
+                if (tops.empty()) continue;
                 std::sort(tops.begin(), tops.end());
                 const int grade = tops[tops.size() / 2];
                 l.hasTerrace = true; l.terraceY = grade;
                 std::vector<std::pair<long long, int>> targets;
                 for (int x = pr.x - SK; x < pr.x1() + SK; ++x)
                     for (int z = pr.z - SK; z < pr.z1() + SK; ++z) {
-                        const bool inPlot = x >= pr.x && x < pr.x1() && z >= pr.z && z < pr.z1();
+                        // M5b-2: the skirt runs off the PARCEL (for a parcel that is its rect, the same distance as before)
+                        const int dist = l.parcelDistance(x, z, SK);
+                        if (dist > SK) continue;   // a rect cell the parcel does not hold, beyond the skirt: left natural
                         const int nat = groundAt(x, z);
                         int target = grade;
-                        if (!inPlot) {
-                            const int dx = std::max({pr.x - x, x - (pr.x1() - 1), 0});
-                            const int dz = std::max({pr.z - z, z - (pr.z1() - 1), 0});
-                            const int dist = std::max(dx, dz);
-                            target = (nat > grade) ? std::min(nat, grade + dist) : std::max(nat, grade - dist);
-                        }
+                        if (dist > 0) target = (nat > grade) ? std::min(nat, grade + dist) : std::max(nat, grade - dist);
                         if (target != nat) targets.push_back({key(x, z), target});
                     }
                 for (const auto& t : targets) terraced[t.first] = t.second;
@@ -836,7 +926,10 @@ SettlementPaths pathsForMapWays(const std::vector<std::vector<glm::ivec2>>& wayC
 
 MapProjection projectMap(const SettlementMap& map) {
     MapProjection p;
-    for (const auto& l : map.lots) { Plot pl; pl.rect = l.rect; p.layout.plots.push_back(pl); }
+    // M5b-2: the realizer's parcel consumers (clearing, terrace, fences, yard props) take the PARCEL - one rect (D51
+    // as revised); a record without one, or with more than one rect, falls back to the nominal toft
+    const auto parcelRect = [](const MapLot& l) { return l.parcel.size() == 1 ? l.parcel[0] : l.rect; };
+    for (const auto& l : map.lots) { Plot pl; pl.rect = parcelRect(l); p.layout.plots.push_back(pl); }
     // M5b-1: the ways are POLYLINES paved by the ribbon paver; the axis-aligned rect of a 2-node way stays for
     // the legacy consumers (the as-built control's streets), every other way that reaches the site edge adds an
     // EDGE rect of its width there (the wall's gates read layout.streets: planTownWall cuts a gate where a street
@@ -886,7 +979,7 @@ MapProjection projectMap(const SettlementMap& map) {
     }
     for (const auto& a : map.areas) if (a.landuse == "market") { p.msl.marketSquare = a.rect; p.msl.hasSquare = true; }
     for (const auto& l : map.lots) {
-        AssignedPlot ap; ap.plot.rect = l.rect; ap.typology = l.typology; ap.streetSide = SettlementMap::sideChar(l.orientation);
+        AssignedPlot ap; ap.plot.rect = parcelRect(l); ap.typology = l.typology; ap.streetSide = SettlementMap::sideChar(l.orientation);
         ap.setback = l.setback; ap.footprint = l.footprint;
         p.msl.assigned.push_back(ap);
     }

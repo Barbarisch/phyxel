@@ -1018,3 +1018,33 @@ the audit's conditions + increment E (2026-11-14; predictions PM5b1a.50-.53 in m
   chain 194 (broad regression, written 2026-11-14 08:24): 142 ok / 1 failed of 143 (EarthworkTest.HairpinBankHasNoCliffStepWith
     ItsControl, standing M4 hairpin). As predicted (PM5b1a.57). The second closure set is complete: no prediction of
     PM5b1a.54-.57 missed on a count; one thing seen that was not predicted (village 2's 13th door, above).
+
+=== M5b-2: PARCELS AS CELL MASKS (design re-check 2026-11-14 in the plan; D44 a; D50-D52 PROPOSED) ====================
+--- increment A: the map record + the conquest, HEADLESS, map level only (written 2026-11-14 08:41) ------------------------------
+  predictions: m3c_chains/pm_chain195.txt (PM5b2.1-.3). Filter SettlementMapTest.* (Debug).
+  chain 195 RED (patch 41a: MapLot.parcel + JSON + inParcel / parcelArea / parcelDistance, five tests, NO conquest):
+    15 ok / 5 failed - the five new tests, as predicted (0 parcels written on every map; 0 cells lost over 40 lots
+    whose depth runs along a 20 % slope).
+  chain 196 (patch 41b: conquerParcel + the planner's terrace over the mask; planner ae6b7a372cc5e985): 18 ok / 2
+    failed. MISS - predicted 20 / 0. Both failures were the RIG of two tests (the village on the 20 % X plane seats one
+    lot along X with 11 yard cells; chain 195 had printed it). The conquest: 300 cells lost along the slope over 40
+    lots, 0 across it, 0 with lambda_s = 0; every parcel == its rect on the flat and the 5 % hill (8 maps); outside /
+    front block missing / disconnected / holes / overlap / wet 0 on 16 maps; at most 4 rects per parcel.
+  chain 197 (patch 41c: those two tests on the village 20 % Z plane - a rig change, no bound moved): 20 ok / 0 failed.
+  WEAK, stated: the relief measure of test (i) passes by 2 (157 over rects, 155 over parcels) - a lost back row
+    rarely moves a lot's max - min; the test's discriminating measures are the lost cells along / across / lambda 0.
+  NOT measured here: any voxel (the realizer still terraces, clears, fences and dresses the RECT - so on sloped
+    ground the planner's terrace and the realizer's now DIFFER until increment B lands; no live-site arm has run on
+    this tree); the bake time with parcels; a way's centre line inside a rect (5-17 cells on six maps, the rect's
+    behaviour as built, unchanged).
+--- increment A, continued: D51 REVISED to ONE RECT, and the projection (written 2026-11-14 08:49) -------------------------------
+  D51 as first proposed (a per-column depth profile) gave up to 4 rects per parcel on the rolling field (chain 196).
+  Revised BEFORE any realizer consumer was built: the parcel is the front block + the back rows every column reached.
+  Reason: the fence's corner contract is four planes of a rect (FenceBuilder.h KI-5f). Cost: conservative - one steep
+  or wet column shortens the whole yard. A stepped parcel is deferred to M5c (D44 b).
+  chain 198 RED (patch 42a, tests only; first launch failed to compile - my quoting, relaunched): 19 ok / 2 failed -
+    rolling village / town / city "not one rect"; projection 4 of 10 plots carry the nominal rect. As predicted.
+  chain 199 (patch 42b; planner eefe7aa9af1f958c): 21 ok / 0 failed. As predicted. Rolling lost 59 / 198 / 89 cells.
+  projectMap now hands the parcel rect to layout.plots and msl.assigned: the realizer's clearing, terrace, fences and
+    yard props follow it with no realizer edit. NOT measured: any of those four on a parcel that differs from its
+    rect - no voxel has been placed on this tree.

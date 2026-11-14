@@ -710,3 +710,264 @@ TEST(SettlementMapTest, TheSlopedRigCarriesTheFourShapes) {
             }
         }
 }
+
+// ============================================================================
+// M5b-2 (the design re-check of 2026-11-14; D44 a; D50-D52 PROPOSED): the PARCEL as a cell mask inside the lot's
+// rect. Headless, map level only - nothing here places a voxel. Rigs: the flat field and the 5 % hill (controls:
+// mask == rect), two 20 % planes (the slope along X, along Z), increment E's rolling field. The predictions are in
+// docs/evidence/worldforge_v2/m3c_chains/pm_chain195.txt before each run.
+// ============================================================================
+namespace {
+int plane20x(int x, int z) { (void)z; return 30 + static_cast<int>(std::floor(0.20f * static_cast<float>(x))); }
+int plane20z(int x, int z) { (void)x; return 30 + static_cast<int>(std::floor(0.20f * static_cast<float>(z))); }
+
+// the front block: the frontage edge through the footprint's back row, the rect's full width (D50)
+bool inFrontBlock(const MapLot& l, int x, int z) {
+    const Rect& r = l.rect; const Rect& f = l.footprint;
+    if (x < r.x || x >= r.x1() || z < r.z || z >= r.z1()) return false;
+    switch (l.orientation) {
+        case 0: return z >= f.z;
+        case 2: return z < f.z1();
+        case 1: return x >= f.x;
+        default: return x < f.x1();
+    }
+}
+int backYardDepth(const MapLot& l) {
+    const Rect& r = l.rect; const Rect& f = l.footprint;
+    switch (l.orientation) { case 0: return f.z - r.z; case 2: return r.z1() - f.z1(); case 1: return f.x - r.x; default: return r.x1() - f.x1(); }
+}
+
+struct ParcelStats {
+    int lots = 0, written = 0, equalRect = 0, lostCells = 0, lostAlongX = 0, lostAlongZ = 0, lotsAlongX = 0, lotsAlongZ = 0, yardAlongX = 0, yardAlongZ = 0;
+    int outside = 0, frontMissing = 0, disconnected = 0, holes = 0, overlapCells = 0, wetCells = 0, centrelineCells = 0, maxRects = 0;
+    int reliefRects = 0, reliefParcels = 0;
+};
+ParcelStats parcelStats(const SettlementMap& m, const SettlementMapInput& in) {
+    ParcelStats st;
+    std::map<std::pair<int, int>, int> owner;
+    for (const auto& l : m.lots) {
+        ++st.lots;
+        if (!l.parcel.empty()) ++st.written;
+        st.maxRects = std::max(st.maxRects, static_cast<int>(l.parcel.size()));
+        const Rect& r = l.rect;
+        const bool depthAlongX = l.orientation == 1 || l.orientation == 3;
+        (depthAlongX ? st.lotsAlongX : st.lotsAlongZ) += 1;
+        (depthAlongX ? st.yardAlongX : st.yardAlongZ) += backYardDepth(l) * (depthAlongX ? r.d : r.w);
+        for (const auto& pr : l.parcel)
+            if (pr.x < r.x || pr.z < r.z || pr.x1() > r.x1() || pr.z1() > r.z1() || pr.w <= 0 || pr.d <= 0) ++st.outside;
+        int lost = 0, cells = 0, lo = INT_MAX, hi = INT_MIN, plo = INT_MAX, phi = INT_MIN;
+        std::vector<glm::ivec2> mine;
+        for (int z = r.z; z < r.z1(); ++z)
+            for (int x = r.x; x < r.x1(); ++x) {
+                const int h = in.heightAt(x, z);
+                lo = std::min(lo, h); hi = std::max(hi, h);
+                if (!l.inParcel(x, z)) { ++lost; if (inFrontBlock(l, x, z)) ++st.frontMissing; continue; }
+                ++cells; plo = std::min(plo, h); phi = std::max(phi, h);
+                mine.push_back({x, z});
+                if (!owner.emplace(std::make_pair(x, z), l.id).second) ++st.overlapCells;
+                if (in.waterAt && in.waterAt(x, z)) ++st.wetCells;
+            }
+        st.reliefRects += hi - lo;
+        if (cells > 0) st.reliefParcels += phi - plo;
+        st.lostCells += lost;
+        (depthAlongX ? st.lostAlongX : st.lostAlongZ) += lost;
+        if (lost == 0) ++st.equalRect;
+        // D51: a depth profile - along the depth axis a column, once out of the parcel behind the front block, stays out
+        const int n = depthAlongX ? r.d : r.w, depth = depthAlongX ? r.w : r.d;
+        for (int i = 0; i < n; ++i) {
+            bool out = false;
+            for (int k = 0; k < depth; ++k) {
+                int x, z;
+                switch (l.orientation) {
+                    case 0: x = r.x + i; z = r.z1() - 1 - k; break;
+                    case 2: x = r.x + i; z = r.z + k; break;
+                    case 1: x = r.x1() - 1 - k; z = r.z + i; break;
+                    default: x = r.x + k; z = r.z + i; break;
+                }
+                const bool inside = l.inParcel(x, z);
+                if (!inside) out = true; else if (out) ++st.holes;
+            }
+        }
+        // 4-connected
+        if (!mine.empty()) {
+            std::set<std::pair<int, int>> todo;
+            for (const auto& c : mine) todo.insert({c.x, c.y});
+            std::vector<std::pair<int, int>> stack{{mine[0].x, mine[0].y}};
+            todo.erase(stack[0]);
+            while (!stack.empty()) {
+                const auto c = stack.back(); stack.pop_back();
+                for (const auto& d : {std::pair<int, int>{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                    const auto it = todo.find({c.first + d.first, c.second + d.second});
+                    if (it != todo.end()) { stack.push_back(*it); todo.erase(it); }
+                }
+            }
+            if (!todo.empty()) ++st.disconnected;
+        }
+    }
+    // a way's centre line inside a parcel (printed: the growth lets a way that was there first stay inside a later rect)
+    for (const auto& w : m.ways)
+        for (size_t k = 0; k + 1 < w.nodes.size(); ++k) {
+            const MapNode* a = m.node(w.nodes[k]); const MapNode* b = m.node(w.nodes[k + 1]);
+            if (!a || !b) continue;
+            const int cells = std::max(1, std::max(std::abs(b->x - a->x), std::abs(b->z - a->z)));
+            for (int c = 0; c <= cells; ++c)
+                if (owner.count({a->x + (b->x - a->x) * c / cells, a->z + (b->z - a->z) * c / cells})) ++st.centrelineCells;
+        }
+    return st;
+}
+void printParcels(const char* rig, const char* tier, const ParcelStats& p) {
+    std::printf("[ M5b-2 ] %-10s %-8s %2d lots, %2d with a parcel written, %2d equal to the rect | lost %d cells (depth along X: %d of %d yard cells over %d lots; along Z: %d of %d over %d) | "
+                "outside %d, front block missing %d, disconnected %d, holes %d, overlap %d, wet %d, way centre-line cells inside %d (printed), max rects %d | relief sum rects %d parcels %d\n",
+                rig, tier, p.lots, p.written, p.equalRect, p.lostCells, p.lostAlongX, p.yardAlongX, p.lotsAlongX, p.lostAlongZ, p.yardAlongZ, p.lotsAlongZ,
+                p.outside, p.frontMissing, p.disconnected, p.holes, p.overlapCells, p.wetCells, p.centrelineCells, p.maxRects, p.reliefRects, p.reliefParcels);
+}
+struct ParcelSite { const char* tier; int W, D; };
+const ParcelSite kParcelSites[] = {{"hamlet", 40, 32}, {"village", 80, 48}, {"town", 140, 60}, {"city", 160, 120}};
+}  // namespace
+
+// (h) THE CONTROL: on the flat field and on the 5 % hill every parcel is its rect, exactly (D52: 19 steps at 5 % cost
+// 0.22 of a cell, under the half cell of slack) - and it is WRITTEN (the conquest ran).
+TEST(SettlementMapTest, ParcelsEqualTheToftOnTheFlat) {
+    ASSERT_TRUE(rigs().programOk);
+    for (const ParcelSite s : kParcelSites)
+        for (const bool hill : {false, true}) {
+            const SettlementMapInput in = inputFor(s.tier, s.W, s.D, hill ? std::function<int(int, int)>(hillHeight) : std::function<int(int, int)>(flatHeight),
+                                                   hill ? std::function<bool(int, int)>(hillWater) : std::function<bool(int, int)>());
+            const SettlementMap m = planSettlementMap(in);
+            ASSERT_TRUE(m.ok()) << s.tier << ": " << m.refusal;
+            const ParcelStats p = parcelStats(m, in);
+            printParcels(hill ? "hill 5 %" : "flat", s.tier, p);
+            EXPECT_GT(p.lots, 0) << s.tier;
+            EXPECT_EQ(p.written, p.lots) << s.tier << ": a lot carries no parcel";
+            EXPECT_EQ(p.equalRect, p.lots) << s.tier << ": a parcel differs from its rect on " << (hill ? "the 5 % hill" : "the flat");
+        }
+}
+
+// (i) On a 20 % plane a back yard that runs ALONG the slope is shortened and one that runs ACROSS it is not; the
+// planner control (lambda_s = 0) gives the rect on the same field - the measure discriminates on a planner output.
+TEST(SettlementMapTest, ParcelsShrinkWithTheSlope) {
+    ASSERT_TRUE(rigs().programOk);
+    int lostAlong = 0, lostAcross = 0, lostControl = 0, lotsAlong = 0, reliefRects = 0, reliefParcels = 0;
+    for (const ParcelSite s : {kParcelSites[0], kParcelSites[1], kParcelSites[2]})
+        for (const bool alongX : {true, false})
+            for (const float lambda : {4.7f, 0.0f}) {
+                SettlementMapInput in = inputFor(s.tier, s.W, s.D, alongX ? std::function<int(int, int)>(plane20x) : std::function<int(int, int)>(plane20z), {});
+                in.parcelSlopeWeight = lambda;
+                const SettlementMap m = planSettlementMap(in);
+                ASSERT_TRUE(m.ok()) << s.tier << ": " << m.refusal;
+                const ParcelStats p = parcelStats(m, in);
+                printParcels(lambda > 0.0f ? (alongX ? "20 % X" : "20 % Z") : (alongX ? "20 % X l=0" : "20 % Z l=0"), s.tier, p);
+                EXPECT_EQ(p.written, p.lots) << s.tier;
+                if (lambda > 0.0f) {
+                    lostAlong += alongX ? p.lostAlongX : p.lostAlongZ; lostAcross += alongX ? p.lostAlongZ : p.lostAlongX;
+                    lotsAlong += alongX ? p.lotsAlongX : p.lotsAlongZ;
+                    reliefRects += p.reliefRects; reliefParcels += p.reliefParcels;
+                } else lostControl += p.lostCells;
+            }
+    std::printf("[ M5b-2 ] 20 %% planes: lost along the slope %d cells over %d lots, across it %d, with lambda_s = 0 %d; relief summed over the rects %d, over the parcels %d\n",
+                lostAlong, lotsAlong, lostAcross, lostControl, reliefRects, reliefParcels);
+    EXPECT_GT(lotsAlong, 0) << "the rig seats no lot whose depth runs along the slope";
+    EXPECT_GT(lostAlong, 0) << "no back yard along a 20 % slope lost a cell";
+    EXPECT_EQ(lostAcross, 0) << "a back yard across the slope lost cells";
+    EXPECT_EQ(lostControl, 0) << "the lambda_s = 0 control differs from the rect";
+    EXPECT_LT(reliefParcels, reliefRects) << "the parcels' summed relief is not below the rects'";
+}
+
+// (j) + (l): on every rig a parcel is inside its rect, holds its front block (footprint + setback strip: D50), is
+// 4-connected, a depth profile with no hole (D51), shares no cell with another and holds no water cell.
+TEST(SettlementMapTest, EveryParcelHoldsItsFootprintAndIsDisjointAndDry) {
+    ASSERT_TRUE(rigs().programOk);
+    struct Field { const char* name; std::function<int(int, int)> h; std::function<bool(int, int)> w; };
+    const Field fields[] = {{"hill 5 %", hillHeight, hillWater}, {"20 % X", plane20x, {}}, {"20 % Z", plane20z, {}}, {"rolling", slopeRolling, {}}};
+    int total = 0;
+    for (const auto& f : fields)
+        for (const ParcelSite s : kParcelSites) {
+            const SettlementMapInput in = inputFor(s.tier, s.W, s.D, f.h, f.w);
+            const SettlementMap m = planSettlementMap(in);
+            if (!m.ok()) { std::printf("[ M5b-2 ] %-10s %-8s REFUSED: %s\n", f.name, s.tier, m.refusal.c_str()); continue; }
+            const ParcelStats p = parcelStats(m, in);
+            printParcels(f.name, s.tier, p);
+            total += p.lots;
+            EXPECT_EQ(p.written, p.lots) << f.name << " " << s.tier;
+            EXPECT_EQ(p.outside, 0) << f.name << " " << s.tier << ": a parcel rect outside the lot's rect";
+            EXPECT_EQ(p.frontMissing, 0) << f.name << " " << s.tier << ": a front-block cell outside the parcel";
+            EXPECT_EQ(p.disconnected, 0) << f.name << " " << s.tier;
+            EXPECT_EQ(p.holes, 0) << f.name << " " << s.tier << ": a parcel cell behind a gap in its column";
+            EXPECT_EQ(p.maxRects, 1) << f.name << " " << s.tier << ": a parcel that is not one rect (D51 as revised: the fence's four planes)";
+            EXPECT_EQ(p.overlapCells, 0) << f.name << " " << s.tier;
+            EXPECT_EQ(p.wetCells, 0) << f.name << " " << s.tier;
+        }
+    EXPECT_GT(total, 0);
+}
+
+// (n) the record: `parcel` round-trips, and a record without it (written before M5b-2) reads back as the rect.
+TEST(SettlementMapTest, ParcelRoundTripsAndAnOldRecordReadsAsTheRect) {
+    ASSERT_TRUE(rigs().programOk);
+    const SettlementMapInput in = inputFor("village", 80, 48, plane20z, {});   // chain 196: the X plane seats one lot along X
+    const SettlementMap m = planSettlementMap(in);
+    ASSERT_TRUE(m.ok()) << m.refusal;
+    const nlohmann::json j = m.toJson();
+    int written = 0, shorter = 0;
+    for (const auto& l : j["lots"]) if (l.contains("parcel")) ++written;
+    for (const auto& l : m.lots) if (l.parcelArea() < l.rect.w * l.rect.d) ++shorter;
+    const SettlementMap back = SettlementMap::fromJson(j);
+    EXPECT_EQ(back.toJson().dump(), j.dump());
+    nlohmann::json old = j;
+    for (auto& l : old["lots"]) l.erase("parcel");
+    const SettlementMap asOld = SettlementMap::fromJson(old);
+    int notRect = 0;
+    for (const auto& l : asOld.lots) if (!l.parcel.empty() || l.parcelArea() != l.rect.w * l.rect.d || !l.inParcel(l.rect.x, l.rect.z) || l.inParcel(l.rect.x1(), l.rect.z)) ++notRect;
+    std::printf("[ M5b-2 ] record: %zu lots, %d with `parcel` in the JSON, %d shorter than the rect; read without it: %d not the rect\n", m.lots.size(), written, shorter, notRect);
+    EXPECT_EQ(written, static_cast<int>(m.lots.size()));
+    EXPECT_GT(shorter, 0) << "the rig's round trip carries no parcel that differs from its rect";
+    EXPECT_EQ(notRect, 0);
+}
+
+// The parcels are a pure function of the height FIELD, not of the sampler's history (the M5a pin's shape on the 20 %
+// plane, where the parcels differ from their rects).
+TEST(SettlementMapTest, ParcelsAreOrderIndependentOfTheSampler) {
+    ASSERT_TRUE(rigs().programOk);
+    auto memo = std::make_shared<std::map<std::pair<int, int>, int>>();
+    for (int z = 47; z >= 0; --z) for (int x = 79; x >= 0; --x) (*memo)[{x, z}] = plane20z(x, z);   // filled in reverse first
+    SettlementMapInput a = inputFor("village", 80, 48, plane20z, {}), b = a;
+    b.heightAt = [memo](int x, int z) { const auto it = memo->find({x, z}); return it != memo->end() ? it->second : ((*memo)[{x, z}] = plane20z(x, z)); };
+    SettlementMap ma = planSettlementMap(a), mb = planSettlementMap(b);
+    ma.bakeMs = mb.bakeMs = 0.0f;
+    int shorter = 0;
+    for (const auto& l : ma.lots) if (l.parcelArea() < l.rect.w * l.rect.d) ++shorter;
+    std::printf("[ M5b-2 ] two samplers on the 20 %% plane: %zu lots each, %d parcels shorter than their rect\n", ma.lots.size(), shorter);
+    EXPECT_GT(shorter, 0);
+    EXPECT_EQ(ma.toJson().dump(), mb.toJson().dump());
+}
+
+// The realizer's five parcel consumers read layout.plots / msl.assigned: the projection hands them the PARCEL (one
+// rect, D51 as revised), and the map lot keeps the nominal toft in `rect`.
+TEST(SettlementMapTest, TheProjectionHandsTheParcelToTheRealizer) {
+    ASSERT_TRUE(rigs().programOk);
+    const SettlementMapInput in = inputFor("village", 80, 48, plane20z, {});
+    const SettlementMap m = planSettlementMap(in);
+    ASSERT_TRUE(m.ok()) << m.refusal;
+    const MapProjection p = projectMap(m);
+    ASSERT_EQ(p.layout.plots.size(), m.lots.size());
+    ASSERT_EQ(p.msl.assigned.size(), m.lots.size());
+    int shorter = 0, plotNotParcel = 0, assignedNotParcel = 0, frontMoved = 0;
+    for (size_t i = 0; i < m.lots.size(); ++i) {
+        const MapLot& l = m.lots[i];
+        if (l.parcel.size() != 1) { ++plotNotParcel; continue; }
+        const Rect& pr = l.parcel[0];
+        if (pr.w * pr.d < l.rect.w * l.rect.d) ++shorter;
+        const auto same = [&](const Rect& r) { return r.x == pr.x && r.z == pr.z && r.w == pr.w && r.d == pr.d; };
+        if (!same(p.layout.plots[i].rect)) ++plotNotParcel;
+        if (!same(p.msl.assigned[i].plot.rect)) ++assignedNotParcel;
+        // the frontage edge (where the gate and the approach are) never moves
+        bool front = true;
+        switch (l.orientation) { case 0: front = pr.z1() == l.rect.z1(); break; case 2: front = pr.z == l.rect.z; break; case 1: front = pr.x1() == l.rect.x1(); break; default: front = pr.x == l.rect.x; break; }
+        if (!front) ++frontMoved;
+    }
+    std::printf("[ M5b-2 ] projection: %zu lots, %d parcels shorter than the rect; plots that are not the parcel %d, assigned plots %d, frontage edges moved %d\n",
+                m.lots.size(), shorter, plotNotParcel, assignedNotParcel, frontMoved);
+    EXPECT_GT(shorter, 0);
+    EXPECT_EQ(plotNotParcel, 0);
+    EXPECT_EQ(assignedNotParcel, 0);
+    EXPECT_EQ(frontMoved, 0);
+}

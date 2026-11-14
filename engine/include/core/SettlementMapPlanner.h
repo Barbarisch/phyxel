@@ -70,6 +70,15 @@ struct SettlementMapInput {
     /// and the growth read that; the terraces and the ways' grading read THIS (null = heightAt). Must answer
     /// outside the site rect.
     std::function<int(int, int)> gradeHeightAt;
+    /// M5b-2 (D44 a, D50-D52 PROPOSED): every lot's PARCEL is conquered inside its rect - the front block (the
+    /// frontage edge through the footprint's back row, the rect's full width) unconditionally, the back yard by a
+    /// Dijkstra from it with step cost 1 + parcelSlopeWeight * g^2 (g the directional gradient over a 13-cube
+    /// window along the step) and a fund of the back yard's depth + 0.5, then regularized to a depth profile per
+    /// column. False = no parcel is written (the lot's rect: the control).
+    bool parcels = true;
+    /// lambda_s, REASONED (the design check of 2026-11-06): a step at the TooSteep gradient (relief 6 over 13 cubes,
+    /// 0.46) costs twice a flat step: 1 / 0.46^2 = 4.7. 0 = the planner control (parcel == rect on any ground).
+    float parcelSlopeWeight = 4.7f;
 };
 
 /// M5b-1a (sequencing amendment 1): the front door the FORGE will cut for a lot - the wall cell (in the footprint's
