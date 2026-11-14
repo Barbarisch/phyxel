@@ -76,6 +76,9 @@ struct SettlementMapInput {
     /// window along the step) and a fund of the back yard's depth + 0.5, then regularized to a depth profile per
     /// column. False = no parcel is written (the lot's rect: the control).
     bool parcels = true;
+    /// M5c-2 (D56-D58 PROPOSED): a CROFT is planned behind every lot whose typology the tier's program names
+    /// (SettlementTierPreset::croftTypologies). False = none (the control).
+    bool crofts = true;
     /// lambda_s, REASONED (the design check of 2026-11-06): a step at the TooSteep gradient (relief 6 over 13 cubes,
     /// 0.46) costs twice a flat step: 1 / 0.46^2 = 4.7. 0 = the planner control: NO SLOPE shortening (the audit's
     /// F1: not "the rect on any ground" as first written - the conquest never takes a water cell at any weight;

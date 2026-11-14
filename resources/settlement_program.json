@@ -32,8 +32,12 @@
             "longhouse": 3,
             "hall_house": 1
           },
+          "crofts": {
+            "typologies": ["croft", "longhouse", "hall_house"]
+          },
           "public": {},
           "sources": {
+            "crofts": "M5c-2 (D56-D58 PROPOSED): a croft (garden / crop / paddock ground, not yard) lies behind the peasant toft - for HAMLETS UNSETTLED in what could be read (dispersed farmsteads may have held enclosed closes instead) - carried over from the row villages as REASONED, where it is GROUNDED: Wharram Percy's North and East Rows (English Heritage site description; the West Row's southern tofts apparently had none, so not universal) and Gainsthorpe (English Heritage: quarter-acre enclosures, 'each croft ... used as a garden'). NO SOURCE for any croft length, width or croft-to-toft ratio: the planner sizes a croft by the free ground behind the parcel, no dimension is written. The fence on its three outer sides is a DESIGN stand-in (banks, ditches, hedges, walls attested; no sizes; no such asset)",
             "morphology": "dispersed hamlet / farm-cluster settlement form: Roberts, Rural Settlement in Britain (1977) — 'hamlet' = a cluster lacking the row/green plan-form of a village; matches the shipped terrain-scatter placement",
             "buildings": "REASONED: 'a few households' — no hard count in the sources consulted; 3-6 chosen so a hamlet reads smaller than the smallest row village. NEEDS-RESEARCH (Roberts & Wrathmell, An Atlas of Rural Settlement in England, 2000)",
             "typology_weights": "peasant-dominated mix: crofts + longhouses are the excavated dwelling stock at Wharram Percy (Beresford & Hurst); a lone hall_house = the yeoman holding. Ratio REASONED, not counted from a specific site plan",
@@ -93,6 +97,9 @@
             "tavern": 1,
             "blacksmith": 1
           },
+          "crofts": {
+            "typologies": ["croft", "longhouse", "hall_house"]
+          },
           "public": {
             "well": true
           },
@@ -102,6 +109,7 @@
           },
           "sources": {
             "fences.fraction": "REASONED: most village tofts enclosed (stock + garden), a few open — variety, not a censused rate; eligibility (core ring, wall clearance) lives in shouldFencePlot",
+            "crofts": "M5c-2 (D56-D58 PROPOSED): a croft (garden / crop / paddock ground, not yard) lies behind the peasant toft - GROUNDED for row villages: Wharram Percy's North and East Rows (English Heritage site description; the West Row's southern tofts apparently had none, so not universal) and Gainsthorpe (English Heritage: quarter-acre enclosures, 'each croft ... used as a garden'). NO SOURCE for any croft length, width or croft-to-toft ratio: the planner sizes a croft by the free ground behind the parcel, no dimension is written. The fence on its three outer sides is a DESIGN stand-in (banks, ditches, hedges, walls attested; no sizes; no such asset)",
             "morphology": "row/street village plan-form: Wharram Percy itself is a two-row village of tofts fronting a street (Beresford & Hurst, Wharram Percy: Deserted Medieval Village) — the same source that grounds the croft/longhouse typologies",
             "buildings": "REASONED band between hamlet and market town; Wharram Percy's rows held ~30 tofts at peak, scale-compressed here. NEEDS-RESEARCH for a small-village count (Roberts & Wrathmell 2000)",
             "street.main_width": "NEEDS-RESEARCH: no measured medieval village street width sourced yet. 5 m ≈ 'two carts can pass' convention cited for town royal-road widths (candidate: Salzman, Building in England; Schofield & Vince, Medieval Towns) — shipped FLAGGED, cite or record in GroundingGaps.md before phase close",

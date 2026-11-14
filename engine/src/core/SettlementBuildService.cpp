@@ -508,6 +508,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             mi.terraceLots = terrain && chunkManager != nullptr;   // the "terracing parcel" units below run exactly then
             // M5b-2: lambda_s of the parcel conquest; {"parcel_slope_weight": 0} is the planner CONTROL (parcel == toft)
             mi.parcelSlopeWeight = std::clamp(p.value("parcel_slope_weight", 4.7f), 0.0f, 100.0f);
+            mi.crofts = p.value("crofts", true);   // M5c-2: {"crofts": false} is the control (no croft planned)
             {   // increment C: the threshold above the pad per style, for the map's pad / threshold
                 Core::StyleProfileRegistry mapStyleReg;
                 mapStyleReg.loadFromFile("resources/structure_styles.json");
@@ -876,14 +877,24 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             std::vector<Core::Rect> prects;
             prects.reserve(layout.plots.size());
             for (const auto& pl : layout.plots) prects.push_back(pl.rect);
+            // M5c-2 (D58 PROPOSED): a croft is garden / crop / paddock ground - its trees are cleared with the parcels'
+            if (mapLots) for (const auto& a : siteMap.areas) if (a.landuse == "croft") prects.push_back(a.rect);
             units.push_back({"clearing parcels",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, prects, ox, oz, terrainTopAt, groundTopAt,
-                 parcelClearMargin]() {
+                 parcelClearMargin, nParcelRects = layout.plots.size(), croftRec = res.terrace]() {
                 if (!chunkManager) return;
                 const int kMargin = parcelClearMargin;    // M0: canopy overhang reach beyond the plot line, derived
-                std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
                 std::set<std::pair<int, int>> seen;
-                for (const auto& pr : prects) {
+                // M5c-2 (chain 220: the Debug rig carries no flora, so a test cannot count what a croft's clearing
+                // removed): two passes - the parcels, then the CROFTS (prects from nParcelRects on) - so the cells the
+                // crofts' pass removes are counted on their own. A croft column already cleared by a parcel's margin
+                // is the parcel's.
+                int cleared = 0;
+                for (int pass = 0; pass < 2; ++pass) {
+                std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
+                const size_t columnsBefore = seen.size();
+                for (size_t ri = (pass == 0 ? 0 : nParcelRects); ri < (pass == 0 ? std::min(nParcelRects, prects.size()) : prects.size()); ++ri) {
+                    const auto& pr = prects[ri];
                     for (int x = ox + pr.x - kMargin; x < ox + pr.x + pr.w + kMargin; ++x)
                         for (int z = oz + pr.z - kMargin; z < oz + pr.z + pr.d + kMargin; ++z) {
                             if (!seen.insert({x, z}).second) continue;
@@ -896,10 +907,28 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             }
                         }
                 }
-                int cleared = 0;
+                // chain 221: clearCellsBulk returns the cells it was HANDED (12 a column here), not the cells that held
+                // anything - so the crofts' pass counts the OCCUPIED cells itself, before it clears them
+                long occupied = 0;
+                if (pass == 1)
+                    for (const auto& [ch, cells] : byChunk)
+                        for (const auto& lp : cells) {
+                            bool any = ch->getCubeAt(lp) != nullptr || !ch->getSubcubesAt(lp).empty();
+                            for (int i = 0; i < 3 && !any; ++i) for (int j = 0; j < 3 && !any; ++j) for (int k = 0; k < 3 && !any; ++k)
+                                if (!ch->getMicrocubesAt(lp, glm::ivec3(i, j, k)).empty()) any = true;
+                            if (any) ++occupied;
+                        }
+                int passCleared = 0;
                 for (auto& [ch, cells] : byChunk) {
-                    cleared += ch->clearCellsBulk(cells);
+                    passCleared += ch->clearCellsBulk(cells);
                     chunkManager->markChunkDirty(ch);
+                }
+                cleared += passCleared;
+                if (pass == 1 && prects.size() > nParcelRects) {
+                    LOG_INFO_FMT("Settlement", "croft clearing: " << occupied << " occupied cells removed (" << passCleared << " cells swept) over " << (seen.size() - columnsBefore)
+                                 << " columns the parcels' margins had not taken (" << (prects.size() - nParcelRects) << " crofts)");
+                    if (croftRec) { (*croftRec)["croft_cleared_cells"] = occupied; (*croftRec)["croft_swept_cells"] = passCleared; (*croftRec)["croft_cleared_columns"] = seen.size() - columnsBefore; }
+                }
                 }
                 LOG_INFO_FMT("Settlement", "parcel clearing: " << cleared
                              << " cells over " << seen.size() << " columns (margin "
@@ -950,6 +979,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
                 *res.terrace = {{"parcels", layout.plots.size()}, {"slope_weight", std::clamp(p.value("parcel_slope_weight", 4.7f), 0.0f, 100.0f)},
                                 {"parcels_shorter", shorter}, {"cells_lost", lost}, {"cut", 0}, {"fill", 0}};
+                if (mapLots) {   // M5c-2: the crofts as planned (their ground is NOT graded - no terrace unit reads them)
+                    int nCrofts = 0, croftCells = 0;
+                    for (const auto& a : siteMap.areas) if (a.landuse == "croft") { ++nCrofts; croftCells += a.rect.w * a.rect.d; }
+                    (*res.terrace)["crofts"] = nCrofts; (*res.terrace)["croft_cells"] = croftCells;
+                    LOG_INFO_FMT("Settlement", "crofts: " << nCrofts << " planned over " << croftCells << " cells (cleared with the parcels, not graded, fenced on three sides)");
+                }
                 if (mapLots)
                     LOG_INFO_FMT("Settlement", "parcels: " << shorter << " of " << siteMap.lots.size() << " shorter than their toft (" << lost
                                  << " cells left natural), lambda_s " << (*res.terrace)["slope_weight"].get<float>());
@@ -1591,7 +1626,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if ((terrain || mainStreetMode) && chunkManager && !layout.plots.empty()) {
             postBuildUnits.push_back({"fencing parcels",
                 [mapLots, chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, layout, msl, doorCenters, ox, oz, terrainTopAt, mainStreetMode,
-                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved, seed, lotFailuresP = res.lotFailures, lotToPlot, fenceMat,
+                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved, seed, lotFailuresP = res.lotFailures, lotToPlot, fenceMat, siteMap,
                  fenceFraction = (programMode && tierP ? tierP->fenceFraction : 1.0),
                  coreRing = (programMode && tierP ? tierP->coreRing : 0)]() {
             if (!chunkManager) return;
@@ -1734,6 +1769,45 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     stampEdge(run);
                 }
             }
+            // M5c-2 (D58 PROPOSED): each CROFT is fenced on its three outer sides - the side it shares with its toft
+            // (the lot's street side, seen from the croft) stays open; no gate; a failed lot's croft gets none. The
+            // same profile, the same per-column seat on the terrain top, the same skips (a paved column, a step of
+            // 2 cubes or more) as a parcel's runs. The boundary TYPE is a design stand-in (banks, ditches and hedges
+            // are attested, with no sizes).
+            int croftsFenced = 0; size_t croftFenceEmitted = 0;
+            if (mapLots)
+                for (const auto& a : siteMap.areas) {
+                    if (a.landuse != "croft" || a.rect.w < 2 || a.rect.d < 2) continue;
+                    const Core::MapLot* owner = nullptr; size_t ownerIdx = 0;
+                    for (size_t li = 0; li < siteMap.lots.size(); ++li) if (siteMap.lots[li].id == a.lot) { owner = &siteMap.lots[li]; ownerIdx = li; }
+                    if (!owner || failedPlotSet.count(static_cast<int>(ownerIdx))) continue;
+                    const char open = Core::SettlementMap::sideChar(owner->orientation);
+                    const size_t before = fenceBatch.voxels.size();
+                    static const int CDX[4] = {1, -1, 0, 0}, CDZ[4] = {0, 0, 1, -1};
+                    for (const auto& run : Core::planParcelFenceRuns(a.rect.x, a.rect.z, a.rect.w, a.rect.d)) {
+                        if (run.side == open) continue;
+                        const int runLenMicro = run.toMicro - run.fromMicro;
+                        if (runLenMicro <= 0) continue;
+                        const Core::FenceProfile prof = Core::planFenceProfile(runLenMicro, fH, fSp, fRails, fenceType, 1, run.cornerPosts);
+                        if (!prof.ok) continue;
+                        for (const auto& c : prof.cells) {
+                            const int wx = run.alongX ? ox * 9 + run.fromMicro + c.u : ox * 9 + run.fixedMicro + c.w;
+                            const int wz = run.alongX ? oz * 9 + run.fixedMicro + c.w : oz * 9 + run.fromMicro + c.u;
+                            const int ccx = fl9(wx), ccz = fl9(wz);
+                            if (pavedCols.count({ccx, ccz})) continue;
+                            const int g0 = gtAt(ccx, ccz);
+                            bool cliff = false;
+                            for (int k = 0; k < 4; ++k) if (std::abs(gtAt(ccx + CDX[k], ccz + CDZ[k]) - g0) >= 2) { cliff = true; break; }
+                            if (cliff) continue;
+                            emitMicro(fenceBatch, wx, (g0 + 1) * 9 + c.y, wz, fenceMat);
+                        }
+                    }
+                    if (fenceBatch.voxels.size() > before) ++croftsFenced;
+                    croftFenceEmitted += fenceBatch.voxels.size() - before;
+                }
+            pathsJson["crofts_fenced"] = croftsFenced;
+            pathsJson["croft_fence_micros_emitted"] = croftFenceEmitted;
+            if (mapLots) LOG_INFO_FMT("Settlement", "fences: " << croftsFenced << " crofts fenced on three sides, " << croftFenceEmitted << " micros emitted");
             fenceMicros = Core::StructureGenerator::place(chunkManager, fenceBatch).placed;
             LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels fenced, " << unfenced
                          << " unfenced by policy, " << pinchedRuns << " runs dropped (alley < 2 cells to a neighbour wall), "

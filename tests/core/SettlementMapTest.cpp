@@ -1077,3 +1077,132 @@ TEST(SettlementMapTest, TheTerraceIsOneRuleOverTheParcel) {
         EXPECT_EQ(l0.terraceY, planParcelTerrace(l0.parcelRect(), 4, ground).grade) << "the first lot's terrace is not the rule over its parcel";
     }
 }
+
+// ---- M5c-2 (D56-D58 PROPOSED): the CROFT - one rect behind a peasant toft's parcel, sized by the free ground ------------
+namespace {
+struct CroftStats {
+    int crofts = 0, eligible = 0, cells = 0, onIneligible = 0, twoOnOneLot = 0, thin = 0, notAnchored = 0, widerThanParcel = 0;
+    int outside = 0, inAParcel = 0, inAnotherToft = 0, wet = 0, onAWay = 0, overlapping = 0, inAMarket = 0, givenUpRowsOwned = 0;
+};
+// independent of the planner: the back edge from rect / footprint / orientation, the way's centreline sampled between nodes
+CroftStats croftStats(const SettlementMap& m, const SettlementMapInput& in) {
+    CroftStats c;
+    for (const auto& l : m.lots) if (in.tier->hasCroft(l.typology)) ++c.eligible;
+    std::set<int> seenLots;
+    std::set<std::pair<int, int>> taken, wayCells;
+    for (const auto& w : m.ways) {
+        const int r = static_cast<int>(std::floor(w.width / 2.0f));
+        for (size_t i = 0; i + 1 < w.nodes.size(); ++i) {
+            const MapNode* a = m.node(w.nodes[i]); const MapNode* b = m.node(w.nodes[i + 1]);
+            if (!a || !b) continue;
+            const int n = std::max({std::abs(b->x - a->x), std::abs(b->z - a->z), 1});
+            for (int t = 0; t <= n; ++t) {
+                const int cx = a->x + static_cast<int>(std::lround(static_cast<float>(b->x - a->x) * t / n)), cz = a->z + static_cast<int>(std::lround(static_cast<float>(b->z - a->z) * t / n));
+                for (int dx = -r; dx <= r; ++dx) for (int dz = -r; dz <= r; ++dz) wayCells.insert({cx + dx, cz + dz});
+            }
+        }
+    }
+    for (const auto& a : m.areas) {
+        if (a.landuse != "croft") continue;
+        ++c.crofts; c.cells += a.rect.w * a.rect.d;
+        const MapLot* l = nullptr;
+        for (const auto& ml : m.lots) if (ml.id == a.lot) l = &ml;
+        if (!l || !in.tier->hasCroft(l->typology)) { ++c.onIneligible; continue; }
+        if (!seenLots.insert(a.lot).second) ++c.twoOnOneLot;
+        if (a.rect.w < 2 || a.rect.d < 2) ++c.thin;
+        const Rect p = l->parcelRect();
+        bool anchored = false, within = false;
+        switch (((l->orientation % 4) + 4) % 4) {
+            case 0: anchored = a.rect.z1() == p.z; within = a.rect.x >= p.x && a.rect.x1() <= p.x1(); break;   // the door faces +Z: the back is -Z
+            case 2: anchored = a.rect.z == p.z1(); within = a.rect.x >= p.x && a.rect.x1() <= p.x1(); break;
+            case 1: anchored = a.rect.x1() == p.x; within = a.rect.z >= p.z && a.rect.z1() <= p.z1(); break;
+            default: anchored = a.rect.x == p.x1(); within = a.rect.z >= p.z && a.rect.z1() <= p.z1(); break;
+        }
+        if (!anchored) ++c.notAnchored;
+        if (!within) ++c.widerThanParcel;
+        for (int x = a.rect.x; x < a.rect.x1(); ++x) for (int z = a.rect.z; z < a.rect.z1(); ++z) {
+            if (x < 0 || z < 0 || x >= m.W || z >= m.D) { ++c.outside; continue; }
+            for (const auto& ml : m.lots) {
+                const bool inRect = x >= ml.rect.x && x < ml.rect.x1() && z >= ml.rect.z && z < ml.rect.z1();
+                if (ml.inParcel(x, z)) ++c.inAParcel;
+                else if (inRect && ml.id != l->id) ++c.inAnotherToft;
+                else if (inRect) ++c.givenUpRowsOwned;   // its own toft's rows the parcel gave up (O22 c)
+            }
+            if (in.waterAt && in.waterAt(x, z)) ++c.wet;
+            if (wayCells.count({x, z})) ++c.onAWay;
+            if (!taken.insert({x, z}).second) ++c.overlapping;
+            for (const auto& o : m.areas) if (o.landuse == "market" && x >= o.rect.x && x < o.rect.x1() && z >= o.rect.z && z < o.rect.z1()) ++c.inAMarket;
+        }
+    }
+    return c;
+}
+void printCrofts(const char* what, const SettlementMap& m, const CroftStats& c) {
+    std::printf("[ M5c-2 ] %s: %zu lots, %d eligible, %d crofts, %d cells (%d of them toft rows the parcel gave up) | on an ineligible lot %d, two on one lot %d, thinner than 2 %d, "
+                "not on the parcel's back edge %d, wider than the parcel %d | outside %d, in a parcel %d, in another toft %d, wet %d, on a way %d, overlapping %d, in a market %d%s",
+                what, m.lots.size(), c.eligible, c.crofts, c.cells, c.givenUpRowsOwned, c.onIneligible, c.twoOnOneLot, c.thin, c.notAnchored, c.widerThanParcel, c.outside, c.inAParcel,
+                c.inAnotherToft, c.wet, c.onAWay, c.overlapping, c.inAMarket, "\n");
+    for (const auto& a : m.areas) if (a.landuse == "croft") std::printf("[ M5c-2 ]   croft of lot %d: %d,%d %dx%d%s", a.lot, a.rect.x, a.rect.z, a.rect.w, a.rect.d, "\n");
+}
+void expectCroftsSound(const char* what, const CroftStats& c) {
+    EXPECT_EQ(c.onIneligible, 0) << what; EXPECT_EQ(c.twoOnOneLot, 0) << what; EXPECT_EQ(c.thin, 0) << what;
+    EXPECT_EQ(c.notAnchored, 0) << what; EXPECT_EQ(c.widerThanParcel, 0) << what; EXPECT_EQ(c.outside, 0) << what;
+    EXPECT_EQ(c.inAParcel, 0) << what; EXPECT_EQ(c.inAnotherToft, 0) << what; EXPECT_EQ(c.wet, 0) << what;
+    EXPECT_EQ(c.onAWay, 0) << what; EXPECT_EQ(c.overlapping, 0) << what; EXPECT_EQ(c.inAMarket, 0) << what;
+}
+}  // namespace
+
+// (a) a tier whose program names croft typologies plans crofts; the control (crofts = false) plans none; twice the same
+TEST(SettlementMapTest, PeasantToftsCarryACroft) {
+    ASSERT_TRUE(rigs().programOk);
+    for (const ParcelSite s : {kParcelSites[0], kParcelSites[1]})
+        for (const bool slope : {false, true}) {
+            SettlementMapInput in = inputFor(s.tier, s.W, s.D, slope ? std::function<int(int, int)>(plane20z) : std::function<int(int, int)>(flatHeight), {});
+            const SettlementMap m = planSettlementMap(in);
+            ASSERT_TRUE(m.ok()) << s.tier << ": " << m.refusal;
+            const CroftStats c = croftStats(m, in);
+            const std::string what = std::string(s.tier) + (slope ? " on the 20 % Z plane" : " flat");
+            printCrofts(what.c_str(), m, c);
+            EXPECT_GT(c.eligible, 0) << what;
+            EXPECT_GT(c.crofts, 0) << what << ": no croft behind any peasant toft";
+            expectCroftsSound(what.c_str(), c);
+            SettlementMap again = planSettlementMap(in), a0 = m;
+            again.bakeMs = 0.0f; a0.bakeMs = 0.0f;
+            EXPECT_EQ(again.toJson().dump(), a0.toJson().dump()) << what << ": the map differs between two plans";
+            EXPECT_EQ(SettlementMap::fromJson(m.toJson()).toJson().dump(), m.toJson().dump()) << what << ": the JSON round trip changed the record";
+            in.crofts = false;
+            const SettlementMap off = planSettlementMap(in);
+            EXPECT_EQ(croftStats(off, in).crofts, 0) << what << ": the control plans a croft";
+            EXPECT_EQ(off.lots.size(), m.lots.size()) << what << ": the crofts changed the lots";
+        }
+}
+
+// (b) every croft is sound on every tier and rig - and on the hill with a creek the count is not vacuous
+TEST(SettlementMapTest, CroftsAreDisjointAndInsideTheSite) {
+    ASSERT_TRUE(rigs().programOk);
+    int total = 0;
+    for (const ParcelSite s : kParcelSites)
+        for (int rig = 0; rig < 3; ++rig) {
+            const SettlementMapInput in = rig == 0 ? inputFor(s.tier, s.W, s.D, hillHeight, hillWater)
+                                        : rig == 1 ? inputFor(s.tier, s.W, s.D, plane20x, {}) : inputFor(s.tier, s.W, s.D, slopeRolling, {});
+            const SettlementMap m = planSettlementMap(in);
+            if (!m.ok()) { std::printf("[ M5c-2 ] %s rig %d refused: %s%s", s.tier, rig, m.refusal.c_str(), "\n"); continue; }
+            const CroftStats c = croftStats(m, in);
+            const std::string what = std::string(s.tier) + (rig == 0 ? " hill + creek" : rig == 1 ? " 20 % X plane" : " rolling");
+            printCrofts(what.c_str(), m, c);
+            expectCroftsSound(what.c_str(), c);
+            total += c.crofts;
+        }
+    EXPECT_GT(total, 0) << "no croft on any rig: every check above is vacuous";
+}
+
+// (d) a PIN, green before the feature (stated): town and city carry no croft - their program names no croft typology
+TEST(SettlementMapTest, ATownCarriesNoCroft) {
+    ASSERT_TRUE(rigs().programOk);
+    for (const ParcelSite s : {kParcelSites[2], kParcelSites[3]}) {
+        const SettlementMapInput in = inputFor(s.tier, s.W, s.D, plane20z, {});
+        const SettlementMap m = planSettlementMap(in);
+        ASSERT_TRUE(m.ok()) << s.tier << ": " << m.refusal;
+        EXPECT_TRUE(in.tier->croftTypologies.empty()) << s.tier;
+        EXPECT_EQ(croftStats(m, in).crofts, 0) << s.tier;
+    }
+}

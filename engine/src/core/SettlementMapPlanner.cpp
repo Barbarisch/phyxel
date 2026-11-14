@@ -661,6 +661,106 @@ static void conquerParcel(MapLot& l, const SettlementMapInput& in, float lambda)
     }
 }
 
+// M5c-2 (D56-D58 PROPOSED): the CROFTS - behind the parcel of every lot whose typology the tier's program names, ONE
+// rect of the ground nothing else takes. No croft dimension exists in any source read (the grounding pass of
+// 2026-11-14), so none is written: the croft is sized by the ground. From the FINISHED map only:
+//   taken   = every toft rect, every way's band (the centreline's cells grown by half its width + 1), every water
+//             cell, every market area; a lot's OWN rows that its parcel gave up are free to its own croft (O22 c);
+//   reach   = per column of the parcel's back edge, the free cells straight back until a taken cell or the site edge;
+//   the rect = the largest rectangle standing on that edge (ties: the lower start, then the wider);
+//   contended cells are settled by growing every croft ONE ROW PER ROUND in lot order up to its own depth;
+//   a croft thinner than 2 cells either way is dropped (the fence's and the terrace rule's minimum).
+static void planCrofts(SettlementMap& map, const SettlementMapInput& in) {
+    if (!in.tier || in.tier->croftTypologies.empty() || map.W <= 0 || map.D <= 0) return;
+    const int W = map.W, D = map.D;
+    const auto idx = [W](int x, int z) { return static_cast<size_t>(z) * W + static_cast<size_t>(x); };
+    std::vector<int> taken(static_cast<size_t>(W) * D, -1);   // -1 free | -2 way, water, market | >= 0 the lot id whose toft holds the cell
+    const auto mark = [&](int x, int z, int v) { if (x >= 0 && z >= 0 && x < W && z < D && taken[idx(x, z)] == -1) taken[idx(x, z)] = v; };
+    for (const auto& l : map.lots)
+        for (int z = l.rect.z; z < l.rect.z1(); ++z) for (int x = l.rect.x; x < l.rect.x1(); ++x) mark(x, z, l.id);
+    for (const auto& w : map.ways) {
+        const int r = static_cast<int>(std::ceil(w.width / 2.0f)) + 1;
+        for (size_t i = 0; i + 1 < w.nodes.size(); ++i) {
+            const MapNode* a = map.node(w.nodes[i]); const MapNode* b = map.node(w.nodes[i + 1]);
+            if (!a || !b) continue;
+            const int n = std::max({std::abs(b->x - a->x), std::abs(b->z - a->z), 1});
+            for (int t = 0; t <= n; ++t) {
+                const int cx = a->x + static_cast<int>(std::lround(static_cast<float>(b->x - a->x) * t / n));
+                const int cz = a->z + static_cast<int>(std::lround(static_cast<float>(b->z - a->z) * t / n));
+                for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) mark(cx + dx, cz + dz, -2);
+            }
+        }
+    }
+    for (const auto& a : map.areas)
+        for (int z = a.rect.z; z < a.rect.z1(); ++z) for (int x = a.rect.x; x < a.rect.x1(); ++x) mark(x, z, -2);
+    if (in.waterAt)
+        for (int z = 0; z < D; ++z) for (int x = 0; x < W; ++x) if (in.waterAt(x, z)) mark(x, z, -2);
+
+    struct Cand { int lot = -1; int ax = 0, az = 0; int ux = 0, uz = 0; int bx = 0, bz = 0; int start = 0, width = 0, depth = 0, grown = 0; };
+    std::vector<Cand> cands;
+    for (const auto& l : map.lots) {
+        if (!in.tier->hasCroft(l.typology)) continue;
+        const Rect p = l.parcelRect();
+        Cand c; c.lot = l.id;
+        int cols = 0;
+        switch (((l.orientation % 4) + 4) % 4) {   // a = the first cell behind the back edge, u = along it, b = back
+            case 0: c.ax = p.x; c.az = p.z - 1; c.ux = 1; c.bz = -1; cols = p.w; break;
+            case 2: c.ax = p.x; c.az = p.z1(); c.ux = 1; c.bz = 1; cols = p.w; break;
+            case 1: c.ax = p.x - 1; c.az = p.z; c.uz = 1; c.bx = -1; cols = p.d; break;
+            default: c.ax = p.x1(); c.az = p.z; c.uz = 1; c.bx = 1; cols = p.d; break;
+        }
+        std::vector<int> reach(static_cast<size_t>(cols), 0);
+        for (int i = 0; i < cols; ++i) {
+            int k = 0;
+            for (;; ++k) {
+                const int x = c.ax + c.ux * i + c.bx * k, z = c.az + c.uz * i + c.bz * k;
+                if (x < 0 || z < 0 || x >= W || z >= D) break;
+                const int t = taken[idx(x, z)];
+                if (t == -1) continue;
+                if (t == l.id && !l.inParcel(x, z)) continue;   // its own toft's rows the parcel gave up
+                break;
+            }
+            reach[static_cast<size_t>(i)] = k;
+        }
+        long best = 0;
+        for (int a = 0; a < cols; ++a) {
+            int least = INT_MAX;
+            for (int b = a; b < cols; ++b) {
+                least = std::min(least, reach[static_cast<size_t>(b)]);
+                if (least < 2) break;
+                const int wdt = b - a + 1;
+                const long area = static_cast<long>(wdt) * least;
+                if (wdt >= 2 && area > best) { best = area; c.start = a; c.width = wdt; c.depth = least; }
+            }
+        }
+        if (best > 0) cands.push_back(c);
+    }
+    std::vector<uint8_t> claimed(static_cast<size_t>(W) * D, 0);
+    for (bool any = true; any;) {
+        any = false;
+        for (auto& c : cands) {
+            if (c.grown >= c.depth) continue;
+            bool freeRow = true;
+            for (int i = 0; i < c.width && freeRow; ++i) {
+                const int x = c.ax + c.ux * (c.start + i) + c.bx * c.grown, z = c.az + c.uz * (c.start + i) + c.bz * c.grown;
+                if (claimed[idx(x, z)]) freeRow = false;
+            }
+            if (!freeRow) { c.depth = c.grown; continue; }   // met another croft: it stops here
+            for (int i = 0; i < c.width; ++i)
+                claimed[idx(c.ax + c.ux * (c.start + i) + c.bx * c.grown, c.az + c.uz * (c.start + i) + c.bz * c.grown)] = 1;
+            ++c.grown; any = true;
+        }
+    }
+    for (const auto& c : cands) {
+        if (c.grown < 2) continue;   // (its claimed row, if any, stays unowned - counted by nobody; stated)
+        const int x0 = c.ax + c.ux * c.start, z0 = c.az + c.uz * c.start;
+        const int x1 = x0 + c.ux * (c.width - 1) + c.bx * (c.grown - 1), z1 = z0 + c.uz * (c.width - 1) + c.bz * (c.grown - 1);
+        MapArea a; a.id = static_cast<int>(map.areas.size()); a.landuse = "croft"; a.lot = c.lot;
+        a.rect = Rect{std::min(x0, x1), std::min(z0, z1), std::abs(x1 - x0) + 1, std::abs(z1 - z0) + 1};
+        map.areas.push_back(a);
+    }
+}
+
 SettlementMap planSettlementMapAsBuilt(const SettlementMapInput& in) {
     SettlementMap map;
     map.era = in.era; map.seed = in.seed; map.originX = in.originX; map.originY = in.originY; map.originZ = in.originZ;
@@ -854,6 +954,8 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
             }
         }
     }
+    // M5c-2: the crofts, from the finished map (they take only what the lots, the ways and the water left)
+    if (in.crofts) planCrofts(map, in2);
     map.bakeMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
     return map;
 }

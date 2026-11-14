@@ -88,7 +88,11 @@ nlohmann::json SettlementMap::toJson() const {
     }
     j["lots"] = ls;
     nlohmann::json as = nlohmann::json::array();
-    for (const auto& a : areas) as.push_back({{"id", a.id}, {"landuse", a.landuse}, {"rect", a.rect.toJson()}});
+    for (const auto& a : areas) {
+        nlohmann::json aj = {{"id", a.id}, {"landuse", a.landuse}, {"rect", a.rect.toJson()}};
+        if (a.lot >= 0) aj["lot"] = a.lot;   // M5c-2: a croft's lot
+        as.push_back(std::move(aj));
+    }
     j["areas"] = as;
     return j;
 }
@@ -154,6 +158,7 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
             MapArea ma;
             ma.id = a.value("id", 0); ma.landuse = a.value("landuse", std::string());
             if (a.contains("rect")) ma.rect = Rect::fromJson(a["rect"]);
+            ma.lot = a.value("lot", -1);
             m.areas.push_back(std::move(ma));
         }
     return m;

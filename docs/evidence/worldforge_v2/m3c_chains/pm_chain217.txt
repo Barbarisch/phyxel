@@ -1,0 +1,106 @@
+M5c-2 (the crofts; D56-D58 PROPOSED, not ruled) - predictions, each written BEFORE its run. Tree at the start: 500c6bec.
+Results below each prediction, misses recorded.
+
+PM5c2.1  chain 217 (written 2026-11-14 16:52; filter SettlementMapTest.*; the RED patch 50a: the program's croft typologies
+  parsed [hamlet, village: croft / longhouse / hall_house; town, city: none], MapArea::lot with its JSON,
+  SettlementMapInput::crofts declared - and the PLANNER UNTOUCHED: it plans no croft). 25 tests (22 + 3 new):
+    23 ok / 2 failed.
+    (a) PeasantToftsCarryACroft - red on "no croft behind any peasant toft" on all four arms (hamlet / village x
+        flat / 20 % Z); eligible > 0 on each.
+    (b) CroftsAreDisjointAndInsideTheSite - red on "no croft on any rig: every check above is vacuous".
+    (d) ATownCarriesNoCroft - GREEN (a pin, green before the feature, stated in the test).
+  The 22 existing tests unchanged.
+
+RESULT chain 217 (written 2026-11-14 16:56; RUN EXIT 1 16:56:15; exe 16:53:18): 23 ok / 2 failed - as predicted. (a) red on all four
+  arms (hamlet 4 eligible of 4, village 6 of 9 flat and 6 of 10 on the plane; 0 crofts); (b) red as vacuous (0 crofts
+  on 12 rigs; town / city 0 eligible); (d) green, the pin.
+PM5c2.2  chain 218 (written 2026-11-14 16:56; same filter; patch 50b: planCrofts at the end of planSettlementMap): 25 ok / 0 failed.
+  Guesses (REASONED, never run): village flat 3-6 crofts of 6 eligible (a toft that ends on the site edge or backs
+  onto another toft gets none); hamlet 2-4 of 4; every soundness counter 0; the lots unchanged by the crofts; the
+  control (crofts = false) plans none; the two plans byte-identical. Cells per croft: bounded by the 80 x 48 and
+  40 x 32 sites - I expect depths of 2-20. "toft rows the parcel gave up" owned by a croft: > 0 on the 20 % Z plane
+  for the village (its parcels lose rows there), 0 on the flat.
+  RISK named: an older test that pins the map's JSON or its areas (the village has had none until now).
+
+RESULT chain 218 (written 2026-11-14 17:00; RUN EXIT 0 16:59:45; exe 16:56:46; planner ffc63fd75faf9ab5): 25 ok / 0 failed - as
+  predicted. Every soundness counter 0 on 16 arms; the control plans none; two plans byte-identical.
+  Village flat 6 crofts of 6 eligible, 896 cells (20x9 10x9 18x9 18x8 20x8 20x8) - inside my guess. On the 20 % Z
+  plane 6 of 6, 882 cells, 55 of them toft rows the parcels gave up (as guessed: > 0 there, 0 on the flat).
+  MISS: the hamlet has 1 croft of 4 eligible on the flat and on the Z plane (guessed 2-4); 2 of 3 / 2 of 4 / 2 of 3
+  on the other rigs. Not looked into yet - the cluster's paths ring the lots (REASONED, not measured).
+  SEEN, not predicted: SLIVERS. The 2 x 2 minimum admits crofts of 5x2, 25x2, 2x4, 6x2, 18x2 (five of the 36
+  printed). A two-cell strip behind a house is not a croft anyone would fence. The minimum is a design number
+  I have no source for; recorded as a finding, the rule is NOT changed after this run.
+PM5c2.3  chain 219 (written 2026-11-14 17:00; the m5b2 unit set, ~10 min): 171 ok / 0 failed (168 + the 3 new map tests).
+  RISK: a suite outside SettlementMapTest that pins the village / hamlet map JSON or the program's tier fields
+  (SettlementProgramTest's provenance gate - the new "crofts" key has its source note).
+
+RESULT chain 219 (written 2026-11-14 17:10; EXIT 0 17:09:48): the unit set 171 ok / 0 failed - as predicted.
+PM5c2.4  chain 220 (written 2026-11-14 17:10; filter: the two build-twice village tests, ~35-40 min, Debug; patch 50c: the realizer
+  clears the crofts with the parcels, fences them on three sides, records them; request key "crofts"; the NEW test
+  TheVillageClearsAndFencesItsCrofts; and the M5b-2 A/B test now sets "crofts": false in BOTH arms - a test
+  changed BEFORE this run, because a croft owns and fences the rows its parcel gave up, so that test's
+  "0 fence micros in the given-up cells" would read the croft's side fences). NOT red-before-green for the
+  realizer: the test did not exist while the realizer ignored crofts; its control arm is its in-test negative.
+  Predicted: 2 ok / 0 failed.
+  - the M5b-2 test: chain 210's numbers exactly (6 / 92 / 0 vs 3998 / 3762 vs 2848 / 2870 vs 3298; gates 34 / 0).
+  - the croft test, live village (11 lots; eligible by typology: lots 0, 1, 2, 4, 5, 6, 7): from the free ground
+    measured on run 21's map I expect crofts on lots 0, 1, 2, 4, 6 (5 crofts; lots 5 and 7 end on the site edge) -
+    guess 4-6. Every croft carries outer-side fence micros (> 0 each); the shared side 0; flora inside 0 with
+    crofts, > 0 in the control (the site is forested - seen in run 21's screenshots, not counted); ground tops in
+    the far cells identical in both arms, and there ARE far cells (lot 1's croft should be ~29 deep); gates 34 / 0
+    in both, blocked equal.
+  RISKS named: the fence material here is Log, the trees' trunks too - the control's "fence" count on outer cells
+    may be > 0 (the assertion is control < crofts, not 0); a croft on steep ground could lose every fence cell to
+    the 2-cube step skip; the lambda's capture of the site map may not compile as written.
+
+RESULT chain 220 (written 2026-11-14 17:47; RUN EXIT 1 17:46:47; exe 17:10:31; realizer 461e061c6ec47e57): 1 ok / 1 failed - PM5c2.4
+  MISSED (predicted 2 / 0).
+  The M5b-2 test (crofts off in both arms): ok, chain 210's numbers (6 / 92 / 0 vs 3998 / 2870 vs 3298; gates 0 blocked).
+  The croft test failed on ONE assertion: "the control has flora where the crofts are" - 0 flora voxels in 1279
+  interior cells of the control. MY error, and one I had already written down twice (the M5b-2 closure: "the A/B rig
+  has no flora"; this design check: "clearing is measured on the live arms only") and then asserted against.
+  Everything else as predicted: 6 crofts planned over 1627 cells (guess 4-6; lots 0, 1, 2, 4, 6 as expected, plus
+  lot 7 - a 10 x 2 croft made ONLY of the two rows its own parcel gave up, the toft ends on the site edge: a
+  sliver, see chain 218); outer-side fence micros 3716 / 3488 / 1718 / 962 / 1742 / 518 = 12144 on 6 of 6 crofts
+  against 0 in the control; shared side 0; ground tops in 1014 far croft cells: 0 differ; both gates passed, 0
+  blocked; the record's crofts 6 = the map's, the control's 0.
+PM5c2.5  chain 221 (written 2026-11-14 17:47; the croft test alone, ~18 min; patch 50d: the clearing unit counts what the crofts'
+  own pass removes [record croft_cleared_cells / _columns, a log line]; the test's flora assertion on the control is
+  REMOVED AFTER a run - stated - and replaced by: if the scan sees no flora in the control, the engine's croft
+  clearing must have removed 0 cells): 1 ok / 0 failed, croft_cleared_cells 0, the other numbers of chain 220
+  again. If croft_cleared_cells is > 0 the scan is blind to flora and the "0 flora inside" line means nothing.
+  CLEARING stays UNMEASURED until the live run (the Release site is forested).
+
+RESULT chain 221 (written 2026-11-14 18:07; RUN EXIT 1 18:06:39; exe 17:48:01): 0 ok / 1 failed - PM5c2.5 MISSED (predicted 1 / 0,
+  croft_cleared_cells 0). The discriminator I wrote fired: the engine reports 21552 cells cleared over 1796 croft
+  columns where the scan sees no flora. 21552 / 1796 = 12.0 exactly, and the parcels' 79620 / 6635 = 12.0 too:
+  ChunkVoxelManager::clearCellsBulk returns the number of cells it was HANDED (read: ++cleared per in-range cell),
+  not the cells that held anything, and the unit hands it g+1 .. max(top, g+12) = 12 cells a column on bare ground.
+  So my new count measured nothing (a success count, not an outcome - the lesson already in memory), and the long-
+  standing "parcel clearing: N cells" log line has never been a count of removed flora either. The scan is NOT
+  shown blind; the rig is still read as flora-free. Other numbers as chain 220.
+PM5c2.6  chain 222 (written 2026-11-14 18:07; the croft test alone; patch 50e: the crofts' pass counts the OCCUPIED cells before
+  it clears them [cube, subcube or any microcube in the cell]; record croft_cleared_cells = that count,
+  croft_swept_cells = the handed count): 1 ok / 0 failed; croft_cleared_cells 0 on this rig, croft_swept_cells
+  21552; the other numbers of chain 220. If the occupied count is > 0 here, there IS something in those cells that
+  my scan does not call flora - then I look at what it is before anything else.
+
+RESULT chain 222 (written 2026-11-14 18:26; RUN EXIT 0 18:26:09; exe 18:07:35): 1 ok / 0 failed - as predicted. croft_cleared_cells 0,
+  croft_swept_cells 21552 over 1796 columns; 6 crofts, 12144 outer-side fence micros on 6 of 6 against 0; shared
+  side 0; 0 of 1014 far ground tops differ; both gates passed, 0 blocked. Clearing: NOT measured (no flora here).
+PM5c2.7  the closure set on this tree (written 2026-11-14 18:26; one background job, about 5.5 h):
+  chain 223  SettlementMapLiveSiteTest.* + StructureRealizerTest.* (31 tests, ~100 min): 31 ok / 0 failed.
+    Crofts are now ON by default on the hamlet and village arms. Predicted unchanged: village 0 differ / 10 imposed /
+    34-0; town 1 differs / 23 imposed / 72-0 (no croft there). RISK named in the design check: the hamlet's door
+    spurs and paths are planned from realized doors AFTER the map and may cross a croft's fence - if the hamlet's
+    gate count drops, that is this increment's defect, not a flake.
+  chain 224  the unit set: 171 ok / 0 failed.   chain 225  the paver set: 42 ok / 0 failed.
+  Release build 22: 0 errors.
+  L4 run 22 (tag m5c2_a; worldforge_build, Release): 3 of 3 built; gates 72 / 0, 34 / 0, 40 / 0; imposed 23 / 10 / 9;
+    crofts: town 0; village 1 6 over 1627 cells (the Debug rig's map); village 2 - guess 3-8 (never planned);
+    croft clearing on village 1: occupied cells removed > 0 (the Release site is forested - this is the FIRST
+    measurement of what a croft's clearing removes); crofts fenced = crofts planned on both villages; the legacy
+    control refused 20 / 1 with no croft line. Bake: printed against run 21's 179 / 80 / 136 ms; planCrofts is one
+    pass over the site grid - I expect within +10 % (one sample each, noise not separated).
+  chain 226  terrain: 108 ok / 1 failed (the O4 lip).   chain 227  broad regression: 142 ok / 1 failed of 143 (the hairpin).

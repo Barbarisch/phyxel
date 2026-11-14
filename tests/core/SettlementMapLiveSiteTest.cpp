@@ -1303,6 +1303,7 @@ TEST(SettlementMapLiveSiteTest, TheVillageFencesAndTerracesItsParcelsNotItsTofts
         LiveSiteRig rig;
         ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
         nlohmann::json ov = nlohmann::json::object();
+        ov["crofts"] = false;   // M5c-2: one variable - a croft owns the rows its parcel gave up and fences them (stated in pm_chain217.txt)
         if (a == 1) ov["parcel_slope_weight"] = 0.0f;
         arms[a].out = realize(rig, /*legacyLayout=*/false, ov);
         ASSERT_FALSE(arms[a].out.contains("plan_error")) << arms[a].out.dump();
@@ -1366,4 +1367,112 @@ TEST(SettlementMapLiveSiteTest, TheVillageFencesAndTerracesItsParcelsNotItsTofts
     // two side fences only)
     EXPECT_GT(arms[0].backFence, arms[1].backFence) << "no back fence on the parcels' new back rows";
     EXPECT_LT(arms[0].cutFill, arms[1].cutFill) << "the terraces over the parcels move no less ground than over the tofts";
+}
+
+// M5c-2 (e), L2 on the REAL voxels: the village built from its map with its crofts against the SAME village with
+// {"crofts": false}. Measured in the cells of the crofts the first build's map states: flora voxels standing above the
+// ground (cleared against standing), fence micros on the three outer sides (standing against none) and on the side
+// shared with the toft (none in either), the ground's top away from every toft and way (the same in both: a croft is
+// not graded), both gates.
+TEST(SettlementMapLiveSiteTest, TheVillageClearsAndFencesItsCrofts) {
+    struct Croft { int lot; Core::Rect r; char open; };
+    struct Arm { nlohmann::json out; long flora = 0, outerFence = 0, sharedFence = 0; int croftsWithOuterFence = 0, floraCells = 0; std::vector<int> tops; };
+    std::vector<Croft> crofts;
+    std::vector<std::pair<int, int>> farCells;   // croft cells more than 5 cells from every toft and 8 from every way node: world x, z
+    Arm arms[2];
+    int ox = 0, oz = 0;
+    for (int a = 0; a < 2; ++a) {
+        LiveSiteRig rig;
+        ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
+        nlohmann::json ov = nlohmann::json::object();
+        if (a == 1) ov["crofts"] = false;
+        arms[a].out = realize(rig, /*legacyLayout=*/false, ov);
+        ASSERT_FALSE(arms[a].out.contains("plan_error")) << arms[a].out.dump();
+        const Core::SettlementMap m = Core::SettlementMap::fromJson(arms[a].out["map"]);
+        if (a == 0) {
+            ox = m.originX; oz = m.originZ;
+            for (const auto& ar : m.areas) {
+                if (ar.landuse != "croft") continue;
+                char open = '?';
+                for (const auto& l : m.lots) if (l.id == ar.lot) open = Core::SettlementMap::sideChar(l.orientation);
+                crofts.push_back({ar.lot, ar.rect, open});
+                for (int x = ar.rect.x; x < ar.rect.x1(); ++x) for (int z = ar.rect.z; z < ar.rect.z1(); ++z) {
+                    bool nearSomething = false;
+                    for (const auto& l : m.lots)
+                        if (x >= l.rect.x - 5 && x < l.rect.x1() + 5 && z >= l.rect.z - 5 && z < l.rect.z1() + 5) { nearSomething = true; break; }
+                    for (const auto& n : m.nodes) if (std::abs(n.x - x) <= 8 && std::abs(n.z - z) <= 8) { nearSomething = true; break; }
+                    if (!nearSomething) farCells.push_back({ox + x, oz + z});
+                }
+            }
+        } else {
+            int croftsInControl = 0;
+            for (const auto& ar : m.areas) if (ar.landuse == "croft") ++croftsInControl;
+            EXPECT_EQ(croftsInControl, 0) << "the control's map carries a croft";
+        }
+        const std::string fenceMat = arms[a].out.value("fence_material", std::string());
+        ASSERT_FALSE(fenceMat.empty());
+        const int oy = static_cast<int>(rig.site->surfaceY);
+        const auto isFlora = [](const std::string& mat) { return mat.rfind("Log", 0) == 0 || mat.rfind("Leaf", 0) == 0; };
+        const auto scan = [&](int wx, int wz, long& fence, long& flora) {
+            const int top = settlementTopScan(&rig.cm, oy, wx, wz, /*floraBlind=*/true);
+            for (int y = top - 1; y <= top + 14; ++y) {
+                const glm::ivec3 wp(wx, y, wz);
+                Chunk* ch = rig.cm.getChunkAtFast(wp);
+                if (!ch) continue;
+                const glm::ivec3 lp = wp - ch->getWorldOrigin();
+                if (const Cube* c = ch->getCubeAt(lp)) if (isFlora(c->getMaterialName())) ++flora;
+                for (const Subcube* sc : ch->getSubcubesAt(lp)) if (sc && isFlora(sc->getMaterialName())) ++flora;
+                for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) for (int k = 0; k < 3; ++k)
+                    for (const Microcube* mc : ch->getMicrocubesAt(lp, glm::ivec3(i, j, k))) {
+                        if (!mc) continue;
+                        if (y <= top + 3 && mc->getMaterialName() == fenceMat) ++fence;
+                        else if (isFlora(mc->getMaterialName())) ++flora;   // (a Log picket above top + 3 would count as flora: the fence is 8 micro tall)
+                    }
+            }
+        };
+        for (const Croft& c : crofts) {
+            long outer = 0, shared = 0, flora = 0;
+            for (int x = c.r.x; x < c.r.x1(); ++x) for (int z = c.r.z; z < c.r.z1(); ++z) {
+                const bool w = x == c.r.x, e = x == c.r.x1() - 1, s2 = z == c.r.z, n = z == c.r.z1() - 1;
+                const bool onShared = (c.open == 'W' && w) || (c.open == 'E' && e) || (c.open == 'S' && s2) || (c.open == 'N' && n);
+                const bool onOuter = (w && c.open != 'W') || (e && c.open != 'E') || (s2 && c.open != 'S') || (n && c.open != 'N');
+                long fence = 0, fl = 0;
+                scan(ox + x, oz + z, fence, fl);
+                if (onOuter) outer += fence; else if (onShared) shared += fence;
+                if (!onOuter && !onShared) { flora += fl; ++arms[a].floraCells; }   // the interior: a fence of Log would read as flora on the edge
+            }
+            arms[a].outerFence += outer; arms[a].sharedFence += shared; arms[a].flora += flora;
+            if (outer > 0) ++arms[a].croftsWithOuterFence;
+            std::printf("[ M5c-2 ]   %s: croft of lot %d [%d,%d %dx%d] open side %c - %ld fence micros on its outer sides, %ld on the shared side's interior cells, %ld flora voxels inside%s",
+                        a == 0 ? "crofts" : "control", c.lot, c.r.x, c.r.z, c.r.w, c.r.d, c.open, outer, shared, flora, "\n");
+        }
+        for (const auto& fc : farCells) arms[a].tops.push_back(settlementTopScan(&rig.cm, oy, fc.first, fc.second, /*floraBlind=*/true));
+        std::printf("[ M5c-2 ] village %s: %zu crofts sampled; outer-side fence micros %ld on %d crofts, shared-side %ld, flora voxels in %d interior cells %ld; record %s; fence record crofts_fenced %d, "
+                    "emitted %ld; gate %s (%d blocked)%s", a == 0 ? "CROFTS" : "CONTROL", crofts.size(), arms[a].outerFence, arms[a].croftsWithOuterFence, arms[a].sharedFence, arms[a].floraCells,
+                    arms[a].flora, arms[a].out["terrace"].dump().c_str(), arms[a].out["paths"].value("crofts_fenced", -1), arms[a].out["paths"].value("croft_fence_micros_emitted", -1L),
+                    arms[a].out.value("gate", std::string("?")).c_str(), arms[a].out.value("blocked", 0), "\n");
+        EXPECT_EQ(arms[a].out.value("gate", std::string()), "passed") << (a == 0 ? "crofts" : "control");
+    }
+    ASSERT_GT(crofts.size(), 0u) << "the live village plans no croft";
+    EXPECT_EQ(arms[0].out["terrace"].value("crofts", -1), static_cast<int>(crofts.size())) << "the build record is not the map";
+    EXPECT_EQ(arms[1].out["terrace"].value("crofts", -1), 0);
+    EXPECT_EQ(arms[0].croftsWithOuterFence, static_cast<int>(crofts.size())) << "a croft stands unfenced";
+    // the control's count is printed, not pinned to 0: the fence material is the tier's (Log on this site) and a tree trunk
+    // of the same material standing on an outer-side cell reads as fence there (a confound of the measure, stated)
+    EXPECT_LT(arms[1].outerFence, arms[0].outerFence) << "the control carries as much fence material on the crofts' outer sides as the croft build";
+    EXPECT_EQ(arms[0].sharedFence, 0) << "a croft is fenced off from its own toft";
+    EXPECT_EQ(arms[0].flora, 0) << "flora stands inside a croft";
+    // chain 220: this rig carries NO flora (0 flora voxels in 1279 interior cells of the CONTROL), so the line above is
+    // vacuous here and the assertion "the control has flora there" was REMOVED after that run (stated in
+    // pm_chain217.txt). What a croft's clearing removes is the realizer's own count, read on the live run; here it
+    // must be 0 - if it is not, the scan above misses flora that the engine found.
+    std::printf("[ M5c-2 ] flora in the crofts' interior cells of the control: %ld (0 = the rig has none: clearing is NOT measured by this test); the realizer's croft clearing removed %ld cells\n",
+                arms[1].flora, arms[0].out["terrace"].value("croft_cleared_cells", -1L));
+    if (arms[1].flora == 0) EXPECT_EQ(arms[0].out["terrace"].value("croft_cleared_cells", -1L), 0L) << "the engine cleared cells where this test's scan sees no flora";
+    int topsDiffer = 0;
+    for (size_t i = 0; i < farCells.size(); ++i) if (arms[0].tops[i] != arms[1].tops[i]) ++topsDiffer;
+    std::printf("[ M5c-2 ] ground tops in %zu croft cells away from every toft and way: %d differ between the arms%s", farCells.size(), topsDiffer, "\n");
+    EXPECT_GT(farCells.size(), 0u) << "no croft cell lies away from every toft and way - the ground comparison is vacuous";
+    EXPECT_EQ(topsDiffer, 0) << "a croft's ground was moved";
+    EXPECT_EQ(arms[0].out.value("blocked", -1), arms[1].out.value("blocked", -1));
 }

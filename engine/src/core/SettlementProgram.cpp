@@ -115,6 +115,8 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         for (auto it = rec["typology_caps"].begin(); it != rec["typology_caps"].end(); ++it)
             if (it.value().is_number()) t.typologyCaps[it.key()] = it.value().get<int>();
     t.coreRing = rec.value("core_ring", 0);
+    if (rec.contains("crofts") && rec["crofts"].is_object() && rec["crofts"].contains("typologies") && rec["crofts"]["typologies"].is_array())   // M5c-2
+        for (const auto& ct : rec["crofts"]["typologies"]) if (ct.is_string()) t.croftTypologies.push_back(ct.get<std::string>());
     if (rec.contains("blocks") && rec["blocks"].is_object()) {
         t.blocksMin = rec["blocks"].value("min", t.blocksMin);
         t.blocksMax = rec["blocks"].value("max", t.blocksMax);

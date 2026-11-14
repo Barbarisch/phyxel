@@ -97,8 +97,9 @@ ParcelTerrace planParcelTerrace(const Rect& parcel, int skirt, const std::functi
 
 struct MapArea {
     int id = 0;
-    std::string landuse;   ///< "market" | "square" | "farmland" | "graveyard"
+    std::string landuse;   ///< "market" | "square" | "farmland" | "graveyard" | "croft" (M5c-2)
     Rect rect;
+    int lot = -1;          ///< M5c-2: the lot a croft belongs to (-1 = none)
 };
 
 struct SettlementMap {

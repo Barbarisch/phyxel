@@ -103,6 +103,14 @@ struct SettlementTierPreset {
     /// A capped typology's draw redraws; absent from the map = uncapped. Empty = legacy.
     std::map<std::string, int> typologyCaps;
     int coreRing = 0;      ///< core-ring radius (cubes) around the square centre; 0 = unused
+
+    /// M5c-2 (D57 PROPOSED): the typologies whose lot carries a CROFT behind it (`crofts.typologies`). Empty = the
+    /// tier plans none (town, city: the burgage's garden tail is the plot itself).
+    std::vector<std::string> croftTypologies;
+    bool hasCroft(const std::string& typology) const {
+        for (const auto& t : croftTypologies) if (t == typology) return true;
+        return false;
+    }
     int blocksMin = 18;    ///< secondary-street spacing range (cubes) — the jittered city blocks
     int blocksMax = 30;
 
