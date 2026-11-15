@@ -70,6 +70,26 @@ public:
     bool upload(const std::vector<Cluster>& clusters, uint32_t indexCount, uint32_t chunkCount, VkQueue queue,
                 uint32_t queueFamily, std::string* err, const Compact* compact = nullptr);
     bool canCompact() const { return m_compact; }
+    /// F2.17 (§4.6 item 10): rewrites clusters [first, first + n) IN PLACE, recorded into cmd: their cluster words,
+    /// first faces, origin words (with a Compact table; null = keep) and every slot's per-cluster command words. The
+    /// table keeps its size and solid split. Copies come from frame slot `slot`'s staging (the caller's frame: its
+    /// previous use has completed), between a barrier after earlier frames' reads and one before this frame's cull and
+    /// draws -- queue order does the rest, no device wait. A count-0 cluster is an empty slot (never drawn).
+    bool recordUpdate(VkCommandBuffer cmd, uint32_t slot, uint32_t first, const std::vector<Cluster>& clusters,
+                      const std::vector<glm::ivec4>* origins, std::string* err);
+    /// Starts frame slot `slot`'s updates: call once per frame, before its recordUpdate calls (the slot's previous
+    /// frame has completed, so its staging -- and any staging retired while it grew -- may be reused / released).
+    void beginUpdates(uint32_t slot);
+    struct UpdateBlock {
+        uint32_t first = 0;
+        std::vector<Cluster> clusters;
+        std::vector<glm::ivec4> origins;   // empty = keep
+    };
+    /// beginUpdates + recordUpdate per block on ONE command buffer, then waits (tests).
+    bool updateNow(VkQueue queue, uint32_t queueFamily, uint32_t slot, const std::vector<UpdateBlock>& blocks,
+                   std::string* err);
+    bool updateNow(VkQueue queue, uint32_t queueFamily, uint32_t slot, uint32_t first,
+                   const std::vector<Cluster>& clusters, const std::vector<glm::ivec4>* origins, std::string* err);
     /// The per-chunk decision for frame `slot` (1 = visible), size = chunkCount.
     void setChunkVisible(uint32_t slot, const std::vector<uint32_t>& visible);
     /// Records the cull dispatch for frame `slot` and a barrier to the indirect + vertex stages.
@@ -122,6 +142,15 @@ private:
     Buffer m_firsts, m_origIn;   // F2.15f: per cluster, its first face and origin word (placeholders without Compact)
     std::vector<Buffer> m_commands, m_masks;   // one per frame slot
     std::vector<Buffer> m_origOut, m_counts, m_ccmds, m_groups;   // F2.15f: one per frame slot
+    // F2.17: recordUpdate staging, one per frame slot. Calls in one frame APPEND (cursor); a full buffer is replaced
+    // by a bigger one and the old one RETIRED -- copies already recorded this frame still read it -- until the slot's
+    // next beginUpdates (its frame has completed by then).
+    struct Stage {
+        Buffer cur;
+        VkDeviceSize used = 0;
+        std::vector<Buffer> retired;
+    };
+    std::vector<Stage> m_stage;
 };
 
 }  // namespace Phyxel::Core::VoxFound

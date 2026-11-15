@@ -1,0 +1,22 @@
+per-scope medians, B (pool, device-local) - A (host-visible), ms; only |delta| >= 0.1
+  overview_south     Shadow Pass                              A   4.683  B   2.525  -2.158
+  overview_south     Shadow Pass/Shadow Mid                   A   3.432  B   2.006  -1.426
+  overview_south     Shadow Pass/Shadow Near                  A   1.282  B   0.501  -0.782
+  overview_south     Scene Pass                               A   1.815  B   1.573  -0.242
+  overview_south     Scene Pass/VoxFound Preview              A   0.492  B   0.243  -0.249
+  top_down           Shadow Pass                              A   5.673  B   2.748  -2.926
+  top_down           Shadow Pass/Shadow Mid                   A   3.585  B   2.014  -1.571
+  top_down           Shadow Pass/Shadow Near                  A   2.064  B   0.713  -1.351
+  forest_floor_open  Shadow Pass                              A   6.703  B   3.463  -3.240
+  forest_floor_open  Shadow Pass/Shadow Mid                   A   4.407  B   2.555  -1.852
+  forest_floor_open  Shadow Pass/Shadow Near                  A   2.121  B   0.903  -1.218
+  forest_floor_open  Scene Pass/VoxFound Sprigs               A  17.803  B  18.003  +0.200
+  east_low           Shadow Pass                              A   6.856  B   3.274  -3.582
+  east_low           Shadow Pass/Shadow Mid                   A   4.569  B   2.548  -2.021
+  east_low           Shadow Pass/Shadow Near                  A   2.196  B   0.720  -1.476
+  east_low           Scene Pass                               A  32.785  B  32.354  -0.431
+  east_low           Scene Pass/VoxFound Preview              A   2.726  B   1.975  -0.751
+  canopy_close       Shadow Pass                              A   6.276  B   2.740  -3.536
+  canopy_close       Shadow Pass/Shadow Mid                   A   4.109  B   2.011  -2.099
+  canopy_close       Shadow Pass/Shadow Near                  A   2.093  B   0.715  -1.378
+  canopy_close       Scene Pass/VoxFound Preview              A   3.386  B   3.660  +0.274

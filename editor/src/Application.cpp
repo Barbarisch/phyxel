@@ -13384,6 +13384,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             renderCoordinator->setVoxFoundShadowCull(cmd.params.value("shadow_cull", true));
         if (cmd.params.contains("shadow_mdi"))
             renderCoordinator->setVoxFoundShadowMdi(cmd.params.value("shadow_mdi", true));
+        // {"face_pool":bool}: F2.17 (§4.6 item 10) device-local face pool, edits copy only their spans (default on)
+        if (cmd.params.contains("face_pool")) renderCoordinator->setVoxFoundFacePool(cmd.params.value("face_pool", true));
         // {"lod_auto":bool, "lod_px":P}: F2.14 the main view picks each fragment's level by size on screen, P pixels per
         // voxel (the tier knob, default 1); off = level 0 everywhere. Needs {"lod_levels":n} at build time.
         // {"lod_casters":bool}: F2.14 with lod_auto, the face shadow casters draw the levels too (each caster fragment
@@ -13503,7 +13505,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         }
         if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview") || cmd.params.contains("chunk_cull") ||
             cmd.params.contains("occlusion") || cmd.params.contains("mdi") || cmd.params.contains("shadow_cull") ||
-            cmd.params.contains("shadow_mdi")) {
+            cmd.params.contains("shadow_mdi") || cmd.params.contains("face_pool")) {
             if (cmd.params.contains("hide_world")) renderCoordinator->setHideWorld(cmd.params.value("hide_world", false));
             if (cmd.params.contains("show_preview")) voxFoundPreview.shown = cmd.params.value("show_preview", true);
             if (cmd.params.contains("chunk_cull")) renderCoordinator->setVoxFoundChunkCull(cmd.params.value("chunk_cull", true));
@@ -13513,7 +13515,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                             {"occlusion", renderCoordinator->voxFoundOcclusion()},
                             {"mdi", renderCoordinator->voxFoundMdi()},
                             {"shadow_cull", renderCoordinator->voxFoundShadowCull()},
-                            {"shadow_mdi", renderCoordinator->voxFoundShadowMdi()}};
+                            {"shadow_mdi", renderCoordinator->voxFoundShadowMdi()},
+                            {"face_pool", renderCoordinator->voxFoundFacePool()}};
                 return;
             }
         }
@@ -13533,6 +13536,19 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"mdi_compact", voxFoundPreview.mdiCompact},   // F2.15f: clusters_drawn = appended commands
                         {"upload_ms_last", {renderCoordinator->voxFoundUploadMs()[0], renderCoordinator->voxFoundUploadMs()[1],
                                             renderCoordinator->voxFoundUploadMs()[2]}},   // F2.16: faces, sprigs, clusters
+                        {"face_pool", [&] {   // F2.17
+                             const auto ps = renderCoordinator->voxFoundPoolStats();
+                             return nlohmann::json{{"on", renderCoordinator->voxFoundFacePool()},
+                                                   {"device_local", ps.deviceLocal},
+                                                   {"uploads_partial", ps.partial}, {"uploads_full", ps.full},
+                                                   {"last_kind", ps.lastKind == 2 ? "partial" : ps.lastKind == 1 ? "full" : "none"},
+                                                   {"last_face_bytes", ps.lastFaceBytes},
+                                                   {"last_cluster_slots", ps.lastClusterSlots},
+                                                   {"last_record_ms", ps.lastMs},
+                                                   {"live_faces", voxFoundPreview.liveFaces()},
+                                                   {"image_faces", voxFoundPreview.faces.size()},
+                                                   {"pooled", voxFoundPreview.pooled}};
+                         }()},
                         {"cluster_faces_drawn", renderCoordinator->voxFoundCullStats()[2]},
                         {"faces_by_level", renderCoordinator->voxFoundFacesByLevel()},   // F2.14, last measured
                         {"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel},
@@ -13763,7 +13779,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
             voxFoundEdit.replaceFaces(i, out);
         }
         voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
-        response = {{"replaced_chunks", voxFoundEdit.chunkCount()}, {"faces", voxFoundPreview.faces.size()},
+        response = {{"replaced_chunks", voxFoundEdit.chunkCount()}, {"faces", voxFoundPreview.liveFaces()},
                     {"wall_ms", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count()}};
         return;
     }
@@ -13831,7 +13847,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     if (!ej.value("device", false) && voxFoundBuilder)
         for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
     const auto t1 = std::chrono::steady_clock::now();
-    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &st.rebuilt);   // F2.17: only the rebuilt chunks' spans
     const auto t2 = std::chrono::steady_clock::now();
     auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
     nlohmann::json rebuilt = nlohmann::json::array();
@@ -13848,7 +13864,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
                 {"upload_bytes", st.uploadBytes}, {"resident_misses", st.residentMisses},
                 {"set_ms", st.setMs}, {"faces_ms", st.facesMs}, {"cluster_ms", st.clusterMs},
                 {"sprig_ms", st.sprigMs}, {"connect_ms", st.connectMs}, {"rebuild_ms", ms(t0, t1)},
-                {"assemble_ms", ms(t1, t2)}, {"faces", voxFoundPreview.faces.size()},
+                {"assemble_ms", ms(t1, t2)}, {"faces", voxFoundPreview.liveFaces()},
                 {"sprigs", voxFoundPreview.sprigs.size()}};
     if (ej.value("verify", false) && voxFoundBuilder) {
         // every rebuilt chunk, fully, on the device: the same voxels + border planes through FaceBuilderGpu

@@ -37,6 +37,7 @@
 #include "core/StructureRealizer.h"
 #include "core/StyleProfile.h"
 #include "core/WorldGenerator.h"
+#include "core/voxfound/FacePool.h"
 #include "core/voxfound/Mesher.h"
 #include "core/voxfound/StorageLab.h"
 
@@ -1833,4 +1834,178 @@ TEST(VoxFoundMesher, IncrementalRebuildEqualsAFullRebuild) {
     EXPECT_EQ(edits, 300u);
     std::printf("[incremental] %zu edits: %zu rows meshed of the %zu a full rebuild per edit meshes (%.2f %%)\n", edits,
                 rowsMeshed, rowsFull, 100.0 * double(rowsMeshed) / double(rowsFull));
+}
+
+// F2.17 (§4.6 item 10): the face pool. Synthetic chunks whose face / cluster counts change at random (shrink, grow past
+// the slack, to 0 and back). After every step: each chunk's drawn range and cluster slots are its lists (firstFace
+// remapped, count-0 slots after them), spans never overlap, unchanged chunks never move, every live cluster points
+// inside its own chunk's drawn faces, and the PREVIOUS image with only the dirty ranges copied from the new one equals
+// the new one -- the renderer's partial upload.
+TEST(VoxFoundMesher, FacePoolUpdatesOnlyWhatChanged) {
+    std::mt19937 rng(217);
+    const size_t nChunks = 6;
+    std::vector<std::vector<PackedFace>> faces(nChunks);
+    std::vector<PoolChunk> in(nChunks);
+    uint32_t stamp = 0;
+    auto remake = [&](size_t i, uint32_t n) {
+        faces[i].resize(n);
+        ++stamp;
+        for (uint32_t k = 0; k < n; ++k) faces[i][k] = PackedFace{uint32_t(i) << 24 | k, stamp};
+        in[i].faces = &faces[i];
+        auto cut = [&](int pieces, int dirBase) {
+            std::vector<PreviewCluster> out;
+            uint32_t at = 0;
+            for (int p = 0; p < pieces && at < n; ++p) {
+                const uint32_t left = n - at;
+                const uint32_t c = p + 1 == pieces ? left : std::max<uint32_t>(1, left / uint32_t(pieces - p));
+                PreviewCluster pc;
+                pc.lo = glm::vec3(float(i), float(p), 0.0f);
+                pc.hi = pc.lo + glm::vec3(1.0f);
+                pc.firstFace = at;
+                pc.count = c;
+                pc.chunk = uint32_t(i);
+                pc.dir = dirBase < 0 ? -1 : (dirBase + p) % 6;
+                out.push_back(pc);
+                at += c;
+            }
+            return out;
+        };
+        const int pieces = n == 0 ? 0 : 1 + int(rng() % 40u);
+        in[i].clusters = cut(pieces, -1);
+        in[i].clustersDir = cut(std::min<int>(int(n), pieces * 3), 0);
+    };
+    auto pick = [&](uint32_t cur) -> uint32_t {
+        switch (rng() % 6u) {
+            case 0: return 0u;
+            case 1: return cur / 2;
+            case 2: return cur + rng() % 50u;
+            case 3: return cur + 2000u + rng() % 6000u;   // past any slack
+            case 4: return 1u + rng() % 300u;
+            default: return rng() % 9000u;
+        }
+    };
+    for (size_t i = 0; i < nChunks; ++i) remake(i, 500u + rng() % 5000u);
+
+    auto same = [](const PreviewCluster& a, const PreviewCluster& b) {
+        return a.lo == b.lo && a.hi == b.hi && a.firstFace == b.firstFace && a.count == b.count &&
+               a.chunk == b.chunk && a.level == b.level && a.leafMass == b.leafMass && a.dir == b.dir;
+    };
+    FacePool pool;
+    Preview::Level L;
+    PoolDirty d;
+    pool.layout(in, L, d);
+    ASSERT_TRUE(d.full);
+    ASSERT_TRUE(pool.laidOut());
+
+    auto check = [&](const char* when, int step) {
+        SCOPED_TRACE(std::string(when) + " step " + std::to_string(step));
+        ASSERT_EQ(L.firstFace.size(), nChunks);
+        ASSERT_EQ(L.faceCount.size(), nChunks);
+        ASSERT_EQ(L.faces.size(), pool.faceCapacity());
+        ASSERT_EQ(L.clusters.size(), pool.clusterCapacity());
+        ASSERT_EQ(L.clustersDir.size(), pool.dirCapacity());
+        for (size_t i = 0; i < nChunks; ++i) {
+            const FacePool::Spans& sp = pool.spans(i);
+            ASSERT_EQ(L.firstFace[i], sp.faceFirst);
+            ASSERT_EQ(L.faceCount[i], uint32_t(faces[i].size()));
+            ASSERT_GE(sp.faceCap, uint32_t(faces[i].size()));
+            ASSERT_LE(size_t(sp.faceFirst) + sp.faceCap, L.faces.size());
+            for (size_t k = 0; k < faces[i].size(); ++k) {
+                ASSERT_EQ(L.faces[sp.faceFirst + k].a, faces[i][k].a);
+                ASSERT_EQ(L.faces[sp.faceFirst + k].b, faces[i][k].b);
+            }
+            auto slots = [&](const std::vector<PreviewCluster>& arr, const std::vector<PreviewCluster>& mine,
+                             uint32_t first, uint32_t cap) {
+                ASSERT_GE(cap, uint32_t(mine.size()));
+                ASSERT_LE(size_t(first) + cap, arr.size());
+                for (uint32_t k = 0; k < cap; ++k) {
+                    const PreviewCluster& got = arr[first + k];
+                    if (k < mine.size()) {
+                        PreviewCluster want = mine[k];
+                        want.firstFace += sp.faceFirst;
+                        ASSERT_TRUE(same(got, want)) << "chunk " << i << " slot " << k;
+                    } else {
+                        ASSERT_EQ(got.count, 0u) << "chunk " << i << " slack slot " << k;
+                    }
+                }
+            };
+            slots(L.clusters, in[i].clusters, sp.clusterFirst, sp.clusterCap);
+            slots(L.clustersDir, in[i].clustersDir, sp.dirFirst, sp.dirCap);
+            for (size_t j = 0; j < i; ++j) {   // spans never overlap
+                const FacePool::Spans& o = pool.spans(j);
+                auto apart = [](uint32_t a, uint32_t an, uint32_t b, uint32_t bn) { return a + an <= b || b + bn <= a; };
+                ASSERT_TRUE(apart(sp.faceFirst, sp.faceCap, o.faceFirst, o.faceCap)) << i << " vs " << j;
+                ASSERT_TRUE(apart(sp.clusterFirst, sp.clusterCap, o.clusterFirst, o.clusterCap)) << i << " vs " << j;
+                ASSERT_TRUE(apart(sp.dirFirst, sp.dirCap, o.dirFirst, o.dirCap)) << i << " vs " << j;
+            }
+        }
+        // every live cluster draws inside its own chunk's faces
+        for (const auto* arr : {&L.clusters, &L.clustersDir})
+            for (const PreviewCluster& c : *arr) {
+                if (c.count == 0) continue;
+                ASSERT_LT(c.chunk, nChunks);
+                const uint32_t f0 = L.firstFace[c.chunk], f1 = f0 + L.faceCount[c.chunk];
+                ASSERT_GE(c.firstFace, f0);
+                ASSERT_LE(c.firstFace + c.count, f1);
+            }
+    };
+    check("layout", 0);
+
+    size_t partial = 0, fulls = 0, dirtyFaces = 0, totalFaces = 0;
+    for (int step = 1; step <= 400; ++step) {
+        std::vector<size_t> changed;
+        const size_t n = 1 + rng() % 2u;
+        for (size_t k = 0; k < n; ++k) {
+            const size_t i = rng() % nChunks;
+            if (std::find(changed.begin(), changed.end(), i) != changed.end()) continue;
+            remake(i, pick(uint32_t(faces[i].size())));
+            changed.push_back(i);
+        }
+        const Preview::Level prev = L;
+        std::vector<FacePool::Spans> before;
+        for (size_t i = 0; i < nChunks; ++i) before.push_back(pool.spans(i));
+        pool.update(in, changed, L, d);
+        check("update", step);
+        if (d.full) {
+            ++fulls;
+            continue;
+        }
+        ++partial;
+        for (size_t i = 0; i < nChunks; ++i) {   // unchanged chunks never move
+            if (std::find(changed.begin(), changed.end(), i) != changed.end()) continue;
+            ASSERT_EQ(pool.spans(i).faceFirst, before[i].faceFirst) << "step " << step << " chunk " << i;
+            ASSERT_EQ(pool.spans(i).clusterFirst, before[i].clusterFirst);
+            ASSERT_EQ(pool.spans(i).dirFirst, before[i].dirFirst);
+        }
+        // the partial-upload contract: prev + the dirty ranges of the new image = the new image
+        Preview::Level img = prev;
+        ASSERT_EQ(img.faces.size(), L.faces.size());
+        ASSERT_EQ(img.clusters.size(), L.clusters.size());
+        ASSERT_EQ(img.clustersDir.size(), L.clustersDir.size());
+        for (const PoolRange& r : d.faces) {
+            ASSERT_LE(size_t(r.first) + r.count, L.faces.size());
+            for (uint32_t k = 0; k < r.count; ++k) img.faces[r.first + k] = L.faces[r.first + k];
+            dirtyFaces += r.count;
+        }
+        for (const PoolRange& r : d.clusters) {
+            ASSERT_LE(size_t(r.first) + r.count, L.clusters.size());
+            for (uint32_t k = 0; k < r.count; ++k) img.clusters[r.first + k] = L.clusters[r.first + k];
+        }
+        for (const PoolRange& r : d.clustersDir) {
+            ASSERT_LE(size_t(r.first) + r.count, L.clustersDir.size());
+            for (uint32_t k = 0; k < r.count; ++k) img.clustersDir[r.first + k] = L.clustersDir[r.first + k];
+        }
+        for (size_t i = 0; i < nChunks; ++i)
+            for (uint32_t k = 0; k < L.faceCount[i]; ++k) {
+                const size_t at = size_t(L.firstFace[i]) + k;
+                ASSERT_EQ(img.faces[at].a, L.faces[at].a) << "step " << step << " chunk " << i << " face " << k;
+                ASSERT_EQ(img.faces[at].b, L.faces[at].b);
+            }
+        for (size_t k = 0; k < L.clusters.size(); ++k) ASSERT_TRUE(same(img.clusters[k], L.clusters[k])) << k;
+        for (size_t k = 0; k < L.clustersDir.size(); ++k) ASSERT_TRUE(same(img.clustersDir[k], L.clustersDir[k])) << k;
+        for (size_t i = 0; i < nChunks; ++i) totalFaces += faces[i].size();
+    }
+    EXPECT_GT(partial, 300u);   // overflow re-layouts are the exception
+    std::printf("[facepool] 400 steps: %zu partial, %zu full (%u layouts, %u moves); dirty faces %.2f %% of the live\n",
+                partial, fulls, pool.layouts(), pool.moves(), totalFaces ? 100.0 * double(dirtyFaces) / totalFaces : 0.0);
 }

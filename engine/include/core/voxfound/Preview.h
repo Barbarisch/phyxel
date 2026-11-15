@@ -49,6 +49,15 @@ struct PreviewCluster {
     int dir = -1;            // F2.15: its faces' direction (Mesher.h faceDirIndex); -1 = all six; 6-11 away (F2.15d)
 };
 
+/// F2.17 (§4.6 item 10): index ranges of a face-pool image that changed (FacePool.h).
+struct PoolRange {
+    uint32_t first = 0, count = 0;
+};
+struct PoolDirty {
+    bool full = false;
+    std::vector<PoolRange> faces, clusters, clustersDir;
+};
+
 struct Preview {
     std::vector<PreviewCluster> clusters;   // F2.11 (region previews only; empty = per-chunk direct draws)
     glm::dvec3 anchorMetres{0.0};           // F2.11: origin of the cluster boxes
@@ -72,6 +81,20 @@ struct Preview {
     bool lodLeafLook = true;
     bool lodCasters = false;         // F2.14: with lodOn, the face casters draw the levels too (per caster fragment)
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves
+    /// F2.17 (§4.6 item 10): `faces`, `clusters` and `clustersDir` are a face-pool image (RegionEdit + FacePool): each
+    /// chunk in its own span with slack, empty cluster slots with count 0. poolDirty = what changed from revision
+    /// poolBaseRevision to `revision` (full = everything) in layout poolLayoutId. The renderer copies only those ranges
+    /// when it holds exactly poolBaseRevision of the same layout; anything else is a whole upload.
+    bool pooled = false;
+    uint64_t poolLayoutId = 0, poolBaseRevision = 0;
+    PoolDirty poolDirty;
+    /// Faces in the chunk ranges (a pool image is larger: slack and gaps).
+    size_t liveFaces() const {
+        if (chunks.empty()) return faces.size();
+        size_t n = 0;
+        for (const PreviewChunk& c : chunks) n += c.faceCount;
+        return n;
+    }
 
     /// F2.13 (§4.6 item 7): the pyramid levels built with a region (index = level; level k voxels are 2^k / 8 m,
     /// faces in level-0 units). Per chunk (same order as `chunks`): its face range in that level's `faces`.

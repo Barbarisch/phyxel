@@ -862,3 +862,150 @@ TEST_F(VoxFoundFaceBuilderGpu, RowsDeltaEqualsTheCpuPlan) {
     EXPECT_LT(hits, 240u) << "12 grids over 8 slots must miss sometimes";
     std::printf("[rowsDelta] 240 edits over 12 grids: %zu rows, %zu faces added, %zu resident hits\n", rows, added, hits);
 }
+
+// F2.17 (§4.6 item 10): the cull tables updated in place. A table of 4,000 clusters (6 chunks, 3 levels, a solid/leaf
+// split, broken face ranges) is rewritten 50 times over random slot ranges by recordUpdate (new boxes, counts, first
+// faces, chunks and origins, and count-0 slots: the face pool's empty slots); after every round, culling it must give
+// exactly what a FRESH upload() of the same table gives: the per-cluster commands, and the compacted commands, their
+// origins and counts. A count-0 cluster is never drawn.
+TEST_F(VoxFoundFaceBuilderGpu, PartialUpdateEqualsAFullUpload) {
+    std::string err;
+    ClusterCullGpu upd, ref;
+    ASSERT_TRUE(upd.init(device, physicalDevice, "shaders", 2, &err)) << err;
+    std::mt19937 rng(2171);
+    std::uniform_real_distribution<float> pos(-60.0f, 60.0f), ext(0.0f, 6.0f), u01(0.0f, 1.0f);
+    std::uniform_int_distribution<int> cnt(1, 40), dirOf(-1, 5), chunkOf(0, 5), lvl(0, 2);
+    const uint32_t n = 4000, solid = 3100;
+    std::vector<ClusterCullGpu::Cluster> cl(n);
+    std::vector<glm::ivec4> origins(n);
+    uint32_t face = 0;
+    auto make = [&](uint32_t i, uint32_t chunk, uint32_t level) {
+        auto& c = cl[i];
+        c.lo = glm::vec3(pos(rng), pos(rng) * 0.3f, pos(rng));
+        c.hi = c.lo + glm::vec3(ext(rng), ext(rng), ext(rng));
+        c.count = u01(rng) < 0.1f ? 0u : uint32_t(cnt(rng));   // empty slots too
+        if (u01(rng) < 0.05f) face += uint32_t(cnt(rng));
+        c.firstInstance = face;
+        face += c.count;
+        c.chunk = chunk;
+        c.level = level;
+        c.dir = dirOf(rng);
+        origins[i] = glm::ivec4(int(chunk) * 32, -int(chunk), int(chunk) * 7 + 1, int(level) * 3 + 5);
+    };
+    {
+        uint32_t chunk = 0, level = 0;
+        for (uint32_t i = 0; i < n; ++i) {
+            if (u01(rng) < 0.08f) chunk = uint32_t(chunkOf(rng));
+            if (u01(rng) < 0.05f) level = uint32_t(lvl(rng));
+            make(i, chunk, level);
+        }
+    }
+    ClusterCullGpu::Compact compact{origins, solid};
+    ASSERT_TRUE(upd.upload(cl, 36u, 6u, queue, queueFamilyIndex, &err, &compact)) << err;
+    const glm::mat4 proj = glm::perspective(glm::radians(80.0f), 1.6f, 0.1f, 300.0f);
+    const glm::mat4 view = glm::lookAt(glm::vec3(10.0f, 30.0f, -90.0f), glm::vec3(0.0f), glm::vec3(0, 1, 0));
+    glm::vec4 planes[6];
+    clipPlanesZeroToOne(proj * view, glm::vec3(0.0f), planes);
+    const glm::vec3 cam(10.0f, 30.0f, -90.0f);
+    const std::vector<uint32_t> mask = {1u, 1u, 0u, 1u, 1u, 1u};
+    size_t updatedSlots = 0, compared = 0;
+    for (int round = 0; round < 50; ++round) {
+        SCOPED_TRACE("round " + std::to_string(round));
+        // a random slot range, rewritten (a chunk span: one chunk and level, or empty slots)
+        const uint32_t len = 1 + rng() % 300u, first = rng() % (n - len);
+        const uint32_t chunk = uint32_t(chunkOf(rng)), level = uint32_t(lvl(rng));
+        face = uint32_t(rng() % 50000u);
+        for (uint32_t i = first; i < first + len; ++i) make(i, chunk, level);
+        const std::vector<ClusterCullGpu::Cluster> part(cl.begin() + first, cl.begin() + first + len);
+        const std::vector<glm::ivec4> partOrigins(origins.begin() + first, origins.begin() + first + len);
+        ASSERT_TRUE(upd.updateNow(queue, queueFamilyIndex, uint32_t(round % 2), first, part, &partOrigins, &err)) << err;
+        updatedSlots += len;
+        ref.shutdown();
+        ASSERT_TRUE(ref.init(device, physicalDevice, "shaders", 2, &err)) << err;
+        ClusterCullGpu::Compact c2{origins, solid};
+        ASSERT_TRUE(ref.upload(cl, 36u, 6u, queue, queueFamilyIndex, &err, &c2)) << err;
+        for (ClusterCullGpu* g : {&upd, &ref}) g->setChunkVisible(1, mask);
+        std::vector<uint32_t> a, b;
+        ASSERT_TRUE(upd.cullNow(queue, queueFamilyIndex, 1, planes, &err, nullptr, &cam)) << err;
+        ASSERT_TRUE(ref.cullNow(queue, queueFamilyIndex, 1, planes, &err, nullptr, &cam)) << err;
+        ASSERT_TRUE(upd.readCommands(queue, queueFamilyIndex, 1, a, &err)) << err;
+        ASSERT_TRUE(ref.readCommands(queue, queueFamilyIndex, 1, b, &err)) << err;
+        ASSERT_EQ(a, b) << "per-cluster commands differ";
+        for (uint32_t i = 0; i < n; ++i)
+            if (cl[i].count == 0) ASSERT_EQ(a[i * 5 + 1], 0u) << "an empty slot is drawn: " << i;
+        ASSERT_TRUE(upd.cullNow(queue, queueFamilyIndex, 1, planes, &err, nullptr, &cam, false, true)) << err;
+        ASSERT_TRUE(ref.cullNow(queue, queueFamilyIndex, 1, planes, &err, nullptr, &cam, false, true)) << err;
+        std::vector<uint32_t> ca, cb;
+        std::vector<glm::ivec4> oa, ob;
+        uint32_t na[2] = {0, 0}, nb[2] = {0, 0};
+        ASSERT_TRUE(upd.readCompact(queue, queueFamilyIndex, 1, ca, oa, na, &err)) << err;
+        ASSERT_TRUE(ref.readCompact(queue, queueFamilyIndex, 1, cb, ob, nb, &err)) << err;
+        ASSERT_EQ(na[0], nb[0]);
+        ASSERT_EQ(na[1], nb[1]);
+        for (int pass = 0; pass < 2; ++pass)
+            for (uint32_t k = 0; k < na[pass]; ++k) {
+                const uint32_t s = pass ? solid + k : k;
+                const uint32_t o = pass ? upd.leafOriginBase() + k : k;
+                for (int w = 0; w < 5; ++w) ASSERT_EQ(ca[s * 5 + w], cb[s * 5 + w]) << "command " << s;
+                ASSERT_EQ(oa[o], ob[o]) << "origin " << o;
+                ++compared;
+            }
+    }
+    std::printf("[partial] 50 rounds, %zu slots rewritten in place, %zu compacted commands compared\n", updatedSlots,
+                compared);
+    EXPECT_GT(compared, 1000u);
+}
+
+// F2.17: several recordUpdate calls in ONE command buffer (the renderer records one per dirty range in a frame), each
+// larger than the last so the staging must grow mid-frame. The first live gate lost the device here: growing the
+// staging destroyed the buffer the earlier copies of the same command buffer read from. The result must equal a fresh
+// upload of the same table.
+TEST_F(VoxFoundFaceBuilderGpu, SeveralUpdatesInOneCommandBuffer) {
+    std::string err;
+    ClusterCullGpu upd, ref;
+    ASSERT_TRUE(upd.init(device, physicalDevice, "shaders", 2, &err)) << err;
+    ASSERT_TRUE(ref.init(device, physicalDevice, "shaders", 2, &err)) << err;
+    std::mt19937 rng(2172);
+    std::uniform_real_distribution<float> pos(-60.0f, 60.0f), ext(0.0f, 6.0f);
+    const uint32_t n = 12000;
+    std::vector<ClusterCullGpu::Cluster> cl(n);
+    std::vector<glm::ivec4> origins(n);
+    auto make = [&](uint32_t i, uint32_t face) {
+        cl[i] = {glm::vec3(pos(rng), pos(rng) * 0.3f, pos(rng)), glm::vec3(0.0f), face, 1u + rng() % 30u,
+                 uint32_t(rng() % 4u), 0u, int(rng() % 7u) - 1};
+        cl[i].hi = cl[i].lo + glm::vec3(ext(rng), ext(rng), ext(rng));
+        origins[i] = glm::ivec4(int(cl[i].chunk) * 32, 0, 0, 5);
+    };
+    for (uint32_t i = 0; i < n; ++i) make(i, i * 40u);
+    ClusterCullGpu::Compact compact{origins, n};
+    ASSERT_TRUE(upd.upload(cl, 36u, 4u, queue, queueFamilyIndex, &err, &compact)) << err;
+    // three ranges: 100, 1,500 and 6,000 slots (the staging starts at 64 KB = ~900 slots, then must grow twice)
+    std::vector<ClusterCullGpu::UpdateBlock> blocks;
+    uint32_t at = 0;
+    for (uint32_t len : {100u, 1500u, 6000u}) {
+        ClusterCullGpu::UpdateBlock b;
+        b.first = at;
+        for (uint32_t i = at; i < at + len; ++i) {
+            make(i, 900000u + i * 40u);
+            b.clusters.push_back(cl[i]);
+            b.origins.push_back(origins[i]);
+        }
+        blocks.push_back(std::move(b));
+        at += len + 200;
+    }
+    ASSERT_TRUE(upd.updateNow(queue, queueFamilyIndex, 1, blocks, &err)) << err;
+    ClusterCullGpu::Compact c2{origins, n};
+    ASSERT_TRUE(ref.upload(cl, 36u, 4u, queue, queueFamilyIndex, &err, &c2)) << err;
+    const glm::mat4 proj = glm::perspective(glm::radians(80.0f), 1.6f, 0.1f, 300.0f);
+    const glm::mat4 view = glm::lookAt(glm::vec3(10.0f, 30.0f, -90.0f), glm::vec3(0.0f), glm::vec3(0, 1, 0));
+    glm::vec4 planes[6];
+    clipPlanesZeroToOne(proj * view, glm::vec3(0.0f), planes);
+    std::vector<uint32_t> a, b;
+    ASSERT_TRUE(upd.cullNow(queue, queueFamilyIndex, 1, planes, &err)) << err;
+    ASSERT_TRUE(ref.cullNow(queue, queueFamilyIndex, 1, planes, &err)) << err;
+    ASSERT_TRUE(upd.readCommands(queue, queueFamilyIndex, 1, a, &err)) << err;
+    ASSERT_TRUE(ref.readCommands(queue, queueFamilyIndex, 1, b, &err)) << err;
+    EXPECT_EQ(a, b);
+    // and the next frame on the same slot (the retired staging is released there)
+    ASSERT_TRUE(upd.updateNow(queue, queueFamilyIndex, 1, {blocks[0]}, &err)) << err;
+}

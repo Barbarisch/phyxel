@@ -489,8 +489,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       synchronous readback waits 10-20 ms for an uncapped GPU -> CPU default, {"device":true} opt-in. Fixed: the
       F2.15f set-1 descriptor cache keyed on recycled VkBuffer handles (device loss on revision changes -- use the
       SDK's VK_LAYER_LUNARG_crash_diagnostic for device losses; validation hides races), and stale resident grids.
-      NEXT (the plan's F2 list): item 10 (face pool: rows recorded in-frame on the device, faces written in place,
-      no readback / whole re-upload), then T-junctions.
+      F2.17 (2026-11-15): item 10 DONE -- {"face_pool"} default ON: FacePool spans (ChunkArenaAllocator) per chunk,
+      device-local faces, edits copy only their spans + ClusterCullGpu::recordUpdate rewrites the cull table in place:
+      next-frame upload 9-14 -> 0.17 ms, whole frame -2.3..-3.8 ms (shadow casters no longer read host memory), 0 px.
+      TRAP found: staging replaced mid-frame destroyed the source of recorded copies (device lost) -> per-slot cursor.
+      Owed: CPU reassembly 2.5 ms/edit, pool 1.6x live, re-measure shadow MDI / light-direction culling on VRAM faces.
+      NEXT (the plan's F2 list): T-junctions.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

@@ -1,0 +1,76 @@
+F2.17 -- §4.6 item 10: the face pool (region arena spans per chunk; device-local; an edit writes only its own spans)
+Written 2026-11-15, BEFORE any code.
+
+Today (measured in F2.16): the preview's faces live in ONE host-visible buffer filled by a whole memcpy, and every
+revision change re-creates the cull tables (ClusterCullGpu::upload: vkDeviceWaitIdle + every buffer made again and
+staged) -- after a 1 m edit the next frame spends ~9 ms (faces 0.3 + sprigs 0.1 + cluster tables ~8.6) plus the
+2.5 ms CPU reassembly. The plan's row 10: "Face pool sub-allocated per block / chunk" (ChunkArenaSystem). Also owed
+from F2.8: "a device-local face pool may change its draw cost".
+
+Design:
+1. FacePool (core/voxfound, headless): per chunk, three spans from ChunkArenaAllocator (graphics, the region-arena
+   allocator: 768 B alignment, retire queue): its faces (8 B units), its cell clusters and its direction clusters
+   (32 B units). A span has slack (count + max(count / 4, one alignment unit)). layout() places every chunk; update()
+   rewrites only the changed chunks: in place when the new count fits the span, else a new span and the old one
+   retired -- its cluster slots zeroed (count 0) in the same update so nothing draws the retired faces. The pool image
+   IS Preview::Level (faces with gaps; cluster lists with count-0 slots), so every draw path (direct per-chunk ranges,
+   shadows, the multidraw) keeps working. update() returns the dirty index ranges of the three arrays; overflowing
+   the block = a full layout at 1.5x (reported).
+2. RegionEdit::assemble(pv, leafTex, changed) uses it; Preview carries poolRevision + the dirty ranges of the last
+   revision step.
+3. Renderer ({"face_pool":bool}): the face buffer DEVICE-LOCAL, filled by copies recorded at the start of the frame
+   (before the shadow pass) from a per-frame-slot staging ring, behind a barrier -- queue order makes earlier frames'
+   reads finish first, so no device wait. On a one-step revision with the same pool layout: only the dirty spans of
+   faces and of the cull tables (ClusterCullGpu::recordUpdate: cluster words, firsts, origin words, every slot's
+   command static words), sprigs + texture table as today (small memcpy). Anything else = a full upload. Off = today's
+   host-visible buffer + whole re-uploads (the A/B).
+4. voxfound_cull.comp: a cluster with count 0 is never visible (the empty slots).
+
+Red first:
+- CPU FacePoolUpdatesOnlyWhatChanged: 6 synthetic chunks, 400 random count changes (shrink, grow past the slack,
+  to 0, back): after each, every chunk's drawn range = its list, cluster slots = its clusters (firstFace remapped) and
+  zeros elsewhere in its span, spans never overlap, unchanged chunks never move, and the PREVIOUS image with only the
+  dirty ranges copied from the new one equals the new one (the partial-upload contract). Red on a stub.
+- GPU ClusterCullGpu PartialUpdateEqualsAFullUpload: random cluster tables, 50 recordUpdate rounds; the culled
+  commands (per-cluster and compacted, origins and counts) = a fresh upload() of the same table, every round.
+
+Predictions (gate region Perlin s7 flora 254..257 x 0..1 x 2..5, editable, Release):
+1. Exact: drawn (face, origin) sets after 50 random edits = a fresh full upload (pixels within repeat noise at
+   forest_floor_open, 3D view) and the verify counts stay 0.
+2. Next-frame upload after a 1 m edit: ~9 ms -> <= 0.5 ms (a few chunk spans: ~30-100 KB of faces + ~10-40 KB of
+   cluster words); a 4 m edit <= 1 ms. CPU assemble 2.5 ms -> unchanged (it still copies the level image; owed).
+3. Steady state, whole frame, pool (device-local) vs today's host-visible buffer, 8 pairs x 5 poses: faces read
+   from VRAM instead of over PCIe in 3 passes: -0.1..-0.8 ms at the face-heavy poses (overview, top_down), 0..-0.3
+   elsewhere; 0 px beyond repeat noise.
+4. Memory: pool slack <= 30 % of the faces (initial layout), never more than 1.5x after 200 edits.
+Stop line: if partial updates are not exact on the GPU test, no live gate until they are.
+
+==== MEASURED (2026-11-15; voxfound_f217_gate.json + _edits.jsonl, voxfound_f217_ab.jsonl/.txt/_scopes.txt) ====
+Engine-generated: /api/debug/voxfound_preview Perlin s7 flora region 254..257 x 0..1 x 2..5, {"editable":true}, LOD off;
+Release; gate: wind 0, GI off, world hidden; no game running on the GPU.
+Bug found first (the first gate run lost the device after the first pooled edit; Crash Diagnostic Layer: the frame's
+first vkCmdCopyBuffer never completed): ClusterCullGpu::recordUpdate replaced its per-slot staging when a later call
+needed more room -- the renderer records one call per dirty range IN ONE FRAME, so the copies already recorded read a
+destroyed buffer. Red: GPU SeveralUpdatesInOneCommandBuffer ("submit failed"). Fix: a per-slot cursor (calls append;
+a full buffer is retired until the slot's next beginUpdates). Green; CPU 59/59, GPU 22/22.
+1. Exact: 3D viewport (status bar excluded) after 20 visible edits, all uploaded PARTIALLY: pool vs the same image
+   uploaded whole host-visible (P) vs a fresh layout of a full rebuild (F): 0 / 0 / 0 px at forest_floor_open and at
+   overview_south; control I vs I2 0 px; drawn faces/clusters identical in all three (173,337 / 1,853 and
+   296,834 / 2,605). After 200 more edits: I3 vs a fresh layout 0 px, drawn 305,564 = 305,564.
+   Verify (rebuild exactness): 0 mismatches.                                                                   HELD
+2. Next-frame upload after an edit (median, p90): pool 1 voxel 0.16 (0.53), 1 m 0.18 (0.42), 2 m 0.17 (0.32),
+   4 m 0.18 (0.21) ms -- ~120-170 KB of faces + 450-700 cluster slots, all partial; pool OFF (today) 14.5 / 9.3 / 8.8
+   / 8.7 ms. Predicted <= 0.5 (1 m) and <= 1 ms (4 m).                                                          HELD
+   CPU assemble unchanged 2.5 ms (predicted; owed). (The "kinds" column of the OFF rows is the pool's last stat,
+   not theirs: the pool path did not run.)
+3. Steady state, whole frame, B (pool, device-local) - A (today's host-visible), 8 pairs x 5 poses, all CIs exclude 0:
+   overview_south -2.34, top_down -2.67, forest_floor_open -2.98, east_low -3.77, canopy_close -3.06 ms.
+   Predicted -0.1..-0.8 (face-heavy) / 0..-0.3: WRONG -- 3-10x more. Where: the SHADOW passes (-2.2..-3.6 ms: mid
+   -1.4..-2.1, near -0.8..-1.5): the preview's casters (shadow MDI off) are the 36-index instanced draw over every
+   face, re-reading each 8 B record per vertex from host memory over PCIe; device-local makes them cheap. Main view
+   -0.25..-0.75 ms at 3 poses; +0.20 (sprigs, forest_floor_open) and +0.27 (faces, canopy_close) single-scope
+   bumps. Pixels: 0 px (point 1).
+4. Memory: image 782,688 faces for 480,351 live = 1.63x after the first layout (predicted <= 1.3), 1.57x after 300
+   edits (predicted <= 1.5): WRONG -- the 1.3x block growth and the per-span quarter slack compound, + 768 B span
+   alignment. 6.3 MB vs 3.8 MB live on this region. A tighter policy is a knob for later, not a correctness issue.
+Default ON.

@@ -26,6 +26,7 @@ size_t RegionEdit::bytes() const {
 void RegionEdit::begin(glm::ivec3 chunkLo, glm::ivec3 chunkHi, int clusterBlocks, bool octantOrder,
                        uint32_t sprigThreshold24) {
     m_chunks.clear();
+    m_pool.reset();   // F2.17
     m_lo = chunkLo;
     m_hi = chunkHi;
     m_clusterBlocks = clusterBlocks;
@@ -191,36 +192,40 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
     return st;
 }
 
-void RegionEdit::assemble(Preview& pv, const std::vector<uint16_t>& leafTex) const {
+void RegionEdit::assemble(Preview& pv, const std::vector<uint16_t>& leafTex, const std::vector<size_t>* changed) {
     if (pv.levels.empty()) pv.levels.resize(1);
     Preview::Level& L = pv.levels[0];
-    L.faces.clear();
-    L.firstFace.clear();
-    L.faceCount.clear();
-    L.leafCount.clear();
-    L.clusters.clear();
-    L.clustersDir.clear();
-    pv.sprigs.clear();
-    for (size_t i = 0; i < m_chunks.size() && i < pv.chunks.size(); ++i) {
+    const size_t n = std::min(m_chunks.size(), pv.chunks.size());
+    // F2.17: every chunk's lists (cluster firstFace relative to the chunk; the pool places them)
+    std::vector<PoolChunk> in(n);
+    for (size_t i = 0; i < n; ++i) {
         const Chunk& c = m_chunks[i];
-        const uint32_t first = uint32_t(L.faces.size());
         const glm::vec3 base = glm::vec3((c.chunk - m_lo) * kChunkM);
         auto toPreview = [&](const FaceCluster& fc) {
             PreviewCluster p;
             p.lo = base + glm::vec3(fc.lo) / float(kVoxelsPerM);
             p.hi = base + glm::vec3(fc.hi) / float(kVoxelsPerM);
-            p.firstFace = first + fc.first;
+            p.firstFace = fc.first;
             p.count = fc.count;
             p.chunk = uint32_t(i);
             p.dir = fc.dir;
             return p;
         };
-        for (const FaceCluster& fc : cellsOfGroups(c.faces, c.groups, m_clusterBlocks)) L.clusters.push_back(toPreview(fc));
-        for (const FaceCluster& fc : c.groups) L.clustersDir.push_back(toPreview(fc));
-        L.faces.insert(L.faces.end(), c.faces.begin(), c.faces.end());
-        L.firstFace.push_back(first);
-        L.faceCount.push_back(uint32_t(c.faces.size()));
-        L.leafCount.push_back(0u);
+        in[i].faces = &c.faces;
+        for (const FaceCluster& fc : cellsOfGroups(c.faces, c.groups, m_clusterBlocks))
+            in[i].clusters.push_back(toPreview(fc));
+        for (const FaceCluster& fc : c.groups) in[i].clustersDir.push_back(toPreview(fc));
+    }
+    if (!m_pool) m_pool = std::make_unique<FacePool>();
+    const uint64_t layoutId = (m_generation << 32) | m_pool->layouts();
+    PoolDirty dirty;
+    if (changed && m_pool->laidOut() && pv.pooled && pv.poolLayoutId == layoutId)
+        m_pool->update(in, *changed, L, dirty);
+    else
+        m_pool->layout(in, L, dirty);
+    pv.sprigs.clear();
+    for (size_t i = 0; i < n; ++i) {
+        const Chunk& c = m_chunks[i];
         PreviewChunk& pc = pv.chunks[i];
         pc.firstSprig = uint32_t(pv.sprigs.size());
         for (const PackedFace& s : c.sprigs) {
@@ -230,7 +235,12 @@ void RegionEdit::assemble(Preview& pv, const std::vector<uint16_t>& leafTex) con
         pc.sprigCount = uint32_t(pv.sprigs.size()) - pc.firstSprig;
         pc.connect = c.connect;
     }
-    pv.selectLevel(0);
+    const uint64_t base = pv.revision;
+    pv.selectLevel(0);   // one revision step
+    pv.pooled = true;
+    pv.poolDirty = std::move(dirty);
+    pv.poolBaseRevision = base;
+    pv.poolLayoutId = (m_generation << 32) | m_pool->layouts();
 }
 
 }  // namespace Phyxel::Core::VoxFound

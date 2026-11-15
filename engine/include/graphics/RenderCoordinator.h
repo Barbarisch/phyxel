@@ -639,6 +639,19 @@ public:
     uint32_t voxFoundRangesOccluded() const { return m_voxFoundRangesOccluded; }
     /// F2.11: faces drawn by the GPU draw-building pass + one indirect multidraw (default on) vs per-chunk direct draws.
     void setVoxFoundMdi(bool on) { m_voxFoundMdi = on; }
+    /// F2.17 (§4.6 item 10): the face pool -- the preview's faces in a DEVICE-LOCAL buffer filled by copies recorded at
+    /// the start of the frame; a pooled preview's one-step revisions copy only their dirty spans (faces + the main cull
+    /// table in place). false = today's host-visible buffer + whole re-uploads (the A/B).
+    void setVoxFoundFacePool(bool on) { m_voxFoundFacePool = on; }
+    bool voxFoundFacePool() const { return m_voxFoundFacePool; }
+    struct VoxFoundPoolStats {
+        uint64_t partial = 0, full = 0;   // uploads so far
+        int lastKind = 0;                 // 0 none, 1 full, 2 partial (the last upload)
+        size_t lastFaceBytes = 0, lastClusterSlots = 0;
+        double lastMs = 0.0;              // CPU time recording it (staging fill + commands)
+        bool deviceLocal = false;
+    };
+    VoxFoundPoolStats voxFoundPoolStats() const { return m_voxFoundPoolStats; }
     bool voxFoundMdi() const { return m_voxFoundMdi; }
     /// F2.11: clusters and the faces their commands drew, read back from the most recently completed frame slot.
     /// {clusters, commands that draw, faces drawn}; waits for the queue. F2.15f: compacted, the commands are the
@@ -1538,6 +1551,22 @@ private:
     VkDeviceMemory m_voxFoundMemory = VK_NULL_HANDLE;
     void*          m_voxFoundMapped = nullptr;
     size_t         m_voxFoundCapacity = 0;                         // faces
+    // F2.17: the face pool (setVoxFoundFacePool)
+    bool           m_voxFoundFacePool = true;
+    bool           m_voxFoundFacesDevice = false;   // m_voxFoundBuffer is device-local (filled by copies)
+    uint64_t       m_voxFoundPoolLayoutId = 0;
+    bool           m_voxFoundOriginStale = false;   // the per-command origin table missed a partial update
+    struct PoolStage {
+        VkBuffer buf = VK_NULL_HANDLE;
+        VkDeviceMemory mem = VK_NULL_HANDLE;
+        void* mapped = nullptr;
+        VkDeviceSize bytes = 0;
+    };
+    std::vector<PoolStage> m_voxFoundPoolStage;   // one per frame slot
+    VoxFoundPoolStats m_voxFoundPoolStats;
+    void recordVoxFoundPoolUpdate(VkCommandBuffer cmd);
+    bool voxFoundPoolStage(size_t slot, VkDeviceSize bytes);
+    void releaseVoxFoundPoolStage();
     uint64_t       m_voxFoundRevision = UINT64_MAX;
     std::array<double, 3> m_voxFoundUploadMs{0.0, 0.0, 0.0};   // F2.16
     uint32_t       m_voxFoundDrawn = 0;

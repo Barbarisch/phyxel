@@ -14,7 +14,9 @@
 
 #include <glm/glm.hpp>
 
+#include <memory>
 #include "core/voxfound/FaceBuilderGpu.h"
+#include "core/voxfound/FacePool.h"
 #include "core/voxfound/Mesher.h"
 #include "core/voxfound/Preview.h"
 #include "core/voxfound/StorageLab.h"
@@ -44,7 +46,10 @@ public:
         std::vector<size_t> rebuilt;   // chunk indices whose faces / sprigs / connectivity were updated
     };
 
-    void clear() { m_chunks.clear(); }
+    void clear() {
+        m_chunks.clear();
+        m_pool.reset();
+    }
     bool empty() const { return m_chunks.empty(); }
     size_t chunkCount() const { return m_chunks.size(); }
     const Chunk& chunk(size_t i) const { return m_chunks[i]; }
@@ -68,8 +73,11 @@ public:
                 FaceBuilderGpu* gpu = nullptr, std::string* err = nullptr);
 
     /// Level 0 of pv (faces, clusters, chunk ranges, sprigs, connectivity) from the store; selectLevel(0). leafTex =
-    /// the sprig texture per palette material.
-    void assemble(Preview& pv, const std::vector<uint16_t>& leafTex) const;
+    /// the sprig texture per palette material. F2.17: level 0 is a FACE POOL image (FacePool): with `changed` (the
+    /// chunks an edit rebuilt) only their spans are rewritten and pv.poolDirty names the ranges; without it (or on
+    /// the first call, or when the pool overflows) every chunk is placed again (poolDirty.full).
+    void assemble(Preview& pv, const std::vector<uint16_t>& leafTex, const std::vector<size_t>* changed = nullptr);
+    const FacePool* pool() const { return m_pool.get(); }
 
     SprigParams sprigParams(size_t i) const;
 
@@ -81,6 +89,7 @@ private:
     bool m_octant = true;
     uint32_t m_threshold24 = 0;
     uint64_t m_generation = 0;   // resident keys: generation << 20 | chunk index
+    std::unique_ptr<FacePool> m_pool;   // F2.17: level 0's spans
 
 public:
     /// FaceBuilderGpu::rowsDelta's resident key for chunk i of this store (unique across region builds).

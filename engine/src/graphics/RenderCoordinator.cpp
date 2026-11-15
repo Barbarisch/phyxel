@@ -810,6 +810,7 @@ RenderCoordinator::~RenderCoordinator() {
     // device is still alive.
     if (m_lightOccupancy) m_lightOccupancy->cleanup();
     releaseVoxFoundBuffer();
+    releaseVoxFoundPoolStage();   // F2.17
     releaseVoxFoundTexBuffer();
     releaseVoxFoundCull();
     releaseVoxFoundShadowCull();
@@ -2523,7 +2524,152 @@ void RenderCoordinator::releaseVoxFoundBuffer() {
     m_voxFoundMapped = nullptr;
     m_voxFoundCapacity = 0;
     m_voxFoundRevision = UINT64_MAX;
+    m_voxFoundFacesDevice = false;   // F2.17
+    m_voxFoundPoolStats.deviceLocal = false;
     releaseVoxFoundSprigBuffer();
+}
+
+// ---- F2.17 (§4.6 item 10): the face pool ----------------------------------------------------------------------------
+bool RenderCoordinator::voxFoundPoolStage(size_t slot, VkDeviceSize bytes) {
+    if (m_voxFoundPoolStage.size() <= slot) m_voxFoundPoolStage.resize(slot + 1);
+    PoolStage& st = m_voxFoundPoolStage[slot];
+    if (st.bytes >= bytes && st.mapped) return true;
+    // this slot's previous frame has completed (its fence was waited before recording): safe to replace
+    if (st.buf != VK_NULL_HANDLE) {
+        if (st.mapped) vkUnmapMemory(vulkanDevice->getDevice(), st.mem);
+        vkDestroyBuffer(vulkanDevice->getDevice(), st.buf, nullptr);
+        vkFreeMemory(vulkanDevice->getDevice(), st.mem, nullptr);
+    }
+    st = PoolStage{};
+    VkDeviceSize cap = 1u << 20;
+    while (cap < bytes) cap *= 2;
+    vulkanDevice->createBuffer(cap, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, st.buf, st.mem);
+    if (st.buf == VK_NULL_HANDLE || vkMapMemory(vulkanDevice->getDevice(), st.mem, 0, cap, 0, &st.mapped) != VK_SUCCESS) {
+        st = PoolStage{};
+        return false;
+    }
+    st.bytes = cap;
+    return true;
+}
+
+void RenderCoordinator::releaseVoxFoundPoolStage() {
+    if (!vulkanDevice) return;
+    for (PoolStage& st : m_voxFoundPoolStage) {
+        if (st.buf == VK_NULL_HANDLE) continue;
+        if (st.mapped) vkUnmapMemory(vulkanDevice->getDevice(), st.mem);
+        vkDestroyBuffer(vulkanDevice->getDevice(), st.buf, nullptr);
+        vkFreeMemory(vulkanDevice->getDevice(), st.mem, nullptr);
+    }
+    m_voxFoundPoolStage.clear();
+}
+
+// Called at the start of the frame's command buffer, before the shadow pass (the first reader of the faces). Copies are
+// ordered after every earlier frame's reads by a barrier; queue order does the rest (no device wait). A pooled preview
+// one revision step ahead of what the device holds, in the same layout: only its dirty spans (faces, and the main cull
+// table in place when the compacted multidraw draws it); else the whole face list.
+void RenderCoordinator::recordVoxFoundPoolUpdate(VkCommandBuffer cmd) {
+    if (!m_voxFoundFacePool || !m_voxFoundPreview || !vulkanDevice || !renderPipeline) return;
+    const Core::VoxFound::Preview& pv = *m_voxFoundPreview;
+    if (pv.faces.empty()) return;
+    if (m_voxFoundFacesDevice && m_voxFoundRevision == pv.revision) return;
+    const auto t0 = std::chrono::steady_clock::now();
+    const size_t slot = size_t(currentFrame);
+    const VkDevice dev = vulkanDevice->getDevice();
+    using Core::VoxFound::PackedFace;
+    const bool partial = pv.pooled && !pv.poolDirty.full && m_voxFoundFacesDevice &&
+                         m_voxFoundRevision == pv.poolBaseRevision && m_voxFoundPoolLayoutId == pv.poolLayoutId &&
+                         pv.faces.size() <= m_voxFoundCapacity;
+    std::vector<VkBufferCopy> copies;
+    VkDeviceSize bytes = 0;
+    if (partial) {
+        for (const auto& r : pv.poolDirty.faces) bytes += VkDeviceSize(r.count) * sizeof(PackedFace);
+        if (bytes && !voxFoundPoolStage(slot, bytes)) return;
+        VkDeviceSize at = 0;
+        for (const auto& r : pv.poolDirty.faces) {
+            if (r.count == 0 || size_t(r.first) + r.count > pv.faces.size()) continue;
+            const VkDeviceSize n = VkDeviceSize(r.count) * sizeof(PackedFace);
+            std::memcpy(static_cast<uint8_t*>(m_voxFoundPoolStage[slot].mapped) + at, pv.faces.data() + r.first,
+                        size_t(n));
+            copies.push_back({at, VkDeviceSize(r.first) * sizeof(PackedFace), n});
+            at += n;
+        }
+    } else {
+        // the whole list into a device-local buffer (made again, after a device wait, only when it grows)
+        if (!m_voxFoundFacesDevice || pv.faces.size() > m_voxFoundCapacity) {
+            releaseVoxFoundBuffer();
+            size_t cap = 1u << 16;
+            while (cap < pv.faces.size()) cap *= 2;
+            vulkanDevice->createBuffer(VkDeviceSize(cap) * sizeof(PackedFace),
+                                       VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_voxFoundBuffer, m_voxFoundMemory);
+            if (m_voxFoundBuffer == VK_NULL_HANDLE) return;
+            m_voxFoundCapacity = cap;
+            m_voxFoundFacesDevice = true;
+            m_voxFoundPoolStats.deviceLocal = true;
+        }
+        bytes = VkDeviceSize(pv.faces.size()) * sizeof(PackedFace);
+        if (!voxFoundPoolStage(slot, bytes)) return;
+        std::memcpy(m_voxFoundPoolStage[slot].mapped, pv.faces.data(), size_t(bytes));
+        copies.push_back({0, 0, bytes});
+    }
+    // earlier frames' vertex reads of these faces finish first; this frame's passes read after the copies
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                         nullptr, 0, nullptr);
+    if (!copies.empty())
+        vkCmdCopyBuffer(cmd, m_voxFoundPoolStage[slot].buf, m_voxFoundBuffer, uint32_t(copies.size()), copies.data());
+    VkMemoryBarrier mb{};
+    mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    mb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    mb.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 1, &mb, 0, nullptr,
+                         0, nullptr);
+    // the main cull table, in place (its own full upload runs otherwise: the revision check in recordVoxFoundCull)
+    size_t slots = 0;
+    double clusterMs = 0.0;
+    if (partial && m_voxFoundCull && m_voxFoundCullRevision == pv.poolBaseRevision && m_voxFoundCull->canCompact() &&
+        pv.lodClusters.empty() && size_t(m_voxFoundMdiSolid) == m_voxFoundCullOrder.size()) {
+        const auto tc = std::chrono::steady_clock::now();
+        const auto& all = pv.dirClusters ? pv.clustersDir : pv.clusters;
+        const auto& ranges = pv.dirClusters ? pv.poolDirty.clustersDir : pv.poolDirty.clusters;
+        bool ok = all.size() == m_voxFoundCull->clusterCount() && m_voxFoundCullOrder.size() == all.size();
+        if (ok) m_voxFoundCull->beginUpdates(uint32_t(slot));   // this slot's previous frame has completed
+        for (size_t k = 0; ok && k < ranges.size(); ++k) {
+            const auto& r = ranges[k];
+            if (r.count == 0) continue;
+            if (size_t(r.first) + r.count > all.size()) { ok = false; break; }
+            std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(r.count);
+            std::vector<glm::ivec4> origins(r.count);
+            for (uint32_t i = 0; i < r.count; ++i) {
+                const auto& c = all[r.first + i];
+                cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk, c.level, c.dir};
+                const glm::dvec3 o = c.chunk < pv.chunks.size() ? pv.chunks[c.chunk].originMetres : glm::dvec3(0.0);
+                origins[i] = glm::ivec4(glm::ivec3(glm::round(o)),
+                                        int(Core::VoxFound::lodFlagBits(int(c.level), pv.lodMaxLevel, 0) & ~(1u << 23)));
+                m_voxFoundCullOrder[r.first + i] = c;
+            }
+            std::string err;
+            ok = m_voxFoundCull->recordUpdate(cmd, uint32_t(slot), r.first, cl, &origins, &err);
+            if (!ok) LOG_ERROR("RenderCoordinator", "voxfound pool cull update: " + err);
+            slots += r.count;
+        }
+        if (ok) {
+            m_voxFoundCullRevision = pv.revision;
+            m_voxFoundOriginStale = true;   // the per-command origin table (uncompacted path) was not rewritten
+        }
+        clusterMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tc).count();
+    }
+    m_voxFoundRevision = pv.revision;
+    m_voxFoundPoolLayoutId = pv.poolLayoutId;
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    m_voxFoundUploadMs[0] = ms - clusterMs;
+    if (partial) m_voxFoundUploadMs[2] = clusterMs;
+    m_voxFoundPoolStats.lastKind = partial ? 2 : 1;
+    (partial ? m_voxFoundPoolStats.partial : m_voxFoundPoolStats.full) += 1;
+    m_voxFoundPoolStats.lastFaceBytes = size_t(bytes);
+    m_voxFoundPoolStats.lastClusterSlots = slots;
+    m_voxFoundPoolStats.lastMs = ms;
 }
 
 void RenderCoordinator::releaseVoxFoundTexBuffer() {
@@ -2674,6 +2820,10 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
         m_voxFoundMdiSolid = 0;
         for (const auto& c : m_voxFoundCullOrder) m_voxFoundMdiSolid += (pv.lodLeafLook && c.leafMass) ? 0u : 1u;
     }
+    // F2.17: a partial pool update rewrote the cull table but not the per-command origin table the uncompacted
+    // multidraw reads: that path takes a whole upload first
+    if (m_voxFoundOriginStale && !(pv.mdiCompact && m_voxFoundCull->canCompact() && vulkanDevice->supportsDrawIndirectCount()))
+        m_voxFoundCullRevision = UINT64_MAX;
     const auto& srcClusters = m_voxFoundCullOrder;
     const auto tCullUpload = std::chrono::steady_clock::now();   // F2.16
     if (m_voxFoundCullRevision != pv.revision) {
@@ -2732,6 +2882,7 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
             vkUnmapMemory(vulkanDevice->getDevice(), mem);
         }
         m_voxFoundCullRevision = pv.revision;
+        m_voxFoundOriginStale = false;   // F2.17
         m_voxFoundUploadMs[2] =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tCullUpload).count();
     }
@@ -3035,7 +3186,12 @@ void RenderCoordinator::renderVoxFoundPreview() {
     if (!m_voxFoundPreview || !m_voxFoundPreview->shown || m_voxFoundPreview->faces.empty() || !renderPipeline || !vulkanDevice || !camera) return;
     if (!renderPipeline->ensureVoxFoundPipeline("shaders/voxfound_face.vert.spv")) return;
     const auto& faces = m_voxFoundPreview->faces;
-    if (faces.size() > m_voxFoundCapacity) {
+    if (m_voxFoundFacePool) {   // F2.17: recordVoxFoundPoolUpdate filled the device-local buffer this frame
+        if (!m_voxFoundFacesDevice || m_voxFoundRevision != m_voxFoundPreview->revision) return;
+    } else if (m_voxFoundFacesDevice) {
+        releaseVoxFoundBuffer();   // back to today's host-visible buffer (the A/B's off side)
+    }
+    if (!m_voxFoundFacePool && faces.size() > m_voxFoundCapacity) {
         releaseVoxFoundBuffer();
         size_t cap = 1u << 16;
         while (cap < faces.size()) cap *= 2;
@@ -3050,8 +3206,8 @@ void RenderCoordinator::renderVoxFoundPreview() {
         }
         m_voxFoundCapacity = cap;
     }
-    if (!m_voxFoundMapped) return;
-    if (m_voxFoundRevision != m_voxFoundPreview->revision) {
+    if (!m_voxFoundMapped && !m_voxFoundFacesDevice) return;
+    if (!m_voxFoundFacesDevice && m_voxFoundRevision != m_voxFoundPreview->revision) {
         const auto t0 = std::chrono::steady_clock::now();   // F2.16
         std::memcpy(m_voxFoundMapped, faces.data(), faces.size() * sizeof(Core::VoxFound::PackedFace));
         m_voxFoundRevision = m_voxFoundPreview->revision;
@@ -3820,7 +3976,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
     if (cascade != kCascadeFar) m_voxFoundShadowFaces[cascade == kCascadeNear ? 1 : 0] = 0;
     if (cascade == kCascadeMid) m_voxFoundShadowSprigs = 0;
     if (cascade != kCascadeFar && m_voxFoundPreview && m_voxFoundPreview->shown && m_voxFoundPreview->castFaces &&
-        m_voxFoundBuffer != VK_NULL_HANDLE && m_voxFoundMapped &&
+        m_voxFoundBuffer != VK_NULL_HANDLE && (m_voxFoundMapped || m_voxFoundFacesDevice) &&
         m_voxFoundRevision == m_voxFoundPreview->revision && !m_voxFoundPreview->faces.empty() && camera) {
         VkPipeline vp = map.ensureVoxFoundPipeline();
         if (vp != VK_NULL_HANDLE) {
@@ -4972,6 +5128,9 @@ void RenderCoordinator::drawFrame() {
     // distance visibility, consumed by the shadow loop, main pass and mirror
     // pass — previously the ONLY geometry class drawn with zero culling.
     buildKinematicVisibility(cachedProjectionMatrix * cachedViewMatrix, lightSpaceMatrix);
+
+    // F2.17 (§4.6 item 10): the preview's face pool -- copies before the first pass that reads the faces
+    recordVoxFoundPoolUpdate(cmd);
 
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");

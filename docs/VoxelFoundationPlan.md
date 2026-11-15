@@ -375,7 +375,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look done (F2.14f: own pipeline shaded as cards, luma 74.7 → 106.2 vs the cards' 107.9, mass error halved; +0.14/+0.16 ms at the ground; handoff still off); two pyramids built (F2.14g: no hidden tops, holes at P=32 gone, but farther from level 0 at P=8 — off; found: canopy-interior faces cut sprig overdraw 2-3.7 ms); leaf-fill knob built (F2.14h: no fill closes the canopy gap — it is sub-voxel shading; off; its whole-frame A/B owed, voided by a shared GPU) |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | main view done (F2.15: direction groups per 4-block cluster in the cull pass, 0 px, −0.30..−0.45 ms at 4 of 5 poses, neutral at the fifth; default on); shadow casters by light direction built (F2.15b: −0.85..−1.4 ms but leaks at leaf-adjacent trunk faces; closed casters fix it at +1-2 ms — off; F2.15d: two cheaper closures measured, neither closes the leaks chunk-exactly, reach 24 only −0.1..−0.5 ms — off, closed for now); lower command count done (F2.15f: ordered compacted + merged commands via indirect count, −0.07..−0.23 ms at 4 of 5 poses, neutral at the fifth; default on) — DONE |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | built and exact (F2.16: slice/row delta of the run merge + sprig cells + block connectivity + cluster order; 0 mismatches in 214 live verified edits up to 4 m across chunk borders, 3D view identical to a full rebuild); cost NOT met — CPU 1 voxel 1.05 / 1 m 4.5 / 4 m 48 ms (whole-width rows), device rows exact but their synchronous readback waits 10-20 ms for the GPU at the uncapped operating point; CPU default, device opt-in for item 10; next-frame re-upload ~9 ms owed to item 10 |
-| 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
+| 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | done (F2.17: per-chunk spans of the region arena allocator, device-local, edits copy only their spans + rewrite the cull table in place; next-frame upload 8.7-14.5 → 0.16-0.18 ms; whole frame −2.3..−3.8 ms at all 5 poses (shadow passes: no more PCIe reads); 0 px; pool image 1.6x the live faces; default on) |
 
 Known defect that gets worse with more merging: **T-junction cracks at merge borders** (`RenderOptimization.md:489`).
 Cross-block merging creates more T-junctions, so F2 has to handle it, not inherit it.
@@ -1261,6 +1261,45 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   whole re-upload), then a narrower CPU row (the footprint's blocks, not the whole width) if the CPU path stays.
   Also owed: edits with coarse LOD levels / casters / seam (each needs its own update), the connectivity flood per
   edit (0.4-1.5 ms), the 545 MB dense edit store (BlockStore is F3).
+
+**F2.17 2026-11-15 — §4.6 item 10: the face pool (region-arena spans per chunk, device-local; default ON).**
+- Built: `FacePool` (core/voxfound) places each chunk's faces, cell clusters and direction clusters in spans of
+  `Graphics::ChunkArenaAllocator` (the region arena: 768 B alignment, retire queue), one block per array so each array
+  stays ONE device buffer. The pool image IS `Preview::Level` (gaps after spans, count-0 cluster slots), so every
+  draw path keeps working. `update()` rewrites only the changed chunks: in place when they fit their span, else a new
+  span with the old one retired and its cluster slots zeroed in the same update; it returns the dirty index ranges.
+  `RegionEdit::assemble(pv, leafTex, &rebuilt)` uses it and `Preview` carries the dirty ranges of the last revision
+  step. Renderer (`{"face_pool":bool}`): the faces live in a DEVICE-LOCAL buffer filled by copies recorded at the
+  start of the frame (`recordVoxFoundPoolUpdate`, before the shadow pass) behind barriers — queue order, no device
+  wait; a one-step pooled revision copies only the dirty face ranges and rewrites the main cull table in place
+  (`ClusterCullGpu::beginUpdates` + `recordUpdate`: cluster words, firsts, origin words, every slot's command words).
+  `voxfound_cull.comp`: a count-0 cluster is never visible (the empty slots).
+- Red first: CPU `FacePoolUpdatesOnlyWhatChanged` (400 random count changes over 6 chunks: drawn ranges and slots =
+  the lists, no overlap, unchanged chunks never move, and the previous image + the dirty ranges = the new image);
+  GPU `PartialUpdateEqualsAFullUpload` (50 rounds of in-place range rewrites cull exactly like a fresh upload:
+  per-cluster commands, compacted commands, origins, counts); GPU `SeveralUpdatesInOneCommandBuffer` (below). All
+  red on stubs. CPU 59/59, GPU 22/22.
+- Bug found by the first live gate (device lost after the first pooled edit; the Crash Diagnostic Layer showed the
+  frame's first copy never completing): `recordUpdate` replaced its staging when a later call in the SAME frame needed
+  more room, destroying the source of copies already recorded. Fixed with a per-slot cursor (calls append; a full
+  buffer is retired until the slot's next `beginUpdates`), pinned by the third test.
+- Measured (`voxfound_f217_*`; prediction `voxfound_f217_prediction.txt`):
+  - Exact: in the 3D viewport after 20 visible edits uploaded partially, pool vs the same image uploaded whole
+    (host-visible) vs a fresh layout of a full rebuild: 0 / 0 / 0 px at forest_floor_open and overview_south, drawn
+    counts identical; after 200 more edits still 0 px vs a fresh layout.
+  - Next-frame upload after an edit: 0.16-0.18 ms median (p90 ≤ 0.53) for 1 voxel .. 4 m, vs 8.7-14.5 ms today
+    (predicted ≤ 0.5 / ≤ 1: held). The CPU reassembly (2.5 ms) is unchanged (owed).
+  - Steady state, whole frame, device-local pool − today's host-visible buffer (8 pairs × 5 poses): −2.34 / −2.67 /
+    −2.98 / −3.77 / −3.06 ms (overview_south, top_down, forest_floor_open, east_low, canopy_close), every CI excludes 0.
+    Predicted −0.1..−0.8: wrong, 3-10x more. It is the shadow passes (−2.2..−3.6 ms): the casters' 36-index instanced
+    draw re-reads each face record per vertex, and from host memory that went over PCIe. Main view −0.25..−0.75 ms
+    at 3 poses.
+  - Memory: the pool image is 1.63x the live faces after layout, 1.57x after 300 edits (predicted ≤ 1.3 / ≤ 1.5:
+    wrong; growth, slack and alignment compound). 6.3 MB vs 3.8 MB here.
+- Default ON. Owed, recorded: the CPU reassembly per edit (2.5 ms: the level image is still copied whole into the
+  Preview); a tighter slack policy; the shadow MDI's cull table still re-uploads whole (it is off); the sprigs are
+  still re-copied whole (0.15 ms). Re-measure owed: F2.12's shadow MDI and F2.15b/d's light-direction culling were
+  judged with host-visible faces, where every extra caster read cost PCIe bandwidth.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

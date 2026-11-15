@@ -21,6 +21,15 @@ static_assert(sizeof(CullPC) == 128, "voxfound_cull.comp push constants");
 struct GpuCluster {
     glm::vec4 lo, hi;
 };
+// F2.14: level in bits 24-27; F2.15: direction + 1 in bits 28-31 (0 = all directions); hi.w = the face count
+GpuCluster packCluster(const ClusterCullGpu::Cluster& c) {
+    uint32_t ch = (c.chunk & 0xFFFFFFu) | (c.level & 0xFu) << 24 | uint32_t(c.dir < 0 ? 0 : c.dir + 1) << 28,
+             n = c.count;
+    float fch, fn;
+    std::memcpy(&fch, &ch, 4);
+    std::memcpy(&fn, &n, 4);
+    return GpuCluster{glm::vec4(c.lo, fch), glm::vec4(c.hi, fn)};
+}
 }  // namespace
 
 ClusterCullGpu::ClusterCullGpu() = default;
@@ -59,6 +68,11 @@ void ClusterCullGpu::shutdown() {
     for (auto& b : m_counts) destroyBuffer(b);
     for (auto& b : m_ccmds) destroyBuffer(b);
     for (auto& b : m_groups) destroyBuffer(b);
+    for (auto& sg : m_stage) {   // F2.17
+        destroyBuffer(sg.cur);
+        for (auto& b : sg.retired) destroyBuffer(b);
+    }
+    m_stage.clear();
     m_commands.clear();
     m_ccmds.clear();
     m_groups.clear();
@@ -209,17 +223,7 @@ bool ClusterCullGpu::upload(const std::vector<Cluster>& clusters, uint32_t index
         }
     }
     auto* gc = static_cast<GpuCluster*>(staging.mapped);
-    for (uint32_t i = 0; i < m_count; ++i) {
-        const Cluster& c = clusters[i];
-        // F2.14: level in bits 24-27; F2.15: direction + 1 in bits 28-31 (0 = all directions)
-        uint32_t ch = (c.chunk & 0xFFFFFFu) | (c.level & 0xFu) << 24 | uint32_t(c.dir < 0 ? 0 : c.dir + 1) << 28,
-                 n = c.count;
-        float fch, fn;
-        std::memcpy(&fch, &ch, 4);
-        std::memcpy(&fn, &n, 4);
-        gc[i].lo = glm::vec4(c.lo, fch);
-        gc[i].hi = glm::vec4(c.hi, fn);
-    }
+    for (uint32_t i = 0; i < m_count; ++i) gc[i] = packCluster(clusters[i]);
     if (m_count && !copy(queue, family, staging.buf, m_clusters.buf, clusterBytes, err)) {
         destroyBuffer(staging);
         return false;
@@ -406,6 +410,138 @@ bool ClusterCullGpu::cullNow(VkQueue queue, uint32_t family, uint32_t slot, cons
     const bool ok = vkQueueSubmit(queue, 1, &si, VK_NULL_HANDLE) == VK_SUCCESS && vkQueueWaitIdle(queue) == VK_SUCCESS;
     vkDestroyCommandPool(m_device, pool, nullptr);
     if (!ok && err) *err = "ClusterCullGpu: submit failed";
+    return ok;
+}
+
+
+// ---- F2.17 (§4.6 item 10): recordUpdate -- clusters rewritten in place, on the GPU timeline ----
+bool ClusterCullGpu::recordUpdate(VkCommandBuffer cmd, uint32_t slot, uint32_t first, const std::vector<Cluster>& clusters,
+                                  const std::vector<glm::ivec4>* origins, std::string* err) {
+    const uint32_t n = uint32_t(clusters.size());
+    if (n == 0) return true;
+    if (!initialized() || m_commands.empty() || slot >= m_slots) {
+        if (err) *err = "ClusterCullGpu::recordUpdate: nothing uploaded";
+        return false;
+    }
+    if (uint64_t(first) + n > m_count) {
+        if (err) *err = "ClusterCullGpu::recordUpdate: range outside the table";
+        return false;
+    }
+    if (origins && origins->size() != n) {
+        if (err) *err = "ClusterCullGpu::recordUpdate: one origin per cluster";
+        return false;
+    }
+    const bool withOrigins = origins && m_compact;
+    const VkDeviceSize cb = VkDeviceSize(n) * sizeof(GpuCluster), fb = VkDeviceSize(n) * 4,
+                       ob = withOrigins ? VkDeviceSize(n) * 16 : 0, mb = VkDeviceSize(n) * 20;
+    const VkDeviceSize total = cb + fb + ob + mb;
+    if (m_stage.size() < m_slots) m_stage.resize(m_slots);
+    Stage& sg = m_stage[slot];
+    if (sg.cur.bytes < sg.used + total) {
+        // full: a bigger buffer; the old one may still be read by copies recorded earlier in this frame -> retired
+        const VkDeviceSize want = std::max<VkDeviceSize>({total, 2 * sg.cur.bytes, 64 * 1024});
+        if (sg.cur.buf != VK_NULL_HANDLE) sg.retired.push_back(sg.cur);
+        sg.cur = Buffer{};
+        sg.used = 0;
+        if (!createBuffer(sg.cur, want, 0, true, err)) return false;
+    }
+    Buffer& st = sg.cur;
+    const VkDeviceSize at = sg.used;
+    sg.used += (total + 15) / 16 * 16;
+    auto* base = static_cast<uint8_t*>(st.mapped) + at;
+    auto* gc = reinterpret_cast<GpuCluster*>(base);
+    auto* fi = reinterpret_cast<uint32_t*>(base + cb);
+    auto* oi = reinterpret_cast<glm::ivec4*>(base + cb + fb);
+    auto* cw = reinterpret_cast<uint32_t*>(base + cb + fb + ob);
+    for (uint32_t i = 0; i < n; ++i) {
+        gc[i] = packCluster(clusters[i]);
+        fi[i] = clusters[i].firstInstance;
+        if (withOrigins) oi[i] = (*origins)[i];
+        cw[i * 5 + 0] = m_indexCount;
+        cw[i * 5 + 1] = clusters[i].count;
+        cw[i * 5 + 2] = 0;
+        cw[i * 5 + 3] = 0;
+        cw[i * 5 + 4] = clusters[i].firstInstance;
+    }
+    // earlier frames' reads of these tables (cull compute, indirect draws) finish before the copies overwrite them
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                         nullptr, 0, nullptr);
+    VkBufferCopy r{at, VkDeviceSize(first) * sizeof(GpuCluster), cb};
+    vkCmdCopyBuffer(cmd, st.buf, m_clusters.buf, 1, &r);
+    r = {at + cb, VkDeviceSize(first) * 4, fb};
+    vkCmdCopyBuffer(cmd, st.buf, m_firsts.buf, 1, &r);
+    if (withOrigins) {
+        r = {at + cb + fb, VkDeviceSize(first) * 16, ob};
+        vkCmdCopyBuffer(cmd, st.buf, m_origIn.buf, 1, &r);
+    }
+    for (uint32_t s2 = 0; s2 < m_slots; ++s2) {   // every slot's static command words (the per-cluster path)
+        r = {at + cb + fb + ob, VkDeviceSize(first) * 20, mb};
+        vkCmdCopyBuffer(cmd, st.buf, m_commands[s2].buf, 1, &r);
+    }
+    VkMemoryBarrier b2{};
+    b2.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    b2.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    b2.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 1, &b2, 0,
+                         nullptr, 0, nullptr);
+    return true;
+}
+
+void ClusterCullGpu::beginUpdates(uint32_t slot) {
+    if (m_stage.size() <= slot) m_stage.resize(slot + 1);
+    Stage& st = m_stage[slot];
+    for (Buffer& b : st.retired) destroyBuffer(b);
+    st.retired.clear();
+    st.used = 0;
+}
+
+bool ClusterCullGpu::updateNow(VkQueue queue, uint32_t family, uint32_t slot, uint32_t first,
+                               const std::vector<Cluster>& clusters, const std::vector<glm::ivec4>* origins,
+                               std::string* err) {
+    UpdateBlock b;
+    b.first = first;
+    b.clusters = clusters;
+    if (origins) b.origins = *origins;
+    return updateNow(queue, family, slot, std::vector<UpdateBlock>{b}, err);
+}
+
+bool ClusterCullGpu::updateNow(VkQueue queue, uint32_t family, uint32_t slot, const std::vector<UpdateBlock>& blocks,
+                               std::string* err) {
+    VkCommandPoolCreateInfo pci{};
+    pci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    pci.queueFamilyIndex = family;
+    pci.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    VkCommandPool pool = VK_NULL_HANDLE;
+    if (vkCreateCommandPool(m_device, &pci, nullptr, &pool) != VK_SUCCESS) {
+        if (err) *err = "ClusterCullGpu: command pool";
+        return false;
+    }
+    VkCommandBufferAllocateInfo cai{};
+    cai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cai.commandPool = pool;
+    cai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cai.commandBufferCount = 1;
+    VkCommandBuffer cmd = VK_NULL_HANDLE;
+    vkAllocateCommandBuffers(m_device, &cai, &cmd);
+    VkCommandBufferBeginInfo bi{};
+    bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &bi);
+    beginUpdates(slot);
+    bool ok = true;
+    for (const UpdateBlock& b : blocks)
+        if (ok) ok = recordUpdate(cmd, slot, b.first, b.clusters, b.origins.empty() ? nullptr : &b.origins, err);
+    vkEndCommandBuffer(cmd);
+    if (ok) {
+        VkSubmitInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        si.commandBufferCount = 1;
+        si.pCommandBuffers = &cmd;
+        ok = vkQueueSubmit(queue, 1, &si, VK_NULL_HANDLE) == VK_SUCCESS && vkQueueWaitIdle(queue) == VK_SUCCESS;
+        if (!ok && err) *err = "ClusterCullGpu: submit failed";
+    }
+    vkDestroyCommandPool(m_device, pool, nullptr);
     return ok;
 }
 

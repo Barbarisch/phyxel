@@ -40,6 +40,8 @@ const uint kMergeBlock = 8u;   // ClusterCullGpu::kMergeBlock (F2.15f-2: measure
 
 bool clusterVisible(uint i) {
     const Cluster c = clusters[i];
+    // F2.17 (§4.6 item 10): a face-pool slot with no faces (count 0) is empty -- never drawn, never merged
+    if (floatBitsToUint(c.hi.w) == 0u) return false;
     const uint bits = floatBitsToUint(c.lo.w);   // chunk index 0-23 | level 24-27 (F2.14) | direction + 1 28-31 (F2.15)
     bool vis = chunkVisible[bits & 0xFFFFFFu] != 0u;
     // F2.14: a cluster of level k is drawn only where a fragment in its box may keep level k (Mesher.h
