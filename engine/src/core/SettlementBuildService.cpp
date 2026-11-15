@@ -751,6 +751,67 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         auto sharedFrontDoors = std::make_shared<std::vector<FrontDoor>>();
         // M5a-1 (chain 74): the buildings that realized, so the gate can tell "no door recorded" from "nothing built"
         auto sharedBuilt = std::make_shared<int>(0);
+        // M5d-2a (D62 PROPOSED; O28 b): a walled settlement must be LEAVABLE. Wherever the built wall's band (openings
+        // included) stands on the WORLD road, the walkability gate walks one route along that road from inside the
+        // wall to outside it. The wall unit finds the crossings; the gate walks them; a blocked one refuses the build.
+        struct WallCrossing { glm::ivec2 inside{0, 0}, outside{0, 0}; bool placed = false; std::string label; };   // world cube cells
+        auto sharedWallCrossings = std::make_shared<std::vector<WallCrossing>>();
+        std::function<int(int, int)> roadAtWorld;   // world cube cell -> the world road's class ON it (0 = none)
+        if (chunkManager && terrain)
+            if (WorldGenerator* roadGen = chunkManager->getStreamingGenerator())
+                if (const WorldForgePlan* wfp = roadGen->worldForge())
+                    roadAtWorld = [wfp](int wx, int wz) {
+                        const WorldForgePlan::RoadHit h = wfp->roadAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f);
+                        return (h.cls > 0 && h.dist <= WorldForgePlan::roadHalfWidth(h.cls)) ? h.cls : 0;
+                    };
+        // band = the wall's cells (world), `inside` = the side of the wall a cell is on. One crossing per 8-connected
+        // group of band cells on the road; its two ends are the road cells reached FROM that group along the road
+        // (8-connected, off the band, at most 14 steps): on each side the FIRST one 5 steps out - clear of the band and
+        // its margin, and no deeper: the route claims "through the wall", not "to the heart of the town" (chain 264:
+        // the farthest road cell inside sat on the road's stale tail, 15 cells in, and was cut off there by something
+        // that is not the wall). A crossing with an end missing is recorded unplaced - the gate counts it skipped.
+        const auto findWallCrossings = [](const std::set<std::pair<int, int>>& band, const std::function<bool(int, int)>& inside,
+                                          const std::function<int(int, int)>& roadAt, std::vector<WallCrossing>& out) {
+            if (!roadAt) return;
+            std::set<std::pair<int, int>> seen;
+            for (const auto& b : band) {
+                if (seen.count(b) || roadAt(b.first, b.second) <= 0) continue;
+                std::vector<std::pair<int, int>> group{b}, frontier{b};
+                seen.insert(b);
+                while (!frontier.empty()) {
+                    const auto c = frontier.back(); frontier.pop_back();
+                    for (int dz = -1; dz <= 1; ++dz) for (int dx = -1; dx <= 1; ++dx) {
+                        const std::pair<int, int> n{c.first + dx, c.second + dz};
+                        if (!band.count(n) || seen.count(n) || roadAt(n.first, n.second) <= 0) continue;
+                        seen.insert(n); group.push_back(n); frontier.push_back(n);
+                    }
+                }
+                long sx = 0, sz = 0;
+                for (const auto& g : group) { sx += g.first; sz += g.second; }
+                WallCrossing wc;
+                const int gx = static_cast<int>(sx / static_cast<long>(group.size())), gz = static_cast<int>(sz / static_cast<long>(group.size()));
+                wc.label = "world road through the wall @" + std::to_string(gx) + "," + std::to_string(gz);
+                std::map<std::pair<int, int>, int> depth;
+                std::vector<std::pair<int, int>> ring = group;
+                for (const auto& g : group) depth[g] = 0;
+                bool hasIn = false, hasOut = false;
+                for (int d = 1; d <= 14 && !ring.empty(); ++d) {
+                    std::vector<std::pair<int, int>> next;
+                    for (const auto& c : ring)
+                        for (int dz = -1; dz <= 1; ++dz) for (int dx = -1; dx <= 1; ++dx) {
+                            const std::pair<int, int> n{c.first + dx, c.second + dz};
+                            if (depth.count(n) || band.count(n) || roadAt(n.first, n.second) <= 0) continue;
+                            depth[n] = d; next.push_back(n);
+                            if (d < 5) continue;
+                            if (inside(n.first, n.second)) { if (!hasIn) { wc.inside = {n.first, n.second}; hasIn = true; } }
+                            else if (!hasOut) { wc.outside = {n.first, n.second}; hasOut = true; }
+                        }
+                    ring.swap(next);
+                }
+                wc.placed = hasIn && hasOut;
+                out.push_back(wc);
+            }
+        };
         // Per-micro-column pavement stamp ({x, startRow, z, surface}, micro coords) so the
         // sweep can re-stamp the paving it clears along with the debris.
         auto sharedStamp = std::make_shared<std::vector<glm::ivec4>>();
@@ -1938,7 +1999,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager && programMode && tierP && tierP->walls.enabled) {
             units.push_back({"raising the town wall",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 spec = tierP->walls, layout, buildings, ox, oz, W, D, terrainTopAt, pathsJsonP]() {
+                 spec = tierP->walls, layout, buildings, ox, oz, W, D, terrainTopAt, pathsJsonP, roadAtWorld, sharedWallCrossings, findWallCrossings]() {
             if (!chunkManager) return;
             std::vector<Core::Rect> footprints;
             footprints.reserve(buildings.size());
@@ -2151,6 +2212,18 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // M5d-1: the map now carries a wall of its own (SettlementMap::wall, a ring round the lots); THIS unit still
             // stamps the site rectangle. Said in the record so the disagreement is not silent (M5d-2 stamps the map's).
             (*pathsJsonP)["town_wall"]["source"] = "site_rect";
+            {   // M5d-2a: where this wall's band stands on the world road (the gate walks each)
+                std::set<std::pair<int, int>> band;
+                for (const auto& r : wp.runs)
+                    for (int x = r.band.x; x < r.band.x1(); ++x) for (int z = r.band.z; z < r.band.z1(); ++z) band.insert({ox + x, oz + z});
+                const Core::Rect ib = wp.innerBound;
+                findWallCrossings(band, [ib, ox, oz](int wx, int wz) { return wx - ox >= ib.x && wx - ox < ib.x1() && wz - oz >= ib.z && wz - oz < ib.z1(); },
+                                  roadAtWorld, *sharedWallCrossings);
+                (*pathsJsonP)["town_wall"]["road_crossings"] = sharedWallCrossings->size();
+                (*pathsJsonP)["town_wall"]["road_sampler"] = static_cast<bool>(roadAtWorld);
+                LOG_INFO_FMT("Settlement", "town wall: " << sharedWallCrossings->size() << " crossing(s) of the world road"
+                             << (roadAtWorld ? "" : " (no world road sampler: none can be found)"));
+            }
             }});
         }
 
@@ -2508,7 +2581,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager) {
             units.push_back({"walkability gate",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP]() {
+                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt]() {
             if (!chunkManager) return;
             const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
                 return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
@@ -2672,12 +2745,52 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     routesJ.push_back(j);
                 }
             }
+            // M5d-2a (D62 PROPOSED): the way OUT - one route along the world road through each place the wall stands on it
+            int leaveRoutes = 0, leaveBlocked = 0, leaveUnplaced = 0;
+            for (const auto& wc : *sharedWallCrossings) {
+                const int fi = wc.placed ? seatFeet(wc.inside.x, wc.inside.y, (terrainTopAt(wc.inside.x, wc.inside.y) + 1) * 9) : INT_MIN;
+                const int fo = wc.placed ? seatFeet(wc.outside.x, wc.outside.y, (terrainTopAt(wc.outside.x, wc.outside.y) + 1) * 9) : INT_MIN;
+                if (fi == INT_MIN || fo == INT_MIN) {
+                    LOG_WARN_FMT("Settlement", "walkability: " << wc.label << " has no walkable end on " << (wc.placed ? "one side (an end does not seat)" : "one side of the wall along the road")
+                                 << " - NOT walked, counted skipped");
+                    ++skipped; ++leaveUnplaced; continue;
+                }
+                Core::WalkRoute r;
+                r.label = wc.label;
+                r.from = glm::ivec3(wc.inside.x * 9 + 4, fi, wc.inside.y * 9 + 4);
+                r.to = glm::ivec3(wc.outside.x * 9 + 4, fo, wc.outside.y * 9 + 4);
+                r.goalRadiusMicro = 4;
+                const glm::ivec3 lo(std::min(r.from.x, r.to.x) - 8 * 9, std::min(r.from.y, r.to.y) - 27, std::min(r.from.z, r.to.z) - 8 * 9);
+                const glm::ivec3 hi(std::max(r.from.x, r.to.x) + 8 * 9, std::max(r.from.y, r.to.y) + 36, std::max(r.from.z, r.to.z) + 8 * 9);
+                const auto rep = Core::checkRoutes(occ, box, {r}, lo, hi, /*diagnose=*/true);
+                ++leaveRoutes; walkable += rep.walkable; blocked += rep.blocked; leaveBlocked += rep.blocked;
+                for (const auto& rr : rep.routes) {
+                    nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}, {"leave", true},
+                                        {"from", {r.from.x, r.from.y, r.from.z}}, {"to", {r.to.x, r.to.y, r.to.z}}};
+                    if (!rr.walkable) {
+                        j["pinch_from"] = {rr.pinchFrom.x, rr.pinchFrom.y, rr.pinchFrom.z};
+                        j["pinch_to"] = {rr.pinchTo.x, rr.pinchTo.y, rr.pinchTo.z};
+                        j["reached_from_start"] = rr.reachedFromStart; j["reached_from_goal"] = rr.reachedFromGoal;
+                        j["one_way"] = rr.oneWay;
+                        LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << (rr.oneWay ? "(ONE-WAY, a drop) " : "") << rr.label << " - the settlement cannot be left by this road: pinch ("
+                                     << rr.pinchFrom.x << "," << rr.pinchFrom.y << "," << rr.pinchFrom.z << ")->(" << rr.pinchTo.x << "," << rr.pinchTo.y << "," << rr.pinchTo.z
+                                     << "); reached " << rr.reachedFromStart << "/" << rr.reachedFromGoal);
+                    }
+                    routesJ.push_back(j);
+                }
+            }
+            if (!sharedWallCrossings->empty())
+                LOG_INFO_FMT("Settlement", "walkability gate: the way out - " << leaveRoutes << " road route(s) through the wall walked, " << leaveBlocked << " blocked, "
+                             << leaveUnplaced << " not walked");
             LOG_INFO_FMT("Settlement", "walkability gate: " << walkable << " walkable, " << blocked
                          << " blocked over " << (walkable + blocked) << " routes ("
                          << sharedFrontDoors->size() << " front doors of " << *sharedBuilt << " built, " << skipped << " skipped)");
             (*pathsJsonP)["walkability"] = {{"routes", routesJ}, {"walkable", walkable},
                                             {"blocked", blocked}, {"failed", blocked}, {"skipped", skipped},
                                             {"doors", sharedFrontDoors->size()}, {"built", *sharedBuilt}};
+            (*pathsJsonP)["walkability"]["leave_routes"] = leaveRoutes;
+            (*pathsJsonP)["walkability"]["leave_blocked"] = leaveBlocked;
+            (*pathsJsonP)["walkability"]["leave_unplaced"] = leaveUnplaced;
             *walkJsonP = (*pathsJsonP)["walkability"];
             }});
         }

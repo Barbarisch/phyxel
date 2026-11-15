@@ -1547,3 +1547,56 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagTheCityOnTheTownSite) {
                 out.value("blocked", -1), out.value("built", -1), out.value("doors", -1), out["lot_failures"].size());
     for (const auto& f : out["lot_failures"]) std::printf("[ M5d-2 ]   lot failure: %s\n", f.dump().c_str());
 }
+
+// M5d-2a (D62 PROPOSED; O28): the walled city can be LEFT by its arriving road - the walkability gate walks the world
+// road through the wall wherever the wall stands on it. The rig is chain 252's (stated): the CITY's program on the
+// baseline world's town site, Debug, one seed - the baseline world seats no city.
+TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("town", 48)) << rig.why;
+    nlohmann::json ov; ov["tier"] = "city";
+    const auto out = realize(rig, /*legacyLayout=*/false, ov);
+    ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+    const nlohmann::json wallRec = out["paths"].value("town_wall", nlohmann::json::object());
+    const nlohmann::json walk = out["paths"].value("walkability", nlohmann::json::object());
+    int leave = 0, leaveBlocked = 0;
+    for (const auto& r : walk.value("routes", nlohmann::json::array())) {
+        if (!r.value("leave", false)) continue;
+        ++leave;
+        if (!r.value("walkable", false)) ++leaveBlocked;
+        std::printf("[ M5d-2a ] %s (from %s to %s%s): %s%s\n", r.value("label", std::string("?")).c_str(), r.value("from", nlohmann::json()).dump().c_str(), r.value("to", nlohmann::json()).dump().c_str(),
+                    r.value("one_way", false) ? ", ONE-WAY" : "", r.value("walkable", false) ? "walkable" : "BLOCKED",
+                    r.value("walkable", false) ? "" : (" pinch " + r.value("pinch_from", nlohmann::json()).dump() + " -> " + r.value("pinch_to", nlohmann::json()).dump()).c_str());
+    }
+    {   // chain 265: what stands at each blocked leave route's pinch
+        const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
+        for (const auto& r : walk.value("routes", nlohmann::json::array())) {
+            if (!r.value("leave", false) || r.value("walkable", false) || !r.contains("pinch_from")) continue;
+            const auto pfj = r["pinch_from"], ptj = r["pinch_to"];
+            const glm::ivec3 pf(pfj[0].get<int>(), pfj[1].get<int>(), pfj[2].get<int>()), pt(ptj[0].get<int>(), ptj[1].get<int>(), ptj[2].get<int>());
+            const int lx = floorDivN(pf.x, 9) - sm.originX, lz = floorDivN(pf.z, 9) - sm.originZ;
+            std::printf("[ M5d-2a ] pinch of '%s': local cube %d,%d\n", r.value("label", std::string()).c_str(), lx, lz);
+            rig.floorProfile(pf, glm::ivec3(pf.x + 1, pf.y, pf.z));   // along x
+            rig.floorProfile(pf, glm::ivec3(pf.x, pf.y, pf.z + 1));   // along z
+            rig.fixturesNear(pf);
+            for (const auto& l : sm.lots)
+                if (lx >= l.rect.x - 4 && lx < l.rect.x1() + 4 && lz >= l.rect.z - 4 && lz < l.rect.z1() + 4)
+                    std::printf("[ M5d-2a ]   lot %d %s rect %d,%d %dx%d footprint %d,%d %dx%d terrace %d (y %d)\n", l.id, l.typology.c_str(), l.rect.x, l.rect.z, l.rect.w, l.rect.d,
+                                l.footprint.x, l.footprint.z, l.footprint.w, l.footprint.d, l.hasTerrace ? 1 : 0, l.terraceY);
+            for (const auto& w : sm.ways)
+                for (const int nid : w.nodes) {
+                    const Core::MapNode* n = sm.node(nid);
+                    if (n && std::abs(n->x - lx) <= 4 && std::abs(n->z - lz) <= 4) std::printf("[ M5d-2a ]   way %d (%s, width %.0f) node %d,%d y %d\n", w.id, w.highway.c_str(), w.width, n->x, n->z, n->y);
+                }
+        }
+    }
+    std::printf("[ M5d-2a ] the wall as built: %s\n", wallRec.dump().c_str());
+    std::printf("[ M5d-2a ] the way out: %d route(s), %d blocked, %d not walked; gate %s (%d walkable, %d blocked, %d skipped); built %d\n", leave, leaveBlocked,
+                walk.value("leave_unplaced", -1), out.value("gate", std::string("?")).c_str(), out.value("walkable", -1), out.value("blocked", -1), out.value("skipped", -1), out.value("built", -1));
+    EXPECT_TRUE(wallRec.value("built", false)) << "no wall was built: nothing below is measured";
+    EXPECT_TRUE(wallRec.value("road_sampler", false)) << "the realizer has no world road sampler on this rig";
+    EXPECT_GT(leave, 0) << "the gate walked no route out of the walled city";
+    EXPECT_EQ(walk.value("leave_unplaced", -1), 0) << "a crossing of the world road was found and not walked";
+    EXPECT_EQ(leaveBlocked, 0) << "the walled city cannot be left by its road";
+    EXPECT_EQ(out.value("gate", std::string()), "passed");
+}

@@ -133,3 +133,58 @@ RESULT chain 263 (written 2026-11-15 03:17; RUN EXIT 0 03:16:23; exe 02:55:36; t
   the world road 10, ungated 0; the map's wall 3 gates (guessed 3): 42,-3 way 1; 89,63 way 2; 142,38 way -1. The
   north road lies inside way 2's opening - measured now, not arithmetic. The realizer's rectangle: 2 gates, built,
   site_rect - it still seals the east road. One site, one seed, Debug, a DISABLED diagnostic.
+
+PM5d2.9  M5d-2a, chain 264 (written 2026-11-15 03:20, before the patch is applied; patch 54: the wall unit finds where its band
+  stands on the world road, the gate walks one route along the road through each; a new live test
+  TheWalledCityCanBeLeftByItsRoad on chain 252's rig). The wall stamped is STILL the rectangle. This is the RED on
+  the shipped output: NOT run separately first as "the route does not exist" (18 minutes for an absence I can read
+  off the code) - stated.
+  Prediction: 0 ok / 1 failed. The rectangle's band stands on the world road at two places (the east road, and the
+  north road at about x 88-92); 2 leave routes; the north one walkable (it lies in way 2's gate, 7 wide, by chain
+  263's measurement of the same road against the map's gate - the rectangle's own gate is the same street's);
+  the east one BLOCKED; the gate refuses (blocked 1). RISKS: an end does not seat on the road's earthwork ("not
+  walked" - then the test fails on that line and I have a rig problem, not a finding); the road band on the
+  rectangle's corner tower.
+
+RESULT chain 264 (written 2026-11-15 03:43; RUN EXIT 1 03:42:50; exe 03:21:03): 0 ok / 1 failed - red as predicted, but NOT the
+  red I predicted in one half. The rectangle (10191 cubes, 2 gates) stands on the world road at 2 places; 2 leave
+  routes walked, 0 not walked, BOTH blocked; the gate: 73 walkable, 2 blocked -> the build REFUSED.
+  East (@13584,-9920 = local 142,38): pinch 122253 -> 122276 in x and 23 micro apart in z - the wall's two cubes;
+  reached 22525 / 23040. As predicted: the wall seals the east road.
+  North (@13529,-9895 = local 87,63): MISS - I predicted walkable. The pinch is at micro (121666,1396,-89186) =
+  local cube (76,48), FIFTEEN cells inside the wall, gap 0, with large floods on both sides (55156 from the start,
+  67029 from the goal). The flood from outside came THROUGH the north gate and down to there; the block is inside
+  the town, by the end of way 0 (79,52), between two big walkable regions. I do not know what it is (a ledge
+  between the road's earthwork and a terrace or paving is my guess). If the town's interior is split there, no
+  check has ever measured it: every door route is local (street marker -> its own door).
+  Site origin 13442,-9958. The gate unit took 307 s (124 s without the leave routes).
+PM5d2.10 chain 265 (written 2026-11-15 03:43, before the run; the test prints, for each blocked leave route, the floor profile
+  across the pinch along x and along z, the fixtures near it, and the map's lots and way nodes within 4 cells; no
+  assertion changed): the same counts (2 routes, 2 blocked). North pinch: GUESS a step of 5-9 micro between two
+  columns (a terrace's skirt edge or a paving edge against the road's graded surface), no fixture. I do not trust
+  this guess.
+
+RESULT chain 265 (written 2026-11-15 04:07; RUN EXIT 1 04:05:55; the same counts: 2 routes, 2 blocked): the north pinch at local
+  cube 76,48 is NOT explained. The floor there is a flat slot at micro 1395, about 10 micro wide in x with sides
+  rising 2 micro a column, flat for 25 micro along z; pinch_from and pinch_to are DIAGONAL neighbours at the same
+  level. No map lot within 4 cells; way 0's end node (79,52) is 3-4 cells off; 42 fixtures within 12 cubes, all
+  inside house_6 / house_21. My guess of a 5-9 micro step is NOT what the profile shows at the pinch. Not read:
+  headroom over the slot, and whether the route is ONE-WAY (a drop elsewhere on it) - the gate requires both
+  directions and my record did not carry that flag. So: something on the world road's last cells inside the town
+  stops a walker 15 cells in from the north gate, cause unknown. OPEN, carried to the plan; not chased further here.
+  The east pinch: the floor steps from 1412 to 1422 at the wall's foot - the wall.
+PM5d2.11 chain 266 (written 2026-11-15 04:07, before the run; the rule CHANGED after two runs, stated: a crossing's ends are now
+  the first road cell 5 steps out on each side, not the farthest within 14 - the route claims "through the wall";
+  the record carries one_way): 2 leave routes; north WALKABLE (through way 2's gate, 5 cells each side of the
+  band); east BLOCKED by the wall; the gate refuses on 1 blocked; the test stays red on that one line and on the
+  gate's verdict: 0 ok / 1 failed. If north is still blocked this close to the gate, the rectangle's north gate
+  itself does not pass the road and that is a second defect of the shipped wall.
+
+RESULT chain 266 (written 2026-11-15 04:26; RUN EXIT 1 04:26:13; exe 04:07:36): 0 ok / 1 failed - as predicted, to the line.
+  2 leave routes walked, 0 not walked. North (@13529,-9895): WALKABLE through the rectangle's north gate. East
+  (@13584,-9920): BLOCKED, pinch at local 141,36 - the wall. The gate: 74 walkable, 1 blocked over 75 routes -> the
+  build REFUSED ("the settlement is a refused outcome"). The test is red on "the walled city cannot be left by its
+  road" and on the gate's verdict. This is the measurement failing on the shipped wall (the rectangle, 10191 cubes,
+  2 gates, source site_rect). The gate unit: 166 s.
+  NOT rerun on this tree: the unit set, the map suite, the rest of the live set. Standing from here until M5d-2b:
+  this test is RED in the live set by design.
