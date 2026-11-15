@@ -570,6 +570,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         m_lastKick.volumes = k.volumes; m_lastKick.faces = k.faces; m_lastKick.clamped = k.clamped;
         m_lastKick.speed = speed; m_lastKick.reach = reach; m_lastKick.centre = c;
     });
+    // 54.2 (W5.2): a simulated river reach takes its edges' current from the record (W5.1's rule; the manager does not know the generator)
+    waterCore->setRecordCurrent([this](int wx, int wz, float top, float bottom) { return recordCurrentAt(wx, wz, top, bottom); });
     // E2 (docs/WaterCore.md 19): debris reads the active volumes ahead of the old water (coupling off =
     // the A/B control: debris then ignores the volumes)
     if (debrisRuntime) debrisRuntime->setVolumeWater(
@@ -13902,7 +13904,7 @@ void Application::registerWaterCommands() {
                               {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_device_ms", a.gpuDeviceMs}, {"partial_wake", a.partialWake}, {"tall_band_m", a.tallBandM}, {"tall_active", a.tallActive}, {"tall_floor_y", a.tallFloorY}, {"tall_rest_y", a.tallRestY}, {"tall_columns", a.tallColumns}, {"tall_regrids", a.tallRegrids}, {"tall_expand_held", a.tallExpandHeld}, {"tall_reason", a.tallReason}, {"tall_offs", a.tallOffs}, {"writes_in_place", a.writesInPlace}, {"writes_round_trip", a.writesRoundTrip}, {"tall_last_off", a.tallLastOff}, {"record_tiles", a.recordTiles}, {"recorded_m3", a.recordedM3}, {"recorded_tiles", a.recordedTiles}, {"tiles_recorded", a.tilesRecorded}, {"tiles_woken", a.tilesWoken}, {"tiles_woken_by_write", a.tilesWokenByWrite}, {"tiles_held_by_neighbours", a.tilesHeldByNeighbours}, {"gpu_wake_all", a.gpuWakeAll}, {"record_spread_mm_max", a.recordSpreadMmMax}, {"record_jump_mm_max", a.recordJumpMmMax}, {"last_record_ms", a.lastRecordMs}, {"last_wake_ms", a.lastWakeMs}, {"seed_unplaced_m3", a.seedUnplacedM3}, {"awake_columns", a.awakeColumns}, {"frozen_columns", a.frozenColumns}, {"moving_columns", a.movingColumns}, {"settling_columns", a.settlingColumns}, {"is_patch", a.isPatch}, {"patch_of", {a.patchParentLo.x, a.patchParentLo.z, a.patchParentHi.x, a.patchParentHi.z}}, {"step_slots", a.stepSlots}, {"partition_moves", a.partitionMoves}, {"carry_body_m3", a.carryBodyM3}, {"carry_rate_m3", a.carryRateM3}, {"carry_flow_m3", a.carryFlowM3}, {"carry_parked_m3", a.carryParkedM3}, {"gpu_host_ms", a.gpuHostMs}, {"gpu_wait_ms", a.gpuWaitMs}, {"gpu_ticks", a.gpuTicks}, {"gpu_async", a.gpuAsync}, {"gpu_bricks", a.gpuBricks}, {"gpu_dispatches", a.gpuDispatches}, {"gpu_pool_grows", a.gpuPoolGrows}, {"gpu_reduce_slots", a.gpuReduceSlots}, {"gpu_reduce_cached", a.gpuReduceCached}, {"gpu_barriers", a.gpuBarriers}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"gpu_brick_height", a.gpuBrickHeight}, {"gpu_ground_bricks", a.gpuGroundBricks}, {"gpu_upload_ms", a.gpuUploadMs}, {"gpu_uploads", a.gpuUploads}, {"occ_refresh_ms", a.occRefreshMs}, {"occ_full_refreshes", a.occFullRefreshes}, {"occ_local_refreshes", a.occLocalRefreshes}, {"occ_cells_resampled", a.occCellsResampled}, {"occ_cells_changed", a.occCellsChanged}, {"gpu_patch_ms", a.gpuPatchMs}, {"gpu_patches", a.gpuPatches}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
-                              {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"source_in_m3", a.sourceIn}, {"outfall_out_m3", a.outfallOut}, {"outfalls", a.outfalls}, {"manning_n", a.manningN}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};
+                              {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"source_in_m3", a.sourceIn}, {"outfall_out_m3", a.outfallOut}, {"outfalls", a.outfalls}, {"manning_n", a.manningN}, {"is_reach", a.isReach}, {"boundary_columns", a.boundaryColumns}, {"boundary_inflow", a.boundaryInflow}, {"boundary_exchange_m3", a.boundaryExchange}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};
     };
     // 51 S2: {x1, z1, x2, z2, bottom, top, cellSize, partial_wake, tall_band, record_tiles} - a lake written STRAIGHT INTO THE RECORD
     // (spans + one slept box; no volume - any size). Echoes the box, the m^3 written and the columns the writer refused.
@@ -14529,6 +14531,40 @@ void Application::registerWaterCommands() {
         { std::lock_guard<std::mutex> lock(m_riverCurrentMutex); cached = m_riverCurrentCache.size(); }
         r = {{"success", true}, {"n", m_riverKnobs.n}, {"smin", m_riverKnobs.smin}, {"scale", m_riverKnobs.scale}, {"on", m_riverKnobs.on},
              {"cached_columns", cached}};
+    });
+    // 54.2 (W5.2): a simulated river REACH - {x, z (world m), half_m (m, default 20), y (the surface hint, default the record's at
+    // (x, z))} makes one; {release: id} writes it back to the record and frees it. half_m is clamped 8..31: below 8 the box is one
+    // record tile (no reach to speak of), above 31 it would pass 56 m (the patch cap kPatchMaxM is 64 m, and the CPU mirror's
+    // cells grow with the box). Echoes the box, the ring's columns (inflow / level-only), the record's discharge across the ring.
+    reg.on("water_av_river_reach", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        if (cmd.params.contains("release")) {
+            const int id = cmd.params.value("release", 0);
+            const auto* rec = waterCore->find(id);
+            if (!rec || !rec->isReach) { r = {{"success", false}, {"error", "no reach with that id"}}; return; }
+            const auto wb = waterCore->sleep(id, true);
+            r = {{"success", wb.ok}, {"released", id}, {"error", wb.error}, {"exchange_m3", rec ? rec->boundaryExchange : 0.0}};
+            return;
+        }
+        const float x = cmd.params.value("x", 0.0f), z = cmd.params.value("z", 0.0f);
+        const float half = std::clamp(cmd.params.value("half_m", 20.0f), 8.0f, 31.0f);
+        float y = cmd.params.value("y", std::numeric_limits<float>::quiet_NaN());
+        if (std::isnan(y)) {
+            Core::Water::WaterCoreManager::ColumnLevels lv;
+            if (!waterCore->columnRuns(static_cast<int>(std::floor(x)), static_cast<int>(std::floor(z)), lv) || lv.n <= 0) {
+                r = {{"success", false}, {"error", "no water at (x, z) to place a reach on - pass y"}}; return;
+            }
+            y = lv.top[0];
+        }
+        const auto rr = waterCore->makeRiverReach(glm::vec2(x, z), half, y);
+        // {edges: false} - the RED control: the same reach with its edge columns removed (a volume over the river with nothing feeding
+        // or draining it - what any patch over a river was before 54.2)
+        const bool edges = cmd.params.value("edges", true);
+        if (rr.id && !edges) { std::string e; waterCore->setBoundaries(rr.id, {}, &e); }
+        r = {{"success", rr.id != 0}, {"id", rr.id}, {"error", rr.error}, {"half_m", half}, {"edges", edges},
+             {"min", {rr.lo.x, rr.lo.y, rr.lo.z}}, {"max", {rr.hi.x, rr.hi.y, rr.hi.z}},
+             {"ring_columns", rr.columns}, {"inflow_columns", rr.inflow}, {"level_only_columns", rr.levelOnly},
+             {"record_q_in_m3s", rr.qIn}, {"record_q_out_m3s", rr.qOut}, {"seeded_m3", rr.seeded}, {"make_ms", rr.createMs}};
     });
     reg.on("water_av_column", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

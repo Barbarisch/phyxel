@@ -42,7 +42,7 @@ void main() {
         if (pc.tallY < 0 || tallH(x, z) <= 1 || ((x + z) & 1) != pc.iparam) return;
         const ivec3 t = ivec3(x, pc.tallY, z);
         const uint i = cellIdx(t.x, t.y, t.z);
-        if (liq[i] == 0u) return;
+        if (liq[i] != 1u) return;   // 54.2: a fixed cell (2) is known, not solved
         const float gs = (rhs[i] + tallNb(t) / (pc.h * pc.h)) / diag[i];
         p[i] = mix(p[i], gs, pc.param1);
         return;
@@ -50,7 +50,7 @@ void main() {
     ivec3 c;
     if (!threadSite(id, 3, c)) return;
     if (pc.mode == 3) { if (liq[id] != 0u) p[id] += pg[id]; return; }   // 50.6d: after the velocity update, the total for every later reader
-    if (liq[id] == 0u) { if (pc.mode == 1) res[id] = 0.0; return; }
+    if (liq[id] != 1u) { if (pc.mode == 1) res[id] = 0.0; return; }   // 54.2: liq 2 = a FIXED cell (an open edge, wc_boundary mode 2): its deviation stays 0
     const float invh2 = 1.0 / (pc.h * pc.h);
     float nbSum;
     if (pc.tallY >= 0 && c.y == pc.tallY && tallH(c.x, c.z) > 1) {

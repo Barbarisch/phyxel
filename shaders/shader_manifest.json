@@ -391,6 +391,11 @@
       "sources": "1bd99532864c196eb3afcc140573c8a923be22394e957ecd54cab601e772195e",
       "spv_present": true
     },
+    "wc_boundary.comp": {
+      "built": true,
+      "sources": "c1404a3b2f29cc17e0ca412820cab84c24b8d3ea5592cb43ee2ecd9799ca8ef6",
+      "spv_present": true
+    },
     "wc_bricks.comp": {
       "built": true,
       "sources": "2c0f12718c33343817a5a3787bb5e7fb30e65221b4fd81ea54a69877e09e2044",
@@ -448,7 +453,7 @@
     },
     "wc_rbgs.comp": {
       "built": true,
-      "sources": "964ff983829bcd538b55e5f0cd168cbd6fcde2001222deec113d2220eeb99aff",
+      "sources": "c31741a5a97608e0962b4a352cbfbe1559ae6e161bab3512ba8df41883e68382",
       "spv_present": true
     },
     "wc_rbgs_line.comp": {

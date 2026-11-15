@@ -282,6 +282,8 @@ AvRecord WaterCoreManager::record(const Av& av) const {
         if (src.outfall) { r.outfallOut -= src.placedTotal; ++r.outfalls; } else if (src.placedTotal > 0.0) r.sourceIn += src.placedTotal;
     }
     r.manningN = av.solver->params().bedManning;
+    r.isReach = av.isReach;
+    for (const auto& b : av.solver->boundaries()) { ++r.boundaryColumns; r.boundaryExchange += b.exchanged; if (!b.freeVelocity) ++r.boundaryInflow; }
     return r;
 }
 
@@ -677,7 +679,9 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     rec.bodyId = m_bodies.credit(written, before, m_bakeBodyAt);
     rec.ok = true;
     const glm::ivec3 lo = av->minVoxel, hi = av->maxVoxel;
-    if (av->isPatch) {   // 51 S2: a patch's water is back in the record; its pond is still the slept box - no box for the patch
+    // 54.2: a river REACH too - a slept box over a river is a pond to every later touch: its patches had no edges and pulled the
+    // river's water into an edge-less volume (the first live W5.2 run: a wood block still afloat after the release woke one)
+    if (av->isPatch || av->isReach) {   // 51 S2: a patch's water is back in the record; its pond is still the slept box - no box for the patch
         // 51.3c: destroyed FIRST - built while it lived, its woken columns were still its own (buildRecordTile skips a live volume's
         // columns): the tiles were built dry there and marked current, then the destroy staled them and they were rebuilt 4 a frame
         // (the 40 x 40 m patch showed the bed for ~4 frames, live)
@@ -884,6 +888,7 @@ void WaterCoreManager::syncFromGpu(Av& av, bool rateLimited) {
     if (rateLimited && av.gpuLastDownloadSec >= 0.0 && now - av.gpuLastDownloadSec < 1.0) return;   // §15.11: realtime readers see the grid once a second
     m_gpu->download(*av.gpuVol, *av.grid);
     if (av.gpuVol->sourceCount > 0) pullSourceTotals(av);   // 26.16: the grid is the newest call's (download settled it) - so are the totals
+    if (av.gpuVol->boundaryCount > 0) pullBoundaryTotals(av);   // 54.2: so are the exchanges
     if (av.solver->transport().ownsMass()) {
         auto* flip = dynamic_cast<FlipTransport*>(&av.solver->transport());
         if (flip) { std::vector<FlipParticle> ps; m_gpu->readParticles(*av.gpuVol, ps); flip->setParticles(std::move(ps)); }
@@ -1096,6 +1101,7 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
         av.gpuVol->particles = false; av.gpuVol->particleCount = 0;
         m_gpu->upload(*av.gpuVol, *av.grid);
     }
+    if (av.gpuVol->boundaryCount > 0) pullBoundaryTotals(av);   // 54.2: the exchanges, as the sources' totals
     if (av.gpuVol->sourceCount > 0) {   // the ledger: placedTotal/pending back into the solver's list
         pullSourceTotals(av);
         av.last.sourceUnplaced = 0.0; for (const auto& s : av.solver->sources()) av.last.sourceUnplaced += s.unplaced;
@@ -1118,6 +1124,120 @@ bool WaterCoreManager::clearSources(int id) {
 // placedTotal/pending come back after every step so the ledger reads as for the CPU.
 // 26.16: the sources' totals as the GPU's last collected call left them, into the solver's list (the GPU's list is the solver's
 // list as last pushed: sources are only appended or cleared, so the GPU's entries are the solver's first ones).
+void WaterCoreManager::pullBoundaryTotals(Av& av) {
+    std::vector<GpuBoundary> gb; m_gpu->readBoundaries(*av.gpuVol, gb);
+    auto& bs = av.solver->boundariesMutable();
+    const double cellV = av.grid->cellVolume();
+    for (size_t i = 0; i < gb.size() && i < bs.size(); ++i) bs[i].exchanged = gb[i].exchanged() * cellV;
+}
+
+// 54.2 (W5.2): the solver's boundary list is the authority (as its sources are); a GPU volume holds the mirror, its exchanges
+// read back after each collected call (pullBoundaryTotals).
+bool WaterCoreManager::setBoundaries(int id, const std::vector<BoundarySpec>& b, std::string* err) {
+    for (auto& avp : m_avs) {
+        if (avp->id != id) continue;
+        Av& av = *avp;
+        av.solver->boundariesMutable() = b;
+        av.solver->wake();
+        if (av.backend != "gpu" || !av.gpuVol || !m_gpu) return true;
+        m_gpu->settle(*av.gpuVol);
+        const GridSpec sp = av.grid->spec();
+        const double cellV = av.grid->cellVolume();
+        std::vector<GpuBoundary> gb;
+        for (const BoundarySpec& s : b) {
+            if (s.k > 0.0f) { if (err) *err = "the GPU boundary is uniform only (k 0)"; return false; }
+            GpuBoundary g; g.col = s.column.x + sp.dims.x * s.column.y;
+            g.rows = s.targetY / sp.h - static_cast<float>(sp.origin.y);
+            g.ux = s.uSurface.x; g.uz = s.uSurface.y; g.wy = s.wSurface; g.freeVel = s.freeVelocity ? 1.0f : 0.0f; g.qn = std::max(0.0f, s.inflowSpeed);
+            g.setExchanged(s.exchanged / cellV);
+            gb.push_back(g);
+        }
+        return m_gpu->setBoundaries(*av.gpuVol, gb, err);
+    }
+    if (err) *err = "no such volume";
+    return false;
+}
+
+WaterCoreManager::RiverReachResult WaterCoreManager::makeRiverReach(const glm::vec2& c, float halfM, float yHint, const std::string& backend) {
+    RiverReachResult r;
+    const auto t0 = std::chrono::steady_clock::now();
+    if (!m_spanReader) { r.error = "no span reader installed (the application owns the record)"; return r; }
+    if (!m_recordCurrent) { r.error = "no record current installed (setRecordCurrent)"; return r; }
+    const int T = kRecordTile;
+    const int k = std::clamp(static_cast<int>(std::floor(halfM / static_cast<float>(T))), 1, 3);   // 24 / 40 / 56 m: under kPatchMaxM (64)
+    const int ctx = riverFloorDiv(static_cast<int>(std::floor(c.x)), T), ctz = riverFloorDiv(static_cast<int>(std::floor(c.y)), T);
+    glm::ivec3 lo((ctx - k) * T, 0, (ctz - k) * T), hi((ctx + k + 1) * T - 1, 0, (ctz + k + 1) * T - 1);
+    // the record round the hint: the river's bed and surface give the box's height
+    std::vector<ColumnRuns> runs;
+    m_spanReader(glm::ivec3(lo.x, static_cast<int>(std::floor(yHint)) - 24, lo.z), glm::ivec3(hi.x, static_cast<int>(std::ceil(yHint)) + 8, hi.z), runs);
+    float bed = std::numeric_limits<float>::max(), top = std::numeric_limits<float>::lowest();
+    for (const auto& col : runs) for (const auto& run : col.runs) { bed = std::min(bed, run.bottomY); top = std::max(top, run.topY); }
+    if (runs.empty() || top <= bed) { r.error = "no recorded water in the box"; return r; }
+    lo.y = static_cast<int>(std::floor(bed)) - 1; hi.y = static_cast<int>(std::ceil(top)) + 2;   // + 3 m of room over the highest surface
+    {   // never two volumes over the same water (51 S2 amendment B): refused, naming what is there
+        auto overlaps = [&](const glm::ivec3& a0, const glm::ivec3& a1) { return a0.x <= hi.x && a1.x >= lo.x && a0.z <= hi.z && a1.z >= lo.z && a0.y <= hi.y && a1.y >= lo.y; };
+        std::string who;
+        for (const auto& a : m_avs) if (overlaps(a->minVoxel, a->maxVoxel)) who += " volume " + std::to_string(a->id);
+        for (const auto& sv : m_slept) if (overlaps(sv.lo, sv.hi)) who += " a slept box";
+        if (!who.empty()) { r.error = "the box overlaps live or slept water:" + who + " (release / wake it first)"; return r; }
+    }
+    std::string err;
+    const int id = create(lo, hi, 1.0f / static_cast<float>(kMicroPerVoxel), "eulerian", &err, backend, 0);
+    if (!id) { r.error = "create refused: " + err; return r; }
+    setPartialWake(id, false); setTallBand(id, 0.0f); setRecordTiles(id, false); setAutoSleep(id, false);
+    setBedManning(id, 0.035f);   // the creek bench's n (26.13), W5.1's default
+    const double seeded = seedFromSpans(id);
+    Av* av = nullptr;
+    for (auto& a : m_avs) if (a->id == id) av = a.get();
+    if (!av) { r.error = "the volume vanished"; return r; }
+    if (std::find(av->occCache.begin(), av->occCache.end(), Occ::Unknown) != av->occCache.end()) {   // A3: a chunk not resident
+        destroy(id); r.error = "a chunk under the box is not resident (the record would read dry there): not made"; return r;
+    }
+    const GridSpec sp = av->grid->spec();
+    std::vector<ColumnRuns> boxRuns;
+    m_spanReader(lo, hi, boxRuns);
+    const std::vector<RingColumn> ring = ringBoundaries(sp, boxRuns, m_recordCurrent);
+    {   // 54.2: the seed carries the record's CURRENT (W5.1), not only its water - found by ASimulatedReachCarriesTheRecordsRiver's
+        // first run: seeded at rest, a 2 m deep, 24 m reach was still at 0.07 m/s after 30 s (the edges must accelerate all of it
+        // through a surface slope), its inlet mounded 0.64 m. Every wet cell's x and z faces start at its column's record current.
+        std::map<std::pair<int, int>, glm::vec2> cur;
+        for (const ColumnRuns& c : boxRuns) {
+            float t = std::numeric_limits<float>::lowest(), b = std::numeric_limits<float>::max();
+            for (const ColumnRun& run : c.runs) { t = std::max(t, run.topY); b = std::min(b, run.bottomY); }
+            if (t > b) cur[{c.x, c.z}] = m_recordCurrent(c.x, c.z, t, b);
+        }
+        WaterGrid& g = *av->grid;
+        const int per = std::max(1, av->per);
+        auto open = [&](int x, int y, int z) { return g.inBounds(x, y, z) && g.occ(x, y, z) == Occ::Air; };
+        for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) {
+            const auto it = cur.find({riverFloorDiv(sp.origin.x + x, per), riverFloorDiv(sp.origin.z + z, per)});
+            if (it == cur.end() || (it->second.x == 0.0f && it->second.y == 0.0f)) continue;
+            for (int y = 0; y < g.ny(); ++y) {
+                if (g.f(x, y, z) <= 0.0f || !open(x, y, z)) continue;
+                if (open(x - 1, y, z)) g.u(x, y, z) = it->second.x;
+                if (open(x + 1, y, z)) g.u(x + 1, y, z) = it->second.x;
+                if (open(x, y, z - 1)) g.w(x, y, z) = it->second.y;
+                if (open(x, y, z + 1)) g.w(x, y, z + 1) = it->second.y;
+            }
+        }
+        av->gpuDirty = true;
+    }
+    std::vector<BoundarySpec> bs;
+    for (const RingColumn& rc : ring) {
+        BoundarySpec b; b.column = rc.local; b.targetY = rc.topY;
+        if (rc.inflow) { b.uSurface = rc.vel; b.inflowSpeed = glm::dot(rc.vel, rc.inward); } else b.freeVelocity = true;
+        bs.push_back(b);
+        ++r.columns; if (rc.inflow) ++r.inflow; else ++r.levelOnly;
+    }
+    if (!setBoundaries(id, bs, &err)) { destroy(id); r.error = "boundaries refused: " + err; return r; }
+    ringDischarge(ring, sp.h, r.qIn, r.qOut);
+    av->isReach = true;
+    av->noSleepBefore = std::numeric_limits<double>::max();
+    r.id = id; r.lo = lo; r.hi = hi; r.seeded = seeded;
+    r.createMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    return r;
+}
+
 void WaterCoreManager::pullSourceTotals(Av& av) {
     std::vector<GpuSource> gs; m_gpu->readSources(*av.gpuVol, gs);
     auto& srcs = av.solver->sourcesMutable();

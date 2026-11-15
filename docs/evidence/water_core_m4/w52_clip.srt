@@ -1,0 +1,474 @@
+1
+00:00:00,000 --> 00:00:00,270
+a generated river - the record (spans; nothing simulated)
+t 0.0 s | 55 fps
+
+2
+00:00:00,270 --> 00:00:00,540
+a generated river - the record (spans; nothing simulated)
+t 0.3 s | 50 fps
+
+3
+00:00:00,540 --> 00:00:00,790
+a generated river - the record (spans; nothing simulated)
+t 0.5 s | 16 fps
+
+4
+00:00:00,790 --> 00:00:01,050
+a generated river - the record (spans; nothing simulated)
+t 0.8 s | 78 fps
+
+5
+00:00:01,050 --> 00:00:01,310
+a generated river - the record (spans; nothing simulated)
+t 1.1 s | 16 fps
+
+6
+00:00:01,310 --> 00:00:01,580
+a generated river - the record (spans; nothing simulated)
+t 1.3 s | 508 fps
+
+7
+00:00:01,580 --> 00:00:01,830
+a generated river - the record (spans; nothing simulated)
+t 1.6 s | 46 fps
+
+8
+00:00:01,830 --> 00:00:02,090
+a generated river - the record (spans; nothing simulated)
+t 1.8 s | 63 fps
+
+9
+00:00:02,090 --> 00:00:02,340
+a generated river - the record (spans; nothing simulated)
+t 2.1 s | 55 fps
+
+10
+00:00:02,340 --> 00:00:02,620
+a generated river - the record (spans; nothing simulated)
+t 2.3 s | 22 fps
+
+11
+00:00:02,620 --> 00:00:02,880
+a generated river - the record (spans; nothing simulated)
+t 2.6 s | 20 fps
+
+12
+00:00:02,880 --> 00:00:03,130
+a generated river - the record (spans; nothing simulated)
+t 2.9 s | 34 fps
+
+13
+00:00:03,130 --> 00:00:03,600
+a 40 x 40 m reach SIMULATED here, fed and drained at its edges from the record
+t 3.1 s | 222 fps | reach GPU 0.0 ms
+
+14
+00:00:03,600 --> 00:00:03,930
+a 40 x 40 m reach SIMULATED here, fed and drained at its edges from the record
+t 3.6 s | 91 fps | reach GPU 2.7 ms
+
+15
+00:00:03,930 --> 00:00:04,200
+a 40 x 40 m reach SIMULATED here, fed and drained at its edges from the record
+t 3.9 s | 58 fps | reach GPU 4.6 ms
+
+16
+00:00:04,200 --> 00:00:04,470
+a 40 x 40 m reach SIMULATED here, fed and drained at its edges from the record
+t 4.2 s | 43 fps | reach GPU 7.9 ms
+
+17
+00:00:04,470 --> 00:00:04,800
+a 40 x 40 m reach SIMULATED here, fed and drained at its edges from the record
+t 4.5 s | 33 fps | reach GPU 7.5 ms
+
+18
+00:00:04,800 --> 00:00:05,130
+a 40 x 40 m reach SIMULATED here, fed and drained at its edges from the record
+t 4.8 s | 43 fps | reach GPU 5.3 ms
+
+19
+00:00:05,130 --> 00:00:05,540
+a 40 x 40 m reach SIMULATED here, fed and drained at its edges from the record
+t 5.1 s | 52 fps | reach GPU 4.4 ms
+
+20
+00:00:05,540 --> 00:00:05,900
+a 40 x 40 m reach SIMULATED here, fed and drained at its edges from the record
+t 5.5 s | 34 fps | reach GPU 7.4 ms
+
+21
+00:00:05,900 --> 00:00:06,210
+a 40 x 40 m reach SIMULATED here, fed and drained at its edges from the record
+t 5.9 s | 55 fps | reach GPU 6.7 ms
+
+22
+00:00:06,210 --> 00:00:06,870
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 6.2 s | 17 fps | reach GPU 4.4 ms
+
+23
+00:00:06,870 --> 00:00:07,150
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 6.9 s | 32 fps | reach GPU 8.5 ms
+
+24
+00:00:07,150 --> 00:00:07,540
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 7.2 s | 29 fps | reach GPU 4.7 ms
+
+25
+00:00:07,540 --> 00:00:07,830
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 7.5 s | 47 fps | reach GPU 10.1 ms
+
+26
+00:00:07,830 --> 00:00:08,120
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 7.8 s | 70 fps | reach GPU 4.1 ms
+
+27
+00:00:08,120 --> 00:00:08,380
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 8.1 s | 51 fps | reach GPU 6.7 ms
+
+28
+00:00:08,380 --> 00:00:08,720
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 8.4 s | 79 fps | reach GPU 2.8 ms
+
+29
+00:00:08,720 --> 00:00:09,030
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 8.7 s | 44 fps | reach GPU 6.3 ms
+
+30
+00:00:09,030 --> 00:00:09,330
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 9.0 s | 76 fps | reach GPU 2.8 ms
+
+31
+00:00:09,330 --> 00:00:09,620
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 9.3 s | 34 fps | reach GPU 6.1 ms
+
+32
+00:00:09,620 --> 00:00:09,960
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 9.6 s | 42 fps | reach GPU 5.3 ms
+
+33
+00:00:09,960 --> 00:00:10,240
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 10.0 s | 55 fps | reach GPU 2.7 ms
+
+34
+00:00:10,240 --> 00:00:10,540
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 10.2 s | 75 fps | reach GPU 2.7 ms
+
+35
+00:00:10,540 --> 00:00:10,840
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 10.5 s | 79 fps | reach GPU 2.8 ms
+
+36
+00:00:10,840 --> 00:00:11,210
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 10.8 s | 20 fps | reach GPU 2.8 ms
+
+37
+00:00:11,210 --> 00:00:11,500
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 11.2 s | 32 fps | reach GPU 9.3 ms
+
+38
+00:00:11,500 --> 00:00:12,010
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 11.5 s | 28 fps | reach GPU 5.5 ms
+
+39
+00:00:12,010 --> 00:00:12,360
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 12.0 s | 11 fps | reach GPU 8.1 ms
+
+40
+00:00:12,360 --> 00:00:12,940
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 12.4 s | 32 fps | reach GPU 6.7 ms
+
+41
+00:00:12,940 --> 00:00:13,320
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 12.9 s | 19 fps | reach GPU 8.8 ms
+
+42
+00:00:13,320 --> 00:00:13,690
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 13.3 s | 26 fps | reach GPU 9.5 ms
+
+43
+00:00:13,690 --> 00:00:13,990
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 13.7 s | 25 fps | reach GPU 5.9 ms
+
+44
+00:00:13,990 --> 00:00:14,310
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 14.0 s | 18 fps | reach GPU 8.2 ms
+
+45
+00:00:14,310 --> 00:00:14,600
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 14.3 s | 29 fps | reach GPU 3.5 ms
+
+46
+00:00:14,600 --> 00:00:15,020
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 14.6 s | 73 fps | reach GPU 3.0 ms
+
+47
+00:00:15,020 --> 00:00:15,400
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 15.0 s | 14 fps | reach GPU 7.3 ms
+
+48
+00:00:15,400 --> 00:00:15,700
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 15.4 s | 49 fps | reach GPU 4.9 ms
+
+49
+00:00:15,700 --> 00:00:16,060
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 15.7 s | 71 fps | reach GPU 3.9 ms
+
+50
+00:00:16,060 --> 00:00:16,350
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 16.1 s | 63 fps | reach GPU 4.1 ms
+
+51
+00:00:16,350 --> 00:00:16,670
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 16.4 s | 60 fps | reach GPU 2.6 ms
+
+52
+00:00:16,670 --> 00:00:16,950
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 16.7 s | 58 fps | reach GPU 2.8 ms
+
+53
+00:00:16,950 --> 00:00:17,310
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 16.9 s | 60 fps | reach GPU 3.5 ms
+
+54
+00:00:17,310 --> 00:00:17,600
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 17.3 s | 55 fps | reach GPU 3.4 ms
+
+55
+00:00:17,600 --> 00:00:17,880
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 17.6 s | 60 fps | reach GPU 3.9 ms
+
+56
+00:00:17,880 --> 00:00:18,180
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 17.9 s | 58 fps | reach GPU 2.9 ms
+
+57
+00:00:18,180 --> 00:00:18,520
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 18.2 s | 61 fps | reach GPU 2.7 ms
+
+58
+00:00:18,520 --> 00:00:18,830
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 18.5 s | 72 fps | reach GPU 4.5 ms
+
+59
+00:00:18,830 --> 00:00:19,140
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 18.8 s | 26 fps | reach GPU 7.1 ms
+
+60
+00:00:19,140 --> 00:00:19,440
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 19.1 s | 63 fps | reach GPU 3.9 ms
+
+61
+00:00:19,440 --> 00:00:19,790
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 19.4 s | 47 fps | reach GPU 7.6 ms
+
+62
+00:00:19,790 --> 00:00:20,070
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 19.8 s | 62 fps | reach GPU 4.4 ms
+
+63
+00:00:20,070 --> 00:00:20,370
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 20.1 s | 65 fps | reach GPU 4.0 ms
+
+64
+00:00:20,370 --> 00:00:20,670
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 20.4 s | 67 fps | reach GPU 4.4 ms
+
+65
+00:00:20,670 --> 00:00:20,990
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 20.7 s | 52 fps | reach GPU 3.9 ms
+
+66
+00:00:20,990 --> 00:00:21,270
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 21.0 s | 58 fps | reach GPU 3.2 ms
+
+67
+00:00:21,270 --> 00:00:21,580
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 21.3 s | 60 fps | reach GPU 3.3 ms
+
+68
+00:00:21,580 --> 00:00:21,900
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 21.6 s | 19 fps | reach GPU 8.5 ms
+
+69
+00:00:21,900 --> 00:00:22,270
+5 wood blocks dropped - carried by the simulated river (the record: 0.67 m/s here)
+t 21.9 s | 60 fps | reach GPU 5.5 ms
+
+70
+00:00:22,270 --> 00:00:31,650
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 22.3 s | 67 fps | reach GPU 2.8 ms
+
+71
+00:00:31,650 --> 00:00:31,970
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 31.6 s | 59 fps | reach GPU 5.4 ms
+
+72
+00:00:31,970 --> 00:00:32,250
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 32.0 s | 63 fps | reach GPU 4.3 ms
+
+73
+00:00:32,250 --> 00:00:32,570
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 32.2 s | 53 fps | reach GPU 4.2 ms
+
+74
+00:00:32,570 --> 00:00:32,940
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 32.6 s | 55 fps | reach GPU 8.4 ms
+
+75
+00:00:32,940 --> 00:00:33,240
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 32.9 s | 63 fps | reach GPU 4.3 ms
+
+76
+00:00:33,240 --> 00:00:34,280
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 33.2 s | 55 fps | reach GPU 5.1 ms
+
+77
+00:00:34,280 --> 00:00:34,950
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 34.3 s | 29 fps | reach GPU 6.1 ms
+
+78
+00:00:34,950 --> 00:00:36,430
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 35.0 s | 2 fps | reach GPU 7.6 ms
+
+79
+00:00:36,430 --> 00:00:38,420
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 36.4 s | 20 fps | reach GPU 23.5 ms
+
+80
+00:00:38,420 --> 00:00:38,900
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 38.4 s | 11 fps | reach GPU 8.0 ms
+
+81
+00:00:38,900 --> 00:00:39,260
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 38.9 s | 23 fps | reach GPU 5.9 ms
+
+82
+00:00:39,260 --> 00:00:39,630
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 39.3 s | 33 fps | reach GPU 3.3 ms
+
+83
+00:00:39,630 --> 00:00:39,930
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 39.6 s | 24 fps | reach GPU 6.6 ms
+
+84
+00:00:39,930 --> 00:00:41,150
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 39.9 s | 19 fps | reach GPU 6.2 ms
+
+85
+00:00:41,150 --> 00:00:41,630
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 41.1 s | 26 fps | reach GPU 7.9 ms
+
+86
+00:00:41,630 --> 00:00:43,280
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 41.6 s | 12 fps | reach GPU 8.3 ms
+
+87
+00:00:43,280 --> 00:00:43,650
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 43.3 s | 31 fps | reach GPU 10.8 ms
+
+88
+00:00:43,650 --> 00:00:43,930
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 43.6 s | 16 fps | reach GPU 10.5 ms
+
+89
+00:00:43,930 --> 00:00:44,420
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 43.9 s | 29 fps | reach GPU 9.5 ms
+
+90
+00:00:44,420 --> 00:00:46,670
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 44.4 s | 13 fps | reach GPU 7.9 ms
+
+91
+00:00:46,670 --> 00:00:46,980
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 46.7 s | 11 fps | reach GPU 28.4 ms
+
+92
+00:00:46,980 --> 00:00:48,560
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 47.0 s | 19 fps | reach GPU 14.8 ms
+
+93
+00:00:48,560 --> 00:00:48,860
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 48.6 s | 31 fps | reach GPU 3.5 ms
+
+94
+00:00:48,860 --> 00:00:49,210
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 48.9 s | 34 fps | reach GPU 7.1 ms
+
+95
+00:00:49,210 --> 00:00:49,460
+a stone dam across it: the water above it rises (+0.39 m measured, w52_dam.json)
+t 49.2 s | 17 fps | reach GPU 3.9 ms

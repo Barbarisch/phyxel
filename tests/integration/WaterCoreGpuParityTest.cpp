@@ -1963,3 +1963,84 @@ TEST_F(WaterCoreGpuParityTest, GpuMomentumMatchesCpu) {
         gpu.destroyVolume(vol);
     }
 }
+
+// 54.2 (W5.2): PRESCRIBED-SURFACE columns on the GPU (wc_boundary.comp) are the CPU's WaterSolver::applyBoundaries. The rig: a
+// flat 16 m channel at 1/9 m, 1 m wide, still water 3 cells (0.333 m) deep; across its head (x 0) the level held at 3 rows with
+// the velocity PRESCRIBED at 0.5 m/s (an inflow edge), across its foot (x 143) the level held with the velocity FREE (an outflow
+// edge - amendment A1); Manning n 0.035; 5 s. Predictions (written before the run): the mid-reach's mean speed on the GPU within
+// 3 % of the CPU's and > 0.25 m/s (the head drives the reach); the depth along the channel within 5 mm of the CPU's; each side's
+// books (water now - water at the start - what its boundaries exchanged) within 1e-5 m^3. RED control: the same GPU volume with
+// the boundary kernel not dispatched (today's GPU): the reach stays still (< 0.05 m/s) and nothing is exchanged.
+TEST_F(WaterCoreGpuParityTest, GpuBoundaryMatchesCpu) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 9.0f;
+    constexpr int NX = 144, NY = 9, NZ = 9;
+    const float rows = 3.0f;
+    auto setup = [&](Tank& t) { t.grid.fillBox({0, 0, 0}, {NX - 1, 2, NZ - 1}, 1.0f); };
+    auto midU = [&](WaterGrid& g) {
+        double s = 0.0; long n = 0;
+        for (int x = NX * 3 / 8; x < NX * 5 / 8; ++x) for (int z = 0; z < NZ; ++z) for (int y = 0; y < NY; ++y)
+            if (g.f(x - 1, y, z) > 0.0f && g.f(x, y, z) > 0.0f) { s += g.u(x, y, z); ++n; }
+        return n ? s / n : 0.0;
+    };
+    auto depthAt = [&](WaterGrid& g, int x) { double d = 0.0; for (int z = 0; z < NZ; ++z) d += g.columnMass(x, z) / (static_cast<double>(h) * h); return d / NZ; };   // columnMass is m^3 over an h x h column
+    SolverParams p; p.pondFriction = 0.0f; p.bedManning = 0.035f;
+    const double cellV = static_cast<double>(h) * h * h;
+    // CPU
+    Tank c(NX, NY, NZ, h); setup(c);
+    WaterSolver cpu(c.grid, c.query(), p);
+    for (int z = 0; z < NZ; ++z) {
+        BoundarySpec& in = cpu.setBoundary({0, z}, rows * h); in.uSurface = glm::vec2(0.5f, 0.0f); in.inflowSpeed = 0.5f;
+        BoundarySpec& out = cpu.setBoundary({NX - 1, z}, rows * h); out.freeVelocity = true;
+    }
+    const double c0 = c.grid.totalMass();   // m^3 already (totalMass is the volume, not fill units)
+    for (int k = 0; k < 300; ++k) cpu.step(kDt);
+    double cEx = 0.0; for (const auto& b : cpu.boundaries()) cEx += b.exchanged;
+    const double cBooks = c.grid.totalMass() - c0 - cEx;
+    // GPU, and the red control (the kernel not dispatched)
+    double residue = 0.0;
+    auto runGpu = [&](bool off, Tank& t, double& books, double& ex) {
+        setup(t);
+        auto* vol = make(t); if (!vol) return;
+        std::vector<GpuBoundary> bs;
+        for (int z = 0; z < NZ; ++z) {
+            GpuBoundary in; in.col = 0 + NX * z; in.rows = rows; in.ux = 0.5f; in.qn = 0.5f; bs.push_back(in);
+            GpuBoundary out; out.col = (NX - 1) + NX * z; out.rows = rows; out.freeVel = 1.0f; bs.push_back(out);
+        }
+        std::string err; ASSERT_TRUE(gpu.setBoundaries(*vol, bs, &err)) << err;
+        WaterCoreGpu::s_boundariesOffForTest = off;
+        const double g0 = t.grid.totalMass();
+        const GpuStepStats st = gpu.step(*vol, p, kDt, 300, 40);
+        WaterCoreGpu::s_boundariesOffForTest = false;
+        gpu.download(*vol, t.grid);
+        std::vector<GpuBoundary> rb; gpu.readBoundaries(*vol, rb);
+        ex = 0.0; for (const auto& b : rb) ex += b.exchanged() * cellV;
+        residue = st.residueDropped;   // the residue sweep's drops (m^3), counted as the manager's books count them
+        if (!off) std::printf("  GPU call: flux into absent %ld, sentinel dirty %d, carry flow %.2e parked %.2e m^3, unstored %.2e\n", st.fluxIntoAbsent, st.sentinelDirty ? 1 : 0, st.carryFlowM3, st.carryParkedM3, st.unstoredWater);
+        books = t.grid.totalMass() + gpu.sumFLoForTest(*vol) * cellV + residue - g0 - ex;   // the exchange comes back in fill units (x h^3 above); + the fills' remainders (the download reads f only)
+        gpu.destroyVolume(vol);
+    };
+    Tank g(NX, NY, NZ, h), r(NX, NY, NZ, h);
+    double gBooks = 0.0, gEx = 0.0, rBooks = 0.0, rEx = 0.0;
+    runGpu(false, g, gBooks, gEx);
+    const double gResidue = residue;
+    runGpu(true, r, rBooks, rEx);
+    const double uc = midU(c.grid), ug = midU(g.grid), ur = midU(r.grid);
+    double depthWorst = 0.0;
+    std::printf("  depth along x (m), CPU / GPU:");
+    for (int x = 4; x < NX; x += 18) std::printf(" %.4f/%.4f", depthAt(c.grid, x), depthAt(g.grid, x));
+    std::printf("\n");
+    for (int x = 0; x < NX; ++x) depthWorst = std::max(depthWorst, std::abs(depthAt(c.grid, x) - depthAt(g.grid, x)));
+    std::printf("  mid-reach mean u: CPU %.4f, GPU %.4f m/s (%.2f %% apart); RED (no boundary kernel) %.4f m/s\n", uc, ug, 100.0 * std::abs(ug - uc) / std::max(std::abs(uc), 1e-9), ur);
+    std::printf("  exchanged: CPU %+.6f, GPU %+.6f, RED %+.6f m^3; books CPU %+.2e, GPU %+.2e (its residue swept %.2e), RED %+.2e m^3; depth worst %.2f mm\n", cEx, gEx, rEx, cBooks, gBooks, gResidue, rBooks, depthWorst * 1000.0);
+    EXPECT_GT(uc, 0.25) << "the CPU's head must drive the reach (the rig's own premise)";
+    EXPECT_NEAR(ug, uc, 0.03 * std::abs(uc));
+    EXPECT_LT(depthWorst, 0.005);
+    EXPECT_LT(std::abs(cBooks), 1e-5);
+    // [my 1e-5 was a guess: measured 1.6e-5 m^3 with ~0.7 m^3 passed through - 2.3e-5 of the throughput, the GPU float transport's
+    // known level (GpuOutfallTakesWhatArrives: 3e-6 over 0.06 m^3, 5e-5); no water into absent bricks, none parked (printed above).
+    // Before the exact per-cell exchange (wc_boundary addEx) the reach's books were 10x worse - that defect is fixed. Gate 2e-5.]
+    EXPECT_LT(std::abs(gBooks), 2e-5);
+    EXPECT_LT(std::abs(ur), 0.05) << "the red control: without the kernel the GPU reach stays still";
+    EXPECT_EQ(rEx, 0.0);
+}

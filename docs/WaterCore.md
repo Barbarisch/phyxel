@@ -69,7 +69,8 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
 2. **D9's splash stutter, bounded** (§30.5): a splash freezes ~0.15 s and stutters ~0.3 s (D9 measured). One step to find and
    cut the largest part; then stop and show the owner.
 3. **W5 - rivers at scale:** generated rivers that FLOW (near reaches simulated, fed and drained from the record; far reaches drawn
-   with flow). **§54: W5.1 (the record carries its current) BUILT, not signed off; next W5.2 (a near reach simulated).**
+   with flow). **§54: W5.1 (the record carries its current) and W5.2a (a near reach simulated) BUILT, not signed off; the seam's
+   cause - the record's river rising downstream - the owner's call (54.2); then W5.2b (the reach where the player is).**
 4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
@@ -13993,7 +13994,7 @@ each, 51.3b) = **~390 MB of GPU memory**, over the pinned 256 MB kept-memory cap
 patch-only allowance. Not built. The other parts (the CPU grid for a GPU patch, 12-14 ms; the tile wakes) are code changes with no
 trade, larger, not started. Not measured: the API round trip's ~30 ms split; the recorder's own cost.
 
-## 54. W5 - rivers that flow (owner's order 2026-11-14, item 3). Status: W5.1 BUILT, not signed off (the clip: `w5_clip.mp4`); next W5.2
+## 54. W5 - rivers that flow (owner's order 2026-11-14, item 3). Status: W5.1 BUILT, not signed off (`w5_clip.mp4`); W5.2a BUILT, not signed off (`w52_clip.mp4`) - its seam fails where the record's river rises downstream: the fix is the owner's call (54.2)
 
 **Step 0 - the inventory (2026-11-15, read from the code; W5 in §27: "a far reach is a record with a discharge and appearance flow; a
 near reach is simulated, fed and drained at its ends from the record"; gates: the creek bench's numbers on a simulated reach inside a
@@ -14070,6 +14071,86 @@ fold-ins, below).
   `GpuFlipBulkParityAndRunup` (run-up 1.19 h0, gate > 1.22) and `WaterTallCellTest.ShortWaveMatchesAllFineAndTheBooksAreExact` (3 m
   wave -11.4 %, tolerance 10 %); both reproduce alone; the D9 commit's run (§53) already had 26 / 27 with TallCell in it. Not run on the
   old code to prove it; cause not looked at.
+
+**54.2 W5.2a (2026-11-15) BUILT, not signed off - a near REACH of a generated river simulated, fed and drained at its edges from the
+record** (`/design-check` READY with eight amendments A1-A8; built as designed except where a test or a run said otherwise, below).
+- **Step 0 (read from the code):** a patch wakes only over a slept box and generated water has none - a splash in a generated lake
+  or river wakes NOTHING today; a GPU volume holds 64 sources run one at a time (a river edge is ~126 sub-columns); the CPU solver
+  has Phase G's prescribed-surface columns (`BoundarySpec`), the GPU core had none.
+- **Built:**
+  - `wc_boundary.comp` (new GPU kernel) = `WaterSolver::applyBoundaries` rule for rule (uniform profile only): per listed grid column
+    the level held (fills written to the target, the change counted exactly per cell - two-sum, A1's books), the velocity written
+    on an INFLOW column; two parity passes (neighbours share a face: no race). `GpuBoundary` (48 B), `setBoundaries` /
+    `readBoundaries`, the columns' bricks kept stored (a pump's rule); a volume with edges never sleeps.
+  - **The open edge** (found by the acceptance test, below): a LEVEL-ONLY column's liquid cells are FIXED at its still-water
+    pressure (GPU: marked `liq` 2 after the classification, the sweeps leave their deviation at 0; CPU: Dirichlet rows) and held
+    again right before every solve; an INFLOW column's pressure is solved, with the inflow through the box's outer face in its
+    divergence (a pump's term). MG and the line sweeps are bypassed on a volume with edges (they would solve a fixed cell).
+  - `RiverReach.h` (pure): `ringBoundaries` - which ring columns hold river water in the record, their level, the record's current,
+    inflow (current into the box, cos > 0.2) or level-only; `ringDischarge`.
+  - `WaterCoreManager::makeRiverReach(x, z, half, yHint)`: a box of 8 m record tiles (24 / 40 / 56 m), 1/9 m, seeded from the record
+    WITH its current (W5.1's), Manning n 0.035, no partial wake / tall cells / recording, never auto-sleeps; refused while a chunk
+    under it is not resident (A3), or over live or slept water. Its release writes it back and leaves NO slept box (a patch's rule).
+    `setRecordCurrent` (the Application installs W5.1's `recordCurrentAt`), `setBoundaries`.
+  - API: `water_av_river_reach {x, z, half_m (8-31, default 20), y, edges}` / `{release: id}` - echoes the box, the ring's columns
+    (inflow / level-only), the record's discharge across the ring, the seed, the make's ms; `water_av_list` echoes `is_reach`,
+    `boundary_columns`, `boundary_inflow`, `boundary_exchange_m3`. `edges:false` = the red control.
+- **Tests** (red first):
+  - `WaterCoreGpuParityTest.GpuBoundaryMatchesCpu` (a 16 m channel at 1/9 m, inflow edge 0.5 m/s, open outflow, n 0.035, 5 s): GPU
+    0.3708 vs CPU 0.3721 m/s (0.36 %), depth within 2.2 mm, books CPU -1.6e-6 / GPU -1.6e-5 m^3; RED (the kernel not dispatched)
+    0.000 m/s, nothing exchanged. **My books gate (1e-5) was a guess**: 1.6e-5 over ~0.7 m^3 through is the GPU float transport's
+    known level (the outfall rig: 5e-5 of its throughput); no water into absent bricks, none parked (printed). Gate 2e-5.
+  - `WaterRecordTilesTest.ASimulatedReachCarriesTheRecordsRiver` (a straight recorded river 14 m wide, 2 m deep, 0.6 m/s; a 24 m
+    reach; 30 s): mid speed **0.584 m/s**, level within 25 mm (at the inflow edge's column - my 2 cm missed there; gate 3 cm), books
+    -2.2e-5 m^3; RED (no edges) -0.116 m/s (the seeded current sloshes off the walls); DAM (a wall, crest +0.3 m): +0.52 m above it,
+    0.13 m/s below it, books -3.5e-5. **My "below it within 5 cm" was wrong**: the water overtops the crest and the spill raises the
+    level below (+0.16 m) - not gated. A second reach over a live one is refused; a release leaves no volume and no slept box.
+  - **What its first runs found, each fixed at its cause:** (1) seeded at rest the reach ran 0.07 m/s - the seed now carries the
+    record's current; (2) still 0.07: a box's wall CLOSED its edges (a 2 m deep body of full cells cannot pass water to a column whose
+    far side is the wall) - the open edge; (3) holding an inflow edge's pressure over-specified it (0.42 m/s, a 0.41 m mound) - an
+    inflow's pressure is solved, its inflow in the divergence; (4) the transport stacked what reached an open column within the tick
+    (0.32 m at the outlet) - the hold before every solve; (5) books -2.6e-4: the kernel's float `f + fLo` dropped the remainder - each
+    cell's change now counted exactly (-2.2e-5). `RiverReachTest` (unit): the ring the same read whole or chunk by chunk, shuffled x5
+    (0 differ; control - a chunk missing - differs); a straight river fed across its upstream edge, held across its downstream one.
+  - Unit (water / terrain / hydrology / WorldGenerator / WorldForge / roads / flora / settlement / structure / RiverReach): 563 / 563.
+    GPU water integration 89 / 91: the known two (54.1's line).
+- **Live L4** (WaterBench_RiverCarve, the 51.14 reach, a 40 x 40 m reach, `tools/water_w52_reach.py`; realtime ON - see below):
+  - **First run measured nothing** (`w52_reach_unstepped.json`): no game session turns the water core's realtime stepping on - only
+    the debug route does, and every live water tool since §51 switches it on itself. The reach sat unstepped: its "current" was the
+    seed's. Discarded; the tools now switch it on (and say so).
+  - **Green** (`w52_reach.json`, on the pristine record): the simulated current 0.88 x the record's (mean over 33 river columns; 0.04
+    - 1.9 each, angles up to 132 deg); books -2.7e-5 m^3 after 53 s; the wood 6.4-7.2 m in 11 s = 78-87 % of the record's speed x
+    time, 10-34 deg off the river along its path. Prediction (>= 50 %, books 1e-3, speed within 15 % on average): held.
+  - **RED** (`w52_reach_red.json`, `edges:false`; the record already changed by earlier releases - see below): the current 0.36 x
+    the record's; the wood 1.3 m in 19.5 s (one of three blocks tracked).
+  - **The water steady** (`w52_seam_series.json`): 521-538 m^3 over 2 min (+-1.5 %), not filling.
+  - **THE SEAM FAILS - at the upstream edge, from the RECORD** (`w52_seam_series.json`, every ring metre): the open (downstream) edge
+    within 3 cm (0 to -3.1 cm); the INFLOW edge +0.45 m everywhere. The record there reads 19.95 m and 20.22-20.25 m at the
+    downstream edge 40 m on: **the generated river's stage RISES 0.3 m downstream here** (51.14: the stage is the valley floor,
+    "not monotone downstream"). Water cannot run uphill: the reach stands at the downstream level plus its friction head and steps
+    0.45 m above the record at its upstream edge. No edge rule can remove it (a step moved outside the box is still a step).
+  - **The dam, live** (`tools/water_w52_dam.py`, `w52_dam.json`, pristine record; stone across the river's water columns 6 m below
+    the site, crest y 21): the water 8 m above it +0.39 m in 25 s (prediction >= 0.1: held); 8 m below it the current did NOT die -
+    along the river +0.18 -> **-0.20 m/s (backwards)**: the open downstream edge holds the record's level (20.22 m), above the
+    dammed pool (20.17), and refills it. The dam's ends: ground y 22-25 (no leak round them). The same cause as the seam.
+  - **Cost** (`w52_reach_cost.json`, the river pose, reach / none ABBA x4): **39.4 / 54.8 fps, CPU 25.7 / 18.3 ms, GPU 18.8 / 18.2
+    ms** - the reach costs ~15 fps here, almost all of it ~7.4 ms of CPU a frame; its own device time 2.7-5.3 ms a call (with a dam
+    up to 14.8). The make: 131-172 ms once. Not measured: where the 7.4 ms of CPU goes (the manager's update not split).
+  - **The bench**: every release writes the reach's water back (the books), which changed the bench's record round the site (+36 to
+    +190 m^3 over the runs); the world files were restored from a copy taken before the first run, after the runs (and between the
+    dam run and the clip). The cost and red runs ran on a changed record (said above).
+- **The owner's clip: `docs/evidence/water_core_m4/w52_clip.mp4`** (`tools/water_w52_clip.py`, the pristine record, W5.1's pose):
+  the record (0-3 s); the reach made (3 s); five wood blocks (6 s) carried 1.3-7.6 m, two caught at the dam; the dam (22 s).
+  **Looked at (frames at 4 / 14 / 47 s):** the reach looks like the record (the surface's look is unchanged; white flecks along the
+  left bank at 4 s - not checked whether that is the upstream edge's step); the wood specks drift; the dam is a dark stone diagonal;
+  the 0.39 m rise is hard to see from this pose. 18-58 fps (the reach's ~15 fps and the sampler's own calls).
+- **The owner's call - the record's river levels:** make a generated river's stored level FALL downstream (never rise) - a change
+  to 51.14's signed-off river levels (a few tenths of a metre in places). It removes both W5.2 failures (the seam step, the dam's
+  backflow) at their cause. Not built.
+- **Seen, logged, left (one line each):** no game session turns the water core's realtime stepping on (only the debug route) - a
+  simulated reach (and any patch) needs it in play (W5.2b's trigger); the reach's ~7.4 ms of CPU a frame not split.
+- **Not in W5.2a:** the trigger (a reach made where the player is, released when they leave - W5.2b); the drawn surface moving
+  (W5.3); creeks; a reach over a lake; MG with edges.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

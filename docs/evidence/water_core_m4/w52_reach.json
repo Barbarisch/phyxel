@@ -1,0 +1,249 @@
+{
+ "bench": "WaterBench_RiverCarve",
+ "red": false,
+ "reach": {
+  "edges": true,
+  "error": "",
+  "half_m": 20.0,
+  "id": 1,
+  "inflow_columns": 63,
+  "level_only_columns": 234,
+  "make_ms": 150.8275,
+  "max": [
+   -1713,
+   23,
+   -1017
+  ],
+  "min": [
+   -1752,
+   17,
+   -1056
+  ],
+  "record_q_in_m3s": 7.464879553668288,
+  "record_q_out_m3s": 7.952403376730127,
+  "ring_columns": 297,
+  "seeded_m3": 494.55952808902674,
+  "success": true
+ },
+ "current": {
+  "river_columns": 33,
+  "speed_ratio_mean": 0.88,
+  "speed_ratio_min": 0.037,
+  "speed_ratio_max": 1.89,
+  "angle_mean_deg": 19.6,
+  "angle_max_deg": 131.7,
+  "sources": [
+   "core"
+  ]
+ },
+ "seam": {
+  "pairs": 3,
+  "max_abs_m": 0.3666,
+  "mean_abs_m": 0.1229,
+  "worst": {
+   "inside": [
+    -1735.5,
+    -1054.5
+   ],
+   "in_src": "core",
+   "in_y": 20.31534194946289,
+   "out_src": "record",
+   "out_y": 19.94878578186035,
+   "diff_m": 0.3666
+  },
+  "rows": [
+   {
+    "inside": [
+     -1735.5,
+     -1054.5
+    ],
+    "in_src": "core",
+    "in_y": 20.31534194946289,
+    "out_src": "record",
+    "out_y": 19.94878578186035,
+    "diff_m": 0.3666
+   },
+   {
+    "inside": [
+     -1719.5,
+     -1017.5
+    ],
+    "in_src": "core",
+    "in_y": 20.225645065307617,
+    "out_src": "record",
+    "out_y": 20.22409439086914,
+    "diff_m": 0.0016
+   },
+   {
+    "inside": [
+     -1715.5,
+     -1017.5
+    ],
+    "in_src": "core",
+    "in_y": 20.241851806640625,
+    "out_src": "record",
+    "out_y": 20.24226951599121,
+    "diff_m": -0.0004
+   }
+  ]
+ },
+ "wood": {
+  "site": "river",
+  "probed": 49,
+  "wet": 33,
+  "drops": [
+   {
+    "p": [
+     -1724.5,
+     19.90999984741211,
+     -1033.5
+    ],
+    "surface_y": 20.24663734436035,
+    "flow": [
+     0.673578143119812,
+     0.6620980501174927
+    ],
+    "source": "core",
+    "river": {
+     "depth_m": 1.2466373443603516,
+     "dir": [
+      0.9998477101325989,
+      0.017455441877245903
+     ],
+     "on_river": true,
+     "order": 5,
+     "slope": 0.0003781914710998535,
+     "speed_mps": 0.7400204539299011
+    }
+   },
+   {
+    "p": [
+     -1726.5,
+     19.90999984741211,
+     -1033.5
+    ],
+    "surface_y": 20.24019432067871,
+    "flow": [
+     0.5844638347625732,
+     0.8464123606681824
+    ],
+    "source": "core",
+    "river": {
+     "depth_m": 1.240194320678711,
+     "dir": [
+      0.9100430011749268,
+      0.4145139455795288
+     ],
+     "on_river": true,
+     "order": 5,
+     "slope": 0.00037475116550922394,
+     "speed_mps": 0.7374685406684875
+    }
+   },
+   {
+    "p": [
+     -1722.5,
+     19.90999984741211,
+     -1033.5
+    ],
+    "surface_y": 20.237327575683594,
+    "flow": [
+     0.6664521098136902,
+     0.4442386329174042
+    ],
+    "source": "core",
+    "river": {
+     "depth_m": 1.2373275756835938,
+     "dir": [
+      0.975263237953186,
+      -0.2210465371608734
+     ],
+     "on_river": true,
+     "order": 5,
+     "slope": 0.0003813989460468292,
+     "speed_mps": 0.736331582069397
+    }
+   }
+  ],
+  "debris": [
+   {
+    "slot": 0,
+    "t_in_water_s": 11.2,
+    "drift_m": 6.913,
+    "drift_xz": [
+     5.95,
+     3.52
+    ],
+    "angle_to_route_deg": 29.6,
+    "angle_to_route_along_path_deg": 18.5,
+    "route_speed_mps": 0.7400204539299011,
+    "speed_x_time_m": 8.29,
+    "mean_speed_mps": 0.617,
+    "stalled_last_3s": false,
+    "y_last": 20.126,
+    "end": [
+     -1718.55,
+     -1029.98
+    ]
+   },
+   {
+    "slot": 1,
+    "t_in_water_s": 11.2,
+    "drift_m": 7.181,
+    "drift_xz": [
+     5.25,
+     4.9
+    ],
+    "angle_to_route_deg": 18.5,
+    "angle_to_route_along_path_deg": 33.6,
+    "route_speed_mps": 0.7374685406684875,
+    "speed_x_time_m": 8.26,
+    "mean_speed_mps": 0.641,
+    "stalled_last_3s": false,
+    "y_last": 20.131,
+    "end": [
+     -1721.25,
+     -1028.6
+    ]
+   },
+   {
+    "slot": 2,
+    "t_in_water_s": 11.15,
+    "drift_m": 6.439,
+    "drift_xz": [
+     6.33,
+     1.18
+    ],
+    "angle_to_route_deg": 23.3,
+    "angle_to_route_along_path_deg": 10.0,
+    "route_speed_mps": 0.736331582069397,
+    "speed_x_time_m": 8.21,
+    "mean_speed_mps": 0.577,
+    "stalled_last_3s": false,
+    "y_last": 20.107,
+    "end": [
+     -1716.17,
+     -1032.32
+    ]
+   }
+  ]
+ },
+ "books": {
+  "mass_m3": 530.5315619268914,
+  "seeded_m3": 494.55952808902674,
+  "exchange_m3": 35.97206114967979,
+  "residue_m3": 0.0,
+  "books_m3": -2.7311815117059268e-05,
+  "after_s": 53.4,
+  "boundary_columns": 297,
+  "boundary_inflow": 63,
+  "gpu_device_ms": 5.489312,
+  "asleep": false
+ },
+ "release": {
+  "error": "",
+  "exchange_m3": 35.985873319754496,
+  "released": 1,
+  "success": true
+ }
+}

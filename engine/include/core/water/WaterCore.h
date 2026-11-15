@@ -216,6 +216,11 @@ struct BoundarySpec {
     float  wSurface = 0.0f;          ///< vertical orbital velocity at the surface (m/s); decays by sinh(k(y - bed)) / sinh(k d)
     float  k = 0.0f;                 ///< wavenumber of the dominant component (1/m); 0 = uniform profile
     double exchanged = 0.0;          ///< m^3 written into (+) or taken out of (-) the volume over its life
+    bool   freeVelocity = false;     ///< 54.2 (W5.2 A1): the LEVEL only - the velocity left to the solver (an outflow edge: a prescribed
+                                     ///< outflow would force the record's discharge out whatever arrives, and drain a pool behind a dam)
+                                     ///< A level-only column is also OPEN: its liquid cells are fixed at the still-water pressure.
+    float  inflowSpeed = 0.0f;       ///< 54.2: m/s INTO the volume through the column's outer face (the box wall) - the projection sees
+                                     ///< it in the column's divergence (a pump's term), or a walled-in inflow column could pass nothing on
 };
 
 struct StepReport {
@@ -424,7 +429,7 @@ public:
     const std::vector<BoundarySpec>& boundaries() const { return m_boundaries; }
     std::vector<BoundarySpec>& boundariesMutable() { return m_boundaries; }
     /// Write every prescribed column's fills to its target (the CPU form of wc_boundary); returns the m^3 exchanged.
-    double applyBoundaries();
+    double applyBoundaries(bool openOnly = false);   ///< 54.2: openOnly = the level-only (open) columns alone (before each projection)
     void clearSources();
     const std::vector<SourceSpec>& sources() const { return m_sources; }
     std::vector<SourceSpec>& sourcesMutable() { return m_sources; }   ///< the GPU backend writes placedTotal/pending back (WaterCoreManager::stepGpu)

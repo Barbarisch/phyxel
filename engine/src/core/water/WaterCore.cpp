@@ -795,13 +795,14 @@ BoundarySpec& WaterSolver::setBoundary(const glm::ivec2& columnLocal, float targ
     return m_boundaries.back();
 }
 
-double WaterSolver::applyBoundaries() {
+double WaterSolver::applyBoundaries(bool openOnly) {
     double total = 0.0;
     const float h = m_grid.h();
     const double h3 = m_grid.cellVolume();
     for (BoundarySpec& b : m_boundaries) {
         const int x = b.column.x, z = b.column.y;
         if (x < 0 || z < 0 || x >= m_grid.nx() || z >= m_grid.nz()) continue;
+        if (openOnly && !b.freeVelocity) continue;
         const float yTarget = b.targetY / h - static_cast<float>(m_grid.spec().origin.y);   // in cell rows above the grid floor
         double d = 0.0;
         int bed = 0;   // the first air cell above the highest solid under the surface
@@ -815,7 +816,7 @@ double WaterSolver::applyBoundaries() {
             fc = want;
             // Airy orbital velocity profile over the wet cells (the wavemaker): horizontal decays as
             // cosh, vertical as sinh, both 1 at the surface; uniform when k = 0
-            if (want > 0.0f) {
+            if (want > 0.0f && !b.freeVelocity) {   // 54.2: a level-only column leaves the velocity to the solver
                 const float zc = (static_cast<float>(y) + 0.5f - static_cast<float>(bed)) * h;   // height above the bed, m
                 float cu = 1.0f, cw = 1.0f;
                 if (b.k > 0.0f) { const float kd = b.k * depth; cu = std::cosh(b.k * zc) / std::cosh(kd); cw = std::sinh(b.k * zc) / std::max(std::sinh(kd), 1e-6f); }
@@ -1065,9 +1066,33 @@ void WaterSolver::project(float dt, StepReport& r) {
     m_grid.classify(m_params.liquidThreshold);
     std::vector<int> liquid; liquid.reserve(n / 4);
     std::vector<int> row(n, -1);
+    // 54.2 THE OPEN EDGE: a boundary column's liquid cells are FIXED - Dirichlet at the column's still-water pressure (top cell
+    // g theta h + the surface ghost, then + g h per cell down: the GPU's still-water guess, wc_classify mode 2), never unknowns.
+    // A known pressure, like a free surface: water passes through them to and from the box's wall. Without it a deep reach's edge
+    // was closed by the wall beyond it (incompressible full cells) - wc_boundary.comp mode 2 is the GPU's half.
+    std::vector<double> pFix;
+    if (!m_boundaries.empty()) {
+        pFix.assign(n, std::numeric_limits<double>::quiet_NaN());
+        for (const BoundarySpec& b : m_boundaries) {
+            const int x = b.column.x, z = b.column.y;
+            if (x < 0 || z < 0 || x >= nx || z >= nz || !b.freeVelocity) continue;   // an inflow column's pressure is solved
+            double acc = 0.0; bool above = false, open = false;
+            for (int y = ny - 1; y >= 0; --y) {
+                if (!(m_grid.kind(x, y, z) == CellKind::Liquid && m_grid.occ(x, y, z) == Occ::Air)) { above = false; continue; }
+                if (!above) {
+                    open = !(blocked(m_grid, x, y + 1, z) || bodyWall(x, y + 1, z));
+                    acc = open ? static_cast<double>(m_params.gravity) * h * thetaToAir(x, y, z, 3) + surfaceGhost(x, y, z, 3) : 0.0;
+                } else if (open) acc += static_cast<double>(m_params.gravity) * h;
+                pFix[m_grid.idx(x, y, z)] = acc;
+                above = true;
+            }
+        }
+    }
+    auto fixedAt = [&](size_t i) { return !pFix.empty() && !std::isnan(pFix[i]); };
     for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x)
-        if (m_grid.kind(x, y, z) == CellKind::Liquid && m_grid.occ(x, y, z) == Occ::Air) { row[m_grid.idx(x, y, z)] = static_cast<int>(liquid.size()); liquid.push_back(static_cast<int>(m_grid.idx(x, y, z))); }
+        if (m_grid.kind(x, y, z) == CellKind::Liquid && m_grid.occ(x, y, z) == Occ::Air && !fixedAt(m_grid.idx(x, y, z))) { row[m_grid.idx(x, y, z)] = static_cast<int>(liquid.size()); liquid.push_back(static_cast<int>(m_grid.idx(x, y, z))); }
     m_p.assign(n, 0.0);
+    if (!pFix.empty()) for (size_t i = 0; i < n; ++i) if (fixedAt(i)) m_p[i] = pFix[i];
     r.pcgIterations = 0; r.pcgResidual = 0.0;
     if (liquid.empty()) return;
     const size_t m = liquid.size();
@@ -1089,6 +1114,7 @@ void WaterSolver::project(float dt, StepReport& r) {
             if (blocked(m_grid, xn, yn, zn) || bodyWall(xn, yn, zn)) continue;          // Neumann (a body-full cell is a wall, 20.5)
             const int ni = static_cast<int>(m_grid.idx(xn, yn, zn));
             if (row[ni] >= 0) { nb[i][k] = row[ni]; d += 1.0; continue; }               // liquid neighbour
+            if (fixedAt(static_cast<size_t>(ni))) { d += 1.0; ghostRhs += pFix[ni]; continue; }   // 54.2: a fixed neighbour - its known pressure to the right-hand side
             const double th = thetaToAir(x, y, z, k);                                   // ghost fluid
             d += 1.0 / th;
             ghostRhs += surfaceGhost(x, y, z, k) / th;
@@ -1104,6 +1130,13 @@ void WaterSolver::project(float dt, StepReport& r) {
         // rhs = −div(u)/dt
         const double div = (static_cast<double>(m_grid.u(x + 1, y, z)) - m_grid.u(x, y, z) + m_grid.v(x, y + 1, z) - m_grid.v(x, y, z) + m_grid.w(x, y, z + 1) - m_grid.w(x, y, z)) / h;
         rhs[i] = -div / dt + ghostRhs * invh2;   // 26.9: a Dirichlet ghost value moves to the right-hand side
+        // 54.2: an INFLOW column - the river enters through the box's outer face at inflowSpeed over the cell's wet share (the target's,
+        // as the GPU's src: wc_boundary.comp)
+        for (const BoundarySpec& b : m_boundaries)
+            if (b.inflowSpeed > 0.0f && b.column.x == x && b.column.y == z) {
+                const double want = std::clamp(static_cast<double>(b.targetY) / h - m_grid.spec().origin.y - y, 0.0, 1.0);
+                rhs[i] += (static_cast<double>(b.inflowSpeed) * want / h) / dt;
+            }
         // A pump outlet is an inflow boundary: the projection enforces div(u) = q there, q = rate /
         // cell volume, so the velocity field carries the added water away each substep instead of
         // the outlet cell saturating (S2 Small: the trough stopped at 2/3, 2026-10-08).
@@ -1232,7 +1265,7 @@ void WaterSolver::project(float dt, StepReport& r) {
     };
     std::vector<double> x(m, 0.0), rres(rhs), zv(m), sdir(m), Ap(m);
     double rhsNorm = 0.0; for (double v : rhs) rhsNorm += v * v; rhsNorm = std::sqrt(rhsNorm);
-    if (rhsNorm < 1e-300) { for (size_t i = 0; i < m; ++i) m_p[liquid[i]] = 0.0; return; }
+    if (rhsNorm < 1e-300 && pFix.empty()) { for (size_t i = 0; i < m; ++i) m_p[liquid[i]] = 0.0; return; }   // 54.2: with fixed cells the faces must still be updated
     for (size_t i = 0; i < m; ++i) zv[i] = rres[i] / diag[i];
     sdir = zv;
     double rz = 0.0; for (size_t i = 0; i < m; ++i) rz += rres[i] * zv[i];
@@ -1255,8 +1288,8 @@ void WaterSolver::project(float dt, StepReport& r) {
     for (size_t i = 0; i < m; ++i) m_p[liquid[i]] = x[i];
     // velocity update on every face touching a liquid cell: u -= dt * (p_right - p_left) / h,
     // with p = 0 on the air side (ghost) and no update on solid faces
-    auto pAt = [&](int xx, int yy, int zz) -> double { return (m_grid.inBounds(xx, yy, zz) && row[m_grid.idx(xx, yy, zz)] >= 0) ? m_p[m_grid.idx(xx, yy, zz)] : 0.0; };
-    auto isLiq = [&](int xx, int yy, int zz) { return m_grid.inBounds(xx, yy, zz) && row[m_grid.idx(xx, yy, zz)] >= 0; };
+    auto isLiq = [&](int xx, int yy, int zz) { return m_grid.inBounds(xx, yy, zz) && (row[m_grid.idx(xx, yy, zz)] >= 0 || fixedAt(m_grid.idx(xx, yy, zz))); };   // 54.2: + fixed
+    auto pAt = [&](int xx, int yy, int zz) -> double { return isLiq(xx, yy, zz) ? m_p[m_grid.idx(xx, yy, zz)] : 0.0; };
     // The face distance is h between two liquid cells and theta*h between a liquid cell and the
     // free surface - the SAME theta the matrix row used, or the projection is inconsistent (the
     // first green attempt halved the surface-face correction: still water kept g*dt of velocity,
@@ -1737,6 +1770,9 @@ StepReport WaterSolver::step(float dt) {
         if (!(off & 4u)) settleThinFilmTopFaces();
         enforceSolidFaces();
         probe("thin films");
+        // 54.2: the open (level-only) columns held again right before the solve - what flowed into them leaves (counted); the transport
+        // stacked it against the box's wall within the tick otherwise (wc_boundary.comp modes 3 / 4)
+        if (!m_boundaries.empty()) r.boundaryExchange += applyBoundaries(true);
         project(ds, r);
         probe("projection");
         extrapolateVelocity();

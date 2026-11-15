@@ -1,0 +1,79 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel B (docs/WaterCore.md 54.2, W5.2): PRESCRIBED-SURFACE columns - the CPU's WaterSolver::applyBoundaries,
+// rule for rule, with the uniform velocity profile only (k = 0; the host refuses an Airy profile). Run once per tick before
+// anything moves (where the CPU runs it). For each listed grid column: every air cell is filled to the target level
+// (want = clamp(rows - y, 0, 1)) and the change counted into the column's exchange (two-sum remainder: the books stay exact
+// over a long run, 26.15); where the cell holds water and the column's velocity is PRESCRIBED (freeVel 0), its open faces
+// get the column's velocity (u on both x faces, w on both z faces, v on both y faces). freeVel 1 (W5.2 amendment A1: an
+// OUTFLOW edge) holds the level only and leaves the velocity to the solver.
+// Two dispatches (pc.mode = parity of x + z): neighbouring columns share a face; one parity at a time writes it, so the
+// result never depends on thread order (the CPU's list order is replaced by the parity order - equal where neighbours agree).
+// A cell or face whose brick is not stored (sparse residency) is never written: slot 0 is the absent brick and must stay zero.
+// INFLOW (qn > 0, 54.2): the box's outer face of the column is where the river comes in - the projection must see that inflow
+// in the column's divergence (a pump's term: src = qn h^2 x the cell's wet share, m^3/s per cell), or the column, walled behind,
+// could pass nothing on. An inflow column is NOT fixed: its pressure is solved (velocity given, the level held each tick).
+// modes 3 / 4 (54.2): the LEVEL-ONLY columns' hold again, parity mode - 3, every substep right before the classification: water that
+// flowed into an open edge column cannot leave through the box's wall in the transport (a cell holds at most full), so it stacked
+// there within the tick (0.32 m at a 2 m deep reach's outlet) and its pressure backed the reach up; held before every solve, what
+// arrived leaves (counted) and the solve sees the record's level. WaterSolver::step's rule.
+// mode 2 (54.2, the OPEN EDGE): after the classification of each substep, every liquid cell of a LEVEL-ONLY listed column is marked FIXED
+// (liq 2): the sweeps leave its deviation from the still-water guess at 0, so its pressure is its column's hydrostatic one
+// (p = pg) - known, like a free surface. Without it the box's own wall closed the edge: a 2 m deep reach's water could neither
+// leave nor enter through a column whose far side is the box (incompressible cells), and the reach stood still
+// (ASimulatedReachCarriesTheRecordsRiver's first runs: 0.07 m/s where the record carries 0.6). WaterSolver::project's rule.
+#define WC_BRICKS_BINDING 7
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+struct GpuBoundary { int col; float rows; float ux; float uz; float wy; float exHi; float exLo; float freeVel; float qn; float pad0, pad1, pad2; };
+layout(std430, set = 0, binding = 0)          buffer F   { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
+layout(std430, set = 0, binding = 2)          buffer U   { float u[]; };
+layout(std430, set = 0, binding = 3)          buffer V   { float v[]; };
+layout(std430, set = 0, binding = 4)          buffer W   { float w[]; };
+layout(std430, set = 0, binding = 5)          buffer FLo { float fLo[]; };
+layout(std430, set = 0, binding = 6)          buffer Bnd { GpuBoundary bnd[]; };
+layout(std430, set = 0, binding = 8)          buffer Liq { uint liq[]; };
+layout(std430, set = 0, binding = 9)          buffer Src { float src[]; };   // m^3/s per cell (wc_classify's pump term)
+
+// a site this kernel may write: inside the box and in a stored brick (never the absent slot 0 or the ground sentinel 1)
+bool stored(int x, int y, int z) { return inBounds(x, y, z) && (WC_DENSE || brickSlot(ivec3(x + pc.ox, y + pc.oy, z + pc.oz)) >= 2); }
+bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+// the exchange, kept exactly: every cell's change added on its own with its rounding remainder (54.2: a float `had = f + fLo` rounded
+// the remainder away - fLo far below f's last bit - and the books of a 30 s reach drifted -2.6e-4 m^3, the parity rig's 10x the CPU's)
+void addEx(inout float hi, inout float lo, float v) { precise float t = hi + v; lo += twoSumErr(hi, v, t); hi = t; }
+
+void main() {
+    const uint i = gl_GlobalInvocationID.x;
+    if (i >= uint(pc.iparam)) return;
+    GpuBoundary b = bnd[i];
+    const int x = b.col % pc.nx, z = b.col / pc.nx;
+    if (pc.mode == 2) {
+        if (b.freeVel == 0.0) return;   // an inflow column's pressure is solved
+        for (int y = 0; y < pc.ny; ++y) { if (!stored(x, y, z)) continue; const uint ci = cellIdx(x, y, z); if (liq[ci] == 1u) liq[ci] = 2u; }
+        return;
+    }
+    const bool openOnly = pc.mode >= 3;
+    if (openOnly && b.freeVel == 0.0) return;
+    if (((x + z) & 1) != (openOnly ? pc.mode - 3 : pc.mode)) return;
+    for (int y = 0; y < pc.ny; ++y) {
+        if (!stored(x, y, z)) continue;
+        const uint ci = cellIdx(x, y, z);
+        if (occ[ci] != 0u) continue;   // the bed stays the bed
+        const float want = clamp(b.rows - float(y), 0.0, 1.0);
+        precise float a = want - f[ci];
+        addEx(b.exHi, b.exLo, a); b.exLo += twoSumErr(want, -f[ci], a);   // want - f, exactly
+        addEx(b.exHi, b.exLo, -fLo[ci]);                                     // and the remainder the cell held
+        f[ci] = want; fLo[ci] = 0.0;
+        src[ci] = b.qn > 0.0 ? b.qn * pc.h * pc.h * want : 0.0;   // the inflow through the box's outer face, this cell's wet share
+        if (want > 0.0 && b.freeVel == 0.0) {
+            if (!blocked(x - 1, y, z)) u[uIdx(x, y, z)] = b.ux;
+            if (!blocked(x + 1, y, z) && stored(x + 1, y, z)) u[uIdx(x + 1, y, z)] = b.ux;
+            if (!blocked(x, y, z - 1)) w[wIdx(x, y, z)] = b.uz;
+            if (!blocked(x, y, z + 1) && stored(x, y, z + 1)) w[wIdx(x, y, z + 1)] = b.uz;
+            v[vIdx(x, y, z)] = b.wy;
+            if (y + 1 < pc.ny && !blocked(x, y + 1, z) && stored(x, y + 1, z)) v[vIdx(x, y + 1, z)] = b.wy;
+        }
+    }
+    bnd[i] = b;
+}

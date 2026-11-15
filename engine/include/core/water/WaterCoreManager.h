@@ -17,6 +17,7 @@
 #include "core/water/RippleLayer.h"        // 22: ripples
 #include "core/water/RippleGpu.h"          // 25.34: the ripple step on the GPU
 #include "core/water/WaterSkin.h"          // 51.4 S3: the far skin
+#include "core/water/RiverReach.h"         // 54.2 W5.2: the reach's edge columns
 #include <unordered_map>
 #include <map>
 #include <glm/glm.hpp>
@@ -78,6 +79,10 @@ struct AvRecord {
     double lastRecordMs = 0.0, lastWakeMs = 0.0, seedUnplacedM3 = 0.0;   ///< §27 W1b: the last tile record / wake (ms); seeded water the capacity refused
     int awakeColumns = 0, frozenColumns = 0, movingColumns = 0;   ///< 26.31: the last call's (WaterCoreGpu GpuStepStats)
     bool isPatch = false; glm::ivec3 patchParentLo{0}, patchParentHi{0};   ///< 51 S2: a patch of a slept pond (its parent box)
+    bool isReach = false;                  ///< 54.2 W5.2: a simulated river reach (fed and drained at its edges from the record)
+    int boundaryColumns = 0;               ///< 54.2: prescribed-surface columns
+    int boundaryInflow = 0;                ///< 54.2: of them, inflow edges (level + velocity); the rest level only
+    double boundaryExchange = 0.0;         ///< 54.2: m^3 the boundaries put in (+) / took out (-) since the volume was made
     int settlingColumns = 0;   ///< 50.6f: the last call's settling (damped) columns
     double carryBodyM3 = 0.0, carryRateM3 = 0.0, carryFlowM3 = 0.0, carryParkedM3 = 0.0;   ///< 26.32: the over-full carry since creation (m^3): made in a body's cells without / with a displacement rate, made elsewhere, parked at a ceiling
     int stepSlots = 0, partitionMoves = 0;                        ///< 26.31 step 2: slots the step dispatched (0 = all); bricks moved
@@ -237,6 +242,27 @@ public:
     WriteBackRecord sleep(int id, bool force);
     /// Fill the volume from the chunk spans of its box (replace); returns m^3 seeded, < 0 without a reader.
     double seedFromSpans(int id);
+    /// 54.2 (W5.2): the record's current at a world column (the Application installs W5.1's recordCurrentAt; the manager does not
+    /// know the generator). Without it no reach is made.
+    void setRecordCurrent(RecordCurrentFn f) { m_recordCurrent = std::move(f); }
+    struct RiverReachResult {
+        int id = 0; glm::ivec3 lo{0}, hi{0};
+        int columns = 0, inflow = 0, levelOnly = 0;   ///< ring columns given a boundary, of them inflow / level-only
+        double qIn = 0.0, qOut = 0.0;                 ///< the record's discharge across the ring (m^3/s)
+        double seeded = 0.0;                          ///< m^3 seeded from the record
+        double createMs = 0.0;                        ///< the whole make (create + seed + boundaries), ms
+        std::string error;
+    };
+    /// 54.2 (W5.2): a simulated REACH round world (x, z): a box of 8 m record tiles (k = clamp(floor(halfM / 8), 1, 3) tiles each
+    /// side of the centre's tile: 24 / 40 / 56 m), its height from the record read round `yHint` (the lowest bed - 1 to the highest
+    /// surface + 3: room for a dam's rise), at 1/9 m, seeded from the record, Manning n 0.035 at the bed, no partial wake, no tall
+    /// cells, no recording, never auto-sleeps; every ring column the record holds water in becomes a boundary at the record's
+    /// level - inflow edges with the record's current, the rest level only (A1). Refused (error, nothing made) without the span
+    /// reader or the current, with no recorded water in the box, or while any chunk under it is not resident (A3: the record
+    /// would read dry there).
+    RiverReachResult makeRiverReach(const glm::vec2& centre, float halfM, float yHint, const std::string& backend = "auto");
+    /// 54.2: the volume's prescribed-surface columns (replaces the list; CPU and GPU). False for an unknown id or a GPU refusal.
+    bool setBoundaries(int id, const std::vector<BoundarySpec>& b, std::string* err);
     bool setAutoSleep(int id, bool on);
     /// 26.31 the partial wake for one volume (GPU, sparse; false = no such volume or not one) and the default for new volumes.
     bool setPartialWake(int id, bool on);
@@ -423,6 +449,8 @@ public:
     /// cavity under a floor from the pool above it (S5).
     std::vector<ColumnSample> probeColumns(int x1, int z1, int x2, int z2, int yMin = INT_MIN, int yMax = INT_MAX) const;
     double totalMass() const;
+    /// 54.2 TEST: a GPU volume's fill remainders (fLo) as m^3 - left out of totalMass() (the download reads f only)
+    double gpuFLoM3ForTest(int id) { for (auto& a : m_avs) if (a->id == id && a->gpuVol && m_gpu) return m_gpu->sumFLoForTest(*a->gpuVol) * a->grid->cellVolume(); return 0.0; }
     size_t totalCells() const;
 
     /// Phase F (17.1): one surface field per volume, from the last step (GPU: the field the step
@@ -912,6 +940,7 @@ private:
         bool autoSleep = true;         // Phase D
         double noSleepBefore = 0.0;    // 32: a woken volume's grace (steady seconds) - auto-sleep waits for it
         bool isPatch = false;          // 51 S2: a PATCH of a slept pond (its box a disturbance's disc, the pond stays slept around it)
+        bool isReach = false;          // 54.2 W5.2: a river REACH (boundaries from the record; released by releaseRiverReach)
         glm::ivec3 patchParentLo{0}, patchParentHi{0};   // 51 S2: the slept box it belongs to
         double seededMass = 0.0;
         std::vector<WaterBodyTable::ColumnMass> seededColumns;   // per-column seed for the body credit
@@ -961,6 +990,7 @@ private:
     void refreshOccupancy(Av& av);
     Occ sampleOccupancy(const Av& av, const glm::ivec3& cellLocal) const;
     AvRecord record(const Av& av) const;
+    void pullBoundaryTotals(Av& av);   ///< 54.2: the GPU's collected exchanges into the solver's list
     void pullSourceTotals(Av& av);   ///< 26.16: the GPU's collected source totals into the solver's list
     const Av* volumeAtVoxel(int x, int y, int z) const;
 
@@ -1048,6 +1078,7 @@ private:
     glm::vec3 m_view{0.0f};       // 25.26 RC
     float m_flowForcing = 200.0f; // 25.26 RC: C_f - calibrated live 2026-10-12 (25.29): facet slope p95 0.1-0.2 on the 100 L/s bench creek
     SpanWriter m_spanWriter; SpanReader m_spanReader; BakeBodyQuery m_bakeBodyAt;
+    RecordCurrentFn m_recordCurrent;   // 54.2
     WaterBodyTable m_bodies;
     std::vector<WriteBackRecord> m_autoSlept;
     long m_worldResets = 0;   // A2i (47)

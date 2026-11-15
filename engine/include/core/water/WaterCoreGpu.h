@@ -62,6 +62,22 @@ struct GpuSource {
 };
 static_assert(sizeof(GpuSource) == 32, "GpuSource must match the GLSL struct");
 
+/// 54.2 (W5.2): a PRESCRIBED-SURFACE grid column on the device (shaders/wc_boundary.comp GpuBoundary, 32 bytes) - the CPU's
+/// BoundarySpec with the uniform profile (k = 0). `rows` = the target surface in cell rows above the grid's floor; the exchange
+/// is kept in FILL units (x h^3 = m^3) with its two-sum remainder. 48 bytes (54.2: + qn, the inflow).
+struct GpuBoundary {
+    int32_t col = 0;           ///< grid-local column x + nx z
+    float rows = 0.0f;         ///< target surface, cell rows above the grid floor
+    float ux = 0.0f, uz = 0.0f, wy = 0.0f;   ///< the column's velocity (m/s), written where freeVel is 0
+    float exHi = 0.0f, exLo = 0.0f;           ///< fills written in (+) or taken out (-) over its life, and the rounding remainder
+    float freeVel = 0.0f;      ///< 1 = the level only (W5.2 A1: an outflow edge), the velocity left to the solver - and FIXED (open)
+    float qn = 0.0f;           ///< m/s INTO the box through the column's outer face (an inflow edge: the projection's divergence term)
+    float pad0 = 0.0f, pad1 = 0.0f, pad2 = 0.0f;
+    double exchanged() const { return static_cast<double>(exHi) + static_cast<double>(exLo); }
+    void setExchanged(double e) { exHi = static_cast<float>(e); exLo = static_cast<float>(e - static_cast<double>(exHi)); }
+};
+static_assert(sizeof(GpuBoundary) == 48, "GpuBoundary must match the GLSL struct");
+
 struct GpuStepStats {
     int    ticks = 0;
     int    substepsLast = 0;         ///< the substep count used for every tick of the call (CFL from the last known max speed, see step())
@@ -195,6 +211,10 @@ public:
         std::vector<uint32_t> hostOcc;   ///< dense occupancy from the last upload (new bricks are filled from it)
         std::vector<float> hostSolid;    ///< dense (s, q, wake, ledger) from the last setSolids
         std::vector<int> sourceCells;    ///< dense indices of the pumps (their bricks stay stored)
+        Buffer bnd;                      ///< 54.2: HOST-VISIBLE GpuBoundary array (allocated by setBoundaries; empty = none)
+        int boundaryCount = 0;           ///< 54.2: prescribed-surface columns run each tick
+        std::vector<int> boundaryCells;  ///< 54.2: dense index of each column's cell at its target row (its brick stays stored, as a pump's)
+        std::vector<GpuBoundary> hostBoundaries;   ///< 54.2: their exchanges as the last collected call left them
         int lastAllocated = 0, lastFreed = 0, lastRings = 0, lastCompacted = 0; long lastHeld = 0;
         std::vector<int> liquidAtStartForTest;
         int lastTravelForTest = 0;   ///< 26.23 diagnostic: the travel the residency allowed this call (cells)   ///< 26.23 diagnostic: packed bricks holding LIQUID at the call's start
@@ -376,7 +396,7 @@ public:
         struct Motion { bool fresh = false; int riseCols = 0, flowCols = 0; float maxRise = 0.0f, maxFlow = 0.0f; int x0 = 0, x1 = -1, z0 = 0, z1 = -1; float y0 = 0.0f, y1 = 0.0f; } motion;
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
-                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, SurfaceMesh, BodyPressure, Mg, KernelCount };   // 50.7: + Mg (MGPCG)   // 31: + BodyPressure   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)   // 29 S1: + SurfaceMesh
+                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, SurfaceMesh, BodyPressure, Mg, Boundary, KernelCount };   // 54.2: + Boundary (prescribed-surface columns)   // 50.7: + Mg (MGPCG)   // 31: + BodyPressure   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)   // 29 S1: + SurfaceMesh
     static constexpr size_t kMaxMapEntries = 4u << 20;   ///< 26.6: brick-map cap (16 MB) - a larger box is refused (world scale is P5)
     static constexpr int kMaxSources = 64;
     static constexpr int kMaxMomentum = 256;   ///< 26.26: momentum records a call can take (more are counted as dropped)
@@ -575,6 +595,7 @@ public:
     /// §27 W1b TEST ONLY: recorded columns NOT walled - the halo stores their bricks as air and they are not frozen, so awake water
     /// beside them pours in (the water then sits in cells AND in the record): the red control.
     static inline bool s_recordedOpenForTest = false;
+    static inline bool s_boundariesOffForTest = false;   ///< 54.2 TEST: the boundary kernel not dispatched (the red control: today's GPU)
     /// §27 W1b TEST ONLY: the seed leaves fPrev at 0 (the live cascade's cause) - the red control of the wake-speed bound.
     static inline bool s_seedSkipsFPrevForTest = false;
     /// 51.9 TEST ONLY (the parity control): a tile seed walks the WHOLE brick map for its bricks' need and the tile's cells three times
@@ -709,6 +730,11 @@ public:
     void queueRadialImpulse(Volume& vol, const glm::vec3& worldCentre, float reach, float speedAtCentre, float upBias, float maxSpeed);
     /// TEST ONLY (26.26 parity): apply the queued records now - only them, no substep - and wait.
     int applyQueuedMomentumForTest(Volume& vol);
+    /// 54.2 (W5.2): the volume's prescribed-surface columns (replaces the list; their exchanges carried as given). Refused past
+    /// kMaxBoundaries or for a particle volume. Wakes the volume (a boundary moves water).
+    bool setBoundaries(Volume& vol, const std::vector<GpuBoundary>& b, std::string* err);
+    void readBoundaries(Volume& vol, std::vector<GpuBoundary>& out) const;   ///< 54.2: exchanges as the last collected call left them
+    static constexpr int kMaxBoundaries = 8192;   ///< 54.2: a 56 m reach's ring at 1/9 m is 2,016 columns; x4 headroom
     void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending as the last collected call left them (26.16: no submission)
     /// Phase F: the surface field as the last step() left it in the staging ring (no submission: a memcpy).
     /// `out` must hold columns * 16 floats (SurfaceColumn). Returns false when no step has run since the upload.
@@ -772,6 +798,9 @@ public:
     void readParticles(Volume& vol, std::vector<FlipParticle>& out) const;     ///< the sorted list (fenced)
     void setFlipBlend(float b) { m_flipBlend = b; }
     void download(Volume& vol, WaterGrid& g) const;                            ///< f, u, v, w -> grid (fenced)
+    /// 54.2 TEST: the sum of every cell's fill remainder (fLo, fill units) - the water the float store could not hold, which
+    /// download() leaves out. The books of a long run on the GPU = the downloaded fills + this (x h^3).
+    double sumFLoForTest(Volume& vol);
     void readPressure(Volume& vol, std::vector<float>& p) const;               ///< the last projection's pressure (fenced; tests)
     /// Diagnostics: a per-cell buffer by name ("f", "p", "liq", "rhs", "diag", "res", "occ") as floats (fenced).
     void readCells(Volume& vol, const char* which, std::vector<float>& out) const;

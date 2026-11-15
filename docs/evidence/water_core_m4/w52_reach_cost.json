@@ -1,0 +1,92 @@
+{
+ "rows": [
+  {
+   "fps": 53.595,
+   "cpu_ms": 18.679,
+   "gpu_ms": 18.84,
+   "n": 39,
+   "rep": 0,
+   "state": "off",
+   "make_ms": null
+  },
+  {
+   "fps": 33.509,
+   "cpu_ms": 29.927,
+   "gpu_ms": 19.585,
+   "n": 39,
+   "rep": 0,
+   "state": "on",
+   "make_ms": 131.485,
+   "gpu_device_ms": 5.2792959999999995
+  },
+  {
+   "fps": 40.468,
+   "cpu_ms": 24.777,
+   "gpu_ms": 19.32,
+   "n": 39,
+   "rep": 1,
+   "state": "on",
+   "make_ms": 137.4695,
+   "gpu_device_ms": 2.7336959999999997
+  },
+  {
+   "fps": 54.551,
+   "cpu_ms": 18.359,
+   "gpu_ms": 18.188,
+   "n": 39,
+   "rep": 1,
+   "state": "off",
+   "make_ms": null
+  },
+  {
+   "fps": 54.381,
+   "cpu_ms": 18.428,
+   "gpu_ms": 18.318,
+   "n": 39,
+   "rep": 2,
+   "state": "off",
+   "make_ms": null
+  },
+  {
+   "fps": 43.351,
+   "cpu_ms": 23.136,
+   "gpu_ms": 18.032,
+   "n": 39,
+   "rep": 2,
+   "state": "on",
+   "make_ms": 138.4613,
+   "gpu_device_ms": 2.697024
+  },
+  {
+   "fps": 40.385,
+   "cpu_ms": 24.907,
+   "gpu_ms": 18.073,
+   "n": 39,
+   "rep": 3,
+   "state": "on",
+   "make_ms": 134.7606,
+   "gpu_device_ms": 3.046944
+  },
+  {
+   "fps": 56.639,
+   "cpu_ms": 17.669,
+   "gpu_ms": 17.637,
+   "n": 39,
+   "rep": 3,
+   "state": "off",
+   "make_ms": null
+  }
+ ],
+ "summary": {
+  "off": {
+   "fps": 54.791,
+   "cpu_ms": 18.284,
+   "gpu_ms": 18.246
+  },
+  "on": {
+   "fps": 39.428,
+   "cpu_ms": 25.687,
+   "gpu_ms": 18.753
+  }
+ }
+}
