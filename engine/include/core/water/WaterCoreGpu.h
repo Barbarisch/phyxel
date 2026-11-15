@@ -312,7 +312,7 @@ public:
         int tallColumns = 0;           ///< columns with H > 1 while active
         VkQueryPool callTs = VK_NULL_HANDLE;   ///< 26.15: two timestamps round every step call - the device's own time, live
         int tsCount = 0;                 ///< stamps written this call
-        std::array<int, 64> tsLabel{};   ///< the stage each stamp closes
+        std::array<int, 512> tsLabel{};   ///< the stage each stamp closes (D9: 512 - a call log row stamps every tick and substep)
         Buffer births;                   ///< 21 (droplets): per column 8 floats (wc_column_ops mode 4 records, mode 5 returns a scrap; 51.11)
         VkDeviceSize offBirths = 0;
         bool dropletsOn = false;         ///< run the birth pass after every tick
@@ -480,6 +480,13 @@ public:
     enum TsLabel : int { TsStart = 0, TsResidency, TsSources, TsTransport, TsVelAdvect, TsCompaction, TsForces, TsClassify, TsSweeps,
                          TsVelUpdate, TsExtrapolate, TsSettle, TsSweepBirths, TsBrickRecord, TsReduce, TsSurfaceKernel, TsSurfaceCopy, TsReduceSurface, TsLabelCount };
     static inline bool s_kernelTiming = false;
+    /// D9 (WaterCore §53): when on, every call's collection appends a row - the host's fence wait, submit-to-signal, the device's own
+    /// time, ticks / substeps / bricks / dispatches, and the device ms per stage (the stamps are armed on EVERY call while on; each
+    /// stamp adds a barrier, so the log perturbs what it measures - compare a run with it off). tMs = steady clock at the collection.
+    struct CallLogRow { double tMs = 0.0, waitMs = 0.0, submitToSignalMs = 0.0, inFlightMs = 0.0, deviceMs = 0.0;
+                        int ticks = 0, substeps = 0, bricks = 0, dispatches = 0, stamps = 0; std::array<double, 18> stageMs{}; };
+    static inline bool s_callLog = false;
+    static inline std::vector<CallLogRow> s_callLogRows;
     /// 26.31 measurement: copy each call's unit map (the rest reductions' per-unit partials: x = sum f |v|^2 / 2, y = max |f - fPrev|
     /// over the call's last tick, z = sum f; per 8 x 2 x 8 cells, world-aligned) to the host - what a partial wake would read.
     static inline bool s_unitCapture = false;

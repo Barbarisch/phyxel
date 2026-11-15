@@ -563,15 +563,20 @@ void WaterCoreManager::setKernelTiming(bool on, bool reset) {
     WaterCoreGpu::s_kernelTiming = on;
     if (reset) { for (double& m : WaterCoreGpu::s_tsMs) m = 0.0; WaterCoreGpu::s_tsCalls = 0; }
 }
+namespace { const char* const kStageNames[] = {"start", "residency", "sources", "transport", "vel_advect", "compaction", "forces", "classify", "sweeps",
+                                               "vel_update", "extrapolate", "settle", "sweep_births", "brick_record", "reduce", "surface_kernel", "surface_copy", "reduce_surface"};
+static_assert(sizeof(kStageNames) / sizeof(kStageNames[0]) == WaterCoreGpu::TsLabelCount, "one name per label");
+static_assert(WaterCoreGpu::TsLabelCount == 18, "CallLogRow::stageMs holds one entry per label"); }
 std::vector<std::pair<std::string, double>> WaterCoreManager::kernelTiming(long& calls) {
-    static const char* names[] = {"start", "residency", "sources", "transport", "vel_advect", "compaction", "forces", "classify", "sweeps",
-                                  "vel_update", "extrapolate", "settle", "sweep_births", "brick_record", "reduce", "surface_kernel", "surface_copy", "reduce_surface"};
-    static_assert(sizeof(names) / sizeof(names[0]) == WaterCoreGpu::TsLabelCount, "one name per label");
     calls = WaterCoreGpu::s_tsCalls;
     std::vector<std::pair<std::string, double>> out;
-    for (int k = 1; k < WaterCoreGpu::TsLabelCount; ++k) out.push_back({names[k], WaterCoreGpu::s_tsMs[k]});
+    for (int k = 1; k < WaterCoreGpu::TsLabelCount; ++k) out.push_back({kStageNames[k], WaterCoreGpu::s_tsMs[k]});
     return out;
 }
+void WaterCoreManager::setCallLog(bool on, bool reset) { WaterCoreGpu::s_callLog = on; if (reset) WaterCoreGpu::s_callLogRows.clear(); }
+bool WaterCoreManager::callLogOn() { return WaterCoreGpu::s_callLog; }
+const std::vector<WaterCoreGpu::CallLogRow>& WaterCoreManager::callLog() { return WaterCoreGpu::s_callLogRows; }
+const char* WaterCoreManager::kernelStageName(int label) { return (label >= 0 && label < WaterCoreGpu::TsLabelCount) ? kStageNames[label] : "?"; }
 bool WaterCoreManager::unitCapture() { return WaterCoreGpu::s_unitCapture; }
 
 bool WaterCoreManager::setAutoSleep(int id, bool on) {

@@ -304,6 +304,11 @@ public:
     /// {label, ms summed} and the calls summed; reset clears them.
     static void setKernelTiming(bool on, bool reset);
     static std::vector<std::pair<std::string, double>> kernelTiming(long& calls);
+    /// D9 (§53): the per-call log (WaterCoreGpu::s_callLog) - on / reset, the rows, a stage's name.
+    static void setCallLog(bool on, bool reset);
+    static bool callLogOn();
+    static const std::vector<WaterCoreGpu::CallLogRow>& callLog();
+    static const char* kernelStageName(int label);
     static bool unitCapture();
     /// Phase D (16.2): every auto-sleep volume at rest (no droplets in flight, no rings running, past its wake grace) writes back and
     /// frees itself. update() runs it each realtime frame; a synced harness that steps volumes itself (step()) calls it after the

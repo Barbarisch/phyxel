@@ -2182,6 +2182,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_units",       waterEndpoint("water_av_units"));   // 26.31 measurement: the unit map
     srv.Post("/api/debug/water_av_partial_wake", waterEndpoint("water_av_partial_wake"));   // 26.31
     srv.Post("/api/debug/water_av_kernel_timing", waterEndpoint("water_av_kernel_timing"));   // 26.31 measurement
+    srv.Post("/api/debug/water_av_call_log", waterEndpoint("water_av_call_log"));   // D9 (WaterCore 53): the per-call log
     srv.Post("/api/debug/water_av_debris_tiles", waterEndpoint("water_av_debris_tiles"));     // 27.21 the debris water tiles kept
     srv.Post("/api/debug/water_av_tall", waterEndpoint("water_av_tall"));                     // 27.22 tall cells: the band
     srv.Post("/api/debug/water_av_line_sweeps", waterEndpoint("water_av_line_sweeps"));       // 28 the zebra line sweeps

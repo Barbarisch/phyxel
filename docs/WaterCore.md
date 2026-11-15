@@ -13801,7 +13801,7 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
 - **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
   than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
 
-## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4 BUILT, not signed off (the owner's clip: `w4_clip.mp4`); next D9 bounded, then W5
+## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4 BUILT, not signed off (the owner's clip: `w4_clip.mp4`); D9 bounded FOUND (§53), the cut the owner's; then W5
 
 **What W4 is (§27, §0a):** generated lakes, rivers and sea are the record and the new core simulates and draws them - DONE by §51
 (record tiles near, the skin far, 51.4c / 51.12-51.14). What is NOT done: **the old CA water is still in the engine, and five readers
@@ -13964,6 +13964,34 @@ launch. Two lines for the plan, left:
   28 s - the clip's camera moves may keep them rebuilding; not measured). Belongs with the sign-off sweep / W6's far water.
 - **A periodic freeze:** at 80 s and 120 s, the camera still, the frame rate fell to ~0.6 fps (> 1 s) as `record_pending` jumped
   to 131 (every tile queued at once). Cause not looked at.
+
+## 53. D9 bounded - the splash stutter, split (owner's order 2026-11-14, item 2). Status: FOUND; the cut needs the owner's call (53.3)
+
+**53.1 Built (measurement only, off by default):** a per-call log of the water's GPU calls (`water_av_call_log {on, reset, since}`:
+every collected call's fence wait, submit-to-signal, the device's own time, ticks / substeps / bricks / dispatches and device ms
+per stage - the stage stamps armed on every call while on; `tsLabel` 64 -> 512 stamps), and the patch wake's four parts (51.3d's
+size / create / adopt / first tile, timed since 51.3d but never reported) in `water_coupling`'s `last_patch_split_ms`. Tool
+`tools/water_d9_call_log.py` (D9's rig: WaterBench_Creek, the 150 m record lake, the close pose, the clip's splash; log on / off
+interleaved, 3 reps). GPU otherwise idle (2 % before the runs).
+
+**53.2 Measured** (`d9_call_log.json`, `d9_phases_r3.json`):
+- **D9's "79-129 ms fence wait in one call" does not reproduce:** the longest wait over 6 splashes is 13 ms (device 10-22 ms a call,
+  4-9 substeps, 490-1,080 dispatches). D9's was measured while another session's engine shared the GPU. The burst is the CPU's.
+- **The burst** (log on and off alike: the log does not change it): one frame of 122-172 ms (the splash call), then ~5 frames of
+  48-74 ms (the water block 43-67 ms, its manager update 23-38), then back to ~190 fps.
+- **The splash call, ~100-120 ms** (3 reps): the patch's create **53-60 ms** (GPU buffers 16.3-16.6, the empty patch's upload 12.1-12.8,
+  the CPU grid + solver for 3.5 M cells 11.8-14.1, occupancy 7.3-7.6, pipelines 2 - all 23 reused), adopting the lake's tiles 8.1-8.3,
+  the first tile's wake 8.1-8.4, pool sizing 0.6; the rest of the call (~30 ms) is the API round trip and the impulse - not split.
+- **The ~5 frames after:** each wakes 2 tiles (14 in all, ~8-9 ms each: the seed's host work ~5, its upload ~1, the surface seed 1-3),
+  records 490-1,080 dispatches (`gpu.08` up to 10.7 ms), collects the call before (7 ms), plus ripples (6), the feed (4.6), motion (4.1).
+- **Largest single part: the patch's create, 53-60 ms of the one long frame.** Largest total: the 14 tile wakes (~120 ms over ~0.4 s),
+  already trimmed twice (27.19, 51.9) - no single part over 2 ms of a wake left.
+
+**53.3 The cut - the owner's call (a memory trade):** the create's GPU buffers (16.5 ms) and much of its upload could be skipped by
+reusing the last patch's buffers (L3's kept memory, §41, today only for whole ponds, by box). A patch holds 16,525 slots (~23.5 KB
+each, 51.3b) = **~390 MB of GPU memory**, over the pinned 256 MB kept-memory cap - so keeping one means raising the cap or a
+patch-only allowance. Not built. The other parts (the CPU grid for a GPU patch, 12-14 ms; the tile wakes) are code changes with no
+trade, larger, not started. Not measured: the API round trip's ~30 ms split; the recorder's own cost.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

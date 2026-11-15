@@ -14273,6 +14273,27 @@ void Application::registerWaterCommands() {
         for (const auto& [n, ms] : t) { st[n] = calls ? ms / calls : 0.0; sum += ms; }
         r = {{"calls", calls}, {"ms_per_call", st}, {"total_ms_per_call", calls ? sum / calls : 0.0}};
     });
+    // D9 (WaterCore §53): the per-call log - {"on", "reset", "since"(row index)}; every collected GPU call: the fence wait, submit to
+    // signal, in flight before the collection, the device's own time, ticks / substeps / bricks / dispatches, device ms per stage.
+    reg.on("water_av_call_log", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        using M = Core::Water::WaterCoreManager;
+        if (cmd.params.contains("on") || cmd.params.value("reset", false))
+            M::setCallLog(cmd.params.value("on", M::callLogOn()), cmd.params.value("reset", false));
+        const auto& rows = M::callLog();
+        const size_t since = std::min(rows.size(), cmd.params.value("since", size_t(0)));
+        nlohmann::json out = nlohmann::json::array();
+        for (size_t i = since; i < rows.size(); ++i) {
+            const auto& c = rows[i];
+            nlohmann::json stg = nlohmann::json::object();
+            for (int k = 1; k < 18; ++k) if (c.stageMs[static_cast<size_t>(k)] > 0.0) stg[M::kernelStageName(k)] = c.stageMs[static_cast<size_t>(k)];
+            out.push_back({{"t_ms", c.tMs}, {"wait_ms", c.waitMs}, {"submit_to_signal_ms", c.submitToSignalMs}, {"in_flight_ms", c.inFlightMs},
+                           {"device_ms", c.deviceMs}, {"ticks", c.ticks}, {"substeps", c.substeps}, {"bricks", c.bricks},
+                           {"dispatches", c.dispatches}, {"stamps", c.stamps}, {"stage_ms", stg}});
+        }
+        r = {{"on", M::callLogOn()}, {"rows", out}, {"next", rows.size()},
+             {"now_ms", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count()}};
+    });
     reg.on("water_av_units", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         if (cmd.params.contains("capture")) Core::Water::WaterCoreManager::setUnitCapture(cmd.params.value("capture", false));
@@ -14780,6 +14801,7 @@ void Application::registerWaterCommands() {
                                             {"occupancy_threads", waterCore->occupancyThreads()},
                                             {"gpu_buffers", ws.gpuBuffersMs}, {"gpu_pipelines", ws.gpuPipelinesMs}, {"gpu_fill", ws.gpuFillMs},
                                             {"gpu_pipeline_count", ws.gpuPipelines}, {"gpu_pipelines_reused", ws.gpuPipelinesReused}};
+                 s["last_patch_split_ms"] = {{"size", ws.patchSizeMs}, {"create", ws.patchCreateMs}, {"adopt", ws.patchAdoptMs}, {"wake_tile", ws.patchWakeTileMs}};   // D9: 51.3d's parts
                  {   const auto us = waterCore->gpuUploadSplit();   // 39.8: the last upload (after a wake: the first step's, the seeded grid)
                      s["last_upload_split_ms"] = {{"settle", us.settleMs}, {"host", us.hostMs}, {"residency", us.residencyMs}, {"clear", us.clearMs},
                                                   {"scatter", us.scatterMs}, {"tables", us.tablesMs}, {"submit", us.submitMs}, {"bricks", us.bricks}};

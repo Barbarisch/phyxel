@@ -2854,7 +2854,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     if (!vol.callTs) { VkQueryPoolCreateInfo qi{}; qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO; qi.queryType = VK_QUERY_TYPE_TIMESTAMP; qi.queryCount = 2;
                        if (vkCreateQueryPool(m_device, &qi, nullptr, &vol.callTs) != VK_SUCCESS) vol.callTs = VK_NULL_HANDLE; }
     if (vol.callTs) { vkCmdResetQueryPool(cmd, vol.callTs, 0, 2); vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, vol.callTs, 0); }
-    if (s_kernelTiming && ticks == 1 && n == 1) {
+    if ((s_kernelTiming && ticks == 1 && n == 1) || s_callLog) {   // D9: the call log arms every call
         if (!vol.tsPool) { VkQueryPoolCreateInfo qi{}; qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO; qi.queryType = VK_QUERY_TYPE_TIMESTAMP; qi.queryCount = static_cast<uint32_t>(vol.tsLabel.size());
                            if (vkCreateQueryPool(m_device, &qi, nullptr, &vol.tsPool) != VK_SUCCESS) vol.tsPool = VK_NULL_HANDLE; }
         if (vol.tsPool) { vkCmdResetQueryPool(cmd, vol.tsPool, 0, static_cast<uint32_t>(vol.tsLabel.size())); vol.tsCount = 0; stamp(cmd, vol, TsStart); }
@@ -3210,12 +3210,17 @@ void WaterCoreGpu::finishCall(Volume& vol) {
             st.deviceMs = static_cast<double>(q[1] - q[0]) * pp.limits.timestampPeriod * 1e-6;
         }
     }
+    std::array<double, 18> callStageMs{};
     if (vol.tsCount > 1) {   // 26.11 test hook: per-stage GPU time
-        std::array<uint64_t, 64> q{};
+        std::array<uint64_t, 512> q{};
         if (vkGetQueryPoolResults(m_device, vol.tsPool, 0, static_cast<uint32_t>(vol.tsCount), vol.tsCount * sizeof(uint64_t), q.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) == VK_SUCCESS) {
             VkPhysicalDeviceProperties pp; vkGetPhysicalDeviceProperties(m_physical, &pp);
-            for (int k = 1; k < vol.tsCount; ++k) s_tsMs[vol.tsLabel[static_cast<size_t>(k)]] += static_cast<double>(q[static_cast<size_t>(k)] - q[static_cast<size_t>(k - 1)]) * pp.limits.timestampPeriod * 1e-6;
-            ++s_tsCalls;
+            for (int k = 1; k < vol.tsCount; ++k)
+                callStageMs[static_cast<size_t>(vol.tsLabel[static_cast<size_t>(k)])] += static_cast<double>(q[static_cast<size_t>(k)] - q[static_cast<size_t>(k - 1)]) * pp.limits.timestampPeriod * 1e-6;
+            if (s_kernelTiming && ticks == 1 && n == 1) {   // the 26.11 sums keep their meaning (single-tick, single-substep calls)
+                for (int k = 0; k < TsLabelCount; ++k) s_tsMs[k] += callStageMs[static_cast<size_t>(k)];
+                ++s_tsCalls;
+            }
         }
     }
     if (vol.unitPending && vol.unitCap.mapped) {   // 26.31 measurement
@@ -3241,6 +3246,16 @@ void WaterCoreGpu::finishCall(Volume& vol) {
     } else vol.stageLast = -1.0;
     // 26.16: SYNC - submit to fence (the GPU's time + the queue ahead of it); ASYNC - only the wait at collection
     st.submitWaitMs = std::chrono::duration<double, std::milli>(tFence - (vol.async ? tWait : vol.pend.tSubmit)).count();
+    if (s_callLog && s_callLogRows.size() < 50000) {   // D9: one row per collected call
+        CallLogRow row;
+        row.tMs = std::chrono::duration<double, std::milli>(tFence.time_since_epoch()).count();
+        row.waitMs = std::chrono::duration<double, std::milli>(tFence - tWait).count();
+        row.submitToSignalMs = std::chrono::duration<double, std::milli>(tFence - vol.pend.tSubmit).count();
+        row.inFlightMs = std::chrono::duration<double, std::milli>(tWait - vol.pend.tSubmit).count();
+        row.deviceMs = st.deviceMs; row.ticks = ticks; row.substeps = n; row.bricks = st.bricks;
+        row.dispatches = vol.lastDispatches; row.stamps = std::max(0, vol.tsCount); row.stageMs = callStageMs;
+        s_callLogRows.push_back(row);
+    }
     {   // 26.11: complete a list that outgrew its predicted copy (one more fenced copy, rare: the list grew by > 25 % + 64)
         uint32_t counts[3]; std::memcpy(counts, static_cast<const char*>(vol.staging.mapped) + vol.offSurf, sizeof(counts));
         if (counts[0] > vol.copied[0] || counts[1] > vol.copied[1] || counts[2] > vol.copied[2]) {
