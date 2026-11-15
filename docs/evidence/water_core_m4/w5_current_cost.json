@@ -1,0 +1,74 @@
+[
+ {
+  "rep": 0,
+  "on": true,
+  "fps": 49.686,
+  "cpu_ms": 20.142,
+  "gpu_ms": 19.987,
+  "worst_ms": 21.723199635744095,
+  "cached_columns": 31367
+ },
+ {
+  "rep": 0,
+  "on": false,
+  "fps": 50.908,
+  "cpu_ms": 19.663,
+  "gpu_ms": 19.644,
+  "worst_ms": 21.523600444197655,
+  "cached_columns": 31367
+ },
+ {
+  "rep": 1,
+  "on": false,
+  "fps": 51.281,
+  "cpu_ms": 19.514,
+  "gpu_ms": 19.583,
+  "worst_ms": 21.535899490118027,
+  "cached_columns": 31367
+ },
+ {
+  "rep": 1,
+  "on": true,
+  "fps": 49.987,
+  "cpu_ms": 20.079,
+  "gpu_ms": 20.045,
+  "worst_ms": 26.90969966351986,
+  "cached_columns": 31367
+ },
+ {
+  "rep": 2,
+  "on": true,
+  "fps": 50.899,
+  "cpu_ms": 19.654,
+  "gpu_ms": 19.418,
+  "worst_ms": 21.477600559592247,
+  "cached_columns": 31367
+ },
+ {
+  "rep": 2,
+  "on": false,
+  "fps": 50.859,
+  "cpu_ms": 19.681,
+  "gpu_ms": 19.591,
+  "worst_ms": 21.94329909980297,
+  "cached_columns": 31367
+ },
+ {
+  "rep": 3,
+  "on": false,
+  "fps": 50.893,
+  "cpu_ms": 19.675,
+  "gpu_ms": 19.714,
+  "worst_ms": 22.05350063741207,
+  "cached_columns": 31367
+ },
+ {
+  "rep": 3,
+  "on": true,
+  "fps": 51.317,
+  "cpu_ms": 19.496,
+  "gpu_ms": 19.45,
+  "worst_ms": 21.69240079820156,
+  "cached_columns": 31367
+ }
+]

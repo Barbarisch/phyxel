@@ -152,6 +152,48 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
     return best;
 }
 
+FlowField::ChannelSeg FlowField::channelSegAt(float worldX, float worldZ) const {
+    ChannelSeg best;
+    if (m_cellsX <= 0 || m_cellsZ <= 0) return best;
+    const int ci = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    const int cj = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    const int r = 1 + static_cast<int>(std::ceil(channelHalfWidth(m_maxOrder) / m_cellSize));   // channelAt's radius (see there)
+    for (int j = cj - r; j <= cj + r; ++j)
+        for (int i = ci - r; i <= ci + r; ++i) {
+            if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
+            const int rc = j * m_cellsX + i;
+            const int ord = m_order[rc];
+            if (ord <= best.order) continue;   // channelAt's rule: the first deepest-order hit
+            const float ax = m_originX + (i + 0.5f) * m_cellSize, az = m_originZ + (j + 0.5f) * m_cellSize;
+            float bx = ax, bz = az;
+            const int d = m_downstream[rc];
+            const bool flows = d != rc && d >= 0 && static_cast<size_t>(d) < m_downstream.size();
+            if (flows) { bx = m_originX + (d % m_cellsX + 0.5f) * m_cellSize; bz = m_originZ + (d / m_cellsX + 0.5f) * m_cellSize; }
+            if (!segmentChannel(worldX, worldZ, ax, az, bx, bz, ord).hit) continue;
+            best.hit = true; best.order = ord; best.cell = rc; best.down = flows ? d : rc;
+            best.ax = ax; best.az = az; best.bx = bx; best.bz = bz;
+            const float vx = bx - ax, vz = bz - az, L2 = vx * vx + vz * vz;
+            best.t = L2 > 0.0f ? std::clamp(((worldX - ax) * vx + (worldZ - az) * vz) / L2, 0.0f, 1.0f) : 0.0f;
+        }
+    if (best.hit) best.up = mainUpstreamOfCell(best.cell);
+    return best;
+}
+
+int FlowField::mainUpstreamOfCell(int c) const {
+    if (c < 0 || static_cast<size_t>(c) >= m_downstream.size()) return -1;
+    const int i = c % m_cellsX, j = c / m_cellsX;
+    const int nb[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    int bo = -1, ba = -1, up = -1;
+    for (const auto& o : nb) {
+        const int ni = i + o[0], nj = j + o[1];
+        if (ni < 0 || nj < 0 || ni >= m_cellsX || nj >= m_cellsZ) continue;
+        const int nc = nj * m_cellsX + ni;
+        if (m_downstream[nc] != c || m_order[nc] < 1) continue;
+        if (m_order[nc] > bo || (m_order[nc] == bo && m_accum[nc] > ba)) { bo = m_order[nc]; ba = m_accum[nc]; up = nc; }
+    }
+    return up;
+}
+
 FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, float searchRadius,
                                                     int minOrder) const {
     NearestChannel best;

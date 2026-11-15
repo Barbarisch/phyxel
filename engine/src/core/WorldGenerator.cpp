@@ -1658,6 +1658,67 @@ glm::vec2 WorldGenerator::channelFlowDirAt(float worldX, float worldZ) const {
     return m_flow->channelAt(m.x, m.y).hit ? m_flow->flowDirAt(m.x, m.y) : glm::vec2(0.0f);
 }
 
+WorldGenerator::RiverCurrent WorldGenerator::riverCurrentAt(float worldX, float worldZ) const {
+    RiverCurrent rc;
+    if (!m_flow || !m_coarse) return rc;
+    const glm::vec2 m = meanderedChannelPos(worldX, worldZ);
+    const FlowField::ChannelSeg sg = m_flow->channelSegAt(m.x, m.y);
+    if (!sg.hit || sg.order < 3) return rc;   // the carve's rule: orders 1-2 shape no channel
+    rc.river = true; rc.order = sg.order; rc.cell = sg.cell; rc.t = sg.t;
+    if (sg.down == sg.cell) return rc;         // a sink: the river ends here (a lake), no current
+    const float L = m_flow->cellSize();
+    const glm::vec2 a(sg.ax, sg.az), b(sg.bx, sg.bz);
+    const glm::vec2 tS = glm::normalize(b - a);
+    // the next segment downstream (b -> its own target) and the main stem upstream (up -> a); absent = this segment's own
+    glm::vec2 tN = tS, tU = tS;
+    const int dd = m_flow->downstreamOfCell(sg.down);
+    if (dd != sg.down && dd >= 0) tN = glm::normalize(m_flow->cellCentre(dd) - b);
+    if (sg.up >= 0) tU = glm::normalize(a - m_flow->cellCentre(sg.up));
+    // slope (54, measured: the coarse base does not follow a river - flat over the RiverCarve reach - and the bake's filled height
+    // falls in whole metres, 20.00 for ~500 m then 19.00): the FILLED height's drop over a window of +-kSlopeCells cells along the
+    // drainage chain (the main stem up, the D8 targets down), the chain's height linear between cell centres and the window centred
+    // on the column's position (cell + t), so it is continuous along the river. Short chains (a source, a sink) shorten the window.
+    constexpr int kSlopeCells = 4;
+    float F[2 * kSlopeCells + 2]; int nUp = 0, nDown = 0;   // F[kSlopeCells] = this cell, F[kSlopeCells + 1] = its target
+    auto fill = [&](int c) { const glm::vec2 p = m_flow->cellCentre(c); return m_hydro ? m_hydro->filledAt(p.x, p.y) : 0.0f; };
+    F[kSlopeCells] = fill(sg.cell); F[kSlopeCells + 1] = fill(sg.down);
+    for (int c = sg.up; c >= 0 && nUp < kSlopeCells; c = m_flow->mainUpstreamOfCell(c)) F[kSlopeCells - ++nUp] = fill(c);
+    for (int c = sg.down, k = 0; k < kSlopeCells; ++k) {
+        const int n = m_flow->downstreamOfCell(c);
+        if (n == c || n < 0) break;
+        F[kSlopeCells + 2 + nDown++] = fill(n); c = n;
+    }
+    const float sLo = -static_cast<float>(nUp), sHi = 1.0f + static_cast<float>(nDown);   // the chain's extent, cells from this one
+    auto chainAt = [&](float s) {   // s: cells from this cell's centre along the chain
+        s = std::clamp(s, sLo, sHi);
+        const int i = std::min(static_cast<int>(std::floor(s)), static_cast<int>(sHi) - 1);
+        const float f = s - static_cast<float>(i);
+        return glm::mix(F[kSlopeCells + i], F[kSlopeCells + i + 1], f);
+    };
+    const float s0 = std::max(sLo, sg.t - kSlopeCells), s1 = std::min(sHi, sg.t + kSlopeCells);
+    rc.slope = s1 > s0 ? (chainAt(s0) - chainAt(s1)) / ((s1 - s0) * L) : 0.0f;
+    // direction: this segment's, blended toward the neighbour's within B of a joint (half and half AT the joint: continuous)
+    const float B = FlowField::channelHalfWidth(sg.order) + 4.0f;
+    const float ds = sg.t * L, de = (1.0f - sg.t) * L;
+    glm::vec2 tM = tS;
+    if (de < B) tM = glm::mix(tS, tN, 0.5f * (1.0f - de / B));
+    else if (ds < B) tM = glm::mix(tS, tU, 0.5f * (1.0f - ds / B));
+    if (glm::dot(tM, tM) < 1e-8f) tM = tS;     // opposite neighbours cancelled (a U-turn joint): keep the segment's own
+    // the meander warp maps world -> channel space; the channel's world tangent is J^-1 tM (J by central differences, 0.5 m)
+    const float e = 0.5f;
+    const glm::vec2 dx = (meanderedChannelPos(worldX + e, worldZ) - meanderedChannelPos(worldX - e, worldZ)) / (2.0f * e);
+    const glm::vec2 dz = (meanderedChannelPos(worldX, worldZ + e) - meanderedChannelPos(worldX, worldZ - e)) / (2.0f * e);
+    const float det = dx.x * dz.y - dz.x * dx.y;   // J = [dx dz] (columns)
+    rc.warpDet = det;
+    // the ADJUGATE (det x J^-1), not J^-1 (54, measured): where the warp FOLDS (det <= 0, 3 % of the reach's centre band) J^-1
+    // reverses the tangent and neighbours ran head-on (179 deg); the adjugate is J^-1's direction where det > 0 and continuous through
+    // the fold, keeping the downstream sense
+    const glm::vec2 w(dz.y * tM.x - dz.x * tM.y, -dx.y * tM.x + dx.x * tM.y);
+    const float len = glm::length(w);
+    rc.dir = len > 1e-6f ? w / len : glm::normalize(tM);
+    return rc;
+}
+
 std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& col) const {
     if (m_biomes.empty()) return "Stone";
     const Biome& b = m_biomes[col.biomeIndex];

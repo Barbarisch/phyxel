@@ -142,3 +142,31 @@ TEST(WaterReaders, TheTableCheckFlagsOnlyTheCarvedRimLeak) {
     const auto sealed = [&](int x, int z) { return (x == 9 && z == 12) ? 8 : surface(x, z); };
     EXPECT_EQ(validateWaterTable(level, sealed, glm::ivec2(5, 5), glm::ivec2(18, 18)).rimLeaks, 0);
 }
+
+// WaterCore 54 (W5.1): a recorded river's current - Manning's strip velocity v = (1/n) h^(2/3) S^(1/2) along the river's direction.
+TEST(WaterReaders, ARecordedRiverCarriesManningsCurrent) {
+    const RiverKnobs k;   // the defaults (pinned): n 0.035 (the creek bench's), smin 1:2000, scale 1, on
+    EXPECT_FLOAT_EQ(k.n, 0.035f);
+    EXPECT_FLOAT_EQ(k.smin, 5e-4f);
+    EXPECT_FLOAT_EQ(k.scale, 1.0f);
+    EXPECT_TRUE(k.on);
+    const glm::vec2 east(1.0f, 0.0f);
+    EXPECT_NEAR(glm::length(recordRiverFlow(1.0f, east, 1e-3f, k)), 0.9035f, 1e-3f) << "h 1 m, S 1e-3, n 0.035";
+    EXPECT_NEAR(recordRiverFlow(1.0f, east, 1e-3f, k).y, 0.0f, 1e-7f) << "along the river's direction only";
+    EXPECT_NEAR(glm::length(recordRiverFlow(8.0f, east, 1e-3f, k)), 4.0f * 0.9035f, 4e-3f) << "h^(2/3): 8 m is 4x";
+    // a stage that does not fall (51.14): the slope floor, never a current upstream
+    EXPECT_NEAR(glm::length(recordRiverFlow(1.0f, east, -0.01f, k)), std::sqrt(5e-4f) / 0.035f, 1e-4f);
+    EXPECT_GT(recordRiverFlow(1.0f, east, -0.01f, k).x, 0.0f);
+    EXPECT_EQ(glm::length(recordRiverFlow(0.0f, east, 1e-3f, k)), 0.0f) << "no water, no current";
+    EXPECT_EQ(glm::length(recordRiverFlow(1.0f, glm::vec2(0.0f), 1e-3f, k)), 0.0f) << "a sink (no direction): still";
+    RiverKnobs off = k; off.on = false;
+    EXPECT_EQ(glm::length(recordRiverFlow(1.0f, east, 1e-3f, off)), 0.0f);
+    RiverKnobs half = k; half.scale = 0.5f;
+    EXPECT_NEAR(glm::length(recordRiverFlow(1.0f, east, 1e-3f, half)), 0.5f * 0.9035f, 1e-3f);
+    // the clamps: n 0 would be infinite speed
+    const RiverKnobs c = clampRiverKnobs(RiverKnobs{0.0f, 1.0f, 9.0f, true});
+    EXPECT_FLOAT_EQ(c.n, 0.01f);
+    EXPECT_FLOAT_EQ(c.smin, 0.1f);
+    EXPECT_FLOAT_EQ(c.scale, 4.0f);
+    EXPECT_TRUE(std::isfinite(glm::length(recordRiverFlow(100.0f, east, 1.0f, c)))) << "depth capped for the formula";
+}

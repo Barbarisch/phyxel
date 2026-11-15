@@ -576,9 +576,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         // 37 (A2e): the column's two highest runs, so a body reads the run it is in (a dry cave under a pond is dry)
         [this](int wx, int wz, DebrisRuntime::WaterRuns& r) {
             Core::Water::WaterCoreManager::ColumnLevels lv;
-            if (!waterCore || !m_waterCouplingOn || !waterCore->columnRuns(wx, wz, lv)) return false;
+            bool fromRecord = false;
+            if (!waterCore || !m_waterCouplingOn || !waterCore->columnRuns(wx, wz, lv, &fromRecord)) return false;
             r = DebrisRuntime::WaterRuns{};
             r.top1 = lv.top[0]; r.bottom1 = lv.bottom[0]; r.flow = lv.flow;
+            if (fromRecord && lv.n > 0) r.flow = recordCurrentAt(wx, wz, lv.top[0], lv.bottom[0]);   // 54 (W5.1): the record's current
             if (lv.n > 1) { r.top2 = lv.top[1]; r.bottom2 = lv.bottom[1]; }
             r.more = static_cast<uint32_t>(lv.more);
             return true;
@@ -590,6 +592,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             uint64_t s = waterCore->fieldsSignature(x0, z0, x1, z1);
             // 40.1 item 7 TEST: the far-dry switch changes what the tiles read, so it is part of their key
             if (s != 0 && Core::Water::WaterCoreManager::s_testFarRecordDry) s = (s ^ 0xC2B2AE3D27D4EB4Full) | 1ull;
+            // 54 (W5.1): the river knobs change the record's current the tiles read, so they are part of the key too
+            if (s != 0) {
+                const auto& k = m_riverKnobs;
+                uint64_t kh = std::hash<float>{}(k.n) ^ (std::hash<float>{}(k.smin) << 1) ^ (std::hash<float>{}(k.scale) << 2) ^ (k.on ? 0x51ull : 0ull);
+                s = (s ^ (kh * 0x9E3779B97F4A7C15ull)) | 1ull;
+            }
             return (s == 0 || m_waterCouplingOn) ? s : ((s ^ 0x9E3779B97F4A7C15ull) | 1ull);
         });
     // G3 (docs/WaterCore.md 18.7): one look resolver for every renderer - the span grid, the underwater
@@ -3623,8 +3631,12 @@ float Application::wadeDepthAt(const glm::vec3& probe) const {
 glm::vec3 Application::wadeFlowAt(const glm::vec3& probe) const {
     if (waterCore) {
         Core::Water::WaterCoreManager::ColumnLevels L;
-        if (waterCore->columnRuns(Core::Water::wadeColumn(probe.x), Core::Water::wadeColumn(probe.z), L))
+        bool fromRecord = false;
+        const int wx = Core::Water::wadeColumn(probe.x), wz = Core::Water::wadeColumn(probe.z);
+        if (waterCore->columnRuns(wx, wz, L, &fromRecord)) {
+            if (fromRecord && L.n > 0) { const glm::vec2 f = recordCurrentAt(wx, wz, L.top[0], L.bottom[0]); return glm::vec3(f.x, 0.0f, f.y); }   // 54 (W5.1)
             return glm::vec3(L.flow.x, 0.0f, L.flow.y);
+        }
     }
     return glm::vec3(0.0f);
 }
@@ -3644,12 +3656,39 @@ bool Application::readerColumn(int wx, int wz, Core::Water::WaterRunsAt& r, cons
             r.n = std::min(L.n, 2);
             for (int k = 0; k < 2; ++k) { r.top[k] = L.top[k]; r.bottom[k] = L.bottom[k]; }
             r.flow = L.flow;
+            if (fromRecord) r.flow = recordCurrentAt(wx, wz, L.top[0], L.bottom[0]);   // 54 (W5.1): the record's current
             if (src) *src = fromRecord ? "record" : "core";
             return true;
         }
     }
     if (src) *src = "none";
     return false;
+}
+
+Application::RiverCurrentCached Application::riverCurrentColumn(int wx, int wz) const {
+    const int64_t key = (static_cast<int64_t>(wx) << 32) ^ static_cast<int64_t>(static_cast<uint32_t>(wz));
+    {
+        std::lock_guard<std::mutex> lock(m_riverCurrentMutex);
+        const auto it = m_riverCurrentCache.find(key);
+        if (it != m_riverCurrentCache.end()) return it->second;
+    }
+    RiverCurrentCached c;
+    const WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+    if (g) {   // const + immutable bake data only (riverCurrentAt): safe off the main thread
+        const WorldGenerator::RiverCurrent rc = g->riverCurrentAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f);
+        c.river = rc.river; c.order = rc.order; c.dir = rc.dir; c.slope = rc.slope;
+    }
+    std::lock_guard<std::mutex> lock(m_riverCurrentMutex);
+    if (m_riverCurrentCache.size() >= 65536) m_riverCurrentCache.clear();   // a bound on memory only: entries recompute the same
+    m_riverCurrentCache[key] = c;
+    return c;
+}
+
+glm::vec2 Application::recordCurrentAt(int wx, int wz, float top, float bottom) const {
+    if (!m_riverKnobs.on) return glm::vec2(0.0f);
+    const RiverCurrentCached c = riverCurrentColumn(wx, wz);
+    if (!c.river) return glm::vec2(0.0f);
+    return Core::Water::recordRiverFlow(top - bottom, c.dir, c.slope, m_riverKnobs);
 }
 
 std::vector<Scene::AnimatedVoxelCharacter*> Application::waterCharacters() const {
@@ -3672,6 +3711,7 @@ void Application::waterWorldChanged(const char* reason, bool restore) {
         renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
     }
     m_waterMaskBoxes.clear(); m_displaceState.clear(); m_lastAutoSleep = {}; m_waterHeldEdits = 0;
+    { std::lock_guard<std::mutex> lock(m_riverCurrentMutex); m_riverCurrentCache.clear(); }   // 54: another world's rivers
     if (shoreBand) shoreBand->clear();
     if (fineBand) fineBand->clear();
     m_shoreLastTry = m_fineLastTry = glm::vec2(1e9f);   // re-site at the next frame, from this world's spans
@@ -7036,7 +7076,7 @@ void Application::autoLoadGameDefinition() {
                 return Core::Water::submergedFractionFromRuns(column, mn, mx);
             };
             // Current forces (tangible-water Phase E): moving water carries floating bodies - the flow of the run the point is in
-            // (the record holds none: rivers that flow are W5)
+            // (the record's: a river's current, 54 W5.1)
             m_bodyFlowQuery = [column](const glm::vec3& p) -> glm::vec3 {
                 const Core::Water::WaterPointSample s = Core::Water::sampleWaterAt(column, p);
                 return s.inWater ? glm::vec3(s.flow.x, 0.0f, s.flow.y) : glm::vec3(0.0f);
@@ -14458,6 +14498,12 @@ void Application::registerWaterCommands() {
                 nlohmann::json o = {{"p", {q.x, q.y, q.z}}, {"in_water", s.inWater}, {"surface_y", s.inWater ? nlohmann::json(s.surfaceY) : nlohmann::json()},
                                     {"depth_below", s.depthBelow}, {"flow", {s.flow.x, s.flow.y}}, {"source", src}};
                 if (m_cameraDepthQuery) o["camera_depth"] = m_cameraDepthQuery(q);
+                {   // 54 (W5.1): the river the column is on (the generator's) and the record's current there
+                    const RiverCurrentCached c = riverCurrentColumn(static_cast<int>(std::floor(q.x)), static_cast<int>(std::floor(q.z)));
+                    const float depth = w.n > 0 ? w.top[0] - w.bottom[0] : 0.0f;
+                    o["river"] = {{"on_river", c.river}, {"order", c.order}, {"dir", {c.dir.x, c.dir.y}}, {"slope", c.slope},
+                                  {"depth_m", depth}, {"speed_mps", glm::length(Core::Water::recordRiverFlow(depth, c.dir, c.slope, m_riverKnobs))}};
+                }
                 pts.push_back(o);
             }
         if (cmd.params.contains("boxes"))
@@ -14469,6 +14515,20 @@ void Application::registerWaterCommands() {
                 boxes.push_back(o);
             }
         r = {{"success", true}, {"installed", static_cast<bool>(m_bodyWaterQuery)}, {"points", pts}, {"boxes", boxes}};
+    });
+    // 54 (W5.1): the recorded river's current - {n (Manning), smin (slope floor), scale (x speed), on}; omitted or negative =
+    // unchanged; clamped (clampRiverKnobs: n >= 0.01 since v ~ 1/n, smin [0, 0.1], scale [0, 4]); echoes the knobs in force.
+    reg.on("water_av_river", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        Core::Water::RiverKnobs k = m_riverKnobs;
+        if (cmd.params.value("n", -1.0f) >= 0.0f) k.n = cmd.params["n"].get<float>();
+        if (cmd.params.value("smin", -1.0f) >= 0.0f) k.smin = cmd.params["smin"].get<float>();
+        if (cmd.params.value("scale", -1.0f) >= 0.0f) k.scale = cmd.params["scale"].get<float>();
+        if (cmd.params.contains("on")) k.on = cmd.params["on"].get<bool>();
+        m_riverKnobs = Core::Water::clampRiverKnobs(k);
+        size_t cached = 0;
+        { std::lock_guard<std::mutex> lock(m_riverCurrentMutex); cached = m_riverCurrentCache.size(); }
+        r = {{"success", true}, {"n", m_riverKnobs.n}, {"smin", m_riverKnobs.smin}, {"scale", m_riverKnobs.scale}, {"on", m_riverKnobs.on},
+             {"cached_columns", cached}};
     });
     reg.on("water_av_column", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

@@ -324,6 +324,15 @@ public:
     // 2026-07-31). Empty hit / zero vector when no network is baked.
     FlowField::ChannelHit channelHitAt(float worldX, float worldZ) const;
     glm::vec2 channelFlowDirAt(float worldX, float worldZ) const;
+    // WaterCore.md 54 (W5.1): a carved river's current at a world column - a pure function of world position and the bake (const,
+    // immutable data only: safe from the physics workers). river = the column is on an order >= 3 channel (channelHitAt's rule).
+    // dir: the WORLD-space downstream tangent - the hit segment's direction through the meander warp's Jacobian (its adjugate:
+    // continuous through the warp's folds; the D8 cell direction ignores the warp, up to kMeanderAmp off), blended through each
+    // joint over the half-width + 4 m (the 4-connected segments meet at right angles). slope: the bake's FILLED height's drop over
+    // +-4 cells (~1 km) along the drainage chain, centred on the column's place on it (continuous; >= 0 by the fill, often 0 on a
+    // whole-metre plateau - the host floors it). At a sink (a river ending in a lake) dir = 0. warpDet / cell / t: diagnosis.
+    struct RiverCurrent { bool river = false; int order = 0; glm::vec2 dir{0.0f}; float slope = 0.0f; float warpDet = 1.0f; int cell = -1; float t = 0.0f; };
+    RiverCurrent riverCurrentAt(float worldX, float worldZ) const;
 
     // Testing/tooling hook: clear the process-wide hydrology-bake memoization cache so the NEXT
     // generator construction re-bakes independently instead of sharing a cached backing. Used to keep

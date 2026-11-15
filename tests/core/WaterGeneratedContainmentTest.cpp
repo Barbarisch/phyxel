@@ -978,3 +978,131 @@ TEST(WaterGeneratedContainmentTest, DISABLED_DiagRiverPose) {
     std::printf("reach at (%d, %d): stage %.2f, bed %d, %ld of 121 wet nearby, %ld wet within 40 m\nPOSE %.1f,%.1f,%.1f,%.1f,%.1f\n", bx, bz,
                 c0.riverStage, c0.surfaceY + 1, bestWet, n, p.x, camY, p.y, yaw, -12.0f);
 }
+
+// WaterCore 54 (W5.1) - a generated river's current (WorldGenerator::riverCurrentAt) on the bench's recipe, a 256^2 window over the
+// 51.14 reach. Prediction (written before the run): (1) river == the carve's rule (channelHitAt order >= 3) at every column, 0 differ;
+// (2) the direction runs ALONG the carved channel: against the channel's own local axis (the principal axis of the centre band -
+// carve depth > 0.8 - within +-12 m, where that band is a strip: axis ratio >= 3), <= 5 % of columns off by > 30 deg, where the old
+// D8 cell direction (channelFlowDirAt, the control) is off by > 30 deg at >= 20 %; (3) neighbouring centre-band columns' directions
+// differ < 20 deg (the joint blend); (4) the same in any evaluation order, 0 differ.
+// (Run 1 of this test, recorded: the first metric - a 2 m step along the current stays on the channel - scored 100 % for BOTH new
+// and old, an order-5 channel being 14 m wide: no control. It also found the slope 0 everywhere (the coarse base, replaced by the
+// filled chain) and 36 head-on neighbour pairs at the warp's folds (J^-1, replaced by the adjugate).)
+TEST(WaterGeneratedContainmentTest, ARiverCarriesItsCurrentAlongItsChannel) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
+    const int x0 = -1856, z0 = -1168, W = 256;
+    long ruleDiffer = 0, centre = 0, sinks = 0, stayNew = 0, stayOld = 0, oldZero = 0;
+    long slopeFloored = 0, judgedOffNew = 0; double slopeSum = 0.0;
+    std::vector<WorldGenerator::RiverCurrent> raster(static_cast<size_t>(W) * W);
+    std::vector<uint8_t> isCentre(static_cast<size_t>(W) * W, 0);
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) {
+        const float wx = x0 + x + 0.5f, wz = z0 + z + 0.5f;
+        const auto rc = g.riverCurrentAt(wx, wz);
+        raster[static_cast<size_t>(z) * W + x] = rc;
+        const auto hit = g.channelHitAt(wx, wz);
+        if (rc.river != (hit.hit && hit.order >= 3)) ++ruleDiffer;
+        if (!rc.river || hit.depth <= 0.8f) continue;
+        ++centre; isCentre[static_cast<size_t>(z) * W + x] = 1;
+        if (glm::length(rc.dir) < 0.5f) { ++sinks; continue; }
+        slopeSum += rc.slope; if (rc.slope < 5e-4f) ++slopeFloored;
+        // the channel's local axis: the centre band's principal axis within +-12 m (every 2nd column)
+        double sx = 0, sz = 0, sxx = 0, szz = 0, sxz = 0; long n = 0;
+        for (int dz = -12; dz <= 12; dz += 2) for (int dx = -12; dx <= 12; dx += 2) {
+            const auto q = g.channelHitAt(wx + dx, wz + dz);
+            if (!q.hit || q.order < 3 || q.depth <= 0.8f) continue;
+            sx += dx; sz += dz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; ++n;
+        }
+        if (n < 8) continue;
+        const double mx = sx / n, mz = sz / n, cxx = sxx / n - mx * mx, czz = szz / n - mz * mz, cxz = sxz / n - mx * mz;
+        const double tr = cxx + czz, dt = std::sqrt(std::max(0.0, 0.25 * (cxx - czz) * (cxx - czz) + cxz * cxz));
+        const double l1 = 0.5 * tr + dt, l2 = 0.5 * tr - dt;
+        if (l2 > 0.0 && l1 / l2 < 9.0) continue;   // not a strip here (axis ratio < 3): no axis to judge against
+        const double ang = 0.5 * std::atan2(2 * cxz, cxx - czz);
+        const glm::vec2 axis(static_cast<float>(std::cos(ang)), static_cast<float>(std::sin(ang)));
+        ++stayNew;   // judged columns (the name kept: the counters below)
+        auto off30 = [&](const glm::vec2& d) { return std::abs(glm::dot(d, axis)) < 0.866f; };
+        if (off30(rc.dir)) ++judgedOffNew;
+        const glm::vec2 od = g.channelFlowDirAt(wx, wz);
+        if (glm::length(od) < 0.5f) ++oldZero; else if (off30(od)) ++stayOld;
+    }
+    float worstTurn = 0.0f; long turns20 = 0, pairs = 0;
+    for (int z = 0; z + 1 < W; ++z) for (int x = 0; x + 1 < W; ++x) {
+        const size_t i = static_cast<size_t>(z) * W + x;
+        for (size_t j : {i + 1, i + static_cast<size_t>(W)}) {
+            if (!isCentre[i] || !isCentre[j] || glm::length(raster[i].dir) < 0.5f || glm::length(raster[j].dir) < 0.5f) continue;
+            const float deg = std::acos(std::clamp(glm::dot(raster[i].dir, raster[j].dir), -1.0f, 1.0f)) * 57.29578f;
+            ++pairs; worstTurn = std::max(worstTurn, deg); if (deg >= 20.0f) ++turns20;
+        }
+    }
+    // any order: a second generator, the columns shuffled
+    WorldGenerator g2(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g2, true, true, true));
+    std::vector<int> order(static_cast<size_t>(W) * W);
+    for (size_t i = 0; i < order.size(); ++i) order[i] = static_cast<int>(i);
+    uint32_t h = 2166136261u;
+    for (size_t i = order.size() - 1; i > 0; --i) { h = h * 16777619u ^ static_cast<uint32_t>(i); std::swap(order[i], order[h % (i + 1)]); }
+    long orderDiffer = 0;
+    const auto tq0 = std::chrono::steady_clock::now();   // the cost of one evaluation (a cache miss in the engine)
+    for (int k : order) {
+        const auto rc = g2.riverCurrentAt(x0 + (k % W) + 0.5f, z0 + (k / W) + 0.5f);
+        const auto& a = raster[static_cast<size_t>(k)];
+        if (rc.river != a.river || rc.order != a.order || rc.dir != a.dir || rc.slope != a.slope) ++orderDiffer;
+    }
+    const double usPerCall = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - tq0).count() / order.size();
+    std::printf("  riverCurrentAt: %.2f us a call (%zu calls, shuffled; Release)\n", usPerCall, order.size());
+    const long moving = centre - sinks;
+    std::printf("window x %d z %d (%d^2): centre-band river columns %ld (sinks %ld); rule differ %ld; order differ %ld\n", x0, z0, W, centre,
+                sinks, ruleDiffer, orderDiffer);
+    std::printf("  off the channel's axis by > 30 deg: new %ld / %ld judged (%.1f %%), old D8 %ld (%.1f %%, %ld zero)\n", judgedOffNew, stayNew,
+                100.0 * judgedOffNew / std::max(1L, stayNew), stayOld, 100.0 * stayOld / std::max(1L, stayNew), oldZero);
+    std::printf("  neighbour turns: worst %.1f deg, >= 20 deg %ld of %ld; slope mean %.5f, below the 1:2000 floor %ld\n", worstTurn, turns20,
+                pairs, slopeSum / std::max(1L, moving), slopeFloored);
+    const auto at = g.riverCurrentAt(-1728.5f, -1039.5f);
+    const auto cs = g.sampleSurface(-1729, -1040);
+    std::printf("  the 51.14 reach (-1729, -1040): river %d order %d dir (%.3f, %.3f) slope %.5f stage %.2f bed %d\n", at.river ? 1 : 0, at.order,
+                at.dir.x, at.dir.y, at.slope, cs.riverStage, cs.surfaceY + 1);
+    EXPECT_GT(centre, 500) << "the window must hold a river";
+    EXPECT_EQ(ruleDiffer, 0);
+    EXPECT_EQ(orderDiffer, 0);
+    EXPECT_GT(stayNew, 300) << "too few columns judged against a channel axis";
+    EXPECT_LE(judgedOffNew * 100, stayNew * 5) << "the current must run along the carved channel";
+    EXPECT_GE(stayOld * 100, stayNew * 20) << "control: the D8 direction should be off the channel - else the metric cannot tell";
+    EXPECT_EQ(turns20, 0) << "worst turn between neighbours " << worstTurn << " deg";
+}
+
+// 54 diagnosis: along the 51.14 reach's drainage chain, the candidate heights for the slope; and where neighbouring centre-band
+// columns' currents turn >= 20 deg, the warp's determinant and segment on each side.
+TEST(WaterGeneratedContainmentTest, DISABLED_DiagRiverCurrentSlopeAndTurns) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
+    const auto* h = g.hydrology();
+    const auto at = g.riverCurrentAt(-1728.5f, -1039.5f);
+    std::printf("reach cell %d t %.2f det %.3f\n", at.cell, at.t, at.warpDet);
+    const FlowField* f = g.riverNetwork();
+    int c = at.cell;
+    for (int k = 0; k < 14 && c >= 0; ++k) {
+        const glm::vec2 p = f->cellCentre(c);
+        const auto cs = g.sampleSurface(static_cast<int>(p.x), static_cast<int>(p.y));
+        std::printf("  cell %6d (%7.0f, %7.0f) order %d: filled %.2f level %.2f bakeH %.2f valleyFloor %.2f\n", c, p.x, p.y, f->orderOfCell(c),
+                    h->filledAt(p.x, p.y), h->waterLevelAt(p.x, p.y), g.bakeHeightAt(p.x, p.y), cs.valleyFloor);
+        const int d = f->downstreamOfCell(c); if (d == c) break; c = d;
+    }
+    const int x0 = -1856, z0 = -1168, W = 256;
+    int shown = 0; long negDet = 0, centre = 0;
+    for (int z = 0; z + 1 < W; ++z) for (int x = 0; x + 1 < W; ++x) {
+        const float wx = x0 + x + 0.5f, wz = z0 + z + 0.5f;
+        const auto a = g.riverCurrentAt(wx, wz);
+        if (!a.river || g.channelHitAt(wx, wz).depth <= 0.8f) continue;
+        ++centre; if (a.warpDet <= 0.0f) ++negDet;
+        for (int s = 0; s < 2; ++s) {
+            const float bx = wx + (s == 0 ? 1.0f : 0.0f), bz = wz + (s == 1 ? 1.0f : 0.0f);
+            const auto b = g.riverCurrentAt(bx, bz);
+            if (!b.river || g.channelHitAt(bx, bz).depth <= 0.8f) continue;
+            const float deg = std::acos(std::clamp(glm::dot(a.dir, b.dir), -1.0f, 1.0f)) * 57.29578f;
+            if (deg >= 20.0f && shown++ < 12)
+                std::printf("  turn %.0f at (%.0f, %.0f): cell %d/%d t %.2f/%.2f det %.3f/%.3f\n", deg, wx, wz, a.cell, b.cell, a.t, b.t, a.warpDet, b.warpDet);
+        }
+    }
+    std::printf("centre-band columns %ld, warp det <= 0: %ld\n", centre, negDet);
+}

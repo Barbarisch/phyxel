@@ -1,0 +1,34 @@
+[
+ {
+  "on": false,
+  "fps_before": 47.81,
+  "fps_after_12s": 46.23,
+  "cpu_after": 21.65,
+  "gpu_after": 21.78,
+  "fps_after_min": 43.35235039964005
+ },
+ {
+  "on": true,
+  "fps_before": 48.58,
+  "fps_after_12s": 45.98,
+  "cpu_after": 21.77,
+  "gpu_after": 22.09,
+  "fps_after_min": 43.557611774449406
+ },
+ {
+  "on": false,
+  "fps_before": 48.38,
+  "fps_after_12s": 46.47,
+  "cpu_after": 21.54,
+  "gpu_after": 21.49,
+  "fps_after_min": 42.85426565129521
+ },
+ {
+  "on": true,
+  "fps_before": 48.12,
+  "fps_after_12s": 45.79,
+  "cpu_after": 21.86,
+  "gpu_after": 21.92,
+  "fps_after_min": 43.15981637955942
+ }
+]

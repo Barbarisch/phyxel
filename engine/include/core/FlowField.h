@@ -64,6 +64,21 @@ public:
         float depth = 0.0f;   // parabolic carve depth at this column (voxels)
     };
     ChannelHit channelAt(float worldX, float worldZ) const;
+    // WaterCore.md 54 (W5.1): the SEGMENT channelAt's hit lies on (same scan, same deepest-order rule, so hit / order agree with
+    // channelAt): its cell, the cell it drains into, the main-stem cell draining into it (the upstream neighbour of highest order,
+    // then accumulation; -1 at a source), the segment's ends (cell centres) and the projection t (0 at a, 1 at b) of the point.
+    struct ChannelSeg {
+        bool hit = false;
+        int order = 0;
+        int cell = -1, down = -1, up = -1;
+        float ax = 0.0f, az = 0.0f, bx = 0.0f, bz = 0.0f, t = 0.0f;
+    };
+    ChannelSeg channelSegAt(float worldX, float worldZ) const;
+    // The main stem upstream of cell c: of its 4 neighbours draining into it, the highest order, then accumulation; -1 at a source.
+    int mainUpstreamOfCell(int c) const;
+    glm::vec2 cellCentre(int c) const {
+        return glm::vec2(m_originX + (static_cast<float>(c % m_cellsX) + 0.5f) * m_cellSize, m_originZ + (static_cast<float>(c / m_cellsX) + 0.5f) * m_cellSize);
+    }
 
     // DOWNHILL FLOW DIRECTION at a world column (WaterSystemV3 Phase 3): the normalized world-XZ
     // direction from this cell's centre toward the cell it drains into. Returns (0,0) at a sink,

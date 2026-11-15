@@ -1,0 +1,161 @@
+{
+ "bench": "WaterBench_RiverCarve",
+ "seconds": 20.0,
+ "river_knobs": {
+  "cached_columns": 30496,
+  "n": 0.03500000014901161,
+  "on": false,
+  "scale": 1.0,
+  "smin": 0.0005000000237487257,
+  "success": true
+ },
+ "takes": [
+  {
+   "site": "river",
+   "probed": 49,
+   "wet": 0,
+   "error": "only 0 wet columns of 49"
+  },
+  {
+   "site": "lake",
+   "probed": 49,
+   "wet": 49,
+   "drops": [
+    {
+     "p": [
+      -2234.5,
+      89.8499984741211,
+      -1353.5
+     ],
+     "surface_y": 90.0,
+     "flow": [
+      0.0,
+      0.0
+     ],
+     "source": "record",
+     "river": {
+      "depth_m": 3.0,
+      "dir": [
+       0.0,
+       0.0
+      ],
+      "on_river": false,
+      "order": 0,
+      "slope": 0.0,
+      "speed_mps": 0.0
+     }
+    },
+    {
+     "p": [
+      -2232.5,
+      89.8499984741211,
+      -1353.5
+     ],
+     "surface_y": 90.0,
+     "flow": [
+      0.0,
+      0.0
+     ],
+     "source": "record",
+     "river": {
+      "depth_m": 3.0,
+      "dir": [
+       0.0,
+       0.0
+      ],
+      "on_river": false,
+      "order": 0,
+      "slope": 0.0,
+      "speed_mps": 0.0
+     }
+    },
+    {
+     "p": [
+      -2230.5,
+      89.8499984741211,
+      -1353.5
+     ],
+     "surface_y": 90.0,
+     "flow": [
+      0.0,
+      0.0
+     ],
+     "source": "record",
+     "river": {
+      "depth_m": 3.0,
+      "dir": [
+       0.0,
+       0.0
+      ],
+      "on_river": false,
+      "order": 0,
+      "slope": 0.0,
+      "speed_mps": 0.0
+     }
+    }
+   ],
+   "debris": [
+    {
+     "slot": 3,
+     "t_in_water_s": 12.33,
+     "drift_m": 0.0,
+     "drift_xz": [
+      0.0,
+      0.0
+     ],
+     "angle_to_route_deg": null,
+     "angle_to_route_along_path_deg": null,
+     "route_speed_mps": 0.0,
+     "speed_x_time_m": 0.0,
+     "mean_speed_mps": 0.0,
+     "stalled_last_3s": true,
+     "y_last": 89.923,
+     "end": [
+      -2234.5,
+      -1353.5
+     ]
+    },
+    {
+     "slot": 4,
+     "t_in_water_s": 12.33,
+     "drift_m": 0.0,
+     "drift_xz": [
+      0.0,
+      0.0
+     ],
+     "angle_to_route_deg": null,
+     "angle_to_route_along_path_deg": null,
+     "route_speed_mps": 0.0,
+     "speed_x_time_m": 0.0,
+     "mean_speed_mps": 0.0,
+     "stalled_last_3s": true,
+     "y_last": 89.923,
+     "end": [
+      -2232.5,
+      -1353.5
+     ]
+    },
+    {
+     "slot": 5,
+     "t_in_water_s": 12.33,
+     "drift_m": 0.0,
+     "drift_xz": [
+      0.0,
+      0.0
+     ],
+     "angle_to_route_deg": null,
+     "angle_to_route_along_path_deg": null,
+     "route_speed_mps": 0.0,
+     "speed_x_time_m": 0.0,
+     "mean_speed_mps": 0.0,
+     "stalled_last_3s": true,
+     "y_last": 89.923,
+     "end": [
+      -2230.5,
+      -1353.5
+     ]
+    }
+   ]
+  }
+ ]
+}

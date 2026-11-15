@@ -360,6 +360,14 @@ private:
     // volumes, else the record (the old CA water is deleted, 52 W4.3b). src (optional): "core" | "record" | "none".
     bool readerColumn(int wx, int wz, Core::Water::WaterRunsAt& r, const char** src = nullptr) const;
     mutable std::mutex m_waterReadMutex;   // the CPU-body readers run on the physics workers; see readerColumn
+    // WaterCore 54 (W5.1): a recorded river's current (the record holds none) - the generator's riverCurrentAt per column, cached
+    // (bounded: cleared at 65,536 columns and at a world change), and the knobs (water_av_river).
+    struct RiverCurrentCached { bool river = false; int order = 0; glm::vec2 dir{0.0f}; float slope = 0.0f; };
+    RiverCurrentCached riverCurrentColumn(int wx, int wz) const;
+    glm::vec2 recordCurrentAt(int wx, int wz, float top, float bottom) const;   // m/s (x, z); 0 off a river
+    mutable std::mutex m_riverCurrentMutex;
+    mutable std::unordered_map<int64_t, RiverCurrentCached> m_riverCurrentCache;
+    Core::Water::RiverKnobs m_riverKnobs;
     std::function<float(const glm::vec3&, const glm::vec3&)> m_bodyWaterQuery;   // what VoxelDynamicsWorld::setWaterQuery was given
     std::function<glm::vec3(const glm::vec3&)> m_bodyFlowQuery;                  // ... setWaterFlowQuery
     std::function<float(const glm::vec3&)> m_cameraDepthQuery;                   // ... RenderCoordinator::setWaterDepthQuery

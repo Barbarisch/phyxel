@@ -1,0 +1,135 @@
+{
+ "bench": "WaterBench_RiverCarve",
+ "seconds": 20.0,
+ "river_knobs": {
+  "cached_columns": 30648,
+  "n": 0.03500000014901161,
+  "on": false,
+  "scale": 1.0,
+  "smin": 0.0005000000237487257,
+  "success": true
+ },
+ "takes": [
+  {
+   "site": "river",
+   "probed": 49,
+   "wet": 33,
+   "drops": [
+    {
+     "p": [
+      -1724.5,
+      19.90999984741211,
+      -1037.5
+     ],
+     "surface_y": 20.07686996459961,
+     "flow": [
+      0.0,
+      0.0
+     ],
+     "source": "record",
+     "river": {
+      "depth_m": 1.0768699645996094,
+      "dir": [
+       0.9927830100059509,
+       -0.11992467194795609
+      ],
+      "on_river": true,
+      "order": 5,
+      "slope": 0.00032210350036621094,
+      "speed_mps": 0.0
+     }
+    },
+    {
+     "p": [
+      -1730.5,
+      19.90999984741211,
+      -1035.5
+     ],
+     "surface_y": 20.073537826538086,
+     "flow": [
+      0.0,
+      0.0
+     ],
+     "source": "record",
+     "river": {
+      "depth_m": 1.073537826538086,
+      "dir": [
+       0.6159194111824036,
+       0.7878091335296631
+      ],
+      "on_river": true,
+      "order": 5,
+      "slope": 0.00033569708466529846,
+      "speed_mps": 0.0
+     }
+    },
+    {
+     "p": [
+      -1722.5,
+      19.90999984741211,
+      -1039.5
+     ],
+     "surface_y": 20.07146453857422,
+     "flow": [
+      0.0,
+      0.0
+     ],
+     "source": "record",
+     "river": {
+      "depth_m": 1.0714645385742188,
+      "dir": [
+       0.9170131087303162,
+       -0.398857057094574
+      ],
+      "on_river": true,
+      "order": 5,
+      "slope": 0.0003027450293302536,
+      "speed_mps": 0.0
+     }
+    }
+   ],
+   "debris": [
+    {
+     "slot": 9,
+     "t_in_water_s": 16.72,
+     "drift_m": 0.0,
+     "drift_xz": [
+      0.0,
+      0.0
+     ],
+     "angle_to_route_deg": null,
+     "angle_to_route_along_path_deg": null,
+     "route_speed_mps": 0.0,
+     "speed_x_time_m": 0.0,
+     "mean_speed_mps": 0.0,
+     "stalled_last_3s": true,
+     "y_last": 20.0,
+     "end": [
+      -1724.5,
+      -1037.5
+     ]
+    },
+    {
+     "slot": 10,
+     "t_in_water_s": 16.72,
+     "drift_m": 0.0,
+     "drift_xz": [
+      0.0,
+      0.0
+     ],
+     "angle_to_route_deg": null,
+     "angle_to_route_along_path_deg": null,
+     "route_speed_mps": 0.0,
+     "speed_x_time_m": 0.0,
+     "mean_speed_mps": 0.0,
+     "stalled_last_3s": true,
+     "y_last": 19.996,
+     "end": [
+      -1730.5,
+      -1035.5
+     ]
+    }
+   ]
+  }
+ ]
+}

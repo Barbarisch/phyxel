@@ -58,6 +58,26 @@ inline float submergedFractionFromRuns(const ColumnRunsFn& column, const glm::ve
     return sum / 5.0f;
 }
 
+/// WaterCore 54 (W5.1): a recorded river's current. The record holds a river as still spans; its current is a property of the river
+/// read by every reader (bodies, debris, wading), never a motion of the recorded water. Manning's strip velocity (the wide-channel
+/// form, per column): v = (1/n) h^(2/3) S^(1/2), h the column's water depth (m), S the bed slope (floored at smin: the stage need
+/// not fall downstream, 51.14), n Manning's roughness (the creek bench's 0.035, 26.13). The knobs are clamped where they enter
+/// (setRiverKnobs): n >= 0.01 (v ~ 1/n), smin in [0, 0.1], scale in [0, 4]; h capped at 10 m for the formula only.
+struct RiverKnobs { float n = 0.035f; float smin = 5e-4f; float scale = 1.0f; bool on = true; };
+inline RiverKnobs clampRiverKnobs(RiverKnobs k) {
+    k.n = std::max(k.n, 0.01f); k.smin = std::clamp(k.smin, 0.0f, 0.1f); k.scale = std::clamp(k.scale, 0.0f, 4.0f);
+    return k;
+}
+inline float manningStripSpeed(float depth, float slope, float n) {
+    if (!(depth > 0.0f) || !(slope > 0.0f)) return 0.0f;
+    return std::pow(std::min(depth, 10.0f), 2.0f / 3.0f) * std::sqrt(slope) / std::max(n, 0.01f);
+}
+/// dir: the downstream unit tangent (0 = no current, a sink); slope: the generator's (may be <= 0).
+inline glm::vec2 recordRiverFlow(float depth, const glm::vec2& dir, float slope, const RiverKnobs& k) {
+    if (!k.on || glm::dot(dir, dir) < 1e-8f) return glm::vec2(0.0f);
+    return dir * (manningStripSpeed(depth, std::max(slope, k.smin), k.n) * k.scale);
+}
+
 /// The camera's depth under the surface of the water it is in (0 when it is not in water).
 inline float cameraDepthFromRuns(const ColumnRunsFn& column, const glm::vec3& eye) {
     return sampleWaterAt(column, eye).depthBelow;

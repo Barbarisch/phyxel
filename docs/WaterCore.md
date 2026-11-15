@@ -69,7 +69,7 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
 2. **D9's splash stutter, bounded** (§30.5): a splash freezes ~0.15 s and stutters ~0.3 s (D9 measured). One step to find and
    cut the largest part; then stop and show the owner.
 3. **W5 - rivers at scale:** generated rivers that FLOW (near reaches simulated, fed and drained from the record; far reaches drawn
-   with flow).
+   with flow). **§54: W5.1 (the record carries its current) BUILT, not signed off; next W5.2 (a near reach simulated).**
 4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
@@ -13992,6 +13992,84 @@ reusing the last patch's buffers (L3's kept memory, §41, today only for whole p
 each, 51.3b) = **~390 MB of GPU memory**, over the pinned 256 MB kept-memory cap - so keeping one means raising the cap or a
 patch-only allowance. Not built. The other parts (the CPU grid for a GPU patch, 12-14 ms; the tile wakes) are code changes with no
 trade, larger, not started. Not measured: the API round trip's ~30 ms split; the recorder's own cost.
+
+## 54. W5 - rivers that flow (owner's order 2026-11-14, item 3). Status: W5.1 BUILT, not signed off (the clip: `w5_clip.mp4`); next W5.2
+
+**Step 0 - the inventory (2026-11-15, read from the code; W5 in §27: "a far reach is a record with a discharge and appearance flow; a
+near reach is simulated, fed and drained at its ends from the record"; gates: the creek bench's numbers on a simulated reach inside a
+recorded river, current-speed tools on it, the seam):**
+- A generated river is chunk water spans [bed top, stage] (51.14: the stage is the valley floor, level across, smooth along, not
+  monotone downstream). No `SleptVolume` box exists for generated water (`m_slept` only from API lakes and sleeps), so nothing
+  simulates it.
+- Every reader of water (GPU debris tiles, CPU bodies' flow, wading flow, the camera) reads `columnRuns`, whose flow is an awake
+  volume's and ZERO from the record. So wood dropped in a generated river sat still.
+- The bake has the D8 direction (`channelFlowDirAt`, no caller since the old water's delete), Strahler order, accumulation, the
+  filled height; the record tiles and the skin draw no flow. The pond model has springs, outfalls and Manning (the creek bench, 26.13-26.15).
+- **The steps:** W5.1 the record carries its current (every reader, every distance - locality drives cost, never outcomes, §30.0b);
+  W5.2 a near reach simulated, fed and drained from the record (the seam measured); W5.3 the drawn surface moves (appearance flow).
+
+**54.1 W5.1 (2026-11-15) BUILT, not signed off - a generated river's record carries its current** (`/design-check` READY with three
+fold-ins, below).
+- **Built:**
+  - `WorldGenerator::riverCurrentAt(x, z)` - const, immutable bake data only (safe from the physics workers):
+    - river = the carve's rule (`channelHitAt` order >= 3);
+    - the direction = the hit SEGMENT's (`FlowField::channelSegAt`, new: channelAt's scan with the segment, its ends, its
+      projection and the main stem upstream), through the meander warp's Jacobian, blended through each joint over the half-width + 4 m;
+    - the slope = the bake's filled height's drop over +-4 cells (~1 km) along the drainage chain, centred on the column's place on it.
+  - `recordRiverFlow` (`WaterReaders.h`): Manning's strip velocity v = (1/n) h^(2/3) S^(1/2) along that direction, h the column's
+    water depth, S floored at `smin`.
+  - Wiring: `readerColumn` (CPU bodies, the camera, `water_query`), the debris tiles' column and wading's flow use it where the
+    column's water is the RECORD (an awake volume's own flow wins); per-column cache (cleared at 65,536 and at a world change).
+  - Knobs (`water_av_river {n, smin, scale, on}`, echoed, clamped): n 0.035 (the creek bench's), smin 1:2000, scale 1. The
+    debris tiles' cache key carries them. `water_query` echoes per point `river {on_river, order, dir, slope, depth_m, speed_mps}`.
+- **The design check's fold-ins, each found by measuring:**
+  1. The D8 cell direction (my brief's) ignores the meander (amplitude 55 m): against the channel's own local axis it is > 30 deg
+     off at 26 % of the reach's columns; the segment through the warp at 0 %.
+  2. The coarse base height (my brief's slope) does not follow a river: flat over the whole RiverCarve reach (slope 0 at every
+     column). The bake's filled height falls in whole metres (20.00 for ~500 m, then 19.00), so the slope is taken over ~1 km.
+  3. Where the meander warp FOLDS (determinant <= 0, 49 of 1,523 centre columns) J^-1 reversed the direction: 36 neighbour pairs
+     ran head-on (179 deg). The adjugate (det x J^-1) keeps J^-1's direction where it is unfolded and is continuous through a fold:
+     worst neighbour turn 19.4 deg.
+- **Tests** (unit; red first where there was one):
+  - `WaterReaders.ARecordedRiverCarriesManningsCurrent`: h 1 m, S 1e-3, n 0.035 -> 0.904 m/s; h^(2/3); the floor; no depth / no
+    direction / off -> 0; the clamps; the defaults pinned.
+  - `WaterGeneratedContainmentTest.ARiverCarriesItsCurrentAlongItsChannel` (RiverCarve recipe, 256^2 over the 51.14 reach):
+    river == the carve's rule 0 differ; off the channel's axis > 30 deg: 0 / 1,090 (control: D8 26.1 %); neighbour turns >= 20 deg 0
+    of 2,665; any evaluation order 0 differ (a second generator, shuffled). **Its first run failed** (recorded in the test): the first
+    direction metric scored 100 % for both new and old (no control - the channel is 14 m wide), the slope was 0 everywhere, the turns
+    reached 179 deg - the three fold-ins above.
+  - `DISABLED_DiagRiverCurrentSlopeAndTurns`: the chain's heights and the fold columns.
+  - Unit suites (water / terrain / hydrology / WorldGenerator / WorldForge / roads / flora / settlement / structure): 581 / 581.
+- **Live L4** (WaterBench_RiverCarve, the engine's defaults; `tools/water_w5_river_current.py`; three 1/3 m wood blocks dropped on
+  the 3 deepest wet columns of a 13 x 13 m grid, each take on fresh columns):
+  - **Red** (`--off`: `water_av_river on:false`, the record read as before 54 - the old binary had been rebuilt before the run):
+    river drift **0.0 m** for all 3 blocks (`w5_current_off_river.json`); lake 0.0 m.
+  - **Green** (`w5_current.json`): river drift **10.0-11.3 m in 18.4 s, 0.54-0.61 m/s = 80-91 % of the route's speed (0.67 m/s)
+    x time**; none stalled. Lake (the control, on): 0.0 m. Prediction >= 50 %, lake < 0.5 m: held.
+  - **My angle prediction was wrong in its reference:** against the route's direction at the DROP column the blocks went 10-47 deg
+    off (the meander turns under them); against the route's direction along their path 3-9 deg. The tool reports both.
+  - A first lake take read 0.79 m: its blocks landed on an earlier take's (same columns, 120 s lifetime) - the tool now drops each
+    take on fresh columns (`--skip`).
+- **Cost** (`w5_current_cost.json`; the river pose, 6 blocks drifting, on / off interleaved ABBA, 4 reps): 50.5 / 51.0 fps, CPU
+  19.5-20.1 / 19.5-19.7 ms, GPU the same - no difference beyond run drift (~0.2 ms). A drop of 5 blocks (`w5_current_drop_dip.json`):
+  ~48 -> ~46 fps on and off alike. One evaluation (a cache miss): **0.65 us** (Release, the generator test); the cache held 31,367
+  columns (the debris tiles read every column of a tile; ~1.5 MB).
+  - Not measured: the first fill's frame cost in the engine (31k misses spread over the tiles' builds); the CPU bodies' reader per
+    physics step in a river (no crate was dropped - debris and the readers share `recordCurrentAt`).
+- **The owner's clip: `docs/evidence/water_core_m4/w5_clip.mp4`** (`tools/water_w5_clip.py`; 30 s, captioned): the 51.14 reach from
+  above its south bank; at 3 s five wood blocks dropped in the river drift 12.9-16.0 m downstream in 27 s (`w5_clip.json`).
+  **Looked at (frames at 2 / 6 / 16 / 28 s):** the blocks are small (1/3 m, ~25 m from the camera) - specks carried left to right
+  across the water. The caption's frame rate reads ~150 fps at 2 s and 25-45 after: the scene's own cost at this pose is ~48 fps
+  (measured above, before any drop); the opening frames ran before it reached it - not the current.
+- **The look is the owner's call:** how fast rivers run (n, smin, scale - one call to `water_av_river`); the water's surface does not
+  move yet (W5.3) - the wood moves on still-looking water.
+- **Not in W5.1:** the near reach simulated (W5.2); the seam (W5.2); the drawn surface moving (W5.3); creeks (orders 1-2 carry no span);
+  a dam or a dig changing the current (the near simulation's job, W5.2); a river's current over a lake it runs through (the carve's
+  rule gives the lake's columns inside the channel a current; not measured).
+- **Seen, logged, left (one line):** the GPU water integration run (`Water*`, 89 tests) has 2 failures in code W5.1 does not touch -
+  `GpuFlipBulkParityAndRunup` (run-up 1.19 h0, gate > 1.22) and `WaterTallCellTest.ShortWaveMatchesAllFineAndTheBooksAreExact` (3 m
+  wave -11.4 %, tolerance 10 %); both reproduce alone; the D9 commit's run (§53) already had 26 / 27 with TallCell in it. Not run on the
+  old code to prove it; cause not looked at.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
