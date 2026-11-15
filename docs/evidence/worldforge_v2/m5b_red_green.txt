@@ -1208,3 +1208,84 @@ the audit's conditions + increment E (2026-11-14; predictions PM5b1a.50-.53 in m
   32.8 MB, not in the repo. Conditions (a)-(e) go to the plan as O22; NO code changed after this audit.)
 --- M5b-2: chain 214 ----------------------------------------------------------------------------------------------------
   chain 214 broad regression (written 2026-11-14 16:30; EXIT 1 16:29:56): 142 ok / 1 failed of 143 - EarthworkTest.HairpinBankHasNoCliffStepWithItsControl (the M4 hairpin, standing) - as predicted.
+--- M5c (written 2026-11-14 18:27): chains 215-222; predictions and results in m3c_chains/pm_chain215.txt and pm_chain217.txt -------
+  M5c-1 (ground treatment on the lot), WITHDRAWN: chain 215 red 22 ok / 2 failed; 216 23 / 1 - the second test could
+    not go green on any rig because the shipped village's back yards are 1-5 rows, inside the terrace's 4-cube skirt
+    (measured on L4 run 21's stored map). Reverted before any commit; D53 / D54 withdrawn in the plan.
+  M5c-2 (crofts), IN PROGRESS at 06ef4303:
+    chain 217 red 23 ok / 2 failed (no croft exists; the town / city pin green) - as predicted.
+    chain 218 green 25 / 0 - as predicted; MISS: hamlet 1 croft of 4 eligible (guessed 2-4); slivers seen (25x2, 5x2).
+    chain 219 unit set 171 / 0 - as predicted.
+    chain 220 (two build-twice village tests) 1 ok / 1 failed - MISS (predicted 2 / 0): I asserted flora in the
+      control of a rig I had recorded as flora-free. 6 crofts / 1627 cells; fence micros on 6 of 6 crofts (12144)
+      against 0; shared side 0; 0 of 1014 far ground tops differ; gates clear.
+    chain 221 0 ok / 1 failed - MISS (predicted 1 / 0): the engine's "cleared" count read 21552 = 12.0 per column:
+      clearCellsBulk returns cells HANDED, not cells removed. The "parcel clearing: N cells" log line is the same
+      kind of number and has never counted removed flora.
+    chain 222 1 ok / 0 failed - as predicted: occupied cells removed 0, swept 21552.
+  Assertions changed after a run, stated: the control-has-flora assertion REMOVED (chain 220 -> 221), replaced by
+    "no flora seen => the engine removed 0 occupied cells". The M5b-2 A/B test set to crofts off in both arms
+    BEFORE chain 220.
+  NOT measured: what a croft's clearing removes (waits for L4 run 22); the regression sets; no auditor read yet.
+
+=== M5c-2 crofts - solution-auditor read (recorded 2026-11-14 21:34; tree 06ef4303, read-only, nothing built or run by the auditor; chain 227 not yet available to it) ===
+RAW VERDICT (the auditor's words, cut only for length where marked):
+  VERDICT: PASS WITH CONDITIONS (the planner geometry is well measured, with weakness 4a below. The realizer's
+  clearing and walkability effects are not proven, and the closure wording must say so.)
+  CLAIM 1 (red before green): REAL for the planner, with a caveat. Chain 217 23 ok / 2 failed; both reds are the
+    existence assertions. The soundness counters in expectCroftsSound (SettlementMapTest.cpp:1146-1151) were NEVER
+    seen red - green on first sight, 0 across 16 arms. No mutation was tried. Say "existence red-before-green"; do
+    not say "disjointness red-before-green". The realizer was explicitly NOT red-before-green; its only negative is
+    the in-test control arm.
+  CLAIM 2 (live Debug village): numbers match the ledger, with weaknesses. Fence material is Log, the same as tree
+    trunks, so the fence count can be fooled by trees. Corner posts at the open side are never sampled. The 12144 vs
+    15426 gap is explained only as "a reading". Flora clearing is NOT measured on this rig (flora == 0 is vacuous;
+    the removed assertion is recorded). Far-ground tops 0 of 1014: a real A/B on sampled cells; it only shows croft
+    cells are not graded away from tofts. Control = one variable (crofts:false), same rig, same seed; the
+    map-unchanged check compares counts, not geometry.
+  CLAIM 3 (Release run 22): numbers consistent with the evidence. "Legacy control refused 20/1" is NOT a croft
+    control - there is no crofts:false arm on Release. Fenced = planned only shows at least one micro per croft.
+    "1170 cells removed" is a count of anything in a cell above ground, not shown to be flora, not before/after; one
+    site. Gates are not a croft-specific measurement. The bake prediction is a MISS; noise not excluded.
+  CLAIM 4 (disjointness): PARTIALLY REAL. The test re-derives its own way band with radius floor(w/2) while the
+    planner marks ceil(w/2)+1 - a planner regression to a bare-width band would still pass. Toft, parcel, market,
+    water, site edge and croft-croft overlap are measured per cell. NOT checked: door spurs / approaches / paths
+    (l.approach is planned before planCrofts but never marked taken); fence open side is right for all four
+    orientations BY CODE READING, live-tested only on the orientations seed 24 produces.
+  CLAIM 5: counts match the ledger; chain 227 is a PREDICTION until it reports.
+  OTHER: (1) effect of hamlet/village map areas on the plan hash UNVERIFIED by the auditor; (2) the walkability gate
+    walks front-door routes only - a fence closing a back door, well or market route is untested; croft fences skip
+    paved columns and 2+ cube steps; (3) clearing happens for every croft, the fence skips crofts of failed lots -
+    not stated; (4) the control's refusal predates the crofts.
+  CONDITIONS: a. clearing not shown to remove flora; b. soundness counters never seen failing - add a mutation run;
+    c. the test's way band is narrower than the planner's; d. no crofts:false control on Release; e. spur/path vs
+    croft untested beyond one hamlet seed, fence side by code reading plus one seed; f. understated: the bake miss,
+    the Log-trunk confound on the fence count, the hash effect; g. "6 of 6 fenced" = at least one micro, not
+    continuity.
+MY RESPONSE (same hour):
+  - Finding 1, MEASURED from the committed live artifacts: plan_hash in m5b_l4_m5c2_a_status.json is
+    8612466224093850392, the same value as m5b_l4_m5b2_b_status.json (run 21, before the crofts) - the site map sits
+    outside the plan hash, as designed. The version-1 and Mountains pins are asserted in WorldForgeStressTest.cpp
+    :245/:258 and RouteFieldTest.cpp:310, inside chain 227's set - not yet reported.
+  - Condition b: a mutation run of the soundness counters is OWED and will be run once chain 227 has released the
+    machine (sources must not change under a running chain). Until then: disjointness has NO red.
+  - Conditions a, c, d, e, f, g and findings 2, 3: accepted as stated; carried to the plan's open items at closure.
+
+=== M5c-2 crofts - closure set and mutation runs (recorded 2026-11-14 23:49; tree 06ef4303; detail in m3c_chains/pm_chain217.txt) ===
+chain 223  live sites + realizer   31 ok / 0 failed   (as predicted)
+chain 224  unit set               171 ok / 0 failed   (as predicted)
+chain 225  paver set               42 ok / 0 failed   (as predicted)
+Release build 22                    0 errors
+L4 run 22  worldforge_build, Release, tag m5c2_a: 3 of 3 built; gates 72/0, 34/0, 40/0; imposed 23/10/9; crofts 0,
+           6 over 1627 cells, 10 over 2227 cells (MISS: guessed 3-8); fenced 6 of 6, 10 of 10; croft clearing 1170
+           occupied cells on village 1, 0 on village 2; legacy control refused 20/1; bake 255.8/112.6/137.8 ms (MISS
+           on +10 %; cause not separated); plan hash unchanged from run 21.
+chain 226  terrain                108 ok / 1 failed   (the O4 river lip, standing; as predicted)
+chain 227  broad regression       142 ok / 1 failed of 143 (the M4 hairpin, standing; as predicted)
+Mutations of planCrofts after the audit's condition b (each reverted; filter SettlementMapTest.*Croft*, 3 tests):
+chain 228  way band off             1 ok / 2 failed   "on a way" 6..28 on 5 of 16 arms
+chain 229  toft rects off           1 ok / 2 failed   "in a parcel" 20..150 on 8 of 16 arms
+chain 230  contention check off     3 ok / 0 failed   MISS - the rule is exercised by no unit rig; NO red
+chain 231  water off                2 ok / 1 failed   "wet" 96 on 1 of 16 arms
+chain 232  tree restored (planner sha ffc63fd75faf9ab5)  3 ok / 0 failed
+Closed as BUILT WITH OPEN ITEMS; open items O25 in the plan.

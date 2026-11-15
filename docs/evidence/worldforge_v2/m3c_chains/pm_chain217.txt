@@ -104,3 +104,78 @@ PM5c2.7  the closure set on this tree (written 2026-11-14 18:26; one background 
     control refused 20 / 1 with no croft line. Bake: printed against run 21's 179 / 80 / 136 ms; planCrofts is one
     pass over the site grid - I expect within +10 % (one sample each, noise not separated).
   chain 226  terrain: 108 ok / 1 failed (the O4 lip).   chain 227  broad regression: 142 ok / 1 failed of 143 (the hairpin).
+
+RESULT chain 223 (written 2026-11-14 20:18; RUN EXIT 0 20:10:04; exe 18:07:35, sources unchanged since chain 222): 31 ok / 0 failed -
+  as predicted. Village: 6 crofts over 1627 cells, 10 imposed, 0 not standing as stated, gate 34 walkable / 0 blocked.
+  Town: 0 crofts, 1 approach disagrees (lot 4, as before), 23 imposed, gate 72 / 0. The named RISK did not show on
+  hamlet 3: 6 crofts over 685 cells (6 of 6 lots - the unit rig's hamlet gave 1 of 4), fenced 6, 11174 micros,
+  gate 16 walkable / 0 blocked over 16 routes. ONE hamlet seed only; the risk is not retired by it.
+  Seen and NOT explained: the engine's own total is 15426 fence micros on the village where the croft test counts
+  12144 on the outer sides' interior cells (3282 apart - corner cells and posts are outside what the test samples;
+  that is a reading, not a measurement). The parcels test's second village arm plans 5 crofts over 1546 cells
+  (its other slope weight) - recorded, not predicted. Croft clearing: 0 occupied cells on every Debug site (no flora
+  in this rig) - still unmeasured.
+
+RESULT chains 224-226, Release build 22, L4 run 22 (written 2026-11-14 21:32; chain 227 still running, started 20:52:58):
+  chain 224 (RUN EXIT 0 20:19:44): 171 ok / 0 failed - as predicted.
+  chain 225 (RUN EXIT 0 20:21:05): 42 ok / 0 failed - as predicted.
+  Release build 22 (commit 06ef4303, BUILD EXIT 0 20:21:54, exe 20:21:53): 0 errors - as predicted.
+  L4 run 22 (tag m5c2_a; generator: worldforge_build on the Release exe 20:21:53; the control: build_settlement
+    legacy_layout on a fresh world; engine log lines in m5b_l4/m5b_l4_m5c2_a_ground.txt):
+    3 of 3 built; gates 72 / 0, 34 / 0, 40 / 0; imposed 23 / 10 / 9 - as predicted.
+    crofts: town 0 - as predicted; village 1 6 over 1627 cells - as predicted; village 2 10 over 2227 cells -
+      MISS (I guessed 3-8). 10 of its 13 lots; rects 8x10 .. 20x13, none thinner than 8 (from the ledger's map).
+    crofts fenced: 6 of 6 (15426 micros) and 10 of 10 (25070 micros) - as predicted.
+    croft clearing, village 1: 1170 occupied cells removed of 21639 swept over 1796 columns - > 0 as predicted; the
+      FIRST measurement that the croft pass removes something. What the 1170 cells WERE (flora and nothing else) is
+      not measured: the count is "any cube, subcube or microcube in the cell above the ground", and no before/after
+      scan of a croft was taken on the Release site. Village 2: 0 occupied of 31140 swept (its flora sample reads
+      0 of 0 - that site carries no flora in reach); so the clearing has ONE site's worth of evidence.
+    the control: refused, gate 20 walkable / 1 blocked, no croft line - as predicted.
+    bake: 255.8 / 112.6 / 137.8 ms against run 21's 179 / 80 / 136 - MISS on "within +10 %" for two of three
+      (+43 %, +41 %, +1 %). The town plans no croft (planCrofts returns at once on an empty typology list) and rose as
+      much as village 1, so the rise is not shown to be the crofts' cost; cause NOT separated (one sample each; the
+      Debug rig's three town bakes this evening read 1486 / 1456 / 1463 ms). All under the 2 s gate.
+  chain 226 (RUN EXIT 1 20:52:52): 108 ok / 1 failed - as predicted; the failure is
+    RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope (the O4 lip, standing red).
+
+RESULT auditor read (written 2026-11-14 21:34): PASS WITH CONDITIONS; raw verdict in m5b_red_green.txt. Plan hash measured
+  unchanged from run 21 to run 22 (8612466224093850392 in both status.json files).
+PM5c2.8  mutation runs of the soundness counters (written 2026-11-14 21:34, BEFORE any of them; the auditor's condition b: the
+  counters of expectCroftsSound were never seen red). To run after chain 227 has reported, one mutation at a time on
+  SettlementMapPlanner.cpp (scratchpad m5c2_mutate.py; reverted with git checkout after each; nothing committed),
+  filter SettlementMapTest.*Croft* (3 tests):
+  chain 228  MUTATION 1 - the ways' band is not marked taken: "on a way" > 0 on at least one arm -> >= 1 test red.
+    GUESS, not sure: crofts sit behind the back edge and ways run at the front, and the test's own band is
+    floor(w/2), narrower than the planner's. If this stays at 0 the test does not enforce the way rule (auditor 4a).
+  chain 229  MUTATION 2 - toft rects are not marked taken: "in another toft" or "in a parcel" > 0 -> red. Confident.
+  chain 230  MUTATION 3 - the claimed-cell check is off (no contention): "overlapping" > 0 on at least one arm -> red.
+    GUESS: needs two crofts reaching for the same ground on some rig.
+  chain 231  MUTATION 4 - water is not marked taken: "wet" > 0 on the hill + creek rig -> red. GUESS: needs a croft
+    that would reach the creek.
+  A mutation that leaves all three tests at 0 failed is recorded as: that rule has NO red on these rigs.
+
+RESULT chain 227 (written 2026-11-14 23:46; RUN EXIT 1 23:45:45; exe 18:07:35): 142 ok / 1 failed of 143 - as predicted; the failure
+  is EarthworkTest.HairpinBankHasNoCliffStepWithItsControl (the M4 hairpin, standing red). The set holds the
+  version-1 and Mountains plan-hash pins (WorldForgeStressTest, RouteFieldTest) - not among the failures.
+
+RESULT mutation chains 228-231 and the restore run 232 (written 2026-11-14 23:48; filter SettlementMapTest.*Croft*, 3 tests; one
+  mutation of planCrofts at a time, the file restored with git checkout after each; nothing of them is committed):
+  chain 228 MUTATION 1 (way band not taken; RUN EXIT 1 23:46:38): 1 ok / 2 failed - as guessed. "on a way" 6, 6, 14,
+    22, 28 on 5 of 16 arms. The way counter CAN fail - with the planner's band at 0. The test's own band stays
+    floor(w/2), narrower than the planner's ceil(w/2)+1: a planner band shrunk to the bare width is still not
+    caught (auditor 4a stands, narrowed).
+  chain 229 MUTATION 2 (toft rects not taken; RUN EXIT 1 23:46:50..23:47:03): 1 ok / 2 failed - as predicted.
+    "in a parcel" 20..150 on 8 of 16 arms; "in another toft" stayed 0 on every arm (the cells were all inside
+    parcels) - so the "in another toft" counter itself has still never read non-zero.
+  chain 230 MUTATION 3 (the claimed-cell check off; RUN EXIT 0 23:47:28): 3 ok / 0 failed - MISS on my guess.
+    "overlapping" 0 on 16 of 16 arms: on these rigs no two crofts reach for the same ground, so the contention rule
+    (one row per round in lot order) has NO red and no rig that exercises it. It is unexercised code on every unit
+    rig; whether a live site exercises it is not measured.
+  chain 231 MUTATION 4 (water not taken; RUN EXIT 1 23:47:53): 2 ok / 1 failed - as guessed. "wet" 96 on 1 of 16 arms
+    (one croft on one hill + creek arm).
+  chain 232 (the tree restored: SettlementMapPlanner.cpp sha ffc63fd75faf9ab5 as committed in 06ef4303; RUN EXIT 0
+    23:48:18): 3 ok / 0 failed; all 16 arms read 0 on every counter. The Debug exe now on disk (23:48:01) is the
+    committed tree's.
+  Counters never seen non-zero after these runs: outside, in another toft, overlapping, in a market, and the five
+  shape counters (ineligible lot, two on one lot, thinner than 2, not on the back edge, wider than the parcel).
