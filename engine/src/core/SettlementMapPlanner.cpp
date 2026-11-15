@@ -1041,6 +1041,33 @@ static void planWall(SettlementMap& map, const SettlementMapInput& in) {
             k += static_cast<size_t>(len);
         }
     }
+    // O29 b (chain 275): a way that ends ON THE SITE EDGE and is gated where its straight continuation meets the ring
+    // is carried through its own gate - one more node 3 cells beyond the ring (clear of the band's two cells) - so
+    // the realizer's ways unit paves and grades it to the ground outside. Without it the way stops at the edge and
+    // the gate opens onto whatever lies there (live: a road's cutting two cubes below the street's end).
+    {
+        int nextId = 0;
+        for (const auto& nd : map.nodes) nextId = std::max(nextId, nd.id + 1);
+        for (auto& w : map.ways) {
+            if (w.nodes.size() < 2) continue;
+            for (int endIdx = 0; endIdx < 2; ++endIdx) {
+                const MapNode* nd = map.node(endIdx == 0 ? w.nodes.front() : w.nodes.back());
+                if (!nd) continue;
+                int dx = 0, dz = 0;
+                if (nd->x <= 0) dx = -1; else if (nd->x >= map.W - 1) dx = 1; else if (nd->z <= 0) dz = -1; else if (nd->z >= map.D - 1) dz = 1; else continue;
+                const int ex = nd->x, ez = nd->z;
+                for (int k = 1; inGrid(ex + dx * (k + 3), ez + dz * (k + 3)); ++k) {
+                    if (!ringAt.count({ex + dx * k, ez + dz * k})) continue;
+                    const int tx = ex + dx * (k + 3), tz = ez + dz * (k + 3);
+                    if (wet[gi(tx, tz)] || forbidden[gi(tx, tz)]) break;
+                    MapNode out; out.id = nextId++; out.x = tx; out.z = tz; out.y = hgt[gi(tx, tz)];
+                    map.nodes.push_back(out);
+                    if (endIdx == 0) w.nodes.insert(w.nodes.begin(), out.id); else w.nodes.push_back(out.id);
+                    break;
+                }
+            }
+        }
+    }
     wall.present = true;
 }
 

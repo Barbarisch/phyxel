@@ -1721,3 +1721,52 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagTheRoadGroundBeforeAnyBuild) {
     for (const int lz : {35, 38, 41}) { std::printf("[ O29 ] east road, row z %d\n", lz); for (int lx = 124; lx <= 156; ++lx) line(lx, lz); }
     for (const int lx : {86, 89, 92}) { std::printf("[ O29 ] north road, column x %d\n", lx); for (int lz = 44; lz <= 76; ++lz) line(lx, lz); }
 }
+
+// O29 b (pm_chain273.txt PO29.2): a DIAGNOSTIC, no assertions, plan only - every way's end against the world road near it
+TEST(SettlementMapLiveSiteTest, DISABLED_DiagWhereTheWaysMeetTheRoads) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("town", 48)) << rig.why;
+    const WorldForgePlan* wfp = rig.gen->worldForge();
+    for (const char* tier : {"town", "city"}) {
+        nlohmann::json params = WorldForgeBuildService::settlementParamsFor(*rig.gen->worldForge(), *rig.site);
+        params["tier"] = tier;
+        SettlementBuildService::Deps deps;
+        deps.chunkManager = &rig.cm; deps.templates = &rig.templates; deps.placedObjects = &rig.placed;
+        auto plan = SettlementBuildService::plan(params, deps);
+        if (!plan.ok()) { std::printf("[ O29 ] %s: plan REFUSED: %s\n", tier, plan.error.dump().c_str()); continue; }
+        const Core::SettlementMap sm = Core::SettlementMap::fromJson(plan.map);
+        const auto onRoad = [&](int lx, int lz) {
+            const WorldForgePlan::RoadHit h = wfp->roadAt(static_cast<float>(sm.originX + lx) + 0.5f, static_cast<float>(sm.originZ + lz) + 0.5f);
+            return (h.cls > 0 && h.dist <= WorldForgePlan::roadHalfWidth(h.cls)) ? h.cls : 0;
+        };
+        const auto topMicro = [&](int lx, int lz) {
+            const int wx = sm.originX + lx, wz = sm.originZ + lz;
+            const int sy = rig.gen->sampleSurface(wx, wz).surfaceY;
+            for (int my = (sy + 4) * 9 + 8; my > (sy - 6) * 9; --my) if (rig.cm.occupiedMicro(glm::ivec3(wx * 9 + 4, my, wz * 9 + 4))) return my;
+            return INT_MIN;
+        };
+        std::printf("[ O29 ] %s: %zu lots, %zu ways, site %d x %d\n", tier, sm.lots.size(), sm.ways.size(), sm.W, sm.D);
+        int nearRoad = 0, off = 0;
+        for (const auto& w : sm.ways) {
+            if (w.nodes.empty()) continue;
+            for (const int nid : {w.nodes.front(), w.nodes.back()}) {
+                const Core::MapNode* n = sm.node(nid);
+                if (!n) continue;
+                int bx = 0, bz = 0, best = INT_MAX, cls = 0;
+                for (int dz = -6; dz <= 6; ++dz) for (int dx = -6; dx <= 6; ++dx) {
+                    const int c = onRoad(n->x + dx, n->z + dz);
+                    const int d = std::max(std::abs(dx), std::abs(dz));
+                    if (c > 0 && d < best) { best = d; bx = n->x + dx; bz = n->z + dz; cls = c; }
+                }
+                if (best == INT_MAX) continue;
+                ++nearRoad;
+                const int tn = topMicro(n->x, n->z), tr = topMicro(bx, bz);
+                const int diff = (tn == INT_MIN || tr == INT_MIN) ? INT_MIN : tn - tr;
+                if (diff != INT_MIN && std::abs(diff) > 4) ++off;
+                std::printf("[ O29 ]   way %d (%s, width %.0f) end %d,%d map y %d, column top %d | nearest road cell %d,%d (class %d, %d cells off) top %d | the way's end stands %d micro %s its road\n",
+                            w.id, w.highway.c_str(), w.width, n->x, n->z, n->y, tn, bx, bz, cls, best, tr, diff == INT_MIN ? 0 : std::abs(diff), diff == INT_MIN ? "(unread) from" : diff >= 0 ? "above" : "below");
+            }
+        }
+        std::printf("[ O29 ] %s: %d way ends within 6 cells of a world road, %d of them more than 4 micro off its level (as generated, before any grading)\n", tier, nearRoad, off);
+    }
+}

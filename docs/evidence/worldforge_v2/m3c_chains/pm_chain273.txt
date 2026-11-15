@@ -44,3 +44,50 @@ RESULT chain 274 (written 2026-11-15 07:08; RUN EXIT 1 07:07:17; exe 06:47:57): 
   cutting's bank, 18-19 micro above the road it is meant to join. Neither walker climbs that. The road-out route
   did not see it because both its ends are on the track. This is the open defect (O29 b): a way-to-road junction,
   the planner's and M5b's ground, not the wall's.
+
+PO29.2  chain 275 (written 2026-11-15 07:09; a DIAGNOSTIC, no assertions; plan only, nothing built): on the same rig, the TOWN's
+  own map (the site as seated) and the CITY's (the tier overridden): for every way's end node, the nearest cell ON
+  a world road within 6 cells, the map's node level, the generated top of the node's column and of that road cell,
+  and the difference. GUESSES: city - way 2's end (89,59) stands 2 cubes above its road cell (chain 274's bank,
+  from the map this time); way 0's end (126,38) is on its road at the same level; way 1's end meets no road. Town -
+  I have never looked: at least one way end within reach of a road, and at least one of them a cube or more off
+  its road's level. If every town junction is level, O29 b is the city program's on this site and not general.
+
+RESULT chain 275 (written 2026-11-15 07:14; RUN EXIT 0 07:13:38; 4 min; a diagnostic, plan only): the city's way 2 end (89,59)
+  stands 18 micro above the nearest road cell (87,60, class 1, 2 cells off) - as guessed. Way 0's two ends (126,38
+  and 79,52) are ON their roads at 0 micro - as guessed. City: 11 way ends within 6 cells of a road, 6 more than 4
+  micro off. TOWN: 11 within 6 cells, 3 off - BUT the three are lane ends 5-6 cells from a road they do not join;
+  the town's actual junctions (way 0's two ends, way 4 / 5 / 10 / 18 ends ON a road) are all at 0 micro. My guess
+  "at least one town junction a cube off" is WRONG in substance: where a way really ends on a road, it is level.
+  So O29 b is narrower than I wrote it: not "streets do not come down to their roads" but ONE case - a way that
+  runs to the SITE EDGE gets a gate there, and on this site that gate lands in a road's cutting the way never
+  meant to join (the track joins the town at way 0's end, 79,52). The way stops at the edge; nothing carries it
+  through its own gate to the ground outside.
+PO29.3  chains 276-277 (written 2026-11-15 07:14, before any code; the change: a way that ends on the site edge and is gated
+  where its straight continuation meets the ring is EXTENDED in the map - one more node 3 cells beyond the ring -
+  so the ways unit paves and grades it through its own gate; walled tiers only, since only they have a ring):
+  276 headless SettlementMapTest.*Wall*: 7 ok / 0 failed; the seven rigs' ring digest unchanged (the ring is
+      planned before the extension); ways gain nodes.
+  277 the live test: the north gate route WALKABLE (the street now ramps down through the gate into the cutting:
+      18 micro over about 7 cells), the other two gates and both roads out as before -> gate passed, the test
+      GREEN, 1 ok / 0 failed. I put this at a little over even. Named risks: the ways unit does not grade or pave
+      beyond the site rect; the ramp is refused as too steep; the south gate, now with a paved extension outside,
+      changes; the extension's paving under the band leaves a wall column standing on paving in the opening.
+
+RESULT chain 276 (written 2026-11-15 07:17; RUN EXIT 0 07:17:25; exe 07:14:37): 7 ok / 0 failed - as predicted; the seven rigs'
+  ring digest is chain 250's.
+
+RESULT chain 277 (written 2026-11-15 07:37; RUN EXIT 0 07:36:38; exe 07:14:37 = chain 276's build, the planner change in it):
+  1 ok / 0 failed - as predicted. The map: 25 lots, 19 ways, 117 nodes (115 before: two ways carried through their
+  gates). Gates walked through their middle: 3 walked, 0 blocked (south, north, east). Roads out: 2 walked, 0
+  blocked. Walkability gate: 78 walkable / 0 blocked over 78 routes, PASSED; 25 of 25 built. Barrier: 6 stretches
+  away from every gate tried, 0 walked across. The north gate's outer end now seats at 1432 (1431 before): the
+  street's paving through the gate.
+  ONE rig: Debug, the city program on the baseline town site, one seed. Not measured: what the ramp through the
+  north gate looks like; any other site; Release; the rest of the suites on this tree.
+PO29.4  the regression on this tree (written 2026-11-15 07:37, before the runs; one background job): chain 278 SettlementMapTest.*
+  whole: 32 ok / 0 failed. Chain 279 the unit set: 178 ok / 0 failed. Chain 280 the live-site set + the realizer
+  tests (SettlementMapLiveSiteTest.* + StructureRealizerTest.*, about 2.3 h with the two city builds): 33 ok / 0
+  failed - the unwalled sites' numbers as chain 223's (village 34 routes / 0 blocked, 10 imposed; town 72 / 0, 23
+  imposed, 1 approach disagreeing; hamlet 16 / 0): the gate's new routes exist only for a walled build and the
+  planner's extension only where a ring exists, so nothing there should move. If a count moves, I say which.
