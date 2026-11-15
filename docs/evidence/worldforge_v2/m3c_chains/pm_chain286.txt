@@ -44,3 +44,113 @@ Not in this increment: Release, L4 screenshots, a second live seed, a conical ca
 joined to a tower, a lane along the wall.
 
 RESULTS (appended as they come, every miss stated)
+PT.1 RESULT (2026-11-15 11:13, chain 286, patch 57a only, exe 2026-11-15_11:06:49): 31 ok / 3 failed - RED AS PREDICTED, the
+  three named tests (TheWallCarriesATowerAtEachRoutedCorner, ATowerTooSmallToWorkIsNotBuiltAndSaysWhy,
+  TheWallHoldsAcrossSeedsAndTiers). No miss.
+PT.2 RESULT (2026-11-15 11:20, chain 287, + patch 57b, exe 2026-11-15_11:13:35): 34 ok / 0 failed - as predicted. Sub-predictions:
+  a. HELD: 9..13 entries on every walled rig.
+  b. HELD: built 8/6/7/9/9/4/6 on the 7 rigs; 49 built, 22 not built.
+  c. MISSED: "another tower" is recorded on NO rig. The reasons seen: a gate's opening 13, a way 9, water 2,
+     the corner did not survive on the ring 1 (and TowerForge's "too small" 8 of 11 in the size-4 case, the other 3
+     a gate or a way first). So the drums-touching rule is exercised by no rig here.
+  d. HELD: no entry refused for a lot.
+  e. HELD: 35 plans, 344 entries, 230 built, every tower check 0.
+  f. MISSED: the wall's bake rose by 2.1..14.1 ms per rig (9 rigs, Debug, ONE sample each: 34.2->45.4, 49.6->57.8,
+     55.8->66.0, 52.7->65.4, 80.4->94.5, 72.5->79.9, 45.9->52.1, 21.8->26.4, 26.9->29.0); I predicted < 5 ms.
+  Noted: about a third of the routed corners carry no tower, most because a gate or a way sits at the corner.
+PT.3 RESULT (2026-11-15 11:21, chain 288 = the mutation; the numbering below shifts by one: the live red is chain 289, the
+  live green attempt 290). The "may not stand on" test disabled (planner hash bac9ba8626070038), the two tower
+  tests run: 1 ok / 1 failed - RED AS PREDICTED. With the rule off, 69 of 71 corners are "built" and the drums
+  stand on a way (51..132 cells a rig), on a gate (5..10 cells a rig) and on water (16 cells, the creek rig).
+  NOT exercised by any rig even with the rule off: a lot 0, an area 0, the world road 0, drums meeting 0 - those
+  four clauses of the rule are untested by these rigs (the ring keeps the margin from every lot; no rig here
+  carries a road sampler in this test; no two corners are within a drum). Stated, not claimed.
+  The planner restored: hash 68dc3c5c1438953c, the hash chain 287 ran.
+PT.4 RESULT (2026-11-15 11:41, chain 289, + patch 57d only, the realizer unpatched; exe 2026-11-15_11:21:38; ONE Debug rig,
+  the city program on the baseline town site): 0 ok / 1 failed - RED AS PREDICTED. The record still says
+  towers_deferred, towers 0, 0 tower routes, 0 climbs. The MAP on this rig: 10 routed corners, 6 towers built
+  (predicted 3..8 - held), 4 not built: 2 "would meet another tower", 1 a gate's opening, 1 no doorway that opens
+  inside the ring. (So the drums-touching clause IS exercised by the live map, though by no headless rig.)
+  The wall with no towers: past each of the 6 tower places 0 crossed of 6 tried; gate passed, 77 walkable / 0 blocked.
+  Seen: three towers get their door on a side other than the one facing the centroid (e.g. the tower at 57,63 on
+  the north wall opens EAST, onto the strip between the lots and the wall) - the facing side's outside cell was
+  not free inside the ring.
+PT.5 RESULT, first run (2026-11-15 12:07, chain 290, + patch 57c; exe 2026-11-15_11:41:46; ONE Debug rig, one seed): the live
+  tower test 1 ok / 0 failed.
+  a. HELD: the realizer built 6, the map records 6.
+  b. HELD: 6 climbs walkable in the gate's record and in the test's own walk; the 2-micro walker climbed 0 of 6.
+  c. MISSED: I predicted at least one door route blocked and the build refused. All 6 door routes are walkable; the
+     gate passed, 89 walkable / 0 blocked (77 + 12).
+  d. HELD: past a drum 6 tried, 0 crossed.
+  e. "fewer than half reached from the nearest way": the record says 0 of 6 - but I DO NOT TRUST the number yet: the
+     route was walked without diagnostics, so I cannot tell a real block from a start that does not seat or a band
+     that is too small. Not reported as a finding until chain 291 prints the flood sizes.
+  f. not run yet (the existing city test) - chain 291.
+  Seen and not understood: tower_dug_columns 269 (of 6 drums x 61 cells = 366) against 15 foundation cubes - most
+  drum columns have ground ABOVE the level outside the door. Either the doors all sit on the low side of sloping
+  ground or the level I take is low. Chain 291 records each tower's base and the ground range under its drum.
+PT.5 RESULT, second run (2026-11-15 13:00, chain 291, + patch 58 = diagnostics only: each tower's base and ground range in the
+  record, the street route walked with diagnostics; exe 2026-11-15_12:07:33; two rig builds, ONE Debug rig each):
+  2 ok / 0 failed. The tower test as chain 290 (6 built, 12 routes / 0 blocked, own walk 12 / 0, 2-micro walker
+  0 of 6 climbs, past a drum 6 tried / 0 crossed, gate passed 89 / 0).
+  f. HELD: TheWalledCityCanBeLeftByItsRoad unchanged in kind - gates 3 walked / 0 blocked, roads out 1 on foot,
+     1 HOP-ONLY, 0 blocked; barrier 6 tried / 0 crossed; 89 walkable = 77 + 12.
+  The two numbers I did not trust:
+  - "dug 269": EXPLAINED by the record, not a wrong level. Base / ground under the drum (cubes): 157 / 157..158,
+    152 / 152..153, 155 / 156..156, 162 / 161..163, 163 / 159..167, 160 / 160..164. The ground slopes under every
+    drum; a column counts as dug when its ground is one cube or more above the door's level. Two things this shows
+    that I had not said: the tower at 13584,-9946 stands one cube BELOW all the ground under it (the cell outside
+    its door is lower than its whole drum); the tower at 13499,-9895 spans 8 cubes of slope - dug 4 on one side,
+    founded 4 on the other. Neither has been LOOKED at (no screenshot in this increment).
+  - "reached from the nearest way 0 of 6": the measure is sound as far as it goes - every street end seats, the
+    floods are large (13 027..42 070 cells from the way, 5 807..43 462 from the door) and do not join both ways.
+    For 5 of the 6 the pinch is gap-0 at the start, which by the rule learnt in M5d-2 means the floods OVERLAP and
+    the route fails one way (a drop somewhere along it), not that a wall stands there; for the tower at
+    13499,-9895 the floods are apart (ground 4 cubes higher at the door). WHERE each route fails is not located.
+    So, on this rig: every tower can be entered and climbed from the ground at its door, and NO tower's door is
+    reached on foot, there and back, from the nearest street node. e. HELD in the letter (fewer than half) - the
+    honest reading is "none". Recorded only, by D66; it is an open defect of the plan, not hidden (O30).
+AUDIT (2026-11-15 13:07): PASS WITH CONDITIONS - the verdict and my response are in the ledger (m5b_red_green.txt). Patch 59
+  answers it. Predictions for it, written BEFORE applying it:
+PT.6  chain 294, headless SettlementMapTest.* with patch 59: PREDICTED 34 ok / 0 failed; every rig's hull corners
+      all served and entries <= hull corners; the corner-to-corner rule changes NO headless rig's built count
+      (49 / 22 stays); the four broken records read back not built.
+PT.7  chain 295, the live tower test with patch 59: PREDICTED 1 ok / 0 failed - 6 towers flooded; the highest level
+      inside each drum 15 micro below the rim top (the top floor at 84 of 90, a merlon to 99); 0 escaped; 0..2
+      towers with a gate in the box; every flood roams; the 2-micro walker stays on the ground floor (3 micro
+      above the base). LEAST SURE: the rim-top scan (a tree's canopy over a drum would raise it and read "too
+      low"), and whether the live map still builds 6 (the corner-to-corner rule could drop one).
+PT.8  chain 296, the live MUTATION (the drums' rim walls not stamped): PREDICTED RED - at least one tower's flood
+      stands outside the ring. Not sure: a drum dug below its ground has a one-cube bank round it that a 4-micro
+      walker cannot climb, so some drums may still read "held" for that reason.
+(chains 292 / 293 on the tree of chain 291, before patch 59: SettlementMapTest.* 34 ok / 0 failed; the unit set 180 ok
+  / 0 failed - 178 at chain 284 plus the two new tower tests, which that set's filter takes in. Not predicted in
+  writing beforehand.)
+PT.6 RESULT (2026-11-15 13:26, chain 294, + patch 59, exe 2026-11-15_13:20:19): 34 ok / 0 failed - as predicted. Entries equal
+  the test's own hull corners on every rig (11/11, 9/9, 9/9, 11/11, 13/13, 9/9, 9/9), 0 unserved; 49 built / 22 not,
+  unchanged by the corner-to-corner rule; stress 344 entries / 230 built unchanged; the broken records read back
+  not built. STATED: the hull assertions and the four broken-record cases were added green - none was seen red.
+PT.7 RESULT (2026-11-15 13:55, chain 295, the live tower test with patch 59; ONE Debug rig, one seed): 1 ok / 0 failed - as
+  predicted. From the voxels, per tower: the walker's flood (8 694..13 434 feet positions) stands inside the drum up
+  to 15 micro below the scanned rim top on all 6 (predicted 15); on 0 cells outside the ring (6 measured, no gate in
+  any box); on 23..90 cells inside the ring beyond the drum. The map still builds 6. The gate's record unchanged
+  (12 tower routes / 0 blocked, 89 walkable / 0 blocked, passed).
+  The 2-micro walker, started inside the doorway: it floods 1 422..6 064 positions and stands on NO interior cell of
+  any drum. I predicted "stays on the ground floor"; what it does is leave by the door and roam outside - the cell
+  directly inside the doorway already carries the first tread (TowerForge starts the flight beside the door), so
+  it is stopped by the stair at its first step. The right cause, but read from TowerForge's code, not shown by a
+  printed position.
+PT.8 RESULT (2026-11-15 14:27, chain 296, the live MUTATION - the drums' rim walls not stamped, realizer hash 54c8e7a101d0d871):
+  0 ok / 1 failed - RED AS PREDICTED, and more than predicted: all 6 floods stand outside the ring (65..183 cells
+  each); I had expected some sunk drums to hold by their bank. "Past a drum" also turned: 4 of 6 walked across - so
+  that line CAN fail, though it still cannot tell a drum from the curtain when both stand.
+  Two things the mutation showed that are NOT good news:
+  - the engine's own walkability gate PASSED the mutated build (89 walkable / 0 blocked): it walks doors, gates,
+    roads and tower stairs, and nothing in it checks that the wall is closed. Only this test does. Open (O30 b).
+  - the rim-top scan still read the same height with the rim gone (the merlons were still stamped, floating), and
+    "top too low" stayed 0: measure (i) does not notice a missing rim. It measures the climb, which was intact.
+  The realizer restored: hash ec78d5ea0d260873 = the hash chains 294/295 ran.
+PT.9  the regression on this tree (written 2026-11-15 14:27, before the runs): chain 297 the unit set 180 ok / 0 failed;
+  chain 298 the live-site set + realizer tests 34 ok / 0 failed (33 + the tower test), unwalled sites' numbers as
+  chain 285 (village 34 / 0, town 72 / 0, hamlet 16 / 0), the city 89 / 0 in both city tests, the legacy rectangle
+  42 / 11 refused. About 3 h. (SettlementMapTest.* on this tree is chain 294: 34 ok / 0 failed.)

@@ -111,12 +111,26 @@ struct MapWall {
     struct Pt { int x = 0, z = 0; };
     struct Gate { int x = 0, z = 0; int way = -1; int width = 0; };   ///< the ring cell the way crosses at; the opening's width (cubes)
     struct Gap { int x = 0, z = 0; int cells = 0; };                  ///< a run of ring cells in water: its first cell (ring order), its length
+    /// M5d-3 (D64 as refined, PROPOSED): a mural tower at one of the wall's ROUTED corners. One entry per corner;
+    /// `built` false = not built, and `skipped` says why. The drum's cells are towerFootprintCells(bbox(), shape).
+    struct Tower {
+        int x = 0, z = 0;              ///< the drum's centre cell (the corner, or pushed outward from it)
+        int cornerX = 0, cornerZ = 0;  ///< the routed corner's ring cell - inside the drum
+        int size = 0;                  ///< the drum's bounding square (cubes): the tier's walls.tower_size
+        char doorSide = 'S';           ///< TowerForge's door side: N = +z, S = -z, E = +x, W = -x
+        int doorX = 0, doorZ = 0;      ///< the doorway's rim cell
+        int outX = 0, outZ = 0;        ///< the cell outside the doorway, inside the ring: where the tower is entered from
+        bool built = false;
+        std::string skipped;
+        Rect bbox() const { return Rect{x - size / 2, z - size / 2, size, size}; }
+    };
     bool present = false;
     std::string refusal;
     int margin = 0;                 ///< the tier's walls.margin the route kept from every lot (cubes)
     std::vector<Pt> ring;
     std::vector<Gate> gates;
     std::vector<Gap> waterGaps;
+    std::vector<Tower> towers;      ///< M5d-3: one entry per routed corner (empty when the tier's walls.towers is false)
     float bakeMs = 0.0f;            ///< planWall's own wall time (diagnostic; never written to JSON, never hashed)
     std::vector<Pt> corners() const;                               ///< the ring's turning cells, in ring order
     static std::vector<Pt> expand(const std::vector<Pt>& corners); ///< the ring through those corners (axis-aligned legs)

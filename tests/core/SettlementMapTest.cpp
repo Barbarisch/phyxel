@@ -1475,11 +1475,249 @@ TEST(SettlementMapTest, OnlyAWalledTierCarriesAWall) {
     EXPECT_FALSE(m.toJson().contains("barriers"));
 }
 
+// ============================================================================
+// M5d-3 (the design check of 2026-11-15, D64 as refined + D66 PROPOSED; predictions in pm_chain286.txt): the wall's
+// towers as map data. Everything below is measured from the RECORD, independently of the planner.
+// ============================================================================
+namespace {
+struct TowerStats {
+    int entries = 0, built = 0, skipped = 0, noReason = 0;
+    int wrongSize = 0, cornerOffRing = 0, cornerOutsideDrum = 0;
+    int onLot = 0, onArea = 0, onWay = 0, onGate = 0, onRoad = 0, onWater = 0, touching = 0;   // cells of built drums on what a drum may not stand on; pairs of drums that meet
+    int doorOffRim = 0, outNotBesideDoor = 0, outNotInside = 0;
+    int hullCorners = 0, hullUnserved = 0;   // the audit of M5d-3 (condition 1): the hull of the lots' and the market's corners, computed HERE; a hull corner with no tower entry within its push
+};
+TowerStats towerStats(const SettlementMap& m, const SettlementMapInput& in) {
+    TowerStats t;
+    const auto& ring = m.wall.ring;
+    const size_t n = ring.size();
+    if (n == 0) { t.entries = static_cast<int>(m.wall.towers.size()); return t; }
+    std::map<std::pair<int, int>, size_t> ringAt;
+    int x0 = 0, z0 = 0, x1 = m.W, z1 = m.D;
+    for (size_t i = 0; i < n; ++i) {
+        ringAt[{ring[i].x, ring[i].z}] = i;
+        x0 = std::min(x0, ring[i].x); z0 = std::min(z0, ring[i].z); x1 = std::max(x1, ring[i].x + 1); z1 = std::max(z1, ring[i].z + 1);
+    }
+    x0 -= 2; z0 -= 2; x1 += 2; z1 += 2;
+    const int GW = x1 - x0, GD = z1 - z0;
+    std::vector<uint8_t> out(static_cast<size_t>(GW) * GD, 0);
+    std::vector<std::pair<int, int>> stack{{x0, z0}};
+    out[0] = 1;
+    while (!stack.empty()) {
+        const auto [x, z] = stack.back(); stack.pop_back();
+        const int nx[4] = {x + 1, x - 1, x, x}, nz[4] = {z, z, z + 1, z - 1};
+        for (int k = 0; k < 4; ++k) {
+            if (nx[k] < x0 || nz[k] < z0 || nx[k] >= x1 || nz[k] >= z1) continue;
+            const size_t i = static_cast<size_t>(nz[k] - z0) * GW + (nx[k] - x0);
+            if (out[i] || ringAt.count({nx[k], nz[k]})) continue;
+            out[i] = 1; stack.push_back({nx[k], nz[k]});
+        }
+    }
+    const auto inside = [&](int x, int z) {
+        if (x < x0 || z < z0 || x >= x1 || z >= z1) return false;
+        return !out[static_cast<size_t>(z - z0) * GW + (x - x0)] && !ringAt.count({x, z});
+    };
+    std::set<std::pair<int, int>> wayBand, gateCells;
+    for (const auto& way : m.ways) {
+        const int r = static_cast<int>(std::ceil(way.width / 2.0f));
+        for (size_t i = 0; i + 1 < way.nodes.size(); ++i) {
+            const MapNode* a = m.node(way.nodes[i]); const MapNode* b = m.node(way.nodes[i + 1]);
+            if (!a || !b) continue;
+            const int steps = std::max({std::abs(b->x - a->x), std::abs(b->z - a->z), 1});
+            for (int s = 0; s <= steps; ++s) {
+                const int cx = a->x + static_cast<int>(std::lround(static_cast<float>(b->x - a->x) * s / steps)), cz = a->z + static_cast<int>(std::lround(static_cast<float>(b->z - a->z) * s / steps));
+                for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) wayBand.insert({cx + dx, cz + dz});
+            }
+        }
+    }
+    for (const auto& g : m.wall.gates) {
+        const auto it = ringAt.find({g.x, g.z});
+        if (it == ringAt.end()) continue;
+        const size_t half = static_cast<size_t>(std::max(1, g.width / 2));
+        for (size_t d = 0; d <= half && d < n; ++d) {
+            gateCells.insert({ring[(it->second + d) % n].x, ring[(it->second + d) % n].z});
+            gateCells.insert({ring[(it->second + n - d) % n].x, ring[(it->second + n - d) % n].z});
+        }
+    }
+    {   // "one entry per routed corner", tied to something: the convex hull of every lot rect's and the market's corner
+        // cells (the test's own monotone chain); each hull corner must have an entry whose corner lies within the
+        // push the planner may use (ceil(margin * sqrt 2) + 2, up to 8 further, + 1 for rounding), and there may be
+        // no more entries than hull corners
+        using P = std::pair<long, long>;
+        std::vector<P> pts;
+        const auto add = [&pts](const Rect& r) { if (r.w > 0 && r.d > 0) { pts.push_back({r.x, r.z}); pts.push_back({r.x1() - 1, r.z}); pts.push_back({r.x, r.z1() - 1}); pts.push_back({r.x1() - 1, r.z1() - 1}); } };
+        for (const auto& l : m.lots) add(l.rect);
+        for (const auto& a : m.areas) if (a.landuse == "market") add(a.rect);
+        std::sort(pts.begin(), pts.end()); pts.erase(std::unique(pts.begin(), pts.end()), pts.end());
+        const auto cross = [](const P& o, const P& a, const P& b) { return (a.first - o.first) * (b.second - o.second) - (a.second - o.second) * (b.first - o.first); };
+        std::vector<P> hull;
+        for (int pass = 0; pass < 2; ++pass) {
+            const size_t base = hull.size();
+            for (size_t k = 0; k < pts.size(); ++k) {
+                const P& q = pass == 0 ? pts[k] : pts[pts.size() - 1 - k];
+                while (hull.size() >= base + 2 && cross(hull[hull.size() - 2], hull.back(), q) <= 0) hull.pop_back();
+                hull.push_back(q);
+            }
+            hull.pop_back();
+        }
+        t.hullCorners = static_cast<int>(hull.size());
+        const double reach = std::ceil(static_cast<double>(in.tier->walls.marginCubes) * 1.41421356) + 2.0 + 8.0 + 1.0;
+        for (const auto& h : hull) {
+            bool served = false;
+            for (const auto& tw : m.wall.towers) {
+                const double dx = static_cast<double>(tw.cornerX - h.first), dz = static_cast<double>(tw.cornerZ - h.second);
+                if (std::sqrt(dx * dx + dz * dz) <= reach) served = true;
+            }
+            if (!served) ++t.hullUnserved;
+        }
+    }
+    std::vector<std::set<std::pair<int, int>>> bodies;
+    for (const auto& tw : m.wall.towers) {
+        ++t.entries;
+        if (!tw.built) { ++t.skipped; if (tw.skipped.empty()) ++t.noReason; continue; }
+        ++t.built;
+        if (tw.size != in.tier->walls.towerSize) ++t.wrongSize;
+        if (!ringAt.count({tw.cornerX, tw.cornerZ})) ++t.cornerOffRing;
+        const Rect bb = tw.bbox();
+        std::set<std::pair<int, int>> body;
+        for (const auto& f : towerFootprintCells(bb, in.tier->walls.towerShape)) body.insert({bb.x + f.x, bb.z + f.y});
+        if (!body.count({tw.cornerX, tw.cornerZ})) ++t.cornerOutsideDrum;
+        for (const auto& c : body) {
+            for (const auto& l : m.lots) if (c.first >= l.rect.x && c.first < l.rect.x1() && c.second >= l.rect.z && c.second < l.rect.z1()) { ++t.onLot; break; }
+            for (const auto& a : m.areas) if (c.first >= a.rect.x && c.first < a.rect.x1() && c.second >= a.rect.z && c.second < a.rect.z1()) { ++t.onArea; break; }
+            if (wayBand.count(c)) ++t.onWay;
+            if (gateCells.count(c)) ++t.onGate;
+            if (in.roadAt && in.roadAt(c.first, c.second) > 0) ++t.onRoad;
+            if (in.waterAt && in.waterAt(c.first, c.second)) ++t.onWater;
+        }
+        for (const auto& other : bodies) {
+            bool meets = false;
+            for (const auto& c : body) {
+                for (int dz = -1; dz <= 1 && !meets; ++dz) for (int dx = -1; dx <= 1 && !meets; ++dx) if (other.count({c.first + dx, c.second + dz})) meets = true;   // the audit: corners too
+                if (meets) break;
+            }
+            if (meets) ++t.touching;
+        }
+        const std::pair<int, int> door{tw.doorX, tw.doorZ}, outc{tw.outX, tw.outZ};
+        const bool rim = body.count(door) && (!body.count({door.first + 1, door.second}) || !body.count({door.first - 1, door.second}) || !body.count({door.first, door.second + 1}) || !body.count({door.first, door.second - 1}));
+        if (!rim) ++t.doorOffRim;
+        if (std::abs(outc.first - door.first) + std::abs(outc.second - door.second) != 1) ++t.outNotBesideDoor;
+        if (body.count(outc) || !inside(outc.first, outc.second)) ++t.outNotInside;
+        bodies.push_back(std::move(body));
+    }
+    return t;
+}
+void printTowers(const char* what, const SettlementMap& m, const TowerStats& t) {
+    std::printf("[ M5d-3 ] %s: %d tower entries for %d hull corners (%d unserved), %zu ring turns - %d built, %d not built (%d with no reason) | wrong size %d, corner off the ring %d, corner outside its drum %d | "
+                "drum cells on a lot %d, an area %d, a way %d, a gate %d, the road %d, water %d; drums meeting %d | door off the rim %d, out cell not beside the door %d, out cell not inside the ring %d%s",
+                what, t.entries, t.hullCorners, t.hullUnserved, m.wall.corners().size(), t.built, t.skipped, t.noReason, t.wrongSize, t.cornerOffRing, t.cornerOutsideDrum, t.onLot, t.onArea, t.onWay, t.onGate, t.onRoad, t.onWater, t.touching,
+                t.doorOffRim, t.outNotBesideDoor, t.outNotInside, "\n");
+    for (const auto& tw : m.wall.towers) {
+        if (tw.built) std::printf("[ M5d-3 ]   tower at %d,%d (corner %d,%d), size %d, door %c at %d,%d, entered from %d,%d%s", tw.x, tw.z, tw.cornerX, tw.cornerZ, tw.size, tw.doorSide, tw.doorX, tw.doorZ, tw.outX, tw.outZ, "\n");
+        else std::printf("[ M5d-3 ]   corner %d,%d: NOT BUILT - %s%s", tw.cornerX, tw.cornerZ, tw.skipped.c_str(), "\n");
+    }
+}
+void expectTowersSound(const char* what, const TowerStats& t) {
+    EXPECT_EQ(t.noReason, 0) << what << ": a tower is not built and no reason is recorded";
+    EXPECT_EQ(t.hullUnserved, 0) << what << ": a corner of the lots' hull has no tower entry within the wall's push of it";
+    EXPECT_LE(t.entries, t.hullCorners) << what << ": more tower entries than the lots' hull has corners";
+    EXPECT_EQ(t.wrongSize, 0) << what; EXPECT_EQ(t.cornerOffRing, 0) << what;
+    EXPECT_EQ(t.cornerOutsideDrum, 0) << what << ": a drum does not hold its corner - the wall would not meet it";
+    EXPECT_EQ(t.onLot, 0) << what; EXPECT_EQ(t.onArea, 0) << what; EXPECT_EQ(t.onWay, 0) << what; EXPECT_EQ(t.onGate, 0) << what;
+    EXPECT_EQ(t.onRoad, 0) << what; EXPECT_EQ(t.onWater, 0) << what; EXPECT_EQ(t.touching, 0) << what;
+    EXPECT_EQ(t.doorOffRim, 0) << what; EXPECT_EQ(t.outNotBesideDoor, 0) << what;
+    EXPECT_EQ(t.outNotInside, 0) << what << ": a tower's door does not open inside the ring";
+}
+}  // namespace
+
+// (a) every walled rig's record carries one tower entry per routed corner; a built tower stands clear and opens inside
+TEST(SettlementMapTest, TheWallCarriesATowerAtEachRoutedCorner) {
+    ASSERT_TRUE(rigs().programOk);
+    int walls = 0, builtAll = 0, skippedAll = 0;
+    for (const WallRig& r : wallRigs()) {
+        const SettlementMapInput in = inputFor("city", r.W, r.D, r.h, r.w);
+        ASSERT_TRUE(in.tier->walls.towers) << "the city's program asks for no towers: every check below is vacuous";
+        const SettlementMap m = planSettlementMap(in);
+        if (!m.ok() || !m.wall.present) { std::printf("[ M5d-3 ] %s: no wall (%s%s)%s", r.name, m.refusal.c_str(), m.wall.refusal.c_str(), "\n"); continue; }
+        ++walls;
+        const TowerStats t = towerStats(m, in);
+        printTowers(r.name, m, t);
+        EXPECT_GE(t.entries, 3) << r.name << ": fewer tower entries than a ring has corners to be routed through";
+        expectTowersSound(r.name, t);
+        builtAll += t.built; skippedAll += t.skipped;
+        const SettlementMap back = SettlementMap::fromJson(m.toJson());
+        EXPECT_EQ(back.wall.towers.size(), m.wall.towers.size()) << r.name << ": the round trip lost tower entries";
+        const TowerStats tb = towerStats(back, in);
+        EXPECT_EQ(tb.built, t.built) << r.name << ": the round trip changed which towers are built";
+        expectTowersSound((std::string(r.name) + " (read back)").c_str(), tb);
+    }
+    std::printf("[ M5d-3 ] over %d walls: %d towers built, %d not built%s", walls, builtAll, skippedAll, "\n");
+    EXPECT_GT(walls, 0);
+    EXPECT_GT(builtAll, 0) << "no tower is built on any rig: every check on a built tower is vacuous";
+}
+
+// (b) degenerate inputs: a drum too small to work is not built and says why; towers switched off record none
+TEST(SettlementMapTest, ATowerTooSmallToWorkIsNotBuiltAndSaysWhy) {
+    ASSERT_TRUE(rigs().programOk);
+    SettlementMapInput in = inputFor("city", 160, 120, flatHeight, {});
+    SettlementTierPreset small = *in.tier; small.walls.towerSize = 4; in.tier = &small;
+    const SettlementMap m = planSettlementMap(in);
+    ASSERT_TRUE(m.ok()) << m.refusal;
+    ASSERT_TRUE(m.wall.present) << m.wall.refusal;
+    const TowerStats t = towerStats(m, in);
+    printTowers("flat 160x120, tower_size 4", m, t);
+    EXPECT_GE(t.entries, 3);
+    EXPECT_EQ(t.built, 0) << "a 4-cube drum cannot hold a wall, a stair and a room (TowerForge refuses it) and was recorded built";
+    EXPECT_EQ(t.noReason, 0);
+    int saysTooSmall = 0;
+    for (const auto& tw : m.wall.towers) if (tw.skipped.find("too small") != std::string::npos) ++saysTooSmall;
+    EXPECT_GT(saysTooSmall, 0) << "no entry carries TowerForge's own refusal";
+
+    SettlementMapInput in2 = inputFor("city", 160, 120, flatHeight, {});
+    SettlementTierPreset off = *in2.tier; off.walls.towers = false; in2.tier = &off;
+    const SettlementMap m2 = planSettlementMap(in2);
+    ASSERT_TRUE(m2.ok()) << m2.refusal;
+    ASSERT_TRUE(m2.wall.present);
+    EXPECT_TRUE(m2.wall.towers.empty()) << "walls.towers is false and the record carries tower entries";
+    EXPECT_FALSE(m2.toJson()["barriers"][0].contains("towers"));
+
+    // a built tower whose record lost its door reads back NOT BUILT, with a reason (never built with a door at 0,0)
+    const SettlementMap full = planSettlementMap(inputFor("city", 160, 120, flatHeight, {}));
+    nlohmann::json j = full.toJson();
+    int stripped = 0;
+    if (j["barriers"][0].contains("towers"))
+        for (auto& tj : j["barriers"][0]["towers"]) if (tj.value("built", false)) { tj.erase("door"); ++stripped; }
+    EXPECT_GT(stripped, 0) << "no built tower to strip: the read-back rule is not exercised";
+    const SettlementMap back = SettlementMap::fromJson(j);
+    for (const auto& tw : back.wall.towers) {
+        EXPECT_FALSE(tw.built) << "a tower with no door in its record read back as built";
+        EXPECT_FALSE(tw.skipped.empty());
+    }
+    // the audit of M5d-3 (defect 5): a built tower whose record does not hold together reads back NOT BUILT
+    const std::vector<std::pair<const char*, std::function<void(nlohmann::json&)>>> breaks = {
+        {"the out cell not beside the door", [](nlohmann::json& tj) { tj["out"] = {tj["out"][0].get<int>() + 3, tj["out"][1].get<int>()}; }},
+        {"the door outside the drum's square", [](nlohmann::json& tj) { tj["door"] = {tj["x"].get<int>() + 40, tj["z"].get<int>()}; tj["out"] = {tj["x"].get<int>() + 41, tj["z"].get<int>()}; tj["door_side"] = "E"; }},
+        {"the corner outside the drum's square", [](nlohmann::json& tj) { tj["corner"] = {tj["x"].get<int>() + 40, tj["z"].get<int>()}; }},
+        {"a side that is no side", [](nlohmann::json& tj) { tj["door_side"] = "Q"; }}};
+    for (const auto& [whatBroke, breakIt] : breaks) {
+        nlohmann::json jb = full.toJson();
+        int broke = 0;
+        for (auto& tj : jb["barriers"][0]["towers"]) if (tj.value("built", false)) { breakIt(tj); ++broke; }
+        EXPECT_GT(broke, 0) << whatBroke;
+        int stillBuilt = 0;
+        for (const auto& tw : SettlementMap::fromJson(jb).wall.towers) if (tw.built) ++stillBuilt;
+        EXPECT_EQ(stillBuilt, 0) << whatBroke << ": read back as built";
+    }
+    int goodBuilt = 0;   // the control: the untouched record keeps its towers
+    for (const auto& tw : SettlementMap::fromJson(full.toJson()).wall.towers) if (tw.built) ++goodBuilt;
+    EXPECT_GT(goodBuilt, 0);
+}
+
 // (d) STRESS, written after the first green (pm_chain233.txt PM5d.6): seeds and a walled town
 TEST(SettlementMapTest, TheWallHoldsAcrossSeedsAndTiers) {
     ASSERT_TRUE(rigs().programOk);
     const auto all = wallRigs();
-    int plans = 0, mapsRefused = 0, wallsAbsent = 0;
+    int plans = 0, mapsRefused = 0, wallsAbsent = 0, towerEntries = 0, towersBuilt = 0;
     const auto one = [&](const std::string& what, const SettlementMapInput& in) {
         const SettlementMap m = planSettlementMap(in);
         ++plans;
@@ -1490,6 +1728,9 @@ TEST(SettlementMapTest, TheWallHoldsAcrossSeedsAndTiers) {
         EXPECT_TRUE(w.present) << what << ": no wall: " << m.wall.refusal;
         if (!w.present) { ++wallsAbsent; return; }
         expectWallSound(what.c_str(), w);
+        const TowerStats ts = towerStats(m, in);   // M5d-3
+        expectTowersSound(what.c_str(), ts);
+        towerEntries += ts.entries; towersBuilt += ts.built;
     };
     for (const size_t ri : {size_t{3}, size_t{4}, size_t{5}})
         for (unsigned seed = 1; seed <= 10; ++seed) {
@@ -1506,6 +1747,8 @@ TEST(SettlementMapTest, TheWallHoldsAcrossSeedsAndTiers) {
     std::printf("[ M5d-1 ] stress: %d plans, %d maps refused, %d walls absent%s", plans, mapsRefused, wallsAbsent, "\n");
     EXPECT_EQ(plans, 35);
     EXPECT_LT(mapsRefused, plans) << "every map refused: nothing was measured";
+    std::printf("[ M5d-3 ] stress: %d tower entries, %d built%s", towerEntries, towersBuilt, "\n");
+    EXPECT_GT(towersBuilt, 0) << "no tower built over the stress plans: the tower checks measured nothing";
 }
 
 // (e) the audit of M5d-1 (bug A): a wall record whose nodes cannot be a ring must read back REFUSED - never

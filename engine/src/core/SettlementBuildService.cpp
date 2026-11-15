@@ -762,6 +762,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // cells out (the band is two cells: that is two cells clear each side). The gate's geometry, not the road's.
         struct WallGatePassage { glm::ivec2 inside{0, 0}, outside{0, 0}; std::string label; bool placed = true; };   // world cube cells; placed = false: no passage could be derived - counted skipped
         auto sharedWallGates = std::make_shared<std::vector<WallGatePassage>>();
+        // M5d-3 (D66 PROPOSED): every tower built on the map's wall. The gate walks, on foot, the ground outside its door
+        // -> the doorway and the doorway -> the top chamber (either blocked refuses the build), and - RECORDED ONLY -
+        // the nearest way -> the ground outside its door (the plan has no lane along the wall).
+        struct WallTowerRoutes { glm::ivec2 out{0, 0}; glm::ivec3 doorFeet{0}, topFeet{0}, lo{0}, hi{0}; glm::ivec2 street{0, 0}; bool hasStreet = false; std::string label; };   // world cube cells / world micro
+        auto sharedWallTowers = std::make_shared<std::vector<WallTowerRoutes>>();
         std::function<int(int, int)> roadAtWorld;   // world cube cell -> the world road's class ON it (0 = none)
         if (chunkManager && terrain)
             if (WorldGenerator* roadGen = chunkManager->getStreamingGenerator())
@@ -2005,8 +2010,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager && programMode && tierP && tierP->walls.enabled) {
             units.push_back({"raising the town wall",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 spec = tierP->walls, layout, buildings, ox, oz, W, D, terrainTopAt, pathsJsonP, roadAtWorld, sharedWallCrossings, findWallCrossings, sharedWallGates,
-                 mapWall = siteMap.wall, mapBuild = mapLots]() {
+                 spec = tierP->walls, layout, buildings, ox, oz, W, D, terrainTopAt, pathsJsonP, roadAtWorld, sharedWallCrossings, findWallCrossings, sharedWallGates, sharedWallTowers,
+                 mapWall = siteMap.wall, mapBuild = mapLots,
+                 mapWayNodes = [&siteMap]() { std::vector<glm::ivec2> v; for (const auto& w : siteMap.ways) for (const int id : w.nodes) if (const Core::MapNode* nd = siteMap.node(id)) v.push_back({nd->x, nd->z}); return v; }()]() {
             if (!chunkManager) return;
             std::vector<Core::Rect> footprints;
             footprints.reserve(buildings.size());
@@ -2132,6 +2138,29 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                             "through the wall's gate @" + std::to_string(ox + cx) + "," + std::to_string(oz + cz) + " (street width " + std::to_string(g.streetWidth) + ")", true});
             }
 
+            // M5d-3 (D64 as refined, PROPOSED): the MAP's towers. The realizer re-plans each drum with the SAME spec the
+            // planner used (muralTowerSpec) and builds it only when the doorway lands where the map says; a tower it
+            // cannot build is recorded skipped and its cells stay the curtain's (no hole in the wall).
+            struct MapTowerBuild { const Core::MapWall::Tower* tower; Core::TowerPlan plan; std::set<std::pair<int, int>> body; };
+            std::vector<MapTowerBuild> mapTowers;
+            nlohmann::json towersSkippedJ = nlohmann::json::array();
+            std::set<std::pair<int, int>> mapTowerBody;
+            if (fromMap)
+                for (const auto& mt : mapWall.towers) {
+                    if (!mt.built) { towersSkippedJ.push_back({{"x", ox + mt.cornerX}, {"z", oz + mt.cornerZ}, {"why", mt.skipped}}); continue; }
+                    const Core::Rect bb = mt.bbox();
+                    MapTowerBuild b{&mt, Core::planTower(bb, Core::muralTowerSpec(spec, mt.doorSide)), {}};
+                    if (!b.plan.ok || bb.x + b.plan.doorCell.x != mt.doorX || bb.z + b.plan.doorCell.y != mt.doorZ) {
+                        const std::string why = !b.plan.ok ? b.plan.refusal : std::string("the realizer's plan of the drum puts the doorway elsewhere than the map's record");
+                        LOG_WARN_FMT("Settlement", "town wall: the tower at " << (ox + mt.x) << "," << (oz + mt.z) << " is NOT BUILT: " << why);
+                        towersSkippedJ.push_back({{"x", ox + mt.cornerX}, {"z", oz + mt.cornerZ}, {"why", why}});
+                        continue;
+                    }
+                    for (const auto& f : Core::towerFootprintCells(bb, spec.towerShape)) b.body.insert({bb.x + f.x, bb.z + f.y});
+                    mapTowerBody.insert(b.body.begin(), b.body.end());
+                    mapTowers.push_back(std::move(b));
+                }
+            int bandInTowers = 0;
             const int kGateClearCubes = spec.gateClearCubes;  // headroom under the gate lintel
             Core::StructureResult batch;
             // The wall must OWN its line. place() will not overwrite an occupied cell, so a
@@ -2177,7 +2206,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             (r.side == 'S' && z == o.z)  || (r.side == 'N' && z == o.z1() - 1);
                         column(x, z, spec.heightCubes, spec.crenellations && outerCourse);
                     }
-            for (const auto& c : mapBand) column(c.x, c.z, spec.heightCubes, spec.crenellations && c.outer);   // M5d-2b
+            for (const auto& c : mapBand) {   // M5d-2b; M5d-3: a band column inside a drum is the tower's
+                if (mapTowerBody.count({c.x, c.z})) { ++bandInTowers; continue; }
+                column(c.x, c.z, spec.heightCubes, spec.crenellations && c.outer);
+            }
             // Corner towers: taller than the curtain, and topped the way real drums are —
             // a crenellated PARAPET (English/Welsh: Conwy, Caernarfon) or a CONICAL roof
             // (French/German: Carcassonne, the Loire). A bare cylinder is neither, which is
@@ -2305,6 +2337,93 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
             }
 
+            // M5d-3: the MAP's towers. Unlike the legacy drums above (each column on its own ground top - sheared on a
+            // slope), a map tower stands on ONE level: the ground top outside its doorway + 1, so the threshold meets
+            // the ground it is entered from. The drum is cleared from that level up (dug where the ground is higher) and
+            // founded solid from the ground up to it where the ground is lower.
+            // NB the 9 micro per cube and 3 per subcube below are the present grid's, as in the legacy stamp above and
+            // in TowerForge itself - to be converted with the 1/8 m voxel foundation (owner 2026-11-15), not before.
+            int towerFoundationCubes = 0, towerDugColumns = 0;
+            nlohmann::json towersBuiltJ = nlohmann::json::array();
+            for (const auto& bt : mapTowers) {
+                const Core::MapWall::Tower& mt = *bt.tower;
+                const Core::Rect tw = mt.bbox();
+                const int base = terrainTopAt(ox + mt.outX, oz + mt.outZ) + 1;
+                const int baseM = base * 9;
+                // the audit of M5d-3 (defect 2): the cell outside the door is the tower's only way in - whatever grew
+                // there is cleared above the ground, to the gate's own clear height (the spec's, no new number)
+                for (int y = base; y < base + spec.gateClearCubes; ++y) toClear.push_back(glm::ivec3(ox + mt.outX, y, oz + mt.outZ));
+                int gLo = INT_MAX, gHi = INT_MIN;
+                for (const auto& [lx, lz] : bt.body) { const int g = terrainTopAt(ox + lx, oz + lz) + 1; gLo = std::min(gLo, g); gHi = std::max(gHi, g); }
+                towersBuiltJ.push_back({{"x", ox + mt.x}, {"z", oz + mt.z}, {"base", base}, {"ground_lo", gLo}, {"ground_hi", gHi}, {"door_side", std::string(1, mt.doorSide)}});
+                for (const auto& [lx, lz] : bt.body) {
+                    const int wx = ox + lx, wz = oz + lz;
+                    const int g = terrainTopAt(wx, wz) + 1;
+                    if (g > base) ++towerDugColumns;
+                    for (int y = std::min(g, base); y <= base + towerH; ++y) toClear.push_back(glm::ivec3(wx, y, wz));
+                    for (int y = g; y < base; ++y) {
+                        Core::VoxelPlacement v;
+                        v.position = glm::ivec3(wx, y, wz);
+                        v.material = spec.material;
+                        batch.voxels.push_back(v);
+                        ++towerFoundationCubes;
+                    }
+                }
+                auto emitFixed = [&](int lx, int lz, int y0m, int y1m) {
+                    const int wx = ox + lx, wz = oz + lz;
+                    int y = y0m;
+                    while (y < y1m) {
+                        const int abs = baseM + y;
+                        if (abs % 9 == 0 && y + 9 <= y1m) {
+                            Core::VoxelPlacement v;
+                            v.position = glm::ivec3(wx, abs / 9, wz);
+                            v.material = spec.material;
+                            batch.voxels.push_back(v);
+                            y += 9;
+                        } else if (abs % 3 == 0 && y + 3 <= y1m) {
+                            const int cubeY = abs / 9, sy = (abs % 9) / 3;
+                            for (int sx = 0; sx < 3; ++sx)
+                                for (int sz = 0; sz < 3; ++sz) {
+                                    Core::VoxelPlacement v;
+                                    v.position = glm::ivec3(wx, cubeY, wz);
+                                    v.level = Core::VoxelLevel::Subcube;
+                                    v.subcubePos = glm::ivec3(sx, sy, sz);
+                                    v.material = spec.material;
+                                    batch.voxels.push_back(v);
+                                }
+                            y += 3;
+                        } else {
+                            ++y;
+                        }
+                    }
+                };
+                for (const auto& w : bt.plan.walls) emitFixed(tw.x + w.cx, tw.z + w.cz, w.fromMicroY, w.toMicroY);
+                for (const auto& pl : bt.plan.plates) emitFixed(tw.x + pl.cx, tw.z + pl.cz, pl.yMicro, pl.yMicro + pl.thicknessMicro);
+                if (spec.crenellations && !conical)   // merlons on the rim top, parapet form only (a conical cap is NOT built on a map tower: recorded)
+                    for (const auto& [lx, lz] : bt.body) {
+                        const bool rimCell = !bt.body.count({lx + 1, lz}) || !bt.body.count({lx - 1, lz}) || !bt.body.count({lx, lz + 1}) || !bt.body.count({lx, lz - 1});
+                        if (!rimCell || ((lx + lz) % 2)) continue;
+                        Core::VoxelPlacement m;
+                        m.position = glm::ivec3(ox + lx, base + towerH, oz + lz);
+                        m.material = spec.material;
+                        batch.voxels.push_back(m);
+                    }
+                WallTowerRoutes r;
+                r.out = glm::ivec2(ox + mt.outX, oz + mt.outZ);
+                const glm::ivec3 org((ox + tw.x) * 9, baseM, (oz + tw.z) * 9);
+                r.doorFeet = org + bt.plan.doorFeetMicro;
+                r.topFeet = org + bt.plan.topFeetMicro;
+                r.lo = glm::ivec3((ox + tw.x - 3) * 9, baseM - 27, (oz + tw.z - 3) * 9);
+                r.hi = glm::ivec3((ox + tw.x1() + 3) * 9, baseM + towerH * 9 + 36, (oz + tw.z1() + 3) * 9);
+                r.label = "the wall's tower @" + std::to_string(ox + mt.x) + "," + std::to_string(oz + mt.z);
+                int bestD = INT_MAX;
+                for (const auto& nd : mapWayNodes) {
+                    const int d = std::abs(nd.x - mt.outX) + std::abs(nd.y - mt.outZ);
+                    if (d < bestD) { bestD = d; r.street = glm::ivec2(ox + nd.x, oz + nd.y); r.hasStreet = true; }
+                }
+                sharedWallTowers->push_back(r);
+            }
+
             // Clear the wall line first (trees, undergrowth, anything standing in it), then
             // stamp — so the circuit is a pure function of the plan, not of what grew there.
             std::map<Chunk*, std::vector<glm::ivec3>> clearByChunk;
@@ -2336,10 +2455,20 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 (*pathsJsonP)["town_wall"]["gate_columns"] = gateCols.size();
                 (*pathsJsonP)["town_wall"]["gap_columns"] = mapGapColumns;
                 (*pathsJsonP)["town_wall"]["water_gaps"] = mapWall.waterGaps.size();
-                (*pathsJsonP)["town_wall"]["towers_deferred"] = true;   // D64 not built: the map's wall has NO towers
-                LOG_INFO_FMT("Settlement", "town wall: the MAP's ring - " << mapWall.ring.size() << " ring cells, " << mapBand.size() << " band columns, "
-                             << gateCols.size() << " of them gate columns over " << mapWall.gates.size() << " gates, " << mapGapColumns
-                             << " left open over water; NO towers (not built for the map's wall yet)");
+                // M5d-3: the map's towers (the legacy keys above count planTownWall's, none here)
+                (*pathsJsonP)["town_wall"].erase("towers_walkable");   // the gate walks them: walkability.tower_routes / tower_blocked
+                (*pathsJsonP)["town_wall"]["towers"] = mapTowers.size();
+                (*pathsJsonP)["town_wall"]["tower_entries"] = mapWall.towers.size();
+                (*pathsJsonP)["town_wall"]["towers_skipped"] = towersSkippedJ;
+                (*pathsJsonP)["town_wall"]["band_columns_in_towers"] = bandInTowers;
+                (*pathsJsonP)["town_wall"]["tower_foundation_cubes"] = towerFoundationCubes;
+                (*pathsJsonP)["town_wall"]["tower_dug_columns"] = towerDugColumns;
+                (*pathsJsonP)["town_wall"]["towers_built"] = towersBuiltJ;   // each: its one base level, the ground's range under its drum
+                if (conical && !mapTowers.empty()) (*pathsJsonP)["town_wall"]["towers_cap_unbuilt"] = "conical";
+                LOG_INFO_FMT("Settlement", "town wall: the MAP's ring - " << mapWall.ring.size() << " ring cells, " << mapBand.size() << " band columns ("
+                             << bandInTowers << " inside a tower's drum, not stamped), " << gateCols.size() << " of them gate columns over " << mapWall.gates.size() << " gates, " << mapGapColumns
+                             << " left open over water; towers: " << mapTowers.size() << " built of " << mapWall.towers.size() << " routed corners, " << towersSkippedJ.size()
+                             << " not built" << (conical && !mapTowers.empty() ? " (the conical cap is NOT built on a map tower)" : ""));
             }
             {   // M5d-2a: where this wall's band stands on the world road (the gate walks each)
                 std::set<std::pair<int, int>> band;
@@ -2714,7 +2843,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager) {
             units.push_back({"walkability gate",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt, sharedWallGates]() {
+                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt, sharedWallGates, sharedWallTowers]() {
             if (!chunkManager) return;
             const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
                 return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
@@ -2941,6 +3070,77 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         routesJ.push_back(j);
                     }
                 }
+            // M5d-3 (D66 PROPOSED): every tower built on the map's wall WORKS from the ground at its door - on foot, both ways
+            int towerRoutes = 0, towerBlocked = 0, towerUnplaced = 0, towerStreetRoutes = 0, towerStreetReached = 0;
+            for (const auto& tw : *sharedWallTowers) {
+                const int fo = seatFeet(tw.out.x, tw.out.y, (terrainTopAt(tw.out.x, tw.out.y) + 1) * 9);
+                if (fo == INT_MIN) {
+                    // the audit of M5d-3 (defect 1): a tower nobody can stand in front of is a tower that cannot be used -
+                    // BLOCKED (it refuses the build), not skipped
+                    LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << tw.label << " - the cell outside its door (" << tw.out.x << "," << tw.out.y << ") seats no walker: the tower cannot be entered");
+                    ++blocked; ++towerBlocked; ++towerUnplaced; towerRoutes += 1;
+                    routesJ.push_back({{"label", tw.label + ": the ground outside its door -> the doorway"}, {"walkable", false}, {"tower", true}, {"start_unsupported", true}});
+                    continue;
+                }
+                const glm::ivec3 outFeet(tw.out.x * 9 + 4, fo, tw.out.y * 9 + 4);
+                Core::WalkRoute in;
+                in.label = tw.label + ": the ground outside its door -> the doorway";
+                in.from = outFeet; in.to = tw.doorFeet; in.goalRadiusMicro = 4;
+                Core::WalkRoute up;
+                up.label = tw.label + ": the doorway -> the top chamber";
+                up.from = tw.doorFeet; up.to = tw.topFeet; up.goalRadiusMicro = 4;
+                glm::ivec3 lo = tw.lo; lo.y = std::min(lo.y, fo - 27);
+                const std::vector<Core::WalkRoute> towerRts{in, up};
+                const auto rep = Core::checkRoutes(occ, box, towerRts, lo, tw.hi, /*diagnose=*/true);
+                walkable += rep.walkable; blocked += rep.blocked; towerRoutes += static_cast<int>(towerRts.size()); towerBlocked += rep.blocked;
+                for (size_t ri = 0; ri < rep.routes.size() && ri < towerRts.size(); ++ri) {
+                    const auto& rr = rep.routes[ri];
+                    nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}, {"tower", true},
+                                        {"from", {towerRts[ri].from.x, towerRts[ri].from.y, towerRts[ri].from.z}}, {"to", {towerRts[ri].to.x, towerRts[ri].to.y, towerRts[ri].to.z}}};
+                    if (!rr.walkable) {
+                        j["pinch_from"] = {rr.pinchFrom.x, rr.pinchFrom.y, rr.pinchFrom.z};
+                        j["pinch_to"] = {rr.pinchTo.x, rr.pinchTo.y, rr.pinchTo.z};
+                        j["pinch_gap_micro"] = rr.pinchGapMicro;
+                        j["reached_from_start"] = rr.reachedFromStart; j["reached_from_goal"] = rr.reachedFromGoal;
+                        j["start_unsupported"] = rr.startUnsupported; j["goal_unsupported"] = rr.goalUnsupported;
+                        j["one_way"] = rr.oneWay;
+                        LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << (rr.oneWay ? "(ONE-WAY, a drop) " : "") << rr.label << " - the tower cannot be used: pinch ("
+                                     << rr.pinchFrom.x << "," << rr.pinchFrom.y << "," << rr.pinchFrom.z << ")->(" << rr.pinchTo.x << "," << rr.pinchTo.y << "," << rr.pinchTo.z
+                                     << ") gap " << rr.pinchGapMicro << " micro; reached " << rr.reachedFromStart << "/" << rr.reachedFromGoal
+                                     << (rr.startUnsupported ? " START-UNSUPPORTED" : "") << (rr.goalUnsupported ? " GOAL-UNSUPPORTED" : ""));
+                    }
+                    routesJ.push_back(j);
+                }
+                if (tw.hasStreet) {   // RECORDED ONLY (D66): is the tower's door reached from the nearest way? Not counted walkable or blocked.
+                    ++towerStreetRoutes;
+                    const int fs = seatFeet(tw.street.x, tw.street.y, (terrainTopAt(tw.street.x, tw.street.y) + 1) * 9);
+                    bool reached = false;
+                    int sReachedStart = -1, sReachedGoal = -1;
+                    glm::ivec3 sPinchFrom(0), sPinchTo(0);
+                    glm::ivec3 sFrom(tw.street.x * 9 + 4, fs == INT_MIN ? 0 : fs, tw.street.y * 9 + 4);
+                    if (fs != INT_MIN) {
+                        Core::WalkRoute sr;
+                        sr.label = tw.label + ": the nearest way -> the ground outside its door";
+                        sr.from = sFrom; sr.to = outFeet; sr.goalRadiusMicro = 4;
+                        const glm::ivec3 slo(std::min(sr.from.x, sr.to.x) - 8 * 9, std::min(sr.from.y, sr.to.y) - 27, std::min(sr.from.z, sr.to.z) - 8 * 9);
+                        const glm::ivec3 shi(std::max(sr.from.x, sr.to.x) + 8 * 9, std::max(sr.from.y, sr.to.y) + 36, std::max(sr.from.z, sr.to.z) + 8 * 9);
+                        const auto srep = Core::checkRoutes(occ, box, {sr}, slo, shi, /*diagnose=*/true);
+                        reached = srep.walkable > 0;
+                        if (!srep.routes.empty()) { sReachedStart = srep.routes[0].reachedFromStart; sReachedGoal = srep.routes[0].reachedFromGoal; sPinchFrom = srep.routes[0].pinchFrom; sPinchTo = srep.routes[0].pinchTo; }
+                    }
+                    if (reached) ++towerStreetReached;
+                    routesJ.push_back({{"label", tw.label + ": the nearest way -> the ground outside its door"}, {"walkable", reached}, {"tower_street", true}, {"recorded_only", true},
+                                       {"street_seated", fs != INT_MIN}, {"from", {sFrom.x, sFrom.y, sFrom.z}}, {"to", {outFeet.x, outFeet.y, outFeet.z}},
+                                       {"reached_from_start", sReachedStart}, {"reached_from_goal", sReachedGoal},
+                                       {"pinch_from", {sPinchFrom.x, sPinchFrom.y, sPinchFrom.z}}, {"pinch_to", {sPinchTo.x, sPinchTo.y, sPinchTo.z}}});
+                    if (!reached)
+                        LOG_WARN_FMT("Settlement", "walkability: " << tw.label << " is NOT reached on foot from the nearest way (" << tw.street.x << "," << tw.street.y
+                                     << ") within the walked band - recorded, not refusing (the plan has no lane along the wall)");
+                }
+            }
+            if (!sharedWallTowers->empty())
+                LOG_INFO_FMT("Settlement", "walkability gate: the wall's towers - " << sharedWallTowers->size() << " built, " << towerRoutes << " routes walked (door, climb), " << towerBlocked
+                             << " blocked, " << towerUnplaced << " not walked; reached from the nearest way: " << towerStreetReached << " of " << towerStreetRoutes << " (recorded only)");
             if (!sharedWallGates->empty())
                 LOG_INFO_FMT("Settlement", "walkability gate: the wall's gates - " << gateRoutes << " walked through, " << gateRoutesBlocked << " blocked");
             if (!sharedWallCrossings->empty())
@@ -2958,6 +3158,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             (*pathsJsonP)["walkability"]["leave_hop_only"] = leaveHopOnly;
             (*pathsJsonP)["walkability"]["wall_gate_routes"] = gateRoutes;
             (*pathsJsonP)["walkability"]["wall_gate_blocked"] = gateRoutesBlocked;
+            (*pathsJsonP)["walkability"]["towers"] = sharedWallTowers->size();
+            (*pathsJsonP)["walkability"]["tower_routes"] = towerRoutes;
+            (*pathsJsonP)["walkability"]["tower_blocked"] = towerBlocked;
+            (*pathsJsonP)["walkability"]["tower_unplaced"] = towerUnplaced;
+            (*pathsJsonP)["walkability"]["tower_street_routes"] = towerStreetRoutes;
+            (*pathsJsonP)["walkability"]["tower_reached_from_street"] = towerStreetReached;
             *walkJsonP = (*pathsJsonP)["walkability"];
             }});
         }

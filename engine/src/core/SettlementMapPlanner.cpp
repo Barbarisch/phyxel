@@ -6,6 +6,7 @@
 #include <cmath>
 #include <map>
 #include <queue>
+#include <set>
 #include <unordered_map>
 
 #include "core/BuildingProgram.h"
@@ -15,6 +16,8 @@
 #include "core/SettlementLayout.h"   // pickBuildingVariant (the lot's style, D49)
 #include "core/SiteAnalysis.h"
 #include "core/StreetPaver.h"        // planWayPaving, padCubeForStreet (the lot's seat, M5b-1a)
+#include "core/TowerForge.h"         // planTower, muralTowerSpec (the wall's towers, M5d-3)
+#include "core/TownWall.h"           // towerFootprintCells
 
 namespace Phyxel {
 namespace Core {
@@ -1066,6 +1069,102 @@ static void planWall(SettlementMap& map, const SettlementMapInput& in) {
                     break;
                 }
             }
+        }
+    }
+    // M5d-3 (D64 as refined, PROPOSED): a tower at each ROUTED corner - the stops the ring was routed through, which
+    // are the pushed hull's corners. The form gives the places and the count; no spacing number exists (O26 a) and
+    // none is written. The drum is the tier's tower_size square, centred on the corner; where that stands on
+    // something it may not, it is tried further OUT along the corner's own push, one cell at a time, for as long as
+    // the drum still holds the corner's ring cell (so the curtain meets it). A drum may not stand on a lot rect, a
+    // croft or the market, a way's band, a gate's opening, the world road or water, nor touch another drum; its
+    // doorway (TowerForge's, on the side facing the hull's centroid first) must open on a cell strictly inside the
+    // ring. A corner with no such place gets an entry that is NOT BUILT and says why.
+    if (in.tier->walls.towers) {
+        const TownWallSpec& ws = in.tier->walls;
+        const int size = std::max(1, ws.towerSize);
+        const size_t rn = wall.ring.size();
+        std::vector<uint8_t> outside(static_cast<size_t>(GW) * GD, 0);
+        if (!ringAt.count({gx0, gz0})) {   // the grid's corner lies outside the ring (the grid is padded past it)
+            std::vector<std::pair<int, int>> stack{{gx0, gz0}};
+            outside[gi(gx0, gz0)] = 1;
+            while (!stack.empty()) {
+                const auto c = stack.back(); stack.pop_back();
+                for (int d = 0; d < 4; ++d) {
+                    const int nx = c.first + DX[d], nz = c.second + DZ[d];
+                    if (!inGrid(nx, nz) || outside[gi(nx, nz)] || ringAt.count({nx, nz})) continue;
+                    outside[gi(nx, nz)] = 1; stack.push_back({nx, nz});
+                }
+            }
+        }
+        const auto insideRing = [&](int x, int z) { return inGrid(x, z) && !outside[gi(x, z)] && !ringAt.count({x, z}); };
+        // 1 a lot | 2 a croft or the market | 3 a way's band | 4 a gate's opening | 5 the world road | 6 water | 7 another drum
+        std::vector<uint8_t> taken(static_cast<size_t>(GW) * GD, 0);
+        const auto take = [&](int x, int z, uint8_t v) { if (inGrid(x, z) && !taken[gi(x, z)]) taken[gi(x, z)] = v; };
+        for (const auto& l : map.lots) for (int z = l.rect.z; z < l.rect.z1(); ++z) for (int x = l.rect.x; x < l.rect.x1(); ++x) take(x, z, 1);
+        for (const auto& a : map.areas) for (int z = a.rect.z; z < a.rect.z1(); ++z) for (int x = a.rect.x; x < a.rect.x1(); ++x) take(x, z, 2);
+        for (const auto& g : wall.gates) {   // the opening: the ring within half the gate's width, and the passage 3 cells each side of it
+            const auto it = ringAt.find({g.x, g.z});
+            if (it == ringAt.end()) continue;
+            const size_t half = static_cast<size_t>(std::max(1, g.width / 2));
+            for (size_t d = 0; d <= half && d < rn; ++d)
+                for (const size_t i : {(it->second + d) % rn, (it->second + rn - d) % rn})
+                    for (int dz = -3; dz <= 3; ++dz) for (int dx = -3; dx <= 3; ++dx) take(wall.ring[i].x + dx, wall.ring[i].z + dz, 4);
+        }
+        for (int z = gz0; z < gz1; ++z) for (int x = gx0; x < gx1; ++x) {
+            if (onWay[gi(x, z)]) take(x, z, 3);
+            if (road[gi(x, z)]) take(x, z, 5);
+            if (wet[gi(x, z)]) take(x, z, 6);
+        }
+        static const char* const kWhat[8] = {"", "a lot", "a croft or the market", "a way", "a gate's opening", "the world road", "water", "another tower"};
+        struct Side { char s; int nx, nz; };
+        for (const auto& st : stops) {
+            MapWall::Tower t;
+            t.x = st.first; t.z = st.second; t.cornerX = st.first; t.cornerZ = st.second; t.size = size;
+            if (!ringAt.count(st)) { t.skipped = "the corner did not survive on the ring"; wall.towers.push_back(t); continue; }
+            const double vx = static_cast<double>(st.first) - cx, vz = static_cast<double>(st.second) - cz;
+            const double len = std::max(1e-9, std::sqrt(vx * vx + vz * vz));
+            std::vector<Side> sides{{'N', 0, 1}, {'E', 1, 0}, {'S', 0, -1}, {'W', -1, 0}};
+            std::stable_sort(sides.begin(), sides.end(), [&](const Side& a, const Side& b) { return -(a.nx * vx + a.nz * vz) > -(b.nx * vx + b.nz * vz); });
+            std::string why;
+            bool refused = false;
+            for (int k = 0; k <= size / 2 && !t.built && !refused; ++k) {
+                MapWall::Tower c = t;
+                c.x = st.first + static_cast<int>(std::lround(vx / len * k)); c.z = st.second + static_cast<int>(std::lround(vz / len * k));
+                const Rect bb = c.bbox();
+                std::set<std::pair<int, int>> body;
+                for (const auto& f : towerFootprintCells(bb, ws.towerShape)) body.insert({bb.x + f.x, bb.z + f.y});
+                if (!body.count(st)) break;   // further out the drum no longer holds the corner
+                uint8_t hit = 0;
+                bool offGrid = false;
+                for (const auto& b : body) {
+                    if (!inGrid(b.first, b.second)) { offGrid = true; break; }
+                    if (taken[gi(b.first, b.second)]) { hit = taken[gi(b.first, b.second)]; break; }
+                    for (int dz = -1; dz <= 1 && !hit; ++dz) for (int dx = -1; dx <= 1 && !hit; ++dx)   // the audit of M5d-3: corner to corner is touching too
+                        if (inGrid(b.first + dx, b.second + dz) && taken[gi(b.first + dx, b.second + dz)] == 7) hit = 7;
+                    if (hit) break;
+                }
+                if (offGrid || hit) {
+                    if (why.empty()) why = offGrid ? std::string("its drum would leave the planning grid") : std::string("its drum would meet ") + kWhat[hit];
+                    continue;
+                }
+                for (const Side& sd : sides) {
+                    const TowerPlan tp = planTower(bb, muralTowerSpec(ws, sd.s));
+                    if (!tp.ok) { why = tp.refusal; refused = true; break; }   // TowerForge refuses the footprint: no place changes that
+                    const int dxc = bb.x + tp.doorCell.x, dzc = bb.z + tp.doorCell.y;
+                    const int oxc = dxc + sd.nx, ozc = dzc + sd.nz;
+                    if (body.count({oxc, ozc}) || !insideRing(oxc, ozc)) continue;
+                    const uint8_t on = taken[gi(oxc, ozc)];
+                    if (on != 0 && on != 3) continue;   // a doorway may open onto a way; onto nothing else that is taken
+                    c.doorSide = sd.s; c.doorX = dxc; c.doorZ = dzc; c.outX = oxc; c.outZ = ozc; c.built = true;
+                    break;
+                }
+                if (refused) break;
+                if (!c.built) { if (why.empty()) why = "no side of its drum has a doorway that opens inside the ring"; continue; }
+                t = c;
+                for (const auto& b : body) taken[gi(b.first, b.second)] = 7;
+            }
+            if (!t.built) t.skipped = why.empty() ? std::string("no place for its drum holds the corner") : why;
+            wall.towers.push_back(t);
         }
     }
     wall.present = true;

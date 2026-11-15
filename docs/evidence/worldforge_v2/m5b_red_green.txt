@@ -1438,3 +1438,37 @@ M5d-2 REGRESSION AND CLOSURE (2026-11-15 11:06) - chains 283-285 on tree aa12eb4
   CLOSED AS BUILT WITH OPEN ITEMS - not "verified": the audit's verdict above stands (PASS WITH CONDITIONS leaning
   FAIL, corrected in patch 56; no second audit of the corrected tree was run). Unmeasured: Release, L4, a second
   seed live, towers, door-to-gate connectivity, obstruction inside gate openings; the east road is HOP-ONLY.
+
+M5d-3 (towers on the map's wall) - AUDIT (2026-11-15 13:07), solution-auditor, read-only, on the uncommitted tree after chain 291
+  Runs before the audit (pm_chain286.txt): 286 headless RED 31 ok / 3 failed (record + tests, planner empty);
+  287 headless 34 ok / 0 failed; 288 mutation RED 1 ok / 1 failed; 289 live RED 0 ok / 1 failed (realizer unpatched);
+  290 live 1 ok / 0 failed; 291 live 2 ok / 0 failed (diagnostics). ONE Debug rig, one seed.
+  RAW VERDICT: "VERDICT: PASS WITH CONDITIONS. Claim 2 (entered and climbed) is real on one Debug rig, but its
+     "own re-walk" is not independent. Claim 2's "a walker does not pass the wall at any drum" is not evidence about
+     the drums. Claim 1's "one entry per routed corner" is not asserted anywhere."
+  DEFECTS it named: (1) a tower whose door seats no walker is skipped, the gate still passes; (2) the cell outside
+     the door is never cleared of flora; (3) the base level comes from the pre-build terrain at that cell and fits
+     the drum poorly (one drum a cube below all its ground, one spanning 8 cubes of slope - nobody has looked);
+     (5) fromJson accepts a built tower with any corner/door/out/side; (6) drums may touch corner to corner;
+     (7) a door may open along the wall onto a strip no way reaches (consistent with 0 of 6 reached from a street).
+  WEAKNESSES: the re-walk replays the gate's from/to (the same TowerPlan); nothing finds the top chamber in the
+     voxels; the 2-micro control is not shown to stop at the stair; "past a drum" read 0 crossed of 6 BEFORE any
+     tower was stamped (chain 289) - no red, no positive control; "one entry per routed corner" only asserts >= 3;
+     "6 stamped" counts plans, not voxels; four headless clauses never seen red; one rig, one seed.
+  CONDITIONS: tie the entries to the hull; an independent voxel check of the top and the walk to it; show where the
+     2-micro walker stops; a positive control and a red for the barrier at a drum, or state it as the curtain's;
+     an unseated tower door refuses; validate towers in fromJson; a second seed and Release before generalising.
+MY RESPONSE: the auditor is right on each. The "past a drum" line was green with no towers - I had the number in
+  my own PT.4 record and still listed it as tower evidence. Patch 59 (written before any further run):
+  - the gate: an unseated tower door is BLOCKED (refuses), not skipped; the cell outside the door is cleared above
+    the ground to the gate's clear height; drums may not touch corner to corner; fromJson refuses a built tower
+    whose corner or door is outside its square, whose side is no side, or whose out cell is not the door's neighbour;
+  - headless: every corner of the lots' hull (the test's own hull) must have a tower entry within the wall's push,
+    and no more entries than hull corners; four broken records must read back not built;
+  - live, from the VOXELS: one flood per tower from the ground outside its door - the highest level stood on inside
+    the drum within a storey of the scanned rim top; no cell stood on outside the ring (not measured where a gate
+    lies in the box); at least two cells walked inside the ring beyond the drum (positive control); the 2-micro
+    walker started INSIDE the doorway must stay below the first storey. "Past a drum" stays a requirement and is
+    labelled as the curtain's, not the drums'.
+  - then a live MUTATION: the drum's rim walls not stamped - the escape measure must turn red.
+  NOT done by patch 59: defect 3 (the level / a look at the two odd drums), defect 7, a second live seed, Release.

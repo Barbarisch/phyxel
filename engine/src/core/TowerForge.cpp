@@ -243,6 +243,7 @@ TowerPlan planTower(const Rect& bbox, const TowerSpec& spec) {
 
     // ---- THE TWO POSES THE L3 PROOF USES ---------------------------------------
     // Feet just inside the doorway, and the top chamber floor.
+    p.doorCell = {door.first, door.second};
     p.doorFeetMicro = {door.first * kMicroPerCube + 4, kSubcube,
                        door.second * kMicroPerCube + 4};
     int topFloorY = 0;
@@ -254,6 +255,15 @@ TowerPlan planTower(const Rect& bbox, const TowerSpec& spec) {
 
     p.ok = true;
     return p;
+}
+
+TowerSpec muralTowerSpec(const TownWallSpec& wall, char doorSide) {
+    TowerSpec ts;   // storey, rim thickness, loops: TowerSpec's own defaults (what the legacy corner towers use)
+    ts.shape = wall.towerShape;
+    ts.heightCubes = wall.heightCubes + wall.towerExtraHeight;
+    ts.battlements = wall.crenellations && wall.towerCap != "conical";
+    ts.doorSide = doorSide;
+    return ts;
 }
 
 } // namespace Core

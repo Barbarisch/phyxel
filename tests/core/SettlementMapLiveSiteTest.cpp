@@ -29,6 +29,8 @@
 #include <map>
 #include <memory>
 #include <set>
+#include "core/TownWall.h"    // towerFootprintCells (M5d-3)
+#include "core/TowerForge.h"  // TowerSpec (the storey, M5d-3)
 #include <string>
 #include <tuple>
 #include <vector>
@@ -1689,6 +1691,241 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
         EXPECT_EQ(crossed, 0) << "a walker crosses the wall where it has no gate (3 cells in to 3 out, a box 8 cells round the ends - the gate routes' geometry)";
         EXPECT_GT(gateRoutes - gateBlocked, 0) << "no gate route was walked through: the barrier control has no positive control";
     }
+}
+
+// M5d-3 (D64 as refined + D66 PROPOSED; predictions in pm_chain286.txt): the MAP's towers, stamped and USED. Every
+// built tower is entered from the ground outside its door and climbed to its top chamber on foot, on real voxels -
+// by the gate's record AND by this test's own walk of the same routes; a walker that cannot take a tread (step-up 2
+// micro) must FAIL the climb (the control: the measure feels the stair); and the wall is still a wall where a drum
+// stands in it. ONE Debug rig: the city's program on the baseline town site (the rig of chain 252), one seed.
+TEST(SettlementMapLiveSiteTest, TheCitysTowersCanBeEnteredAndClimbed) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("town", 48)) << rig.why;
+    nlohmann::json ov; ov["tier"] = "city";
+    const auto out = realize(rig, /*legacyLayout=*/false, ov);
+    ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+    const nlohmann::json wallRec = out["paths"].value("town_wall", nlohmann::json::object());
+    const nlohmann::json walk = out["paths"].value("walkability", nlohmann::json::object());
+    const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
+    std::printf("[ M5d-3 ] the wall as built: %s\n", wallRec.dump().c_str());
+    int mapBuilt = 0;
+    for (const auto& tw : sm.wall.towers) {
+        if (tw.built) { ++mapBuilt; std::printf("[ M5d-3 ] map tower at %d,%d (corner %d,%d) size %d, door %c at %d,%d, entered from %d,%d\n", tw.x, tw.z, tw.cornerX, tw.cornerZ, tw.size, tw.doorSide, tw.doorX, tw.doorZ, tw.outX, tw.outZ); }
+        else std::printf("[ M5d-3 ] map corner %d,%d: NOT BUILT - %s\n", tw.cornerX, tw.cornerZ, tw.skipped.c_str());
+    }
+    const std::function<bool(int, int, int)> occ = [&rig](int x, int y, int z) { return rig.cm.occupiedMicro(glm::ivec3(x, y, z)); };
+    Core::AgentBox box;
+    Core::AgentBox lowBox = box; lowBox.maxStepUpMicro = 2;   // below a tread's 3 micro: must not climb
+    int towerRoutes = 0, towerBlocked = 0, rewalked = 0, rewalkBlocked = 0, climbs = 0, lowClimbed = 0, streetRoutes = 0, streetReached = 0;
+    for (const auto& r : walk.value("routes", nlohmann::json::array())) {
+        if (r.value("tower_street", false)) {
+            ++streetRoutes; if (r.value("walkable", false)) ++streetReached;
+std::printf("[ M5d-3 ] (recorded only) %s: %s | street end seated %d, from %s to %s, flood from the way %d cells, from the door %d cells, pinch %s -> %s\n", r.value("label", std::string("?")).c_str(),
+                        r.value("walkable", false) ? "reached" : "NOT reached", r.value("street_seated", false) ? 1 : 0, r.value("from", nlohmann::json()).dump().c_str(), r.value("to", nlohmann::json()).dump().c_str(),
+                        r.value("reached_from_start", -1), r.value("reached_from_goal", -1), r.value("pinch_from", nlohmann::json()).dump().c_str(), r.value("pinch_to", nlohmann::json()).dump().c_str());
+            continue;
+        }
+        if (!r.value("tower", false)) continue;
+        ++towerRoutes;
+        const bool ok = r.value("walkable", false);
+        if (!ok) ++towerBlocked;
+        std::printf("[ M5d-3 ] %s (from %s to %s%s): %s%s\n", r.value("label", std::string("?")).c_str(), r.value("from", nlohmann::json()).dump().c_str(), r.value("to", nlohmann::json()).dump().c_str(),
+                    r.value("one_way", false) ? ", ONE-WAY" : "", ok ? "walkable" : "BLOCKED",
+                    ok ? "" : (" pinch " + r.value("pinch_from", nlohmann::json()).dump() + " -> " + r.value("pinch_to", nlohmann::json()).dump() + " gap " + std::to_string(r.value("pinch_gap_micro", -1)) +
+                               " reached " + std::to_string(r.value("reached_from_start", -1)) + "/" + std::to_string(r.value("reached_from_goal", -1))).c_str());
+        if (!r.contains("from") || !r.contains("to")) continue;
+        const auto fj = r["from"], tj = r["to"];
+        Core::WalkRoute w;
+        w.label = r.value("label", std::string());
+        w.from = glm::ivec3(fj[0].get<int>(), fj[1].get<int>(), fj[2].get<int>()); w.to = glm::ivec3(tj[0].get<int>(), tj[1].get<int>(), tj[2].get<int>());
+        w.goalRadiusMicro = 4;
+        const glm::ivec3 lo(std::min(w.from.x, w.to.x) - 12 * 9, std::min(w.from.y, w.to.y) - 27, std::min(w.from.z, w.to.z) - 12 * 9);
+        const glm::ivec3 hi(std::max(w.from.x, w.to.x) + 12 * 9, std::max(w.from.y, w.to.y) + 36, std::max(w.from.z, w.to.z) + 12 * 9);
+        ++rewalked;
+        if (Core::checkRoutes(occ, box, {w}, lo, hi, false).walkable == 0) { ++rewalkBlocked; std::printf("[ M5d-3 ]   this test's own walk of it: BLOCKED\n"); }
+        if (w.to.y - w.from.y > 9) {   // the climb
+            ++climbs;
+            if (Core::checkRoutes(occ, lowBox, {w}, lo, hi, false).walkable > 0) { ++lowClimbed; std::printf("[ M5d-3 ]   a walker with a 2-micro step-up CLIMBED it - the measure does not feel the stair\n"); }
+        }
+        if (!ok && r.contains("pinch_from")) {
+            const auto pfj = r["pinch_from"];
+            const glm::ivec3 pf(pfj[0].get<int>(), pfj[1].get<int>(), pfj[2].get<int>());
+            rig.floorProfile(pf, glm::ivec3(pf.x + 1, pf.y, pf.z));
+            rig.floorProfile(pf, glm::ivec3(pf.x, pf.y, pf.z + 1));
+            rig.fixturesNear(pf);
+        }
+    }
+    // the wall where a drum stands in it: from the ground outside each tower's door (inside the ring) to the ground
+    // past the drum on its far side - outside the ring, by this test's own flood - must NOT be walkable
+    int barrierTried = 0, barrierCrossed = 0, barrierUnseated = 0, farInside = 0;
+    {
+        std::set<std::pair<int, int>> ringSet;
+        int x0 = 0, z0 = 0, x1 = sm.W, z1 = sm.D;
+        for (const auto& c : sm.wall.ring) { ringSet.insert({c.x, c.z}); x0 = std::min(x0, c.x); z0 = std::min(z0, c.z); x1 = std::max(x1, c.x + 1); z1 = std::max(z1, c.z + 1); }
+        x0 -= 16; z0 -= 16; x1 += 16; z1 += 16;
+        const int GW = x1 - x0, GD = z1 - z0;
+        std::vector<uint8_t> outside(static_cast<size_t>(GW) * GD, 0);
+        std::vector<std::pair<int, int>> stack{{x0, z0}};
+        outside[0] = 1;
+        while (!stack.empty()) {
+            const auto c = stack.back(); stack.pop_back();
+            static const int DX[4] = {1, -1, 0, 0}, DZ[4] = {0, 0, 1, -1};
+            for (int k = 0; k < 4; ++k) {
+                const int nx = c.first + DX[k], nz = c.second + DZ[k];
+                if (nx < x0 || nz < z0 || nx >= x1 || nz >= z1) continue;
+                const size_t gi = static_cast<size_t>(nz - z0) * GW + static_cast<size_t>(nx - x0);
+                if (outside[gi] || ringSet.count({nx, nz})) continue;
+                outside[gi] = 1; stack.push_back({nx, nz});
+            }
+        }
+        const auto isOutside = [&](int x, int z) { return x >= x0 && z >= z0 && x < x1 && z < z1 && outside[static_cast<size_t>(z - z0) * GW + static_cast<size_t>(x - x0)] != 0; };
+        const auto feetAt = [&](int lx, int lz) {   // the first standable level from above, world micro (INT_MIN = none)
+            const int mx = (sm.originX + lx) * 9 + 4, mz = (sm.originZ + lz) * 9 + 4;
+            Core::TraversalProbe probe(occ, box);
+            for (int y = (rig.surfaceHi + 12) * 9; y > (rig.surfaceLo - 4) * 9; --y)
+                if (occ(mx, y - 1, mz) && probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) return y;
+            return INT_MIN;
+        };
+        for (const auto& tw : sm.wall.towers) {
+            if (!tw.built) continue;
+            const int nx = tw.outX - tw.doorX, nz = tw.outZ - tw.doorZ;   // the door's outward normal (into the town)
+            const int fx = tw.x - nx * (tw.size / 2 + 4), fz = tw.z - nz * (tw.size / 2 + 4);   // past the drum on the far side
+            if (!isOutside(fx, fz)) { ++farInside; std::printf("[ M5d-3 ] tower at %d,%d: the cell past its far side (%d,%d) is not outside the ring - not tried\n", tw.x, tw.z, fx, fz); continue; }
+            const int f1 = feetAt(tw.outX, tw.outZ), f2 = feetAt(fx, fz);
+            if (f1 == INT_MIN || f2 == INT_MIN) { ++barrierUnseated; continue; }
+            Core::WalkRoute r;
+            r.label = "past the tower at " + std::to_string(tw.x) + "," + std::to_string(tw.z);
+            r.from = glm::ivec3((sm.originX + tw.outX) * 9 + 4, f1, (sm.originZ + tw.outZ) * 9 + 4);
+            r.to = glm::ivec3((sm.originX + fx) * 9 + 4, f2, (sm.originZ + fz) * 9 + 4);
+            const glm::ivec3 lo(std::min(r.from.x, r.to.x) - 8 * 9, std::min(r.from.y, r.to.y) - 27, std::min(r.from.z, r.to.z) - 8 * 9);
+            const glm::ivec3 hi(std::max(r.from.x, r.to.x) + 8 * 9, std::max(r.from.y, r.to.y) + 36 + 12 * 9, std::max(r.from.z, r.to.z) + 8 * 9);
+            ++barrierTried;
+            const bool across = Core::checkRoutes(occ, box, {r}, lo, hi, false).walkable > 0;
+            if (across) ++barrierCrossed;
+            std::printf("[ M5d-3 ] %s, from the ground outside its door to %d,%d outside the ring: %s\n", r.label.c_str(), fx, fz, across ? "WALKED ACROSS" : "blocked (the wall holds)");
+        }
+    }
+    // The audit of M5d-3 (conditions 2 and 3): measured from the VOXELS, not from the tower's plan. For each built tower
+    // ONE flood of the engine's walker from the ground outside its door, in a box 6 cells round the drum:
+    //  (i)  the highest level it stands on INSIDE the drum (interior cells of the drum's footprint) must be within one
+    //       storey of the drum's own top (the highest solid micro of its rim, scanned);
+    //  (ii) it must stand on NO cell outside the ring (this test's own flood of the ring) - unless a gate lies in the
+    //       box (then (ii) is not measured for that tower, and said) - and, the positive control, it must have walked
+    //       on at least two cells inside the ring that are not the drum (the walker did roam; the box is not a cage);
+    //  (iii) the same flood by the walker that cannot take a tread (2 micro) must stay below the first storey.
+    // The drum's shape is taken as "round" - the city tier's walls.tower_shape (stated; the record does not carry it).
+    int scanned = 0, noStart = 0, topTooLow = 0, escapeMeasured = 0, escaped = 0, gateInBox = 0, noRoam = 0, lowGotUp = 0;
+    {
+        std::set<std::pair<int, int>> ringSet;
+        int x0 = 0, z0 = 0, x1 = sm.W, z1 = sm.D;
+        for (const auto& c : sm.wall.ring) { ringSet.insert({c.x, c.z}); x0 = std::min(x0, c.x); z0 = std::min(z0, c.z); x1 = std::max(x1, c.x + 1); z1 = std::max(z1, c.z + 1); }
+        x0 -= 16; z0 -= 16; x1 += 16; z1 += 16;
+        const int GW = x1 - x0, GD = z1 - z0;
+        std::vector<uint8_t> outside(static_cast<size_t>(GW) * GD, 0);
+        std::vector<std::pair<int, int>> stack{{x0, z0}};
+        outside[0] = 1;
+        while (!stack.empty()) {
+            const auto c = stack.back(); stack.pop_back();
+            static const int DX[4] = {1, -1, 0, 0}, DZ[4] = {0, 0, 1, -1};
+            for (int k = 0; k < 4; ++k) {
+                const int nx = c.first + DX[k], nz = c.second + DZ[k];
+                if (nx < x0 || nz < z0 || nx >= x1 || nz >= z1) continue;
+                const size_t gi = static_cast<size_t>(nz - z0) * GW + static_cast<size_t>(nx - x0);
+                if (outside[gi] || ringSet.count({nx, nz})) continue;
+                outside[gi] = 1; stack.push_back({nx, nz});
+            }
+        }
+        const auto isOutside = [&](int x, int z) { return x >= x0 && z >= z0 && x < x1 && z < z1 && outside[static_cast<size_t>(z - z0) * GW + static_cast<size_t>(x - x0)] != 0; };
+        std::map<std::string, std::pair<glm::ivec3, glm::ivec3>> startOf;   // the tower's label -> the gate's seat on the ground outside its door, and the feet inside its doorway (STARTS only)
+        for (const auto& r : walk.value("routes", nlohmann::json::array())) {
+            const std::string label = r.value("label", std::string());
+            if (!r.value("tower", false) || label.find("-> the doorway") == std::string::npos || !r.contains("from")) continue;
+            if (!r.contains("to")) continue;
+            startOf[label.substr(0, label.find(':'))] = {glm::ivec3(r["from"][0].get<int>(), r["from"][1].get<int>(), r["from"][2].get<int>()), glm::ivec3(r["to"][0].get<int>(), r["to"][1].get<int>(), r["to"][2].get<int>())};
+        }
+        const Core::TraversalProbe probe(occ, box), lowProbe(occ, lowBox);
+        const int storeyM = Core::TowerSpec().storeyCubes * 9;
+        for (const auto& tw : sm.wall.towers) {
+            if (!tw.built) continue;
+            const auto it = startOf.find("the wall's tower @" + std::to_string(sm.originX + tw.x) + "," + std::to_string(sm.originZ + tw.z));
+            if (it == startOf.end()) { ++noStart; continue; }
+            const glm::ivec3 start = it->second.first, inDoor = it->second.second;   // the 2-micro walker starts INSIDE the doorway: it must fail at the stair, not at the threshold
+            const Core::Rect bb = tw.bbox();
+            std::set<std::pair<int, int>> body, interior;
+            for (const auto& f : Core::towerFootprintCells(bb, "round")) body.insert({bb.x + f.x, bb.z + f.y});
+            int rimTop = INT_MIN;
+            for (const auto& c : body) {
+                const bool rim = !body.count({c.first + 1, c.second}) || !body.count({c.first - 1, c.second}) || !body.count({c.first, c.second + 1}) || !body.count({c.first, c.second - 1});
+                if (!rim) { interior.insert(c); continue; }
+                const int mx = (sm.originX + c.first) * 9 + 4, mz = (sm.originZ + c.second) * 9 + 4;
+                for (int y = (rig.surfaceHi + 40) * 9; y > (rig.surfaceLo - 4) * 9; --y) if (occ(mx, y, mz)) { rimTop = std::max(rimTop, y + 1); break; }
+            }
+            const glm::ivec3 lo((sm.originX + bb.x - 6) * 9, start.y - 45, (sm.originZ + bb.z - 6) * 9), hi((sm.originX + bb.x1() + 6) * 9, rimTop + 45, (sm.originZ + bb.z1() + 6) * 9);
+            const auto flooded = [&](const Core::TraversalProbe& pr, const glm::ivec3& from, int& topInDrum, std::set<std::pair<int, int>>& outCells, std::set<std::pair<int, int>>& roam) {
+                const std::vector<glm::ivec3> cells = pr.flood(from, lo, hi);
+                topInDrum = INT_MIN;
+                for (const auto& c : cells) {
+                    const std::pair<int, int> cc{floorDivN(c.x, 9) - sm.originX, floorDivN(c.z, 9) - sm.originZ};
+                    if (interior.count(cc)) topInDrum = std::max(topInDrum, c.y);
+                    else if (body.count(cc)) continue;
+                    else if (isOutside(cc.first, cc.second)) outCells.insert(cc);
+                    else if (!ringSet.count(cc)) roam.insert(cc);
+                }
+                return cells.size();
+            };
+            int top = INT_MIN, lowTop = INT_MIN;
+            std::set<std::pair<int, int>> outCells, roam, lowOut, lowRoam;
+            const size_t n = flooded(probe, start, top, outCells, roam);
+            const size_t nLow = flooded(lowProbe, inDoor, lowTop, lowOut, lowRoam);
+            bool gateNear = false;
+            for (const auto& g : sm.wall.gates) {
+                const int half = std::max(1, g.width / 2);
+                if (g.x + half >= bb.x - 6 && g.x - half < bb.x1() + 6 && g.z + half >= bb.z - 6 && g.z - half < bb.z1() + 6) gateNear = true;
+            }
+            ++scanned;
+            const bool low = top == INT_MIN || rimTop - top > storeyM;
+            if (low) ++topTooLow;
+            if (gateNear) ++gateInBox; else { ++escapeMeasured; if (!outCells.empty()) ++escaped; }
+            if (roam.size() < 2) ++noRoam;
+            const bool lowUp = lowTop != INT_MIN && lowTop >= inDoor.y + storeyM;
+            if (lowUp) ++lowGotUp;
+            std::printf("[ M5d-3 ] voxels of the tower at %d,%d: rim top %d micro; the walker floods %zu feet positions, stands inside the drum up to %d (%d below the rim top, a storey is %d)%s; "
+                        "on %zu cells outside the ring%s, on %zu cells inside the ring beyond the drum; the 2-micro walker, started inside the doorway at %d, floods %zu, inside the drum up to %s%s\n",
+                        tw.x, tw.z, rimTop, n, top, top == INT_MIN ? -1 : rimTop - top, storeyM, low ? " - TOO LOW" : "", outCells.size(), gateNear ? " (a gate lies in the box: not measured)" : (outCells.empty() ? "" : " - ESCAPED"),
+                        roam.size(), inDoor.y, nLow, lowTop == INT_MIN ? "nowhere" : std::to_string(lowTop).c_str(), lowUp ? " - IT CLIMBED" : "");
+            int shown = 0;
+            for (const auto& oc : outCells) { if (++shown > 8) break; std::printf("[ M5d-3 ]   outside the ring at local %d,%d\n", oc.first, oc.second); }
+        }
+    }
+    std::printf("[ M5d-3 ] towers: %d built by the map, record says %d; %d routes in the record, %d blocked; this test's own walk: %d walked, %d blocked; %d climbs, %d climbed by the 2-micro walker; "
+                "past a drum: %d tried, %d crossed, %d unseated, %d not tried; reached from the nearest way (recorded only): %d of %d; gate %s (%d walkable, %d blocked, %d skipped)\n",
+                mapBuilt, wallRec.value("towers", -1), towerRoutes, towerBlocked, rewalked, rewalkBlocked, climbs, lowClimbed, barrierTried, barrierCrossed, barrierUnseated, farInside, streetReached, streetRoutes,
+                out.value("gate", std::string("?")).c_str(), out.value("walkable", -1), out.value("blocked", -1), out.value("skipped", -1));
+    EXPECT_TRUE(wallRec.value("built", false)) << "no wall was built: nothing below is measured";
+    EXPECT_EQ(wallRec.value("source", std::string()), "map");
+    EXPECT_FALSE(wallRec.contains("towers_deferred")) << "the record still says the map's wall has no towers";
+    EXPECT_GE(mapBuilt, 1) << "the map builds no tower on this rig: nothing below is measured";
+    EXPECT_EQ(wallRec.value("towers", -1), mapBuilt) << "the realizer built another number of towers than the map records built";
+    EXPECT_EQ(towerRoutes, 2 * mapBuilt) << "not every built tower was walked (its door and its climb)";
+    EXPECT_EQ(towerBlocked, 0) << "a tower cannot be entered or climbed on foot";
+    EXPECT_EQ(walk.value("tower_unplaced", -1), 0) << "a tower's door has no ground a walker seats on";
+    EXPECT_EQ(rewalked, towerRoutes);
+    EXPECT_EQ(rewalkBlocked, 0) << "this test's own walk of a tower route is blocked";
+    EXPECT_EQ(climbs, mapBuilt) << "the climbs were not recognised: the 2-micro control measured nothing";
+    EXPECT_EQ(lowClimbed, 0) << "a walker that cannot take a 3-micro tread climbed a tower";
+    // "past a drum" (above) is kept as a requirement but it is NOT evidence about the drums: it read 0 crossed of 6
+    // with no tower stamped (chain 289) - the curtain alone holds there. The drums are measured by the flood:
+    EXPECT_GE(barrierTried, 1) << "no tower's far side could be tried";
+    EXPECT_EQ(barrierCrossed, 0) << "a walker passes the wall at a tower's place";
+    std::printf("[ M5d-3 ] from the voxels: %d towers flooded (%d with no start), top too low %d; outside the ring: %d measured, %d escaped, %d not measured (a gate in the box); did not roam %d; the 2-micro walker got up %d\n",
+                scanned, noStart, topTooLow, escapeMeasured, escaped, gateInBox, noRoam, lowGotUp);
+    EXPECT_EQ(scanned, mapBuilt) << "not every built tower was flooded";
+    EXPECT_EQ(topTooLow, 0) << "the walker does not reach within a storey of a drum's top - by the voxels, not by the plan";
+    EXPECT_GE(escapeMeasured, 1) << "no tower without a gate in its box: the escape measure measured nothing";
+    EXPECT_EQ(escaped, 0) << "a walker starting inside the ring at a tower's door stands outside the ring: the wall is open at a drum";
+    EXPECT_EQ(noRoam, 0) << "the walker did not leave the door's cell: the flood's box is a cage and (ii) proves nothing";
+    EXPECT_EQ(lowGotUp, 0) << "a walker that cannot take a 3-micro tread got up a tower";
+    EXPECT_EQ(out.value("gate", std::string()), "passed");
 }
 
 // M5d-2b, the CONTROL: the same site built WITHOUT the map (the legacy layout) still stamps planTownWall's rectangle,

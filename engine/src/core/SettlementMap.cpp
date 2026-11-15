@@ -103,6 +103,16 @@ nlohmann::json SettlementMap::toJson() const {
         for (const auto& g : wall.gates) gs.push_back({{"x", g.x}, {"z", g.z}, {"way", g.way}, {"width", g.width}});
         for (const auto& g : wall.waterGaps) ws.push_back({{"x", g.x}, {"z", g.z}, {"cells", g.cells}});
         wj["nodes"] = ns; wj["gates"] = gs; wj["water_gaps"] = ws;
+        if (!wall.towers.empty()) {   // M5d-3: written only when the wall carries tower entries
+            nlohmann::json ts = nlohmann::json::array();
+            for (const auto& t : wall.towers) {
+                nlohmann::json tj = {{"x", t.x}, {"z", t.z}, {"corner", {t.cornerX, t.cornerZ}}, {"size", t.size}, {"built", t.built}};
+                if (t.built) { tj["door_side"] = std::string(1, t.doorSide); tj["door"] = {t.doorX, t.doorZ}; tj["out"] = {t.outX, t.outZ}; }
+                else tj["skipped"] = t.skipped;
+                ts.push_back(std::move(tj));
+            }
+            wj["towers"] = ts;
+        }
         wj["closed"] = wall.present && wall.waterGaps.empty();
         wj["cells"] = wall.ring.size();
         j["barriers"] = nlohmann::json::array({wj});
@@ -218,6 +228,33 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
             }
             for (const auto& g : b.value("gates", nlohmann::json::array())) m.wall.gates.push_back({g.value("x", 0), g.value("z", 0), g.value("way", -1), g.value("width", 0)});
             for (const auto& g : b.value("water_gaps", nlohmann::json::array())) m.wall.waterGaps.push_back({g.value("x", 0), g.value("z", 0), g.value("cells", 0)});
+            for (const auto& t : b.value("towers", nlohmann::json::array())) {   // M5d-3
+                if (!t.is_object()) continue;
+                MapWall::Tower mt;
+                mt.x = t.value("x", 0); mt.z = t.value("z", 0); mt.size = t.value("size", 0); mt.built = t.value("built", false);
+                mt.skipped = t.value("skipped", std::string());
+                const auto readPair = [&t](const char* key, int& a, int& c) {
+                    if (!t.contains(key) || !t[key].is_array() || t[key].size() != 2 || !t[key][0].is_number_integer() || !t[key][1].is_number_integer()) return false;
+                    a = t[key][0].get<int>(); c = t[key][1].get<int>(); return true;
+                };
+                const bool hasCorner = readPair("corner", mt.cornerX, mt.cornerZ);
+                const bool hasDoor = readPair("door", mt.doorX, mt.doorZ), hasOut = readPair("out", mt.outX, mt.outZ);
+                const std::string side = t.value("door_side", std::string());
+                if (!side.empty()) mt.doorSide = side[0];
+                // a built tower whose record cannot place its drum or its door is NOT BUILT on read, and says so
+                if (mt.built && (!hasCorner || !hasDoor || !hasOut || side.empty() || mt.size <= 0)) {
+                    mt.built = false; mt.skipped = "the record's tower carries no drum, corner or door";
+                }
+                if (mt.built) {   // the audit of M5d-3 (defect 5): the corner and the door inside the drum's square, the side a side, the out cell the door's neighbour on that side
+                    const Rect bb = mt.bbox();
+                    const auto in = [&bb](int x, int z) { return x >= bb.x && x < bb.x1() && z >= bb.z && z < bb.z1(); };
+                    const int nx = mt.doorSide == 'E' ? 1 : mt.doorSide == 'W' ? -1 : 0, nz = mt.doorSide == 'N' ? 1 : mt.doorSide == 'S' ? -1 : 0;
+                    if ((nx == 0 && nz == 0) || !in(mt.cornerX, mt.cornerZ) || !in(mt.doorX, mt.doorZ) || mt.outX != mt.doorX + nx || mt.outZ != mt.doorZ + nz) {
+                        mt.built = false; mt.skipped = "the record's tower does not hold together (its corner, door, side or out cell)";
+                    }
+                }
+                m.wall.towers.push_back(std::move(mt));
+            }
         }
     return m;
 }

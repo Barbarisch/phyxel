@@ -62,6 +62,7 @@ struct TowerPlan {
     std::vector<TowerWallRun> walls;
     std::vector<TowerPlate>   plates;      ///< floors + treads
     std::vector<glm::ivec3>   loopCells;   ///< arrow-loop cube cells (cx, cubeY, cz)
+    glm::ivec2 doorCell{0};                ///< the doorway's rim cell, cube offset (x, z) inside the bbox (M5d-3)
     glm::ivec3 doorFeetMicro{0};           ///< an agent's feet just inside the doorway
     glm::ivec3 topFeetMicro{0};            ///< the top chamber floor — the climb's goal
     int floorCount = 0;
@@ -71,6 +72,11 @@ struct TowerPlan {
 /// footprint is too small to hold a wall, a stair and a room at once, rather than emitting
 /// something that looks like a tower and cannot be used.
 TowerPlan planTower(const Rect& bbox, const TowerSpec& spec);
+
+struct TownWallSpec;
+/// M5d-3: the tower a circuit wall carries - ONE definition, read by the map's planner (which door the drum gets)
+/// and by the realizer (what is stamped), so the two cannot disagree about the plan.
+TowerSpec muralTowerSpec(const TownWallSpec& wall, char doorSide);
 
 } // namespace Core
 } // namespace Phyxel
