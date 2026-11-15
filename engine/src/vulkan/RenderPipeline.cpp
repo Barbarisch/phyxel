@@ -96,26 +96,26 @@ bool RenderPipeline::ensureVoxFoundPipeline(const std::string& vertSpvPath) {
         }
     }
     if (voxFoundPool == VK_NULL_HANDLE) {
-        VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4};
+        VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kVoxFoundSets};
         VkDescriptorPoolCreateInfo pi{};
         pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        pi.maxSets = 2;   // F2.14f: + the leaf-mass multidraw's set
+        pi.maxSets = kVoxFoundSets;   // F2.15f: the set cache
         pi.poolSizeCount = 1;
         pi.pPoolSizes = &ps;
         VkDescriptorSetAllocateInfo ai{};
         ai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         ai.descriptorSetCount = 1;
         ai.pSetLayouts = &voxFoundSetLayout;
-        if (vkCreateDescriptorPool(device, &pi, nullptr, &voxFoundPool) != VK_SUCCESS ||
-            (ai.descriptorPool = voxFoundPool, vkAllocateDescriptorSets(device, &ai, &voxFoundSet) != VK_SUCCESS) ||
-            vkAllocateDescriptorSets(device, &ai, &voxFoundSetLeaf) != VK_SUCCESS) {
+        bool ok = vkCreateDescriptorPool(device, &pi, nullptr, &voxFoundPool) == VK_SUCCESS;
+        ai.descriptorPool = voxFoundPool;
+        for (auto& e : voxFoundSets) {
+            e = VoxFoundSet{};
+            ok = ok && vkAllocateDescriptorSets(device, &ai, &e.set) == VK_SUCCESS;
+        }
+        if (!ok) {
             LOG_ERROR("RenderPipeline", "voxfound preview: descriptor set allocation failed");
             return false;
         }
-        voxFoundSetBuffer = VK_NULL_HANDLE;
-        voxFoundSetOrigins = VK_NULL_HANDLE;
-        voxFoundSetLeafBuffer = VK_NULL_HANDLE;
-        voxFoundSetLeafOrigins = VK_NULL_HANDLE;
     }
     if (voxFoundVertModule == VK_NULL_HANDLE) {
         auto code = Utils::readFile(vertSpvPath);
@@ -212,17 +212,31 @@ bool RenderPipeline::ensureVoxFoundLeafPipelines(const std::string& fragSpvPath)
     return true;
 }
 
-void RenderPipeline::bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins, bool leafSet) {
-    VkDescriptorSet set = leafSet ? voxFoundSetLeaf : voxFoundSet;
-    VkBuffer& setBuffer = leafSet ? voxFoundSetLeafBuffer : voxFoundSetBuffer;
-    VkBuffer& setOrigins = leafSet ? voxFoundSetLeafOrigins : voxFoundSetOrigins;
-    if (set == VK_NULL_HANDLE || table == VK_NULL_HANDLE) return;
+void RenderPipeline::bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins, bool leafSet,
+                                         VkDeviceSize originsOffset) {
+    (void)leafSet;   // F2.15f: the cache keys on the buffers
+    if (voxFoundSets[0].set == VK_NULL_HANDLE || table == VK_NULL_HANDLE) return;
     const VkBuffer origins = drawOrigins != VK_NULL_HANDLE ? drawOrigins : table;   // placeholder for direct draws
-    if (setBuffer != table || setOrigins != origins) {
-        // The table buffer is never reallocated; the origin table is (region rebuild), and a frame in flight may
-        // still read this set, so wait first (debug path, rare).
-        if (setBuffer != VK_NULL_HANDLE) vkDeviceWaitIdle(vulkanDevice.getDevice());
-        VkDescriptorBufferInfo bi[2] = {{table, 0, VK_WHOLE_SIZE}, {origins, 0, VK_WHOLE_SIZE}};
+    if (drawOrigins == VK_NULL_HANDLE) originsOffset = 0;
+    VoxFoundSet* hit = nullptr;
+    for (auto& e : voxFoundSets)
+        if (e.table == table && e.origins == origins && e.offset == originsOffset) hit = &e;
+    if (!hit) {
+        // a miss: an unwritten set, else the least recently used one. A frame in flight may still read a written set,
+        // so wait first (only after a region rebuild or a first use)
+        for (auto& e : voxFoundSets)
+            if (e.table == VK_NULL_HANDLE) {
+                hit = &e;
+                break;
+            }
+        if (!hit) {
+            hit = &voxFoundSets[0];
+            for (auto& e : voxFoundSets)
+                if (e.used < hit->used) hit = &e;
+        }
+        if (hit->table != VK_NULL_HANDLE) vkDeviceWaitIdle(vulkanDevice.getDevice());
+        const VkDescriptorSet set = hit->set;
+        VkDescriptorBufferInfo bi[2] = {{table, 0, VK_WHOLE_SIZE}, {origins, originsOffset, VK_WHOLE_SIZE}};
         VkWriteDescriptorSet w[2]{};
         for (uint32_t i = 0; i < 2; ++i) {
             w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -233,10 +247,12 @@ void RenderPipeline::bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, Vk
             w[i].pBufferInfo = &bi[i];
         }
         vkUpdateDescriptorSets(vulkanDevice.getDevice(), 2, w, 0, nullptr);
-        setBuffer = table;
-        setOrigins = origins;
+        hit->table = table;
+        hit->origins = origins;
+        hit->offset = originsOffset;
     }
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, voxFoundLayout, 1, 1, &set, 0, nullptr);
+    hit->used = ++voxFoundSetTick;
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, voxFoundLayout, 1, 1, &hit->set, 0, nullptr);
 }
 
 bool RenderPipeline::buildStaticPipeline(VkShaderModule fragModule, VkBool32 depthWrite,
@@ -1070,12 +1086,7 @@ void RenderPipeline::cleanup() {
     if (voxFoundPool != VK_NULL_HANDLE) {   // frees voxFoundSet with it
         vkDestroyDescriptorPool(device, voxFoundPool, nullptr);
         voxFoundPool = VK_NULL_HANDLE;
-        voxFoundSet = VK_NULL_HANDLE;
-        voxFoundSetBuffer = VK_NULL_HANDLE;
-        voxFoundSetOrigins = VK_NULL_HANDLE;
-        voxFoundSetLeaf = VK_NULL_HANDLE;
-        voxFoundSetLeafBuffer = VK_NULL_HANDLE;
-        voxFoundSetLeafOrigins = VK_NULL_HANDLE;
+        for (auto& e : voxFoundSets) e = VoxFoundSet{};
     }
     if (voxFoundSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device, voxFoundSetLayout, nullptr);

@@ -1,0 +1,244 @@
+{
+ "octant": {
+  "build": {
+   "faces": 480349,
+   "build_wall_ms": 2063.3926999999994
+  },
+  "overview_south": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 6182,
+    "cluster_faces_drawn": 287460,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 2471,
+    "cluster_faces_drawn": 287460,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 47,
+   "K_vs_U_gt8_px": 37,
+   "control_K_px": 53,
+   "U_vs_D_gt8_px": 50,
+   "K_vs_D_gt8_px": 49
+  },
+  "top_down": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 5143,
+    "cluster_faces_drawn": 258479,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 2521,
+    "cluster_faces_drawn": 258479,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 60,
+   "K_vs_U_gt8_px": 57,
+   "control_K_px": 61,
+   "U_vs_D_gt8_px": 44,
+   "K_vs_D_gt8_px": 101
+  },
+  "forest_floor_open": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 3143,
+    "cluster_faces_drawn": 169142,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 1787,
+    "cluster_faces_drawn": 169142,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 109,
+   "K_vs_U_gt8_px": 79,
+   "control_K_px": 61,
+   "U_vs_D_gt8_px": 40,
+   "K_vs_D_gt8_px": 88
+  },
+  "east_low": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 5570,
+    "cluster_faces_drawn": 270012,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 3227,
+    "cluster_faces_drawn": 270012,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 93,
+   "K_vs_U_gt8_px": 77,
+   "control_K_px": 44,
+   "U_vs_D_gt8_px": 0,
+   "K_vs_D_gt8_px": 77
+  },
+  "canopy_close": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 2074,
+    "cluster_faces_drawn": 99157,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 1794,
+    "cluster_faces_drawn": 99157,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 60,
+   "K_vs_U_gt8_px": 46,
+   "control_K_px": 108,
+   "U_vs_D_gt8_px": 48,
+   "K_vs_D_gt8_px": 52
+  }
+ },
+ "axis": {
+  "build": {
+   "faces": 480349,
+   "build_wall_ms": 1976.7719999999995
+  },
+  "overview_south": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 6182,
+    "cluster_faces_drawn": 287460,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 4094,
+    "cluster_faces_drawn": 287460,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 53,
+   "K_vs_U_gt8_px": 44,
+   "control_K_px": 53,
+   "U_vs_D_gt8_px": 84,
+   "K_vs_D_gt8_px": 60
+  },
+  "top_down": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 5143,
+    "cluster_faces_drawn": 258479,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 3723,
+    "cluster_faces_drawn": 258479,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 111,
+   "K_vs_U_gt8_px": 98,
+   "control_K_px": 102,
+   "U_vs_D_gt8_px": 33,
+   "K_vs_D_gt8_px": 88
+  },
+  "forest_floor_open": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 3143,
+    "cluster_faces_drawn": 169142,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 2058,
+    "cluster_faces_drawn": 169142,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 0,
+   "K_vs_U_gt8_px": 0,
+   "control_K_px": 104,
+   "U_vs_D_gt8_px": 88,
+   "K_vs_D_gt8_px": 88
+  },
+  "east_low": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 5570,
+    "cluster_faces_drawn": 270012,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 3450,
+    "cluster_faces_drawn": 270012,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 99,
+   "K_vs_U_gt8_px": 85,
+   "control_K_px": 49,
+   "U_vs_D_gt8_px": 0,
+   "K_vs_D_gt8_px": 85
+  },
+  "canopy_close": {
+   "U": {
+    "clusters": 10889,
+    "clusters_drawn": 2074,
+    "cluster_faces_drawn": 99157,
+    "mdi_compact": false
+   },
+   "compact_reply": {
+    "draw_indirect_count": true,
+    "mdi_compact": true
+   },
+   "K": {
+    "clusters": 10889,
+    "clusters_drawn": 1564,
+    "cluster_faces_drawn": 99157,
+    "mdi_compact": true
+   },
+   "K_vs_U_px": 107,
+   "K_vs_U_gt8_px": 84,
+   "control_K_px": 49,
+   "U_vs_D_gt8_px": 54,
+   "K_vs_D_gt8_px": 93
+  }
+ }
+}

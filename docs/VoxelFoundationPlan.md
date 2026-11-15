@@ -373,7 +373,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
 | 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look done (F2.14f: own pipeline shaded as cards, luma 74.7 → 106.2 vs the cards' 107.9, mass error halved; +0.14/+0.16 ms at the ground; handoff still off); two pyramids built (F2.14g: no hidden tops, holes at P=32 gone, but farther from level 0 at P=8 — off; found: canopy-interior faces cut sprig overdraw 2-3.7 ms); leaf-fill knob built (F2.14h: no fill closes the canopy gap — it is sub-voxel shading; off; its whole-frame A/B owed, voided by a shared GPU) |
-| 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | main view done (F2.15: direction groups per 4-block cluster in the cull pass, 0 px, −0.30..−0.45 ms at 4 of 5 poses, neutral at the fifth; default on); shadow casters by light direction built (F2.15b: −0.85..−1.4 ms but leaks at leaf-adjacent trunk faces; closed casters fix it at +1-2 ms — off; F2.15d: two cheaper closures measured, neither closes the leaks chunk-exactly, reach 24 only −0.1..−0.5 ms — off, closed for now); a lower command count owed |
+| 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | main view done (F2.15: direction groups per 4-block cluster in the cull pass, 0 px, −0.30..−0.45 ms at 4 of 5 poses, neutral at the fifth; default on); shadow casters by light direction built (F2.15b: −0.85..−1.4 ms but leaks at leaf-adjacent trunk faces; closed casters fix it at +1-2 ms — off; F2.15d: two cheaper closures measured, neither closes the leaks chunk-exactly, reach 24 only −0.1..−0.5 ms — off, closed for now); lower command count done (F2.15f: ordered compacted + merged commands via indirect count, −0.07..−0.23 ms at 4 of 5 poses, neutral at the fifth; default on) — DONE |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
 
@@ -1185,6 +1185,37 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
 - Default: OFF. `caster_exit_reach` 0, `caster_seam_depth` 0 (not built); `shadow_dir_cull` off. R = 24 would need a
   ~32-voxel generation margin (~+38 % generation per chunk) for at most 0.5 ms and still leaks. Shadow light-direction
   culling is closed for now: the main mesh is not a closed surface under leaves, and no cheap local rule closes it.
+
+**F2.15f 2026-11-15 — §4.6 item 8's last part: a lower command count (compacted, merged commands; default ON).**
+- Built: the main-view cull pass (`voxfound_cull.comp`) can APPEND only the visible clusters instead of zeroing the
+  culled ones' fixed commands, merging consecutive visible clusters of the same chunk, level and multidraw whose faces
+  are contiguous (`mergeVisibleRuns`, CPU reference), in cluster order: two dispatches over n/64 workgroups (run heads
+  per workgroup, then offsets + write). Drawn with `vkCmdDrawIndexedIndirectCount` (the Vulkan 1.2 `drawIndirectCount`
+  feature is now queried and enabled at device creation; without it the old path runs). The compacted commands, their
+  chunk origins (read through `gl_DrawIDARB`) and the counts live in per-frame-slot buffers; `RenderPipeline` keeps a
+  cache of set-1 descriptor sets keyed by (table, origins, offset) so they are never rewritten per frame. Within a cell
+  the direction groups are now ordered −x, −y, −z, +x, +y, +z (`faceDirRank`): 4 of the 8 camera octants become one
+  contiguous window (`{"dir_order":"axis"}` at build keeps the old order). `{"mdi_compact":bool}` at runtime, default ON.
+- Red first: GPU `CompactedCommandsDrawTheSameFacesAsPerClusterCommands` (5,000 random clusters, 6 chunks, 3 levels,
+  solid/leaf split, broken face ranges: the compacted commands = the CPU reference in order, the (face, origin) pairs =
+  the per-cluster path's, and the per-cluster commands survive a compacted pass), red on a stub, then red again for
+  each correction below; CPU `OctantOrderAndMergeRule`. CPU 57/57, GPU 19/19.
+- Measured (`voxfound_f215f_*`; prediction `voxfound_f215f_prediction.txt`), corrected three times by measurement:
+  - The first version appended into the per-cluster command buffer, so the uncompacted path drew garbage afterwards
+    (`voxfound_f215f_shared_buffer_bug_D_vs_U.png`): own buffer now, pinned by the GPU test.
+  - Atomic append (any order): +1.04* / +0.73* ms at east_low / canopy_close, in the faces pass itself (scrambled draw
+    order) → ordered compaction. In ONE workgroup the cull cost 0.36 ms → two dispatches, +0.015 ms.
+  - Merge block 32: +3.26* ms at forest_floor_open (reproduced: +3.42), all of it in the leaf-card pass right after
+    the faces, while −0.83* at canopy_close; cause not found. Block 1 / 8 / 16 at those two poses: −0.10* / +0.02,
+    −0.22* / −0.08*, −0.25* / 0.00 → block 8 (`ClusterCullGpu::kMergeBlock`).
+  - Final, whole frame compacted − per-cluster (8 pairs × 5 poses): overview −0.23*, top_down −0.15*,
+    forest_floor_open −0.15*, east_low 0.00, canopy_close −0.07* ms; none worse. Commands that draw 2,471 / 2,521 /
+    1,787 / 3,227 / 1,794 (per-cluster: 6,182 / 5,143 / 3,143 / 5,570 / 2,074 of 10,889 walked). Predicted ≤ 2,385
+    at every pose (2 of 5) and −0.4..−0.8 ms at forest_floor_open: both wrong. Pixels vs per-cluster 37–79 px > 8
+    levels, the size of each mode's own repeat (44–108 px); faces drawn identical.
+- Default ON. Item 8 closes here: main-view direction culling with a lower command count; shadow light-direction
+  culling stays off (F2.15d). Open, recorded: why merged draws of 32 clusters cost the following leaf-card pass 5 ms at
+  one pose.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

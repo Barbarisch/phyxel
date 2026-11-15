@@ -555,7 +555,21 @@ bool VulkanDevice::createLogicalDevice() {
                 shaderDrawParametersAvailable_ = sdp.shaderDrawParameters == VK_TRUE;
             }
         }
-        drawIndirectCountAvailable_ = effective >= VK_API_VERSION_1_2;
+        // docs/VoxelFoundationPlan.md F2.15f: like shaderDrawParameters, drawIndirectCount is a 1.2 FEATURE that must be
+        // reported and enabled (VkPhysicalDeviceVulkan12Features), not implied by the version
+        drawIndirectCountAvailable_ = false;
+        if (effective >= VK_API_VERSION_1_2) {
+            VkPhysicalDeviceVulkan12Features v12{};
+            v12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+            VkPhysicalDeviceFeatures2 f2{};
+            f2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            f2.pNext = &v12;
+            if (auto fn = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2>(
+                    vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2"))) {
+                fn(physicalDevice, &f2);
+                drawIndirectCountAvailable_ = v12.drawIndirectCount == VK_TRUE;
+            }
+        }
         LOG_INFO("Vulkan", std::string("C2 capability set: multiDrawIndirect=") +
                  (multiDrawIndirectSupported_ ? "yes" : "NO") +
                  " drawIndirectFirstInstance=" + (drawIndirectFirstInstanceSupported_ ? "yes" : "NO") +
@@ -571,9 +585,19 @@ bool VulkanDevice::createLogicalDevice() {
     enableSdp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
     enableSdp.shaderDrawParameters = shaderDrawParametersAvailable_ ? VK_TRUE : VK_FALSE;
 
+    // F2.15f: enable drawIndirectCount (VkPhysicalDeviceVulkan12Features may sit beside the 1.1-promoted
+    // VkPhysicalDeviceShaderDrawParametersFeatures; only VkPhysicalDeviceVulkan11Features would conflict with it)
+    VkPhysicalDeviceVulkan12Features enable12{};
+    enable12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    enable12.drawIndirectCount = VK_TRUE;
+
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     if (shaderDrawParametersAvailable_) createInfo.pNext = &enableSdp;
+    if (drawIndirectCountAvailable_) {
+        enable12.pNext = const_cast<void*>(createInfo.pNext);
+        createInfo.pNext = &enable12;
+    }
 
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
@@ -612,6 +636,11 @@ bool VulkanDevice::createLogicalDevice() {
     }
 
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+    if (drawIndirectCountAvailable_) {   // F2.15f
+        pfnCmdDrawIndexedIndirectCount_ = reinterpret_cast<PFN_vkCmdDrawIndexedIndirectCount>(
+            vkGetDeviceProcAddr(device, "vkCmdDrawIndexedIndirectCount"));
+        drawIndirectCountAvailable_ = pfnCmdDrawIndexedIndirectCount_ != nullptr;
+    }
     if (checkpointsEnabled_) {
         pfnCmdSetCheckpoint_ = reinterpret_cast<PFN_vkCmdSetCheckpointNV>(
             vkGetDeviceProcAddr(device, "vkCmdSetCheckpointNV"));

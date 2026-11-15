@@ -16,7 +16,7 @@
 
 namespace Phyxel::Core::VoxFound {
 
-/// The draw instance IS the 8 B face record (Â§4.6, F2.5): voxfound_face.vert reads PackedFace as-is and looks its
+/// The draw instance IS the 8 B face record (§4.6, F2.5): voxfound_face.vert reads PackedFace as-is and looks its
 /// texture word up on the device: faceTex[material * 6 + faceID] = texture index (bits 0-15) | flags (16-31),
 /// where material = the area's palette index (PackedFace b bits 16-23) and faceID 0 +Z 1 -Z 2 +X 3 -X 4 +Y 5 -Y.
 /// The table always has all 256 palette slots (kFaceTexWords), so no 8-bit material can read past its end.
@@ -73,7 +73,7 @@ struct Preview {
     bool lodCasters = false;         // F2.14: with lodOn, the face casters draw the levels too (per caster fragment)
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves
 
-    /// F2.13 (Â§4.6 item 7): the pyramid levels built with a region (index = level; level k voxels are 2^k / 8 m,
+    /// F2.13 (§4.6 item 7): the pyramid levels built with a region (index = level; level k voxels are 2^k / 8 m,
     /// faces in level-0 units). Per chunk (same order as `chunks`): its face range in that level's `faces`.
     struct Level {
         std::vector<PackedFace> faces;
@@ -83,12 +83,17 @@ struct Preview {
         std::vector<PreviewCluster> clustersDir;   // F2.15: the same faces cut into direction groups
     };
     std::vector<Level> levels;
-    /// F2.15 (Â§4.6 item 8): dirClusters = the multidraw uses the per-direction clusters (clustersDir /
+    /// F2.15 (§4.6 item 8): dirClusters = the multidraw uses the per-direction clusters (clustersDir /
     /// lodClustersDir); dirCull = the cull pass drops direction groups that cannot face the camera. Default ON
     /// (measured: 0 px; -0.30..-0.45 ms whole frame at 4 of 5 poses, neutral at the fifth; VoxelFoundationPlan F2.15).
     std::vector<PreviewCluster> clustersDir, lodClustersDir;
     bool dirClusters = true;
     bool dirCull = true;
+    /// F2.15f (§4.6 item 8's last part): the cull pass appends only the visible clusters, merging contiguous ones of
+    /// one chunk and level, and the multidraw takes its count from the device (vkCmdDrawIndexedIndirectCount). Default
+    /// ON (measured: -0.07..-0.23 ms whole frame at 4 of 5 poses, neutral at the fifth; VoxelFoundationPlan F2.15f);
+    /// without the device's drawIndirectCount feature the per-cluster commands are drawn as before.
+    bool mdiCompact = true;
     /// F2.15b: the per-cluster shadow multidraw (shadow_mdi) uses the per-direction clusters and drops the groups that
     /// face away from the light. OFF: with the main faces it saves 0.85-1.4 ms but leaks light where a trunk face is
     /// hidden by a leaf voxel; with the closed casters it leaks nothing but costs +0.95..+1.94 ms (VoxelFoundationPlan).
@@ -140,7 +145,7 @@ struct Preview {
         return true;
     }
 
-    /// F2.14 (Â§3.5a point 3): the level chosen by size on screen (Mesher.h lodPickLevel / lodKeeps, per FRAGMENT).
+    /// F2.14 (§3.5a point 3): the level chosen by size on screen (Mesher.h lodPickLevel / lodKeeps, per FRAGMENT).
     /// selectLod() puts EVERY built level in `faces`, level 0 first, so `chunks` and `clusters` keep naming level 0
     /// (what the shadow passes and occlusion read); lodFirst/lodCount[level][chunk] are each level's chunk ranges and
     /// lodClusters every level's clusters, tagged with their level. lodOn = the main view picks levels by size on

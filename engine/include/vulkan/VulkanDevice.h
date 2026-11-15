@@ -802,7 +802,8 @@ private:
     bool multiDrawIndirectSupported_ = false;
     bool drawIndirectFirstInstanceSupported_ = false;
     bool shaderDrawParametersAvailable_ = false;   ///< gl_DrawID (Vulkan 1.1 core)
-    bool drawIndirectCountAvailable_ = false;      ///< vkCmdDrawIndexedIndirectCount (1.2 core)
+    bool drawIndirectCountAvailable_ = false;      ///< vkCmdDrawIndexedIndirectCount (1.2 feature, enabled)
+    PFN_vkCmdDrawIndexedIndirectCount pfnCmdDrawIndexedIndirectCount_ = nullptr;
 
 public:
     /// C2 prerequisites. The plan assumed "portable Vulkan 1.2"; the instance was pinned to
@@ -815,6 +816,12 @@ public:
     bool supportsDrawIndirectFirstInstance() const { return drawIndirectFirstInstanceSupported_; }
     bool supportsShaderDrawParameters() const { return shaderDrawParametersAvailable_; }
     bool supportsDrawIndirectCount() const { return drawIndirectCountAvailable_; }
+    /// F2.15f (docs/VoxelFoundationPlan.md): vkCmdDrawIndexedIndirectCount; a no-op without the feature.
+    void cmdDrawIndexedIndirectCount(VkCommandBuffer cmd, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer,
+                                     VkDeviceSize countOffset, uint32_t maxDrawCount, uint32_t stride) const {
+        if (pfnCmdDrawIndexedIndirectCount_)
+            pfnCmdDrawIndexedIndirectCount_(cmd, buffer, offset, countBuffer, countOffset, maxDrawCount, stride);
+    }
     /// True when every prerequisite for one-multidraw-per-region is present.
     bool supportsGpuDrivenSubmission() const {
         return multiDrawIndirectSupported_ && drawIndirectFirstInstanceSupported_ &&

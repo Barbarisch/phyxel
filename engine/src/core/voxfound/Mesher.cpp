@@ -406,7 +406,7 @@ void faceBox(PackedFace f, glm::ivec3& lo, glm::ivec3& hi) {
     hi[(q.axis + 2) % 3] += q.dv;
 }
 
-std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int clusterBlocks) {
+std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int clusterBlocks, bool octantOrder) {
     const int cellV = std::max(1, clusterBlocks) * 8;
     auto cellKey = [&](PackedFace f) {
         const glm::ivec3 c = unpackFace(f).o / cellV;   // chunk-local, non-negative
@@ -415,7 +415,9 @@ std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int cluste
     // F2.15: (cell, direction), so a cell's direction groups are contiguous sub-ranges (splitByDirection)
     std::stable_sort(faces.begin(), faces.end(), [&](PackedFace a, PackedFace b) {
         const uint32_t ka = cellKey(a), kb = cellKey(b);
-        return ka != kb ? ka < kb : faceDirIndex(a) < faceDirIndex(b);
+        if (ka != kb) return ka < kb;
+        const int da = faceDirIndex(a), db = faceDirIndex(b);
+        return octantOrder ? faceDirRank(da) < faceDirRank(db) : da < db;   // F2.15f
     });
     std::vector<FaceCluster> out;
     for (size_t i = 0; i < faces.size();) {
@@ -472,6 +474,24 @@ bool faceDirFacesLight(int dirIndex, glm::vec3 toLight) {
     if (dirIndex >= kAwayGroup) return !faceDirFacesLight(dirIndex - kAwayGroup, toLight);   // F2.15d-2
     const float n = (dirIndex & 1) ? toLight[dirIndex / 2] : -toLight[dirIndex / 2];   // dot(normal, toLight)
     return n > -1e-4f;
+}
+
+std::vector<DrawRun> mergeVisibleRuns(const std::vector<uint32_t>& first, const std::vector<uint32_t>& count,
+                                      const std::vector<uint32_t>& key, const std::vector<uint8_t>& visible,
+                                      uint32_t solid, uint32_t block) {
+    std::vector<DrawRun> out;
+    const size_t n = std::min({first.size(), count.size(), key.size(), visible.size()});
+    block = std::max(1u, block);
+    for (size_t i = 0; i < n; ++i) {
+        if (!visible[i]) continue;
+        const bool joins = i > 0 && i % block != 0 && visible[i - 1] && key[i - 1] == key[i] &&
+                           ((i - 1) < solid) == (i < solid) && first[i - 1] + count[i - 1] == first[i];
+        if (joins && !out.empty())
+            out.back().count += count[i];
+        else
+            out.push_back({first[i], count[i], uint32_t(i)});
+    }
+    return out;
 }
 
 bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi) {

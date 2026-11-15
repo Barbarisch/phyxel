@@ -2637,6 +2637,7 @@ void RenderCoordinator::releaseVoxFoundCull() {
 
 void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
     m_voxFoundCullRecorded = false;
+    m_voxFoundCompactRecorded = false;
     if (!m_voxFoundMdi || m_voxFoundCullFailed || !m_voxFoundPreview || !m_voxFoundPreview->shown ||
         m_voxFoundPreview->clusters.empty() || !vulkanDevice || !camera || !renderPipeline)
         return;
@@ -2674,13 +2675,21 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
     const auto& srcClusters = m_voxFoundCullOrder;
     if (m_voxFoundCullRevision != pv.revision) {
         std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(srcClusters.size());
+        // F2.15f: the compaction table -- each cluster's origin word (the same as the per-command tables below)
+        Core::VoxFound::ClusterCullGpu::Compact compact;
+        compact.origins.resize(cl.size());
+        compact.solid = m_voxFoundMdiSolid;
         for (size_t i = 0; i < cl.size(); ++i) {
             const auto& c = srcClusters[i];
             cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk, c.level, c.dir};
+            compact.origins[i] = glm::ivec4(glm::ivec3(glm::round(pv.chunks[c.chunk].originMetres)),
+                                            int(Core::VoxFound::lodFlagBits(int(c.level), pv.lodMaxLevel, 0) &
+                                                ~(1u << 23)));
         }
         std::string err;
         if (!m_voxFoundCull->upload(cl, vulkanDevice->chunkIndexCount(), uint32_t(pv.chunks.size()),
-                                    vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(), &err)) {
+                                    vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(), &err,
+                                    &compact)) {
             LOG_ERROR("RenderCoordinator", "voxfound MDI upload: " + err);
             m_voxFoundCullFailed = true;
             return;
@@ -2742,7 +2751,10 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
         lod.maxLevel = pv.lodMaxLevel;
     }
     const bool dirCull = pv.dirClusters && pv.dirCull;   // F2.15
-    m_voxFoundCull->record(cmd, uint32_t(currentFrame), planes, lodOn ? &lod : nullptr, dirCull ? &camRel : nullptr);
+    // F2.15f: append + merge the visible clusters, drawn with an indirect count
+    m_voxFoundCompactRecorded = pv.mdiCompact && m_voxFoundCull->canCompact() && vulkanDevice->supportsDrawIndirectCount();
+    m_voxFoundCull->record(cmd, uint32_t(currentFrame), planes, lodOn ? &lod : nullptr, dirCull ? &camRel : nullptr,
+                           false, m_voxFoundCompactRecorded);
     m_voxFoundCullRecorded = true;
 }
 
@@ -2752,6 +2764,31 @@ std::array<uint32_t, 3> RenderCoordinator::voxFoundCullStats() {
     // the commands are device-local: copy the last-submitted frame's slot back (debug route, waits for the queue)
     const uint32_t slot = uint32_t((currentFrame + 1) % Vulkan::VulkanDevice::maxFramesInFlight());
     std::vector<uint32_t> cmdv;
+    if (m_voxFoundCompactRecorded) {   // F2.15f: the appended commands [0, n0) and [solid, solid + n1)
+        std::vector<glm::ivec4> orig;
+        uint32_t n[2] = {0, 0};
+        if (!m_voxFoundCull->readCompact(vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(), slot,
+                                         cmdv, orig, n, nullptr))
+            return s;
+        s[0] = m_voxFoundCull->clusterCount();
+        // per level: a command's level is its head cluster's (runs never cross a level)
+        std::unordered_map<uint32_t, uint32_t> levelOfFirst;
+        const bool lodTable = m_voxFoundPreview && !m_voxFoundPreview->lodClusters.empty();
+        if (lodTable)
+            for (const auto& c : m_voxFoundCullOrder) levelOfFirst[c.firstFace] = c.level;
+        m_voxFoundFacesByLevel.assign(size_t(lodTable ? m_voxFoundPreview->lodMaxLevel + 1 : 1), 0u);
+        const uint32_t solid = m_voxFoundCull->solidCount();
+        for (int pass = 0; pass < 2; ++pass)
+            for (uint32_t k = 0; k < n[pass]; ++k) {
+                const uint32_t* c = cmdv.data() + size_t(pass ? solid + k : k) * 5;
+                ++s[1];
+                s[2] += c[1];
+                const auto it = levelOfFirst.find(c[4]);
+                const size_t lv = it == levelOfFirst.end() ? 0 : std::min<size_t>(it->second, m_voxFoundFacesByLevel.size() - 1);
+                m_voxFoundFacesByLevel[lv] += c[1];
+            }
+        return s;
+    }
     if (!m_voxFoundCull->readCommands(vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(), slot,
                                       cmdv, nullptr) || cmdv.empty())
         return s;
@@ -3049,6 +3086,25 @@ void RenderCoordinator::renderVoxFoundPreview() {
         vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam), lodBits,
                                     glm::vec3(camInt));
         const uint32_t nAll = m_voxFoundCull->clusterCount(), nSolid = std::min(m_voxFoundMdiSolid, nAll);
+        const uint32_t slot = uint32_t(currentFrame);
+        if (m_voxFoundCompactRecorded) {   // F2.15f: the appended commands, their origins from the cull pass
+            renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer, m_voxFoundCull->drawOrigins(slot));
+            if (nSolid)
+                vulkanDevice->cmdDrawIndexedIndirectCount(cmd, m_voxFoundCull->compactCommands(slot), 0,
+                                                          m_voxFoundCull->counts(slot), 0, nSolid, 20);
+            if (nAll > nSolid && renderPipeline->ensureVoxFoundLeafPipelines("shaders/voxfound_leafmass.frag.spv")) {
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundLeafMdiPipeline());
+                renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer, m_voxFoundCull->drawOrigins(slot), true,
+                                                    VkDeviceSize(m_voxFoundCull->leafOriginBase()) * 16);
+                vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam),
+                                            lodBits, glm::vec3(camInt));
+                vulkanDevice->cmdDrawIndexedIndirectCount(cmd, m_voxFoundCull->compactCommands(slot),
+                                                          VkDeviceSize(nSolid) * 20,
+                                                          m_voxFoundCull->counts(slot), 4, nAll - nSolid, 20);
+            }
+            m_voxFoundDrawn = 0;
+            return;
+        }
         if (nSolid) vkCmdDrawIndexedIndirect(cmd, m_voxFoundCull->commands(uint32_t(currentFrame)), 0, nSolid, 20);
         // F2.14f: the leaf mass, its own pipeline (voxfound_leafmass.frag) and origin table
         if (nAll > nSolid && m_voxFoundOriginLeafBuffer != VK_NULL_HANDLE &&

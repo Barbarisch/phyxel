@@ -479,7 +479,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (canopy interiors have no cards); exit faces ({"caster_exit_reach"}, AWAY groups dir 6-11) exact only unbounded
       (= all main faces), chunk-exact only R<=7 (8-voxel area margin) where it still leaks 127 px; R=24 -0.1..-0.5 ms.
       Shadow light culling closed for now.
-      NEXT (the plan's F2 list): item 8's rest (fewer commands for main-view direction culling), then item 9 (incremental
+      F2.15f (2026-11-15): item 8 DONE -- {"mdi_compact"} default ON: the cull pass appends only visible clusters,
+      merged (same chunk/level, contiguous faces, blocks of 8), IN CLUSTER ORDER (two dispatches), drawn with
+      vkCmdDrawIndexedIndirectCount (drawIndirectCount now enabled at device creation). -0.07..-0.23 ms at 4/5 poses.
+      TRAPS found: an atomic append scrambles draw order (+1 ms overdraw); merge block 32 costs the NEXT pass
+      (leaf cards) +5 ms at forest_floor_open (unexplained); compacted commands need their own buffer.
+      NEXT (the plan's F2 list): item 9 (incremental
       rebuild), 10 (face pool), T-junctions.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.

@@ -1087,6 +1087,59 @@ TEST(VoxFoundMesher, LeafMassFillThresholdsTheLeafPyramid) {
     EXPECT_EQ(int(lodLeafMass(sl, 0.125, 7).mat[0]), sl.surfMat[0] ? int(sl.surfMat[0]) : 7);
 }
 
+// F2.15f (section 4.6 item 8's last part): the octant order puts the three directions a camera outside a cell can see
+// next to each other for 4 of the 8 octants (runs per cell 1.75 on average vs 2.5 in the axis order), and the merge
+// rule (mergeVisibleRuns) joins exactly the contiguous visible groups of one key and multidraw within a block.
+TEST(VoxFoundMesher, OctantOrderAndMergeRule) {
+    int oneRun = 0, runsOctant = 0, runsAxis = 0;
+    for (int oct = 0; oct < 8; ++oct) {
+        bool seenO[6] = {}, seenA[6] = {};
+        for (int axis = 0; axis < 3; ++axis) {
+            const int dir = axis * 2 + ((oct >> axis) & 1);
+            seenO[faceDirRank(dir)] = true;
+            seenA[dir] = true;
+        }
+        int ro = 0, ra = 0;
+        for (int k = 0; k < 6; ++k) {
+            ro += seenO[k] && (k == 0 || !seenO[k - 1]);
+            ra += seenA[k] && (k == 0 || !seenA[k - 1]);
+        }
+        oneRun += ro == 1;
+        runsOctant += ro;
+        runsAxis += ra;
+    }
+    EXPECT_EQ(oneRun, 4);
+    EXPECT_EQ(runsOctant, 14);   // 1.75 per cell
+    EXPECT_EQ(runsAxis, 20);     // 2.5 per cell
+    // a cell clustered in the octant order: its direction groups come -x, -y, -z, +x, +y, +z
+    std::vector<PackedFace> faces;
+    for (int axis = 0; axis < 3; ++axis)
+        for (int d = 0; d < 2; ++d) {
+            Quad q{};
+            q.o = glm::ivec3(1 + axis, 2, 3);
+            q.axis = uint8_t(axis);
+            q.dir = int8_t(d ? 1 : -1);
+            q.du = q.dv = 1;
+            q.material = 1;
+            faces.push_back(packFace(q));
+        }
+    std::vector<PackedFace> f2 = faces;
+    const std::vector<FaceCluster> groups = splitByDirection(f2, clusterFaces(f2, 4, true));
+    ASSERT_EQ(groups.size(), 6u);
+    for (int k = 0; k < 6; ++k) EXPECT_EQ(faceDirRank(groups[size_t(k)].dir), k);
+    // the merge rule on a hand case: [0,1] join; 2 is culled; 3 starts a new key; 4 has a face gap; 5 crosses the
+    // multidraw split (solid = 5); 6, 7 join; 8 is a block boundary (block 8)
+    const std::vector<uint32_t> first = {0, 5, 9, 12, 21, 30, 34, 38, 40}, count = {5, 4, 3, 8, 10, 4, 4, 2, 6};
+    const std::vector<uint32_t> key = {1, 1, 1, 2, 2, 2, 2, 2, 2};
+    const std::vector<uint8_t> vis = {1, 1, 0, 1, 1, 1, 1, 1, 1};
+    const std::vector<DrawRun> runs = mergeVisibleRuns(first, count, key, vis, 5, 8);
+    const std::vector<std::tuple<uint32_t, uint32_t, uint32_t>> want = {
+        {0, 9, 0}, {12, 8, 3}, {21, 10, 4}, {30, 10, 5}, {40, 6, 8}};
+    ASSERT_EQ(runs.size(), want.size());
+    for (size_t i = 0; i < runs.size(); ++i)
+        EXPECT_EQ(std::make_tuple(runs[i].first, runs[i].count, runs[i].cluster), want[i]) << i;
+}
+
 TEST(VoxFoundMesher, DirectionGroupsNeverHideAFaceThatFacesTheCamera) {
     // F2.15 (§4.6 item 8): random content, clusters cut into direction groups; for cameras inside and outside the
     // content, every face that faces the camera is in a group the test keeps, and groups wholly behind are dropped.

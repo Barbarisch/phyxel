@@ -641,7 +641,9 @@ public:
     void setVoxFoundMdi(bool on) { m_voxFoundMdi = on; }
     bool voxFoundMdi() const { return m_voxFoundMdi; }
     /// F2.11: clusters and the faces their commands drew, read back from the most recently completed frame slot.
-    std::array<uint32_t, 3> voxFoundCullStats();   // {clusters, clusters drawn, faces drawn}; waits for the queue
+    /// {clusters, commands that draw, faces drawn}; waits for the queue. F2.15f: compacted, the commands are the
+    /// appended (merged) ones.
+    std::array<uint32_t, 3> voxFoundCullStats();
     /// F2.14: main-view faces drawn per pyramid level (direct path: last frame; indirect: last voxFoundCullStats()).
     std::vector<uint32_t> voxFoundFacesByLevel() const { return m_voxFoundFacesByLevel; }
     float voxFoundFocalPx() const;   // focal length in pixels of this window (0.5 * height * proj[1][1])
@@ -1551,6 +1553,7 @@ private:
     uint32_t       m_voxFoundMdiSolid = 0;
     VkBuffer       m_voxFoundOriginLeafBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_voxFoundOriginLeafMemory = VK_NULL_HANDLE;
+    bool           m_voxFoundCompactRecorded = false;   // F2.15f: this frame's cull pass appended (compacted)
     bool           m_voxFoundCullRecorded = false;                   // this frame's cull pass was recorded
     void recordVoxFoundCull(VkCommandBuffer cmd);
     void releaseVoxFoundCull();

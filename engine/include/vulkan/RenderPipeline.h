@@ -54,10 +54,13 @@ public:
     // F2.5: the preview draws the 8 B PackedFace with no texture word; its texture comes from a material/face
     // table at set 1 (Preview.h faceTex). Bind set 0 with getGraphicsLayout() as usual (compatible), then this.
     /// F2.11: binding 1 of set 1 = the per-indirect-draw chunk origin table read by voxfound_face_mdi.vert (null = the
-    /// table buffer is bound there as a placeholder; the direct-draw shader never reads it). A changed buffer is
-    /// written after vkDeviceWaitIdle (a frame in flight may still use the set; region rebuilds are rare).
+    /// table buffer is bound there as a placeholder; the direct-draw shader never reads it).
+    /// F2.15f: the sets come from a small cache keyed by (table, origins, originsOffset), so the per-frame-slot origin
+    /// tables of the compacted multidraw each keep their own set; a set is rewritten (after vkDeviceWaitIdle, as a
+    /// frame in flight may still use it) only on a miss, i.e. after a region rebuild. `leafSet` is kept for callers
+    /// and no longer matters (the leaf mass's origins are a different key).
     void bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins = VK_NULL_HANDLE,
-                             bool leafSet = false);
+                             bool leafSet = false, VkDeviceSize originsOffset = 0);
     /// F2.11: the same pipeline state with shaders/voxfound_face_mdi.vert (chunk origin per indirect draw).
     bool ensureVoxFoundMdiPipeline(const std::string& vertSpvPath);
     VkPipeline getVoxFoundMdiPipeline() const { return voxFoundMdiPipeline; }
@@ -184,13 +187,17 @@ private:
     VkDescriptorSetLayout voxFoundSetLayout = VK_NULL_HANDLE;   // set 1: face texture table
     VkPipelineLayout voxFoundLayout = VK_NULL_HANDLE;           // set 0 (shared) + set 1, static push range
     VkDescriptorPool voxFoundPool = VK_NULL_HANDLE;
-    VkDescriptorSet voxFoundSet = VK_NULL_HANDLE;
-    VkBuffer voxFoundSetBuffer = VK_NULL_HANDLE;                // the buffer voxFoundSet was last written with
-    VkBuffer voxFoundSetOrigins = VK_NULL_HANDLE;               // F2.11: what binding 1 was last written with
+    struct VoxFoundSet {                                        // F2.15f: the set-1 cache (see bindVoxFoundFaceTex)
+        VkDescriptorSet set = VK_NULL_HANDLE;
+        VkBuffer table = VK_NULL_HANDLE, origins = VK_NULL_HANDLE;
+        VkDeviceSize offset = 0;
+        uint64_t used = 0;
+    };
+    static constexpr uint32_t kVoxFoundSets = 16;
+    VoxFoundSet voxFoundSets[kVoxFoundSets];
+    uint64_t voxFoundSetTick = 0;
     VkShaderModule voxFoundMdiVertModule = VK_NULL_HANDLE;      // F2.11
     VkPipeline voxFoundMdiPipeline = VK_NULL_HANDLE;
-    VkDescriptorSet voxFoundSetLeaf = VK_NULL_HANDLE;           // F2.14f: set 1 for the leaf-mass multidraw
-    VkBuffer voxFoundSetLeafBuffer = VK_NULL_HANDLE, voxFoundSetLeafOrigins = VK_NULL_HANDLE;
     VkShaderModule voxFoundLeafFragModule = VK_NULL_HANDLE;     // F2.14f
     VkPipeline voxFoundLeafPipeline = VK_NULL_HANDLE, voxFoundLeafMdiPipeline = VK_NULL_HANDLE;
     void createDepthPrepassPipelines();   // best effort: leaves them null (feature unavailable) on failure

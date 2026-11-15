@@ -13454,6 +13454,13 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // and the cull pass drops direction groups that cannot face the camera (both ON by default, F2.15)
         // {"shadow_dir_cull":bool}: F2.15b -- the shadow multidraw (shadow_mdi) drops direction groups facing away from
         // the light
+        // {"mdi_compact":bool}: F2.15f -- the cull pass appends + merges the visible clusters (indirect count)
+        if (cmd.params.contains("mdi_compact") && !cmd.params.contains("type") && !cmd.params.contains("region")) {
+            voxFoundPreview.mdiCompact = cmd.params.value("mdi_compact", false);
+            response = {{"mdi_compact", voxFoundPreview.mdiCompact},
+                        {"draw_indirect_count", vulkanDevice && vulkanDevice->supportsDrawIndirectCount()}};
+            return;
+        }
         if ((cmd.params.contains("dir_clusters") || cmd.params.contains("dir_cull") ||
              cmd.params.contains("shadow_dir_cull") || cmd.params.contains("shadow_closed") ||
              cmd.params.contains("shadow_seam")) &&
@@ -13517,6 +13524,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"mdi", renderCoordinator->voxFoundMdi()},
                         {"clusters", renderCoordinator->voxFoundCullStats()[0]},
                         {"clusters_drawn", renderCoordinator->voxFoundCullStats()[1]},
+                        {"mdi_compact", voxFoundPreview.mdiCompact},   // F2.15f: clusters_drawn = appended commands
                         {"cluster_faces_drawn", renderCoordinator->voxFoundCullStats()[2]},
                         {"faces_by_level", renderCoordinator->voxFoundFacesByLevel()},   // F2.14, last measured
                         {"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel},
@@ -13783,6 +13791,9 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // F2.11 measured (VoxelFoundationPlan.md): 1-block clusters (26k indirect commands) cost +0.2-1.0 ms whole frame,
     // 2 blocks +0.0-0.26, 4 blocks neutral -> 4 is the default; 1 stays available to measure.
     const int clusterBlocks = std::clamp(cmd.params.value("cluster_blocks", 4), 1, 32);
+    // F2.15f: {"dir_order":"axis"} keeps the F2.15 direction order within a cell (-x, +x, -y, ...); default "octant"
+    // (-x, -y, -z, +x, +y, +z), which the compacting cull pass merges into fewer commands
+    const bool dirOctant = cmd.params.value("dir_order", std::string("octant")) != "axis";
     // F2.13 (§3.5a point 3, §4.6 item 7): {"lod_levels":n} also builds pyramid levels 1..n of every chunk (1 = 1/4 m,
     // 2 = 1/2, 3 = 1 m; the 1 m margin of each chunk's area gives a coarse level its real neighbours, so 3 is the
     // deepest here) and keeps them all; {"lod_draw":k} (handleVoxFoundPreview) swaps level k in for the whole region
@@ -13858,7 +13869,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         for (int part = 0; part < 2; ++part) {
             std::vector<PackedFace>& fs = part ? leafFaces : solidFaces;   // clusterFaces reorders in place
             const uint32_t partFirst = first + (part ? uint32_t(solidFaces.size()) : 0u);
-            const std::vector<FaceCluster> cells = clusterFaces(fs, clusterBlocks);
+            const std::vector<FaceCluster> cells = clusterFaces(fs, clusterBlocks, dirOctant);
             // F2.15: the same faces cut into direction groups (contiguous within each cell)
             const std::vector<FaceCluster> groups = splitByDirection(fs, cells);
             for (int d = 0; d < 2; ++d)
@@ -14013,7 +14024,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
             if (!voxFoundBuilder->build(cg, Edges(cb), cf, &err, nullptr)) return;
             gpuMs += voxFoundBuilder->lastGpuMs();
             const uint32_t base = uint32_t(casterFaces.size());
-            const std::vector<FaceCluster> cells = clusterFaces(cf, clusterBlocks);
+            const std::vector<FaceCluster> cells = clusterFaces(cf, clusterBlocks, dirOctant);
             for (const FaceCluster& c : splitByDirection(cf, cells)) {
                 PreviewCluster pcl;
                 const glm::vec3 b = glm::vec3((rc.chunk - lo) * kChunkM);
@@ -14045,7 +14056,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                     return;
                 gpuMs += voxFoundBuilder->lastGpuMs();
                 const uint32_t base = uint32_t(seamFaces.size());
-                const std::vector<FaceCluster> cells = clusterFaces(sf, clusterBlocks);
+                const std::vector<FaceCluster> cells = clusterFaces(sf, clusterBlocks, dirOctant);
                 for (const FaceCluster& c : splitByDirection(sf, cells)) {
                     PreviewCluster pcl;
                     const glm::vec3 b = glm::vec3((rc.chunk - lo) * kChunkM);

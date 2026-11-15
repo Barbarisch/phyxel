@@ -1,0 +1,62 @@
+F2.15f prediction (written 2026-11-15, before any code) -- §4.6 item 8's last part: a lower command count for the
+main view's direction culling.
+
+Today (F2.15): every cluster (one cell's direction group) owns a fixed indirect command; the cull pass writes
+instanceCount 0 for a culled one, and ONE vkCmdDrawIndexedIndirect walks all of them: 10,889 commands on the gate
+region vs 2,385 per cell. The extra commands alone cost +0.09 / +0.07 / +0.68 / +0.10 / +0.26 ms (overview, top_down,
+forest_floor_open, east_low, canopy_close), which eats the whole direction-culling gain at forest_floor_open.
+
+Change:
+1. Compaction: the cull pass appends only the visible clusters (atomic counter per multidraw: solid, leaf mass) and
+   the draw becomes vkCmdDrawIndexedIndirectCount (Vulkan 1.2 core; the drawIndirectCount feature gets enabled at
+   device creation). Each command's chunk origin (read through gl_DrawIDARB) is written next to it into a per-frame-slot
+   origin table; RenderPipeline keeps a small cache of set-1 descriptor sets keyed by (table, origins) so the per-slot
+   tables are not rebound per frame (a rebind waits for the device).
+2. Run merging: consecutive visible clusters of the same chunk, level and multidraw whose faces are contiguous in the
+   face buffer become ONE command (a thread is a run head unless its predecessor is visible and mergeable; heads scan
+   forward at most to the next multiple of 32 clusters, so the work per thread is bounded).
+3. Direction order within a cell: -x, -y, -z, +x, +y, +z (was -x, +x, -y, +y, -z, +z). A camera outside a cell's box
+   sees one side per axis; in the old order those groups are never adjacent (runs per cell 3 - 2/4 = 2.5 expected over
+   the 8 octants), in the new one 4 of the 8 octants are a single window (expected 1.75). The face order changes, the
+   face set does not. Build knob {"dir_order":"axis"} keeps the old order for the count comparison.
+Knob: {"mdi_compact":bool} at runtime, the A/B switch.
+
+Red test first: GPU, random clusters (chunks, levels, solid/leaf split, contiguous and broken face ranges), random
+frusta and cameras: the multiset of (face index, origin) the compacted commands draw = the one the per-cluster
+commands draw, and the command list = the CPU reference (mergeVisibleRuns) as a set; red on a stub that writes no
+compacted commands.
+
+Predictions on the gate region (LOD off, the 5 f29 poses):
+1. Commands drawn (non-zero) with compaction + merging, octant order: <= 2,385 (today's per-cell count) at every pose,
+   i.e. fewer than direction culling started from; the axis order 1.2-1.6x the octant order.
+2. Pixels: 0 px vs uncompacted at all 5 poses (same faces, same origins).
+3. Whole frame, compacted vs today's default (direction groups + test, uncompacted): forest_floor_open -0.4..-0.8 ms,
+   the other four -0.05..-0.3 ms, none worse.
+4. If 2 and 3 hold: mdi_compact default ON.
+
+---- Measured (2026-11-15; gate region, LOD off; voxfound_f215f_gate_*.json, voxfound_f215f_ab_*):
+Built as planned, then corrected three times by measurement:
+a. The first engine version appended into the per-cluster command buffer: the uncompacted path then drew garbage
+   (black ground, U vs direct 153k px; voxfound_f215f_shared_buffer_bug_D_vs_U.png). Compacted commands now have their
+   own buffer; red-first regression check in the GPU test (the per-cluster commands survive a compacted pass).
+b. Atomic append (any order): whole frame -0.05* / -0.03 / +0.02 / +1.04* / +0.73* ms -- the faces pass itself got
+   slower at the close poses (scrambled draw order). Fixed: ORDERED compaction (GPU test now requires cluster order;
+   red on the atomic shader).
+c. Ordered in ONE workgroup: the cull pass cost 0.36 ms (from 0.009): +0.18..+0.45 ms. Fixed: two dispatches over
+   n/64 workgroups (counts, then offsets + write): cull +0.015 ms.
+d. Merge block 32: -0.14* / -0.13* / +3.26* / +0.23* / -0.83* ms -- reproduced (+3.42 / -0.85); the cost lands in the
+   leaf-card (sprig) pass right after the faces (+5.2 ms at forest_floor_open), cause not found. Diagnostic block sizes
+   at forest_floor_open / canopy_close: 1 (no merging) -0.10* / +0.02; 8 -0.22* / -0.08*; 16 -0.25* / 0.00.
+   Shipped: block 8.
+Final (block 8, octant order, 8 pairs x 5 poses, voxfound_f215f_ab_final.txt), whole frame compacted - per-cluster:
+   overview -0.23*, top_down -0.15*, forest_floor_open -0.15*, east_low 0.00, canopy_close -0.07* ms.
+Predictions:
+1. Commands that draw (octant, block 8): 2,471 / 2,521 / 1,787 / 3,227 / 1,794 vs per-cluster 6,182 / 5,143 / 3,143 /
+   5,570 / 2,074 (and 10,889 walked): <= 2,385 at 2 of 5 -- WRONG as stated (block 32 met it at 4 of 5). Axis order /
+   octant order (block 8): 1.66 / 1.48 / 1.15 / 1.07 / 0.87 -- in 1.2-1.6 at 1 pose; the octant order is not better
+   everywhere (canopy_close).
+2. Pixels vs uncompacted: 37-79 px > 8 levels, the same size as each mode's own repeat (44-108) and as uncompacted vs
+   the direct path (0-50): not 0 as predicted; inside the frame-to-frame noise. Faces drawn identical at every pose.
+3. Whole frame: forest_floor_open -0.15 (predicted -0.4..-0.8: wrong), others -0.07..-0.23 and east_low 0.00
+   (predicted -0.05..-0.3: 3 of 4), none worse (held).
+4. Default ON (none worse, 4 of 5 better); needs the device's drawIndirectCount feature, else the old path.

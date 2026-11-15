@@ -181,7 +181,12 @@ struct FaceCluster {
 /// to the cell of `clusterBlocks`^3 blocks that holds its origin voxel (clusterBlocks 1 = per block, the plan's
 /// unit). Clusters come in cell order; empty cells have none. F2.15: within a cell the faces are ordered by direction
 /// (faceDirIndex), so splitByDirection can cut each cluster into its direction groups over the same buffer.
-std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int clusterBlocks);
+/// F2.15f: `octantOrder` orders a cell's directions -x, -y, -z, +x, +y, +z (faceDirRank) instead of by faceDirIndex
+/// (-x, +x, -y, ...): a camera outside the cell sees one side per axis, and 4 of the 8 octants are then ONE contiguous
+/// window, so the compacting cull pass merges them into one command.
+std::vector<FaceCluster> clusterFaces(std::vector<PackedFace>& faces, int clusterBlocks, bool octantOrder = true);
+/// F2.15f: a direction's place within a cell in the octant order: (normal positive ? 3 : 0) + axis.
+constexpr int faceDirRank(int dirIndex) { return (dirIndex & 1) * 3 + dirIndex / 2; }
 /// F2.15 (§4.6 item 8): a face's direction, axis * 2 + (normal positive ? 1 : 0).
 int faceDirIndex(PackedFace f);
 /// F2.15: the clusters of clusterFaces cut into their direction groups (same faces, same order; box per group).
@@ -197,6 +202,17 @@ bool faceGroupMayFaceCamera(int dirIndex, glm::vec3 lo, glm::vec3 hi, glm::vec3 
 /// camera test treats it as d).
 constexpr int kAwayGroup = 6;
 bool faceDirFacesLight(int dirIndex, glm::vec3 toLight);
+/// F2.15f (§4.6 item 8's last part): one compacted indirect command -- `count` faces from `first`, its head cluster.
+struct DrawRun {
+    uint32_t first = 0, count = 0, cluster = 0;
+};
+/// F2.15f: the commands the compacting cull pass writes, CPU reference. Visible clusters in order; a cluster joins its
+/// predecessor's command when that one is visible, has the same `key` (chunk | level), is in the same multidraw
+/// (index < `solid` or not), its faces end where this one's begin, and both lie in the same block of `block` clusters
+/// (bounds the GPU's forward scan; ClusterCullGpu::kMergeBlock). Same rule as voxfound_cull.comp.
+std::vector<DrawRun> mergeVisibleRuns(const std::vector<uint32_t>& first, const std::vector<uint32_t>& count,
+                                      const std::vector<uint32_t>& key, const std::vector<uint8_t>& visible,
+                                      uint32_t solid, uint32_t block = 8);
 /// The cull pass's test, CPU reference: is the box [lo, hi] (metres) on the inner side of all six planes?
 /// planes[i] = (n, d), inside where dot(n, p) + d >= 0 (the p-vertex test: conservative, never drops a visible box).
 bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi);

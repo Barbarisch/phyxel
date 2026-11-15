@@ -16,17 +16,29 @@ struct Cluster {
 layout(std430, binding = 0) readonly buffer Clusters { Cluster clusters[]; };
 layout(std430, binding = 1) readonly buffer ChunkVisible { uint chunkVisible[]; };
 layout(std430, binding = 2) buffer Commands { uint commands[]; };   // 5 words per command
+// F2.15f (section 4.6 item 8's last part): compaction -- each cluster's first face and origin word in, the appended
+// commands' origins out (same index as the command), and the two append counters (solid, leaf mass)
+layout(std430, binding = 3) readonly buffer Firsts { uint firsts[]; };
+layout(std430, binding = 4) readonly buffer OrigIn { ivec4 origIn[]; };
+layout(std430, binding = 5) writeonly buffer OrigOut { ivec4 origOut[]; };
+layout(std430, binding = 6) buffer Counts { uint drawCounts[]; };
+// the appended commands: their OWN buffer -- the per-cluster commands keep their static words (written at upload) for
+// the uncompacted path
+layout(std430, binding = 7) writeonly buffer CompactCommands { uint ccmds[]; };
+layout(std430, binding = 8) buffer GroupCounts { uint groupCounts[]; };   // F2.15f-2: per workgroup (solid, leaf)
 
 layout(push_constant) uniform PC {
     vec4 planes[6];   // inside where dot(xyz, p) + w >= 0
     vec4 lodCam;      // F2.14: xyz camera (box frame), w = c (Mesher.h lodScaleFromCode)
     uint count;
     uint lod;         // F2.14: bit 8 = level test on, bits 0-7 = maxLevel
+    uint compact;     // F2.15f: bit 31 = compact + merge, bits 0-30 = the commands' index count
+    uint solid;       // F2.15f: clusters [0, solid) belong to the solid multidraw
 } pc;
 
-void main() {
-    const uint i = gl_GlobalInvocationID.x;
-    if (i >= pc.count) return;
+const uint kMergeBlock = 8u;   // ClusterCullGpu::kMergeBlock (F2.15f-2: measured 1 / 8 / 16 / 32)
+
+bool clusterVisible(uint i) {
     const Cluster c = clusters[i];
     const uint bits = floatBitsToUint(c.lo.w);   // chunk index 0-23 | level 24-27 (F2.14) | direction + 1 28-31 (F2.15)
     bool vis = chunkVisible[bits & 0xFFFFFFu] != 0u;
@@ -69,5 +81,91 @@ void main() {
         const float n = (dir & 1) != 0 ? pc.lodCam[axis] : -pc.lodCam[axis];
         vis = (n > -1e-4) != away;
     }
-    commands[i * 5u + 1u] = vis ? floatBitsToUint(c.hi.w) : 0u;
+    return vis;
+}
+
+uint faceCount(uint i) { return floatBitsToUint(clusters[i].hi.w); }
+
+// F2.15f: b continues a's command (Mesher.h mergeVisibleRuns): same chunk and level, same multidraw, contiguous faces
+bool mergeable(uint a, uint b) {
+    const uint ka = floatBitsToUint(clusters[a].lo.w) & 0x0FFFFFFFu, kb = floatBitsToUint(clusters[b].lo.w) & 0x0FFFFFFFu;
+    return ka == kb && (a < pc.solid) == (b < pc.solid) && firsts[a] + faceCount(a) == firsts[b];
+}
+
+// F2.15f: one appended command (the leaf multidraw's gl_DrawIDARB restarts at 0: its origins start at solid rounded up
+// to 16 entries = 256 bytes, bindable at that offset; ClusterCullGpu::leafOriginBase)
+void emitRun(uint head, uint sum, uint k) {
+    const bool leaf = head >= pc.solid;
+    const uint s = leaf ? pc.solid + k : k;
+    ccmds[s * 5u + 0u] = pc.compact & 0x3FFFFFFFu;
+    ccmds[s * 5u + 1u] = sum;
+    ccmds[s * 5u + 2u] = 0u;
+    ccmds[s * 5u + 3u] = 0u;
+    ccmds[s * 5u + 4u] = firsts[head];
+    origOut[leaf ? (pc.solid + 15u) / 16u * 16u + k : k] = origIn[head];
+}
+
+shared uint sFlag[2][64];
+shared uint sOff[2];
+
+// F2.15f-2: ORDERED compaction in two dispatches over n / 64 workgroups. (The first version appended with an atomic
+// counter: the scrambled draw order cost +0.7-1.0 ms of overdraw at the close poses. The second ran in ONE workgroup:
+// in order, but the serial pass cost 0.36 ms.) Runs never cross a merge block (32 clusters), so never a workgroup.
+// Phase 1: each workgroup counts its run heads (solid, leaf) into groupCounts. Phase 2: its first slot = the counts
+// of the workgroups before it, each head's place = the heads before it in the workgroup; the head sums its run and
+// writes it -- the commands come out in cluster order, the order the per-cluster path draws in.
+void compactPhase(bool second) {
+    const uint i = gl_GlobalInvocationID.x, t = gl_LocalInvocationID.x, g = gl_WorkGroupID.x;
+    const bool leaf = i >= pc.solid;
+    bool isHead = false;
+    if (i < pc.count && clusterVisible(i))
+        isHead = i % kMergeBlock == 0u || !mergeable(i - 1u, i) || !clusterVisible(i - 1u);
+    sFlag[0][t] = isHead && !leaf ? 1u : 0u;
+    sFlag[1][t] = isHead && leaf ? 1u : 0u;
+    barrier();
+    if (t == 0u) {
+        uint c0 = 0u, c1 = 0u;
+        for (uint u = 0u; u < 64u; ++u) {
+            c0 += sFlag[0][u];
+            c1 += sFlag[1][u];
+        }
+        if (!second) {
+            groupCounts[g * 2u] = c0;
+            groupCounts[g * 2u + 1u] = c1;
+        } else {
+            uint o0 = 0u, o1 = 0u;
+            for (uint h = 0u; h < g; ++h) {
+                o0 += groupCounts[h * 2u];
+                o1 += groupCounts[h * 2u + 1u];
+            }
+            sOff[0] = o0;
+            sOff[1] = o1;
+            if (g + 1u == gl_NumWorkGroups.x) {   // the totals
+                drawCounts[0] = o0 + c0;
+                drawCounts[1] = o1 + c1;
+            }
+        }
+    }
+    if (!second) return;
+    barrier();
+    if (!isHead) return;
+    const uint p = leaf ? 1u : 0u;
+    uint k = sOff[p];
+    for (uint u = 0u; u < t; ++u) k += sFlag[p][u];
+    uint sum = faceCount(i), j = i + 1u;
+    while (j < pc.count && j % kMergeBlock != 0u && mergeable(j - 1u, j) && clusterVisible(j)) {
+        sum += faceCount(j);
+        ++j;
+    }
+    emitRun(i, sum, k);
+}
+
+void main() {
+    if ((pc.compact & 0x80000000u) != 0u) {   // F2.15f: bit 30 = phase 2
+        compactPhase((pc.compact & 0x40000000u) != 0u);
+        return;
+    }
+    const uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+    commands[i * 5u + 1u] = clusterVisible(i) ? faceCount(i) : 0u;   // one fixed command per cluster
 }

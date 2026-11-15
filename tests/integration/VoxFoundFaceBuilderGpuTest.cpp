@@ -630,3 +630,127 @@ TEST_F(VoxFoundFaceBuilderGpu, ClusterCullPicksLevelsLikeTheReference) {
     EXPECT_LT(drawn, cl.size() * 3 / 4) << "and most clusters of the wrong level are not";
     EXPECT_EQ(bad, 0u);
 }
+
+// ---- F2.15f (section 4.6 item 8's last part): compacted + merged commands ----------------------------------------
+// The cull pass appends only the visible clusters, merging consecutive ones of the same chunk, level and multidraw
+// whose faces are contiguous (Mesher.h mergeVisibleRuns), each with its chunk origin. Red first: a stub that writes
+// no compacted commands.
+TEST_F(VoxFoundFaceBuilderGpu, CompactedCommandsDrawTheSameFacesAsPerClusterCommands) {
+    ClusterCullGpu cull;
+    std::string err;
+    ASSERT_TRUE(cull.init(device, physicalDevice, "shaders", 2, &err)) << err;
+    std::mt19937 rng(2151);
+    std::uniform_real_distribution<float> pos(-60.0f, 60.0f), ext(0.0f, 6.0f), u01(0.0f, 1.0f);
+    std::uniform_int_distribution<int> cnt(1, 40), dirOf(-1, 5), chunkOf(0, 5), lvl(0, 2);
+    const uint32_t n = 5000, solid = 3700;
+    std::vector<ClusterCullGpu::Cluster> cl(n);
+    std::vector<glm::ivec4> origins(n);
+    uint32_t first = 0, chunk = 0, level = 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        auto& c = cl[i];
+        if (u01(rng) < 0.08f) chunk = uint32_t(chunkOf(rng));    // runs of one chunk, sometimes a new one
+        if (u01(rng) < 0.05f) level = uint32_t(lvl(rng));
+        if (u01(rng) < 0.04f) first += uint32_t(cnt(rng));       // a broken face range
+        c.lo = glm::vec3(pos(rng), pos(rng) * 0.3f, pos(rng));
+        c.hi = c.lo + glm::vec3(ext(rng), ext(rng), ext(rng));
+        c.count = uint32_t(cnt(rng));
+        c.firstInstance = first;
+        first += c.count;
+        c.chunk = chunk;
+        c.level = level;
+        c.dir = dirOf(rng);
+        origins[i] = glm::ivec4(int(chunk) * 32, -int(chunk), int(chunk) * 7 + 1, int(level) * 3 + 5);
+    }
+    ClusterCullGpu::Compact compact{origins, solid};
+    ASSERT_TRUE(cull.upload(cl, 36u, 6u, queue, queueFamilyIndex, &err, &compact)) << err;
+    cull.setChunkVisible(1, {1u, 1u, 0u, 1u, 1u, 1u});   // chunk 2 culled by the CPU's per-chunk decision
+    // most boxes inside, the side planes still cut some; the camera's octant drops about half the direction groups
+    const glm::mat4 proj = glm::perspective(glm::radians(80.0f), 1.6f, 0.1f, 300.0f);
+    const glm::mat4 view = glm::lookAt(glm::vec3(10.0f, 30.0f, -90.0f), glm::vec3(0.0f), glm::vec3(0, 1, 0));
+    glm::vec4 planes[6];
+    clipPlanesZeroToOne(proj * view, glm::vec3(0.0f), planes);
+    const glm::vec3 cam(10.0f, 30.0f, -90.0f);
+    // the reference: today's per-cluster commands
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 1, planes, &err, nullptr, &cam)) << err;
+    std::vector<uint32_t> perCluster;
+    ASSERT_TRUE(cull.readCommands(queue, queueFamilyIndex, 1, perCluster, &err)) << err;
+    std::vector<uint8_t> vis(n);
+    std::vector<uint32_t> firsts(n), counts(n), keys(n);
+    std::vector<std::pair<uint32_t, glm::ivec4>> want;   // (face index, origin) drawn
+    for (uint32_t i = 0; i < n; ++i) {
+        vis[i] = perCluster[i * 5 + 1] != 0u;
+        firsts[i] = cl[i].firstInstance;
+        counts[i] = cl[i].count;
+        keys[i] = cl[i].chunk | cl[i].level << 24;
+        if (vis[i])
+            for (uint32_t f = 0; f < cl[i].count; ++f) want.push_back({cl[i].firstInstance + f, origins[i]});
+    }
+    const std::vector<DrawRun> ref = mergeVisibleRuns(firsts, counts, keys, vis, solid, ClusterCullGpu::kMergeBlock);
+    // the compacted pass
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 1, planes, &err, nullptr, &cam, false, true)) << err;
+    std::vector<uint32_t> cmds;
+    std::vector<glm::ivec4> drawOrigins;
+    uint32_t drawn[2] = {0, 0};
+    ASSERT_TRUE(cull.readCompact(queue, queueFamilyIndex, 1, cmds, drawOrigins, drawn, &err)) << err;
+    std::vector<std::pair<uint32_t, glm::ivec4>> got;
+    std::vector<std::tuple<uint32_t, uint32_t, bool>> gotRuns, refRuns;
+    size_t badStatic = 0;
+    for (int pass = 0; pass < 2; ++pass)
+        for (uint32_t k = 0; k < drawn[pass]; ++k) {
+            const uint32_t s = pass ? solid + k : k;
+            if (cmds[s * 5 + 0] != 36u || cmds[s * 5 + 2] != 0u || cmds[s * 5 + 3] != 0u) ++badStatic;
+            const uint32_t o = pass ? cull.leafOriginBase() + k : k;   // the leaf multidraw's origins: own base
+            gotRuns.emplace_back(cmds[s * 5 + 4], cmds[s * 5 + 1], pass == 1);
+            for (uint32_t f = 0; f < cmds[s * 5 + 1]; ++f) got.push_back({cmds[s * 5 + 4] + f, drawOrigins[o]});
+        }
+    for (const DrawRun& r : ref) refRuns.emplace_back(r.first, r.count, r.cluster >= solid);
+    auto lessPair = [](const auto& a, const auto& b) {
+        return std::tie(a.first, a.second.x, a.second.y, a.second.z, a.second.w) <
+               std::tie(b.first, b.second.x, b.second.y, b.second.z, b.second.w);
+    };
+    std::sort(want.begin(), want.end(), lessPair);
+    std::sort(got.begin(), got.end(), lessPair);
+    // F2.15f-2: IN ORDER -- the cluster order is the draw order the per-cluster path had (an atomic append scrambled
+    // it and cost +0.7-1.0 ms of overdraw at the close poses, voxfound_f215f_ab.txt)
+    size_t visible = 0;
+    for (uint8_t v : vis) visible += v;
+    std::printf("[compact] %u clusters, %zu visible -> %u + %u commands (reference %zu), %zu faces\n", n, visible,
+                drawn[0], drawn[1], ref.size(), want.size());
+    EXPECT_GT(visible, n / 10);
+    EXPECT_LT(visible, n * 9 / 10);
+    EXPECT_EQ(badStatic, 0u);
+    EXPECT_EQ(gotRuns, refRuns);
+    EXPECT_TRUE(got == want) << "faces/origins drawn differ: " << got.size() << " vs " << want.size();
+    EXPECT_LT(ref.size(), visible);   // merging happened
+    EXPECT_TRUE(std::any_of(ref.begin(), ref.end(), [&](const DrawRun& r) { return r.cluster >= solid; }));
+    EXPECT_TRUE(std::any_of(ref.begin(), ref.end(), [&](const DrawRun& r) { return r.cluster < solid; }));
+    // the reference never merges across a chunk, a level, the multidraw split or a face gap, nor past 32 clusters
+    for (const DrawRun& r : ref) {
+        uint32_t i = r.cluster, sum = 0;
+        for (; i < n && sum < r.count; ++i) sum += counts[i];
+        const uint32_t last = i - 1;
+        EXPECT_EQ(sum, r.count);
+        EXPECT_EQ(r.cluster / ClusterCullGpu::kMergeBlock, last / ClusterCullGpu::kMergeBlock);
+        for (uint32_t j = r.cluster + 1; j <= last; ++j) {
+            EXPECT_EQ(keys[j], keys[r.cluster]);
+            EXPECT_EQ(firsts[j], firsts[j - 1] + counts[j - 1]);
+            EXPECT_EQ(j >= solid, r.cluster >= solid);
+            EXPECT_TRUE(vis[j]);
+        }
+    }
+    // the per-cluster commands survive a compacted pass (the uncompacted path reads their static words; the first
+    // version appended into the same buffer and broke it -- black ground at canopy_close)
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 1, planes, &err, nullptr, &cam)) << err;
+    std::vector<uint32_t> perClusterAgain;
+    ASSERT_TRUE(cull.readCommands(queue, queueFamilyIndex, 1, perClusterAgain, &err)) << err;
+    EXPECT_TRUE(perClusterAgain == perCluster);
+    // a second slot never sees the first's counts (each slot resets its own)
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 0, planes, &err, nullptr, &cam, false, true)) << err;
+    uint32_t drawn0[2] = {0, 0};
+    ASSERT_TRUE(cull.readCompact(queue, queueFamilyIndex, 0, cmds, drawOrigins, drawn0, &err)) << err;
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 1, planes, &err, nullptr, &cam, false, true)) << err;
+    uint32_t again[2] = {0, 0};
+    ASSERT_TRUE(cull.readCompact(queue, queueFamilyIndex, 1, cmds, drawOrigins, again, &err)) << err;
+    EXPECT_EQ(again[0], drawn[0]);
+    EXPECT_EQ(again[1], drawn[1]);
+}
