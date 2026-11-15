@@ -387,7 +387,7 @@ private:
     // 26.30 step 3: the water's CPU per frame, by part. A3: bodies = the wet-body loops (boxes, ripple bodies, the displacement
     // gate, the slept-pond wake), solids = setMovingSolids (rasterizing the displacing bodies), pressure = the M4 window asks,
     // exchange = the momentum handed back to the water
-    struct WaterCpuMs { double total = 0, update = 0, feed = 0, motion = 0, bodies = 0, solids = 0, pressure = 0, exchange = 0; } m_waterCpu;
+    struct WaterCpuMs { double total = 0, update = 0, follow = 0, feed = 0, motion = 0, bodies = 0, solids = 0, pressure = 0, exchange = 0; } m_waterCpu;
     WaterCpuMs m_waterCpuAtMax;   ///< 39.3 item 6: the parts of the frame whose water block was longest, since water_av_host_phases reset
     uint32_t m_refusedNoWindow = 0;   // 33 (A2g): displacing bodies NOT rasterized this frame because they hold no pressure window
     long m_waterWakes = 0;                 // E2 (19.6): wake requests sent to sleeping debris over moving water

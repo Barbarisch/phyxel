@@ -261,6 +261,29 @@ public:
     /// reader or the current, with no recorded water in the box, or while any chunk under it is not resident (A3: the record
     /// would read dry there).
     RiverReachResult makeRiverReach(const glm::vec2& centre, float halfM, float yHint, const std::string& backend = "auto");
+    /// 54.3 (W5.2b): a reach FOLLOWS the viewer along a river - the plan's "flowing water near the player is simulated". Each check
+    /// (every checkS): the nearest river column within radiusM of the viewer (nearestRiverPoint: a record column with water and a
+    /// non-zero record current, on a 2 m world lattice); a follow reach whose box shrunk by marginM holds that point stays; else it
+    /// is released (written back, no slept box) and a reach of halfM made centred on the point. No river point and the viewer more
+    /// than radiusM + kFollowLeaveM beyond the reach's box: released. A refused make (live water there, a chunk not resident) is
+    /// retried after kFollowRetryS. One follow reach at a time; a reach made through the API is not the follow's (overlap refuses).
+    struct RiverFollow { bool on = true; float radiusM = 24.0f, halfM = 20.0f, marginM = 8.0f, checkS = 0.5f; };
+    struct RiverFollowState {
+        int id = 0; glm::ivec3 lo{0}, hi{0};
+        int makes = 0, releases = 0, refusals = 0;
+        std::string lastError;
+        double lastMakeMs = 0.0, maxMakeMs = 0.0;
+        double exchangedM3 = 0.0, residueM3 = 0.0, thinDroppedM3 = 0.0;   ///< the released reaches' edge exchange, dropped residue and write-back residue, summed (the books)
+        double lastCheckS = -1e30, nextTryS = -1e30;
+        bool pointFound = false; glm::ivec2 point{0};
+    };
+    static constexpr float kFollowLeaveM = 16.0f;   ///< hysteresis: a reach is released this far past the radius, not at it
+    static constexpr double kFollowRetryS = 2.0;
+    void setRiverFollow(const RiverFollow& f) { m_follow = f; }
+    const RiverFollow& riverFollow() const { return m_follow; }
+    const RiverFollowState& riverFollowState() const { return m_followState; }
+    /// Call once a frame with the viewer (world m) and a clock (s): throttled to m_follow.checkS inside.
+    void followRiver(const glm::vec3& viewer, double nowS);
     /// 54.2: the volume's prescribed-surface columns (replaces the list; CPU and GPU). False for an unknown id or a GPU refusal.
     bool setBoundaries(int id, const std::vector<BoundarySpec>& b, std::string* err);
     bool setAutoSleep(int id, bool on);
@@ -1079,6 +1102,9 @@ private:
     float m_flowForcing = 200.0f; // 25.26 RC: C_f - calibrated live 2026-10-12 (25.29): facet slope p95 0.1-0.2 on the 100 L/s bench creek
     SpanWriter m_spanWriter; SpanReader m_spanReader; BakeBodyQuery m_bakeBodyAt;
     RecordCurrentFn m_recordCurrent;   // 54.2
+    RiverFollow m_follow;              // 54.3
+    RiverFollowState m_followState;
+    void releaseFollowReach();
     WaterBodyTable m_bodies;
     std::vector<WriteBackRecord> m_autoSlept;
     long m_worldResets = 0;   // A2i (47)

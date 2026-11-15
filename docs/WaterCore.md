@@ -70,7 +70,8 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
    cut the largest part; then stop and show the owner.
 3. **W5 - rivers at scale:** generated rivers that FLOW (near reaches simulated, fed and drained from the record; far reaches drawn
    with flow). **§54: W5.1 (the record carries its current) and W5.2a (a near reach simulated) BUILT, not signed off; the seam's
-   cause - the record's river rising downstream - the owner's call (54.2); then W5.2b (the reach where the player is).**
+   cause - the record's river rising downstream - the owner's call (54.2); W5.2b (the reach follows the player; the water core
+   steps in play) BUILT, not signed off (54.3); next W5.3 (the drawn surface moves).**
 4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
@@ -13994,7 +13995,7 @@ each, 51.3b) = **~390 MB of GPU memory**, over the pinned 256 MB kept-memory cap
 patch-only allowance. Not built. The other parts (the CPU grid for a GPU patch, 12-14 ms; the tile wakes) are code changes with no
 trade, larger, not started. Not measured: the API round trip's ~30 ms split; the recorder's own cost.
 
-## 54. W5 - rivers that flow (owner's order 2026-11-14, item 3). Status: W5.1 BUILT, not signed off (`w5_clip.mp4`); W5.2a BUILT, not signed off (`w52_clip.mp4`) - its seam fails where the record's river rises downstream: the fix is the owner's call (54.2)
+## 54. W5 - rivers that flow (owner's order 2026-11-14, item 3). Status: W5.1 BUILT, not signed off (`w5_clip.mp4`); W5.2a BUILT, not signed off (`w52_clip.mp4`) - its seam fails where the record's river rises downstream: the fix is the owner's call (54.2); W5.2b BUILT, not signed off (`w52b_clip.mp4`, 54.3)
 
 **Step 0 - the inventory (2026-11-15, read from the code; W5 in §27: "a far reach is a record with a discharge and appearance flow; a
 near reach is simulated, fed and drained at its ends from the record"; gates: the creek bench's numbers on a simulated reach inside a
@@ -14151,6 +14152,69 @@ record** (`/design-check` READY with eight amendments A1-A8; built as designed e
   simulated reach (and any patch) needs it in play (W5.2b's trigger); the reach's ~7.4 ms of CPU a frame not split.
 - **Not in W5.2a:** the trigger (a reach made where the player is, released when they leave - W5.2b); the drawn surface moving
   (W5.3); creeks; a reach over a lake; MG with edges.
+
+**54.3 W5.2b (2026-11-15) BUILT, not signed off - the reach FOLLOWS the player along a river; the water core steps in play** (`/design-check`
+READY with amendments A1-A4; built as designed).
+- **Built:**
+  - **Realtime ON in play:** the Application sets the water core's realtime stepping from game.json `water.core.realtime` (default
+    TRUE) at world load - the plan's stated behaviour, which no game session had (54.2's logged line). The integration tests own
+    their managers (off, unchanged); `tools/water_feel.py` (steps volumes itself) switches it off.
+  - `RiverReach.h nearestRiverPoint` (pure): the nearest river column within a radius - a record column with water and a non-zero
+    record current - on a 2 m world-aligned lattice, ties in lattice order. `joinColumnRuns` (ringBoundaries' join, shared).
+  - `WaterCoreManager::followRiver(viewer, now)` (the Application calls it each frame before `update`, the viewer = the camera;
+    throttled to 0.5 s): keep the follow reach while its box shrunk by the margin holds the river point; else release it (written
+    back, no slept box) and make a reach centred on the point; no point and the viewer > radius + 16 m beyond the box: released; a
+    refused make retried after 2 s. Knobs `RiverFollow {on, radiusM 24, halfM 20, marginM 8, checkS 0.5}`; state (id, box, makes,
+    releases, refusals, last error, make ms, the released reaches' exchange / residue / write-back residue - the books).
+  - API `water_av_river_follow {on, radius_m (8-48), half_m (8-31), margin_m (2-16, and under the fresh reach's k x 8 m)}` - omitted =
+    unchanged, clamps with their reasons at the clamp; echoes the knobs, realtime and the state. `water_render_core`'s `water_cpu_ms` gains
+    `follow`.
+- **Tests** (red first):
+  - `RiverReachTest.TheNearestRiverPointIsTheSameHoweverTheRecordIsRead` (unit; the design check's equality test): 40 viewers, the
+    record whole vs chunked (split at y 32) + shuffled: 0 differ (23 found a point); control - the point's chunk missing - another
+    point; a viewer far from rivers: none.
+  - `WaterRecordTilesTest.AReachFollowsTheViewerAlongARiver` (a recorded river 14 m wide, 2 m deep, 0.6 m/s, x -64..223; the viewer
+    walks x 0 -> 160 at 5 m/s then leaves at 10 m/s; realtime update at 60 Hz, the shipped knobs): coverage **100 %** (1921 / 1921
+    walk frames), never more than one volume, none left after leaving, books **-7.8e-7 m^3** over 11 swaps (the record +0.262 m^3 =
+    the edges' exchange), 0 refusals, the make <= 301 ms; RED (follow off): no volume. **A4 (a wall at x 60, crest 2.3 m): the
+    RECORD above the wall after the walk 2.561 m vs 2.002 without it (+0.56 m; prediction >= 0.1)** - a dam outlives its reach as
+    stored water; books +6.0e-6.
+  - **What its first run found:** (1) books +0.030 m^3 (+0.30 with the wall): the release read the reach's edge exchange BEFORE
+    sleep() settled the GPU call in flight - that call's water was written back, its exchange not counted. Fixed: settle first
+    (-7.8e-7 after). (2) **My "6-7 makes" was wrong**: a reach is centred on the point's 8 m TILE and the point that triggers a make
+    sits at its tile's upstream end - the next swap comes 16 m on, not 24 (1 + 160 / 16 = 11, measured 11). (3) My first coverage
+    counted the frames after the viewer left the river (0.87) - the test's error; now counted over the walk.
+  - Unit (water / terrain / hydrology / WorldGenerator / WorldForge / roads / flora / settlement / structure / RiverReach): 639 / 639
+    (4 skipped). GPU water integration 90 / 92: the known two (54.1's line).
+- **Live L4** (WaterBench_RiverCarve, the shipped game.json, restored world; `tools/water_w52b_follow.py`: the river traced from the
+  51.14 site by the record's current, the camera flown 150-200 m down it at 4 m/s on the engine's own camera path, 12 m up; a 1 Hz
+  sampler the tool's only load):
+  - **Realtime read TRUE with no tool switching it on**; follow on by default (`w52b_follow.json`).
+  - A reach under the camera in **59 / 59** samples; 10 makes, **118-151 ms** each; wood dropped ahead at 3 points drifted 13-21 m
+    in 13-25 s and **kept moving across swaps** (A1: its speed in the seconds holding a swap 0.74-1.21 m/s vs 0.71-1.02 outside them;
+    prediction >= half: held).
+  - **The swap hitch (A3), measured, not cut:** the longest frame in a second holding a make 263-457 ms (median per flight) vs
+    165-220 ms in the other seconds - the make (110-163 ms, D9's class) on top of a flight that is already slow without it (next).
+  - **Cost - one flight per FRESH engine, ABBA** (`w52b_cost_fresh1-4.json`): follow on (shipped) median **17.0 / 17.9 fps, CPU 58.9
+    / 55.7 ms**; the engine before 54.3 (realtime and follow off) **19.9 / 16.2 fps, CPU 50.5 / 61.7 ms** - the follow's cost is
+    inside the run-to-run spread here: the flight's own ~55 ms of CPU a frame (no water stepping) hides the reach's ~7.4 ms
+    (W5.2a's static-pose number stands). Not measured: what the flight's 55 ms is.
+  - **Found, logged, not chased - the bench gets slower flight after flight and its memory grows** (`w52b_cost.json`, six flights
+    of the same 200 m path on one engine): the first flight with realtime and follow OFF 14.7 fps / 68 ms CPU (median), the sixth
+    (also off) 7.0 fps / 144 ms; the process 1.7 GB -> 8.1 GB. It starts by the second flight, before any reach exists. Why the
+    ABBA ran one flight per fresh engine.
+  - **The owner's jitter question (w52_clip):** this run's 1 Hz sampler shows the flight's worst frame every second at ~170-220 ms
+    with no water stepping at all - the bench stutters in flight on its own; each swap adds one ~110-160 ms frame. (The w52 clip's
+    camera did not move; its frames were not sampled this way.)
+- **The owner's clip: `docs/evidence/water_core_m4/w52b_clip.mp4`** (a fresh engine, the flight 53 s, captioned: t, fps, the longest
+  frame each second, the reach made / under the camera): **looked at (frames at 5 / 20 / 40 s):** the river from 12 m up, the wood
+  specks drifting (20, 40 s); at 5 s a straight line across the water between a bright rippled part and a flat teal part - not
+  checked whether that is the reach's edge against the record; 4-15 fps in those frames.
+- **Seen, logged, left (one line each):** the bench slows flight after flight with its memory growing 1.7 -> 8.1 GB (above); the
+  flight's own ~55 ms CPU not split; the reach route's `exchange_m3` echo reads before the release settles (the same read order -
+  echo only); the 5 s straight line in the clip not identified.
+- **Not in W5.2b:** the seam's cause (the owner's call, 54.2); the make's stall cut (D9); a touch far from the viewer (no remote edit
+  source exists); splashes in generated lakes waking patches (W4's gap); the drawn surface moving (W5.3).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

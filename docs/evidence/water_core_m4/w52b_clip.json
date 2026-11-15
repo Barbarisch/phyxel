@@ -1,0 +1,3739 @@
+{
+ "bench": "WaterBench_RiverCarve",
+ "realtime_default": true,
+ "follow_default": {
+  "check_s": 0.5,
+  "exchanged_m3": 0.0,
+  "half_m": 20.0,
+  "last_error": "",
+  "last_make_ms": 0.0,
+  "makes": 0,
+  "margin_m": 8.0,
+  "max": [
+   0,
+   0,
+   0
+  ],
+  "max_make_ms": 0.0,
+  "min": [
+   0,
+   0,
+   0
+  ],
+  "on": true,
+  "point": [
+   0,
+   0
+  ],
+  "point_found": false,
+  "radius_m": 24.0,
+  "reach_id": 0,
+  "realtime": true,
+  "refusals": 0,
+  "releases": 0,
+  "residue_m3": 0.0,
+  "success": true,
+  "thin_dropped_m3": 0.0
+ },
+ "path": [
+  [
+   -1728.56,
+   -1085.85
+  ],
+  [
+   -1729.39,
+   -1084.03
+  ],
+  [
+   -1730.11,
+   -1082.16
+  ],
+  [
+   -1730.8,
+   -1080.28
+  ],
+  [
+   -1731.51,
+   -1078.41
+  ],
+  [
+   -1732.22,
+   -1076.55
+  ],
+  [
+   -1732.9,
+   -1074.66
+  ],
+  [
+   -1733.53,
+   -1072.77
+  ],
+  [
+   -1734.06,
+   -1070.84
+  ],
+  [
+   -1734.49,
+   -1068.88
+  ],
+  [
+   -1734.81,
+   -1066.91
+  ],
+  [
+   -1734.04,
+   -1064.81
+  ],
+  [
+   -1734.17,
+   -1062.82
+  ],
+  [
+   -1734.21,
+   -1060.82
+  ],
+  [
+   -1734.19,
+   -1058.82
+  ],
+  [
+   -1734.12,
+   -1056.82
+  ],
+  [
+   -1735.03,
+   -1054.77
+  ],
+  [
+   -1735.9,
+   -1052.72
+  ],
+  [
+   -1735.69,
+   -1050.73
+  ],
+  [
+   -1734.36,
+   -1048.93
+  ],
+  [
+   -1733.86,
+   -1046.99
+  ],
+  [
+   -1734.12,
+   -1044.77
+  ],
+  [
+   -1733.34,
+   -1042.93
+  ],
+  [
+   -1733.32,
+   -1040.69
+  ],
+  [
+   -1732.34,
+   -1038.95
+  ],
+  [
+   -1727.89,
+   -1039.38
+  ],
+  [
+   -1727.5,
+   -1035.8
+  ],
+  [
+   -1727.87,
+   -1031.34
+  ],
+  [
+   -1726.33,
+   -1030.07
+  ],
+  [
+   -1722.47,
+   -1032.32
+  ],
+  [
+   -1719.75,
+   -1028.77
+  ],
+  [
+   -1716.38,
+   -1030.06
+  ],
+  [
+   -1711.92,
+   -1029.76
+  ],
+  [
+   -1715.92,
+   -1027.75
+  ],
+  [
+   -1716.7,
+   -1025.66
+  ],
+  [
+   -1717.6,
+   -1023.61
+  ],
+  [
+   -1717.71,
+   -1021.62
+  ],
+  [
+   -1718.11,
+   -1019.66
+  ],
+  [
+   -1715.12,
+   -1016.33
+  ],
+  [
+   -1714.84,
+   -1014.11
+  ],
+  [
+   -1715.5,
+   -1012.22
+  ],
+  [
+   -1716.31,
+   -1010.39
+  ],
+  [
+   -1716.41,
+   -1008.16
+  ],
+  [
+   -1718.29,
+   -1006.95
+  ],
+  [
+   -1719.65,
+   -1005.48
+  ],
+  [
+   -1721.19,
+   -1004.2
+  ],
+  [
+   -1722.94,
+   -1003.24
+  ],
+  [
+   -1724.71,
+   -1002.31
+  ],
+  [
+   -1726.36,
+   -1001.17
+  ],
+  [
+   -1727.76,
+   -999.74
+  ],
+  [
+   -1728.26,
+   -997.56
+  ],
+  [
+   -1730.28,
+   -996.62
+  ],
+  [
+   -1730.57,
+   -994.4
+  ],
+  [
+   -1732.57,
+   -993.4
+  ],
+  [
+   -1733.69,
+   -991.75
+  ],
+  [
+   -1734.79,
+   -990.08
+  ],
+  [
+   -1735.02,
+   -987.85
+  ],
+  [
+   -1735.88,
+   -986.05
+  ],
+  [
+   -1736.61,
+   -984.19
+  ],
+  [
+   -1736.98,
+   -982.22
+  ],
+  [
+   -1736.85,
+   -980.23
+  ],
+  [
+   -1735.26,
+   -978.65
+  ],
+  [
+   -1734.28,
+   -976.91
+  ],
+  [
+   -1733.91,
+   -974.7
+  ],
+  [
+   -1732.64,
+   -973.15
+  ],
+  [
+   -1731.37,
+   -971.61
+  ],
+  [
+   -1729.31,
+   -970.75
+  ],
+  [
+   -1728.74,
+   -968.58
+  ],
+  [
+   -1728.79,
+   -965.76
+  ],
+  [
+   -1725.96,
+   -965.74
+  ],
+  [
+   -1724.57,
+   -964.31
+  ],
+  [
+   -1723.22,
+   -962.84
+  ],
+  [
+   -1721.99,
+   -961.26
+  ],
+  [
+   -1721.72,
+   -959.04
+  ],
+  [
+   -1720.93,
+   -957.2
+  ],
+  [
+   -1719.62,
+   -955.39
+  ],
+  [
+   -1719.79,
+   -953.4
+  ],
+  [
+   -1720.34,
+   -951.47
+  ],
+  [
+   -1722.03,
+   -950.01
+  ],
+  [
+   -1722.83,
+   -948.17
+  ],
+  [
+   -1723.67,
+   -946.36
+  ],
+  [
+   -1724.45,
+   -944.52
+  ],
+  [
+   -1726.12,
+   -943.03
+  ],
+  [
+   -1726.85,
+   -941.17
+  ],
+  [
+   -1728.42,
+   -939.58
+  ],
+  [
+   -1728.88,
+   -937.63
+  ],
+  [
+   -1728.13,
+   -935.52
+  ],
+  [
+   -1728.18,
+   -933.52
+  ],
+  [
+   -1728.13,
+   -931.52
+  ],
+  [
+   -1728.05,
+   -929.52
+  ],
+  [
+   -1728.05,
+   -927.52
+  ],
+  [
+   -1729.25,
+   -925.64
+  ],
+  [
+   -1729.76,
+   -923.7
+  ],
+  [
+   -1730.58,
+   -921.88
+  ],
+  [
+   -1731.7,
+   -920.22
+  ],
+  [
+   -1732.94,
+   -918.65
+  ],
+  [
+   -1734.33,
+   -917.22
+  ],
+  [
+   -1735.81,
+   -915.86
+  ],
+  [
+   -1737.25,
+   -914.48
+  ],
+  [
+   -1739.38,
+   -913.8
+  ],
+  [
+   -1740.75,
+   -912.34
+  ]
+ ],
+ "waypoints": [
+  {
+   "x": -1724.8660006471007,
+   "y": 32.06,
+   "z": -1095.140283029124,
+   "yaw": 111.66267348744489,
+   "pitch": -35.0
+  },
+  {
+   "x": -1728.0642589515599,
+   "y": 32.06,
+   "z": -1087.802649252304,
+   "yaw": 110.15131347732667,
+   "pitch": -35.0
+  },
+  {
+   "x": -1732.3862146313895,
+   "y": 32.06,
+   "z": -1080.6970845213689,
+   "yaw": 99.66253025800934,
+   "pitch": -35.0
+  },
+  {
+   "x": -1733.5682890334972,
+   "y": 32.06,
+   "z": -1072.798450330484,
+   "yaw": 93.42133618480928,
+   "pitch": -35.0
+  },
+  {
+   "x": -1735.2172360571224,
+   "y": 32.06,
+   "z": -1064.7726476450173,
+   "yaw": 88.89890086233483,
+   "pitch": -35.0
+  },
+  {
+   "x": -1735.5328559430568,
+   "y": 32.06,
+   "z": -1056.853459650309,
+   "yaw": 80.37558615315604,
+   "pitch": -35.0
+  },
+  {
+   "x": -1736.4053021530028,
+   "y": 32.06,
+   "z": -1048.0846211376916,
+   "yaw": 66.0206641097876,
+   "pitch": -35.0
+  },
+  {
+   "x": -1735.4513217051465,
+   "y": 32.06,
+   "z": -1034.166507719165,
+   "yaw": 24.2126728745241,
+   "pitch": -35.0
+  },
+  {
+   "x": -1719.0615779792167,
+   "y": 32.06,
+   "z": -1036.7657184993443,
+   "yaw": 44.43282703823115,
+   "pitch": -35.0
+  },
+  {
+   "x": -1715.7147323271565,
+   "y": 32.06,
+   "z": -1031.4153348208895,
+   "yaw": 101.53312899044786,
+   "pitch": -35.0
+  },
+  {
+   "x": -1714.3067672487186,
+   "y": 32.06,
+   "z": -1022.1510163259536,
+   "yaw": 96.85582898792605,
+   "pitch": -35.0
+  },
+  {
+   "x": -1712.64416610512,
+   "y": 32.06,
+   "z": -1012.6128580731981,
+   "yaw": 134.5070070407954,
+   "pitch": -35.0
+  },
+  {
+   "x": -1719.345217629311,
+   "y": 32.06,
+   "z": -1008.3000509149258,
+   "yaw": 134.55116416047824,
+   "pitch": -35.0
+  },
+  {
+   "x": -1725.1154307634167,
+   "y": 32.06,
+   "z": -1002.78151872004,
+   "yaw": 123.02650373034443,
+   "pitch": -35.0
+  },
+  {
+   "x": -1730.9667401263646,
+   "y": 32.06,
+   "z": -996.9963955569622,
+   "yaw": 113.90662397654016,
+   "pitch": -35.0
+  },
+  {
+   "x": -1738.4417033561697,
+   "y": 32.06,
+   "z": -990.1003147172778,
+   "yaw": 80.82082485153208,
+   "pitch": -35.0
+  },
+  {
+   "x": -1737.5065968003437,
+   "y": 32.06,
+   "z": -981.8905909916533,
+   "yaw": 60.90202726275131,
+   "pitch": -35.0
+  },
+  {
+   "x": -1735.4629029926277,
+   "y": 32.06,
+   "z": -973.206817204491,
+   "yaw": 48.15975545253233,
+   "pitch": -35.0
+  },
+  {
+   "x": -1727.879053439081,
+   "y": 32.06,
+   "z": -969.3395140342707,
+   "yaw": 53.93337322904054,
+   "pitch": -35.0
+  },
+  {
+   "x": -1718.6718051256205,
+   "y": 32.06,
+   "z": -963.3337344307827,
+   "yaw": 96.42075931349808,
+   "pitch": -35.0
+  },
+  {
+   "x": -1718.3702721671634,
+   "y": 32.06,
+   "z": -954.8384887502386,
+   "yaw": 121.99303571746246,
+   "pitch": -35.0
+  },
+  {
+   "x": -1725.5460733890934,
+   "y": 32.06,
+   "z": -949.1530333872654,
+   "yaw": 106.72421426401093,
+   "pitch": -35.0
+  },
+  {
+   "x": -1727.2860839869234,
+   "y": 32.06,
+   "z": -941.4876101943744,
+   "yaw": 94.81695913332466,
+   "pitch": -35.0
+  },
+  {
+   "x": -1725.779804999384,
+   "y": 32.06,
+   "z": -932.8753242954609,
+   "yaw": 113.463311565918,
+   "pitch": -35.0
+  },
+  {
+   "x": -1727.3809121677286,
+   "y": 32.06,
+   "z": -924.4041044796011,
+   "yaw": 134.05924368517947,
+   "pitch": -35.0
+  },
+  {
+   "x": -1732.7907134991483,
+   "y": 32.06,
+   "z": -918.3907513019456,
+   "yaw": 142.7827244815593,
+   "pitch": -35.0
+  }
+ ],
+ "flight_s": 45.0,
+ "rows": [
+  {
+   "t": 0.0,
+   "fps": 35.92780001405335,
+   "cpu_ms": 27.833599597215652,
+   "gpu_ms": 9.140736,
+   "frame_ms_max": 398.4507918357849,
+   "follow_ms": null,
+   "reach_id": 2,
+   "makes": 1,
+   "releases": 0,
+   "refusals": 1,
+   "last_make_ms": 117.6607,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1728,
+    18,
+    -1056
+   ],
+   "max": [
+    -1689,
+    23,
+    -1017
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1700.0,
+    -1040.0
+   ]
+  },
+  {
+   "t": 1.0,
+   "fps": 24.052685986976527,
+   "cpu_ms": 41.57539829611778,
+   "gpu_ms": 7.280768,
+   "frame_ms_max": 422.67560958862305,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 2.0,
+   "fps": 39.69734858511842,
+   "cpu_ms": 25.190599262714386,
+   "gpu_ms": 6.720896,
+   "frame_ms_max": 83.58719944953918,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 3.0,
+   "fps": 50.77533877753144,
+   "cpu_ms": 19.694600254297256,
+   "gpu_ms": 7.007008,
+   "frame_ms_max": 83.5196003317833,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 4.0,
+   "fps": 19.245129632237155,
+   "cpu_ms": 51.96119844913483,
+   "gpu_ms": 6.878208,
+   "frame_ms_max": 103.24820131063461,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 5.0,
+   "fps": 11.234402126252476,
+   "cpu_ms": 89.01230245828629,
+   "gpu_ms": 6.951264,
+   "frame_ms_max": 89.01230245828629,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 6.0,
+   "fps": 13.898096709278416,
+   "cpu_ms": 71.95229828357697,
+   "gpu_ms": 7.31664,
+   "frame_ms_max": 114.26080018281937,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 7.0,
+   "fps": 36.46959735355906,
+   "cpu_ms": 27.420099824666977,
+   "gpu_ms": 8.894048,
+   "frame_ms_max": 110.00359803438187,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 8.0,
+   "fps": 50.646503065227535,
+   "cpu_ms": 19.74469982087612,
+   "gpu_ms": 7.917536,
+   "frame_ms_max": 130.36710023880005,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 9.0,
+   "fps": 49.405892733434094,
+   "cpu_ms": 20.240500569343567,
+   "gpu_ms": 7.711104,
+   "frame_ms_max": 115.87779968976974,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.015375182032585144,
+   "playing": true,
+   "cam": [
+    -1736.2,
+    -1045.4
+   ]
+  },
+  {
+   "t": 10.0,
+   "fps": 27.553522730911954,
+   "cpu_ms": 36.29299998283386,
+   "gpu_ms": 7.753728,
+   "frame_ms_max": 50.0359982252121,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.03862356022000313,
+   "playing": true,
+   "cam": [
+    -1735.9,
+    -1041.2
+   ]
+  },
+  {
+   "t": 11.0,
+   "fps": 6.337705804212856,
+   "cpu_ms": 157.7858030796051,
+   "gpu_ms": 9.508352,
+   "frame_ms_max": 157.7858030796051,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.06093400716781616,
+   "playing": true,
+   "cam": [
+    -1735.7,
+    -1037.3
+   ]
+  },
+  {
+   "t": 12.0,
+   "fps": 28.83207043204156,
+   "cpu_ms": 34.683600068092346,
+   "gpu_ms": 8.937984,
+   "frame_ms_max": 174.78279769420624,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.08274804055690765,
+   "playing": true,
+   "cam": [
+    -1734.7,
+    -1034.3
+   ]
+  },
+  {
+   "t": 13.0,
+   "fps": 23.931231936379145,
+   "cpu_ms": 41.786398738622665,
+   "gpu_ms": 11.751072,
+   "frame_ms_max": 117.70389974117279,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.10526897758245468,
+   "playing": true,
+   "cam": [
+    -1730.7,
+    -1034.9
+   ]
+  },
+  {
+   "t": 14.01,
+   "fps": 19.101941366209,
+   "cpu_ms": 52.35069990158081,
+   "gpu_ms": 12.879456,
+   "frame_ms_max": 81.47239685058594,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.12824992835521698,
+   "playing": true,
+   "cam": [
+    -1726.7,
+    -1035.6
+   ]
+  },
+  {
+   "t": 15.01,
+   "fps": 19.897250354178386,
+   "cpu_ms": 50.258200615644455,
+   "gpu_ms": 12.194176,
+   "frame_ms_max": 592.1971201896667,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.15166038274765015,
+   "playing": true,
+   "cam": [
+    -1722.6,
+    -1036.2
+   ]
+  },
+  {
+   "t": 16.01,
+   "fps": 16.81019760770632,
+   "cpu_ms": 59.48770046234131,
+   "gpu_ms": 11.31312,
+   "frame_ms_max": 255.6937038898468,
+   "follow_ms": null,
+   "reach_id": 3,
+   "makes": 2,
+   "releases": 1,
+   "refusals": 1,
+   "last_make_ms": 142.833,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.19156739115715027,
+   "playing": true,
+   "cam": [
+    -1717.2,
+    -1033.8
+   ]
+  },
+  {
+   "t": 17.58,
+   "fps": 1.0448589144119793,
+   "cpu_ms": 957.0670127868652,
+   "gpu_ms": 12.340512,
+   "frame_ms_max": 957.0670127868652,
+   "follow_ms": null,
+   "reach_id": 4,
+   "makes": 3,
+   "releases": 2,
+   "refusals": 1,
+   "last_make_ms": 150.8282,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    17,
+    -1056
+   ],
+   "max": [
+    -1697,
+    23,
+    -1017
+   ],
+   "point_found": true,
+   "progress": 0.20848612487316132,
+   "playing": true,
+   "cam": [
+    -1715.7,
+    -1031.2
+   ]
+  },
+  {
+   "t": 18.58,
+   "fps": 1.5065327743211172,
+   "cpu_ms": 663.7758016586304,
+   "gpu_ms": 13.936832,
+   "frame_ms_max": 663.7758016586304,
+   "follow_ms": null,
+   "reach_id": 4,
+   "makes": 3,
+   "releases": 2,
+   "refusals": 1,
+   "last_make_ms": 150.8282,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    17,
+    -1056
+   ],
+   "max": [
+    -1697,
+    23,
+    -1017
+   ],
+   "point_found": true,
+   "progress": 0.23385614156723022,
+   "playing": true,
+   "cam": [
+    -1715.0,
+    -1026.7
+   ]
+  },
+  {
+   "t": 19.58,
+   "fps": 15.489827401255296,
+   "cpu_ms": 64.5584985613823,
+   "gpu_ms": 12.183328,
+   "frame_ms_max": 157.0935994386673,
+   "follow_ms": null,
+   "reach_id": 5,
+   "makes": 4,
+   "releases": 3,
+   "refusals": 1,
+   "last_make_ms": 127.6657,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    18,
+    -1040
+   ],
+   "max": [
+    -1697,
+    23,
+    -1001
+   ],
+   "point_found": true,
+   "progress": 0.26358088850975037,
+   "playing": true,
+   "cam": [
+    -1714.2,
+    -1021.5
+   ]
+  },
+  {
+   "t": 20.58,
+   "fps": 1.9270485352230577,
+   "cpu_ms": 518.9282894134521,
+   "gpu_ms": 12.269856,
+   "frame_ms_max": 518.9282894134521,
+   "follow_ms": null,
+   "reach_id": 5,
+   "makes": 4,
+   "releases": 3,
+   "refusals": 1,
+   "last_make_ms": 127.6657,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    18,
+    -1040
+   ],
+   "max": [
+    -1697,
+    23,
+    -1001
+   ],
+   "point_found": true,
+   "progress": 0.2775239646434784,
+   "playing": true,
+   "cam": [
+    -1713.8,
+    -1019.0
+   ]
+  },
+  {
+   "t": 21.58,
+   "fps": 13.042230840315964,
+   "cpu_ms": 76.67399942874908,
+   "gpu_ms": 12.621088,
+   "frame_ms_max": 695.9419250488281,
+   "follow_ms": null,
+   "reach_id": 5,
+   "makes": 4,
+   "releases": 3,
+   "refusals": 1,
+   "last_make_ms": 127.6657,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    18,
+    -1040
+   ],
+   "max": [
+    -1697,
+    23,
+    -1001
+   ],
+   "point_found": true,
+   "progress": 0.2982977032661438,
+   "playing": true,
+   "cam": [
+    -1713.1,
+    -1015.4
+   ]
+  },
+  {
+   "t": 22.58,
+   "fps": 13.898830705606972,
+   "cpu_ms": 71.94849848747253,
+   "gpu_ms": 14.70368,
+   "frame_ms_max": 90.93309938907623,
+   "follow_ms": null,
+   "reach_id": 5,
+   "makes": 4,
+   "releases": 3,
+   "refusals": 1,
+   "last_make_ms": 127.6657,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    18,
+    -1040
+   ],
+   "max": [
+    -1697,
+    23,
+    -1001
+   ],
+   "point_found": true,
+   "progress": 0.3210567831993103,
+   "playing": true,
+   "cam": [
+    -1713.7,
+    -1012.0
+   ]
+  },
+  {
+   "t": 23.58,
+   "fps": 12.193768825959667,
+   "cpu_ms": 82.00909942388535,
+   "gpu_ms": 12.31424,
+   "frame_ms_max": 225.42309761047363,
+   "follow_ms": null,
+   "reach_id": 5,
+   "makes": 4,
+   "releases": 3,
+   "refusals": 1,
+   "last_make_ms": 127.6657,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    18,
+    -1040
+   ],
+   "max": [
+    -1697,
+    23,
+    -1001
+   ],
+   "point_found": true,
+   "progress": 0.344412624835968,
+   "playing": true,
+   "cam": [
+    -1717.2,
+    -1009.7
+   ]
+  },
+  {
+   "t": 24.58,
+   "fps": 23.72068430260414,
+   "cpu_ms": 42.15729981660843,
+   "gpu_ms": 12.169888,
+   "frame_ms_max": 221.19459509849548,
+   "follow_ms": null,
+   "reach_id": 5,
+   "makes": 4,
+   "releases": 3,
+   "refusals": 1,
+   "last_make_ms": 127.6657,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    18,
+    -1040
+   ],
+   "max": [
+    -1697,
+    23,
+    -1001
+   ],
+   "point_found": true,
+   "progress": 0.3682577311992645,
+   "playing": true,
+   "cam": [
+    -1720.5,
+    -1007.2
+   ]
+  },
+  {
+   "t": 25.58,
+   "fps": 29.443200610372138,
+   "cpu_ms": 33.96369889378548,
+   "gpu_ms": 14.281408,
+   "frame_ms_max": 459.73148941993713,
+   "follow_ms": null,
+   "reach_id": 6,
+   "makes": 5,
+   "releases": 4,
+   "refusals": 1,
+   "last_make_ms": 122.997,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    18,
+    -1024
+   ],
+   "max": [
+    -1697,
+    23,
+    -985
+   ],
+   "point_found": true,
+   "progress": 0.392099529504776,
+   "playing": true,
+   "cam": [
+    -1723.6,
+    -1004.2
+   ]
+  },
+  {
+   "t": 26.58,
+   "fps": 16.521415949443266,
+   "cpu_ms": 60.5274997651577,
+   "gpu_ms": 11.747136,
+   "frame_ms_max": 189.55519795417786,
+   "follow_ms": null,
+   "reach_id": 6,
+   "makes": 5,
+   "releases": 4,
+   "refusals": 1,
+   "last_make_ms": 122.997,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    18,
+    -1024
+   ],
+   "max": [
+    -1697,
+    23,
+    -985
+   ],
+   "point_found": true,
+   "progress": 0.41087406873703003,
+   "playing": true,
+   "cam": [
+    -1726.0,
+    -1001.9
+   ]
+  },
+  {
+   "t": 27.58,
+   "fps": 12.120448704403062,
+   "cpu_ms": 82.50519633293152,
+   "gpu_ms": 13.487328,
+   "frame_ms_max": 95.25430202484131,
+   "follow_ms": null,
+   "reach_id": 6,
+   "makes": 5,
+   "releases": 4,
+   "refusals": 1,
+   "last_make_ms": 122.997,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1736,
+    18,
+    -1024
+   ],
+   "max": [
+    -1697,
+    23,
+    -985
+   ],
+   "point_found": true,
+   "progress": 0.43404167890548706,
+   "playing": true,
+   "cam": [
+    -1728.9,
+    -999.0
+   ]
+  },
+  {
+   "t": 28.58,
+   "fps": 11.223810602557904,
+   "cpu_ms": 89.096300303936,
+   "gpu_ms": 14.37472,
+   "frame_ms_max": 465.2256965637207,
+   "follow_ms": null,
+   "reach_id": 7,
+   "makes": 6,
+   "releases": 5,
+   "refusals": 1,
+   "last_make_ms": 124.6265,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    18,
+    -1016
+   ],
+   "max": [
+    -1713,
+    23,
+    -977
+   ],
+   "point_found": true,
+   "progress": 0.4560394585132599,
+   "playing": true,
+   "cam": [
+    -1731.7,
+    -996.3
+   ]
+  },
+  {
+   "t": 29.58,
+   "fps": 7.577841478945078,
+   "cpu_ms": 131.96370005607605,
+   "gpu_ms": 14.052928,
+   "frame_ms_max": 131.96370005607605,
+   "follow_ms": null,
+   "reach_id": 7,
+   "makes": 6,
+   "releases": 5,
+   "refusals": 1,
+   "last_make_ms": 124.6265,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    18,
+    -1016
+   ],
+   "max": [
+    -1713,
+    23,
+    -977
+   ],
+   "point_found": true,
+   "progress": 0.49882078170776367,
+   "playing": true,
+   "cam": [
+    -1737.3,
+    -991.1
+   ]
+  },
+  {
+   "t": 30.59,
+   "fps": 0.9786361754385023,
+   "cpu_ms": 1021.8302011489868,
+   "gpu_ms": 14.854912,
+   "frame_ms_max": 1021.8302011489868,
+   "follow_ms": null,
+   "reach_id": 7,
+   "makes": 6,
+   "releases": 5,
+   "refusals": 1,
+   "last_make_ms": 124.6265,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    18,
+    -1016
+   ],
+   "max": [
+    -1713,
+    23,
+    -977
+   ],
+   "point_found": true,
+   "progress": 0.5029476284980774,
+   "playing": true,
+   "cam": [
+    -1737.9,
+    -990.6
+   ]
+  },
+  {
+   "t": 31.59,
+   "fps": 14.815648247464148,
+   "cpu_ms": 67.49620288610458,
+   "gpu_ms": 27.868032,
+   "frame_ms_max": 449.470192193985,
+   "follow_ms": null,
+   "reach_id": 7,
+   "makes": 6,
+   "releases": 5,
+   "refusals": 1,
+   "last_make_ms": 124.6265,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    18,
+    -1016
+   ],
+   "max": [
+    -1713,
+    23,
+    -977
+   ],
+   "point_found": true,
+   "progress": 0.5252708792686462,
+   "playing": true,
+   "cam": [
+    -1738.1,
+    -986.9
+   ]
+  },
+  {
+   "t": 32.59,
+   "fps": 17.92876128823443,
+   "cpu_ms": 55.77630177140236,
+   "gpu_ms": 16.367552,
+   "frame_ms_max": 209.27880704402924,
+   "follow_ms": null,
+   "reach_id": 7,
+   "makes": 6,
+   "releases": 5,
+   "refusals": 1,
+   "last_make_ms": 124.6265,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    18,
+    -1016
+   ],
+   "max": [
+    -1713,
+    23,
+    -977
+   ],
+   "point_found": true,
+   "progress": 0.5638697147369385,
+   "playing": true,
+   "cam": [
+    -1737.1,
+    -980.1
+   ]
+  },
+  {
+   "t": 33.87,
+   "fps": 0.9246081254025165,
+   "cpu_ms": 1081.539273262024,
+   "gpu_ms": 15.2032,
+   "frame_ms_max": 1081.539273262024,
+   "follow_ms": null,
+   "reach_id": 8,
+   "makes": 7,
+   "releases": 6,
+   "refusals": 1,
+   "last_make_ms": 116.2527,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1760,
+    18,
+    -1000
+   ],
+   "max": [
+    -1721,
+    23,
+    -961
+   ],
+   "point_found": true,
+   "progress": 0.5767959952354431,
+   "playing": true,
+   "cam": [
+    -1736.6,
+    -977.9
+   ]
+  },
+  {
+   "t": 34.87,
+   "fps": 11.393284995514593,
+   "cpu_ms": 87.77099847793579,
+   "gpu_ms": 14.981472,
+   "frame_ms_max": 164.03500735759735,
+   "follow_ms": null,
+   "reach_id": 8,
+   "makes": 7,
+   "releases": 6,
+   "refusals": 1,
+   "last_make_ms": 116.2527,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1760,
+    18,
+    -1000
+   ],
+   "max": [
+    -1721,
+    23,
+    -961
+   ],
+   "point_found": true,
+   "progress": 0.5976381897926331,
+   "playing": true,
+   "cam": [
+    -1735.7,
+    -974.3
+   ]
+  },
+  {
+   "t": 35.87,
+   "fps": 37.94692090949752,
+   "cpu_ms": 26.352599263191223,
+   "gpu_ms": 17.229696,
+   "frame_ms_max": 210.99840104579926,
+   "follow_ms": null,
+   "reach_id": 8,
+   "makes": 7,
+   "releases": 6,
+   "refusals": 1,
+   "last_make_ms": 116.2527,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1760,
+    18,
+    -1000
+   ],
+   "max": [
+    -1721,
+    23,
+    -961
+   ],
+   "point_found": true,
+   "progress": 0.6195634603500366,
+   "playing": true,
+   "cam": [
+    -1733.0,
+    -971.9
+   ]
+  },
+  {
+   "t": 36.87,
+   "fps": 34.18347633145137,
+   "cpu_ms": 29.253900051116943,
+   "gpu_ms": 15.000224,
+   "frame_ms_max": 141.22779667377472,
+   "follow_ms": null,
+   "reach_id": 8,
+   "makes": 7,
+   "releases": 6,
+   "refusals": 1,
+   "last_make_ms": 116.2527,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1760,
+    18,
+    -1000
+   ],
+   "max": [
+    -1721,
+    23,
+    -961
+   ],
+   "point_found": true,
+   "progress": 0.6420645117759705,
+   "playing": true,
+   "cam": [
+    -1729.4,
+    -970.1
+   ]
+  },
+  {
+   "t": 37.87,
+   "fps": 10.205102150832777,
+   "cpu_ms": 97.99019992351532,
+   "gpu_ms": 14.321152,
+   "frame_ms_max": 206.71500265598297,
+   "follow_ms": null,
+   "reach_id": 9,
+   "makes": 8,
+   "releases": 7,
+   "refusals": 1,
+   "last_make_ms": 135.0693,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -984
+   ],
+   "max": [
+    -1705,
+    23,
+    -945
+   ],
+   "point_found": true,
+   "progress": 0.6690359711647034,
+   "playing": true,
+   "cam": [
+    -1725.3,
+    -967.7
+   ]
+  },
+  {
+   "t": 38.87,
+   "fps": 10.809139909861104,
+   "cpu_ms": 92.51429885625839,
+   "gpu_ms": 17.87984,
+   "frame_ms_max": 443.88338923454285,
+   "follow_ms": null,
+   "reach_id": 9,
+   "makes": 8,
+   "releases": 7,
+   "refusals": 1,
+   "last_make_ms": 135.0693,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -984
+   ],
+   "max": [
+    -1705,
+    23,
+    -945
+   ],
+   "point_found": true,
+   "progress": 0.6871472597122192,
+   "playing": true,
+   "cam": [
+    -1722.6,
+    -965.9
+   ]
+  },
+  {
+   "t": 39.88,
+   "fps": 4.159062444319462,
+   "cpu_ms": 240.4388040304184,
+   "gpu_ms": 16.607648,
+   "frame_ms_max": 240.4388040304184,
+   "follow_ms": null,
+   "reach_id": 9,
+   "makes": 8,
+   "releases": 7,
+   "refusals": 1,
+   "last_make_ms": 135.0693,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -984
+   ],
+   "max": [
+    -1705,
+    23,
+    -945
+   ],
+   "point_found": true,
+   "progress": 0.717566192150116,
+   "playing": true,
+   "cam": [
+    -1718.6,
+    -962.6
+   ]
+  },
+  {
+   "t": 40.88,
+   "fps": 13.800089842963999,
+   "cpu_ms": 72.46329635381699,
+   "gpu_ms": 18.09216,
+   "frame_ms_max": 377.0732879638672,
+   "follow_ms": null,
+   "reach_id": 9,
+   "makes": 8,
+   "releases": 7,
+   "refusals": 1,
+   "last_make_ms": 135.0693,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -984
+   ],
+   "max": [
+    -1705,
+    23,
+    -945
+   ],
+   "point_found": true,
+   "progress": 0.7333255410194397,
+   "playing": true,
+   "cam": [
+    -1718.5,
+    -959.8
+   ]
+  },
+  {
+   "t": 41.88,
+   "fps": 13.840657532076797,
+   "cpu_ms": 72.25090265274048,
+   "gpu_ms": 17.178656,
+   "frame_ms_max": 163.60870003700256,
+   "follow_ms": null,
+   "reach_id": 9,
+   "makes": 8,
+   "releases": 7,
+   "refusals": 1,
+   "last_make_ms": 135.0693,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -984
+   ],
+   "max": [
+    -1705,
+    23,
+    -945
+   ],
+   "point_found": true,
+   "progress": 0.7593739628791809,
+   "playing": true,
+   "cam": [
+    -1718.4,
+    -955.2
+   ]
+  },
+  {
+   "t": 42.88,
+   "fps": 14.879313114404255,
+   "cpu_ms": 67.20740348100662,
+   "gpu_ms": 17.407584,
+   "frame_ms_max": 367.13600158691406,
+   "follow_ms": null,
+   "reach_id": 9,
+   "makes": 8,
+   "releases": 7,
+   "refusals": 1,
+   "last_make_ms": 135.0693,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -984
+   ],
+   "max": [
+    -1705,
+    23,
+    -945
+   ],
+   "point_found": true,
+   "progress": 0.777754008769989,
+   "playing": true,
+   "cam": [
+    -1720.7,
+    -953.0
+   ]
+  },
+  {
+   "t": 43.88,
+   "fps": 13.883624049260288,
+   "cpu_ms": 72.0273032784462,
+   "gpu_ms": 17.531008,
+   "frame_ms_max": 84.08790081739426,
+   "follow_ms": null,
+   "reach_id": 10,
+   "makes": 9,
+   "releases": 8,
+   "refusals": 1,
+   "last_make_ms": 135.4977,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -968
+   ],
+   "max": [
+    -1705,
+    23,
+    -929
+   ],
+   "point_found": true,
+   "progress": 0.8051619529724121,
+   "playing": true,
+   "cam": [
+    -1724.5,
+    -950.0
+   ]
+  },
+  {
+   "t": 44.88,
+   "fps": 43.027780429257625,
+   "cpu_ms": 23.240799084305763,
+   "gpu_ms": 16.62496,
+   "frame_ms_max": 501.2180805206299,
+   "follow_ms": null,
+   "reach_id": 10,
+   "makes": 9,
+   "releases": 8,
+   "refusals": 1,
+   "last_make_ms": 135.4977,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -968
+   ],
+   "max": [
+    -1705,
+    23,
+    -929
+   ],
+   "point_found": true,
+   "progress": 0.822388768196106,
+   "playing": true,
+   "cam": [
+    -1725.9,
+    -947.5
+   ]
+  },
+  {
+   "t": 45.88,
+   "fps": 8.417713823867363,
+   "cpu_ms": 118.79710108041763,
+   "gpu_ms": 16.18208,
+   "frame_ms_max": 118.79710108041763,
+   "follow_ms": null,
+   "reach_id": 10,
+   "makes": 9,
+   "releases": 8,
+   "refusals": 1,
+   "last_make_ms": 135.4977,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -968
+   ],
+   "max": [
+    -1705,
+    23,
+    -929
+   ],
+   "point_found": true,
+   "progress": 0.8450949788093567,
+   "playing": true,
+   "cam": [
+    -1726.8,
+    -943.5
+   ]
+  },
+  {
+   "t": 46.88,
+   "fps": 10.336216746633415,
+   "cpu_ms": 96.74719721078873,
+   "gpu_ms": 16.064032,
+   "frame_ms_max": 254.5728087425232,
+   "follow_ms": null,
+   "reach_id": 10,
+   "makes": 9,
+   "releases": 8,
+   "refusals": 1,
+   "last_make_ms": 135.4977,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -968
+   ],
+   "max": [
+    -1705,
+    23,
+    -929
+   ],
+   "point_found": true,
+   "progress": 0.8671252131462097,
+   "playing": true,
+   "cam": [
+    -1727.0,
+    -939.7
+   ]
+  },
+  {
+   "t": 47.88,
+   "fps": 8.300174311558395,
+   "cpu_ms": 120.47939747571945,
+   "gpu_ms": 17.787776,
+   "frame_ms_max": 206.39680325984955,
+   "follow_ms": null,
+   "reach_id": 10,
+   "makes": 9,
+   "releases": 8,
+   "refusals": 1,
+   "last_make_ms": 135.4977,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    17,
+    -968
+   ],
+   "max": [
+    -1705,
+    23,
+    -929
+   ],
+   "point_found": true,
+   "progress": 0.8902616500854492,
+   "playing": true,
+   "cam": [
+    -1726.3,
+    -935.6
+   ]
+  },
+  {
+   "t": 48.88,
+   "fps": 8.034284023152921,
+   "cpu_ms": 124.46659803390503,
+   "gpu_ms": 18.753664,
+   "frame_ms_max": 388.8570964336395,
+   "follow_ms": null,
+   "reach_id": 11,
+   "makes": 10,
+   "releases": 9,
+   "refusals": 1,
+   "last_make_ms": 119.2786,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    18,
+    -952
+   ],
+   "max": [
+    -1705,
+    23,
+    -913
+   ],
+   "point_found": true,
+   "progress": 0.9153172969818115,
+   "playing": true,
+   "cam": [
+    -1726.1,
+    -931.3
+   ]
+  },
+  {
+   "t": 49.88,
+   "fps": 7.356982487651549,
+   "cpu_ms": 135.92529296875,
+   "gpu_ms": 15.643232,
+   "frame_ms_max": 253.37910652160645,
+   "follow_ms": null,
+   "reach_id": 11,
+   "makes": 10,
+   "releases": 9,
+   "refusals": 1,
+   "last_make_ms": 119.2786,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    18,
+    -952
+   ],
+   "max": [
+    -1705,
+    23,
+    -913
+   ],
+   "point_found": true,
+   "progress": 0.934216320514679,
+   "playing": true,
+   "cam": [
+    -1726.7,
+    -928.0
+   ]
+  },
+  {
+   "t": 50.88,
+   "fps": 11.900242326798315,
+   "cpu_ms": 84.03190225362778,
+   "gpu_ms": 18.016864,
+   "frame_ms_max": 197.702094912529,
+   "follow_ms": null,
+   "reach_id": 11,
+   "makes": 10,
+   "releases": 9,
+   "refusals": 1,
+   "last_make_ms": 119.2786,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    18,
+    -952
+   ],
+   "max": [
+    -1705,
+    23,
+    -913
+   ],
+   "point_found": true,
+   "progress": 0.9583708047866821,
+   "playing": true,
+   "cam": [
+    -1727.8,
+    -923.9
+   ]
+  },
+  {
+   "t": 51.88,
+   "fps": 11.249808309140779,
+   "cpu_ms": 88.89040350914001,
+   "gpu_ms": 19.838144,
+   "frame_ms_max": 146.64329588413239,
+   "follow_ms": null,
+   "reach_id": 11,
+   "makes": 10,
+   "releases": 9,
+   "refusals": 1,
+   "last_make_ms": 119.2786,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1744,
+    18,
+    -952
+   ],
+   "max": [
+    -1705,
+    23,
+    -913
+   ],
+   "point_found": true,
+   "progress": 0.9811292886734009,
+   "playing": true,
+   "cam": [
+    -1730.5,
+    -920.9
+   ]
+  },
+  {
+   "t": 52.88,
+   "fps": 8.616997755574998,
+   "cpu_ms": 116.04969948530197,
+   "gpu_ms": 19.599616,
+   "frame_ms_max": 458.3972096443176,
+   "follow_ms": null,
+   "reach_id": 12,
+   "makes": 11,
+   "releases": 10,
+   "refusals": 1,
+   "last_make_ms": 126.6907,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    18,
+    -936
+   ],
+   "max": [
+    -1713,
+    23,
+    -897
+   ],
+   "point_found": true,
+   "progress": 1.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 53.88,
+   "fps": 7.1962018509274746,
+   "cpu_ms": 138.96219432353973,
+   "gpu_ms": 20.24096,
+   "frame_ms_max": 204.98819649219513,
+   "follow_ms": null,
+   "reach_id": 13,
+   "makes": 12,
+   "releases": 11,
+   "refusals": 1,
+   "last_make_ms": 163.4601,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 54.88,
+   "fps": 5.496196700178664,
+   "cpu_ms": 181.94399774074554,
+   "gpu_ms": 21.133632,
+   "frame_ms_max": 472.60570526123047,
+   "follow_ms": null,
+   "reach_id": 13,
+   "makes": 12,
+   "releases": 11,
+   "refusals": 1,
+   "last_make_ms": 163.4601,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 55.88,
+   "fps": 10.047474258619419,
+   "cpu_ms": 99.5275005698204,
+   "gpu_ms": 19.482144,
+   "frame_ms_max": 1035.258412361145,
+   "follow_ms": null,
+   "reach_id": 13,
+   "makes": 12,
+   "releases": 11,
+   "refusals": 1,
+   "last_make_ms": 163.4601,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  },
+  {
+   "t": 56.88,
+   "fps": 1.0444324752625147,
+   "cpu_ms": 957.4577808380127,
+   "gpu_ms": 19.440672,
+   "frame_ms_max": 957.4577808380127,
+   "follow_ms": null,
+   "reach_id": 13,
+   "makes": 12,
+   "releases": 11,
+   "refusals": 1,
+   "last_make_ms": 163.4601,
+   "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+   "min": [
+    -1752,
+    17,
+    -1064
+   ],
+   "max": [
+    -1713,
+    23,
+    -1025
+   ],
+   "point_found": true,
+   "progress": 0.0,
+   "playing": false,
+   "cam": [
+    -1736.4,
+    -1048.1
+   ]
+  }
+ ],
+ "drops": [
+  {
+   "t": 4.0,
+   "at": [
+    -1719.7,
+    -1005.5
+   ],
+   "surface_y": 20.26768684387207
+  },
+  {
+   "t": 14.0,
+   "at": [
+    -1732.6,
+    -973.2
+   ],
+   "surface_y": 20.32581901550293
+  },
+  {
+   "t": 24.0,
+   "at": [
+    -1728.4,
+    -939.6
+   ],
+   "surface_y": 20.367231369018555
+  }
+ ],
+ "summary": {
+  "samples": 57,
+  "samples_with_reach": 57,
+  "swap_seconds": [
+   1,
+   17,
+   19,
+   25,
+   28,
+   33,
+   37,
+   43,
+   48,
+   52,
+   53
+  ],
+  "frame_ms_max_in_swap_seconds": {
+   "n": 11,
+   "mean": 444.22,
+   "max": 1081.54,
+   "median": 422.68
+  },
+  "frame_ms_max_other_seconds": {
+   "n": 45,
+   "mean": 289.46,
+   "max": 1035.26,
+   "median": 197.7
+  },
+  "fps": {
+   "n": 57,
+   "mean": 17.09,
+   "max": 50.78,
+   "median": 13.8
+  },
+  "cpu_ms": {
+   "n": 57,
+   "mean": 159.19,
+   "max": 1081.54,
+   "median": 72.46
+  },
+  "gpu_ms": {
+   "n": 57,
+   "mean": 14.03,
+   "max": 27.87,
+   "median": 14.32
+  },
+  "make_ms": [
+   142.833,
+   150.8282,
+   127.6657,
+   122.997,
+   124.6265,
+   116.2527,
+   135.0693,
+   135.4977,
+   119.2786,
+   126.6907,
+   163.4601
+  ]
+ },
+ "wood": {
+  "tracks": [
+   {
+    "slot": 0,
+    "samples": 148,
+    "drift_m": 17.87,
+    "t_s": 24.0,
+    "speed_swap_windows": 0.671,
+    "speed_other_windows": 0.795,
+    "windows": [
+     {
+      "t": 0.41,
+      "speed": 0.674,
+      "swap": true,
+      "pos": [
+       -1721.2,
+       -1007.0
+      ]
+     },
+     {
+      "t": 1.36,
+      "speed": 0.824,
+      "swap": true,
+      "pos": [
+       -1721.7,
+       -1006.7
+      ]
+     },
+     {
+      "t": 2.38,
+      "speed": 0.827,
+      "swap": false,
+      "pos": [
+       -1722.4,
+       -1006.3
+      ]
+     },
+     {
+      "t": 3.46,
+      "speed": 0.825,
+      "swap": false,
+      "pos": [
+       -1723.2,
+       -1005.8
+      ]
+     },
+     {
+      "t": 4.41,
+      "speed": 0.761,
+      "swap": false,
+      "pos": [
+       -1723.9,
+       -1005.4
+      ]
+     },
+     {
+      "t": 5.43,
+      "speed": 0.665,
+      "swap": false,
+      "pos": [
+       -1724.5,
+       -1005.0
+      ]
+     },
+     {
+      "t": 6.46,
+      "speed": 0.834,
+      "swap": false,
+      "pos": [
+       -1725.1,
+       -1004.5
+      ]
+     },
+     {
+      "t": 7.38,
+      "speed": 0.76,
+      "swap": false,
+      "pos": [
+       -1725.6,
+       -1004.0
+      ]
+     },
+     {
+      "t": 8.41,
+      "speed": 0.828,
+      "swap": false,
+      "pos": [
+       -1726.2,
+       -1003.5
+      ]
+     },
+     {
+      "t": 9.36,
+      "speed": 0.8,
+      "swap": false,
+      "pos": [
+       -1726.7,
+       -1002.9
+      ]
+     },
+     {
+      "t": 10.34,
+      "speed": 0.837,
+      "swap": false,
+      "pos": [
+       -1727.2,
+       -1002.3
+      ]
+     },
+     {
+      "t": 11.49,
+      "speed": 0.923,
+      "swap": false,
+      "pos": [
+       -1727.8,
+       -1001.5
+      ]
+     },
+     {
+      "t": 12.36,
+      "speed": 0.953,
+      "swap": false,
+      "pos": [
+       -1728.3,
+       -1000.9
+      ]
+     },
+     {
+      "t": 13.43,
+      "speed": 0.49,
+      "swap": false,
+      "pos": [
+       -1728.9,
+       -1000.1
+      ]
+     },
+     {
+      "t": 14.33,
+      "speed": 0.571,
+      "swap": false,
+      "pos": [
+       -1729.3,
+       -999.9
+      ]
+     },
+     {
+      "t": 15.51,
+      "speed": 0.498,
+      "swap": false,
+      "pos": [
+       -1730.0,
+       -999.7
+      ]
+     },
+     {
+      "t": 16.44,
+      "speed": 0.458,
+      "swap": true,
+      "pos": [
+       -1730.4,
+       -999.6
+      ]
+     },
+     {
+      "t": 17.41,
+      "speed": 0.43,
+      "swap": true,
+      "pos": [
+       -1730.8,
+       -999.5
+      ]
+     },
+     {
+      "t": 18.41,
+      "speed": 0.671,
+      "swap": true,
+      "pos": [
+       -1731.2,
+       -999.2
+      ]
+     },
+     {
+      "t": 19.36,
+      "speed": 0.97,
+      "swap": true,
+      "pos": [
+       -1731.4,
+       -998.7
+      ]
+     },
+     {
+      "t": 20.39,
+      "speed": 0.978,
+      "swap": false,
+      "pos": [
+       -1731.9,
+       -997.8
+      ]
+     },
+     {
+      "t": 21.39,
+      "speed": 0.982,
+      "swap": false,
+      "pos": [
+       -1732.3,
+       -996.9
+      ]
+     },
+     {
+      "t": 22.39,
+      "speed": 0.981,
+      "swap": false,
+      "pos": [
+       -1732.8,
+       -996.0
+      ]
+     }
+    ]
+   },
+   {
+    "slot": 1,
+    "samples": 148,
+    "drift_m": 17.05,
+    "t_s": 24.0,
+    "speed_swap_windows": 0.701,
+    "speed_other_windows": 0.746,
+    "windows": [
+     {
+      "t": 0.41,
+      "speed": 0.644,
+      "swap": true,
+      "pos": [
+       -1719.7,
+       -1005.5
+      ]
+     },
+     {
+      "t": 1.36,
+      "speed": 0.802,
+      "swap": true,
+      "pos": [
+       -1720.1,
+       -1005.1
+      ]
+     },
+     {
+      "t": 2.38,
+      "speed": 0.825,
+      "swap": false,
+      "pos": [
+       -1720.8,
+       -1004.6
+      ]
+     },
+     {
+      "t": 3.46,
+      "speed": 0.65,
+      "swap": false,
+      "pos": [
+       -1721.6,
+       -1004.2
+      ]
+     },
+     {
+      "t": 4.41,
+      "speed": 0.53,
+      "swap": false,
+      "pos": [
+       -1722.1,
+       -1003.9
+      ]
+     },
+     {
+      "t": 5.43,
+      "speed": 0.392,
+      "swap": false,
+      "pos": [
+       -1722.6,
+       -1003.7
+      ]
+     },
+     {
+      "t": 6.46,
+      "speed": 0.836,
+      "swap": false,
+      "pos": [
+       -1723.0,
+       -1003.6
+      ]
+     },
+     {
+      "t": 7.38,
+      "speed": 0.541,
+      "swap": false,
+      "pos": [
+       -1723.7,
+       -1003.2
+      ]
+     },
+     {
+      "t": 8.41,
+      "speed": 0.549,
+      "swap": false,
+      "pos": [
+       -1724.2,
+       -1003.0
+      ]
+     },
+     {
+      "t": 9.36,
+      "speed": 0.502,
+      "swap": false,
+      "pos": [
+       -1724.7,
+       -1002.9
+      ]
+     },
+     {
+      "t": 10.34,
+      "speed": 0.695,
+      "swap": false,
+      "pos": [
+       -1725.2,
+       -1002.7
+      ]
+     },
+     {
+      "t": 11.49,
+      "speed": 0.914,
+      "swap": false,
+      "pos": [
+       -1725.8,
+       -1002.3
+      ]
+     },
+     {
+      "t": 12.36,
+      "speed": 0.948,
+      "swap": false,
+      "pos": [
+       -1726.4,
+       -1001.8
+      ]
+     },
+     {
+      "t": 13.43,
+      "speed": 0.968,
+      "swap": false,
+      "pos": [
+       -1727.1,
+       -1001.0
+      ]
+     },
+     {
+      "t": 14.33,
+      "speed": 0.775,
+      "swap": false,
+      "pos": [
+       -1727.7,
+       -1000.4
+      ]
+     },
+     {
+      "t": 15.51,
+      "speed": 0.605,
+      "swap": false,
+      "pos": [
+       -1728.5,
+       -999.8
+      ]
+     },
+     {
+      "t": 16.44,
+      "speed": 0.622,
+      "swap": true,
+      "pos": [
+       -1729.0,
+       -999.8
+      ]
+     },
+     {
+      "t": 17.41,
+      "speed": 0.602,
+      "swap": true,
+      "pos": [
+       -1729.6,
+       -999.7
+      ]
+     },
+     {
+      "t": 18.41,
+      "speed": 0.563,
+      "swap": true,
+      "pos": [
+       -1730.2,
+       -999.5
+      ]
+     },
+     {
+      "t": 19.36,
+      "speed": 0.971,
+      "swap": true,
+      "pos": [
+       -1730.6,
+       -999.2
+      ]
+     },
+     {
+      "t": 20.39,
+      "speed": 0.988,
+      "swap": false,
+      "pos": [
+       -1731.1,
+       -998.3
+      ]
+     },
+     {
+      "t": 21.39,
+      "speed": 0.988,
+      "swap": false,
+      "pos": [
+       -1731.6,
+       -997.5
+      ]
+     },
+     {
+      "t": 22.39,
+      "speed": 0.984,
+      "swap": false,
+      "pos": [
+       -1732.0,
+       -996.6
+      ]
+     }
+    ]
+   },
+   {
+    "slot": 3,
+    "samples": 116,
+    "drift_m": 17.92,
+    "t_s": 18.9,
+    "speed_swap_windows": 1.078,
+    "speed_other_windows": 0.925,
+    "windows": [
+     {
+      "t": 5.54,
+      "speed": 0.834,
+      "swap": false,
+      "pos": [
+       -1734.1,
+       -974.7
+      ]
+     },
+     {
+      "t": 6.46,
+      "speed": 0.981,
+      "swap": false,
+      "pos": [
+       -1733.7,
+       -974.1
+      ]
+     },
+     {
+      "t": 7.61,
+      "speed": 0.988,
+      "swap": false,
+      "pos": [
+       -1733.0,
+       -973.2
+      ]
+     },
+     {
+      "t": 8.61,
+      "speed": 0.982,
+      "swap": false,
+      "pos": [
+       -1732.3,
+       -972.4
+      ]
+     },
+     {
+      "t": 9.56,
+      "speed": 0.994,
+      "swap": false,
+      "pos": [
+       -1731.8,
+       -971.7
+      ]
+     },
+     {
+      "t": 10.54,
+      "speed": 0.972,
+      "swap": false,
+      "pos": [
+       -1731.1,
+       -970.9
+      ]
+     },
+     {
+      "t": 11.49,
+      "speed": 0.767,
+      "swap": false,
+      "pos": [
+       -1730.6,
+       -970.2
+      ]
+     },
+     {
+      "t": 12.56,
+      "speed": 0.58,
+      "swap": false,
+      "pos": [
+       -1730.1,
+       -969.5
+      ]
+     },
+     {
+      "t": 13.56,
+      "speed": 1.023,
+      "swap": false,
+      "pos": [
+       -1729.9,
+       -969.0
+      ]
+     },
+     {
+      "t": 14.51,
+      "speed": 1.128,
+      "swap": false,
+      "pos": [
+       -1729.4,
+       -968.1
+      ]
+     },
+     {
+      "t": 15.51,
+      "speed": 1.106,
+      "swap": true,
+      "pos": [
+       -1728.7,
+       -967.3
+      ]
+     },
+     {
+      "t": 16.63,
+      "speed": 1.045,
+      "swap": true,
+      "pos": [
+       -1727.7,
+       -966.5
+      ]
+     },
+     {
+      "t": 17.61,
+      "speed": 1.144,
+      "swap": true,
+      "pos": [
+       -1727.0,
+       -965.7
+      ]
+     },
+     {
+      "t": 18.54,
+      "speed": 0.99,
+      "swap": true,
+      "pos": [
+       -1726.4,
+       -964.9
+      ]
+     },
+     {
+      "t": 19.54,
+      "speed": 1.105,
+      "swap": true,
+      "pos": [
+       -1725.7,
+       -964.2
+      ]
+     },
+     {
+      "t": 20.56,
+      "speed": 1.047,
+      "swap": false,
+      "pos": [
+       -1724.9,
+       -963.3
+      ]
+     },
+     {
+      "t": 21.59,
+      "speed": 1.02,
+      "swap": false,
+      "pos": [
+       -1724.2,
+       -962.5
+      ]
+     },
+     {
+      "t": 22.59,
+      "speed": 0.704,
+      "swap": false,
+      "pos": [
+       -1723.5,
+       -961.8
+      ]
+     }
+    ]
+   },
+   {
+    "slot": 4,
+    "samples": 116,
+    "drift_m": 16.63,
+    "t_s": 18.9,
+    "speed_swap_windows": 1.118,
+    "speed_other_windows": 0.839,
+    "windows": [
+     {
+      "t": 5.54,
+      "speed": 0.788,
+      "swap": false,
+      "pos": [
+       -1732.6,
+       -973.2
+      ]
+     },
+     {
+      "t": 6.46,
+      "speed": 0.985,
+      "swap": false,
+      "pos": [
+       -1732.2,
+       -972.6
+      ]
+     },
+     {
+      "t": 7.61,
+      "speed": 0.989,
+      "swap": false,
+      "pos": [
+       -1731.5,
+       -971.7
+      ]
+     },
+     {
+      "t": 8.61,
+      "speed": 0.997,
+      "swap": false,
+      "pos": [
+       -1730.8,
+       -971.0
+      ]
+     },
+     {
+      "t": 9.56,
+      "speed": 0.995,
+      "swap": false,
+      "pos": [
+       -1730.2,
+       -970.2
+      ]
+     },
+     {
+      "t": 10.54,
+      "speed": 1.027,
+      "swap": false,
+      "pos": [
+       -1729.6,
+       -969.5
+      ]
+     },
+     {
+      "t": 11.49,
+      "speed": 0.654,
+      "swap": false,
+      "pos": [
+       -1729.1,
+       -968.6
+      ]
+     },
+     {
+      "t": 12.56,
+      "speed": 0.755,
+      "swap": false,
+      "pos": [
+       -1728.8,
+       -968.0
+      ]
+     },
+     {
+      "t": 13.56,
+      "speed": 0.739,
+      "swap": false,
+      "pos": [
+       -1728.2,
+       -967.5
+      ]
+     },
+     {
+      "t": 14.51,
+      "speed": 0.995,
+      "swap": false,
+      "pos": [
+       -1727.8,
+       -967.0
+      ]
+     },
+     {
+      "t": 15.51,
+      "speed": 1.076,
+      "swap": true,
+      "pos": [
+       -1727.1,
+       -966.2
+      ]
+     },
+     {
+      "t": 16.63,
+      "speed": 1.16,
+      "swap": true,
+      "pos": [
+       -1726.4,
+       -965.2
+      ]
+     },
+     {
+      "t": 17.61,
+      "speed": 1.058,
+      "swap": true,
+      "pos": [
+       -1725.7,
+       -964.4
+      ]
+     },
+     {
+      "t": 18.54,
+      "speed": 1.138,
+      "swap": true,
+      "pos": [
+       -1725.0,
+       -963.7
+      ]
+     },
+     {
+      "t": 19.54,
+      "speed": 1.159,
+      "swap": true,
+      "pos": [
+       -1724.2,
+       -962.8
+      ]
+     },
+     {
+      "t": 20.56,
+      "speed": 0.722,
+      "swap": false,
+      "pos": [
+       -1723.4,
+       -961.9
+      ]
+     },
+     {
+      "t": 21.59,
+      "speed": 0.694,
+      "swap": false,
+      "pos": [
+       -1722.8,
+       -961.5
+      ]
+     },
+     {
+      "t": 22.59,
+      "speed": 0.561,
+      "swap": false,
+      "pos": [
+       -1722.3,
+       -961.1
+      ]
+     }
+    ]
+   },
+   {
+    "slot": 5,
+    "samples": 115,
+    "drift_m": 14.01,
+    "t_s": 18.7,
+    "speed_swap_windows": 0.772,
+    "speed_other_windows": 0.758,
+    "windows": [
+     {
+      "t": 5.71,
+      "speed": 0.909,
+      "swap": false,
+      "pos": [
+       -1731.1,
+       -971.6
+      ]
+     },
+     {
+      "t": 6.78,
+      "speed": 0.999,
+      "swap": false,
+      "pos": [
+       -1730.5,
+       -970.9
+      ]
+     },
+     {
+      "t": 7.73,
+      "speed": 1.009,
+      "swap": false,
+      "pos": [
+       -1729.9,
+       -970.2
+      ]
+     },
+     {
+      "t": 8.79,
+      "speed": 0.462,
+      "swap": false,
+      "pos": [
+       -1729.2,
+       -969.4
+      ]
+     },
+     {
+      "t": 9.74,
+      "speed": 0.943,
+      "swap": false,
+      "pos": [
+       -1729.1,
+       -968.9
+      ]
+     },
+     {
+      "t": 10.73,
+      "speed": 0.919,
+      "swap": false,
+      "pos": [
+       -1728.5,
+       -968.2
+      ]
+     },
+     {
+      "t": 11.66,
+      "speed": 0.385,
+      "swap": false,
+      "pos": [
+       -1727.9,
+       -967.6
+      ]
+     },
+     {
+      "t": 12.71,
+      "speed": 0.336,
+      "swap": false,
+      "pos": [
+       -1727.7,
+       -967.3
+      ]
+     },
+     {
+      "t": 13.76,
+      "speed": 0.948,
+      "swap": false,
+      "pos": [
+       -1727.4,
+       -967.0
+      ]
+     },
+     {
+      "t": 14.71,
+      "speed": 0.414,
+      "swap": false,
+      "pos": [
+       -1726.9,
+       -966.3
+      ]
+     },
+     {
+      "t": 15.68,
+      "speed": 0.733,
+      "swap": true,
+      "pos": [
+       -1726.5,
+       -966.1
+      ]
+     },
+     {
+      "t": 16.63,
+      "speed": 0.648,
+      "swap": true,
+      "pos": [
+       -1726.0,
+       -965.6
+      ]
+     },
+     {
+      "t": 17.74,
+      "speed": 0.962,
+      "swap": true,
+      "pos": [
+       -1725.6,
+       -965.1
+      ]
+     },
+     {
+      "t": 18.68,
+      "speed": 0.529,
+      "swap": true,
+      "pos": [
+       -1725.0,
+       -964.4
+      ]
+     },
+     {
+      "t": 19.78,
+      "speed": 0.99,
+      "swap": true,
+      "pos": [
+       -1724.6,
+       -963.9
+      ]
+     },
+     {
+      "t": 20.66,
+      "speed": 0.939,
+      "swap": false,
+      "pos": [
+       -1724.1,
+       -963.2
+      ]
+     },
+     {
+      "t": 21.79,
+      "speed": 0.897,
+      "swap": false,
+      "pos": [
+       -1723.4,
+       -962.4
+      ]
+     },
+     {
+      "t": 22.79,
+      "speed": 0.697,
+      "swap": false,
+      "pos": [
+       -1722.8,
+       -961.7
+      ]
+     }
+    ]
+   },
+   {
+    "slot": 7,
+    "samples": 82,
+    "drift_m": 13.18,
+    "t_s": 13.1,
+    "speed_swap_windows": 1.069,
+    "speed_other_windows": 0.984,
+    "windows": [
+     {
+      "t": 11.31,
+      "speed": 0.989,
+      "swap": false,
+      "pos": [
+       -1728.4,
+       -939.6
+      ]
+     },
+     {
+      "t": 12.36,
+      "speed": 1.088,
+      "swap": false,
+      "pos": [
+       -1728.6,
+       -938.6
+      ]
+     },
+     {
+      "t": 13.34,
+      "speed": 1.01,
+      "swap": false,
+      "pos": [
+       -1728.8,
+       -937.5
+      ]
+     },
+     {
+      "t": 14.33,
+      "speed": 1.039,
+      "swap": false,
+      "pos": [
+       -1728.8,
+       -936.5
+      ]
+     },
+     {
+      "t": 15.31,
+      "speed": 1.077,
+      "swap": false,
+      "pos": [
+       -1728.8,
+       -935.5
+      ]
+     },
+     {
+      "t": 16.26,
+      "speed": 1.077,
+      "swap": true,
+      "pos": [
+       -1728.8,
+       -934.5
+      ]
+     },
+     {
+      "t": 17.21,
+      "speed": 1.091,
+      "swap": true,
+      "pos": [
+       -1728.8,
+       -933.4
+      ]
+     },
+     {
+      "t": 18.31,
+      "speed": 1.101,
+      "swap": true,
+      "pos": [
+       -1728.8,
+       -932.2
+      ]
+     },
+     {
+      "t": 19.36,
+      "speed": 1.006,
+      "swap": true,
+      "pos": [
+       -1728.8,
+       -931.1
+      ]
+     },
+     {
+      "t": 20.26,
+      "speed": 0.955,
+      "swap": false,
+      "pos": [
+       -1728.8,
+       -930.2
+      ]
+     },
+     {
+      "t": 21.39,
+      "speed": 0.894,
+      "swap": false,
+      "pos": [
+       -1728.8,
+       -929.1
+      ]
+     },
+     {
+      "t": 22.39,
+      "speed": 0.818,
+      "swap": false,
+      "pos": [
+       -1728.8,
+       -928.2
+      ]
+     },
+     {
+      "t": 23.39,
+      "speed": 0.989,
+      "swap": false,
+      "pos": [
+       -1728.8,
+       -927.4
+      ]
+     }
+    ]
+   },
+   {
+    "slot": 8,
+    "samples": 82,
+    "drift_m": 13.37,
+    "t_s": 13.1,
+    "speed_swap_windows": 1.068,
+    "speed_other_windows": 1.007,
+    "windows": [
+     {
+      "t": 11.31,
+      "speed": 0.922,
+      "swap": false,
+      "pos": [
+       -1726.9,
+       -938.1
+      ]
+     },
+     {
+      "t": 12.36,
+      "speed": 1.087,
+      "swap": false,
+      "pos": [
+       -1727.1,
+       -937.1
+      ]
+     },
+     {
+      "t": 13.34,
+      "speed": 1.083,
+      "swap": false,
+      "pos": [
+       -1727.2,
+       -936.1
+      ]
+     },
+     {
+      "t": 14.33,
+      "speed": 1.08,
+      "swap": false,
+      "pos": [
+       -1727.2,
+       -935.0
+      ]
+     },
+     {
+      "t": 15.31,
+      "speed": 1.081,
+      "swap": false,
+      "pos": [
+       -1727.3,
+       -933.9
+      ]
+     },
+     {
+      "t": 16.26,
+      "speed": 1.08,
+      "swap": true,
+      "pos": [
+       -1727.3,
+       -932.9
+      ]
+     },
+     {
+      "t": 17.21,
+      "speed": 1.08,
+      "swap": true,
+      "pos": [
+       -1727.3,
+       -931.9
+      ]
+     },
+     {
+      "t": 18.31,
+      "speed": 1.081,
+      "swap": true,
+      "pos": [
+       -1727.3,
+       -930.7
+      ]
+     },
+     {
+      "t": 19.36,
+      "speed": 1.031,
+      "swap": true,
+      "pos": [
+       -1727.3,
+       -929.6
+      ]
+     },
+     {
+      "t": 20.26,
+      "speed": 0.97,
+      "swap": false,
+      "pos": [
+       -1727.2,
+       -928.6
+      ]
+     },
+     {
+      "t": 21.39,
+      "speed": 0.858,
+      "swap": false,
+      "pos": [
+       -1727.2,
+       -927.5
+      ]
+     },
+     {
+      "t": 22.39,
+      "speed": 0.933,
+      "swap": false,
+      "pos": [
+       -1727.4,
+       -926.7
+      ]
+     },
+     {
+      "t": 23.39,
+      "speed": 1.05,
+      "swap": false,
+      "pos": [
+       -1727.6,
+       -925.8
+      ]
+     }
+    ]
+   }
+  ],
+  "swap_times_sampler_s": [
+   1.0,
+   33.87,
+   37.87,
+   43.88,
+   48.88,
+   17.58,
+   19.58,
+   52.88,
+   53.88,
+   25.58,
+   28.58
+  ]
+ },
+ "follow_end": {
+  "check_s": 0.5,
+  "exchanged_m3": 159.2009100444137,
+  "half_m": 20.0,
+  "last_error": "a chunk under the box is not resident (the record would read dry there): not made",
+  "last_make_ms": 163.4601,
+  "makes": 12,
+  "margin_m": 8.0,
+  "max": [
+   -1713,
+   23,
+   -1025
+  ],
+  "max_make_ms": 163.4601,
+  "min": [
+   -1752,
+   17,
+   -1064
+  ],
+  "on": true,
+  "point": [
+   -1736,
+   -1048
+  ],
+  "point_found": true,
+  "radius_m": 24.0,
+  "reach_id": 13,
+  "realtime": true,
+  "refusals": 1,
+  "releases": 11,
+  "residue_m3": 0.0,
+  "success": true,
+  "thin_dropped_m3": 0.0
+ }
+}

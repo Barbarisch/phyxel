@@ -1738,3 +1738,102 @@ TEST_F(WaterRecordTilesTest, ASimulatedReachCarriesTheRecordsRiver) {
     // the spill raises the level below (2.16 measured). Physically right; not gated - printed above.]
     EXPECT_LT(std::abs(dam.books), 1e-4);
 }
+
+// WaterCore §54.3 (W5.2b): a reach FOLLOWS the viewer along a river (WaterCoreManager::followRiver, the shipped knobs: radius 24 m,
+// half 20 m - a 40 m box -, margin 8 m, a check every 0.5 s). The rig: a recorded river 14 m wide, 2 m deep, 0.6 m/s along +x, from
+// x -64 to 223; the viewer (12 m up) walks it at 5 m/s from x 0 to 160 along z 20, then leaves it at 10 m/s to z 90; the manager runs
+// as in play (realtime, update() at 60 Hz). Predictions (written before the run): (i) from the first make on, the viewer's column is
+// inside a live reach's box every frame (>= 99 %); (ii) never more than one volume; (iii) the books over the whole walk - the record
+// after it, less the record before, less what the released reaches' edges exchanged (plus their dropped residue) - within 1e-3 m^3;
+// (iv) 6-7 makes (160 m / (40 - 2 x 8) m - wrong, see the gate); (v) leaving the river releases it: no volume at the end. A4: the same walk with a stone
+// wall across the river at x 60 (crest 2.3 m): after the walk the RECORD above the wall (x 50-58) stays >= 0.1 m above the walk
+// without it - a dam the player built outlives the reach. RED: follow off - no volume, coverage 0.
+namespace {
+struct FollowRun { double coverage = 0.0, books = 0.0, recordAbove = 0.0, r0 = 0.0, r1 = 0.0; int maxVols = 0, makes = 0, releases = 0, refusals = 0, frames = 0, covered = 0, endVols = -1;
+                   double maxMakeMs = 0.0, exch = 0.0, wallS = 0.0; std::string err, lastErr; bool ok = false; };
+}
+TEST_F(WaterRecordTilesTest, AReachFollowsTheViewerAlongARiver) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto run = [&](bool follow, bool dam) {
+        FollowRun out;
+        const auto w0 = std::chrono::steady_clock::now();
+        auto state = [dam](const glm::ivec3& m) -> int {
+            constexpr int M = 9;
+            if (m.y < 0) return 1;
+            if (m.z < 13 * M || m.z >= 27 * M) return 1;                                                   // the banks
+            if (dam && m.x >= 60 * M && m.x < 60 * M + 3 && m.y < static_cast<int>(2.3f * M)) return 1;   // the wall
+            return 0;
+        };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { out.err = err; return out; }
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        for (int x = -64; x < 224; ++x) for (int z = 13; z <= 26; ++z) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+        mgr.setRecordCurrent([](int, int wz, float, float) { return (wz >= 13 && wz <= 26) ? glm::vec2(0.6f, 0.0f) : glm::vec2(0.0f); });
+        WaterCoreManager::RiverFollow f; f.on = follow; mgr.setRiverFollow(f);
+        mgr.setRealtime(true);
+        out.r0 = record.total();
+        const float dt = 1.0f / 60.0f;
+        double t = 0.0;
+        bool started = false;
+        auto frame = [&](const glm::vec3& viewer, bool walking) {
+            mgr.followRiver(viewer, t);
+            mgr.update(dt);
+            t += dt;
+            const auto vols = mgr.list();
+            out.maxVols = std::max(out.maxVols, static_cast<int>(vols.size()));
+            if (!vols.empty()) started = true;
+            if (!started || !walking) return;   // coverage: the walk along the river (leaving it, the reach is meant to go)
+            ++out.frames;
+            const int vx = static_cast<int>(std::floor(viewer.x)), vz = static_cast<int>(std::floor(viewer.z));
+            for (const auto& v : vols) if (vx >= v.minVoxel.x && vx <= v.maxVoxel.x && vz >= v.minVoxel.z && vz <= v.maxVoxel.z) { ++out.covered; break; }
+        };
+        if (!follow) { for (int k = 0; k < 120; ++k) frame(glm::vec3(5.0f * k * dt, 12.0f, 20.0f), true); }
+        else {
+            for (int k = 0; k <= 1920; ++k) frame(glm::vec3(5.0f * k * dt, 12.0f, 20.0f), true);            // x 0 -> 160 at 5 m/s
+            for (int k = 1; k <= 420; ++k) frame(glm::vec3(160.0f, 12.0f, 20.0f + 10.0f * k * dt), false);   // off the river: z 20 -> 90
+        }
+        out.endVols = static_cast<int>(mgr.list().size());
+        const auto& st = mgr.riverFollowState();
+        out.makes = st.makes; out.releases = st.releases; out.refusals = st.refusals; out.lastErr = st.lastError; out.maxMakeMs = st.maxMakeMs;
+        out.exch = st.exchangedM3;
+        out.r1 = record.total();
+        out.books = out.r1 - out.r0 - st.exchangedM3 + st.residueM3 + st.thinDroppedM3;
+        out.coverage = out.frames ? static_cast<double>(out.covered) / out.frames : 0.0;
+        double s = 0.0; int n = 0;
+        for (int x = 50; x <= 58; ++x) for (int z = 14; z <= 25; ++z) {
+            const auto it = record.cols.find({x, z});
+            if (it == record.cols.end() || it->second.empty()) continue;
+            float top = -1e30f; for (const auto& r : it->second) top = std::max(top, r.topY);
+            s += top; ++n;
+        }
+        out.recordAbove = n ? s / n : 0.0;
+        out.wallS = std::chrono::duration<double>(std::chrono::steady_clock::now() - w0).count();
+        out.ok = true;
+        return out;
+    };
+    const FollowRun g = run(true, false), red = run(false, false), dam = run(true, true);
+    ASSERT_TRUE(g.ok) << g.err; ASSERT_TRUE(red.ok) << red.err; ASSERT_TRUE(dam.ok) << dam.err;
+    auto pr = [](const char* tag, const FollowRun& r) {
+        std::printf("  %s: coverage %.4f (%d / %d frames); max volumes %d, at the end %d; makes %d, releases %d, refusals %d (%s); max make %.0f ms;\n"
+                    "      record %.3f -> %.3f m^3, edges exchanged %+.4f m^3, books %+.2e m^3; record above x 60 (x 50-58) %.3f m; %.0f s wall\n",
+                    tag, r.coverage, r.covered, r.frames, r.maxVols, r.endVols, r.makes, r.releases, r.refusals, r.lastErr.c_str(), r.maxMakeMs,
+                    r.r0, r.r1, r.exch, r.books, r.recordAbove, r.wallS);
+    };
+    pr("GREEN", g); pr("RED (follow off)", red); pr("A4 (a wall at x 60)", dam);
+    EXPECT_GE(g.coverage, 0.99);
+    EXPECT_EQ(g.maxVols, 1);
+    EXPECT_EQ(g.endVols, 0) << "leaving the river releases the reach";
+    EXPECT_LT(std::abs(g.books), 1e-3);
+    // [my "6-7 makes" was WRONG: a reach is centred on the river point's 8 m TILE, and the point that triggers a make has just left
+    // the kept area - it sits at its tile's upstream end, so the next swap comes 16 m on, not 24: 1 + 160 / 16 = 11 (measured 11).
+    // Recorded in WaterCore.md 54.3.]
+    EXPECT_GE(g.makes, 10); EXPECT_LE(g.makes, 12);
+    EXPECT_EQ(g.refusals, 0);
+    EXPECT_EQ(red.maxVols, 0) << "the red control: follow off makes nothing";
+    EXPECT_EQ(red.coverage, 0.0);
+    EXPECT_EQ(dam.maxVols, 1);
+    EXPECT_LT(std::abs(dam.books), 1e-3);
+    EXPECT_GE(dam.recordAbove - g.recordAbove, 0.1) << "A4: the record above a dam stays raised after the reach that held it is gone";
+}

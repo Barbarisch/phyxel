@@ -3919,7 +3919,7 @@ void Application::update(float deltaTime) {
 
     {
         PROFILE_SCOPE(*performanceProfiler, "Water");
-        // WaterCore active volumes: realtime stepping is opt-in (water_av_realtime); the harness
+        // WaterCore active volumes: realtime stepping ON in play since 54.3 (game.json water.core.realtime; water_av_realtime toggles); the harness
         // steps explicitly. The debug feed is rebuilt every frame while any volume exists.
         if (waterCore) {
             using WClock = std::chrono::steady_clock;
@@ -4088,6 +4088,8 @@ void Application::update(float deltaTime) {
                 else if (camera) waterCore->setViewPoint(camera->getPosition());
             }
             refreshResidentColumns();   // 51.4: once a frame (the record cache and the far skin read it)
+            // 54.3 (W5.2b): a simulated reach follows the viewer along a river (throttled inside; water_av_river_follow)
+            { const auto t = WClock::now(); waterCore->followRiver(waterCore->viewPoint(), glfwGetTime()); m_waterCpu.follow = wms(t); }
             { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
             // 51.4 step 2: the far skin's generator source - its own copy of the streaming generator (the worker shares nothing with
             // this thread), made when the skin is on and the generator or the world changed
@@ -7063,6 +7065,13 @@ void Application::autoLoadGameDefinition() {
         {
             nlohmann::json water = gameDef.contains("water") ? gameDef["water"] : nlohmann::json::object();
             const float seaLevel = water.value("seaLevel", Core::kSeaLevelY);
+            // 54.3 (W5.2b): the water core steps in play - the plan's stated behaviour (Phase B: "realtime off in the harness, on in
+            // the game"), which no game session did until now (54.2 found it: only water_av_realtime switched it on). game.json
+            // water.core.realtime (default true); the integration tests own their managers (default off).
+            if (waterCore) {
+                const nlohmann::json core = water.contains("core") && water["core"].is_object() ? water["core"] : nlohmann::json::object();
+                waterCore->setRealtime(core.value("realtime", true));
+            }
             if (renderCoordinator) {
                 renderCoordinator->setWaterEnabled(water.value("enabled", false));
                 renderCoordinator->setSeaLevel(seaLevel);
@@ -14566,6 +14575,31 @@ void Application::registerWaterCommands() {
              {"ring_columns", rr.columns}, {"inflow_columns", rr.inflow}, {"level_only_columns", rr.levelOnly},
              {"record_q_in_m3s", rr.qIn}, {"record_q_out_m3s", rr.qOut}, {"seeded_m3", rr.seeded}, {"make_ms", rr.createMs}};
     });
+    // 54.3 (W5.2b): the follow trigger's knobs and state. {on, radius_m, half_m, margin_m} - each omitted = unchanged; echoes them
+    // and the follow's state (its reach, makes / releases / refusals, the last error, the make's ms).
+    reg.on("water_av_river_follow", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        auto f = waterCore->riverFollow();
+        if (cmd.params.contains("on")) f.on = cmd.params.value("on", true);
+        // radius: under 8 m the search sits inside one record tile (a viewer beside a river would not find it); over 48 m the 2 m
+        // lattice search (~1800 columns) outgrows its 0.5 s budget and the reach is made where the viewer cannot see it
+        if (cmd.params.contains("radius_m")) f.radiusM = std::clamp(cmd.params.value("radius_m", 24.0f), 8.0f, 48.0f);
+        // half: makeRiverReach's own rule (k = clamp(floor(half / 8), 1, 3) tiles: 24 / 40 / 56 m); the reach route's range
+        if (cmd.params.contains("half_m")) f.halfM = std::clamp(cmd.params.value("half_m", 20.0f), 8.0f, 31.0f);
+        if (cmd.params.contains("margin_m")) f.marginM = std::clamp(cmd.params.value("margin_m", 8.0f), 2.0f, 16.0f);
+        // the margin must stay under the distance a fresh reach leaves round its centre tile (k x 8 m), or the reach just made
+        // fails the keep test at the next check and is remade every 0.5 s
+        const float keep = 8.0f * static_cast<float>(std::clamp(static_cast<int>(std::floor(f.halfM / 8.0f)), 1, 3));
+        f.marginM = std::min(f.marginM, keep - 1.0f);
+        waterCore->setRiverFollow(f);
+        const auto& st = waterCore->riverFollowState();
+        r = {{"success", true}, {"on", f.on}, {"radius_m", f.radiusM}, {"half_m", f.halfM}, {"margin_m", f.marginM}, {"check_s", f.checkS},
+             {"realtime", waterCore->realtime()},
+             {"reach_id", st.id}, {"min", {st.lo.x, st.lo.y, st.lo.z}}, {"max", {st.hi.x, st.hi.y, st.hi.z}},
+             {"point_found", st.pointFound}, {"point", {st.point.x, st.point.y}},
+             {"makes", st.makes}, {"releases", st.releases}, {"refusals", st.refusals}, {"last_error", st.lastError},
+             {"last_make_ms", st.lastMakeMs}, {"max_make_ms", st.maxMakeMs}, {"exchanged_m3", st.exchangedM3}, {"residue_m3", st.residueM3}, {"thin_dropped_m3", st.thinDroppedM3}};
+    });
     reg.on("water_av_column", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         nlohmann::json out = nlohmann::json::array();
@@ -15012,7 +15046,7 @@ void Application::registerWaterCommands() {
                 tiles["holes_deferred"] = gs->holesDeferred; tiles["oldest_wait_frames"] = gs->oldestWaitFrames;   // 27.27: the upload order
             }
         }
-        tiles["water_cpu_ms"] = {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}, {"bodies", m_waterCpu.bodies}, {"solids", m_waterCpu.solids}, {"pressure", m_waterCpu.pressure}, {"exchange", m_waterCpu.exchange}};   // 26.30 step 3
+        tiles["water_cpu_ms"] = {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"follow", m_waterCpu.follow}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}, {"bodies", m_waterCpu.bodies}, {"solids", m_waterCpu.solids}, {"pressure", m_waterCpu.pressure}, {"exchange", m_waterCpu.exchange}};   // 26.30 step 3
         if (waterCore) { const auto& u = waterCore->updateCpu(); tiles["water_cpu_ms"]["in_update"] = {{"occupancy", u.occupancy}, {"step", u.step}, {"droplets", u.droplets}, {"ripples", u.ripples}, {"sleep", u.sleep},
                                                                                        {"step_call", u.stepCall}, {"births", u.births}, {"r_collect", u.rCollect}, {"r_mask", u.rMask}, {"r_layer", u.rLayer}, {"r_submit", u.rSubmit}}; }
         r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())}, {"tiles", tiles},

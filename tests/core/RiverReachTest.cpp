@@ -7,6 +7,8 @@
 #include "core/water/RiverReach.h"
 #include <algorithm>
 #include <climits>
+#include <map>
+#include <memory>
 #include <cstdio>
 #include <random>
 
@@ -87,4 +89,48 @@ TEST(RiverReachTest, AStraightRiverIsFedUpstreamAndHeldDownstream) {
     EXPECT_EQ(inOther, 0);
     EXPECT_NEAR(qIn, 0.6 * 2.0 * 12.0, 1e-3);   // the record's discharge: v h width
     EXPECT_NEAR(qOut, qIn, 1e-3);
+}
+
+// WaterCore §54.3 (W5.2b): the follow trigger's search (nearestRiverPoint) is a pure function of world position and the record - the
+// design check's equality test: the nearest river point for 40 viewers is the SAME with the record read whole or chunk by chunk
+// (runs split at the y = 32 chunk border) and fed shuffled. Control: with the chunk holding a viewer's point missing, the answer
+// changes (the comparison can see a change).
+TEST(RiverReachTest, TheNearestRiverPointIsTheSameHoweverTheRecordIsRead) {
+    const auto whole = wholeRecord(-80, 80, -40, 80);
+    auto lookup = [](const std::vector<ColumnRuns>& rec) {
+        auto col = std::make_shared<std::map<std::pair<int, int>, std::pair<float, float>>>(joinColumnRuns(rec, -1e9f, 1e9f));
+        return RecordColumnFn([col](int wx, int wz, float& t, float& b) {
+            const auto it = col->find({wx, wz});
+            if (it == col->end()) return false;
+            t = it->second.first; b = it->second.second; return true;
+        });
+    };
+    const RecordColumnFn wholeFn = lookup(whole);
+    auto chunked = chunkedRecord(whole);
+    std::mt19937 rng(11);
+    std::shuffle(chunked.begin(), chunked.end(), rng);
+    const RecordColumnFn chunkFn = lookup(chunked);
+    auto eq = [](const RiverPoint& a, const RiverPoint& b) { return a.found == b.found && (!a.found || (a.wx == b.wx && a.wz == b.wz && a.top == b.top && a.bottom == b.bottom)); };
+    int found = 0, differ = 0;
+    RiverPoint probe;
+    for (int k = 0; k < 40; ++k) {
+        const glm::vec2 v(-60.0f + 3.1f * static_cast<float>(k), -20.0f + 6.9f * static_cast<float>(k % 17));
+        const RiverPoint a = nearestRiverPoint(v, 24.0f, wholeFn, current), b = nearestRiverPoint(v, 24.0f, chunkFn, current);
+        if (a.found) { ++found; if (!probe.found) probe = a; }
+        if (!eq(a, b)) ++differ;
+        if (a.found) { EXPECT_EQ(a.wx % 2, 0); EXPECT_EQ(a.wz % 2, 0); EXPECT_LE(a.distM, 24.0f); }
+    }
+    // the control: the chunk holding the first found point removed - the same viewer reads another point (or none)
+    const glm::vec2 pv(static_cast<float>(probe.wx) + 0.5f, static_cast<float>(probe.wz) + 0.5f);
+    const RiverPoint ref = nearestRiverPoint(pv, 24.0f, wholeFn, current);
+    const RiverPoint ctl = nearestRiverPoint(pv, 24.0f, lookup(chunkedRecord(whole, riverFloorDiv(probe.wx, 32))), current);
+    const RiverPoint none = nearestRiverPoint(glm::vec2(0.0f, 300.0f), 24.0f, wholeFn, current);   // far from any river: none
+    std::printf("  40 viewers: %d found a river point, %d differ read chunked + shuffled; control (the point's chunk missing): (%d, %d) -> %s (%d, %d); far viewer: %s\n",
+                found, differ, ref.wx, ref.wz, ctl.found ? "found" : "none", ctl.wx, ctl.wz, none.found ? "FOUND" : "none");
+    EXPECT_GT(found, 20);
+    EXPECT_EQ(differ, 0);
+    EXPECT_TRUE(ref.found);
+    EXPECT_EQ(ref.distM, 0.0f) << "a viewer on a river lattice column reads that column";
+    EXPECT_FALSE(eq(ctl, ref)) << "the control: a record missing the point's chunk must change the answer";
+    EXPECT_FALSE(none.found);
 }

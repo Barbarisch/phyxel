@@ -898,6 +898,8 @@ def main():
     gdef = load_def(bench)
     api = Api(project_url(bench, args.url))
     api.wait_status()
+    # WaterCore 54.3: the water core steps in play now (realtime on by default); this tool steps the volumes itself (water_av_step)
+    print("realtime off (this tool steps explicitly):", api.debug("water_av_realtime", {"on": False}))
     status = api.get("/api/status")
     pred, meas, verdict = fn(api, gdef, args)
     EVID.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,284 @@
+1
+00:00:00,000 --> 00:00:01,000
+flying down a generated river at 4 m/s - simulated reach 2 under the camera
+t 0 s | 36 fps | longest frame 398 ms | makes 1
+
+2
+00:00:01,000 --> 00:00:02,000
+flying down a generated river at 4 m/s - reach 3 made (143 ms)
+t 1 s | 24 fps | longest frame 423 ms | makes 2
+
+3
+00:00:02,000 --> 00:00:03,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 2 s | 40 fps | longest frame 84 ms | makes 2
+
+4
+00:00:03,000 --> 00:00:04,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 3 s | 51 fps | longest frame 84 ms | makes 2
+
+5
+00:00:04,000 --> 00:00:05,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 4 s | 19 fps | longest frame 103 ms | makes 2
+
+6
+00:00:05,000 --> 00:00:06,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 5 s | 11 fps | longest frame 89 ms | makes 2
+
+7
+00:00:06,000 --> 00:00:07,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 6 s | 14 fps | longest frame 114 ms | makes 2
+
+8
+00:00:07,000 --> 00:00:08,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 7 s | 36 fps | longest frame 110 ms | makes 2
+
+9
+00:00:08,000 --> 00:00:09,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 8 s | 51 fps | longest frame 130 ms | makes 2
+
+10
+00:00:09,000 --> 00:00:10,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 9 s | 49 fps | longest frame 116 ms | makes 2
+
+11
+00:00:10,000 --> 00:00:11,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 10 s | 28 fps | longest frame 50 ms | makes 2
+
+12
+00:00:11,000 --> 00:00:12,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 11 s | 6 fps | longest frame 158 ms | makes 2
+
+13
+00:00:12,000 --> 00:00:13,000
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 12 s | 29 fps | longest frame 175 ms | makes 2
+
+14
+00:00:13,000 --> 00:00:14,010
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 13 s | 24 fps | longest frame 118 ms | makes 2
+
+15
+00:00:14,010 --> 00:00:15,010
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 14 s | 19 fps | longest frame 81 ms | makes 2
+
+16
+00:00:15,010 --> 00:00:16,010
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 15 s | 20 fps | longest frame 592 ms | makes 2
+
+17
+00:00:16,010 --> 00:00:17,580
+flying down a generated river at 4 m/s - simulated reach 3 under the camera
+t 16 s | 17 fps | longest frame 256 ms | makes 2
+
+18
+00:00:17,580 --> 00:00:18,580
+flying down a generated river at 4 m/s - reach 4 made (151 ms)
+t 18 s | 1 fps | longest frame 957 ms | makes 3
+
+19
+00:00:18,580 --> 00:00:19,580
+flying down a generated river at 4 m/s - simulated reach 4 under the camera
+t 19 s | 2 fps | longest frame 664 ms | makes 3
+
+20
+00:00:19,580 --> 00:00:20,580
+flying down a generated river at 4 m/s - reach 5 made (128 ms)
+t 20 s | 15 fps | longest frame 157 ms | makes 4
+
+21
+00:00:20,580 --> 00:00:21,580
+flying down a generated river at 4 m/s - simulated reach 5 under the camera
+t 21 s | 2 fps | longest frame 519 ms | makes 4
+
+22
+00:00:21,580 --> 00:00:22,580
+flying down a generated river at 4 m/s - simulated reach 5 under the camera
+t 22 s | 13 fps | longest frame 696 ms | makes 4
+
+23
+00:00:22,580 --> 00:00:23,580
+flying down a generated river at 4 m/s - simulated reach 5 under the camera
+t 23 s | 14 fps | longest frame 91 ms | makes 4
+
+24
+00:00:23,580 --> 00:00:24,580
+flying down a generated river at 4 m/s - simulated reach 5 under the camera
+t 24 s | 12 fps | longest frame 225 ms | makes 4
+
+25
+00:00:24,580 --> 00:00:25,580
+flying down a generated river at 4 m/s - simulated reach 5 under the camera
+t 25 s | 24 fps | longest frame 221 ms | makes 4
+
+26
+00:00:25,580 --> 00:00:26,580
+flying down a generated river at 4 m/s - reach 6 made (123 ms)
+t 26 s | 29 fps | longest frame 460 ms | makes 5
+
+27
+00:00:26,580 --> 00:00:27,580
+flying down a generated river at 4 m/s - simulated reach 6 under the camera
+t 27 s | 17 fps | longest frame 190 ms | makes 5
+
+28
+00:00:27,580 --> 00:00:28,580
+flying down a generated river at 4 m/s - simulated reach 6 under the camera
+t 28 s | 12 fps | longest frame 95 ms | makes 5
+
+29
+00:00:28,580 --> 00:00:29,580
+flying down a generated river at 4 m/s - reach 7 made (125 ms)
+t 29 s | 11 fps | longest frame 465 ms | makes 6
+
+30
+00:00:29,580 --> 00:00:30,590
+flying down a generated river at 4 m/s - simulated reach 7 under the camera
+t 30 s | 8 fps | longest frame 132 ms | makes 6
+
+31
+00:00:30,590 --> 00:00:31,590
+flying down a generated river at 4 m/s - simulated reach 7 under the camera
+t 31 s | 1 fps | longest frame 1022 ms | makes 6
+
+32
+00:00:31,590 --> 00:00:32,590
+flying down a generated river at 4 m/s - simulated reach 7 under the camera
+t 32 s | 15 fps | longest frame 449 ms | makes 6
+
+33
+00:00:32,590 --> 00:00:33,870
+flying down a generated river at 4 m/s - simulated reach 7 under the camera
+t 33 s | 18 fps | longest frame 209 ms | makes 6
+
+34
+00:00:33,870 --> 00:00:34,870
+flying down a generated river at 4 m/s - reach 8 made (116 ms)
+t 34 s | 1 fps | longest frame 1082 ms | makes 7
+
+35
+00:00:34,870 --> 00:00:35,870
+flying down a generated river at 4 m/s - simulated reach 8 under the camera
+t 35 s | 11 fps | longest frame 164 ms | makes 7
+
+36
+00:00:35,870 --> 00:00:36,870
+flying down a generated river at 4 m/s - simulated reach 8 under the camera
+t 36 s | 38 fps | longest frame 211 ms | makes 7
+
+37
+00:00:36,870 --> 00:00:37,870
+flying down a generated river at 4 m/s - simulated reach 8 under the camera
+t 37 s | 34 fps | longest frame 141 ms | makes 7
+
+38
+00:00:37,870 --> 00:00:38,870
+flying down a generated river at 4 m/s - reach 9 made (135 ms)
+t 38 s | 10 fps | longest frame 207 ms | makes 8
+
+39
+00:00:38,870 --> 00:00:39,880
+flying down a generated river at 4 m/s - simulated reach 9 under the camera
+t 39 s | 11 fps | longest frame 444 ms | makes 8
+
+40
+00:00:39,880 --> 00:00:40,880
+flying down a generated river at 4 m/s - simulated reach 9 under the camera
+t 40 s | 4 fps | longest frame 240 ms | makes 8
+
+41
+00:00:40,880 --> 00:00:41,880
+flying down a generated river at 4 m/s - simulated reach 9 under the camera
+t 41 s | 14 fps | longest frame 377 ms | makes 8
+
+42
+00:00:41,880 --> 00:00:42,880
+flying down a generated river at 4 m/s - simulated reach 9 under the camera
+t 42 s | 14 fps | longest frame 164 ms | makes 8
+
+43
+00:00:42,880 --> 00:00:43,880
+flying down a generated river at 4 m/s - simulated reach 9 under the camera
+t 43 s | 15 fps | longest frame 367 ms | makes 8
+
+44
+00:00:43,880 --> 00:00:44,880
+flying down a generated river at 4 m/s - reach 10 made (135 ms)
+t 44 s | 14 fps | longest frame 84 ms | makes 9
+
+45
+00:00:44,880 --> 00:00:45,880
+flying down a generated river at 4 m/s - simulated reach 10 under the camera
+t 45 s | 43 fps | longest frame 501 ms | makes 9
+
+46
+00:00:45,880 --> 00:00:46,880
+flying down a generated river at 4 m/s - simulated reach 10 under the camera
+t 46 s | 8 fps | longest frame 119 ms | makes 9
+
+47
+00:00:46,880 --> 00:00:47,880
+flying down a generated river at 4 m/s - simulated reach 10 under the camera
+t 47 s | 10 fps | longest frame 255 ms | makes 9
+
+48
+00:00:47,880 --> 00:00:48,880
+flying down a generated river at 4 m/s - simulated reach 10 under the camera
+t 48 s | 8 fps | longest frame 206 ms | makes 9
+
+49
+00:00:48,880 --> 00:00:49,880
+flying down a generated river at 4 m/s - reach 11 made (119 ms)
+t 49 s | 8 fps | longest frame 389 ms | makes 10
+
+50
+00:00:49,880 --> 00:00:50,880
+flying down a generated river at 4 m/s - simulated reach 11 under the camera
+t 50 s | 7 fps | longest frame 253 ms | makes 10
+
+51
+00:00:50,880 --> 00:00:51,880
+flying down a generated river at 4 m/s - simulated reach 11 under the camera
+t 51 s | 12 fps | longest frame 198 ms | makes 10
+
+52
+00:00:51,880 --> 00:00:52,880
+flying down a generated river at 4 m/s - simulated reach 11 under the camera
+t 52 s | 11 fps | longest frame 147 ms | makes 10
+
+53
+00:00:52,880 --> 00:00:53,880
+flying down a generated river at 4 m/s - reach 12 made (127 ms)
+t 53 s | 9 fps | longest frame 458 ms | makes 11
+
+54
+00:00:53,880 --> 00:00:54,880
+flying down a generated river at 4 m/s - reach 13 made (163 ms)
+t 54 s | 7 fps | longest frame 205 ms | makes 12
+
+55
+00:00:54,880 --> 00:00:55,880
+flying down a generated river at 4 m/s - simulated reach 13 under the camera
+t 55 s | 5 fps | longest frame 473 ms | makes 12
+
+56
+00:00:55,880 --> 00:00:56,880
+flying down a generated river at 4 m/s - simulated reach 13 under the camera
+t 56 s | 10 fps | longest frame 1035 ms | makes 12
+
+57
+00:00:56,880 --> 00:00:57,880
+flying down a generated river at 4 m/s - simulated reach 13 under the camera
+t 57 s | 1 fps | longest frame 957 ms | makes 12

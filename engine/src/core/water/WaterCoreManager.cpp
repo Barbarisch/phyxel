@@ -1238,6 +1238,59 @@ WaterCoreManager::RiverReachResult WaterCoreManager::makeRiverReach(const glm::v
     return r;
 }
 
+void WaterCoreManager::releaseFollowReach() {
+    RiverFollowState& s = m_followState;
+    if (!s.id) return;
+    // the GPU call in flight settled FIRST (sleep() does it too, after this read): its water is written back, so its exchange must be
+    // counted - found by AReachFollowsTheViewerAlongARiver's first run (books +0.03 m^3 over 11 swaps, +0.30 with a dam: one call's
+    // edge exchange missing per swap)
+    for (auto& a : m_avs) if (a->id == s.id) syncFromGpu(*a, false);
+    if (const AvRecord* rec = find(s.id)) {
+        s.exchangedM3 += rec->boundaryExchange; s.residueM3 += rec->residueDropped;   // copied before sleep() destroys the volume
+        const WriteBackRecord wb = sleep(s.id, true);
+        if (!wb.ok) s.lastError = "release: " + wb.error;
+        s.thinDroppedM3 += wb.thinDropped;
+        ++s.releases;
+    }
+    s.id = 0;
+}
+
+void WaterCoreManager::followRiver(const glm::vec3& viewer, double nowS) {
+    RiverFollowState& s = m_followState;
+    if (s.id && !find(s.id)) s.id = 0;   // released elsewhere (the API, a world change)
+    if (!m_follow.on) { releaseFollowReach(); return; }
+    if (nowS - s.lastCheckS < static_cast<double>(m_follow.checkS)) return;
+    s.lastCheckS = nowS;
+    const RecordColumnFn column = [this](int wx, int wz, float& top, float& bottom) {
+        ColumnLevels lv;
+        if (!recordColumnRuns(wx, wz, lv) || lv.n <= 0) return false;
+        top = lv.top[0]; bottom = lv.bottom[0]; return true;
+    };
+    const glm::vec2 v(viewer.x, viewer.z);
+    const RiverPoint p = nearestRiverPoint(v, m_follow.radiusM, column, m_recordCurrent);
+    s.pointFound = p.found; if (p.found) s.point = {p.wx, p.wz};
+    if (!p.found) {
+        if (!s.id) return;
+        // the horizontal distance from the viewer to the reach's box (0 inside it)
+        const float dx = std::max({static_cast<float>(s.lo.x) - v.x, 0.0f, v.x - static_cast<float>(s.hi.x + 1)});
+        const float dz = std::max({static_cast<float>(s.lo.z) - v.y, 0.0f, v.y - static_cast<float>(s.hi.z + 1)});
+        if (std::sqrt(dx * dx + dz * dz) > m_follow.radiusM + kFollowLeaveM) releaseFollowReach();
+        return;
+    }
+    if (s.id) {
+        const float m = m_follow.marginM;
+        const float px = static_cast<float>(p.wx) + 0.5f, pz = static_cast<float>(p.wz) + 0.5f;
+        if (px >= static_cast<float>(s.lo.x) + m && px <= static_cast<float>(s.hi.x + 1) - m &&
+            pz >= static_cast<float>(s.lo.z) + m && pz <= static_cast<float>(s.hi.z + 1) - m) return;   // still well inside: keep it
+    }
+    if (nowS < s.nextTryS) return;
+    releaseFollowReach();   // written back first: the new reach seeds from what this one left
+    const RiverReachResult r = makeRiverReach(glm::vec2(static_cast<float>(p.wx) + 0.5f, static_cast<float>(p.wz) + 0.5f), m_follow.halfM, p.top);
+    if (!r.id) { ++s.refusals; s.lastError = r.error; s.nextTryS = nowS + kFollowRetryS; return; }
+    s.id = r.id; s.lo = r.lo; s.hi = r.hi; ++s.makes;
+    s.lastMakeMs = r.createMs; s.maxMakeMs = std::max(s.maxMakeMs, r.createMs);
+}
+
 void WaterCoreManager::pullSourceTotals(Av& av) {
     std::vector<GpuSource> gs; m_gpu->readSources(*av.gpuVol, gs);
     auto& srcs = av.solver->sourcesMutable();
