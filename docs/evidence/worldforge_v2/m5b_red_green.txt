@@ -1385,3 +1385,8 @@ Closed as BUILT WITH OPEN ITEMS; the wall the realizer BUILDS is unchanged and s
 271  every gate through its middle           0 ok / 1 failed (3 gates: 2 walkable, north blocked; roads out 1 of 2)
 272  unit set                                RUN r272_m5b2 EXIT 0 2026-11-15 06:41:14 178 ok, 0 failed
 NOT closed. No audit. The live test is a standing red on the ground at the road's meeting with the settlement (O29).
+
+=== O29 / M5d-2 continued (recorded 2026-11-15 07:08; detail in m3c_chains/pm_chain273.txt) ===
+273  diagnostic before any build     1 ok / 0 failed  (the east riser is in the GENERATED road: whole-cube surface)
+274  road out on the road's walker   0 ok / 1 failed  (as predicted: roads out 2 / 0 blocked; gates 3 / 1 blocked - the
+     north street ends two cubes above the road's cutting; REFUSED on that one route)

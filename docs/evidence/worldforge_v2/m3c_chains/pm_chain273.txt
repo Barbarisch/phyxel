@@ -1,0 +1,46 @@
+O29 (the ground where the arriving world road meets the settlement) - predictions, each written BEFORE its run.
+Tree at the start: 20272134.
+
+PO29.0  chain 273 (written 2026-11-15 06:42; a DIAGNOSTIC, no assertions): SettlementMapLiveSiteTest.DISABLED_DiagTheRoadGroundBeforeAnyBuild -
+  the rig of the wall runs (the baseline town site, margin 48, generated chunks) with NOTHING built: along the east
+  road's three rows (local z 35, 38, 41; x 124..156) and the north road's three columns (local x 86, 89, 92; z
+  44..76), per cube column: the generator's natural ground, its emitted surface, the road class and the hit's
+  distance, and the top solid micro of the generated chunks.
+  The question: does the one-cube riser at local x 146 on row z 38 (chain 269) exist BEFORE the settlement builds?
+  GUESS, about even: NO - the generated road is stepped in sub-cube risers there (RouteWalkTest walks roads with
+  the same 4-micro walker), and one of the settlement's units (a terrace skirt, a way's grading, the wall's column
+  clearing) cut it. If YES - the riser is in the generated ground - the road's earthwork does not reach the site's
+  edge and the seam is generation's.
+
+RESULT chain 273 (written 2026-11-15 06:47; RUN EXIT 0 06:46:45; 4 min; a diagnostic): YES - the riser is in the GENERATED
+  ground, before anything is built. East road, row z 38, all ON the road (class 2, dist 0.50): the plan's grade
+  runs smoothly 155.00 at x 126 to 157.40 at x 156 (0.08 a cell), and the emitted surface is whole cubes: top micro
+  1403 for x 124-132, 1412 for x 133-145, 1421 for x 146-156 - a 9-micro riser every 13 cells or so. My even guess
+  went the wrong way: no settlement unit cut it.
+  And it is BY CONTRACT, which I had not read: the road tests walk roads with a "hop agent" - the engine's box
+  with a ONE-CUBE step-up (RoadFieldSeamTest.cpp:432-436: maxStepUpMicro = 9, "matching the M3 walkability bound
+  (canonical-seed roads measured 0% steps above 1 cube)"). The settlement's walkability gate walks with the plain
+  box: 4 micro. So a world road is a staircase of whole cubes that the road's own walker climbs and the
+  settlement's does not. The east "road out" was blocked by a standard mismatch between M4 and the settlement
+  gate, not by a defect in either's output.
+PO29.1  chain 274 (written 2026-11-15 06:47, before the run; D65 PROPOSED, reversible: the route OUT along the world road is
+  walked with the ROAD's walker - the hop agent, 9-micro step - because that is the standard the road was built
+  and measured to; a gate of the wall is walked with the settlement's walker, 4 micro, because the wall is the
+  settlement's. The test also prints the section through any blocked GATE route):
+    roads out: 2 walked, 0 blocked (east: risers of exactly 9 micro with benches of 13 cells; north: walkable
+    already). Gates: south walkable, east walkable, north BLOCKED as in chain 271 (its inner end 10 micro up - a
+    step the plain walker cannot take; cause to be read off the section). Gate 77 walkable / 1 blocked, refused.
+    The test: 0 ok / 1 failed, on the north gate's line and the gate's verdict only.
+
+RESULT chain 274 (written 2026-11-15 07:08; RUN EXIT 1 07:07:17; exe 06:47:57): 0 ok / 1 failed - as predicted, to the line.
+  Roads out (the road's walker, 9 micro): 2 walked, 0 blocked - east and north both walkable. Gates (4 micro): south
+  walkable, east walkable, north BLOCKED. Gate 77 walkable / 1 blocked over 78: REFUSED. Barrier 6 tried / 0 crossed.
+  The north gate, read off the section (x local 89) and chain 273's pre-build lines for the same column:
+    z 58-60: top 1439-1440 (the street's end; way 2's last node is 89,59);
+    z 61-64: top 1421 as GENERATED (the class-1 track's cutting; the wall's band stands on z 63-64 with its lintel
+             above) - TWO cubes below the street's end;
+    z 65-67: top 1430; z 68: 1439.
+  So the gate is open and stands in the road's cutting; the walk fails where the settlement's street ends on the
+  cutting's bank, 18-19 micro above the road it is meant to join. Neither walker climbs that. The road-out route
+  did not see it because both its ends are on the track. This is the open defect (O29 b): a way-to-road junction,
+  the planner's and M5b's ground, not the wall's.

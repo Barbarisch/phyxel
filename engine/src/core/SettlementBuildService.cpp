@@ -2898,11 +2898,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     r.goalRadiusMicro = 4;
                     const glm::ivec3 lo(std::min(r.from.x, r.to.x) - 8 * 9, std::min(r.from.y, r.to.y) - 27, std::min(r.from.z, r.to.z) - 8 * 9);
                     const glm::ivec3 hi(std::max(r.from.x, r.to.x) + 8 * 9, std::max(r.from.y, r.to.y) + 36, std::max(r.from.z, r.to.z) + 8 * 9);
-                    const auto rep = Core::checkRoutes(occ, box, {r}, lo, hi, /*diagnose=*/true);
+                    // D65 PROPOSED (chain 273): the route OUT runs on the WORLD road, and a world road is whole cubes -
+                    // built and measured for the hop agent (the engine's box with a one-cube step-up: RoadFieldSeamTest,
+                    // "the M3 walkability bound"). It is walked with THAT walker. A gate of the wall is the settlement's
+                    // and is walked with the settlement's own (the plain box, 4 micro).
+                    Core::AgentBox roadBox = box; roadBox.maxStepUpMicro = 9;
+                    const auto rep = Core::checkRoutes(occ, kind == 1 ? roadBox : box, {r}, lo, hi, /*diagnose=*/true);
                     walkable += rep.walkable; blocked += rep.blocked;
                     if (kind == 0) { ++gateRoutes; gateRoutesBlocked += rep.blocked; } else { ++leaveRoutes; leaveBlocked += rep.blocked; }
                     for (const auto& rr : rep.routes) {
-                        nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}, {kind == 0 ? "wall_gate" : "leave", true},
+                        nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}, {kind == 0 ? "wall_gate" : "leave", true}, {"step_up_micro", kind == 1 ? 9 : box.maxStepUpMicro},
                                             {"from", {r.from.x, r.from.y, r.from.z}}, {"to", {r.to.x, r.to.y, r.to.z}}};
                         if (!rr.walkable) {
                             j["pinch_from"] = {rr.pinchFrom.x, rr.pinchFrom.y, rr.pinchFrom.z};

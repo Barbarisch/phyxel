@@ -1572,7 +1572,7 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
     {   // chain 265: what stands at each blocked leave route's pinch
         const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
         for (const auto& r : walk.value("routes", nlohmann::json::array())) {
-            if (!r.value("leave", false) || r.value("walkable", false) || !r.contains("pinch_from")) continue;
+            if (!(r.value("leave", false) || r.value("wall_gate", false)) || r.value("walkable", false) || !r.contains("pinch_from")) continue;
             const auto pfj = r["pinch_from"], ptj = r["pinch_to"];
             const glm::ivec3 pf(pfj[0].get<int>(), pfj[1].get<int>(), pfj[2].get<int>()), pt(ptj[0].get<int>(), ptj[1].get<int>(), ptj[2].get<int>());
             const int lx = floorDivN(pf.x, 9) - sm.originX, lz = floorDivN(pf.z, 9) - sm.originZ;
@@ -1626,9 +1626,9 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
     }
     EXPECT_EQ(gateRoutes, static_cast<int>(Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object())).wall.gates.size())) << "a gate of the map's wall was not walked through";
     EXPECT_EQ(gateBlocked, 0) << "a gate of the wall does not pass the world road";
-    // (b) the road out of the settlement. STANDING RED while the one-cube riser on the east road stands three cells
-    // outside the wall (chain 269; the plan's O29): not the wall's defect, and not hidden for it either.
-    EXPECT_EQ(leaveBlocked, 0) << "the walled city cannot be left by its road (chain 269: a riser in the ground beyond the east gate)";
+    // (b) the road out of the settlement, walked with the ROAD's walker (D65 PROPOSED, chain 273: a world road is
+    // whole cubes, built for a one-cube step-up; the settlement's 4-micro walker does not climb it by contract)
+    EXPECT_EQ(leaveBlocked, 0) << "the walled city cannot be left by its road";
     EXPECT_EQ(out.value("gate", std::string()), "passed");
     // M5d-2b (added AFTER the red runs of chains 264-266, for the green - stated in pm_chain252.txt): the wall built
     // is the MAP's, and it IS a wall - a walker cannot cross it away from its gates.
@@ -1698,4 +1698,26 @@ TEST(SettlementMapLiveSiteTest, TheLegacyCityWallIsStillTheRectangle) {
                 out.value("walkable", -1), out.value("blocked", -1), walk.value("leave_routes", -1), walk.value("leave_blocked", -1), walk.value("leave_unplaced", -1));
     if (wallRec.value("built", false)) EXPECT_EQ(wallRec.value("source", std::string()), "site_rect");
     else std::printf("[ M5d-2b ] the legacy control built NO wall: %s\n", wallRec.value("refusal", std::string("?")).c_str());
+}
+
+// O29 (pm_chain273.txt PO29.0): a DIAGNOSTIC, no assertions - the ground under the arriving roads at the town site as
+// GENERATED, before any settlement unit runs.
+TEST(SettlementMapLiveSiteTest, DISABLED_DiagTheRoadGroundBeforeAnyBuild) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("town", 48)) << rig.why;
+    const nlohmann::json params = WorldForgeBuildService::settlementParamsFor(*rig.gen->worldForge(), *rig.site);
+    const int ox = params["position"].value("x", 0), oz = params["position"].value("z", 0);
+    const WorldForgePlan* wfp = rig.gen->worldForge();
+    std::printf("[ O29 ] site origin %d,%d (the request's position); every line: local x,z | natural ground | emitted surfaceY | road class, dist, gradeY | top solid micro of the chunk column (cube y, micro in cube)\n", ox, oz);
+    const auto line = [&](int lx, int lz) {
+        const int wx = ox + lx, wz = oz + lz;
+        const auto ss = rig.gen->sampleSurface(wx, wz);
+        const WorldForgePlan::RoadHit h = wfp->roadAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f);
+        int top = INT_MIN;
+        for (int my = (ss.surfaceY + 4) * 9 + 8; my > (ss.surfaceY - 6) * 9; --my) if (rig.cm.occupiedMicro(glm::ivec3(wx * 9 + 4, my, wz * 9 + 4))) { top = my; break; }
+        std::printf("[ O29 ]   %4d,%3d | nat %7.2f | surf %4d | cls %d dist %5.2f grade %8.2f%s | top %5d (cube %d, micro %d)\n", lx, lz, rig.gen->naturalGroundAt(wx, wz), ss.surfaceY, h.cls, h.dist,
+                    h.gradeY, (h.cls > 0 && h.dist <= WorldForgePlan::roadHalfWidth(h.cls)) ? " ON" : "   ", top, top == INT_MIN ? -1 : floorDivN(top, 9), top == INT_MIN ? -1 : top - floorDivN(top, 9) * 9);
+    };
+    for (const int lz : {35, 38, 41}) { std::printf("[ O29 ] east road, row z %d\n", lz); for (int lx = 124; lx <= 156; ++lx) line(lx, lz); }
+    for (const int lx : {86, 89, 92}) { std::printf("[ O29 ] north road, column x %d\n", lx); for (int lz = 44; lz <= 76; ++lz) line(lx, lz); }
 }
