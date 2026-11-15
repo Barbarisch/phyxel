@@ -19,7 +19,6 @@
 #include "graphics/Camera.h"
 #include "graphics/VfxRenderPipeline.h"
 #include "graphics/WaterRenderPipeline.h"
-#include "graphics/WaterCellRenderPipeline.h"
 #include "graphics/WaterSurfaceRenderPipeline.h"
 #include "core/WaterManager.h"
 #include "core/VfxSystem.h"
@@ -296,23 +295,10 @@ RenderCoordinator::RenderCoordinator(
     waterPipeline->setReflectionTexture(
         postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
 
-    // Per-cell water surface pipeline (renders the CPU sim's actual field — Phase 2).
-    waterCellPipeline = std::make_unique<WaterCellRenderPipeline>();
-    waterCellPipeline->initialize(
-        vulkanDevice->getDevice(),
-        vulkanDevice->getPhysicalDevice(),
-        postProcessor->getWaterRenderPass(),
-        vulkanDevice->getSwapChainExtent(),
-        vulkanDevice->getDescriptorSetLayout()
-    );
-
     // WaterSystemV3 Phase 1: point both water pipelines at the post-scene taps (half-res scene
     // colour copy for refraction, scene depth for thickness/absorption/soft shorelines). Must be
     // repeated after every swapchain resize — both images are recreated there.
     waterPipeline->setSceneTextures(
-        postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
-        postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
-    waterCellPipeline->setSceneTextures(
         postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
         postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
     // WaterCore Phase F: the simulated water's own surface mesh.
@@ -3502,13 +3488,6 @@ void RenderCoordinator::drawFrame() {
                 postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
                 postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
         }
-        if (waterCellPipeline) {
-            waterCellPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
-                                                vulkanDevice->getSwapChainExtent());
-            waterCellPipeline->setSceneTextures(
-                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
-                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
-        }
         if (waterSurfacePipeline) {
             waterSurfacePipeline->recreatePipeline(postProcessor->getWaterRenderPass(), vulkanDevice->getSwapChainExtent());
             waterSurfacePipeline->setSceneTextures(postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(), postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
@@ -3583,13 +3562,6 @@ void RenderCoordinator::drawFrame() {
                 postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
                 postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
         }
-        if (waterCellPipeline) {
-            waterCellPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
-                                                vulkanDevice->getSwapChainExtent());
-            waterCellPipeline->setSceneTextures(
-                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
-                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
-        }
         if (waterSurfacePipeline) {
             waterSurfacePipeline->recreatePipeline(postProcessor->getWaterRenderPass(), vulkanDevice->getSwapChainExtent());
             waterSurfacePipeline->setSceneTextures(postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(), postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
@@ -3623,13 +3595,6 @@ void RenderCoordinator::drawFrame() {
             waterPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
                                             vulkanDevice->getSwapChainExtent());
             waterPipeline->setSceneTextures(
-                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
-                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
-        }
-        if (waterCellPipeline) {
-            waterCellPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
-                                                vulkanDevice->getSwapChainExtent());
-            waterCellPipeline->setSceneTextures(
                 postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
                 postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
         }
@@ -4392,7 +4357,6 @@ void RenderCoordinator::drawFrame() {
     // ---------------------------------------------------------------------------------------
     const bool drawWaterPlane = m_waterEnabled && waterPipeline;
     using Core::Water::WaterCoreRenderMode;
-    const bool drawCoreCells  = waterCellPipeline && m_waterCoreMode == WaterCoreRenderMode::Cells && m_waterCoreCells && !m_waterCoreCells->empty();   // the A/B control (17.2 key 4)
     // Phase F: the mesh, rebuilt from the volumes' surface fields every frame (a pure function of them)
     bool drawCoreMesh = false;
     m_waterCoreMesh.clear(); m_waterCoreMeshMs = 0.0;
@@ -4423,22 +4387,14 @@ void RenderCoordinator::drawFrame() {
     const bool drawGpuSurfaces = waterSurfacePipeline && waterSurfacePipeline->gpuSurfaceReady() && m_waterCoreMode == WaterCoreRenderMode::Mesh
                                  && m_waterCoreGpuSurfaces && !m_waterCoreGpuSurfaces->empty();
     drawCoreMesh = drawCoreMesh || drawGpuSurfaces;
-    const bool drawWaterCells = (m_waterManager && waterCellPipeline &&
-                                 !m_waterManager->surfaceCells().empty()) || drawCoreCells;
-    if (drawWaterPlane || drawWaterCells || drawCoreMesh || m_uiSystem) {
+    if (drawWaterPlane || drawCoreMesh || m_uiSystem) {
         if (drawCoreTiles) waterSurfacePipeline->uploadTiles(vulkanDevice->getCommandBuffer(currentFrame), m_waterTiler, static_cast<uint32_t>(currentFrame));   // 26.30: outside any pass
         if (drawGpuSurfaces) Graphics::WaterSurfaceRenderPipeline::gpuSurfaceBarrier(vulkanDevice->getCommandBuffer(currentFrame));   // 29 S1: outside any pass
         // Snapshot the scene colour for refraction BEFORE the pass begins (outside any pass).
-        if (drawWaterPlane || drawWaterCells || drawCoreMesh) {
+        if (drawWaterPlane || drawCoreMesh) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterRefractCapture");
             postProcessor->captureRefraction(vulkanDevice->getCommandBuffer(currentFrame));
         }
-        // Ripple heightfield upload (small-scale plan Phase 3) — also outside any render pass.
-        // Skips the copy on unchanged frames; always refreshes the window push params.
-        if (drawWaterCells)
-            waterCellPipeline->updateRipple(vulkanDevice->getCommandBuffer(currentFrame),
-                                            static_cast<uint32_t>(currentFrame),
-                                            m_waterManager->ripple());
         postProcessor->beginWaterRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
 
         if (drawWaterPlane) {
@@ -4453,27 +4409,6 @@ void RenderCoordinator::drawFrame() {
                 vulkanDevice->getSwapChainExtent(),
                 m_waterReflectionActive
             );
-        }
-        if (drawWaterCells) {
-            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterCells");
-            if (m_waterManager && !m_waterManager->surfaceCells().empty())
-                waterCellPipeline->render(
-                    vulkanDevice->getCommandBuffer(currentFrame),
-                    vulkanDevice->getDescriptorSet(currentFrame),
-                    *camera,
-                    cachedProjectionMatrix,
-                    m_waterManager->surfaceCells(),
-                    vulkanDevice->getSwapChainExtent()
-                );
-            if (drawCoreCells)
-                waterCellPipeline->render(
-                    vulkanDevice->getCommandBuffer(currentFrame),
-                    vulkanDevice->getDescriptorSet(currentFrame),
-                    *camera,
-                    cachedProjectionMatrix,
-                    *m_waterCoreCells,
-                    vulkanDevice->getSwapChainExtent()
-                );
         }
         if (drawCoreMesh) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterSurface");

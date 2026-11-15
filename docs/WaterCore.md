@@ -13801,7 +13801,7 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
 - **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
   than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
 
-## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 (delete) next
+## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 deleting (W4.3a done)
 
 **What W4 is (§27, §0a):** generated lakes, rivers and sea are the record and the new core simulates and draws them - DONE by §51
 (record tiles near, the skin far, 51.4c / 51.12-51.14). What is NOT done: **the old CA water is still in the engine, and five readers
@@ -13888,6 +13888,20 @@ adds no feature (30.0 rule 5); the acceptance test came first (`tools/water_w4_o
 - **Seen, logged, left:** a pale flat rectangle in the sky top right of the Coast bench view (`w4_old_after_coast.png`), cause not looked at.
 - **Next: W4.3** - delete the old water per §9 (`WaterSimulation` + `water_flow.comp`, `WaterManager`, `RippleField`, the cell
   renderer; one commit each, tests moved, the routes re-pointed).
+
+**52.3 W4.3 - the old water deleted, one commit each (§9 rules 2-4).** The order is not §9's "CA first": `WaterSimulation`'s only
+consumer is `WaterManager`, and the cell renderer is what ties the old manager's struct (`WaterSurfaceCell`) to the new water's
+debug feed - so: (a) the cell renderer, (b) `WaterManager`, (c) `RippleField`, (d) `WaterSimulation` + `water_flow.comp`. Each
+commit builds alone and is one revert away; the gate after each is the Coast live check (`tools/water_w4_old_off_live.py`: readers,
+sea plane, a still) and the water unit tests; the full suites once at the end.
+- **W4.3a (2026-11-14) - the cell renderer deleted.** Files: `WaterCellRenderPipeline.{h,cpp}`, `water_cell.{vert,frag}` + `.spv`
+  (`build_shaders.bat` and the shader manifest updated). Consumers re-pointed: `RenderCoordinator` (creation, three resize paths,
+  the `WaterCells` draw and its ripple upload), the core's `Cells` A/B debug mode (`WaterCoreRenderMode::Cells`, `water_render_core
+  mode:"cells"` now refused, `WaterCoreManager::surfaceCells()` - its only reader), the `water_cell_render` route (it set the old
+  manager's override; no MCP tool, no caller in tools/). The shipped draw (the surface mesh) is untouched. **Confirmed before
+  deleting (52.0's note):** the cell renderer drew core water only in the `cells` debug mode - no tool or test used it. **Live**
+  (`w4_3a_coast.json`, `w4_3a_coast.png`): Coast's sea, beach and creek drawn as before; readers `record`, camera 1.0 m, box 0.5,
+  plane on.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

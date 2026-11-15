@@ -366,16 +366,6 @@
       "sources": "6a1b8b482823eeaaa4d47a419adc505ea3139e6d92673e243a900c1d2e321f5c",
       "spv_present": true
     },
-    "water_cell.frag": {
-      "built": true,
-      "sources": "adb7bdced5481ef63cb9533c46ea21053e85460b2360505fd262e0d5026acc5e",
-      "spv_present": true
-    },
-    "water_cell.vert": {
-      "built": true,
-      "sources": "5e8556fa41a3b60121f2c7ab53c3cd6e1084bb6f8063781f5ed94b7b96086a88",
-      "spv_present": true
-    },
     "water_flow.comp": {
       "built": true,
       "sources": "5d86d6ac30a099563884bcbd17d9b6654b3255bb706f742b7eb4fd1fde08ee38",

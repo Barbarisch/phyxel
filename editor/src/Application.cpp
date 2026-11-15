@@ -4139,10 +4139,6 @@ void Application::update(float deltaTime) {
             if (auto ch = waterCore->takeRecordChanged(); !ch.empty() && debrisRuntime) debrisRuntime->invalidateWaterTiles(ch);
             const auto wtFeed = WClock::now();
             if (renderCoordinator) {
-                // 26.12: the per-voxel cell list feeds only the Cells debug draw - building it read the whole volume back once a second
-                // (a 257 ms hitch on a creek-sized box); the shipped Mesh mode never asks
-                const bool cellsMode = renderCoordinator->waterCoreRenderMode() == Core::Water::WaterCoreRenderMode::Cells;
-                renderCoordinator->setWaterCoreSurfaceCells((cellsMode && waterCore->totalCells()) ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
                 {   // Phase F: the surface mesh feed - the volumes' fields, then the recorded water near the camera (§27 W1a), so asked
                     // for even with no volume live
@@ -13625,14 +13621,6 @@ void Application::registerWaterCommands() {
              {"note", "sheet PLACEMENT source only: per-pixel depth gates (dry-land, rim-wall) are not reproduced; cell water (authored worlds) is a separate source"}};
     });
 
-    // A/B toggle for the camera-invariant cell-render gate: {"mode": -1|0|1}.
-    reg.on("water_cell_render", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (!waterManager) return noWater(r);
-        waterManager->setCellRenderOverride(cmd.params.value("mode", -1));
-        r = {{"success", true}, {"mode", waterManager->cellRenderOverride()},
-             {"baked_table", waterManager->hasWaterTable()}};
-    });
-
     reg.on("water_sync", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         waterManager->syncSolidsFromChunks();
@@ -15265,9 +15253,8 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("mode")) {
             const std::string m = cmd.params.value("mode", std::string("mesh"));
             if (m == "mesh") renderCoordinator->setWaterCoreRenderMode(WaterCoreRenderMode::Mesh);
-            else if (m == "cells") renderCoordinator->setWaterCoreRenderMode(WaterCoreRenderMode::Cells);
             else if (m == "off") renderCoordinator->setWaterCoreRenderMode(WaterCoreRenderMode::Off);
-            else { r = {{"error", "mode must be mesh, cells or off"}}; return; }
+            else { r = {{"error", "mode must be mesh or off"}}; return; }
         }
         if (cmd.params.contains("debug")) {   // 0 off, 1 normals, 2 body, 3 reflection, 4 thickness, 5 fresnel (water_common.glsl taps), 6 foam/flow (G2)
             const auto& d = cmd.params["debug"];

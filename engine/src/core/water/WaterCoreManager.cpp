@@ -1795,7 +1795,7 @@ WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
     out.recordTiles = static_cast<int>(m_recordTiles.size());
     m_recordTiles.clear(); m_recordBoxes.clear(); ++m_recordRevision;
     m_skin.clear();   // 51.4: no summary of another world answers here (the editor replaces the generator source)
-    m_fields.clear(); m_surface.clear();   // no pointer into a destroyed volume or tile survives
+    m_fields.clear();   // no pointer into a destroyed volume or tile survives
     m_motionSeen.clear(); m_motionPrevTops.clear(); ++m_fieldBumps;
     m_tickAccum = 0.0;
     ++m_worldResets;
@@ -3477,33 +3477,6 @@ bool WaterCoreManager::census(int id, Census& out) {
         return true;
     }
     return false;
-}
-
-const std::vector<WaterSurfaceCell>& WaterCoreManager::surfaceCells() {
-    for (auto& av : m_avs) syncFromGpu(*av, m_realtime);   // the renderer: once a second in realtime, every step otherwise
-    m_surface.clear();
-    for (const auto& av : m_avs) {
-        for (int vz = av->minVoxel.z; vz <= av->maxVoxel.z; ++vz) for (int vx = av->minVoxel.x; vx <= av->maxVoxel.x; ++vx) {
-            const int bx = vx * av->per - av->grid->spec().origin.x, bz = vz * av->per - av->grid->spec().origin.z;
-            double mass = 0.0; float top = -1e30f, bottom = 1e30f;
-            for (int k = 0; k < av->per; ++k) for (int i = 0; i < av->per; ++i) {
-                const int gx = bx + i, gz = bz + k;
-                mass += av->grid->columnMass(gx, gz);
-                const float s = av->grid->surfaceWorldY(gx, gz);
-                if (!std::isnan(s)) top = std::max(top, s);
-                for (int gy = 0; gy < av->grid->ny(); ++gy)
-                    if (av->grid->f(gx, gy, gz) > 0.0f) { bottom = std::min(bottom, (av->grid->spec().origin.y + gy) * av->h); break; }
-            }
-            if (mass <= 0.0 || top < -1e29f) continue;
-            WaterSurfaceCell cell;
-            cell.centerDepth = glm::vec4(vx + 0.5f, top, vz + 0.5f, static_cast<float>(mass));
-            cell.corners = glm::vec4(top);
-            cell.skirt = glm::vec4(bottom);
-            cell.flow = glm::vec4(0.0f);
-            m_surface.push_back(cell);
-        }
-    }
-    return m_surface;
 }
 
 } // namespace Water

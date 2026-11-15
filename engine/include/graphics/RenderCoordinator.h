@@ -68,7 +68,6 @@ namespace Phyxel {
         class FarTerrainManager;
         class VfxRenderPipeline;
         class WaterRenderPipeline;
-        class WaterCellRenderPipeline;
 }}
 #include "graphics/WaterSurfaceRenderPipeline.h"
 namespace Phyxel { namespace Graphics {
@@ -565,7 +564,6 @@ public:
     /// The micro occupancy object (three-state query) for the WaterCore solid binding (§15.1).
     const VoxelLightOccupancyGpu* lightOccupancy() const { return m_lightOccupancy.get(); }
     /// WaterCore Phase B debug feed: extra surface cells drawn by the cell pipeline (null = none).
-    void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
     /// Phase F (17): the volumes' surface fields; the mesh is rebuilt from them every frame.
     void setWaterCoreSurfaceFields(const std::vector<const Core::Water::WaterSurfaceField*>* fields) { m_waterCoreFields = fields; }
     /// 29 S1: the volumes whose surface the device made - drawn by vertex pulling (their fields carry gpuDrawn: the tiler skips them)
@@ -1458,7 +1456,6 @@ private:
     // Water surface. Default OFF; enabled + sea level come from the per-world game
     // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
-    const std::vector<Core::WaterSurfaceCell>* m_waterCoreCells = nullptr;   // WaterCore debug feed
     const std::vector<const Core::Water::WaterSurfaceField*>* m_waterCoreFields = nullptr;   // Phase F: the volumes' surface fields
     const std::vector<Core::Water::GpuSurfaceDraw>* m_waterCoreGpuSurfaces = nullptr;        // 29 S1
     const std::vector<glm::vec4>* m_waterCoreDroplets = nullptr;   // 21: droplet cubes
@@ -1478,7 +1475,6 @@ private:
                                          // water sim or the plane draws where no water is
 
     // Per-cell water surface rendering (the CPU sim's actual field).
-    std::unique_ptr<WaterCellRenderPipeline> waterCellPipeline;
     std::unique_ptr<WaterSurfaceRenderPipeline> waterSurfacePipeline;   // WaterCore Phase F
     Core::WaterManager* m_waterManager = nullptr;
     // True for frames where the reflection pass was rendered for the water plane

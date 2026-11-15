@@ -421,8 +421,6 @@ public:
     double totalMass() const;
     size_t totalCells() const;
 
-    /// Debug feed: one WaterSurfaceCell per wet world column (1 x 1), rebuilt on demand.
-    const std::vector<WaterSurfaceCell>& surfaceCells();
     /// Phase F (17.1): one surface field per volume, from the last step (GPU: the field the step
     /// wrote into its staging ring, a memcpy; CPU: extracted from the grid). Rebuilt on every call
     /// that follows a step; a volume that did not step since the last call keeps its field.
@@ -1057,7 +1055,6 @@ private:
     bool m_realtime = false;
     double m_tickAccum = 0.0;   ///< 27.26: frame time not yet stepped (s)
     long m_ticksDropped = 0;   ///< 27.26: ticks a frame's backlog dropped (over kMaxTicksPerFrame)
-    std::vector<WaterSurfaceCell> m_surface;
     std::vector<const WaterSurfaceField*> m_fields;   // Phase F, parallel to m_avs (26.30 step 3: each volume's own field); then the record tiles (§27 W1a)
     struct RecordTile { WaterSurfaceField field; uint64_t spanRev = ~0ull, occRev = ~0ull, avRev = ~0ull; bool wet = false; };
     std::map<std::pair<int, int>, RecordTile> m_recordTiles;   // §27 W1a, by tile (x, z) index

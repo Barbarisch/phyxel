@@ -202,8 +202,8 @@ void appendFieldToMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out);
 void appendDropletsToMesh(const std::vector<glm::vec4>& droplets, WaterSurfaceMesh& out);
 
 /// Phase F render mode of the simulated water (docs/WaterCore.md 17.2 key 4).
-enum class WaterCoreRenderMode : int { Off = 0, Cells = 1, Mesh = 2 };
+enum class WaterCoreRenderMode : int { Off = 0, Mesh = 2 };   // 52 W4.3a: Cells (1) deleted with the cell renderer
 constexpr WaterCoreRenderMode kWaterCoreRenderModeDefault = WaterCoreRenderMode::Mesh;
-inline const char* waterCoreRenderModeName(WaterCoreRenderMode m) { return m == WaterCoreRenderMode::Mesh ? "mesh" : (m == WaterCoreRenderMode::Cells ? "cells" : "off"); }
+inline const char* waterCoreRenderModeName(WaterCoreRenderMode m) { return m == WaterCoreRenderMode::Mesh ? "mesh" : "off"; }
 
 }  // namespace Phyxel::Core::Water
