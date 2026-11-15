@@ -1,0 +1,46 @@
+M5d-3 - the towers of the map's wall (D64 as refined, D66 PROPOSED). Predictions, written 2026-11-15 10:18,
+BEFORE any source edit and before any run (regression chain 285 of M5d-2 still running on tree aa12eb4a;
+the patch scripts m5d3_patch57a-d.py exist in the scratchpad, NOT applied).
+Design check: docs/WorldForgeV2Plan.md, "M5d-3 design check (2026-11-15)".
+One amendment to that paragraph made before any build, stated: a drum may not STAND ON a lot rect, an area, a
+way's band, a gate's opening, the world road or water, and may not TOUCH another drum (the first draft said
+"touches" for all of them - with the tier's margin of 2 cubes a 9-cube drum centred on the wall would touch a lot
+at nearly every corner); and a drum that does not fit centred on its corner is tried further OUT along the
+corner's push for as long as it still holds the corner's ring cell. A doorway may open onto a way.
+
+Sizes: none new. tower_size 9 / tower_extra_height 3 / height 7 = the tier's existing data (provenance in
+settlement_program.json: 9 = Conwy's scale, GROUNDED as stated there; heights REASONED). Storey 3 cubes and the
+3-micro tread = TowerForge's existing values. The 3-cell reach each side of a gate = the gate passage's own
+existing length (chain 271). No spacing number.
+
+PT.1  chain 286 - patch 57a only (the record + the tests; the planner fills nothing). SettlementMapTest.*
+      PREDICTED RED: 34 tests, 31 ok / 3 failed -
+      TheWallCarriesATowerAtEachRoutedCorner (0 entries on every walled rig, 0 built),
+      ATowerTooSmallToWorkIsNotBuiltAndSaysWhy (0 entries; nothing to strip),
+      TheWallHoldsAcrossSeedsAndTiers (0 towers built over the 35 plans - an assertion ADDED to this existing test).
+PT.2  chain 287 - + patch 57b (the planner). SettlementMapTest.*  PREDICTED 34 ok / 0 failed, and:
+      a. every walled rig carries >= 4 tower entries;
+      b. every walled rig builds >= 1 tower, and over the 7 rigs more are built than not;
+      c. "another tower" appears as a reason at least once (hull corners closer than a drum);
+      d. no entry is refused for "a lot" (the outward tries clear the lots) - LEAST SURE of this one;
+      e. the stress: 35 plans, towers built > 0, every tower check 0;
+      f. the wall's bake time per rig rises by < 5 ms (REASONED: one flood and <= 20 planTower calls a corner).
+PT.3  mutation (the "may not stand on" test in the planner disabled, run headless): PREDICTED the tower test turns
+      RED on at least one of: on a gate, on a way, on water, drums meeting. If it stays green the rule is exercised
+      by no rig, and that is recorded as such.
+PT.4  chain 288 - + patch 57d only (the live test; the realizer unpatched). TheCitysTowersCanBeEnteredAndClimbed
+      PREDICTED RED: the record still carries towers_deferred, towers -1, 0 tower routes, 0 climbs.
+      The map on this rig (the city program on the baseline town site): PREDICTED 3..8 towers built.
+PT.5  chain 289 - + patch 57c (the stamp and the gate's walk). PREDICTED - honestly not confident of green first:
+      a. the realizer builds exactly the towers the map records built;
+      b. every climb (doorway -> top chamber) walkable, and the 2-micro walker climbs none;
+      c. AT LEAST ONE "ground outside its door -> doorway" route BLOCKED on the first run (sloping ground or
+         flora at the cell outside a door - not cleared by the stamp) -> the build REFUSED, the test RED;
+      d. past a drum: >= 1 tried, 0 crossed;
+      e. reached from the nearest way (recorded only): fewer than half the towers;
+      f. TheWalledCityCanBeLeftByItsRoad unchanged in kind: gates 3 walked / 0 blocked, north on foot, east
+         HOP-ONLY, barrier 0 crossed; its walkable count rises by 2 per tower when the towers pass.
+Not in this increment: Release, L4 screenshots, a second live seed, a conical cap on a map tower, the wall walk
+joined to a tower, a lane along the wall.
+
+RESULTS (appended as they come, every miss stated)

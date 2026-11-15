@@ -137,3 +137,16 @@ RESULT chain 282 (written 2026-11-15 08:25; RUN EXIT 0 08:25:02; exe 07:42:41): 
 PO29.6  the regression on this tree (written 2026-11-15 08:25, before the runs): chain 283 SettlementMapTest.* whole 32 ok / 0
   failed; chain 284 the unit set 178 ok / 0 failed; chain 285 the live-site set + realizer tests 33 ok / 0 failed
   (31 before + the two city tests), unwalled sites' numbers as chain 223's. About 2.7 h.
+RESULT PO29.6 (2026-11-15 11:06; tree aa12eb4a, sources unchanged since the launch at 08:26 - only docs committed in 30f742cb;
+  exe 2026-11-15_07:42:41, Debug; raw logs m5b_stp_chain_283/285.txt, m4b4r_chain_284.txt, m5b_stp_r285.txt in the scratchpad):
+  chain 283 SettlementMapTest.*            32 ok / 0 failed   - as predicted.
+  chain 284 the unit set (m5b2)            178 ok / 0 failed  - as predicted.
+  chain 285 live-site set + realizer tests 33 ok / 0 failed   - as predicted (08:44 -> 11:05, 2 h 21 min; predicted ~2.7 h).
+  Unwalled sites as chain 223: village 34 walkable / 0 blocked, 10 approaches imposed; town 72 / 0, 23 imposed,
+  1 approach disagreeing (lot 4); hamlet 16 / 0. The city on the town site 77 / 0; the legacy rectangle 42 / 11 (refused).
+  Not predicted, seen in the log: the CITY build also logs one approach that DISAGREES (lot 9 hall_house: the map
+  states 1389.. from threshold 1389, the doorsteps read 1386..) with 24 imposed - the same class as the town's lot 4
+  (O22's remainder), not looked at here.
+  No miss on a predicted number. M5d-2 is closed as BUILT WITH OPEN ITEMS on this evidence: one Debug rig, one seed,
+  no Release, no L4, no towers, hop-only road east, legacy gates 7 of 8 blocked unexplained, door-to-gate
+  connectivity unmeasured, the gate-opening obstruction scan not done.

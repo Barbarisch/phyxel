@@ -1430,3 +1430,11 @@ MY RESPONSE: the auditor is right on D65 as I applied it - I counted a hop-only 
   legacy control asserts refusal and a blocked leave route; the barrier walks at the gate routes' own geometry
   (3 in / 3 out, the same box) so the gate routes are its positive control; a headless counter for the outer
   course against lot rects. NOT done: the scan of gate cells below the lintel; a general proof beyond the one rig.
+
+M5d-2 REGRESSION AND CLOSURE (2026-11-15 11:06) - chains 283-285 on tree aa12eb4a (after the audit's corrections)
+  283 SettlementMapTest.* 32 ok / 0 failed; 284 unit set 178 ok / 0 failed; 285 live-site + realizer 33 ok / 0 failed.
+  All three as predicted (PO29.6, pm_chain273.txt). Unwalled sites' gate numbers equal chain 223's.
+  Seen, not predicted: one approach DISAGREES on the city build (lot 9), same class as the town's lot 4.
+  CLOSED AS BUILT WITH OPEN ITEMS - not "verified": the audit's verdict above stands (PASS WITH CONDITIONS leaning
+  FAIL, corrected in patch 56; no second audit of the corrected tree was run). Unmeasured: Release, L4, a second
+  seed live, towers, door-to-gate connectivity, obstruction inside gate openings; the east road is HOP-ONLY.
