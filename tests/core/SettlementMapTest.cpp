@@ -1258,7 +1258,8 @@ struct WallStats {
     int inLotMargin = 0, inMarket = 0;                 // a ring cell inside a lot rect grown by the margin / in the market
     int wetNotInGap = 0, dryInGap = 0, wet = 0;
     int crossings = 0, ungated = 0, gateOffRing = 0, gateNarrow = 0;
-    int approachCells = 0, onApproach = 0, gateInGap = 0;   // the audit of M5d-1, condition 4: ring vs the lots' door approaches; a gate in a water gap
+    int approachCells = 0, onApproach = 0, gateInGap = 0;
+    int roadCells = 0, roadUngated = 0;   // M5d-1b: ring cells on the WORLD road; of them, with no gate within half its width   // the audit of M5d-1, condition 4: ring vs the lots' door approaches; a gate in a water gap
     long enclosed = 0;
 };
 // independent of the planner: inside = what a flood from outside the ring's bounding box cannot reach
@@ -1347,6 +1348,14 @@ WallStats wallStats(const SettlementMap& m, const SettlementMapInput& in) {
             if (!gated) ++w.ungated;
         }
     }
+    if (in.roadAt)
+        for (const auto& c : ring) {
+            if (in.roadAt(c.x, c.z) <= 0) continue;
+            ++w.roadCells;
+            bool gated = false;
+            for (const auto& g : m.wall.gates) if (std::abs(g.x - c.x) + std::abs(g.z - c.z) <= std::max(1, g.width / 2)) gated = true;
+            if (!gated) ++w.roadUngated;
+        }
     for (const auto& l : m.lots)
         if (l.hasApproach)
             for (const auto& a : l.approach) { ++w.approachCells; if (onRing.count({a.x, a.z})) ++w.onApproach; }
@@ -1360,10 +1369,10 @@ WallStats wallStats(const SettlementMap& m, const SettlementMapInput& in) {
 void printWall(const char* what, const SettlementMap& m, const WallStats& w, long rectangle) {
     std::printf("[ M5d-1 ] %s: %zu lots, %zu ways | wall %s%s%s | %d ring cells, %d corners, %d gates, %d water gaps (%d wet cells) | enclosed %ld cells = %.1f %% of the rectangle's %ld | "
                 "ring broken %d, repeated %d | lot cells outside %d, market cells outside %d | ring in a lot's margin %d, in the market %d | wet not in a gap %d, dry in a gap %d | "
-                "crossings %d, ungated %d, gate off the ring %d, gate narrower than its way %d | on a door approach %d of %d approach cells, gate in a water gap %d | bake %.1f ms, the wall's %.1f ms%s",
+                "crossings %d, ungated %d, gate off the ring %d, gate narrower than its way %d | on a door approach %d of %d approach cells, gate in a water gap %d | on the world road %d, ungated %d | bake %.1f ms, the wall's %.1f ms%s",
                 what, m.lots.size(), m.ways.size(), w.present ? "present" : "ABSENT", m.wall.refusal.empty() ? "" : " refusal: ", m.wall.refusal.c_str(), w.cells, w.corners, w.gates, w.gaps, w.wet,
                 w.enclosed, rectangle > 0 ? 100.0 * static_cast<double>(w.enclosed) / static_cast<double>(rectangle) : 0.0, rectangle, w.broken, w.repeated, w.lotCellsOutside, w.marketCellsOutside,
-                w.inLotMargin, w.inMarket, w.wetNotInGap, w.dryInGap, w.crossings, w.ungated, w.gateOffRing, w.gateNarrow, w.onApproach, w.approachCells, w.gateInGap, m.bakeMs, m.wall.bakeMs, "\n");
+                w.inLotMargin, w.inMarket, w.wetNotInGap, w.dryInGap, w.crossings, w.ungated, w.gateOffRing, w.gateNarrow, w.onApproach, w.approachCells, w.gateInGap, w.roadCells, w.roadUngated, m.bakeMs, m.wall.bakeMs, "\n");
     for (const auto& g : m.wall.gates) std::printf("[ M5d-1 ]   gate at %d,%d way %d width %d%s", g.x, g.z, g.way, g.width, "\n");
     for (const auto& g : m.wall.waterGaps) std::printf("[ M5d-1 ]   water gap from %d,%d over %d cells%s", g.x, g.z, g.cells, "\n");
 }
@@ -1375,6 +1384,7 @@ void expectWallSound(const char* what, const WallStats& w) {
     EXPECT_EQ(w.ungated, 0) << what; EXPECT_EQ(w.gateOffRing, 0) << what; EXPECT_EQ(w.gateNarrow, 0) << what;
     EXPECT_EQ(w.onApproach, 0) << what << ": the ring stands on a lot's door approach";
     EXPECT_EQ(w.gateInGap, 0) << what << ": a gate recorded inside a water gap";
+    EXPECT_EQ(w.roadUngated, 0) << what << ": the ring stands on the world road with no gate there - the arriving road is walled in";
     EXPECT_GT(w.crossings, 0) << what << ": no way crosses the wall - the town is sealed or the wall is not round it";
 }
 struct WallRig { const char* name; int W, D; std::function<int(int, int)> h; std::function<bool(int, int)> w; };
@@ -1514,3 +1524,49 @@ TEST(SettlementMapTest, AWallRecordWithBadNodesIsRefusedNotEmpty) {
     EXPECT_TRUE(ok.wall.present);
     EXPECT_EQ(ok.wall.ring.size(), m.wall.ring.size());
 }
+
+// (f) M5d-1b (chain 253, live: the city sealed its arriving road): the world road that runs on out of the site gets a gate
+TEST(SettlementMapTest, TheWallGatesTheArrivingRoad) {
+    ASSERT_TRUE(rigs().programOk);
+    SettlementMapInput in = inputFor("city", 140, 60, flatHeight, {});
+    in.entries = {{126, 38, 2}};                                                       // the road's END, inside the site (as the live request states it)
+    in.roadAt = [](int x, int z) { return (x >= 126 && z >= 36 && z <= 40) ? 2 : 0; };   // and the road itself, running on east out of the site
+    const SettlementMap m = planSettlementMap(in);
+    ASSERT_TRUE(m.ok()) << m.refusal;
+    const WallStats w = wallStats(m, in);
+    printWall("flat 140x60, the road leaves east from 126,38", m, w, static_cast<long>(140 + 4) * (60 + 4));
+    ASSERT_TRUE(w.present) << m.wall.refusal;
+    EXPECT_GT(w.roadCells, 0) << "the ring never meets the road: nothing below is measured";
+    expectWallSound("flat 140x60, the road leaves east", w);
+    int roadGates = 0;
+    for (const auto& g : m.wall.gates) if (g.way < 0) ++roadGates;
+    EXPECT_EQ(roadGates, 1) << "one road crosses the ring once";
+    // the control: the same site without the road sampler plans no road gate
+    const auto strip = in.roadAt;
+    in.roadAt = nullptr;
+    const SettlementMap off = planSettlementMap(in);
+    for (const auto& g : off.wall.gates) EXPECT_GE(g.way, 0) << "a road gate without a road";
+    // the audit of M5d-1b: the control must still STAND on the strip (else "no road gate" says nothing), and with the
+    // strip handed to the measurement only, those cells must read ungated - the rule is what gates them
+    SettlementMapInput measured = in; measured.roadAt = strip;
+    const WallStats c = wallStats(off, measured);
+    std::printf("[ M5d-1 ] the control (no road sampler): %d ring cells on the strip, %d of them ungated%s", c.roadCells, c.roadUngated, "\n");
+    EXPECT_GT(c.roadCells, 0) << "the control's ring does not cross the strip";
+    EXPECT_GT(c.roadUngated, 0) << "the control's ring is gated on the strip without the rule";
+}
+
+// (g) the audit of M5d-1b, condition 1: a road that runs ALONG the ring past one of the settlement's own gates - every
+// ring cell on it is inside some gate's opening, not just the stretch that own gate covers
+TEST(SettlementMapTest, TheWallGatesARoadThatRunsAlongIt) {
+    ASSERT_TRUE(rigs().programOk);
+    SettlementMapInput in = inputFor("city", 140, 60, flatHeight, {});
+    in.roadAt = [](int x, int z) { return (x >= 50 && x <= 100 && z <= -3) ? 2 : 0; };   // everything south of the lots between x 50 and 100: no way round it
+    const SettlementMap m = planSettlementMap(in);
+    ASSERT_TRUE(m.ok()) << m.refusal;
+    const WallStats w = wallStats(m, in);
+    printWall("flat 140x60, a road along the south wall", m, w, static_cast<long>(140 + 4) * (60 + 4));
+    ASSERT_TRUE(w.present) << m.wall.refusal;
+    EXPECT_GT(w.roadCells, 14) << "the ring does not run along the road for longer than two gate widths: the rig does not make the case";
+    expectWallSound("flat 140x60, a road along the south wall", w);
+}
+

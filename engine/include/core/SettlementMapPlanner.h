@@ -50,6 +50,10 @@ struct SettlementMapInput {
     std::vector<Entry> entries;                   ///< where the arriving roads meet the site rect (LOCAL), by road class
     int maxRelief = 6;                            ///< the buildable relief cap over a lot (cubes) - analyzeSite's rule
     AgentBox agent;                               ///< the walk corridor the paths are sized for
+    /// M5d-1b (chain 253: the walled city sealed its arriving road): LOCAL (x,z) -> the WORLD road's class there
+    /// (WorldForgePlan::roadAt; 0 = none; null = no world road known). The wall gates every run of its ring that
+    /// stands on it. Must answer outside the site rect.
+    std::function<int(int, int)> roadAt;
     float reuse = 0.5f;                           ///< the M4 reuse discount on cells already on a way (routeReuseFraction)
     int lotCap = 400;                             ///< the M5 stress cap: more lots than this are refused with the reason
     /// M5b-1a (D49): the style palette and the variety seed the realizer draws a building's style from

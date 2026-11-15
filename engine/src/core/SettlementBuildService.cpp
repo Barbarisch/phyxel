@@ -479,6 +479,19 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // M5b-1a (chain 161): the ground AS EMITTED for the terraces and the ways' grading - an arriving road's
                 // earthwork is in the chunks and not in naturalGroundAt
                 mi.gradeHeightAt = [mapGen, ox, oz](int x, int z) { return mapGen->sampleSurface(ox + x, oz + z).surfaceY; };
+                // M5d-1b (chain 253): the world's road, for the wall's gates - the plan's own index, not the full column
+                if (const WorldForgePlan* wfp = mapGen->worldForge()) {
+                    // the audit of M5d-1b: segments dropped at the raster's cap are invisible to roadAt - a road among
+                    // them would get no gate, so say it
+                    if (wfp->rasterTruncatedSegments() > 0)
+                        LOG_WARN_FMT("Settlement", "wall gates: " << wfp->rasterTruncatedSegments() << " road segments are outside the plan's road index - a road among them gets NO gate");
+                    // (chain 257: a hit's cls alone means "a segment is within the raster's reach" - 4308 cells of the town
+                    // site; ON the road is dist within the class's half width)
+                    mi.roadAt = [wfp, ox, oz](int x, int z) {
+                        const WorldForgePlan::RoadHit h = wfp->roadAt(static_cast<float>(ox + x) + 0.5f, static_cast<float>(oz + z) + 0.5f);
+                        return (h.cls > 0 && h.dist <= WorldForgePlan::roadHalfWidth(h.cls)) ? h.cls : 0;
+                    };
+                }
             } else if (chunkManager && terrain) {
                 mapSampler = "chunks";
                 mi.heightAt = [terrainTopAt, ox, oz](int x, int z) { return terrainTopAt(ox + x, oz + z); };

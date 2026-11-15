@@ -776,6 +776,8 @@ static void planCrofts(SettlementMap& map, const SettlementMapInput& in) {
 //   gates   = where a way's centreline - or its straight continuation out of the site from an end node on the site
 //             edge - meets the ring: one gate per run of ring cells, at the run's middle, as wide as the wider of the
 //             way and the tier's gate_width;
+//   road gates = where the ring stands on the WORLD road (in.roadAt, M5d-1b): the arriving road runs on out of the
+//             site past the settlement's own ways, and a wall that gates only those seals it in (chain 253, live);
 //   water gaps = the runs of ring cells in water: the band is left open there (D61) and the record says so.
 // The ring may leave the site rect (the lots touch its edge); it reads `in`'s own samplers, not the site cache.
 static void planWall(SettlementMap& map, const SettlementMapInput& in) {
@@ -823,9 +825,12 @@ static void planWall(SettlementMap& map, const SettlementMapInput& in) {
     const auto inGrid = [gx0, gz0, gx1, gz1](int x, int z) { return x >= gx0 && z >= gz0 && x < gx1 && z < gz1; };
     std::vector<uint8_t> forbidden(static_cast<size_t>(GW) * GD, 0), wet(static_cast<size_t>(GW) * GD, 0), onWay(static_cast<size_t>(GW) * GD, 0);
     std::vector<int> hgt(static_cast<size_t>(GW) * GD, 0);
+    // M5d-1b (chain 253): the WORLD road, where the request knows it - the ring is gated wherever it stands on one
+    std::vector<uint8_t> road(static_cast<size_t>(GW) * GD, 0);
     for (int z = gz0; z < gz1; ++z) for (int x = gx0; x < gx1; ++x) {
         hgt[gi(x, z)] = in.heightAt(x, z);
         if (in.waterAt && in.waterAt(x, z)) wet[gi(x, z)] = 1;
+        if (in.roadAt && in.roadAt(x, z) > 0) road[gi(x, z)] = 1;
         bool inHull = true;
         for (size_t k = 0; k < hull.size() && inHull; ++k)
             if (cross(hull[k], hull[(k + 1) % hull.size()], P{x, z}) < 0) inHull = false;
@@ -920,7 +925,7 @@ static void planWall(SettlementMap& map, const SettlementMapInput& in) {
                 const int dh = hgt[gi(nx, nz)] - hgt[gi(x, z)];
                 long long c = kStep + static_cast<long long>(kSlope) * dh * dh;
                 if (dir != 4 && d != dir) c += kTurn;
-                if (onWay[gi(nx, nz)]) c += kWay;
+                if (onWay[gi(nx, nz)] || road[gi(nx, nz)]) c += kWay;   // a way's band or the world road: crossed square, not followed
                 if (wet[gi(nx, nz)]) c += kWater;
                 const int ns = static_cast<int>(gi(nx, nz)) * 5 + d;
                 if (g + c < best[static_cast<size_t>(ns)]) { best[static_cast<size_t>(ns)] = g + c; prev[static_cast<size_t>(ns)] = st; open.push({g + c + heur(nx, nz), ns}); }
@@ -991,6 +996,33 @@ static void planWall(SettlementMap& map, const SettlementMapInput& in) {
             while (len < n && hit[(i + len) % n]) ++len;
             const MapWall::Pt mid = wall.ring[(i + len / 2) % n];
             wall.gates.push_back({mid.x, mid.z, w.id, std::max(in.tier->walls.gateWidthCubes, static_cast<int>(std::ceil(w.width)))});
+            k += len;
+        }
+    }
+    {   // M5d-1b: every ring cell on the world road lies inside a gate's opening. A cell is COVERED by a gate when it
+        // is within half that gate's width of it along the ring (the audit of M5d-1b: a gate of the settlement's own
+        // ways somewhere in the run did not cover a road running along the ring). Each stretch left uncovered gets a
+        // road gate at its middle, as wide as the wider of the stretch and the tier's gate width.
+        const size_t n = wall.ring.size();
+        std::vector<uint8_t> need(n, 0);
+        size_t needed = 0;
+        for (size_t i2 = 0; i2 < n; ++i2) if (road[gi(wall.ring[i2].x, wall.ring[i2].z)]) { need[i2] = 1; ++needed; }
+        for (const auto& g : wall.gates) {
+            const auto it = ringAt.find({g.x, g.z});
+            if (it == ringAt.end()) continue;
+            const size_t half = static_cast<size_t>(std::max(1, g.width / 2));
+            for (size_t d = 0; d <= half && d < n; ++d) { need[(it->second + d) % n] = 0; need[(it->second + n - d) % n] = 0; }
+        }
+        size_t start = n;
+        for (size_t i2 = 0; i2 < n; ++i2) if (!need[i2]) { start = i2; break; }
+        if (start == n && needed > 0) { wall.ring.clear(); wall.gates.clear(); wall.refusal = "the whole ring stands on the world road"; return; }
+        for (size_t k = 0; start < n && k < n;) {
+            const size_t i2 = (start + k) % n;
+            if (!need[i2]) { ++k; continue; }
+            size_t len = 0;
+            while (len < n && need[(i2 + len) % n]) ++len;
+            const MapWall::Pt mid = wall.ring[(i2 + len / 2) % n];
+            wall.gates.push_back({mid.x, mid.z, -1, std::max(in.tier->walls.gateWidthCubes, static_cast<int>(len))});
             k += len;
         }
     }

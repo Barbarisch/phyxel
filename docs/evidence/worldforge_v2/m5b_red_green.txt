@@ -1339,3 +1339,37 @@ MY RESPONSE: conditions 2, 3 and 4 and a planWall timer are being done now (patc
 249  RED for the audit's bug A        4 ok / 1 failed   | 250 fixed                         5 ok / 0 failed
 251  SettlementMapTest.* final tree  30 ok / 0 failed
 Closed as BUILT WITH OPEN ITEMS, planner only; the realizer still stamps the site rectangle; open items O27.
+
+=== M5d-1b the gate on the arriving world road - solution-auditor read (recorded 2026-11-15 02:35; working tree on a8538de0, uncommitted; read-only; chains 259-260 not available to it) ===
+RAW VERDICT (the auditor's words, cut for length):
+  VERDICT: PASS WITH CONDITIONS (headless red/green and digest claims hold; the live claim is a picture, not a
+  measurement; one silent-miss rule is real).
+  Claim 1: REAL for the hand-drawn strip; the strip is axis-aligned and straight - no oblique or tangent crossing.
+    The control arm is weak: nulling roadAt also removes the A* road cost (two variables), and its only assertion
+    passes trivially if the ring merely moves; it never checks the control ring still crosses the strip.
+  Claim 2: the 2 -> 3 count is REAL as a diagnostic; "the roads are gated" is NOT measured - the diagnostic asserts
+    nothing and does not run roadUngated. The north road is waved through by the "has" rule, which checks only
+    that a way gate's cell lies somewhere in the run, not that its opening covers the road's cells (by the printed
+    numbers way 2's gate spans x 86..92 and the band is x 88-92: it fits with about 0 cells of margin - arithmetic,
+    not a measurement). The wiring's dist rule is covered by no test. The shipped output is still sealed.
+  Claim 3: plausible and structurally guaranteed (no roadAt on those rigs).
+  REAL: the raster cap - segments truncated out of the raster are invisible to roadAt, so no gate and no warning.
+    An oblique or tangent crossing gives a gate as wide as its run (15-30 cells): the wall effectively disappears
+    there; no cap, no test.
+  CONDITIONS: 1 the skip rule leaves roads walled (a road tangent to the ring over 20 cells with a way gate at one
+    end: 13 cells ungated) - skip only what the gate's opening covers; test it. 2 run roadUngated on the live
+    diagnostic. 3 a raster-truncation warning and a wiring test for the dist rule. 4 cap or flag the road gate's
+    width. 5 state: map-only, one site, one seed, Debug rig, the realizer's wall still seals the road.
+MY RESPONSE: 1 and 2 are being done now (red first for 1; the control arm strengthened); 3 - a warning when the plan
+  reports truncated segments; the wiring test is NOT written (the service does not expose its samplers) and stays
+  open; 4 - not capped, recorded open; 5 - the closure wording.
+
+=== M5d-1b the map wall's gate on the arriving world road - chain summary (recorded 2026-11-15 03:17; detail in m3c_chains/pm_chain252.txt) ===
+252-253  live diagnostic (asserts nothing): city program on the town site builds 25 of 25, gate "passed" 73 / 0;
+         BOTH walls leave the east world road ungated
+254  RED headless                      5 ok / 1 failed   | 255 green                 6 ok / 0 failed
+256  live: still 2 gates - MISS (my wiring read roadAt's class alone) | 257 the road picture | 258 fixed: 3 gates
+259  SettlementMapTest.*              31 ok / 0 failed   | 260 unit set            177 ok / 0 failed
+261  RED for the audit's condition 1   6 ok / 1 failed   | 262 green                 7 ok / 0 failed
+263  live diagnostic with EXPECTs      1 ok / 0 failed   (10 ring cells on the road, 0 ungated)
+Closed as BUILT WITH OPEN ITEMS; the wall the realizer BUILDS is unchanged and still seals the road; O28.

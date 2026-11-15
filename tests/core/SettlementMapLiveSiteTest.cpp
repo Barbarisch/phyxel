@@ -1476,3 +1476,74 @@ TEST(SettlementMapLiveSiteTest, TheVillageClearsAndFencesItsCrofts) {
     EXPECT_EQ(topsDiffer, 0) << "a croft's ground was moved";
     EXPECT_EQ(arms[0].out.value("blocked", -1), arms[1].out.value("blocked", -1));
 }
+
+// M5d-2 design check (pm_chain252.txt PM5d2.0): a DIAGNOSTIC, no assertions - the CITY's program through the map path
+// into voxels on the town's site (the baseline world seats no city): what the map's wall is on live samplers, and
+// what the realizer's own wall (the site rectangle) does there.
+TEST(SettlementMapLiveSiteTest, DISABLED_DiagTheCityOnTheTownSite) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("town", 48)) << rig.why;
+    nlohmann::json ov; ov["tier"] = "city";
+    const auto out = realize(rig, /*legacyLayout=*/false, ov);
+    if (out.contains("plan_error")) { std::printf("[ M5d-2 ] the plan is REFUSED: %s\n", out["plan_error"].dump().c_str()); return; }
+    const nlohmann::json map = out.value("map", nlohmann::json::object());
+    std::printf("[ M5d-2 ] city on the town site: %zu lots, %zu ways, W %d D %d, bake %.1f ms\n", map.value("lots", nlohmann::json::array()).size(),
+                map.value("ways", nlohmann::json::array()).size(), map.value("W", -1), map.value("D", -1), map.value("bake_ms", 0.0));
+    {   // chain 253: every way's ends, against the wall's gates
+        const Core::SettlementMap sm = Core::SettlementMap::fromJson(map);
+        std::printf("[ M5d-2 ] site %d x %d, entry node %d\n", sm.W, sm.D, sm.entryNode);
+        for (const auto& w : sm.ways) {
+            const Core::MapNode* a = w.nodes.empty() ? nullptr : sm.node(w.nodes.front());
+            const Core::MapNode* b = w.nodes.empty() ? nullptr : sm.node(w.nodes.back());
+            int gates = 0;
+            for (const auto& g : sm.wall.gates) if (g.way == w.id) ++gates;
+            std::printf("[ M5d-2 ]   way %d %s cls %d width %.1f, %zu nodes, ends %d,%d and %d,%d, map gates %d\n", w.id, w.highway.c_str(), w.cls, w.width, w.nodes.size(),
+                        a ? a->x : -999, a ? a->z : -999, b ? b->x : -999, b ? b->z : -999, gates);
+        }
+    }
+    {   // chain 257: the world road as the plan answers it, and the ring over it
+        const Core::SettlementMap sm = Core::SettlementMap::fromJson(map);
+        const WorldForgePlan* wfp = rig.gen->worldForge();
+        std::set<std::pair<int, int>> ringSet;
+        for (const auto& c : sm.wall.ring) ringSet.insert({c.x, c.z});
+        int inSite = 0, outSite = 0, onRing = 0;
+        const auto roadCls = [&](int x, int z) {   // chain 258: ON the road = within the class's half width
+            if (!wfp) return 0;
+            const WorldForgePlan::RoadHit h = wfp->roadAt(static_cast<float>(sm.originX + x) + 0.5f, static_cast<float>(sm.originZ + z) + 0.5f);
+            return (h.cls > 0 && h.dist <= WorldForgePlan::roadHalfWidth(h.cls)) ? h.cls : 0;
+        };
+        for (int z = -24; z < sm.D + 24; ++z) for (int x = -24; x < sm.W + 24; ++x) {
+            if (roadCls(x, z) <= 0) continue;
+            if (x >= 0 && z >= 0 && x < sm.W && z < sm.D) ++inSite; else ++outSite;
+            if (ringSet.count({x, z})) ++onRing;
+        }
+        std::printf("[ M5d-2 ] world road cells (roadAt > 0) on the site grown by 24: %d inside the site, %d outside, %d on the ring\n", inSite, outSite, onRing);
+        // the audit of M5d-1b, condition 2: the ring cells on the road, and those with no gate within half its width
+        int ungated = 0;
+        for (const auto& c : sm.wall.ring) {
+            if (roadCls(c.x, c.z) <= 0) continue;
+            bool gated = false;
+            for (const auto& g : sm.wall.gates) if (std::abs(g.x - c.x) + std::abs(g.z - c.z) <= std::max(1, g.width / 2)) gated = true;
+            if (!gated) { ++ungated; std::printf("[ M5d-2 ]   ring cell %d,%d stands on the world road with no gate over it\n", c.x, c.z); }
+        }
+        std::printf("[ M5d-2 ] ring cells on the world road: %d, ungated %d\n", onRing, ungated);
+        EXPECT_EQ(ungated, 0) << "the map's wall stands on the world road with no gate there";
+        EXPECT_GT(onRing, 0) << "the ring never meets the world road: nothing is measured";
+        EXPECT_LT(inSite + outSite, (sm.W + 48) * (sm.D + 48) / 10) << "more than a tenth of the grid reads as road: the on-the-road rule is wrong (chain 257)";
+        for (int z = sm.D + 23; z >= -24; z -= 2) {
+            std::string row;
+            for (int x = -24; x < sm.W + 24; x += 2) {
+                bool rd = false, rg = false;
+                for (int dz = 0; dz < 2; ++dz) for (int dx = 0; dx < 2; ++dx) { if (roadCls(x + dx, z - dz) > 0) rd = true; if (ringSet.count({x + dx, z - dz})) rg = true; }
+                const bool edge = (x <= 0 && x + 1 >= 0) || (x <= sm.W - 1 && x + 1 >= sm.W - 1) || (z >= 0 && z - 1 <= 0) || (z >= sm.D - 1 && z - 1 <= sm.D - 1);
+                row += rd && rg ? 'X' : rd ? '#' : rg ? 'o' : (edge && x >= -1 && x <= sm.W && z >= -1 && z <= sm.D) ? '+' : '.';
+            }
+            std::printf("[ M5d-2 ] z %4d %s\n", z, row.c_str());
+        }
+    }
+    std::printf("[ M5d-2 ] the MAP's wall: %s\n", map.contains("barriers") ? map["barriers"].dump().c_str() : "no barriers key");
+    std::printf("[ M5d-2 ] the REALIZER's wall record: %s\n", out["paths"].value("town_wall", nlohmann::json()).dump().c_str());
+    std::printf("[ M5d-2 ] gate %s: %d walkable, %d blocked, built %d, doors %d, lot failures %zu\n", out.value("gate", std::string("?")).c_str(), out.value("walkable", -1),
+                out.value("blocked", -1), out.value("built", -1), out.value("doors", -1), out["lot_failures"].size());
+    for (const auto& f : out["lot_failures"]) std::printf("[ M5d-2 ]   lot failure: %s\n", f.dump().c_str());
+}

@@ -1,0 +1,135 @@
+M5d-2 (the realizer stamps the map's wall) - predictions, each written BEFORE its run. Tree at the start: a8538de0.
+
+PM5d2.0  chain 252 (written 2026-11-15 00:53; a DIAGNOSTIC for the design check, no assertions, not red-before-green):
+  SettlementMapLiveSiteTest.DISABLED_DiagTheCityOnTheTownSite - the Debug live rig on the baseline world's town
+  site (generated chunks, margin 48), the request's tier overridden to "city": the CITY's program on the TOWN's
+  rect, entries and street axis (a rig, not a seated city - the baseline world seats none). The first time a city
+  goes through the map path into voxels in this milestone, and the first time planWall reads the live samplers.
+  Guesses, none measured before:
+    the plan is not refused; the map carries a wall (present) with gates >= 2;
+    the realizer's own wall (the site rectangle) is BUILT, source site_rect, gates >= 2 - or REFUSED on a building
+    in the band (the lots touch the site edge on the headless rigs) - I put this at about even;
+    the walkability gate: I do not know; if the rectangle is built I guess "passed" (the gate walks front doors
+    and the well, not the gates of the wall);
+    lot failures 0-3 (chunks at the edge); run time 15-30 min.
+
+RESULT chain 252 (written 2026-11-15 01:11; RUN EXIT 0 01:11:08; exe 00:53:35; 1 ok / 0 failed - a diagnostic, asserts nothing;
+  17.5 min): the plan is not refused - 25 lots, 19 ways, bake 1624 ms (Debug), 0 lot failures, 25 of 25 built.
+  The MAP's wall: present, 390 ring cells, 38 corners, closed (no water gap), margin 2, TWO gates: way 1 at 42,-3
+  and way 2 at 89,63. The REALIZER's wall (the site rectangle): built, 10191 cubes, 2 gates, 4 towers (4 walkable),
+  line cleared 8192 (cells handed - not a removal count), displaced 927. Walkability gate: passed, 73 walkable / 0
+  blocked over 73 routes.
+  Against the guesses: not refused - yes; wall present with >= 2 gates - yes (2); the rectangle built - yes; the
+  gate "passed" - yes; lot failures 0 - yes; 15-30 min - yes.
+  SEEN, not guessed, and it matters: 19 ways and two gates. The request's entries (the arriving roads) sit at
+  x 126-138, z 38 - the EAST side - and neither wall has a gate there: way 0 carries no gate in the map, and the
+  rectangle has two gates as well. If way 0 is the primary and ends short of the site edge, BOTH walls seal the
+  arriving road in, and the walkability gate does not notice (it walks doors and the well, not the wall's gates).
+  That is the audit's finding F, live. Not yet shown: where way 0 ends. (The print's "W -1 D -1" is my print
+  reading keys the record does not carry - the diagnostic's defect, not the map's.)
+PM5d2.1  chain 253 (written 2026-11-15 01:11, before the run; the diagnostic extended to print every way's class, width and end
+  nodes, the distinct entries, and the realizer's gates if recorded): the primary way's east end node lies at
+  x 126..138 (inside the site, NOT at x >= W - 1 = 139) and no map gate carries its id; the two map gates belong to
+  cross streets reaching the south and north edges. If instead way 0 does reach the edge and still has no gate,
+  the cause is elsewhere and I look again.
+
+RESULT chain 253 (written 2026-11-15 01:31; RUN EXIT 0 01:29:40; 1 ok / 0 failed - a diagnostic): as predicted. Site 140 x 60.
+  Way 0 (primary, class 3, width 7) ends at 126,38 and 79,52 - both inside the site; map gates 0. Ways 1 and 2
+  (primary) end at 42,0 and 89,59 - on the south and north edges - one gate each. The 16 lanes end inside; 0 gates.
+  The request's entries are the arriving roads' ENDS clamped into the site rect (WorldForgeBuildService.cpp:34-46):
+  the world road runs on from 126,38 eastwards OUT of the site, across the ring at x 141-142, and neither the
+  map's wall nor the realizer's rectangle (2 gates, the same two streets) has a gate there. The walkability gate
+  read 73 / 0 and "passed". So: the city as walled today - by the shipped rectangle and by M5d-1's ring alike -
+  SEALS ITS ARRIVING ROAD, and no check in the pipeline sees it. The cause in both: a gate is derived from the
+  settlement's own ways reaching the site edge, never from the world's road.
+PM5d2.2  M5d-1b (written 2026-11-15 01:31, before any code): the planner is given the world road (SettlementMapInput::roadAt,
+  LOCAL -> road class; the realizer wires WorldForgePlan::roadAt) and gates every run of ring cells that stand on it.
+  chain 254, RED (the input field + a new test TheWallGatesTheArrivingRoad + two counters [ring cells on the world
+  road, of them ungated]; planWall unchanged): a flat 140 x 60 city whose one entry is at 126,38 and whose road is
+  the strip z 36..40, x >= 126: the ring crosses the strip (5 cells on the road, or a few more if it crosses
+  askew) and none is gated -> the new test RED; the other five Wall tests green (no road on their rigs: the new
+  counters read 0 of 0 there - vacuous, printed). 5 ok / 1 failed.
+  chain 255, GREEN (planWall gates the road, costs a road cell like a way's band; the realizer wires roadAt):
+  6 ok / 0 failed; one gate with way -1 on the strip, width 7 (the tier's gate width; the strip is 5); the seven
+  old rigs' rings unchanged to the cell (no road there).
+  chain 256, the live diagnostic again: the map's wall carries a THIRD gate, way -1, on the east side near z 38.
+  The realizer's rectangle still has 2 gates - it is not touched (M5d-2).
+
+RESULT chain 254 (written 2026-11-15 01:37; RUN EXIT 1 01:34:10): 5 ok / 1 failed - as predicted. The new test red: 5 ring cells
+  on the world road, 5 ungated, 0 road gates. The other rigs read "on the world road 0, ungated 0" (42 lines) -
+  vacuous there, as said.
+RESULT chain 255 (written 2026-11-15 01:37; RUN EXIT 0 01:37:35; exe 01:34:47): 6 ok / 0 failed - as predicted. One road gate:
+  137,38 way -1 width 7 (4 gates in all on that rig). The seven old rigs' digest is chain 250's - no ring moved.
+  Seen: on this 140 x 60 rig the ring encloses 9412 cells = 102.1 % of the rectangle's - where the lots fill the
+  site the ring is LARGER than the rectangle (its push is 5, the rectangle's margin 2). "Not the site rectangle"
+  does not mean smaller.
+
+RESULT chain 256 (written 2026-11-15 01:56; RUN EXIT 0 01:55:37; exe 01:34:47; a diagnostic): MISS. The map's wall still has
+  TWO gates (way 1 at 42,-3; way 2 at 89,62) - no road gate. The ring DID change (386 cells against 390, other
+  corners), so the road sampler answers > 0 somewhere on the grid and moved the route; but no run of ring cells
+  stands on the road. I do not know why. Candidates, none checked: the world road is trimmed short of where the
+  ring runs; the road's cells are not continuous at the site; roadAt's reach is narrower than I assume.
+  The realizer's rectangle: unchanged (2 gates), gate "passed" 73 / 0.
+PM5d2.3  chain 257 (written 2026-11-15 01:56, before the run; the diagnostic prints a coarse picture - every second cell of the
+  site grown by 24 - of the world road as WorldForgePlan::roadAt answers it, with the ring over it, and counts
+  road cells inside the site, outside it, and on the ring): I do not have a prediction I trust. GUESS: road cells
+  exist outside the site but stop before the ring's line on the east (a trim wider than the rect), or they lie
+  where the ring is not (north-west, by the entries at 76..85, 50..58).
+
+RESULT chain 257 (written 2026-11-15 02:15; RUN EXIT 0 02:14:45; a diagnostic): none of my candidates. roadAt(...).cls > 0 on
+  4308 cells INSIDE the site and 3820 outside it (of the site grown by 24), 154 of them on the ring - a solid block
+  over the east two thirds of the site and everything north of it. roadAt's cls is "a road's segment is within
+  the raster's reach", NOT "this cell is on the road": the hit carries dist, and on-the-road is dist <= the class's
+  half width (WorldForgePlan::roadAt, WorldForgePlan.cpp:2111; roadHalfWidth). My wiring in SettlementBuildService
+  read cls alone. The 154 ring cells form one run that already holds way 2's gate, so the rule added no gate - which
+  is why chain 256 showed two gates and a moved ring (the false road cost).
+  The headless test could not have caught this: its sampler is a hand-drawn strip; the WIRING to the world plan is
+  covered by no unit test, only by this live diagnostic.
+PM5d2.4  chain 258 (written 2026-11-15 02:15, before the run; the wiring fixed to cls where dist <= roadHalfWidth(cls), the
+  diagnostic's picture using the same rule): road cells now form bands a few cells wide (class 2: 5 wide, class 3:
+  6 wide); the map's wall gains >= 1 road gate (way -1); where, I cannot say - the entries cluster at 126..138,38
+  and 76..85,50..58, so east and/or north. If the bands do not reach the ring at all, the roads are trimmed short
+  of it and the gate has to come from the entry's direction instead - then this rule is the wrong one.
+
+RESULT chain 258 (written 2026-11-15 02:33; RUN EXIT 0 02:33:23; exe 02:15:44; a diagnostic): as predicted. On-the-road cells:
+  142 inside the site, 280 outside, 10 on the ring - two bands: one from the east at z 35-41 running in to about
+  x 126, one from the north down x 88-92 from z 83 to about z 49. The map's wall: 390 ring cells (chain 252's
+  corners again), THREE gates - way 1 at 42,-3, way 2 at 89,63, and way -1 (the world road) at 142,38 width 7. The
+  north road crosses the ring inside way 2's gate run, so it adds none. The realizer's rectangle: unchanged, 2
+  gates - it still seals the east road; the gate "passed" 73 / 0 and still cannot see that.
+PM5d2.5  chains 259-260 (written 2026-11-15 02:33, before the runs; the final tree of M5d-1b): 259 SettlementMapTest.* whole:
+  31 ok / 0 failed. 260 the unit set: 177 ok / 0 failed if it takes the whole map suite (175 + 2 new) - "0 failed"
+  is what I vouch for.
+
+RESULT chains 259-260 (written 2026-11-15 02:52): 259 RUN EXIT 0 2026-11-15 02:39:29 31 ok, 0 failed; 260 RUN r260_m5b2 EXIT 0 2026-11-15 02:51:52 177 ok, 0 failed.
+RESULT auditor read of M5d-1b (written 2026-11-15 02:52): PASS WITH CONDITIONS; raw verdict in m5b_red_green.txt.
+PM5d2.6  chain 261, RED for the audit's condition 1 (written 2026-11-15 02:52, before the run; patch 53a - tests only): the new
+  test TheWallGatesARoadThatRunsAlongIt (a road covering everything south of the lots between x 50 and 100, so the
+  south wall must run along it past way 1's gate) RED: ring cells on the road about 51, ungated about 44 (all but
+  the 7 under way 1's gate) - if the ring finds a way I have not thought of, the rig's own guard (> 14 cells) says
+  so. TheWallGatesTheArrivingRoad with its strengthened control: green - the control's ring crosses the strip with
+  5 cells, 5 ungated (GUESS: the ring without the road cost crosses where it did). The other six: green.
+  So 7 ok / 1 failed.
+PM5d2.7  chain 262, GREEN (patch 53b: a road cell is covered only by a gate within half its width along the ring;
+  each uncovered stretch gets its own road gate): 8 ok / 0 failed; on the along-the-wall rig two road gates, one
+  each side of way 1's, each about 22 wide (GUESS) - a wall that is mostly opening there, which I record as what
+  the rule does, not as good. The seven old rigs' digest unchanged.
+PM5d2.8  chain 263, the live diagnostic with the measurement (EXPECTs now in it): ring cells on the world road 10,
+  ungated 0; road cells under a tenth of the grid; 1 ok / 0 failed. If the north road's cells are NOT all inside
+  way 2's opening, patch 53b adds a road gate there and the map's wall reads 4 gates - the auditor's arithmetic
+  says it fits exactly, so I guess 3.
+
+RESULT chain 261 (written 2026-11-15 02:58; RUN EXIT 1 02:55:10): 6 ok / 1 failed - the red as predicted; my COUNT was wrong (the
+  filter takes 7 tests, I wrote 7 ok / 1 failed). Along-the-wall rig: 42 ring cells on the road (guessed about 51),
+  35 ungated (guessed about 44). The control of TheWallGatesTheArrivingRoad: 5 ring cells on the strip, 5 ungated -
+  as guessed.
+RESULT chain 262 (written 2026-11-15 02:58; RUN EXIT 0 02:58:25; exe 02:55:36): 7 ok / 0 failed (predicted "8 / 0" by the same
+  miscount; 0 failed is the prediction that held). Along-the-wall rig: 42 on the road, 0 ungated; two road gates,
+  58,-5 width 17 and 83,-5 width 18, either side of way 1's 7-wide gate at 70,-5 (guessed about 22 each) - 42 of
+  the south wall's cells are opening. The seven old rigs' digest is chain 250's.
+
+RESULT chain 263 (written 2026-11-15 03:17; RUN EXIT 0 03:16:23; exe 02:55:36; the diagnostic now carries three EXPECTs): 1 ok /
+  0 failed - as predicted. Road cells 142 inside the site + 280 outside (under a tenth of the grid); ring cells on
+  the world road 10, ungated 0; the map's wall 3 gates (guessed 3): 42,-3 way 1; 89,63 way 2; 142,38 way -1. The
+  north road lies inside way 2's opening - measured now, not arithmetic. The realizer's rectangle: 2 gates, built,
+  site_rect - it still seals the east road. One site, one seed, Debug, a DISABLED diagnostic.
