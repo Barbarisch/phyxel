@@ -761,6 +761,257 @@ static void planCrofts(SettlementMap& map, const SettlementMapInput& in) {
     }
 }
 
+// M5d-1 (D59-D61 PROPOSED): the WALL as map data, from the FINISHED map. The pipeline's SHAPE is van der Staaij et
+// al. (arXiv 2309.10871, section V-B: the convex hull of the plots, pushed outwards, joined by weighted A*); the paper
+// gives no parameter, so every one below is DESIGN and says so:
+//   hull    = the convex hull of every lot rect's and the market's corner cells;
+//   push    = each hull vertex moved away from the hull's centroid by ceil(margin * sqrt 2) + 2 cells (the least that
+//             clears a rect grown by the tier's margin in any direction, plus the band's own two cells);
+//   route   = consecutive pushed vertices joined on the cube grid (4-connected), integer costs in sixteenths of a
+//             step: 16 a step, + 16 a turn, + round(16 * parcelSlopeWeight) * dh^2 (the parcel conquest's slope
+//             weight, reused), + 64 on a way's band (so a way is crossed square, not followed), + 16 * (grid w + d) on
+//             a water cell (water is crossed only where no dry route exists, by the fewest cells);
+//   forbidden = a lot rect grown by the margin, the market, the hull itself (so the ring goes ROUND every lot); and
+//             to each leg, a cut from the centroid out through the stop half the ring away (so it goes the SHORT way);
+//   gates   = where a way's centreline - or its straight continuation out of the site from an end node on the site
+//             edge - meets the ring: one gate per run of ring cells, at the run's middle, as wide as the wider of the
+//             way and the tier's gate_width;
+//   water gaps = the runs of ring cells in water: the band is left open there (D61) and the record says so.
+// The ring may leave the site rect (the lots touch its edge); it reads `in`'s own samplers, not the site cache.
+static void planWall(SettlementMap& map, const SettlementMapInput& in) {
+    if (!in.tier || !in.tier->walls.enabled || map.lots.empty()) return;
+    MapWall& wall = map.wall;
+    const auto wallT0 = std::chrono::steady_clock::now();
+    struct Timer { MapWall& w; std::chrono::steady_clock::time_point t0; ~Timer() { w.bakeMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count(); } } timer{wall, wallT0};
+    const int mg = std::max(0, in.tier->walls.marginCubes);
+    wall.margin = mg;
+    using P = std::pair<long, long>;
+    std::vector<P> pts;
+    const auto addRect = [&pts](const Rect& r) {
+        if (r.w <= 0 || r.d <= 0) return;
+        pts.push_back({r.x, r.z}); pts.push_back({r.x1() - 1, r.z}); pts.push_back({r.x, r.z1() - 1}); pts.push_back({r.x1() - 1, r.z1() - 1});
+    };
+    for (const auto& l : map.lots) addRect(l.rect);
+    for (const auto& a : map.areas) if (a.landuse == "market") addRect(a.rect);
+    std::sort(pts.begin(), pts.end()); pts.erase(std::unique(pts.begin(), pts.end()), pts.end());
+    const auto cross = [](const P& o, const P& a, const P& b) { return (a.first - o.first) * (b.second - o.second) - (a.second - o.second) * (b.first - o.first); };
+    std::vector<P> hull;   // monotone chain, counter-clockwise, collinear points dropped
+    for (int pass = 0; pass < 2; ++pass) {
+        const size_t base = hull.size();
+        for (size_t k = 0; k < pts.size(); ++k) {
+            const P& q = pass == 0 ? pts[k] : pts[pts.size() - 1 - k];
+            while (hull.size() >= base + 2 && cross(hull[hull.size() - 2], hull.back(), q) <= 0) hull.pop_back();
+            hull.push_back(q);
+        }
+        hull.pop_back();
+    }
+    if (hull.size() < 3) { wall.refusal = "the lots span no area to wall"; return; }
+    double cx = 0.0, cz = 0.0;
+    for (const auto& h : hull) { cx += static_cast<double>(h.first); cz += static_cast<double>(h.second); }
+    cx /= static_cast<double>(hull.size()); cz /= static_cast<double>(hull.size());
+    const int push = static_cast<int>(std::ceil(static_cast<double>(mg) * 1.41421356)) + 2;
+
+    int gx0 = 0, gz0 = 0, gx1 = map.W, gz1 = map.D;
+    for (const auto& h : hull) {
+        gx0 = std::min(gx0, static_cast<int>(h.first)); gz0 = std::min(gz0, static_cast<int>(h.second));
+        gx1 = std::max(gx1, static_cast<int>(h.first) + 1); gz1 = std::max(gz1, static_cast<int>(h.second) + 1);
+    }
+    const int pad = push + 12;
+    gx0 -= pad; gz0 -= pad; gx1 += pad; gz1 += pad;
+    const int GW = gx1 - gx0, GD = gz1 - gz0;
+    const auto gi = [gx0, gz0, GW](int x, int z) { return static_cast<size_t>(z - gz0) * GW + static_cast<size_t>(x - gx0); };
+    const auto inGrid = [gx0, gz0, gx1, gz1](int x, int z) { return x >= gx0 && z >= gz0 && x < gx1 && z < gz1; };
+    std::vector<uint8_t> forbidden(static_cast<size_t>(GW) * GD, 0), wet(static_cast<size_t>(GW) * GD, 0), onWay(static_cast<size_t>(GW) * GD, 0);
+    std::vector<int> hgt(static_cast<size_t>(GW) * GD, 0);
+    for (int z = gz0; z < gz1; ++z) for (int x = gx0; x < gx1; ++x) {
+        hgt[gi(x, z)] = in.heightAt(x, z);
+        if (in.waterAt && in.waterAt(x, z)) wet[gi(x, z)] = 1;
+        bool inHull = true;
+        for (size_t k = 0; k < hull.size() && inHull; ++k)
+            if (cross(hull[k], hull[(k + 1) % hull.size()], P{x, z}) < 0) inHull = false;
+        if (inHull) forbidden[gi(x, z)] = 1;
+    }
+    const auto forbidRect = [&](const Rect& r, int grow) {
+        for (int z = r.z - grow; z < r.z1() + grow; ++z) for (int x = r.x - grow; x < r.x1() + grow; ++x) if (inGrid(x, z)) forbidden[gi(x, z)] = 1;
+    };
+    for (const auto& l : map.lots) forbidRect(l.rect, mg);
+    for (const auto& a : map.areas) if (a.landuse == "market") forbidRect(a.rect, 0);
+    // every way's line: between its nodes, and straight out of the site from an end node on the site edge
+    const auto wayLine = [&map, &inGrid](const MapWay& w) {
+        std::vector<std::pair<int, int>> line;
+        for (size_t i = 0; i + 1 < w.nodes.size(); ++i) {
+            const MapNode* a = map.node(w.nodes[i]); const MapNode* b = map.node(w.nodes[i + 1]);
+            if (!a || !b) continue;
+            const int n = std::max({std::abs(b->x - a->x), std::abs(b->z - a->z), 1});
+            for (int t = 0; t <= n; ++t)
+                line.push_back({a->x + static_cast<int>(std::lround(static_cast<float>(b->x - a->x) * t / n)), a->z + static_cast<int>(std::lround(static_cast<float>(b->z - a->z) * t / n))});
+        }
+        if (w.nodes.empty()) return line;
+        for (const int end : {w.nodes.front(), w.nodes.back()}) {
+            const MapNode* n = map.node(end);
+            if (!n) continue;
+            int dx = 0, dz = 0;
+            if (n->x <= 0) dx = -1; else if (n->x >= map.W - 1) dx = 1; else if (n->z <= 0) dz = -1; else if (n->z >= map.D - 1) dz = 1; else continue;
+            for (int k = 1; inGrid(n->x + dx * k, n->z + dz * k); ++k) line.push_back({n->x + dx * k, n->z + dz * k});
+        }
+        return line;
+    };
+    for (const auto& w : map.ways) {
+        const int r = static_cast<int>(std::ceil(w.width / 2.0f));
+        for (const auto& c : wayLine(w))
+            for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) if (inGrid(c.first + dx, c.second + dz)) onWay[gi(c.first + dx, c.second + dz)] = 1;
+    }
+
+    std::vector<std::pair<int, int>> stops;
+    for (const auto& h : hull) {
+        const double vx = static_cast<double>(h.first) - cx, vz = static_cast<double>(h.second) - cz;
+        const double len = std::max(1e-9, std::sqrt(vx * vx + vz * vz));
+        bool placed = false;
+        for (int extra = 0; extra <= 8 && !placed; ++extra) {
+            const int x = static_cast<int>(h.first) + static_cast<int>(std::lround(vx / len * (push + extra)));
+            const int z = static_cast<int>(h.second) + static_cast<int>(std::lround(vz / len * (push + extra)));
+            if (!inGrid(x, z) || forbidden[gi(x, z)]) continue;
+            if (stops.empty() || stops.back() != std::make_pair(x, z)) stops.push_back({x, z});
+            placed = true;
+        }
+        if (!placed) { wall.refusal = "a hull corner has no free cell within reach of its push"; return; }
+    }
+    if (stops.size() >= 2 && stops.front() == stops.back()) stops.pop_back();
+    if (stops.size() < 3) { wall.refusal = "the pushed hull has fewer than three corners"; return; }
+
+    const int kStep = 16, kTurn = 16, kWay = 64, kWater = 16 * (GW + GD);
+    const int kSlope = static_cast<int>(std::lround(16.0f * in.parcelSlopeWeight));
+    static const int DX[4] = {1, 0, -1, 0}, DZ[4] = {0, 1, 0, -1};
+    // chain 236: a leg whose own side is dear (it must cross water) went the LONG way round the town and the ring
+    // erased itself. Each leg is therefore cut off from the far side: the cells of the line from the centroid out
+    // through the stop OPPOSITE the leg (half the ring away) to the grid's edge are closed to it.
+    std::vector<uint8_t> cut(static_cast<size_t>(GW) * GD, 0);
+    const auto setCut = [&](std::pair<int, int> through) {
+        std::fill(cut.begin(), cut.end(), static_cast<uint8_t>(0));
+        const double vx = static_cast<double>(through.first) - cx, vz = static_cast<double>(through.second) - cz;
+        const double len = std::max(1e-9, std::max(std::abs(vx), std::abs(vz)));
+        for (int k = 0;; ++k) {   // one cell a step along the longer axis: an 8-connected line, which a 4-connected route cannot pass
+            const int x = static_cast<int>(std::lround(cx + vx / len * k)), z = static_cast<int>(std::lround(cz + vz / len * k));
+            if (!inGrid(x, z)) break;
+            cut[gi(x, z)] = 1;
+        }
+    };
+    const auto route = [&](std::pair<int, int> from, std::pair<int, int> to, std::vector<std::pair<int, int>>& outCells) {
+        const size_t N = static_cast<size_t>(GW) * GD;
+        std::vector<long long> best(N * 5, LLONG_MAX);   // long is 32 bits on MSVC (the audit of M5d-1)
+        std::vector<int> prev(N * 5, -1);
+        using Q = std::pair<long long, int>;   // (cost + heuristic, state); state = cell * 5 + direction (4 = none)
+        std::priority_queue<Q, std::vector<Q>, std::greater<Q>> open;
+        const auto heur = [&](int x, int z) { return static_cast<long long>(kStep) * (std::abs(x - to.first) + std::abs(z - to.second)); };
+        const int s0 = static_cast<int>(gi(from.first, from.second)) * 5 + 4;
+        best[static_cast<size_t>(s0)] = 0; open.push({heur(from.first, from.second), s0});
+        int goal = -1;
+        while (!open.empty()) {
+            const auto [f, st] = open.top(); open.pop();
+            const int cell = st / 5, dir = st % 5;
+            const int x = gx0 + cell % GW, z = gz0 + cell / GW;
+            const long long g = best[static_cast<size_t>(st)];
+            if (f - heur(x, z) > g) continue;
+            if (x == to.first && z == to.second) { goal = st; break; }
+            for (int d = 0; d < 4; ++d) {
+                if (dir != 4 && d == (dir + 2) % 4) continue;   // no reversal
+                const int nx = x + DX[d], nz = z + DZ[d];
+                if (!inGrid(nx, nz) || forbidden[gi(nx, nz)] || cut[gi(nx, nz)]) continue;
+                const int dh = hgt[gi(nx, nz)] - hgt[gi(x, z)];
+                long long c = kStep + static_cast<long long>(kSlope) * dh * dh;
+                if (dir != 4 && d != dir) c += kTurn;
+                if (onWay[gi(nx, nz)]) c += kWay;
+                if (wet[gi(nx, nz)]) c += kWater;
+                const int ns = static_cast<int>(gi(nx, nz)) * 5 + d;
+                if (g + c < best[static_cast<size_t>(ns)]) { best[static_cast<size_t>(ns)] = g + c; prev[static_cast<size_t>(ns)] = st; open.push({g + c + heur(nx, nz), ns}); }
+            }
+        }
+        if (goal < 0) return false;
+        std::vector<std::pair<int, int>> rev;
+        for (int st = goal; st >= 0; st = prev[static_cast<size_t>(st)]) rev.push_back({gx0 + (st / 5) % GW, gz0 + (st / 5) / GW});
+        outCells.assign(rev.rbegin(), rev.rend());
+        return true;
+    };
+    // the closed walk through every stop, loops erased as they close (a cell met again cuts the walk back to it)
+    std::vector<std::pair<int, int>> walk;
+    std::map<std::pair<int, int>, size_t> at;
+    bool closed = false;
+    for (size_t i = 0; i < stops.size() && !closed; ++i) {
+        std::vector<std::pair<int, int>> leg;
+        setCut(stops[(i + 1 + stops.size() / 2) % stops.size()]);
+        if (!route(stops[i], stops[(i + 1) % stops.size()], leg)) { wall.refusal = "no route between two corners of the pushed hull"; return; }
+        const bool last = i + 1 == stops.size();
+        for (size_t k = (i == 0 ? 0 : 1); k < leg.size(); ++k) {
+            const auto it = at.find(leg[k]);
+            if (it == at.end()) { at[leg[k]] = walk.size(); walk.push_back(leg[k]); continue; }
+            const size_t back = it->second;
+            if (last) {   // the ring closes on a cell of its own start: what lies before that cell is a spur, dropped
+                walk.erase(walk.begin(), walk.begin() + static_cast<std::ptrdiff_t>(back));
+                closed = true; break;
+            }
+            for (size_t e = back + 1; e < walk.size(); ++e) at.erase(walk[e]);
+            walk.resize(back + 1);
+        }
+    }
+    if (!closed || walk.size() < 8) {
+        wall.refusal = "the route did not close into a ring (" + std::to_string(stops.size()) + " corners, " + std::to_string(walk.size()) + " cells, " + (closed ? "closed" : "open") + "; corners:";
+        for (const auto& st : stops) wall.refusal += " " + std::to_string(st.first) + "," + std::to_string(st.second);
+        wall.refusal += ")";
+        return;
+    }
+    for (size_t i = 0; i < walk.size(); ++i) {
+        const auto& a = walk[i]; const auto& b = walk[(i + 1) % walk.size()];
+        if (std::abs(a.first - b.first) + std::abs(a.second - b.second) != 1) { wall.refusal = "the ring is not continuous"; return; }
+    }
+    // start the ring at its first corner in (z, x) order - the record's form (MapWall: nodes are corners)
+    for (const auto& c : walk) wall.ring.push_back({c.first, c.second});
+    {
+        const auto cs = wall.corners();
+        if (cs.size() < 4) { wall.ring.clear(); wall.refusal = "the ring has fewer than four corners"; return; }
+        MapWall::Pt first = cs[0];
+        for (const auto& c : cs) if (c.z < first.z || (c.z == first.z && c.x < first.x)) first = c;
+        size_t k = 0;
+        while (wall.ring[k].x != first.x || wall.ring[k].z != first.z) ++k;
+        std::rotate(wall.ring.begin(), wall.ring.begin() + static_cast<std::ptrdiff_t>(k), wall.ring.end());
+    }
+    std::map<std::pair<int, int>, size_t> ringAt;
+    for (size_t i = 0; i < wall.ring.size(); ++i) ringAt[{wall.ring[i].x, wall.ring[i].z}] = i;
+    for (const auto& w : map.ways) {
+        const auto line = wayLine(w);
+        std::vector<uint8_t> hit(wall.ring.size(), 0);
+        for (const auto& c : line) { const auto it = ringAt.find(c); if (it != ringAt.end()) hit[it->second] = 1; }
+        const size_t n = wall.ring.size();
+        size_t start = n;
+        for (size_t i = 0; i < n; ++i) if (!hit[i]) { start = i; break; }
+        if (start == n) continue;   // the whole ring lies on one way: not a crossing this rule can gate
+        for (size_t k = 0; k < n;) {
+            const size_t i = (start + k) % n;
+            if (!hit[i]) { ++k; continue; }
+            size_t len = 0;
+            while (len < n && hit[(i + len) % n]) ++len;
+            const MapWall::Pt mid = wall.ring[(i + len / 2) % n];
+            wall.gates.push_back({mid.x, mid.z, w.id, std::max(in.tier->walls.gateWidthCubes, static_cast<int>(std::ceil(w.width)))});
+            k += len;
+        }
+    }
+    {
+        const size_t n = wall.ring.size();
+        const auto isWet = [&](size_t i) { return wet[gi(wall.ring[i].x, wall.ring[i].z)] != 0; };
+        size_t start = n;
+        for (size_t i = 0; i < n; ++i) if (!isWet(i)) { start = i; break; }
+        if (start == n) { wall.ring.clear(); wall.gates.clear(); wall.refusal = "the whole ring stands in water"; return; }
+        for (size_t k = 0; k < n;) {
+            const size_t i = (start + k) % n;
+            if (!isWet(i)) { ++k; continue; }
+            int len = 0;
+            while (static_cast<size_t>(len) < n && isWet((i + static_cast<size_t>(len)) % n)) ++len;
+            wall.waterGaps.push_back({wall.ring[i].x, wall.ring[i].z, len});
+            k += static_cast<size_t>(len);
+        }
+    }
+    wall.present = true;
+}
+
 SettlementMap planSettlementMapAsBuilt(const SettlementMapInput& in) {
     SettlementMap map;
     map.era = in.era; map.seed = in.seed; map.originX = in.originX; map.originY = in.originY; map.originZ = in.originZ;
@@ -956,6 +1207,8 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
     }
     // M5c-2: the crofts, from the finished map (they take only what the lots, the ways and the water left)
     if (in.crofts) planCrofts(map, in2);
+    // M5d-1: the wall, from the finished map (a tier whose program enables `walls`); the UNCACHED samplers - it may leave the site rect
+    planWall(map, in);
     map.bakeMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
     return map;
 }

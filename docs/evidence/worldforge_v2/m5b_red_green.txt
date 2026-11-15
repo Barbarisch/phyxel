@@ -1289,3 +1289,53 @@ chain 230  contention check off     3 ok / 0 failed   MISS - the rule is exercis
 chain 231  water off                2 ok / 1 failed   "wet" 96 on 1 of 16 arms
 chain 232  tree restored (planner sha ffc63fd75faf9ab5)  3 ok / 0 failed
 Closed as BUILT WITH OPEN ITEMS; open items O25 in the plan.
+
+=== M5d-1 the wall as map data - solution-auditor read (recorded 2026-11-15 00:35; working tree on 807fddde, uncommitted; read-only; chain 248 not yet available to it) ===
+RAW VERDICT (the auditor's words, cut for length where it repeats itself):
+  VERDICT: PASS WITH CONDITIONS (as "the wall exists as planner-only map data, sound under the stated counters on 7
+  headless rigs + 35 stress plans"). FAIL for any wording that says the city wall is "walkable", "built", or "gated
+  correctly" in the world.
+  1. Red before green: REAL, but weak as a red - chain 234 fails only on presence; the soundness counters earned
+     their red only through the mutation chains. Planner sha c6b8eb1bb57da1b1 matches chain 239. The chain START
+     lines do not record SettlementMapTest.cpp's hash - "run == current file" is unverifiable.
+  2. Soundness on 7 rigs: REAL for what the counters measure, but wallStats is not independent of planWall in three
+     places: the way-line rule is a copy (same sampling, same edge extension, same else-if priority) - ungated == 0
+     proves only that planWall gates its own definition of a crossing; the lot-margin and market checks use the
+     planner's own grown-rect definition. lotCellsOutside / marketCellsOutside / broken / repeated are independent.
+     Not measured at all: ring vs door approach cells; ring vs croft areas; ring lengthwise along a way; a gate
+     inside a water gap. "53-93 %" is the 7 named rigs only; the stress saw 34.5-72.6 %.
+  3. Mutations: REAL as stated. Hull-forbidden and market-forbidden have NO test - state them as unexercised rules.
+     The leg cut's red is one rig's refusal; no assertion pins it afterwards.
+  4. Stress 246: REAL for the numbers printed; written after green, no red; a walled town is a rig, not a data tier.
+  5. Determinism / JSON round trip / world offset: REAL in the test. The round trip of a refused wall is not checked.
+  6. Unwalled tiers byte-identical: PROXY-ONLY (a contains("barriers") pin and a code read, not a byte diff; "live
+     sites unaffected" is an inference).
+  BUGS / RISKS: A. fromJson silently yields present:true with an EMPTY ring for non-axis-aligned or too-few nodes;
+     a node entry shorter than 2 elements is unguarded. B. the A* costs are `long` (32 bits on MSVC) with LONG_MAX
+     as sentinel - overflow reachable on a mis-sampled height jump; use long long. C. planWall reads the UNCACHED
+     samplers up to push + 12 cells outside the site; on the chunks branch that may hit unloaded chunks - not read,
+     not tested; nobody has built a live city with this planner. D. the O15 gate is not settled: the wall's cost is
+     not isolated. E. one gate at the middle of a run; overlapping gates not merged; centreline only. F. the edge
+     extension ignores a node at x = 1, a corner node's second axis, and a diagonal exit - shared by planner and test.
+  CONDITIONS: 1 write "planner-only map data", never walkable / gated / has a wall in the world; 2 refuse when
+     expand returns nothing; 3 long long; 4 parcel and door-approach checks or state them unmeasured; 5 record the
+     test file's hash in the chain START; 6 time planWall on its own on Release; 7 hull and market rules have no red.
+MY RESPONSE: conditions 2, 3 and 4 and a planWall timer are being done now (patch 51d, red first for the fromJson
+  defect); 1, 6 and 7 and findings C-F go to the plan's O26 as stated; 5 - the chain script's START line is extended
+  from the next chain on.
+
+=== M5d-1 the wall as map data, planner only - chain summary (recorded 2026-11-15 00:52; detail in m3c_chains/pm_chain233.txt) ===
+233  diagnostic, asserts nothing      1 ok / 0 failed
+234  RED (no planner)                 1 ok / 2 failed   (as predicted)
+235  first run with planWall          2 ok / 1 failed   MISS (my water guard on rigs that cannot meet water)
+236  two water rigs added             1 ok / 2 failed   the mid-creek rig's wall REFUSED - a planner defect
+237-238  diagnostic runs of that refusal (temporary prints, removed)
+239  the per-leg cut                  3 ok / 0 failed   (as predicted)
+240  MUTATION lot margin 0            2 ok / 1 failed   | 241 MUTATION hull not forbidden   3 ok / 0 failed (NO red)
+242  MUTATION water gaps off          2 ok / 1 failed   | 243 MUTATION gates off            2 ok / 1 failed
+244  MUTATION market not forbidden    3 ok / 0 failed (NO red) | 245 restore                3 ok / 0 failed
+246  stress, 35 plans                 1 ok / 0 failed   | 247 SettlementMapTest.*           29 ok / 0 failed
+248  unit set                       175 ok / 0 failed
+249  RED for the audit's bug A        4 ok / 1 failed   | 250 fixed                         5 ok / 0 failed
+251  SettlementMapTest.* final tree  30 ok / 0 failed
+Closed as BUILT WITH OPEN ITEMS, planner only; the realizer still stamps the site rectangle; open items O27.

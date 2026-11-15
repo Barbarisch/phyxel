@@ -1934,7 +1934,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 Core::Rect{0, 0, W, D}, layout.streets, footprints, spec);
             if (!wp.ok) {
                 LOG_WARN_FMT("Settlement", "town wall REFUSED: " << wp.refusal);
-                (*pathsJsonP)["town_wall"] = {{"built", false}, {"refusal", wp.refusal}};
+                (*pathsJsonP)["town_wall"] = {{"built", false}, {"refusal", wp.refusal}, {"source", "site_rect"}};
                 return;
             }
             // Gate cells (cube columns left open for the passage) — a set so the run stamp
@@ -2135,6 +2135,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                           {"towers", wp.towers.size()}, {"towers_walkable", towersUsable},
                                           {"line_cleared", cleared},
                                           {"displaced", placed.displaced}};
+            // M5d-1: the map now carries a wall of its own (SettlementMap::wall, a ring round the lots); THIS unit still
+            // stamps the site rectangle. Said in the record so the disagreement is not silent (M5d-2 stamps the map's).
+            (*pathsJsonP)["town_wall"]["source"] = "site_rect";
             }});
         }
 

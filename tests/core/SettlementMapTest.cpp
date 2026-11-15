@@ -1245,3 +1245,272 @@ TEST(SettlementMapTest, DISABLED_DiagCityWallEnvelope) {
         for (const auto& g : wp.gates) std::printf("[ M5d ]     gate side %c opening %d,%d %d x %d street width %d%s", g.side, g.opening.x, g.opening.z, g.opening.w, g.opening.d, g.streetWidth, "\n");
     }
 }
+
+// ============================================================================
+// M5d-1 (the M5d design check of 2026-11-14, D59-D61 PROPOSED; predictions in pm_chain233.txt): the wall as map data
+// ============================================================================
+namespace {
+struct WallStats {
+    bool present = false;
+    int cells = 0, corners = 0, gates = 0, gaps = 0;
+    int broken = 0, repeated = 0;                      // ring: a step that is not one cell along an axis; a cell twice
+    int lotCellsOutside = 0, marketCellsOutside = 0;   // not enclosed
+    int inLotMargin = 0, inMarket = 0;                 // a ring cell inside a lot rect grown by the margin / in the market
+    int wetNotInGap = 0, dryInGap = 0, wet = 0;
+    int crossings = 0, ungated = 0, gateOffRing = 0, gateNarrow = 0;
+    int approachCells = 0, onApproach = 0, gateInGap = 0;   // the audit of M5d-1, condition 4: ring vs the lots' door approaches; a gate in a water gap
+    long enclosed = 0;
+};
+// independent of the planner: inside = what a flood from outside the ring's bounding box cannot reach
+WallStats wallStats(const SettlementMap& m, const SettlementMapInput& in) {
+    WallStats w; w.present = m.wall.present;
+    if (!m.wall.present) return w;
+    const auto& ring = m.wall.ring;
+    w.cells = static_cast<int>(ring.size()); w.corners = static_cast<int>(m.wall.corners().size());
+    w.gates = static_cast<int>(m.wall.gates.size()); w.gaps = static_cast<int>(m.wall.waterGaps.size());
+    std::set<std::pair<int, int>> onRing;
+    int x0 = 0, z0 = 0, x1 = m.W, z1 = m.D;
+    for (size_t i = 0; i < ring.size(); ++i) {
+        const auto& a = ring[i]; const auto& b = ring[(i + 1) % ring.size()];
+        if (std::abs(a.x - b.x) + std::abs(a.z - b.z) != 1) ++w.broken;
+        if (!onRing.insert({a.x, a.z}).second) ++w.repeated;
+        x0 = std::min(x0, a.x); z0 = std::min(z0, a.z); x1 = std::max(x1, a.x + 1); z1 = std::max(z1, a.z + 1);
+    }
+    x0 -= 2; z0 -= 2; x1 += 2; z1 += 2;
+    const int GW = x1 - x0, GD = z1 - z0;
+    std::vector<uint8_t> out(static_cast<size_t>(GW) * GD, 0);
+    std::vector<std::pair<int, int>> stack{{x0, z0}};
+    out[0] = 1;
+    while (!stack.empty()) {
+        const auto [x, z] = stack.back(); stack.pop_back();
+        const int nx[4] = {x + 1, x - 1, x, x}, nz[4] = {z, z, z + 1, z - 1};
+        for (int k = 0; k < 4; ++k) {
+            if (nx[k] < x0 || nz[k] < z0 || nx[k] >= x1 || nz[k] >= z1) continue;
+            const size_t i = static_cast<size_t>(nz[k] - z0) * GW + (nx[k] - x0);
+            if (out[i] || onRing.count({nx[k], nz[k]})) continue;
+            out[i] = 1; stack.push_back({nx[k], nz[k]});
+        }
+    }
+    const auto inside = [&](int x, int z) {
+        if (x < x0 || z < z0 || x >= x1 || z >= z1) return false;
+        return !out[static_cast<size_t>(z - z0) * GW + (x - x0)] && !onRing.count({x, z});
+    };
+    for (int z = z0; z < z1; ++z) for (int x = x0; x < x1; ++x) if (inside(x, z)) ++w.enclosed;
+    for (const auto& l : m.lots)
+        for (int x = l.rect.x; x < l.rect.x1(); ++x) for (int z = l.rect.z; z < l.rect.z1(); ++z) if (!inside(x, z)) ++w.lotCellsOutside;
+    for (const auto& a : m.areas) if (a.landuse == "market")
+        for (int x = a.rect.x; x < a.rect.x1(); ++x) for (int z = a.rect.z; z < a.rect.z1(); ++z) if (!inside(x, z)) ++w.marketCellsOutside;
+    const int mg = in.tier->walls.marginCubes;
+    std::set<std::pair<int, int>> inGap;
+    for (const auto& g : m.wall.waterGaps) {
+        size_t at = ring.size();
+        for (size_t i = 0; i < ring.size(); ++i) if (ring[i].x == g.x && ring[i].z == g.z) { at = i; break; }
+        if (at == ring.size()) { ++w.dryInGap; continue; }
+        for (int k = 0; k < g.cells; ++k) inGap.insert({ring[(at + k) % ring.size()].x, ring[(at + k) % ring.size()].z});
+    }
+    for (const auto& c : ring) {
+        for (const auto& l : m.lots)
+            if (c.x >= l.rect.x - mg && c.x < l.rect.x1() + mg && c.z >= l.rect.z - mg && c.z < l.rect.z1() + mg) { ++w.inLotMargin; break; }
+        for (const auto& a : m.areas) if (a.landuse == "market" && c.x >= a.rect.x && c.x < a.rect.x1() && c.z >= a.rect.z && c.z < a.rect.z1()) ++w.inMarket;
+        const bool wetCell = in.waterAt && in.waterAt(c.x, c.z);
+        if (wetCell) ++w.wet;
+        if (wetCell && !inGap.count({c.x, c.z})) ++w.wetNotInGap;
+        if (!wetCell && inGap.count({c.x, c.z})) ++w.dryInGap;
+    }
+    // every way: its centreline between nodes, and from an end node on the site edge straight out to the ring
+    for (const auto& way : m.ways) {
+        std::vector<std::pair<int, int>> line;
+        for (size_t i = 0; i + 1 < way.nodes.size(); ++i) {
+            const MapNode* a = m.node(way.nodes[i]); const MapNode* b = m.node(way.nodes[i + 1]);
+            if (!a || !b) continue;
+            const int n = std::max({std::abs(b->x - a->x), std::abs(b->z - a->z), 1});
+            for (int t = 0; t <= n; ++t)
+                line.push_back({a->x + static_cast<int>(std::lround(static_cast<float>(b->x - a->x) * t / n)), a->z + static_cast<int>(std::lround(static_cast<float>(b->z - a->z) * t / n))});
+        }
+        for (const int end : {way.nodes.front(), way.nodes.back()}) {
+            const MapNode* n = m.node(end);
+            if (!n) continue;
+            int dx = 0, dz = 0;
+            if (n->x <= 0) dx = -1; else if (n->x >= m.W - 1) dx = 1; else if (n->z <= 0) dz = -1; else if (n->z >= m.D - 1) dz = 1; else continue;
+            for (int k = 1; k <= 64; ++k) {
+                line.push_back({n->x + dx * k, n->z + dz * k});
+                if (onRing.count(line.back())) break;
+            }
+        }
+        std::set<std::pair<int, int>> seen;
+        for (const auto& c : line) {
+            if (!onRing.count(c) || !seen.insert(c).second) continue;
+            ++w.crossings;
+            bool gated = false;
+            for (const auto& g : m.wall.gates)
+                if (g.way == way.id && std::abs(g.x - c.first) + std::abs(g.z - c.second) <= std::max(1, g.width / 2)) gated = true;
+            if (!gated) ++w.ungated;
+        }
+    }
+    for (const auto& l : m.lots)
+        if (l.hasApproach)
+            for (const auto& a : l.approach) { ++w.approachCells; if (onRing.count({a.x, a.z})) ++w.onApproach; }
+    for (const auto& g : m.wall.gates) {
+        if (inGap.count({g.x, g.z})) ++w.gateInGap;
+        if (!onRing.count({g.x, g.z})) ++w.gateOffRing;
+        for (const auto& way : m.ways) if (way.id == g.way && g.width < static_cast<int>(std::ceil(way.width))) ++w.gateNarrow;
+    }
+    return w;
+}
+void printWall(const char* what, const SettlementMap& m, const WallStats& w, long rectangle) {
+    std::printf("[ M5d-1 ] %s: %zu lots, %zu ways | wall %s%s%s | %d ring cells, %d corners, %d gates, %d water gaps (%d wet cells) | enclosed %ld cells = %.1f %% of the rectangle's %ld | "
+                "ring broken %d, repeated %d | lot cells outside %d, market cells outside %d | ring in a lot's margin %d, in the market %d | wet not in a gap %d, dry in a gap %d | "
+                "crossings %d, ungated %d, gate off the ring %d, gate narrower than its way %d | on a door approach %d of %d approach cells, gate in a water gap %d | bake %.1f ms, the wall's %.1f ms%s",
+                what, m.lots.size(), m.ways.size(), w.present ? "present" : "ABSENT", m.wall.refusal.empty() ? "" : " refusal: ", m.wall.refusal.c_str(), w.cells, w.corners, w.gates, w.gaps, w.wet,
+                w.enclosed, rectangle > 0 ? 100.0 * static_cast<double>(w.enclosed) / static_cast<double>(rectangle) : 0.0, rectangle, w.broken, w.repeated, w.lotCellsOutside, w.marketCellsOutside,
+                w.inLotMargin, w.inMarket, w.wetNotInGap, w.dryInGap, w.crossings, w.ungated, w.gateOffRing, w.gateNarrow, w.onApproach, w.approachCells, w.gateInGap, m.bakeMs, m.wall.bakeMs, "\n");
+    for (const auto& g : m.wall.gates) std::printf("[ M5d-1 ]   gate at %d,%d way %d width %d%s", g.x, g.z, g.way, g.width, "\n");
+    for (const auto& g : m.wall.waterGaps) std::printf("[ M5d-1 ]   water gap from %d,%d over %d cells%s", g.x, g.z, g.cells, "\n");
+}
+void expectWallSound(const char* what, const WallStats& w) {
+    EXPECT_GE(w.cells, 8) << what; EXPECT_EQ(w.broken, 0) << what; EXPECT_EQ(w.repeated, 0) << what;
+    EXPECT_EQ(w.lotCellsOutside, 0) << what; EXPECT_EQ(w.marketCellsOutside, 0) << what;
+    EXPECT_EQ(w.inLotMargin, 0) << what; EXPECT_EQ(w.inMarket, 0) << what;
+    EXPECT_EQ(w.wetNotInGap, 0) << what; EXPECT_EQ(w.dryInGap, 0) << what;
+    EXPECT_EQ(w.ungated, 0) << what; EXPECT_EQ(w.gateOffRing, 0) << what; EXPECT_EQ(w.gateNarrow, 0) << what;
+    EXPECT_EQ(w.onApproach, 0) << what << ": the ring stands on a lot's door approach";
+    EXPECT_EQ(w.gateInGap, 0) << what << ": a gate recorded inside a water gap";
+    EXPECT_GT(w.crossings, 0) << what << ": no way crosses the wall - the town is sealed or the wall is not round it";
+}
+struct WallRig { const char* name; int W, D; std::function<int(int, int)> h; std::function<bool(int, int)> w; };
+std::vector<WallRig> wallRigs() {
+    return {{"flat 160x120", 160, 120, flatHeight, {}}, {"flat 160x160", 160, 160, flatHeight, {}},
+            {"hill + creek 160x120", 160, 120, hillHeight, hillWater}, {"hill + creek 160x160", 160, 160, hillHeight, hillWater},
+            {"rolling 160x160", 160, 160, slopeRolling, {}},
+            // chain 236 (added after chain 235 showed no ring meets the old creek): water THROUGH the lots
+            {"flat, creek at z 40", 160, 120, flatHeight, [](int, int z) { return z >= 40 && z <= 41; }},
+            {"flat, pond 60..75 x 20..30", 160, 120, flatHeight, [](int x, int z) { return x >= 60 && x <= 75 && z >= 20 && z <= 30; }}};
+}
+}  // namespace
+
+// (a) the contract's named red: the city's map carries a wall, it is sound, and it is not the site rectangle
+TEST(SettlementMapTest, WallIsNotTheSiteRectangle) {
+    ASSERT_TRUE(rigs().programOk);
+    int wetOverAllRigs = 0, gapsOverAllRigs = 0;
+    for (const WallRig& r : wallRigs()) {
+        const SettlementMapInput in = inputFor("city", r.W, r.D, r.h, r.w);
+        ASSERT_TRUE(in.tier->walls.enabled) << "the city's program asks for no wall: every check below is vacuous";
+        const SettlementMap m = planSettlementMap(in);
+        if (!m.ok()) { std::printf("[ M5d-1 ] %s: the map is REFUSED: %s%s", r.name, m.refusal.c_str(), "\n"); continue; }
+        const WallStats w = wallStats(m, in);
+        const int mg = in.tier->walls.marginCubes;
+        const long rectangle = static_cast<long>(r.W + 2 * mg) * (r.D + 2 * mg);
+        printWall(r.name, m, w, rectangle);
+        EXPECT_TRUE(w.present) << r.name << ": the city's map carries no wall";
+        if (!w.present) continue;
+        expectWallSound(r.name, w);
+        if (std::string(r.name) == "hill + creek 160x160")
+            EXPECT_LT(w.enclosed, rectangle) << r.name << ": the wall encloses as much as the site rectangle plus its margin (the lots' bounding box was 47.9 % of it, chain 233)";
+        wetOverAllRigs += w.wet; gapsOverAllRigs += w.gaps;
+    }
+    // chain 236: was a per-rig guard on every rig with water (loosened after chain 235, stated in pm_chain233.txt)
+    EXPECT_GT(wetOverAllRigs, 0) << "no rig's ring meets water: the water rule is not exercised";
+    EXPECT_GT(gapsOverAllRigs, 0) << "no water gap recorded on any rig";
+}
+
+// (b) planned twice the same; the JSON round trip keeps the record
+TEST(SettlementMapTest, TheWallIsTheSamePlannedTwice) {
+    ASSERT_TRUE(rigs().programOk);
+    for (const WallRig& r : wallRigs()) {
+        const SettlementMapInput in = inputFor("city", r.W, r.D, r.h, r.w);
+        SettlementMap a = planSettlementMap(in), b = planSettlementMap(in);
+        ASSERT_TRUE(a.ok()) << r.name;
+        EXPECT_TRUE(a.wall.present) << r.name << ": the city's map carries no wall";
+        if (!a.wall.present) continue;
+        a.bakeMs = 0.0f; b.bakeMs = 0.0f;
+        EXPECT_EQ(a.toJson().dump(), b.toJson().dump()) << r.name << ": the map differs between two plans";
+        const SettlementMap back = SettlementMap::fromJson(a.toJson());
+        EXPECT_EQ(back.toJson().dump(), a.toJson().dump()) << r.name << ": the JSON round trip changed the record";
+        EXPECT_EQ(back.wall.ring.size(), a.wall.ring.size()) << r.name << ": the ring read back has another length";
+        // the site's world offset must not move the route
+        SettlementMapInput moved = in; moved.originX += 4096; moved.originZ -= 777;
+        SettlementMap c = planSettlementMap(moved);
+        ASSERT_EQ(c.wall.ring.size(), a.wall.ring.size()) << r.name << ": the world offset changed the ring";
+        for (size_t i = 0; i < a.wall.ring.size(); ++i)
+            if (a.wall.ring[i].x != c.wall.ring[i].x || a.wall.ring[i].z != c.wall.ring[i].z) { ADD_FAILURE() << r.name << ": the world offset moved ring cell " << i; break; }
+    }
+}
+
+// (c) a PIN, green before the feature (stated): a tier without `walls`, and the city with its walls switched off, carry no wall
+TEST(SettlementMapTest, OnlyAWalledTierCarriesAWall) {
+    ASSERT_TRUE(rigs().programOk);
+    for (const char* tier : {"hamlet", "village", "town"}) {
+        const SettlementMapInput in = inputFor(tier, 140, 60, flatHeight, {});
+        ASSERT_FALSE(in.tier->walls.enabled) << tier;
+        const SettlementMap m = planSettlementMap(in);
+        ASSERT_TRUE(m.ok()) << tier << ": " << m.refusal;
+        EXPECT_FALSE(m.wall.present) << tier;
+        EXPECT_FALSE(m.toJson().contains("barriers")) << tier << ": an unwalled tier's record changed";
+    }
+    SettlementMapInput in = inputFor("city", 160, 160, hillHeight, hillWater);
+    SettlementTierPreset off = *in.tier; off.walls.enabled = false; in.tier = &off;
+    const SettlementMap m = planSettlementMap(in);
+    ASSERT_TRUE(m.ok()) << m.refusal;
+    EXPECT_FALSE(m.wall.present) << "the city with walls.enabled false plans a wall";
+    EXPECT_FALSE(m.toJson().contains("barriers"));
+}
+
+// (d) STRESS, written after the first green (pm_chain233.txt PM5d.6): seeds and a walled town
+TEST(SettlementMapTest, TheWallHoldsAcrossSeedsAndTiers) {
+    ASSERT_TRUE(rigs().programOk);
+    const auto all = wallRigs();
+    int plans = 0, mapsRefused = 0, wallsAbsent = 0;
+    const auto one = [&](const std::string& what, const SettlementMapInput& in) {
+        const SettlementMap m = planSettlementMap(in);
+        ++plans;
+        if (!m.ok()) { ++mapsRefused; std::printf("[ M5d-1 ] %s: the map is REFUSED: %s%s", what.c_str(), m.refusal.c_str(), "\n"); return; }
+        const WallStats w = wallStats(m, in);
+        const int mg = in.tier->walls.marginCubes;
+        printWall(what.c_str(), m, w, static_cast<long>(in.W + 2 * mg) * (in.D + 2 * mg));
+        EXPECT_TRUE(w.present) << what << ": no wall: " << m.wall.refusal;
+        if (!w.present) { ++wallsAbsent; return; }
+        expectWallSound(what.c_str(), w);
+    };
+    for (const size_t ri : {size_t{3}, size_t{4}, size_t{5}})
+        for (unsigned seed = 1; seed <= 10; ++seed) {
+            const WallRig& r = all[ri];
+            one(std::string(r.name) + " seed " + std::to_string(seed), inputFor("city", r.W, r.D, r.h, r.w, seed));
+        }
+    const SettlementTierPreset* city = rigs().program.get("medieval", "city");
+    ASSERT_NE(city, nullptr);
+    for (unsigned seed = 1; seed <= 5; ++seed) {
+        SettlementMapInput in = inputFor("town", 140, 76, flatHeight, {}, seed);
+        SettlementTierPreset walled = *in.tier; walled.walls = city->walls; in.tier = &walled;
+        one("walled town 140x76 seed " + std::to_string(seed), in);
+    }
+    std::printf("[ M5d-1 ] stress: %d plans, %d maps refused, %d walls absent%s", plans, mapsRefused, wallsAbsent, "\n");
+    EXPECT_EQ(plans, 35);
+    EXPECT_LT(mapsRefused, plans) << "every map refused: nothing was measured";
+}
+
+// (e) the audit of M5d-1 (bug A): a wall record whose nodes cannot be a ring must read back REFUSED - never
+// present with an empty ring (a consumer would stamp nothing and say nothing)
+TEST(SettlementMapTest, AWallRecordWithBadNodesIsRefusedNotEmpty) {
+    ASSERT_TRUE(rigs().programOk);
+    const SettlementMapInput in = inputFor("city", 160, 120, flatHeight, {});
+    const SettlementMap m = planSettlementMap(in);
+    ASSERT_TRUE(m.ok()) << m.refusal;
+    ASSERT_TRUE(m.wall.present);
+    const nlohmann::json good = m.toJson();
+    const std::vector<std::pair<const char*, nlohmann::json>> bad = {
+        {"a diagonal leg", nlohmann::json::parse("[[0,0],[3,4],[0,4]]")},
+        {"two nodes", nlohmann::json::parse("[[0,0],[0,9]]")},
+        {"one node", nlohmann::json::parse("[[5,5]]")},
+        {"no nodes", nlohmann::json::array()}};
+    for (const auto& [what, nodes] : bad) {
+        nlohmann::json j = good;
+        j["barriers"][0]["nodes"] = nodes;
+        const SettlementMap back = SettlementMap::fromJson(j);
+        std::printf("[ M5d-1 ] bad record (%s): present %d, ring %zu cells, refusal '%s'%s", what, back.wall.present ? 1 : 0, back.wall.ring.size(), back.wall.refusal.c_str(), "\n");
+        EXPECT_FALSE(back.wall.present) << what << ": read back as present with " << back.wall.ring.size() << " ring cells";
+        EXPECT_FALSE(back.wall.refusal.empty()) << what << ": no refusal says why";
+    }
+    const SettlementMap ok = SettlementMap::fromJson(good);   // the control: the good record reads back present
+    EXPECT_TRUE(ok.wall.present);
+    EXPECT_EQ(ok.wall.ring.size(), m.wall.ring.size());
+}

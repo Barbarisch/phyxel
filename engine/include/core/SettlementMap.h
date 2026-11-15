@@ -102,6 +102,26 @@ struct MapArea {
     int lot = -1;          ///< M5c-2: the lot a croft belongs to (-1 = none)
 };
 
+/// M5d-1 (D59-D61 PROPOSED): the WALL as map data - one closed ring of cube cells (the band's centreline, settlement-
+/// local, 4-connected, the last cell adjacent to the first; it MAY leave the site rect), the gates where another way
+/// crosses it, and the stretches left open over water. `present` false with a `refusal` = the tier asks for a wall
+/// and none could be planned. JSON: the ring is written as its CORNERS (`nodes`) and expanded on read, so the ring
+/// always starts at its first corner.
+struct MapWall {
+    struct Pt { int x = 0, z = 0; };
+    struct Gate { int x = 0, z = 0; int way = -1; int width = 0; };   ///< the ring cell the way crosses at; the opening's width (cubes)
+    struct Gap { int x = 0, z = 0; int cells = 0; };                  ///< a run of ring cells in water: its first cell (ring order), its length
+    bool present = false;
+    std::string refusal;
+    int margin = 0;                 ///< the tier's walls.margin the route kept from every lot (cubes)
+    std::vector<Pt> ring;
+    std::vector<Gate> gates;
+    std::vector<Gap> waterGaps;
+    float bakeMs = 0.0f;            ///< planWall's own wall time (diagnostic; never written to JSON, never hashed)
+    std::vector<Pt> corners() const;                               ///< the ring's turning cells, in ring order
+    static std::vector<Pt> expand(const std::vector<Pt>& corners); ///< the ring through those corners (axis-aligned legs)
+};
+
 struct SettlementMap {
     std::string era, tier, morphology;
     unsigned seed = 0;
@@ -111,6 +131,7 @@ struct SettlementMap {
     std::vector<MapWay> ways;
     std::vector<MapLot> lots;
     std::vector<MapArea> areas;
+    MapWall wall;              ///< M5d-1: the circuit wall (absent on a tier without `walls`)
     int entryNode = -1;        ///< the node where the first arriving road meets the site (-1 = none)
     float bakeMs = 0.0f;       ///< the planner's wall time (diagnostic, never hashed)
     std::string refusal;       ///< non-empty = the planner refused the site, with the reason

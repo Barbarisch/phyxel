@@ -25,3 +25,141 @@ RESULT chain 233 (written 2026-11-14 23:54; RUN EXIT 0 23:53:36, exe 23:53:18; 1
   on the rolling rig the ground under the band spans 26 cubes and the stamper (SettlementBuildService.cpp, the
   column lambda) sets every column's base to its own ground top - the wall top is a per-column copy of the ground.
   The city as programmed is 27 lots on every rig (the contract's L4 names a city of 200 - O15).
+
+PM5d.1  chain 234, the RED (written 2026-11-14 23:56, before the tests exist; tree 807fddde plus the map's wall RECORD only -
+  struct MapWall and its JSON, no planner): filter SettlementMapTest.*Wall* (the diagnostic is DISABLED and not run).
+  Three new tests:
+    WallIsNotTheSiteRectangle        RED - no wall on any walled rig ("the city's map carries no wall").
+    TheWallIsTheSamePlannedTwice     RED - guarded by the same existence assertion.
+    OnlyAWalledTierCarriesAWall      green - a PIN (stated): the town and a city with walls disabled carry none; it
+                                     cannot fail before the planner exists.
+  So 1 ok / 2 failed.
+PM5d.2  chain 235, the GREEN (written 2026-11-14 23:56, before the planner exists): 3 ok / 0 failed. Guesses per rig, never measured:
+    the ring encloses every lot on all five rigs; enclosed cells on hill + creek 160x160 well under the rectangle's
+    26896 - guess 40-70 % of it; on the flat rigs 70-95 %; ring corners (turns) 8-40 per rig; gates 3-4 per rig, the
+    same sides as the rectangle's; water gaps: 2 on each creek rig (the creek crosses the site, so the ring must
+    cross it twice), 0 elsewhere; bake of the city within +50 % of today's (A* over about 170 x 170 x 4 states per
+    hull edge - I do not know its cost in Debug). RISK: the ring self-touching where two hull corners are close;
+    the A* failing to connect a segment on a rig whose lots touch the site edge (the grid must reach past the rect).
+
+RESULT chain 234 (written 2026-11-15 00:03; RUN EXIT 1 2026-11-14 23:59:30): 1 ok / 2 failed - as predicted; both reds are
+  "the city's map carries no wall" (5 rigs each); the pin green.
+RESULT chain 235 (written 2026-11-15 00:03; RUN EXIT 1 00:02:31; exe 00:01:26): 2 ok / 1 failed - MISS (predicted 3 / 0).
+  The red is my own guard "the ring never meets the creek" on both creek rigs: wet 0. The lots sit north of the
+  creek (z 2-3; the lots start at z 28 / 48, chain 233), so a ring round the lots never needs to cross it. My guess
+  of 2 water gaps per creek rig was wrong for the same reason. The water rule (cost, gaps, D61) is exercised by NO
+  rig so far - nothing about it is measured.
+  rig                    ring  corners  gates  enclosed          of rectangle  bake (Debug)
+  flat 160x120            522   10       4      15050             74.0 %        2331 ms
+  flat 160x160            598    6       4      21494             79.9 %        3388 ms
+  hill + creek 160x120    526    8       3      15670             77.1 %        2365 ms
+  hill + creek 160x160    488   14       3      14146             52.6 %        3329 ms
+  rolling 160x160         636   86       5      19363             72.0 %        2698 ms
+  Every soundness counter 0 on every rig (broken, repeated, lot / market cells outside, in a lot's margin, in the
+  market, ungated, gate off the ring, gate narrower); crossings 4 / 4 / 3 / 3 / 5. Twice-the-same, the JSON round
+  trip and the world offset: no difference.
+  Against the guesses: enclosed on hill + creek 160x160 52.6 % (40-70: yes); flat 74.0 / 79.9 % (70-95: yes);
+  gates 3-4 on the rectangle's sides: 4 of 5 rigs - rolling has 5, two of them 5 cells apart (4,78 way 0 and 4,73
+  way 8), each 7 wide: OVERLAPPING gates, not merged - a defect seen, not fixed; corners 8-40: MISS on two rigs
+  (6 on flat 160x160; 86 on rolling - the slope term out-weighs the turn term and the ring zigzags; the contract's
+  "smoothed" step does not exist yet). Bake: the five plans took 14166 ms in this test against 14126 ms for the
+  same five in chain 233's diagnostic before the wall existed - not a controlled comparison (different test body).
+PM5d.3  chain 236 (written 2026-11-15 00:03, before the run): the test CHANGED AFTER A RUN, stated: (1) two rigs added whose
+  water runs through the lots - "flat, creek at z 40" (z 40-41 across the site) and "flat, pond 60..75 x 20..30";
+  (2) the per-rig guard "wet > 0 on a rig with water" becomes ONE guard over all rigs ("no rig's ring meets water:
+  the water rule is not exercised") - a loosening of where it must hold, because the two old creek rigs cannot meet
+  it by geometry. Guesses, never measured: the mid-creek city plans (if it refuses, that rig is reported and
+  skipped); its ring crosses the creek twice -> 2 water gaps of 2 cells each; the pond is routed round (0 wet cells)
+  if it lies outside every lot's reach. 3 ok / 0 failed IF the mid-creek rig yields wet > 0; otherwise the guard
+  stays red and I look for a rig that does.
+
+RESULT chain 236 (written 2026-11-15 00:07; RUN EXIT 1 00:04:57): 1 ok / 2 failed - the conditional prediction's bad branch,
+  and worse than it: the mid-creek rig's map plans (27 lots) but its WALL is refused, "the route did not close into
+  a ring" - a planner defect, found by the rig. The pond rig is routed round (0 wet cells, 93.3 % of the rectangle).
+  Runs 237 / 238 (diagnostic: the refusal made to print its corners, then a temporary leg log, since removed): 9
+  corners; leg 0 from -5,42 to 164,42 is 316 cells where the straight row is 169 - the row z 42 is closed by the
+  lots' margin, the only short way is over the creek and back (4 wet cells at 16 x (grid w + d) each), so the leg
+  went ROUND THE NORTH of the town; every later leg then re-walked it backwards and the loop-erasure ate the ring.
+  Cause: a leg is a shortest path with nothing that says which way round the town it must go.
+PM5d.4  chain 239 (written 2026-11-15 00:07, before the run; the fix: each leg is cut off from the far side by a line from the
+  centroid out through the stop half the ring away): 3 ok / 0 failed. Mid-creek rig: wall present; the ring crosses
+  the creek and comes back on the south bank along the lots' front -> wet cells 4 or 8, water gaps 2 or 4 (GUESS);
+  the five old rigs and the pond rig: the same numbers as chain 236 (the cut should not bind where the short way
+  is already the cheap way) - if any of them moves, I say which.
+
+RESULT chain 239 (written 2026-11-15 00:09; RUN EXIT 0 00:09:03; exe 00:07:41): 3 ok / 0 failed - as predicted. Mid-creek rig:
+  wall present, 494 ring cells, 10 corners, 3 gates, 2 water gaps of 2 cells (4 wet cells; guessed 4 or 8 and 2 or
+  4), enclosed 12345 = 60.7 % of the rectangle; every counter 0. The five old rigs and the pond rig: the same
+  numbers as chain 236, to the cell. Still seen and not fixed: 86 corners on rolling; two overlapping gates there.
+PM5d.5  mutation chains 240-244 (written 2026-11-15 00:09, before any; lesson 73; one mutation of planWall at a time, the file
+  restored from a scratchpad copy after each because the planner is uncommitted; filter SettlementMapTest.*Wall*):
+  240 MUTATION 1 - lots forbidden with margin 0: "ring in a lot's margin" > 0 on some rig -> red. Fairly sure.
+  241 MUTATION 2 - the hull is not forbidden: GUESS stays 3 / 0 - the pushed corners already sit outside and the
+      short way between two of them is outside the hull; if so the hull rule has no red on these rigs.
+  242 MUTATION 3 - water gaps not recorded: "wet not in a gap" 4 and the gaps guard -> red (mid-creek rig only).
+  243 MUTATION 4 - gates not recorded: "ungated" > 0 on every rig -> red.
+  244 MUTATION 5 - the market is not forbidden: GUESS stays 3 / 0 (the market lies inside the hull, which is
+      forbidden anyway).
+  245 the restore run: 3 ok / 0 failed, the planner's sha as before the mutations.
+
+RESULT mutation chains 240-245 (written 2026-11-15 00:19; the planner restored from the scratchpad copy after each, sha
+  c6b8eb1bb57da1b1 before and after; nothing of them kept):
+  240 MUTATION 1 (lot margin 0; RUN EXIT 1 00:11:10): 2 ok / 1 failed - as predicted; "ring in a lot's margin" 157
+      (one rig) and 4 (rolling); 0 on the other five.
+  241 MUTATION 2 (hull not forbidden; RUN EXIT 0 00:12:39): 3 ok / 0 failed - as guessed: the hull rule has NO red
+      on these rigs; every lot stays enclosed without it.
+  242 MUTATION 3 (water gaps not recorded; RUN EXIT 1 00:14:09): 2 ok / 1 failed - as predicted; "wet not in a
+      gap" 4 on the mid-creek rig.
+  243 MUTATION 4 (gates not recorded; RUN EXIT 1 00:15:38): 2 ok / 1 failed - as predicted; ungated = crossings
+      on all seven rigs (3, 4 or 5).
+  244 MUTATION 5 (market not forbidden; RUN EXIT 0 00:17:07): 3 ok / 0 failed - as guessed: NO red for the market
+      rule (the market lies inside the hull).
+  245 restore run (RUN EXIT 0 00:18:36): 3 ok / 0 failed.
+  Counters never seen non-zero: ring broken, ring repeated, lot cells outside, market cells outside, in the
+  market, dry in a gap, gate off the ring, gate narrower than its way. The leg cut's red is chain 236.
+PM5d.6  chain 246 (written 2026-11-15 00:19, before the test exists): a STRESS test, written after the first green (not
+  red-before-green) - SettlementMapTest.TheWallHoldsAcrossSeedsAndTiers: the city on seeds 1..10 over three rigs
+  (hill + creek 160x160, rolling 160x160, flat with the creek at z 40), and the TOWN's program with the city's
+  walls block copied in, seeds 1..5 on 140 x 76 flat (a walled town is not in the data; this is a rig). 35 plans.
+  GUESS: every wall present and sound; 1 ok / 0 failed. I have run none of these seeds. Named risks: a pushed
+  corner with no free cell; a leg closed in by its own cut; a spur left by the loop erasure; the mid-creek rig
+  refusing the MAP on some seed (reported, not a wall failure).
+
+RESULT chain 246 (written 2026-11-15 00:21; RUN EXIT 0 00:21:03): 1 ok / 0 failed - as guessed. 35 plans, 0 maps refused, 0
+  walls absent, every counter 0. Corners: 4-16 on the flat and creek rigs, 66-114 on the ten rolling seeds; gates
+  2-5; the ten mid-creek seeds: 7 with 2 water gaps, 3 with none; enclosed 34.5-72.6 % of the rectangle.
+PM5d.7  chains 247-248 (written 2026-11-15 00:21, before the runs; the realizer's wall record gains "source": "site_rect" - one
+  key, no behaviour): 247 SettlementMapTest.* whole suite: 29 ok / 0 failed (25 + 4 new; the diagnostic is DISABLED).
+  248 the unit set (m5b2 mode): 175 ok / 0 failed IF the set's filter takes SettlementMapTest.* whole (171 + 4) -
+  I have not read the filter; the count I can vouch for is "0 failed". NOT rerun for this increment: the live-site
+  set (100 min), the Release build and L4 (the planner returns at once for a tier without walls, and no live site
+  is a city) - stated, not measured.
+
+RESULT chain 247 (written 2026-11-15 00:39; RUN EXIT 0 00:27:05): 29 ok / 0 failed - as predicted.
+RESULT chain 248 (written 2026-11-15 00:39): RUN r248_m5b2 EXIT 0 2026-11-15 00:39:17 175 ok, 0 failed
+RESULT auditor read (written 2026-11-15 00:39): PASS WITH CONDITIONS as planner-only map data; raw verdict in m5b_red_green.txt.
+PM5d.8  chain 249, a RED for the audit's bug A (written 2026-11-15 00:39, before the run; patch 51d-test only: the new test
+  AWallRecordWithBadNodesIsRefusedNotEmpty, two new counters in wallStats [ring on a door approach, gate in a
+  water gap], the wall's own bake time printed; the fromJson guard NOT yet in): filter SettlementMapTest.*Wall*
+  -> 5 tests. The new test RED: the four bad records read back "present" with 0 ring cells (the diagonal leg, two
+  nodes, one node, no nodes) - I expect all four. The other four: green IF the ring never stands on a door
+  approach - a NEW assertion on a quantity I have never measured; the headless rigs may carry no approach cells
+  at all (then it is vacuous, and the print says so). So 4 ok / 1 failed.
+PM5d.9  chain 250, GREEN (written 2026-11-15 00:39): with patch 51d-code (fromJson refuses, A* costs long long, the timer):
+  5 ok / 0 failed; every rig's ring, corners, gates and enclosed count the same as chain 239 (long long must not
+  change a route). The wall's own bake time: GUESS 50-400 ms of the 2.2-3.3 s Debug bake.
+
+RESULT chain 249 (written 2026-11-15 00:46; RUN EXIT 1 00:42:41; from here the START line carries SettlementMapTest.cpp's hash):
+  4 ok / 1 failed - as predicted. The four bad records read back present; ring 0 cells on three, 18 CELLS on "two
+  nodes" (I expected 0 on all four: a two-node record expands to a there-and-back line - worse than empty). The
+  door-approach counter is not vacuous: 33-45 approach cells per rig, 0 on the ring; gate in a water gap 0.
+RESULT chain 250 (written 2026-11-15 00:46; RUN EXIT 0 00:45:54; exe 00:43:06): 5 ok / 0 failed - as predicted. The four bad
+  records read back refused with a reason. The seven rigs' ring cells / corners / gates / water gaps / enclosed
+  are identical to chain 239's (the same digest over the seven lines) - long long moved no route. The wall's own
+  bake: 13.2-85.6 ms over the 42 plans of the run (Debug; guessed 50-400: low end MISSED low) against whole bakes
+  of 0.74-3.3 s - Debug only, Release not timed.
+PM5d.10 chain 251 (written 2026-11-15 00:46, before the run): SettlementMapTest.* whole on the final tree: 30 ok / 0 failed.
+
+RESULT chain 251 (written 2026-11-15 00:52; RUN EXIT 0 00:51:51; exe 00:43:06, sources unchanged since chain 250's build): 30 ok /
+  0 failed - as predicted. NOT rerun on the final tree: the unit set (chain 248 was before patch 51d), the
+  live-site set, Release, L4.

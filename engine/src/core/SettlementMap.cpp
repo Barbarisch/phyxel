@@ -94,7 +94,43 @@ nlohmann::json SettlementMap::toJson() const {
         as.push_back(std::move(aj));
     }
     j["areas"] = as;
+    // M5d-1: written only when the tier asked for a wall - an unwalled tier's record is byte-identical to before
+    if (wall.present || !wall.refusal.empty()) {
+        nlohmann::json wj = {{"barrier", "wall"}, {"present", wall.present}, {"margin", wall.margin}};
+        if (!wall.refusal.empty()) wj["refusal"] = wall.refusal;
+        nlohmann::json ns = nlohmann::json::array(), gs = nlohmann::json::array(), ws = nlohmann::json::array();
+        for (const auto& c : wall.corners()) ns.push_back({c.x, c.z});
+        for (const auto& g : wall.gates) gs.push_back({{"x", g.x}, {"z", g.z}, {"way", g.way}, {"width", g.width}});
+        for (const auto& g : wall.waterGaps) ws.push_back({{"x", g.x}, {"z", g.z}, {"cells", g.cells}});
+        wj["nodes"] = ns; wj["gates"] = gs; wj["water_gaps"] = ws;
+        wj["closed"] = wall.present && wall.waterGaps.empty();
+        wj["cells"] = wall.ring.size();
+        j["barriers"] = nlohmann::json::array({wj});
+    }
     return j;
+}
+
+std::vector<MapWall::Pt> MapWall::corners() const {
+    std::vector<Pt> out;
+    const size_t n = ring.size();
+    if (n < 4) return out;
+    for (size_t i = 0; i < n; ++i) {
+        const Pt& a = ring[(i + n - 1) % n]; const Pt& b = ring[i]; const Pt& c = ring[(i + 1) % n];
+        if ((b.x - a.x) != (c.x - b.x) || (b.z - a.z) != (c.z - b.z)) out.push_back(b);
+    }
+    return out;
+}
+
+std::vector<MapWall::Pt> MapWall::expand(const std::vector<Pt>& cs) {
+    std::vector<Pt> out;
+    const size_t n = cs.size();
+    for (size_t i = 0; i < n; ++i) {
+        const Pt a = cs[i], b = cs[(i + 1) % n];
+        if (a.x != b.x && a.z != b.z) return {};   // not axis-aligned: not a ring this record can hold
+        const int dx = (b.x > a.x) - (b.x < a.x), dz = (b.z > a.z) - (b.z < a.z);
+        for (Pt c = a; c.x != b.x || c.z != b.z; c.x += dx, c.z += dz) out.push_back(c);
+    }
+    return out;
 }
 
 SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
@@ -160,6 +196,28 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
             if (a.contains("rect")) ma.rect = Rect::fromJson(a["rect"]);
             ma.lot = a.value("lot", -1);
             m.areas.push_back(std::move(ma));
+        }
+    if (j.contains("barriers") && j["barriers"].is_array())
+        for (const auto& b : j["barriers"]) {
+            if (b.value("barrier", std::string()) != "wall") continue;
+            m.wall.present = b.value("present", false);
+            m.wall.refusal = b.value("refusal", std::string());
+            m.wall.margin = b.value("margin", 0);
+            std::vector<MapWall::Pt> cs;
+            bool nodesOk = true;
+            for (const auto& n : b.value("nodes", nlohmann::json::array())) {
+                if (!n.is_array() || n.size() < 2 || !n[0].is_number_integer() || !n[1].is_number_integer()) { nodesOk = false; break; }
+                cs.push_back({n[0].get<int>(), n[1].get<int>()});
+            }
+            m.wall.ring = nodesOk ? MapWall::expand(cs) : std::vector<MapWall::Pt>();
+            // the audit of M5d-1 (bug A): a present wall whose nodes are not a ring (fewer than four corners, a leg off
+            // the axes, a malformed node) is REFUSED on read - never present with an empty ring
+            if (m.wall.present && (cs.size() < 4 || m.wall.ring.size() < 8)) {
+                m.wall.present = false; m.wall.ring.clear();
+                if (m.wall.refusal.empty()) m.wall.refusal = "the record's wall nodes are not a ring (" + std::to_string(cs.size()) + " usable nodes)";
+            }
+            for (const auto& g : b.value("gates", nlohmann::json::array())) m.wall.gates.push_back({g.value("x", 0), g.value("z", 0), g.value("way", -1), g.value("width", 0)});
+            for (const auto& g : b.value("water_gaps", nlohmann::json::array())) m.wall.waterGaps.push_back({g.value("x", 0), g.value("z", 0), g.value("cells", 0)});
         }
     return m;
 }
