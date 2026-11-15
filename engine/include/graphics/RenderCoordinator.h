@@ -644,6 +644,17 @@ public:
     /// table in place). false = today's host-visible buffer + whole re-uploads (the A/B).
     void setVoxFoundFacePool(bool on) { m_voxFoundFacePool = on; }
     bool voxFoundFacePool() const { return m_voxFoundFacePool; }
+    /// F2.18: T-junction handling in the main-view multidraw (voxfound_face_mdi.vert): 0 = today's vertex sums,
+    /// 1 = exact sums (a world point shared by two chunks is bit-identical), 2 = exact sums + every quad grown in its
+    /// own plane by tjPx screen pixels (covers a neighbour's T-vertex sliver).
+    void setVoxFoundTJunction(int level, float px) {
+        m_voxFoundTJunction = level < 0 ? 0 : (level > 2 ? 2 : level);
+        if (px > 0.0f) m_voxFoundTjPx = px;
+    }
+    int voxFoundTJunction() const { return m_voxFoundTJunction; }
+    float voxFoundTjPx() const { return m_voxFoundTjPx; }
+    /// The pushed word: 0 = today, < 0 = exact sums only, > 0 = exact sums + the margin in NDC units per y pixel.
+    float voxFoundTjWord() const;
     struct VoxFoundPoolStats {
         uint64_t partial = 0, full = 0;   // uploads so far
         int lastKind = 0;                 // 0 none, 1 full, 2 partial (the last upload)
@@ -1551,6 +1562,9 @@ private:
     VkDeviceMemory m_voxFoundMemory = VK_NULL_HANDLE;
     void*          m_voxFoundMapped = nullptr;
     size_t         m_voxFoundCapacity = 0;                         // faces
+    // F2.18: T-junction handling (setVoxFoundTJunction)
+    int            m_voxFoundTJunction = 2;   // default on (F2.18: 532 -> 1 crack px, whole frame neutral)
+    float          m_voxFoundTjPx = 1.0f / 16.0f;
     // F2.17: the face pool (setVoxFoundFacePool)
     bool           m_voxFoundFacePool = true;
     bool           m_voxFoundFacesDevice = false;   // m_voxFoundBuffer is device-local (filled by copies)

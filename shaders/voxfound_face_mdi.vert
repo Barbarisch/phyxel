@@ -52,6 +52,7 @@ layout(push_constant) uniform PushConstants {
     vec3 camFrac;          // camInt - cameraPos (metres, small)
     uint lodBits;          // F2.14: LOD on bit 23 + scale code 24-31 (0 = off); the level bits come per command (w)
     vec3 camInt;           // the camera position rounded down to whole metres (exact in float below 2^24)
+    float tj;              // F2.18: 0 today, < 0 exact sums, > 0 exact sums + an in-plane margin (NDC per y pixel x px)
 } pushConstants;
 
 layout(location = 0) out flat uint textureIndex;
@@ -96,8 +97,43 @@ void main() {
     vec3 sizeVec = vec3(1.0);
     sizeVec[(axis + 1u) % 3u] = du;
     sizeVec[(axis + 2u) % 3u] = dv;
-    const vec3 localM = (o + faceOffset * sizeVec) * kVoxel;   // metres from the origin, exact (k/8)
-    const vec3 worldPos = chunkBaseOffset + localM;
+    vec3 localM = (o + faceOffset * sizeVec) * kVoxel;   // metres from the origin, exact (k/8)
+    vec3 worldPos = chunkBaseOffset + localM;
+    // F2.18 T-junctions (pushConstants.tj; 0 = the line above, today).
+    // (1) Exact sums: (origin - camInt) + local is exact in float (multiples of 1/8 m, small), and camFrac is added
+    //     last, so a world point shared by two chunks' faces is bit-identical on both sides of the chunk border.
+    // (2) tj > 0: the quad grows in its own plane so its edges cover a neighbour's T-vertex sliver. Per corner,
+    //     outward along u (and v) by t = tj / (the screen speed of that axis PERPENDICULAR to the edge it moves), in
+    //     y-pixel NDC units: every edge moves outward by exactly tj on screen. Clamped to half a voxel; nothing behind
+    //     the camera. The texture is a function of the (grown) position, so overlapping coplanar neighbours shade the
+    //     same; only silhouettes move, by <= tj.
+    if (pushConstants.tj != 0.0) {
+        worldPos = (vec3(originM - ivec3(pushConstants.camInt)) + localM) + pushConstants.camFrac;
+        if (pushConstants.tj > 0.0) {
+            const uint ua = (axis + 1u) % 3u, va = (axis + 2u) % 3u;
+            vec3 eu = vec3(0.0), ev = vec3(0.0);
+            eu[ua] = faceOffset[ua] * 2.0 - 1.0;   // this corner's outward side along u, v
+            ev[va] = faceOffset[va] * 2.0 - 1.0;
+            const vec4 c = ubo.viewProj * vec4(worldPos, 1.0);
+            if (c.w > 1e-3) {
+                const vec4 cu = ubo.viewProj * vec4(eu, 0.0), cv = ubo.viewProj * vec4(ev, 0.0);
+                const float aspect = abs(ubo.proj[1][1] / ubo.proj[0][0]);   // width / height: x in y-pixel units
+                vec2 gu = (cu.xy * c.w - c.xy * cu.w) / (c.w * c.w);
+                vec2 gv = (cv.xy * c.w - c.xy * cv.w) / (c.w * c.w);
+                gu.x *= aspect;
+                gv.x *= aspect;
+                const float area = abs(gu.x * gv.y - gu.y * gv.x);
+                const float su = area / max(length(gv), 1e-20);   // u's screen speed across the edge along v
+                const float sv = area / max(length(gu), 1e-20);
+                const float kMax = 0.5 * kVoxel;
+                const float tu = min(pushConstants.tj / max(su, 1e-20), kMax);
+                const float tv = min(pushConstants.tj / max(sv, 1e-20), kMax);
+                const vec3 grow = eu * tu + ev * tv;
+                localM += grow;
+                worldPos += grow;
+            }
+        }
+    }
 
     if (faceID == 0u)      outNormal = vec3(0.0, 0.0, 1.0);
     else if (faceID == 1u) outNormal = vec3(0.0, 0.0, -1.0);

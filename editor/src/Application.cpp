@@ -13386,6 +13386,10 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             renderCoordinator->setVoxFoundShadowMdi(cmd.params.value("shadow_mdi", true));
         // {"face_pool":bool}: F2.17 (§4.6 item 10) device-local face pool, edits copy only their spans (default on)
         if (cmd.params.contains("face_pool")) renderCoordinator->setVoxFoundFacePool(cmd.params.value("face_pool", true));
+        // {"tjunction":0|1|2, "tj_px":f}: F2.18 T-junction cracks (0 today, 1 exact sums, 2 + in-plane margin of f px)
+        if (cmd.params.contains("tjunction") || cmd.params.contains("tj_px"))
+            renderCoordinator->setVoxFoundTJunction(cmd.params.value("tjunction", renderCoordinator->voxFoundTJunction()),
+                                                    cmd.params.value("tj_px", 0.0f));
         // {"lod_auto":bool, "lod_px":P}: F2.14 the main view picks each fragment's level by size on screen, P pixels per
         // voxel (the tier knob, default 1); off = level 0 everywhere. Needs {"lod_levels":n} at build time.
         // {"lod_casters":bool}: F2.14 with lod_auto, the face shadow casters draw the levels too (each caster fragment
@@ -13505,7 +13509,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         }
         if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview") || cmd.params.contains("chunk_cull") ||
             cmd.params.contains("occlusion") || cmd.params.contains("mdi") || cmd.params.contains("shadow_cull") ||
-            cmd.params.contains("shadow_mdi") || cmd.params.contains("face_pool")) {
+            cmd.params.contains("shadow_mdi") || cmd.params.contains("face_pool") || cmd.params.contains("tjunction") ||
+            cmd.params.contains("tj_px")) {
             if (cmd.params.contains("hide_world")) renderCoordinator->setHideWorld(cmd.params.value("hide_world", false));
             if (cmd.params.contains("show_preview")) voxFoundPreview.shown = cmd.params.value("show_preview", true);
             if (cmd.params.contains("chunk_cull")) renderCoordinator->setVoxFoundChunkCull(cmd.params.value("chunk_cull", true));
@@ -13516,7 +13521,9 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                             {"mdi", renderCoordinator->voxFoundMdi()},
                             {"shadow_cull", renderCoordinator->voxFoundShadowCull()},
                             {"shadow_mdi", renderCoordinator->voxFoundShadowMdi()},
-                            {"face_pool", renderCoordinator->voxFoundFacePool()}};
+                            {"face_pool", renderCoordinator->voxFoundFacePool()},
+                            {"tjunction", renderCoordinator->voxFoundTJunction()},
+                            {"tj_px", renderCoordinator->voxFoundTjPx()}};
                 return;
             }
         }

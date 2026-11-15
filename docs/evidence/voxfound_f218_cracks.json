@@ -1,0 +1,248 @@
+{
+ "crack_probe_bare_terrain": {
+  "bare2": {
+   "overview_south": {
+    "crack_px": 185,
+    "flat_px": 329248
+   },
+   "top_down": {
+    "crack_px": 190,
+    "flat_px": 333048
+   },
+   "forest_floor_open": {
+    "crack_px": 69,
+    "flat_px": 223945
+   },
+   "east_low": {
+    "crack_px": 1,
+    "flat_px": 264896
+   },
+   "canopy_close": {
+    "crack_px": 87,
+    "flat_px": 262550
+   }
+  },
+  "bare3": {
+   "overview_south": {
+    "crack_px": 185,
+    "flat_px": 329248
+   },
+   "top_down": {
+    "crack_px": 190,
+    "flat_px": 333048
+   },
+   "forest_floor_open": {
+    "crack_px": 69,
+    "flat_px": 223945
+   },
+   "east_low": {
+    "crack_px": 1,
+    "flat_px": 264896
+   },
+   "canopy_close": {
+    "crack_px": 87,
+    "flat_px": 262550
+   }
+  },
+  "red0": {
+   "overview_south": {
+    "crack_px": 185,
+    "flat_px": 329248
+   },
+   "top_down": {
+    "crack_px": 190,
+    "flat_px": 333048
+   },
+   "forest_floor_open": {
+    "crack_px": 69,
+    "flat_px": 223945
+   },
+   "east_low": {
+    "crack_px": 1,
+    "flat_px": 264896
+   },
+   "canopy_close": {
+    "crack_px": 87,
+    "flat_px": 262550
+   }
+  },
+  "red1": {
+   "overview_south": {
+    "crack_px": 185,
+    "flat_px": 329248
+   },
+   "top_down": {
+    "crack_px": 190,
+    "flat_px": 333048
+   },
+   "forest_floor_open": {
+    "crack_px": 69,
+    "flat_px": 223945
+   },
+   "east_low": {
+    "crack_px": 1,
+    "flat_px": 264896
+   },
+   "canopy_close": {
+    "crack_px": 87,
+    "flat_px": 262550
+   }
+  },
+  "red2": {
+   "overview_south": {
+    "crack_px": 185,
+    "flat_px": 329248
+   },
+   "top_down": {
+    "crack_px": 190,
+    "flat_px": 333048
+   },
+   "forest_floor_open": {
+    "crack_px": 69,
+    "flat_px": 223945
+   },
+   "east_low": {
+    "crack_px": 1,
+    "flat_px": 264896
+   },
+   "canopy_close": {
+    "crack_px": 87,
+    "flat_px": 262550
+   }
+  },
+  "g0": {
+   "overview_south": {
+    "crack_px": 185,
+    "flat_px": 329248
+   },
+   "top_down": {
+    "crack_px": 190,
+    "flat_px": 333048
+   },
+   "forest_floor_open": {
+    "crack_px": 69,
+    "flat_px": 223945
+   },
+   "east_low": {
+    "crack_px": 1,
+    "flat_px": 264896
+   },
+   "canopy_close": {
+    "crack_px": 87,
+    "flat_px": 262550
+   }
+  },
+  "g1": {
+   "overview_south": {
+    "crack_px": 185,
+    "flat_px": 329248
+   },
+   "top_down": {
+    "crack_px": 190,
+    "flat_px": 333048
+   },
+   "forest_floor_open": {
+    "crack_px": 69,
+    "flat_px": 223945
+   },
+   "east_low": {
+    "crack_px": 1,
+    "flat_px": 264896
+   },
+   "canopy_close": {
+    "crack_px": 87,
+    "flat_px": 262550
+   }
+  },
+  "g2": {
+   "overview_south": {
+    "crack_px": 0,
+    "flat_px": 329626
+   },
+   "top_down": {
+    "crack_px": 0,
+    "flat_px": 333399
+   },
+   "forest_floor_open": {
+    "crack_px": 0,
+    "flat_px": 224098
+   },
+   "east_low": {
+    "crack_px": 0,
+    "flat_px": 264933
+   },
+   "canopy_close": {
+    "crack_px": 1,
+    "flat_px": 262733
+   }
+  }
+ },
+ "shaded_flora": {
+  "mode0_forest_floor_open": {
+   "control_px": 0,
+   "L2_vs_L0_px": 1205,
+   "view_px": 591850,
+   "L2_vs_L0_pct": 0.2036
+  },
+  "mode0_overview_south": {
+   "control_px": 0,
+   "L2_vs_L0_px": 2051,
+   "view_px": 591850,
+   "L2_vs_L0_pct": 0.3465
+  },
+  "mode1_forest_floor_open": {
+   "control_px": 0,
+   "L2_vs_L0_px": 388,
+   "view_px": 591850,
+   "L2_vs_L0_pct": 0.0656
+  },
+  "mode1_overview_south": {
+   "control_px": 0,
+   "L2_vs_L0_px": 676,
+   "view_px": 591850,
+   "L2_vs_L0_pct": 0.1142
+  }
+ },
+ "shadow_only_bare_specks_(all,bright)": {
+  "overview_south_L0": [
+   206,
+   0
+  ],
+  "overview_south_L2": [
+   0,
+   0
+  ],
+  "top_down_L0": [
+   214,
+   0
+  ],
+  "top_down_L2": [
+   0,
+   0
+  ],
+  "forest_floor_open_L0": [
+   76,
+   0
+  ],
+  "forest_floor_open_L2": [
+   0,
+   0
+  ],
+  "east_low_L0": [
+   1,
+   0
+  ],
+  "east_low_L2": [
+   0,
+   0
+  ],
+  "canopy_close_L0": [
+   104,
+   0
+  ],
+  "canopy_close_L2": [
+   3,
+   2
+  ]
+ }
+}

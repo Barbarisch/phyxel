@@ -488,6 +488,10 @@ O(1) merged quads, not N² faces) shown failing on the current per-face path fir
 
 ## Known issue — T-junction cracks at greedy-merge borders ("dotted lines", found 2026-07-17)
 
+> **2026-11-15 — fixed on the new store (VoxelFoundationPlan F2.18):** option 3 done in screen space — the voxfound
+> main view grows each quad in its own plane by 1/16 px (`voxfound_face_mdi.vert`, `{"tjunction":2}`, default on):
+> crack px 532 → 1 over 5 poses, whole frame neutral. Today's chunk renderer is unchanged.
+
 **Symptom:** thin dashed/stippled bright lines on flat terrain, world-axis-aligned, "all over the
 place but only visible from certain angles." First noticed on the Middle-earth 1:1 plains (vast
 uniform grass = the ideal display case); present in same-day PRE-4.4 captures too — NOT a

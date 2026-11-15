@@ -378,7 +378,8 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | done (F2.17: per-chunk spans of the region arena allocator, device-local, edits copy only their spans + rewrite the cull table in place; next-frame upload 8.7-14.5 → 0.16-0.18 ms; whole frame −2.3..−3.8 ms at all 5 poses (shadow passes: no more PCIe reads); 0 px; pool image 1.6x the live faces; default on) |
 
 Known defect that gets worse with more merging: **T-junction cracks at merge borders** (`RenderOptimization.md:489`).
-Cross-block merging creates more T-junctions, so F2 has to handle it, not inherit it.
+Cross-block merging creates more T-junctions, so F2 has to handle it, not inherit it. **Handled (F2.18):** each quad
+grows by 1/16 px on screen in its own plane — crack px 532 → 1 over the 5 poses, whole frame neutral, default on.
 
 **F2.1 built 2026-11-11 — the GPU face builder** (`voxfound/FaceBuilderGpu`, `shaders/voxfound_faces.comp`):
 - Algorithm: **run merge** (`meshRuns`). Per slice row, maximal runs of one material; a run stacks onto the identical
@@ -1300,6 +1301,25 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   Preview); a tighter slack policy; the shadow MDI's cull table still re-uploads whole (it is off); the sprigs are
   still re-copied whole (0.15 ms). Re-measure owed: F2.12's shadow MDI and F2.15b/d's light-direction culling were
   judged with host-visible faces, where every extra caster read cost PCIe bandwidth.
+
+**F2.18 2026-11-15 — T-junction cracks at merge borders (the F2 list after item 10; default ON).**
+- Measured first: in debug view 11 (flat grey per fragment) on the gate region with flora off, the run merge's quads
+  leak single sky pixels -- 185 / 190 / 69 / 1 / 87 at the 5 poses (repeat: identical), scattered, not on chunk lines,
+  visible even straight down.
+- Built: `{"tjunction":0|1|2, "tj_px":f}` (voxfound preview; the pushed word sits in the 4 free bytes of the graphics
+  push-constant range). 1 = exact sums in `voxfound_face_mdi.vert`: (origin − camInt) + local first (exact), camFrac
+  last, so a world point shared by two chunks is bit-identical. 2 = exact sums + each quad grown in its own plane: per
+  corner, outward along u and v by f px / (that axis's screen speed perpendicular to the edge it moves), clamped to half
+  a voxel, none behind the camera — every edge moves out by exactly f px on screen and covers a neighbour's T-vertex
+  sliver. UVs are a function of the grown position, so overlapping coplanar neighbours shade the same. f = 1/16 px.
+- Red first: knob plumbed with the shader stubbed — levels 1 and 2 left every count unchanged.
+- Measured (`voxfound_f218_*`; prediction `voxfound_f218_prediction.txt`): level 1 changes nothing (0 px — the cause is
+  the T-junctions, not chunk rounding); level 2: 532 → 1 crack px over the 5 poses (the 1 is a skyline notch, not a
+  crack). Shaded flora scene: 0.20 / 0.35 % of the viewport changes (predicted ≤ 0.1 %: wrong in number) — 81-92 % are
+  the 1-3 px cracks themselves, the rest the region edge moving < 1 px; controls 0 px. Whole frame 8 pairs × 5 poses:
+  −0.015 / +0.011 / −0.003 / −0.080 / −0.060 ms, every CI includes 0 (neutral, as predicted). Shadow map: ≤ 2 leak px
+  on bare terrain over 5 poses — not changed. CPU 59/59, GPU 22/22.
+- Default ON. Not covered: the direct per-chunk path (`voxfound_face.vert`, only with mdi off) and the shadow casters.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

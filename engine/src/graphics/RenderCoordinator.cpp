@@ -3252,8 +3252,9 @@ void RenderCoordinator::renderVoxFoundPreview() {
         const uint32_t lodBits = m_voxFoundPreview->lodOn && !m_voxFoundPreview->lodClusters.empty()
                                      ? (1u << 23) | (uint32_t(voxFoundLodCode()) << 24)
                                      : 0u;
+        const float tj = voxFoundTjWord();   // F2.18
         vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam), lodBits,
-                                    glm::vec3(camInt));
+                                    glm::vec3(camInt), tj);
         const uint32_t nAll = m_voxFoundCull->clusterCount(), nSolid = std::min(m_voxFoundMdiSolid, nAll);
         const uint32_t slot = uint32_t(currentFrame);
         if (m_voxFoundCompactRecorded) {   // F2.15f: the appended commands, their origins from the cull pass
@@ -3266,7 +3267,7 @@ void RenderCoordinator::renderVoxFoundPreview() {
                 renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer, m_voxFoundCull->drawOrigins(slot), true,
                                                     VkDeviceSize(m_voxFoundCull->leafOriginBase()) * 16);
                 vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam),
-                                            lodBits, glm::vec3(camInt));
+                                            lodBits, glm::vec3(camInt), tj);
                 vulkanDevice->cmdDrawIndexedIndirectCount(cmd, m_voxFoundCull->compactCommands(slot),
                                                           VkDeviceSize(nSolid) * 20,
                                                           m_voxFoundCull->counts(slot), 4, nAll - nSolid, 20);
@@ -3281,7 +3282,7 @@ void RenderCoordinator::renderVoxFoundPreview() {
             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundLeafMdiPipeline());
             renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer, m_voxFoundOriginLeafBuffer, true);
             vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(camInt - cam),
-                                        lodBits, glm::vec3(camInt));
+                                        lodBits, glm::vec3(camInt), tj);
             vkCmdDrawIndexedIndirect(cmd, m_voxFoundCull->commands(uint32_t(currentFrame)), VkDeviceSize(nSolid) * 20,
                                      nAll - nSolid, 20);
         }
@@ -3354,6 +3355,13 @@ void RenderCoordinator::renderVoxFoundPreview() {
             vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), d.count, 0);
         }
     }
+}
+
+float RenderCoordinator::voxFoundTjWord() const {   // F2.18
+    if (m_voxFoundTJunction == 0) return 0.0f;
+    if (m_voxFoundTJunction == 1) return -1.0f;
+    const float h = vulkanDevice ? float(vulkanDevice->getSwapChainExtent().height) : 900.0f;
+    return m_voxFoundTjPx * 2.0f / std::max(h, 1.0f);   // NDC units per y pixel x the margin in pixels
 }
 
 float RenderCoordinator::voxFoundFocalPx() const {

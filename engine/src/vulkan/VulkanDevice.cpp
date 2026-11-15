@@ -2227,6 +2227,19 @@ void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineL
                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushData);
 }
 
+void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset,
+                                 uint32_t debugMode, const glm::vec3& chunkBaseAbs, float extra) {
+    struct PushConstants {
+        glm::vec3 chunkBaseOffset;
+        uint32_t debugMode;
+        glm::vec3 chunkBaseAbs;
+        float extra;   // F2.18: offset 28, inside getPushConstantRange()'s 32 bytes
+    } pushData{chunkBaseOffset, debugMode, chunkBaseAbs, extra};
+    static_assert(sizeof(PushConstants) == 32, "the graphics push-constant range is 32 bytes");
+    vkCmdPushConstants(commandBuffers[frameIndex], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants),
+                       &pushData);
+}
+
 void VulkanDevice::bindInstanceBufferWithOffset(uint32_t frameIndex, VkDeviceSize offset) {
     VkBuffer vertexBuffers[] = {vertexBuffer, instanceBuffer};
     VkDeviceSize offsets[] = {0, offset};

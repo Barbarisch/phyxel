@@ -536,6 +536,8 @@ public:
         // so tile rotations stay world-stable while geometry stays precision-safe.
         void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, const glm::vec3& chunkBaseAbs);
         void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, uint32_t debugMode, const glm::vec3& chunkBaseAbs);
+        /// F2.18: the same + the range's last 4 bytes (offset 28; the voxfound T-junction word).
+        void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, uint32_t debugMode, const glm::vec3& chunkBaseAbs, float extra);
         void bindInstanceBufferWithOffset(uint32_t frameIndex, VkDeviceSize offset);
         void drawChunk(uint32_t frameIndex, VkPipelineLayout pipelineLayout, 
                       const glm::vec3& chunkBaseOffset, VkDeviceSize instanceOffset, uint32_t instanceCount);

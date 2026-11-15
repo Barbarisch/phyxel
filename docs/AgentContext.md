@@ -494,7 +494,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       next-frame upload 9-14 -> 0.17 ms, whole frame -2.3..-3.8 ms (shadow casters no longer read host memory), 0 px.
       TRAP found: staging replaced mid-frame destroyed the source of recorded copies (device lost) -> per-slot cursor.
       Owed: CPU reassembly 2.5 ms/edit, pool 1.6x live, re-measure shadow MDI / light-direction culling on VRAM faces.
-      NEXT (the plan's F2 list): T-junctions.
+      F2.18 (2026-11-15): T-junctions DONE -- {"tjunction":2} default ON: voxfound_face_mdi.vert grows each quad in
+      its own plane by 1/16 px on screen (+ exact vertex sums): crack px 532 -> 1 over 5 poses, whole frame neutral.
+      Metric: debug view 11 + isolated-pixel count, flora OFF (flora parts are ~1 px dots). Level 1 (exact sums) alone
+      did nothing. Not covered: mdi-off direct path, shadow casters (<= 2 leak px).
+      NEXT: re-run the F2 exit gate (F2.8's comparison, now with items 1-10 + T-junctions on: same scene,
+      today's store vs the new store, whole frame, 5 poses, pixels) -- the F2 row's pass condition.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
