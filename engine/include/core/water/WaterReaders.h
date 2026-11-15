@@ -4,8 +4,10 @@
 // record's spans) by the wade rule (48.1, A2e): a point reads the highest run whose bottom is at or below it, and is in water only
 // under that run's top - a dry cave under a pond reads dry, never the pond above it. Pure functions; the host supplies the column.
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <functional>
+#include <vector>
 #include <glm/glm.hpp>
 
 namespace Phyxel::Core::Water {
@@ -59,6 +61,49 @@ inline float submergedFractionFromRuns(const ColumnRunsFn& column, const glm::ve
 /// The camera's depth under the surface of the water it is in (0 when it is not in water).
 inline float cameraDepthFromRuns(const ColumnRunsFn& column, const glm::vec3& eye) {
     return sampleWaterAt(column, eye).depthBelow;
+}
+
+/// The L2 bake-vs-terrain rim-leak check (water_validate; moved from the deleted WaterManager::validateTable, 52 W4.3b). levelAt(x, z):
+/// the bake's water level in that column (<= -1e29 dry); surfaceAt(x, z): its top solid voxel (INT_MIN unloaded). A RIM column is
+/// baked-dry next to a baked-wet loaded neighbour (N4); it LEAKS when its surface is below floor(the neighbour's level).
+struct TableValidation {
+    int columns = 0, unloaded = 0, wet = 0, rim = 0, rimLeaks = 0;
+    float worstLeakDepth = 0.0f;
+    glm::ivec2 worstLeakAt{0, 0};
+};
+inline TableValidation validateWaterTable(const std::function<float(int, int)>& levelAt, const std::function<int(int, int)>& surfaceAt,
+                                          const glm::ivec2& lo, const glm::ivec2& hi) {
+    constexpr float kDry = -1e29f;
+    TableValidation v;
+    const int w = hi.x - lo.x + 1, d = hi.y - lo.y + 1;
+    if (w <= 0 || d <= 0) return v;
+    std::vector<float> level(static_cast<size_t>(w) * d);
+    std::vector<int> surf(static_cast<size_t>(w) * d);
+    auto at = [w](int ix, int iz) { return static_cast<size_t>(ix) + static_cast<size_t>(w) * iz; };
+    for (int iz = 0; iz < d; ++iz) for (int ix = 0; ix < w; ++ix) {
+        level[at(ix, iz)] = levelAt(lo.x + ix, lo.y + iz);
+        surf[at(ix, iz)] = surfaceAt(lo.x + ix, lo.y + iz);
+    }
+    static const int NX[4] = {1, -1, 0, 0}, NZ[4] = {0, 0, 1, -1};
+    for (int iz = 0; iz < d; ++iz) for (int ix = 0; ix < w; ++ix) {
+        if (surf[at(ix, iz)] == INT_MIN) { ++v.unloaded; continue; }
+        ++v.columns;
+        if (level[at(ix, iz)] > kDry) { ++v.wet; continue; }
+        float adj = kDry;
+        for (int k = 0; k < 4; ++k) {
+            const int nx = ix + NX[k], nz = iz + NZ[k];
+            if (nx < 0 || nx >= w || nz < 0 || nz >= d || surf[at(nx, nz)] == INT_MIN) continue;
+            adj = std::max(adj, level[at(nx, nz)]);
+        }
+        if (adj <= kDry) continue;
+        ++v.rim;
+        const float leak = std::floor(adj) - static_cast<float>(surf[at(ix, iz)]);
+        if (leak > 0.0f) {
+            ++v.rimLeaks;
+            if (leak > v.worstLeakDepth) { v.worstLeakDepth = leak; v.worstLeakAt = glm::ivec2(lo.x + ix, lo.y + iz); }
+        }
+    }
+    return v;
 }
 
 }  // namespace Phyxel::Core::Water

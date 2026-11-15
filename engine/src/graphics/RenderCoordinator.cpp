@@ -20,7 +20,6 @@
 #include "graphics/VfxRenderPipeline.h"
 #include "graphics/WaterRenderPipeline.h"
 #include "graphics/WaterSurfaceRenderPipeline.h"
-#include "core/WaterManager.h"
 #include "core/VfxSystem.h"
 #include "core/VfxDirector.h"
 #include "graphics/KinematicVoxelPipeline.h"
@@ -1252,24 +1251,12 @@ float RenderCoordinator::cameraSubmergence(float& depthBelow) const {
     // long enough to read as a fade, short enough to feel immediate.
     const float BAND = 0.35f;
 
-    if (m_waterDepthQuery) {   // 52 W4.1: the new water (the host falls back to the old CA water only while a world runs it)
+    if (m_waterDepthQuery) {   // 52 W4.1: the new water (the host's readers: the volumes, else the record)
         depthBelow = std::max(0.0f, m_waterDepthQuery(eye));
         return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
     }
 
-    if (m_waterManager) {
-        // The submergence walk moved to WaterManager::sampleWater (small-scale Phase 4.1) so the
-        // camera fog, buoyancy and wading all read the SAME facts. Two deliberate upgrades over
-        // the old inline walk: sub-voxel floors raise the surface correctly, and outside the sim
-        // region a bound baked table answers per-body levels (the old code jumped straight to the
-        // flat sea level, wrong over an inland lake). The manager's implicit-sea flag mirrors
-        // m_waterEnabled (wired at world load).
-        const Core::WaterManager::WaterSample s = m_waterManager->sampleWater(eye);
-        depthBelow = s.depthBelow;
-        return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
-    }
-
-    if (m_waterEnabled) {   // implicit ocean when no manager exists at all
+    if (m_waterEnabled) {   // no host query: the sea plane's level
         depthBelow = m_seaLevel - eye.y;
         if (depthBelow <= 0.0f) { depthBelow = 0.0f; return 0.0f; }
         return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);

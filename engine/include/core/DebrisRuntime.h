@@ -18,7 +18,7 @@ namespace Vulkan   { class VulkanDevice; }
 namespace Graphics { class RenderCoordinator; }
 namespace Physics  { class PhysicsWorld; }
 namespace Scene    { class AnimatedVoxelCharacter; }
-namespace Core     { class KinematicVoxelManager; struct SpellDefinition; class WaterManager; }
+namespace Core     { class KinematicVoxelManager; struct SpellDefinition; }
 
 // DebrisInteractionPlan Phase 5: everything a host (the editor's Application, or a shipped game)
 // does to run GPU debris, in ONE place - so the editor and shipped games run the same code path
@@ -143,7 +143,6 @@ public:
     // tiles over the occupancy window (solver_shared.h WATER_*): sim-region tiles every frame,
     // table/sea tiles once (nearest first, WATER_TILE_BUILD_BUDGET per frame) then refreshed in
     // rotation. A column with no tile reads the background (implicit sea level, or dry).
-    void setWaterSource(Core::WaterManager* water) { m_water = water; }
     static constexpr int WATER_TILE_BUILD_BUDGET   = 16;   // new static tiles per frame
     static constexpr int WATER_TILE_REFRESH_BUDGET = 4;    // old static tiles re-checked per frame
     struct WaterStats {
@@ -157,7 +156,7 @@ public:
     };
     const WaterStats& waterStats() const { return m_waterStats; }
 
-    /// One column's water: true + surface Y + flow (m/s) when wet (WaterManager::columnWater).
+    /// One column's water: true + surface Y + flow (m/s) when wet.
     using WaterColumnFn = std::function<bool(int wx, int wz, float& surfaceY, glm::vec2& flow)>;
     /// WaterCore 37 (A2e): a column's two highest water runs (top-down; bottom WATER_NO_BOTTOM = reaches down without limit, top2
     /// WATER_DRY = no second run; `more` = runs below the second, read dry) and the top run's flow - the tile cell
@@ -257,7 +256,6 @@ private:
     void updateWater();
     struct CachedWaterTile { bool background = true; std::vector<uint32_t> cells; uint64_t builtFrame = 0; uint64_t volumeSig = 0; };
     WaterSignatureFn m_volumeSignature;                                        // 27.21
-    Core::WaterManager* m_water = nullptr;
     WaterRunsFn m_volumeColumn;                                                // E2 (37: runs)
     const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_volumeBoxes = nullptr;   // E2
     std::unordered_map<uint64_t, CachedWaterTile> m_waterCache;

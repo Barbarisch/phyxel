@@ -40,8 +40,7 @@ public:
 
     // ---- Water coupling (small-scale water plan Phase 4.2) ----
     // Injected "submerged fraction of this AABB" query [0..1]. Physics deliberately does NOT
-    // link Core's WaterManager — the host wires WaterManager::submergedFraction here (the same
-    // dependency-inversion the water manager itself uses for its river/table callbacks). Null =
+    // link Core's water — the host wires its reader (Application::readerColumn + submergedFractionFromRuns, WaterCore 52) here. Null =
     // no water anywhere (bit-identical dry behavior). The callback is invoked from the parallel
     // velocity-integration phase, so it must be thread-safe for concurrent READS — true for the
     // water sim, which only mutates on the main thread between physics steps.
@@ -51,7 +50,7 @@ public:
     bool hasWaterQuery() const { return static_cast<bool>(m_waterQuery); }
 
     // Horizontal water-current VELOCITY (m/s, y = 0) at a world point (tangible-water Phase E):
-    // moving water carries what floats in it. The host wires WaterManager::flowAtWorld. Same
+    // moving water carries what floats in it. The host wires the flow of the run the point is in. Same
     // thread-safety contract as setWaterQuery (concurrent READS from the parallel velocity
     // phase; the flow field only mutates on the main thread between steps). Null = no currents
     // (bit-identical to pre-current behavior).

@@ -17,7 +17,6 @@
 #include "core/water/RippleLayer.h"        // 22: ripples
 #include "core/water/RippleGpu.h"          // 25.34: the ripple step on the GPU
 #include "core/water/WaterSkin.h"          // 51.4 S3: the far skin
-#include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <unordered_map>
 #include <map>
 #include <glm/glm.hpp>

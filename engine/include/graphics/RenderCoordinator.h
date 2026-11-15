@@ -21,7 +21,6 @@
 #include "graphics/TreeLodRenderPipeline.h"
 #include "graphics/FarTerrainRenderPipeline.h"   // TileDraw (far-cascade caster cache)
 #include "graphics/VoxelLightOccupancyGpu.h"     // M1b: sub-voxel occupancy on the GPU
-#include "core/WaterManager.h"               // WaterSurfaceCell (WaterCore debug feed)
 #include <functional>
 #include <future>
 #include <memory>
@@ -76,7 +75,6 @@ namespace Phyxel { namespace Graphics {
     namespace Core {
         class NPCManager;
         class KinematicVoxelManager;
-        class WaterManager;
         class ItemEffectSystem;
     }
     class GpuParticlePhysics;
@@ -550,7 +548,6 @@ public:
     void setPhysicsFrameMs(double ms) { m_physicsFrameMs = ms; }
 
     // CPU water cellular-automaton sim — its surface cells are rendered per-cell.
-    void setWaterManager(Core::WaterManager* mgr) { m_waterManager = mgr; }
 
     // Water (Phase 0: implicit sea-level surface — see docs/Water.md).
     // TODO: sea level + enabled should come from per-world config, not render state.
@@ -1476,7 +1473,6 @@ private:
 
     // Per-cell water surface rendering (the CPU sim's actual field).
     std::unique_ptr<WaterSurfaceRenderPipeline> waterSurfacePipeline;   // WaterCore Phase F
-    Core::WaterManager* m_waterManager = nullptr;
     // True for frames where the reflection pass was rendered for the water plane
     // (decided before the scene pass, consumed when the water surface is drawn).
     bool  m_waterReflectionActive = false;

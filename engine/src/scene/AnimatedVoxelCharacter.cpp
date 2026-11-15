@@ -267,31 +267,16 @@ static constexpr float kControllerHeadClearance = 0.05f;
                 const bool pushing = (m_pushVel.x != 0.0f || m_pushVel.y != 0.0f);
                 m_kinVelocity.x = m_wadeVel.x + (pushing ? m_pushVel.x : 0.0f);
                 m_kinVelocity.z = m_wadeVel.y + (pushing ? m_pushVel.y : 0.0f);
-                // Footstep rings while striding through shallow water - the OLD CA water's rings (its addRipple); in a water-core
-                // pond the legs ring the water themselves (the editor feeds them as moving solids, 48.5 item 1)
-                const float hspeed = glm::length(m_wadeVel);
-                if (m_water.addRipple && m_kinGrounded && depth < 1.2f && hspeed > 0.3f) {
-                    m_wadeAccum += hspeed * dt;
-                    if (m_wadeAccum >= 0.9f) {   // ~one stride
-                        m_wadeAccum = 0.0f;
-                        m_water.addRipple(worldPosition, 0.6f,
-                                          0.10f + 0.04f * std::min(hspeed, 4.0f));
-                    }
-                }
                 // Entry splash: the dry->wet crossing frame with real downward speed, rate-limited
                 // per entity (the global budget is the VFX system's own burst cap).
                 if (m_water.splash && !m_wasInWater && m_kinVelocity.y < -3.0f &&
                     m_splashCooldown <= 0.0f) {
                     m_splashCooldown = 0.25f;
                     m_water.splash(worldPosition, std::min(-m_kinVelocity.y / 8.0f, 1.5f));
-                    if (m_water.addRipple)
-                        m_water.addRipple(worldPosition, 1.2f,
-                                          std::min(-m_kinVelocity.y * 0.04f, 0.35f));
                 }
                 m_wasInWater = true;
             } else {
                 m_wasInWater = false;
-                m_wadeAccum  = 0.0f;
                 m_wadeWet = false;
                 m_wadeDepth = 0.0f;
                 m_wadeDragAcc = 0.0f;

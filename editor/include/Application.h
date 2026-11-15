@@ -99,7 +99,6 @@
 #include "core/SceneManager.h"
 #include "core/GpuParticlePhysics.h"
 #include "core/DebrisRuntime.h"
-#include "core/WaterManager.h"
 #include "core/water/WaterCoreManager.h"
 #include "core/water/WadeDrag.h"
 #include "core/water/WaterReaders.h"
@@ -287,7 +286,6 @@ private:
     // (shared with shipped games); gpuParticlePhysics is a non-owning alias (null = disabled).
     std::unique_ptr<DebrisRuntime> debrisRuntime;
     GpuParticlePhysics* gpuParticlePhysics = nullptr;
-    std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim (retires per WaterCore.md sec. 9)
     std::unique_ptr<Core::Water::WaterCoreManager> waterCore;          // WaterCore active volumes (Phase B; docs/WaterCore.md)
     void applyWaterSpanEdit(int x, int y, int z, bool solid);          // Phase D2: edits never create water (docs/WaterCore.md 16.3)
     long m_waterHeldEdits = 0;                                          // Phase D2: edits held because a run reaches into a non-resident chunk
@@ -355,19 +353,12 @@ private:
     nlohmann::json m_waterWorldLast;   // the last change, echoed by water_coupling.world
     nlohmann::json m_waterWorldLeft;   // the write-back of the world left, taken by the next change (null = none)
     bool m_waterWorldResetOffForTest = false;   // TEST ONLY (water_coupling test_world_reset_off): both no-ops - before 47 (the red)
-    // A4 (WaterCore 48): wading. The characters' water hooks read the core first (the run the feet are in), then the old CA water.
+    // A4 (WaterCore 48): wading. The characters' water hooks read the core (the run the feet are in).
     float wadeDepthAt(const glm::vec3& probe) const;        // m of water above probe.y - 0.05 (the feet)
     glm::vec3 wadeFlowAt(const glm::vec3& probe) const;     // m/s, the water's horizontal velocity there
-    // WaterCore 52 W4.1: the column every reader of water reads (CPU bodies, the camera, water_query): the new water, then the old CA
-    // water only while the world runs it (m_oldWaterOn = game.json water.enabled). src (optional): "core" | "record" | "old" | "none".
+    // WaterCore 52 W4.1: the column every reader of water reads (CPU bodies, the camera, water_query): the new water - the awake
+    // volumes, else the record (the old CA water is deleted, 52 W4.3b). src (optional): "core" | "record" | "none".
     bool readerColumn(int wx, int wz, Core::Water::WaterRunsAt& r, const char** src = nullptr) const;
-    bool m_oldWaterOn = false;
-    // WaterCore 52 W4.2: the old CA water (WaterManager) does not run - no step, no follow, no table / river / sea binding, no reader
-    // or debris fallback - in any world, whatever water.enabled says (which now only draws the sea plane). Before, it ran in every
-    // world: the baked table bound by default and filled its 64 x 32 x 64 region round the camera, drawn nowhere (RiverCarve,
-    // water.enabled off: 11,833 cells at the lake; Coast: 32,192 at sea - w4_old_before_*.json). One switch so the step is one
-    // revert away; W4.3 deletes the old code and this with it.
-    static constexpr bool kOldCaWaterRuns = false;
     mutable std::mutex m_waterReadMutex;   // the CPU-body readers run on the physics workers; see readerColumn
     std::function<float(const glm::vec3&, const glm::vec3&)> m_bodyWaterQuery;   // what VoxelDynamicsWorld::setWaterQuery was given
     std::function<glm::vec3(const glm::vec3&)> m_bodyFlowQuery;                  // ... setWaterFlowQuery

@@ -4,7 +4,6 @@
 #include "core/KinematicVoxelManager.h"
 #include "core/SpellDefinition.h"
 #include <chrono>
-#include "core/WaterManager.h"
 #include <glm/gtc/packing.hpp>
 #include "graphics/RenderCoordinator.h"
 #include "physics/PhysicsWorld.h"
@@ -190,7 +189,7 @@ void DebrisRuntime::updateWater() {
     using namespace DebrisShared;
     ++m_waterFrame;
     glm::ivec3 box;
-    const bool ready = m_gpu && (m_water || m_volumeColumn) && m_gpu->occupancyBoxMinChunk(box);   // E2: a volume alone is a water source
+    const bool ready = m_gpu && m_volumeColumn && m_gpu->occupancyBoxMinChunk(box);   // the new water (the volumes, else the record)
     m_waterStats.ready = ready;
     if (!ready) {
         if (m_waterUploaded) { m_gpu->setWater(glm::ivec2(0), false, 0.0f, {}, {}); m_waterUploaded = false; }
@@ -216,9 +215,8 @@ void DebrisRuntime::updateWater() {
             return ax * ax + az * az < bx * bx + bz * bz;
         });
     }
-    const bool  sea   = m_water ? m_water->implicitSea() : false;
-    const float seaY  = m_water ? m_water->seaLevel() : 0.0f;
-    const glm::ivec3 ro = m_water ? m_water->regionOrigin() : glm::ivec3(0), rd = m_water ? m_water->regionDims() : glm::ivec3(0);
+    const bool  sea   = false;   // 52 W4.3b: no implicit sea - the record holds the sea (below sea level = ocean)
+    const float seaY  = 0.0f;
     int volumeTiles = 0, volumeKept = 0;
     auto underVolume = [&](int cx, int cz) {   // E2: a chunk column an active volume's box touches
         if (!m_volumeColumn || !m_volumeBoxes) return false;
@@ -227,16 +225,11 @@ void DebrisRuntime::updateWater() {
             if (b.first.x < x0 + WATER_TILE_CELLS && b.second.x >= x0 && b.first.z < z0 + WATER_TILE_CELLS && b.second.z >= z0) return true;
         return false;
     };
-    auto inRegion = [&](int cx, int cz) {   // the old water's live region
-        const int x0 = cx * WATER_TILE_CELLS, z0 = cz * WATER_TILE_CELLS;
-        return x0 < ro.x + rd.x && x0 + WATER_TILE_CELLS > ro.x && z0 < ro.z + rd.z && z0 + WATER_TILE_CELLS > ro.z;
-    };
     auto inSim = [&](int cx, int cz) {
         if (underVolume(cx, cz)) { ++volumeTiles; return true; }   // the volume moves: rebuilt when its water changes (below)
-        return inRegion(cx, cz);
+        return false;
     };
-    // the old water has no bottoms (a flat level per column): one run reaching down, its law unchanged (37)
-    const WaterRunsFn fallback = m_water ? runsOf([this](int wx, int wz, float& s, glm::vec2& f) { return m_water->columnWater(wx, wz, s, f); }) : WaterRunsFn();
+    const WaterRunsFn fallback;   // 52 W4.3b: none (the old CA water is deleted) - an empty fn reads dry
     const WaterRunsFn column = composeRuns(m_volumeColumn, fallback);
     auto key = [](int cx, int cz) { return (static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz); };
     // 27.21: a tile under a volume reads the volumes there and, where they hold no column, the old water: outside its region
@@ -244,13 +237,12 @@ void DebrisRuntime::updateWater() {
     // column there reads dry). So the signature = what the volumes hold, valid outside the region or while it is dry; 0 =
     // unknown: rebuilt.
     // The same holds for the old water's region tiles with no volume over them: dry region = every column dry, kept.
-    const bool regionDry = !m_water || !m_water->anyWet();
     auto fieldsSig = [&](int cx, int cz) -> uint64_t {
         if (!m_volumeSignature) return 0;
         const int x0 = cx * WATER_TILE_CELLS, z0 = cz * WATER_TILE_CELLS;
         return m_volumeSignature(x0, z0, x0 + WATER_TILE_CELLS - 1, z0 + WATER_TILE_CELLS - 1);
     };
-    auto volumeSig = [&](int cx, int cz) -> uint64_t { return (inRegion(cx, cz) && !regionDry) ? 0 : fieldsSig(cx, cz); };
+    auto volumeSig = [&](int cx, int cz) -> uint64_t { return fieldsSig(cx, cz); };
     m_waterStats.waterBuildMs = 0.0; m_waterStats.tilesBuilt = 0;
     auto build = [&](int cx, int cz, uint64_t sig = 0) {
         const auto tb = std::chrono::steady_clock::now();

@@ -6,6 +6,7 @@
 #include "core/water/WaterCore.h"
 #include "core/water/WaterCoreManager.h"
 
+#include <climits>
 #include <map>
 #include <vector>
 
@@ -122,4 +123,22 @@ TEST(WaterReaders, TheCameraDepthIsTheRunItIsIn) {
     EXPECT_NEAR(cameraDepthFromRuns(f, glm::vec3(0.5f, 20.0f + 0.25f, 0.5f)), 0.75f, 1e-6f);
     EXPECT_EQ(cameraDepthFromRuns(f, glm::vec3(0.5f, 15.0f, 0.5f)), 0.0f) << "a dry cave under a pond is not underwater";
     EXPECT_EQ(cameraDepthFromRuns(f, glm::vec3(0.5f, 30.0f, 0.5f)), 0.0f);
+}
+
+// Moved from WaterManagerTest.ValidateTableFlagsCarvedRimLeaksOnly (52 W4.3b, §9 rule 3) - the same lake, the same expectations:
+// a 4 x 4 basin (floor 5, level 8) in ground at 10, ONE rim column (9, 12) carved down to 6, below the level -> the one leak.
+TEST(WaterReaders, TheTableCheckFlagsOnlyTheCarvedRimLeak) {
+    auto inLake = [](int x, int z) { return x >= 10 && x <= 13 && z >= 10 && z <= 13; };
+    const auto level = [&](int x, int z) { return inLake(x, z) ? 8.0f : -1e30f; };
+    const auto surface = [&](int x, int z) { return (x < 0 || x >= 32 || z < 0 || z >= 32) ? INT_MIN : (inLake(x, z) ? 5 : ((x == 9 && z == 12) ? 6 : 10)); };
+    const TableValidation v = validateWaterTable(level, surface, glm::ivec2(5, 5), glm::ivec2(18, 18));
+    EXPECT_EQ(v.unloaded, 0);
+    EXPECT_EQ(v.wet, 16) << "the 4x4 lake interior should be baked-wet";
+    EXPECT_GT(v.rim, 0) << "the ring around the lake should count as rim";
+    EXPECT_EQ(v.rimLeaks, 1) << "exactly the one carved rim column should be flagged";
+    EXPECT_EQ(v.worstLeakAt, glm::ivec2(9, 12));
+    EXPECT_FLOAT_EQ(v.worstLeakDepth, 2.0f) << "floor(8) - surface 6 = 2";
+    // control: the rim column carved only to the level's floor (8) is not a leak
+    const auto sealed = [&](int x, int z) { return (x == 9 && z == 12) ? 8 : surface(x, z); };
+    EXPECT_EQ(validateWaterTable(level, sealed, glm::ivec2(5, 5), glm::ivec2(18, 18)).rimLeaks, 0);
 }

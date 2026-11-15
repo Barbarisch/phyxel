@@ -33,7 +33,7 @@ def readers(api, x, z, surface):
     p, b = q["points"][0], q["boxes"][0]
     return {"camera_submergence": ws.get("camera_submergence"), "camera_depth_below": ws.get("camera_depth_below"), "plane_enabled": ws.get("plane_enabled"),
             "source": p["source"], "depth_below": p["depth_below"], "submerged_fraction": b["submerged_fraction"],
-            "old_submerged_fraction": b["old_submerged_fraction"], "old_water_on": q.get("old_water_on")}
+            "old_submerged_fraction": b.get("old_submerged_fraction"), "old_water_on": q.get("old_water_on")}
 
 
 def old_state(api):

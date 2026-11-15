@@ -2146,9 +2146,7 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
-    // Water sim (CPU WaterManager) debug endpoints.
-    //   POST /api/debug/place_water  { "x":N,"y":N,"z":N,"amount":F }
-    //   POST /api/debug/water_sync   {}                  (re-read terrain solidity)
+    // Water debug endpoints.
     //   POST /api/debug/water_stats  { ["x":N,"y":N,"z":N] }  (total + optional mass_at)
     // ====================================================================
     auto waterEndpoint = [this](const char* action) {
@@ -2164,18 +2162,8 @@ void EngineAPIServer::setupRoutes() {
             }
         };
     };
-    srv.Post("/api/debug/place_water", waterEndpoint("place_water"));
-    srv.Post("/api/debug/water_sync",  waterEndpoint("water_sync"));
     srv.Post("/api/debug/water_stats", waterEndpoint("water_stats"));
     srv.Post("/api/debug/set_sea_level",  waterEndpoint("set_sea_level"));
-    srv.Post("/api/debug/add_ocean_seed", waterEndpoint("add_ocean_seed"));
-    srv.Post("/api/debug/clear_ocean",    waterEndpoint("clear_ocean"));
-    srv.Post("/api/debug/place_spring",   waterEndpoint("place_spring"));
-    srv.Post("/api/debug/clear_springs",  waterEndpoint("clear_springs"));
-    srv.Post("/api/debug/set_channel_region", waterEndpoint("set_channel_region"));
-    srv.Post("/api/debug/water_gpu",      waterEndpoint("water_gpu"));
-    srv.Post("/api/debug/water_save",     waterEndpoint("water_save"));
-    srv.Post("/api/debug/water_ocean_boundary", waterEndpoint("water_ocean_boundary"));
     srv.Post("/api/debug/water_table_level",    waterEndpoint("water_table_level"));
     srv.Post("/api/debug/water_waves",          waterEndpoint("water_waves"));
     srv.Post("/api/debug/water_look",           waterEndpoint("water_look"));   // v4 W1 probe
@@ -2235,13 +2223,8 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));
     // Near-field probes (docs/Water.md small-scale Phase 0.4).
-    srv.Post("/api/debug/water_probe",          waterEndpoint("water_probe"));
-    srv.Post("/api/debug/water_waterfalls",     waterEndpoint("water_waterfalls"));
-    srv.Post("/api/debug/water_footprint",      waterEndpoint("water_footprint"));
     srv.Post("/api/debug/water_bake_info",      waterEndpoint("water_bake_info"));
-    srv.Post("/api/debug/water_ripple",         waterEndpoint("water_ripple"));
     srv.Post("/api/debug/water_bodies",         waterEndpoint("water_bodies"));  // tangible-water A
-    srv.Post("/api/debug/water_scoop",          waterEndpoint("water_scoop"));   // tangible-water D
 
     // ====================================================================
     // POST /api/world/clear — Clear all voxels in a region

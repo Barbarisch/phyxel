@@ -3893,15 +3893,9 @@ async def list_tools() -> list[Tool]:
         # ================================================================
         Tool(
             name="water_stats",
-            description="Water system state: sim total_mass, region origin/dims, table/overrides/outflow, render sea level, camera submergence, surface_cells. Optional x,y,z adds mass_at that cell. Tip: right after launch total_mass is still RISING for ~1 min — do not judge water from the first frames.",
+            description="Sea plane on/off, render sea level, and the camera's water: submergence 0-1 and depth below the surface (m), read from the new water (the volumes, else the record). The new water's mass: water_ledger.",
             inputSchema={"type": "object", "properties": {
                 "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
-        ),
-        Tool(
-            name="water_probe",
-            description="Per-cell water sim probe at world (x,y,z): mass, solid, sub-voxel floor, channel tag, source pin, flow vector. Only meaningful inside the camera-following sim region (64x32x64).",
-            inputSchema={"type": "object", "properties": {
-                "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}, "required": ["x", "y", "z"]},
         ),
         Tool(
             name="water_spans_stored",
@@ -3945,28 +3939,6 @@ async def list_tools() -> list[Tool]:
             name="water_bake_info",
             description="Hydrology bake summary: generator vs bake sea level, has_outlet, drainage_complete, max_order, cell grid, min terrain. WARNs when the world has no outlet.",
             inputSchema={"type": "object", "properties": {}},
-        ),
-        Tool(
-            name="water_ripple",
-            description="Inject a ripple into the RippleField at world (x,z). A ring lives ~4-6 s — pump repeatedly while capturing.",
-            inputSchema={"type": "object", "properties": {
-                "x": {"type": "number"}, "z": {"type": "number"},
-                "radius": {"type": "number", "description": "default 1.5"}, "strength": {"type": "number", "description": "default 0.35"}},
-                "required": ["x", "z"]},
-        ),
-        Tool(
-            name="place_water",
-            description="Add water mass at sim cell (x,y,z) (amount in voxel-volumes, default 1). Only inside the sim region; returns total_mass.",
-            inputSchema={"type": "object", "properties": {
-                "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
-                "amount": {"type": "number", "description": "default 1.0"}}, "required": ["x", "y", "z"]},
-        ),
-        Tool(
-            name="water_scoop",
-            description="Bucket semantics: remove up to `amount` water from the column at (x,y,z); returns removed + per-body deltas. Finite ponds stay lowered; pinned bodies refill.",
-            inputSchema={"type": "object", "properties": {
-                "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
-                "amount": {"type": "number", "description": "default 1.0"}}, "required": ["x", "y", "z"]},
         ),
         Tool(
             name="water_waves",
@@ -6218,9 +6190,9 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         return await api_get("/api/world/terrain_height", params)
 
     # --- Water (every water debug route is POST /api/debug/<name> with the args as the body) ---
-    elif name in ("water_stats", "water_probe", "water_spans_stored", "water_render_grid",
+    elif name in ("water_stats", "water_spans_stored", "water_render_grid",
                   "water_validate", "water_find_river", "water_table_level", "water_bake_info",
-                  "water_ripple", "place_water", "water_scoop", "water_waves", "water_look"):
+                  "water_waves", "water_look"):
         return await api_post(f"/api/debug/{name}", dict(args), timeout=300)
 
     # --- Animation Control ---

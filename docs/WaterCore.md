@@ -13801,7 +13801,7 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
 - **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
   than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
 
-## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 deleting (W4.3a done)
+## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 deleting (W4.3a, b done)
 
 **What W4 is (§27, §0a):** generated lakes, rivers and sea are the record and the new core simulates and draws them - DONE by §51
 (record tiles near, the skin far, 51.4c / 51.12-51.14). What is NOT done: **the old CA water is still in the engine, and five readers
@@ -13902,6 +13902,35 @@ sea plane, a still) and the water unit tests; the full suites once at the end.
   deleting (52.0's note):** the cell renderer drew core water only in the `cells` debug mode - no tool or test used it. **Live**
   (`w4_3a_coast.json`, `w4_3a_coast.png`): Coast's sea, beach and creek drawn as before; readers `record`, camera 1.0 m, box 0.5,
   plane on.
+- **W4.3b (2026-11-14) - `WaterManager` deleted** (`WaterManager.{h,cpp}`, 1,793 lines; `WaterManagerTest.cpp`, 55 tests).
+  Consumers re-pointed: `Application` (construction, the terrain-edit solid sync, the GPU flow resources, the frame's follow / step,
+  the waterfall mist, the game.json sea / seeds / springs / channels / baked table / rivers / evaporation / edge outflow / pours, the
+  save's `water_overrides`, the readers' and wading's old fallback, `kOldCaWaterRuns` and `m_oldWaterOn`), `RenderCoordinator`
+  (`setWaterManager`, the camera's old fallback - the plane's level is the last resort), `DebrisRuntime` (`setWaterSource`, the old
+  region / implicit sea / fallback tiles - null since W4.2, so the tiles are what W4.2 measured), the character's `addRipple` hook
+  (the old field's footstep and entry rings; a core pond rings from the legs as moving solids, 48.5).
+  - **Routes.** Deleted (they drove only the old water): `place_water`, `water_scoop`, `water_sync`, `water_ocean_boundary`,
+    `add_ocean_seed`, `clear_ocean`, `place_spring`, `clear_springs`, `water_gpu`, `set_channel_region`, `water_save`, `water_probe`,
+    `water_waterfalls`, `water_footprint`, `water_ripple`, and the MCP tools `water_probe`, `water_ripple`, `place_water`,
+    `water_scoop`. Re-pointed: `water_table_level` and `water_find_river` read the bake (`HydrologyMap::waterLevelAt`, what the old
+    manager's bound table returned); `water_validate`'s rim-leak scan MOVED (§9 rule 3) to `validateWaterTable` beside the readers,
+    its test with it (`WaterReaders.TheTableCheckFlagsOnlyTheCarvedRimLeak`, + a sealed-rim control); `set_sea_level` sets the sea
+    plane only; `water_ground_sync` takes the plane's level; `water_stats` keeps the plane and camera fields (`total_mass` 0 for
+    callers); `water_ledger` `cells` 0; `water_probe_rect` / `place_water_box` act on the core only (`target` ignored);
+    `water_query` loses its old control.
+  - **Tests triaged (§9 rule 3).** Kept by moving: the rim-leak check (above). Already re-expressed on the new water: submerged
+    fraction (`WaterReaders.ABoxHalfUnderTheSurfaceIsHalfSubmerged`), stacked columns / the run a point is in
+    (`APointReadsTheRunItIsIn`, the A2e tests), the shared sea-level constant (`kSeaLevelY`, consumed by the sea plane). Retired with
+    the CA's window (no new-water meaning): recentre / follow / hysteresis, ocean boundary and seeds, pour overrides and
+    the outflow bank, finite-body deltas and hydration, CA scoop, river / creek pins and kinematic flow, shoreline
+    snap, sub-voxel floors in CA cells, the CA's sample fallbacks, streamed-in solids, the settled-surface skip, the
+    two stress walks, the undisturbed-sea render skip.
+  - **Historical tools left as they are** (they measured the old water and now get errors / nulls): `tools/water_feel.py`'s `ca`
+    engine rows (`water_sync`, `water_save`), `tools/water_wade_s7.py`'s `water_probe` control.
+  - **Live** (RiverCarve, `w4_3b_rivercarve.json`, `w4_3b_debris_float.json`, `w4_3b_rivercarve.png`): readers `record`, camera
+    1.0 m, box 0.5, dry 0; the wood block floats (dips to 89.65, rests at 89.92, surface 90.0; W4.2: 89.90); `water_table_level`
+    90.0 wet at the lake; `water_validate` over the lake 546 columns, 0 unloaded, 0 rim leaks. **The still: the wood block afloat on
+    the generated lake.** Unit: `WaterReaders*`, `WaterBuoyancy*`, debris water, surface mesh - 24 / 24.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

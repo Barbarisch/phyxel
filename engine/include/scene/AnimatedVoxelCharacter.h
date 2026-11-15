@@ -570,16 +570,15 @@ namespace Scene {
         void setMoveVelocity(const glm::vec3& velocity);
 
         // ---- Water hooks (small-scale water plan Phase 4.3) ----
-        // Injected so the scene class never links Core's WaterManager/VfxSystem. All optional;
-        // null = dry world, zero cost. depthAt returns the water depth ABOVE a world point
-        // (WaterManager::sampleWater(...).depthBelow matches). addRipple pokes the disturbance
-        // field (pos, radius, strength); splash spawns the entry burst (pos, intensity 0..1.5).
+        // Injected so the scene class never links Core's water/VfxSystem. All optional;
+        // null = dry world, zero cost. depthAt returns the water depth ABOVE a world point;
+        // splash spawns the entry burst (pos, intensity 0..1.5). (52 W4.3b: addRipple went with the old
+        // water's ripple field - a water-core pond rings from the legs as moving solids, 48.5.)
         struct WaterHooks {
             std::function<float(const glm::vec3&)> depthAt;
-            std::function<void(const glm::vec3&, float, float)> addRipple;
             std::function<void(const glm::vec3&, float)> splash;
             // Horizontal current velocity (m/s) at a world point (tangible-water Phase E) —
-            // WaterManager::flowAtWorld matches. Null = still water everywhere.
+            // Null = still water everywhere.
             std::function<glm::vec3(const glm::vec3&)> flowAt;
         };
         void setWaterHooks(WaterHooks hooks) { m_water = std::move(hooks); }
@@ -1064,7 +1063,6 @@ namespace Scene {
         bool      m_kinGrounded = false;
         // Water/wading state (Phase 4.3)
         WaterHooks m_water;
-        float m_wadeAccum      = 0.0f;   // stride distance accumulator for footstep rings
         bool  m_wasInWater     = false;  // previous-frame wetness (entry-splash edge detect)
         float m_splashCooldown = 0.0f;   // per-entity splash rate limit (seconds)
         // WaterCore 48 (A4): the wading law's state (core/water/WadeDrag.h)
