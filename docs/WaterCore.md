@@ -13801,7 +13801,7 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
 - **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
   than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
 
-## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 DONE (the old water deleted); the owner's clip next
+## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4 BUILT, not signed off (the owner's clip: `w4_clip.mp4`); next D9 bounded, then W5
 
 **What W4 is (§27, §0a):** generated lakes, rivers and sea are the record and the new core simulates and draws them - DONE by §51
 (record tiles near, the skin far, 51.4c / 51.12-51.14). What is NOT done: **the old CA water is still in the engine, and five readers
@@ -13945,6 +13945,14 @@ sea plane, a still) and the water unit tests; the full suites once at the end.
   active-set sweep, the table fill, the window shift) go with it.
 - **W4.3 suites (after d):** unit 4,430 passed (4,528 - 99 deleted + 1 moved), 20 skipped, the same 3 known failures; water
   integration 87 / 89, the known two. `CLAUDE.md`'s water-runtime paragraph rewritten (it described the deleted manager).
+
+**52.4 W4's clip (2026-11-14) - for the owner: `docs/evidence/water_core_m4/w4_clip.mp4`** (`tools/water_w4_clip.py`; 30 s, captioned
+live; WaterBench_RiverCarve, the engine's defaults, `water.enabled` off as shipped). The 51.13 GENERATED lake (the record, no
+volume, no old water): three 1/3 m wood debris blocks dropped on it float (each dips to 89.55 and rests at 89.92, the surface 90.0 -
+`w4_clip.json`); the camera sinks from 3 m above to 1.5 m under (the camera's reader: 1.50 m under, the underwater look drawn) and
+rises back out, the wood still afloat. **Looked at (frames at 2 / 7 / 14 / 19 / 28 s).** Seen, logged, left (already in the plan):
+the underwater view is a near-opaque pale fog; grass grows on the lake bed. **New, one line, left:** the frame rate reads ~171 fps
+under the water against 17-24 above (likely the fog hiding the scene; not measured).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
