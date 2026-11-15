@@ -1,0 +1,1 @@
+{"A": [["POST", "/api/debug/voxfound_preview", {"shadow_mdi": false}], ["POST", "/api/debug/voxfound_preview", {"shadow_dir_cull": false, "shadow_closed": false}]], "B": [["POST", "/api/debug/voxfound_preview", {"shadow_mdi": true}], ["POST", "/api/debug/voxfound_preview", {"shadow_dir_cull": true, "shadow_closed": true}]]}

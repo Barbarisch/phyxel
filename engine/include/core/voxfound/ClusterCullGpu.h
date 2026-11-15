@@ -60,11 +60,13 @@ public:
     /// Records the cull dispatch for frame `slot` and a barrier to the indirect + vertex stages.
     /// F2.15: `dirCam` (camera, same frame as the boxes) turns on the direction test (Mesher.h
     /// faceGroupMayFaceCamera) for clusters that have a direction.
+    /// F2.15b: with `dirIsLight`, `dirCam` is the unit vector TOWARDS a directional light instead, and a direction
+    /// group is kept iff its faces face the light (Mesher.h faceDirFacesLight).
     void record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 planes[6], const LodCull* lod = nullptr,
-                const glm::vec3* dirCam = nullptr);
+                const glm::vec3* dirCam = nullptr, bool dirIsLight = false);
     /// Runs record() on its own command buffer and waits (tests).
     bool cullNow(VkQueue queue, uint32_t queueFamily, uint32_t slot, const glm::vec4 planes[6], std::string* err,
-                 const LodCull* lod = nullptr, const glm::vec3* dirCam = nullptr);
+                 const LodCull* lod = nullptr, const glm::vec3* dirCam = nullptr, bool dirIsLight = false);
 
     uint32_t clusterCount() const { return m_count; }
     VkBuffer commands(uint32_t slot) const { return slot < m_commands.size() ? m_commands[slot].buf : VK_NULL_HANDLE; }

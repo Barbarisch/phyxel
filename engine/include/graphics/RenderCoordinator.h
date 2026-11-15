@@ -1580,6 +1580,7 @@ private:
     // F2.12 (§4.6 item 6): shadow-caster culling
     bool           m_voxFoundShadowCull = true;
     bool           m_voxFoundShadowMdi = false;   // measured slower (F2.12): selectable, off
+    glm::vec3      m_voxFoundToLight{0.0f, 1.0f, 0.0f};   // F2.15b: unit vector towards the shadow-casting light
     std::unique_ptr<Core::VoxFound::ClusterCullGpu> m_voxFoundShadowCullGpu;   // slots: frame * 2 + cascade
     bool           m_voxFoundShadowCullFailed = false;
     uint64_t       m_voxFoundShadowCullRevision = UINT64_MAX;

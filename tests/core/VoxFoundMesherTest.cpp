@@ -1134,6 +1134,55 @@ TEST(VoxFoundMesher, DirectionGroupsNeverHideAFaceThatFacesTheCamera) {
     EXPECT_GT(dropped, groups.size() * 40 / 4) << "too few groups dropped";
 }
 
+TEST(VoxFoundMesher, LightFacingFacesAloneGiveTheSameNearestHit) {
+    // F2.15b: random closed content (every exposed face meshed, Outside::Air); rays along random light directions --
+    // the nearest hit over the light-facing faces equals the nearest hit over all faces, ray for ray.
+    std::mt19937 rng(5);
+    VoxelGrid g;
+    g.resize({14, 12, 16});
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    for (uint8_t& v : g.mat) v = u(rng) < 0.3f ? 1 : 0;
+    std::vector<Quad> quads = meshRuns(g, Outside::Air);
+    ASSERT_GT(quads.size(), 100u);
+    auto nearest = [&](glm::vec3 o, glm::vec3 d, bool frontOnly, glm::vec3 toLight) {
+        float best = std::numeric_limits<float>::max();
+        for (const Quad& q : quads) {
+            const int dirIndex = int(q.axis) * 2 + (q.dir > 0 ? 1 : 0);
+            if (frontOnly && !faceDirFacesLight(dirIndex, toLight)) continue;
+            glm::ivec3 lo, hi;
+            faceBox(packFace(q), lo, hi);
+            const int a = q.axis;
+            if (std::abs(d[a]) < 1e-6f) continue;
+            const float t = (float(lo[a]) - o[a]) / d[a];
+            if (t <= 0.0f || t >= best) continue;
+            const glm::vec3 p = o + t * d;
+            const int ua = (a + 1) % 3, va = (a + 2) % 3;
+            if (p[ua] >= lo[ua] && p[ua] <= hi[ua] && p[va] >= lo[va] && p[va] <= hi[va]) best = t;
+        }
+        return best;
+    };
+    size_t rays = 0, hits = 0, differ = 0;
+    std::uniform_real_distribution<float> s(-1.0f, 1.0f);
+    for (int l = 0; l < 12; ++l) {
+        glm::vec3 toLight(s(rng), std::abs(s(rng)) + 0.2f, s(rng));
+        toLight = glm::normalize(toLight);
+        for (int r = 0; r < 300; ++r) {
+            // start well outside on the light's side, aimed through the grid (irrational-ish offsets avoid edges)
+            const glm::vec3 target(0.37f + u(rng) * 13.2f, 0.41f + u(rng) * 11.1f, 0.29f + u(rng) * 15.3f);
+            const glm::vec3 o = target + toLight * 60.0f, d = -toLight;
+            const float all = nearest(o, d, false, toLight), front = nearest(o, d, true, toLight);
+            ++rays;
+            hits += all < std::numeric_limits<float>::max();
+            differ += std::abs(all - front) > 1e-3f;
+        }
+    }
+    std::printf("[shadow dir] %zu rays, %zu hit, %zu differ\n", rays, hits, differ);
+    EXPECT_GT(hits, rays / 2);
+    EXPECT_EQ(differ, 0u);
+    EXPECT_TRUE(faceDirFacesLight(3, glm::vec3(0, 1, 0)));    // +y faces an overhead sun
+    EXPECT_FALSE(faceDirFacesLight(2, glm::vec3(0, 1, 0)));   // -y does not
+}
+
 TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {
     // cost inputs for item 7 (not a gate): the §9a forest spot, faces and solid volume per level
     const std::string root = repoRoot();

@@ -60,5 +60,12 @@ void main() {
         const float cam = pc.lodCam[axis];
         vis = (dir & 1) != 0 ? cam > c.lo[axis] - 0.01 : cam < c.hi[axis] + 0.01;
     }
+    // F2.15b: a directional light (lodCam.xyz = unit vector TOWARDS it): a group casts only if its faces face the
+    // light (Mesher.h faceDirFacesLight) -- for a closed surface the nearest face along a light ray always does
+    if (vis && (pc.lod & 0x400u) != 0u && dirBits != 0u) {
+        const int dir = int(dirBits) - 1, axis = dir / 2;
+        const float n = (dir & 1) != 0 ? pc.lodCam[axis] : -pc.lodCam[axis];
+        vis = n > -1e-4;
+    }
     commands[i * 5u + 1u] = vis ? floatBitsToUint(c.hi.w) : 0u;
 }

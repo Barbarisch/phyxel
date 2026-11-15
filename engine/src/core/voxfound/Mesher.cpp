@@ -466,6 +466,12 @@ bool faceGroupMayFaceCamera(int dirIndex, glm::vec3 lo, glm::vec3 hi, glm::vec3 
     return (dirIndex & 1) ? cam[axis] > lo[axis] - margin : cam[axis] < hi[axis] + margin;
 }
 
+bool faceDirFacesLight(int dirIndex, glm::vec3 toLight) {
+    if (dirIndex < 0) return true;
+    const float n = (dirIndex & 1) ? toLight[dirIndex / 2] : -toLight[dirIndex / 2];   // dot(normal, toLight)
+    return n > -1e-4f;
+}
+
 bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi) {
     for (int i = 0; i < 6; ++i) {
         const glm::vec3 n(planes[i]);

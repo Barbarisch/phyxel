@@ -228,7 +228,7 @@ bool ClusterCullGpu::readCommands(VkQueue queue, uint32_t family, uint32_t slot,
 }
 
 void ClusterCullGpu::record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 planes[6], const LodCull* lod,
-                            const glm::vec3* dirCam) {
+                            const glm::vec3* dirCam, bool dirIsLight) {
     if (!initialized() || m_count == 0 || slot >= m_slots || !m_pipe) return;
     // No barrier BEFORE the dispatch: this slot's commands were last read by the frame that used this slot before, and
     // the CPU waited for that frame's fence before recording this one. (A first version had an indirect-read ->
@@ -243,7 +243,7 @@ void ClusterCullGpu::record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 
     }
     if (dirCam) {   // F2.15
         pc.lodCam = glm::vec4(*dirCam, pc.lodCam.w);
-        pc.lod |= 0x200u;
+        pc.lod |= dirIsLight ? 0x400u : 0x200u;   // F2.15b: bit 10 = the light test
     }
     m_pipe->bind(cmd, slot);
     m_pipe->pushConstants(cmd, &pc, sizeof(pc));
@@ -257,7 +257,7 @@ void ClusterCullGpu::record(VkCommandBuffer cmd, uint32_t slot, const glm::vec4 
 }
 
 bool ClusterCullGpu::cullNow(VkQueue queue, uint32_t family, uint32_t slot, const glm::vec4 planes[6], std::string* err,
-                             const LodCull* lod, const glm::vec3* dirCam) {
+                             const LodCull* lod, const glm::vec3* dirCam, bool dirIsLight) {
     VkCommandPoolCreateInfo pci{};
     pci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     pci.queueFamilyIndex = family;
@@ -278,7 +278,7 @@ bool ClusterCullGpu::cullNow(VkQueue queue, uint32_t family, uint32_t slot, cons
     bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(cmd, &bi);
-    record(cmd, slot, planes, lod, dirCam);
+    record(cmd, slot, planes, lod, dirCam, dirIsLight);
     VkMemoryBarrier mb{};
     mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;

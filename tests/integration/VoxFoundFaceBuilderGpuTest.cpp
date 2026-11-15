@@ -559,6 +559,19 @@ TEST_F(VoxFoundFaceBuilderGpu, ClusterCullDropsDirectionGroupsLikeTheReference) 
     std::printf("[cluster cull] direction test: %zu of %zu clusters dropped, %zu wrong\n", dropped, cl.size(), bad);
     EXPECT_GT(dropped, cl.size() / 5);
     EXPECT_EQ(bad, 0u);
+    // F2.15b: the light mode -- a group is kept iff its faces face the light (Mesher.h faceDirFacesLight)
+    const glm::vec3 toLight = glm::normalize(glm::vec3(-0.4f, 0.8f, 0.45f));
+    ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 0, planes, &err, nullptr, &toLight, true)) << err;
+    ASSERT_TRUE(cull.readCommands(queue, queueFamilyIndex, 0, cmdv, &err)) << err;
+    size_t lightDropped = 0, lightBad = 0;
+    for (size_t i = 0; i < cl.size(); ++i) {
+        const bool want = faceDirFacesLight(cl[i].dir, toLight);
+        lightDropped += !want;
+        if (cmdv[i * 5 + 1] != (want ? cl[i].count : 0u)) ++lightBad;
+    }
+    std::printf("[cluster cull] light test: %zu of %zu clusters dropped, %zu wrong\n", lightDropped, cl.size(), lightBad);
+    EXPECT_GT(lightDropped, cl.size() / 3);
+    EXPECT_EQ(lightBad, 0u);
     // the test off: nothing dropped
     ASSERT_TRUE(cull.cullNow(queue, queueFamilyIndex, 0, planes, &err)) << err;
     ASSERT_TRUE(cull.readCommands(queue, queueFamilyIndex, 0, cmdv, &err)) << err;

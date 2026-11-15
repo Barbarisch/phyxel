@@ -190,6 +190,10 @@ std::vector<FaceCluster> splitByDirection(const std::vector<PackedFace>& faces, 
 /// it only if cam.x > p, and the group's planes lie in [lo.x, hi.x]: so iff cam.x > lo.x - margin (-axis: cam.x <
 /// hi.x + margin). Conservative: a group straddling the camera plane stays. Same test as voxfound_cull.comp.
 bool faceGroupMayFaceCamera(int dirIndex, glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float margin = 0.01f);
+/// F2.15b: for a directional light (toLight = unit vector towards it) a face direction casts only if its normal faces
+/// the light: dot(normal, toLight) > -1e-4. For a closed surface the nearest face along any light ray is such a face,
+/// so the shadow map is unchanged. Same test as voxfound_cull.comp's light mode.
+bool faceDirFacesLight(int dirIndex, glm::vec3 toLight);
 /// The cull pass's test, CPU reference: is the box [lo, hi] (metres) on the inner side of all six planes?
 /// planes[i] = (n, d), inside where dot(n, p) + d >= 0 (the p-vertex test: conservative, never drops a visible box).
 bool boxInFrustum(const glm::vec4 planes[6], glm::vec3 lo, glm::vec3 hi);

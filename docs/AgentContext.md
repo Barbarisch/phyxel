@@ -472,8 +472,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F2.15 (2026-11-14): item 8, face direction culling, main view: per-(cell, direction) clusters over the same face
       buffer + a cull-pass test (faceGroupMayFaceCamera); {"dir_clusters"} / {"dir_cull"} default ON. 0 px,
       -0.30..-0.45 ms at 4/5 poses; commands x4.6 cost +0.68 at forest_floor_open (neutral there).
-      NEXT (the plan's F2 list): item 8's rest (shadow casters by light direction; fewer commands), then item 9
-      (incremental rebuild), 10 (face pool), T-junctions.
+      F2.15b (2026-11-14): shadow casters by light direction ({"shadow_dir_cull"} with shadow_mdi; OFF): -0.85..-1.4 ms
+      but light LEAKS where leaves hide a trunk face (casters are not closed surfaces); closed casters
+      ({"closed_casters":true} build, {"shadow_closed"}) fix it but x2.31 faces, +1-2 ms. Cheaper closure owed.
+      NEXT (the plan's F2 list): item 8's rest (a cheaper caster closure; fewer commands), then item 9 (incremental
+      rebuild), 10 (face pool), T-junctions.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

@@ -13452,12 +13452,23 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         }
         // {"dir_clusters":bool, "dir_cull":bool}: F2.15 (§4.6 item 8) -- the multidraw uses the per-direction clusters,
         // and the cull pass drops direction groups that cannot face the camera (both ON by default, F2.15)
-        if ((cmd.params.contains("dir_clusters") || cmd.params.contains("dir_cull")) && !cmd.params.contains("type") &&
-            !cmd.params.contains("region")) {
+        // {"shadow_dir_cull":bool}: F2.15b -- the shadow multidraw (shadow_mdi) drops direction groups facing away from
+        // the light
+        if ((cmd.params.contains("dir_clusters") || cmd.params.contains("dir_cull") ||
+             cmd.params.contains("shadow_dir_cull") || cmd.params.contains("shadow_closed")) &&
+            !cmd.params.contains("type") && !cmd.params.contains("region")) {
             if (cmd.params.contains("dir_clusters")) voxFoundPreview.dirClusters = cmd.params.value("dir_clusters", false);
             if (cmd.params.contains("dir_cull")) voxFoundPreview.dirCull = cmd.params.value("dir_cull", false);
+            if (cmd.params.contains("shadow_dir_cull"))
+                voxFoundPreview.shadowDirCull = cmd.params.value("shadow_dir_cull", false);
+            // {"shadow_closed":bool}: F2.15b -- the shadow multidraw draws the closed casters (leaf voxels as air)
+            if (cmd.params.contains("shadow_closed"))
+                voxFoundPreview.shadowClosed = cmd.params.value("shadow_closed", true);
             ++voxFoundPreview.revision;   // re-upload the cluster table
             response = {{"dir_clusters", voxFoundPreview.dirClusters}, {"dir_cull", voxFoundPreview.dirCull},
+                        {"shadow_dir_cull", voxFoundPreview.shadowDirCull},
+                        {"shadow_closed", voxFoundPreview.shadowClosed},
+                        {"caster_faces", voxFoundPreview.casterFaces.size()},
                         {"clusters", voxFoundPreview.clusters.size()}, {"clusters_dir", voxFoundPreview.clustersDir.size()},
                         {"lod_clusters", voxFoundPreview.lodClusters.size()},
                         {"lod_clusters_dir", voxFoundPreview.lodClustersDir.size()}};
@@ -13747,6 +13758,11 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
 
     std::vector<PackedFace> sprigRecs;
     std::vector<PreviewChunk> chunks;
+    // F2.15b: {"closed_casters":true} builds closed shadow casters (each chunk meshed with its leaf voxels as air) for
+    // the shadow light test; off by default -- measured: x2.31 caster faces, slower than today's casters
+    const bool closedCasters = cmd.params.value("closed_casters", false);
+    std::vector<PackedFace> casterFaces;          // F2.15b: closed casters (leaf voxels as air), per chunk
+    std::vector<PreviewCluster> casterClusters;   // F2.15b: their direction clusters
     // F2.11 measured (VoxelFoundationPlan.md): 1-block clusters (26k indirect commands) cost +0.2-1.0 ms whole frame,
     // 2 blocks +0.0-0.26, 4 blocks neutral -> 4 is the default; 1 stays available to measure.
     const int clusterBlocks = std::clamp(cmd.params.value("cluster_blocks", 4), 1, 32);
@@ -13970,6 +13986,30 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 }
             }
         }
+        if (closedCasters && leafCards && rc.area) {   // F2.15b: closed casters -- leaf voxels as air (opt-in)
+            VoxelGrid aSolid, aLeaf;
+            lodSplitCards(*rc.area, sp.cards, aSolid, aLeaf);
+            const glm::ivec3 off(rc.areaMarginVoxels), inner(kChunkM * kVoxelsPerM);
+            const VoxelGrid cg = subGrid(aSolid, off, inner);
+            const Neighbours cb = neighboursOf(aSolid, off, inner, Outside::Air);
+            std::vector<PackedFace> cf;
+            if (!voxFoundBuilder->build(cg, Edges(cb), cf, &err, nullptr)) return;
+            gpuMs += voxFoundBuilder->lastGpuMs();
+            const uint32_t base = uint32_t(casterFaces.size());
+            const std::vector<FaceCluster> cells = clusterFaces(cf, clusterBlocks);
+            for (const FaceCluster& c : splitByDirection(cf, cells)) {
+                PreviewCluster pcl;
+                const glm::vec3 b = glm::vec3((rc.chunk - lo) * kChunkM);
+                pcl.lo = b + glm::vec3(c.lo) / float(kVoxelsPerM);
+                pcl.hi = b + glm::vec3(c.hi) / float(kVoxelsPerM);
+                pcl.firstFace = base + c.first;
+                pcl.count = c.count;
+                pcl.chunk = uint32_t(chunks.size());
+                pcl.dir = c.dir;
+                casterClusters.push_back(pcl);
+            }
+            casterFaces.insert(casterFaces.end(), cf.begin(), cf.end());
+        }
         pc.firstFace = levels[0].firstFace.back();
         pc.faceCount = levels[0].faceCount.back();
         pc.sprigCount = uint32_t(sprigRecs.size()) - pc.firstSprig;
@@ -14042,6 +14082,8 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         voxFoundPreview.sprigs[i] = {(sprigRecs[i].a & 0xFFFFFFu) | (15u << 24), m < leafTex.size() ? leafTex[m] : 0u};
     }
     voxFoundPreview.chunks = std::move(chunks);
+    voxFoundPreview.casterFaces = std::move(casterFaces);         // F2.15b (selectLevel / selectLod append them)
+    voxFoundPreview.casterClustersDir = std::move(casterClusters);
     voxFoundPreview.levels = std::move(sets[0]);
     voxFoundPreview.levelsAlt.clear();   // F2.14g A/B
     if (nVariants > 1) voxFoundPreview.levelsAlt = std::move(sets[1]);
@@ -14091,6 +14133,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 {"solid_voxels", solid},
                 {"faces", voxFoundPreview.faces.size()}, {"sprigs", voxFoundPreview.sprigs.size()},
                 {"face_bytes", voxFoundPreview.faces.size() * sizeof(PackedFace)},
+                {"caster_faces", voxFoundPreview.casterFaces.size()},
                 {"sprig_bytes", voxFoundPreview.sprigs.size() * sizeof(PreviewSprig)},
                 {"face_tex_table_bytes", kFaceTexWords * sizeof(uint32_t)},
                 {"gpu_face_build_ms_sum", gpuMs}, {"generate_ms", genMs}, {"build_wall_ms", buildMs},

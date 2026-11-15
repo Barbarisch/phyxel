@@ -1,0 +1,77 @@
+{
+ "overview_south": {
+  "faces_cast_M": [
+   480349,
+   250031
+  ],
+  "faces_cast_D": [
+   300942,
+   158853
+  ],
+  "A_vs_M_px": 0,
+  "M_vs_D_px": 640,
+  "M_vs_D_px_gt8": 28,
+  "control_D_px": 0,
+  "preview_px": 596250
+ },
+ "top_down": {
+  "faces_cast_M": [
+   480349,
+   448157
+  ],
+  "faces_cast_D": [
+   300942,
+   273850
+  ],
+  "A_vs_M_px": 0,
+  "M_vs_D_px": 137,
+  "M_vs_D_px_gt8": 23,
+  "control_D_px": 0,
+  "preview_px": 596250
+ },
+ "forest_floor_open": {
+  "faces_cast_M": [
+   480349,
+   480349
+  ],
+  "faces_cast_D": [
+   300942,
+   300942
+  ],
+  "A_vs_M_px": 0,
+  "M_vs_D_px": 2417,
+  "M_vs_D_px_gt8": 261,
+  "control_D_px": 0,
+  "preview_px": 596250
+ },
+ "east_low": {
+  "faces_cast_M": [
+   480349,
+   467955
+  ],
+  "faces_cast_D": [
+   300942,
+   291340
+  ],
+  "A_vs_M_px": 0,
+  "M_vs_D_px": 84,
+  "M_vs_D_px_gt8": 3,
+  "control_D_px": 0,
+  "preview_px": 596250
+ },
+ "canopy_close": {
+  "faces_cast_M": [
+   480349,
+   480349
+  ],
+  "faces_cast_D": [
+   300942,
+   300942
+  ],
+  "A_vs_M_px": 0,
+  "M_vs_D_px": 676,
+  "M_vs_D_px_gt8": 225,
+  "control_D_px": 0,
+  "preview_px": 596250
+ }
+}

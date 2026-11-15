@@ -2838,11 +2838,16 @@ void RenderCoordinator::recordVoxFoundShadowCull(VkCommandBuffer cmd, int cascad
             return;
         }
     }
+    // F2.15b: the per-direction clusters when the light test is on -- of the CLOSED casters (appended to the face
+    // buffer at casterBase) when built and asked for
+    const bool closed = pv.shadowDirCull && pv.shadowClosed && !pv.casterClustersDir.empty();
+    const auto& shadowClusters = closed ? pv.casterClustersDir : pv.shadowDirCull ? pv.clustersDir : pv.clusters;
+    const uint32_t firstOffset = closed ? pv.casterBase : 0u;
     if (m_voxFoundShadowCullRevision != pv.revision) {
-        std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(pv.clusters.size());
+        std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(shadowClusters.size());
         for (size_t i = 0; i < cl.size(); ++i) {
-            const auto& c = pv.clusters[i];
-            cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk};
+            const auto& c = shadowClusters[i];
+            cl[i] = {c.lo, c.hi, c.firstFace + firstOffset, c.count, c.chunk, 0u, c.dir};
         }
         std::string err;
         if (!m_voxFoundShadowCullGpu->upload(cl, 36u, uint32_t(pv.chunks.size()), vulkanDevice->getGraphicsQueue(),
@@ -2869,7 +2874,7 @@ void RenderCoordinator::recordVoxFoundShadowCull(VkCommandBuffer cmd, int cascad
         }
         auto* o = static_cast<glm::vec4*>(mapped);
         for (size_t i = 0; i < cl.size(); ++i)
-            o[i] = glm::vec4(glm::vec3(glm::round(pv.chunks[pv.clusters[i].chunk].originMetres - pv.anchorMetres)), 0.0f);
+            o[i] = glm::vec4(glm::vec3(glm::round(pv.chunks[shadowClusters[i].chunk].originMetres - pv.anchorMetres)), 0.0f);
         vkUnmapMemory(vulkanDevice->getDevice(), m_voxFoundShadowOriginMemory);
         m_voxFoundShadowOriginBytes = bytes;
         m_voxFoundShadowCullRevision = pv.revision;
@@ -2887,7 +2892,7 @@ void RenderCoordinator::recordVoxFoundShadowCull(VkCommandBuffer cmd, int cascad
     glm::vec4 planes[6];
     Core::VoxFound::clipPlanesZeroToOne(lightSpaceMatrix,
                                         glm::vec3(pv.anchorMetres - glm::dvec3(camera->getPosition())), planes);
-    m_voxFoundShadowCullGpu->record(cmd, slot, planes);
+    m_voxFoundShadowCullGpu->record(cmd, slot, planes, nullptr, pv.shadowDirCull ? &m_voxFoundToLight : nullptr, true);
     m_voxFoundShadowCullRecorded[cascade] = true;
 }
 
@@ -4677,6 +4682,7 @@ void RenderCoordinator::drawFrame() {
         const ShadowFit fit = fitShadowVolume(
             kMaxShadowDist, float(shadowMap->getWidth() > 0 ? shadowMap->getWidth() : 8192),
             camWorld, sunDirection);
+        m_voxFoundToLight = -glm::normalize(sunDirection);   // F2.15b: sunDirection is the way the light TRAVELS
         lightSpaceMatrix = fit.lightSpaceMatrix;
         shadowCullCenter = fit.cullCenterAbs;
         shadowCullRadius = fit.cullRadius;

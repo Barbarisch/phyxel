@@ -89,6 +89,22 @@ struct Preview {
     std::vector<PreviewCluster> clustersDir, lodClustersDir;
     bool dirClusters = true;
     bool dirCull = true;
+    /// F2.15b: the per-cluster shadow multidraw (shadow_mdi) uses the per-direction clusters and drops the groups that
+    /// face away from the light. OFF: with the main faces it saves 0.85-1.4 ms but leaks light where a trunk face is
+    /// hidden by a leaf voxel; with the closed casters it leaks nothing but costs +0.95..+1.94 ms (VoxelFoundationPlan).
+    bool shadowDirCull = false;
+    /// F2.15b: CLOSED casters -- each chunk's faces meshed with its leaf (card) voxels as air, so no face is missing
+    /// next to a leaf (cards hide their neighbours in the main mesh) and the light test leaks nothing. Appended to
+    /// `faces` at casterBase by selectLevel / selectLod; casterClustersDir index casterFaces (add casterBase).
+    /// shadowClosed = the shadow multidraw draws them (else the main faces).
+    std::vector<PackedFace> casterFaces;
+    std::vector<PreviewCluster> casterClustersDir;
+    uint32_t casterBase = 0;
+    bool shadowClosed = true;
+    void appendCasters() {
+        casterBase = uint32_t(faces.size());
+        faces.insert(faces.end(), casterFaces.begin(), casterFaces.end());
+    }
     int drawLevel = 0;
     /// Draws level k for the whole region: copies its faces, ranges and clusters into the drawn fields and bumps
     /// the revision (the renderer re-uploads). Returns false if level k was not built.
@@ -96,6 +112,7 @@ struct Preview {
         if (k < 0 || size_t(k) >= levels.size() || levels[size_t(k)].firstFace.size() != chunks.size()) return false;
         const Level& L = levels[size_t(k)];
         faces = L.faces;
+        appendCasters();   // F2.15b
         clusters = L.clusters;
         clustersDir = L.clustersDir;
         for (size_t i = 0; i < chunks.size(); ++i) {
@@ -160,6 +177,7 @@ struct Preview {
                     (d ? lodClustersDir : lodClusters).push_back(c);
                 }
         }
+        appendCasters();   // F2.15b
         clusters = levels[0].clusters;
         clustersDir = levels[0].clustersDir;
         for (size_t i = 0; i < chunks.size(); ++i) {

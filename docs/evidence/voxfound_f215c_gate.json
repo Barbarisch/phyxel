@@ -1,0 +1,127 @@
+{
+ "overview_south": {
+  "faces_cast_M": [
+   480349,
+   250031
+  ],
+  "faces_cast_D": [
+   300942,
+   158853
+  ],
+  "faces_cast_C": [
+   621241,
+   322195
+  ],
+  "D_vs_M": {
+   "brighter_gt8": 27,
+   "darker_gt8": 1,
+   "any": 640
+  },
+  "C_vs_M": {
+   "brighter_gt8": 18,
+   "darker_gt8": 148,
+   "any": 1009
+  },
+  "control_C_px": 0
+ },
+ "top_down": {
+  "faces_cast_M": [
+   480349,
+   448157
+  ],
+  "faces_cast_D": [
+   300942,
+   273850
+  ],
+  "faces_cast_C": [
+   621241,
+   580020
+  ],
+  "D_vs_M": {
+   "brighter_gt8": 22,
+   "darker_gt8": 1,
+   "any": 137
+  },
+  "C_vs_M": {
+   "brighter_gt8": 4,
+   "darker_gt8": 190,
+   "any": 703
+  },
+  "control_C_px": 0
+ },
+ "forest_floor_open": {
+  "faces_cast_M": [
+   480349,
+   480349
+  ],
+  "faces_cast_D": [
+   300942,
+   300942
+  ],
+  "faces_cast_C": [
+   621241,
+   621241
+  ],
+  "D_vs_M": {
+   "brighter_gt8": 245,
+   "darker_gt8": 16,
+   "any": 2417
+  },
+  "C_vs_M": {
+   "brighter_gt8": 216,
+   "darker_gt8": 110,
+   "any": 2559
+  },
+  "control_C_px": 0
+ },
+ "east_low": {
+  "faces_cast_M": [
+   480349,
+   467955
+  ],
+  "faces_cast_D": [
+   300942,
+   291340
+  ],
+  "faces_cast_C": [
+   621241,
+   605404
+  ],
+  "D_vs_M": {
+   "brighter_gt8": 2,
+   "darker_gt8": 1,
+   "any": 84
+  },
+  "C_vs_M": {
+   "brighter_gt8": 3,
+   "darker_gt8": 185,
+   "any": 579
+  },
+  "control_C_px": 0
+ },
+ "canopy_close": {
+  "faces_cast_M": [
+   480349,
+   480349
+  ],
+  "faces_cast_D": [
+   300942,
+   300942
+  ],
+  "faces_cast_C": [
+   621241,
+   621241
+  ],
+  "D_vs_M": {
+   "brighter_gt8": 218,
+   "darker_gt8": 7,
+   "any": 676
+  },
+  "C_vs_M": {
+   "brighter_gt8": 12,
+   "darker_gt8": 149,
+   "any": 546
+  },
+  "control_C_px": 0
+ }
+}
