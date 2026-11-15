@@ -1259,6 +1259,7 @@ struct WallStats {
     int wetNotInGap = 0, dryInGap = 0, wet = 0;
     int crossings = 0, ungated = 0, gateOffRing = 0, gateNarrow = 0;
     int approachCells = 0, onApproach = 0, gateInGap = 0;
+    int outerInLot = 0;                   // the audit of M5d-2: a cell of the band's OUTER course (8-adjacent to the ring, not inside) in a lot's rect
     int roadCells = 0, roadUngated = 0;   // M5d-1b: ring cells on the WORLD road; of them, with no gate within half its width   // the audit of M5d-1, condition 4: ring vs the lots' door approaches; a gate in a water gap
     long enclosed = 0;
 };
@@ -1348,6 +1349,14 @@ WallStats wallStats(const SettlementMap& m, const SettlementMapInput& in) {
             if (!gated) ++w.ungated;
         }
     }
+    {
+        std::set<std::pair<int, int>> outer;
+        for (const auto& c : ring)
+            for (int dz = -1; dz <= 1; ++dz) for (int dx = -1; dx <= 1; ++dx)
+                if (!onRing.count({c.x + dx, c.z + dz}) && !inside(c.x + dx, c.z + dz)) outer.insert({c.x + dx, c.z + dz});
+        for (const auto& o : outer)
+            for (const auto& l : m.lots) if (o.first >= l.rect.x && o.first < l.rect.x1() && o.second >= l.rect.z && o.second < l.rect.z1()) { ++w.outerInLot; break; }
+    }
     if (in.roadAt)
         for (const auto& c : ring) {
             if (in.roadAt(c.x, c.z) <= 0) continue;
@@ -1384,6 +1393,7 @@ void expectWallSound(const char* what, const WallStats& w) {
     EXPECT_EQ(w.ungated, 0) << what; EXPECT_EQ(w.gateOffRing, 0) << what; EXPECT_EQ(w.gateNarrow, 0) << what;
     EXPECT_EQ(w.onApproach, 0) << what << ": the ring stands on a lot's door approach";
     EXPECT_EQ(w.gateInGap, 0) << what << ": a gate recorded inside a water gap";
+    EXPECT_EQ(w.outerInLot, 0) << what << ": the band's outer course stands in a lot's rect";
     EXPECT_EQ(w.roadUngated, 0) << what << ": the ring stands on the world road with no gate there - the arriving road is walled in";
     EXPECT_GT(w.crossings, 0) << what << ": no way crosses the wall - the town is sealed or the wall is not round it";
 }

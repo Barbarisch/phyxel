@@ -1560,13 +1560,14 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
     ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
     const nlohmann::json wallRec = out["paths"].value("town_wall", nlohmann::json::object());
     const nlohmann::json walk = out["paths"].value("walkability", nlohmann::json::object());
-    int leave = 0, leaveBlocked = 0;
+    int leave = 0, leaveBlocked = 0, leaveHopOnly = 0;
     for (const auto& r : walk.value("routes", nlohmann::json::array())) {
         if (!r.value("leave", false)) continue;
         ++leave;
-        if (!r.value("walkable", false)) ++leaveBlocked;
+        if (r.value("hop_walkable", false)) ++leaveHopOnly;        // the audit of M5d-2: passable only by a one-cube hop - NOT walkable on foot
+        else if (!r.value("walkable", false)) ++leaveBlocked;
         std::printf("[ M5d-2a ] %s (from %s to %s%s): %s%s\n", r.value("label", std::string("?")).c_str(), r.value("from", nlohmann::json()).dump().c_str(), r.value("to", nlohmann::json()).dump().c_str(),
-                    r.value("one_way", false) ? ", ONE-WAY" : "", r.value("walkable", false) ? "walkable" : "BLOCKED",
+                    r.value("one_way", false) ? ", ONE-WAY" : "", r.value("walkable", false) ? "walkable ON FOOT" : r.value("hop_walkable", false) ? "HOP-ONLY (not on foot)" : "BLOCKED",
                     r.value("walkable", false) ? "" : (" pinch " + r.value("pinch_from", nlohmann::json()).dump() + " -> " + r.value("pinch_to", nlohmann::json()).dump()).c_str());
     }
     {   // chain 265: what stands at each blocked leave route's pinch
@@ -1628,7 +1629,11 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
     EXPECT_EQ(gateBlocked, 0) << "a gate of the wall does not pass the world road";
     // (b) the road out of the settlement, walked with the ROAD's walker (D65 PROPOSED, chain 273: a world road is
     // whole cubes, built for a one-cube step-up; the settlement's 4-micro walker does not climb it by contract)
-    EXPECT_EQ(leaveBlocked, 0) << "the walled city cannot be left by its road";
+    EXPECT_EQ(leaveBlocked, 0) << "the walled city cannot be left by its road, on foot or by hop";
+    // Reported, NOT asserted: a road that passes only by the one-cube hop. A resident on foot cannot leave by it. That
+    // is the world road's own surface (whole cubes, chain 273) and an owner decision (D65), not this increment's to hide.
+    std::printf("[ M5d-2b ] roads out: %d walked, %d on foot, %d HOP-ONLY (a resident on foot cannot leave by them), %d blocked\n", leave, leave - leaveHopOnly - leaveBlocked, leaveHopOnly, leaveBlocked);
+    EXPECT_EQ(walk.value("leave_hop_only", -1), leaveHopOnly) << "the record's hop-only count is not the routes'";
     EXPECT_EQ(out.value("gate", std::string()), "passed");
     // M5d-2b (added AFTER the red runs of chains 264-266, for the green - stated in pm_chain252.txt): the wall built
     // is the MAP's, and it IS a wall - a walker cannot cross it away from its gates.
@@ -1662,16 +1667,18 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
             if (a.x != b.x && a.z != b.z) continue;   // a corner: take a straight stretch
             const int px = (a.z == b.z) ? 0 : 1, pz = (a.z == b.z) ? 1 : 0;   // across the wall
             bool clear = true;
-            for (int k = 2; k <= 5; ++k) if (ringSet.count({c.x + px * k, c.z + pz * k}) || ringSet.count({c.x - px * k, c.z - pz * k})) clear = false;
+            for (int k = 2; k <= 4; ++k) if (ringSet.count({c.x + px * k, c.z + pz * k}) || ringSet.count({c.x - px * k, c.z - pz * k})) clear = false;
             if (!clear) continue;
-            const int f1 = feetAt(c.x + px * 5, c.z + pz * 5), f2 = feetAt(c.x - px * 5, c.z - pz * 5);
+            // the audit of M5d-2: the SAME geometry as the gate routes (3 cells each side of the ring cell, a box of 8
+            // cells round the ends) - so the gate routes above, walked through, are this control's positive control
+            const int f1 = feetAt(c.x + px * 3, c.z + pz * 3), f2 = feetAt(c.x - px * 3, c.z - pz * 3);
             if (f1 == INT_MIN || f2 == INT_MIN) { ++unseated; continue; }
             Core::WalkRoute r;
             r.label = "across the wall at ring cell " + std::to_string(c.x) + "," + std::to_string(c.z);
-            r.from = glm::ivec3((sm.originX + c.x + px * 5) * 9 + 4, f1, (sm.originZ + c.z + pz * 5) * 9 + 4);
-            r.to = glm::ivec3((sm.originX + c.x - px * 5) * 9 + 4, f2, (sm.originZ + c.z - pz * 5) * 9 + 4);
-            const glm::ivec3 lo(std::min(r.from.x, r.to.x) - 6 * 9, std::min(r.from.y, r.to.y) - 27, std::min(r.from.z, r.to.z) - 6 * 9);
-            const glm::ivec3 hi(std::max(r.from.x, r.to.x) + 6 * 9, std::max(r.from.y, r.to.y) + 36, std::max(r.from.z, r.to.z) + 6 * 9);
+            r.from = glm::ivec3((sm.originX + c.x + px * 3) * 9 + 4, f1, (sm.originZ + c.z + pz * 3) * 9 + 4);
+            r.to = glm::ivec3((sm.originX + c.x - px * 3) * 9 + 4, f2, (sm.originZ + c.z - pz * 3) * 9 + 4);
+            const glm::ivec3 lo(std::min(r.from.x, r.to.x) - 8 * 9, std::min(r.from.y, r.to.y) - 27, std::min(r.from.z, r.to.z) - 8 * 9);
+            const glm::ivec3 hi(std::max(r.from.x, r.to.x) + 8 * 9, std::max(r.from.y, r.to.y) + 36, std::max(r.from.z, r.to.z) + 8 * 9);
             const auto rep = Core::checkRoutes(occ, box, {r}, lo, hi, false);
             ++checked;
             if (rep.walkable > 0) ++crossed;
@@ -1679,7 +1686,8 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
         }
         std::printf("[ M5d-2b ] the wall as a barrier: %d stretches away from every gate tried, %d walked across, %d with an end that does not seat\n", checked, crossed, unseated);
         EXPECT_GE(checked, 3) << "fewer than three stretches of wall could be tried";
-        EXPECT_EQ(crossed, 0) << "a walker crosses the wall where it has no gate (within a box 6 cells round the two ends)";
+        EXPECT_EQ(crossed, 0) << "a walker crosses the wall where it has no gate (3 cells in to 3 out, a box 8 cells round the ends - the gate routes' geometry)";
+        EXPECT_GT(gateRoutes - gateBlocked, 0) << "no gate route was walked through: the barrier control has no positive control";
     }
 }
 
@@ -1696,8 +1704,13 @@ TEST(SettlementMapLiveSiteTest, TheLegacyCityWallIsStillTheRectangle) {
     std::printf("[ M5d-2b ] the legacy control's wall: %s\n", wallRec.dump().c_str());
     std::printf("[ M5d-2b ] the legacy control: gate %s, %d walkable, %d blocked; leave routes %d, blocked %d, not walked %d\n", out.value("gate", std::string("?")).c_str(),
                 out.value("walkable", -1), out.value("blocked", -1), walk.value("leave_routes", -1), walk.value("leave_blocked", -1), walk.value("leave_unplaced", -1));
-    if (wallRec.value("built", false)) EXPECT_EQ(wallRec.value("source", std::string()), "site_rect");
-    else std::printf("[ M5d-2b ] the legacy control built NO wall: %s\n", wallRec.value("refusal", std::string("?")).c_str());
+    // the audit of M5d-2: asserted, not printed - the rectangle is built, a road out is BLOCKED for both walkers
+    // (by hop too: the wall, not the road's riser), and the build is refused
+    ASSERT_TRUE(wallRec.value("built", false)) << "the legacy control built no wall: " << wallRec.value("refusal", std::string("?"));
+    EXPECT_EQ(wallRec.value("source", std::string()), "site_rect");
+    EXPECT_GE(walk.value("leave_blocked", 0), 1) << "the rectangle seals no road for the hop walker - the control does not show what it is there to show";
+    EXPECT_NE(out.value("gate", std::string()), "passed");
+    std::printf("[ M5d-2b ] the legacy control: hop-only %d\n", walk.value("leave_hop_only", -1));
 }
 
 // O29 (pm_chain273.txt PO29.0): a DIAGNOSTIC, no assertions - the ground under the arriving roads at the town site as

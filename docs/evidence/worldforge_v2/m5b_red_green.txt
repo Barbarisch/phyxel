@@ -1390,3 +1390,43 @@ NOT closed. No audit. The live test is a standing red on the ground at the road'
 273  diagnostic before any build     1 ok / 0 failed  (the east riser is in the GENERATED road: whole-cube surface)
 274  road out on the road's walker   0 ok / 1 failed  (as predicted: roads out 2 / 0 blocked; gates 3 / 1 blocked - the
      north street ends two cubes above the road's cutting; REFUSED on that one route)
+
+=== M5d-2 - solution-auditor read (recorded 2026-11-15 07:40; HEAD 003397de; read-only; the regression chains 278-280 were STOPPED 3 minutes in, by me, because the tree changes for this audit) ===
+RAW VERDICT (the auditor's words, cut for length):
+  VERDICT: PASS WITH CONDITIONS, leaning FAIL on claims 3 and 4 as worded. The map-wall stamp and gate walk on one
+  rig are real. The "walled settlement can be left" claim is not established for walking residents, and the "red"
+  and the legacy control are weaker than stated.
+  1. Red on the shipped output: CONFOUNDED. Chain 266 predates D65 (the leave route used the 4-micro box); chain 273
+     then found a one-cube riser in the generated road, so the 266 block was at least partly the riser. Nothing
+     re-runs the rectangle with the 9-micro walker: "blocked at the wall" is unproven.
+  2. Map wall stamped: REAL for the one rig. A gate that does not seat is counted skipped and refuses the build.
+     The barrier control has no positive control, was never run red, straight stretches only.
+  3. Legacy control: NO EVIDENCE as an assertion - one weak EXPECT, no assertion of refusal or of a blocked leave
+     route; no logged run of it with the 9-micro walker.
+  4. D65: the hop agent of RoadFieldSeamTest is a bridge-deck test; the engine's auto step-up is 4 micro; NPC
+     pathing uses the 4-micro box. The check passes a town whose residents cannot leave on foot at the road's
+     riser. IT READS AS A GOALPOST MOVE. Legitimate: 9 micro for a player who can jump, reported as a SEPARATE
+     number, or the road fixed. With flood bounds of 8 cells the 9-micro walker can also climb any one-cube kerb or
+     terrace between the inner end and the gate.
+  5. Plausible and consistent with the code; a one-rig fix that fits the observed cutting, not a general proof.
+  Final measure: falsifiable for "a box can get from 3 cells inside a gate to 3 outside, and 5 road cells in to 5
+     out"; it does NOT measure "a resident can leave": it would pass a gate onto a riser a walker cannot climb, a
+     gate no door can reach, a tree or fence in the opening off the centre line. The rule changes were each
+     pre-stated; together they fit the measure to one rig, and the last (D65) loosened the bar after the red.
+  BUGS: gate columns not cleared below the lintel - a tree or fence in the opening survives and only the centre
+     line is walked; gateOutcome's message misdescribes wall-gate and leave blocks; a gate on a ring corner (or off
+     the ring) is silently DROPPED in production - not counted, the build not refused; a road with no on-road band
+     cell gives no crossing and no refusal; roadAtWorld captures a raw WorldForgePlan* that can dangle if the plan
+     is rebuilt before the unit runs; the band stamp has no check against lot rects or footprints.
+  CONDITIONS: a positive control for the barrier; the legacy layout red with the 9-micro walker, asserted; the
+     4-micro and 9-micro road-out results reported separately; a dropped gate counted skipped; the gateOutcome
+     wording; worldForgeShared() for the sampler; a scan of band against lot footprints and of gate cells below
+     the lintel.
+MY RESPONSE: the auditor is right on D65 as I applied it - I counted a hop-only route as "walkable". Changed
+  (patch 56): the road out is walked on foot (4 micro) FIRST and by hop (9 micro) only if that fails; a route that
+  passes only by hop is recorded and logged as HOP-ONLY - "a resident on foot cannot leave by this road" - and is
+  counted neither walkable nor blocked; only a route that fails for both refuses the build. The test reports the
+  three numbers separately. Also done: a dropped gate is counted skipped; the message; the shared plan pointer; the
+  legacy control asserts refusal and a blocked leave route; the barrier walks at the gate routes' own geometry
+  (3 in / 3 out, the same box) so the gate routes are its positive control; a headless counter for the outer
+  course against lot rects. NOT done: the scan of gate cells below the lintel; a general proof beyond the one rig.

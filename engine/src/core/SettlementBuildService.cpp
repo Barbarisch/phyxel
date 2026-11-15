@@ -760,12 +760,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         auto sharedWallCrossings = std::make_shared<std::vector<WallCrossing>>();
         // chain 271: EVERY gate of the wall, walked through its own middle - 3 cells in along the wall's normal to 3
         // cells out (the band is two cells: that is two cells clear each side). The gate's geometry, not the road's.
-        struct WallGatePassage { glm::ivec2 inside{0, 0}, outside{0, 0}; std::string label; };   // world cube cells
+        struct WallGatePassage { glm::ivec2 inside{0, 0}, outside{0, 0}; std::string label; bool placed = true; };   // world cube cells; placed = false: no passage could be derived - counted skipped
         auto sharedWallGates = std::make_shared<std::vector<WallGatePassage>>();
         std::function<int(int, int)> roadAtWorld;   // world cube cell -> the world road's class ON it (0 = none)
         if (chunkManager && terrain)
             if (WorldGenerator* roadGen = chunkManager->getStreamingGenerator())
-                if (const WorldForgePlan* wfp = roadGen->worldForge())
+                if (const std::shared_ptr<const WorldForgePlan> wfp = roadGen->worldForgeShared())   // shared: the unit may run after the plan is rebuilt
                     roadAtWorld = [wfp](int wx, int wz) {
                         const WorldForgePlan::RoadHit h = wfp->roadAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f);
                         return (h.cls > 0 && h.dist <= WorldForgePlan::roadHalfWidth(h.cls)) ? h.cls : 0;
@@ -2102,8 +2102,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     if (f.first) gateCols.insert(c);
                 }
                 for (const auto& g : mapWall.gates) {   // chain 271: each gate's passage, along the ring's normal at the gate cell
+                    const std::string gateLabel = "through the wall's gate @" + std::to_string(ox + g.x) + "," + std::to_string(oz + g.z) + (g.way < 0 ? " (the world road)" : " (way " + std::to_string(g.way) + ")");
                     const auto it = ringAt.find({g.x, g.z});
-                    if (it == ringAt.end()) continue;
+                    // the audit of M5d-2: a gate off the ring, or on a corner where neither axis has one side in and one
+                    // out, was silently dropped - it is recorded UNPLACED and the gate counts it skipped (refusing the build)
+                    if (it == ringAt.end()) { sharedWallGates->push_back({{0, 0}, {0, 0}, gateLabel, false}); continue; }
+                    bool resolved = false;
                     const auto& a = mapWall.ring[(it->second + n - 1) % n]; const auto& b = mapWall.ring[(it->second + 1) % n];
                     const int tx = (b.x > a.x) - (b.x < a.x), tz = (b.z > a.z) - (b.z < a.z);
                     int nx = (tz != 0 && tx == 0) ? 1 : 0, nz = (tx != 0 && tz == 0) ? 1 : 0;   // across a straight stretch
@@ -2112,19 +2116,20 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         const bool plusIn = mapInside.count({g.x + nx, g.z + nz}) > 0, minusIn = mapInside.count({g.x - nx, g.z - nz}) > 0;
                         if (plusIn != minusIn) {
                             const int s2 = plusIn ? -1 : 1;   // outward
-                            sharedWallGates->push_back({{ox + g.x - s2 * nx * 3, oz + g.z - s2 * nz * 3}, {ox + g.x + s2 * nx * 3, oz + g.z + s2 * nz * 3},
-                                                        "through the wall's gate @" + std::to_string(ox + g.x) + "," + std::to_string(oz + g.z) + (g.way < 0 ? " (the world road)" : " (way " + std::to_string(g.way) + ")")});
+                            sharedWallGates->push_back({{ox + g.x - s2 * nx * 3, oz + g.z - s2 * nz * 3}, {ox + g.x + s2 * nx * 3, oz + g.z + s2 * nz * 3}, gateLabel, true});
+                            resolved = true;
                             break;
                         }
                         std::swap(nx, nz);
                     }
+                    if (!resolved) sharedWallGates->push_back({{0, 0}, {0, 0}, gateLabel, false});
                 }
             }
             for (const auto& g : wp.gates) {   // the rectangle's gates (a build without a map)
                 const int cx = g.opening.x + g.opening.w / 2, cz = g.opening.z + g.opening.d / 2;
                 const int nx = g.side == 'E' ? 1 : g.side == 'W' ? -1 : 0, nz = g.side == 'N' ? 1 : g.side == 'S' ? -1 : 0;
                 sharedWallGates->push_back({{ox + cx - nx * 3, oz + cz - nz * 3}, {ox + cx + nx * 3, oz + cz + nz * 3},
-                                            "through the wall's gate @" + std::to_string(ox + cx) + "," + std::to_string(oz + cz) + " (street width " + std::to_string(g.streetWidth) + ")"});
+                                            "through the wall's gate @" + std::to_string(ox + cx) + "," + std::to_string(oz + cz) + " (street width " + std::to_string(g.streetWidth) + ")", true});
             }
 
             const int kGateClearCubes = spec.gateClearCubes;  // headroom under the gate lintel
@@ -2874,10 +2879,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
             }
             // M5d-2a (D62 PROPOSED): the way OUT - one route along the world road through each place the wall stands on it
-            int leaveRoutes = 0, leaveBlocked = 0, leaveUnplaced = 0, gateRoutes = 0, gateRoutesBlocked = 0;
+            int leaveRoutes = 0, leaveBlocked = 0, leaveUnplaced = 0, leaveHopOnly = 0, gateRoutes = 0, gateRoutesBlocked = 0;
             struct OutRoute { glm::ivec2 a, b; bool placed; std::string label; int kind; };   // kind 0 = through a gate, 1 = the road out
             std::vector<OutRoute> outRoutes;
-            for (const auto& g : *sharedWallGates) outRoutes.push_back({g.inside, g.outside, true, g.label, 0});
+            for (const auto& g : *sharedWallGates) outRoutes.push_back({g.inside, g.outside, g.placed, g.label, 0});
             for (const auto& wc : *sharedWallCrossings) outRoutes.push_back({wc.inside, wc.outside, wc.placed, wc.label, 1});
                 for (const auto& orr : outRoutes) {
                     const int kind = orr.kind;
@@ -2898,16 +2903,30 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     r.goalRadiusMicro = 4;
                     const glm::ivec3 lo(std::min(r.from.x, r.to.x) - 8 * 9, std::min(r.from.y, r.to.y) - 27, std::min(r.from.z, r.to.z) - 8 * 9);
                     const glm::ivec3 hi(std::max(r.from.x, r.to.x) + 8 * 9, std::max(r.from.y, r.to.y) + 36, std::max(r.from.z, r.to.z) + 8 * 9);
-                    // D65 PROPOSED (chain 273): the route OUT runs on the WORLD road, and a world road is whole cubes -
-                    // built and measured for the hop agent (the engine's box with a one-cube step-up: RoadFieldSeamTest,
-                    // "the M3 walkability bound"). It is walked with THAT walker. A gate of the wall is the settlement's
-                    // and is walked with the settlement's own (the plain box, 4 micro).
-                    Core::AgentBox roadBox = box; roadBox.maxStepUpMicro = 9;
-                    const auto rep = Core::checkRoutes(occ, kind == 1 ? roadBox : box, {r}, lo, hi, /*diagnose=*/true);
+                    // D65 PROPOSED, as corrected by the audit of M5d-2: every route is walked ON FOOT first - the engine's own
+                    // box, 4 micro, the walker residents path with. A world road is emitted in whole cubes (chain 273) and
+                    // its own tests walk it with a one-cube HOP; so a road-out route that fails on foot is walked again
+                    // with the hop, and one that passes ONLY so is recorded HOP-ONLY: not walkable (a resident on foot
+                    // cannot leave by it), not blocked (the road meets its own contract), and it does not refuse the
+                    // build. A route that fails both ways is blocked and refuses it.
+                    auto rep = Core::checkRoutes(occ, box, {r}, lo, hi, /*diagnose=*/true);
+                    bool hopOnly = false;
+                    if (kind == 1 && rep.blocked > 0) {
+                        Core::AgentBox roadBox = box; roadBox.maxStepUpMicro = 9;
+                        const auto hop = Core::checkRoutes(occ, roadBox, {r}, lo, hi, /*diagnose=*/false);
+                        hopOnly = hop.walkable > 0;
+                    }
+                    if (hopOnly) {
+                        ++leaveRoutes; ++leaveHopOnly;
+                        LOG_WARN_FMT("Settlement", "walkability: HOP-ONLY " << label << " - a resident on foot (4 micro) cannot leave by this road; it passes with the road's one-cube hop (the road's own risers)");
+                        routesJ.push_back({{"label", label}, {"walkable", false}, {"hop_walkable", true}, {"leave", true},
+                                           {"from", {r.from.x, r.from.y, r.from.z}}, {"to", {r.to.x, r.to.y, r.to.z}}});
+                        continue;
+                    }
                     walkable += rep.walkable; blocked += rep.blocked;
                     if (kind == 0) { ++gateRoutes; gateRoutesBlocked += rep.blocked; } else { ++leaveRoutes; leaveBlocked += rep.blocked; }
                     for (const auto& rr : rep.routes) {
-                        nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}, {kind == 0 ? "wall_gate" : "leave", true}, {"step_up_micro", kind == 1 ? 9 : box.maxStepUpMicro},
+                        nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}, {kind == 0 ? "wall_gate" : "leave", true},
                                             {"from", {r.from.x, r.from.y, r.from.z}}, {"to", {r.to.x, r.to.y, r.to.z}}};
                         if (!rr.walkable) {
                             j["pinch_from"] = {rr.pinchFrom.x, rr.pinchFrom.y, rr.pinchFrom.z};
@@ -2926,7 +2945,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 LOG_INFO_FMT("Settlement", "walkability gate: the wall's gates - " << gateRoutes << " walked through, " << gateRoutesBlocked << " blocked");
             if (!sharedWallCrossings->empty())
                 LOG_INFO_FMT("Settlement", "walkability gate: the way out - " << leaveRoutes << " road route(s) through the wall walked, " << leaveBlocked << " blocked, "
-                             << leaveUnplaced << " not walked");
+                             << leaveHopOnly << " passable ONLY by a one-cube hop (not on foot), " << leaveUnplaced << " not walked");
             LOG_INFO_FMT("Settlement", "walkability gate: " << walkable << " walkable, " << blocked
                          << " blocked over " << (walkable + blocked) << " routes ("
                          << sharedFrontDoors->size() << " front doors of " << *sharedBuilt << " built, " << skipped << " skipped)");
@@ -2936,6 +2955,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             (*pathsJsonP)["walkability"]["leave_routes"] = leaveRoutes;
             (*pathsJsonP)["walkability"]["leave_blocked"] = leaveBlocked;
             (*pathsJsonP)["walkability"]["leave_unplaced"] = leaveUnplaced;
+            (*pathsJsonP)["walkability"]["leave_hop_only"] = leaveHopOnly;
             (*pathsJsonP)["walkability"]["wall_gate_routes"] = gateRoutes;
             (*pathsJsonP)["walkability"]["wall_gate_blocked"] = gateRoutesBlocked;
             *walkJsonP = (*pathsJsonP)["walkability"];
@@ -3114,8 +3134,8 @@ nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkabi
     if (built >= 0) out["built"] = built;
     if (failsBuild) {   // ONE wording for the editor response, the job result and the ledger
         out["error"] = "unwalkable: " + std::to_string(blocked) + " of " + std::to_string(blocked + walkable)
-                       + " street->door routes blocked, " + std::to_string(skipped)
-                       + " front door(s) unseated (walkability gate)";
+                       + " routes blocked (street->door, door->room, a wall's gates, the road out through a wall), " + std::to_string(skipped)
+                       + " not walked for want of a seat (a front door, a wall gate or a road crossing) (walkability gate)";
         if (doorless)
             out["error"] = out["error"].get<std::string>() + "; doorless: " + std::to_string(built - doors) + " of "
                            + std::to_string(built) + " built building(s) recorded no front door - the gate measured nothing for them";

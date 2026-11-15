@@ -91,3 +91,49 @@ PO29.4  the regression on this tree (written 2026-11-15 07:37, before the runs; 
   failed - the unwalled sites' numbers as chain 223's (village 34 routes / 0 blocked, 10 imposed; town 72 / 0, 23
   imposed, 1 approach disagreeing; hamlet 16 / 0): the gate's new routes exist only for a walled build and the
   planner's extension only where a ring exists, so nothing there should move. If a count moves, I say which.
+
+NOTE (written 2026-11-15 07:42): chains 278-280 were STOPPED by me 3 minutes in (the map suite had not finished; my own test
+  process killed) - the auditor's read arrived and the tree changes. PO29.4 stands unmeasured.
+RESULT auditor read of M5d-2 (written 2026-11-15 07:42): PASS WITH CONDITIONS, leaning FAIL on two claims; raw verdict in
+  m5b_red_green.txt. It calls D65 as I applied it a goalpost move - a hop-only road was counted "walkable". Right.
+PO29.5  chains 281-282 (written 2026-11-15 07:42, before patch 56 is applied; patch 56: every route on foot first, the road out
+  by hop only if that fails and then recorded HOP-ONLY - neither walkable nor blocked, not refusing; a gate with no
+  derivable passage counted skipped; the refusal's wording; a shared plan pointer; the barrier at the gate routes'
+  geometry; the legacy control asserting; a headless counter for the outer course in a lot rect):
+  281 headless SettlementMapTest.*Wall*: 7 ok / 0 failed; "outer course in a lot's rect" 0 on every rig (the ring
+      keeps 2 cells from a lot rect and the outer course is one further out - but a concave corner is the case the
+      auditor named, and I have not measured it: if it is non-zero that is a real finding).
+  282 live, both tests (about 40 min): TheWalledCityCanBeLeftByItsRoad 1 ok - gates 3 walked / 0 blocked; roads
+      out 2 walked: north ON FOOT, east HOP-ONLY (its risers), 0 blocked; walkability 77 walkable / 0 blocked (the
+      hop-only one counted in neither), gate passed; barrier at the new geometry: >= 3 tried, 0 crossed.
+      TheLegacyCityWallIsStillTheRectangle 1 ok - built, site_rect, leave_blocked >= 1 with the hop walker (the
+      east road at the wall: by chain 266 the 4-micro flood stopped at the wall, and a 7-cube wall stops a hop
+      too), gate not passed. RISK: the legacy layout's east crossing blocked on foot and ALSO by hop is my
+      inference, not a measurement - if it reads hop-only, the rectangle did not seal that road against a hop and
+      the control fails.
+
+RESULT chain 281 (written 2026-11-15 08:25; RUN EXIT 0 07:45:29; exe 07:42:41): 7 ok / 0 failed - as predicted; the new
+  expectation "the band's outer course stands in no lot's rect" held on every rig (it is an EXPECT inside
+  expectWallSound; the count itself is not printed - a pass means 0).
+RESULT chain 282 (written 2026-11-15 08:25; RUN EXIT 0 08:25:02; exe 07:42:41): 2 ok / 0 failed - as predicted in count; one
+  inference of mine WRONG in detail.
+  TheWalledCityCanBeLeftByItsRoad: gates 3 walked through / 0 blocked. Roads out: 2 walked - north ON FOOT, east
+  HOP-ONLY (logged: "a resident on foot cannot leave by this road"), 0 blocked. Walkability 77 walkable / 0
+  blocked over 77 (the hop-only route in neither), gate passed, 25 of 25 built. Barrier at the gate routes'
+  geometry: 6 tried, 0 walked across, 0 unseated - with 3 gate routes walked through as its positive control.
+  TheLegacyCityWallIsStillTheRectangle: the rectangle, 9832 cubes, 8 gates, 4 towers, source site_rect; refused
+  (42 walkable / 11 blocked over 53). Roads out: 2 walked, 1 BLOCKED for both walkers, 1 HOP-ONLY. The hop-only
+  one is the EAST road (@13584,-9920): the legacy layout's rectangle has a gate there (its own streets reach the
+  east edge), so my inference "the rectangle seals the east road against a hop" was wrong for THIS layout - the
+  road the legacy rectangle seals is the other one. The assertion (>= 1 blocked for both walkers, not passed)
+  held. NEW and not explained: of the rectangle's 8 gates walked through their middle, 7 are BLOCKED. Either the
+  shipped rectangle's gates do not pass a walker at their centres on this ground, or my passage geometry for a
+  rectangle's opening (its centre cell, 3 in / 3 out along the side's normal) is wrong for a two-cell-thick
+  opening. Not looked at. It is the legacy path, which map builds no longer take.
+  On the audit's claim 1 (the red of chain 266 confounded): what stands is geometry, not a hop walk - the
+  rectangle on the MAP build had 2 gates (way 1 south, way 2 north) and none on the east band, and a 7-cube wall
+  stops a one-cube hop. That configuration can no longer be built (a map build stamps the map's wall), so it
+  cannot be re-walked with the hop; I do not claim it was.
+PO29.6  the regression on this tree (written 2026-11-15 08:25, before the runs): chain 283 SettlementMapTest.* whole 32 ok / 0
+  failed; chain 284 the unit set 178 ok / 0 failed; chain 285 the live-site set + realizer tests 33 ok / 0 failed
+  (31 before + the two city tests), unwalled sites' numbers as chain 223's. About 2.7 h.
