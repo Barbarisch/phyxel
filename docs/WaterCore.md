@@ -13801,7 +13801,7 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
 - **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
   than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
 
-## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 deleting (W4.3a, b done)
+## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 deleting (W4.3a-c done)
 
 **What W4 is (§27, §0a):** generated lakes, rivers and sea are the record and the new core simulates and draws them - DONE by §51
 (record tiles near, the skin far, 51.4c / 51.12-51.14). What is NOT done: **the old CA water is still in the engine, and five readers
@@ -13931,6 +13931,11 @@ sea plane, a still) and the water unit tests; the full suites once at the end.
     1.0 m, box 0.5, dry 0; the wood block floats (dips to 89.65, rests at 89.92, surface 90.0; W4.2: 89.90); `water_table_level`
     90.0 wet at the lake; `water_validate` over the lake 546 columns, 0 unloaded, 0 rim leaks. **The still: the wood block afloat on
     the generated lake.** Unit: `WaterReaders*`, `WaterBuoyancy*`, debris water, surface mesh - 24 / 24.
+- **W4.3c (2026-11-14) - `RippleField` deleted** (`RippleField.{h,cpp}`, `RippleFieldTest.cpp`, 6 tests). No consumer was left
+  (W4.3a took the cell renderer's ripple upload, W4.3b the manager's tick and the character hook); the `water_ripple` route and MCP
+  tool went in W4.3b. Its replacement is the core's `RippleLayer` (§22). Tests triaged: ring, decay and sleep are pinned on the
+  `RippleLayer` (`WaterRippleTest`: `AKickSpreadsIntoARingTrain`, `ItSleeps`, `FaintRingsHandOverToSleepInTheirTime`); the window
+  / recentre / out-of-window tests belong to the camera-following window and go with it. Build clean; `WaterRipple*` 19 / 19 (1 disabled).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
