@@ -754,8 +754,14 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // M5d-2a (D62 PROPOSED; O28 b): a walled settlement must be LEAVABLE. Wherever the built wall's band (openings
         // included) stands on the WORLD road, the walkability gate walks one route along that road from inside the
         // wall to outside it. The wall unit finds the crossings; the gate walks them; a blocked one refuses the build.
+        // chain 269 (the measure split): the road out of the settlement, 5 steps each side of the band along the road -
+        // it also crosses whatever the ground does beyond the wall. The gates themselves are walked separately (below).
         struct WallCrossing { glm::ivec2 inside{0, 0}, outside{0, 0}; bool placed = false; std::string label; };   // world cube cells
         auto sharedWallCrossings = std::make_shared<std::vector<WallCrossing>>();
+        // chain 271: EVERY gate of the wall, walked through its own middle - 3 cells in along the wall's normal to 3
+        // cells out (the band is two cells: that is two cells clear each side). The gate's geometry, not the road's.
+        struct WallGatePassage { glm::ivec2 inside{0, 0}, outside{0, 0}; std::string label; };   // world cube cells
+        auto sharedWallGates = std::make_shared<std::vector<WallGatePassage>>();
         std::function<int(int, int)> roadAtWorld;   // world cube cell -> the world road's class ON it (0 = none)
         if (chunkManager && terrain)
             if (WorldGenerator* roadGen = chunkManager->getStreamingGenerator())
@@ -1999,14 +2005,26 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager && programMode && tierP && tierP->walls.enabled) {
             units.push_back({"raising the town wall",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 spec = tierP->walls, layout, buildings, ox, oz, W, D, terrainTopAt, pathsJsonP, roadAtWorld, sharedWallCrossings, findWallCrossings]() {
+                 spec = tierP->walls, layout, buildings, ox, oz, W, D, terrainTopAt, pathsJsonP, roadAtWorld, sharedWallCrossings, findWallCrossings, sharedWallGates,
+                 mapWall = siteMap.wall, mapBuild = mapLots]() {
             if (!chunkManager) return;
             std::vector<Core::Rect> footprints;
             footprints.reserve(buildings.size());
             for (const auto& b : buildings) footprints.push_back(b.footprint);
-            const Core::TownWallPlan wp = Core::planTownWall(
+            // M5d-2b (D63 PROPOSED): a build from the MAP stamps the map's wall - its ring and the ring's outward
+            // neighbours as the two-cube band, its gates as openings, nothing over a water gap. A map that asked for
+            // a wall and could not plan one builds NONE and says so. Only a build without a map (the legacy layout)
+            // keeps planTownWall's rectangle. NO TOWERS on the map's wall yet (D64 is not built): said in the record.
+            const bool fromMap = mapBuild && mapWall.present && mapWall.ring.size() >= 8;
+            if (mapBuild && !fromMap) {
+                const std::string why = mapWall.refusal.empty() ? std::string("the map carries no wall") : mapWall.refusal;
+                LOG_WARN_FMT("Settlement", "town wall NOT BUILT: " << why);
+                (*pathsJsonP)["town_wall"] = {{"built", false}, {"refusal", why}, {"source", "map"}};
+                return;
+            }
+            const Core::TownWallPlan wp = fromMap ? Core::TownWallPlan{} : Core::planTownWall(
                 Core::Rect{0, 0, W, D}, layout.streets, footprints, spec);
-            if (!wp.ok) {
+            if (!fromMap && !wp.ok) {
                 LOG_WARN_FMT("Settlement", "town wall REFUSED: " << wp.refusal);
                 (*pathsJsonP)["town_wall"] = {{"built", false}, {"refusal", wp.refusal}, {"source", "site_rect"}};
                 return;
@@ -2018,6 +2036,96 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 for (int x = g.opening.x; x < g.opening.x1(); ++x)
                     for (int z = g.opening.z; z < g.opening.z1(); ++z)
                         gateCols.insert({x, z});
+            // M5d-2b: the map's band. inside = what a flood from outside the ring's box cannot reach; the outer course =
+            // every cell 8-adjacent to a ring cell that is neither ring nor inside. A ring cell is a GATE column within
+            // half a gate's width of the gate along the ring; an outer cell is one when any ring cell it touches is. A
+            // ring cell in a water gap gets no column; an outer cell gets none when every ring cell it touches is in one.
+            struct MapBandCell { int x, z; bool outer; };
+            std::vector<MapBandCell> mapBand;
+            std::set<std::pair<int, int>> mapInside;
+            int mapGapColumns = 0;
+            if (fromMap) {
+                const size_t n = mapWall.ring.size();
+                std::map<std::pair<int, int>, size_t> ringAt;
+                int bx0 = INT_MAX, bz0 = INT_MAX, bx1 = INT_MIN, bz1 = INT_MIN;
+                for (size_t i = 0; i < n; ++i) {
+                    ringAt[{mapWall.ring[i].x, mapWall.ring[i].z}] = i;
+                    bx0 = std::min(bx0, mapWall.ring[i].x); bz0 = std::min(bz0, mapWall.ring[i].z);
+                    bx1 = std::max(bx1, mapWall.ring[i].x); bz1 = std::max(bz1, mapWall.ring[i].z);
+                }
+                bx0 -= 2; bz0 -= 2; bx1 += 3; bz1 += 3;
+                const int GW = bx1 - bx0, GD = bz1 - bz0;
+                std::vector<uint8_t> outside(static_cast<size_t>(GW) * GD, 0);
+                std::vector<std::pair<int, int>> stack{{bx0, bz0}};
+                outside[0] = 1;
+                while (!stack.empty()) {
+                    const auto c = stack.back(); stack.pop_back();
+                    static const int DX[4] = {1, -1, 0, 0}, DZ[4] = {0, 0, 1, -1};
+                    for (int k = 0; k < 4; ++k) {
+                        const int nx = c.first + DX[k], nz = c.second + DZ[k];
+                        if (nx < bx0 || nz < bz0 || nx >= bx1 || nz >= bz1) continue;
+                        const size_t gi = static_cast<size_t>(nz - bz0) * GW + static_cast<size_t>(nx - bx0);
+                        if (outside[gi] || ringAt.count({nx, nz})) continue;
+                        outside[gi] = 1; stack.push_back({nx, nz});
+                    }
+                }
+                for (int z = bz0; z < bz1; ++z) for (int x = bx0; x < bx1; ++x)
+                    if (!outside[static_cast<size_t>(z - bz0) * GW + static_cast<size_t>(x - bx0)] && !ringAt.count({x, z})) mapInside.insert({x, z});
+                std::vector<uint8_t> isGate(n, 0), isGap(n, 0);
+                for (const auto& g : mapWall.gates) {
+                    const auto it = ringAt.find({g.x, g.z});
+                    if (it == ringAt.end()) continue;
+                    const size_t half = static_cast<size_t>(std::max(1, g.width / 2));
+                    for (size_t d = 0; d <= half && d < n; ++d) { isGate[(it->second + d) % n] = 1; isGate[(it->second + n - d) % n] = 1; }
+                }
+                for (const auto& g : mapWall.waterGaps) {
+                    const auto it = ringAt.find({g.x, g.z});
+                    if (it == ringAt.end()) continue;
+                    for (int d = 0; d < g.cells; ++d) isGap[(it->second + static_cast<size_t>(d)) % n] = 1;
+                }
+                std::map<std::pair<int, int>, std::pair<bool, bool>> outerCells;   // cell -> (touches a gate ring cell, touches a ring cell not in a gap)
+                for (size_t i = 0; i < n; ++i) {
+                    const int rx = mapWall.ring[i].x, rz = mapWall.ring[i].z;
+                    if (isGap[i]) ++mapGapColumns; else mapBand.push_back({rx, rz, false});
+                    if (isGate[i]) gateCols.insert({rx, rz});
+                    for (int dz = -1; dz <= 1; ++dz) for (int dx = -1; dx <= 1; ++dx) {
+                        const std::pair<int, int> c{rx + dx, rz + dz};
+                        if (ringAt.count(c) || mapInside.count(c)) continue;
+                        auto& f = outerCells[c];
+                        if (isGate[i]) f.first = true;
+                        if (!isGap[i]) f.second = true;
+                    }
+                }
+                for (const auto& [c, f] : outerCells) {
+                    if (!f.second) { ++mapGapColumns; continue; }
+                    mapBand.push_back({c.first, c.second, true});
+                    if (f.first) gateCols.insert(c);
+                }
+                for (const auto& g : mapWall.gates) {   // chain 271: each gate's passage, along the ring's normal at the gate cell
+                    const auto it = ringAt.find({g.x, g.z});
+                    if (it == ringAt.end()) continue;
+                    const auto& a = mapWall.ring[(it->second + n - 1) % n]; const auto& b = mapWall.ring[(it->second + 1) % n];
+                    const int tx = (b.x > a.x) - (b.x < a.x), tz = (b.z > a.z) - (b.z < a.z);
+                    int nx = (tz != 0 && tx == 0) ? 1 : 0, nz = (tx != 0 && tz == 0) ? 1 : 0;   // across a straight stretch
+                    if (nx == 0 && nz == 0) { nx = 1; }                                        // a gate ON a corner: try x, then z below
+                    for (int attempt = 0; attempt < 2; ++attempt) {
+                        const bool plusIn = mapInside.count({g.x + nx, g.z + nz}) > 0, minusIn = mapInside.count({g.x - nx, g.z - nz}) > 0;
+                        if (plusIn != minusIn) {
+                            const int s2 = plusIn ? -1 : 1;   // outward
+                            sharedWallGates->push_back({{ox + g.x - s2 * nx * 3, oz + g.z - s2 * nz * 3}, {ox + g.x + s2 * nx * 3, oz + g.z + s2 * nz * 3},
+                                                        "through the wall's gate @" + std::to_string(ox + g.x) + "," + std::to_string(oz + g.z) + (g.way < 0 ? " (the world road)" : " (way " + std::to_string(g.way) + ")")});
+                            break;
+                        }
+                        std::swap(nx, nz);
+                    }
+                }
+            }
+            for (const auto& g : wp.gates) {   // the rectangle's gates (a build without a map)
+                const int cx = g.opening.x + g.opening.w / 2, cz = g.opening.z + g.opening.d / 2;
+                const int nx = g.side == 'E' ? 1 : g.side == 'W' ? -1 : 0, nz = g.side == 'N' ? 1 : g.side == 'S' ? -1 : 0;
+                sharedWallGates->push_back({{ox + cx - nx * 3, oz + cz - nz * 3}, {ox + cx + nx * 3, oz + cz + nz * 3},
+                                            "through the wall's gate @" + std::to_string(ox + cx) + "," + std::to_string(oz + cz) + " (street width " + std::to_string(g.streetWidth) + ")"});
+            }
 
             const int kGateClearCubes = spec.gateClearCubes;  // headroom under the gate lintel
             Core::StructureResult batch;
@@ -2031,7 +2139,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 const int wx = ox + lx, wz = oz + lz;
                 const int base = terrainTopAt(wx, wz) + 1;
                 const bool isGate = gateCols.count({lx, lz}) > 0;
-                for (int y = base; y <= base + height; ++y)
+                // M5d-2b (chain 267): a GATE column is cleared from the lintel up only. What stands in the opening is
+                // the road: clearing from the ground's top cube wiped the road's graded surface out of the gate and
+                // left it stepped in whole cubes - the east road could be walked in and not out.
+                for (int y = isGate ? base + kGateClearCubes : base; y <= base + height; ++y)
                     toClear.push_back(glm::ivec3(wx, y, wz));
                 // A gate column starts ABOVE the passage: the wall bridges over the road.
                 const int y0 = isGate ? base + kGateClearCubes : base;
@@ -2061,6 +2172,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             (r.side == 'S' && z == o.z)  || (r.side == 'N' && z == o.z1() - 1);
                         column(x, z, spec.heightCubes, spec.crenellations && outerCourse);
                     }
+            for (const auto& c : mapBand) column(c.x, c.z, spec.heightCubes, spec.crenellations && c.outer);   // M5d-2b
             // Corner towers: taller than the curtain, and topped the way real drums are —
             // a crenellated PARAPET (English/Welsh: Conwy, Caernarfon) or a CONICAL roof
             // (French/German: Carcassonne, the Loire). A bare cylinder is neither, which is
@@ -2211,12 +2323,28 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                           {"displaced", placed.displaced}};
             // M5d-1: the map now carries a wall of its own (SettlementMap::wall, a ring round the lots); THIS unit still
             // stamps the site rectangle. Said in the record so the disagreement is not silent (M5d-2 stamps the map's).
-            (*pathsJsonP)["town_wall"]["source"] = "site_rect";
+            (*pathsJsonP)["town_wall"]["source"] = fromMap ? "map" : "site_rect";
+            if (fromMap) {   // M5d-2b: what was stamped, against the map (the test reads these against the map's own record)
+                (*pathsJsonP)["town_wall"]["gates"] = mapWall.gates.size();
+                (*pathsJsonP)["town_wall"]["ring_cells"] = mapWall.ring.size();
+                (*pathsJsonP)["town_wall"]["band_columns"] = mapBand.size();
+                (*pathsJsonP)["town_wall"]["gate_columns"] = gateCols.size();
+                (*pathsJsonP)["town_wall"]["gap_columns"] = mapGapColumns;
+                (*pathsJsonP)["town_wall"]["water_gaps"] = mapWall.waterGaps.size();
+                (*pathsJsonP)["town_wall"]["towers_deferred"] = true;   // D64 not built: the map's wall has NO towers
+                LOG_INFO_FMT("Settlement", "town wall: the MAP's ring - " << mapWall.ring.size() << " ring cells, " << mapBand.size() << " band columns, "
+                             << gateCols.size() << " of them gate columns over " << mapWall.gates.size() << " gates, " << mapGapColumns
+                             << " left open over water; NO towers (not built for the map's wall yet)");
+            }
             {   // M5d-2a: where this wall's band stands on the world road (the gate walks each)
                 std::set<std::pair<int, int>> band;
                 for (const auto& r : wp.runs)
                     for (int x = r.band.x; x < r.band.x1(); ++x) for (int z = r.band.z; z < r.band.z1(); ++z) band.insert({ox + x, oz + z});
+                for (const auto& c : mapBand) band.insert({ox + c.x, oz + c.z});
                 const Core::Rect ib = wp.innerBound;
+                if (fromMap)
+                    findWallCrossings(band, [&mapInside, ox, oz](int wx, int wz) { return mapInside.count({wx - ox, wz - oz}) > 0; }, roadAtWorld, *sharedWallCrossings);
+                else
                 findWallCrossings(band, [ib, ox, oz](int wx, int wz) { return wx - ox >= ib.x && wx - ox < ib.x1() && wz - oz >= ib.z && wz - oz < ib.z1(); },
                                   roadAtWorld, *sharedWallCrossings);
                 (*pathsJsonP)["town_wall"]["road_crossings"] = sharedWallCrossings->size();
@@ -2581,7 +2709,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager) {
             units.push_back({"walkability gate",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt]() {
+                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt, sharedWallGates]() {
             if (!chunkManager) return;
             const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
                 return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
@@ -2746,39 +2874,51 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
             }
             // M5d-2a (D62 PROPOSED): the way OUT - one route along the world road through each place the wall stands on it
-            int leaveRoutes = 0, leaveBlocked = 0, leaveUnplaced = 0;
-            for (const auto& wc : *sharedWallCrossings) {
-                const int fi = wc.placed ? seatFeet(wc.inside.x, wc.inside.y, (terrainTopAt(wc.inside.x, wc.inside.y) + 1) * 9) : INT_MIN;
-                const int fo = wc.placed ? seatFeet(wc.outside.x, wc.outside.y, (terrainTopAt(wc.outside.x, wc.outside.y) + 1) * 9) : INT_MIN;
-                if (fi == INT_MIN || fo == INT_MIN) {
-                    LOG_WARN_FMT("Settlement", "walkability: " << wc.label << " has no walkable end on " << (wc.placed ? "one side (an end does not seat)" : "one side of the wall along the road")
-                                 << " - NOT walked, counted skipped");
-                    ++skipped; ++leaveUnplaced; continue;
-                }
-                Core::WalkRoute r;
-                r.label = wc.label;
-                r.from = glm::ivec3(wc.inside.x * 9 + 4, fi, wc.inside.y * 9 + 4);
-                r.to = glm::ivec3(wc.outside.x * 9 + 4, fo, wc.outside.y * 9 + 4);
-                r.goalRadiusMicro = 4;
-                const glm::ivec3 lo(std::min(r.from.x, r.to.x) - 8 * 9, std::min(r.from.y, r.to.y) - 27, std::min(r.from.z, r.to.z) - 8 * 9);
-                const glm::ivec3 hi(std::max(r.from.x, r.to.x) + 8 * 9, std::max(r.from.y, r.to.y) + 36, std::max(r.from.z, r.to.z) + 8 * 9);
-                const auto rep = Core::checkRoutes(occ, box, {r}, lo, hi, /*diagnose=*/true);
-                ++leaveRoutes; walkable += rep.walkable; blocked += rep.blocked; leaveBlocked += rep.blocked;
-                for (const auto& rr : rep.routes) {
-                    nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}, {"leave", true},
-                                        {"from", {r.from.x, r.from.y, r.from.z}}, {"to", {r.to.x, r.to.y, r.to.z}}};
-                    if (!rr.walkable) {
-                        j["pinch_from"] = {rr.pinchFrom.x, rr.pinchFrom.y, rr.pinchFrom.z};
-                        j["pinch_to"] = {rr.pinchTo.x, rr.pinchTo.y, rr.pinchTo.z};
-                        j["reached_from_start"] = rr.reachedFromStart; j["reached_from_goal"] = rr.reachedFromGoal;
-                        j["one_way"] = rr.oneWay;
-                        LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << (rr.oneWay ? "(ONE-WAY, a drop) " : "") << rr.label << " - the settlement cannot be left by this road: pinch ("
-                                     << rr.pinchFrom.x << "," << rr.pinchFrom.y << "," << rr.pinchFrom.z << ")->(" << rr.pinchTo.x << "," << rr.pinchTo.y << "," << rr.pinchTo.z
-                                     << "); reached " << rr.reachedFromStart << "/" << rr.reachedFromGoal);
+            int leaveRoutes = 0, leaveBlocked = 0, leaveUnplaced = 0, gateRoutes = 0, gateRoutesBlocked = 0;
+            struct OutRoute { glm::ivec2 a, b; bool placed; std::string label; int kind; };   // kind 0 = through a gate, 1 = the road out
+            std::vector<OutRoute> outRoutes;
+            for (const auto& g : *sharedWallGates) outRoutes.push_back({g.inside, g.outside, true, g.label, 0});
+            for (const auto& wc : *sharedWallCrossings) outRoutes.push_back({wc.inside, wc.outside, wc.placed, wc.label, 1});
+                for (const auto& orr : outRoutes) {
+                    const int kind = orr.kind;
+                    const bool placed = orr.placed;
+                    const glm::ivec2 a = orr.a, b = orr.b;
+                    const std::string label = orr.label;
+                    const int fi = placed ? seatFeet(a.x, a.y, (terrainTopAt(a.x, a.y) + 1) * 9) : INT_MIN;
+                    const int fo = placed ? seatFeet(b.x, b.y, (terrainTopAt(b.x, b.y) + 1) * 9) : INT_MIN;
+                    if (fi == INT_MIN || fo == INT_MIN) {
+                        LOG_WARN_FMT("Settlement", "walkability: " << label << " has no walkable end on " << (placed ? "one side (an end does not seat)" : "one side of the wall along the road")
+                                     << " - NOT walked, counted skipped");
+                        ++skipped; ++leaveUnplaced; continue;
                     }
-                    routesJ.push_back(j);
+                    Core::WalkRoute r;
+                    r.label = label;
+                    r.from = glm::ivec3(a.x * 9 + 4, fi, a.y * 9 + 4);
+                    r.to = glm::ivec3(b.x * 9 + 4, fo, b.y * 9 + 4);
+                    r.goalRadiusMicro = 4;
+                    const glm::ivec3 lo(std::min(r.from.x, r.to.x) - 8 * 9, std::min(r.from.y, r.to.y) - 27, std::min(r.from.z, r.to.z) - 8 * 9);
+                    const glm::ivec3 hi(std::max(r.from.x, r.to.x) + 8 * 9, std::max(r.from.y, r.to.y) + 36, std::max(r.from.z, r.to.z) + 8 * 9);
+                    const auto rep = Core::checkRoutes(occ, box, {r}, lo, hi, /*diagnose=*/true);
+                    walkable += rep.walkable; blocked += rep.blocked;
+                    if (kind == 0) { ++gateRoutes; gateRoutesBlocked += rep.blocked; } else { ++leaveRoutes; leaveBlocked += rep.blocked; }
+                    for (const auto& rr : rep.routes) {
+                        nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}, {kind == 0 ? "wall_gate" : "leave", true},
+                                            {"from", {r.from.x, r.from.y, r.from.z}}, {"to", {r.to.x, r.to.y, r.to.z}}};
+                        if (!rr.walkable) {
+                            j["pinch_from"] = {rr.pinchFrom.x, rr.pinchFrom.y, rr.pinchFrom.z};
+                            j["pinch_to"] = {rr.pinchTo.x, rr.pinchTo.y, rr.pinchTo.z};
+                            j["reached_from_start"] = rr.reachedFromStart; j["reached_from_goal"] = rr.reachedFromGoal;
+                            j["one_way"] = rr.oneWay;
+                            LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << (rr.oneWay ? "(ONE-WAY, a drop) " : "") << rr.label
+                                         << (kind == 0 ? " - the gate does not pass the road" : " - the settlement cannot be left by this road")
+                                         << ": reached " << rr.reachedFromStart << "/" << rr.reachedFromGoal
+                                         << " (two large counts mean the floods overlap: the block is a step one way, not at the pinch)");
+                        }
+                        routesJ.push_back(j);
+                    }
                 }
-            }
+            if (!sharedWallGates->empty())
+                LOG_INFO_FMT("Settlement", "walkability gate: the wall's gates - " << gateRoutes << " walked through, " << gateRoutesBlocked << " blocked");
             if (!sharedWallCrossings->empty())
                 LOG_INFO_FMT("Settlement", "walkability gate: the way out - " << leaveRoutes << " road route(s) through the wall walked, " << leaveBlocked << " blocked, "
                              << leaveUnplaced << " not walked");
@@ -2791,6 +2931,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             (*pathsJsonP)["walkability"]["leave_routes"] = leaveRoutes;
             (*pathsJsonP)["walkability"]["leave_blocked"] = leaveBlocked;
             (*pathsJsonP)["walkability"]["leave_unplaced"] = leaveUnplaced;
+            (*pathsJsonP)["walkability"]["wall_gate_routes"] = gateRoutes;
+            (*pathsJsonP)["walkability"]["wall_gate_blocked"] = gateRoutesBlocked;
             *walkJsonP = (*pathsJsonP)["walkability"];
             }});
         }

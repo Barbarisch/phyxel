@@ -41,6 +41,7 @@
 #include "core/SettlementBuildService.h"
 #include "core/SettlementMapPlanner.h"
 #include "core/SettlementProgram.h"
+#include "core/SettlementWalkability.h"
 #include "core/TraversalProbe.h"
 #include "core/WorldForgeBuildService.h"
 #include "core/WorldForgePlan.h"
@@ -1576,6 +1577,23 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
             const glm::ivec3 pf(pfj[0].get<int>(), pfj[1].get<int>(), pfj[2].get<int>()), pt(ptj[0].get<int>(), ptj[1].get<int>(), ptj[2].get<int>());
             const int lx = floorDivN(pf.x, 9) - sm.originX, lz = floorDivN(pf.z, 9) - sm.originZ;
             std::printf("[ M5d-2a ] pinch of '%s': local cube %d,%d\n", r.value("label", std::string()).c_str(), lx, lz);
+            {   // chain 269: the vertical section along the route through the wall, three rows across the opening
+                const auto fj = r["from"], tj = r["to"];
+                const glm::ivec3 f(fj[0].get<int>(), fj[1].get<int>(), fj[2].get<int>()), t(tj[0].get<int>(), tj[1].get<int>(), tj[2].get<int>());
+                const bool alongX = std::abs(t.x - f.x) >= std::abs(t.z - f.z);
+                const int a0 = floorDivN(alongX ? std::min(f.x, t.x) : std::min(f.z, t.z), 9) - 2, a1 = floorDivN(alongX ? std::max(f.x, t.x) : std::max(f.z, t.z), 9) + 2;
+                const int across0 = floorDivN(alongX ? f.z : f.x, 9);
+                for (int row = 0; row <= 6; row += 3) {
+                    std::printf("[ M5d-2a ]   section %s, row %s = cube %d (the start's row + %d); each line one cube column, micro y %d (left) .. %d, # solid:\n",
+                                alongX ? "along x" : "along z", alongX ? "z" : "x", across0 + row, row, f.y - 14, f.y + 50);
+                    for (int a = a0; a <= a1; ++a) {
+                        const int mx = alongX ? a * 9 + 4 : (across0 + row) * 9 + 4, mz = alongX ? (across0 + row) * 9 + 4 : a * 9 + 4;
+                        std::string col;
+                        for (int y = f.y - 14; y <= f.y + 50; ++y) col += rig.cm.occupiedMicro(glm::ivec3(mx, y, mz)) ? '#' : (y == f.y ? '|' : '.');
+                        std::printf("[ M5d-2a ]     %s %5d (local %4d): %s\n", alongX ? "x" : "z", a, a - (alongX ? sm.originX : sm.originZ), col.c_str());
+                    }
+                }
+            }
             rig.floorProfile(pf, glm::ivec3(pf.x + 1, pf.y, pf.z));   // along x
             rig.floorProfile(pf, glm::ivec3(pf.x, pf.y, pf.z + 1));   // along z
             rig.fixturesNear(pf);
@@ -1597,6 +1615,87 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
     EXPECT_TRUE(wallRec.value("road_sampler", false)) << "the realizer has no world road sampler on this rig";
     EXPECT_GT(leave, 0) << "the gate walked no route out of the walled city";
     EXPECT_EQ(walk.value("leave_unplaced", -1), 0) << "a crossing of the world road was found and not walked";
-    EXPECT_EQ(leaveBlocked, 0) << "the walled city cannot be left by its road";
+    // chain 270 (the measure split after chain 269, stated): (a) the wall's own gates on the world road
+    int gateRoutes = 0, gateBlocked = 0;
+    for (const auto& r : walk.value("routes", nlohmann::json::array())) {
+        if (!r.value("wall_gate", false)) continue;
+        ++gateRoutes;
+        if (!r.value("walkable", false)) ++gateBlocked;
+        std::printf("[ M5d-2b ] %s (from %s to %s): %s\n", r.value("label", std::string("?")).c_str(), r.value("from", nlohmann::json()).dump().c_str(),
+                    r.value("to", nlohmann::json()).dump().c_str(), r.value("walkable", false) ? "walkable" : "BLOCKED");
+    }
+    EXPECT_EQ(gateRoutes, static_cast<int>(Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object())).wall.gates.size())) << "a gate of the map's wall was not walked through";
+    EXPECT_EQ(gateBlocked, 0) << "a gate of the wall does not pass the world road";
+    // (b) the road out of the settlement. STANDING RED while the one-cube riser on the east road stands three cells
+    // outside the wall (chain 269; the plan's O29): not the wall's defect, and not hidden for it either.
+    EXPECT_EQ(leaveBlocked, 0) << "the walled city cannot be left by its road (chain 269: a riser in the ground beyond the east gate)";
     EXPECT_EQ(out.value("gate", std::string()), "passed");
+    // M5d-2b (added AFTER the red runs of chains 264-266, for the green - stated in pm_chain252.txt): the wall built
+    // is the MAP's, and it IS a wall - a walker cannot cross it away from its gates.
+    const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
+    EXPECT_EQ(wallRec.value("source", std::string()), "map");
+    EXPECT_TRUE(sm.wall.present);
+    EXPECT_EQ(wallRec.value("ring_cells", -1), static_cast<int>(sm.wall.ring.size()));
+    EXPECT_EQ(wallRec.value("gates", -1), static_cast<int>(sm.wall.gates.size()));
+    {
+        const size_t n = sm.wall.ring.size();
+        const std::function<bool(int, int, int)> occ = [&rig](int x, int y, int z) { return rig.cm.occupiedMicro(glm::ivec3(x, y, z)); };
+        Core::AgentBox box;
+        std::set<std::pair<int, int>> ringSet;
+        for (const auto& c : sm.wall.ring) ringSet.insert({c.x, c.z});
+        const auto feetAt = [&](int lx, int lz) {   // the first standable level from above, world micro (INT_MIN = none)
+            const int mx = (sm.originX + lx) * 9 + 4, mz = (sm.originZ + lz) * 9 + 4;
+            Core::TraversalProbe probe(occ, box);
+            for (int y = (rig.surfaceHi + 12) * 9; y > (rig.surfaceLo - 4) * 9; --y)
+                if (occ(mx, y - 1, mz) && probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) return y;
+            return INT_MIN;
+        };
+        int checked = 0, crossed = 0, unseated = 0;
+        for (size_t i = 0; i < n && checked < 6; i += std::max<size_t>(1, n / 9)) {
+            bool nearGate = false;
+            for (const auto& g : sm.wall.gates)
+                for (size_t k = 0; k < n; ++k)
+                    if (sm.wall.ring[k].x == g.x && sm.wall.ring[k].z == g.z) { const size_t d = (i + n - k) % n; if (std::min(d, n - d) <= static_cast<size_t>(g.width / 2 + 8)) nearGate = true; }
+            if (nearGate) continue;
+            const auto& c = sm.wall.ring[i];
+            const auto& a = sm.wall.ring[(i + n - 1) % n]; const auto& b = sm.wall.ring[(i + 1) % n];
+            if (a.x != b.x && a.z != b.z) continue;   // a corner: take a straight stretch
+            const int px = (a.z == b.z) ? 0 : 1, pz = (a.z == b.z) ? 1 : 0;   // across the wall
+            bool clear = true;
+            for (int k = 2; k <= 5; ++k) if (ringSet.count({c.x + px * k, c.z + pz * k}) || ringSet.count({c.x - px * k, c.z - pz * k})) clear = false;
+            if (!clear) continue;
+            const int f1 = feetAt(c.x + px * 5, c.z + pz * 5), f2 = feetAt(c.x - px * 5, c.z - pz * 5);
+            if (f1 == INT_MIN || f2 == INT_MIN) { ++unseated; continue; }
+            Core::WalkRoute r;
+            r.label = "across the wall at ring cell " + std::to_string(c.x) + "," + std::to_string(c.z);
+            r.from = glm::ivec3((sm.originX + c.x + px * 5) * 9 + 4, f1, (sm.originZ + c.z + pz * 5) * 9 + 4);
+            r.to = glm::ivec3((sm.originX + c.x - px * 5) * 9 + 4, f2, (sm.originZ + c.z - pz * 5) * 9 + 4);
+            const glm::ivec3 lo(std::min(r.from.x, r.to.x) - 6 * 9, std::min(r.from.y, r.to.y) - 27, std::min(r.from.z, r.to.z) - 6 * 9);
+            const glm::ivec3 hi(std::max(r.from.x, r.to.x) + 6 * 9, std::max(r.from.y, r.to.y) + 36, std::max(r.from.z, r.to.z) + 6 * 9);
+            const auto rep = Core::checkRoutes(occ, box, {r}, lo, hi, false);
+            ++checked;
+            if (rep.walkable > 0) ++crossed;
+            std::printf("[ M5d-2b ] %s: %s\n", r.label.c_str(), rep.walkable > 0 ? "WALKED ACROSS" : "blocked (the wall holds)");
+        }
+        std::printf("[ M5d-2b ] the wall as a barrier: %d stretches away from every gate tried, %d walked across, %d with an end that does not seat\n", checked, crossed, unseated);
+        EXPECT_GE(checked, 3) << "fewer than three stretches of wall could be tried";
+        EXPECT_EQ(crossed, 0) << "a walker crosses the wall where it has no gate (within a box 6 cells round the two ends)";
+    }
+}
+
+// M5d-2b, the CONTROL: the same site built WITHOUT the map (the legacy layout) still stamps planTownWall's rectangle,
+// and the leave route still finds it sealing a road - the measurement distinguishes the two walls.
+TEST(SettlementMapLiveSiteTest, TheLegacyCityWallIsStillTheRectangle) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("town", 48)) << rig.why;
+    nlohmann::json ov; ov["tier"] = "city";
+    const auto out = realize(rig, /*legacyLayout=*/true, ov);
+    ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+    const nlohmann::json wallRec = out["paths"].value("town_wall", nlohmann::json::object());
+    const nlohmann::json walk = out["paths"].value("walkability", nlohmann::json::object());
+    std::printf("[ M5d-2b ] the legacy control's wall: %s\n", wallRec.dump().c_str());
+    std::printf("[ M5d-2b ] the legacy control: gate %s, %d walkable, %d blocked; leave routes %d, blocked %d, not walked %d\n", out.value("gate", std::string("?")).c_str(),
+                out.value("walkable", -1), out.value("blocked", -1), walk.value("leave_routes", -1), walk.value("leave_blocked", -1), walk.value("leave_unplaced", -1));
+    if (wallRec.value("built", false)) EXPECT_EQ(wallRec.value("source", std::string()), "site_rect");
+    else std::printf("[ M5d-2b ] the legacy control built NO wall: %s\n", wallRec.value("refusal", std::string("?")).c_str());
 }

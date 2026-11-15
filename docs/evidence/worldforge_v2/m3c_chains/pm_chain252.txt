@@ -188,3 +188,111 @@ RESULT chain 266 (written 2026-11-15 04:26; RUN EXIT 1 04:26:13; exe 04:07:36): 
   2 gates, source site_rect). The gate unit: 166 s.
   NOT rerun on this tree: the unit set, the map suite, the rest of the live set. Standing from here until M5d-2b:
   this test is RED in the live set by design.
+
+PM5d2.12 M5d-2b, chain 267 (written 2026-11-15 04:29, before the patch is applied; patch 55: a build from the map stamps the
+  MAP's wall - ring + outward neighbours as the band, gates as openings under a lintel, nothing over a water gap;
+  NO TOWERS on it [D64 not built - a stated cut: the rectangle had 4]; the legacy layout keeps the rectangle).
+  The test CHANGED after the red runs, stated: added for the green - the record's source is "map" and its ring /
+  gate counts are the map's; and a barrier control - up to six straight stretches of the ring away from every gate,
+  a walk from 5 cells inside to 5 cells outside must be BLOCKED. Plus a second test, the legacy control.
+  Predictions:
+    TheWalledCityCanBeLeftByItsRoad: GREEN. source map; ring cells 390, gates 3; leave routes 2 (east through the
+      road gate at 142,38; north through way 2's gate), 0 blocked, 0 not walked; gate passed, 75 walkable / 0
+      blocked; barrier control >= 3 stretches tried, 0 walked across. RISKS I can name: the road gate's lintel
+      (4 cubes clear) over the road's graded surface, which may sit above the natural ground the column's base is
+      read from - the opening could be too low or the road's embankment could block; a barrier stretch whose end
+      does not seat (trees are absent on this rig, so I expect them to seat); the outer course's corner cells
+      closing a gate's opening on the outside.
+    TheLegacyCityWallIsStillTheRectangle: the legacy layout builds on this site with the city program (GUESS - it
+      has never been run), source site_rect, and its leave routes find >= 1 blocked. It asserts only the source.
+  So 2 ok / 0 failed if both guesses hold; about 40 minutes.
+
+RESULT chain 267 (written 2026-11-15 05:06; RUN EXIT 1 05:04:37; exe 04:29:39): 1 ok / 1 failed - MISS (predicted 2 / 0).
+  The map's wall IS what was stamped: source map, 390 ring cells, 788 band columns, 48 gate columns over 3 gates, 0
+  over water, 5510 cubes (the rectangle: 10191), 0 towers (deferred, as cut). The barrier control: 6 stretches
+  tried, 0 walked across, 0 unseated - as predicted. North road: walkable. EAST ROAD: still BLOCKED - the gate is
+  there and the route does not pass. Reached 12438 from the start, 25210 from the goal, pinch "at the start" with
+  gap 0.
+  What that pinch means (read from SettlementWalkability.cpp only now): when the two floods OVERLAP the closest
+  pair is trivially adjacent, so a gap-0 pinch with two large floods says nothing about where the block is. The
+  flood from outside reaches the start; the walk from the start does not reach the goal: the road can be walked
+  IN and not OUT - a climb over the 4-micro step somewhere in the opening (the road rises 18 micro from the inside
+  end to the outside end). This also re-reads chain 265's "unexplained" north pinch at local 76,48: the same
+  signature - not a block AT that cell; the cause is still not known, only that my reading of the pinch was wrong.
+  Hypothesis (not shown): the wall's column clears every cell from the ground's top cube up, gate columns
+  included, so the road's graded surface (sub-cube steps above the top full cube) is wiped out of the opening and
+  what is left is stepped in whole cubes.
+  The legacy control (the first time the legacy layout runs the city program here): 17 of 17 built, the rectangle
+  9832 cubes, 8 gates, 4 towers, source site_rect; the gate 41 walkable / 5 blocked - both leave routes blocked and
+  three door routes besides; refused. It asserts only the source: 1 ok.
+PM5d2.13 chain 268 (written 2026-11-15 05:06, before the run; the fix: a gate column is cleared from the lintel up only - the
+  shared column stamp, so the rectangle's gates change the same way): the east road walkable both ways; the test
+  GREEN: 2 leave routes, 0 blocked, the gate passed 75 / 0; barrier control unchanged (6 tried, 0 crossed). I put
+  the hypothesis at about 60 %: if the east route is still blocked, the step is in the road's own surface or the
+  lintel is too low, and I print the floor along the road through the gate before guessing again. The legacy
+  control is not rerun.
+
+RESULT chain 268 (written 2026-11-15 05:25; RUN EXIT 1 05:25:11; exe 05:06:20): 0 ok / 1 failed - MISS; my hypothesis is WRONG.
+  The east road is blocked exactly as before: reached 12438 / 25210, the same counts to the cell as chain 267 - the
+  clearing change (line cleared 6112 against 6304) altered nothing a walker meets. Everything else as chain 267:
+  source map, 788 band columns, 3 gates, north walkable, barrier 6 tried / 0 crossed, gate 74 / 1, refused.
+  The clearing change stays in (a gate column no longer clears the opening) but it is NOT a fix for this and is
+  not claimed as one.
+PM5d2.14 chain 269 (written 2026-11-15 05:25, before the run; no code change - the test prints, for each blocked leave route, a
+  vertical occupancy section along the road through the wall: for three rows across the opening, every cube column
+  from 2 cells inside the inner end to 2 cells beyond the outer end, micro cells from 14 below the start's feet to
+  50 above): I have NO prediction of the cause I trust. What I will look for: a floor step of more than 4 micro
+  between neighbouring columns; a ceiling lower than the agent's height over a rising floor (the lintel's base is
+  read per column from the ground's top cube, the road's surface may sit above it); a column of wall in the
+  opening (a gate column the stamp did not treat as one).
+
+RESULT chain 269 (written 2026-11-15 05:47; RUN EXIT 1 05:46:18; no code change; the same counts): the section shows it.
+  Row z 38 (the gate's middle): the floor is level at micro 1412 from local x 135 through x 145; over x 142 and 143
+  the lintel starts 35 micro above it - THE GATE IS OPEN and clear. At x 146 the floor rises 9 micro in one column
+  (to 1421) and stays there to x 150. Row z 35: +9 at x 140, +9 at x 141, +9 at x 149. Row z 41: +9 at x 138, +9
+  at x 147. A walker's step is 4 micro. So the east road is blocked by a ONE-CUBE RISER IN THE GROUND, three cells
+  OUTSIDE the wall on the gate's axis - not by the wall, not by the gate, not by the lintel. Behind the rectangle
+  (chain 266) the same riser was hidden: the flood stopped at the wall first.
+  What the riser is, I have not shown. The three rows step at different x, in whole cubes, with level benches
+  between - that reads as ungraded cube terrain, or as the edge of the settlement's own levelled ground against
+  the road's; either way the place where the arriving world road meets the settlement is not walkable here, wall
+  or no wall, and the door-only walkability gate has never looked at it. This is NOT a wall defect and is larger
+  than M5d: it may hold for the unwalled town on this very site (not measured).
+PM5d2.15 chain 270 (written 2026-11-15 05:47, before the run; the measure is SPLIT, stated as a change after five runs: (a) "the
+  wall's gate on the world road" - a route from the first road cell 2 steps clear of the band inside to the first
+  2 steps clear outside: the wall's own responsibility; (b) "the world road out of the settlement" - the 5-step
+  route as before. Both refuse the build when blocked. The test asserts (a) and (b) separately and STAYS RED on
+  (b) while the riser stands - a standing red that names the seam, not the wall):
+    (a) 2 gate routes, 2 walkable (east: x 140 -> x 145 on the level floor under the lintel, by the section; north:
+        already walkable at 5 steps); (b) 2 routes, north walkable, east BLOCKED; gate 76 walkable / 1 blocked,
+        refused; barrier 6 / 0. The test: 0 ok / 1 failed, failing ONLY on (b)'s line and the gate's verdict.
+    RISK: the 2-step ends land on the band's own margin cells and do not seat.
+
+RESULT chain 270 (written 2026-11-15 06:08; RUN EXIT 1 06:07:17; exe 05:48:07): 0 ok / 1 failed - MISS on (a). Gate routes: 2
+  walked, north walkable, EAST BLOCKED (from local 140,35 at feet 1422 to local 145,35 at feet 1431). (b) as
+  predicted: north walkable, east blocked. Gate 75 / 2, refused. Barrier 6 / 0.
+  Why (a) missed, read off chain 269's section: my "first road cell 2 steps clear" landed both ends on row z 35 -
+  the EDGE row of the road's band, where the ground steps +9 at x 140 and again at x 141 and stands two cubes above
+  the level floor of row z 38. The ground under the east road is NOT level ACROSS the road at the wall: the band's
+  rows sit on different benches of the hillside. So where on the band a route's ends fall decides its verdict - my
+  end rule measured the hillside, not the gate.
+PM5d2.16 chain 271 (written 2026-11-15 06:08, before the run; the gate measure CHANGED again, stated: (a) is now "through the
+  wall's gate" for EVERY gate of the wall - the settlement's own ways' gates too - from the gate's own centre cell
+  3 cells in along the ring's normal to 3 cells out; the gate's geometry, not the road's cells. (b) unchanged):
+    (a) 3 gate routes (way 1 south at 42,-3; way 2 north at 89,63; the world road east at 142,38). East: walkable
+        (row z 38 is level from x 139 to 145 under the lintel, by the section). North: walkable (GUESS, it passed
+        at other ends). South: never walked by anything - GUESS walkable. So 3 walked, 0 blocked.
+    (b) 2 routes, north walkable, east blocked (the riser at x 146). Gate 78 / 1, refused.
+    The test: 0 ok / 1 failed, failing only on (b) and the gate's verdict - IF the south gate passes.
+
+RESULT chain 271 (written 2026-11-15 06:29; RUN EXIT 1 06:28:23; exe 06:09:01): 0 ok / 1 failed - (a) MISSED on one gate.
+  Gates walked through their middle: 3 walked, 1 blocked. South (way 1, @13484,-9961): walkable - as guessed.
+  East (the world road, @13584,-9920): walkable, feet 1413 both ends - as predicted from the section. North (way 2,
+  @13531,-9895): BLOCKED - the inner end seats at feet 1441, the outer at 1431: three cells inside the gate on its
+  axis the walker stands 10 micro above the gate's floor. Not looked at further.
+  (b) roads out: north walkable, east blocked - as predicted. Gate 76 walkable / 2 blocked over 78: REFUSED.
+  Barrier 6 / 0. The wall as stamped: unchanged from chain 267.
+PM5d2.17 chain 272 (written 2026-11-15 06:29, before it reports): the unit set on this tree: 177 ok / 0 failed (no walled build
+  in it that I know of - "0 failed" is what I vouch for).
+
+RESULT chain 272 (written 2026-11-15 06:41): RUN r272_m5b2 EXIT 0 2026-11-15 06:41:14 178 ok, 0 failed

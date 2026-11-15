@@ -1373,3 +1373,15 @@ MY RESPONSE: 1 and 2 are being done now (red first for 1; the control arm streng
 261  RED for the audit's condition 1   6 ok / 1 failed   | 262 green                 7 ok / 0 failed
 263  live diagnostic with EXPECTs      1 ok / 0 failed   (10 ring cells on the road, 0 ungated)
 Closed as BUILT WITH OPEN ITEMS; the wall the realizer BUILDS is unchanged and still seals the road; O28.
+
+=== M5d-2a / M5d-2b the way out and the map's wall in voxels - chain summary, IN PROGRESS (recorded 2026-11-15 06:41; detail in m3c_chains/pm_chain252.txt) ===
+264  leave route vs the shipped rectangle   0 ok / 1 failed  (2 routes, 2 blocked; north by my end rule - MISS)
+265  the same, pinch diagnostics            0 ok / 1 failed  (north "pinch" misread - corrected at 267)
+266  ends 5 steps out                       0 ok / 1 failed  (as predicted: north walkable, east blocked at the wall, refused)
+267  the MAP's wall stamped + legacy control 1 ok / 1 failed (MISS: east still blocked; barrier 6 tried / 0 crossed)
+268  gate columns not cleared below lintel   0 ok / 1 failed (MISS: hypothesis wrong, identical reach)
+269  vertical section printed                0 ok / 1 failed (the gate is open; a one-cube riser 3 cells outside)
+270  measure split, short gate route         0 ok / 1 failed (MISS: ends on the road's edge row)
+271  every gate through its middle           0 ok / 1 failed (3 gates: 2 walkable, north blocked; roads out 1 of 2)
+272  unit set                                RUN r272_m5b2 EXIT 0 2026-11-15 06:41:14 178 ok, 0 failed
+NOT closed. No audit. The live test is a standing red on the ground at the road's meeting with the settlement (O29).
