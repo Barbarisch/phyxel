@@ -344,4 +344,61 @@ bool lodCasterKeeps(int level, float L, float u, int maxLevel, float floor);
 /// 20-22 maxLevel, bit 23 = LOD test on, 24-31 the scale code.
 uint32_t lodFlagBits(int level, int maxLevel, int code);
 
+// ---- F2.16 (§4.6 item 9): incremental rebuild -------------------------------------------------------------------
+/// After the voxels in the box [lo, hi] (grid voxels, inclusive) changed, the faces that leave and join meshRuns.
+/// The box may reach one voxel outside the grid (-1 or dim) where a border plane of `outside` changed. `before` must
+/// be exactly meshRuns(the grid before the change) (any order, sprigs excluded). A face of axis a is a run stacked
+/// over rows of its slice and depends only on the face mask in its cell rectangle grown by one ([u-1, u+w] x
+/// [v0-1, v0+h]); so only slices whose voxel or neighbour layer lies in the box can change, a face whose grown
+/// rectangle misses the box's (u, v) footprint stays, and every new face lies in the footprint rows plus the removed
+/// faces' rows -- those rows are re-meshed (whole rows) and their faces that meet the footprint are added. Exact:
+/// before - removed + added == meshRuns(after) as a set (VoxFoundMesher.IncrementalRebuildEqualsAFullRebuild).
+struct RunsDelta {
+    std::vector<uint32_t> removed;   // indices into `before`, ascending
+    std::vector<PackedFace> added;
+    size_t rowsMeshed = 0;           // slice rows whose face mask was computed
+};
+RunsDelta meshRunsDelta(const VoxelGrid& g, Edges outside, const std::vector<PackedFace>& before, glm::ivec3 lo,
+                        glm::ivec3 hi, const CardSet* cards = nullptr);
+/// meshRunsDelta in two parts, so the re-meshing can run on the device (FaceBuilderGpu::rowsDelta). The PLAN needs no
+/// voxels: the removed faces, and per slice that can change the rows to re-mesh [w0, w1] and the footprint a new face
+/// must meet. The rows of every slice job are re-meshed whole (all u); a face is added iff its head row is in
+/// [w0, w1] and its rectangle grown by one meets the footprint.
+struct SliceJob {
+    int axis = 0, dir = 1, s = 0;
+    int w0 = 0, w1 = -1;                        // rows (v) whose heads are re-meshed
+    int uLo = 0, uHi = -1, vLo = 0, vHi = -1;   // footprint, clamped to the grid
+};
+struct RunsPlan {
+    std::vector<uint32_t> removed;   // ascending
+    std::vector<SliceJob> slices;
+    size_t rows() const;             // sum of w1 - w0 + 1
+};
+RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, glm::ivec3 lo, glm::ivec3 hi);
+/// The CPU executor of a plan (the reference for the device one): RunsDelta with plan.removed and the added faces.
+RunsDelta meshRunsPlan(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards = nullptr);
+/// The sprigs (foliageSprigs) of the cells in [lo, hi] (clamped to the grid).
+std::vector<PackedFace> foliageSprigsBox(const VoxelGrid& g, Edges outside, const SprigParams& p, glm::ivec3 lo,
+                                         glm::ivec3 hi);
+/// After the voxels in [lo, hi] changed (may reach one outside, as meshRunsDelta): drops the sprigs of the cells in
+/// [lo - 1, hi + 1] and appends that box's new ones. Returns the number of sprigs added.
+size_t updateSprigs(std::vector<PackedFace>& sprigs, const VoxelGrid& g, Edges outside, const SprigParams& p,
+                    glm::ivec3 lo, glm::ivec3 hi);
+/// F2.10's per-block rule kept as data: blocking[b] = 1 iff all 512 voxels of block b are solid and not see-through
+/// (index b.z + nb.z * (b.y + nb.y * b.x)). Grid sides must be multiples of 8. updateBlockBlocking redoes the blocks
+/// the voxel box [lo, hi] touches; connectivityFromBlocking is blockFaceConnectivity's flood over them.
+std::vector<uint8_t> blockBlocking(const VoxelGrid& g, const CardSet& seeThrough);
+void updateBlockBlocking(const VoxelGrid& g, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
+                         std::vector<uint8_t>& blocking);
+FaceConnect connectivityFromBlocking(glm::ivec3 nBlocks, const std::vector<uint8_t>& blocking);
+/// Keeps one chunk's faces in clusterFaces + splitByDirection order through a delta (`groups` = the direction groups
+/// over `faces`; RunsDelta::removed index `faces`): removed faces leave their group, added faces join the group of
+/// their cell and direction (new groups are inserted in order, empty ones dropped), and only touched groups recompute
+/// their box. Equal per group (same groups, boxes and face sets) to re-clustering the new faces.
+void applyClusteredDelta(std::vector<PackedFace>& faces, std::vector<FaceCluster>& groups, const RunsDelta& d,
+                         int clusterBlocks, bool octantOrder = true);
+/// The cell clusters (clusterFaces' output) of a chunk's direction groups.
+std::vector<FaceCluster> cellsOfGroups(const std::vector<PackedFace>& faces, const std::vector<FaceCluster>& groups,
+                                       int clusterBlocks);
+
 }  // namespace Phyxel::Core::VoxFound

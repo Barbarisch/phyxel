@@ -484,8 +484,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       vkCmdDrawIndexedIndirectCount (drawIndirectCount now enabled at device creation). -0.07..-0.23 ms at 4/5 poses.
       TRAPS found: an atomic append scrambles draw order (+1 ms overdraw); merge block 32 costs the NEXT pass
       (leaf cards) +5 ms at forest_floor_open (unexplained); compacted commands need their own buffer.
-      NEXT (the plan's F2 list): item 9 (incremental
-      rebuild), 10 (face pool), T-junctions.
+      F2.16 (2026-11-15): item 9 built + EXACT ({"editable":true} region, {"edit":{...}}; 0 mismatches / 214 live
+      verified edits) but its cost goal is not met: CPU 1 m 4.5 ms (whole-width rows); device rows exact but the
+      synchronous readback waits 10-20 ms for an uncapped GPU -> CPU default, {"device":true} opt-in. Fixed: the
+      F2.15f set-1 descriptor cache keyed on recycled VkBuffer handles (device loss on revision changes -- use the
+      SDK's VK_LAYER_LUNARG_crash_diagnostic for device losses; validation hides races), and stale resident grids.
+      NEXT (the plan's F2 list): item 10 (face pool: rows recorded in-frame on the device, faces written in place,
+      no readback / whole re-upload), then T-junctions.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

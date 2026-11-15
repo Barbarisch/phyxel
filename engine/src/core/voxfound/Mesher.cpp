@@ -264,22 +264,7 @@ PackedFace packSprig(glm::ivec3 c, uint8_t material) {
 }
 
 std::vector<PackedFace> foliageSprigs(const VoxelGrid& g, Edges outside, const SprigParams& p) {
-    std::vector<PackedFace> out;
-    for (size_t i = 0; i < g.size(); ++i) {
-        const uint8_t m = g.mat[i];
-        if (m == 0 || !p.cards.has(m)) continue;
-        const glm::ivec3 c = g.pos(i);
-        if (sprigHash24(p.worldOriginVoxel + c) >= p.threshold24) continue;
-        bool exposed = false;
-        for (int a = 0; a < 3 && !exposed; ++a)
-            for (int d : {-1, 1}) {
-                glm::ivec3 q = c;
-                q[a] += d;
-                if (g.in(q) ? g.mat[g.idx(q)] == 0 : !outside.solidOutside(c, a, d)) { exposed = true; break; }
-            }
-        if (exposed) out.push_back(packSprig(c, m));
-    }
-    return out;
+    return foliageSprigsBox(g, outside, p, glm::ivec3(0), g.dim - 1);   // F2.16: the same rule, over the grid
 }
 }  // namespace Phyxel::Core::VoxFound
 
@@ -287,62 +272,8 @@ namespace Phyxel::Core::VoxFound {
 
 // ---- F2.10 occlusion (§4.6 item 4) ----------------------------------------------------------------------------
 FaceConnect blockFaceConnectivity(const VoxelGrid& g, const CardSet& seeThrough) {
-    const glm::ivec3 nb = g.dim / 8;
-    const int total = nb.x * nb.y * nb.z;
-    auto bi = [&](glm::ivec3 b) { return b.z + nb.z * (b.y + nb.y * b.x); };
-    // a block blocks sight only if all 512 voxels are solid and not see-through
-    std::vector<uint8_t> blocking(size_t(total), 0);
-    for (int bx = 0; bx < nb.x; ++bx)
-        for (int by = 0; by < nb.y; ++by)
-            for (int bz = 0; bz < nb.z; ++bz) {
-                bool all = true;
-                for (int x = 0; x < 8 && all; ++x)
-                    for (int y = 0; y < 8 && all; ++y)
-                        for (int z = 0; z < 8; ++z) {
-                            const uint8_t m = g.mat[g.idx({bx * 8 + x, by * 8 + y, bz * 8 + z})];
-                            if (m == 0 || seeThrough.has(m)) {
-                                all = false;
-                                break;
-                            }
-                        }
-                blocking[size_t(bi({bx, by, bz}))] = all ? 1 : 0;
-            }
-    FaceConnect out{0, 0, 0, 0, 0, 0};
-    std::vector<int> comp(size_t(total), -1);
-    std::vector<glm::ivec3> stack;
-    const glm::ivec3 dir[6] = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
-    int id = 0;
-    for (int bx = 0; bx < nb.x; ++bx)
-        for (int by = 0; by < nb.y; ++by)
-            for (int bz = 0; bz < nb.z; ++bz) {
-                const glm::ivec3 s(bx, by, bz);
-                if (blocking[size_t(bi(s))] || comp[size_t(bi(s))] != -1) continue;
-                uint8_t faces = 0;
-                comp[size_t(bi(s))] = id;
-                stack.assign(1, s);
-                while (!stack.empty()) {
-                    const glm::ivec3 c = stack.back();
-                    stack.pop_back();
-                    if (c.x == 0) faces |= 1u << 0;
-                    if (c.x == nb.x - 1) faces |= 1u << 1;
-                    if (c.y == 0) faces |= 1u << 2;
-                    if (c.y == nb.y - 1) faces |= 1u << 3;
-                    if (c.z == 0) faces |= 1u << 4;
-                    if (c.z == nb.z - 1) faces |= 1u << 5;
-                    for (const glm::ivec3& d : dir) {
-                        const glm::ivec3 n = c + d;
-                        if (n.x < 0 || n.y < 0 || n.z < 0 || n.x >= nb.x || n.y >= nb.y || n.z >= nb.z) continue;
-                        const size_t ni = size_t(bi(n));
-                        if (blocking[ni] || comp[ni] != -1) continue;
-                        comp[ni] = id;
-                        stack.push_back(n);
-                    }
-                }
-                for (int f = 0; f < 6; ++f)
-                    if (faces & (1u << f)) out[size_t(f)] |= faces;
-                ++id;
-            }
-    return out;
+    // F2.16: kept as data (blockBlocking) so an edit redoes only its blocks before the flood
+    return connectivityFromBlocking(g.dim / 8, blockBlocking(g, seeThrough));
 }
 
 std::vector<char> occlusionReach(const std::vector<OccChunk>& known, const std::vector<glm::ivec3>& candidates,
@@ -898,6 +829,332 @@ glm::ivec2 lodLevelsForBox(glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float c, i
 }
 uint32_t lodFlagBits(int level, int maxLevel, int code) {
     return (uint32_t(level) & 0xFu) << 16 | (uint32_t(maxLevel) & 0x7u) << 20 | 1u << 23 | (uint32_t(code) & 0xFFu) << 24;
+}
+
+// ---- F2.16 (§4.6 item 9): incremental rebuild -------------------------------------------------------------------
+size_t RunsPlan::rows() const {
+    size_t n = 0;
+    for (const SliceJob& j : slices) n += size_t(std::max(0, j.w1 - j.w0 + 1));
+    return n;
+}
+
+RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, glm::ivec3 lo, glm::ivec3 hi) {
+    RunsPlan plan;
+    // Per axis and direction: the slices that can change, the (u, v) footprint, and per slice the removed faces' rows.
+    struct Side {
+        int sLo = 0, sHi = -1;
+        int uLo = 0, uHi = -1, vLo = 0, vHi = -1;
+        std::vector<int> rowLo, rowHi;
+    };
+    Side side[3][2];
+    for (int a = 0; a < 3; ++a) {
+        const int ua = (a + 1) % 3, va = (a + 2) % 3;
+        for (int db = 0; db < 2; ++db) {
+            Side& sd = side[a][db];
+            // a dir + face in slice s reads layers s and s + 1; a dir - face layers s and s - 1
+            sd.sLo = std::max(0, db ? lo[a] - 1 : lo[a]);
+            sd.sHi = std::min(dim[a] - 1, db ? hi[a] : hi[a] + 1);
+            sd.uLo = std::max(0, lo[ua]);
+            sd.uHi = std::min(dim[ua] - 1, hi[ua]);
+            sd.vLo = std::max(0, lo[va]);
+            sd.vHi = std::min(dim[va] - 1, hi[va]);
+            if (sd.uLo > sd.uHi || sd.vLo > sd.vHi) sd.sHi = sd.sLo - 1;   // the footprint misses this grid
+            const int n = std::max(0, sd.sHi - sd.sLo + 1);
+            sd.rowLo.assign(size_t(n), std::numeric_limits<int>::max());
+            sd.rowHi.assign(size_t(n), std::numeric_limits<int>::min());
+        }
+    }
+    // faces whose rectangle grown by one meets the footprint of a slice that can change
+    for (size_t i = 0; i < before.size(); ++i) {
+        const PackedFace f = before[i];
+        const int a = int((f.a >> 24) & 3u), db = int((f.a >> 26) & 1u);
+        Side& sd = side[a][db];
+        const glm::ivec3 o(int(f.a & 0xFF), int((f.a >> 8) & 0xFF), int((f.a >> 16) & 0xFF));
+        const int s = o[a];
+        if (s < sd.sLo || s > sd.sHi) continue;
+        const int u = o[(a + 1) % 3], v = o[(a + 2) % 3];
+        const int du = int(f.b & 0xFF) + 1, dv = int((f.b >> 8) & 0xFF) + 1;
+        if (u - 1 > sd.uHi || u + du < sd.uLo || v - 1 > sd.vHi || v + dv < sd.vLo) continue;
+        plan.removed.push_back(uint32_t(i));
+        const size_t k = size_t(s - sd.sLo);
+        sd.rowLo[k] = std::min(sd.rowLo[k], v);
+        sd.rowHi[k] = std::max(sd.rowHi[k], v + dv - 1);
+    }
+    // the rows to re-mesh: the footprint rows + the removed faces' rows (see the header)
+    for (int a = 0; a < 3; ++a)
+        for (int db = 0; db < 2; ++db) {
+            const Side& sd = side[a][db];
+            for (int s = sd.sLo; s <= sd.sHi; ++s) {
+                const size_t k = size_t(s - sd.sLo);
+                SliceJob j;
+                j.axis = a;
+                j.dir = db ? 1 : -1;
+                j.s = s;
+                j.w0 = std::min(sd.vLo, sd.rowLo[k]);
+                j.w1 = std::max(sd.vHi, sd.rowHi[k]);
+                j.uLo = sd.uLo;
+                j.uHi = sd.uHi;
+                j.vLo = sd.vLo;
+                j.vHi = sd.vHi;
+                plan.slices.push_back(j);
+            }
+        }
+    return plan;
+}
+
+RunsDelta meshRunsPlan(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards) {
+    RunsDelta d;
+    d.removed = plan.removed;
+    std::vector<uint8_t> mask;
+    for (const SliceJob& j : plan.slices) {
+        const int a = j.axis;
+        const int nu = g.dim[(a + 1) % 3], nv = g.dim[(a + 2) % 3];
+        const int m0 = std::max(0, j.w0 - 1), m1 = std::min(nv - 1, j.w1 + 1);   // mask rows (head + end tests)
+        mask.assign(size_t(m1 - m0 + 1) * size_t(nu), 0);
+        for (int v = m0; v <= m1; ++v)
+            for (int u = 0; u < nu; ++u)
+                mask[size_t(v - m0) * nu + u] = faceAt(g, outside, axisPoint(a, j.s, u, v), a, j.dir, cards);
+        d.rowsMeshed += size_t(j.w1 - j.w0 + 1);
+        auto at = [&](int u, int v) { return mask[size_t(v - m0) * nu + u]; };
+        auto sameRun = [&](int u, int w, int r, uint8_t m) {
+            if (r < m0 || r > m1) return false;   // never reached for an exact `before` (see the header)
+            if (u > 0 && at(u - 1, r) == m) return false;
+            if (u + w < nu && at(u + w, r) == m) return false;
+            for (int t = 0; t < w; ++t)
+                if (at(u + t, r) != m) return false;
+            return true;
+        };
+        for (int v = j.w0; v <= j.w1; ++v)
+            for (int u = 0; u < nu;) {
+                const uint8_t m = at(u, v);
+                if (!m) { ++u; continue; }
+                int w = 1;
+                while (u + w < nu && at(u + w, v) == m) ++w;
+                if (!(v > 0 && sameRun(u, w, v - 1, m))) {
+                    int h = 1;
+                    while (v + h < nv && sameRun(u, w, v + h, m)) ++h;
+                    if (u - 1 <= j.uHi && u + w >= j.uLo && v - 1 <= j.vHi && v + h >= j.vLo) {
+                        Quad q;
+                        q.o = axisPoint(a, j.s, u, v);
+                        q.axis = uint8_t(a);
+                        q.dir = int8_t(j.dir);
+                        q.du = uint16_t(w);
+                        q.dv = uint16_t(h);
+                        q.material = m;
+                        d.added.push_back(packFace(q));
+                    }
+                }
+                u += w;
+            }
+    }
+    return d;
+}
+
+RunsDelta meshRunsDelta(const VoxelGrid& g, Edges outside, const std::vector<PackedFace>& before, glm::ivec3 lo,
+                        glm::ivec3 hi, const CardSet* cards) {
+    return meshRunsPlan(g, outside, planRunsDelta(g.dim, before, lo, hi), cards);
+}
+
+std::vector<PackedFace> foliageSprigsBox(const VoxelGrid& g, Edges outside, const SprigParams& p, glm::ivec3 lo,
+                                         glm::ivec3 hi) {
+    std::vector<PackedFace> out;
+    lo = glm::max(lo, glm::ivec3(0));
+    hi = glm::min(hi, g.dim - 1);
+    for (int x = lo.x; x <= hi.x; ++x)   // index order, as foliageSprigs
+        for (int y = lo.y; y <= hi.y; ++y)
+            for (int z = lo.z; z <= hi.z; ++z) {
+                const glm::ivec3 c(x, y, z);
+                const uint8_t m = g.mat[g.idx(c)];
+                if (m == 0 || !p.cards.has(m)) continue;
+                if (sprigHash24(p.worldOriginVoxel + c) >= p.threshold24) continue;
+                bool exposed = false;
+                for (int a = 0; a < 3 && !exposed; ++a)
+                    for (int dd : {-1, 1}) {
+                        glm::ivec3 q = c;
+                        q[a] += dd;
+                        if (g.in(q) ? g.mat[g.idx(q)] == 0 : !outside.solidOutside(c, a, dd)) { exposed = true; break; }
+                    }
+                if (exposed) out.push_back(packSprig(c, m));
+            }
+    return out;
+}
+
+size_t updateSprigs(std::vector<PackedFace>& sprigs, const VoxelGrid& g, Edges outside, const SprigParams& p,
+                    glm::ivec3 lo, glm::ivec3 hi) {
+    const glm::ivec3 rlo = lo - 1, rhi = hi + 1;
+    sprigs.erase(std::remove_if(sprigs.begin(), sprigs.end(),
+                                [&](const PackedFace& f) {
+                                    const glm::ivec3 c(int(f.a & 0xFF), int((f.a >> 8) & 0xFF), int((f.a >> 16) & 0xFF));
+                                    return c.x >= rlo.x && c.y >= rlo.y && c.z >= rlo.z && c.x <= rhi.x &&
+                                           c.y <= rhi.y && c.z <= rhi.z;
+                                }),
+                 sprigs.end());
+    const std::vector<PackedFace> add = foliageSprigsBox(g, outside, p, rlo, rhi);
+    sprigs.insert(sprigs.end(), add.begin(), add.end());
+    return add.size();
+}
+
+namespace {
+uint8_t blockBlocks(const VoxelGrid& g, const CardSet& seeThrough, glm::ivec3 b) {
+    for (int x = 0; x < 8; ++x)
+        for (int y = 0; y < 8; ++y)
+            for (int z = 0; z < 8; ++z) {
+                const uint8_t m = g.mat[g.idx({b.x * 8 + x, b.y * 8 + y, b.z * 8 + z})];
+                if (m == 0 || seeThrough.has(m)) return 0;
+            }
+    return 1;
+}
+}  // namespace
+
+std::vector<uint8_t> blockBlocking(const VoxelGrid& g, const CardSet& seeThrough) {
+    std::vector<uint8_t> out;
+    out.assign(size_t(g.dim.x / 8) * size_t(g.dim.y / 8) * size_t(g.dim.z / 8), 0);
+    updateBlockBlocking(g, seeThrough, glm::ivec3(0), g.dim - 1, out);
+    return out;
+}
+
+void updateBlockBlocking(const VoxelGrid& g, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
+                         std::vector<uint8_t>& blocking) {
+    const glm::ivec3 nb = g.dim / 8;
+    const glm::ivec3 blo = glm::max(lo, glm::ivec3(0)) / 8, bhi = glm::min(hi, g.dim - 1) / 8;
+    if (lo.x > g.dim.x - 1 || lo.y > g.dim.y - 1 || lo.z > g.dim.z - 1 || hi.x < 0 || hi.y < 0 || hi.z < 0) return;
+    for (int bx = blo.x; bx <= bhi.x; ++bx)
+        for (int by = blo.y; by <= bhi.y; ++by)
+            for (int bz = blo.z; bz <= bhi.z; ++bz)
+                blocking[size_t(bz + nb.z * (by + nb.y * bx))] = blockBlocks(g, seeThrough, {bx, by, bz});
+}
+
+FaceConnect connectivityFromBlocking(glm::ivec3 nb, const std::vector<uint8_t>& blocking) {
+    const int total = nb.x * nb.y * nb.z;
+    auto bi = [&](glm::ivec3 b) { return b.z + nb.z * (b.y + nb.y * b.x); };
+    FaceConnect out{0, 0, 0, 0, 0, 0};
+    std::vector<int> comp(size_t(total), -1);
+    std::vector<glm::ivec3> stack;
+    const glm::ivec3 dir[6] = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
+    int id = 0;
+    for (int bx = 0; bx < nb.x; ++bx)
+        for (int by = 0; by < nb.y; ++by)
+            for (int bz = 0; bz < nb.z; ++bz) {
+                const glm::ivec3 s(bx, by, bz);
+                if (blocking[size_t(bi(s))] || comp[size_t(bi(s))] != -1) continue;
+                uint8_t faces = 0;
+                comp[size_t(bi(s))] = id;
+                stack.assign(1, s);
+                while (!stack.empty()) {
+                    const glm::ivec3 c = stack.back();
+                    stack.pop_back();
+                    if (c.x == 0) faces |= 1u << 0;
+                    if (c.x == nb.x - 1) faces |= 1u << 1;
+                    if (c.y == 0) faces |= 1u << 2;
+                    if (c.y == nb.y - 1) faces |= 1u << 3;
+                    if (c.z == 0) faces |= 1u << 4;
+                    if (c.z == nb.z - 1) faces |= 1u << 5;
+                    for (const glm::ivec3& dd : dir) {
+                        const glm::ivec3 n = c + dd;
+                        if (n.x < 0 || n.y < 0 || n.z < 0 || n.x >= nb.x || n.y >= nb.y || n.z >= nb.z) continue;
+                        const size_t ni = size_t(bi(n));
+                        if (blocking[ni] || comp[ni] != -1) continue;
+                        comp[ni] = id;
+                        stack.push_back(n);
+                    }
+                }
+                for (int f = 0; f < 6; ++f)
+                    if (faces & (1u << f)) out[size_t(f)] |= faces;
+                ++id;
+            }
+    return out;
+}
+
+namespace {
+// clusterFaces' order as one number: the cell, then the direction's place in it
+uint32_t groupKey(PackedFace f, int cellV, bool octantOrder) {
+    const glm::ivec3 c = unpackFace(f).o / cellV;
+    const int dI = faceDirIndex(f);
+    return (((uint32_t(c.x) << 16) | (uint32_t(c.y) << 8) | uint32_t(c.z)) << 3) |
+           uint32_t(octantOrder ? faceDirRank(dI) : dI);
+}
+uint32_t cellOf(PackedFace f, int cellV) { return groupKey(f, cellV, true) >> 3; }
+void boxOf(const std::vector<PackedFace>& faces, FaceCluster& c) {
+    c.lo = glm::ivec3(std::numeric_limits<int>::max());
+    c.hi = glm::ivec3(std::numeric_limits<int>::min());
+    for (uint32_t i = c.first; i < c.first + c.count; ++i) {
+        glm::ivec3 lo, hi;
+        faceBox(faces[i], lo, hi);
+        c.lo = glm::min(c.lo, lo);
+        c.hi = glm::max(c.hi, hi);
+    }
+}
+}  // namespace
+
+void applyClusteredDelta(std::vector<PackedFace>& faces, std::vector<FaceCluster>& groups, const RunsDelta& d,
+                         int clusterBlocks, bool octantOrder) {
+    const int cellV = std::max(1, clusterBlocks) * 8;
+    std::vector<char> gone(faces.size(), 0);
+    for (uint32_t i : d.removed) gone[i] = 1;
+    std::vector<std::pair<uint32_t, PackedFace>> add;
+    add.reserve(d.added.size());
+    for (const PackedFace& f : d.added) add.push_back({groupKey(f, cellV, octantOrder), f});
+    std::stable_sort(add.begin(), add.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+    std::vector<PackedFace> nf;
+    nf.reserve(faces.size() + add.size());
+    std::vector<FaceCluster> ng;
+    ng.reserve(groups.size() + 8);
+    size_t gi = 0, ai = 0;
+    while (gi < groups.size() || ai < add.size()) {
+        const uint32_t gk = gi < groups.size() ? groupKey(faces[groups[gi].first], cellV, octantOrder)
+                                               : std::numeric_limits<uint32_t>::max();
+        const uint32_t ak = ai < add.size() ? add[ai].first : std::numeric_limits<uint32_t>::max();
+        const uint32_t key = std::min(gk, ak);
+        FaceCluster c;
+        c.first = uint32_t(nf.size());
+        bool touched = false;
+        if (gk == key) {
+            const FaceCluster& o = groups[gi++];
+            for (uint32_t i = o.first; i < o.first + o.count; ++i)
+                if (gone[i]) touched = true;
+                else nf.push_back(faces[i]);
+            c.dir = o.dir;
+            c.lo = o.lo;
+            c.hi = o.hi;
+        }
+        for (; ai < add.size() && add[ai].first == key; ++ai) {
+            nf.push_back(add[ai].second);
+            touched = true;
+        }
+        c.count = uint32_t(nf.size()) - c.first;
+        if (c.count == 0) continue;
+        if (touched) {
+            c.dir = faceDirIndex(nf[c.first]);
+            boxOf(nf, c);
+        }
+        ng.push_back(c);
+    }
+    faces.swap(nf);
+    groups.swap(ng);
+}
+
+std::vector<FaceCluster> cellsOfGroups(const std::vector<PackedFace>& faces, const std::vector<FaceCluster>& groups,
+                                       int clusterBlocks) {
+    const int cellV = std::max(1, clusterBlocks) * 8;
+    std::vector<FaceCluster> out;
+    uint32_t cur = std::numeric_limits<uint32_t>::max();
+    for (const FaceCluster& g : groups) {
+        const uint32_t k = cellOf(faces[g.first], cellV);
+        if (out.empty() || k != cur) {
+            FaceCluster c;
+            c.first = g.first;
+            c.count = 0;
+            c.lo = g.lo;
+            c.hi = g.hi;
+            out.push_back(c);
+            cur = k;
+        }
+        FaceCluster& c = out.back();
+        c.count += g.count;
+        c.lo = glm::min(c.lo, g.lo);
+        c.hi = glm::max(c.hi, g.hi);
+    }
+    return out;
 }
 
 }  // namespace Phyxel::Core::VoxFound

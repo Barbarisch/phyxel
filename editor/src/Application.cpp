@@ -13347,12 +13347,18 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             voxFoundPreview.sprigs.clear();
             voxFoundPreview.chunks.clear();
             voxFoundPreview.clusters.clear();
+            voxFoundEdit.clear();   // F2.16
             ++voxFoundPreview.revision;
             response = {{"cleared", true}};
             return;
         }
         if (!vulkanDevice || !renderCoordinator) {
             response = {{"error", "no Vulkan device / renderer"}};
+            return;
+        }
+        // {"edit":{...}}: F2.16 (§4.6 item 9) -- edit an editable region preview, rebuilt incrementally
+        if (cmd.params.contains("edit")) {
+            handleVoxFoundEdit(cmd.params["edit"], response);
             return;
         }
         if (cmd.params.contains("cast")) {   // {"cast":{"faces":bool,"sprigs":bool}}: shadow casters on/off (diagnosis)
@@ -13525,6 +13531,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"clusters", renderCoordinator->voxFoundCullStats()[0]},
                         {"clusters_drawn", renderCoordinator->voxFoundCullStats()[1]},
                         {"mdi_compact", voxFoundPreview.mdiCompact},   // F2.15f: clusters_drawn = appended commands
+                        {"upload_ms_last", {renderCoordinator->voxFoundUploadMs()[0], renderCoordinator->voxFoundUploadMs()[1],
+                                            renderCoordinator->voxFoundUploadMs()[2]}},   // F2.16: faces, sprigs, clusters
                         {"cluster_faces_drawn", renderCoordinator->voxFoundCullStats()[2]},
                         {"faces_by_level", renderCoordinator->voxFoundFacesByLevel()},   // F2.14, last measured
                         {"lod_auto", voxFoundPreview.lodOn}, {"lod_px", voxFoundPreview.lodPxPerVoxel},
@@ -13554,7 +13562,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             std::string gerr;
             const std::string spv = Core::AssetManager::instance().resolveShader("voxfound_faces.comp.spv");
             if (!voxFoundBuilder->init(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice(),
-                                       vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(),
+                                       // F2.16: its own queue, so an edit's fence does not wait behind queued frames
+                                       vulkanDevice->getAsyncComputeQueue(), vulkanDevice->getAsyncComputeQueueFamily(),
                                        std::filesystem::path(spv).parent_path().string(), &gerr)) {
                 voxFoundBuilder.reset();
                 response = {{"error", "FaceBuilderGpu init: " + gerr}};
@@ -13684,6 +13693,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             for (int f = 0; f < 6; ++f) voxFoundPreview.faceTex[m * 6 + f] = tex[m][f];
         voxFoundPreview.faces = packed;
         voxFoundPreview.chunks.clear();   // one area: drawn at originMetres
+        voxFoundEdit.clear();             // F2.16: edits are for region previews
         voxFoundPreview.clusters.clear();   // F2.11 MDI is for region previews only
         // Sprig instance: today's leaf texture (face 0, as ChunkRenderManager), full sky, no block light.
         voxFoundPreview.sprigs.resize(sprigRecs.size());
@@ -13724,6 +13734,156 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     {"flora_stamped", fs.stamped},
                     {"flora_missing", fs.missing}};
         return;
+}
+
+// docs/VoxelFoundationPlan.md F2.16 (§4.6 item 9) -- POST /api/debug/voxfound_preview {"edit":{...}}: edit a region
+// preview built with {"editable":true}, rebuilt INCREMENTALLY (RegionEdit: only the rows, sprig cells and blocks the
+// brush can change). Body: {"material":"air"|name, "lo":[x,y,z], "hi":[x,y,z]} (world 1/8 m voxels, inclusive) or
+// {"material", "sphere":{"c":[x,y,z], "r":voxels}}; "verify":true also rebuilds every touched chunk fully with
+// FaceBuilderGpu and compares faces, sprigs and connectivity. The drawn lists are re-uploaded whole (item 10).
+void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& response) {
+    using namespace Core::VoxFound;
+    if (voxFoundEdit.empty()) {
+        response = {{"error", "no editable region preview (build one with {\"region\":...,\"editable\":true})"}};
+        return;
+    }
+    // {"replace_all":true}: every chunk's lists from a FULL FaceBuilderGpu rebuild of its current voxels (the pixel A/B
+    // reference for the incremental lists; no voxel changes)
+    if (ej.value("replace_all", false) && voxFoundBuilder) {
+        const auto t0 = std::chrono::steady_clock::now();
+        for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+            const auto& c = voxFoundEdit.chunk(i);
+            const SprigParams sp = voxFoundEdit.sprigParams(i);
+            std::vector<PackedFace> out;
+            std::string err;
+            if (!voxFoundBuilder->build(c.grid, Edges(c.border), out, &err, &sp)) {
+                response = {{"error", err}};
+                return;
+            }
+            voxFoundEdit.replaceFaces(i, out);
+        }
+        voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+        response = {{"replaced_chunks", voxFoundEdit.chunkCount()}, {"faces", voxFoundPreview.faces.size()},
+                    {"wall_ms", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count()}};
+        return;
+    }
+    auto ivec = [&](const nlohmann::json& j) {
+        if (!j.is_array() || j.size() != 3) throw std::runtime_error("expected [x,y,z] (world 1/8 m voxels)");
+        return glm::ivec3(j[0].get<int>(), j[1].get<int>(), j[2].get<int>());
+    };
+    glm::ivec3 lo, hi;
+    std::function<bool(glm::ivec3)> inside = [](glm::ivec3) { return true; };
+    std::string brush = "box";
+    if (ej.contains("sphere")) {
+        const glm::ivec3 c = ivec(ej["sphere"].at("c"));
+        const double r = ej["sphere"].value("r", 4.0);
+        const int ri = int(std::ceil(r));
+        lo = c - ri;
+        hi = c + ri;
+        inside = [c, r](glm::ivec3 p) { return glm::length(glm::dvec3(p - c)) <= r; };
+        brush = "sphere";
+    } else {
+        const glm::ivec3 a = ivec(ej.at("lo")), b = ivec(ej.at("hi"));
+        lo = glm::min(a, b);
+        hi = glm::max(a, b);
+    }
+    // the material: air, a palette entry, or a new palette entry (its textures and card / see-through sets added)
+    const std::string matName = ej.value("material", std::string("air"));
+    uint8_t mat = 0;
+    if (matName != "air") {
+        const auto* md = Core::MaterialRegistry::instance().getMaterial(matName);
+        if (!md) {
+            response = {{"error", "unknown material " + matName}};
+            return;
+        }
+        size_t m = 1;
+        while (m < voxFoundPalette.size() && voxFoundPalette[m] != matName) ++m;
+        if (m == voxFoundPalette.size()) {
+            if (m >= 256) {
+                response = {{"error", "palette full (256)"}};
+                return;
+            }
+            voxFoundPalette.push_back(matName);
+            voxFoundLeafTex.resize(voxFoundPalette.size(), 0);
+            for (int f = 0; f < 6; ++f) {
+                const uint16_t t = Core::MaterialRegistry::instance().getTextureIndex(matName, f);
+                voxFoundPreview.faceTex[m * 6 + size_t(f)] = t;
+                if (f == 0) voxFoundLeafTex[m] = t;
+            }
+            CardSet cards = voxFoundEdit.cards(), see = voxFoundEdit.seeThrough();
+            if (md->billboarded) cards.set(uint8_t(m));
+            if (md->billboarded || md->alpha < 0.99f) see.set(uint8_t(m));
+            voxFoundEdit.setMaterialSets(cards, see);
+        }
+        mat = uint8_t(m);
+    }
+    const auto t0 = std::chrono::steady_clock::now();
+    // Rows executor: the CPU (meshRunsPlan) by default; {"device":true} re-meshes the planned rows on the device
+    // (FaceBuilderGpu::rowsDelta). Measured 2026-11-15 (docs/evidence/voxfound_f216_prediction.txt): the device kernel
+    // is ~0.15 ms but its synchronous readback waits for a GPU timeslice -- 0.5-0.7 ms with GPU headroom, 10-13 ms at
+    // the uncapped operating point -- vs 3.6-4.4 ms on the CPU for a 1 m edit. The device path pays off once item 10
+    // records the rows into the frame and writes the face pool on the device (no readback, no wait).
+    std::string rowsErr;
+    const RegionEdit::Stats st = voxFoundEdit.apply(lo, hi, inside, mat,
+                                                    ej.value("device", false) ? voxFoundBuilder.get() : nullptr, &rowsErr);
+    // the CPU executor changed these chunks' voxels behind any resident device copy: forget them (a later device edit
+    // would otherwise re-mesh stale voxels next to its own box -- 12 face mismatches, live, before this)
+    if (!ej.value("device", false) && voxFoundBuilder)
+        for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
+    const auto t1 = std::chrono::steady_clock::now();
+    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+    const auto t2 = std::chrono::steady_clock::now();
+    auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    nlohmann::json rebuilt = nlohmann::json::array();
+    for (size_t i : st.rebuilt) {
+        const auto& c = voxFoundEdit.chunk(i);
+        rebuilt.push_back({c.chunk.x, c.chunk.y, c.chunk.z});
+    }
+    response = {{"brush", brush}, {"material", matName}, {"lo", {lo.x, lo.y, lo.z}}, {"hi", {hi.x, hi.y, hi.z}},
+                {"voxels_changed", st.voxelsChanged}, {"chunks_edited", st.chunksEdited},
+                {"chunks_rebuilt", rebuilt}, {"faces_removed", st.facesRemoved}, {"faces_added", st.facesAdded},
+                {"rows_meshed", st.rowsMeshed}, {"rows_full_chunk", 6u * 256u * 256u},
+                {"sprigs_added", st.sprigsAdded}, {"rows_on_device", st.onDevice}, {"rows_error", rowsErr},
+                {"plan_ms", st.planMs}, {"rows_wall_ms", st.rowsWallMs}, {"rows_gpu_ms", st.rowsGpuMs},
+                {"upload_bytes", st.uploadBytes}, {"resident_misses", st.residentMisses},
+                {"set_ms", st.setMs}, {"faces_ms", st.facesMs}, {"cluster_ms", st.clusterMs},
+                {"sprig_ms", st.sprigMs}, {"connect_ms", st.connectMs}, {"rebuild_ms", ms(t0, t1)},
+                {"assemble_ms", ms(t1, t2)}, {"faces", voxFoundPreview.faces.size()},
+                {"sprigs", voxFoundPreview.sprigs.size()}};
+    if (ej.value("verify", false) && voxFoundBuilder) {
+        // every rebuilt chunk, fully, on the device: the same voxels + border planes through FaceBuilderGpu
+        size_t faceMiss = 0, sprigMiss = 0, connMiss = 0;
+        double gpuMs = 0.0;
+        for (size_t i : st.rebuilt) {
+            const auto& c = voxFoundEdit.chunk(i);
+            const SprigParams sp = voxFoundEdit.sprigParams(i);
+            std::vector<PackedFace> out;
+            std::string err;
+            if (!voxFoundBuilder->build(c.grid, Edges(c.border), out, &err, &sp)) {
+                response["verify_error"] = err;
+                break;
+            }
+            gpuMs += voxFoundBuilder->lastGpuMs();
+            std::vector<uint64_t> fa, fb, sa, sb;
+            for (const PackedFace& f : out) (isSprig(f) ? sb : fb).push_back(f.key());
+            for (const PackedFace& f : c.faces) fa.push_back(f.key());
+            for (const PackedFace& f : c.sprigs) sa.push_back(f.key());
+            for (auto* v : {&fa, &fb, &sa, &sb}) std::sort(v->begin(), v->end());
+            std::vector<uint64_t> diff;
+            std::set_symmetric_difference(fa.begin(), fa.end(), fb.begin(), fb.end(), std::back_inserter(diff));
+            faceMiss += diff.size();
+            diff.clear();
+            std::set_symmetric_difference(sa.begin(), sa.end(), sb.begin(), sb.end(), std::back_inserter(diff));
+            sprigMiss += diff.size();
+            connMiss += c.connect != blockFaceConnectivity(c.grid, voxFoundEdit.seeThrough()) ? 1u : 0u;
+            // "replace_with_full": draw the full rebuild's lists instead (the pixel A/B reference)
+            if (ej.value("replace_with_full", false)) voxFoundEdit.replaceFaces(i, out);
+        }
+        if (ej.value("replace_with_full", false)) voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+        response["verify"] = {{"face_mismatches", faceMiss}, {"sprig_mismatches", sprigMiss},
+                              {"connectivity_mismatches", connMiss}, {"chunks", st.rebuilt.size()},
+                              {"gpu_full_rebuild_ms_sum", gpuMs}};
+    }
 }
 
 // docs/VoxelFoundationPlan.md F2.8 -- the preview of a REGION of whole engine chunks, built as chunks: each 32 m
@@ -13853,6 +14013,18 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // leaf mass (today's chunk-LOD handoff of cards); the sprigs then belong to the levels below h and dissolve by
     // size on screen with lod_auto (voxfound_foliage.vert, VoxFound::lodSprigFade).
     const int sprigLevel = std::clamp(cmd.params.value("lod_sprig_level", 0), 0, lodLevels);
+    // F2.16 (§4.6 item 9): {"editable":true} keeps each chunk's voxels, border planes, faces, sprigs and block bits
+    // (RegionEdit, ~17 MB per chunk) so {"edit":...} rebuilds incrementally. Level 0 only: refused with coarse levels,
+    // closed casters, seam / exit faces or an alternate level set (each would need its own update: owed).
+    const bool editable = cmd.params.value("editable", false);
+    if (editable && (lodLevels > 0 || closedCasters || seamDepth > 0 || exitReach != 0 || nVariants > 1)) {
+        response = {{"error", "editable is level 0 only: no lod_levels, closed_casters, caster_seam_depth, "
+                              "caster_exit_reach or lod alternates"}};
+        return;
+    }
+    voxFoundEdit.clear();
+    if (voxFoundBuilder) voxFoundBuilder->dropResident();   // F2.16: resident grids of the old region
+    if (editable) voxFoundEdit.begin(lo, hi, clusterBlocks, dirOctant, sprigThreshold24(sprigsPerM2, kVoxelsPerM));
     std::vector<std::vector<Preview::Level>> sets(size_t(nVariants), std::vector<Preview::Level>(size_t(lodLevels) + 1));
     std::vector<Preview::Level>& levels = sets[0];
     std::vector<size_t> levelSolid(levels.size(), 0);
@@ -13972,6 +14144,10 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         std::vector<PackedFace> out;
         if (!voxFoundBuilder->build(rc.grid, Edges(rc.border), out, &err, leafCards ? &sp : nullptr)) return;
         gpuMs += voxFoundBuilder->lastGpuMs();
+        if (editable) {   // F2.16: the palette only grows, so the sets of the last chunk cover every earlier one
+            voxFoundEdit.setMaterialSets(leafCards ? sp.cards : CardSet{}, seeThrough);
+            voxFoundEdit.addChunk(rc, out);
+        }
         solid += rc.grid.solidCount();
         PreviewChunk pc;
         pc.originMetres = glm::dvec3(rc.originVoxel) / double(kVoxelsPerM);
@@ -14137,6 +14313,8 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
             voxFoundPreview.faceTex[m * 6 + f] = t;
             if (f == 0) leafTex[m] = t;
         }
+    voxFoundPalette = palette;   // F2.16: edits look materials up here (and may append)
+    voxFoundLeafTex = leafTex;
     voxFoundPreview.sprigs.resize(sprigRecs.size());
     for (size_t i = 0; i < sprigRecs.size(); ++i) {   // as the single-area preview: leaf texture face 0, full sky
         const uint32_t m = (sprigRecs[i].b >> 16) & 0xFFu;
@@ -14215,6 +14393,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 {"flora_planned_today_rect", flora && bounded
                      ? gen.planFlora(lo.x * kChunkM, lo.z * kChunkM, (hi.x + 1) * kChunkM - 1, (hi.z + 1) * kChunkM - 1).size()
                      : size_t(0)},
+                {"editable", editable}, {"edit_store_bytes", voxFoundEdit.bytes()},   // F2.16
                 {"hide_world", renderCoordinator->hideWorld()}};
 }
 

@@ -1,0 +1,128 @@
+F2.16 prediction (written 2026-11-15, before any code) -- §4.6 item 9: incremental rebuild. Today one edited chunk
+costs a 2-13 ms main-thread re-mesh (rebuildFaces, ChunkUpdateHitchPlan T0) plus its buffer upload; the plan's goal is
+"only changed blocks rebuild", F2.1's note "rebuild only changed rows".
+
+What a face depends on (run merge, Mesher.h meshRuns; the GPU builder = it as a set): a face of axis a in slice s is a
+run (u, w, material m) in row v0 stacked over rows v0..v0+h-1. It exists iff row v0 holds the maximal run, rows v0+1..
+v0+h-1 hold the same run, and rows v0-1 and v0+h do not -- all decided by the face mask in the cell rectangle
+[u-1, u+w] x [v0-1, v0+h] of that slice, and a mask cell by the voxel and its neighbour along a. So after the voxels in a
+box B change (chunk-local; may lie one voxel outside the grid when a neighbour chunk's border layer changed):
+- only slices s with s or s+dir in B's a-range can change (dir +: [lo-1, hi], dir -: [lo, hi+1]);
+- in such a slice, a face is unchanged unless its cell rectangle meets B's (u, v) footprint -> those are removed;
+- every new face's rows lie in the footprint rows plus the removed faces' rows (a face reaching outside them would
+  stack through unchanged rows onto an old face that met the footprint, i.e. a removed one), so re-meshing those rows
+  (whole rows, all u) and keeping the faces that meet the footprint gives EXACTLY meshRuns(new voxels).
+Leaf sprigs: only cells in B +- 1 change. Occlusion connectivity: only the blocks in B change their "blocks sight"
+bit; the 32^3-block flood is redone. Clusters (4-block cells x direction groups, octant order): removed faces leave
+their group, added faces join theirs by origin; only touched groups recompute their box.
+
+Change (CPU reference, exact by construction; the GPU form belongs with the device face pool, item 10):
+1. Mesher: meshRunsDelta (removed + added faces for a box), foliageSprigsBox, block blocking bits + connectivity from
+   them, applyClusteredDelta (keeps one chunk's faces in clusterFaces + splitByDirection order).
+2. Region previews built with {"editable":true} keep each chunk's 1/8 m grid, border planes, faces, sprigs and
+   blocking bits (dense: 16.7 MB per chunk; the BlockStore form is F3). POST {"edit":{"lo","hi"|"sphere","material"}}
+   in world 1/8 m voxels sets the voxels of every chunk the box touches, updates the neighbours' border planes,
+   applies the deltas, and reassembles the drawn lists. {"verify":true} rebuilds the touched chunks fully with
+   FaceBuilderGpu and compares (faces, sprigs, connectivity). Refused with coarse LOD levels / closed casters / seam
+   built (they would need their own update: owed).
+3. The re-upload of the drawn lists stays whole (today's path) and is measured apart: that is item 10's job.
+
+Red test first: CPU, random grids at awkward sizes (incl. one side 1, 33), random cards, real Neighbours planes, 300
+random box/sphere edits (1 voxel .. a third of the grid, touching borders, and border-plane-only edits): after each,
+faces = meshRuns(new) as a set (and coverageErrors 0), sprigs = foliageSprigs(new), connectivity =
+blockFaceConnectivity(new), clusters = clusterFaces + splitByDirection(new) per group (same groups, same face sets,
+same boxes). Red on a stub that changes nothing.
+
+Predictions (gate region Perlin s7 flora 254..257 x 0..1 x 2..5, LOD off, Release):
+1. Exact: 0 face / sprig / connectivity mismatches vs the GPU full rebuild on 200 live random edits (1 voxel .. 4 m
+   boxes and spheres, ground, trunks, canopy, chunk borders and corners: up to 8 chunks per edit).
+2. Rows re-meshed for a 1 m cube (8^3) edit: <= 1 % of a chunk's 393,216 rows (6 x 256 x 256).
+3. CPU rebuild per edit (faces + sprigs + connectivity + clusters, single thread):
+   1 voxel <= 0.3 ms; 1 m cube 0.3-1.5 ms; 4 m cube 3-12 ms (scales with the slices x rows touched, not the chunk).
+   1 m vs today's 2-13 ms per chunk: >= 3x cheaper at the low end of today's range.
+   Stop line: if a 1 m edit costs > 2 ms on the CPU, the row rebuild moves to the GPU now, not with item 10.
+4. Reassembly + whole re-upload of the drawn lists (today's path, ~1.7 M faces = ~13 MB): 5-15 ms on the frame after
+   an edit -- larger than the rebuild itself; this is the number item 10 must remove.
+5. Pixels after 20 edits: incremental vs a full rebuild of the same voxels, within each mode's own repeat noise.
+
+---- 2026-11-15 interim measurement (before the gate) + the queue prediction ----
+Measured (Release, gate region, port 8120, nothing else on the GPU; 1 m cube edits, 432 rows, resident hits, 16 KB up):
+  CPU executor (meshRunsPlan):          rows wall 3.98 / 4.13 / 4.36 ms           (stop line 2 ms: crossed)
+  device (FaceBuilderGpu::rowsDelta):   rows wall 11.6 / 12.4 / 13.2 / 13.7 / 14.0 ms, kernel 0.14-0.34 ms
+  frame: 6.9 ms GPU, 154 fps, IMMEDIATE. Verify: 0 face / sprig / connectivity mismatches on every edit.
+Cause: FaceBuilderGpu submits to the GRAPHICS queue (VulkanDevice's compute queue is family 0, shared with
+graphics), so each edit's fence waits behind the ~2 frames already queued. The kernel is 1-2 % of the wall.
+Also seen: the first gate run lost the device (VkResult -4) 2 s after the first frame, during the region build
+alongside startup meshing; not reproduced in a second run. Cause unknown; the gate now checks the log after the
+build and aborts instead of hanging.
+Change: VulkanDevice creates one queue in a compute-only family when the GPU has one (fallback: the graphics
+queue); FaceBuilderGpu (private buffers, host readback: no ownership transfers) runs on it.
+Prediction: device rows wall for a 1 m edit 0.3-1.5 ms (submit + 16 KB copy + 0.2 ms kernel + fence + readback),
+<= 0.3x the CPU executor; frame time unchanged within noise; the gate's per-class medians follow.
+
+---- the device loss: root cause (2026-11-15) ----
+Repro: fresh engine (VoxFoundGate, default camera), editable region build, then any preview revision change (even a
+zero-voxel edit: RegionEdit::assemble bumps the revision). Lost 5 of 6 fresh runs (the first gate at the build's own
+revision; 4 probes at the first edit); 0 of ~150 bumps in sessions where the camera had been set first (allocation
+pattern, not the view). The injected validation layer (Release, VK_INSTANCE_LAYERS) changed the timing: no loss, no
+new VUID. The Crash Diagnostic Layer (VK_LAYER_LUNARG_crash_diagnostic) caught it: DeviceFaultInfo "Invalid Read"
+in a VkDeviceMemory with currentlyBound: false (freed), 0x30000 bytes = 12,288 x 16 B (an origin table's size).
+Cause: RenderPipeline::bindVoxFoundFaceTex caches its set-1 descriptor writes keyed on VkBuffer HANDLE values. A
+revision change destroys and re-creates the per-command origin tables (RenderCoordinator, F2.15f); when the new
+buffer comes back with the same handle value the cache hits and binds a set whose descriptors still point at the
+freed memory. Pre-existing since F2.15f (region rebuilds were exposed too); edits made it frequent.
+Fix: RenderPipeline::forgetVoxFoundSets(), called wherever those buffers are freed (the revision re-create, after
+ClusterCullGpu::upload's device wait; releaseVoxFoundCull; releaseVoxFoundTexBuffer).
+Green bar: 3 fresh-engine default-camera probes (build + 22 revision changes each) with no loss.
+
+---- the dedicated queue: measured (refutes the queue prediction) ----
+Async compute queue = family 2 (dedicated) on this GPU. 1 m edits, resident hits, same engine (fix build):
+  preview shown, uncapped (IMMEDIATE, ~150 fps, ~6.9 ms GPU frames): device rows wall 10.4 / 10.9 / 11.1 / 12.4 /
+  12.5 / 12.8 / 13.3 ms, kernel 0.14-0.18 ms                              -> prediction 0.3-1.5 ms REFUTED here
+  preview hidden (GPU ~idle: 0.26 ms frames, 754 fps): 6.0 (first) / 0.74 / 0.52 / 0.53 ms   -> inside the prediction
+  CPU executor, same session: 3.60 / 3.61 / 4.24 ms
+The fence wait is the GPU's scheduling of ANY synchronous job while the frame saturates it, not queue sharing: a
+blocking readback is the wrong shape at the uncapped operating point. Decision: the CPU executor is the default
+(it blocks the main thread least today); {"device":true} keeps the device rows path (exact, verified) for item 10,
+which records the rows into the frame and writes the face pool on the device (no readback, no wait). The dedicated
+queue stays: it is the right queue for FaceBuilderGpu's private synchronous jobs (region builds no longer queue
+behind frames).
+
+---- the stale-resident bug (found while reading the first full gate) ----
+The device's resident chunk grids were refreshed only by device edits: device edit at A, CPU edit at A, device edit
+next to A (a resident hit uploading only its own box) = 12 face mismatches, live (red). Fix: FaceBuilderGpu::
+forgetResident(key) for every chunk the CPU executor re-meshes (Application, and RegionEdit's own CPU fallback).
+The gate now runs 10 such triples ("mixed"): 0 mismatches in 30 edits.
+
+==== MEASURED (2026-11-15, final code, docs/evidence/voxfound_f216_gate.json + _edits.jsonl) ====
+Engine-generated: /api/debug/voxfound_preview Perlin s7 flora region 254..257 x 0..1 x 2..5, {"editable":true}, LOD off;
+Release; wind 0, GI off, world hidden; Battle.net launcher open (no game); edit store 545.5 MB (32 chunks, dense).
+Medians (p90) per edit that changed voxels; rebuild = plan + rows + clusters + sprigs + connectivity + set:
+  class    executor  n   rows    rows wall ms        rebuild ms          connect  assemble  re-upload (next frame)
+  voxel    CPU       36  12      0.24 (0.32)         1.05 (1.36)         0.77     2.48      9.1
+  1 m      CPU       33  438     3.81 (5.63)         4.50 (6.64)         0.61     2.43      8.9
+  2 m      CPU       38  1,636   12.6 (20.9)         13.2 (21.9)         0.46     2.56      9.2
+  4 m      CPU       46  6,336   47.0 (65.5)         48.1 (68.5)         0.43     2.49      8.9
+  voxel    device    7   12      14.8 (23.4)         15.2                0.79     2.57      9.1
+  1 m      device    10  540     15.5 (19.2)         15.9                0.38     2.52      9.0
+  2 m      device    6   1,836   15.0 (20.5)         15.5                0.33     2.49      8.7
+  4 m      device    8   8,448   19.3 (28.2)         21.1                1.51     2.63      9.4
+  mixed 1m both      30  432     6.1 (14.2)          6.9                 0.79     2.57      -
+Device kernel 0.11-0.31 ms median; device misses upload the whole chunk (16.8 MB) -- the random edits rarely revisit.
+Up to 6 chunks per edit (borders, corners).
+1. Exact: 0 face / 0 sprig / 0 connectivity mismatches in all 214 verified voxel-changing edits.             HELD
+2. 1 m edit rows: median 438 = 0.11 % of 393,216 (max 866 = 0.22 %).                                         HELD
+3. CPU rebuild: voxel 1.05 ms (pred <= 0.3: connectivity's 32^3 block flood alone is 0.77), 1 m 4.5 (pred
+   0.3-1.5), 4 m 48 (pred 3-12): rows are whole-width slices (256 cells each) read through faceAt at ~8 ns/cell.
+   1 m is NOT >= 3x cheaper than today's 2-13 ms per chunk: it sits inside that range.                          WRONG
+   Stop line crossed -> rows on the device built (exact) but its synchronous readback waits 10-20 ms for a GPU
+   timeslice at the uncapped operating point (0.5-0.7 ms with an idle GPU). CPU stays the default.
+4. Reassembly + whole re-upload: assemble 2.4-2.6 + re-upload 8.7-9.4 = ~11.5 ms on the frame after an edit.  HELD
+   (cluster/cull tables dominate; item 10's job.)
+5. Pixels at forest_floor_open after 20 visible edits: incremental vs full rebuild 97 px > 8 levels, all in the
+   status-bar strip (y 879-894: the FPS digits); the 3D view identical. Control I vs I2 53 px (same strip).     HELD
+   B vs I 31,605 px: the edits are visible (f216_ffo_B.png / f216_ffo_I.png, eye-checked; no chunk seams).
+Steady-state frames: unchanged code path (the descriptor-cache fix runs only on a revision change; the async
+queue serves FaceBuilderGpu only), so no whole-frame A/B -- the edit cost above is the measured quantity.
+Also fixed on the way (pre-existing, F2.15f): the set-1 descriptor cache keyed on recycled VkBuffer handles
+(device loss on revision changes; 5/6 fresh runs -> 0/3).

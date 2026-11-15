@@ -105,6 +105,7 @@
 #include "core/voxfound/FaceBuilderGpu.h"
 #include "core/voxfound/LodBuilderGpu.h"
 #include "core/voxfound/Preview.h"
+#include "core/voxfound/RegionEdit.h"
 #include "core/water/WadeDrag.h"
 #include "core/water/ShoreBand.h"
 #include "scene/NPCEntity.h"
@@ -294,6 +295,9 @@ private:
     std::unique_ptr<Core::VoxFound::FaceBuilderGpu> voxFoundBuilder;   // F2.2 1/8 m face preview builder (lazy)
     std::unique_ptr<Core::VoxFound::LodBuilderGpu> voxFoundLodBuilder;   // F2.14e GPU level build (lazy)
     Core::VoxFound::Preview voxFoundPreview;                           // F2.2 what the renderer draws (setVoxFoundPreview)
+    Core::VoxFound::RegionEdit voxFoundEdit;                           // F2.16 editable region store ({"editable":true})
+    std::vector<std::string> voxFoundPalette;                          // F2.16 the region palette (edits may append)
+    std::vector<uint16_t> voxFoundLeafTex;                             // F2.16 sprig texture per palette material
     void applyWaterSpanEdit(int x, int y, int z, bool solid);          // Phase D2: edits never create water (docs/WaterCore.md 16.3)
     long m_waterHeldEdits = 0;                                          // Phase D2: edits held because a run reaches into a non-resident chunk
     // Phase G (docs/WaterCore.md 18.5): the shoreline band - solved water along the shore around the camera
@@ -674,6 +678,7 @@ private:
     void handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::json& response);   // F2.2 1/8 m preview
     void handleVoxFoundRegion(const Core::APICommand& cmd, int generationType, const std::string& typeName,
                               uint32_t seed, nlohmann::json& response);   // F2.8 (type = WorldGenerator::GenerationType)
+    void handleVoxFoundEdit(const nlohmann::json& edit, nlohmann::json& response);   // F2.16 incremental rebuild
     void registerSettlementCommands();   // build_settlement: compose a settlement (subdivide+populate+build each)
     void registerWorldForgeCommands();   // worldforge_*: world-scale plan preview/apply/status/map (docs/WorldForge.md)
     void registerDoorCommands();

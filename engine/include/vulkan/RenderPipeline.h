@@ -61,6 +61,11 @@ public:
     /// and no longer matters (the leaf mass's origins are a different key).
     void bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, VkBuffer drawOrigins = VK_NULL_HANDLE,
                              bool leafSet = false, VkDeviceSize originsOffset = 0);
+    /// F2.16: forget every cached set-1 write. The cache keys on VkBuffer HANDLES, and a buffer destroyed and made
+    /// again can come back with the same handle value: a hit would then bind a set whose descriptors still hold the
+    /// freed memory (a GPU read of freed memory = VK_ERROR_DEVICE_LOST, seen on preview revision changes). Call it
+    /// whenever a buffer those sets point at is destroyed, with no frame in flight using them.
+    void forgetVoxFoundSets();
     /// F2.11: the same pipeline state with shaders/voxfound_face_mdi.vert (chunk origin per indirect draw).
     bool ensureVoxFoundMdiPipeline(const std::string& vertSpvPath);
     VkPipeline getVoxFoundMdiPipeline() const { return voxFoundMdiPipeline; }

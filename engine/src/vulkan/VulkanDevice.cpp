@@ -471,11 +471,27 @@ bool VulkanDevice::createLogicalDevice() {
                             ? indices.computeFamily.value()
                             : indices.graphicsFamily.value(); // fallback
 
+    // F2.16: a compute-only family, if any, for the async compute queue (fallback: the graphics family)
+    asyncComputeQueueFamily = graphicsQueueFamily;
+    {
+        uint32_t nf = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &nf, nullptr);
+        std::vector<VkQueueFamilyProperties> fams(nf);
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &nf, fams.data());
+        for (uint32_t f = 0; f < nf; ++f)
+            if ((fams[f].queueFlags & VK_QUEUE_COMPUTE_BIT) && !(fams[f].queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
+                fams[f].queueCount > 0) {
+                asyncComputeQueueFamily = f;
+                break;
+            }
+    }
+
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     std::set<uint32_t> uniqueQueueFamilies = {
         indices.graphicsFamily.value(),
         indices.presentFamily.value(),
-        computeQueueFamily
+        computeQueueFamily,
+        asyncComputeQueueFamily
     };
 
     float queuePriority = 1.0f;
@@ -652,6 +668,9 @@ bool VulkanDevice::createLogicalDevice() {
     }
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
     vkGetDeviceQueue(device, computeQueueFamily, 0, &computeQueue);
+    vkGetDeviceQueue(device, asyncComputeQueueFamily, 0, &asyncComputeQueue);
+    LOG_INFO_FMT("Vulkan", "Async compute queue family: " << asyncComputeQueueFamily
+        << (hasDedicatedAsyncCompute() ? " (dedicated)" : " (graphics queue: no compute-only family)"));
 
     LOG_INFO_FMT("Vulkan", "Compute queue family: " << computeQueueFamily
         << (computeSharesGraphicsQueue() ? " (shared with graphics)" : " (dedicated)"));

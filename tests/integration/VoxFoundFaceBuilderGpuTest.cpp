@@ -754,3 +754,111 @@ TEST_F(VoxFoundFaceBuilderGpu, CompactedCommandsDrawTheSameFacesAsPerClusterComm
     EXPECT_EQ(again[0], drawn[0]);
     EXPECT_EQ(again[1], drawn[1]);
 }
+
+// F2.16 (§4.6 item 9): the device form of the incremental rebuild. 12 grids (awkward sizes, one a full 256 side, real
+// border planes) are edited 240 times in random order, so the 8 resident slots hit, miss and evict; edits are boxes,
+// spheres and border-plane-only changes. Each edit: the CPU plan, then the device rows (rowsDelta, only the edit box
+// uploaded) must equal the CPU executor of the same plan as a set; the kept faces + added = a full meshRuns at the end.
+TEST_F(VoxFoundFaceBuilderGpu, RowsDeltaEqualsTheCpuPlan) {
+    std::mt19937 rng(20216u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    CardSet cards;
+    cards.set(4);
+    struct Grid {
+        VoxelGrid g;
+        Neighbours nb;
+        std::vector<PackedFace> faces;
+    };
+    std::vector<Grid> grids;
+    const glm::ivec3 dims[] = {{40, 24, 48}, {33, 17, 9}, {256, 40, 32}, {16, 64, 16}, {48, 48, 48}, {7, 31, 64},
+                               {64, 24, 40}, {24, 24, 24}, {72, 16, 56}, {32, 32, 32}, {9, 9, 120}, {56, 40, 24}};
+    for (const glm::ivec3 d : dims) {
+        Grid G;
+        G.g.resize(d);
+        for (int x = 0; x < d.x; ++x)
+            for (int z = 0; z < d.z; ++z) {
+                const int h = d.y / 3 + rnd(0, std::max(1, d.y / 4));
+                for (int y = 0; y < d.y; ++y) {
+                    uint8_t m = 0;
+                    if (y < h - 3) m = 1;
+                    else if (y < h - 1) m = 2;
+                    else if (y < h) m = 3;
+                    else if (rnd(0, 99) < 6) m = uint8_t(rnd(1, 4));
+                    G.g.set({x, y, z}, m);
+                }
+            }
+        G.nb.resize(d, false);
+        for (int a = 0; a < 3; ++a)
+            for (int s : {-1, 1})
+                for (int v = 0; v < d[(a + 2) % 3]; ++v)
+                    for (int u = 0; u < d[(a + 1) % 3]; ++u)
+                        if (rnd(0, 1)) G.nb.set(a, s, u, v, true);
+        for (const Quad& q : meshRuns(G.g, Edges(G.nb), &cards)) G.faces.push_back(packFace(q));
+        grids.push_back(std::move(G));
+    }
+    size_t rows = 0, added = 0, hits = 0;
+    for (int it = 0; it < 240; ++it) {
+        const size_t key = size_t(rnd(0, int(grids.size()) - 1));
+        Grid& G = grids[key];
+        const glm::ivec3 d = G.g.dim;
+        const int kind = rnd(0, 9);
+        const uint8_t m = rnd(0, 99) < 35 ? 0 : uint8_t(rnd(1, 4));
+        glm::ivec3 lo, hi;
+        if (kind == 9) {   // a border plane alone
+            const int a = rnd(0, 2), s = rnd(0, 1) ? 1 : -1, ua = (a + 1) % 3, va = (a + 2) % 3;
+            const int u0 = rnd(0, d[ua] - 1), v0 = rnd(0, d[va] - 1);
+            const int u1 = std::min(d[ua] - 1, u0 + rnd(0, d[ua] / 3));
+            const int v1 = std::min(d[va] - 1, v0 + rnd(0, d[va] / 3));
+            const bool solid = rnd(0, 1) != 0;
+            for (int v = v0; v <= v1; ++v)
+                for (int u = u0; u <= u1; ++u) G.nb.set(a, s, u, v, solid);
+            lo[a] = hi[a] = s < 0 ? -1 : d[a];
+            lo[ua] = u0;
+            hi[ua] = u1;
+            lo[va] = v0;
+            hi[va] = v1;
+        } else if (kind >= 7) {
+            const glm::ivec3 c(rnd(0, d.x - 1), rnd(0, d.y - 1), rnd(0, d.z - 1));
+            const int r = rnd(0, std::max(1, std::max({d.x, d.y, d.z}) / 6));
+            lo = glm::max(c - r, glm::ivec3(0));
+            hi = glm::min(c + r, d - 1);
+            for (int x = lo.x; x <= hi.x; ++x)
+                for (int y = lo.y; y <= hi.y; ++y)
+                    for (int z = lo.z; z <= hi.z; ++z)
+                        if (glm::length(glm::vec3(x, y, z) - glm::vec3(c)) <= float(r) + 0.5f) G.g.set({x, y, z}, m);
+        } else {
+            for (int a = 0; a < 3; ++a) {
+                lo[a] = rnd(-1, d[a]);
+                hi[a] = std::min(d[a], lo[a] + rnd(0, std::max(1, d[a] / 3)));
+            }
+            for (int x = std::max(lo.x, 0); x <= std::min(hi.x, d.x - 1); ++x)
+                for (int y = std::max(lo.y, 0); y <= std::min(hi.y, d.y - 1); ++y)
+                    for (int z = std::max(lo.z, 0); z <= std::min(hi.z, d.z - 1); ++z) G.g.set({x, y, z}, m);
+        }
+        const RunsPlan plan = planRunsDelta(d, G.faces, lo, hi);
+        const RunsDelta cpu = meshRunsPlan(G.g, Edges(G.nb), plan, &cards);
+        std::vector<PackedFace> dev;
+        std::string err;
+        ASSERT_TRUE(gpu.rowsDelta(uint64_t(key), G.g, G.nb, lo, hi, plan, &cards, dev, &err)) << err;
+        hits += gpu.lastResidentHit() ? 1 : 0;
+        const auto c = keys(cpu.added), k = keys(dev);
+        ASSERT_EQ(c, k) << "edit " << it << " grid " << key << " kind " << kind << ": " << firstDiff(c, k);
+        rows += plan.rows();
+        added += dev.size();
+        std::vector<char> gone(G.faces.size(), 0);
+        for (uint32_t i : plan.removed) gone[i] = 1;
+        std::vector<PackedFace> next;
+        for (size_t i = 0; i < G.faces.size(); ++i)
+            if (!gone[i]) next.push_back(G.faces[i]);
+        next.insert(next.end(), dev.begin(), dev.end());
+        G.faces.swap(next);
+    }
+    for (size_t i = 0; i < grids.size(); ++i) {
+        std::vector<PackedFace> full;
+        for (const Quad& q : meshRuns(grids[i].g, Edges(grids[i].nb), &cards)) full.push_back(packFace(q));
+        EXPECT_EQ(keys(grids[i].faces), keys(full)) << "grid " << i << " after the edits";
+    }
+    EXPECT_GT(hits, 100u) << "resident slots should hit most of the time";
+    EXPECT_LT(hits, 240u) << "12 grids over 8 slots must miss sometimes";
+    std::printf("[rowsDelta] 240 edits over 12 grids: %zu rows, %zu faces added, %zu resident hits\n", rows, added, hits);
+}

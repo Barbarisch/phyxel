@@ -1676,3 +1676,161 @@ TEST(VoxFoundMesher, LodFlagBitsLeaveTheStaticFlagsAlone) {
             EXPECT_EQ(b >> 24, uint32_t(code));
         }
 }
+
+// ---- F2.16 (§4.6 item 9): incremental rebuild ------------------------------------------------------------------
+namespace {
+std::vector<uint64_t> sortedKeys(const std::vector<PackedFace>& v, size_t first = 0,
+                                 size_t count = std::numeric_limits<size_t>::max()) {
+    std::vector<uint64_t> k;
+    for (size_t i = first; i < v.size() && i - first < count; ++i) k.push_back(v[i].key());
+    std::sort(k.begin(), k.end());
+    return k;
+}
+std::vector<PackedFace> packedRuns(const VoxelGrid& g, Edges e, const CardSet* cards) {
+    std::vector<PackedFace> out;
+    for (const Quad& q : meshRuns(g, e, cards)) out.push_back(packFace(q));
+    return out;
+}
+}  // namespace
+
+TEST(VoxFoundMesher, IncrementalRebuildEqualsAFullRebuild) {
+    // Random terrain-like grids (awkward sizes, real border planes or Outside::Air), material 4 a card (leaf), and 300
+    // random edits: boxes and spheres from 1 voxel to a third of the grid, edits on the grid border and edits of a
+    // border plane alone. After EVERY edit the incremental state must equal a full rebuild of the new voxels: faces
+    // (as a set, and exact coverage), the direction groups (same groups, boxes and face sets), the cells, the sprigs,
+    // and -- where the sides are multiples of 8 -- the block connectivity.
+    std::mt19937 rng(9216u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    struct Case { glm::ivec3 dim; bool planes; };
+    const Case cases[] = {{{40, 24, 48}, true}, {{33, 17, 1}, false}, {{1, 9, 33}, true}, {{24, 40, 16}, false}};
+    CardSet cards;
+    cards.set(4);
+    size_t rowsMeshed = 0, rowsFull = 0, edits = 0;
+    for (const Case& cs : cases) {
+        const glm::ivec3 d = cs.dim;
+        VoxelGrid g;
+        g.resize(d);
+        for (int x = 0; x < d.x; ++x)
+            for (int z = 0; z < d.z; ++z) {
+                const int h = d.y / 3 + rnd(0, std::max(1, d.y / 4));
+                for (int y = 0; y < d.y; ++y) {
+                    uint8_t m = 0;
+                    if (y < h - 3) m = 1;
+                    else if (y < h - 1) m = 2;
+                    else if (y < h) m = 3;
+                    else if (rnd(0, 99) < 6) m = uint8_t(rnd(1, 4));
+                    g.set({x, y, z}, m);
+                }
+            }
+        for (int b = 0; b < 3; ++b) {   // leaf blobs
+            const glm::ivec3 c(rnd(0, d.x - 1), rnd(0, d.y - 1), rnd(0, d.z - 1));
+            const int r = rnd(1, 4);
+            for (int x = c.x - r; x <= c.x + r; ++x)
+                for (int y = c.y - r; y <= c.y + r; ++y)
+                    for (int z = c.z - r; z <= c.z + r; ++z)
+                        if (g.in({x, y, z}) && glm::length(glm::vec3(x, y, z) - glm::vec3(c)) <= float(r))
+                            g.set({x, y, z}, 4);
+        }
+        Neighbours nb;
+        nb.resize(d, false);
+        for (int a = 0; a < 3; ++a)
+            for (int s : {-1, 1})
+                for (int v = 0; v < d[(a + 2) % 3]; ++v)
+                    for (int u = 0; u < d[(a + 1) % 3]; ++u)
+                        if (rnd(0, 1)) nb.set(a, s, u, v, true);
+        const Edges e = cs.planes ? Edges(nb) : Edges(Outside::Air);
+        SprigParams sp;
+        sp.cards = cards;
+        sp.worldOriginVoxel = {1003, -37, 211};
+        sp.threshold24 = 1u << 23;
+        const bool conn = d.x % 8 == 0 && d.y % 8 == 0 && d.z % 8 == 0;
+
+        std::vector<PackedFace> faces = packedRuns(g, e, &cards);
+        std::vector<FaceCluster> groups = splitByDirection(faces, clusterFaces(faces, 1));
+        std::vector<PackedFace> sprigs = foliageSprigs(g, e, sp);
+        std::vector<uint8_t> blocking = conn ? blockBlocking(g, cards) : std::vector<uint8_t>();
+
+        for (int it = 0; it < 75; ++it, ++edits) {
+            const int kind = rnd(0, 9);   // 0-6 box, 7-8 sphere, 9 border plane only
+            const uint8_t m = rnd(0, 99) < 35 ? 0 : uint8_t(rnd(1, 4));
+            glm::ivec3 lo, hi;
+            if (kind == 9 && cs.planes) {
+                const int a = rnd(0, 2), s = rnd(0, 1) ? 1 : -1, ua = (a + 1) % 3, va = (a + 2) % 3;
+                const int u0 = rnd(0, d[ua] - 1), v0 = rnd(0, d[va] - 1);
+                const int u1 = std::min(d[ua] - 1, u0 + rnd(0, d[ua] / 3));
+                const int v1 = std::min(d[va] - 1, v0 + rnd(0, d[va] / 3));
+                const bool solid = rnd(0, 1) != 0;
+                for (int v = v0; v <= v1; ++v)
+                    for (int u = u0; u <= u1; ++u) nb.set(a, s, u, v, solid);
+                lo[a] = hi[a] = s < 0 ? -1 : d[a];
+                lo[ua] = u0;
+                hi[ua] = u1;
+                lo[va] = v0;
+                hi[va] = v1;
+            } else if (kind >= 7) {
+                const glm::ivec3 c(rnd(0, d.x - 1), rnd(0, d.y - 1), rnd(0, d.z - 1));
+                const int r = rnd(0, std::max(1, std::max({d.x, d.y, d.z}) / 6));
+                lo = glm::max(c - r, glm::ivec3(0));
+                hi = glm::min(c + r, d - 1);
+                for (int x = lo.x; x <= hi.x; ++x)
+                    for (int y = lo.y; y <= hi.y; ++y)
+                        for (int z = lo.z; z <= hi.z; ++z)
+                            if (glm::length(glm::vec3(x, y, z) - glm::vec3(c)) <= float(r) + 0.5f) g.set({x, y, z}, m);
+            } else {
+                for (int a = 0; a < 3; ++a) {
+                    lo[a] = rnd(-1, d[a]);
+                    hi[a] = std::min(d[a], lo[a] + rnd(0, std::max(1, d[a] / 3)));
+                }
+                for (int x = std::max(lo.x, 0); x <= std::min(hi.x, d.x - 1); ++x)
+                    for (int y = std::max(lo.y, 0); y <= std::min(hi.y, d.y - 1); ++y)
+                        for (int z = std::max(lo.z, 0); z <= std::min(hi.z, d.z - 1); ++z) g.set({x, y, z}, m);
+            }
+            const RunsDelta delta = meshRunsDelta(g, e, faces, lo, hi, &cards);
+            rowsMeshed += delta.rowsMeshed;
+            rowsFull += size_t(2) * (size_t(d.x) * d.y + size_t(d.y) * d.z + size_t(d.z) * d.x);
+            applyClusteredDelta(faces, groups, delta, 1);
+            updateSprigs(sprigs, g, e, sp, lo, hi);
+            if (conn) updateBlockBlocking(g, cards, lo, hi, blocking);
+
+            std::vector<PackedFace> want = packedRuns(g, e, &cards);
+            const std::vector<FaceCluster> wantCells = clusterFaces(want, 1);
+            const std::vector<FaceCluster> wantGroups = splitByDirection(want, wantCells);
+            const std::string at = "case " + std::to_string(d.x) + "x" + std::to_string(d.y) + "x" +
+                                   std::to_string(d.z) + " edit " + std::to_string(it) + " kind " + std::to_string(kind);
+            ASSERT_EQ(sortedKeys(faces), sortedKeys(want)) << at;
+            if (it % 15 == 0) {
+                std::vector<Quad> qs;
+                for (const PackedFace& f : faces) qs.push_back(unpackFace(f));
+                std::string why;
+                ASSERT_EQ(coverageErrors(g, e, qs, &why, &cards), 0u) << at << "\n" << why;
+            }
+            ASSERT_EQ(groups.size(), wantGroups.size()) << at;
+            for (size_t i = 0; i < groups.size(); ++i) {
+                ASSERT_EQ(groups[i].first, wantGroups[i].first) << at << " group " << i;
+                ASSERT_EQ(groups[i].count, wantGroups[i].count) << at << " group " << i;
+                ASSERT_EQ(groups[i].dir, wantGroups[i].dir) << at << " group " << i;
+                ASSERT_EQ(groups[i].lo, wantGroups[i].lo) << at << " group " << i;
+                ASSERT_EQ(groups[i].hi, wantGroups[i].hi) << at << " group " << i;
+                ASSERT_EQ(sortedKeys(faces, groups[i].first, groups[i].count),
+                          sortedKeys(want, wantGroups[i].first, wantGroups[i].count))
+                    << at << " group " << i;
+            }
+            const std::vector<FaceCluster> cells = cellsOfGroups(faces, groups, 1);
+            ASSERT_EQ(cells.size(), wantCells.size()) << at;
+            for (size_t i = 0; i < cells.size(); ++i) {
+                ASSERT_EQ(cells[i].first, wantCells[i].first) << at << " cell " << i;
+                ASSERT_EQ(cells[i].count, wantCells[i].count) << at << " cell " << i;
+                ASSERT_EQ(cells[i].lo, wantCells[i].lo) << at << " cell " << i;
+                ASSERT_EQ(cells[i].hi, wantCells[i].hi) << at << " cell " << i;
+            }
+            ASSERT_EQ(sortedKeys(sprigs), sortedKeys(foliageSprigs(g, e, sp))) << at;
+            if (conn) {
+                ASSERT_EQ(blocking, blockBlocking(g, cards)) << at;
+                ASSERT_EQ(connectivityFromBlocking(d / 8, blocking), blockFaceConnectivity(g, cards)) << at;
+            }
+        }
+    }
+    EXPECT_EQ(edits, 300u);
+    std::printf("[incremental] %zu edits: %zu rows meshed of the %zu a full rebuild per edit meshes (%.2f %%)\n", edits,
+                rowsMeshed, rowsFull, 100.0 * double(rowsMeshed) / double(rowsFull));
+}

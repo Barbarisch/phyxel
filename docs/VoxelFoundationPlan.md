@@ -374,7 +374,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
 | 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look done (F2.14f: own pipeline shaded as cards, luma 74.7 → 106.2 vs the cards' 107.9, mass error halved; +0.14/+0.16 ms at the ground; handoff still off); two pyramids built (F2.14g: no hidden tops, holes at P=32 gone, but farther from level 0 at P=8 — off; found: canopy-interior faces cut sprig overdraw 2-3.7 ms); leaf-fill knob built (F2.14h: no fill closes the canopy gap — it is sub-voxel shading; off; its whole-frame A/B owed, voided by a shared GPU) |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | main view done (F2.15: direction groups per 4-block cluster in the cull pass, 0 px, −0.30..−0.45 ms at 4 of 5 poses, neutral at the fifth; default on); shadow casters by light direction built (F2.15b: −0.85..−1.4 ms but leaks at leaf-adjacent trunk faces; closed casters fix it at +1-2 ms — off; F2.15d: two cheaper closures measured, neither closes the leaks chunk-exactly, reach 24 only −0.1..−0.5 ms — off, closed for now); lower command count done (F2.15f: ordered compacted + merged commands via indirect count, −0.07..−0.23 ms at 4 of 5 poses, neutral at the fifth; default on) — DONE |
-| 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
+| 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | built and exact (F2.16: slice/row delta of the run merge + sprig cells + block connectivity + cluster order; 0 mismatches in 214 live verified edits up to 4 m across chunk borders, 3D view identical to a full rebuild); cost NOT met — CPU 1 voxel 1.05 / 1 m 4.5 / 4 m 48 ms (whole-width rows), device rows exact but their synchronous readback waits 10-20 ms for the GPU at the uncapped operating point; CPU default, device opt-in for item 10; next-frame re-upload ~9 ms owed to item 10 |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
 
 Known defect that gets worse with more merging: **T-junction cracks at merge borders** (`RenderOptimization.md:489`).
@@ -1216,6 +1216,51 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
 - Default ON. Item 8 closes here: main-view direction culling with a lower command count; shadow light-direction
   culling stays off (F2.15d). Open, recorded: why merged draws of 32 clusters cost the following leaf-card pass 5 ms at
   one pose.
+
+**F2.16 2026-11-15 — §4.6 item 9: incremental rebuild (exact; CPU rows by default; device rows opt-in).**
+- Built: `planRunsDelta` / `meshRunsPlan` (Mesher): after a box edit only the slices that can change are touched
+  (dir + [lo−1, hi], dir − [lo, hi+1] per axis); faces whose rectangle grown by one meets the edit footprint are
+  removed, and their rows plus the footprint rows (whole width) are re-meshed, keeping only heads whose grown rectangle
+  meets the footprint — exact by construction. Sprigs: cells in [lo−1, hi+1] recomputed (`updateSprigs`).
+  Connectivity: the edited blocks' blocking bits, then the 32³-block flood (`updateBlockBlocking` +
+  `connectivityFromBlocking`). Clusters: the delta is applied inside the clusterFaces + direction-group order
+  (`applyClusteredDelta`). `RegionEdit` keeps each chunk's 1/8 m grid (dim + material), border planes, faces, groups,
+  sprigs and blocking bits; an edit on a chunk border updates the neighbour's border plane and re-meshes its plane
+  slice. API: region build `{"editable":true}` (refused with coarse levels / closed casters / seam: owed), then
+  `{"edit":{"lo","hi"|"sphere","material","verify","device","replace_all"}}`; `"verify"` rebuilds the touched chunks
+  fully with FaceBuilderGpu and counts mismatches. Device rows: `voxfound_faces.comp` row-list mode (job 5) over
+  resident chunk grids (`FaceBuilderGpu::rowsDelta`, 8 LRU slots, dirty-box uploads), on a compute-only queue
+  (`VulkanDevice::getAsyncComputeQueue`, family 2 here).
+- Red first: CPU `IncrementalRebuildEqualsAFullRebuild` (4 awkward grids, cards, 300 box / sphere / border-plane-only
+  edits: faces = meshRuns as sets + coverage, groups and cells, sprigs, blocking, connectivity, after EVERY edit);
+  GPU `RowsDeltaEqualsTheCpuPlan` (12 grids, 240 edits, resident hits and misses, final faces = meshRuns). Both red
+  on stubs. CPU 58/58, GPU 20/20.
+- Measured (`voxfound_f216_*`; prediction + every correction in `voxfound_f216_prediction.txt`):
+  - Exact live: 0 face / sprig / connectivity mismatches in 214 verified voxel-changing edits (153 CPU, 31 device,
+    30 mixed) up to 4 m, up to 6 chunks per edit. Pixels after 20 visible edits vs `replace_all` (a full rebuild of
+    the same voxels): the 3D view identical (97 px > 8 levels, all in the status bar's FPS digits; control 53 px).
+  - Cost per edit, CPU executor (median, p90): 1 voxel 1.05 (1.36) ms, 1 m 4.5 (6.6), 2 m 13.2 (21.9), 4 m 48 (69).
+    Predicted 0.3 / 0.3-1.5 / — / 3-12: WRONG. Rows are whole-width slices read through `faceAt` (~8 ns per cell);
+    the 1-voxel cost is mostly the connectivity flood (0.77 ms). A 1 m edit sits inside today's 2-13 ms per chunk
+    instead of ≥ 3x below it. Rows re-meshed: 0.11 % of a chunk for 1 m (predicted ≤ 1 %: held).
+  - Device rows (the stop line's answer): kernel 0.1-0.3 ms, but the synchronous readback waits for a GPU timeslice
+    — 0.5-0.7 ms with an idle GPU, 10-20 ms at the uncapped operating point, even on the dedicated queue (the queue
+    alone was predicted to fix it: refuted). CPU stays the default; `{"device":true}` is item 10's starting point.
+  - After an edit, the drawn lists' reassembly (2.5 ms) + whole re-upload (~9 ms, cluster/cull tables dominate) on
+    the next frame: predicted 5-15, held — item 10 removes it.
+  - Steady-state frames run the same code (nothing per frame was added), so no whole-frame A/B.
+- Bugs found and fixed on the way:
+  - Pre-existing since F2.15f: `RenderPipeline`'s set-1 descriptor cache was keyed on `VkBuffer` handle values; a
+    revision change destroys and re-creates the per-command origin tables, and a recycled handle hit a set still
+    pointing at freed memory → `VK_ERROR_DEVICE_LOST` (5 of 6 fresh engines; the Crash Diagnostic Layer showed the
+    invalid read in freed memory of the table's size). `forgetVoxFoundSets()` wherever those buffers are freed: 0/3.
+  - A CPU edit left the device's resident grid stale; a later device hit re-meshed old voxels next to its box (12 face
+    mismatches live) → `forgetResident`; the gate's "mixed" triples pin it.
+- Item 9 is built and exact; its cost goal is NOT met (a 1 m edit 4.5 ms, inside today's range). Owed, in plan order:
+  item 10 (face pool: rows recorded into the frame on the device, faces written in place — no readback, no wait, no
+  whole re-upload), then a narrower CPU row (the footprint's blocks, not the whole width) if the CPU path stays.
+  Also owed: edits with coarse LOD levels / casters / seam (each needs its own update), the connectivity flood per
+  edit (0.4-1.5 ms), the 545 MB dense edit store (BlockStore is F3).
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

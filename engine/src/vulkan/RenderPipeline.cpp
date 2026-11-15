@@ -255,6 +255,15 @@ void RenderPipeline::bindVoxFoundFaceTex(VkCommandBuffer cmd, VkBuffer table, Vk
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, voxFoundLayout, 1, 1, &hit->set, 0, nullptr);
 }
 
+void RenderPipeline::forgetVoxFoundSets() {
+    for (auto& e : voxFoundSets) {
+        e.table = VK_NULL_HANDLE;
+        e.origins = VK_NULL_HANDLE;
+        e.offset = 0;
+        e.used = 0;
+    }
+}
+
 bool RenderPipeline::buildStaticPipeline(VkShaderModule fragModule, VkBool32 depthWrite,
                                          VkCompareOp depthCompare, VkColorComponentFlags colorWriteMask,
                                          VkPipeline& out, const char* what, VkShaderModule vertModule,

@@ -26,10 +26,14 @@ layout(std430, binding = 3) buffer Blocks { uint blockFlags[]; };
 // CHUNK BORDERS (F2.7, Mesher.h Neighbours): when dim.w == 2, the solidity of the voxel layer just outside each grid
 // face, one bit per voxel. Planes in order [2*axis + (dir > 0)], each padded to whole words; bit u + nu * v.
 layout(std430, binding = 4) readonly buffer Border { uint borderBits[]; };
+// ROW LIST (F2.16, §4.6 item 9; Mesher.h planRunsDelta / FaceBuilderGpu::rowsDelta): when job.x == 5, one invocation
+// per listed row: x = axis | (dir > 0) << 2 | slice << 8, y = row v, z = footprint u lo | hi << 16, w = footprint v.
+// The row is meshed as in the row passes, and a head is emitted only if its rectangle grown by one meets the footprint.
+layout(std430, binding = 5) readonly buffer Rows { uvec4 rowJobs[]; };
 
 layout(push_constant) uniform PC {
     ivec4 dim;     // xyz = grid size (each 1..256); w = outside: 0 air, 1 skip, 2 the Border planes
-    ivec4 job;     // x = axis (3 = the sprig pass, 4 = the block pass); y = invocations in this dispatch;
+    ivec4 job;     // x = axis (3 = the sprig pass, 4 = the block pass, 5 = the row list); y = invocations;
                    // z = face capacity; w = 1: rows use the uniform-block skip
     uvec4 cards0;  // CardSet bits 0-127: materials drawn as leaf cards (no faces; F2.3)
     uvec4 cards1;  // CardSet bits 128-255
@@ -156,20 +160,34 @@ void main() {
             faces[slot] = uvec2(uint(p.x) | (uint(p.y) << 8) | (uint(p.z) << 16) | (3u << 24), m << 16);
         return;
     }
-    AX = pc.job.x;
+    const bool listed = pc.job.x == 5;
+    ivec4 fp = ivec4(0, 1 << 20, 0, 1 << 20);   // footprint u lo, u hi, v lo, v hi (row passes: everything)
+    int v;
+    if (listed) {
+        const uvec4 r = rowJobs[id];
+        AX = int(r.x & 3u);
+        DIR = (r.x & 4u) != 0u ? 1 : -1;
+        S = int(r.x >> 8);
+        v = int(r.y);
+        fp = ivec4(int(r.z & 0xFFFFu), int(r.z >> 16), int(r.w & 0xFFFFu), int(r.w >> 16));
+    } else {
+        AX = pc.job.x;
+    }
     UA = (AX + 1) % 3;
     VA = (AX + 2) % 3;
     const int ns = pc.dim[AX], nu = pc.dim[UA], nv = pc.dim[VA];
-    const uint perDir = uint(ns * nv);
-    DIR = id < perDir ? -1 : 1;
-    const uint rem = id % perDir;
-    S = int(rem / uint(nv));
-    const int v = int(rem % uint(nv));
+    if (!listed) {
+        const uint perDir = uint(ns * nv);
+        DIR = id < perDir ? -1 : 1;
+        const uint rem = id % perDir;
+        S = int(rem / uint(nv));
+        v = int(rem % uint(nv));
+    }
 
     int u = 0;
     uint skipped = 0u;
     while (u < nu) {
-        if (pc.job.w != 0 && spanEmpty(u, v)) {   // jump to the end of this block along u
+        if (pc.job.w != 0 && !listed && spanEmpty(u, v)) {   // jump to the end of this block along u
             u = (u | 7) + 1;
             ++skipped;
             continue;
@@ -181,6 +199,7 @@ void main() {
         if (!(v > 0 && sameRun(u, w, v - 1, m, nu))) {
             int h = 1;
             while (v + h < nv && sameRun(u, w, v + h, m, nu)) ++h;
+            if (u - 1 > fp.y || u + w < fp.x || v - 1 > fp.w || v + h < fp.z) { u += w; continue; }
             ivec3 o;
             o[AX] = S;
             o[UA] = u;

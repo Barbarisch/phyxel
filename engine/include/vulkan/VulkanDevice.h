@@ -357,6 +357,11 @@ public:
     VkCommandBuffer  getComputeCommandBuffer(uint32_t frameIndex) const;
     uint32_t         getComputeQueueFamily() const { return computeQueueFamily; }
     bool             computeSharesGraphicsQueue() const { return computeQueueFamily == graphicsQueueFamily; }
+    // A queue in a compute-only family when the GPU has one (else the graphics queue): for synchronous compute jobs
+    // with private buffers (voxfound FaceBuilderGpu) whose fence must not wait behind queued frames (F2.16).
+    VkQueue          getAsyncComputeQueue() const { return asyncComputeQueue; }
+    uint32_t         getAsyncComputeQueueFamily() const { return asyncComputeQueueFamily; }
+    bool             hasDedicatedAsyncCompute() const { return asyncComputeQueueFamily != graphicsQueueFamily; }
     
     // Depth buffer management
         bool createDepthResources();
@@ -598,6 +603,8 @@ private:
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     VkQueue presentQueue = VK_NULL_HANDLE;
     VkQueue computeQueue = VK_NULL_HANDLE;
+    VkQueue asyncComputeQueue = VK_NULL_HANDLE;
+    uint32_t asyncComputeQueueFamily = 0;
 
     // Compute resources
     uint32_t         computeQueueFamily = 0;

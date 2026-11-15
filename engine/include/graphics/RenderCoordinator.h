@@ -646,6 +646,8 @@ public:
     std::array<uint32_t, 3> voxFoundCullStats();
     /// F2.14: main-view faces drawn per pyramid level (direct path: last frame; indirect: last voxFoundCullStats()).
     std::vector<uint32_t> voxFoundFacesByLevel() const { return m_voxFoundFacesByLevel; }
+    /// F2.16: the last whole re-upload of the preview's drawn lists (ms, CPU): faces, sprigs, cluster tables
+    std::array<double, 3> voxFoundUploadMs() const { return m_voxFoundUploadMs; }
     float voxFoundFocalPx() const;   // focal length in pixels of this window (0.5 * height * proj[1][1])
     int voxFoundLodCode() const;     // VoxFound::lodScaleCode(the preview's pixels per voxel, voxFoundFocalPx())
     /// F2.4 shadow casters drawn by the last shadow passes: mid faces, near faces, mid sprigs.
@@ -1537,6 +1539,7 @@ private:
     void*          m_voxFoundMapped = nullptr;
     size_t         m_voxFoundCapacity = 0;                         // faces
     uint64_t       m_voxFoundRevision = UINT64_MAX;
+    std::array<double, 3> m_voxFoundUploadMs{0.0, 0.0, 0.0};   // F2.16
     uint32_t       m_voxFoundDrawn = 0;
     bool           m_voxFoundChunkCull = true;
     bool           m_voxFoundOcclusion = true;                       // F2.10 (§4.6 item 4), today's default is on

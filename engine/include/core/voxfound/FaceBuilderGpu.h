@@ -12,7 +12,7 @@
 //
 // Uniform-block skip (F2.6): per-8^3-block flags let rows jump over blocks that cannot hold a face.
 // Chunk borders (F2.7): `outside` may be the real Neighbours planes, so border faces match the whole world.
-// Not yet: partial rebuild of changed rows (§4.6 item 9).
+// Changed rows only (F2.16, §4.6 item 9): rowsDelta re-meshes a RunsPlan's rows against a chunk kept resident.
 
 #include <memory>
 #include <string>
@@ -60,6 +60,23 @@ public:
     /// Row spans the last build jumped over (0 with the skip off).
     uint32_t lastSkippedSpans() const { return m_lastSkippedSpans; }
 
+    /// F2.16 (§4.6 item 9): the device form of meshRunsPlan -- one invocation per planned row, the face builder's row
+    /// kernel restricted to the plan's rows and footprints. `key` names a chunk whose voxels stay RESIDENT on the device
+    /// (kResidentSlots of them, least recently used evicted): the first call for a key uploads the whole grid, later
+    /// ones only the voxels in [dirtyLo, dirtyHi] (clamped; an empty box uploads none), so the caller must cover every
+    /// voxel changed since the key's last call. The border planes are written every call. `added` (any order) equals
+    /// meshRunsPlan's added faces as a set (VoxFoundFaceBuilderGpu.RowsDeltaEqualsTheCpuPlan).
+    static constexpr int kResidentSlots = 8;
+    bool rowsDelta(uint64_t key, const VoxelGrid& g, const Neighbours& border, glm::ivec3 dirtyLo, glm::ivec3 dirtyHi,
+                   const RunsPlan& plan, const CardSet* cards, std::vector<PackedFace>& added, std::string* err);
+    void dropResident();   // forget every resident grid (e.g. the region was rebuilt)
+    /// Forget one resident grid: its voxels changed without rowsDelta (the CPU executor), so a later hit would
+    /// re-mesh stale voxels outside its own dirty box. The next rowsDelta for `key` uploads the whole grid.
+    void forgetResident(uint64_t key);
+    /// What the last rowsDelta uploaded (bytes) and whether its key was resident.
+    size_t lastUploadBytes() const { return m_lastUploadBytes; }
+    bool lastResidentHit() const { return m_lastResidentHit; }
+
 private:
     struct Buffer {
         VkBuffer buf = VK_NULL_HANDLE;
@@ -83,6 +100,17 @@ private:
 
     Buffer m_voxels, m_out, m_counter, m_stagingIn, m_stagingOut, m_blocks;   // m_blocks: one word per 8^3 block
     Buffer m_border;   // F2.7 Neighbours planes (48 KB, host-visible)
+    Buffer m_rows;     // F2.16 row jobs (host-visible)
+    size_t m_rowCap = 0;
+    struct Slot {
+        uint64_t key = ~0ull;
+        uint64_t used = 0;
+        Buffer vox;
+    };
+    std::vector<Slot> m_slots;
+    uint64_t m_useClock = 0;
+    size_t m_lastUploadBytes = 0;
+    bool m_lastResidentHit = false;
     size_t m_blockWords = 0, m_voxelWords = 0, m_capacity = 0, m_initialCapacity = 1u << 16;
     double m_lastGpuMs = -1.0;
     bool m_blockSkip = true;

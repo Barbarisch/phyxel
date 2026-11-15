@@ -2536,6 +2536,7 @@ void RenderCoordinator::releaseVoxFoundTexBuffer() {
     m_voxFoundTexMemory = VK_NULL_HANDLE;
     m_voxFoundTexMapped = nullptr;
     m_voxFoundTexRevision = UINT64_MAX;
+    if (renderPipeline) renderPipeline->forgetVoxFoundSets();   // F2.16
 }
 
 void RenderCoordinator::releaseVoxFoundSprigBuffer() {
@@ -2629,6 +2630,7 @@ void RenderCoordinator::releaseVoxFoundCull() {
     }
     m_voxFoundOriginLeafBuffer = VK_NULL_HANDLE;
     m_voxFoundOriginLeafMemory = VK_NULL_HANDLE;
+    if (renderPipeline) renderPipeline->forgetVoxFoundSets();   // F2.16: sets keyed on the freed handles
     m_voxFoundCullOrder.clear();
     m_voxFoundMdiSolid = 0;
     m_voxFoundCull.reset();
@@ -2673,6 +2675,7 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
         for (const auto& c : m_voxFoundCullOrder) m_voxFoundMdiSolid += (pv.lodLeafLook && c.leafMass) ? 0u : 1u;
     }
     const auto& srcClusters = m_voxFoundCullOrder;
+    const auto tCullUpload = std::chrono::steady_clock::now();   // F2.16
     if (m_voxFoundCullRevision != pv.revision) {
         std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(srcClusters.size());
         // F2.15f: the compaction table -- each cluster's origin word (the same as the per-command tables below)
@@ -2697,6 +2700,10 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
         // per command: its chunk's origin in whole metres (exact), read through gl_DrawIDARB. Two tables: the solid
         // multidraw's [0, solid) and the leaf-mass multidraw's [solid, n) (F2.14f; gl_DrawIDARB restarts at 0)
         const uint32_t nSolid = m_voxFoundMdiSolid, nAll = uint32_t(cl.size());
+        // F2.16: the tables below are destroyed and made again, possibly with the same handle values: drop every
+        // set-1 write first (the device is idle here -- ClusterCullGpu::upload waited -- and this frame's main pass
+        // has not bound one yet)
+        if (renderPipeline) renderPipeline->forgetVoxFoundSets();
         for (int t = 0; t < 2; ++t) {
             VkBuffer& buf = t ? m_voxFoundOriginLeafBuffer : m_voxFoundOriginBuffer;
             VkDeviceMemory& mem = t ? m_voxFoundOriginLeafMemory : m_voxFoundOriginMemory;
@@ -2725,6 +2732,8 @@ void RenderCoordinator::recordVoxFoundCull(VkCommandBuffer cmd) {
             vkUnmapMemory(vulkanDevice->getDevice(), mem);
         }
         m_voxFoundCullRevision = pv.revision;
+        m_voxFoundUploadMs[2] =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tCullUpload).count();
     }
     // this frame's per-chunk decision (F2.9 + F2.10), by index into pv.chunks
     std::vector<uint32_t> mask(pv.chunks.size(), 0u);
@@ -2984,8 +2993,10 @@ void RenderCoordinator::renderVoxFoundSprigs() {
     }
     if (!m_voxFoundSprigMapped) return;
     if (m_voxFoundSprigRevision != m_voxFoundPreview->revision) {
+        const auto t0 = std::chrono::steady_clock::now();   // F2.16
         std::memcpy(m_voxFoundSprigMapped, sprigs.data(), sprigs.size() * sizeof(Core::VoxFound::PreviewSprig));
         m_voxFoundSprigRevision = m_voxFoundPreview->revision;
+        m_voxFoundUploadMs[1] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     }
     // F2.8: one draw per chunk range, each at its own origin (records are chunk-relative)
     // F2.14c: with lod_auto and a build's leaf mass (lod_sprig_level h), sprigs belong to the levels below h. A chunk
@@ -3041,8 +3052,10 @@ void RenderCoordinator::renderVoxFoundPreview() {
     }
     if (!m_voxFoundMapped) return;
     if (m_voxFoundRevision != m_voxFoundPreview->revision) {
+        const auto t0 = std::chrono::steady_clock::now();   // F2.16
         std::memcpy(m_voxFoundMapped, faces.data(), faces.size() * sizeof(Core::VoxFound::PackedFace));
         m_voxFoundRevision = m_voxFoundPreview->revision;
+        m_voxFoundUploadMs[0] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     }
     // F2.5 texture table (Preview.h faceTex): fixed size, made once, re-filled with the faces.
     constexpr VkDeviceSize kTexBytes = Core::VoxFound::kFaceTexWords * sizeof(uint32_t);
