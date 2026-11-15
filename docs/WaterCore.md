@@ -13801,7 +13801,7 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
 - **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
   than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
 
-## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 deleting (W4.3a-c done)
+## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 DONE (the old water deleted); the owner's clip next
 
 **What W4 is (§27, §0a):** generated lakes, rivers and sea are the record and the new core simulates and draws them - DONE by §51
 (record tiles near, the skin far, 51.4c / 51.12-51.14). What is NOT done: **the old CA water is still in the engine, and five readers
@@ -13936,6 +13936,15 @@ sea plane, a still) and the water unit tests; the full suites once at the end.
   tool went in W4.3b. Its replacement is the core's `RippleLayer` (§22). Tests triaged: ring, decay and sleep are pinned on the
   `RippleLayer` (`WaterRippleTest`: `AKickSpreadsIntoARingTrain`, `ItSleeps`, `FaintRingsHandOverToSleepInTheirTime`); the window
   / recentre / out-of-window tests belong to the camera-following window and go with it. Build clean; `WaterRipple*` 19 / 19 (1 disabled).
+- **W4.3d (2026-11-14) - `WaterSimulation` + `water_flow.comp` deleted** (`WaterSimulation.{h,cpp}`, `water_flow.comp` + `.spv`,
+  `WaterSimulationTest.cpp`, 38 tests; `build_shaders.bat` and the shader manifest updated). No consumer was left (`WaterManager`,
+  W4.3b, was its only one, and owned the GPU port's resources). Tests triaged per §9's row: conservation, no leak into solids,
+  pressure and sealed pockets are pinned on the core (`WaterCoreTest`: `ConservationUnderArbitraryVelocity`, `SolidFacesCarryNoFlux`,
+  `HydrostaticPressure`, `SealedCavityGainsNothing`), basins and dry pits on the record (`WaterOccupancyTest.ABasinFillsExactlyToItsRim`,
+  `WaterSpanEditTest.PitAwayFromWaterStaysDry`); the CA-specific ones (MIN_HOLD, momentum bias, evaporation, the flow proxy, the
+  active-set sweep, the table fill, the window shift) go with it.
+- **W4.3 suites (after d):** unit 4,430 passed (4,528 - 99 deleted + 1 moved), 20 skipped, the same 3 known failures; water
+  integration 87 / 89, the known two. `CLAUDE.md`'s water-runtime paragraph rewritten (it described the deleted manager).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

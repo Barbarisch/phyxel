@@ -400,14 +400,12 @@ core that replaces it is [`docs/WaterCore.md`](docs/WaterCore.md) (design of rec
   (Doll et al. hydraulic geometry). Read from the live generator via
   `ChunkManager::getStreamingGenerator()->hydrology()` / `->riverNetwork()`. Bake is memoized +
   worker-copy-safe. **Requires `world.streaming: true`** (the bake lives on the streaming generator).
-- **Water runtime fills it** (Water System v2, `WaterManager`) — a player-following CA region reads the
-  bake and pins **oceans at sea level + lakes at their spill + rivers along their carved beds**; a
-  **runtime shoreline snap** conforms the coarse wet/dry boundary to the per-voxel carved contour;
-  evaporation bounds off-channel spill. game.json `water` block: `enabled`, `seaLevel`, `bakedTable`
-  (default true when a bake exists), `oceanBoundary`, `evaporation`. Debug: `water_stats`,
-  `water_table_level {x,z}`, `water_validate {x1,z1,x2,z2,maxY}` (L3 bake-vs-terrain rim-leak check).
-  **NOT built yet:** far/near render LOD for water beyond the sim region (Phase B); generator-side
-  coastal beach material. See the design docs for open items.
+- **Water runtime fills it** (the new water core, `docs/WaterCore.md`) — generation writes the bake's lakes, rivers and
+  sea into chunk-resident **water spans** (the record); the core simulates small patches where something disturbs them
+  and draws the rest from the record. The old camera-following CA (`WaterManager`/`WaterSimulation`) was DELETED
+  2026-11-14 (WaterCore §52 W4.3). game.json `water.enabled` now only switches the flat sea PLANE. Debug: `water_stats`
+  (plane + camera), `water_query {points, boxes}` (what bodies/camera read), `water_table_level {x,z}`,
+  `water_validate {x1,z1,x2,z2,maxY}` (bake-vs-terrain rim-leak check), `water_av_*` (the core's volumes).
 
 ### Biomes, Flora & the World Recipe
 
