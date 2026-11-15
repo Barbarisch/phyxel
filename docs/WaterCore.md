@@ -13954,6 +13954,17 @@ rises back out, the wood still afloat. **Looked at (frames at 2 / 7 / 14 / 19 / 
 the underwater view is a near-opaque pale fog; grass grows on the lake bed. **New, one line, left:** the frame rate reads ~171 fps
 under the water against 17-24 above (likely the fog hiding the scene; not measured).
 
+**52.5 The clip's undrawn strip (owner's question 2026-11-14: "why does the video show some of the water surface not being
+rendered at the beginning") - MEASURED, answered, not fixed.** The lake runs unbroken ~176 m along the view line (bed 84-88, water
+90; `w4_clip_band.json`); the record's tiles draw within 48 m, built a few a frame. From a fresh launch at the clip's pose
+(`tools/water_w4_launch_fill.py`, `w4_launch_fill.json` + one still per 10 s): wet tiles 0 at 3 s, 44 at 10 s, 67 / 73 at 20 / 30 s,
+all 86 at 40 s; until then a strip of bare lake bed shows between the near water and the far skin. The clip started ~10 s after
+launch. Two lines for the plan, left:
+- **Launch fill gap:** the near record tiles take ~40 s to build after launch (and the strip is still in the clip's last frame at
+  28 s - the clip's camera moves may keep them rebuilding; not measured). Belongs with the sign-off sweep / W6's far water.
+- **A periodic freeze:** at 80 s and 120 s, the camera still, the frame rate fell to ~0.6 fps (> 1 s) as `record_pending` jumped
+  to 131 (every tile queued at once). Cause not looked at.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
