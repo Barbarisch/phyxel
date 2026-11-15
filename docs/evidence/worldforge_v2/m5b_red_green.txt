@@ -1472,3 +1472,9 @@ MY RESPONSE: the auditor is right on each. The "past a drum" line was green with
     labelled as the curtain's, not the drums'.
   - then a live MUTATION: the drum's rim walls not stamped - the escape measure must turn red.
   NOT done by patch 59: defect 3 (the level / a look at the two odd drums), defect 7, a second live seed, Release.
+
+M5d-3 CLOSED AS BUILT WITH OPEN ITEMS (2026-11-15 17:36, tree 7149101c)
+  Regression: chain 297 unit set 180 ok / 0 failed; chain 298 live-site + realizer set 34 ok / 0 failed (read from gtest's
+  summary - the wrapper shell was stopped by the harness for low memory, the test process finished by itself; no EXIT line).
+  Both as predicted (PT.9, pm_chain286.txt). No new audit: no claim changed since the PASS WITH CONDITIONS verdict above
+  and its answered conditions. Open: O30 (a-h), one Debug rig, one seed, no Release, no L4, no screenshot of a tower.

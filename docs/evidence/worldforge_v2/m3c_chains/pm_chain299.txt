@@ -1,0 +1,15 @@
+M5e-1 (the market as a paved, walked place on the map) - predictions, written 2026-11-15 16:12 BEFORE any M5e code or test exists
+(tree 7149101c; regression chain 298 still running; design check in docs/WorldForgeV2Plan.md).
+
+PM.1 headless RED run (new SettlementMapTest tests, no planner/realizer change yet):
+  a. "a tier with a market_square carries one market inside the site on the primary way": GREEN already on town and city
+     (the planner does this today); village control GREEN (no market).
+  b. "no water cell in the market" over the seeds x tiers sweep: I expect at least one seed RED (the rect has no water check).
+     Confidence low - the sweep's sites may simply be dry.
+  c. "dressing pads never on a way's band" (planSquareDressing on the map's projection): RED on town and city - the projection
+     leaves msl.base.streets without the ways, so the whole square is one pad. Confidence medium.
+PM.2 live RED run (town rig): market columns paved < market columns total (I expect well under half: only the ways'
+  ribbons); the gate has no market route (record key absent -> RED).
+PM.3 after the build: all of the above GREEN; version-1 recipe hash and the Mountains pin byte-identical; existing map tests
+  unchanged (34 ok headless) apart from the new ones; live town doors/gates numbers as chain 298's.
+Every miss will be written below, with the run that showed it.

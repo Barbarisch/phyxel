@@ -154,3 +154,22 @@ PT.9  the regression on this tree (written 2026-11-15 14:27, before the runs): c
   chain 298 the live-site set + realizer tests 34 ok / 0 failed (33 + the tower test), unwalled sites' numbers as
   chain 285 (village 34 / 0, town 72 / 0, hamlet 16 / 0), the city 89 / 0 in both city tests, the legacy rectangle
   42 / 11 refused. About 3 h. (SettlementMapTest.* on this tree is chain 294: 34 ok / 0 failed.)
+
+PT.9 RESULT, part 1 (written 2026-11-15 16:08; tree = commit 7149101c)
+  chain 297 (unit set m5b2): 180 ok, 0 failed, exit 0 (14:28:07 -> 14:40:52). As predicted (180 / 0).
+  chain 298 (SettlementMapLiveSiteTest.*:StructureRealizerTest.*): started 14:40:52, build exit 0 / 0 errors; still running at
+  this writing (12 tests ok, no FAILED line so far). Result to follow; nothing is claimed for it yet.
+  2026-11-15 17:10: the harness stopped the chain-298 wrapper shell (system low on memory while idle; not a failure of the command).
+  The test process itself (phyxel_tests.exe, pid 17524) was NOT killed and is still advancing (14 tests ok, no FAILED line,
+  log last written 17:09). Not restarted. Consequence: the chain file will carry no EXIT line; the result will be read from
+  gtest's own summary in the run log, and that is stated wherever it is cited.
+
+PT.9 RESULT, part 2 (written 2026-11-15 17:36; tree = commit 7149101c; exe 2026-11-15_14:28:03)
+  chain 298: gtest's own summary in the run log - "34 tests from 2 test suites ran (10418646 ms)", "PASSED 34 tests",
+  0 FAILED lines; last log write 17:34. NO chain EXIT line exists (the wrapper shell was stopped by the harness at ~17:10;
+  the test process finished on its own). As predicted (34 / 0).
+  Gate records in the log (14): walkable 16 x4, 34 x5, 72 x1, 89 x2, 28 x1, and 42 with blocked 11 (the legacy rectangle,
+  refused); the other 13 records blocked 0. Against chain 285: identical except the city 77 -> 89 (the 12 tower routes) and
+  the one added city test. Predicted hamlet 16/0, village 34/0, town 72/0, city 89/0 twice, legacy 42/11: all as predicted.
+  MISS (of the prediction's wording, not of a number): the 28/0 record was not named in PT.9; it is in chain 285 too, unchanged.
+  Not covered by this regression: Release, L4, a second live seed, everything in O30.
