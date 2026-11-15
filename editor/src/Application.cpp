@@ -647,7 +647,17 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // water_gpu debug command). Falls back to CPU if creation fails.
     if (vulkanDevice) waterManager->enableGpu(vulkanDevice);
     // GPU debris floats / drags / drifts in this water (DebrisInteractionPlan 6c).
-    if (debrisRuntime) debrisRuntime->setWaterSource(waterManager.get());
+    // 52 W4.2: debris reads the new water only (setVolumeWater below: the volumes, else the record) - no fallback to the old water's
+    // table, which answered wherever the new water read dry, at its own level (1 m off the record at the RiverCarve lake, 52.1)
+    if (debrisRuntime) debrisRuntime->setWaterSource(kOldCaWaterRuns ? waterManager.get() : nullptr);
+    // 52 W4.2: the camera reads the new water in every world from the start, not only after a game definition loads
+    if (renderCoordinator) {
+        m_cameraDepthQuery = [this](const glm::vec3& eye) -> float {
+            const Core::Water::ColumnRunsFn column = [this](int wx, int wz, Core::Water::WaterRunsAt& r) { return readerColumn(wx, wz, r); };
+            return Core::Water::cameraDepthFromRuns(column, eye);
+        };
+        renderCoordinator->setWaterDepthQuery(m_cameraDepthQuery);
+    }
 
     // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings
@@ -3925,14 +3935,15 @@ void Application::update(float deltaTime) {
     // rebuild), so /api/debug/frame_profile shows the water system's true per-frame share.
     {
         PROFILE_SCOPE(*performanceProfiler, "Water");
-        if (waterManager && camera &&
+        // 52 W4.2: the old CA water neither follows the camera nor steps (kOldCaWaterRuns)
+        if (kOldCaWaterRuns && waterManager && camera &&
             waterManager->followTo(camera->getPosition(), waterManager->dims().x / 4)) {
             const glm::ivec3 o = waterManager->origin();
             LOG_INFO_FMT("Water", "[WATER] region followed viewer → origin (" << o.x << "," << o.y << "," << o.z << ")");
         }
 
         // Tick the CPU water cellular automaton (fixed-rate internally).
-        if (waterManager) waterManager->update(deltaTime);
+        if (kOldCaWaterRuns && waterManager) waterManager->update(deltaTime);
         // WaterCore active volumes: realtime stepping is opt-in (water_av_realtime); the harness
         // steps explicitly. The debug feed is rebuilt every frame while any volume exists.
         if (waterCore) {
@@ -7130,7 +7141,7 @@ void Application::autoLoadGameDefinition() {
             // 52 W4.1: every reader asks the NEW water (readerColumn: the awake volumes, else the record), the old CA water only
             // while this world runs it. Before, these read the old water alone - off by default, so a crate in a generated lake
             // read the old baked table (1 m off the record's level at the RiverCarve lake) and the camera drew no underwater fog.
-            m_oldWaterOn = water.value("enabled", false);
+            m_oldWaterOn = kOldCaWaterRuns && water.value("enabled", false);   // 52 W4.2: never (the old water does not run)
             const Core::Water::ColumnRunsFn column = [this](int wx, int wz, Core::Water::WaterRunsAt& r) { return readerColumn(wx, wz, r); };
             m_bodyWaterQuery = [column](const glm::vec3& mn, const glm::vec3& mx) -> float {
                 return Core::Water::submergedFractionFromRuns(column, mn, mx);
@@ -7240,13 +7251,14 @@ void Application::autoLoadGameDefinition() {
             // restore persisted water (sea level / ocean seeds / springs). The field
             // itself reconstructs: the ocean re-floods from its seeds and springs re-emit.
             if (waterManager) {
-                waterManager->syncSolidsFromChunks();
                 // Applied unconditionally (empty object when no "water" block) so switching
                 // to a water-less world RESETS the boundary flag rather than leaking the
                 // previous world's ocean. seaLevel was already applied above (unified with
                 // the render plane).
                 const nlohmann::json w =
                     gameDef.contains("water") ? gameDef["water"] : nlohmann::json::object();
+              if (kOldCaWaterRuns) {   // 52 W4.2: the old water's sea / seeds / springs / channels - not applied
+                waterManager->syncSolidsFromChunks();
                 // Ocean boundary condition (WaterSystemV2 A2b): seed the sea from the
                 // region frontier so it survives the player-following recenters.
                 waterManager->setOceanBoundary(w.value("oceanBoundary", false));
@@ -7262,12 +7274,14 @@ void Application::autoLoadGameDefinition() {
                     for (const auto& c : w["channels"])
                         if (c.is_array() && c.size() == 3)
                             waterManager->setChannelWorld(c[0].get<int>(), c[1].get<int>(), c[2].get<int>(), true);
+              }
                 // Phase C (generation feeds water): bind the baked hydrology water table when this
                 // world's streaming generator baked one (height-based non-Flat types) — the sim then
                 // fills the baked ocean AND lakes at their own levels wherever the region travels,
                 // with no authored seeds. Opt out per-world with water.bakedTable=false. Applied /
                 // cleared unconditionally so a world switch resets the binding.
                 {
+                  if (kOldCaWaterRuns) {   // 52 W4.2: the old water's baked table, rivers, evaporation, edges, pours - not bound
                     const WorldGenerator* gen =
                         chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
                     if (w.value("bakedTable", true) && gen && gen->hydrology()) {
@@ -7391,6 +7405,7 @@ void Application::autoLoadGameDefinition() {
                                 LOG_WARN("Application", "world_meta water_overrides failed to parse — pours not restored");
                         }
                     }
+                  }
                     // Phase D / 35 (A2c) / A2i (47): the water core's records - the last world's volumes, boxes and rows dropped, this
                     // world's restored (an absent key = none, never the last world's)
                     waterWorldChanged("load", true);

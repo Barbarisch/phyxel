@@ -13801,7 +13801,7 @@ owner's decision above; no drift). `/design-check` READY with three conditions, 
 - **Status: built, not signed off** (nothing on screen changes: 0 differ). Not covered: a world whose drain asks many more cells
   than RiverCarve's 191 (the drain verification stays 8 cells; its cost per cell is ~8 ms).
 
-## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 BUILT, not signed off; W4.2 next
+## 52. W4 - the world on the new water (owner, 2026-11-14: the core path first). Status: STEP 0 DONE; W4.1 + W4.2 BUILT, not signed off; W4.3 (delete) next
 
 **What W4 is (§27, §0a):** generated lakes, rivers and sea are the record and the new core simulates and draws them - DONE by §51
 (record tiles near, the skin far, 51.4c / 51.12-51.14). What is NOT done: **the old CA water is still in the engine, and five readers
@@ -13861,6 +13861,33 @@ WaterBench_RiverCarve, `water.enabled` off as shipped, the 51.13 lake at x -2228
   untuned; a look item for track B); grass blades grow on lake beds (a flora / generation item).
 - **Next: W4.2** - the old water off everywhere: the debris tiles still fall back to its table (`DebrisRuntime::setWaterSource`), and
   `water.enabled` still starts it.
+
+**52.2 W4.2 (2026-11-14) BUILT, not signed off - the old CA water runs in no world.** No `/design-check`: it removes behaviour and
+adds no feature (30.0 rule 5); the acceptance test came first (`tools/water_w4_old_off_live.py`, prediction in its header).
+- **Found reading the code, then measured: the old water ran in EVERY world, whatever `water.enabled` said.** `followTo` + `update`
+  ran every frame, and `water.bakedTable` (default true) bound the hydrology table, so it filled its 64 x 32 x 64 region round the
+  camera from the table and drew it nowhere (0 surface cells). **Red** (`w4_old_before_*.json`): RiverCarve (`water.enabled` off)
+  **11,833** cells' worth at the lake; Coast (on) **32,192** at sea. The readers already answered from the record there (52.1).
+- **What `water.enabled` means now:** the sea PLANE only (the sheet, kept by §9 until W6). Every game that set it is a generated world
+  (`proving_grounds`, `water_bench_coast`, `water_bench_river`, the Coast and River benches), whose sea is in the record
+  (`waterSpanAt`: below sea level = ocean) - no world loses its sea. Flat worlds have no record water and none set it.
+- **Built:** `Application::kOldCaWaterRuns = false` (one switch, one revert; W4.3 deletes it with the old code): no follow, no step, no
+  sea / seeds / springs / channels, no baked table / rivers / evaporation / edges / pours bound; debris has no old-water source
+  (reads `setVolumeWater` only: the volumes, else the record); the readers' fallback off (`m_oldWaterOn` false); the camera's
+  new-water query installed at start-up (every world, not only after a game definition). The new water's own world restore
+  (`waterWorldChanged("load")`) is untouched. The old routes and MCP tools (`place_water`, springs, `water_stats`' mass...) now act on a
+  water that never steps - W4.3 removes or re-points them.
+- **Live after** (`w4_old_after_*.json`), both benches: the old water **0** cells and its region never moves; the readers' `source`
+  record, the box 0.5, the camera 1.0 m, the fog drawn; dry 0. Coast: the sea plane still drawn - **`w4_old_after_coast.png`: the
+  beach, the sea and the creek as before.** Debris control (`w4_old_after_debris_float.json`): a 1/3 m wood block dropped in the
+  RiverCarve lake floats - it dips to 89.65 and rests with its centre at 89.90 (the surface 90.0; 80 % under), it does not sink.
+  The frame rates are not comparable before / after (not interleaved; the GPU frame differed 30 vs 22 ms) - no speed claim.
+- **Suites:** unit 4,528 passed, 20 skipped, 3 failed - the known `AtlasManagerTest.BuildAtlasFromSourcePNGs`, `FineFaceMerge.SubcubeMerge_CrossCube...`
+  and the order-dependent `WaterCouplingTest.BlastBesideThePond...` (passes alone); water integration 87 / 89, the known two
+  (`GpuFlipBulkParityAndRunup`, `ShortWaveMatchesAllFineAndTheBooksAreExact`). Same as W4.1.
+- **Seen, logged, left:** a pale flat rectangle in the sky top right of the Coast bench view (`w4_old_after_coast.png`), cause not looked at.
+- **Next: W4.3** - delete the old water per §9 (`WaterSimulation` + `water_flow.comp`, `WaterManager`, `RippleField`, the cell
+  renderer; one commit each, tests moved, the routes re-pointed).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

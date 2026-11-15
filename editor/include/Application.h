@@ -362,6 +362,12 @@ private:
     // water only while the world runs it (m_oldWaterOn = game.json water.enabled). src (optional): "core" | "record" | "old" | "none".
     bool readerColumn(int wx, int wz, Core::Water::WaterRunsAt& r, const char** src = nullptr) const;
     bool m_oldWaterOn = false;
+    // WaterCore 52 W4.2: the old CA water (WaterManager) does not run - no step, no follow, no table / river / sea binding, no reader
+    // or debris fallback - in any world, whatever water.enabled says (which now only draws the sea plane). Before, it ran in every
+    // world: the baked table bound by default and filled its 64 x 32 x 64 region round the camera, drawn nowhere (RiverCarve,
+    // water.enabled off: 11,833 cells at the lake; Coast: 32,192 at sea - w4_old_before_*.json). One switch so the step is one
+    // revert away; W4.3 deletes the old code and this with it.
+    static constexpr bool kOldCaWaterRuns = false;
     mutable std::mutex m_waterReadMutex;   // the CPU-body readers run on the physics workers; see readerColumn
     std::function<float(const glm::vec3&, const glm::vec3&)> m_bodyWaterQuery;   // what VoxelDynamicsWorld::setWaterQuery was given
     std::function<glm::vec3(const glm::vec3&)> m_bodyFlowQuery;                  // ... setWaterFlowQuery

@@ -1,0 +1,76 @@
+{
+ "bench": "rivercarve",
+ "old_at_pose": {
+  "total_mass": 137.06134033203125,
+  "surface_cells": 0,
+  "origin": {
+   "x": -2202,
+   "y": 74,
+   "z": -1382
+  }
+ },
+ "wet_column": {
+  "surface_y": 90.0,
+  "u": 0.0,
+  "w": 0.0,
+  "x": -2228,
+  "z": -1350
+ },
+ "wet": {
+  "camera_submergence": 1.0,
+  "camera_depth_below": 1.0,
+  "plane_enabled": false,
+  "source": "record",
+  "depth_below": 1.0,
+  "submerged_fraction": 0.5,
+  "old_submerged_fraction": 1.0,
+  "old_water_on": false
+ },
+ "old_at_wet": {
+  "total_mass": 11832.9892578125,
+  "surface_cells": 0,
+  "origin": {
+   "x": -2260,
+   "y": 74,
+   "z": -1382
+  }
+ },
+ "dry": {
+  "camera_submergence": 0.0,
+  "camera_depth_below": 0.0,
+  "plane_enabled": false,
+  "source": "none",
+  "depth_below": 0.0,
+  "submerged_fraction": 0.0,
+  "old_submerged_fraction": 0.0,
+  "old_water_on": false
+ },
+ "frame": {
+  "frames": 110,
+  "seconds": 6.07,
+  "fps_mean": 18.1,
+  "dt_p50": 30.16,
+  "dt_p95": 74.21,
+  "dt_p99": 1042.72,
+  "dt_max": 1500.61,
+  "over_16ms": 106,
+  "over_33ms": 18,
+  "over_50ms": 10,
+  "api_ms_total": 0.2,
+  "water_ms_mean": 1.119,
+  "water_ms_max": 16.27,
+  "api_ms_max": 0.03,
+  "gpu_ms_median": 30.21,
+  "gpu_ms_max": 62.81,
+  "water_scope_ms": 0.134
+ },
+ "old_end": {
+  "total_mass": 137.06134033203125,
+  "surface_cells": 0,
+  "origin": {
+   "x": -2202,
+   "y": 74,
+   "z": -1382
+  }
+ }
+}
