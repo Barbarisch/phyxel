@@ -1,0 +1,414 @@
+{
+ "24": {
+  "build": {
+   "faces": null,
+   "caster_faces": null,
+   "seam_faces": null,
+   "seam_depth": null,
+   "exit_reach": null,
+   "build_wall_ms": null,
+   "gpu_face_build_ms_sum": null
+  },
+  "overview_south": {
+   "faces_cast_M": [
+    480349,
+    250031
+   ],
+   "faces_cast_D": [
+    300942,
+    158853
+   ],
+   "faces_cast_S": [
+    412770,
+    211980
+   ],
+   "faces_cast_C": [
+    621241,
+    322195
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 27,
+    "darker_gt8": 1,
+    "any": 640
+   },
+   "S_vs_M": {
+    "brighter_gt8": 14,
+    "darker_gt8": 1,
+    "any": 582
+   },
+   "C_vs_M": {
+    "brighter_gt8": 18,
+    "darker_gt8": 148,
+    "any": 1009
+   },
+   "S_vs_C": {
+    "brighter_gt8": 147,
+    "darker_gt8": 4,
+    "any": 427
+   },
+   "control_S_px": 0
+  },
+  "top_down": {
+   "faces_cast_M": [
+    480349,
+    448157
+   ],
+   "faces_cast_D": [
+    300942,
+    273850
+   ],
+   "faces_cast_S": [
+    412770,
+    382951
+   ],
+   "faces_cast_C": [
+    621241,
+    580020
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 22,
+    "darker_gt8": 1,
+    "any": 137
+   },
+   "S_vs_M": {
+    "brighter_gt8": 1,
+    "darker_gt8": 0,
+    "any": 42
+   },
+   "C_vs_M": {
+    "brighter_gt8": 4,
+    "darker_gt8": 190,
+    "any": 703
+   },
+   "S_vs_C": {
+    "brighter_gt8": 190,
+    "darker_gt8": 3,
+    "any": 661
+   },
+   "control_S_px": 0
+  },
+  "forest_floor_open": {
+   "faces_cast_M": [
+    480349,
+    480349
+   ],
+   "faces_cast_D": [
+    300942,
+    300942
+   ],
+   "faces_cast_S": [
+    412770,
+    412770
+   ],
+   "faces_cast_C": [
+    621241,
+    621241
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 245,
+    "darker_gt8": 16,
+    "any": 2418
+   },
+   "S_vs_M": {
+    "brighter_gt8": 77,
+    "darker_gt8": 5,
+    "any": 1442
+   },
+   "C_vs_M": {
+    "brighter_gt8": 216,
+    "darker_gt8": 110,
+    "any": 2560
+   },
+   "S_vs_C": {
+    "brighter_gt8": 106,
+    "darker_gt8": 140,
+    "any": 1119
+   },
+   "control_S_px": 0
+  },
+  "east_low": {
+   "faces_cast_M": [
+    480349,
+    467955
+   ],
+   "faces_cast_D": [
+    300942,
+    291340
+   ],
+   "faces_cast_S": [
+    412770,
+    401637
+   ],
+   "faces_cast_C": [
+    621241,
+    605404
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 2,
+    "darker_gt8": 1,
+    "any": 84
+   },
+   "S_vs_M": {
+    "brighter_gt8": 2,
+    "darker_gt8": 1,
+    "any": 71
+   },
+   "C_vs_M": {
+    "brighter_gt8": 3,
+    "darker_gt8": 185,
+    "any": 579
+   },
+   "S_vs_C": {
+    "brighter_gt8": 184,
+    "darker_gt8": 1,
+    "any": 508
+   },
+   "control_S_px": 0
+  },
+  "canopy_close": {
+   "faces_cast_M": [
+    480349,
+    480349
+   ],
+   "faces_cast_D": [
+    300942,
+    300942
+   ],
+   "faces_cast_S": [
+    412770,
+    412770
+   ],
+   "faces_cast_C": [
+    621241,
+    621241
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 218,
+    "darker_gt8": 7,
+    "any": 676
+   },
+   "S_vs_M": {
+    "brighter_gt8": 2,
+    "darker_gt8": 2,
+    "any": 137
+   },
+   "C_vs_M": {
+    "brighter_gt8": 12,
+    "darker_gt8": 149,
+    "any": 546
+   },
+   "S_vs_C": {
+    "brighter_gt8": 147,
+    "darker_gt8": 10,
+    "any": 409
+   },
+   "control_S_px": 0
+  }
+ },
+ "-1": {
+  "build": {
+   "faces": 2069629,
+   "caster_faces": 1109093,
+   "seam_faces": 480187,
+   "seam_depth": 0,
+   "exit_reach": -1,
+   "build_wall_ms": 51295.36589999999,
+   "gpu_face_build_ms_sum": 60.952064
+  },
+  "overview_south": {
+   "faces_cast_M": [
+    480349,
+    250031
+   ],
+   "faces_cast_D": [
+    300942,
+    158853
+   ],
+   "faces_cast_S": [
+    480307,
+    246353
+   ],
+   "faces_cast_C": [
+    621241,
+    322195
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 27,
+    "darker_gt8": 1,
+    "any": 640
+   },
+   "S_vs_M": {
+    "brighter_gt8": 0,
+    "darker_gt8": 0,
+    "any": 0
+   },
+   "C_vs_M": {
+    "brighter_gt8": 18,
+    "darker_gt8": 148,
+    "any": 1014
+   },
+   "S_vs_C": {
+    "brighter_gt8": 148,
+    "darker_gt8": 18,
+    "any": 1014
+   },
+   "control_S_px": 0
+  },
+  "top_down": {
+   "faces_cast_M": [
+    480349,
+    448157
+   ],
+   "faces_cast_D": [
+    300942,
+    273850
+   ],
+   "faces_cast_S": [
+    480307,
+    447097
+   ],
+   "faces_cast_C": [
+    621241,
+    580020
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 22,
+    "darker_gt8": 1,
+    "any": 142
+   },
+   "S_vs_M": {
+    "brighter_gt8": 0,
+    "darker_gt8": 0,
+    "any": 5
+   },
+   "C_vs_M": {
+    "brighter_gt8": 4,
+    "darker_gt8": 190,
+    "any": 708
+   },
+   "S_vs_C": {
+    "brighter_gt8": 190,
+    "darker_gt8": 4,
+    "any": 703
+   },
+   "control_S_px": 0
+  },
+  "forest_floor_open": {
+   "faces_cast_M": [
+    480349,
+    480349
+   ],
+   "faces_cast_D": [
+    300942,
+    300942
+   ],
+   "faces_cast_S": [
+    480307,
+    480307
+   ],
+   "faces_cast_C": [
+    621241,
+    621241
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 245,
+    "darker_gt8": 16,
+    "any": 2417
+   },
+   "S_vs_M": {
+    "brighter_gt8": 0,
+    "darker_gt8": 0,
+    "any": 0
+   },
+   "C_vs_M": {
+    "brighter_gt8": 216,
+    "darker_gt8": 110,
+    "any": 2559
+   },
+   "S_vs_C": {
+    "brighter_gt8": 110,
+    "darker_gt8": 216,
+    "any": 2559
+   },
+   "control_S_px": 0
+  },
+  "east_low": {
+   "faces_cast_M": [
+    480349,
+    467955
+   ],
+   "faces_cast_D": [
+    300942,
+    291340
+   ],
+   "faces_cast_S": [
+    480307,
+    467792
+   ],
+   "faces_cast_C": [
+    621241,
+    605404
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 2,
+    "darker_gt8": 1,
+    "any": 84
+   },
+   "S_vs_M": {
+    "brighter_gt8": 0,
+    "darker_gt8": 0,
+    "any": 0
+   },
+   "C_vs_M": {
+    "brighter_gt8": 3,
+    "darker_gt8": 185,
+    "any": 579
+   },
+   "S_vs_C": {
+    "brighter_gt8": 185,
+    "darker_gt8": 3,
+    "any": 579
+   },
+   "control_S_px": 0
+  },
+  "canopy_close": {
+   "faces_cast_M": [
+    480349,
+    480349
+   ],
+   "faces_cast_D": [
+    300942,
+    300942
+   ],
+   "faces_cast_S": [
+    480307,
+    480307
+   ],
+   "faces_cast_C": [
+    621241,
+    621241
+   ],
+   "D_vs_M": {
+    "brighter_gt8": 218,
+    "darker_gt8": 7,
+    "any": 676
+   },
+   "S_vs_M": {
+    "brighter_gt8": 0,
+    "darker_gt8": 0,
+    "any": 0
+   },
+   "C_vs_M": {
+    "brighter_gt8": 12,
+    "darker_gt8": 149,
+    "any": 546
+   },
+   "S_vs_C": {
+    "brighter_gt8": 149,
+    "darker_gt8": 12,
+    "any": 546
+   },
+   "control_S_px": 0
+  }
+ }
+}

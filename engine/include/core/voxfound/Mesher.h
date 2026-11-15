@@ -193,6 +193,9 @@ bool faceGroupMayFaceCamera(int dirIndex, glm::vec3 lo, glm::vec3 hi, glm::vec3 
 /// F2.15b: for a directional light (toLight = unit vector towards it) a face direction casts only if its normal faces
 /// the light: dot(normal, toLight) > -1e-4. For a closed surface the nearest face along any light ray is such a face,
 /// so the shadow map is unchanged. Same test as voxfound_cull.comp's light mode.
+/// F2.15d-2: dirIndex kAwayGroup + d (6-11) = direction d's AWAY side: casts only if d does NOT face the light (the
+/// camera test treats it as d).
+constexpr int kAwayGroup = 6;
 bool faceDirFacesLight(int dirIndex, glm::vec3 toLight);
 /// The cull pass's test, CPU reference: is the box [lo, hi] (metres) on the inner side of all six planes?
 /// planes[i] = (n, d), inside where dot(n, p) + d >= 0 (the p-vertex test: conservative, never drops a visible box).
@@ -264,6 +267,20 @@ LodTopStats lodTopStats(const LodGrid& ref, const LodGrid& coarse, const CardSet
 /// ground cell's surface vote sees the ground); the leaf pyramid is the leaf mass where it is drawn (F2.14c handoff).
 /// Level 0 keeps today's rule (card voxels hide their neighbours).
 void lodSplitCards(const VoxelGrid& g, const CardSet& cards, VoxelGrid& solid, VoxelGrid& leaves);
+/// F2.15d (§4.6 item 8): the SEAM grid for shadow casters. The main mesh hides a solid face next to a card (leaf)
+/// voxel; meshing this grid gives exactly those hidden faces whose leaf neighbour lies within maxDepth leaf voxels
+/// of air (leaf depth: 6-connected steps through card voxels to an air voxel, 1 = touches air; outside the grid counts
+/// as card, not air). Solid voxels are kept, those shallow leaves become air, everything else (air, deeper leaves)
+/// becomes `hide` (a card material: no faces, hides). Mesh it with `cards` and Outside::Skip. Main + seam at
+/// maxDepth >= the grid's size = the leaves-as-air mesh, as sets of unit faces.
+VoxelGrid casterSeamGrid(const VoxelGrid& g, const CardSet& cards, int maxDepth, uint8_t hide);
+/// F2.15d-2: the EXIT grid. Meshing it (with `cards`, Outside as the main mesh) gives the main faces of the solid
+/// voxels within `reach` solid steps (6-connected, through non-card solid) of a solid voxel that has a card neighbour
+/// (a leaf-hidden face); reach < 0 = every solid voxel connected to one. Kept solids stay, other solids and every
+/// leaf become `hide` (a card material), air stays air. A light ray inside a solid entered it through a face, and the
+/// only faces the main mesh lacks are the leaf-hidden ones: so the light-facing main faces plus these faces' AWAY side
+/// (direction code + kAwayGroup) give the same nearest hit as all main faces, for reach unbounded.
+VoxelGrid casterExitGrid(const VoxelGrid& g, const CardSet& cards, int reach, uint8_t hide);
 /// F2.14h: the leaf mass of a LEAF pyramid level (leaf voxels only) at fill t: a cell is mass when it covers at least
 /// t x 8^k level-0 leaf voxels (t = 1/2 is the half-solid rule; lower = fatter, as the cards overhang their cells).
 /// Material = the cell's surface vote, else its volume vote, else `fallback`.

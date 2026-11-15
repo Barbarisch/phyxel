@@ -373,7 +373,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 5 | GPU-driven multidraw (default ON) | NearShadowCascade / draw batching | The face pool is drawn with indirect draws from the start | main view done (F2.11: GPU cull pass 0.01 ms + one indirect multidraw, 0 px, neutral at 4-block clusters; per-block clusters measured worse); shadows owed (item 6) |
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
 | 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look done (F2.14f: own pipeline shaded as cards, luma 74.7 → 106.2 vs the cards' 107.9, mass error halved; +0.14/+0.16 ms at the ground; handoff still off); two pyramids built (F2.14g: no hidden tops, holes at P=32 gone, but farther from level 0 at P=8 — off; found: canopy-interior faces cut sprig overdraw 2-3.7 ms); leaf-fill knob built (F2.14h: no fill closes the canopy gap — it is sub-voxel shading; off; its whole-frame A/B owed, voided by a shared GPU) |
-| 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | main view done (F2.15: direction groups per 4-block cluster in the cull pass, 0 px, −0.30..−0.45 ms at 4 of 5 poses, neutral at the fifth; default on); shadow casters by light direction built (F2.15b: −0.85..−1.4 ms but leaks at leaf-adjacent trunk faces; closed casters fix it at +1-2 ms — off; a cheaper closure owed); a lower command count owed |
+| 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | main view done (F2.15: direction groups per 4-block cluster in the cull pass, 0 px, −0.30..−0.45 ms at 4 of 5 poses, neutral at the fifth; default on); shadow casters by light direction built (F2.15b: −0.85..−1.4 ms but leaks at leaf-adjacent trunk faces; closed casters fix it at +1-2 ms — off; F2.15d: two cheaper closures measured, neither closes the leaks chunk-exactly, reach 24 only −0.1..−0.5 ms — off, closed for now); a lower command count owed |
 | 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | owed |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | owed |
 
@@ -1159,6 +1159,32 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
     +1.07* / +0.95* / +1.63* / +1.94* / +1.81* ms. (forest_floor_open keeps 216 brighter px that are not leaks: the
     light/shadow edge on sunlit trunk sides moves when the trunk's own back faces stop casting.)
 - Default: OFF. Owed: a cheaper closure — only the leaf-hidden faces a light ray can actually reach.
+
+**F2.15d 2026-11-14 — §4.6 item 8 continued: a cheaper caster closure (measured; both variants fail, off).**
+- Goal: close F2.15b's light leaks (shadow casters by light direction) for less than the closed casters' ×2.31 faces.
+  Predictions written before code: `voxfound_f215d_prediction.txt`.
+- Entry seam (`casterSeamGrid`, `{"caster_seam_depth":D}` at build): add only the leaf-hidden solid faces whose leaf
+  is within D leaf voxels of air. Red first: `CasterSeamAddsExactlyTheLeafHiddenFaces` (main ∪ seam(∞) = leaves-as-air
+  mesh, no overlap; D = 1 exact). Measured: 58k (D=1) / 119k (D=2) faces, canopy_close leaks 218 → 188 / 160 px
+  (closed: 12). WRONG: sprigs sit only on a hashed fraction of the air-touching leaves, so a canopy's inside has no
+  cards and light crosses it freely; leaf depth does not bound a ray. The leak: a ray enters a trunk through a
+  leaf-hidden face inside the canopy and used to be stopped by the trunk's low away-side faces.
+- Exit faces (`casterExitGrid`, `{"caster_exit_reach":R}`): keep the main faces of solids within R solid steps of a
+  solid with a card neighbour, drawn as AWAY groups (dir code 6-11, `kAwayGroup`: cast only when direction d does NOT
+  face the light; cull shader + `faceDirFacesLight`). Red first: `ExitFacesCloseTheLightTestNextToLeaves` (3,600 rays:
+  all main faces = light-facing main + away exit faces, 0 differ; the light test alone 402 leaks; reach 2 = brute-force
+  BFS); GPU `ClusterCullDropsDirectionGroupsLikeTheReference` with away groups, 0 wrong. CPU 56/56, GPU 18/18.
+  - Exact only for unbounded R, which keeps EVERY main face (480,187: trunks connect to the ground). Chunk-exact only
+    for R ≤ 7 (the 8-voxel area margin, StorageLab `areaMarginVoxels`).
+  - Leaks (px > 8 brighter vs `shadow_mdi`), canopy_close: R=3 164, R=7 127, R=24 2, unbounded 0 at all poses;
+    forest_floor_open R=24 77 (`voxfound_f215e_gate_*`, `voxfound_f215e_canopy_close_exit7_leaks.png`).
+  - Whole frame, R=24 + light test vs the default casters (8 pairs × 5 poses, `voxfound_f215e_ab_reach24.*`):
+    −0.27* / −0.10 / −0.51 / −0.19* / −0.20* ms (overview, top_down, forest_floor_open, east_low, canopy_close;
+    * = CI excludes 0). Predicted −0.5..−1.2: wrong — the 413k cast faces (vs 301k with the light test alone) eat half
+    the saving.
+- Default: OFF. `caster_exit_reach` 0, `caster_seam_depth` 0 (not built); `shadow_dir_cull` off. R = 24 would need a
+  ~32-voxel generation margin (~+38 % generation per chunk) for at most 0.5 ms and still leaks. Shadow light-direction
+  culling is closed for now: the main mesh is not a closed surface under leaves, and no cheap local rule closes it.
 
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.

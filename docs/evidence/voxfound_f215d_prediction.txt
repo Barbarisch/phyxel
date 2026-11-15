@@ -1,0 +1,47 @@
+F2.15d prediction (written 2026-11-14, before any code) -- §4.6 item 8 continued: a cheaper caster closure.
+
+Idea. The main mesh hides a solid face next to a leaf (card) voxel. The closed casters of F2.15b re-meshed every chunk
+with leaves as air: x2.31 the faces, because branches deep inside the canopies get all their faces. A light ray reaches
+a face behind a leaf voxel only through the cards of every leaf voxel between it and the air. So: add ONLY the hidden
+solid faces whose leaf neighbour lies within D leaf voxels of air (leaf depth, 6-connected; 1 = touches air), on top
+of the main faces (not a replacement). D = infinity is the F2.15b closure (as a set of unit faces). Knob: D.
+
+Red test first: main faces + seam faces (D = inf) = the leaves-as-air mesh as sets of unit faces, and main and seam
+never share a face; at D = 1 a solid face behind a buried leaf is not added, one behind a leaf touching air is.
+
+Predictions on the gate region (LOD off, the same 5 poses, F2.15b scripts):
+1. Seam faces: D = inf ~ 0.55-0.7 M (closed - main); D = 1: 5-15 % of that (30-100 k); D = 2: 10-25 %.
+2. Leaks vs shadow_mdi (px > 8 levels brighter): D = 1 at most 20 px per pose (F2.15b main+test 3-261,
+   closed 4-12). forest_floor_open keeps its ~216 px terminator shift (not a leak, same as closed).
+3. Faces cast after the light test: main+test (62.7 %) + half the seam.
+4. Whole frame, D = 1 + light test vs the default per-chunk casters: -0.6..-1.2 ms at all 5 poses (main+test was
+   -0.85..-1.4; the seam adds <= 0.3 ms).
+5. If 2 and 4 hold: default ON for shadow_dir_cull with the seam at D = 1.
+
+---- Measured, the entry seam (voxfound_f215d_gate.json): seam faces D=1 58,041 / D=2 119,089 (pred. 1 held); leaks at
+canopy_close 218 -> 188 (D=1) / 160 (D=2) vs closed 12: pred. 2 WRONG. Why: sprigs sit only on leaf voxels that touch
+air and only on a hashed fraction of them (foliageSprigs), so a canopy's inside has no cards -- light that passes the
+surface crosses the leaf interior freely; leaf depth does not measure reach. The leak seen: ground by a trunk base
+lit, the trunk's low away-side faces (below the canopy) used to stop a ray that entered the trunk inside the canopy.
+
+F2.15d-2 prediction (written before code): the EXIT side. Keep the away-facing MAIN faces of solid voxels within R
+solid steps (6-connected, through solid) of a solid voxel with a leaf-hidden face; drawn in groups tagged "away"
+(cull: cast only when facing away from the light, so no face is drawn twice). R = unbounded is exact (a ray inside
+solid entered by a hidden face, so its exit face is kept); finite R bounds the cost (knob).
+Red test first: rays along 12 light directions, nearest hit over all main faces = nearest over light-facing main + away
+exit faces at R unbounded; exit faces are a subset of the main faces; at finite R they are exactly the main faces of
+solids within R.
+1. Exit faces (all directions, before the light test) at R=16: 40-150 k; cast after the test: half.
+2. Leaks (px > 8 brighter vs shadow_mdi) at R=16: canopy_close <= 30 px, others <= 15 (forest_floor_open keeps its
+   ~216 terminator px).
+3. Whole frame, R=16 + light test vs the default casters: -0.5..-1.2 ms at all 5 poses.
+4. If 2 and 3 hold: shadow_dir_cull default ON with the exit faces.
+
+---- Measured, the exit faces (voxfound_f215e_gate_r7_r3.txt, voxfound_f215e_gate_r24_unbounded.json,
+voxfound_f215e_ab_reach24.*). The chunk build gives each chunk an 8-voxel area margin, so only R <= 7 is a function of
+world position (R = 16 was not run as such; 3, 7, 24 and unbounded were).
+Exit faces: R=3 102,057; R=7 149,188; unbounded 480,187 (= every main face: trunks reach the ground) -- pred. 1 out of
+range at R=7 already. Leaks canopy_close: R=3 164, R=7 127, R=24 2, unbounded 0 (all poses 0); forest_floor_open
+R=24 77 -- pred. 2 WRONG at any chunk-exact R. Whole frame R=24 + light test vs the default casters (8 pairs each):
+-0.27* / -0.10 / -0.51 / -0.19* / -0.20* ms -- pred. 3 WRONG (half the predicted saving; the extra casters eat it).
+Pred. 4 therefore not met: shadow_dir_cull stays OFF, caster_exit_reach default 0 (not built).

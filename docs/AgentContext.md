@@ -474,8 +474,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       -0.30..-0.45 ms at 4/5 poses; commands x4.6 cost +0.68 at forest_floor_open (neutral there).
       F2.15b (2026-11-14): shadow casters by light direction ({"shadow_dir_cull"} with shadow_mdi; OFF): -0.85..-1.4 ms
       but light LEAKS where leaves hide a trunk face (casters are not closed surfaces); closed casters
-      ({"closed_casters":true} build, {"shadow_closed"}) fix it but x2.31 faces, +1-2 ms. Cheaper closure owed.
-      NEXT (the plan's F2 list): item 8's rest (a cheaper caster closure; fewer commands), then item 9 (incremental
+      ({"closed_casters":true} build, {"shadow_closed"}) fix it but x2.31 faces, +1-2 ms.
+      F2.15d (2026-11-14): cheaper closures, both measured and OFF: entry seam ({"caster_seam_depth"}) barely helps
+      (canopy interiors have no cards); exit faces ({"caster_exit_reach"}, AWAY groups dir 6-11) exact only unbounded
+      (= all main faces), chunk-exact only R<=7 (8-voxel area margin) where it still leaks 127 px; R=24 -0.1..-0.5 ms.
+      Shadow light culling closed for now.
+      NEXT (the plan's F2 list): item 8's rest (fewer commands for main-view direction culling), then item 9 (incremental
       rebuild), 10 (face pool), T-junctions.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.

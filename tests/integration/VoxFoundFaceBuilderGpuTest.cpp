@@ -531,7 +531,7 @@ TEST_F(VoxFoundFaceBuilderGpu, ClusterCullDropsDirectionGroupsLikeTheReference) 
     ASSERT_TRUE(cull.init(device, physicalDevice, "shaders", 1, &err)) << err;
     std::mt19937 rng(23);
     std::uniform_real_distribution<float> pos(-100.0f, 100.0f), ext(0.0f, 16.0f);
-    std::uniform_int_distribution<int> cnt(1, 300), dirOf(-1, 5);
+    std::uniform_int_distribution<int> cnt(1, 300), dirOf(-1, 11);   // 6-11: F2.15d-2 away groups
     std::vector<ClusterCullGpu::Cluster> cl(6000);
     uint32_t first = 0;
     for (auto& c : cl) {

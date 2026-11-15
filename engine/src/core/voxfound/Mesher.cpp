@@ -462,12 +462,14 @@ std::vector<FaceCluster> splitByDirection(const std::vector<PackedFace>& faces, 
 }
 bool faceGroupMayFaceCamera(int dirIndex, glm::vec3 lo, glm::vec3 hi, glm::vec3 cam, float margin) {
     if (dirIndex < 0) return true;
+    dirIndex %= kAwayGroup;   // F2.15d-2: an away group is its direction for the camera
     const int axis = dirIndex / 2;
     return (dirIndex & 1) ? cam[axis] > lo[axis] - margin : cam[axis] < hi[axis] + margin;
 }
 
 bool faceDirFacesLight(int dirIndex, glm::vec3 toLight) {
     if (dirIndex < 0) return true;
+    if (dirIndex >= kAwayGroup) return !faceDirFacesLight(dirIndex - kAwayGroup, toLight);   // F2.15d-2
     const float n = (dirIndex & 1) ? toLight[dirIndex / 2] : -toLight[dirIndex / 2];   // dot(normal, toLight)
     return n > -1e-4f;
 }
@@ -730,6 +732,97 @@ void lodSplitCards(const VoxelGrid& g, const CardSet& cards, VoxelGrid& solid, V
             solid.part[i] = 0;
             solid.fixed[i] = 0;
         }
+}
+
+VoxelGrid casterSeamGrid(const VoxelGrid& g, const CardSet& cards, int maxDepth, uint8_t hide) {
+    VoxelGrid out;
+    out.resize(g.dim);
+    const size_t n = g.size();
+    // leaf depth by breadth-first search from the air voxels through card voxels (0 = not reached / not a leaf)
+    std::vector<int> depth(n, 0);
+    std::vector<size_t> frontier, next;
+    const bool every = maxDepth < 0;
+    if (!every) {
+        static const glm::ivec3 n6[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+        for (size_t i = 0; i < n; ++i)
+            if (g.mat[i] == 0) frontier.push_back(i);
+        for (int d = 1; d <= maxDepth && !frontier.empty(); ++d) {
+            next.clear();
+            for (size_t i : frontier) {
+                const glm::ivec3 p = g.pos(i);
+                for (const glm::ivec3& s : n6) {
+                    const glm::ivec3 q = p + s;
+                    if (!g.in(q)) continue;
+                    const size_t j = g.idx(q);
+                    if (depth[j] || !g.mat[j] || !cards.has(g.mat[j])) continue;
+                    depth[j] = d;
+                    next.push_back(j);
+                }
+            }
+            frontier.swap(next);
+        }
+    }
+    for (size_t i = 0; i < n; ++i) {
+        const uint8_t m = g.mat[i];
+        if (m && !cards.has(m)) {   // solid: kept
+            out.mat[i] = m;
+            out.part[i] = g.part[i];
+            out.fixed[i] = g.fixed[i];
+        } else if (m && (every || depth[i])) {
+            out.mat[i] = 0;   // a shallow leaf: air, so the solid face behind it is meshed
+        } else {
+            out.mat[i] = hide;   // air or a deeper leaf: hides, emits nothing
+        }
+    }
+    return out;
+}
+
+VoxelGrid casterExitGrid(const VoxelGrid& g, const CardSet& cards, int reach, uint8_t hide) {
+    static const glm::ivec3 n6[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    const size_t n = g.size();
+    auto solidAt = [&](size_t i) { return g.mat[i] != 0 && !cards.has(g.mat[i]); };
+    // breadth-first through solid from the solids with a card neighbour (distance 0)
+    std::vector<int> dist(n, -1);
+    std::vector<size_t> frontier, next;
+    for (size_t i = 0; i < n; ++i) {
+        if (!solidAt(i)) continue;
+        const glm::ivec3 p = g.pos(i);
+        for (const glm::ivec3& s : n6) {
+            const glm::ivec3 q = p + s;
+            if (g.in(q) && g.mat[g.idx(q)] && cards.has(g.mat[g.idx(q)])) {
+                dist[i] = 0;
+                frontier.push_back(i);
+                break;
+            }
+        }
+    }
+    for (int d = 1; (reach < 0 || d <= reach) && !frontier.empty(); ++d) {
+        next.clear();
+        for (size_t i : frontier) {
+            const glm::ivec3 p = g.pos(i);
+            for (const glm::ivec3& s : n6) {
+                const glm::ivec3 q = p + s;
+                if (!g.in(q)) continue;
+                const size_t j = g.idx(q);
+                if (dist[j] >= 0 || !solidAt(j)) continue;
+                dist[j] = d;
+                next.push_back(j);
+            }
+        }
+        frontier.swap(next);
+    }
+    VoxelGrid out;
+    out.resize(g.dim);
+    for (size_t i = 0; i < n; ++i) {
+        if (dist[i] >= 0) {
+            out.mat[i] = g.mat[i];
+            out.part[i] = g.part[i];
+            out.fixed[i] = g.fixed[i];
+        } else if (g.mat[i]) {
+            out.mat[i] = hide;   // a far solid or a leaf: hides, emits nothing
+        }
+    }
+    return out;
 }
 
 VoxelGrid lodLeafMass(const LodGrid& leaves, double fill, uint8_t fallback) {

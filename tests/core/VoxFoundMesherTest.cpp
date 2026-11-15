@@ -26,6 +26,7 @@
 #include <limits>
 #include <map>
 #include <random>
+#include <set>
 #include <tuple>
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -1181,6 +1182,155 @@ TEST(VoxFoundMesher, LightFacingFacesAloneGiveTheSameNearestHit) {
     EXPECT_EQ(differ, 0u);
     EXPECT_TRUE(faceDirFacesLight(3, glm::vec3(0, 1, 0)));    // +y faces an overhead sun
     EXPECT_FALSE(faceDirFacesLight(2, glm::vec3(0, 1, 0)));   // -y does not
+}
+
+TEST(VoxFoundMesher, CasterSeamAddsExactlyTheLeafHiddenFaces) {
+    // F2.15d: random solid + leaf content. Main faces (cards hide) + seam faces (every leaf) = the leaves-as-air mesh
+    // as sets of unit faces, with no face in both; at depth 1 the seam holds exactly the hidden faces whose leaf
+    // neighbour touches air (inside the grid), and the deeper ones are left out.
+    std::mt19937 rng(11);
+    VoxelGrid g;
+    g.resize({20, 18, 22});
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    for (uint8_t& v : g.mat) {
+        const float r = u(rng);
+        v = r < 0.25f ? uint8_t(1 + (rng() % 2)) : r < 0.88f ? uint8_t(6) : uint8_t(0);
+    }
+    CardSet cards;
+    cards.set(6);
+    using Key = std::tuple<int, int, int, int, int>;
+    auto keys = [](const std::vector<Quad>& qs) {
+        std::set<Key> s;
+        for (const Quad& q : qs) {
+            EXPECT_EQ(q.du * q.dv, 1);
+            s.insert({q.o.x, q.o.y, q.o.z, int(q.axis), int(q.dir)});
+        }
+        return s;
+    };
+    VoxelGrid solid, leaves;
+    lodSplitCards(g, cards, solid, leaves);
+    const std::set<Key> main = keys(meshCulled(g, Outside::Air, &cards));
+    const std::set<Key> closed = keys(meshCulled(solid, Outside::Air));
+    const std::set<Key> seamAll = keys(meshCulled(casterSeamGrid(g, cards, -1, 6), Outside::Skip, &cards));
+    std::set<Key> both, uni = main;
+    for (const Key& k : seamAll) (main.count(k) ? both : uni).insert(k);
+    EXPECT_TRUE(both.empty()) << both.size() << " faces in main and seam";
+    EXPECT_EQ(uni, closed) << "main + seam " << uni.size() << " vs leaves-as-air " << closed.size();
+    // depth 1: the leaf neighbour of every seam face touches air; every such hidden face is there
+    auto leafTouchesAir = [&](glm::ivec3 p) {
+        static const glm::ivec3 n6[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+        for (const glm::ivec3& d : n6)
+            if (g.in(p + d) && g.mat[g.idx(p + d)] == 0) return true;
+        return false;
+    };
+    std::set<Key> want1;
+    for (const Key& k : closed) {
+        if (main.count(k)) continue;
+        const glm::ivec3 o(std::get<0>(k), std::get<1>(k), std::get<2>(k));
+        glm::ivec3 nb = o;
+        nb[std::get<3>(k)] += std::get<4>(k);
+        if (g.in(nb) && cards.has(g.mat[g.idx(nb)]) && leafTouchesAir(nb)) want1.insert(k);
+    }
+    const std::set<Key> seam1 = keys(meshCulled(casterSeamGrid(g, cards, 1, 6), Outside::Skip, &cards));
+    EXPECT_EQ(seam1, want1);
+    EXPECT_GT(want1.size(), 50u);
+    EXPECT_LT(want1.size(), seamAll.size()) << "depth 1 should leave some buried faces out";
+    std::printf("[caster seam] main %zu, seam all %zu, seam depth 1 %zu\n", main.size(), seamAll.size(), seam1.size());
+}
+
+TEST(VoxFoundMesher, ExitFacesCloseTheLightTestNextToLeaves) {
+    // F2.15d-2: random solid + leaf content (cards hide their neighbours, so the main mesh is NOT closed). Rays along
+    // light directions: the nearest hit over all main faces = over the light-facing main faces + the AWAY side of the
+    // exit faces (reach unbounded). Without the exit faces some rays differ (the F2.15b leak). Exit faces are main
+    // faces; at reach 2 exactly those of solids within 2 solid steps of a solid with a card neighbour.
+    std::mt19937 rng(13);
+    VoxelGrid g;
+    g.resize({14, 12, 16});
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    for (uint8_t& v : g.mat) {
+        const float r = u(rng);
+        v = r < 0.30f ? uint8_t(1 + (rng() % 2)) : r < 0.45f ? uint8_t(6) : uint8_t(0);
+    }
+    CardSet cards;
+    cards.set(6);
+    const std::vector<Quad> mainQ = meshRuns(g, Outside::Air, &cards);
+    const std::vector<Quad> exitQ = meshRuns(casterExitGrid(g, cards, -1, 6), Outside::Air, &cards);
+    ASSERT_GT(exitQ.size(), 20u);
+    auto nearest = [](const std::vector<Quad>& qs, glm::vec3 o, glm::vec3 d, glm::vec3 toLight, int mode) {
+        // mode 0: every face; 1: light-facing only; 2: away side only
+        float best = std::numeric_limits<float>::max();
+        for (const Quad& q : qs) {
+            const int dirIndex = int(q.axis) * 2 + (q.dir > 0 ? 1 : 0);
+            if (mode == 1 && !faceDirFacesLight(dirIndex, toLight)) continue;
+            if (mode == 2 && !faceDirFacesLight(dirIndex + kAwayGroup, toLight)) continue;
+            glm::ivec3 lo, hi;
+            faceBox(packFace(q), lo, hi);
+            const int a = q.axis;
+            if (std::abs(d[a]) < 1e-6f) continue;
+            const float t = (float(lo[a]) - o[a]) / d[a];
+            if (t <= 0.0f || t >= best) continue;
+            const glm::vec3 p = o + t * d;
+            const int ua = (a + 1) % 3, va = (a + 2) % 3;
+            if (p[ua] >= lo[ua] && p[ua] <= hi[ua] && p[va] >= lo[va] && p[va] <= hi[va]) best = t;
+        }
+        return best;
+    };
+    size_t rays = 0, hits = 0, differ = 0, leakWithout = 0;
+    std::uniform_real_distribution<float> s(-1.0f, 1.0f);
+    for (int l = 0; l < 12; ++l) {
+        const glm::vec3 toLight = glm::normalize(glm::vec3(s(rng), std::abs(s(rng)) + 0.2f, s(rng)));
+        for (int r = 0; r < 300; ++r) {
+            const glm::vec3 target(0.37f + u(rng) * 13.2f, 0.41f + u(rng) * 11.1f, 0.29f + u(rng) * 15.3f);
+            const glm::vec3 o = target + toLight * 60.0f, d = -toLight;
+            const float all = nearest(mainQ, o, d, toLight, 0);
+            const float front = nearest(mainQ, o, d, toLight, 1);
+            const float closed = std::min(front, nearest(exitQ, o, d, toLight, 2));
+            ++rays;
+            hits += all < std::numeric_limits<float>::max();
+            differ += std::abs(all - closed) > 1e-3f;
+            leakWithout += std::abs(all - front) > 1e-3f;
+        }
+    }
+    std::printf("[exit faces] %zu rays, %zu hit, %zu differ (light test alone: %zu)\n", rays, hits, differ, leakWithout);
+    EXPECT_GT(hits, rays / 2);
+    EXPECT_GT(leakWithout, 0u) << "the rig should show the F2.15b leak";
+    EXPECT_EQ(differ, 0u);
+    EXPECT_TRUE(faceDirFacesLight(kAwayGroup + 2, glm::vec3(0, 1, 0)));    // -y's away side casts under an overhead sun
+    EXPECT_FALSE(faceDirFacesLight(kAwayGroup + 3, glm::vec3(0, 1, 0)));   // +y's does not
+    // subset + finite reach, as sets of unit faces
+    using Key = std::tuple<int, int, int, int, int>;
+    auto keys = [](const std::vector<Quad>& qs) {
+        std::set<Key> k;
+        for (const Quad& q : qs) k.insert({q.o.x, q.o.y, q.o.z, int(q.axis), int(q.dir)});
+        return k;
+    };
+    const std::set<Key> mainU = keys(meshCulled(g, Outside::Air, &cards));
+    const std::set<Key> exitAll = keys(meshCulled(casterExitGrid(g, cards, -1, 6), Outside::Air, &cards));
+    for (const Key& k : exitAll) EXPECT_TRUE(mainU.count(k)) << "an exit face that is not a main face";
+    static const glm::ivec3 n6[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    auto isSolid = [&](glm::ivec3 p) { return g.in(p) && g.mat[g.idx(p)] && !cards.has(g.mat[g.idx(p)]); };
+    std::vector<int> dist(g.size(), -1);
+    std::vector<glm::ivec3> q;
+    for (size_t i = 0; i < g.size(); ++i) {
+        const glm::ivec3 p = g.pos(i);
+        if (!isSolid(p)) continue;
+        for (const glm::ivec3& d : n6)
+            if (g.in(p + d) && cards.has(g.mat[g.idx(p + d)])) { dist[i] = 0; q.push_back(p); break; }
+    }
+    for (size_t h = 0; h < q.size(); ++h)
+        for (const glm::ivec3& d : n6) {
+            const glm::ivec3 n = q[h] + d;
+            if (isSolid(n) && dist[g.idx(n)] < 0) { dist[g.idx(n)] = dist[g.idx(q[h])] + 1; q.push_back(n); }
+        }
+    std::set<Key> want2;
+    for (const Key& k : mainU) {
+        const glm::ivec3 o(std::get<0>(k), std::get<1>(k), std::get<2>(k));
+        const int dd = dist[g.idx(o)];
+        if (dd >= 0 && dd <= 2) want2.insert(k);
+    }
+    const std::set<Key> exit2 = keys(meshCulled(casterExitGrid(g, cards, 2, 6), Outside::Air, &cards));
+    EXPECT_EQ(exit2, want2);
+    EXPECT_LT(want2.size(), exitAll.size());
 }
 
 TEST(VoxFoundMesher, MeasuredLodLevelsOnAGeneratedForest) {

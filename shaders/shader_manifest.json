@@ -378,7 +378,7 @@
     },
     "voxfound_cull.comp": {
       "built": true,
-      "sources": "3f98e9f538a035739fe3c0826b319e5fc4e84547abfed6aa8465801d07fd4abb",
+      "sources": "d14b92e4a12e01ea3f885985b0f894cb41d05b8b8778be2f997175036d86c2a9",
       "spv_present": true
     },
     "voxfound_face.vert": {

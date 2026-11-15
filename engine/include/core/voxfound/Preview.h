@@ -1,5 +1,5 @@
 #pragma once
-// docs/VoxelFoundationPlan.md F2.2 — the 1/8 m face preview handed to the renderer.
+// docs/VoxelFoundationPlan.md F2.2 â€” the 1/8 m face preview handed to the renderer.
 //
 // The editor builds a 1/8 m area with the engine's generators, runs the GPU face builder on it and fills
 // this; RenderCoordinator::renderVoxFoundPreview draws it with shaders/voxfound_face.vert + voxel.frag in
@@ -16,7 +16,7 @@
 
 namespace Phyxel::Core::VoxFound {
 
-/// The draw instance IS the 8 B face record (§4.6, F2.5): voxfound_face.vert reads PackedFace as-is and looks its
+/// The draw instance IS the 8 B face record (Â§4.6, F2.5): voxfound_face.vert reads PackedFace as-is and looks its
 /// texture word up on the device: faceTex[material * 6 + faceID] = texture index (bits 0-15) | flags (16-31),
 /// where material = the area's palette index (PackedFace b bits 16-23) and faceID 0 +Z 1 -Z 2 +X 3 -X 4 +Y 5 -Y.
 /// The table always has all 256 palette slots (kFaceTexWords), so no 8-bit material can read past its end.
@@ -46,7 +46,7 @@ struct PreviewCluster {
     uint32_t firstFace = 0, count = 0, chunk = 0;
     uint32_t level = 0;   // F2.14: the pyramid level its faces belong to (Preview::lodClusters)
     bool leafMass = false;   // F2.14c: coarse leaf mass (dropped from the draw lists while lodSprigOn is false)
-    int dir = -1;            // F2.15: its faces' direction (Mesher.h faceDirIndex); -1 = all six
+    int dir = -1;            // F2.15: its faces' direction (Mesher.h faceDirIndex); -1 = all six; 6-11 away (F2.15d)
 };
 
 struct Preview {
@@ -73,7 +73,7 @@ struct Preview {
     bool lodCasters = false;         // F2.14: with lodOn, the face casters draw the levels too (per caster fragment)
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves
 
-    /// F2.13 (§4.6 item 7): the pyramid levels built with a region (index = level; level k voxels are 2^k / 8 m,
+    /// F2.13 (Â§4.6 item 7): the pyramid levels built with a region (index = level; level k voxels are 2^k / 8 m,
     /// faces in level-0 units). Per chunk (same order as `chunks`): its face range in that level's `faces`.
     struct Level {
         std::vector<PackedFace> faces;
@@ -83,7 +83,7 @@ struct Preview {
         std::vector<PreviewCluster> clustersDir;   // F2.15: the same faces cut into direction groups
     };
     std::vector<Level> levels;
-    /// F2.15 (§4.6 item 8): dirClusters = the multidraw uses the per-direction clusters (clustersDir /
+    /// F2.15 (Â§4.6 item 8): dirClusters = the multidraw uses the per-direction clusters (clustersDir /
     /// lodClustersDir); dirCull = the cull pass drops direction groups that cannot face the camera. Default ON
     /// (measured: 0 px; -0.30..-0.45 ms whole frame at 4 of 5 poses, neutral at the fifth; VoxelFoundationPlan F2.15).
     std::vector<PreviewCluster> clustersDir, lodClustersDir;
@@ -101,9 +101,21 @@ struct Preview {
     std::vector<PreviewCluster> casterClustersDir;
     uint32_t casterBase = 0;
     bool shadowClosed = true;
+    /// F2.15d: the cheaper closure, drawn IN ADDITION to the main faces by the light-tested shadow multidraw: the entry
+    /// seam (leaf-hidden faces near air, Mesher.h casterSeamGrid; measured not to close the leaks, off) and/or the EXIT
+    /// faces (main faces of solids near a leaf-hidden face, casterExitGrid; their clusters are away groups, dir 6-11).
+    /// Appended at seamBase; seamClustersDir index seamFaces. shadowSeam = draw them (when the closed set is not drawn).
+    std::vector<PackedFace> seamFaces;
+    std::vector<PreviewCluster> seamClustersDir;
+    uint32_t seamBase = 0;
+    int seamDepth = 0;   // what they were built with (0 = not built)
+    int exitReach = 0;
+    bool shadowSeam = true;
     void appendCasters() {
         casterBase = uint32_t(faces.size());
         faces.insert(faces.end(), casterFaces.begin(), casterFaces.end());
+        seamBase = uint32_t(faces.size());
+        faces.insert(faces.end(), seamFaces.begin(), seamFaces.end());
     }
     int drawLevel = 0;
     /// Draws level k for the whole region: copies its faces, ranges and clusters into the drawn fields and bumps
@@ -128,7 +140,7 @@ struct Preview {
         return true;
     }
 
-    /// F2.14 (§3.5a point 3): the level chosen by size on screen (Mesher.h lodPickLevel / lodKeeps, per FRAGMENT).
+    /// F2.14 (Â§3.5a point 3): the level chosen by size on screen (Mesher.h lodPickLevel / lodKeeps, per FRAGMENT).
     /// selectLod() puts EVERY built level in `faces`, level 0 first, so `chunks` and `clusters` keep naming level 0
     /// (what the shadow passes and occlusion read); lodFirst/lodCount[level][chunk] are each level's chunk ranges and
     /// lodClusters every level's clusters, tagged with their level. lodOn = the main view picks levels by size on

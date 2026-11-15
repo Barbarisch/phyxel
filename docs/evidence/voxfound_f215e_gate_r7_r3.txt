@@ -1,0 +1,15 @@
+﻿F2.15d-2 exit faces gate, reach 7 and 3 (f215e_gate.py; the JSON file was overwritten by the reach 24 / unbounded run,
+these lines are the script's printed output, verbatim fields). Gate region Perlin s7 flora 254..257 x 0..1 x 2..5,
+today's world hidden, wind 0, GI off, LOD off. Columns: px > 8 levels brighter vs shadow_mdi (M); faces cast (mid).
+reach 7: build exit faces 149,188
+  overview_south   D 27  S 17  C 18   cast D 300,942 S 374,973 C 621,241
+  top_down         D 22  S 4   C 4
+  forest_floor_open D 245 S 123 C 216
+  east_low         D 2   S 2   C 3
+  canopy_close     D 218 S 127 C 12
+reach 3: build exit faces 102,057
+  overview_south   D 27  S 21     cast S 351,472
+  top_down         D 22  S 16
+  forest_floor_open D 245 S 243
+  east_low         D 2   S 2
+  canopy_close     D 218 S 164

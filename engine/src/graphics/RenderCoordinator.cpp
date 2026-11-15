@@ -2840,14 +2840,24 @@ void RenderCoordinator::recordVoxFoundShadowCull(VkCommandBuffer cmd, int cascad
     }
     // F2.15b: the per-direction clusters when the light test is on -- of the CLOSED casters (appended to the face
     // buffer at casterBase) when built and asked for
+    // F2.15d: or the main faces' direction clusters PLUS the seam (the leaf-hidden faces near the canopy surface, at
+    // seamBase) -- the cheaper closure
     const bool closed = pv.shadowDirCull && pv.shadowClosed && !pv.casterClustersDir.empty();
-    const auto& shadowClusters = closed ? pv.casterClustersDir : pv.shadowDirCull ? pv.clustersDir : pv.clusters;
+    const bool seam = pv.shadowDirCull && !closed && pv.shadowSeam && !pv.seamClustersDir.empty();
+    const auto& baseClusters = closed ? pv.casterClustersDir : pv.shadowDirCull ? pv.clustersDir : pv.clusters;
     const uint32_t firstOffset = closed ? pv.casterBase : 0u;
     if (m_voxFoundShadowCullRevision != pv.revision) {
+        std::vector<Core::VoxFound::PreviewCluster> shadowClusters(baseClusters);
+        for (auto& c : shadowClusters) c.firstFace += firstOffset;
+        if (seam)
+            for (Core::VoxFound::PreviewCluster c : pv.seamClustersDir) {
+                c.firstFace += pv.seamBase;
+                shadowClusters.push_back(c);
+            }
         std::vector<Core::VoxFound::ClusterCullGpu::Cluster> cl(shadowClusters.size());
         for (size_t i = 0; i < cl.size(); ++i) {
             const auto& c = shadowClusters[i];
-            cl[i] = {c.lo, c.hi, c.firstFace + firstOffset, c.count, c.chunk, 0u, c.dir};
+            cl[i] = {c.lo, c.hi, c.firstFace, c.count, c.chunk, 0u, c.dir};
         }
         std::string err;
         if (!m_voxFoundShadowCullGpu->upload(cl, 36u, uint32_t(pv.chunks.size()), vulkanDevice->getGraphicsQueue(),
