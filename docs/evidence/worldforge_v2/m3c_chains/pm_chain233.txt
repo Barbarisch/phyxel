@@ -1,0 +1,27 @@
+M5d (the wall as a routed hull) - predictions, each written BEFORE its run. Tree at the start: 3892bc79.
+
+PM5d.0  chain 233 (written 2026-11-14 23:52; a DIAGNOSTIC for the design check, no assertions, not red-before-green):
+  SettlementMapTest.DISABLED_DiagCityWallEnvelope - the city program planned headless on 160 x 120 and 160 x 160
+  (flat / hill + creek / rolling), the map projected to the layout the realizer hands planTownWall, and the wall as
+  built today (the site rect + margin) measured against the lots. Guesses:
+    the wall plans (ok) on the flat rigs with >= 1 gate; lots about 27 on the flat 160 x 120 (O15's figure);
+    the lots' bounding box covers 50-90 % of the wall's inner bound; more than half of the inner bound's cells are
+    in no lot's rect; on the hill + creek rig the band has > 0 cells in water (the creek crosses the site and the
+    rectangle does not know it). I have never measured any of these.
+
+RESULT chain 233 (written 2026-11-14 23:54; RUN EXIT 0 23:53:36, exe 23:53:18; 1 ok / 0 failed - a diagnostic, it asserts nothing):
+  rig                    lots  gaps to site edge W/E/S/N  lot rects of site  wall  gates  bbox of inner  rects of inner  band wet  ground on band
+  flat 160x120            27    0 / 4 / 0 / 33             19.8 %             ok    4      66.7 %         18.7 %          0         30..30
+  flat 160x160            27    2 / 0 / 0 / 37             15.4 %             ok    4      72.3 %         14.6 %          0         30..30
+  hill + creek 160x120    27    3 / 0 / 28 / 2             17.8 %             ok    3      69.5 %         16.8 %          8         29..38
+  hill + creek 160x160    27    44 / 0 / 48 / 1            13.7 %             ok    3      47.9 %         13.1 %          8         29..38
+  rolling 160x160         27    9 / 7 / 0 / 14             13.8 %             ok    4      78.2 %         13.1 %          0         26..52
+  Against the guesses: the wall plans with >= 1 gate - yes; 27 lots - yes (every rig); bbox 50-90 % of the inner
+  bound - 4 of 5 (47.9 % on hill + creek 160x160: MISS at the low end); more than half the inner bound in no lot -
+  yes, far more (81-87 %); band cells in water on the creek rigs - yes, 8 on each (2 thick x 2 wide x 2 sides).
+  Not guessed, seen: the lots TOUCH the site edge (gap 0) on one or two sides of every rig, so any wall drawn round
+  the lots leaves the site rect - as today's rectangle already does (inner bound -2,-2, gates at -4); on the creek
+  rigs the south side has no gate (the creek took the south street) and the band crosses the creek with no opening;
+  on the rolling rig the ground under the band spans 26 cubes and the stamper (SettlementBuildService.cpp, the
+  column lambda) sets every column's base to its own ground top - the wall top is a per-column copy of the ground.
+  The city as programmed is 27 lots on every rig (the contract's L4 names a city of 200 - O15).

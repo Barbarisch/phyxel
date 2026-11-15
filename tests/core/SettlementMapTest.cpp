@@ -3,6 +3,7 @@
 #include "core/RoomProgram.h"
 #include "core/SettlementMapPlanner.h"
 #include "core/SettlementProgram.h"
+#include "core/TownWall.h"
 #include "core/WorldForgePlan.h"
 
 #include <algorithm>
@@ -1204,5 +1205,43 @@ TEST(SettlementMapTest, ATownCarriesNoCroft) {
         ASSERT_TRUE(m.ok()) << s.tier << ": " << m.refusal;
         EXPECT_TRUE(in.tier->croftTypologies.empty()) << s.tier;
         EXPECT_EQ(croftStats(m, in).crofts, 0) << s.tier;
+    }
+}
+
+// M5d design check (pm_chain233.txt PM5d.0): a DIAGNOSTIC, no assertions - the wall as built today (planTownWall on
+// the site rect, with the streets the map's projection hands the realizer) measured against the city's lots.
+TEST(SettlementMapTest, DISABLED_DiagCityWallEnvelope) {
+    ASSERT_TRUE(rigs().programOk);
+    struct Rig { const char* name; int W, D; std::function<int(int, int)> h; std::function<bool(int, int)> w; };
+    const Rig rigsList[] = {{"flat 160x120", 160, 120, flatHeight, {}}, {"flat 160x160", 160, 160, flatHeight, {}},
+                            {"hill + creek 160x120", 160, 120, hillHeight, hillWater}, {"hill + creek 160x160", 160, 160, hillHeight, hillWater},
+                            {"rolling 160x160", 160, 160, slopeRolling, {}}};
+    for (const Rig& r : rigsList) {
+        const SettlementMapInput in = inputFor("city", r.W, r.D, r.h, r.w);
+        const SettlementMap m = planSettlementMap(in);
+        if (!m.ok()) { std::printf("[ M5d ] %s: map refused: %s%s", r.name, m.refusal.c_str(), "\n"); continue; }
+        const MapProjection pr = projectMap(m);
+        std::vector<Rect> fps; int bx0 = INT_MAX, bz0 = INT_MAX, bx1 = INT_MIN, bz1 = INT_MIN; long lotCells = 0;
+        for (const auto& l : m.lots) {
+            fps.push_back(l.footprint); lotCells += static_cast<long>(l.rect.w) * l.rect.d;
+            bx0 = std::min(bx0, l.rect.x); bz0 = std::min(bz0, l.rect.z); bx1 = std::max(bx1, l.rect.x1()); bz1 = std::max(bz1, l.rect.z1());
+        }
+        const TownWallPlan wp = planTownWall(Rect{0, 0, r.W, r.D}, pr.layout.streets, fps, in.tier->walls);
+        std::printf("[ M5d ] %s: %zu lots, %zu ways, %zu projected street rects | lots bbox %d,%d..%d,%d (%d x %d) | gaps to the site edge W %d E %d S %d N %d | lot rect cells %ld of %d site cells (%.1f %%)%s",
+                    r.name, m.lots.size(), m.ways.size(), pr.layout.streets.size(), bx0, bz0, bx1, bz1, bx1 - bx0, bz1 - bz0, bx0, r.W - bx1, bz0, r.D - bz1,
+                    lotCells, r.W * r.D, 100.0 * static_cast<double>(lotCells) / (r.W * r.D), "\n");
+        if (!wp.ok) { std::printf("[ M5d ]   wall as built: REFUSED: %s%s", wp.refusal.c_str(), "\n"); continue; }
+        const long inner = static_cast<long>(wp.innerBound.w) * wp.innerBound.d;
+        long bandCells = 0, bandWet = 0; int hLo = INT_MAX, hHi = INT_MIN;
+        for (const auto& run : wp.runs)
+            for (int x = run.band.x; x < run.band.x1(); ++x) for (int z = run.band.z; z < run.band.z1(); ++z) {
+                ++bandCells;
+                if (r.w && r.w(x, z)) ++bandWet;
+                const int h = r.h(x, z); hLo = std::min(hLo, h); hHi = std::max(hHi, h);
+            }
+        std::printf("[ M5d ]   wall as built: ok, %zu runs, %zu gates, %zu towers | inner bound %d,%d %d x %d = %ld cells; the lots' bbox is %.1f %% of it, the lots' rects %.1f %% | band %ld cells, %ld in water, ground along it %d..%d%s",
+                    wp.runs.size(), wp.gates.size(), wp.towers.size(), wp.innerBound.x, wp.innerBound.z, wp.innerBound.w, wp.innerBound.d, inner,
+                    100.0 * static_cast<double>(bx1 - bx0) * (bz1 - bz0) / inner, 100.0 * static_cast<double>(lotCells) / inner, bandCells, bandWet, hLo, hHi, "\n");
+        for (const auto& g : wp.gates) std::printf("[ M5d ]     gate side %c opening %d,%d %d x %d street width %d%s", g.side, g.opening.x, g.opening.z, g.opening.w, g.opening.d, g.streetWidth, "\n");
     }
 }
