@@ -498,8 +498,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       its own plane by 1/16 px on screen (+ exact vertex sums): crack px 532 -> 1 over 5 poses, whole frame neutral.
       Metric: debug view 11 + isolated-pixel count, flora OFF (flora parts are ~1 px dots). Level 1 (exact sums) alone
       did nothing. Not covered: mdi-off direct path, shadow casters (<= 2 leak px).
-      NEXT: re-run the F2 exit gate (F2.8's comparison, now with items 1-10 + T-junctions on: same scene,
-      today's store vs the new store, whole frame, 5 poses, pixels) -- the F2 row's pass condition.
+      F2.19 (2026-11-15): F2 exit gate re-run. Whole frame new store faster at all 5 poses (-2.1/-2.1/-8.6/-7.1/
+      -9.4 ms); memory 1.2-1.7x; 11-13 MB/frame. Pixel diff found + fixed dirt contour stripes (buildTerrainArea
+      material layers; test TopVoxelOfEveryColumnIsTheSurfaceMaterial). Residual px = FC content gaps. Ground-pose
+      frame time in BOTH stores is GI probe ambient on leaf overdraw (sprigs 24 ms -> 1 ms with GI off).
+      Perf runs: GI ON is the default -- F2.18-era numbers were GI off. WoW can start mid-run: check after too.
+      NEXT: F3 (the plan's next row: edits with brushes; codec v3 + converter; gate: edit cost per block << today's
+      2-13 ms chunk rebuild, save/load round-trips exactly). Owed into F3: F2.16/F2.17's CPU reassembly 2.5 ms.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

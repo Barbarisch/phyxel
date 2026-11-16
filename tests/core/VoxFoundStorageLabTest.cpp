@@ -83,6 +83,31 @@ TEST(VoxFoundStorageLab, TerrainAreaFollowsTheEngineGround) {
     EXPECT_LE(worst, 0.5 + 1.0 / kVoxelsPerM + 1e-6);
 }
 
+// F2.19 (the F2 gate re-run found it): the top 1/8 m voxel of every column is the column's SURFACE material, as
+// today's top cube is. Red before the fix: where the smooth ground had just crossed a whole metre, the top voxels sat
+// in the metre below floor(h + 0.5) and counted depth 1 (Dirt): dirt stripes along every contour line.
+TEST(VoxFoundStorageLab, TopVoxelOfEveryColumnIsTheSurfaceMaterial) {
+    for (const Named& n : kAreas) {
+        WorldGenerator gen(n.type, n.seed);
+        const VoxelArea a = surfaceArea(gen, n.x, n.z);
+        const glm::ivec3 o = a.originVoxel / kVoxelsPerM;
+        size_t wrong = 0, columns = 0;
+        for (int vx = 0; vx < a.grid.dim.x; ++vx)
+            for (int vz = 0; vz < a.grid.dim.z; ++vz) {
+                int top = -1;
+                for (int vy = a.grid.dim.y - 1; vy >= 0; --vy)
+                    if (a.grid.mat[a.grid.idx({vx, vy, vz})] != 0) { top = vy; break; }
+                ASSERT_GE(top, 0);
+                const auto c = gen.sampleSurface(o.x + vx / kVoxelsPerM, o.z + vz / kVoxelsPerM);
+                ++columns;
+                if (a.palette[a.grid.mat[a.grid.idx({vx, top, vz})]] != c.surfaceMat) ++wrong;
+            }
+        std::printf("[storage lab] %s: top voxel not the surface material in %zu of %zu columns\n", n.name, wrong,
+                    columns);
+        EXPECT_EQ(wrong, 0u) << n.name;
+    }
+}
+
 TEST(VoxFoundStorageLab, MeasuredBlockStatisticsOnGeneratedTerrain) {
     for (const Named& n : kAreas) {
         WorldGenerator gen(n.type, n.seed);
@@ -103,6 +128,9 @@ TEST(VoxFoundStorageLab, MeasuredBlockStatisticsOnGeneratedTerrain) {
 // Perlin 0.86 / 0.98 / 1.06, Mountains 1.42 / 2.25 — the LOWER bound was wrong (bare terrain is cheaper than
 // predicted); recorded in the plan. What the memory budget relies on is the UPPER bound, which held, so that is
 // what stays asserted, on every area. Bare terrain only: flora, structures and water will raise it (FC/F1).
+// F2.19 (material layers counted from the metre holding the top voxel): 1.06 / 0.96 / 0.75, Mountains 1.46 / 2.30.
+// (Counting depth continuously below the smooth top instead took them to 2.0-4.0: the layer boundaries left the
+// metre planes and cut through blocks.)
 TEST(VoxFoundStorageLab, PredictionTerrainHasAtMostThreeDetailedBlocksPerColumn) {
     for (const Named& n : kAreas) {
         WorldGenerator gen(n.type, n.seed);

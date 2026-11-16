@@ -1,0 +1,85 @@
+F2.19 -- the F2 exit gate re-run (the F2 row's pass condition: "the same engine-generated scenes that run today run
+on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel
+diff within the gate"). F2.8 ran it first (2026-11-13), before §4.6 items 3-10 and the T-junction fix.
+Written 2026-11-15, BEFORE any run.
+
+Method (F2.8's, unchanged):
+- Scene: VoxFoundGate game.json (WorldGenerator Perlin s7, flora, static chunks x 254..257, y 0..1, z 2..5).
+  A = today's store as GameDefinitionLoader loads it ({"hide_world":false,"show_preview":false}).
+  B = the same chunks at 1/8 m by /api/debug/voxfound_preview region (flora, editable, every knob at its default:
+  chunk cull, occlusion, mdi + compact, shadow cull, dir cull, face pool, tjunction 2; LOD selection off),
+  today's world hidden ({"hide_world":true,"show_preview":true}). One engine session, Release, 1600 x 900.
+- Timing: perf_harness.py, 8 interleaved pairs x 240 GPU frames x 5 poses (f29_poses.json), pose read-back, engine
+  defaults (wind, GI on) as F2.8. Only on a free GPU (WoW closed; the Battle.net launcher noted).
+- GPU memory + bytes per frame: A = today's chunk quads x 16 B + card instances x 8 B; B = the face-pool image +
+  sprigs x 8 B + tables; per frame = records drawn per pass (stats per pose) x record size.
+- Pixels (new in this run; F2.8 measured none): §4.3's gate = per-pixel diff against today's render at the same poses,
+  debug tonemap ({"curve":0}, LightingPipeline trap 1), wind 0, GI off (per-frame probe noise), 3D viewport only.
+  Reported: % px differing > 8/255 (any channel), a control (A vs A again: 0 px expected), and a coverage split from
+  debug view 11 (flat grey per voxel.frag fragment): px where one store shows sky and the other a surface (geometry)
+  vs px where both show a surface (shading/material). The plan gives no numeric pixel threshold; this run records the
+  numbers and their causes; it does not invent a pass mark after the fact.
+
+Known differences, not like for like (F2.8): no grass blades on B; fern / shrub_flat / tree_apple have no 1/8 m
+template (missing on B); today's trees are 1/9 m templates, B's 1/8 m; B draws 225,471 sprigs vs today's 421,848
+card instances (389,092 distinct).
+
+Predictions:
+1. Whole frame, B - A: B faster at all 5 poses. A ~= F2.8's A (7.1 / 7.1 / 48 / 45 / 30 ms, today's renderer is
+   unchanged, +-10 %); B ~= F2.18's absolute medians (4.8 / 5.0 / 4.4 / 8.1 / 5.2 ms, +-20 %; GI and wind on here
+   add to both). So B - A ~= -2.3 / -2.1 / -43 / -37 / -25 ms, every CI excludes 0. Same tier or better at all 5.
+2. GPU memory: B 1.5-2.0x today (F2.8: 1.22x with host buffers; the pool image is 1.6x the live faces since F2.17):
+   A ~4.6 MB, B ~8.1 MB (6.3 MB pool + 1.8 MB sprigs). Same tier (MBs on a 24 GB card).
+3. Bytes per frame: B below F2.8's 15.1 MB at every pose (culling since then); at the ground poses below today's.
+4. Pixels: control 0 px at every pose. A vs B differs in a large share of the viewport, because the foliage
+   (cards vs sprigs, 1/9 m vs 1/8 m trees, missing templates, grass) covers much of every frame: overview/top_down
+   20-50 % px, ground poses 40-80 % px. Bare ground surfaces seen in both stores differ little (< 10 % of their px,
+   same 1 m texture tile by §4.3). Geometry (sky vs surface) differences mostly at canopy edges.
+Stop line: if B is slower than A at any pose by enough to leave A's tier, diagnose before anything else.
+
+==== MEASURED (2026-11-15; voxfound_f219_ab.jsonl/.txt, voxfound_f219_pix.json, voxfound_f219_counts.jsonl,
+     voxfound_f219_gi_cost.txt) ====
+Void first: the first timing run was contended (WoW started 19:49, the run 19:51; A's overview 16 ms vs F2.8's 7.1);
+kept as voxfound_f219_ab_VOID_wow_contended.jsonl, not used. The valid run: 21:19-21:35, the Battle.net launcher
+only, no WoW before or after.
+
+FOUND BY THE PIXEL DIFF FIRST (a scene that worked today did not on the new store): dirt stripes along every contour
+line of the 1/8 m ground (f219_ovs_stripes_before_fix.png; F2.8's B captures have them too, unnoticed).
+buildTerrainArea counted the material layers from floor(h + 0.5); where the smooth ground had just crossed a whole
+metre, the column's top voxels lay in the metre below and counted depth 1 (Dirt). Today's top cube is always the
+surface material. Red: new CPU test TopVoxelOfEveryColumnIsTheSurfaceMaterial, 2,738-10,104 of 65,536 columns
+wrong in each of the 5 areas. First fix (depth counted continuously below the smooth top): 0 wrong, but bare-terrain
+detailed blocks per column rose to 2.0-4.0 and broke the asserted <= 3 (layer boundaries off the metre planes cut
+through blocks). Second fix (layers counted from the metre holding the top voxel): 0 wrong at all 5 areas, detailed
+per column 1.06 / 0.96 / 0.75 / 1.46 / 2.30 (was 0.86 / 0.98 / 1.06 / 1.42 / 2.25). CPU 60/60, GPU 22/22. Gate scene:
+480,349 -> 477,858 faces.
+
+1. Whole frame, B - A (8 pairs x 240 GPU frames, engine defaults: wind, GI on):
+   overview_south 7.17 -> 5.08 (-2.10 [-2.24, -1.98]); top_down 7.26 -> 5.19 (-2.07 [-2.17, -2.02]);
+   forest_floor_open 49.02 -> 40.13 (-8.61 [-9.02, -8.48]); east_low 44.47 -> 37.43 (-7.05 [-7.09, -6.99]);
+   canopy_close 29.11 -> 19.74 (-9.37 [-9.39, -9.33]) ms. Every CI excludes 0; B faster at all 5 poses.
+   A held (+-10 % of F2.8's A at every pose). B: HELD at the two overviews; WRONG at the three ground poses (predicted
+   4.4 / 8.1 / 5.2 from F2.18, measured 40.1 / 37.4 / 19.7). Why: F2.18 ran with GI off. At forest_floor_open the
+   sprig draw is 24.4 ms with GI on and 0.97 ms with it off (faces 3.9 -> 0.27; wind changes nothing; repeat
+   within 0.1 ms); today's cards behave the same (32.7 -> 1.65 ms). The per-fragment probe-field ambient on overlapping
+   leaves is the ground poses' frame time in BOTH stores (a lighting lever, not an F2 item).
+   Per scope, B vs A: shadow pass 2.4-2.9 vs 3.1-4.3 ms; leaves (sprigs vs cards) 1.3-25.5 vs 2.4-33.6 ms; ground and
+   trunk faces 0.25-4.3 vs today's static geometry 0.12-2.2 ms (+ grass 0.4-1.2 that B does not have).
+2. GPU memory: A = 78,299 quads x 16 B + 421,848 cards x 8 B = 4.63 MB. B fresh = 477,858 faces x 8 B + 225,471
+   sprigs x 8 B = 5.63 MB (1.22x); after edits the pool image grows to ~1.6x its faces (F2.17) -> ~8.0 MB (1.7x).
+   Predicted 1.5-2.0x: held for an edited pool, below it fresh. Same tier.
+3. Bytes per frame, B (records drawn per pass x 8 B): 12.4 / 13.3 / 12.2 / 13.4 / 11.3 MB, below F2.8's 15.1 at every
+   pose: HELD. Both shadow cascades still draw all 477,858 faces (the 128 m region is inside them): 7.6 MB of it.
+   Today's per-pass counts are not exposed by today's counters, so "below today's at the ground poses" is NOT measured.
+4. Pixels (debug tonemap curve 0, wind 0, GI off, 3D viewport, > 8/255): controls B 0 px at every pose; A 14-15,659 px
+   (today's store is not frame-stable even with wind 0; grass blades). A vs B after the fix: 46.5 / 59.0 / 49.4 /
+   68.0 / 51.4 % px (predicted 20-50 % from above, 40-80 % at the ground: held at 4 poses, top_down 59 % above).
+   Where both stores show a voxel surface (debug view 11 mask) 23-49 % of px differ; elsewhere 64-83 %. The diff map
+   (f219_ovs_diffmap.png): leaves (cards vs sprigs) everywhere, shadow-edge rings (the canopies differ), trunks (1/9 m
+   vs 1/8 m templates), and thin lines on the ground = the 1/8 m terrain's step risers vs today's 1 m steps. Before
+   the fix the stripes added 2.5 % px at overview_south (49.0 -> 46.5 %).
+   The plan gives no numeric pixel threshold; the residual differences are the known content gaps (FC: grass, fern /
+   shrub_flat / tree_apple, the leaf-card set) and the intended resolution change, not defects of the store.
+   Against the prediction: "control 0 px at every pose" WRONG for today's store (above); "bare ground differs on < 10 %
+   of its px" NOT TESTED as stated -- the voxel-surface mask includes trunks and shadow rings (23-49 % differ there);
+   a ground-only mask was not built.

@@ -570,6 +570,7 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   sat at a height that depended on the chunk. `stampFlora` read the ground by scanning the area's
   own column (clamped at the area edge, after earlier trees were stamped). It now takes the ground from the terrain
   function at that world column, and stamps overlapping trees in a fixed world order.
+- (F2.19: the 1/8 m ground had dirt stripes along contour lines here, visible in this run's B captures; fixed in F2.19.)
 - Same generator on both sides: the preview applies the loaded world's stored recipe (as `GameDefinitionLoader`
   does) and plants inside today's bounded window (`decorateFlora`, 8-column inset; `planFlora(rect, inset)` is exactly
   the plants inside the inset rect). Check: 166 planned plants on both sides. Content gap, owed to the library (§7a):
@@ -1321,6 +1322,35 @@ the micro occupancy). At distance (chunk LOD ≥ 1) the cards hand off to solid 
   on bare terrain over 5 poses — not changed. CPU 59/59, GPU 22/22.
 - Default ON. Not covered: the direct per-chunk path (`voxfound_face.vert`, only with mdi off) and the shadow casters.
 
+**F2.19 2026-11-15 — the F2 exit gate re-run (F2.8's comparison with items 1-10 + T-junctions on).**
+- Method as F2.8 (VoxFoundGate scene; A = today's store, B = the same chunks at 1/8 m, every knob at its default; one
+  session, Release; perf_harness 8 pairs × 240 GPU frames × 5 poses), plus the first pixel diff (§4.3: debug tonemap,
+  wind 0, GI off, controls) and a voxel-surface mask from debug view 11. Prediction `voxfound_f219_prediction.txt`.
+- **Found by the pixel diff, fixed:** the 1/8 m ground had dirt stripes along every contour line (also in F2.8's
+  captures, unnoticed). `buildTerrainArea` counted material layers from floor(h + 0.5), so where the smooth ground had
+  just crossed a whole metre the top voxels counted depth 1 (Dirt). Now the layers count from the metre that holds the
+  column's top voxel: the top voxel is always the surface material, as today's top cube is, and the layer boundaries
+  stay on metre planes. Red: `TopVoxelOfEveryColumnIsTheSurfaceMaterial` (2,738-10,104 of 65,536 columns wrong per
+  area) → 0. A first fix (depth counted continuously) also gave 0 but pushed bare-terrain detailed blocks per column
+  to 2-4 (boundaries cutting blocks) and was replaced. Detailed per column now 1.06 / 0.96 / 0.75 / 1.46 / 2.30.
+- **Whole frame (the valid run; a first run contended by WoW was voided):** B − A = −2.10 / −2.07 / −8.61 / −7.05 /
+  −9.37 ms (overview_south, top_down, forest_floor_open, east_low, canopy_close), every CI excludes 0. A 7.2 / 7.3 / 49.0
+  / 44.5 / 29.1 ms, B 5.1 / 5.2 / 40.1 / 37.4 / 19.7. Predicted B at the ground poses 4-8 ms: wrong — F2.18's numbers
+  were taken with GI off. With GI on the leaves' per-fragment probe ambient dominates in both stores (forest_floor_open:
+  sprigs 24.4 → 0.97 ms with GI off, today's cards 32.7 → 1.65; wind changes nothing). That is the next frame-time
+  lever at the ground, and it belongs to lighting, not to the store.
+- GPU memory: today 4.63 MB (quads 16 B + cards 8 B); new 5.63 MB fresh (1.22×), ~8 MB once the pool has edit slack
+  (1.7×). Bytes per frame (new): 11.3-13.4 MB at the 5 poses (F2.8: 15.1); both shadow cascades still take all 478k
+  faces (the region lies inside them). Today's per-pass counts are not exposed, so no per-frame comparison.
+- Pixels: controls 0 px on the new store (today's store 14-15,659 px frame to frame even at wind 0). Today vs new:
+  46-68 % px differ; where both draw a voxel surface 23-49 %. All of it traced in the diff map to the leaves (cards vs
+  sprigs), the shadow rings they cast, trunk templates (1/9 m vs 1/8 m), and the 1/8 m ground steps — content gaps
+  (FC) and the intended resolution, no store defect left. The plan sets no numeric pixel threshold.
+- **Verdict: the F2 performance condition holds at all 5 poses** (whole frame faster, memory and bytes in the same
+  tier). The pixel condition is measured and every residual is attributed; closing it numerically needs the FC
+  content (grass, fern / shrub_flat / tree_apple on 1/8 m, one leaf set) — owed to FC, not F2.
+- CPU 60/60, GPU 22/22. Evidence `voxfound_f219_*`, `f219_*.png`.
+
 Each item is measured on/off on the same generated scene, whole frame. An item only counts as done when its own on/off
 difference is measured.
 
@@ -1796,7 +1826,7 @@ Every rig is checked for:
 | **F0** | Decide §13; write the two harness skeletons; the content inventory (§7a step 1). **Done 2026-11-10:** §13 decided; inventory in §7a.1-7a.2; save check in §3.5a point 7; skeletons `engine/*/core/voxfound/` (`VoxelGrid`, `FractureLab`, `StorageLab`) + `VoxFoundFractureLabTest` (4 checker tests green, 8 predictions red until F4) + `VoxFoundStorageLabTest` (3 green incl. measured terrain stats, 3 red until F1) | — | — |
 | **FC** | Content conversion (§7a), **generators first** (§7a.3), alongside F1-F3. **Progress 2026-11-11:** generator map (§7a.3); `tools/voxgrid.py` grid emitter; `tree_forge --grid 8` (legacy byte-identical) and the 1/8 m forge library in `resources/templates_g8/nature`; `StructureGrid` + the building shell on 1/8 m (BuildingHarness verdicts equal on both grids, legacy byte-identical; step 3a); gen_tree bushes retired (step 5); `regen_furniture --grid 8` (34), `gen_door --grid 8`, `gen_items --grid 64` (52), `gen_seat_variants --grid 8`: **step 4 complete**; hearth bodies on 1/8 m (4b) and the KI-5i +side wall-flush fix; next: furniture placement in C++, the other structure generators | lint passes; structure validation suite green on the new grid; library screenshots reviewed | — |
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
-| **F2** | GPU face building (hidden-face culling, merging in and across blocks) + drawing through today's lighting; the §4.6 render optimizations rebuilt on blocks (culling, occlusion, indirect draws, shadow casters, block LOD pyramid, direction culling); T-junction handling | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate | a scene that works today doesn't, and we can't find and fix why |
+| **F2** | GPU face building (hidden-face culling, merging in and across blocks) + drawing through today's lighting; the §4.6 render optimizations rebuilt on blocks (culling, occlusion, indirect draws, shadow casters, block LOD pyramid, direction culling); T-junction handling | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate. **F2.19 re-run 2026-11-15: performance holds at all 5 poses (new store 2.1-9.4 ms faster whole frame; memory 1.2-1.7×; 11-13 MB per frame); pixels measured, every residual traced to FC content gaps; contour-stripe defect found and fixed** | a scene that works today doesn't, and we can't find and fix why |
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
 | **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |

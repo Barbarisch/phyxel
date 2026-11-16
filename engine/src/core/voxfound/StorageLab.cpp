@@ -59,14 +59,21 @@ VoxelArea buildTerrainArea(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
             const float h01 = col(ix, iz + 1).bedHeight, h11 = col(ix + 1, iz + 1).bedHeight;
             const float h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
             const auto& c = col(int(std::floor(wx)) - o.x, int(std::floor(wz)) - o.z);  // materials: own metre
+            // Material layers count whole metres down from the metre that holds the column's TOP voxel (the last
+            // centre below h + 0.5), so the top voxel is always the surface material, as today's top cube is, and
+            // the layer boundaries stay on metre planes (block-aligned). F2.19: counting from floor(h + 0.5)
+            // instead put the top voxels at depth 1 (Dirt) wherever the ground had just crossed a whole metre --
+            // dirt stripes along every contour line.
+            int topAbs = int(std::floor((h + 0.5f) * kVoxelsPerM - 0.5f));  // absolute voxel index, then exact
+            while ((float(topAbs) + 0.5f) / kVoxelsPerM >= h + 0.5f) --topAbs;
+            while ((float(topAbs + 1) + 0.5f) / kVoxelsPerM < h + 0.5f) ++topAbs;
+            const int surfaceMetre = int(std::floor((float(topAbs) + 0.5f) / kVoxelsPerM));
             for (int vy = 0; vy < d.y; ++vy) {
                 const float wy = float(o.y) + (vy + 0.5f) / kVoxelsPerM;
                 if (wy >= h + 0.5f) break;
                 const int my = int(std::floor(wy));
-                // material layers: depth below the column's own top metre, as today's generator counts it
                 WorldGenerator::ColumnSample cc = c;
-                cc.surfaceY = int(std::floor(h + 0.5f - 1e-4f));
-                if (my > cc.surfaceY) cc.surfaceY = my;
+                cc.surfaceY = surfaceMetre;
                 a.grid.set({vx, vy, vz}, idOf(gen.columnMaterialAt(my, cc)));
             }
         }

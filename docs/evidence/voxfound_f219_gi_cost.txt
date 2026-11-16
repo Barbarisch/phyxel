@@ -1,0 +1,12 @@
+B (1/8 m store), forest_floor_open, GPU medians over 240 frames (ms):
+default frame 38.27 sprigs 24.39 faces 3.87 gi 6.52
+wind0 frame 38.81 sprigs 24.7 faces 3.96 gi 6.77
+gi_off frame 4.3 sprigs 0.97 faces 0.27
+wind0_gi_off frame 4.31 sprigs 0.97 faces 0.27
+default_again frame 38.34 sprigs 24.43 faces 3.91 gi 6.77
+A (today), same pose (Foliage / Static Geometry scopes):
+default frame 47.39 foliage 32.75 static 2.1 gi 6.71
+wind0 frame 47.38 foliage 32.73 static 2.1 gi 6.68
+gi_off frame 6.45 foliage 1.65 static 0.2
+wind0_gi_off frame 6.43 foliage 1.72 static 0.2
+default_again frame 46.55 foliage 32.29 static 2.04 gi 6.62
