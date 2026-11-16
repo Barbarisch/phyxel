@@ -345,7 +345,7 @@ bool BlockStore::blockSolidAny(glm::ivec3 b) const {
     return any != 0;
 }
 
-void BlockStore::collapse() {
+void BlockStore::collapse(double slack) {
     // 1. changed detailed blocks that are uniform again return to one directory entry
     for (uint32_t bi : m_changed) {
         uint64_t& e = m_dir[bi];
@@ -366,9 +366,11 @@ void BlockStore::collapse() {
         }
     }
     m_changed.clear();
-    m_changed.shrink_to_fit();
-    // 2. compact the pool: move the live blocks at the end into the holes, then shrink
+    if (slack <= 0.0) m_changed.shrink_to_fit();
+    // 2. compact the pool: move the live blocks at the end into the holes, then shrink. F3.2b: with slack > 0 the
+    // free slots are kept for reuse until they exceed that fraction of the pool (set() takes them first).
     if (m_free.empty()) return;
+    if (slack > 0.0 && double(m_free.size()) <= slack * double(m_pool.size())) return;
     std::vector<uint32_t> ownerOf(m_pool.size(), UINT32_MAX);  // pool slot -> directory index
     for (size_t bi = 0; bi < m_dir.size(); ++bi)
         if (m_dir[bi] & kDetailed) ownerOf[uint32_t(m_dir[bi] & 0xFFFFFFFFull)] = uint32_t(bi);
@@ -437,6 +439,24 @@ void BlockStore::toGrid(VoxelGrid& g) const {
                         else std::memset(row, int(e & 0xFF), kBlock);
                     }
             }
+}
+
+int BlockStore::fillBlock(glm::ivec3 b, uint8_t m) {
+    if (b.x < 0 || b.y < 0 || b.z < 0 || b.x >= m_nb.x || b.y >= m_nb.y || b.z >= m_nb.z) return 0;
+    uint64_t& e = m_dir[blockIndex(b)];
+    const uint64_t pending = e & kChanged;   // still in m_changed: collapse() clears the bit
+    if (!(e & kDetailed)) {
+        if (uint8_t(e & 0xFF) == m) return 0;
+        e = pending | m;
+        return 512;
+    }
+    const uint32_t slot = uint32_t(e & 0xFFFFFFFFull);
+    const Detailed& d = m_pool[slot];
+    int n = 0;
+    for (int i = 0; i < 512; ++i) n += d.mat[i] != m ? 1 : 0;
+    m_free.push_back(slot);
+    e = pending | m;
+    return n;
 }
 
 size_t BlockStore::uniformBlocks() const {

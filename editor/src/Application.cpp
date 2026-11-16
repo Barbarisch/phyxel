@@ -13356,6 +13356,38 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"error", "no Vulkan device / renderer"}};
             return;
         }
+        // {"pick":{"origin":[x,y,z] metres,"dir":[x,y,z],"max_m":m,"size":s}}: F3.2b -- the first solid voxel of the
+        // editable region along the ray (RegionEdit::pick), its entry face, and the brush cells of size s to break
+        // (holding the hit) and to place (holding the voxel in front of the hit face).
+        if (cmd.params.contains("pick")) {
+            using namespace Core::VoxFound;
+            const auto& pj = cmd.params["pick"];
+            if (voxFoundEdit.empty()) {
+                response = {{"error", "no editable region preview"}};
+                return;
+            }
+            auto vec3 = [](const nlohmann::json& j) { return glm::dvec3(j.at(0).get<double>(), j.at(1).get<double>(), j.at(2).get<double>()); };
+            const glm::dvec3 o = vec3(pj.at("origin")) * double(kVoxelsPerM), d = vec3(pj.at("dir"));
+            const int size = pj.value("size", 8);
+            const auto t0 = std::chrono::steady_clock::now();
+            const RegionEdit::PickHit h = voxFoundEdit.pick(o, d, pj.value("max_m", 64.0) * double(kVoxelsPerM));
+            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            response = {{"hit", h.hit}, {"pick_ms", ms}, {"steps", h.steps}};
+            if (h.hit) {
+                const glm::ivec3 front = h.voxel + h.normal;
+                response["voxel"] = {h.voxel.x, h.voxel.y, h.voxel.z};
+                response["normal"] = {h.normal.x, h.normal.y, h.normal.z};
+                response["distance_m"] = h.distance / double(kVoxelsPerM);
+                response["material"] = h.material < voxFoundPalette.size() ? voxFoundPalette[h.material] : std::string("?");
+                response["front_material"] = voxFoundEdit.voxelAt(front);
+                if (brushSizeOk(size)) {
+                    const glm::ivec3 b = brushCell(h.voxel, size), pl = brushCell(front, size);
+                    response["break_cell"] = {b.x, b.y, b.z};
+                    response["place_cell"] = {pl.x, pl.y, pl.z};
+                }
+            }
+            return;
+        }
         // {"edit":{...}}: F2.16 (§4.6 item 9) -- edit an editable region preview, rebuilt incrementally
         if (cmd.params.contains("edit")) {
             handleVoxFoundEdit(cmd.params["edit"], response);
@@ -13798,7 +13830,17 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     glm::ivec3 lo, hi;
     std::function<bool(glm::ivec3)> inside = [](glm::ivec3) { return true; };
     std::string brush = "box";
-    if (ej.contains("sphere")) {
+    int brushSize = 0;   // F3.2b: {"brush":{"at":[x,y,z],"size":1|2|4|8}} (world voxels; the brush cell holding "at")
+    if (ej.contains("brush")) {
+        brushSize = ej["brush"].value("size", 8);
+        if (!brushSizeOk(brushSize)) {
+            response = {{"error", "brush size must be 1, 2, 4 or 8 voxels"}};
+            return;
+        }
+        lo = brushCell(ivec(ej["brush"].at("at")), brushSize);
+        hi = lo + (brushSize - 1);
+        brush = "brush";
+    } else if (ej.contains("sphere")) {
         const glm::ivec3 c = ivec(ej["sphere"].at("c"));
         const double r = ej["sphere"].value("r", 4.0);
         const int ri = int(std::ceil(r));
@@ -13849,8 +13891,14 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     // records the rows into the frame and writes the face pool on the device (no readback, no wait).
     std::string rowsErr;
     voxFoundEdit.setLegacyF31(ej.value("legacy", false));   // F3.1 A/B: F2.17's edit path
-    const RegionEdit::Stats st = voxFoundEdit.apply(lo, hi, inside, mat,
-                                                    ej.value("device", false) ? voxFoundBuilder.get() : nullptr, &rowsErr);
+    FaceBuilderGpu* rowsGpu = ej.value("device", false) ? voxFoundBuilder.get() : nullptr;
+    RegionEdit::Stats st;
+    if (brush == "brush")
+        voxFoundEdit.brush(lo, brushSize, mat, st, rowsGpu, &rowsErr);   // F3.2b (size checked above)
+    else if (brush == "sphere")
+        st = voxFoundEdit.apply(lo, hi, inside, mat, rowsGpu, &rowsErr);
+    else
+        st = voxFoundEdit.applyBox(lo, hi, mat, rowsGpu, &rowsErr);   // F3.2b: covered blocks written whole
     // the CPU executor changed these chunks' voxels behind any resident device copy: forget them (a later device edit
     // would otherwise re-mesh stale voxels next to its own box -- 12 face mismatches, live, before this)
     if (!ej.value("device", false) && voxFoundBuilder)
@@ -13874,7 +13922,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
                 {"set_ms", st.setMs}, {"collapse_ms", st.collapseMs}, {"edit_store_bytes", voxFoundEdit.bytes()}, {"faces_ms", st.facesMs}, {"cluster_ms", st.clusterMs},
                 {"sprig_ms", st.sprigMs}, {"connect_ms", st.connectMs}, {"rebuild_ms", ms(t0, t1)},
                 {"assemble_ms", ms(t1, t2)}, {"faces", voxFoundPreview.liveFaces()},
-                {"connect_floods", st.connectFloods}, {"assemble_bytes", voxFoundPreview.lastCopyBytes},
+                {"connect_floods", st.connectFloods}, {"blocks_filled", st.blocksFilled}, {"brush_size", brushSize}, {"assemble_bytes", voxFoundPreview.lastCopyBytes},
                 {"legacy", voxFoundEdit.legacyF31()},
                 {"sprigs", voxFoundPreview.liveSprigs()}};
     if (ej.value("verify", false) && voxFoundBuilder) {

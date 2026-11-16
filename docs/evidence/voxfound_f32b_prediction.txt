@@ -1,0 +1,69 @@
+F3.2b -- brushes and picking (VoxelFoundationPlan §9b, §1 "brush", §7 item 4). Written 2026-11-16, BEFORE any code.
+
+What exists: region edits take an arbitrary voxel box or sphere (F2.16), and the store writes them voxel by voxel
+through BlockStore::set and collapses afterwards (F3.2a: +1.6 ms at 4 m, set +0.74, collapse +0.24).
+What the plan asks: place / break with brushes of 1, 2, 4 or 8 voxels per side (12.5 cm .. 1 m) on the voxel grid,
+in voxel coordinates over the API; picking returns a voxel position (and the face hit), not a Chunk*.
+
+Change:
+1. Brush = an axis-aligned cube of s = 1, 2, 4 or 8 voxels whose corner is a multiple of s (the brush grid, like
+   today's cube on the metre grid); brushCell(p, s) = floor(p / s) * s. Any other size is refused. API:
+   {"edit":{"brush":{"at":[x,y,z],"size":s},"material":"Stone"|"air"}} (world voxel coordinates; "air" = break).
+2. Whole-block writes: BlockStore::fillBlock(b, m) writes a block that the edit box covers entirely as ONE directory
+   entry (frees its detailed slot) and returns how many voxels changed (0, 512 or the count of differing voxels);
+   RegionEdit::apply uses it for every block fully inside a BOX edit (spheres stay per voxel). A size-8 brush is one
+   block: no per-voxel set, nothing to collapse. Exact: the changed-voxel box may grow to the block (the incremental
+   rebuild is exact for any box containing the changes).
+3. Picking: RegionEdit::pick(origin, dir, maxVoxels) -- a voxel DDA (Amanatides-Woo) across the region's chunk
+   stores, skipping uniform air blocks a block at a time; returns the first solid voxel (leaf voxels count: they are
+   solid in the store), the face entered through (normal), the distance, and the brush cells to break (brushCell of
+   the hit) and to place (brushCell of hit + normal). API {"pick":{"origin":[x,y,z] metres,"dir":[x,y,z],"max_m":m}}.
+
+Red first (CPU):
+- VoxFoundStorageLab.FillBlockEqualsVoxelWrites: random stores, 2,000 random fills: fillBlock == 512 set() calls +
+  collapse (store equal to the dense reference, detailed count equal, returned count = voxels changed).
+- VoxFoundMesher.BrushEditsAreExactAndAligned: the two-chunk RegionEdit; 200 brushes (all 4 sizes, place and break,
+  across the chunk border): the store equals a dense reference after each, voxelsChanged exact, the incremental lists
+  equal a full rebuild (faces / sprigs / connectivity) every 20 edits; size 3 / 0 / 16 refused.
+- VoxFoundMesher.PickFindsTheFirstSolidVoxel: 400 random rays (incl. axis-aligned and through the chunk border, from
+  inside air and from inside solid) on the two-chunk region: pick == a brute-force reference (the solid voxel whose
+  box the ray enters first; slab test over every voxel in the ray's bounding box), same voxel, normal and distance
+  (1e-4 voxel).
+All red on stubs.
+
+Predictions (live, gate region, Release, one session; the F3.1 / F3.2a gate's generator for the comparison, plus
+brush edits at points picked by rays from the 5 poses' cameras):
+1. Exact: 0 mismatches in every verified edit; 0 px vs replace_all.
+2. Brush edits, request to lists ready (median): size 1 0.2-0.45 ms, size 2 0.25-0.5, size 4 0.3-0.55, size 8 (1 m)
+   0.35-0.6 ms -- below F3.2a's unaligned 1 m (0.66) because the block write replaces 512 sets + the collapse.
+3. The F3.1 generator's unaligned boxes: 4 m back to 5-7 ms (F3.2a 7.2; F3.1 6.2), 1 m 0.45-0.66.
+4. Pick: 0.005-0.05 ms per ray up to 64 m (most of the path is uniform air blocks skipped 8 voxels at a time).
+5. Pick hits from the 5 poses (rays through the screen centre): every hit's voxel is solid and the voxel before it
+   along the ray is air (checked live by reading the store back through the pick's own path).
+
+==== MEASURED (2026-11-16; voxfound_f32b_gate.txt / .json / _edits.jsonl / _picks.jsonl; one session, Release,
+     Battle.net launcher only, no WoW before or after) ====
+Red first: FillBlockEqualsVoxelWrites, BrushEditsAreExactAndAligned, PickFindsTheFirstSolidVoxel all red on the stubs,
+green after (pick = brute force on 400 rays, 221 hits, 91 from inside a solid voxel, 11.4 steps per hit). Also built
+on the way: BlockStore::collapse(slack) -- the edit path keeps freed pool slots for reuse until they exceed a quarter
+of the pool (F3.2a's collapse cost was the pool re-allocated by shrink_to_fit on every edit); F1's collapse() is
+unchanged (slack 0). CPU 67/67, GPU 22/22.
+1. Exact: 0 face / sprig / connectivity mismatches in all 313 voxel-changing verified edits (153 of the generator's
+   200, all 160 brushes); 0 px vs replace_all after 20 picked brushes at forest_floor_open and overview_south,
+   controls 0 px, drawn counts identical. HELD.
+2. Brushes aimed by picks (40 each, half place half break), request to lists ready median / p90:
+     size 1 0.188 / 0.431   predicted 0.2-0.45   WRONG (below the range)
+     size 2 0.208 / 0.427   predicted 0.25-0.5   WRONG (below)
+     size 4 0.238 / 0.391   predicted 0.3-0.55   WRONG (below)
+     size 8 0.499 / 0.880   predicted 0.35-0.6   HELD; 40 of 40 written as one block each (blocks_filled 40)
+   (faster than predicted for the small brushes: the rows of a picked surface edit are short, 0.013-0.031 ms.)
+3. The generator's edits (the same 200 as F3.1 / F3.2a): 1 m 0.549 (F3.2a 0.66; predicted 0.45-0.66 HELD); 4 m 5.41
+   (F3.2a 7.21, F3.1 6.17; predicted 5-7 HELD): set 0.47 (was 1.04; 863 blocks written whole), collapse 0.004
+   (was 0.24).
+4. Pick: 215 rays from the 5 poses (spread around each view, not only the centre), 160 hits up to 95 m; 0.006 ms
+   median, 0.011 p90, 0.020 max; 44 steps median (223 max) with uniform air blocks skipped whole. Predicted
+   0.005-0.05 HELD.
+5. Every hit entered through a face (0 from inside) with air in the voxel in front of that face (0 not air). HELD.
+Verdict: brushes of 1/2/4/8 voxels and picking work over the API, exact; a 1 m brush (one block) costs 0.50 ms median
+to lists ready, 4x below the low end of today's 2-13 ms chunk rebuild. Wiring the editor's keys (C / B) to pick +
+brush is the consumer move (F7, §7 item 4).

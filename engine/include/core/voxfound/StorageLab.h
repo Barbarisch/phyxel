@@ -132,6 +132,9 @@ public:
         if (!(e & kDetailed)) return uint8_t(e & 0xFF);
         return m_pool[uint32_t(e & 0xFFFFFFFFull)].mat[(p.z & 7) + 8 * ((p.y & 7) + 8 * (p.x & 7))];
     }
+    /// F3.2b: writes block b (block coordinates) as ONE uniform entry of material m (its detailed slot, if any, is
+    /// freed) and returns how many of its voxels changed. Equal to 512 set() calls + collapse().
+    int fillBlock(glm::ivec3 b, uint8_t m);
     /// true + the material when block b is one uniform entry (a detailed block may still hold one material until
     /// collapse()).
     bool uniformBlock(glm::ivec3 b, uint8_t& m) const {
@@ -143,7 +146,9 @@ public:
     void set(glm::ivec3 p, uint8_t material);
     uint8_t get(glm::ivec3 p) const;             // out of range reads air
     bool blockSolidAny(glm::ivec3 block) const;  // §3.2 solidity summary: any solid voxel in this block
-    void collapse();
+    /// slack (F3.2b, the edit path): keep free pool slots for reuse until they exceed this fraction of the pool;
+    /// 0 = compact and shrink every time (F1's behaviour, what memoryBytes() is measured after).
+    void collapse(double slack = 0.0);
     size_t uniformBlocks() const;
     size_t detailedBlocks() const;
     size_t memoryBytes() const;                  // directory + pool, as allocated
@@ -167,6 +172,13 @@ private:
     std::vector<uint32_t> m_free;
     std::vector<uint32_t> m_changed;             // directory indices marked changed
 };
+
+/// F3.2b (§1 "brush"): a brush is an axis-aligned cube of s = 1, 2, 4 or 8 voxels whose corner is a multiple of s.
+inline bool brushSizeOk(int s) { return s == 1 || s == 2 || s == 4 || s == 8; }
+inline int floorDiv(int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); }
+inline glm::ivec3 brushCell(glm::ivec3 p, int s) {
+    return {floorDiv(p.x, s) * s, floorDiv(p.y, s) * s, floorDiv(p.z, s) * s};
+}
 
 /// Compares every voxel. Returns the number of mismatches (first few described in `why`).
 size_t compareToReference(const BlockStore& s, const VoxelGrid& ref, std::string* why = nullptr);

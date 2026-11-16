@@ -75,6 +75,128 @@ void RegionEdit::replaceFaces(size_t i, const std::vector<PackedFace>& builderOu
 
 RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::function<bool(glm::ivec3)>& inside,
                                     uint8_t material, FaceBuilderGpu* gpu, std::string* err) {
+    return applyImpl(lo, hi, &inside, material, gpu, err);
+}
+
+RegionEdit::Stats RegionEdit::applyBox(glm::ivec3 lo, glm::ivec3 hi, uint8_t material, FaceBuilderGpu* gpu,
+                                       std::string* err) {
+    return applyImpl(lo, hi, nullptr, material, gpu, err);
+}
+
+bool RegionEdit::brush(glm::ivec3 at, int size, uint8_t material, Stats& st, FaceBuilderGpu* gpu, std::string* err) {
+    if (!brushSizeOk(size)) {
+        if (err) *err = "brush size must be 1, 2, 4 or 8 voxels (got " + std::to_string(size) + ")";
+        return false;
+    }
+    const glm::ivec3 cell = brushCell(at, size);
+    st = applyBox(cell, cell + (size - 1), material, gpu, err);
+    return true;
+}
+
+uint8_t RegionEdit::voxelAt(glm::ivec3 p) const {
+    const glm::ivec3 c(floorDiv(p.x, kN), floorDiv(p.y, kN), floorDiv(p.z, kN));
+    const int i = index(c);
+    if (i < 0) return 0;
+    return m_chunks[size_t(i)].store.get(p - m_chunks[size_t(i)].originVoxel);
+}
+
+RegionEdit::PickHit RegionEdit::pick(glm::dvec3 o, glm::dvec3 dir, double maxT) const {
+    PickHit h;
+    if (m_chunks.empty() || glm::length(dir) <= 0.0) return h;
+    dir = glm::normalize(dir);
+    const glm::dvec3 rlo = glm::dvec3(m_lo * kN), rhi = glm::dvec3((m_hi + 1) * kN);
+    // clip the ray to the region's box
+    double t0 = 0.0, t1 = maxT;
+    int clipAxis = -1;
+    for (int a = 0; a < 3; ++a) {
+        if (dir[a] == 0.0) {
+            if (o[a] < rlo[a] || o[a] >= rhi[a]) return h;
+            continue;
+        }
+        double ta = (rlo[a] - o[a]) / dir[a], tb = (rhi[a] - o[a]) / dir[a];
+        if (ta > tb) std::swap(ta, tb);
+        if (ta > t0) {
+            t0 = ta;
+            clipAxis = a;
+        }
+        t1 = std::min(t1, tb);
+    }
+    if (t0 > t1) return h;
+    const glm::ivec3 step(dir.x > 0 ? 1 : -1, dir.y > 0 ? 1 : -1, dir.z > 0 ? 1 : -1);
+    const glm::ivec3 vlo = m_lo * kN, vhi = (m_hi + 1) * kN - 1;
+    glm::ivec3 v = glm::clamp(glm::ivec3(glm::floor(o + dir * t0)), vlo, vhi);
+    glm::ivec3 n(0);
+    if (clipAxis >= 0) {   // entered the region through a face: the voxel on the inside of it
+        v[clipAxis] = step[clipAxis] > 0 ? vlo[clipAxis] : vhi[clipAxis];
+        n[clipAxis] = -step[clipAxis];
+    }
+    auto tNext = [&](int a) {   // distance to the next voxel boundary along axis a from voxel v
+        if (dir[a] == 0.0) return std::numeric_limits<double>::infinity();
+        return (double(v[a] + (step[a] > 0 ? 1 : 0)) - o[a]) / dir[a];
+    };
+    double t = t0;
+    int ci = -1;
+    glm::ivec3 cc(std::numeric_limits<int>::min());
+    while (t <= maxT) {
+        if (v.x < vlo.x || v.y < vlo.y || v.z < vlo.z || v.x > vhi.x || v.y > vhi.y || v.z > vhi.z) return h;
+        ++h.steps;
+        const glm::ivec3 c(floorDiv(v.x, kN), floorDiv(v.y, kN), floorDiv(v.z, kN));
+        if (c != cc) {
+            cc = c;
+            ci = index(c);
+        }
+        if (ci < 0) return h;
+        const Chunk& ch = m_chunks[size_t(ci)];
+        const glm::ivec3 local = v - ch.originVoxel;
+        uint8_t um = 0;
+        if (ch.store.uniformBlock(local / 8, um) && um == 0) {
+            // a uniform air block: leave it in one step (exit face = the nearest of its three far planes)
+            const glm::ivec3 blo = ch.originVoxel + (local / 8) * 8;
+            int axis = 0;
+            double te = std::numeric_limits<double>::infinity();
+            for (int a = 0; a < 3; ++a) {
+                if (dir[a] == 0.0) continue;
+                const double tb = (double(blo[a] + (step[a] > 0 ? 8 : 0)) - o[a]) / dir[a];
+                if (tb < te) {
+                    te = tb;
+                    axis = a;
+                }
+            }
+            const glm::dvec3 q = o + dir * te;
+            for (int a = 0; a < 3; ++a)
+                v[a] = a == axis ? (step[a] > 0 ? blo[a] + 8 : blo[a] - 1)
+                                 : std::clamp(int(std::floor(q[a])), blo[a], blo[a] + 7);
+            n = glm::ivec3(0);
+            n[axis] = -step[axis];
+            t = te;
+            continue;
+        }
+        const uint8_t m = ch.store.get(local);
+        if (m) {
+            h.hit = true;
+            h.voxel = v;
+            h.normal = n;
+            h.distance = t;
+            h.material = m;
+            return h;
+        }
+        int axis = 0;
+        double best = tNext(0);
+        for (int a = 1; a < 3; ++a)
+            if (tNext(a) < best) {
+                best = tNext(a);
+                axis = a;
+            }
+        t = best;
+        v[axis] += step[axis];
+        n = glm::ivec3(0);
+        n[axis] = -step[axis];
+    }
+    return h;
+}
+
+RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std::function<bool(glm::ivec3)>* inside,
+                                        uint8_t material, FaceBuilderGpu* gpu, std::string* err) {
     Stats st;
     lo = glm::max(lo, m_lo * kN);
     hi = glm::min(hi, (m_hi + 1) * kN - 1);
@@ -96,16 +218,36 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
         const glm::ivec3 chi = glm::min(hi - c.originVoxel, glm::ivec3(kN - 1));
         if (clo.x > chi.x || clo.y > chi.y || clo.z > chi.z) continue;
         glm::ivec3 eLo(std::numeric_limits<int>::max()), eHi(std::numeric_limits<int>::min());
-        for (int x = clo.x; x <= chi.x; ++x)
-            for (int y = clo.y; y <= chi.y; ++y)
-                for (int z = clo.z; z <= chi.z; ++z) {
-                    const glm::ivec3 p(x, y, z);
-                    if (!inside(c.originVoxel + p)) continue;
-                    if (c.store.at(p) == material) continue;
-                    c.store.set(p, material);
-                    ++st.voxelsChanged;
-                    eLo = glm::min(eLo, p);
-                    eHi = glm::max(eHi, p);
+        // F3.2b: per block; a block a BOX edit covers entirely is written whole (one directory entry, no per-voxel
+        // set, nothing left to collapse). Its changed-voxel box is taken as the whole block: a superset, which the
+        // incremental rebuild handles exactly.
+        const glm::ivec3 b0 = clo / 8, b1 = chi / 8;
+        for (int bx = b0.x; bx <= b1.x; ++bx)
+            for (int by = b0.y; by <= b1.y; ++by)
+                for (int bz = b0.z; bz <= b1.z; ++bz) {
+                    const glm::ivec3 bl(bx * 8, by * 8, bz * 8);
+                    const glm::ivec3 sLo = glm::max(clo, bl), sHi = glm::min(chi, bl + 7);
+                    if (!inside && sLo == bl && sHi == bl + 7) {
+                        const int n = c.store.fillBlock({bx, by, bz}, material);
+                        if (n) {
+                            st.voxelsChanged += size_t(n);
+                            eLo = glm::min(eLo, bl);
+                            eHi = glm::max(eHi, bl + 7);
+                            ++st.blocksFilled;
+                        }
+                        continue;
+                    }
+                    for (int x = sLo.x; x <= sHi.x; ++x)
+                        for (int y = sLo.y; y <= sHi.y; ++y)
+                            for (int z = sLo.z; z <= sHi.z; ++z) {
+                                const glm::ivec3 p(x, y, z);
+                                if (inside && !(*inside)(c.originVoxel + p)) continue;
+                                if (c.store.at(p) == material) continue;
+                                c.store.set(p, material);
+                                ++st.voxelsChanged;
+                                eLo = glm::min(eLo, p);
+                                eHi = glm::max(eHi, p);
+                            }
                 }
         if (eLo.x > eHi.x) continue;
         voxelEdited[i] = 1;
@@ -141,7 +283,7 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
     // F3.2a: the changed blocks that are uniform again return to one directory entry, the pool is compacted
     const auto tCollapse = std::chrono::steady_clock::now();
     for (size_t i = 0; i < n; ++i)
-        if (voxelEdited[i]) m_chunks[i].store.collapse();
+        if (voxelEdited[i]) m_chunks[i].store.collapse(0.25);   // F3.2b: free slots reused before compacting
     st.collapseMs = msSince(tCollapse);
     for (size_t i = 0; i < n; ++i) {
         if (bLo[i].x > bHi[i].x) continue;

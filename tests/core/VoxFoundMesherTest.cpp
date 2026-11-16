@@ -2385,3 +2385,221 @@ TEST(VoxFoundMesher, BlockStoreReadersEqualTheDenseOnes) {
                 g.dim.x, g.dim.y, g.dim.z, added, st.memoryBytes() / 1048576.0, g.mat.size() / 1048576.0,
                 st.detailedBlocks());
 }
+
+// ---- F3.2b (VoxelFoundationPlan §9b): brushes and picking ------------------------------------------------------
+namespace {
+// Two whole chunks side by side (as RegionEditAssemblesOnlyWhatChanged), the builder output from the CPU reference,
+// and a dense mirror of each chunk's voxels kept by the test.
+struct TwoChunks {
+    RegionEdit edit;
+    std::vector<VoxelGrid> dense;
+    CardSet cards;
+};
+void buildTwoChunks(TwoChunks& t, uint32_t seed) {
+    constexpr int N = 256;
+    std::mt19937 rng(seed);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    t.cards.set(4);
+    std::vector<RegionChunk> rcs(2);
+    for (int c = 0; c < 2; ++c) {
+        RegionChunk& rc = rcs[size_t(c)];
+        rc.chunk = {c, 0, 0};
+        rc.originVoxel = {c * N, 0, 0};
+        rc.grid.resize({N, N, N});
+        for (int x = 0; x < N; ++x)
+            for (int z = 0; z < N; ++z) {
+                const int wx = c * N + x;
+                const int h = 96 + int(12.0 * std::sin(wx * 0.05) + 9.0 * std::cos(z * 0.07));
+                for (int y = 0; y < h; ++y) rc.grid.set({x, y, z}, uint8_t(y < h - 4 ? 1 : (y < h - 1 ? 2 : 3)));
+            }
+        for (int b = 0; b < 6; ++b) {
+            const glm::ivec3 o(rnd(8, N - 9), rnd(110, 140), rnd(8, N - 9));
+            const int r = rnd(3, 8);
+            for (int x = -r; x <= r; ++x)
+                for (int y = -r; y <= r; ++y)
+                    for (int z = -r; z <= r; ++z)
+                        if (x * x + y * y + z * z <= r * r) rc.grid.set(o + glm::ivec3(x, y, z), 4);
+        }
+        rc.border.resize({N, N, N}, false);
+    }
+    for (int y = 0; y < N; ++y)
+        for (int z = 0; z < N; ++z) {
+            rcs[0].border.set(0, 1, y, z, rcs[1].grid.mat[rcs[1].grid.idx({0, y, z})] != 0);
+            rcs[1].border.set(0, -1, y, z, rcs[0].grid.mat[rcs[0].grid.idx({N - 1, y, z})] != 0);
+        }
+    t.edit.begin({0, 0, 0}, {1, 0, 0}, 4, true, 1u << 23);
+    t.edit.setMaterialSets(t.cards, t.cards);
+    for (int c = 0; c < 2; ++c) {
+        const Edges e(rcs[size_t(c)].border);
+        std::vector<PackedFace> out = packedRuns(rcs[size_t(c)].grid, e, &t.cards);
+        SprigParams sp;
+        sp.cards = t.cards;
+        sp.worldOriginVoxel = rcs[size_t(c)].originVoxel;
+        sp.threshold24 = 1u << 23;
+        const std::vector<PackedFace> spr = foliageSprigs(rcs[size_t(c)].grid, e, sp);
+        out.insert(out.end(), spr.begin(), spr.end());
+        t.edit.addChunk(rcs[size_t(c)], out);
+        VoxelGrid g;
+        g.dim = rcs[size_t(c)].grid.dim;
+        g.mat = rcs[size_t(c)].grid.mat;
+        t.dense.push_back(std::move(g));
+    }
+}
+uint8_t mirrorAt(const TwoChunks& t, glm::ivec3 p) {
+    if (p.x < 0 || p.x >= 512 || p.y < 0 || p.y >= 256 || p.z < 0 || p.z >= 256) return 0;
+    const VoxelGrid& g = t.dense[size_t(p.x / 256)];
+    return g.mat[g.idx({p.x % 256, p.y, p.z})];
+}
+void mirrorSet(TwoChunks& t, glm::ivec3 p, uint8_t m) {
+    if (p.x < 0 || p.x >= 512 || p.y < 0 || p.y >= 256 || p.z < 0 || p.z >= 256) return;
+    VoxelGrid& g = t.dense[size_t(p.x / 256)];
+    g.mat[g.idx({p.x % 256, p.y, p.z})] = m;
+}
+// every chunk's incremental lists = a full rebuild of the mirror (faces, sprigs, connectivity) and the store = mirror
+void expectFullRebuildEqual(const TwoChunks& t, const std::string& at) {
+    for (size_t c = 0; c < 2; ++c) {
+        const RegionEdit::Chunk& ch = t.edit.chunk(c);
+        std::string why;
+        ASSERT_EQ(compareToReference(ch.store, t.dense[c], &why), 0u) << at << " chunk " << c << " " << why;
+        const Edges e(ch.border);
+        ASSERT_EQ(sortedKeys(ch.faces), sortedKeys(packedRuns(t.dense[c], e, &t.cards))) << at << " chunk " << c;
+        ASSERT_EQ(sortedKeys(ch.sprigs), sortedKeys(foliageSprigs(t.dense[c], e, t.edit.sprigParams(c))))
+            << at << " chunk " << c;
+        ASSERT_EQ(ch.connect, blockFaceConnectivity(t.dense[c], t.cards)) << at << " chunk " << c;
+    }
+}
+}  // namespace
+
+// Brushes of 1, 2, 4, 8 voxels on their own grid (corner a multiple of the size), place and break, across the chunk
+// border; mixed with unaligned BOX edits (blocks covered entirely written whole, the rest voxel by voxel). After every
+// edit: voxelsChanged = the mirror's count, the store = the mirror in and around the brush; every 50 edits and at the
+// end the whole store and every list = a full rebuild. Sizes outside {1, 2, 4, 8} refused.
+TEST(VoxFoundMesher, BrushEditsAreExactAndAligned) {
+    TwoChunks t;
+    buildTwoChunks(t, 3203u);
+    std::mt19937 rng(3204u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    for (int bad : {0, 3, 16, -1, 7}) {
+        RegionEdit::Stats st;
+        std::string err;
+        EXPECT_FALSE(t.edit.brush({10, 100, 10}, bad, 1, st, nullptr, &err)) << bad;
+        EXPECT_FALSE(err.empty()) << bad;
+    }
+    size_t whole = 0;
+    for (int it = 0; it < 200; ++it) {
+        const uint8_t m = uint8_t(rnd(0, 4));
+        glm::ivec3 lo, hi;
+        RegionEdit::Stats st;
+        if (it % 4 == 3) {   // an unaligned box
+            lo = {rnd(200, 300), rnd(80, 140), rnd(0, 230)};
+            hi = lo + glm::ivec3(rnd(0, 25), rnd(0, 25), rnd(0, 25));
+            st = t.edit.applyBox(lo, hi, m);
+        } else {
+            const int s = 1 << rnd(0, 3);
+            const glm::ivec3 at(rnd(0, 511), rnd(80, 150), rnd(0, 255));
+            std::string err;
+            ASSERT_TRUE(t.edit.brush(at, s, m, st, nullptr, &err)) << err;
+            lo = brushCell(at, s);
+            hi = lo + s - 1;
+            ASSERT_EQ(lo.x % s, 0);
+            ASSERT_EQ(lo.y % s, 0);
+            ASSERT_EQ(lo.z % s, 0);
+            ASSERT_TRUE(at.x >= lo.x && at.x <= hi.x && at.y >= lo.y && at.y <= hi.y && at.z >= lo.z && at.z <= hi.z);
+            whole += s == 8 ? 1 : 0;
+        }
+        size_t changed = 0;
+        for (int x = lo.x; x <= hi.x; ++x)
+            for (int y = lo.y; y <= hi.y; ++y)
+                for (int z = lo.z; z <= hi.z; ++z) {
+                    if (x < 0 || x >= 512 || y < 0 || y >= 256 || z < 0 || z >= 256) continue;
+                    changed += mirrorAt(t, {x, y, z}) != m ? 1 : 0;
+                    mirrorSet(t, {x, y, z}, m);
+                }
+        const std::string at = "edit " + std::to_string(it);
+        ASSERT_EQ(st.voxelsChanged, changed) << at;
+        for (int x = lo.x - 1; x <= hi.x + 1; ++x)
+            for (int y = lo.y - 1; y <= hi.y + 1; ++y)
+                for (int z = lo.z - 1; z <= hi.z + 1; ++z)
+                    ASSERT_EQ(t.edit.voxelAt({x, y, z}), mirrorAt(t, {x, y, z})) << at;
+        if (it % 50 == 49) expectFullRebuildEqual(t, at);
+    }
+    EXPECT_GT(whole, 20u);
+}
+
+// Picking: the first solid voxel along a ray = a brute-force reference (every voxel in the ray's bounding box, slab
+// test, the smallest entry distance): same voxel, entry face and distance. 400 rays from air above the ground and from
+// anywhere, random and axis-aligned directions, a quarter across the chunk border, up to 64 voxels.
+TEST(VoxFoundMesher, PickFindsTheFirstSolidVoxel) {
+    TwoChunks t;
+    buildTwoChunks(t, 3205u);
+    std::mt19937 rng(3206u);
+    std::uniform_real_distribution<double> uni(0.0, 1.0);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    const double maxT = 64.0;
+    size_t hits = 0, inside = 0, steps = 0;
+    for (int it = 0; it < 400; ++it) {
+        glm::dvec3 o(uni(rng) * 512.0, 60.0 + uni(rng) * 110.0, uni(rng) * 256.0);
+        if (it % 4 == 0) o.x = 200.0 + uni(rng) * 50.0;   // towards the border at x = 256
+        if (it % 3 == 0) o.y = 125.0 + uni(rng) * 40.0;   // from the air above the ground
+        glm::dvec3 d;
+        if (it % 10 == 9) {
+            d = glm::dvec3(0.0);
+            d[rnd(0, 2)] = rnd(0, 1) ? 1.0 : -1.0;
+            o += glm::dvec3(0.37, 0.41, 0.29);   // off the voxel planes
+        } else {
+            d = glm::normalize(glm::dvec3(uni(rng) - 0.5, uni(rng) - 0.9, uni(rng) - 0.5));
+            if (it % 4 == 0) d.x = std::abs(d.x) + 0.2;
+            d = glm::normalize(d);
+        }
+        // the reference
+        bool rHit = false;
+        double rT = std::numeric_limits<double>::max();
+        glm::ivec3 rV(0), rN(0);
+        const glm::dvec3 e = o + d * maxT;
+        const glm::ivec3 lo = glm::ivec3(glm::floor(glm::min(o, e))) - 1, hi = glm::ivec3(glm::floor(glm::max(o, e))) + 1;
+        for (int x = lo.x; x <= hi.x; ++x)
+            for (int y = lo.y; y <= hi.y; ++y)
+                for (int z = lo.z; z <= hi.z; ++z) {
+                    if (!mirrorAt(t, {x, y, z})) continue;
+                    double tIn = -std::numeric_limits<double>::max(), tOut = std::numeric_limits<double>::max();
+                    int axis = -1;
+                    bool miss = false;
+                    for (int a = 0; a < 3 && !miss; ++a) {
+                        const double v = a == 0 ? x : (a == 1 ? y : z);
+                        if (d[a] == 0.0) {
+                            if (o[a] < v || o[a] >= v + 1.0) miss = true;
+                            continue;
+                        }
+                        double t0 = (v - o[a]) / d[a], t1 = (v + 1.0 - o[a]) / d[a];
+                        if (t0 > t1) std::swap(t0, t1);
+                        if (t0 > tIn) {
+                            tIn = t0;
+                            axis = a;
+                        }
+                        tOut = std::min(tOut, t1);
+                    }
+                    if (miss || tIn >= tOut || tOut <= 0.0) continue;
+                    const double tEntry = std::max(tIn, 0.0);
+                    if (tEntry > maxT || tEntry >= rT) continue;
+                    rHit = true;
+                    rT = tEntry;
+                    rV = {x, y, z};
+                    rN = glm::ivec3(0);
+                    if (tIn > 0.0 && axis >= 0) rN[axis] = d[axis] > 0 ? -1 : 1;
+                }
+        const RegionEdit::PickHit h = t.edit.pick(o, d, maxT);
+        const std::string at = "ray " + std::to_string(it);
+        ASSERT_EQ(h.hit, rHit) << at;
+        if (!rHit) continue;
+        ++hits;
+        inside += rT == 0.0 ? 1 : 0;
+        steps += h.steps;
+        ASSERT_EQ(h.voxel, rV) << at;
+        ASSERT_EQ(h.normal, rN) << at;
+        ASSERT_NEAR(h.distance, rT, 1e-4) << at;
+        ASSERT_EQ(h.material, mirrorAt(t, rV)) << at;
+    }
+    std::printf("[f32b pick] 400 rays: %zu hits (%zu from inside a solid voxel), %.1f steps per hit\n", hits, inside,
+                hits ? double(steps) / hits : 0.0);
+    EXPECT_GT(hits, 200u);
+}

@@ -413,3 +413,53 @@ TEST(VoxFoundStorageLab, RegionChunksEqualTheRegionGeneratedWhole) {
     EXPECT_EQ(badVox, 0u) << first;
     EXPECT_EQ(badBorder, 0u);
 }
+
+// F3.2b: a block a brush covers entirely is written as one directory entry. fillBlock must equal 512 set() calls +
+// collapse(): the same voxels (dense reference), the same detailed-block count, and the returned count = the voxels
+// that changed. 2,000 random fills over a store with uniform and detailed blocks, some of them broken up voxel by
+// voxel just before the fill (a detailed block still pending in the changed list).
+TEST(VoxFoundStorageLab, FillBlockEqualsVoxelWrites) {
+    std::mt19937 rng(3202u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    VoxelGrid ref;
+    ref.resize({32, 24, 40});
+    for (size_t i = 0; i < ref.size(); ++i) {
+        const glm::ivec3 p = ref.pos(i);
+        ref.mat[i] = p.y < 8 ? 1 : (p.y < 16 ? uint8_t(rnd(0, 3) == 0 ? rnd(0, 3) : 2) : 0);
+    }
+    BlockStore a = BlockStore::fromGrid(ref), b = BlockStore::fromGrid(ref);
+    const glm::ivec3 nb = ref.dim / 8;
+    size_t partial = 0;
+    for (int it = 0; it < 2000; ++it) {
+        const glm::ivec3 blk(rnd(0, nb.x - 1), rnd(0, nb.y - 1), rnd(0, nb.z - 1));
+        if (rnd(0, 2) == 0)
+            for (int k = 0; k < 20; ++k) {
+                const glm::ivec3 p = blk * 8 + glm::ivec3(rnd(0, 7), rnd(0, 7), rnd(0, 7));
+                const uint8_t q = uint8_t(rnd(0, 3));
+                ref.mat[ref.idx(p)] = q;
+                a.set(p, q);
+                b.set(p, q);
+            }
+        const uint8_t m = uint8_t(rnd(0, 3));
+        int changed = 0;
+        for (int x = 0; x < 8; ++x)
+            for (int y = 0; y < 8; ++y)
+                for (int z = 0; z < 8; ++z) {
+                    const glm::ivec3 p = blk * 8 + glm::ivec3(x, y, z);
+                    changed += ref.mat[ref.idx(p)] != m ? 1 : 0;
+                    ref.mat[ref.idx(p)] = m;
+                    b.set(p, m);
+                }
+        partial += (changed > 0 && changed < 512) ? 1 : 0;
+        ASSERT_EQ(a.fillBlock(blk, m), changed) << "fill " << it;
+        if (it % 100 == 99) {
+            a.collapse();
+            b.collapse();
+            std::string why;
+            ASSERT_EQ(compareToReference(a, ref, &why), 0u) << "fill " << it << " " << why;
+            ASSERT_EQ(compareToReference(b, ref, &why), 0u) << "fill " << it << " " << why;
+            ASSERT_EQ(a.detailedBlocks(), b.detailedBlocks()) << "fill " << it;
+        }
+    }
+    EXPECT_GT(partial, 200u);   // fills of detailed blocks happened
+}

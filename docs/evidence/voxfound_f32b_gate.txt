@@ -1,0 +1,21 @@
+build {"faces": 477858, "sprigs": 225471, "edit_store_bytes": 62918028, "error": null, "wall_s": 26.4}
+generator voxel done
+generator 1m done
+generator 2m done
+generator 4m done
+brush size 1 done 40 edits 54 rays
+brush size 2 done 40 edits 54 rays
+brush size 4 done 40 edits 53 rays
+brush size 8 done 40 edits 54 rays
+generator voxel {"n": 36, "n_all": 50, "mismatches": 0, "verified": 36, "errors": [], "blocks_filled": 0, "set_ms": {"median": 0.011, "p90": 0.421}, "collapse_ms": {"median": 0.0, "p90": 0.001}, "rows_wall_ms": {"median": 0.006, "p90": 0.008}, "connect_ms": {"median": 0.001, "p90": 0.15}, "rebuild_ms": {"median": 0.285, "p90": 0.676}, "assemble_ms": {"median": 0.075, "p90": 0.413}, "ready_ms": {"median": 0.352, "p90": 0.959, "max": 2.054}}
+generator 1m {"n": 33, "n_all": 50, "mismatches": 0, "verified": 33, "errors": [], "blocks_filled": 0, "set_ms": {"median": 0.025, "p90": 0.521}, "collapse_ms": {"median": 0.001, "p90": 0.001}, "rows_wall_ms": {"median": 0.125, "p90": 0.186}, "connect_ms": {"median": 0.001, "p90": 0.146}, "rebuild_ms": {"median": 0.39, "p90": 0.825}, "assemble_ms": {"median": 0.105, "p90": 0.322}, "ready_ms": {"median": 0.549, "p90": 1.222, "max": 2.27}}
+generator 2m {"n": 38, "n_all": 50, "mismatches": 0, "verified": 38, "errors": [], "blocks_filled": 58, "set_ms": {"median": 0.091, "p90": 0.171}, "collapse_ms": {"median": 0.001, "p90": 0.002}, "rows_wall_ms": {"median": 0.835, "p90": 0.957}, "connect_ms": {"median": 0.114, "p90": 0.365}, "rebuild_ms": {"median": 1.24, "p90": 1.509}, "assemble_ms": {"median": 0.066, "p90": 0.302}, "ready_ms": {"median": 1.326, "p90": 1.872, "max": 2.203}}
+generator 4m {"n": 46, "n_all": 50, "mismatches": 0, "verified": 46, "errors": [], "blocks_filled": 863, "set_ms": {"median": 0.472, "p90": 1.084}, "collapse_ms": {"median": 0.004, "p90": 0.006}, "rows_wall_ms": {"median": 4.072, "p90": 6.425}, "connect_ms": {"median": 0.162, "p90": 0.492}, "rebuild_ms": {"median": 5.163, "p90": 8.097}, "assemble_ms": {"median": 0.085, "p90": 0.799}, "ready_ms": {"median": 5.414, "p90": 8.472, "max": 9.046}}
+brush s1 {"n": 40, "n_all": 40, "mismatches": 0, "verified": 40, "errors": [], "blocks_filled": 0, "set_ms": {"median": 0.002, "p90": 0.003}, "collapse_ms": {"median": 0.0, "p90": 0.001}, "rows_wall_ms": {"median": 0.013, "p90": 0.017}, "connect_ms": {"median": 0.001, "p90": 0.001}, "rebuild_ms": {"median": 0.118, "p90": 0.21}, "assemble_ms": {"median": 0.072, "p90": 0.221}, "ready_ms": {"median": 0.188, "p90": 0.431, "max": 0.873}}
+brush s2 {"n": 40, "n_all": 40, "mismatches": 0, "verified": 40, "errors": [], "blocks_filled": 0, "set_ms": {"median": 0.003, "p90": 0.003}, "collapse_ms": {"median": 0.0, "p90": 0.001}, "rows_wall_ms": {"median": 0.016, "p90": 0.02}, "connect_ms": {"median": 0.001, "p90": 0.001}, "rebuild_ms": {"median": 0.132, "p90": 0.234}, "assemble_ms": {"median": 0.084, "p90": 0.231}, "ready_ms": {"median": 0.208, "p90": 0.427, "max": 0.829}}
+brush s4 {"n": 40, "n_all": 40, "mismatches": 0, "verified": 40, "errors": [], "blocks_filled": 0, "set_ms": {"median": 0.004, "p90": 0.006}, "collapse_ms": {"median": 0.001, "p90": 0.001}, "rows_wall_ms": {"median": 0.031, "p90": 0.05}, "connect_ms": {"median": 0.001, "p90": 0.001}, "rebuild_ms": {"median": 0.151, "p90": 0.232}, "assemble_ms": {"median": 0.075, "p90": 0.211}, "ready_ms": {"median": 0.238, "p90": 0.391, "max": 0.623}}
+brush s8 {"n": 40, "n_all": 40, "mismatches": 0, "verified": 40, "errors": [], "blocks_filled": 40, "set_ms": {"median": 0.003, "p90": 0.004}, "collapse_ms": {"median": 0.0, "p90": 0.001}, "rows_wall_ms": {"median": 0.121, "p90": 0.153}, "connect_ms": {"median": 0.136, "p90": 0.353}, "rebuild_ms": {"median": 0.384, "p90": 0.643}, "assemble_ms": {"median": 0.091, "p90": 0.225}, "ready_ms": {"median": 0.499, "p90": 0.88, "max": 1.052}}
+picks {"rays": 215, "hits": 160, "front_not_air": 0, "from_inside": 0, "pick_ms": {"median": 0.006, "p90": 0.011, "max": 0.02}, "steps": {"median": 44, "max": 223}, "distance_m": {"median": 35.219, "max": 95.194}}
+pixels forest_floor_open {"edits": 20, "I_vs_F": 0, "I_vs_I2": 0, "B_vs_I": 2106, "drawn_I": [169604, 1884], "drawn_F": [169604, 1884]}
+pixels overview_south {"edits": 20, "I_vs_F": 0, "I_vs_I2": 0, "B_vs_I": 1058, "drawn_I": [290753, 2643], "drawn_F": [290753, 2643]}
+end

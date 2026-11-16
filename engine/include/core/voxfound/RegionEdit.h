@@ -42,7 +42,8 @@ public:
         double facesMs = 0, sprigMs = 0, connectMs = 0, clusterMs = 0, setMs = 0, collapseMs = 0;
         double planMs = 0, rowsWallMs = 0, rowsGpuMs = 0;   // facesMs = plan + rows (device wall, or the CPU executor)
         size_t uploadBytes = 0, residentMisses = 0;
-        size_t connectFloods = 0;   // F3.1: floods run (only when a block's "blocks sight" bit changed)
+        size_t connectFloods = 0;
+        size_t blocksFilled = 0;     // F3.2b: blocks written whole   // F3.1: floods run (only when a block's "blocks sight" bit changed)
         bool onDevice = false;
         std::vector<size_t> rebuilt;   // chunk indices whose faces / sprigs / connectivity were updated
     };
@@ -80,6 +81,26 @@ public:
     /// (FaceBuilderGpu::rowsDelta, keyed per store generation and chunk); null = the CPU executor (meshRunsPlan).
     Stats apply(glm::ivec3 lo, glm::ivec3 hi, const std::function<bool(glm::ivec3)>& inside, uint8_t material,
                 FaceBuilderGpu* gpu = nullptr, std::string* err = nullptr);
+    /// F3.2b: a BOX edit (every voxel in [lo, hi]); blocks it covers entirely are written whole (BlockStore::fillBlock).
+    Stats applyBox(glm::ivec3 lo, glm::ivec3 hi, uint8_t material, FaceBuilderGpu* gpu = nullptr,
+                   std::string* err = nullptr);
+    /// F3.2b: the brush of size s (1, 2, 4, 8 voxels) whose cell holds world voxel `at` (brushCell). A size outside
+    /// {1, 2, 4, 8} is refused: false and `err`.
+    bool brush(glm::ivec3 at, int size, uint8_t material, Stats& st, FaceBuilderGpu* gpu = nullptr,
+               std::string* err = nullptr);
+    /// F3.2b: the first solid voxel along a ray (world 1/8 m voxel units; dir need not be normalised), within
+    /// maxVoxels of the origin. normal = the face the ray entered through (0 if the origin is inside the voxel);
+    /// distance in voxels along the normalised dir.
+    struct PickHit {
+        bool hit = false;
+        glm::ivec3 voxel{0}, normal{0};
+        double distance = 0.0;
+        uint8_t material = 0;
+        size_t steps = 0;   // voxels + skipped blocks visited
+    };
+    PickHit pick(glm::dvec3 origin, glm::dvec3 dir, double maxVoxels) const;
+    /// F3.2b: the material of world voxel p (air outside the region).
+    uint8_t voxelAt(glm::ivec3 p) const;
 
     /// Level 0 of pv (faces, clusters, chunk ranges, sprigs, connectivity) from the store; selectLevel(0). leafTex =
     /// the sprig texture per palette material. F2.17: level 0 is a FACE POOL image (FacePool): with `changed` (the
@@ -92,6 +113,9 @@ public:
 
 private:
     int index(glm::ivec3 chunk) const;   // -1 = not in the store
+    /// inside == nullptr: a BOX edit (blocks it covers entirely are written whole)
+    Stats applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std::function<bool(glm::ivec3)>* inside, uint8_t material,
+                    FaceBuilderGpu* gpu, std::string* err);
     std::vector<Chunk> m_chunks;
     glm::ivec3 m_lo{0}, m_hi{-1};
     int m_clusterBlocks = 4;

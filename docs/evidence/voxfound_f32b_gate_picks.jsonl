@@ -1,0 +1,215 @@
+{"pose": "top_down", "hit": false, "pick_ms": 0.0033, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.011, "steps": 135, "normal": [0, 0, 1], "front_material": 0, "distance_m": 54.5820970351686, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.006, "steps": 47, "normal": [1, 0, 0], "front_material": 0, "distance_m": 43.25213816485651, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0089, "steps": 63, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 28.866805223049994, "material": "LogJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.007, "steps": 52, "normal": [1, 0, 0], "front_material": 0, "distance_m": 71.66383329916339, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0036, "steps": 21}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.004, "steps": 32, "normal": [0, 0, 1], "front_material": 0, "distance_m": 26.33295469380398, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0079, "steps": 58, "normal": [0, 1, 0], "front_material": 0, "distance_m": 51.78240641031369, "material": "GrassForest"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0105, "steps": 101, "normal": [0, 1, 0], "front_material": 0, "distance_m": 41.55676554342802, "material": "GrassSavanna"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0112, "steps": 100, "normal": [0, 1, 0], "front_material": 0, "distance_m": 94.4870885906794, "material": "GrassSavanna"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0041, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0046, "steps": 28, "normal": [0, 1, 0], "front_material": 0, "distance_m": 11.860981880619525, "material": "Leaf"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0061, "steps": 27, "normal": [1, 0, 0], "front_material": 0, "distance_m": 32.474547644752974, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0092, "steps": 55, "normal": [0, 1, 0], "front_material": 0, "distance_m": 30.849913723915805, "material": "GrassForest"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0054, "steps": 52, "normal": [0, 1, 0], "front_material": 0, "distance_m": 73.43185180810268, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0033, "steps": 20}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0099, "steps": 98, "normal": [0, 0, 1], "front_material": 0, "distance_m": 57.840515557338556, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0058, "steps": 41, "normal": [0, 1, 0], "front_material": 0, "distance_m": 33.459364663905156, "material": "GrassForest"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0046, "steps": 42, "normal": [0, 0, -1], "front_material": 0, "distance_m": 7.9491949010413085, "material": "LogJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0129, "steps": 125, "normal": [0, 0, 1], "front_material": 0, "distance_m": 95.04234588311255, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.003, "steps": 20}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.012, "steps": 149, "normal": [0, 0, 1], "front_material": 0, "distance_m": 56.11021730922099, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0061, "steps": 43, "normal": [0, 0, 1], "front_material": 0, "distance_m": 33.76807533633921, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0047, "steps": 30, "normal": [0, 0, -1], "front_material": 0, "distance_m": 8.653949140497009, "material": "LogJungle"}
+{"pose": "overview_south", "hit": false, "pick_ms": 0.0103, "steps": 98}
+{"pose": "top_down", "hit": false, "pick_ms": 0.003, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0063, "steps": 49, "normal": [0, 0, 1], "front_material": 0, "distance_m": 28.894318003578242, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0036, "steps": 15, "normal": [1, 0, 0], "front_material": 0, "distance_m": 25.16271739202972, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.01, "steps": 95, "normal": [0, 1, 0], "front_material": 0, "distance_m": 43.0430640757938, "material": "Log"}
+{"pose": "overview_south", "hit": false, "pick_ms": 0.012, "steps": 112}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0027, "steps": 21}
+{"pose": "forest_floor_open", "hit": false, "pick_ms": 0.0071, "steps": 93}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0131, "steps": 115, "normal": [1, 0, 0], "front_material": 0, "distance_m": 91.23855617072823, "material": "Log"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0093, "steps": 69, "normal": [0, 1, 0], "front_material": 0, "distance_m": 33.17087336573905, "material": "Leaf"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0067, "steps": 42, "normal": [0, 1, 0], "front_material": 0, "distance_m": 72.74079458859698, "material": "Grass"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0029, "steps": 21}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0041, "steps": 27, "normal": [0, 0, 1], "front_material": 0, "distance_m": 19.671691820936285, "material": "GrassSavanna"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0086, "steps": 77, "normal": [1, 0, 0], "front_material": 0, "distance_m": 60.43597508869987, "material": "LogJungle"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0082, "steps": 64, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 32.897762205735596, "material": "Leaf"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0051, "steps": 33, "normal": [0, 1, 0], "front_material": 0, "distance_m": 67.39974252528951, "material": "Grass"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0031, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0061, "steps": 48, "normal": [0, 0, 1], "front_material": 0, "distance_m": 29.22887101567529, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0051, "steps": 35, "normal": [1, 0, 0], "front_material": 0, "distance_m": 24.766081682332292, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0052, "steps": 43, "normal": [0, 0, -1], "front_material": 0, "distance_m": 9.009725919555649, "material": "LogJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0041, "steps": 32, "normal": [0, 1, 0], "front_material": 0, "distance_m": 70.05474083630753, "material": "Grass"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0032, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0054, "steps": 47, "normal": [0, 0, 1], "front_material": 0, "distance_m": 28.74882168167412, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0095, "steps": 64, "normal": [1, 0, 0], "front_material": 0, "distance_m": 58.29599640660332, "material": "LogJungle"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0054, "steps": 47, "normal": [0, 0, -1], "front_material": 0, "distance_m": 9.073759390320584, "material": "LogJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.015, "steps": 140, "normal": [0, 0, 1], "front_material": 0, "distance_m": 93.83080417382166, "material": "Log"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0027, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0085, "steps": 97, "normal": [0, 0, 1], "front_material": 0, "distance_m": 60.33272583694292, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0038, "steps": 14, "normal": [1, 0, 0], "front_material": 0, "distance_m": 24.96265905684006, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0043, "steps": 26, "normal": [0, 0, -1], "front_material": 0, "distance_m": 8.535184438449122, "material": "LogJungle"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0027, "steps": 21}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0067, "steps": 74, "normal": [0, 0, 1], "front_material": 0, "distance_m": 54.76810186829356, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0042, "steps": 19, "normal": [0, 1, 0], "front_material": 0, "distance_m": 28.81687195668767, "material": "LogBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.009, "steps": 69, "normal": [0, 1, 0], "front_material": 0, "distance_m": 28.38412707845909, "material": "GrassForest"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0092, "steps": 77, "normal": [0, 0, 1], "front_material": 0, "distance_m": 87.44321243863013, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0031, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0042, "steps": 36, "normal": [0, 0, 1], "front_material": 0, "distance_m": 26.22324529922708, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0065, "steps": 47, "normal": [0, 1, 0], "front_material": 0, "distance_m": 47.59911702559134, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0065, "steps": 50, "normal": [0, 0, -1], "front_material": 0, "distance_m": 27.318749238319857, "material": "LogJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0082, "steps": 87, "normal": [0, 0, 1], "front_material": 0, "distance_m": 95.19448343630899, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0034, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0066, "steps": 54, "normal": [1, 0, 0], "front_material": 0, "distance_m": 35.44561084863822, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0073, "steps": 65, "normal": [1, 0, 0], "front_material": 0, "distance_m": 59.478535663711114, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0055, "steps": 21, "normal": [0, 0, -1], "front_material": 0, "distance_m": 7.993173052059553, "material": "LogJungle"}
+{"pose": "overview_south", "hit": false, "pick_ms": 0.007, "steps": 82}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0032, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0057, "steps": 36, "normal": [0, 1, 0], "front_material": 0, "distance_m": 17.332739526689224, "material": "GrassSavanna"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0036, "steps": 12, "normal": [0, 1, 0], "front_material": 0, "distance_m": 28.714914060068775, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0137, "steps": 135, "normal": [0, 1, 0], "front_material": 0, "distance_m": 64.97860442117124, "material": "GrassSavanna"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0051, "steps": 33, "normal": [0, 1, 0], "front_material": 0, "distance_m": 68.95205375115876, "material": "Grass"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0035, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0048, "steps": 29, "normal": [0, 1, 0], "front_material": 0, "distance_m": 19.861308191241644, "material": "GrassSavanna"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0039, "steps": 28, "normal": [0, 0, -1], "front_material": 0, "distance_m": 40.792801326419095, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0123, "steps": 112, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 59.412470314049166, "material": "Leaf"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0089, "steps": 84, "normal": [0, 1, 0], "front_material": 0, "distance_m": 82.47199615576648, "material": "GrassSavanna"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0025, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0059, "steps": 41, "normal": [0, 0, 1], "front_material": 0, "distance_m": 22.98476634816198, "material": "Log"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0036, "steps": 15, "normal": [1, 0, 0], "front_material": 0, "distance_m": 30.06853345751294, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0098, "steps": 75, "normal": [0, 1, 0], "front_material": 0, "distance_m": 37.33108993193736, "material": "GrassForest"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0077, "steps": 68, "normal": [1, 0, 0], "front_material": 0, "distance_m": 82.74155382871852, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0037, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0053, "steps": 48, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 28.701260886441148, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0105, "steps": 88, "normal": [0, 1, 0], "front_material": 0, "distance_m": 52.56262733675893, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0075, "steps": 73, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 36.79803677669268, "material": "LogJungle"}
+{"pose": "overview_south", "hit": false, "pick_ms": 0.0062, "steps": 72}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0028, "steps": 21}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0051, "steps": 50, "normal": [0, 0, 1], "front_material": 0, "distance_m": 34.20305081656257, "material": "Leaf"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0042, "steps": 21, "normal": [1, 0, 0], "front_material": 0, "distance_m": 23.74910508481095, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.007, "steps": 58, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 16.565950100761107, "material": "Leaf"}
+{"pose": "overview_south", "hit": false, "pick_ms": 0.0111, "steps": 89}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0026, "steps": 21}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0063, "steps": 69, "normal": [0, 0, 1], "front_material": 0, "distance_m": 38.456537318070204, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0072, "steps": 51, "normal": [1, 0, 0], "front_material": 0, "distance_m": 54.91361470856553, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0046, "steps": 23, "normal": [0, 0, -1], "front_material": 0, "distance_m": 8.157437456940768, "material": "LogJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0056, "steps": 35, "normal": [0, 0, 1], "front_material": 0, "distance_m": 69.93783864528872, "material": "Grass"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.003, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0077, "steps": 70, "normal": [0, 1, 0], "front_material": 0, "distance_m": 33.97982074310611, "material": "Leaf"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0063, "steps": 55, "normal": [1, 0, 0], "front_material": 0, "distance_m": 55.04315323783249, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0113, "steps": 38, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 23.397179011648056, "material": "LeafJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0052, "steps": 38, "normal": [0, 1, 0], "front_material": 0, "distance_m": 74.65408847902721, "material": "GrassSavanna"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0039, "steps": 24}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0066, "steps": 48, "normal": [0, 0, 1], "front_material": 0, "distance_m": 29.180723968318, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.006, "steps": 18, "normal": [0, 1, 0], "front_material": 0, "distance_m": 30.60142072110262, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.011, "steps": 74, "normal": [0, 1, 0], "front_material": 0, "distance_m": 34.97444722244647, "material": "GrassSavanna"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0029, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.005, "steps": 36, "normal": [0, 0, 1], "front_material": 0, "distance_m": 22.88675585149727, "material": "Log"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.008, "steps": 61, "normal": [1, 0, 0], "front_material": 0, "distance_m": 55.881147866159964, "material": "Wood"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0052, "steps": 44, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 21.728407410879168, "material": "LeafJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0051, "steps": 33, "normal": [0, 0, 1], "front_material": 0, "distance_m": 70.5217553375708, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.003, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0115, "steps": 120, "normal": [0, 0, 1], "front_material": 0, "distance_m": 46.40411597268599, "material": "GrassForest"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.005, "steps": 29, "normal": [0, 1, 0], "front_material": 0, "distance_m": 33.463579965427066, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0112, "steps": 114, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 33.84455725243187, "material": "Log"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0095, "steps": 74, "normal": [0, 0, 1], "front_material": 0, "distance_m": 90.01523991580625, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0027, "steps": 20}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.008, "steps": 79, "normal": [0, 0, 1], "front_material": 0, "distance_m": 54.56186780517191, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0082, "steps": 53, "normal": [1, 0, 0], "front_material": 0, "distance_m": 53.30031650185039, "material": "Log"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.011, "steps": 99, "normal": [0, 1, 0], "front_material": 0, "distance_m": 30.089010840180997, "material": "GrassForest"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0048, "steps": 27, "normal": [0, 0, 1], "front_material": 0, "distance_m": 68.452439955657, "material": "Grass"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.004, "steps": 23}
+{"pose": "forest_floor_open", "hit": false, "pick_ms": 0.0071, "steps": 97}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0048, "steps": 38, "normal": [1, 0, 0], "front_material": 0, "distance_m": 46.953276276102876, "material": "Log"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0119, "steps": 128, "normal": [0, 0, -1], "front_material": 0, "distance_m": 32.603119482886775, "material": "Log"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0059, "steps": 72, "normal": [0, 1, 0], "front_material": 0, "distance_m": 84.26765352620575, "material": "GrassSavanna"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0032, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0051, "steps": 35, "normal": [0, 1, 0], "front_material": 0, "distance_m": 24.26252106040269, "material": "GrassForest"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0032, "steps": 13, "normal": [1, 0, 0], "front_material": 0, "distance_m": 24.86973916646455, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0092, "steps": 59, "normal": [0, 1, 0], "front_material": 0, "distance_m": 34.0500585310135, "material": "GrassForest"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0057, "steps": 43, "normal": [0, 0, 1], "front_material": 0, "distance_m": 71.04071407116334, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0028, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0067, "steps": 42, "normal": [1, 0, 0], "front_material": 0, "distance_m": 24.026094371723865, "material": "Log"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0074, "steps": 67, "normal": [1, 0, 0], "front_material": 0, "distance_m": 54.94715389289248, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0202, "steps": 223, "normal": [0, 1, 0], "front_material": 0, "distance_m": 77.42102175638567, "material": "GrassSavanna"}
+{"pose": "overview_south", "hit": false, "pick_ms": 0.0117, "steps": 102}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0027, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0072, "steps": 71, "normal": [0, 1, 0], "front_material": 0, "distance_m": 22.028482133255892, "material": "GrassSavanna"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0029, "steps": 11, "normal": [0, 0, 1], "front_material": 0, "distance_m": 22.860565764806662, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0131, "steps": 99, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 55.311196879929796, "material": "Stone"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0063, "steps": 51, "normal": [0, 1, 0], "front_material": 0, "distance_m": 72.10185219629227, "material": "Grass"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0033, "steps": 20}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0047, "steps": 28, "normal": [0, 0, 1], "front_material": 0, "distance_m": 11.309839049061244, "material": "Leaf"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0084, "steps": 19, "normal": [1, 0, 0], "front_material": 0, "distance_m": 28.37680675392217, "material": "LogBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0123, "steps": 87, "normal": [0, 0, -1], "front_material": 0, "distance_m": 34.561795606284534, "material": "Log"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0073, "steps": 64, "normal": [0, 0, 1], "front_material": 0, "distance_m": 82.3634879611295, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0035, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0049, "steps": 37, "normal": [0, 0, 1], "front_material": 0, "distance_m": 22.549419949370073, "material": "Log"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0039, "steps": 16, "normal": [0, 1, 0], "front_material": 0, "distance_m": 28.960493748371288, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0111, "steps": 113, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 42.77241495651894, "material": "Log"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0084, "steps": 64, "normal": [0, 0, 1], "front_material": 0, "distance_m": 81.8896752569102, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0031, "steps": 24}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0062, "steps": 70, "normal": [0, 1, 0], "front_material": 0, "distance_m": 35.80825466615997, "material": "Leaf"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0058, "steps": 29, "normal": [1, 0, 0], "front_material": 0, "distance_m": 31.96178812533093, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0031, "steps": 18, "normal": [0, 0, -1], "front_material": 0, "distance_m": 4.425223367076081, "material": "LeafJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0066, "steps": 63, "normal": [0, 0, 1], "front_material": 0, "distance_m": 79.85925999712944, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0042, "steps": 21}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0046, "steps": 34, "normal": [0, 0, 1], "front_material": 0, "distance_m": 26.480068355859714, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0036, "steps": 14, "normal": [0, 1, 0], "front_material": 0, "distance_m": 29.69074197257245, "material": "Dirt"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0043, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0053, "steps": 48, "normal": [0, 0, 1], "front_material": 0, "distance_m": 44.01877558442074, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0047, "steps": 29, "normal": [1, 0, 0], "front_material": 0, "distance_m": 23.96186565157864, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0086, "steps": 52, "normal": [0, 1, 0], "front_material": 0, "distance_m": 31.138933107131287, "material": "GrassForest"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0079, "steps": 61, "normal": [0, 1, 0], "front_material": 0, "distance_m": 83.17170723293725, "material": "Grass"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0032, "steps": 20}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0096, "steps": 91, "normal": [0, 0, 1], "front_material": 0, "distance_m": 54.372362714303904, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0047, "steps": 28, "normal": [1, 0, 0], "front_material": 0, "distance_m": 40.863283064450634, "material": "Leaf"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.012, "steps": 107, "normal": [0, 1, 0], "front_material": 0, "distance_m": 53.95122281096192, "material": "GrassSavanna"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0088, "steps": 83, "normal": [0, 1, 0], "front_material": 0, "distance_m": 83.25328429743732, "material": "GrassSavanna"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0028, "steps": 21}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0047, "steps": 30, "normal": [0, 1, 0], "front_material": 0, "distance_m": 18.01804249518455, "material": "GrassSavanna"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0069, "steps": 59, "normal": [1, 0, 0], "front_material": 0, "distance_m": 53.55939039419798, "material": "Log"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0106, "steps": 110, "normal": [0, 1, 0], "front_material": 0, "distance_m": 25.920467998088323, "material": "Dirt"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0113, "steps": 96, "normal": [0, 0, 1], "front_material": 0, "distance_m": 93.34377437308153, "material": "GrassSavanna"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0033, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0072, "steps": 58, "normal": [1, 0, 0], "front_material": 0, "distance_m": 34.36825678386103, "material": "Leaf"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0088, "steps": 69, "normal": [1, 0, 0], "front_material": 0, "distance_m": 56.185205934961594, "material": "Log"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0057, "steps": 47, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 27.70245469900439, "material": "LogJungle"}
+{"pose": "overview_south", "hit": false, "pick_ms": 0.0112, "steps": 124}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0032, "steps": 24}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0084, "steps": 80, "normal": [0, 0, 1], "front_material": 0, "distance_m": 46.81845961553484, "material": "Leaf"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0039, "steps": 25, "normal": [1, 0, 0], "front_material": 0, "distance_m": 26.71384390788326, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0058, "steps": 28, "normal": [0, 1, 0], "front_material": 0, "distance_m": 8.393399996800328, "material": "Stone"}
+{"pose": "overview_south", "hit": false, "pick_ms": 0.0111, "steps": 90}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0037, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0086, "steps": 70, "normal": [0, 1, 0], "front_material": 0, "distance_m": 23.74286756229387, "material": "GrassSavanna"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.008, "steps": 38, "normal": [0, 1, 0], "front_material": 0, "distance_m": 45.96501488215279, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0034, "steps": 20, "normal": [0, 0, -1], "front_material": 0, "distance_m": 4.566165235162035, "material": "LeafJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0068, "steps": 46, "normal": [0, 1, 0], "front_material": 0, "distance_m": 73.4860367504316, "material": "Grass"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0051, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0067, "steps": 52, "normal": [0, 0, 1], "front_material": 0, "distance_m": 35.21649988350678, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0072, "steps": 62, "normal": [1, 0, 0], "front_material": 0, "distance_m": 36.84060407943065, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0043, "steps": 26, "normal": [0, 0, -1], "front_material": 0, "distance_m": 8.22880682075471, "material": "LogJungle"}
+{"pose": "overview_south", "hit": false, "pick_ms": 0.0062, "steps": 73}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0031, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0067, "steps": 73, "normal": [0, 1, 0], "front_material": 0, "distance_m": 28.44998917536354, "material": "GrassForest"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0041, "steps": 23, "normal": [0, 1, 0], "front_material": 0, "distance_m": 35.50024999698575, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0119, "steps": 103, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 56.20619765129403, "material": "LogJungle"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0066, "steps": 52, "normal": [0, 0, 1], "front_material": 0, "distance_m": 71.14769574368813, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0037, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0104, "steps": 111, "normal": [1, 0, 0], "front_material": 0, "distance_m": 49.61615516792838, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.005, "steps": 35, "normal": [0, 1, 0], "front_material": 0, "distance_m": 28.483612171582003, "material": "Dirt"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0104, "steps": 90, "normal": [0, 1, 0], "front_material": 0, "distance_m": 40.085767602332396, "material": "GrassSavanna"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0046, "steps": 28, "normal": [0, 1, 0], "front_material": 0, "distance_m": 60.929087671866526, "material": "Leaf"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.003, "steps": 23}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0105, "steps": 96, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 48.372855343850865, "material": "LogJungle"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0031, "steps": 13, "normal": [1, 0, 0], "front_material": 0, "distance_m": 23.47392006622972, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.006, "steps": 54, "normal": [0, 0, -1], "front_material": 0, "distance_m": 16.61536116597414, "material": "Leaf"}
+{"pose": "overview_south", "hit": true, "pick_ms": 0.0068, "steps": 48, "normal": [0, 0, 1], "front_material": 0, "distance_m": 77.82121313781981, "material": "GrassSavanna"}
+{"pose": "top_down", "hit": false, "pick_ms": 0.0032, "steps": 22}
+{"pose": "forest_floor_open", "hit": true, "pick_ms": 0.0053, "steps": 46, "normal": [0, 0, 1], "front_material": 0, "distance_m": 35.218849097689514, "material": "Leaf"}
+{"pose": "east_low", "hit": true, "pick_ms": 0.0039, "steps": 18, "normal": [1, 0, 0], "front_material": 0, "distance_m": 25.985935424673734, "material": "LeafBirch"}
+{"pose": "canopy_close", "hit": true, "pick_ms": 0.0062, "steps": 55, "normal": [-1, 0, 0], "front_material": 0, "distance_m": 13.144052708365356, "material": "Leaf"}
