@@ -1,0 +1,95 @@
+F3.4 -- the converter from PXB2 (VoxelFoundationPlan §3.6, §7a, §9b). Written 2026-11-16, BEFORE any code.
+
+§3.6: "Old worlds: a converter from PXB2. A cube converts exactly to one 8x8x8 block. Subcubes and microcubes don't
+land on the 1/8 m grid and are resampled (§7a). Generated worlds are regenerated instead, which is exact."
+§7a step 7 names the resampling rule: volume per material within one voxel.
+
+PXB2 (ChunkBlobCodec v1/v2): palette (entry 0 air, u16 indices when > 256 entries), the 32^3 cubes RLE (z-minor), then
+subcubes (u16 cube index, u8 slot x + 3y + 9z, index, state, [tint]) and microcubes (+ u8 slot inside the subcube),
+then (v2) water spans. "Visible" = present: interior cubes are stored.
+
+Change:
+1. VoxFound::convertPxb2(blob) -> BlockStore 256^3 (+ the blob's material names): a present cube -> its 8^3 block
+   written whole (exact). A cube cell holding subcubes / microcubes: its 9^3 ninth grid (a subcube fills 3^3 ninths,
+   a microcube one), resampled to 8^3 -- each 1/8 m voxel takes the material with the most volume inside it, air
+   counted as a material; ties go to the solid material, then to the lower blob palette index. Dropped and counted,
+   not silently lost: tint, state (v3 has no channels yet: §3.6 "optional channels follow"), water spans (the water
+   runtime keeps its own). Malformed / truncated / unknown-version blobs refused.
+2. Region build {"source":"world_db"}: the region's chunks come from the open world.db's PXB2 blobs through the
+   converter instead of the generator (border planes from the converted neighbours; a missing neighbour = air),
+   faces built by FaceBuilderGpu as for a generated region; editable as usual.
+
+Red first (CPU):
+- VoxFoundStorageLab.ConverterCubesAreExact: today's Chunk with random cubes of several materials (and one whole
+  uniform chunk) -> ChunkBlobCodec::encode -> convert: every voxel = the cube it lies in; every cube a uniform block.
+- VoxFoundStorageLab.ConverterResamplesByVolume: Chunks with random subcubes and microcubes (incl. a cube cell whose
+  27 subcubes are one material, and cells mixing subcubes and microcubes of different materials) -> PXB2 -> convert:
+  equal voxel for voxel to a reference written separately in the test (volumes in doubles from the content list,
+  same tie rule); a cell fully subdivided into one material converts to a uniform block; tint / state / water counted.
+- VoxFoundStorageLab.ConverterRejectsMalformedPxb2: every truncation of a real blob, wrong magic / version.
+All red on a stub.
+
+Predictions (live: CityBench_C25, 64 saved chunks, 25 buildings; 1.33 M cubes, 119 k subcubes, 1.32 M microcubes):
+1. Every cube converts exactly: converted solid volume from cubes = cube count x 512 voxels (counted per chunk).
+2. Volume per material, converted vs PXB2 (cubes + subcubes/27 + microcubes/729 m^3): within +-1 % for the materials
+   carried mostly by cubes; materials carried by microcube detail (furniture, trim) within +-25 % (majority votes of
+   1/9 m features at 1/8 m; thin one-ninth features can vanish or fatten) -- measured and reported per material.
+3. Convert time 5-80 ms per chunk (cube runs as whole blocks; 10^4 subdivided cells in the busiest chunks).
+4. Pixels, today's world vs the converted region at 3 poses near buildings (§4.3 pass: debug tonemap, wind 0, GI off,
+   3D viewport, > 8/255, controls each side): cube-only surfaces (walls, ground, roofs on whole metres) differ little;
+   the differences concentrate on subcube / microcube detail (shape changes by up to a voxel) and on content each
+   renderer draws differently (F2.19: grass, leaf cards). No numeric threshold in the plan; each cluster of
+   differing pixels attributed in the diff map.
+
+---- 2026-11-16 interim: run 2 of the live gate, then a rule added (written before the code below) ----
+Measured (run 2, voxfound_f34_gate.txt before this addendum; run 1 kept in f34_run1_badposes/: two of its poses sat in
+the grass / looked into the void): cube surfaces identical by eye and in the diff maps (stone walls, streets, building
+walls, the crenellated wall); differences = leaf bushes, grass speckle (today's blades), roof course lines (thirds on
+eighths). Volume per material: Stone / Dirt / Grass / StoneBricks within 0.3 %, but thin detail lost: LogBirch -86 %,
+glow -43 % (lamps: light sources), Metal -35 %. Found by eye: a planter's leaves (4 Leaf microcubes per metre cell, 4/729
+of it) vanish entirely -- every one of those ninths straddles voxel edges and loses the vote to air.
+The plan already has the rule for this: §7a step 4 (items), "No detail vanishes: a material+tint the content rule
+dropped everywhere recolours the cell at its centre; if that cell holds the last cell of another detail, it takes the
+nearest empty face-neighbour instead". Applied per cube cell in the converter:
+  after the vote, every material present in the cell's ninths with no voxel left (air excepted) takes the voxel where
+  it has the most volume (ties: lower x, then y, then z); a voxel that is the LAST voxel of another material in the
+  cell, or that another rescued material already took, is skipped for the next-best one. Materials in ascending blob
+  palette order. Counted (rescued).
+Red: ConverterResamplesByVolume's reference gets the same rule (written apart) + a new
+ConverterKeepsEveryMaterialOfACell (isolated single microcubes of several materials in otherwise air / stone cells:
+every material present in a cell is present after the conversion). Red on the vote alone.
+Predictions: every material keeps >= 1 voxel per cell it was in; volume error of the trims shrinks (glow, Metal,
+LogBirch within -50..+100 %: a 1/729 m^3 microcube becomes a 1/512 m^3 voxel, +42 % where it was alone); the big
+materials unchanged within 0.3 %. The planter's leaves come back as voxels; whether they DRAW is the sprig model's
+density rule (F2.4: ~4.5 sprigs per m^2 of exposed leaf, about 7 % of exposed cells), not the converter's -- measured
+and reported, not changed here.
+
+==== MEASURED (2026-11-16; run 3 = the committed code: voxfound_f34_gate.txt / .json, f34_city_*; runs 1-2 kept as
+     f34_run1_badposes/ and f34_run2_vote_only/ (JSON / text); project = a COPY of CityBench_C25, CityBench_C25_F34,
+     so the original's world.db is not touched; one engine session per run, Battle.net launcher only) ====
+Red first: ConverterCubesAreExact, ConverterResamplesByVolume, ConverterRejectsMalformedPxb2 red on the stub;
+ConverterKeepsEveryMaterialOfACell red on the vote alone (549 of 758 cell-materials lost), green with the rule
+(0 lost). CPU 74/74, GPU 22/22.
+1. Cubes exact: CPU (6,000 random cubes + a whole uniform chunk: every cube one block of its material). Live: Stone /
+   Dirt (carried by cubes) +0.00 %, the cube surfaces identical in every diff map. HELD.
+2. Volume per material, live (64 chunks, 1.33 M cubes, 119 k subcubes, 1.32 M microcubes; 15,767 cells resampled,
+   421 cell-materials put back by the rule): Stone +0.00 %, Dirt +0.00, Grass -0.06, StoneBricks -0.26, Leaf +0.06,
+   GrassSavanna -0.05 (the +-1 % group: HELD); ClayTile -1.8, Thatch +0.65, Wood +1.4, Log -2.6, Bricks -2.2,
+   WoodWalnut -0.3, Cobblestone +7.7, WoodPlanks +11.5, Linen -7.3, StoneTiles -6.7, Wool +0.02, Glass -14.7,
+   glow -20.6 (was -43 before the rule), Metal -31.4 (-35), LogBirch -85.5 (-86). Predicted detail within +-25 %:
+   WRONG for Metal and LogBirch; the -50..+100 % after the rule: WRONG for LogBirch -- its content is one-ninth-thick
+   slabs, which the vote thins to the one voxel per cell the rule keeps. Owed: an occupancy rule for thin parts
+   (§7a step 4's nearest-edge mapping, as the item generator does) if thin trims must keep their full extent.
+3. Convert 481 ms for 64 chunks + the ring (7.5 ms per chunk; predicted 5-80: HELD). Region build 6.4 s.
+4. Pixels (debug tonemap, wind 0, GI off, > 8/255, 3D viewport), today's store vs the converted world:
+   city_high 12.2 % (controls A 2,105 px, B 763), city_oblique 18.5 % (18,807 / 1,058), city_close 37.2 % (15,311 /
+   1,073); today's controls move (NPCs, grass blades). Diff maps: cube surfaces (walls, streets, the crenellated
+   wall, building walls) dark = identical; differences = today's grass blades (speckle over every lawn), the leaf
+   bushes, and roof course lines (subcube courses on the 1/8 m grid). As predicted.
+   Found by eye (f34_planter_A_vs_B.png): planters and small bushes are lush in today's store and nearly bare in the
+   new one. They hold 4 Leaf microcubes per metre cell; the vote dropped them (fixed above: one voxel kept per cell),
+   and the sprig model draws a sprig on ~7 % of exposed leaf voxels (4 sprigs in that view) while today's store draws
+   one big card per microcube. The converter now carries the leaves; their look is the leaf model's (FC leaf set).
+Not carried (counted): tint 0, state 0, water spans 0 in this world.
+Verdict: old worlds convert; cubes exactly, thirds / ninths by volume per material with no material dropped from a
+cell; the converted city draws like today's except grass blades, small leaf features and the 1/8 m roof courses.

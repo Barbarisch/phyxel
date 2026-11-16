@@ -1828,7 +1828,7 @@ Every rig is checked for:
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building (hidden-face culling, merging in and across blocks) + drawing through today's lighting; the §4.6 render optimizations rebuilt on blocks (culling, occlusion, indirect draws, shadow casters, block LOD pyramid, direction culling); T-junction handling | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate. **F2.19 re-run 2026-11-15: performance holds at all 5 poses (new store 2.1-9.4 ms faster whole frame; memory 1.2-1.7×; 11-13 MB per frame); pixels measured, every residual traced to FC content gaps; contour-stripe defect found and fixed** | a scene that works today doesn't, and we can't find and fix why |
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
-| **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; F3.2a: the edit store is the BlockStore, 545.5 → 62.9 MB, exact; F3.2b: brushes 1/2/4/8 + picking over the API, a 1 m brush 0.50 ms, pick 0.006 ms; F3.3: codec v3 + world.db, save / load round-trips exactly (voxels, lists, pixels, bytes), only edited chunks saved; next F3.4 converter** | — |
+| **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; F3.2a: the edit store is the BlockStore, 545.5 → 62.9 MB, exact; F3.2b: brushes 1/2/4/8 + picking over the API, a 1 m brush 0.50 ms, pick 0.006 ms; F3.3: codec v3 + world.db, save / load round-trips exactly (voxels, lists, pixels, bytes), only edited chunks saved; F3.4: PXB2 converter (cubes exact, thirds / ninths by volume, no material dropped from a cell), a saved city drawn through the new store; next F3.5 the F3 exit gate** | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
 | **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
@@ -1990,6 +1990,34 @@ Items, in order (each: prediction, red test, build, measured on/off):
   - The size and time predictions were wrong: everything came in smaller and faster than predicted, and the upper
     chunks are canopy, not sky.
 - Verdict: the F3 row's second half (save / load round-trips exactly) holds.
+
+**F3.4 2026-11-16 — the converter from PXB2: old worlds convert; cubes exactly, thirds / ninths by volume.**
+- Built: `convertPxb2` (StorageLab) reads today's chunk blob (v1/v2) and writes a 256³ store.
+  - Present cubes become their 8³ block.
+  - A cell with subcubes / microcubes becomes a 9³ grid of ninths, resampled to 8³ by volume per material (air
+    counted; ties to the solid material, then the lower palette index).
+  - Then §7a step 4's "no detail vanishes": a material the vote dropped from a cell gets the voxel where it has the
+    most volume.
+  - Tint, state and water spans are not carried (counted).
+  - `forEachStoredChunk` builds a region from stored blobs (a ring of neighbours for the border planes). A region
+    build with `{"source":"world_db"}` draws a saved world through the new store.
+- Red first: `ConverterCubesAreExact`, `ConverterResamplesByVolume` (equal voxel for voxel to a reference written
+  apart in the test), `ConverterRejectsMalformedPxb2`, `ConverterKeepsEveryMaterialOfACell` (549 of 758
+  cell-materials lost on the vote alone → 0). CPU 74/74, GPU 22/22.
+- Measured live on a copy of CityBench_C25 (a generated city saved in world.db: 64 chunks, 25 buildings;
+  `voxfound_f34_*`, prediction `voxfound_f34_prediction.txt`):
+  - Volume: Stone / Dirt +0.00 %; Grass, StoneBricks, Leaf within 0.3 %; mid materials ±1-12 %.
+  - Thin trims lose volume: glow −21 %, Metal −31 %, LogBirch −86 % (one-ninth-thick slabs). Predicted ±25 %, and
+    after the rule −50..+100 %: wrong for LogBirch.
+  - Convert 7.5 ms per chunk.
+  - Pixels vs today's store drawing the same saved world: 12 / 18 / 37 % at three city poses. In the diff maps the
+    cube surfaces (walls, streets, building walls) are identical; the differences are today's grass blades, leaf
+    bushes and the 1/8 m roof courses.
+  - Found by eye: planters (4 leaf microcubes per metre cell) are lush today and nearly bare here. The converter now
+    keeps their leaves as voxels, but the sprig model draws ~7 % of exposed leaf voxels while today draws a card per
+    microcube. That is the leaf model's gap (FC), not the converter's.
+- Owed: an occupancy rule for thin parts (§7a step 4's nearest-edge mapping) if thin trims must keep their extent;
+  small leaf features' look (FC).
 
 ## 10. Performance tiers
 

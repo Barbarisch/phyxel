@@ -192,6 +192,39 @@ inline glm::ivec3 brushCell(glm::ivec3 p, int s) {
     return {floorDiv(p.x, s) * s, floorDiv(p.y, s) * s, floorDiv(p.z, s) * s};
 }
 
+/// F3.4 (§3.6, §7a): today's chunk blob (PXB2, ChunkBlobCodec v1/v2) -> a 256^3 store. A present cube becomes its
+/// 8^3 block (exact); a cube cell holding subcubes / microcubes is a 9^3 grid of ninths resampled to 8^3 by volume per
+/// material (air counted; ties: solid first, then the lower blob palette index). `names` = the blob's palette (entry
+/// 0 = air ""), the store's materials index it. Tint, state and water spans are not carried (counted). False + err
+/// on malformed / truncated / unknown-version blobs, or more than 255 palette entries.
+struct Pxb2ConvertStats {
+    int version = 0;
+    size_t cubes = 0, subcubes = 0, microcubes = 0, cellsResampled = 0;
+    size_t tinted = 0, withState = 0, waterSpans = 0;
+    size_t rescued = 0;              // materials a cell's vote dropped, put back (§7a step 4)
+    std::vector<double> volumeIn;    // m^3 per blob palette index: cubes 1, subcubes 1/27, microcubes 1/729
+    std::vector<size_t> voxelsOut;   // 1/8 m voxels per blob palette index after the conversion (512 = 1 m^3)
+};
+bool convertPxb2(const uint8_t* data, size_t size, BlockStore& out, std::vector<std::string>& names,
+                 Pxb2ConvertStats* stats = nullptr, std::string* err = nullptr);
+
+/// F3.4: a region of whole chunks from STORED PXB2 blobs (a saved world) through convertPxb2 instead of the generator.
+/// readBlob(chunk, out) returns false where the world has no row (that chunk is air). Every chunk of [lo-1, hi+1] is
+/// converted once (the outer ring gives the border planes), materials remapped to one region palette; `each` sees the
+/// region's chunks in forEachRegionChunk's order, with `area` null (no generated margin). Volume per material is
+/// summed over the region's chunks (not the ring).
+struct StoredRegionStats {
+    size_t chunksStored = 0, chunksMissing = 0;
+    Pxb2ConvertStats sum;
+    double convertMs = 0.0;
+    std::map<std::string, double> volumeIn, volumeOut;   // m^3 per material name
+};
+RegionBuild forEachStoredChunk(const std::function<bool(glm::ivec3, std::vector<uint8_t>&)>& readBlob,
+                               glm::ivec3 chunkLo, glm::ivec3 chunkHi,
+                               const std::function<void(const RegionChunk&, const std::vector<std::string>&)>& each,
+                               StoredRegionStats* stats = nullptr, std::string* err = nullptr);
+
+
 /// Compares every voxel. Returns the number of mismatches (first few described in `why`).
 size_t compareToReference(const BlockStore& s, const VoxelGrid& ref, std::string* why = nullptr);
 

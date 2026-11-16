@@ -18,8 +18,13 @@
 #include <cstdio>
 #include <filesystem>
 #include <limits>
+#include <map>
+#include <memory>
 #include <random>
+#include <set>
 
+#include "core/ChunkBlobCodec.h"
+#include "core/Chunk.h"
 #include "core/WorldGenerator.h"
 #include "core/voxfound/StorageLab.h"
 
@@ -601,4 +606,290 @@ TEST(VoxFoundStorageLab, CodecV3RejectsMalformedBlobs) {
     std::printf("[f33 malformed] %zu B blob: every truncation refused; %zu of 2000 random corruptions decode to a "
                 "valid store, the rest refused\n",
                 blob.size(), accepted);
+}
+
+// ---- F3.4: the converter from PXB2 (§3.6, §7a) -------------------------------------------------------------------
+namespace {
+std::unique_ptr<Phyxel::Chunk> todayChunk() {
+    auto c = std::make_unique<Phyxel::Chunk>(glm::ivec3(0));
+    c->initializeForLoading();
+    return c;
+}
+// What a test put into a cube cell below the cube level: ninth-grid materials by name ("" = air).
+struct NinthCell {
+    std::string ninth[9][9][9];
+};
+// The reference resampler, written apart from the converter: volumes in doubles from the content, the voxel takes
+// the material with the most volume (air counted); ties (within 1e-12) go to a solid material, then to the lower
+// index in `order` (the blob's palette).
+std::string referenceVoxel(const NinthCell& c, glm::ivec3 v, const std::vector<std::string>& order) {
+    std::map<std::string, double> vol;
+    for (int a = 0; a < 9; ++a)
+        for (int b = 0; b < 9; ++b)
+            for (int d = 0; d < 9; ++d) {
+                auto ov = [](int i, int n) {   // overlap of voxel i (1/8) and ninth n (1/9), in cube units
+                    return std::max(0.0, std::min((i + 1) / 8.0, (n + 1) / 9.0) - std::max(i / 8.0, n / 9.0));
+                };
+                const double w = ov(v.x, a) * ov(v.y, b) * ov(v.z, d);
+                if (w > 0) vol[c.ninth[a][b][d]] += w;
+            }
+    std::string best;
+    double bestV = -1.0;
+    auto rank = [&](const std::string& m) {
+        const auto it = std::find(order.begin(), order.end(), m);
+        return it == order.end() ? 1 << 20 : int(it - order.begin());
+    };
+    for (const auto& [m, w] : vol) {
+        if (w > bestV + 1e-12) {
+            best = m;
+            bestV = w;
+        } else if (std::abs(w - bestV) <= 1e-12) {
+            const bool mSolid = !m.empty(), bSolid = !best.empty();
+            if ((mSolid && !bSolid) || (mSolid == bSolid && rank(m) < rank(best))) best = m;
+        }
+    }
+    return best;
+}
+// The whole cell: the vote, then §7a step 4's "no detail vanishes" -- every material present in the ninths (air excepted)
+// with no voxel left takes the voxel where it has the most volume (ties: lower x, y, z); a voxel that is the last one
+// of another material, or already taken, is skipped. Materials in `order`'s order.
+std::vector<std::string> referenceCell(const NinthCell& c, const std::vector<std::string>& order) {
+    std::vector<std::string> out(512);
+    std::map<std::string, int> count;
+    for (int i = 0; i < 512; ++i) {
+        out[size_t(i)] = referenceVoxel(c, {i >> 6, (i >> 3) & 7, i & 7}, order);
+        ++count[out[size_t(i)]];
+    }
+    std::vector<std::string> present;
+    for (const std::string& m : order) {
+        if (m.empty() || count[m] > 0) continue;
+        bool in = false;
+        for (int a = 0; a < 729 && !in; ++a) in = c.ninth[a / 81][(a / 9) % 9][a % 9] == m;
+        if (in) present.push_back(m);
+    }
+    std::vector<char> taken(512, 0);
+    for (const std::string& m : present) {
+        std::vector<std::pair<double, int>> cand;
+        for (int i = 0; i < 512; ++i) {
+            double v = 0;
+            const int x = i >> 6, y = (i >> 3) & 7, z = i & 7;
+            for (int a = 0; a < 9; ++a)
+                for (int b = 0; b < 9; ++b)
+                    for (int d = 0; d < 9; ++d) {
+                        if (c.ninth[a][b][d] != m) continue;
+                        auto ov = [](int k, int n) {
+                            return std::max(0.0, std::min((k + 1) / 8.0, (n + 1) / 9.0) - std::max(k / 8.0, n / 9.0));
+                        };
+                        v += ov(x, a) * ov(y, b) * ov(z, d);
+                    }
+            if (v > 0) cand.push_back({v, i});
+        }
+        std::stable_sort(cand.begin(), cand.end(), [](const auto& l, const auto& r) { return l.first > r.first + 1e-12; });
+        for (const auto& [v, i] : cand) {
+            const std::string& cur = out[size_t(i)];
+            if (taken[size_t(i)] || (!cur.empty() && count[cur] == 1)) continue;
+            --count[cur];
+            out[size_t(i)] = m;
+            count[m] = 1;
+            taken[size_t(i)] = 1;
+            break;
+        }
+    }
+    return out;
+}
+}  // namespace
+
+TEST(VoxFoundStorageLab, ConverterCubesAreExact) {
+    std::mt19937 rng(3401u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    const char* mats[] = {"Stone", "Dirt", "Grass", "Wood", "Bricks"};
+    auto chunk = todayChunk();
+    std::map<int, std::string> placed;   // cube index z + 32y + 1024x -> material
+    for (int k = 0; k < 6000; ++k) {
+        const glm::ivec3 p(rnd(0, 31), rnd(0, 31), rnd(0, 31));
+        const std::string m = mats[rnd(0, 4)];
+        if (chunk->addCube(p, m, true)) placed[p.z + 32 * p.y + 1024 * p.x] = m;
+    }
+    const std::vector<uint8_t> blob = Phyxel::ChunkBlobCodec::encode(*chunk);
+    BlockStore s;
+    std::vector<std::string> names;
+    Pxb2ConvertStats st;
+    std::string err;
+    ASSERT_TRUE(convertPxb2(blob.data(), blob.size(), s, names, &st, &err)) << err;
+    ASSERT_EQ(s.dim(), glm::ivec3(256));
+    EXPECT_EQ(st.cubes, placed.size());
+    size_t bad = 0;
+    for (int x = 0; x < 32; ++x)
+        for (int y = 0; y < 32; ++y)
+            for (int z = 0; z < 32; ++z) {
+                const auto it = placed.find(z + 32 * y + 1024 * x);
+                const std::string want = it == placed.end() ? std::string() : it->second;
+                uint8_t m = 0;
+                ASSERT_TRUE(s.uniformBlock({x, y, z}, m)) << "cube " << x << "," << y << "," << z << " not one block";
+                bad += names[m] != want ? 1 : 0;
+            }
+    EXPECT_EQ(bad, 0u);
+    // a whole uniform chunk
+    auto full = todayChunk();
+    full->fillAllCubes("Stone");
+    const std::vector<uint8_t> fb = Phyxel::ChunkBlobCodec::encode(*full);
+    ASSERT_TRUE(convertPxb2(fb.data(), fb.size(), s, names, &st, &err)) << err;
+    EXPECT_EQ(st.cubes, 32768u);
+    EXPECT_EQ(s.detailedBlocks(), 0u);
+    EXPECT_EQ(names[s.get({100, 200, 7})], "Stone");
+}
+
+TEST(VoxFoundStorageLab, ConverterResamplesByVolume) {
+    std::mt19937 rng(3402u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    const char* mats[] = {"Stone", "Wood", "Bricks", "Glass"};
+    auto chunk = todayChunk();
+    std::map<int, NinthCell> cells;   // cube index -> what was put below the cube level
+    size_t subs = 0, micros = 0, tinted = 0;
+    for (int k = 0; k < 120; ++k) {
+        const glm::ivec3 p(rnd(0, 31), rnd(0, 31), rnd(0, 31));
+        const int ci = p.z + 32 * p.y + 1024 * p.x;
+        if (cells.count(ci)) continue;
+        NinthCell& c = cells[ci];
+        const int kind = rnd(0, 3);   // 0: all 27 subcubes one material; 1: random subcubes; 2: micros; 3: mixed
+        for (int sx = 0; sx < 3; ++sx)
+            for (int sy = 0; sy < 3; ++sy)
+                for (int sz = 0; sz < 3; ++sz) {
+                    const glm::ivec3 sp(sx, sy, sz);
+                    const bool sub = kind == 0 || (kind == 1 && rnd(0, 2) > 0) || (kind == 3 && rnd(0, 2) == 0);
+                    const bool mic = !sub && (kind == 2 || kind == 3);
+                    if (sub) {
+                        const std::string m = kind == 0 ? "Wood" : mats[rnd(0, 3)];
+                        const uint32_t tint = rnd(0, 5) == 0 ? 0x88CC44u : 0xFFFFFFu;
+                        ASSERT_TRUE(chunk->addSubcube(p, sp, m, tint, uint8_t(rnd(0, 6) == 0 ? 2 : 0)));
+                        tinted += tint != 0xFFFFFFu ? 1 : 0;
+                        ++subs;
+                        for (int a = 0; a < 3; ++a)
+                            for (int b = 0; b < 3; ++b)
+                                for (int d = 0; d < 3; ++d) c.ninth[3 * sx + a][3 * sy + b][3 * sz + d] = m;
+                    } else if (mic) {
+                        for (int a = 0; a < 3; ++a)
+                            for (int b = 0; b < 3; ++b)
+                                for (int d = 0; d < 3; ++d) {
+                                    if (rnd(0, 2) == 0) continue;
+                                    const std::string m = mats[rnd(0, 3)];
+                                    ASSERT_TRUE(chunk->addMicrocube(p, sp, {a, b, d}, m));
+                                    ++micros;
+                                    c.ninth[3 * sx + a][3 * sy + b][3 * sz + d] = m;
+                                }
+                    }
+                }
+    }
+    std::vector<Phyxel::Chunk::WaterSpanLocal> water(3);
+    for (size_t k = 0; k < water.size(); ++k) water[k] = {uint8_t(k), uint8_t(2 * k), 1.0f, 3.5f};
+    chunk->setWaterSpans(water);
+    const std::vector<uint8_t> blob = Phyxel::ChunkBlobCodec::encode(*chunk);
+    BlockStore s;
+    std::vector<std::string> names;
+    Pxb2ConvertStats st;
+    std::string err;
+    ASSERT_TRUE(convertPxb2(blob.data(), blob.size(), s, names, &st, &err)) << err;
+    EXPECT_EQ(st.subcubes, subs);
+    EXPECT_EQ(st.microcubes, micros);
+    EXPECT_EQ(st.tinted, tinted);
+    EXPECT_EQ(st.waterSpans, water.size());
+    size_t bad = 0, uniformCells = 0, wholeWood = 0;
+    double volIn = 0, volOut = 0;
+    for (const auto& [ci, c] : cells) {
+        const glm::ivec3 p(ci / 1024, (ci / 32) % 32, ci % 32);
+        bool allWood = true;
+        for (int a = 0; a < 9; ++a)
+            for (int b = 0; b < 9; ++b)
+                for (int d = 0; d < 9; ++d) {
+                    allWood = allWood && c.ninth[a][b][d] == "Wood";
+                    volIn += c.ninth[a][b][d].empty() ? 0.0 : 1.0 / 729.0;
+                }
+        const std::vector<std::string> want = referenceCell(c, names);
+        for (int x = 0; x < 8; ++x)
+            for (int y = 0; y < 8; ++y)
+                for (int z = 0; z < 8; ++z) {
+                    const std::string got = names[s.get(p * 8 + glm::ivec3(x, y, z))];
+                    bad += got != want[size_t(x * 64 + y * 8 + z)] ? 1 : 0;
+                    volOut += got.empty() ? 0.0 : 1.0 / 512.0;
+                }
+        uint8_t m = 0;
+        if (allWood) {
+            ++wholeWood;
+            if (s.uniformBlock(p, m) && names[m] == "Wood") ++uniformCells;
+        }
+    }
+    EXPECT_EQ(bad, 0u);
+    EXPECT_GT(wholeWood, 10u);
+    EXPECT_EQ(uniformCells, wholeWood);   // a cell subdivided into one material converts to one block
+    std::printf("[f34 resample] %zu cells (%zu subcubes, %zu microcubes): solid volume %.2f -> %.2f m^3 (%+.2f %%)\n",
+                cells.size(), subs, micros, volIn, volOut, 100.0 * (volOut - volIn) / volIn);
+}
+
+// §7a step 4 "no detail vanishes", applied per cube cell: isolated single microcubes of several materials, in cells of
+// air and in cells half filled with Stone subcubes, all straddling voxel edges somewhere: every material present in a
+// cell keeps at least one voxel of it after the conversion. Red on the vote alone (a lone ninth loses to air).
+TEST(VoxFoundStorageLab, ConverterKeepsEveryMaterialOfACell) {
+    std::mt19937 rng(3403u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    const char* mats[] = {"Leaf", "Metal", "glow", "LogBirch", "Glass"};
+    auto chunk = todayChunk();
+    std::map<int, std::set<std::string>> want;   // cube index -> materials put in it
+    for (int k = 0; k < 300; ++k) {
+        const glm::ivec3 p(rnd(0, 31), rnd(0, 31), rnd(0, 31));
+        const int ci = p.z + 32 * p.y + 1024 * p.x;
+        if (want.count(ci)) continue;
+        std::set<std::string>& w = want[ci];
+        std::set<int> usedSub;
+        if (rnd(0, 1)) {   // half the cells: the lower subcube layer Stone
+            for (int sx = 0; sx < 3; ++sx)
+                for (int sz = 0; sz < 3; ++sz) {
+                    ASSERT_TRUE(chunk->addSubcube(p, {sx, 0, sz}, "Stone"));
+                    usedSub.insert(sx + 9 * sz);
+                }
+            w.insert("Stone");
+        }
+        for (int q = rnd(1, 4); q > 0; --q) {   // lone microcubes in subcube slots above
+            const glm::ivec3 sp(rnd(0, 2), rnd(1, 2), rnd(0, 2));
+            const glm::ivec3 mp(rnd(0, 2), rnd(0, 2), rnd(0, 2));
+            const std::string m = mats[rnd(0, 4)];
+            if (chunk->addMicrocube(p, sp, mp, m)) w.insert(m);
+        }
+    }
+    const std::vector<uint8_t> blob = Phyxel::ChunkBlobCodec::encode(*chunk);
+    BlockStore s;
+    std::vector<std::string> names;
+    std::string err;
+    ASSERT_TRUE(convertPxb2(blob.data(), blob.size(), s, names, nullptr, &err)) << err;
+    size_t lost = 0, kept = 0;
+    for (const auto& [ci, ms] : want) {
+        const glm::ivec3 p(ci / 1024, (ci / 32) % 32, ci % 32);
+        std::set<std::string> got;
+        for (int i = 0; i < 512; ++i) got.insert(names[s.get(p * 8 + glm::ivec3(i >> 6, (i >> 3) & 7, i & 7))]);
+        for (const std::string& m : ms) (got.count(m) ? kept : lost) += 1;
+    }
+    std::printf("[f34 keep] %zu cells: %zu materials kept, %zu lost\n", want.size(), kept, lost);
+    EXPECT_EQ(lost, 0u);
+}
+
+TEST(VoxFoundStorageLab, ConverterRejectsMalformedPxb2) {
+    auto chunk = todayChunk();
+    chunk->addCube({1, 2, 3}, "Stone");
+    chunk->addSubcube({4, 5, 6}, {1, 0, 2}, "Wood");
+    chunk->addMicrocube({7, 8, 9}, {0, 1, 2}, {2, 2, 0}, "Glass");
+    const std::vector<uint8_t> blob = Phyxel::ChunkBlobCodec::encode(*chunk);
+    BlockStore s;
+    std::vector<std::string> names;
+    std::string err;
+    ASSERT_TRUE(convertPxb2(blob.data(), blob.size(), s, names, nullptr, &err)) << err;
+    for (size_t n = 0; n < blob.size(); ++n)
+        EXPECT_FALSE(convertPxb2(blob.data(), n, s, names, nullptr, &err)) << "truncated to " << n;
+    std::vector<uint8_t> bad = blob;
+    bad[0] ^= 0xFF;
+    EXPECT_FALSE(convertPxb2(bad.data(), bad.size(), s, names, nullptr, &err)) << "magic";
+    bad = blob;
+    bad[4] = 9;
+    EXPECT_FALSE(convertPxb2(bad.data(), bad.size(), s, names, nullptr, &err)) << "version";
+    std::vector<uint8_t> extra = blob;
+    extra.push_back(0);
+    EXPECT_FALSE(convertPxb2(extra.data(), extra.size(), s, names, nullptr, &err)) << "trailing byte";
 }

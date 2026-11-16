@@ -14333,8 +14333,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         return true;
     };
     auto tGen = std::chrono::steady_clock::now();
-    const RegionBuild rb = forEachRegionChunk(gen, lo, hi, flora ? &floraDir : nullptr,
-                                              [&](const RegionChunk& rc, const std::vector<std::string>& pal) {
+    auto onChunk = [&](const RegionChunk& rc, const std::vector<std::string>& pal) {
         if (!err.empty()) return;
         const auto t1 = std::chrono::steady_clock::now();
         genMs += std::chrono::duration<double, std::milli>(t1 - tGen).count();
@@ -14462,7 +14461,25 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         palette = pal;
         tGen = std::chrono::steady_clock::now();
         buildMs += std::chrono::duration<double, std::milli>(tGen - t1).count();
-    }, bounded ? &window : nullptr);
+    };
+    // F3.4: {"source":"world_db"} -- the region's chunks are the open world.db's SAVED chunks (PXB2) through the
+    // converter (VoxFound::convertPxb2) instead of the generator; flora, recipe and margins do not apply.
+    const bool fromWorldDb = cmd.params.value("source", std::string("generator")) == "world_db";
+    StoredRegionStats stored;
+    RegionBuild rb;
+    if (fromWorldDb) {
+        auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
+        if (!ws || !ws->getDb()) {
+            response = {{"error", "source world_db: no world storage (world.db) open"}};
+            return;
+        }
+        std::string convErr;
+        rb = forEachStoredChunk([ws](glm::ivec3 c, std::vector<uint8_t>& out) { return ws->readChunkBlob(c, out); },
+                                lo, hi, onChunk, &stored, &convErr);
+        if (!convErr.empty() && err.empty()) err = convErr;
+    } else {
+        rb = forEachRegionChunk(gen, lo, hi, flora ? &floraDir : nullptr, onChunk, bounded ? &window : nullptr);
+    }
     if (!err.empty()) {
         response = {{"error", err}};
         return;
@@ -14604,6 +14621,20 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                      : size_t(0)},
                 {"editable", editable}, {"edit_store_bytes", voxFoundEdit.bytes()},   // F2.16
                 {"load_saved", loadSaved},   // F3.3
+                {"source", fromWorldDb ? "world_db (PXB2 through VoxFound::convertPxb2)" : "generator"},
+                {"converted", fromWorldDb ? nlohmann::json{{"chunks_stored", stored.chunksStored},
+                                                           {"chunks_missing", stored.chunksMissing},
+                                                           {"cubes", stored.sum.cubes}, {"subcubes", stored.sum.subcubes},
+                                                           {"microcubes", stored.sum.microcubes},
+                                                           {"cells_resampled", stored.sum.cellsResampled},
+                                                           {"materials_rescued", stored.sum.rescued},
+                                                           {"tinted_dropped", stored.sum.tinted},
+                                                           {"state_dropped", stored.sum.withState},
+                                                           {"water_spans_dropped", stored.sum.waterSpans},
+                                                           {"convert_ms", stored.convertMs},
+                                                           {"volume_in_m3", stored.volumeIn},
+                                                           {"volume_out_m3", stored.volumeOut}}
+                                          : nlohmann::json(nullptr)},   // F3.4
                 {"hide_world", renderCoordinator->hideWorld()}};
 }
 

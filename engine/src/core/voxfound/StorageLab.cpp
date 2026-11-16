@@ -2,6 +2,10 @@
 
 #include "core/voxfound/StorageLab.h"
 
+#include <array>
+#include <chrono>
+#include <tuple>
+
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -661,6 +665,303 @@ void BlockStore::remapMaterials(const std::vector<uint8_t>& map) {
             if (d.mat[i]) d.solid[i >> 6] |= 1ull << (i & 63);
         }
     }
+}
+
+// ---- F3.4: the converter from PXB2 (§3.6, §7a) --------------------------------------------------------------------
+bool convertPxb2(const uint8_t* data, size_t size, BlockStore& out, std::vector<std::string>& names,
+                 Pxb2ConvertStats* stats, std::string* err) {
+    auto fail = [&](const std::string& why) {
+        if (err) *err = "PXB2 converter: " + why;
+        return false;
+    };
+    if (!data) return fail("no data");
+    Reader r{data, size};
+    if (r.u32() != 0x32425850u || !r.ok) return fail("not a PXB2 blob");
+    Pxb2ConvertStats st;
+    st.version = int(r.u8());
+    const uint32_t flags = r.u8();
+    if (!r.ok || st.version < 1 || st.version > 2) return fail("unknown version");
+    const bool wide = (flags & 1u) != 0;
+    const uint32_t nPal = r.u16(), cubeCount = r.u32(), subCount = r.u32(), microCount = r.u32();
+    if (!r.ok || nPal == 0) return fail("truncated header");
+    if (nPal > 256) return fail("more than 255 materials in one chunk");
+    std::vector<std::string> pal(nPal);
+    for (uint32_t k = 0; k < nPal; ++k) {
+        const uint32_t len = r.u8();
+        if (!r.need(len)) return fail("truncated palette");
+        pal[k].assign(reinterpret_cast<const char*>(data + r.at), len);
+        r.at += len;
+    }
+    auto idx = [&]() { return wide ? r.u16() : r.u8(); };
+    constexpr int kCubes = 32 * 32 * 32;
+    // cubes (z-minor: index = z + 32 y + 1024 x)
+    std::vector<uint8_t> cube(kCubes, 0);
+    const uint32_t runs = r.u32();
+    if (!r.ok) return fail("truncated cube section");
+    size_t cell = 0;
+    for (uint32_t k = 0; k < runs; ++k) {
+        const uint32_t len = r.u16(), m = idx();
+        if (!r.ok || len == 0 || m >= nPal || cell + len > size_t(kCubes)) return fail("bad cube run");
+        for (uint32_t q = 0; q < len; ++q) cube[cell + q] = uint8_t(m);
+        if (m) st.cubes += len;
+        cell += len;
+    }
+    if (cell != size_t(kCubes) || st.cubes != cubeCount) return fail("cube runs do not cover the chunk");
+    // subcubes and microcubes: per cube cell a 9^3 grid of ninths (slot x + 3 y + 9 z, as ChunkBlobCodec writes it)
+    std::vector<int32_t> gridOf(kCubes, -1);
+    std::vector<std::array<uint8_t, 729>> grids;
+    auto gridFor = [&](uint32_t ci) -> std::array<uint8_t, 729>& {
+        if (gridOf[ci] < 0) {
+            gridOf[ci] = int32_t(grids.size());
+            grids.emplace_back();
+            grids.back().fill(0);
+        }
+        return grids[size_t(gridOf[ci])];
+    };
+    auto stateAndTint = [&]() {
+        const uint32_t f = r.u8();
+        if (f & 0x7Fu) ++st.withState;
+        if (f & 0x80u) {
+            ++st.tinted;
+            r.need(3);
+            r.at += r.ok ? 3 : 0;
+        }
+    };
+    if (subCount > 27u * kCubes || microCount > 729u * kCubes) return fail("bad counts");
+    for (uint32_t k = 0; k < subCount; ++k) {
+        const uint32_t ci = r.u16(), sl = r.u8(), m = idx();
+        stateAndTint();
+        if (!r.ok || ci >= uint32_t(kCubes) || sl >= 27 || m >= nPal) return fail("bad subcube");
+        const int sx = int(sl % 3), sy = int((sl / 3) % 3), sz = int(sl / 9);
+        auto& g = gridFor(ci);
+        for (int a = 0; a < 3; ++a)
+            for (int b = 0; b < 3; ++b)
+                for (int d = 0; d < 3; ++d) g[size_t((3 * sx + a) * 81 + (3 * sy + b) * 9 + (3 * sz + d))] = uint8_t(m);
+        ++st.subcubes;
+    }
+    for (uint32_t k = 0; k < microCount; ++k) {
+        const uint32_t ci = r.u16(), sl = r.u8(), ml = r.u8(), m = idx();
+        stateAndTint();
+        if (!r.ok || ci >= uint32_t(kCubes) || sl >= 27 || ml >= 27 || m >= nPal) return fail("bad microcube");
+        const int nx = 3 * int(sl % 3) + int(ml % 3), ny = 3 * int((sl / 3) % 3) + int((ml / 3) % 3),
+                  nz = 3 * int(sl / 9) + int(ml / 9);
+        gridFor(ci)[size_t(nx * 81 + ny * 9 + nz)] = uint8_t(m);
+        ++st.microcubes;
+    }
+    if (st.version >= 2) {   // water spans: not carried by the store (the water runtime keeps its own)
+        const uint32_t spans = r.u32();
+        if (!r.ok || spans > 32u * 32u * 8u || !r.need(size_t(spans) * 10)) return fail("bad water section");
+        r.at += size_t(spans) * 10;
+        st.waterSpans = spans;
+    }
+    if (r.at != size) return fail("trailing bytes");
+    // write the store: cubes whole, subdivided cells resampled by volume per material
+    BlockStore s(glm::ivec3(256));
+    for (int ci = 0; ci < kCubes; ++ci)
+        if (cube[size_t(ci)]) s.fillBlock({ci / 1024, (ci / 32) % 32, ci % 32}, cube[size_t(ci)]);
+    // overlap of voxel i (1/8) and ninth n (1/9) along one axis, in 1/72 of a cube
+    int ov[8][9];
+    for (int i = 0; i < 8; ++i)
+        for (int n = 0; n < 9; ++n) ov[i][n] = std::max(0, std::min(9 * i + 9, 8 * n + 8) - std::max(9 * i, 8 * n));
+    for (int ci = 0; ci < kCubes; ++ci) {
+        if (gridOf[size_t(ci)] < 0 || cube[size_t(ci)]) continue;   // a present cube wins (a subdivided cube is absent)
+        const auto& g = grids[size_t(gridOf[size_t(ci)])];
+        const glm::ivec3 base = glm::ivec3(ci / 1024, (ci / 32) % 32, ci % 32) * 8;
+        ++st.cellsResampled;
+        // 1. the vote: each voxel takes the material with the most volume inside it (air counted)
+        auto votes = [&](int x, int y, int z, int* vol, uint8_t* seen) {
+            int nSeen = 0;
+            for (int a = x * 9 / 8; a <= std::min(8, (x * 9 + 8) / 8); ++a)
+                for (int b = y * 9 / 8; b <= std::min(8, (y * 9 + 8) / 8); ++b)
+                    for (int d = z * 9 / 8; d <= std::min(8, (z * 9 + 8) / 8); ++d) {
+                        const int w = ov[x][a] * ov[y][b] * ov[z][d];
+                        if (!w) continue;
+                        const uint8_t m = g[size_t(a * 81 + b * 9 + d)];
+                        int k = 0;
+                        while (k < nSeen && seen[k] != m) ++k;
+                        if (k == nSeen) {
+                            seen[nSeen++] = m;
+                            vol[m] = 0;
+                        }
+                        vol[m] += w;
+                    }
+            return nSeen;
+        };
+        uint8_t cellOut[512];
+        int count[256] = {};
+        for (int i = 0; i < 512; ++i) {
+            int vol[256];
+            uint8_t seen[8];
+            const int nSeen = votes(i >> 6, (i >> 3) & 7, i & 7, vol, seen);
+            uint8_t best = seen[0];
+            for (int k = 1; k < nSeen; ++k) {
+                const uint8_t m = seen[k];
+                if (vol[m] > vol[best] ||
+                    (vol[m] == vol[best] && ((m != 0 && best == 0) || (m != 0 && best != 0 && m < best))))
+                    best = m;
+            }
+            cellOut[i] = best;
+            ++count[best];
+        }
+        // 2. §7a step 4, "no detail vanishes": a material present in the ninths with no voxel left takes the voxel
+        // where it has the most volume (ties: lower x, y, z), skipping the last voxel of another material and voxels
+        // already taken; materials in ascending palette order
+        bool present[256] = {};
+        for (uint8_t m : g) present[m] = true;
+        bool taken[512] = {};
+        for (int m = 1; m < 256; ++m) {
+            if (!present[m] || count[m] > 0) continue;
+            int bestI = -1, bestV = 0;
+            // candidates in index order, best volume first: two passes keep the tie rule (lower index wins)
+            std::vector<std::pair<int, int>> cand;   // (volume, voxel)
+            for (int i = 0; i < 512; ++i) {
+                int vol[256];
+                uint8_t seen[8];
+                const int nSeen = votes(i >> 6, (i >> 3) & 7, i & 7, vol, seen);
+                for (int k = 0; k < nSeen; ++k)
+                    if (seen[k] == m) cand.push_back({vol[m], i});
+            }
+            std::stable_sort(cand.begin(), cand.end(), [](const auto& l, const auto& r) { return l.first > r.first; });
+            for (const auto& c : cand) {
+                const uint8_t cur = cellOut[c.second];
+                if (taken[c.second] || (cur != 0 && count[cur] == 1)) continue;
+                bestI = c.second;
+                bestV = c.first;
+                break;
+            }
+            (void)bestV;
+            if (bestI < 0) continue;   // nowhere to put it (counted below as lost: it is not in the output)
+            --count[cellOut[bestI]];
+            cellOut[bestI] = uint8_t(m);
+            count[m] = 1;
+            taken[bestI] = true;
+            ++st.rescued;
+        }
+        for (int i = 0; i < 512; ++i)
+            if (cellOut[i]) s.set(base + glm::ivec3(i >> 6, (i >> 3) & 7, i & 7), cellOut[i]);
+    }
+    s.collapse();
+    // the volume accounting (§7a: measured, not assumed)
+    st.volumeIn.assign(nPal, 0.0);
+    st.voxelsOut.assign(nPal, 0);
+    for (int ci = 0; ci < kCubes; ++ci) st.volumeIn[cube[size_t(ci)]] += 1.0;
+    for (int ci = 0; ci < kCubes; ++ci)
+        if (gridOf[size_t(ci)] >= 0 && !cube[size_t(ci)])
+            for (uint8_t m : grids[size_t(gridOf[size_t(ci)])]) st.volumeIn[m] += 1.0 / 729.0;
+    for (int bx = 0; bx < 32; ++bx)
+        for (int by = 0; by < 32; ++by)
+            for (int bz = 0; bz < 32; ++bz) {
+                uint8_t m = 0;
+                if (s.uniformBlock({bx, by, bz}, m)) {
+                    st.voxelsOut[m] += 512;
+                    continue;
+                }
+                for (int k = 0; k < 512; ++k)
+                    ++st.voxelsOut[s.at(glm::ivec3(bx, by, bz) * 8 + glm::ivec3(k >> 6, (k >> 3) & 7, k & 7))];
+            }
+    out = std::move(s);
+    names = std::move(pal);
+    if (stats) *stats = st;
+    return true;
+}
+
+RegionBuild forEachStoredChunk(const std::function<bool(glm::ivec3, std::vector<uint8_t>&)>& readBlob,
+                               glm::ivec3 lo, glm::ivec3 hi,
+                               const std::function<void(const RegionChunk&, const std::vector<std::string>&)>& each,
+                               StoredRegionStats* stats, std::string* err) {
+    RegionBuild rb;
+    StoredRegionStats st;
+    std::map<std::tuple<int, int, int>, BlockStore> stores;
+    auto key = [](glm::ivec3 c) { return std::make_tuple(c.x, c.y, c.z); };
+    auto inRegion = [&](glm::ivec3 c) {
+        return c.x >= lo.x && c.y >= lo.y && c.z >= lo.z && c.x <= hi.x && c.y <= hi.y && c.z <= hi.z;
+    };
+    for (int x = lo.x - 1; x <= hi.x + 1; ++x)
+        for (int y = lo.y - 1; y <= hi.y + 1; ++y)
+            for (int z = lo.z - 1; z <= hi.z + 1; ++z) {
+                const glm::ivec3 c(x, y, z);
+                std::vector<uint8_t> blob;
+                if (!readBlob(c, blob)) {
+                    if (inRegion(c)) ++st.chunksMissing;
+                    continue;
+                }
+                const auto t0 = std::chrono::steady_clock::now();
+                BlockStore s;
+                std::vector<std::string> names;
+                Pxb2ConvertStats cs;
+                std::string e;
+                if (!convertPxb2(blob.data(), blob.size(), s, names, &cs, &e)) {
+                    if (err) *err = "chunk " + std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(z) + ": " + e;
+                    return rb;
+                }
+                std::vector<uint8_t> map(names.size(), 0);
+                for (size_t k = 1; k < names.size(); ++k) {
+                    size_t m = 1;
+                    while (m < rb.palette.size() && rb.palette[m] != names[k]) ++m;
+                    if (m == rb.palette.size()) {
+                        if (m >= 256) {
+                            if (err) *err = "region palette full (256)";
+                            return rb;
+                        }
+                        rb.palette.push_back(names[k]);
+                    }
+                    map[k] = uint8_t(m);
+                }
+                s.remapMaterials(map);
+                st.convertMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                if (inRegion(c)) {
+                    ++st.chunksStored;
+                    st.sum.cubes += cs.cubes;
+                    st.sum.subcubes += cs.subcubes;
+                    st.sum.microcubes += cs.microcubes;
+                    st.sum.cellsResampled += cs.cellsResampled;
+                    st.sum.tinted += cs.tinted;
+                    st.sum.withState += cs.withState;
+                    st.sum.waterSpans += cs.waterSpans;
+                    st.sum.rescued += cs.rescued;
+                    for (size_t k = 1; k < names.size(); ++k) {
+                        st.volumeIn[names[k]] += cs.volumeIn[k];
+                        st.volumeOut[names[k]] += double(cs.voxelsOut[k]) / 512.0;
+                    }
+                }
+                stores.emplace(key(c), std::move(s));
+            }
+    constexpr int N = kChunkM * kVoxelsPerM;
+    for (int x = lo.x; x <= hi.x; ++x)
+        for (int y = lo.y; y <= hi.y; ++y)
+            for (int z = lo.z; z <= hi.z; ++z) {
+                const glm::ivec3 c(x, y, z);
+                RegionChunk rc;
+                rc.chunk = c;
+                rc.originVoxel = c * N;
+                const auto it = stores.find(key(c));
+                if (it != stores.end()) it->second.toGrid(rc.grid);
+                else {
+                    rc.grid.dim = glm::ivec3(N);
+                    rc.grid.mat.assign(size_t(N) * N * N, 0);
+                }
+                rc.border.resize(glm::ivec3(N), false);
+                for (int a = 0; a < 3; ++a)
+                    for (int sd : {-1, 1}) {
+                        glm::ivec3 nc = c;
+                        nc[a] += sd;
+                        const auto nb = stores.find(key(nc));
+                        if (nb == stores.end()) continue;   // no stored neighbour: air
+                        const int ua = (a + 1) % 3, va = (a + 2) % 3;
+                        for (int v = 0; v < N; ++v)
+                            for (int u = 0; u < N; ++u) {
+                                glm::ivec3 p;
+                                p[a] = sd < 0 ? N - 1 : 0;
+                                p[ua] = u;
+                                p[va] = v;
+                                if (nb->second.at(p) != 0) rc.border.set(a, sd, u, v, true);
+                            }
+                    }
+                each(rc, rb.palette);
+                ++rb.chunks;
+            }
+    if (stats) *stats = st;
+    return rb;
 }
 
 size_t BlockStore::uniformBlocks() const {
