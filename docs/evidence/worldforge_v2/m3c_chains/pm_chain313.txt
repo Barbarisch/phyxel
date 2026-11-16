@@ -15,3 +15,43 @@ PF.1 headless RED run (chain 313, tests only - patch 70):
 Every miss will be written below.
   c2 (added before any run): the fixture tier asking for the medieval-only "tavern" - RED: the planner's plain lookup
      finds the medieval tavern and plans it (borrowing across eras).
+
+PF.1 RESULT - chain 313 (written 2026-11-16 12:11; patch 70, tests only, over 931ea953; headless SettlementMapTest.*): RED as
+  predicted - 37 ok, 3 failed, RUN EXIT 1.
+  a. get("blockhouse","fixture") null; get("croft","fixture") null; the three controls held (no failure line for them).
+  b. 5 plans, 22 lots: typology string "blockhouse" on all 22 (as predicted), all 22 the 6 x 8 stand-in, 1 storey.
+  c. "nonesuch": planned, 6 lots, no refusal. c2. "tavern" asked by the fixture era: planned, 6 lots, no refusal.
+  No miss. NOT measured in c2: whether those 6 lots carry the medieval tavern's footprint or the stand-in.
+
+PF.2 (patch 72, engine, headless half only; written 2026-11-16 12:12 BEFORE the build): RoomProgramRegistry::get(name, period) looks
+  the era-qualified key up for a non-medieval period (medieval and "" keep the plain lookup - unchanged); the planner's
+  footprint and door prediction ask by (typology, era); planSettlementMap / planSettlementMapAsBuilt refuse, naming the
+  typology and the era, when a registry is given and the tier's weights name a typology that era does not hold. NOT in
+  this patch: the build service, the legacy layouts (SettlementLayout.cpp plain lookups), storeys reaching the forge,
+  styles - the live half.
+  Predictions (chain 314 map suite, chain 315 unit set):
+  a. green. c, c2. green (refused, typology and era named).
+  b. medium: 22 lots become 7 x 15 with 3 storeys; risk - a 15-deep gable-end house may not seat in the fixture's 18-20
+     plots (fewer lots or a refusal for the tier's minimum), or stories is not carried on grown lots.
+  chain 314: 40 ok / 0 failed. chain 315: 186 ok / 0 failed (183 + 3), the medieval pins untouched - no medieval tier
+  names a typology without a program (checked against the JSON), so the new refusal should fire on no existing test;
+  risk: a test tier with an invented typology and a real registry.
+
+PF.2 RESULT, part 1 - chain 314 (written 2026-11-16 12:23; patches 70 + 72; SettlementMapTest.*): 40 ok, 0 failed, RUN EXIT 0. As
+  predicted. b: 5 plans, 22 lots (the same counts as the red run), all blockhouse 7 x 15, 3 storeys. c: refused, "the era
+  'fixture' has no typology 'nonesuch' (the hamlet tier asks for it)"; c2: refused the same way for 'tavern'.
+  NOT measured: that the 7-wide GABLE is the side on the street (the test compares min/max of the footprint only; the
+  first lots print 15 x 7 in map axes, orientation not printed); nothing built - this is the map as data, headless.
+
+PF.2 RESULT, part 2 - chain 315 (written 2026-11-16 12:37; unit set m5b2 on the same tree): 186 ok, 0 failed, EXIT 0. As predicted;
+  the new refusal fired on no existing test. Not run: the live-site set (the build service is not touched by patch 72,
+  but SettlementMapPlanner.cpp is, and the live rigs plan through it) - no live evidence postdates patch 72.
+
+PF.3 (patch 73, test only, after the audit; written 2026-11-16 12:39 BEFORE the build): ASecondEraPlansItsOwnBuildings also plans a
+  fixture hamlet whose weights name only "croft" - the name both eras hold. Prediction (chain 316, map suite): green, 40
+  ok / 0 failed; every lot 5 x 6 with 2 storeys (the medieval croft would be 6 x 8, 1 storey). Risk: low.
+
+PF.3 RESULT - chain 316 (written 2026-11-16 12:49; patches 70, 72, 73; map suite): 40 ok, 0 failed, EXIT 0. As predicted: 22 lots of
+  the shared name, 0 not the fixture's 5 x 6 two-storey croft. NOTE: this added check was never shown RED - it was
+  written after patch 72; on the engine before it the plain lookup would have handed back the medieval croft (reasoned
+  from the code, not run).

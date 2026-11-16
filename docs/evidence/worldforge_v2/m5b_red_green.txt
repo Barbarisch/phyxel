@@ -1520,3 +1520,31 @@ neighbouring building's overhang one micro row over the market's rim, about 40 m
 312c, that one test, 1 ok / 0 failed (12 under an overhang, 0 unpaved). The other 34 live tests were not re-run after the
 test-only change. No new audit pass was run on the amendment; the audit above stands with its open conditions (the
 crossings' red seed, a second live rig).
+
+M5f-1, HEADLESS HALF (the era hook in the registry and the map planner) - solution-auditor, 2026-11-16 12:39, on the uncommitted
+tree over 931ea953 (patches 70 + 72). Chains 313 (red, 37 ok / 3 failed), 314 (40 / 0), 315 (unit set 186 / 0).
+RAW VERDICT: "VERDICT: PASS WITH CONDITIONS (for a "headless planner + registry era hook, fixture era, unit-level" claim
+only; FAIL for anything implying a second era is buildable or live-realized)"
+Findings (the auditor's, condensed):
+  1. the tests measure what they name, with limits: the footprint check is orientation-agnostic; the door prediction's
+     new era argument is unmeasured; the shared-name croft is tested at the registry only, never through the planner.
+  2. red/green genuine (same test file hash in 313 and 314; planner hash changed; exe postdates the change);
+     RoomProgram.h is not in the chain's hash list.
+  3. medieval "byte-identical" NOT measured (no before/after hash; only the 186 passing). The new refusal is a behaviour
+     change for medieval too (a weighted typology missing from a non-null registry used to stand in). Plain lookups
+     remain at SettlementBuildService.cpp:1211 and :1279 and SettlementLayout.cpp:287 and :511 - live non-medieval
+     realization is NOT era-correct. The refusal reads only typologyWeights and coreTypologyWeights; a null registry
+     skips it.
+  4. a pack entry declaring period "medieval" inside a non-medieval pack is stored under the plain key and overwrites
+     the medieval program - untested collision. Other get(name, period) edges untested.
+  5. safe wording: "M5f-1 headless half: RoomProgramRegistry::get(name, era) resolves the era's own program; the
+     planner's footprint, storeys and door prediction use it; a typology in the tier's weights that the era's registry
+     lacks is refused by name. Red-before-green on 3 fixture-era unit tests; 40/40 and 186/186 unit tests after. Fixture
+     era only; Debug, headless." Not supportable: a second era works / builds / is live; medieval unchanged or
+     byte-identical; no stand-in anywhere; anything Roman; L3 or L4.
+MY RESPONSE: all accepted. (1) patch 73 (test only) plans a fixture hamlet of the SHARED name "croft" through the planner
+and checks 5 x 6, 2 storeys - prediction below; orientation and the door stay unmeasured until the live half. (3) the
+service and legacy-layout lookups are the live half, not started; "byte-identical" is withdrawn as a claim - what I can
+say is that for period "" or "medieval" the new branch is not entered (read, not measured). typologyCaps and
+croftTypologies select among drawn typologies and are not lot sources (read at SettlementMapPlanner.cpp:413, :714). (4)
+recorded as open, not fixed.

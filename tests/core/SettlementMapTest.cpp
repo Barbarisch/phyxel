@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
+#include <fstream>
 
 #include "core/RoomProgram.h"
 #include "core/SettlementLayout.h"      // planSquareDressing (M5e-1)
@@ -2038,4 +2040,137 @@ TEST(SettlementMapTest, ThePlazaIsPavedWithoutMovingTheWays) {
         EXPECT_EQ(steps, 0) << g.name << ": a step inside the plaza or onto a way that the walker cannot take";
     }
     EXPECT_GE(measured, 2);
+}
+
+// ---- M5f-1 (D9): the era hook, falsified with a FIXTURE era ---------------------------------------------------------
+// The fixture is not a real era and grounds nothing: it exists to differ from the medieval data in every way the
+// planner reads - a typology name the medieval canon lacks, a footprint that is not the 8 x 6 stand-in, three
+// storeys, the gable to the street - and one typology that SHARES a medieval name with other numbers.
+namespace {
+struct FixtureEra {
+    SettlementProgramRegistry program;
+    RoomProgramRegistry rooms;
+    bool ok = false;
+    std::string why;
+    explicit FixtureEra(const nlohmann::json& weights) {
+        std::ifstream f("resources/settlement_program.json");
+        if (!f.is_open()) { why = "settlement_program.json not found"; return; }
+        nlohmann::json j; f >> j;
+        nlohmann::json tier = j["eras"]["medieval"]["tiers"]["hamlet"];
+        tier["typology_weights"] = weights;
+        tier["crofts"] = nlohmann::json::object();
+        tier["plot"]["depth_min"] = 18; tier["plot"]["depth_max"] = 20;
+        nlohmann::json era;
+        era["eras"]["fixture"]["tiers"]["hamlet"] = tier;
+        if (!program.loadFromJson(era)) { why = "the fixture era did not load"; return; }
+        if (!rooms.loadFromFile("resources/room_program.json")) { why = "room_program.json did not load"; return; }
+        const nlohmann::json room = nlohmann::json::array({nlohmann::json{{"id", "hall"}, {"purpose", "hall"}, {"bays", 1.0}}});
+        const nlohmann::json pack = {{"period", "fixture"}, {"programs", {
+            {"blockhouse", {{"description", "TEST FIXTURE"}, {"source", "TEST FIXTURE - not a grounded program"}, {"width_min", 7.0}, {"width_max", 7.0},
+                            {"bay_length", 3.0}, {"bays", 5}, {"stories", 3}, {"entrance", "gable"}, {"rooms", room}}},
+            {"croft", {{"description", "TEST FIXTURE"}, {"source", "TEST FIXTURE - not a grounded program"}, {"width_min", 5.0}, {"width_max", 5.0},
+                       {"bay_length", 3.0}, {"bays", 2}, {"stories", 2}, {"entrance", "long_wall"}, {"rooms", room}}}}}};
+        const std::string tmp = "test_fixture_era_pack.json";
+        { std::ofstream out(tmp); out << pack.dump(2); }
+        const bool loaded = rooms.loadPeriodPack(tmp, "fixture");
+        std::remove(tmp.c_str());
+        if (!loaded) { why = "the fixture room pack did not load"; return; }
+        ok = true;
+    }
+    SettlementMapInput input(unsigned seed) const {
+        SettlementMapInput in;
+        in.tier = program.get("fixture", "hamlet");
+        in.rooms = &rooms; in.era = "fixture";
+        in.seed = seed; in.W = 80; in.D = 64;
+        in.heightAt = flatHeight; in.waterAt = {};
+        in.entries = {{0, 32, 1}};
+        return in;
+    }
+};
+}  // namespace
+
+// (a) the registry: an era's typology is found by ITS OWN NAME under its era, and a name two eras share resolves to the
+// era asked for - never to the other one, never to nothing
+TEST(SettlementMapTest, ASecondErasTypologyIsFoundByItsOwnName) {
+    const FixtureEra fx(nlohmann::json{{"blockhouse", 1}});
+    ASSERT_TRUE(fx.ok) << fx.why;
+    const RoomProgram* b = fx.rooms.get("blockhouse", "fixture");
+    EXPECT_NE(b, nullptr) << "the fixture era's blockhouse is not found by its name under its era";
+    if (b) { EXPECT_EQ(b->period, "fixture"); EXPECT_EQ(b->stories, 3); }
+    const RoomProgram* fc = fx.rooms.get("croft", "fixture");
+    EXPECT_NE(fc, nullptr) << "the fixture era's croft is not found (the medieval one shadows it)";
+    if (fc) { EXPECT_EQ(fc->period, "fixture"); EXPECT_EQ(fc->stories, 2) << "the croft handed back is not the fixture's"; }
+    const RoomProgram* mc = fx.rooms.get("croft", "medieval");   // the controls
+    ASSERT_NE(mc, nullptr);
+    EXPECT_EQ(mc->period, "medieval");
+    EXPECT_EQ(fx.rooms.get("blockhouse", "medieval"), nullptr) << "a medieval blockhouse appeared";
+    EXPECT_EQ(fx.rooms.get("blockhouse", "nonesuch"), nullptr);
+}
+
+// (b) the planner: a hamlet of the fixture era is planned from the FIXTURE's typology - its footprint, its storeys
+TEST(SettlementMapTest, ASecondEraPlansItsOwnBuildings) {
+    const FixtureEra fx(nlohmann::json{{"blockhouse", 1}});
+    ASSERT_TRUE(fx.ok) << fx.why;
+    int plans = 0, lots = 0, wrongType = 0, standIn = 0, wrongFoot = 0, wrongStories = 0;
+    for (unsigned seed = 1; seed <= 5; ++seed) {
+        const SettlementMapInput in = fx.input(seed);
+        ASSERT_NE(in.tier, nullptr) << "the fixture era has no hamlet tier";
+        const SettlementMap m = planSettlementMap(in);
+        if (!m.ok()) { std::printf("[ M5f-1 ] fixture hamlet seed %u: REFUSED: %s%s", seed, m.refusal.c_str(), "\n"); continue; }
+        ++plans;
+        for (const auto& l : m.lots) {
+            ++lots;
+            if (l.typology != "blockhouse") ++wrongType;
+            const int a = std::min(l.footprint.w, l.footprint.d), b = std::max(l.footprint.w, l.footprint.d);
+            if (a == 6 && b == 8) ++standIn;
+            if (a != 7 || b != 15) ++wrongFoot;
+            if (l.stories != 3) ++wrongStories;
+        }
+        std::printf("[ M5f-1 ] fixture hamlet seed %u: era %s, %zu lots; first lot %s %d x %d, %d storeys%s", seed, m.era.c_str(), m.lots.size(),
+                    m.lots.empty() ? "-" : m.lots[0].typology.c_str(), m.lots.empty() ? 0 : m.lots[0].footprint.w, m.lots.empty() ? 0 : m.lots[0].footprint.d,
+                    m.lots.empty() ? 0 : m.lots[0].stories, "\n");
+    }
+    std::printf("[ M5f-1 ] fixture hamlets: %d plans, %d lots; wrong typology %d, the 8 x 6 stand-in %d, not 7 x 15 %d, not 3 storeys %d%s", plans, lots, wrongType, standIn, wrongFoot, wrongStories, "\n");
+    EXPECT_GT(lots, 0) << "no fixture lot planned: nothing was measured";
+    EXPECT_EQ(wrongType, 0);
+    EXPECT_EQ(standIn, 0) << "lots planned as the 8 x 6 stand-in: the era's typology was not looked up";
+    EXPECT_EQ(wrongFoot, 0) << "lots whose footprint is not the fixture's 7 x 15";
+    EXPECT_EQ(wrongStories, 0) << "lots whose storeys are not the fixture's 3";
+    // the audit of M5f-1 (finding 1): the name BOTH eras hold, through the planner - the fixture's croft (5 x 6, two
+    // storeys), not the medieval one
+    const FixtureEra fc(nlohmann::json{{"croft", 1}});
+    ASSERT_TRUE(fc.ok) << fc.why;
+    int cLots = 0, cWrong = 0;
+    for (unsigned seed = 1; seed <= 5; ++seed) {
+        const SettlementMap m = planSettlementMap(fc.input(seed));
+        if (!m.ok()) { std::printf("[ M5f-1 ] fixture croft hamlet seed %u: REFUSED: %s%s", seed, m.refusal.c_str(), "\n"); continue; }
+        for (const auto& l : m.lots) {
+            ++cLots;
+            const int a = std::min(l.footprint.w, l.footprint.d), b = std::max(l.footprint.w, l.footprint.d);
+            if (l.typology != "croft" || a != 5 || b != 6 || l.stories != 2) {
+                if (++cWrong <= 3) std::printf("[ M5f-1 ]   croft lot %s %d x %d, %d storeys%s", l.typology.c_str(), l.footprint.w, l.footprint.d, l.stories, "\n");
+            }
+        }
+    }
+    std::printf("[ M5f-1 ] fixture hamlets of the shared name croft: %d lots, %d not the fixture's 5 x 6 two-storey croft%s", cLots, cWrong, "\n");
+    EXPECT_GT(cLots, 0) << "no fixture croft lot planned: nothing was measured";
+    EXPECT_EQ(cWrong, 0) << "lots of the shared name that are not the fixture era's croft";
+}
+
+// (c) a typology the era's pack does not hold is REFUSED by name - never planned as a stand-in
+TEST(SettlementMapTest, ATypologyTheEraLacksIsRefusedNotStoodIn) {
+    const FixtureEra fx(nlohmann::json{{"nonesuch", 1}});
+    ASSERT_TRUE(fx.ok) << fx.why;
+    const SettlementMap m = planSettlementMap(fx.input(7));
+    std::printf("[ M5f-1 ] a typology the era lacks: ok %d, %zu lots, refusal '%s'%s", m.ok() ? 1 : 0, m.lots.size(), m.refusal.c_str(), "\n");
+    EXPECT_FALSE(m.ok()) << "the planner planned " << m.lots.size() << " lots of a typology that exists in no pack";
+    EXPECT_NE(m.refusal.find("nonesuch"), std::string::npos) << "the refusal does not name the typology";
+    EXPECT_NE(m.refusal.find("fixture"), std::string::npos) << "the refusal does not name the era";
+    // the same name under the MEDIEVAL era is medieval's business: croft exists there, so a fixture tier asking for
+    // "tavern" (medieval only) must be refused too - no borrowing across eras
+    const FixtureEra fy(nlohmann::json{{"tavern", 1}});
+    ASSERT_TRUE(fy.ok) << fy.why;
+    const SettlementMap m2 = planSettlementMap(fy.input(7));
+    std::printf("[ M5f-1 ] a medieval-only typology asked by the fixture era: ok %d, %zu lots, refusal '%s'%s", m2.ok() ? 1 : 0, m2.lots.size(), m2.refusal.c_str(), "\n");
+    EXPECT_FALSE(m2.ok()) << "the fixture era borrowed the medieval tavern";
 }

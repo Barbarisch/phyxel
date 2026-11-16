@@ -161,6 +161,12 @@ public:
     /// medieval croft when it asked for a Victorian one would be exactly the kind
     /// of quiet substitution this pipeline refuses to make.
     const RoomProgram* get(const std::string& name, const std::string& period) const {
+        // M5f-1: a non-medieval era's programs are stored under "<period>:<name>" (loadPeriodPack), so two eras may
+        // share a name; the plain key is the medieval one. "" and "medieval" keep the plain lookup.
+        if (!period.empty() && period != "medieval") {
+            const auto it = m_programs.find(period + ":" + name);
+            if (it != m_programs.end()) return &it->second;
+        }
         const RoomProgram* p = get(name);
         if (!p) return nullptr;
         if (!period.empty() && p->period != period) return nullptr;

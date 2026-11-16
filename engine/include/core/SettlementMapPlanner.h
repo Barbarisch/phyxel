@@ -103,7 +103,7 @@ struct LotDoor {
     glm::ivec2 wall{0, 0}, normal{0, 0};
 };
 LotDoor predictLotDoor(const RoomProgramRegistry* rooms, const std::string& typology, const Rect& footprint, int orientation,
-                       int worldX, int worldZ);
+                       int worldX, int worldZ, const std::string& era = "");
 
 /// Bake the map. Never throws; a refused site carries `refusal` and whatever was planned before it.
 SettlementMap planSettlementMap(const SettlementMapInput& in);

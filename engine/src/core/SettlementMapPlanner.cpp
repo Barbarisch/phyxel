@@ -40,10 +40,10 @@ constexpr bool kClusterGrowth = true;
 
 struct Footprint { int fDim = 8, dDim = 6, stories = 1; };   ///< along the street / back from it
 
-Footprint naturalFootprint(const RoomProgramRegistry* rooms, const std::string& typ) {
+Footprint naturalFootprint(const RoomProgramRegistry* rooms, const std::string& typ, const std::string& era) {
     Footprint f;
     if (!rooms) return f;   // the stand-in (tests without a room program): an 8 x 6 long-wall house
-    const RoomProgram* rp = rooms->get(typ);
+    const RoomProgram* rp = rooms->get(typ, era);   // M5f-1: the era's own program, never another era's
     if (!rp) return f;
     const NaturalFootprint nf = naturalFootprintOf(*rp);   // M5b-1: the ONE derivation (RoomProgram.cpp)
     const int natLong = nf.longU, natShort = nf.shortU;
@@ -227,7 +227,7 @@ void planStreetTiers(const SettlementMapInput& in, const BuildabilityMap& site, 
     for (const auto& ap : keep) {
         MapLot l; l.id = static_cast<int>(map.lots.size()); l.rect = ap.plot.rect; l.footprint = ap.footprint;
         l.typology = ap.typology; l.orientation = SettlementMap::orientationOf(ap.streetSide); l.setback = ap.setback;
-        l.stories = naturalFootprint(in.rooms, ap.typology).stories; l.interest = 1.0f;
+        l.stories = naturalFootprint(in.rooms, ap.typology, in.era).stories; l.interest = 1.0f;
         l.way = nearestWay(l);
         map.lots.push_back(l);
     }
@@ -241,7 +241,7 @@ void planClusterAsBuilt(const SettlementMapInput& in, const BuildabilityMap& sit
     const std::vector<Plot> plots = selectBuildablePlots(site, 12, 4, 25);
     for (size_t i = 0; i < plots.size(); ++i) {
         const std::string typ = drawTypology(in.tier->typologyWeights, static_cast<int>(i), in.seed);
-        const Footprint f = naturalFootprint(in.rooms, typ);
+        const Footprint f = naturalFootprint(in.rooms, typ, in.era);
         MapLot l; l.id = static_cast<int>(i); l.rect = plots[i].rect; l.typology = typ; l.stories = f.stories;
         l.footprint = {l.rect.x + std::max(0, (l.rect.w - f.fDim) / 2), l.rect.z + std::max(0, (l.rect.d - f.dDim) / 2), std::min(f.fDim, l.rect.w), std::min(f.dDim, l.rect.d)};
         l.orientation = 0; l.setback = in.tier->setback.min; l.way = -1;
@@ -424,7 +424,7 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                 const auto& weights = pal == 1 ? tier.coreTypologyWeights : tier.typologyWeights;
                 dr[pal].typ = drawTypology(weights, seated, in.seed, static_cast<unsigned>(salt));
                 if (streetTier && capped(dr[pal].typ)) continue;   // the caps bind counts (CityForgePlan M4) - redraw
-                dr[pal].f = naturalFootprint(in.rooms, dr[pal].typ);
+                dr[pal].f = naturalFootprint(in.rooms, dr[pal].typ, in.era);
                 dr[pal].setb = tier.setback.min + static_cast<int>((in.seed / 7u + static_cast<unsigned>(seated) * 13u) % static_cast<unsigned>(std::max(1, tier.setback.max - tier.setback.min + 1)));
                 dr[pal].depth = std::clamp(dr[pal].f.dDim + dr[pal].setb + 1, tier.plot.depthMin, std::max(tier.plot.depthMin, tier.plot.depthMax));
                 // chain 206 (M5b-2, found by the footprint-in-parcel check): the clamp to plot.depth_max cut the toft
@@ -551,15 +551,26 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
         map.refusal = "no buildable, connectable lot for the tier's minimum (" + std::to_string(seated) + " of " + std::to_string(tier.buildingsMin) + " seated)";
 }
 
+// M5f-1: a typology the tier asks for that the ERA's pack does not hold is refused by name. Before this the planner
+// planned it as the 8 x 6 stand-in (or borrowed another era's program of that name) and said nothing.
+std::string missingTypology(const SettlementMapInput& in) {
+    if (!in.rooms || !in.tier) return {};
+    for (const auto* weights : {&in.tier->typologyWeights, &in.tier->coreTypologyWeights})
+        for (const auto& [typ, w] : *weights)
+            if (w > 0 && !in.rooms->get(typ, in.era))
+                return "the era '" + in.era + "' has no typology '" + typ + "' (the " + in.tier->name + " tier asks for it)";
+    return {};
+}
+
 }  // namespace
 
 void setPathSlopeAversionForTesting(float aversion) { s_pathSlopeAversion = aversion < 0.0f ? kPathSlopeAversion : aversion; }
 
 LotDoor predictLotDoor(const RoomProgramRegistry* rooms, const std::string& typology, const Rect& fp, int orientation,
-                       int worldX, int worldZ) {
+                       int worldX, int worldZ, const std::string& era) {
     LotDoor out;
     if (!rooms || fp.w <= 0 || fp.d <= 0) return out;
-    const RoomProgram* rp = rooms->get(typology);
+    const RoomProgram* rp = rooms->get(typology, era);
     if (!rp) return out;
     static const char* kFront[4] = {"z1", "x1", "z0", "x0"};   // orientation 0 = +Z ('N') ... 3 = -X ('W')
     const std::string front = kFront[((orientation % 4) + 4) % 4];
@@ -1201,6 +1212,7 @@ SettlementMap planSettlementMapAsBuilt(const SettlementMapInput& in) {
     map.era = in.era; map.seed = in.seed; map.originX = in.originX; map.originY = in.originY; map.originZ = in.originZ;
     map.W = in.W; map.D = in.D;
     if (!in.tier || in.W <= 0 || in.D <= 0 || !in.heightAt) { map.refusal = "no tier preset or site"; return map; }
+    if (const std::string miss = missingTypology(in); !miss.empty()) { map.tier = in.tier->name; map.refusal = miss; return map; }
     const BuildabilityMap site = analyzeSite(in.W, in.D, in.maxRelief, in.heightAt, in.waterAt ? in.waterAt : std::function<bool(int, int)>(), 1, 6);
     map.tier = in.tier->name;
     if (in.tier->morphology == "cluster") { map.morphology = "cluster (as built)"; planClusterAsBuilt(in, site, map); }
@@ -1223,6 +1235,7 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
     map.tier = in.tier->name; map.morphology = in.tier->morphology;
     if (in.W <= 0 || in.D <= 0 || !in.heightAt) { map.refusal = "no site (size or height sampler missing)"; return map; }
     if (in.lotCap < 1) { map.refusal = "lot cap below 1"; return map; }
+    if (const std::string miss = missingTypology(in); !miss.empty()) { map.refusal = miss; return map; }
     // the samplers are read ONCE per cell into a cache (L4 run 1, 2026-11-05: analyzeSite's 13 x 13 relief window
     // called the generator's column sampler 169 times per cell - 9.4 s for a 40 x 32 hamlet on Release; the
     // map is identical, the calls are 1 per cell)
@@ -1257,7 +1270,7 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
     // corner) and its STYLE (D49: the realizer's draw by lot index, pinned) are map data
     for (size_t i = 0; i < map.lots.size(); ++i) {
         MapLot& l = map.lots[i];
-        const LotDoor d = predictLotDoor(in.rooms, l.typology, l.footprint, l.orientation, in.originX + l.footprint.x, in.originZ + l.footprint.z);
+        const LotDoor d = predictLotDoor(in.rooms, l.typology, l.footprint, l.orientation, in.originX + l.footprint.x, in.originZ + l.footprint.z, in.era);
         if (d.found) { l.hasDoor = true; l.doorX = d.wall.x; l.doorZ = d.wall.y; l.doorNX = d.normal.x; l.doorNZ = d.normal.y; }
         if (!in.styles.empty()) l.style = pickBuildingVariant(static_cast<int>(i), std::vector<std::string>{l.typology}, in.styles, in.varietySeed).style;
     }
