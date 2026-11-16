@@ -2151,17 +2151,30 @@ TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
                 else {
                     ++topOther[mat];
                     bool below = false;
-                    if (ty != INT_MIN && nearProp(x, z)) for (int y = ty - 1; y >= ty - 40 && !below; --y) below = rig.solidMicro(mx, y, mz) && microMaterial(mx, y, mz) == paving;
+                    // amended BEFORE chain 312c (pm_chain299.txt PM.12): under an overhang = below the top solid run, clear air
+                    // at least the walker's standing height, and the first solid under that air is the paving
+                    if (ty != INT_MIN) {
+                        int y = ty - 1;
+                        while (y >= (lo - 3) * 9 && rig.solidMicro(mx, y, mz)) --y;
+                        int air = 0;
+                        while (y >= (lo - 3) * 9 && !rig.solidMicro(mx, y, mz)) { --y; ++air; }
+                        below = air >= Core::AgentBox().heightMicro && y >= (lo - 3) * 9 && microMaterial(mx, y, mz) == paving;
+                    }
                     if (below) ++underProp; else ++unpavedCols;
+                    if (underProp + unpavedCols <= 16) {   // PM.12 diagnostic: where the column is and what lies under its top
+                        std::string col;
+                        for (int y = ty - 1; ty != INT_MIN && y >= ty - 12; --y) col += (rig.solidMicro(mx, y, mz) ? microMaterial(mx, y, mz) : std::string("-")) + " ";
+                        std::printf("[ M5e-1 ]   column: cell %d,%d micro %d,%d top y %d %s, prop within a cell %d, below: %s%s", x, z, i, j, ty, mat.c_str(), nearProp(x, z) ? 1 : 0, col.c_str(), chr10().c_str());
+                    }
                 }
             }
             if (n == 81) ++cellsFull; else { ++cellsShort; worstCell = std::min(worstCell, n); }
         }
         std::printf("[ M5e-1 ] paving by micro column: %ld of %ld top voxels are %s; %d cells whole, %d cells short (the worst %d of 81)%s", colsPaved, colsAll, paving.c_str(), cellsFull, cellsShort, worstCell, chr10().c_str());
         for (const auto& [m, n] : topOther) std::printf("[ M5e-1 ]   top voxel %s: %ld columns%s", m.c_str(), n, chr10().c_str());
-        std::printf("[ M5e-1 ] of the columns not topped by %s: %ld under a prop's overhang with paving below, %ld unpaved%s", paving.c_str(), underProp, unpavedCols, chr10().c_str());
+        std::printf("[ M5e-1 ] of the columns not topped by %s: %ld under an overhang a walker stands under with paving below, %ld unpaved%s", paving.c_str(), underProp, unpavedCols, chr10().c_str());
         EXPECT_EQ(unpavedCols, 0) << "micro columns of prop-free market cells with no " << paving << " on top and none under a prop";
-        EXPECT_LE(underProp, 12) << "more columns lie under a prop outside its planned cells than chain 310's 12";
+        EXPECT_LE(underProp, 12) << "more columns lie under an overhang than chain 312b's 12";
     }
     // (4a) the props STAND in the world the walker walks (they are obstacles, not marks on a plan): something solid at
     // least 5 micro above the ground beside each prop, inside its footprint; and how many prop cells the walk stood in

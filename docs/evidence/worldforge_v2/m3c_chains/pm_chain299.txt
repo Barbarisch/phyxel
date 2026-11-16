@@ -199,3 +199,42 @@ PM.11 regression on this tree (patches 60-69), BEFORE the runs: chain 311 unit s
 PM.11 RESULT, part 1 (written 2026-11-15 21:12; tree = commit d03d453a): chain 311 unit set 183 ok, 0 failed, exit 0 (20:52:30). As
   predicted. Chain 312 (live-site + realizer set) started 20:52:36, build 0 errors; 3 tests ok at this writing, no FAILED
   line; nothing claimed for it.
+
+PM.11 RESULT, part 2 (written 2026-11-16 11:28; tree = commit d03d453a): chain 312 RED - 34 ok, 1 failed, RUN EXIT 1 at
+  2026-11-16 11:27:43 (the laptop slept overnight; the run spans 20:52 -> 11:27, so its wall time means nothing).
+  - FAILED: TheTownsMarketIsPavedAndWalked, on the amended micro-column assertion only. 10356 of 10368; the 12 WoodPlanks
+    columns are counted "0 under a prop's overhang with paving below, 12 unpaved". MISS: I predicted 12 under a prop and
+    green. Either the two cells are not within one cell of a prop cell, or no Cobblestone lies within 40 micro below the
+    planks. My chain-310 reading ("a stall reaches one micro row past its cells") is therefore unsupported; I do not know
+    what these planks are. Everything else in that test as chain 310: 128/128 cells paved, walk 0 not reached, props 3 of
+    3 standing, 4 market routes 0 blocked, gate 76 / 0, stall fronts 2 of 2.
+  - the other 34 ok. Gate tallies read from the log: town 76 / 0 (x2), hamlet 16 (x4), village 34 (x5), the 28 record,
+    legacy 42 / 7 wall-gate-blocked... (the 42 record as before), city 94 / 0 in both city tests. MISS: guessed 93 (89 +
+    4 crossings); it is 94 (89 + 5).
+PM.12 (diagnostic only, no behaviour change: the test prints each non-paving column's cell, micro offset, top y, whether a
+  prop cell is within one cell, and the materials of the 12 voxels below). Prediction BEFORE the run (chain 312b, the one
+  market test): still RED with the same 12 columns. Guess at what they are (low confidence): NOT near a prop - a
+  neighbouring lot's building (a doorstep or wall foot in WoodPlanks) standing on the square's rim cells; second guess: a
+  stall's post that goes down through the paving cube so nothing below it is Cobblestone.
+
+PM.12 RESULT - chain 312b (written 2026-11-16 11:45; diagnostic only; the one market test, 16 min): RED as predicted, the same 12.
+  - what they are (MEASURED): cells 105,40 (9 columns) and 107,40 (3 columns), the market's min-z rim row, micro row 0 -
+    the one micro row against the neighbour at z 39. Top y 1419 (2 planks thick) and 1424 (6 thick), AIR below for at
+    least 11 micro; the ground there is near y 1378, so the planks hang about 40 micro (4.5 cubes) above the paving. No
+    prop within a cell. They are a neighbouring building's overhang (eave or jetty) reaching ONE MICRO ROW across the
+    market's edge - not a stall, not a doorstep. My first guess had the neighbour right and the part wrong; my chain-310
+    reading (a stall past its cells) was wrong.
+  - consequence: the paving under them was never shown missing; "the top voxel of the column" is the wrong measurement
+    where something overhangs. The check never looked below, because it only looked below near a prop.
+  ASSERTION CHANGE (the THIRD on this assertion), stated before its run (patch 71, test only): a column whose top voxel
+  is not the paving is "under an overhang" when, below that top solid run, there is clear air at least the walker's
+  standing height (AgentBox heightMicro) and the first solid under that air is the paving; the prop-within-a-cell
+  condition is dropped. Anything else is unpaved. Still asserted: unpaved == 0, overhang columns <= 12. What this
+  concedes: a building may hang over the square's rim by a micro row - recorded as an open item, not judged.
+  Prediction BEFORE the run (chain 312c): green; 12 under an overhang, 0 unpaved; all else as chain 312b.
+
+PM.12 RESULT, part 2 - chain 312c (written 2026-11-16 12:01; patch 71, test only; the one market test, 16 min): 1 ok, 0 failed, RUN
+  EXIT 0. As predicted: 12 columns under an overhang with paving below, 0 unpaved; 128 / 128 cells, walk 0 not reached,
+  props 3 of 3 standing, 4 market routes 0 blocked, gate 76 / 0, stall fronts 2 of 2.
+  NOT RE-RUN after patch 71: the other 34 live tests (chain 312, tree d03d453a) and the unit set (chain 311). Patch 71
+  changes this one test's file only (no engine source); the other tests in that file were rebuilt but not run again.

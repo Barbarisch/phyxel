@@ -1512,3 +1512,11 @@ Findings, as given (abridged to their substance, none dropped):
   prop-free of the 3-wide lane on 55 plans; stalls 180 of 290."
 MY RESPONSE: all accepted. Patch 67 answers 2, 4a, 4b (as a measurement), 5, 6 (the count), 7 and part of 3; D67 (1) goes
 to the owner as PROPOSED with the full-width figures; the crossings' red seed (6) and a second live rig stay open.
+
+M5e-1 CLOSURE (2026-11-16 12:01): BUILT WITH OPEN ITEMS. Chain 311 unit set 183 ok / 0 failed. Chain 312 live set 34 ok / 1 failed
+(predicted 35 / 0): the market test's micro-column assertion - 12 WoodPlanks columns, measured in chain 312b as a
+neighbouring building's overhang one micro row over the market's rim, about 40 micro above the paving. Assertion amended
+(third time, stated before the run): under an overhang = walker-height clear air below it and paving under that; chain
+312c, that one test, 1 ok / 0 failed (12 under an overhang, 0 unpaved). The other 34 live tests were not re-run after the
+test-only change. No new audit pass was run on the amendment; the audit above stands with its open conditions (the
+crossings' red seed, a second live rig).
