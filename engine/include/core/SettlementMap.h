@@ -149,6 +149,8 @@ struct SettlementMap {
     int entryNode = -1;        ///< the node where the first arriving road meets the site (-1 = none)
     float bakeMs = 0.0f;       ///< the planner's wall time (diagnostic, never hashed)
     std::string refusal;       ///< non-empty = the planner refused the site, with the reason
+    std::string marketNote;    ///< M5e-1: non-empty = the tier asks for a market and the map carries none, or moved it - why
+    int marketLane = 0;        ///< M5e-1 (D67 PROPOSED): the through lane a way keeps clear across the market (cubes; the tier's lane width); 0 = the way's full width
     int droppedLots = 0;       ///< lots dropped for unbuildable ground (surfaced, like droppedPlots)
     float buildableFraction = -1.0f;   ///< the site analysis' buildable fraction (diagnostic; -1 = not analysed) - a refusal reports HOW unbuildable the site was
     int targetLots = 0;        ///< the count the growth aimed at (the program's band by seed); seated < target is silent above the minimum

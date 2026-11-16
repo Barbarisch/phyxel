@@ -13,3 +13,185 @@ PM.2 live RED run (town rig): market columns paved < market columns total (I exp
 PM.3 after the build: all of the above GREEN; version-1 recipe hash and the Mountains pin byte-identical; existing map tests
   unchanged (34 ok headless) apart from the new ones; live town doors/gates numbers as chain 298's.
 Every miss will be written below, with the run that showed it.
+
+Added 2026-11-15 17:38, after writing the tests (patch 60, tests only) and BEFORE the first run:
+  - the tests: ATierWithAMarketCarriesOneOnItsPrimaryWay (11 rigs x 5 seeds: 4 town, 7 city; hamlet + village control) and
+    TheMarketsDressingKeepsOffTheWays. The statue is excluded from the on-a-way count (it stands at the cross by design,
+    planSquareDressing's own rule); stalls and the well are counted.
+  - read while writing: the projection DOES emit way rects into layout.streets where a way is straight, so the dressing may
+    have its through bands on straight ways; and with no statue (the town) the well keeps the centre anchor, which is on
+    the primary way. So PM.1c: RED on the towns by the well alone at least; cities uncertain. PM.1a/b unchanged.
+  - new guess: the town pond rig (pond over the site's middle) is refused or shows wet market cells.
+  - chain 299 = SettlementMapTest.* headless; expected 34 old tests ok + 2 new, of which (b) fails: 35 ok / 1 failed if
+    PM.1b's water guess misses, 34 / 2 if it hits.
+
+PM.1 RESULT - chain 299 (written 2026-11-15 17:49; tests only, patch 60; engine = commit 30c69c44's sources; exe 17:38:14):
+  34 ok, 2 failed (the two new tests), as predicted for the count. 55 plans, 0 refused, 55 measured.
+  a. one market, the program's size, inside the site, off every parcel, primary way through it: held on all 55. As predicted.
+     Controls (hamlet, village): no market. As predicted.
+  b. water: 60 of 144 market cells wet on the town pond rig, all 5 seeds; 0 on the other 10 rigs. HIT only on the rig I added
+     for it after the first prediction; the sweep's existing wet rigs (creeks, the city pond) never wet the market.
+  c. dressing on a way: RED on 38 of 55 plans - every flat rig, town and city (4-16 cells), not the well alone.
+     MISS: I said "cities uncertain"; the flat cities are red too (16 cells with the well on a pad: stalls on ways).
+  NOT PREDICTED: on the sloped rigs the dressing loses its stalls altogether (rolling town 0-1 stalls of 4, rolling city 0
+     of 6, city hill 0 on 7 of 10 plans): 127 stalls planned of 290 asked over the sweep. Reading (not measured): a bent
+     way emits no street rect, so the square has no through band and no pad "fronts a street".
+  NOT PREDICTED: relief inside the market up to 5 cubes (rolling city), 4 (rolling town). No limit exists for it (NO SOURCE);
+     recorded, not asserted.
+
+PM.4 predictions for the fix (patch 61: the market slides along the main street to the first dry place, else is not placed
+  and the map says why; the projection hands the dressing the ways' bands inside the square; the well leaves the centre
+  when a band is there), written BEFORE the run:
+  - (a) green: pond rig market dry (moved), other rigs' market rects IDENTICAL to chain 299's (the first candidate is the
+    same cell). (b) green: 0 prop cells on a way on all 55.
+  - stalls planned rises above 127 of 290 but stays under 290 (bent ways give stepped bands and small pads). Guess: 180-250.
+  - old 34 tests unchanged -> 36 ok / 0 failed. Wall/tower prints on the non-pond rigs unchanged.
+  - ASSERTION CHANGE STATED BEFORE THE RUN: test (a) will accept "no market AND a market_note" in place of exactly one
+    market (the design check's own wording: not placed is recorded with the reason). Test (b) gains: every band cell the
+    test derives inside the square is free of props (unchanged meaning), and the stall count is printed, not asserted.
+
+PM.4 RESULT - chain 300 (written 2026-11-15 18:06; patch 61; exe 17:50:32; map suite + MarketDressing/MarketTownLayout/CityLayout tests):
+  58 ok, 0 failed (36 map + 22 legacy). (a) green, (b) green: 0 prop cells on a way on 55 of 55; wet 0 on 55 of 55.
+  Market rects identical to chain 299's on 10 rigs; the town pond rig moved 16 cells along the street ((64,23) -> (48,25)),
+  with the note on the map. As predicted.
+  MISS: stalls planned FELL, 127 -> 115 of 290 asked (I guessed 180-250). Per rig: flat towns 1 of 4 (were 2-4, on the
+  street), town pond 0, town hill 0-1, rolling town 1-2; flat cities 3 of 6 (were 4), city creek 4, city hills 3 (were 0 on
+  most seeds), rolling city 1 (was 0). Reading: the town's 12 x 12 square beside a 7-cube main street leaves pads 1-2 cubes
+  deep once the 1-cube perimeter inset is taken; a stall is 3 x 2. The stalls that "fitted" before stood on the street.
+  The square's size is the program's REASONED placeholder; no size is invented here - open item.
+  NEW DEFECT (not predicted): the rolling town plans NO WELL (0 of 5 seeds): no pad holds a 2 x 2 well, and a build with a
+  square does not place the verge well either - the town would have no well at all.
+  NEVER SEEN: "no dry place" (0 not placed of 55): that branch has no red and no exercise.
+
+PM.5 (patch 62: the well falls back to the free spot nearest the square's centre; test (b) asserts one well where the program
+  asks for one - a NEW assertion, stated here before its first run; a live test TheTownsMarketIsPavedAndWalked added).
+  Predictions, written BEFORE the runs:
+  - headless (chain 301): 36 ok / 0 failed; wells 55 of 55.
+  - live RED (chain 302, town rig, realizer unchanged): market cells whose top cell holds the street's paving material
+    < all (guess: a third to a half - the 7-wide street through a 12-wide square, plus capsule spill); the record
+    paths.market absent; no gate route flagged market. My own walk over the market: I expect it to PASS already on this
+    rig (unpaved grass is walkable) - if so it is not evidence of paving, only a control.
+
+PM.5 RESULT (written 2026-11-15 18:35; patch 62; exe of chain 301)
+  chain 301 (headless): 57 ok, 1 failed - TheMarketsDressingKeepsOffTheWays, on the NEW well assertion: 53 wells over 55
+  markets; the rolling town seeds 3 and 4 still plan no well (no free 2 x 2 spot off the bands inside the inset).
+  MISS: I predicted 55 of 55. Stalls 112 of 290.
+  chain 302 (live town, realizer unchanged; 14 min): 0 ok, 1 failed, RED as intended, but not as guessed:
+  - paved: 135 of 144 market cells already hold Cobblestone (MISS: I guessed a third to a half). The live market sits on a
+    junction - 19 ways on the map - and the ways' ribbons cover it but for 9 cells in its south-west (top: SnowGrass 7, Dirt 2).
+    The measure is coarse (one paving voxel in a cell counts).
+  - the live market's cube tops run 152..157: FIVE cubes of relief across a 12 x 12 square.
+  - the walk: 125 cells reached of 144, 19 not reached; 18 of the first 12 printed seat no walker at all (rows z 49-51).
+    MISS: I expected the walk to pass as a control. It is red on its own: part of the live market cannot be stood on.
+  - NOT PREDICTED, the worst of it: the dressing plans ZERO props on the live town (no stall, NO WELL). With every band
+    at the way's full width the junction's bands cover the square; the well's fallback finds no spot either. Before patch 61
+    the same build put its well and stalls on the carriageway. Either way the live town has no usable market furniture.
+  - record absent, 0 market routes: as predicted. Gate passed 72 / 0 (unchanged from chain 298).
+
+D67 PROPOSED (written before patch 64): inside the market a crossing way keeps a THROUGH LANE clear, not its full width:
+  the tier's own lane_width (town 3, city 3 - program data, no new number), centred on the way. The market is the widened
+  street (the program's morphology note); stalls stand in the street's width beside the lane. The map carries the lane
+  width (market_lane) so the projection, the realizer and a reader agree.
+  ASSERTION CHANGE, stated before the run: test (b)'s "on a way" becomes "on a way's through lane" (the test's own band at
+  the tier's lane width). The full-width count stays printed.
+PM.6 predictions (patch 63 = plaza paving + record + gate routes; patch 64 = D67), BEFORE the runs:
+  - headless (chain 303): map suite 36 ok / 0 failed; wells 55 of 55; stalls planned rises well above 112 (guess 200-270
+    of 290); 0 prop cells on a through lane.
+  - live (chain 304): unpaved 0 of the cells without a prop; record present, unpaved_cells 0; market crossings >= 2 walked,
+    0 blocked; the walk reaches every cell (guess: this may stay RED - five cubes of relief graded at one micro per micro
+    is a 45-degree ramp of cuts; if red, the cells will say where); props planned > 0 with a well; stall fronts reached
+    all (low confidence). Gate passed; walkable = 72 + the crossings.
+
+PM.6 RESULT (written 2026-11-15 19:04; patches 63-65; exe of chain 303)
+  chain 303 (headless; map suite + legacy dressing/layout + StreetPaver tests): 72 ok, 0 failed. Wells 55 of 55 (as predicted);
+  0 prop cells on a through lane on 55 of 55 (8-24 cells in a way's full width on 50 - that is D67, by design).
+  MISS: stalls 124 of 290 (I guessed 200-270). Flat cities FELL to 2 of 6 (were 3); rolling city 0 of 6; towns 1-3 of 4.
+  chain 304 (live town, 14.5 min): 1 ok, 0 failed. 140 of 140 prop-free market cells hold Cobblestone (was 135 of 144); the
+  build's record: 144 of 144 cells paved, 0 partly, 1774 plaza columns of 11664; the walk reaches every cell (was 125 of
+  144; MISS - I guessed it might stay red); 4 market crossings walked, 0 blocked; gate passed 76 / 0 (72 + 4).
+  The dressing plans 1 well (was 0) and 0 stalls of 4 asked: the live market is still a market WITHOUT STALLS.
+  Not red-tested: the crossing routes have never been seen blocked; "no dry place" never occurs; the stall-front routes
+  have never run (0 stalls live).
+
+PM.7 (patch 66: on a map, stalls the pads could not host take any free 3 x 2 spot inside the inset whose whole front
+  strip lies in the square with at least one cell on a through lane, most lane cells first; the front strip is kept
+  free). Predictions BEFORE the runs:
+  - headless (chain 305): stalls rise to 250+ of 290 (flat rigs all asked; rolling city > 0); wells 55; lane cells 0;
+    72 ok / 0 failed.
+  - live (chain 306): stalls >= 2 of 4 planned; stall fronts reached = stall routes (low confidence: the fronts sit on a
+    lane, but the relief is 5 cubes); the rest as chain 304; walkable 76.
+
+PM.7 RESULT (written 2026-11-15 19:33; patch 66; exe of chain 305)
+  chain 305 (headless): 72 ok, 0 failed. Wells 55 of 55; lane cells 0, props outside 0, overlapping 0 on 55 of 55.
+  MISS: stalls 180 of 290 (62 %; I predicted 250+). Towns 2-4 of 4; cities 3 of 6 on the flat and rolling rigs, 5 of 6 on
+  the hill rigs. No rig plans all it is asked. The squares' sizes are the program's REASONED placeholders - open item.
+  chain 306 (live town, 16 min): 1 ok, 0 failed. Dressing: 1 well + 2 stalls of 4 asked, 3 placed / 0 skipped by the
+  build; stall fronts reached 2 of 2 (as predicted: >= 2, all reached); 128 of 128 prop-free cells paved; the walk reaches
+  every prop-free cell; 4 crossings, 0 blocked; gate passed 76 / 0.
+  ODD, not explained: the walk's flood stands in 140 of the 144 cells though 16 hold a prop - the walker stands in cells
+  a stall's footprint covers (the stall is smaller than its 3 x 2 cells, or it is stood ON). Not measured which.
+
+PM.8 regression predictions (BEFORE the runs): chain 307 unit set (m5b2): 182 ok / 0 failed (180 + the two market tests).
+  Full live-site set after the audit: 35 ok / 0 failed (34 + the market test); town 76 / 0 (72 + 4 crossings); city 89 + its
+  market crossings (count unknown, guess 4) in both city tests; hamlet 16, village 34, the 28 record and legacy 42 / 11
+  unchanged. Version-1 recipe hash and Mountains pin unchanged (pinned by tests in the unit set).
+
+chain 307 (unit set, patches 60-66), read 2026-11-15 19:50: RUN r307_m5b2 EXIT 0 2026-11-15 19:49:53 182 ok, 0 failed
+
+PM.9 (patch 67 = the audit's answers; ledger has the verdict). Predictions BEFORE the runs:
+  headless (chain 308): the flanked rig plans NO market with "no dry place" on 3 of 3 seeds (medium: the street may leave
+  the corridor through a gap, or the map may be refused); every one of the 55 plans has a market; the plaza test: 0 way
+  columns moved, 0 plaza columns missing, 0 steps over the walker's on flat and hill; rolling and the bench - I expect
+  steps > 0 on the bench (a 4-cube wall under the plaza cannot be both within a step of the way and of itself) or the ways
+  paving nothing there. Count: 37 map tests; 36 ok / 1 failed if the bench shows steps.
+  live (chain 309): by micro column - not every top voxel is Cobblestone (guess 95-99 %: columns under a footprint filter,
+  band-cleared cells, a doorstep); props standing 3 of 3; the walk stood in some prop cells (the stalls are smaller than
+  their cells); stall routes 2 = stalls 2, reached 2; the market's edge: some cliffs (five cubes of relief), number unknown;
+  ways in the square > 4 crossings. So the live test is expected RED on the micro-column assertion at least.
+
+PM.9 RESULT (written 2026-11-15 20:20; patch 67; exe of chain 308)
+  chain 308 (headless): 73 ok, 0 failed.
+  - the flanked rig: no market and "no dry place for the market along the main street (10 water cells at its middle)" on
+    3 of 3 seeds. As predicted. The branch is now exercised (it has still never been red: no run shows it failing).
+  - a market on each of the 55 plans. Wells 55, stalls 180 of 290 (unchanged).
+  - the plaza test: on flat, a 5 % hill, rolling ground and a 4-cube bench - 26301 way columns, 0 moved, 0 lost; 3645
+    plaza columns, 0 missing; 0 steps over the walker's 4 micro (worst 2). MISS: I expected steps on the bench.
+  chain 309 (live town, 15 min): 0 ok, 1 failed - RED, on two of the audit's measurements:
+  - paving by micro column: 10356 of 10368 top voxels Cobblestone (99.9 %; I guessed 95-99); the other 12 are WoodPlanks.
+  - PROPS STANDING: 0 of 3. The build says "3 placed, 0 skipped"; the world holds a well placed at micro y 1386 where the
+    ground beside it is 1404, and two stalls at 1404 where the ground is 1422: each BURIED 18 micro (two cubes) in the
+    paving's fill, one micro of plank showing. The dressing seats a prop on terrainTopAt + 1 - a CUBE-top scan, blind to
+    the micro fill a way or the plaza lays over the ground. MISS: I predicted 3 of 3 standing. This is the auditor's
+    finding 4a, and it is why the walk "stood in 12 of 16 prop cells". Not known: whether the legacy square was dressed
+    the same way before today (the ways laid fill before M5e too) - not measured.
+  - the market's edge (recorded): 48 edge pairs, 24 within the walker's step, 2 too high or deep (-10 and -5 micro), 22
+    with a side nobody can stand on (not broken down: buildings, fences).
+  - 5 ways have a node in the square; 4 crossings walked. Stall routes 2 = stalls 2, reached 2 (reached in front of
+    buried stalls - not evidence the stalls can be used). Gate passed 76 / 0 - the gate passed a market whose furniture is
+    underground.
+
+PM.10 (patch 68: the dressing seats each prop on the live micro surface under its footprint - the highest solid micro,
+  + 1 - and records the footprint's ground span). Predictions BEFORE the run (chain 310, live):
+  props standing 3 of 3; micro columns: all Cobblestone in prop-free cells (the 12 plank columns were buried props poking
+  out - if they sit in cells my test calls prop-free, the count stays short and says the stall is not where the plan says);
+  the walk stands in fewer prop cells (not zero: a stall is smaller than its cells); every prop-free cell still reached
+  (medium: a stall now blocks, and a cell behind it against a fence may be cut off); stall fronts 2 of 2; ground span
+  under a stall > 0 micro (the square slopes) - recorded.
+
+PM.10 RESULT - chain 310 (written 2026-11-15 20:36; patch 68; live town, 15 min): 0 ok, 1 failed.
+  - props standing 3 of 3 (as predicted): the well at micro y 1405 (ground beside it 1404, top 1412); both stalls at 1413,
+    tops 1432, the ground beside them 1422. The build records the widest ground span under a prop: 18 micro - TWO CUBES of
+    fall under one 3 x 2 stall. The stalls stand on a slope with their low side open; no level pad is made. Open item.
+  - STILL RED: paving by micro column 10356 of 10368; the same 12 columns' top voxel is WoodPlanks, in 2 cells my test
+    calls prop-free (9 and 3 columns). MISS: I predicted these would clear once the props were seated. Reading (not
+    measured): a stall reaches one micro row past its planned 3 x 2 cells.
+  - the walk still stands in 12 of 16 prop cells and reaches every prop-free cell (a stall is smaller than its cells; not
+    measured where it stands). Stall fronts 2 of 2. Edge and crossings as chain 309. Gate 76 / 0.
+  ASSERTION CHANGE, stated before its first run (patch 69): a micro column whose top voxel is not the paving is counted
+  "under a prop" when a prop cell is within one cell AND paving lies below that top voxel in the same column; the assertion
+  becomes: no column is unpaved (neither paving on top nor paving under a prop's overhang). The under-a-prop count is
+  printed and bounded (<= 12, today's number) so an overhang that grows is red.
+PM.11 regression on this tree (patches 60-69), BEFORE the runs: chain 311 unit set 183 ok / 0 failed (182 + the plaza
+  test); chain 312 full live-site + realizer set 35 ok / 0 failed; the market test green with 12 columns under a prop;
+  town 76 / 0; city 89 + its market crossings (guess 4 -> 93) in both city tests; hamlet 16, village 34, the 28 record and
+  the legacy 42 / 11 unchanged - unless the dressing's new seating moves a legacy square's props into a walked route.

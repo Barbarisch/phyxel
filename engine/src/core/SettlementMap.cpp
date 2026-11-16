@@ -55,6 +55,8 @@ nlohmann::json SettlementMap::toJson() const {
     j["entry_node"] = entryNode;
     j["bake_ms"] = bakeMs;
     j["refusal"] = refusal;
+    if (!marketNote.empty()) j["market_note"] = marketNote;
+    if (marketLane > 0) j["market_lane"] = marketLane;
     j["dropped_lots"] = droppedLots;
     j["target_lots"] = targetLots;
     j["buildable_fraction"] = buildableFraction;
@@ -157,6 +159,8 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
     m.entryNode = j.value("entry_node", -1);
     m.bakeMs = j.value("bake_ms", 0.0f);
     m.refusal = j.value("refusal", std::string());
+    m.marketNote = j.value("market_note", std::string());
+    m.marketLane = j.value("market_lane", 0);
     m.droppedLots = j.value("dropped_lots", 0);
     m.targetLots = j.value("target_lots", 0);
     m.buildableFraction = j.value("buildable_fraction", -1.0f);

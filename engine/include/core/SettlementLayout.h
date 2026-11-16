@@ -145,6 +145,10 @@ struct MainStreetLayout {
                              ///< mid-length (the common English market form); paved as a plaza,
                              ///< building-free, the tier well's anchor. Valid iff hasSquare.
     bool hasSquare = false;
+    /// M5e-1: the carriageways inside the square, as rects, when the caller knows them better than `base.streets`
+    /// does (a settlement MAP: its routed ways are not street rects). Given = planSquareDressing reads THESE.
+    std::vector<Rect> squareBands;
+    bool squareBandsGiven = false;
     std::vector<AssignedPlot> assigned;
     bool ok = false;         ///< false = the footprint can't host a main street at this tier
 };

@@ -152,7 +152,8 @@ PavingPlan planStreetPaving(const std::vector<Rect>& streets, glm::ivec2 originC
 
 PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                          const std::function<int(int, int)>& groundMicroAt,
-                         const AgentBox& box, const std::string& material) {
+                         const AgentBox& box, const std::string& material,
+                         const std::vector<glm::ivec4>& plazas) {
     PavingPlan plan;
     plan.material = material;
     if (!groundMicroAt) return plan;
@@ -211,6 +212,68 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                 if (S + cap < jt->second) { jt->second = S + cap; open.push({jt->second, jt->first}); }
             }
         }
+    }
+    // M5e-1: the plazas. A plaza column no way wrote starts at its own ground; it is then held inside the band the
+    // ways' columns allow (within `cap` per micro of every way column, measured through the plaza - so the walker
+    // steps on and off the way anywhere along it), and relaxed into the slope-limited lower envelope across the
+    // plaza. The ways' columns are sources only: none of them moves. (x 9: a plaza is given in cubes; the paver
+    // works in micro columns - the grid's own tie, as everywhere in this file.)
+    if (!plazas.empty()) {
+        const int cap = std::max(1, box.maxStepUpMicro / std::max(1, box.halfWidthMicro));
+        static const int NB[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        std::unordered_map<long long, int> pz;
+        for (const auto& r : plazas)
+            for (int z = r.y * 9; z < (r.y + r.w) * 9; ++z)
+                for (int x = r.x * 9; x < (r.x + r.z) * 9; ++x)
+                    if (!cols.count(colKey(x, z))) pz.emplace(colKey(x, z), groundMicroAt(x, z));
+        using QE = std::pair<int, long long>;
+        // min over the way columns of (sign * S + cap * distance through the plaza)
+        const auto spread = [&](int sign) {
+            std::unordered_map<long long, int> best;
+            std::priority_queue<QE, std::vector<QE>, std::greater<QE>> open;
+            for (const auto& [k, S0] : pz) {
+                (void)S0;
+                const int x = static_cast<int>(k >> 32), z = static_cast<int>(static_cast<int32_t>(k & 0xffffffffLL));
+                for (const auto& nb : NB) {
+                    const auto w = cols.find(colKey(x + nb[0], z + nb[1]));
+                    if (w == cols.end()) continue;
+                    const int v = sign * w->second + cap;
+                    auto b = best.find(k);
+                    if (b == best.end() || v < b->second) { best[k] = v; open.push({v, k}); }
+                }
+            }
+            while (!open.empty()) {
+                const auto [v, k] = open.top(); open.pop();
+                if (v > best[k]) continue;
+                const int x = static_cast<int>(k >> 32), z = static_cast<int>(static_cast<int32_t>(k & 0xffffffffLL));
+                for (const auto& nb : NB) {
+                    const long long nk = colKey(x + nb[0], z + nb[1]);
+                    if (!pz.count(nk)) continue;
+                    auto b = best.find(nk);
+                    if (b == best.end() || v + cap < b->second) { best[nk] = v + cap; open.push({v + cap, nk}); }
+                }
+            }
+            return best;
+        };
+        const auto upper = spread(+1), lowerNeg = spread(-1);
+        for (auto& [k, S] : pz) {
+            const auto l = lowerNeg.find(k); if (l != lowerNeg.end()) S = std::max(S, -l->second);
+            const auto u = upper.find(k);    if (u != upper.end()) S = std::min(S, u->second);   // the upper bound wins: nothing rises past a step
+        }
+        std::priority_queue<QE, std::vector<QE>, std::greater<QE>> open;
+        for (const auto& [k, S] : pz) open.push({S, k});
+        while (!open.empty()) {
+            const auto [S, k] = open.top(); open.pop();
+            if (S > pz[k]) continue;
+            const int x = static_cast<int>(k >> 32), z = static_cast<int>(static_cast<int32_t>(k & 0xffffffffLL));
+            for (const auto& nb : NB) {
+                auto jt = pz.find(colKey(x + nb[0], z + nb[1]));
+                if (jt == pz.end()) continue;
+                if (S + cap < jt->second) { jt->second = S + cap; open.push({jt->second, jt->first}); }
+            }
+        }
+        for (const auto& [k, S] : pz) cols.emplace(k, S);
+        plan.plazaCols = static_cast<long>(pz.size());
     }
     std::vector<PavedColumn> out;
     out.reserve(cols.size());

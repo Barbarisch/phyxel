@@ -1478,3 +1478,37 @@ M5d-3 CLOSED AS BUILT WITH OPEN ITEMS (2026-11-15 17:36, tree 7149101c)
   summary - the wrapper shell was stopped by the harness for low memory, the test process finished by itself; no EXIT line).
   Both as predicted (PT.9, pm_chain286.txt). No new audit: no claim changed since the PASS WITH CONDITIONS verdict above
   and its answered conditions. Open: O30 (a-h), one Debug rig, one seed, no Release, no L4, no screenshot of a tower.
+
+M5e-1 (the market as a paved, walked place on the map) - solution-auditor, 2026-11-15 19:35, on the uncommitted tree over 30c69c44
+(patches 60-66; read-only audit of the diff and pm_chain299.txt; the auditor did not grep the run logs and ran nothing).
+RAW VERDICT: "PASS WITH CONDITIONS. Claims 1 and 3 are real on one rig each. Claims 2 and 4 are weaker than worded. The
+live 'walked' claim is narrower than 'a walker reaches the market'."
+Findings, as given (abridged to their substance, none dropped):
+  1. D67 is a goalpost move after a red (302 showed zero props with full-width bands; the fix redefined "on a way" as the
+     tier's lane width). The test's band uses the same formula, so it checks the planner against itself. 8-24 prop cells a
+     plan now sit in a way's full width on 50 plans. lane_width is read elsewhere only for back lanes and connectors -
+     nothing shows it means a clear carriageway through a market. Settle: the owner ratifies D67; a full-width control.
+  2. The "no market + note" amendment is a loophole: the guard is summed over all rigs, not per rig. "No dry place" was
+     never seen. The slide is exercised on one purpose-built rig. Settle: assert per rig.
+  3. The well on 55 of 55 came from a second fallback after a red; the stall fallback is a free-spot search; "stalls
+     planned" is a count, not a use. Bands are bounding boxes of a leg's two nodes (over-wide on a diagonal - conservative,
+     probably why stalls fell); the test's band is narrower, so it cannot catch a band that is too wide. The merge has no test.
+  4. The live walk: (a) props are not obstacles in what was measured - "140 reached of 128" means the flood stands in prop
+     cells; (b) the flood is boxed to the square, and plaza columns are constrained only against way columns, never against
+     the ground outside: edges not on a way can cliff; entry from the non-street sides is unmeasured; (c) the test assumes
+     its seed is the build's.
+  5. Paving: one voxel in a cell counts - coarse, though it did fail on the broken state. The record's unpaved_cells comes
+     from the plan's columns, not the world. Settle: per micro column, top voxel is paving.
+  6. Gate crossings never seen blocked; a way with one node in the square gets no route; 19 ways on the map and 4 routes,
+     the rest silent. They add little beyond the test's flood. Settle: a red seed; count in-square ways against routes.
+  7. Ways do not move by reading (emplace does not overwrite; signs correct), but it is NOT measured; a lot whose door faces
+     the square is not checked. Settle: a diff of way columns with and without the plaza.
+  8. Never red-tested or measured: no dry place; blocked crossings; stall-front routes (recorded only, cannot fail); five
+     cubes of relief off a junction; one live rig, one seed, Debug, no L4; regression pending.
+  9. Holds up: red-before-green honestly recorded (299: 60 wet; 301: 53 of 55 wells; 302: 9 unpaved, 19 not reached);
+     misses recorded; exclusions disclosed, each loosening a count.
+  Safe wording per the auditor: "one live town's market (one Debug rig, one seed) is paved at one-voxel granularity and
+  reachable on foot from the main street inside the square, with props not treated as obstacles; headless: market dry and
+  prop-free of the 3-wide lane on 55 plans; stalls 180 of 290."
+MY RESPONSE: all accepted. Patch 67 answers 2, 4a, 4b (as a measurement), 5, 6 (the count), 7 and part of 3; D67 (1) goes
+to the owner as PROPOSED with the full-width figures; the crossings' red seed (6) and a second live rig stay open.

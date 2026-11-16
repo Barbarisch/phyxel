@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
 #include "core/RoomProgram.h"
+#include "core/SettlementLayout.h"      // planSquareDressing (M5e-1)
 #include "core/SettlementMapPlanner.h"
 #include "core/SettlementProgram.h"
+#include "core/StreetPaver.h"           // planWayPaving with plazas (M5e-1)
 #include "core/TownWall.h"
 #include "core/WorldForgePlan.h"
 
@@ -1823,3 +1825,217 @@ TEST(SettlementMapTest, TheWallGatesARoadThatRunsAlongIt) {
     expectWallSound("flat 140x60, a road along the south wall", w);
 }
 
+// ---- M5e-1: the market as a place on the map ---------------------------------------------------------------------
+namespace {
+struct MarketStats {
+    int markets = 0, wrongSize = 0, outside = 0, wet = 0, primaryCells = 0, relief = 0, cellsInALot = 0;
+    int props = 0, stalls = 0, wells = 0, statues = 0, propCellsOnAWay = 0, propCellsOnFullBand = 0, propsOutside = 0, propsOverlapping = 0;
+    Rect rect{0, 0, 0, 0};
+};
+// independent of the planner: a way's band is its centreline sampled between nodes, floor(width / 2) cells each side
+std::set<std::pair<int, int>> bandCells(const SettlementMap& m, bool primaryOnly, int widthCap = 0) {
+    std::set<std::pair<int, int>> out;
+    for (const auto& w : m.ways) {
+        if (primaryOnly && w.highway != "primary") continue;
+        const int r = static_cast<int>(std::floor((widthCap > 0 ? std::min(w.width, static_cast<float>(widthCap)) : w.width) / 2.0f));
+        for (size_t i = 0; i + 1 < w.nodes.size(); ++i) {
+            const MapNode* a = m.node(w.nodes[i]); const MapNode* b = m.node(w.nodes[i + 1]);
+            if (!a || !b) continue;
+            const int n = std::max({std::abs(b->x - a->x), std::abs(b->z - a->z), 1});
+            for (int t = 0; t <= n; ++t) {
+                const int cx = a->x + static_cast<int>(std::lround(static_cast<float>(b->x - a->x) * t / n)), cz = a->z + static_cast<int>(std::lround(static_cast<float>(b->z - a->z) * t / n));
+                for (int dx = -r; dx <= r; ++dx) for (int dz = -r; dz <= r; ++dz) out.insert({cx + dx, cz + dz});
+            }
+        }
+    }
+    return out;
+}
+MarketStats marketStats(const SettlementMap& m, const SettlementMapInput& in) {
+    MarketStats k;
+    // D67 PROPOSED (changed BEFORE chain 303, stated in pm_chain299.txt): what the dressing keeps clear is each way's
+    // THROUGH LANE - the tier's lane width, read from the PROGRAM here, not from the map. The full band stays counted.
+    const auto primary = bandCells(m, true), ways = bandCells(m, false, in.tier->street.laneWidth), fullWays = bandCells(m, false);
+    for (const auto& a : m.areas) {
+        if (a.landuse != "market") continue;
+        ++k.markets; k.rect = a.rect;
+        if (a.rect.w != in.tier->pub.marketW || a.rect.d != in.tier->pub.marketD) ++k.wrongSize;
+        int lo = INT_MAX, hi = INT_MIN;
+        for (int z = a.rect.z; z < a.rect.z1(); ++z) for (int x = a.rect.x; x < a.rect.x1(); ++x) {
+            if (x < 0 || z < 0 || x >= m.W || z >= m.D) { ++k.outside; continue; }
+            if (in.waterAt && in.waterAt(x, z)) ++k.wet;
+            if (primary.count({x, z})) ++k.primaryCells;
+            const int h = in.heightAt(x, z); lo = std::min(lo, h); hi = std::max(hi, h);
+            for (const auto& l : m.lots) { const Rect pr = l.parcelRect(); if (x >= pr.x && x < pr.x1() && z >= pr.z && z < pr.z1()) { ++k.cellsInALot; break; } }
+        }
+        if (hi >= lo) k.relief = hi - lo;
+    }
+    if (k.markets != 1) return k;
+    const MapProjection p = projectMap(m);
+    const SquareDressing d = planSquareDressing(p.msl, in.tier->pub, in.seed);
+    std::set<std::pair<int, int>> used;
+    for (const auto& pr : d.props) {
+        ++k.props;
+        const bool statue = pr.type.rfind("statue", 0) == 0;
+        if (statue) ++k.statues; else if (pr.type == "well") ++k.wells; else ++k.stalls;
+        bool out = false, over = false;
+        for (int z = pr.cz; z < pr.cz + pr.d; ++z) for (int x = pr.cx; x < pr.cx + pr.w; ++x) {
+            if (x < k.rect.x || x >= k.rect.x1() || z < k.rect.z || z >= k.rect.z1()) out = true;
+            if (!used.insert({x, z}).second) over = true;
+            if (!statue && ways.count({x, z})) ++k.propCellsOnAWay;   // the statue stands at the market cross by design
+            if (!statue && fullWays.count({x, z})) ++k.propCellsOnFullBand;
+        }
+        k.propsOutside += out; k.propsOverlapping += over;
+    }
+    return k;
+}
+void printMarket(const std::string& what, const MarketStats& k) {
+    std::printf("[ M5e-1 ] %s: %d market(s) %d x %d at (%d, %d): wrong size %d, cells outside %d, wet %d, in a lot %d, on the primary way %d, relief %d | "
+                "dressing %d props (%d stalls, %d wells, %d statues): cells on a through lane %d (in a way's full width %d), props outside %d, overlapping %d\n",
+                what.c_str(), k.markets, k.rect.w, k.rect.d, k.rect.x, k.rect.z, k.wrongSize, k.outside, k.wet, k.cellsInALot, k.primaryCells, k.relief,
+                k.props, k.stalls, k.wells, k.statues, k.propCellsOnAWay, k.propCellsOnFullBand, k.propsOutside, k.propsOverlapping);
+}
+struct MarketRig { std::string name; const char* tier; int W, D; std::function<int(int, int)> h; std::function<bool(int, int)> w; };
+std::vector<MarketRig> marketRigs() {
+    std::vector<MarketRig> out{{"town flat 140x76", "town", 140, 76, flatHeight, {}},
+                               {"town hill + creek 140x76", "town", 140, 76, hillHeight, hillWater},
+                               {"town rolling 140x76", "town", 140, 76, slopeRolling, {}},
+                               {"town flat, pond 60..80 x 30..46", "town", 140, 76, flatHeight, [](int x, int z) { return x >= 60 && x <= 80 && z >= 30 && z <= 46; }}};
+    for (const WallRig& r : wallRigs()) out.push_back({std::string("city ") + r.name, "city", r.W, r.D, r.h, r.w});
+    return out;
+}
+}  // namespace
+
+// (a) a tier whose program asks for a market square carries exactly ONE market area: the program's size, inside the
+// site, dry, off every parcel, with the primary way through it. A tier that asks for none carries none (the control).
+TEST(SettlementMapTest, ATierWithAMarketCarriesOneOnItsPrimaryWay) {
+    ASSERT_TRUE(rigs().programOk);
+    int plans = 0, refused = 0, measured = 0, unplaced = 0;
+    for (const MarketRig& r : marketRigs())
+        for (unsigned seed = 1; seed <= 5; ++seed) {
+            const SettlementMapInput in = inputFor(r.tier, r.W, r.D, r.h, r.w, seed);
+            ASSERT_GT(in.tier->pub.marketW, 0) << r.tier << ": the program asks for no market: every check below is vacuous";
+            const SettlementMap m = planSettlementMap(in);
+            ++plans;
+            const std::string what = r.name + " seed " + std::to_string(seed);
+            if (!m.ok()) { ++refused; std::printf("[ M5e-1 ] %s: the map is REFUSED: %s%s", what.c_str(), m.refusal.c_str(), "\n"); continue; }
+            const MarketStats k = marketStats(m, in);
+            printMarket(what, k);
+            ++measured;
+            // amended BEFORE chain 300 (stated in pm_chain299.txt): a market that has no dry place is NOT placed and the
+            // map says why - that is the design check's wording; a silent absence stays red
+            // the audit of M5e-1 (2): "no market + a note" summed over the rigs was a loophole - one rig could lose its
+            // market in silence. Every one of THESE rigs has a dry place: a market is required on each plan. The
+            // not-placed branch has its own rig below.
+            if (k.markets == 0) { ++unplaced; ADD_FAILURE() << what << ": no market on a rig that has a dry place for one (" << m.marketNote << ")"; continue; }
+            if (!m.marketNote.empty()) std::printf("[ M5e-1 ] %s: note: %s%s", what.c_str(), m.marketNote.c_str(), "\n");
+            EXPECT_EQ(k.markets, 1) << what << ": the program asks for a market square and the map carries " << k.markets;
+            if (k.markets != 1) continue;
+            EXPECT_EQ(k.wrongSize, 0) << what << ": the market is not the program's size";
+            EXPECT_EQ(k.outside, 0) << what << ": market cells outside the site";
+            EXPECT_EQ(k.wet, 0) << what << ": water cells inside the market";
+            EXPECT_EQ(k.cellsInALot, 0) << what << ": market cells inside a parcel";
+            EXPECT_GT(k.primaryCells, 0) << what << ": the primary way does not pass through the market";
+        }
+    EXPECT_LT(unplaced, measured) << "no market placed on any plan: nothing was measured";
+    std::printf("[ M5e-1 ] markets: %d plans, %d refused, %d measured, %d not placed%s", plans, refused, measured, unplaced, "\n");
+    EXPECT_GT(measured, 0) << "every map refused: nothing was measured";
+    {   // the not-placed branch (never seen on the 55 plans): water flanks the main street on both sides, six cells off
+        // its row, with dry gaps narrower than the market - every 12 x 12 rect on the street holds water
+        const int D = 76;
+        const auto flanked = [D](int x, int z) { return (z == D / 2 - 6 || z == D / 2 + 6) && (x % 20) >= 6; };
+        for (unsigned seed = 1; seed <= 3; ++seed) {
+            const SettlementMapInput in = inputFor("town", 140, D, flatHeight, flanked, seed);
+            const SettlementMap m = planSettlementMap(in);
+            const std::string what = "town flat, water flanking the street, seed " + std::to_string(seed);
+            if (!m.ok()) { ADD_FAILURE() << what << ": the map is refused (" << m.refusal << "): the rig does not make the case"; continue; }
+            const MarketStats k = marketStats(m, in);
+            printMarket(what, k);
+            std::printf("[ M5e-1 ] %s: note: %s%s", what.c_str(), m.marketNote.c_str(), "\n");
+            EXPECT_EQ(k.markets, 0) << what << ": a market was placed (wet " << k.wet << "): the rig does not make the case, or the rule let water in";
+            EXPECT_EQ(k.wet, 0) << what;
+            EXPECT_NE(m.marketNote.find("no dry place"), std::string::npos) << what << ": no market and the map does not say why";
+        }
+    }
+    for (const char* tier : {"hamlet", "village"}) {   // the control: no market asked, none carried
+        const SettlementMapInput in = inputFor(tier, 96, 64, flatHeight, {});
+        ASSERT_EQ(in.tier->pub.marketW, 0) << tier << " now asks for a market: it is no longer the control";
+        const SettlementMap m = planSettlementMap(in);
+        ASSERT_TRUE(m.ok()) << tier << ": " << m.refusal;
+        EXPECT_EQ(marketStats(m, in).markets, 0) << tier << ": a market on a tier that asks for none";
+    }
+}
+
+// (b) the market's dressing (the stalls and the well; the statue stands at the cross by design) is planned from the
+// map's projection and must keep off every way's band, stay inside the market and not overlap itself
+TEST(SettlementMapTest, TheMarketsDressingKeepsOffTheWays) {
+    ASSERT_TRUE(rigs().programOk);
+    int measured = 0, props = 0, stalls = 0, asked = 0, wells = 0;
+    for (const MarketRig& r : marketRigs())
+        for (unsigned seed = 1; seed <= 5; ++seed) {
+            const SettlementMapInput in = inputFor(r.tier, r.W, r.D, r.h, r.w, seed);
+            const SettlementMap m = planSettlementMap(in);
+            if (!m.ok()) continue;
+            const MarketStats k = marketStats(m, in);
+            if (k.markets != 1) continue;
+            const std::string what = r.name + " seed " + std::to_string(seed);
+            ++measured; props += k.props; stalls += k.stalls; asked += in.tier->pub.stalls;
+            EXPECT_EQ(k.propCellsOnAWay, 0) << what << ": a stall or the well is planned on a way's through lane (" << k.propCellsOnAWay << " cells)";
+            EXPECT_EQ(k.propsOutside, 0) << what << ": dressing outside the market";
+            EXPECT_EQ(k.propsOverlapping, 0) << what << ": dressing props overlap";
+            // added BEFORE chain 301 (pm_chain299.txt PM.5): chain 300 showed a town whose square took the well and planned none
+            if (in.tier->pub.well) EXPECT_EQ(k.wells, 1) << what << ": the program asks for a well and the square's dressing plans " << k.wells;
+            wells += k.wells;
+        }
+    std::printf("[ M5e-1 ] wells: %d over %d markets%s", wells, measured, "\n");
+    std::printf("[ M5e-1 ] dressing: %d markets measured, %d props, %d stalls of %d asked%s", measured, props, stalls, asked, "\n");
+    EXPECT_GT(measured, 0) << "no market measured";
+    EXPECT_GT(stalls, 0) << "no stall planned on any market: the way check measured nothing";
+}
+
+// (c) the audit of M5e-1 (7): the plaza is paved WITHOUT moving a way's column (the map states the ways' levels and the
+// doors are seated on them), every plaza column is paved, and no step inside the plaza or onto a way exceeds the walker's
+namespace {
+int groundMicroFrom(const std::function<int(int, int)>& cubeTop, int mx, int mz) { return cubeTop(mx / 9, mz / 9) * 9 + 8; }   // positive coordinates only
+}
+TEST(SettlementMapTest, ThePlazaIsPavedWithoutMovingTheWays) {
+    struct G { const char* name; std::function<int(int, int)> h; };
+    const std::vector<G> grounds{{"flat", flatHeight}, {"hill 5 %", hillHeight}, {"rolling", slopeRolling}, {"a 4-cube bench", bandHeight}};
+    const AgentBox box;
+    const std::vector<WayRibbon> ways{{{{10, 20}, {40, 20}}, 7}, {{{25, 5}, {25, 35}}, 3}};
+    const glm::ivec4 plaza(19, 14, 12, 12);   // x, z, w, d in cubes: both ways cross it
+    int measured = 0;
+    for (const G& g : grounds) {
+        const std::function<int(int, int)> gm = [&g](int mx, int mz) { return groundMicroFrom(g.h, mx, mz); };
+        const PavingPlan a = planWayPaving(ways, gm, box, "Cobblestone");
+        const PavingPlan b = planWayPaving(ways, gm, box, "Cobblestone", {plaza});
+        std::map<std::pair<int, int>, int> A, B;
+        for (const auto& c : a.columns) A[{c.x, c.z}] = c.surface;
+        for (const auto& c : b.columns) B[{c.x, c.z}] = c.surface;
+        int moved = 0, lost = 0, missing = 0, steps = 0, worst = 0, plazaOnly = 0, fill = 0, cut = 0;
+        for (const auto& [k, S] : A) { const auto it = B.find(k); if (it == B.end()) ++lost; else if (it->second != S) ++moved; }
+        const auto inPlaza = [&](int x, int z) { return x >= plaza.x * 9 && x < (plaza.x + plaza.z) * 9 && z >= plaza.y * 9 && z < (plaza.y + plaza.w) * 9; };
+        for (int z = plaza.y * 9; z < (plaza.y + plaza.w) * 9; ++z) for (int x = plaza.x * 9; x < (plaza.x + plaza.z) * 9; ++x) {
+            const auto it = B.find({x, z});
+            if (it == B.end()) { ++missing; continue; }
+            if (!A.count({x, z})) { ++plazaOnly; const int t = gm(x, z); if (it->second > t) ++fill; else if (it->second < t) ++cut; }
+            for (const auto& d : {std::pair<int, int>{1, 0}, std::pair<int, int>{0, 1}, std::pair<int, int>{-1, 0}, std::pair<int, int>{0, -1}}) {
+                const auto jt = B.find({x + d.first, z + d.second});
+                if (jt == B.end()) continue;
+                if (inPlaza(x + d.first, z + d.second) && (d.first < 0 || d.second < 0)) continue;   // each inner pair once
+                const int st = std::abs(jt->second - it->second);
+                worst = std::max(worst, st);
+                if (st > box.maxStepUpMicro) ++steps;
+            }
+        }
+        std::printf("[ M5e-1 ] plaza on %s: %zu way columns, %d moved, %d lost; plaza %d columns of %d (%d missing; %d fill, %d cut); steps over the walker's %d micro: %d (worst %d)%s",
+                    g.name, A.size(), moved, lost, plazaOnly, plaza.z * plaza.w * 81, missing, fill, cut, box.maxStepUpMicro, steps, worst, "\n");
+        if (A.empty()) { std::printf("[ M5e-1 ] plaza on %s: the ways pave nothing here - not measured%s", g.name, "\n"); continue; }
+        ++measured;
+        EXPECT_EQ(moved, 0) << g.name << ": the plaza moved a way's column";
+        EXPECT_EQ(lost, 0) << g.name;
+        EXPECT_EQ(missing, 0) << g.name << ": plaza columns not paved";
+        EXPECT_GT(plazaOnly, 0) << g.name << ": the plaza added nothing - the rig does not make the case";
+        EXPECT_EQ(steps, 0) << g.name << ": a step inside the plaza or onto a way that the walker cannot take";
+    }
+    EXPECT_GE(measured, 2);
+}

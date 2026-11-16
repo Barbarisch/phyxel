@@ -340,15 +340,41 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
         const float mainW = static_cast<float>(std::max(1, tier.street.mainWidth));
         const int cls = (tier.name == "town" || tier.name == "city") ? 3 : 2;
         registerWay(spine, "primary", mainW, cls);
-        const int mid = spine[spine.size() / 2];
+        int mid = spine[spine.size() / 2];
         marketCx = mid % W; marketCz = mid / W;
         if (tier.pub.marketW > 0 && tier.pub.marketD > 0 && tier.pub.marketW <= W && tier.pub.marketD <= D) {
             // the market place on the primary's middle cell (the town's widened street, the city's crossing);
-            // reserved from lots, open to ways
+            // reserved from lots, open to ways.
+            // M5e-1: a market does not stand in water. The middle cell BY INDEX is tried first (so a dry site plans
+            // what it always did); else the place slides along the main street, one cell at a time, nearest the
+            // middle first, to the first cell whose rect is dry. No dry place = no market, and the map says so.
+            const auto rectAt = [&](int cell) {
+                return Rect{std::clamp(cell % W - tier.pub.marketW / 2, 0, W - tier.pub.marketW), std::clamp(cell / W - tier.pub.marketD / 2, 0, D - tier.pub.marketD), tier.pub.marketW, tier.pub.marketD};
+            };
+            const auto wetIn = [&](const Rect& r) {
+                int n = 0;
+                for (int z = r.z; z < r.z1(); ++z) for (int x = r.x; x < r.x1(); ++x) n += waterMask[static_cast<size_t>(g.idx(x, z))] ? 1 : 0;
+                return n;
+            };
+            const int m0 = static_cast<int>(spine.size() / 2), sn = static_cast<int>(spine.size());
+            int pick = -1;
+            for (int k = 0; k < sn && pick < 0; ++k)
+                for (const int i : {m0 + k, m0 - k}) {
+                    if (i < 0 || i >= sn || (k == 0 && i != m0)) continue;
+                    if (wetIn(rectAt(spine[static_cast<size_t>(i)])) == 0) { pick = i; break; }
+                }
+            if (pick < 0) {
+                map.marketNote = "no dry place for the market along the main street (" + std::to_string(wetIn(rectAt(mid))) + " water cells at its middle)";
+            } else {
+            if (pick != m0) map.marketNote = "the market stands " + std::to_string(std::abs(pick - m0)) + " cells along the main street from its middle: water at the middle";
+            mid = spine[static_cast<size_t>(pick)];
+            marketCx = mid % W; marketCz = mid / W;
+            map.marketLane = std::max(0, tier.street.laneWidth);   // D67 PROPOSED: the lane a way keeps clear across the market
             MapArea a; a.id = static_cast<int>(map.areas.size()); a.landuse = "market";
-            a.rect = {std::clamp(marketCx - tier.pub.marketW / 2, 0, W - tier.pub.marketW), std::clamp(marketCz - tier.pub.marketD / 2, 0, D - tier.pub.marketD), tier.pub.marketW, tier.pub.marketD};
+            a.rect = rectAt(mid);
             map.areas.push_back(a);
             for (int z = a.rect.z; z < a.rect.z1(); ++z) for (int x = a.rect.x; x < a.rect.x1(); ++x) reserved[static_cast<size_t>(g.idx(x, z))] = 1;
+            }
         }
         if (tier.morphology == "semi_organic") {   // the crossroads: a second axis through the middle cell to both side edges
             const bool alongX = std::abs(spine.back() % W - spine.front() % W) >= std::abs(spine.back() / W - spine.front() / W);
@@ -1488,6 +1514,44 @@ MapProjection projectMap(const SettlementMap& map) {
         }
     }
     for (const auto& a : map.areas) if (a.landuse == "market") { p.msl.marketSquare = a.rect; p.msl.hasSquare = true; }
+    if (p.msl.hasSquare) {
+        // M5e-1: the ways' bands INSIDE the square, as rects, for the square's dressing (a routed way emits no
+        // street rect where it bends, and the dressing then saw no carriageway at all). One rect per leg - the
+        // leg's two node cells grown by half the way's width, clipped to the square; collinear legs are merged
+        // so a straight way stays ONE band (the pads are cut on band edges).
+        const Rect sq = p.msl.marketSquare;
+        std::vector<Rect> bands;
+        for (const auto& w : map.ways) {
+            // D67 PROPOSED: across the market a way keeps its THROUGH LANE clear (the map's market_lane), not its
+            // full width - the market is the widened street, and the stalls stand in that width beside the lane
+            const float bw = map.marketLane > 0 ? std::min(w.width, static_cast<float>(map.marketLane)) : w.width;
+            const int r = static_cast<int>(std::floor(bw / 2.0f));
+            for (size_t i = 0; i + 1 < w.nodes.size(); ++i) {
+                const MapNode* a = map.node(w.nodes[i]); const MapNode* b = map.node(w.nodes[i + 1]);
+                if (!a || !b) continue;
+                const int x0 = std::max(std::min(a->x, b->x) - r, sq.x), x1 = std::min(std::max(a->x, b->x) + r + 1, sq.x1());
+                const int z0 = std::max(std::min(a->z, b->z) - r, sq.z), z1 = std::min(std::max(a->z, b->z) + r + 1, sq.z1());
+                if (x0 < x1 && z0 < z1) bands.push_back(Rect{x0, z0, x1 - x0, z1 - z0});
+            }
+        }
+        for (bool merged = true; merged;) {
+            merged = false;
+            for (size_t i = 0; i < bands.size() && !merged; ++i)
+                for (size_t j = i + 1; j < bands.size() && !merged; ++j) {
+                    Rect& a = bands[i]; const Rect& b = bands[j];
+                    const bool sameZ = a.z == b.z && a.d == b.d && a.x <= b.x1() && b.x <= a.x1();
+                    const bool sameX = a.x == b.x && a.w == b.w && a.z <= b.z1() && b.z <= a.z1();
+                    const bool inside = b.x >= a.x && b.x1() <= a.x1() && b.z >= a.z && b.z1() <= a.z1();
+                    if (!sameZ && !sameX && !inside) continue;
+                    const int x0 = std::min(a.x, b.x), z0 = std::min(a.z, b.z), x1 = std::max(a.x1(), b.x1()), z1 = std::max(a.z1(), b.z1());
+                    a = Rect{x0, z0, x1 - x0, z1 - z0};
+                    bands.erase(bands.begin() + static_cast<std::ptrdiff_t>(j));
+                    merged = true;
+                }
+        }
+        p.msl.squareBands = std::move(bands);
+        p.msl.squareBandsGiven = true;
+    }
     for (const auto& l : map.lots) {
         AssignedPlot ap; ap.plot.rect = l.parcelRect(); ap.typology = l.typology; ap.streetSide = SettlementMap::sideChar(l.orientation);
         ap.setback = l.setback; ap.footprint = l.footprint;

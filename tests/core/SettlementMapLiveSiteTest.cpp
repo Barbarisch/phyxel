@@ -41,6 +41,7 @@
 #include "core/PlacedObjectManager.h"
 #include "core/RoomProgram.h"
 #include "core/SettlementBuildService.h"
+#include "core/SettlementLayout.h"   // planSquareDressing (M5e-1)
 #include "core/SettlementMapPlanner.h"
 #include "core/SettlementProgram.h"
 #include "core/SettlementWalkability.h"
@@ -57,6 +58,7 @@ using Phyxel::ForgeTest::floorDivN;
 using Phyxel::ForgeTest::floorModN;
 
 namespace {
+inline std::string chr10() { return std::string(1, static_cast<char>(10)); }
 
 WorldRecipe civRecipe(uint32_t seed) {
     WorldRecipe r;
@@ -2019,4 +2021,206 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagWhereTheWaysMeetTheRoads) {
         }
         std::printf("[ O29 ] %s: %d way ends within 6 cells of a world road, %d of them more than 4 micro off its level (as generated, before any grading)\n", tier, nearRoad, off);
     }
+}
+
+// ---- M5e-1: the town's market is a PLACE - paved over its whole rect and walked ------------------------------------
+// Measured on the WORLD, not on the record: (1) every market cell that carries no dressing prop holds the street's
+// paving material in its top cell (coarse: one paving voxel in the cell counts - stated); (2) a walker on foot, started
+// on the main street inside the market, reaches every such cell; (3) the build's own record and gate say the same.
+TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("town", 32)) << rig.why;
+    const auto out = realize(rig, /*legacyLayout=*/false);
+    ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+    const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
+    Core::SettlementProgramRegistry reg;
+    ASSERT_TRUE(reg.loadFromFile("resources/settlement_program.json"));
+    const Core::SettlementTierPreset* tier = reg.get("medieval", "town");
+    ASSERT_NE(tier, nullptr);
+    const std::string paving = tier->street.material;
+    const Core::MapArea* market = nullptr;
+    int markets = 0;
+    for (const auto& a : sm.areas) if (a.landuse == "market") { market = &a; ++markets; }
+    ASSERT_EQ(markets, 1) << "the live town's map carries " << markets << " markets: " << sm.marketNote;
+    const Core::Rect sq = market->rect;
+    const int oy = static_cast<int>(rig.site->surfaceY);
+    // the dressing as the realizer plans it (the same function, the same projection, the build's seed)
+    const Core::MapProjection proj = Core::projectMap(sm);
+    const unsigned seed = sm.seed;   // the map is planned with the build's seed
+    std::set<std::pair<int, int>> propCells;
+    const Core::SquareDressing dress = Core::planSquareDressing(proj.msl, tier->pub, seed);
+    for (const auto& p : dress.props) for (int z = p.cz; z < p.cz + p.d; ++z) for (int x = p.cx; x < p.cx + p.w; ++x) propCells.insert({x, z});
+    auto materialsAt = [&](const glm::ivec3& wp) {
+        std::set<std::string> r;
+        Chunk* ch = rig.cm.getChunkAtFast(wp);
+        if (!ch) return r;
+        const glm::ivec3 lp = wp - ch->getWorldOrigin();
+        if (const Cube* c = ch->getCubeAt(lp)) r.insert(c->getMaterialName());
+        for (const Subcube* sc : ch->getSubcubesAt(lp)) if (sc) r.insert(sc->getMaterialName());
+        for (int a = 0; a < 3; ++a) for (int b = 0; b < 3; ++b) for (int c = 0; c < 3; ++c)
+            for (const Microcube* mc : ch->getMicrocubesAt(lp, glm::ivec3(a, b, c))) if (mc) r.insert(mc->getMaterialName());
+        return r;
+    };
+    int cells = 0, paved = 0, unpaved = 0, lo = INT_MAX, hi = INT_MIN;
+    std::map<std::string, int> otherTops;
+    std::string rows;
+    for (int z = sq.z1() - 1; z >= sq.z; --z) {
+        for (int x = sq.x; x < sq.x1(); ++x) {
+            if (propCells.count({x, z})) { rows += 'o'; continue; }
+            ++cells;
+            const int wx = sm.originX + x, wz = sm.originZ + z;
+            const int top = settlementTopScan(&rig.cm, oy, wx, wz, /*floraBlind=*/true);
+            lo = std::min(lo, top); hi = std::max(hi, top);
+            bool has = false;
+            for (int y = top + 1; y >= top - 1 && !has; --y) has = materialsAt(glm::ivec3(wx, y, wz)).count(paving) > 0;
+            if (has) { ++paved; rows += '#'; }
+            else { ++unpaved; rows += '.'; for (const auto& m : materialsAt(glm::ivec3(wx, top, wz))) ++otherTops[m]; }
+        }
+        rows += chr10();
+    }
+    std::printf("[ M5e-1 ] live market %d x %d at (%d, %d), paving %s: %d cells without a prop, %d paved, %d unpaved; cube tops %d..%d; %zu props planned (seed %u)%s%s",
+                sq.w, sq.d, sq.x, sq.z, paving.c_str(), cells, paved, unpaved, lo, hi, dress.props.size(), seed, chr10().c_str(), rows.c_str());
+    for (const auto& [m, n] : otherTops) std::printf("[ M5e-1 ]   unpaved cells' top material %s: %d%s", m.c_str(), n, chr10().c_str());
+    EXPECT_GT(cells, 0);
+    EXPECT_EQ(unpaved, 0) << "market cells whose top holds no " << paving;
+
+    // (2) the walk: from the primary's node nearest the market's centre, on foot, inside the market's box
+    const std::function<bool(int, int, int)> occ = [&rig](int x, int y, int z) { return rig.cm.occupiedMicro(glm::ivec3(x, y, z)); };
+    Core::AgentBox box;
+    Core::TraversalProbe probe(occ, box);
+    auto seat = [&](int cx, int cz) {
+        const int wx = sm.originX + cx, wz = sm.originZ + cz, mx = wx * 9 + 4, mz = wz * 9 + 4;
+        const int top = settlementTopScan(&rig.cm, oy, wx, wz, true);
+        for (int y = (top - 1) * 9; y <= (top + 2) * 9; ++y) if (probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) return y;
+        return INT_MIN;
+    };
+    int sx = -1, sz = -1; long bestD = LONG_MAX;
+    for (const auto& w : sm.ways) {
+        if (w.highway != "primary") continue;
+        for (int nid : w.nodes) if (const Core::MapNode* n = sm.node(nid)) {
+            if (n->x < sq.x || n->x >= sq.x1() || n->z < sq.z || n->z >= sq.z1() || propCells.count({n->x, n->z})) continue;
+            const long dx = 2L * n->x - (2L * sq.x + sq.w), dz = 2L * n->z - (2L * sq.z + sq.d), d2 = dx * dx + dz * dz;
+            if (d2 < bestD) { bestD = d2; sx = n->x; sz = n->z; }
+        }
+    }
+    ASSERT_GE(sx, 0) << "no node of the primary way lies inside the market";
+    const int sy = seat(sx, sz);
+    ASSERT_NE(sy, INT_MIN) << "the walker cannot stand on the main street inside the market at " << sx << "," << sz;
+    const glm::ivec3 start((sm.originX + sx) * 9 + 4, sy, (sm.originZ + sz) * 9 + 4);
+    const glm::ivec3 flo((sm.originX + sq.x) * 9, (lo - 2) * 9, (sm.originZ + sq.z) * 9), fhi((sm.originX + sq.x1()) * 9 - 1, (hi + 4) * 9, (sm.originZ + sq.z1()) * 9 - 1);
+    std::set<std::pair<int, int>> reached;
+    for (const auto& c : probe.flood(start, flo, fhi)) reached.insert({floorDivN(c.x, 9) - sm.originX, floorDivN(c.z, 9) - sm.originZ});
+    int notReached = 0;
+    for (int z = sq.z; z < sq.z1(); ++z) for (int x = sq.x; x < sq.x1(); ++x)
+        if (!propCells.count({x, z}) && !reached.count({x, z})) { ++notReached; if (notReached <= 12) std::printf("[ M5e-1 ]   not reached on foot: market cell %d,%d (seat %d)%s", x, z, seat(x, z), chr10().c_str()); }
+    std::printf("[ M5e-1 ] the walk inside the market from %d,%d: %zu cells reached of %d without a prop, %d not reached%s", sx, sz, reached.size(), cells, notReached, chr10().c_str());
+    EXPECT_EQ(notReached, 0) << "market cells a walker on foot does not reach from the main street inside the market";
+
+    // ---- the audit of M5e-1 ----------------------------------------------------------------------------------------
+    // (5) the paving at the grid's own grain: the TOP voxel of every micro column of every prop-free cell is the paving
+    auto microMaterial = [&](int mx, int my, int mz) {
+        const glm::ivec3 wp(floorDivN(mx, 9), floorDivN(my, 9), floorDivN(mz, 9));
+        Chunk* ch = rig.cm.getChunkAtFast(wp);
+        if (!ch) return std::string();
+        const glm::ivec3 lp = wp - ch->getWorldOrigin();
+        const glm::ivec3 sp(floorModN(mx, 9) / 3, floorModN(my, 9) / 3, floorModN(mz, 9) / 3), mp(floorModN(mx, 3), floorModN(my, 3), floorModN(mz, 3));
+        if (const Cube* c = ch->getCubeAt(lp)) return std::string(c->getMaterialName());
+        if (const Microcube* mc = ch->getMicrocubeAt(lp, sp, mp)) return std::string(mc->getMaterialName());
+        if (const Subcube* sc = ch->getSubcubeAt(lp, sp)) return std::string(sc->getMaterialName());
+        return std::string();
+    };
+    auto microTop = [&](int mx, int mz) {
+        for (int y = (hi + 6) * 9; y >= (lo - 3) * 9; --y) if (rig.solidMicro(mx, y, mz)) return y;
+        return INT_MIN;
+    };
+    {
+        long colsAll = 0, colsPaved = 0, underProp = 0, unpavedCols = 0; int cellsFull = 0, cellsShort = 0, worstCell = 81;
+        // amended BEFORE chain 312 (pm_chain299.txt, after chain 310): a column under a prop's overhang - a prop cell within
+        // one cell, and the paving found BELOW the top voxel - is counted apart; neither = unpaved
+        const auto nearProp = [&](int x, int z) { for (int dz = -1; dz <= 1; ++dz) for (int dx = -1; dx <= 1; ++dx) if (propCells.count({x + dx, z + dz})) return true; return false; };
+        std::map<std::string, long> topOther;
+        for (int z = sq.z; z < sq.z1(); ++z) for (int x = sq.x; x < sq.x1(); ++x) {
+            if (propCells.count({x, z})) continue;
+            int n = 0;
+            for (int j = 0; j < 9; ++j) for (int i = 0; i < 9; ++i) {
+                const int mx = (sm.originX + x) * 9 + i, mz = (sm.originZ + z) * 9 + j;
+                const int ty = microTop(mx, mz);
+                const std::string mat = ty == INT_MIN ? std::string("(none)") : microMaterial(mx, ty, mz);
+                ++colsAll;
+                if (mat == paving) { ++colsPaved; ++n; }
+                else {
+                    ++topOther[mat];
+                    bool below = false;
+                    if (ty != INT_MIN && nearProp(x, z)) for (int y = ty - 1; y >= ty - 40 && !below; --y) below = rig.solidMicro(mx, y, mz) && microMaterial(mx, y, mz) == paving;
+                    if (below) ++underProp; else ++unpavedCols;
+                }
+            }
+            if (n == 81) ++cellsFull; else { ++cellsShort; worstCell = std::min(worstCell, n); }
+        }
+        std::printf("[ M5e-1 ] paving by micro column: %ld of %ld top voxels are %s; %d cells whole, %d cells short (the worst %d of 81)%s", colsPaved, colsAll, paving.c_str(), cellsFull, cellsShort, worstCell, chr10().c_str());
+        for (const auto& [m, n] : topOther) std::printf("[ M5e-1 ]   top voxel %s: %ld columns%s", m.c_str(), n, chr10().c_str());
+        std::printf("[ M5e-1 ] of the columns not topped by %s: %ld under a prop's overhang with paving below, %ld unpaved%s", paving.c_str(), underProp, unpavedCols, chr10().c_str());
+        EXPECT_EQ(unpavedCols, 0) << "micro columns of prop-free market cells with no " << paving << " on top and none under a prop";
+        EXPECT_LE(underProp, 12) << "more columns lie under a prop outside its planned cells than chain 310's 12";
+    }
+    // (4a) the props STAND in the world the walker walks (they are obstacles, not marks on a plan): something solid at
+    // least 5 micro above the ground beside each prop, inside its footprint; and how many prop cells the walk stood in
+    {
+        int standing = 0, reachedPropCells = 0;
+        for (const auto& c : reached) if (propCells.count(c)) ++reachedPropCells;
+        for (const auto& p : dress.props) {
+            int ground = INT_MIN, top = INT_MIN;
+            for (int z = p.cz - 1; z <= p.cz + p.d; ++z) for (int x = p.cx - 1; x <= p.cx + p.w; ++x) {
+                const bool inside = x >= p.cx && x < p.cx + p.w && z >= p.cz && z < p.cz + p.d;
+                if (inside) { for (int j = 0; j < 9; j += 2) for (int i = 0; i < 9; i += 2) top = std::max(top, microTop((sm.originX + x) * 9 + i, (sm.originZ + z) * 9 + j)); }
+                else if (!propCells.count({x, z})) ground = std::max(ground, microTop((sm.originX + x) * 9 + 4, (sm.originZ + z) * 9 + 4));
+            }
+            const bool stands = top != INT_MIN && ground != INT_MIN && top - ground >= 5;
+            if (stands) ++standing;
+            std::printf("[ M5e-1 ] prop %s at %d,%d (%d x %d, rot %d): top %d, the ground beside it %d -> %s%s", p.type.c_str(), p.cx, p.cz, p.w, p.d, p.rotDeg, top, ground, stands ? "stands" : "NOT STANDING", chr10().c_str());
+        }
+        std::printf("[ M5e-1 ] props standing as voxels: %d of %zu; the walk stood in %d of %zu prop cells%s", standing, dress.props.size(), reachedPropCells, propCells.size(), chr10().c_str());
+        EXPECT_EQ(standing, static_cast<int>(dress.props.size())) << "a planned prop is not standing in the world";
+    }
+    // (4b) RECORDED, not asserted: the market's edge against the ground outside it - can it be entered off the streets?
+    {
+        int edges = 0, walkableEdges = 0, cliffs = 0, unseated = 0, shown = 0;
+        for (int z = sq.z; z < sq.z1(); ++z) for (int x = sq.x; x < sq.x1(); ++x) {
+            if (propCells.count({x, z})) continue;
+            for (const auto& d : {std::pair<int, int>{1, 0}, std::pair<int, int>{0, 1}, std::pair<int, int>{-1, 0}, std::pair<int, int>{0, -1}}) {
+                const int ox2 = x + d.first, oz2 = z + d.second;
+                if (ox2 >= sq.x && ox2 < sq.x1() && oz2 >= sq.z && oz2 < sq.z1()) continue;
+                ++edges;
+                const int si = seat(x, z), so = seat(ox2, oz2);
+                if (si == INT_MIN || so == INT_MIN) { ++unseated; continue; }
+                if (std::abs(si - so) <= box.maxStepUpMicro) ++walkableEdges;
+                else { ++cliffs; if (shown++ < 10) std::printf("[ M5e-1 ]   edge step: market cell %d,%d at %d, outside %d,%d at %d (%d micro)%s", x, z, si, ox2, oz2, so, so - si, chr10().c_str()); }
+            }
+        }
+        std::printf("[ M5e-1 ] the market's edge (recorded only): %d edge pairs, %d within the walker's step, %d a step too high or deep, %d with a side nobody can stand on%s", edges, walkableEdges, cliffs, unseated, chr10().c_str());
+    }
+    // (3) the record and the gate
+    const nlohmann::json rec = out["paths"].value("market", nlohmann::json::object());
+    std::printf("[ M5e-1 ] the record: %s%s", rec.dump().c_str(), chr10().c_str());
+    EXPECT_TRUE(rec.value("present", false)) << "the build records no market";
+    EXPECT_EQ(rec.value("unpaved_cells", -1), 0) << "the record's unpaved cells";
+    int marketRoutes = 0, marketBlocked = 0;
+    for (const auto& r : out["paths"].value("walkability", nlohmann::json::object()).value("routes", nlohmann::json::array()))
+        if (r.value("market", false)) { ++marketRoutes; if (!r.value("walkable", false)) { ++marketBlocked; std::printf("[ M5e-1 ]   BLOCKED %s%s", r.value("label", std::string("?")).c_str(), chr10().c_str()); } }
+    std::printf("[ M5e-1 ] gate: %d market routes, %d blocked; gate %s, %d walkable / %d blocked%s", marketRoutes, marketBlocked, out.value("gate", std::string("?")).c_str(), out.value("walkable", 0), out.value("blocked", 0), chr10().c_str());
+    {   // recorded only (not asserted): the stalls' fronts, and what the dressing planned
+        const nlohmann::json wk = out["paths"].value("walkability", nlohmann::json::object());
+        int wells = 0, stalls = 0;
+        for (const auto& p : dress.props) { if (p.type == "well") ++wells; else if (p.type == "market_stall") ++stalls; }
+        std::printf("[ M5e-1 ] dressing planned: %d wells, %d stalls of %d asked; stall fronts reached %d of %d (recorded only)%s", wells, stalls, tier->pub.stalls,
+                    wk.value("market_stalls_reached", -1), wk.value("market_stall_routes", -1), chr10().c_str());
+        if (tier->pub.well) EXPECT_EQ(wells, 1) << "the live town's market plans " << wells << " wells";
+        // the audit (8): the stall fronts could not fail. Here they can: one route a stall the test's own dressing plans, each reached.
+        EXPECT_EQ(wk.value("market_stall_routes", -1), stalls) << "the gate's stall routes are not the stalls the dressing plans (the test's seed is not the build's?)";
+        EXPECT_EQ(wk.value("market_stalls_reached", -1), wk.value("market_stall_routes", -2)) << "a stall's front is not reached on foot from the main street";
+        std::printf("[ M5e-1 ] ways with a node in the square: %d; crossings walked: %d (a way with one node in it has none)%s", wk.value("market_ways_in_square", -1), wk.value("market_routes", -1), chr10().c_str());
+    }
+    EXPECT_GT(marketRoutes, 0) << "the gate walked no market route";
+    EXPECT_EQ(marketBlocked, 0);
+    EXPECT_EQ(out.value("gate", std::string()), "passed");
 }

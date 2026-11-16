@@ -639,7 +639,7 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
     // THROUGH BANDS: every street rect (not the square itself) clipped to the square. These are
     // the carriageways the dressing must keep clear.
     std::vector<Rect> bands;
-    for (const auto& s : msl.base.streets) {
+    for (const auto& s : (msl.squareBandsGiven ? msl.squareBands : msl.base.streets)) {
         if (s.x == sq.x && s.z == sq.z && s.w == sq.w && s.d == sq.d) continue;
         const int x0 = std::max(s.x, sq.x), x1 = std::min(s.x1(), sq.x1());
         const int z0 = std::max(s.z, sq.z), z1 = std::min(s.z1(), sq.z1());
@@ -708,15 +708,40 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
     // ---- WELL. Legacy anchor = the square-centre CELL (bit-compatible town behaviour). With a
     // statue on the centre the well moves to the centre of the largest pad.
     if (pub.well) {
-        if (!statueAtCentre) {
+        // M5e-1: on a map (bands given) the centre anchor is kept only where no carriageway runs through it; the
+        // legacy layouts keep their centre well unconditionally (bit-compatible).
+        bool wellAtCentre = !statueAtCentre;
+        if (wellAtCentre && msl.squareBandsGiven)
+            for (const auto& b : bands)
+                if (overlaps(Rect{sq.x + sq.w / 2, sq.z + sq.d / 2, kWellW, kWellD}, b)) { wellAtCentre = false; break; }
+        if (wellAtCentre) {
             put("well", sq.x + sq.w / 2, sq.z + sq.d / 2, kWellW, kWellD, 0);
         } else {
+            bool wellPlaced = false;
             for (const auto& pad : pads) {
                 const int wx = pad.x + (pad.w - kWellW) / 2, wz = pad.z + (pad.d - kWellD) / 2;
                 if (pad.w < kWellW || pad.d < kWellD) continue;
                 if (!clearOf(Rect{wx, wz, kWellW, kWellD})) continue;
                 put("well", wx, wz, kWellW, kWellD, 0);
+                wellPlaced = true;
                 break;
+            }
+            // M5e-1 (chain 300: the rolling town planned no well - a bent way's stepped bands left no pad two cubes
+            // square, and a build with a square places no verge well either). On a map the well then takes the free
+            // spot nearest the square's centre: inside the perimeter inset, off every band, clear of what stands.
+            if (!wellPlaced && msl.squareBandsGiven) {
+                int bx = 0, bz = 0; long best = -1;
+                for (int z = sq.z + 1; z + kWellD <= sq.z1() - 1; ++z)
+                    for (int x = sq.x + 1; x + kWellW <= sq.x1() - 1; ++x) {
+                        const Rect wr{x, z, kWellW, kWellD};
+                        bool free = clearOf(wr);
+                        for (const auto& b : bands) if (free && overlaps(wr, b)) free = false;
+                        if (!free) continue;
+                        const long dx = 2L * x + kWellW - (2L * sq.x + sq.w), dz = 2L * z + kWellD - (2L * sq.z + sq.d);
+                        const long d2 = dx * dx + dz * dz;
+                        if (best < 0 || d2 < best) { best = d2; bx = x; bz = z; }
+                    }
+                if (best >= 0) put("well", bx, bz, kWellW, kWellD, 0);
             }
         }
     }
@@ -770,6 +795,54 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
             if (r.x1() > sq.x1() - 1 || r.z1() > sq.z1() - 1) break;  // perimeter inset
             if (!clearOf(r)) continue;
             put("market_stall", cx, cz, w, d, rot);
+            --remaining;
+        }
+    }
+
+    // M5e-1 (chains 303-304: 124 stalls of 290 asked, none on the live town - a junction of bent ways cuts the pads
+    // into slivers no row fits). On a MAP the stalls the pads could not host take any free spot: inside the perimeter
+    // inset, off every through lane, clear of what stands, with the whole front strip (the cells a customer stands
+    // on) inside the square, free, and at least one of them on a through lane - most lane cells first. The front
+    // strip is kept free of later stalls.
+    if (msl.squareBandsGiven && remaining > 0) {
+        struct Cand { Rect r; Rect front; int rot; int lane; };
+        std::vector<Cand> cands;
+        const auto laneCells = [&](const Rect& r) {
+            int n = 0;
+            for (int z = r.z; z < r.z1(); ++z) for (int x = r.x; x < r.x1(); ++x)
+                for (const auto& b : bands) if (x >= b.x && x < b.x1() && z >= b.z && z < b.z1()) { ++n; break; }
+            return n;
+        };
+        for (const int rot : {0, 90, 180, 270}) {
+            const bool horiz = rot == 0 || rot == 180;
+            const int w = horiz ? kStallW : kStallD, d = horiz ? kStallD : kStallW;
+            for (int z = sq.z + 1; z + d <= sq.z1() - 1; ++z)
+                for (int x = sq.x + 1; x + w <= sq.x1() - 1; ++x) {
+                    const Rect r{x, z, w, d};
+                    if (laneCells(r) > 0) continue;
+                    const Rect f = rot == 0 ? Rect{x, z + d, w, 1} : rot == 180 ? Rect{x, z - 1, w, 1} : rot == 90 ? Rect{x - 1, z, 1, d} : Rect{x + w, z, 1, d};
+                    if (f.x < sq.x || f.z < sq.z || f.x1() > sq.x1() || f.z1() > sq.z1()) continue;
+                    const int lane = laneCells(f);
+                    if (lane == 0) continue;
+                    cands.push_back({r, f, rot, lane});
+                }
+        }
+        std::stable_sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) {
+            if (a.lane != b.lane) return a.lane > b.lane;
+            if (a.r.z != b.r.z) return a.r.z < b.r.z;
+            if (a.r.x != b.r.x) return a.r.x < b.r.x;
+            return a.rot < b.rot;
+        });
+        std::vector<Rect> fronts;
+        for (const Cand& c : cands) {
+            if (remaining <= 0) break;
+            if (!clearOf(c.r)) continue;
+            bool free = true;
+            for (const auto& o : occupied) if (overlaps(c.front, o)) { free = false; break; }
+            for (const auto& f : fronts) if (free && (overlaps(c.r, f) || overlaps(c.front, f))) free = false;
+            if (!free) continue;
+            put("market_stall", c.r.x, c.r.z, c.r.w, c.r.d, c.rot);
+            fronts.push_back(c.front);
             --remaining;
         }
     }

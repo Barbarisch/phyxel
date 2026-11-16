@@ -48,6 +48,7 @@ struct PavingPlan {
     long levelCols = 0;                    ///< surface == terrain top face (thin cap)
     long fillCols = 0;                     ///< surface above terrain (causeway fill)
     long cutCols = 0;                      ///< surface below terrain (cut, then cap)
+    long plazaCols = 0;                    ///< M5e-1: columns paved as a plaza (not by a way)
     int  spursPlanned = 0;                 ///< door spurs graded
     int  spursFailed = 0;                  ///< door spurs too steep (surfaced, not silent)
     /// M0 row 2b: one line per failed spur - door (x,z,S0) -> street (x,z,SG), run length,
@@ -82,9 +83,13 @@ struct WayRibbon {
     std::vector<glm::ivec2> cells;   ///< the way's node cells in order (world cubes; >= 2)
     int widthCubes = 1;              ///< the paved width (cubes; the program's street / lane width)
 };
+/// M5e-1: `plazas` are open paved places (x, z, w, d in WORLD CUBES - the market). Every micro column of a plaza
+/// no way wrote is paved too: at its own ground, held within the walker's step of the ways' surfaces beside it
+/// (the ways' columns are NOT changed - the map states their levels), then slope-limited across the plaza.
 PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                          const std::function<int(int, int)>& groundMicroAt,
-                         const AgentBox& box, const std::string& material);
+                         const AgentBox& box, const std::string& material,
+                         const std::vector<glm::ivec4>& plazas = {});
 
 /// M0 (docs/WorldForgeV2Plan.md §5 M0, "site prep reordered"): door spurs ONLY, planned AFTER
 /// the buildings exist so each spur runs from the REALIZED door (the recorded front-door

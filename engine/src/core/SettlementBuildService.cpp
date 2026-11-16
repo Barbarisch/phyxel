@@ -457,6 +457,13 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         std::vector<Core::WayRibbon> mapRibbons;             // M5b-1: the same cells with each way's paved width, for the ribbon paver
         std::vector<glm::ivec4> mapFoot;                     // M5b-1 (chain 114): the map's lot footprints (x, z, w, d) world cubes - the ways never pave inside one
         glm::ivec2 mapWellCell(0); bool mapWell = false;      // M5b-1: the village well on the primary's verge (the projection's)
+        // M5e-1: the market as a PLACE. Paved over its whole rect by the ways unit (a plaza), and walked by the gate:
+        // across it along every way that crosses it (blocked = the build is refused, as any street), and - RECORDED
+        // ONLY - from the main street to the front of every stall the dressing plans.
+        std::vector<glm::ivec4> mapPlazas;                    // (x, z, w, d) world cubes
+        struct MarketCross { glm::ivec2 a{0, 0}, b{0, 0}; std::string label; };
+        struct MarketGate { bool present = false; glm::ivec4 rect{0}; glm::ivec2 start{0, 0}; bool hasStart = false; std::vector<MarketCross> crossings, stalls; int waysInSquare = 0; };
+        auto sharedMarket = std::make_shared<MarketGate>();
         int primaryWayId = -1;
         // {"legacy_layout": true}: the layout AS BUILT before M5a for a program tier - the CONTROL of the L4
         // A/B (the same site, seed and terrain through the grid, so a gate refusal can be attributed)
@@ -553,6 +560,42 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             layout = proj.layout;
             msl = proj.msl;
             mapWellCell = proj.wellCell; mapWell = proj.hasWell; primaryWayId = proj.primaryWay;
+            if (msl.hasSquare && tierP) {
+                const Core::Rect sq = msl.marketSquare;
+                mapPlazas.push_back(glm::ivec4(ox + sq.x, oz + sq.z, sq.w, sq.d));
+                MarketGate& mk = *sharedMarket;
+                mk.present = true; mk.rect = mapPlazas.back();
+                std::set<std::pair<int, int>> propCells;
+                const Core::SquareDressing dress = Core::planSquareDressing(msl, tierP->pub, seed);
+                for (const auto& pr : dress.props) for (int z = pr.cz; z < pr.cz + pr.d; ++z) for (int x = pr.cx; x < pr.cx + pr.w; ++x) propCells.insert({x, z});
+                const auto inSq = [&](const Core::MapNode* n) { return n && n->x >= sq.x && n->x < sq.x1() && n->z >= sq.z && n->z < sq.z1() && !propCells.count({n->x, n->z}); };
+                long bestD = -1;
+                for (const auto& w : siteMap.ways) {
+                    const Core::MapNode* first = nullptr; const Core::MapNode* last = nullptr;
+                    for (int nid : w.nodes) {
+                        const Core::MapNode* n = siteMap.node(nid);
+                        if (!inSq(n)) continue;
+                        if (!first) first = n;
+                        last = n;
+                        if (w.highway == "primary") {
+                            const long dx = 2L * n->x - (2L * sq.x + sq.w), dz = 2L * n->z - (2L * sq.z + sq.d), d2 = dx * dx + dz * dz;
+                            if (bestD < 0 || d2 < bestD) { bestD = d2; mk.start = {ox + n->x, oz + n->z}; mk.hasStart = true; }
+                        }
+                    }
+                    if (first) ++mk.waysInSquare;   // the audit of M5e-1 (6): a way with ONE node in the square is counted and has no crossing
+                    if (first && last && first != last)
+                        mk.crossings.push_back({{ox + first->x, oz + first->z}, {ox + last->x, oz + last->z},
+                                                "the market: across it along way " + std::to_string(w.id) + " (" + w.highway + ")"});
+                }
+                int si = 0;
+                for (const auto& pr : dress.props) {
+                    if (pr.type != "market_stall") continue;
+                    // the cell in front of the stall (its front per rotDeg: 0 = +Z, 90 = -X, 180 = -Z, 270 = +X), at the middle of that side
+                    glm::ivec2 f(pr.cx + pr.w / 2, pr.cz + pr.d / 2);
+                    if (pr.rotDeg == 0) f.y = pr.cz + pr.d; else if (pr.rotDeg == 180) f.y = pr.cz - 1; else if (pr.rotDeg == 90) f.x = pr.cx - 1; else f.x = pr.cx + pr.w;
+                    mk.stalls.push_back({mk.start, {ox + f.x, oz + f.y}, "the market: the main street -> the front of stall " + std::to_string(si++)});
+                }
+            }
             droppedPlots = siteMap.droppedLots;
             for (const auto& l : siteMap.lots) {
                 Core::PlacedBuilding b;
@@ -1487,12 +1530,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // line, LEVEL across the width, a capsule round diagonal legs); the same applier as the legacy street
             // unit, so the door spurs, the sweep and the fences' straddle rule read the same shared columns.
             units.push_back({"grading + paving ways",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, tierStreetMat = tierP->street.material, mapRibbons, mapFoot,
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, tierStreetMat = tierP->street.material, mapRibbons, mapFoot, mapPlazas,
                  groundMicro, groundTopAt, fl9, emitMicro, abox, pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
             auto& pavedCols = *sharedPaved;
-            Core::PavingPlan pave = Core::planWayPaving(mapRibbons, groundMicro, abox, tierStreetMat);
+            Core::PavingPlan pave = Core::planWayPaving(mapRibbons, groundMicro, abox, tierStreetMat, mapPlazas);
             // M5b-1 (chain 114): a way's capsule edge can poke into a setback-0 lot's footprint; the forge builds over the
             // stamped micros and those above its floor survive as a spike in the doorway (the town's tavern @13573:
             // columns at 1449 against a floor of 1443). No column inside a lot's footprint is stamped.
@@ -1525,6 +1568,22 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          {"cut_cols_honored", pave.cutCols}, {"cut_cubes_removed", ap.cutCubes},
                          {"grass_converted", ap.grassConverted},
                          {"material", tierStreetMat}, {"stamp_ms", static_cast<long>(ap.stampMs)}};
+            // M5e-1: the market's record, counted from the columns that were STAMPED (after the footprint filter)
+            for (const auto& pl : mapPlazas) {
+                std::map<std::pair<int, int>, int> perCell;
+                for (const auto& c : pave.columns) {
+                    const int cx = fl9(c.x), cz = fl9(c.z);
+                    if (cx >= pl.x && cx < pl.x + pl.z && cz >= pl.y && cz < pl.y + pl.w) ++perCell[{cx, cz}];
+                }
+                long cols = 0; int partial = 0;
+                for (const auto& [cell, n] : perCell) { cols += n; if (n < 81) ++partial; }   // 81 = the 9 x 9 micro columns of a cube cell
+                const int cells = pl.z * pl.w;
+                pathsJson["market"] = {{"present", true}, {"rect", {pl.x, pl.y, pl.z, pl.w}}, {"cells", cells},
+                                       {"paved_cells", static_cast<int>(perCell.size())}, {"unpaved_cells", cells - static_cast<int>(perCell.size())},
+                                       {"partly_paved_cells", partial}, {"paved_columns", cols}, {"plaza_columns", pave.plazaCols}};
+                LOG_INFO_FMT("Settlement", "ways: the market " << pl.z << " x " << pl.w << " at (" << pl.x << "," << pl.y << "): " << perCell.size() << " of " << cells
+                             << " cells paved (" << partial << " partly), " << pave.plazaCols << " plaza columns");
+            }
             }});
             } else {
             // STREET PAVING (Phase 2), as ONE work unit: grade + pave the full street width in the
@@ -2552,24 +2611,37 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             units.push_back({"square dressing",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP]() {
             if (!chunkManager || !placedObjectManager || !objectTemplateManager) return;
-            int placed = 0, skipped = 0;
+            int placed = 0, skipped = 0, unseated = 0, spanMax = 0;
+            nlohmann::json seats = nlohmann::json::array();
             const auto dress = Core::planSquareDressing(msl, pubSpec, seed);
             for (const auto& p : dress.props) {
                 const std::string tmpl = Core::FurnitureCatalog::templateFor(p.type);
                 bool ok = false;
                 if (!tmpl.empty() && objectTemplateManager->getTemplate(tmpl)) {
                     const int cx = ox + p.cx, cz = oz + p.cz;
-                    const int gy = terrainTopAt(cx, cz) + 1;   // stand on the plaza paving
-                    ok = !placedObjectManager
-                              ->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, gy * 9, cz * 9),
-                                                   p.rotDeg, "")
-                              .empty();
+                    // M5e-1 (chain 309: the live town's well and both stalls stood 18 micro UNDER the paving). The
+                    // paving is a micro surface - a way or the plaza lays fill over the ground - and terrainTopAt is
+                    // a CUBE-top scan that does not see it. A prop stands on the LIVE micro surface under its
+                    // footprint: the highest solid micro there, plus one. The span of that surface across the
+                    // footprint is recorded (on a slope the low side is left open under the prop).
+                    const int hint = terrainTopAt(cx, cz);
+                    int lo = INT_MAX, hi = INT_MIN;
+                    for (int mz = cz * 9; mz < (cz + p.d) * 9; mz += 2)        // 9 = micro per cube (the grid's tie)
+                        for (int mx = cx * 9; mx < (cx + p.w) * 9; mx += 2)
+                            for (int y = (hint + 6) * 9; y > (hint - 6) * 9; --y)
+                                if (chunkManager->occupiedMicro(glm::ivec3(mx, y, mz))) { lo = std::min(lo, y); hi = std::max(hi, y); break; }
+                    if (hi == INT_MIN) { ++unseated; }
+                    else {
+                        ok = !placedObjectManager->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, hi + 1, cz * 9), p.rotDeg, "").empty();
+                        spanMax = std::max(spanMax, hi - lo);
+                        seats.push_back({{"type", p.type}, {"x", cx}, {"z", cz}, {"y_micro", hi + 1}, {"ground_span_micro", hi - lo}, {"placed", ok}});
+                    }
                 }
                 (ok ? ++placed : ++skipped);
             }
             LOG_INFO_FMT("Settlement", "square dressing: " << placed << " placed, "
-                         << skipped << " skipped");
-            (*propsJsonP)["square_dressing"] = {{"placed", placed}, {"skipped", skipped}};
+                         << skipped << " skipped (" << unseated << " found no ground), the widest ground span under a prop " << spanMax << " micro");
+            (*propsJsonP)["square_dressing"] = {{"placed", placed}, {"skipped", skipped}, {"unseated", unseated}, {"ground_span_max_micro", spanMax}, {"props", seats}};
             }});
         }
 
@@ -2843,7 +2915,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager) {
             units.push_back({"walkability gate",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt, sharedWallGates, sharedWallTowers]() {
+                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt, sharedWallGates, sharedWallTowers, sharedMarket]() {
             if (!chunkManager) return;
             const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
                 return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
@@ -3070,6 +3142,49 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         routesJ.push_back(j);
                     }
                 }
+            // M5e-1: the market is walked. Across it along every way that crosses it - a street like any other, so a
+            // blocked crossing refuses the build; and, RECORDED ONLY, from the main street to the front of each stall.
+            int marketRoutes = 0, marketBlocked = 0, stallRoutes = 0, stallsReached = 0;
+            if (sharedMarket->present) {
+                const auto& mk = *sharedMarket;
+                const auto walkOne = [&](const glm::ivec2& a, const glm::ivec2& b, const std::string& label, bool counts) {
+                    const int fa = seatFeet(a.x, a.y, (terrainTopAt(a.x, a.y) + 1) * 9), fb = seatFeet(b.x, b.y, (terrainTopAt(b.x, b.y) + 1) * 9);
+                    nlohmann::json j = {{"label", label}, {counts ? "market" : "market_stall", true}};
+                    if (!counts) j["recorded_only"] = true;
+                    bool ok = false;
+                    if (fa != INT_MIN && fb != INT_MIN) {
+                        Core::WalkRoute r;
+                        r.label = label; r.from = {a.x * 9 + 4, fa, a.y * 9 + 4}; r.to = {b.x * 9 + 4, fb, b.y * 9 + 4}; r.goalRadiusMicro = 4;
+                        const glm::ivec3 lo((mk.rect.x - 4) * 9, std::min(fa, fb) - 45, (mk.rect.y - 4) * 9);
+                        const glm::ivec3 hi((mk.rect.x + mk.rect.z + 4) * 9, std::max(fa, fb) + 45, (mk.rect.y + mk.rect.w + 4) * 9);
+                        const auto rep = Core::checkRoutes(occ, box, {r}, lo, hi, /*diagnose=*/true);
+                        ok = rep.walkable > 0;
+                        j["from"] = {r.from.x, r.from.y, r.from.z}; j["to"] = {r.to.x, r.to.y, r.to.z};
+                        if (!ok && !rep.routes.empty()) {
+                            const auto& rr = rep.routes[0];
+                            j["pinch_from"] = {rr.pinchFrom.x, rr.pinchFrom.y, rr.pinchFrom.z}; j["pinch_to"] = {rr.pinchTo.x, rr.pinchTo.y, rr.pinchTo.z};
+                            j["pinch_gap_micro"] = rr.pinchGapMicro; j["reached_from_start"] = rr.reachedFromStart; j["reached_from_goal"] = rr.reachedFromGoal;
+                            j["one_way"] = rr.oneWay;
+                        }
+                    } else { j["start_unsupported"] = fa == INT_MIN; j["goal_unsupported"] = fb == INT_MIN; }
+                    j["walkable"] = ok;
+                    routesJ.push_back(j);
+                    return ok;
+                };
+                for (const auto& c : mk.crossings) {
+                    ++marketRoutes;
+                    if (walkOne(c.a, c.b, c.label, true)) ++walkable;
+                    else { ++blocked; ++marketBlocked; LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << c.label << " (" << c.a.x << "," << c.a.y << ")->(" << c.b.x << "," << c.b.y << ")"); }
+                }
+                if (mk.hasStart)
+                    for (const auto& s : mk.stalls) {
+                        ++stallRoutes;
+                        if (walkOne(s.a, s.b, s.label, false)) ++stallsReached;
+                        else LOG_WARN_FMT("Settlement", "walkability: " << s.label << " is NOT reached on foot (" << s.b.x << "," << s.b.y << ") - recorded, not refusing");
+                    }
+                LOG_INFO_FMT("Settlement", "walkability gate: the market - " << marketRoutes << " crossings walked, " << marketBlocked << " blocked; stall fronts reached "
+                             << stallsReached << " of " << stallRoutes << " (recorded only)");
+            }
             // M5d-3 (D66 PROPOSED): every tower built on the map's wall WORKS from the ground at its door - on foot, both ways
             int towerRoutes = 0, towerBlocked = 0, towerUnplaced = 0, towerStreetRoutes = 0, towerStreetReached = 0;
             for (const auto& tw : *sharedWallTowers) {
@@ -3164,6 +3279,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             (*pathsJsonP)["walkability"]["tower_unplaced"] = towerUnplaced;
             (*pathsJsonP)["walkability"]["tower_street_routes"] = towerStreetRoutes;
             (*pathsJsonP)["walkability"]["tower_reached_from_street"] = towerStreetReached;
+            (*pathsJsonP)["walkability"]["market_routes"] = marketRoutes;
+            (*pathsJsonP)["walkability"]["market_blocked"] = marketBlocked;
+            (*pathsJsonP)["walkability"]["market_stall_routes"] = stallRoutes;
+            (*pathsJsonP)["walkability"]["market_stalls_reached"] = stallsReached;
+            (*pathsJsonP)["walkability"]["market_ways_in_square"] = sharedMarket->waysInSquare;
             *walkJsonP = (*pathsJsonP)["walkability"];
             }});
         }
