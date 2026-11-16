@@ -1,0 +1,52 @@
+F3.5 -- the F3 exit gate (VoxelFoundationPlan §9b; the F3 row: "edit cost per block << today's 2-13 ms chunk
+rebuild; save/load round-trips exactly"). Written 2026-11-16, BEFORE the run. No engine code changes planned.
+
+Method (one engine session, Release, the F2 gate region: VoxFoundGate, Perlin s7 flora, chunks 254..257 x 0..1 x
+2..5, editable; today's world hidden, wind 0, GI off; Battle.net launcher only, WoW checked before and after):
+- Saved rows of the region cleared first.
+- 1,000 edit cycles in 10 batches of 100. Each edit: a brush of size 1, 2, 4 or 8 (250 each, interleaved), place
+  (Stone / Wood / Leaf / Dirt) or break (air), half aimed by picking rays from the 5 poses' cameras, half at random
+  points chosen ON chunk borders, edges and corners (1, 2 or 3 coordinates on a multiple of 256, +-size). Every edit
+  verified (a full FaceBuilderGpu rebuild of every touched chunk: faces, sprigs, connectivity).
+- After every batch: save (edited chunks only), per-chunk voxel hashes H, rebuild the region with load_saved, hashes
+  again = H, then continue editing ON the reloaded region (so later batches edit loaded chunks).
+- At the end: 0 px vs replace_all at forest_floor_open and overview_south (+ controls), and a re-save byte-identical.
+
+Predictions:
+1. Exact at every step: 0 face / sprig / connectivity mismatches in all 1,000 edits; 10 of 10 reloads with every chunk
+   hash equal; the final pixels 0 / 0; the final re-save byte-identical.
+2. Edit cost (request to lists ready, median / p90): size 8 (one block) 0.40-0.67 / <= 1.2 ms -- the F3 row's first
+   half, <= 0.67 ms median = >= 3x below today's 2 ms low end; sizes 1-4 0.15-0.5 ms median. Reloaded regions edit at
+   the same cost (+-20 % between the first and the last batch).
+3. Saved chunks grow with the batches up to all 32 (the edits reach every chunk); blob total 1-12 MB; save 50-300 ms;
+   reload (build + load) 25-40 s.
+4. Edit store bytes stay within 1.3x of the build's 62.9 MB after 1,000 edits (collapse with slack keeps the pool
+   from growing without bound).
+Stop line: any mismatch or any unequal hash stops the run there and is diagnosed before anything else.
+
+==== MEASURED (2026-11-16; voxfound_f35_gate.txt / .json / _edits.jsonl; one session, Release, Battle.net launcher
+     only, no WoW before or after) ====
+A defect in the script, found reading the results: it chose the brush size by (edit % 4) and the kind by (edit % 2),
+so sizes 1 and 4 were ALWAYS picked (interior) edits and sizes 2 and 8 ALWAYS border edits -- size and kind are
+confounded. Every number below is reported per (size, kind) as it was actually run; an interior size-8 edit was not
+measured here (F3.2b measured it: 0.50 ms median).
+1. Exact at every step: 0 face / sprig / connectivity mismatches in all 1,000 verified edits (500 picked, 164 on a
+   chunk face, 164 on an edge, 172 at a corner); 10 of 10 reloads with all 32 chunk hashes equal; final pixels 0 / 0
+   vs replace_all (controls 0 / 0); the reloaded region's save byte-identical to the save it came from (32 / 32). HELD.
+   The stop line was never reached.
+2. Edit cost, request to lists ready (median / p90 ms; chunks rebuilt median):
+     size 1 picked   0.182 / 0.398 (1 chunk)      size 4 picked   0.212 / 0.425 (1)
+     size 2 face     0.323 / 0.797 (2)            size 8 face     0.692 / 1.149 (2)
+     size 2 edge     0.630 / 1.072 (3)            size 8 edge     0.817 / 1.320 (3)
+     size 2 corner   0.809 / 1.411 (3.5)          size 8 corner   0.900 / 1.521 (4)
+   Predicted size 8 0.40-0.67 median: WRONG on chunk borders (0.69 / 0.82 / 0.90): the cost scales with the chunks
+   an edit touches -- each pays its own plan, row executor, cluster update and pool span. Inside a chunk (F3.2b,
+   0.50 ms) the F3 row's first half holds; at a chunk corner a one-block brush is 0.90 ms, 2.2x below today's 2 ms
+   low end, not >= 3x. Reloaded regions edit at the same cost (size 1: 0.191 -> 0.181 ms, batches 0-2 vs 7-9; size 8
+   0.742 -> 0.820, within the predicted +-20 %).
+3. Saved chunks 23 / 29 / 30 / then all 32 from batch 3; blobs 6.3-7.7 MB; save 0.13-0.20 s; reload (build + load)
+   25.6-26.1 s, of which the load's rebuild 0.40-0.62 s. HELD.
+4. Edit store 62.9 MB after the build -> 84.6 MB after 1,000 edits (1.34x). Predicted within 1.3x: WRONG (just).
+Verdict: the F3 row's second half (save / load round-trips exactly) holds under 1,000 edits and 10 reloads. Its first
+half holds inside a chunk and NOT on chunk borders. Owed before F3 closes: the per-touched-chunk overhead of an edit
+(a border edit rebuilds 2-4 chunks), then this gate re-run with size and kind drawn independently.

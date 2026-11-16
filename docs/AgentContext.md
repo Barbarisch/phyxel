@@ -519,8 +519,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Cubes exact; ninths by volume + "no material vanishes from a cell". Live on a COPY of CityBench_C25
       (Documents/PhyxelProjects/CityBench_C25_F34 -- opening a world adds the voxfound_chunk_blobs table to its db).
       Thin trims still lose volume (LogBirch -86 %); small leaf features draw bare (sprig density; FC).
-      NEXT: F3.5 the F3 exit gate (both halves on the gate region + stress: 1,000 edit cycles, every brush size,
-      chunk borders / corners, save / load after each batch).
+      F3.5 first run (2026-11-16): exact under 1,000 verified edits + 10 save/reload batches (0 mismatches, all
+      hashes equal, 0 px, byte-identical re-save). Edit cost on chunk borders 0.69 / 0.82 / 0.90 ms (face / edge /
+      corner, size 8) > 0.67: per-touched-chunk overhead. Script confounded size with kind (fix: draw independently).
+      NEXT: cut the per-touched-chunk overhead of border edits (prediction first), then re-run F3.5 unconfounded.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
