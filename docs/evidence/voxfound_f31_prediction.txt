@@ -1,0 +1,105 @@
+F3.1 -- edit cost (VoxelFoundationPlan §9b). Written 2026-11-16, BEFORE any code.
+
+The F3 row's first half: "edit cost per block << today's 2-13 ms chunk rebuild". Read as F2.16 read it: >= 3x below
+the low end, so a 1 m brush (one block) costs <= 0.67 ms on the main thread from the request to the drawn lists
+ready (RegionEdit::apply + RegionEdit::assemble), plus the next frame's upload (F2.17: 0.16-0.18 ms, unchanged here).
+
+Where a 1 m edit's time goes today (F2.16 gate, CPU executor, median of 33 live edits; voxfound_f216_gate_edits.jsonl):
+  rows 3.81 ms, connectivity 0.61, plan 0.07, clusters 0.06, sprigs 0.01, set 0.01 -> rebuild 4.50; assemble 2.43.
+  1 voxel: rebuild 1.04 (connectivity 0.77, rows 0.23), assemble 2.48. 4 m: rebuild 47.8 (rows 46.9), assemble 2.48.
+
+Changes (each exact by construction; the existing IncrementalRebuildEqualsAFullRebuild keeps pinning faces, groups,
+cells, sprigs, blocking and connectivity after every one of 300 edits):
+1. Rows: meshRunsPlan evaluates the face mask LAZILY. A face is added only if its run meets the footprint grown by
+   one in u ([uLo-1, uHi+1]), so per row only the runs that touch that window are found (scan out from the window to
+   where the material changes), and the head / stack tests read only the cells [u-1, u+w] of the rows they test
+   (same rows m0..m1 as today). Today every row is evaluated over the whole slice width (256 cells).
+2. Connectivity: updateBlockBlocking reports whether any block's "blocks sight" bit changed; no change -> the flood
+   is skipped (connectivity is a function of the bits alone). When it runs, it is a bit-parallel flood (one 64-bit
+   word per (x, y) row of blocks, dilate by shifts, AND with the open blocks, to a fixed point), per entry face.
+3. Assemble: only the rebuilt chunks' lists are built (cellsOfGroups etc.); the pool update writes their spans; the
+   Preview's drawn arrays are updated IN PLACE over the dirty ranges instead of copying the whole level image
+   (selectLevel); the sprigs of the rebuilt chunks are spliced in. A full layout (first call, overflow) still copies
+   everything.
+
+Red tests first (deterministic work counters, not wall time; then wall time live):
+- CPU VoxFoundMesher.RowRebuildReadsOnlyNearTheFootprint: engine terrain (buildTerrainArea, Perlin s7, 32 x 32 m
+  area, 1/8 m), 60 random 1 m brush edits on and near the ground: cells evaluated <= 10 % of today's whole-width rows
+  (today = rows x slice width), and the delta equals meshRunsDelta's (faces as a set). Red on today's executor.
+- CPU VoxFoundMesher.ConnectivityFloodRunsOnlyWhenABlockingBitChanges + the bit flood equal to a reference stack
+  flood on random blocking at 32^3 and odd sizes (densities 0-100 %). Red: no change report exists.
+- CPU VoxFoundMesher.RegionEditAssemblesOnlyWhatChanged: a 2-chunk RegionEdit (CPU
+  meshRuns + foliageSprigs as the builder output), 40 random edits incl. across the border: after each, the Preview's
+  drawn arrays = a full assemble of the same store, and the bytes copied into the Preview <= the rebuilt chunks'
+  lists + dirty ranges (today: the whole image every time). Red on today's assemble.
+
+Predictions (live, gate region Perlin s7 flora 254..257 x 0..1 x 2..5, Release, CPU executor, median / p90 of the
+gate's classes, request to lists ready = rebuild_ms + assemble_ms):
+1. Exact: 0 face / sprig / connectivity mismatches (verify) on >= 200 live edits, 1 voxel .. 4 m, chunk borders.
+   Pixels after 20 visible edits vs replace_all: 0 px in the 3D viewport.
+2. Rows wall: 1 m 0.08-0.3 ms (was 3.81); 4 m 4-16 ms (was 46.9: the 4 m footprint is 34 of 256 cells wide, plus
+   the runs' extensions); cells evaluated for 1 m <= 10 % of today's.
+3. Connectivity: skipped on most edits that change no whole block (1 voxel, partial blocks); when it runs 0.01-0.06 ms
+   (was 0.43-0.77).
+4. Assemble: 0.1-0.4 ms (was 2.43-2.56; the sprig splice moves ~1.8 MB, the rest is the rebuilt chunks' lists).
+5. Request to lists ready: 1 voxel 0.15-0.5 ms; 1 m 0.3-0.65 ms (gate <= 0.67: met); 2 m 1-3 ms; 4 m 5-18 ms, i.e.
+   0.08-0.28 ms per block of the 64.
+6. Next-frame upload unchanged (0.16-0.18 ms median); steady-state frames run the same code (no whole-frame A/B owed:
+   nothing per frame changes).
+Stop line: 1 m request to lists ready > 0.67 ms after all three changes -> profile the remaining phases before
+anything else (candidates: planRunsDelta's scan of every face of the chunk, faceAt's per-cell cost).
+
+---- 2026-11-16 interim: two gate runs, then the p90 (written before the code below) ----
+Run 1 (bit-row flood): 1 m request to lists ready median 0.53 / p90 1.15 ms; run 2 (the stack flood back: the bit flood
+cost the same per flood, 0.184 vs 0.185 ms): 0.62 / 1.28 ms. Median under the 0.67 gate in both, by 8-20 %, while the
+SAME legacy work varied up to 4x between the runs (legacy 1-voxel connectivity 0.18 vs 0.76 ms): not a margin to call
+"<<". The p90 has two named causes in the per-edit rows: (a) assemble p90 0.74-0.85 ms = the sprig rewrite from the
+first chunk whose sprig count changed to the end (~1.4 MB); (b) the flood, 0.2-0.5 ms when a blocking bit changed.
+Change:
+(a) sprig spans: each chunk's sprigs get a span with slack (count + a quarter, at least 64) in Preview::sprigs; gaps
+    are never drawn (the renderer draws each chunk's [firstSprig, firstSprig + sprigCount)); a count that fits its span
+    is rewritten in place, one that does not re-places every span (rare, like the face pool).
+(b) the flood with flat block indices, a byte "seen" array and an index stack kept between calls (no allocation, no
+    vector of ivec3).
+Red: RegionEditAssemblesOnlyWhatChanged tightened -- bytes written <= the dirty ranges + the REBUILT chunks' sprig
+spans (today: from the first shifted chunk to the end).
+Predictions: assemble p90 <= 0.3 ms (1 m); flood <= 0.1 ms per flood; 1 m request to lists ready median 0.25-0.5,
+p90 <= 0.67 ms. Pixels / exactness as before.
+Red-to-green note: the first sprig-span build re-placed every span 5 times in the test's 40 edits (limit written
+before the run: <= 4) with a fixed quarter of slack. Changed to the face pool's rule (slack x1.5 after each overflow),
+the limit kept.
+
+==== MEASURED (2026-11-16; voxfound_f31_gate.txt / .json / _edits.jsonl = run 3, the committed code; runs 1-2 kept as
+     voxfound_f31_gate_run1_bitflood* and _run2_stackflood*) ====
+Method: one engine session per run, Release, gate region (477,858 faces, 225,471 sprigs), wind 0, GI off, nothing else
+on the GPU (Battle.net launcher only, no WoW before or after). F2.16's edit generator (seed 216), every edit verified
+against a full FaceBuilderGpu rebuild of each touched chunk, F3.1 and legacy ({"legacy":true} = F2.17's path) in ABBA
+order. Request to lists ready = rebuild_ms + assemble_ms (main thread). Medians / p90.
+
+1. Exact: 0 face / sprig / connectivity mismatches in all 153 voxel-changing verified edits of each run (73 F3.1 +
+   80 legacy; per class f31 18/15/17/23, legacy 18/18/21/23), up to 4 chunks per edit. Pixels after 20 visible
+   edits vs replace_all: 0 px at forest_floor_open and overview_south, controls 0 px, drawn counts identical (all 3
+   runs). After 200 more edits: 1 px at overview_south (one pixel on a material edge, 12 levels, draw counts identical,
+   in all 3 runs incl. run 1). Face sets are verified exact, so it is draw ORDER between overlapping grown quads
+   (F2.18's T-junction growth; F2.17's 0 px was before F2.18); not attributed by experiment. HELD (0 px) at the two
+   poses; the churn pixel recorded.
+2. Rows wall: 1 m 0.116 ms (legacy 4.14; was 3.81 in F2.16): predicted 0.08-0.3, HELD. 4 m 4.65 (legacy 56.8):
+   predicted 4-16, HELD. Cells evaluated (CPU test, 60 x 1 m on engine terrain): 4.43 % of whole rows (pred <= 10 %).
+3. Connectivity: floods skipped on 14 of 18 one-voxel edits, 7 of 15 1 m edits (blocking unchanged); every 4 m edit
+   flooded. Per flood 0.16-0.19 ms in every run and every implementation (run 1 A/B: bit-row flood 0.184 vs stack
+   flood 0.185 ms; run 3 the flat-index flood 0.159). Predicted 0.01-0.06 then <= 0.1: WRONG twice. The bit flood was
+   dropped; a cheaper flood needs incremental connectivity (owed).
+4. Assemble (1 m): median 0.172, p90 0.313 ms (legacy 2.47 / 2.63). Predicted 0.1-0.4: HELD; p90 <= 0.3: just over
+   (0.313). Bytes written per edit: median ~0.35 MB vs 9.1 MB (legacy: the whole image).
+5. Request to lists ready, run 3 (F3.1 vs legacy, same session):
+     1 voxel 0.294 / 0.753  vs 3.12 / 3.31       predicted 0.15-0.5: HELD
+     1 m     0.531 / 0.752  vs 7.06 / 8.89       predicted 0.3-0.65: HELD; gate <= 0.67 at the median: MET
+     2 m     1.035 / 1.325  vs 16.9 / 25.9       predicted 1-3: HELD
+     4 m     6.174 / 7.839  vs 59.7 / 92.3       predicted 5-18: HELD; per block (64) 0.096 ms (pred 0.08-0.28: HELD)
+   1 m median in the three runs: 0.531 / 0.616 / 0.531; p90 1.149 / 1.279 / 0.752 (the sprig spans cut the p90).
+   p90 <= 0.67 predicted for run 3: WRONG (0.752: the flood 0.22 + the assemble 0.31 on the same edits).
+6. Next-frame upload 0.17-0.23 ms median (F2.17: 0.16-0.18): unchanged within noise. No per-frame code changed.
+Verdict: the edit cost per block is ~3.8x below the low end of today's 2-13 ms per chunk at the median for a 1 m brush
+(one block) and ~20x per block for a 4 m brush; 7-13x cheaper than F2.17's path on the same edits. The p90 of a 1 m
+brush (0.75 ms) is 2.7x below 2 ms but above the 0.67 line. Owed: incremental connectivity (the flood, 0.16 ms when a
+block's sight bit flips); the face span copy per rebuilt chunk (FacePool::write copies the chunk's whole span).

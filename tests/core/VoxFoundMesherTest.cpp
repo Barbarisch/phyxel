@@ -39,6 +39,7 @@
 #include "core/WorldGenerator.h"
 #include "core/voxfound/FacePool.h"
 #include "core/voxfound/Mesher.h"
+#include "core/voxfound/RegionEdit.h"
 #include "core/voxfound/StorageLab.h"
 
 using namespace Phyxel;
@@ -2008,4 +2009,270 @@ TEST(VoxFoundMesher, FacePoolUpdatesOnlyWhatChanged) {
     EXPECT_GT(partial, 300u);   // overflow re-layouts are the exception
     std::printf("[facepool] 400 steps: %zu partial, %zu full (%u layouts, %u moves); dirty faces %.2f %% of the live\n",
                 partial, fulls, pool.layouts(), pool.moves(), totalFaces ? 100.0 * double(dirtyFaces) / totalFaces : 0.0);
+}
+
+// ---- F3.1 (VoxelFoundationPlan §9b): edit cost ------------------------------------------------------------------
+// The row executor must read only the cells near the edit: a face is added only if its run meets the footprint grown
+// by one, so the runs that touch that window (and the rows the head / stack tests read) are all it needs. Engine
+// terrain at 1/8 m, 60 random 1 m brushes at and near the ground: the delta equals F2.16's whole-row executor, and the
+// cells evaluated are <= 10 % of the whole-row count. Red on F2.16's executor (it IS the whole-row count).
+TEST(VoxFoundMesher, RowRebuildReadsOnlyNearTheFootprint) {
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    VoxelArea area = surfaceArea(gen, 0, 0, 4);
+    VoxelGrid& g = area.grid;
+    const Edges e(Outside::Air);
+    const CardSet cards;
+    std::vector<PackedFace> faces = packedRuns(g, e, &cards);
+    std::mt19937 rng(31u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    const int nMat = int(area.palette.size());
+    size_t cells = 0, whole = 0, added = 0;
+    for (int it = 0; it < 60; ++it) {
+        const int x = rnd(0, g.dim.x - 8), z = rnd(0, g.dim.z - 8);
+        int top = g.dim.y - 1;
+        while (top > 0 && g.mat[g.idx({x + 4, top, z + 4})] == 0) --top;
+        const int y = std::clamp(top - 4 + rnd(-4, 4), 0, g.dim.y - 8);
+        const glm::ivec3 lo(x, y, z), hi = lo + 7;
+        const uint8_t m = rnd(0, 2) == 0 ? 0 : uint8_t(rnd(1, nMat - 1));
+        for (int a = lo.x; a <= hi.x; ++a)
+            for (int b = lo.y; b <= hi.y; ++b)
+                for (int c = lo.z; c <= hi.z; ++c) g.set({a, b, c}, m);
+        const RunsPlan plan = planRunsDelta(g.dim, faces, lo, hi);
+        const RunsDelta ref = meshRunsPlanWholeRows(g, e, plan, &cards);
+        const RunsDelta d = meshRunsPlan(g, e, plan, &cards);
+        ASSERT_EQ(d.removed, ref.removed) << "edit " << it;
+        ASSERT_EQ(sortedKeys(d.added), sortedKeys(ref.added)) << "edit " << it;
+        cells += d.cellsEvaluated;
+        whole += ref.cellsEvaluated;
+        added += d.added.size();
+        std::vector<char> gone(faces.size(), 0);
+        for (uint32_t r : d.removed) gone[r] = 1;
+        std::vector<PackedFace> next;
+        for (size_t i = 0; i < faces.size(); ++i)
+            if (!gone[i]) next.push_back(faces[i]);
+        next.insert(next.end(), d.added.begin(), d.added.end());
+        faces.swap(next);
+    }
+    ASSERT_EQ(sortedKeys(faces), sortedKeys(packedRuns(g, e, &cards)));   // the chain of deltas = a full rebuild
+    std::printf("[f31 rows] 60 x 1 m edits on %dx%dx%d terrain: %zu cells evaluated vs %zu whole rows (%.2f %%), %zu "
+                "faces added\n",
+                g.dim.x, g.dim.y, g.dim.z, cells, whole, 100.0 * double(cells) / double(whole), added);
+    EXPECT_LE(cells * 10, whole);
+}
+
+namespace {
+// The reference flood (F2.10's stack flood, as connectivityFromBlocking was written then).
+FaceConnect stackFlood(glm::ivec3 nb, const std::vector<uint8_t>& blocking) {
+    auto bi = [&](glm::ivec3 b) { return size_t(b.z + nb.z * (b.y + nb.y * b.x)); };
+    FaceConnect out{0, 0, 0, 0, 0, 0};
+    std::vector<int> comp(blocking.size(), -1);
+    const glm::ivec3 dir[6] = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
+    int id = 0;
+    for (int bx = 0; bx < nb.x; ++bx)
+        for (int by = 0; by < nb.y; ++by)
+            for (int bz = 0; bz < nb.z; ++bz) {
+                const glm::ivec3 s(bx, by, bz);
+                if (blocking[bi(s)] || comp[bi(s)] != -1) continue;
+                uint8_t f = 0;
+                comp[bi(s)] = id;
+                std::vector<glm::ivec3> st{s};
+                while (!st.empty()) {
+                    const glm::ivec3 c = st.back();
+                    st.pop_back();
+                    for (int a = 0; a < 3; ++a) {
+                        if (c[a] == 0) f |= uint8_t(1u << (2 * a));
+                        if (c[a] == nb[a] - 1) f |= uint8_t(1u << (2 * a + 1));
+                    }
+                    for (const glm::ivec3& dd : dir) {
+                        const glm::ivec3 n = c + dd;
+                        if (glm::any(glm::lessThan(n, glm::ivec3(0))) || glm::any(glm::greaterThanEqual(n, nb))) continue;
+                        if (blocking[bi(n)] || comp[bi(n)] != -1) continue;
+                        comp[bi(n)] = id;
+                        st.push_back(n);
+                    }
+                }
+                for (int k = 0; k < 6; ++k)
+                    if (f & (1u << k)) out[size_t(k)] |= f;
+                ++id;
+            }
+    return out;
+}
+}  // namespace
+
+// Connectivity is a function of the blocking bits alone, so the flood is owed only when a bit changed. (a) the change
+// report of updateBlockBlocking is exact (red on a stub that always says "changed"); (b) connectivityFromBlocking
+// equals the reference stack flood on random bits at 32^3 (a chunk) and odd sizes, densities 0-100 %.
+TEST(VoxFoundMesher, ConnectivityFloodRunsOnlyWhenABlockingBitChanges) {
+    std::mt19937 rng(3101u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    CardSet see;
+    see.set(4);
+    VoxelGrid g;
+    g.resize({64, 48, 40});
+    for (int x = 0; x < 64; ++x)
+        for (int z = 0; z < 40; ++z)
+            for (int y = 0; y < 48; ++y) g.set({x, y, z}, y < 20 ? 1 : (y < 22 && rnd(0, 3) == 0 ? 2 : 0));
+    std::vector<uint8_t> blocking = blockBlocking(g, see);
+    size_t same = 0, changed = 0;
+    for (int it = 0; it < 400; ++it) {
+        glm::ivec3 lo, hi;
+        const int size = rnd(0, 2) == 0 ? 8 : rnd(1, 6);
+        for (int a = 0; a < 3; ++a) {
+            lo[a] = size == 8 && rnd(0, 1) ? rnd(0, g.dim[a] / 8 - 1) * 8 : rnd(0, g.dim[a] - size);
+            hi[a] = lo[a] + size - 1;
+        }
+        const uint8_t m = uint8_t(rnd(0, 4));
+        for (int x = lo.x; x <= hi.x; ++x)
+            for (int y = lo.y; y <= hi.y; ++y)
+                for (int z = lo.z; z <= hi.z; ++z) g.set({x, y, z}, m);
+        const std::vector<uint8_t> before = blocking;
+        const bool ch = updateBlockBlocking(g, see, lo, hi, blocking);
+        ASSERT_EQ(blocking, blockBlocking(g, see)) << "edit " << it;
+        ASSERT_EQ(ch, blocking != before) << "edit " << it;
+        (ch ? changed : same) += 1;
+    }
+    EXPECT_GT(same, 50u);
+    EXPECT_GT(changed, 50u);
+    const glm::ivec3 sizes[] = {{32, 32, 32}, {5, 3, 6}, {1, 1, 1}, {7, 32, 2}, {33, 4, 65}};
+    for (const glm::ivec3& nb : sizes)
+        for (int density : {0, 10, 30, 50, 70, 90, 100})
+            for (int rep = 0; rep < 4; ++rep) {
+                std::vector<uint8_t> b(size_t(nb.x) * nb.y * nb.z);
+                for (uint8_t& v : b) v = rnd(0, 99) < density ? 1 : 0;
+                ASSERT_EQ(connectivityFromBlocking(nb, b), stackFlood(nb, b))
+                    << nb.x << "x" << nb.y << "x" << nb.z << " density " << density;
+            }
+    std::printf("[f31 connect] 400 edits: %zu changed a blocking bit, %zu did not (flood skipped)\n", changed, same);
+}
+
+// The reassembly after an edit writes only what changed into the Preview's drawn arrays: the rebuilt chunks' spans
+// (the pool's dirty ranges) and the sprigs. Two whole chunks side by side (256^3 each, CPU meshRuns + foliageSprigs as
+// the builder output), 40 random edits incl. across the shared border: after each, the drawn arrays equal the level
+// image (what selectLevel copies whole), the sprigs equal the chunks' lists, and the bytes written are <= the dirty
+// ranges + the sprigs. Red on F2.17's assemble (it copies the whole image every time).
+TEST(VoxFoundMesher, RegionEditAssemblesOnlyWhatChanged) {
+    constexpr int N = 256;
+    std::mt19937 rng(3102u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    CardSet cards;
+    cards.set(4);
+    std::vector<RegionChunk> rcs(2);
+    for (int c = 0; c < 2; ++c) {
+        RegionChunk& rc = rcs[size_t(c)];
+        rc.chunk = {c, 0, 0};
+        rc.originVoxel = {c * N, 0, 0};
+        rc.grid.resize({N, N, N});
+        for (int x = 0; x < N; ++x)
+            for (int z = 0; z < N; ++z) {
+                const int wx = c * N + x;
+                const int h = 96 + int(12.0 * std::sin(wx * 0.05) + 9.0 * std::cos(z * 0.07));
+                for (int y = 0; y < h; ++y) rc.grid.set({x, y, z}, uint8_t(y < h - 4 ? 1 : (y < h - 1 ? 2 : 3)));
+            }
+        for (int b = 0; b < 6; ++b) {   // leaf blobs
+            const glm::ivec3 o(rnd(8, N - 9), rnd(110, 140), rnd(8, N - 9));
+            const int r = rnd(3, 8);
+            for (int x = -r; x <= r; ++x)
+                for (int y = -r; y <= r; ++y)
+                    for (int z = -r; z <= r; ++z)
+                        if (x * x + y * y + z * z <= r * r) rc.grid.set(o + glm::ivec3(x, y, z), 4);
+        }
+        rc.border.resize({N, N, N}, false);
+    }
+    for (int y = 0; y < N; ++y)   // chunk 0's +x plane = chunk 1's x = 0 layer, and back
+        for (int z = 0; z < N; ++z) {
+            rcs[0].border.set(0, 1, y, z, rcs[1].grid.mat[rcs[1].grid.idx({0, y, z})] != 0);
+            rcs[1].border.set(0, -1, y, z, rcs[0].grid.mat[rcs[0].grid.idx({N - 1, y, z})] != 0);
+        }
+    RegionEdit edit;
+    edit.begin({0, 0, 0}, {1, 0, 0}, 4, true, 1u << 23);
+    edit.setMaterialSets(cards, cards);
+    for (int c = 0; c < 2; ++c) {
+        const Edges e(rcs[size_t(c)].border);
+        std::vector<PackedFace> out = packedRuns(rcs[size_t(c)].grid, e, &cards);
+        SprigParams sp;
+        sp.cards = cards;
+        sp.worldOriginVoxel = rcs[size_t(c)].originVoxel;
+        sp.threshold24 = 1u << 23;
+        const std::vector<PackedFace> spr = foliageSprigs(rcs[size_t(c)].grid, e, sp);
+        out.insert(out.end(), spr.begin(), spr.end());
+        edit.addChunk(rcs[size_t(c)], out);
+    }
+    rcs.clear();   // the store owns the voxels now
+    std::vector<uint16_t> leafTex(256);
+    for (size_t i = 0; i < leafTex.size(); ++i) leafTex[i] = uint16_t(1000 + i);
+    Preview pv;
+    pv.chunks.resize(2);
+    edit.assemble(pv, leafTex);
+    auto sameCluster = [](const PreviewCluster& a, const PreviewCluster& b) {
+        return a.lo == b.lo && a.hi == b.hi && a.firstFace == b.firstFace && a.count == b.count && a.chunk == b.chunk &&
+               a.level == b.level && a.leafMass == b.leafMass && a.dir == b.dir;
+    };
+    size_t partial = 0, bytes = 0, imageBytes = 0, relaid = 0;
+    uint32_t sprigLayoutsBefore = edit.sprigLayouts();
+    for (int it = 0; it < 40; ++it) {
+        glm::ivec3 lo;
+        const int size = rnd(1, 16);
+        lo.x = rnd(0, 2) == 0 ? rnd(N - size, N - 1) : rnd(0, 2 * N - size);   // a third straddle the border
+        lo.y = rnd(80, 140);
+        lo.z = rnd(0, N - size);
+        const glm::ivec3 hi = lo + size - 1;
+        const uint8_t m = uint8_t(rnd(0, 4));
+        const RegionEdit::Stats st = edit.apply(lo, hi, [](glm::ivec3) { return true; }, m);
+        edit.assemble(pv, leafTex, &st.rebuilt);
+        const Preview::Level& L = pv.levels[0];
+        const std::string at = "edit " + std::to_string(it);
+        ASSERT_EQ(pv.faces.size(), L.faces.size()) << at;
+        for (size_t i = 0; i < L.faces.size(); ++i) ASSERT_EQ(pv.faces[i].key(), L.faces[i].key()) << at << " face " << i;
+        ASSERT_EQ(pv.clusters.size(), L.clusters.size()) << at;
+        for (size_t i = 0; i < L.clusters.size(); ++i) ASSERT_TRUE(sameCluster(pv.clusters[i], L.clusters[i])) << at;
+        ASSERT_EQ(pv.clustersDir.size(), L.clustersDir.size()) << at;
+        for (size_t i = 0; i < L.clustersDir.size(); ++i)
+            ASSERT_TRUE(sameCluster(pv.clustersDir[i], L.clustersDir[i])) << at;
+        // each chunk's drawn sprig range = its list; ranges inside the array, in chunk order, never overlapping
+        uint32_t prevEnd = 0;
+        for (size_t c = 0; c < 2; ++c) {
+            ASSERT_EQ(pv.chunks[c].firstFace, L.firstFace[c]) << at;
+            ASSERT_EQ(pv.chunks[c].faceCount, L.faceCount[c]) << at;
+            const PreviewChunk& pc = pv.chunks[c];
+            ASSERT_GE(pc.firstSprig, prevEnd) << at;
+            ASSERT_LE(size_t(pc.firstSprig) + pc.sprigCount, pv.sprigs.size()) << at;
+            prevEnd = pc.firstSprig + pc.sprigCount;
+            const std::vector<PackedFace>& mine = edit.chunk(c).sprigs;
+            ASSERT_EQ(pc.sprigCount, uint32_t(mine.size())) << at;
+            for (size_t k = 0; k < mine.size(); ++k) {
+                const PackedFace& s = mine[k];
+                ASSERT_EQ(pv.sprigs[pc.firstSprig + k].cell, (s.a & 0xFFFFFFu) | (15u << 24)) << at;
+                ASSERT_EQ(pv.sprigs[pc.firstSprig + k].tex, uint32_t(leafTex[(s.b >> 16) & 0xFFu])) << at;
+            }
+            ASSERT_EQ(pc.connect, edit.chunk(c).connect) << at;
+        }
+        const uint32_t sprigLayoutsNow = edit.sprigLayouts();
+        const bool sprigRelaid = sprigLayoutsNow != sprigLayoutsBefore;
+        sprigLayoutsBefore = sprigLayoutsNow;
+        if (pv.poolDirty.full || sprigRelaid) {   // an overflow re-places everything (counted, must stay rare)
+            relaid += sprigRelaid ? 1 : 0;
+            continue;
+        }
+        ++partial;
+        size_t dirty = 0;
+        for (const PoolRange& r : pv.poolDirty.faces) dirty += r.count * sizeof(PackedFace);
+        for (const PoolRange& r : pv.poolDirty.clusters) dirty += r.count * sizeof(PreviewCluster);
+        for (const PoolRange& r : pv.poolDirty.clustersDir) dirty += r.count * sizeof(PreviewCluster);
+        // F3.1 p90: the sprigs too are spans with slack -- only the rebuilt chunks' sprig spans are written
+        size_t sprigSpans = 0;
+        for (size_t c : st.rebuilt) {
+            const size_t end = c + 1 < pv.chunks.size() ? pv.chunks[c + 1].firstSprig : pv.sprigs.size();
+            sprigSpans += (end - pv.chunks[c].firstSprig) * sizeof(PreviewSprig);
+        }
+        const size_t allowed = dirty + sprigSpans;
+        ASSERT_LE(pv.lastCopyBytes, allowed) << at;
+        bytes += pv.lastCopyBytes;
+        imageBytes +=
+            L.faces.size() * sizeof(PackedFace) + (L.clusters.size() + L.clustersDir.size()) * sizeof(PreviewCluster);
+    }
+    EXPECT_GT(partial, 30u);
+    EXPECT_LE(relaid, 4u);
+    std::printf("[f31 assemble] sprig spans re-placed %zu times\n", relaid);
+    std::printf("[f31 assemble] %zu partial steps: %.1f KB written per step (the whole image is %.1f KB)\n", partial,
+                partial ? double(bytes) / partial / 1024.0 : 0.0, partial ? double(imageBytes) / partial / 1024.0 : 0.0);
 }

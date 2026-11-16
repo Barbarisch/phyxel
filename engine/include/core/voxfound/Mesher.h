@@ -357,6 +357,7 @@ struct RunsDelta {
     std::vector<uint32_t> removed;   // indices into `before`, ascending
     std::vector<PackedFace> added;
     size_t rowsMeshed = 0;           // slice rows whose face mask was computed
+    size_t cellsEvaluated = 0;       // F3.1: face-mask cells computed (faceAt calls)
 };
 RunsDelta meshRunsDelta(const VoxelGrid& g, Edges outside, const std::vector<PackedFace>& before, glm::ivec3 lo,
                         glm::ivec3 hi, const CardSet* cards = nullptr);
@@ -377,6 +378,8 @@ struct RunsPlan {
 RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, glm::ivec3 lo, glm::ivec3 hi);
 /// The CPU executor of a plan (the reference for the device one): RunsDelta with plan.removed and the added faces.
 RunsDelta meshRunsPlan(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards = nullptr);
+/// F2.16's executor, kept as the reference for F3.1's: every planned row evaluated over the whole slice width.
+RunsDelta meshRunsPlanWholeRows(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards = nullptr);
 /// The sprigs (foliageSprigs) of the cells in [lo, hi] (clamped to the grid).
 std::vector<PackedFace> foliageSprigsBox(const VoxelGrid& g, Edges outside, const SprigParams& p, glm::ivec3 lo,
                                          glm::ivec3 hi);
@@ -386,9 +389,10 @@ size_t updateSprigs(std::vector<PackedFace>& sprigs, const VoxelGrid& g, Edges o
                     glm::ivec3 lo, glm::ivec3 hi);
 /// F2.10's per-block rule kept as data: blocking[b] = 1 iff all 512 voxels of block b are solid and not see-through
 /// (index b.z + nb.z * (b.y + nb.y * b.x)). Grid sides must be multiples of 8. updateBlockBlocking redoes the blocks
-/// the voxel box [lo, hi] touches; connectivityFromBlocking is blockFaceConnectivity's flood over them.
+/// the voxel box [lo, hi] touches and returns whether any bit changed (F3.1: no change = the connectivity, a function
+/// of the bits alone, is unchanged); connectivityFromBlocking is blockFaceConnectivity's flood over them.
 std::vector<uint8_t> blockBlocking(const VoxelGrid& g, const CardSet& seeThrough);
-void updateBlockBlocking(const VoxelGrid& g, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
+bool updateBlockBlocking(const VoxelGrid& g, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
                          std::vector<uint8_t>& blocking);
 FaceConnect connectivityFromBlocking(glm::ivec3 nBlocks, const std::vector<uint8_t>& blocking);
 /// Keeps one chunk's faces in clusterFaces + splitByDirection order through a delta (`groups` = the direction groups

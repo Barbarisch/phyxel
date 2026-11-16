@@ -1,0 +1,588 @@
+{
+ "build": {
+  "faces": 477858,
+  "sprigs": 225471,
+  "edit_store_bytes": 545510988,
+  "error": null,
+  "wall_s": 25.6
+ },
+ "summary": {
+  "f31_voxel": {
+   "n": 18,
+   "mismatches": 0,
+   "verified": 18,
+   "multi_chunk": 7,
+   "max_chunks": 4,
+   "floods": 4,
+   "errors": [],
+   "rows_meshed": {
+    "median": 12,
+    "p90": 12,
+    "max": 12
+   },
+   "plan_ms": {
+    "median": 0.055,
+    "p90": 0.114,
+    "max": 0.149
+   },
+   "rows_wall_ms": {
+    "median": 0.006,
+    "p90": 0.008,
+    "max": 0.009
+   },
+   "cluster_ms": {
+    "median": 0.04,
+    "p90": 0.096,
+    "max": 0.101
+   },
+   "sprig_ms": {
+    "median": 0.006,
+    "p90": 0.096,
+    "max": 0.098
+   },
+   "connect_ms": {
+    "median": 0.001,
+    "p90": 0.189,
+    "max": 0.204
+   },
+   "set_ms": {
+    "median": 0.002,
+    "p90": 0.003,
+    "max": 0.003
+   },
+   "rebuild_ms": {
+    "median": 0.149,
+    "p90": 0.35,
+    "max": 0.353
+   },
+   "assemble_ms": {
+    "median": 0.086,
+    "p90": 0.44,
+    "max": 0.505
+   },
+   "assemble_bytes": {
+    "median": 234872,
+    "p90": 757656,
+    "max": 982912
+   },
+   "ready_ms": {
+    "median": 0.248,
+    "p90": 0.757,
+    "max": 0.854
+   },
+   "upload_ms": {
+    "median": 0.185,
+    "p90": 0.413
+   }
+  },
+  "f31_1m": {
+   "n": 15,
+   "mismatches": 0,
+   "verified": 15,
+   "multi_chunk": 7,
+   "max_chunks": 4,
+   "floods": 8,
+   "errors": [],
+   "rows_meshed": {
+    "median": 540,
+    "p90": 720,
+    "max": 866
+   },
+   "plan_ms": {
+    "median": 0.061,
+    "p90": 0.129,
+    "max": 0.234
+   },
+   "rows_wall_ms": {
+    "median": 0.115,
+    "p90": 0.172,
+    "max": 0.184
+   },
+   "cluster_ms": {
+    "median": 0.053,
+    "p90": 0.086,
+    "max": 0.189
+   },
+   "sprig_ms": {
+    "median": 0.019,
+    "p90": 0.045,
+    "max": 0.09
+   },
+   "connect_ms": {
+    "median": 0.001,
+    "p90": 0.317,
+    "max": 0.328
+   },
+   "set_ms": {
+    "median": 0.017,
+    "p90": 0.023,
+    "max": 0.025
+   },
+   "rebuild_ms": {
+    "median": 0.377,
+    "p90": 0.544,
+    "max": 0.695
+   },
+   "assemble_ms": {
+    "median": 0.154,
+    "p90": 0.741,
+    "max": 0.776
+   },
+   "assemble_bytes": {
+    "median": 349848,
+    "p90": 1370880,
+    "max": 1716264
+   },
+   "ready_ms": {
+    "median": 0.531,
+    "p90": 1.149,
+    "max": 1.32
+   },
+   "upload_ms": {
+    "median": 0.181,
+    "p90": 0.233
+   }
+  },
+  "f31_2m": {
+   "n": 17,
+   "mismatches": 0,
+   "verified": 17,
+   "multi_chunk": 4,
+   "max_chunks": 4,
+   "floods": 9,
+   "errors": [],
+   "rows_meshed": {
+    "median": 1836,
+    "p90": 2448,
+    "max": 2994
+   },
+   "plan_ms": {
+    "median": 0.041,
+    "p90": 0.108,
+    "max": 0.145
+   },
+   "rows_wall_ms": {
+    "median": 0.744,
+    "p90": 0.861,
+    "max": 0.888
+   },
+   "cluster_ms": {
+    "median": 0.04,
+    "p90": 0.077,
+    "max": 0.109
+   },
+   "sprig_ms": {
+    "median": 0.015,
+    "p90": 0.052,
+    "max": 0.057
+   },
+   "connect_ms": {
+    "median": 0.044,
+    "p90": 0.217,
+    "max": 0.39
+   },
+   "set_ms": {
+    "median": 0.034,
+    "p90": 0.114,
+    "max": 0.133
+   },
+   "rebuild_ms": {
+    "median": 0.984,
+    "p90": 1.285,
+    "max": 1.325
+   },
+   "assemble_ms": {
+    "median": 0.08,
+    "p90": 1.065,
+    "max": 1.12
+   },
+   "assemble_bytes": {
+    "median": 212624,
+    "p90": 1548032,
+    "max": 1832232
+   },
+   "ready_ms": {
+    "median": 1.139,
+    "p90": 1.719,
+    "max": 2.143
+   },
+   "upload_ms": {
+    "median": 0.159,
+    "p90": 0.263
+   }
+  },
+  "f31_4m": {
+   "n": 23,
+   "mismatches": 0,
+   "verified": 23,
+   "multi_chunk": 6,
+   "max_chunks": 4,
+   "floods": 23,
+   "errors": [],
+   "rows_meshed": {
+    "median": 6340,
+    "p90": 8976,
+    "max": 10560
+   },
+   "plan_ms": {
+    "median": 0.061,
+    "p90": 0.126,
+    "max": 0.275
+   },
+   "rows_wall_ms": {
+    "median": 4.671,
+    "p90": 5.814,
+    "max": 6.0
+   },
+   "cluster_ms": {
+    "median": 0.059,
+    "p90": 0.152,
+    "max": 0.18
+   },
+   "sprig_ms": {
+    "median": 0.066,
+    "p90": 0.267,
+    "max": 0.329
+   },
+   "connect_ms": {
+    "median": 0.202,
+    "p90": 0.369,
+    "max": 0.904
+   },
+   "set_ms": {
+    "median": 0.214,
+    "p90": 0.766,
+    "max": 0.861
+   },
+   "rebuild_ms": {
+    "median": 5.319,
+    "p90": 6.648,
+    "max": 7.428
+   },
+   "assemble_ms": {
+    "median": 0.168,
+    "p90": 1.072,
+    "max": 1.258
+   },
+   "assemble_bytes": {
+    "median": 335240,
+    "p90": 1678120,
+    "max": 1923552
+   },
+   "ready_ms": {
+    "median": 6.01,
+    "p90": 7.264,
+    "max": 7.797
+   },
+   "upload_ms": {
+    "median": 0.186,
+    "p90": 0.279
+   }
+  },
+  "legacy_voxel": {
+   "n": 18,
+   "mismatches": 0,
+   "verified": 18,
+   "multi_chunk": 4,
+   "max_chunks": 4,
+   "floods": 18,
+   "errors": [],
+   "rows_meshed": {
+    "median": 12,
+    "p90": 12,
+    "max": 12
+   },
+   "plan_ms": {
+    "median": 0.032,
+    "p90": 0.147,
+    "max": 0.244
+   },
+   "rows_wall_ms": {
+    "median": 0.242,
+    "p90": 0.274,
+    "max": 0.276
+   },
+   "cluster_ms": {
+    "median": 0.028,
+    "p90": 0.124,
+    "max": 0.19
+   },
+   "sprig_ms": {
+    "median": 0.004,
+    "p90": 0.073,
+    "max": 0.075
+   },
+   "connect_ms": {
+    "median": 0.179,
+    "p90": 0.199,
+    "max": 0.213
+   },
+   "set_ms": {
+    "median": 0.002,
+    "p90": 0.003,
+    "max": 0.004
+   },
+   "rebuild_ms": {
+    "median": 0.486,
+    "p90": 0.756,
+    "max": 0.904
+   },
+   "assemble_ms": {
+    "median": 2.482,
+    "p90": 2.643,
+    "max": 2.782
+   },
+   "assemble_bytes": {
+    "median": 9115512,
+    "p90": 9115512,
+    "max": 9115512
+   },
+   "ready_ms": {
+    "median": 2.927,
+    "p90": 3.36,
+    "max": 3.442
+   },
+   "upload_ms": {
+    "median": 0.17,
+    "p90": 0.469
+   }
+  },
+  "legacy_1m": {
+   "n": 18,
+   "mismatches": 0,
+   "verified": 18,
+   "multi_chunk": 5,
+   "max_chunks": 4,
+   "floods": 23,
+   "errors": [],
+   "rows_meshed": {
+    "median": 436,
+    "p90": 576,
+    "max": 866
+   },
+   "plan_ms": {
+    "median": 0.071,
+    "p90": 0.115,
+    "max": 0.315
+   },
+   "rows_wall_ms": {
+    "median": 3.318,
+    "p90": 4.594,
+    "max": 4.85
+   },
+   "cluster_ms": {
+    "median": 0.047,
+    "p90": 0.096,
+    "max": 0.209
+   },
+   "sprig_ms": {
+    "median": 0.008,
+    "p90": 0.055,
+    "max": 0.069
+   },
+   "connect_ms": {
+    "median": 0.188,
+    "p90": 0.37,
+    "max": 0.789
+   },
+   "set_ms": {
+    "median": 0.01,
+    "p90": 0.021,
+    "max": 0.029
+   },
+   "rebuild_ms": {
+    "median": 3.584,
+    "p90": 5.157,
+    "max": 6.266
+   },
+   "assemble_ms": {
+    "median": 2.407,
+    "p90": 2.773,
+    "max": 2.95
+   },
+   "assemble_bytes": {
+    "median": 9115680,
+    "p90": 9115912,
+    "max": 9115912
+   },
+   "ready_ms": {
+    "median": 6.03,
+    "p90": 7.563,
+    "max": 9.216
+   },
+   "upload_ms": {
+    "median": 0.172,
+    "p90": 0.213
+   }
+  },
+  "legacy_2m": {
+   "n": 21,
+   "mismatches": 0,
+   "verified": 21,
+   "multi_chunk": 9,
+   "max_chunks": 4,
+   "floods": 35,
+   "errors": [],
+   "rows_meshed": {
+    "median": 1632,
+    "p90": 2720,
+    "max": 2994
+   },
+   "plan_ms": {
+    "median": 0.055,
+    "p90": 0.156,
+    "max": 0.282
+   },
+   "rows_wall_ms": {
+    "median": 10.59,
+    "p90": 15.494,
+    "max": 19.829
+   },
+   "cluster_ms": {
+    "median": 0.055,
+    "p90": 0.114,
+    "max": 0.194
+   },
+   "sprig_ms": {
+    "median": 0.015,
+    "p90": 0.042,
+    "max": 0.11
+   },
+   "connect_ms": {
+    "median": 0.203,
+    "p90": 0.694,
+    "max": 0.7
+   },
+   "set_ms": {
+    "median": 0.031,
+    "p90": 0.102,
+    "max": 0.13
+   },
+   "rebuild_ms": {
+    "median": 11.3,
+    "p90": 16.44,
+    "max": 21.071
+   },
+   "assemble_ms": {
+    "median": 2.421,
+    "p90": 2.649,
+    "max": 2.705
+   },
+   "assemble_bytes": {
+    "median": 9117520,
+    "p90": 9117912,
+    "max": 9117912
+   },
+   "ready_ms": {
+    "median": 13.639,
+    "p90": 18.832,
+    "max": 23.451
+   },
+   "upload_ms": {
+    "median": 0.175,
+    "p90": 0.219
+   }
+  },
+  "legacy_4m": {
+   "n": 23,
+   "mismatches": 0,
+   "verified": 23,
+   "multi_chunk": 7,
+   "max_chunks": 6,
+   "floods": 42,
+   "errors": [],
+   "rows_meshed": {
+    "median": 6336,
+    "p90": 9007,
+    "max": 12679
+   },
+   "plan_ms": {
+    "median": 0.063,
+    "p90": 0.297,
+    "max": 0.398
+   },
+   "rows_wall_ms": {
+    "median": 39.662,
+    "p90": 61.183,
+    "max": 63.399
+   },
+   "cluster_ms": {
+    "median": 0.051,
+    "p90": 0.214,
+    "max": 0.363
+   },
+   "sprig_ms": {
+    "median": 0.064,
+    "p90": 0.237,
+    "max": 0.309
+   },
+   "connect_ms": {
+    "median": 0.222,
+    "p90": 0.826,
+    "max": 1.112
+   },
+   "set_ms": {
+    "median": 0.182,
+    "p90": 0.728,
+    "max": 0.797
+   },
+   "rebuild_ms": {
+    "median": 40.339,
+    "p90": 62.76,
+    "max": 66.259
+   },
+   "assemble_ms": {
+    "median": 2.395,
+    "p90": 2.652,
+    "max": 2.787
+   },
+   "assemble_bytes": {
+    "median": 9119472,
+    "p90": 9124032,
+    "max": 9124032
+   },
+   "ready_ms": {
+    "median": 42.666,
+    "p90": 65.079,
+    "max": 68.626
+   },
+   "upload_ms": {
+    "median": 0.167,
+    "p90": 0.338
+   }
+  }
+ },
+ "pixels": {
+  "forest_floor_open": {
+   "I_vs_F": 0,
+   "I_vs_I2": 0,
+   "B_vs_I": 31724,
+   "drawn_I": [
+    171933,
+    1885
+   ],
+   "drawn_F": [
+    171933,
+    1885
+   ]
+  },
+  "overview_south": {
+   "I_vs_F": 0,
+   "I_vs_I2": 0,
+   "B_vs_I": 1589,
+   "drawn_I": [
+    295150,
+    2656
+   ],
+   "drawn_F": [
+    295150,
+    2656
+   ]
+  }
+ },
+ "churn": {
+  "I3_vs_F3": 1,
+  "drawn_I3": 303486,
+  "drawn_F3": 303486
+ }
+}

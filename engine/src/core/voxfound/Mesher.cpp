@@ -903,6 +903,68 @@ RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, gl
 }
 
 RunsDelta meshRunsPlan(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards) {
+    // F3.1: the face mask is evaluated LAZILY. A face is added only if its run meets [uLo - 1, uHi + 1], so per head
+    // row only the runs touching that window are walked (from the run holding its first cell to the last run starting
+    // in it); the head / stack tests read the cells [u - 1, u + w] of rows m0..m1 only, as meshRunsPlanWholeRows does.
+    // Same runs, same tests, same faces (VoxFoundMesher.RowRebuildReadsOnlyNearTheFootprint).
+    RunsDelta d;
+    d.removed = plan.removed;
+    std::vector<int16_t> mask;
+    for (const SliceJob& j : plan.slices) {
+        const int a = j.axis;
+        const int nu = g.dim[(a + 1) % 3], nv = g.dim[(a + 2) % 3];
+        const int m0 = std::max(0, j.w0 - 1), m1 = std::min(nv - 1, j.w1 + 1);
+        d.rowsMeshed += size_t(std::max(0, j.w1 - j.w0 + 1));
+        const int wLo = std::max(0, j.uLo - 1), wHi = std::min(nu - 1, j.uHi + 1);
+        if (j.w0 > j.w1 || wLo > wHi) continue;
+        mask.assign(size_t(m1 - m0 + 1) * size_t(nu), int16_t(-1));
+        auto at = [&](int u, int v) -> uint8_t {
+            int16_t& c = mask[size_t(v - m0) * nu + u];
+            if (c < 0) {
+                c = int16_t(faceAt(g, outside, axisPoint(a, j.s, u, v), a, j.dir, cards));
+                ++d.cellsEvaluated;
+            }
+            return uint8_t(c);
+        };
+        auto sameRun = [&](int u, int w, int r, uint8_t m) {
+            if (r < m0 || r > m1) return false;   // never reached for an exact `before` (see the header)
+            if (u > 0 && at(u - 1, r) == m) return false;
+            if (u + w < nu && at(u + w, r) == m) return false;
+            for (int t = 0; t < w; ++t)
+                if (at(u + t, r) != m) return false;
+            return true;
+        };
+        for (int v = j.w0; v <= j.w1; ++v) {
+            int u = wLo;
+            if (const uint8_t first = at(u, v))
+                while (u > 0 && at(u - 1, v) == first) --u;   // the run holding the window's first cell starts here
+            while (u <= wHi) {
+                const uint8_t m = at(u, v);
+                if (!m) { ++u; continue; }
+                int w = 1;
+                while (u + w < nu && at(u + w, v) == m) ++w;
+                if (!(v > 0 && sameRun(u, w, v - 1, m))) {
+                    int h = 1;
+                    while (v + h < nv && sameRun(u, w, v + h, m)) ++h;
+                    if (u - 1 <= j.uHi && u + w >= j.uLo && v - 1 <= j.vHi && v + h >= j.vLo) {
+                        Quad q;
+                        q.o = axisPoint(a, j.s, u, v);
+                        q.axis = uint8_t(a);
+                        q.dir = int8_t(j.dir);
+                        q.du = uint16_t(w);
+                        q.dv = uint16_t(h);
+                        q.material = m;
+                        d.added.push_back(packFace(q));
+                    }
+                }
+                u += w;
+            }
+        }
+    }
+    return d;
+}
+
+RunsDelta meshRunsPlanWholeRows(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards) {
     RunsDelta d;
     d.removed = plan.removed;
     std::vector<uint8_t> mask;
@@ -915,6 +977,7 @@ RunsDelta meshRunsPlan(const VoxelGrid& g, Edges outside, const RunsPlan& plan, 
             for (int u = 0; u < nu; ++u)
                 mask[size_t(v - m0) * nu + u] = faceAt(g, outside, axisPoint(a, j.s, u, v), a, j.dir, cards);
         d.rowsMeshed += size_t(j.w1 - j.w0 + 1);
+        d.cellsEvaluated += size_t(m1 - m0 + 1) * size_t(nu);
         auto at = [&](int u, int v) { return mask[size_t(v - m0) * nu + u]; };
         auto sameRun = [&](int u, int w, int r, uint8_t m) {
             if (r < m0 || r > m1) return false;   // never reached for an exact `before` (see the header)
@@ -1013,55 +1076,67 @@ std::vector<uint8_t> blockBlocking(const VoxelGrid& g, const CardSet& seeThrough
     return out;
 }
 
-void updateBlockBlocking(const VoxelGrid& g, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
+bool updateBlockBlocking(const VoxelGrid& g, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
                          std::vector<uint8_t>& blocking) {
     const glm::ivec3 nb = g.dim / 8;
     const glm::ivec3 blo = glm::max(lo, glm::ivec3(0)) / 8, bhi = glm::min(hi, g.dim - 1) / 8;
-    if (lo.x > g.dim.x - 1 || lo.y > g.dim.y - 1 || lo.z > g.dim.z - 1 || hi.x < 0 || hi.y < 0 || hi.z < 0) return;
+    if (lo.x > g.dim.x - 1 || lo.y > g.dim.y - 1 || lo.z > g.dim.z - 1 || hi.x < 0 || hi.y < 0 || hi.z < 0) return false;
+    bool changed = false;
     for (int bx = blo.x; bx <= bhi.x; ++bx)
         for (int by = blo.y; by <= bhi.y; ++by)
-            for (int bz = blo.z; bz <= bhi.z; ++bz)
-                blocking[size_t(bz + nb.z * (by + nb.y * bx))] = blockBlocks(g, seeThrough, {bx, by, bz});
+            for (int bz = blo.z; bz <= bhi.z; ++bz) {
+                uint8_t& b = blocking[size_t(bz + nb.z * (by + nb.y * bx))];
+                const uint8_t now = blockBlocks(g, seeThrough, {bx, by, bz}) ? 1 : 0;
+                changed |= now != b;
+                b = now;
+            }
+    return changed;
 }
 
+// F2.10's flood over the blocking bits, written with flat block indices and buffers kept between calls (F3.1). Measured
+// live: ~0.16-0.19 ms per flood on a 32^3-block chunk in every form tried (this one, the stack of ivec3 before it, and a
+// bit-row flood with a log-step fill, 0.184 vs 0.185 ms in one session). F3.1's saving is SKIPPING it when no blocking
+// bit changed (RegionEdit::apply); a cheaper per-flood cost needs an incremental connectivity (owed).
 FaceConnect connectivityFromBlocking(glm::ivec3 nb, const std::vector<uint8_t>& blocking) {
-    const int total = nb.x * nb.y * nb.z;
-    auto bi = [&](glm::ivec3 b) { return b.z + nb.z * (b.y + nb.y * b.x); };
     FaceConnect out{0, 0, 0, 0, 0, 0};
-    std::vector<int> comp(size_t(total), -1);
-    std::vector<glm::ivec3> stack;
-    const glm::ivec3 dir[6] = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
-    int id = 0;
-    for (int bx = 0; bx < nb.x; ++bx)
-        for (int by = 0; by < nb.y; ++by)
-            for (int bz = 0; bz < nb.z; ++bz) {
-                const glm::ivec3 s(bx, by, bz);
-                if (blocking[size_t(bi(s))] || comp[size_t(bi(s))] != -1) continue;
-                uint8_t faces = 0;
-                comp[size_t(bi(s))] = id;
-                stack.assign(1, s);
-                while (!stack.empty()) {
-                    const glm::ivec3 c = stack.back();
-                    stack.pop_back();
-                    if (c.x == 0) faces |= 1u << 0;
-                    if (c.x == nb.x - 1) faces |= 1u << 1;
-                    if (c.y == 0) faces |= 1u << 2;
-                    if (c.y == nb.y - 1) faces |= 1u << 3;
-                    if (c.z == 0) faces |= 1u << 4;
-                    if (c.z == nb.z - 1) faces |= 1u << 5;
-                    for (const glm::ivec3& dd : dir) {
-                        const glm::ivec3 n = c + dd;
-                        if (n.x < 0 || n.y < 0 || n.z < 0 || n.x >= nb.x || n.y >= nb.y || n.z >= nb.z) continue;
-                        const size_t ni = size_t(bi(n));
-                        if (blocking[ni] || comp[ni] != -1) continue;
-                        comp[ni] = id;
-                        stack.push_back(n);
-                    }
-                }
-                for (int f = 0; f < 6; ++f)
-                    if (faces & (1u << f)) out[size_t(f)] |= faces;
-                ++id;
-            }
+    const int total = nb.x * nb.y * nb.z;
+    if (total <= 0) return out;
+    thread_local std::vector<uint8_t> seen;
+    thread_local std::vector<int32_t> stack;
+    seen.assign(size_t(total), 0);
+    stack.clear();
+    stack.reserve(size_t(total));
+    const int sy = nb.z, sx = nb.z * nb.y;
+    for (int i = 0; i < total; ++i) {
+        if (blocking[size_t(i)] || seen[size_t(i)]) continue;
+        uint8_t faces = 0;
+        seen[size_t(i)] = 1;
+        stack.push_back(i);
+        while (!stack.empty()) {
+            const int c = stack.back();
+            stack.pop_back();
+            const int x = c / sx, r = c - x * sx, y = r / sy, z = r - y * sy;
+            if (x == 0) faces |= 1u << 0;
+            if (x == nb.x - 1) faces |= 1u << 1;
+            if (y == 0) faces |= 1u << 2;
+            if (y == nb.y - 1) faces |= 1u << 3;
+            if (z == 0) faces |= 1u << 4;
+            if (z == nb.z - 1) faces |= 1u << 5;
+            auto visit = [&](int k) {
+                if (blocking[size_t(k)] || seen[size_t(k)]) return;
+                seen[size_t(k)] = 1;
+                stack.push_back(k);
+            };
+            if (x > 0) visit(c - sx);
+            if (x + 1 < nb.x) visit(c + sx);
+            if (y > 0) visit(c - sy);
+            if (y + 1 < nb.y) visit(c + sy);
+            if (z > 0) visit(c - 1);
+            if (z + 1 < nb.z) visit(c + 1);
+        }
+        for (int f = 0; f < 6; ++f)
+            if (faces & (1u << f)) out[size_t(f)] |= faces;
+    }
     return out;
 }
 

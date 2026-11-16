@@ -503,8 +503,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       material layers; test TopVoxelOfEveryColumnIsTheSurfaceMaterial). Residual px = FC content gaps. Ground-pose
       frame time in BOTH stores is GI probe ambient on leaf overdraw (sprigs 24 ms -> 1 ms with GI off).
       Perf runs: GI ON is the default -- F2.18-era numbers were GI off. WoW can start mid-run: check after too.
-      NEXT: F3 (the plan's next row: edits with brushes; codec v3 + converter; gate: edit cost per block << today's
-      2-13 ms chunk rebuild, save/load round-trips exactly). Owed into F3: F2.16/F2.17's CPU reassembly 2.5 ms.
+      F3 is broken into F3.1-F3.5 in VoxelFoundationPlan §9b. F3.1 (2026-11-16) edit cost: a 1 m brush 0.53 ms
+      median request to lists ready (p90 0.75; F2.17 path 7.1 ms same session; {"legacy":true} is the A/B), exact
+      (verify + 0 px). Lazy rows, flood skipped unless a blocking bit flips, assemble in place + sprig spans.
+      Edit timings vary up to 4x between sessions for the SAME work: always A/B in one session (ABBA).
+      NEXT: F3.2 (brushes 1/2/4/8 voxels in voxel coords over the API; the edit store becomes the BlockStore instead
+      of a dense 16.7 MB grid per chunk = 545 MB on the gate region). Then F3.3 codec v3, F3.4 converter, F3.5 gate.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

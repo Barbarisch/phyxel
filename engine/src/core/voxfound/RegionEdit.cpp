@@ -27,6 +27,8 @@ void RegionEdit::begin(glm::ivec3 chunkLo, glm::ivec3 chunkHi, int clusterBlocks
                        uint32_t sprigThreshold24) {
     m_chunks.clear();
     m_pool.reset();   // F2.17
+    m_in.clear();     // F3.1
+    m_sprigSlack = 0.25;
     m_lo = chunkLo;
     m_hi = chunkHi;
     m_clusterBlocks = clusterBlocks;
@@ -166,7 +168,7 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
             }
         }
         if (!done) {
-            d = meshRunsPlan(c.grid, e, plan, &m_cards);
+            d = m_legacyF31 ? meshRunsPlanWholeRows(c.grid, e, plan, &m_cards) : meshRunsPlan(c.grid, e, plan, &m_cards);
             if (gpu) gpu->forgetResident(residentKey(i));   // the fallback changed voxels behind the device's copy
         }
         st.rowsWallMs += msSince(tr);
@@ -179,8 +181,11 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
         st.sprigMs += msSince(t);
         if (voxelEdited[i]) {
             t = std::chrono::steady_clock::now();
-            updateBlockBlocking(c.grid, m_seeThrough, vLo[i], vHi[i], c.blocking);
-            c.connect = connectivityFromBlocking(c.grid.dim / 8, c.blocking);
+            // F3.1: connectivity is a function of the blocking bits alone -- flood only when one changed
+            if (updateBlockBlocking(c.grid, m_seeThrough, vLo[i], vHi[i], c.blocking) || m_legacyF31) {
+                c.connect = connectivityFromBlocking(c.grid.dim / 8, c.blocking);
+                ++st.connectFloods;
+            }
             st.connectMs += msSince(t);
         }
         st.facesRemoved += d.removed.size();
@@ -192,55 +197,137 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
     return st;
 }
 
+void RegionEdit::poolInput(size_t i) {
+    const Chunk& c = m_chunks[i];
+    const glm::vec3 base = glm::vec3((c.chunk - m_lo) * kChunkM);
+    auto toPreview = [&](const FaceCluster& fc) {
+        PreviewCluster p;
+        p.lo = base + glm::vec3(fc.lo) / float(kVoxelsPerM);
+        p.hi = base + glm::vec3(fc.hi) / float(kVoxelsPerM);
+        p.firstFace = fc.first;
+        p.count = fc.count;
+        p.chunk = uint32_t(i);
+        p.dir = fc.dir;
+        return p;
+    };
+    PoolChunk& in = m_in[i];
+    in.faces = &c.faces;
+    in.clusters.clear();
+    in.clustersDir.clear();
+    for (const FaceCluster& fc : cellsOfGroups(c.faces, c.groups, m_clusterBlocks)) in.clusters.push_back(toPreview(fc));
+    for (const FaceCluster& fc : c.groups) in.clustersDir.push_back(toPreview(fc));
+}
+
 void RegionEdit::assemble(Preview& pv, const std::vector<uint16_t>& leafTex, const std::vector<size_t>* changed) {
     if (pv.levels.empty()) pv.levels.resize(1);
     Preview::Level& L = pv.levels[0];
     const size_t n = std::min(m_chunks.size(), pv.chunks.size());
-    // F2.17: every chunk's lists (cluster firstFace relative to the chunk; the pool places them)
-    std::vector<PoolChunk> in(n);
-    for (size_t i = 0; i < n; ++i) {
-        const Chunk& c = m_chunks[i];
-        const glm::vec3 base = glm::vec3((c.chunk - m_lo) * kChunkM);
-        auto toPreview = [&](const FaceCluster& fc) {
-            PreviewCluster p;
-            p.lo = base + glm::vec3(fc.lo) / float(kVoxelsPerM);
-            p.hi = base + glm::vec3(fc.hi) / float(kVoxelsPerM);
-            p.firstFace = fc.first;
-            p.count = fc.count;
-            p.chunk = uint32_t(i);
-            p.dir = fc.dir;
-            return p;
-        };
-        in[i].faces = &c.faces;
-        for (const FaceCluster& fc : cellsOfGroups(c.faces, c.groups, m_clusterBlocks))
-            in[i].clusters.push_back(toPreview(fc));
-        for (const FaceCluster& fc : c.groups) in[i].clustersDir.push_back(toPreview(fc));
+    // F2.17: every chunk's lists (cluster firstFace relative to the chunk; the pool places them). F3.1: kept between
+    // edits; only the rebuilt chunks' are recomputed.
+    const bool incremental = changed && m_in.size() == n && !m_legacyF31;
+    if (!incremental) {
+        m_in.assign(n, PoolChunk{});
+        for (size_t i = 0; i < n; ++i) poolInput(i);
+    } else {
+        for (size_t i : *changed)
+            if (i < n) poolInput(i);
     }
     if (!m_pool) m_pool = std::make_unique<FacePool>();
     const uint64_t layoutId = (m_generation << 32) | m_pool->layouts();
     PoolDirty dirty;
     if (changed && m_pool->laidOut() && pv.pooled && pv.poolLayoutId == layoutId)
-        m_pool->update(in, *changed, L, dirty);
+        m_pool->update(m_in, *changed, L, dirty);
     else
-        m_pool->layout(in, L, dirty);
-    pv.sprigs.clear();
-    for (size_t i = 0; i < n; ++i) {
-        const Chunk& c = m_chunks[i];
-        PreviewChunk& pc = pv.chunks[i];
-        pc.firstSprig = uint32_t(pv.sprigs.size());
-        for (const PackedFace& s : c.sprigs) {
-            const uint32_t m = (s.b >> 16) & 0xFFu;
-            pv.sprigs.push_back({(s.a & 0xFFFFFFu) | (15u << 24), m < leafTex.size() ? uint32_t(leafTex[m]) : 0u});
-        }
-        pc.sprigCount = uint32_t(pv.sprigs.size()) - pc.firstSprig;
-        pc.connect = c.connect;
-    }
+        m_pool->layout(m_in, L, dirty);
     const uint64_t base = pv.revision;
-    pv.selectLevel(0);   // one revision step
+    // F3.1: the drawn arrays move only over the dirty ranges when they still hold exactly the image this store wrote
+    // last (same layout, level 0 drawn, nothing appended, nothing else bumped the revision); else selectLevel copies
+    // the whole image.
+    const size_t extra = pv.casterFaces.size() + pv.seamFaces.size();
+    const bool inPlace = !dirty.full && incremental && pv.revision == m_assembledRevision && pv.drawLevel == 0 &&
+                         pv.lodClusters.empty() && extra == 0 && pv.faces.size() == L.faces.size() &&
+                         pv.clusters.size() == L.clusters.size() && pv.clustersDir.size() == L.clustersDir.size();
+    auto sprigsOf = [&](size_t i, std::vector<PreviewSprig>& out) {
+        for (const PackedFace& sp : m_chunks[i].sprigs) {
+            const uint32_t m = (sp.b >> 16) & 0xFFu;
+            out.push_back({(sp.a & 0xFFFFFFu) | (15u << 24), m < leafTex.size() ? uint32_t(leafTex[m]) : 0u});
+        }
+    };
+    // F3.1: every chunk's sprigs in a span of its own with slack (count x m_sprigSlack, at least 64; gaps are zero and
+    // never drawn: the renderer draws [firstSprig, firstSprig + sprigCount) per chunk). Returns the bytes written.
+    auto layoutSprigs = [&]() {
+        pv.sprigs.clear();
+        for (size_t i = 0; i < n; ++i) {
+            PreviewChunk& pc = pv.chunks[i];
+            pc.firstSprig = uint32_t(pv.sprigs.size());
+            sprigsOf(i, pv.sprigs);
+            pc.sprigCount = uint32_t(pv.sprigs.size()) - pc.firstSprig;
+            pv.sprigs.resize(pv.sprigs.size() + std::max<size_t>(size_t(double(pc.sprigCount) * m_sprigSlack), 64),
+                             PreviewSprig{});
+        }
+        ++m_sprigLayouts;
+        return pv.sprigs.size() * sizeof(PreviewSprig);
+    };
+    if (inPlace) {
+        size_t bytes = 0;
+        for (const PoolRange& r : dirty.faces) {
+            std::copy(L.faces.begin() + r.first, L.faces.begin() + r.first + r.count, pv.faces.begin() + r.first);
+            bytes += r.count * sizeof(PackedFace);
+        }
+        for (const PoolRange& r : dirty.clusters) {
+            std::copy(L.clusters.begin() + r.first, L.clusters.begin() + r.first + r.count, pv.clusters.begin() + r.first);
+            bytes += r.count * sizeof(PreviewCluster);
+        }
+        for (const PoolRange& r : dirty.clustersDir) {
+            std::copy(L.clustersDir.begin() + r.first, L.clustersDir.begin() + r.first + r.count,
+                      pv.clustersDir.begin() + r.first);
+            bytes += r.count * sizeof(PreviewCluster);
+        }
+        for (size_t i = 0; i < n; ++i) {
+            pv.chunks[i].firstFace = L.firstFace[i];
+            pv.chunks[i].faceCount = L.faceCount[i];
+        }
+        // the rebuilt chunks' sprigs, each in its own span (capacity = up to the next chunk's first sprig): a count
+        // that fits is rewritten in place (the freed tail zeroed: never drawn either way); one that does not re-places
+        // every span
+        std::vector<PreviewSprig> mine;
+        bool overflow = false;
+        for (size_t i : *changed) {
+            if (i >= n) continue;
+            mine.clear();
+            sprigsOf(i, mine);
+            PreviewChunk& pc = pv.chunks[i];
+            const size_t end = i + 1 < n ? pv.chunks[i + 1].firstSprig : pv.sprigs.size();
+            if (mine.size() > end - pc.firstSprig) {
+                overflow = true;
+                break;
+            }
+            std::copy(mine.begin(), mine.end(), pv.sprigs.begin() + pc.firstSprig);
+            if (mine.size() < pc.sprigCount)
+                std::fill(pv.sprigs.begin() + pc.firstSprig + mine.size(), pv.sprigs.begin() + pc.firstSprig + pc.sprigCount,
+                          PreviewSprig{});
+            bytes += std::max<size_t>(mine.size(), pc.sprigCount) * sizeof(PreviewSprig);
+            pc.sprigCount = uint32_t(mine.size());
+        }
+        if (overflow) {
+            m_sprigSlack *= 1.5;   // as the face pool: an overflow places everything again, with more slack
+            bytes += layoutSprigs();
+        }
+        for (size_t i = 0; i < n; ++i) pv.chunks[i].connect = m_chunks[i].connect;
+        pv.drawLevel = 0;
+        ++pv.revision;   // one revision step, as selectLevel
+        pv.lastCopyBytes = bytes;
+    } else {
+        const size_t sb = layoutSprigs();
+        for (size_t i = 0; i < n; ++i) pv.chunks[i].connect = m_chunks[i].connect;
+        pv.selectLevel(0);   // one revision step
+        pv.lastCopyBytes += sb;
+    }
     pv.pooled = true;
     pv.poolDirty = std::move(dirty);
     pv.poolBaseRevision = base;
     pv.poolLayoutId = (m_generation << 32) | m_pool->layouts();
+    m_assembledRevision = pv.revision;
 }
 
 }  // namespace Phyxel::Core::VoxFound

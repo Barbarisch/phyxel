@@ -374,7 +374,7 @@ consciously dropped with a measured reason. Sources: `RenderCoordinator.cpp` (cu
 | 6 | Shadow cascades (near 40 / mid 420 / far 1600), caster culling to the light frustum, the 36-index shadow draw (M5) | `RenderCoordinator`, `ShadowMap.cpp` | Same cascades over the face pool. The M5 winding result still binds | cascades + 36-index casting done (F2.4); caster culling done (F2.12: today's per-chunk rule + the light frustum, default on, −0.40 ms where it drops chunks, 0 px); per-cluster light-frustum multidraw built and measured slower (+0.09..+0.36 ms), selectable, off |
 | 7 | Distance tiers: far-LOD pyramid (tier 3), far terrain heightmap tiles (4), tree LOD meshes + cards (5, 6), structure proxies (7), grass/foliage (8a, 8b) | `LodTierLedger.md` | The block LOD pyramid replaces tier 2/3 for blocks. The §9a numbers say full-detail 1/8 m terrain and forest need it within tens of metres. Tiers 4-8 must keep their handoffs (residency gates) to the new near tier | pyramid levels 1/8 → 1 m built (F2.13: half-solid rule, surface material, chunk-independent; whole region at 1/4 m −3.2..−5.2 ms, at 1/2 m −4.4..−6.8 ms); selection by size on screen + dithered cross-fade done (F2.14: per fragment, 0 holes / 0 fattening; P=8 −3.3/−3.5 ms from above, neutral at the ground; default off); coarse casters built (F2.14b: one-level lag vs the main view, 0.055 % px; −1.2/−2.4 ms from above at P=8, +0.2..+1.2 ms elsewhere, default off); sprig → leaf-mass handoff built (F2.14c: no holes, but the mass looks wrong — cutout card texture on solid faces — and saves ≤ 0.7 ms; default off; mass appearance owed); levels 2-16 m built (F2.14d: region pyramid, exact chunk by chunk; top within ½ cell; P=8 0 px, no saving in a 128 m region, +0.1-0.2 ms at P=32; 32 m+ needs a flags re-layout; ground under coarse canopy cells owed); GPU level build done (F2.14e: exact, 0.58 ms per chunk area, region level time 11.7 → 2.4 s); leaf-mass look done (F2.14f: own pipeline shaded as cards, luma 74.7 → 106.2 vs the cards' 107.9, mass error halved; +0.14/+0.16 ms at the ground; handoff still off); two pyramids built (F2.14g: no hidden tops, holes at P=32 gone, but farther from level 0 at P=8 — off; found: canopy-interior faces cut sprig overdraw 2-3.7 ms); leaf-fill knob built (F2.14h: no fill closes the canopy gap — it is sub-voxel shading; off; its whole-frame A/B owed, voided by a shared GPU) |
 | 8 | Face direction culling (skip faces that point away from the camera as a group) | not done today (faces are camera-convention wound and back-face culled per triangle) | NEW: keep faces sorted by direction per block/chunk so up to 3 of 6 groups are skipped before the vertex stage | main view done (F2.15: direction groups per 4-block cluster in the cull pass, 0 px, −0.30..−0.45 ms at 4 of 5 poses, neutral at the fifth; default on); shadow casters by light direction built (F2.15b: −0.85..−1.4 ms but leaks at leaf-adjacent trunk faces; closed casters fix it at +1-2 ms — off; F2.15d: two cheaper closures measured, neither closes the leaks chunk-exactly, reach 24 only −0.1..−0.5 ms — off, closed for now); lower command count done (F2.15f: ordered compacted + merged commands via indirect count, −0.07..−0.23 ms at 4 of 5 poses, neutral at the fifth; default on) — DONE |
-| 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | built and exact (F2.16: slice/row delta of the run merge + sprig cells + block connectivity + cluster order; 0 mismatches in 214 live verified edits up to 4 m across chunk borders, 3D view identical to a full rebuild); cost NOT met — CPU 1 voxel 1.05 / 1 m 4.5 / 4 m 48 ms (whole-width rows), device rows exact but their synchronous readback waits 10-20 ms for the GPU at the uncapped operating point; CPU default, device opt-in for item 10; next-frame re-upload ~9 ms owed to item 10 |
+| 9 | Incremental rebuild | today a chunk rebuild costs 2-13 ms | Only changed blocks rebuild (F3 gate) | **cost met in F3.1 (2026-11-16): a 1 m edit 0.53 ms median request to lists ready (rows over the runs near the footprint, the flood only when a block's sight bit flips, assemble in place)**; built and exact (F2.16: slice/row delta of the run merge + sprig cells + block connectivity + cluster order; 0 mismatches in 214 live verified edits up to 4 m across chunk borders, 3D view identical to a full rebuild); cost NOT met — CPU 1 voxel 1.05 / 1 m 4.5 / 4 m 48 ms (whole-width rows), device rows exact but their synchronous readback waits 10-20 ms for the GPU at the uncapped operating point; CPU default, device opt-in for item 10; next-frame re-upload ~9 ms owed to item 10 |
 | 10 | Face pool memory (region arenas) | `ChunkArenaSystem` | Face pool sub-allocated per block / chunk | done (F2.17: per-chunk spans of the region arena allocator, device-local, edits copy only their spans + rewrite the cull table in place; next-frame upload 8.7-14.5 → 0.16-0.18 ms; whole frame −2.3..−3.8 ms at all 5 poses (shadow passes: no more PCIe reads); 0 px; pool image 1.6x the live faces; default on) |
 
 Known defect that gets worse with more merging: **T-junction cracks at merge borders** (`RenderOptimization.md:489`).
@@ -1828,7 +1828,7 @@ Every rig is checked for:
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building (hidden-face culling, merging in and across blocks) + drawing through today's lighting; the §4.6 render optimizations rebuilt on blocks (culling, occlusion, indirect draws, shadow casters, block LOD pyramid, direction culling); T-junction handling | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate. **F2.19 re-run 2026-11-15: performance holds at all 5 poses (new store 2.1-9.4 ms faster whole frame; memory 1.2-1.7×; 11-13 MB per frame); pixels measured, every residual traced to FC content gaps; contour-stripe defect found and fixed** | a scene that works today doesn't, and we can't find and fix why |
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
-| **F3** | Edits with brushes; codec v3 + converter | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly | — |
+| **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; next F3.2 brushes + the BlockStore edit store** | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
 | **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
@@ -1874,6 +1874,58 @@ faces than today" as the goal, which was never the requirement):
 - The building shell costs the same at 1/8 m as at 1/9 m.
 - Merging across blocks is worth 1.1-2.4x.
 - Owed: today's real face count on the same ground. The proxy has no light splits and flattens micro trees.
+
+## 9b. F3: edits with brushes, codec v3 + converter
+
+The F3 row's exit test has two halves: **edit cost per block ≪ today's 2-13 ms chunk rebuild** (§4.6 item 9's goal,
+not met in F2.16) and **save/load round-trips exactly**. "≪" is read as F2.16 read it: ≥ 3x below the low end of
+today's range, so a 1 m brush (one block) costs ≤ 0.67 ms on the main thread, from the request to the drawn lists
+ready, plus the next frame's upload. Measured live on the F2 gate region, exact (verify) at every step.
+
+Items, in order (each: prediction, red test, build, measured on/off):
+- **F3.1 Edit cost.** What F2.16/F2.17 left owed: rows re-meshed over the whole slice width (3.8 ms of a 1 m edit's
+  4.5), the 32³-block connectivity flood on every edit (0.4-0.8 ms), and the reassembly that copies the whole level
+  image and every chunk's lists into the Preview (2.5 ms).
+- **F3.2 Brushes and the edit store.** Place / break with brushes of 1, 2, 4, 8 voxels per side on the voxel grid
+  (§1), in voxel coordinates over the API; the edit store becomes the `BlockStore` (F1) instead of a dense 16.7 MB
+  grid per chunk (545 MB for the gate region).
+- **F3.3 Codec v3** (§3.6): per chunk the directory, then the detailed blocks run-length encoded; save / load
+  round-trips voxel for voxel; only chunks that differ from the generator are saved (§3.5a point 7).
+- **F3.4 Converter** from PXB2: a cube → one 8³ block (exact); subcubes / microcubes resampled (§7a).
+- **F3.5 The F3 exit gate**: both halves measured on the gate region; stress per CLAUDE.md (1,000 edit cycles,
+  every brush size, chunk borders and corners, save / load after each batch).
+
+**F3.1 2026-11-16 — edit cost (done: a 1 m brush 0.53 ms to lists ready; F2.17's path 7.1 ms on the same edits).**
+- Built (each exact by construction, pinned by F2.16's 300-edit `IncrementalRebuildEqualsAFullRebuild` + three new
+  tests, red first):
+  - Rows: `meshRunsPlan` evaluates the face mask lazily. Per head row it walks only the runs that touch the footprint
+    grown by one, and the head / stack tests read only the cells [u-1, u+w] of their rows.
+    `RowRebuildReadsOnlyNearTheFootprint`: 60 x 1 m brushes on engine terrain, delta = F2.16's whole-row executor
+    (kept as `meshRunsPlanWholeRows`), cells read 4.43 % of whole rows.
+  - Connectivity: `updateBlockBlocking` reports whether a blocking bit changed; no change = no flood
+    (`ConnectivityFloodRunsOnlyWhenABlockingBitChanges`: change report exact, the flood equal to F2.10's rule on random
+    bits).
+  - Assemble: each chunk's pool input is kept between edits (only rebuilt chunks recomputed); the Preview's drawn
+    arrays are written in place over the pool's dirty ranges; sprigs live in per-chunk spans with slack (x1.5 after an
+    overflow, as the face pool), so a count change rewrites one span. `RegionEditAssemblesOnlyWhatChanged`: two 256³
+    chunks, 40 edits across the border, drawn arrays = the level image, bytes written <= dirty ranges + the rebuilt
+    chunks' sprig spans.
+  - A/B switch `{"edit":{..., "legacy":true}}` = F2.17's path.
+- Measured live (3 runs, gate region, F2.16's 200-edit generator, every edit verified, F3.1 / legacy in ABBA order;
+  `voxfound_f31_*`; prediction `voxfound_f31_prediction.txt`):
+  - Exact: 0 face / sprig / connectivity mismatches in 153 verified edits per run; after 20 visible edits 0 px vs a
+    full rebuild at forest_floor_open and overview_south, controls 0. After 200 more edits 1 px (a material edge, same
+    draw counts; draw order of F2.18's overlapping grown quads, not attributed by experiment).
+  - Request to lists ready, F3.1 vs legacy (median / p90, ms): 1 voxel 0.29 / 0.75 vs 3.1; **1 m 0.53 / 0.75 vs
+    7.1**; 2 m 1.0 / 1.3 vs 16.9; 4 m 6.2 / 7.8 vs 59.7 (0.096 ms per block). 1 m median in 3 runs 0.53 / 0.62 /
+    0.53. Rows for 1 m 0.12 ms (was 3.8-4.1); assemble 0.17 / 0.31 (was 2.4-2.6); next-frame upload unchanged.
+  - Wrong predictions: a bit-row flood (0.184 ms) cost the same as the stack flood (0.185) in one session, so it was
+    dropped; the flood stays ~0.16 ms when a block's sight bit flips (predicted <= 0.1). 1 m p90 0.75 (predicted
+    <= 0.67).
+- Verdict, the F3 row's first half: met at the median. A 1 m brush (one block) is 3.8x below the low end of today's
+  2-13 ms per chunk; a 4 m brush is ~20x below per block. The 1 m p90 (0.75 ms) is 2.7x below 2 ms but above the 0.67
+  line. Owed: incremental connectivity (the 0.16 ms flood); the per-chunk face span copy (`FacePool::write` copies a
+  rebuilt chunk's whole span).
 
 ## 10. Performance tiers
 

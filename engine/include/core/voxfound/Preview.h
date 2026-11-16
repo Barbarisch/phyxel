@@ -81,6 +81,7 @@ struct Preview {
     bool lodLeafLook = true;
     bool lodCasters = false;         // F2.14: with lodOn, the face casters draw the levels too (per caster fragment)
     uint64_t revision = 0;           // bumped on every change; the renderer re-uploads when it moves
+    size_t lastCopyBytes = 0;        // F3.1: bytes the last revision step wrote into the drawn arrays (faces, clusters, sprigs)
     /// F2.17 (§4.6 item 10): `faces`, `clusters` and `clustersDir` are a face-pool image (RegionEdit + FacePool): each
     /// chunk in its own span with slack, empty cluster slots with count 0. poolDirty = what changed from revision
     /// poolBaseRevision to `revision` (full = everything) in layout poolLayoutId. The renderer copies only those ranges
@@ -88,6 +89,13 @@ struct Preview {
     bool pooled = false;
     uint64_t poolLayoutId = 0, poolBaseRevision = 0;
     PoolDirty poolDirty;
+    /// F3.1: sprigs in the chunk ranges (a region edit's sprig array has slack spans per chunk).
+    size_t liveSprigs() const {
+        if (chunks.empty()) return sprigs.size();
+        size_t n = 0;
+        for (const PreviewChunk& c : chunks) n += c.sprigCount;
+        return n;
+    }
     /// Faces in the chunk ranges (a pool image is larger: slack and gaps).
     size_t liveFaces() const {
         if (chunks.empty()) return faces.size();
@@ -155,6 +163,7 @@ struct Preview {
         appendCasters();   // F2.15b
         clusters = L.clusters;
         clustersDir = L.clustersDir;
+        lastCopyBytes = faces.size() * sizeof(PackedFace) + (clusters.size() + clustersDir.size()) * sizeof(PreviewCluster);
         for (size_t i = 0; i < chunks.size(); ++i) {
             chunks[i].firstFace = L.firstFace[i];
             chunks[i].faceCount = L.faceCount[i];

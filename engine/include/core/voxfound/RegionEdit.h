@@ -42,6 +42,7 @@ public:
         double facesMs = 0, sprigMs = 0, connectMs = 0, clusterMs = 0, setMs = 0;
         double planMs = 0, rowsWallMs = 0, rowsGpuMs = 0;   // facesMs = plan + rows (device wall, or the CPU executor)
         size_t uploadBytes = 0, residentMisses = 0;
+        size_t connectFloods = 0;   // F3.1: floods run (only when a block's "blocks sight" bit changed)
         bool onDevice = false;
         std::vector<size_t> rebuilt;   // chunk indices whose faces / sprigs / connectivity were updated
     };
@@ -49,6 +50,8 @@ public:
     void clear() {
         m_chunks.clear();
         m_pool.reset();
+        m_in.clear();
+        m_sprigSlack = 0.25;
     }
     bool empty() const { return m_chunks.empty(); }
     size_t chunkCount() const { return m_chunks.size(); }
@@ -90,6 +93,23 @@ private:
     uint32_t m_threshold24 = 0;
     uint64_t m_generation = 0;   // resident keys: generation << 20 | chunk index
     std::unique_ptr<FacePool> m_pool;   // F2.17: level 0's spans
+    /// F3.1: each chunk's pool input, kept between edits (only the rebuilt chunks' are recomputed), and the Preview
+    /// revision the last assemble produced (anything else touched the drawn arrays: copy whole).
+    std::vector<PoolChunk> m_in;
+    uint64_t m_assembledRevision = ~0ull;
+    uint32_t m_sprigLayouts = 0;   // F3.1: times every sprig span was placed (the first assemble + overflows)
+    double m_sprigSlack = 0.25;    // F3.1: slack per sprig span, x1.5 after each overflow
+    bool m_legacyF31 = false;
+
+public:
+    /// F3.1 A/B: true = F2.17's edit path (rows over the whole slice width, the flood on every edit, every chunk's pool
+    /// input rebuilt and the whole level image copied into the Preview). Same results, F2.17's cost.
+    void setLegacyF31(bool on) { m_legacyF31 = on; }
+    bool legacyF31() const { return m_legacyF31; }
+    uint32_t sprigLayouts() const { return m_sprigLayouts; }
+
+private:
+    void poolInput(size_t i);
 
 public:
     /// FaceBuilderGpu::rowsDelta's resident key for chunk i of this store (unique across region builds).

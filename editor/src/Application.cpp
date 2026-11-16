@@ -13577,7 +13577,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"shadow_cluster_faces_mid", renderCoordinator->voxFoundShadowCullStats(0)[2]},
                         {"shadow_cluster_faces_near", renderCoordinator->voxFoundShadowCullStats(1)[2]},
                         {"preview_faces", voxFoundPreview.faces.size()},
-                        {"preview_sprigs", voxFoundPreview.sprigs.size()}};
+                        {"preview_sprigs", voxFoundPreview.liveSprigs()}};
             return;
         }
         if (!voxFoundBuilder) {
@@ -13847,6 +13847,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     // the uncapped operating point -- vs 3.6-4.4 ms on the CPU for a 1 m edit. The device path pays off once item 10
     // records the rows into the frame and writes the face pool on the device (no readback, no wait).
     std::string rowsErr;
+    voxFoundEdit.setLegacyF31(ej.value("legacy", false));   // F3.1 A/B: F2.17's edit path
     const RegionEdit::Stats st = voxFoundEdit.apply(lo, hi, inside, mat,
                                                     ej.value("device", false) ? voxFoundBuilder.get() : nullptr, &rowsErr);
     // the CPU executor changed these chunks' voxels behind any resident device copy: forget them (a later device edit
@@ -13872,7 +13873,9 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
                 {"set_ms", st.setMs}, {"faces_ms", st.facesMs}, {"cluster_ms", st.clusterMs},
                 {"sprig_ms", st.sprigMs}, {"connect_ms", st.connectMs}, {"rebuild_ms", ms(t0, t1)},
                 {"assemble_ms", ms(t1, t2)}, {"faces", voxFoundPreview.liveFaces()},
-                {"sprigs", voxFoundPreview.sprigs.size()}};
+                {"connect_floods", st.connectFloods}, {"assemble_bytes", voxFoundPreview.lastCopyBytes},
+                {"legacy", voxFoundEdit.legacyF31()},
+                {"sprigs", voxFoundPreview.liveSprigs()}};
     if (ej.value("verify", false) && voxFoundBuilder) {
         // every rebuilt chunk, fully, on the device: the same voxels + border planes through FaceBuilderGpu
         size_t faceMiss = 0, sprigMiss = 0, connMiss = 0;
