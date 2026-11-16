@@ -52,7 +52,13 @@ class WaterSkin {
 public:
     struct Settings {
         bool on = true;               ///< ON: the owner, 2026-11-11, from the fly-out clip (51.4g); pinned by TheSkinShipsOn
-        float farM = 1024.0f;         ///< the skin's reach (m, horizontal); cells whose centre is farther are not drawn
+        float farM = 1024.0f;         ///< the skin's reach (m, horizontal); cells whose centre is farther are not drawn. The engine sets
+                                      ///< it from the far terrain's reach at a world's start (W6.1: the water drawn as far as the land)
+        float genM = 1024.0f;         ///< W6.1: never-loaded chunk columns within this (m, horizontal, the column's nearest point) get
+                                      ///< the GENERATOR's summary (the full flood, ~40 ms a column); every never-loaded column first gets a
+                                      ///< SAMPLED one (one generator column per 4 m cell against the bake's level - cheap), replaced by the
+                                      ///< generator's when it lands. Changes how exact a far shore is and how fast the reach fills, never
+                                      ///< where water is drawn at sea or in a lake's middle
         int baseCellM = 4;            ///< level 0's cell: 4 or 8 (a level-0 cell must lie inside one 8 m record tile, or the seam moves)
         int ringCells = 64;           ///< N: cells per side of a level (a multiple of 4, so each level sits on the next one's lattice)
         int summariesPerCall = 32;    ///< chunk columns summarized per call, nearest first (bounds a frame; late, never blank)
@@ -72,7 +78,10 @@ public:
         int genPending = 0;           ///< step 2: chunk columns queued on (or in) the generator worker
         int maskTiles = 0;            ///< 51.5: record tiles the skin leaves to the record (the ones that draw)
         long genBuilt = 0;            ///< step 2: summaries made from the generator
-        int genHeld = 0;              ///< step 2: summaries held that came from the generator
+        int genHeld = 0;              ///< step 2: summaries held that came from the generator (sampled ones included)
+        long sampledBuilt = 0;        ///< W6.1: summaries made from the sampled source
+        int sampledHeld = 0;          ///< W6.1: summaries held that are sampled (not yet replaced by the generator's)
+        long upgrades = 0;            ///< W6.1: sampled summaries replaced by the generator's
         double msLastCall = 0.0, msMax = 0.0;
     };
     using Reader = std::function<void(const glm::ivec3&, const glm::ivec3&, std::vector<ColumnRuns>&)>;
@@ -123,8 +132,11 @@ public:
     /// generator's arrives.
     using GeneratorSource = std::function<void(const glm::ivec2&, std::vector<ColumnRuns>&)>;
     using GeneratorFactory = std::function<GeneratorSource()>;
-    void setGeneratorSource(GeneratorFactory factory, int threads = 2);
+    /// W6.1: `sampled` (optional) makes the SAMPLED source (sampledWaterRuns: cheap, coarse at the shore) - its jobs are served
+    /// before the generator's, so the whole reach fills fast and the generator's replace them within Settings::genM.
+    void setGeneratorSource(GeneratorFactory factory, int threads = 2, GeneratorFactory sampled = nullptr);
     bool hasGeneratorSource() const { return static_cast<bool>(m_worker); }
+    bool hasSampledSource() const;
     /// 51.16: a per-world cache FILE of the generator's summaries (a pure cache: never part of the save, deletable). `key` names
     /// what made them (generatedWaterCacheKey: the recipe + kGeneratedWaterVersion); a file with another key is ignored and
     /// rewritten. Loaded on its own thread; generator jobs wait for it, then the kGenCacheVerify cached columns nearest the viewer
@@ -168,7 +180,9 @@ private:
         uint64_t spanRev = ~0ull, res = ~0ull;
         bool built = false;
         bool fromGen = false;     // step 2: made from the generator (the column had no resident chunk)
-        bool requested = false;   // step 2: queued on the generator worker
+        bool requested = false;   // step 2: queued on the generator worker (the generator's summary)
+        bool sampled = false;     // W6.1: built from the sampled source (fromGen is true too)
+        bool requestedS = false;  // W6.1: a sampled job queued
         std::vector<int> storedCy;            // 51.4f: its stored (edited) chunks' y - their water replaces the generator's there
         std::vector<ColumnRuns> storedRuns;   // 51.4f: their water, held until the generator's arrives
         uint64_t version = 0;

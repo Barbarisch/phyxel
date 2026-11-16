@@ -19,6 +19,15 @@ class WorldGenerator;
 /// Empty without hydrology. Not thread-safe on a shared generator (it memoizes): give a worker its own copy.
 void generatedWaterRuns(WorldGenerator& gen, const glm::ivec2& colChunk, std::vector<Core::Water::ColumnRuns>& out);
 
+/// W6.1 (WaterCore §55.1): the SAMPLED runs of chunk column `colChunk` - the far skin's cheap source past genM. Per 4 m skin cell, ONE
+/// column at the cell's centre (x0 + 2, z0 + 2): the generator's surface there (sampleSurface - the far terrain mesher's own function)
+/// against generation's flood rule without its path: the level of the NEAREST wet hydrology-bake cell within the flood's reach (256 m)
+/// whose level is above this surface's top (surfaceY + 1), kept only where the depression-filled height is not below it (not downhill
+/// of a spill); written as the cell's 16 columns, each the run [surfaceY + 1, level). A pure function of world position (one column
+/// per cell; the bake is immutable). Not drawn by it: the generator's carved rivers (riverOrder >= 3 columns are dry here). Reads wet
+/// where the flood would not: a pit below a body's level with no submerged path to it. Empty without hydrology. Not thread-safe on a shared generator (sampleColumn memoizes): a worker its own copy.
+void sampledWaterRuns(WorldGenerator& gen, const glm::ivec2& colChunk, std::vector<Core::Water::ColumnRuns>& out);
+
 /// 51.16: BUMP THIS with any change to what generatedWaterRuns returns for a given recipe (the hydrology bake, the carve, the river
 /// stage, the spans...). The far skin's per-world summary cache is keyed by it: a change without the bump leaves cached summaries of
 /// the OLD water, caught only where the load's verification samples (WaterSkin::kGenCacheVerify columns).

@@ -780,7 +780,10 @@ public:
     bool skinDrawnAtWorld(float x, float z, float& top, int* claims = nullptr) const { return m_skin.drawnAt(x, z, top, claims); }
     const WaterSkin::Stats& skinStats() const { return m_skin.stats(); }
     /// 51.4 step 2: chunk columns with no resident chunk are summarized from the generator, on the skin's worker (WaterSkin.h)
-    void setSkinGeneratorSource(WaterSkin::GeneratorFactory factory) { m_skin.setGeneratorSource(std::move(factory), s_skin.generatorThreads); }
+    void setSkinGeneratorSource(WaterSkin::GeneratorFactory factory, WaterSkin::GeneratorFactory sampled = nullptr) {
+        m_skin.setGeneratorSource(std::move(factory), s_skin.generatorThreads, std::move(sampled));
+    }
+    bool hasSkinSampledSource() const { return m_skin.hasSampledSource(); }
     bool hasSkinGeneratorSource() const { return m_skin.hasGeneratorSource(); }
     /// 51.16: the generator summaries' per-world cache file (WaterSkin::setGeneratorCache); empty path = off
     void setSkinGeneratorCache(const std::string& path, uint64_t key) { m_skin.setGeneratorCache(path, key); }

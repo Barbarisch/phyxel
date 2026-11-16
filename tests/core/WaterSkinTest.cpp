@@ -24,6 +24,10 @@
 #include <cstdio>
 #include <functional>
 #include <map>
+#include <atomic>
+#include <mutex>
+#include <thread>
+#include <vector>
 
 using namespace Phyxel::Core::Water;
 
@@ -553,4 +557,163 @@ TEST(WaterSkinTest, TheShoreSwapsAreSmall) {
     EXPECT_GT(red.pxByDist[1], 1000.0);              // the control measures the seam's pops
     EXPECT_LT(st.pxByDist[1], 0.01 * red.pxByDist[1]);   // the seam: none
     EXPECT_LT(st.pxMax, 0.5 * red.pxMax);
+}
+
+// W6.1 (WaterCore §55.1): THE SEA DRAWN AS FAR AS THE LAND. Live (55.0) the skin's reach ended at its far_m (1 km) while the far terrain
+// drew seabed to 2 km, and a farther reach costs a generator flood per never-loaded chunk column (~40 ms - 166 s to fill 1 km cold,
+// 51.16). Now every never-loaded column first gets a SAMPLED summary (served first, cheap) and only those within gen_m the generator's.
+// The rig (scaled down so the analytic sources stay fast): far_m 1024, gen_m 512, resident chunk columns within 200 m (the record),
+// an analytic world - land (no water) for x < 300 and on an island x 600..800, |z| < 100 (past gen_m: the sampled zone); sea (bed
+// 10, level 16) elsewhere. Both sources answer from the same functions; every boundary on the 4 m lattice, so they agree exactly.
+// Predictions, written before the run: every 32 m sea point within far_m - 150 drawn by exactly one of the record tiles or the skin,
+// at 16 within 1 mm; 0 island points drawn by the skin (the control: the sampled source draws no water over land); 0 generator jobs
+// for a column past gen_m, > 0 sampled ones. RED control (today's path - no sampled source): generator jobs past gen_m > 0 (each one
+// ~40 ms live). Then the viewer moves 300 m: columns entering gen_m swap sampled -> generated (upgrades > 0) and no point of the swap
+// band (gen_m +- 100 m of the new view) that was drawn is ever undrawn in a frame between.
+namespace {
+struct SeaWorld {
+    static bool sea(int x, int z) { return x >= 300 && !(x >= 600 && x < 800 && z > -100 && z < 100); }
+    static void runs(int x0, int z0, int step, std::vector<ColumnRuns>& out) {   // step 1: every column; 4: one per cell, x16
+        out.clear();
+        for (int z = z0; z < z0 + 32; z += step) for (int x = x0; x < x0 + 32; x += step) {
+            if (!sea(x + step / 2, z + step / 2)) continue;
+            for (int dz = 0; dz < step; ++dz) for (int dx = 0; dx < step; ++dx) {
+                ColumnRuns c; c.x = x + dx; c.z = z + dz;
+                ColumnRun r; r.bottomY = 10.0f; r.topY = 16.0f; r.mass = 6.0; c.runs.push_back(r);
+                out.push_back(std::move(c));
+            }
+        }
+    }
+};
+struct JobLog {
+    std::mutex mu;
+    std::vector<glm::ivec2> gen, sampled;
+    float farthest(const std::vector<glm::ivec2>& v, glm::vec2 view) {
+        float worst = 0.0f;
+        for (const glm::ivec2& c : v) {
+            const glm::vec2 lo(c.x * 32.0f, c.y * 32.0f), hi = lo + glm::vec2(32.0f);
+            const glm::vec2 q = glm::clamp(view, lo, hi);
+            worst = std::max(worst, glm::length(q - view));
+        }
+        return worst;
+    }
+};
+glm::vec2 vcOf(const glm::vec3& v) { return glm::vec2(std::floor(v.x / 32.0f) * 32.0f + 16.0f, std::floor(v.z / 32.0f) * 32.0f + 16.0f); }
+void settleSea(WaterCoreManager& mgr) {
+    for (int i = 0; i < 20000; ++i) {
+        mgr.surfaceFields(); mgr.skinFields();
+        if (mgr.recordDrawStats().pending == 0 && mgr.skinStats().pending == 0 && mgr.skinStats().genPending == 0) {
+            mgr.skinFields();
+            return;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    ADD_FAILURE() << "never settled: skin pending " << mgr.skinStats().pending << ", generator " << mgr.skinStats().genPending;
+}
+}  // namespace
+
+TEST(WaterSkinTest, TheSeaIsDrawnAsFarAsTheLand) {
+    SkinSettingsGuard guard;
+    WaterCoreManager::s_locality.drawM = 48.0f;
+    WaterCoreManager::s_recordDraw.on = true;
+    WaterCoreManager::s_skin.on = true;
+    WaterCoreManager::s_skin.farM = 1024.0f;
+    WaterCoreManager::s_skin.genM = 512.0f;
+    WaterCoreManager::s_skin.generatorThreads = 2;
+    glm::vec3 view(0.0f, 30.0f, 0.0f);
+    auto make = [&](WaterCoreManager& mgr, AnalyticRecord& rec, JobLog& log, bool sampledSource) {
+        rec.wet = [](int x, int z) { return SeaWorld::sea(x, z); };
+        rec.top = [](int, int) { return 16.0f; };
+        rec.install(mgr);
+        mgr.setRecordResidency([&view] { return uint64_t(1 + static_cast<uint64_t>(view.x + 100000.0f)); }, [&view](int cx, int cz) {   // the stamp moves with the viewer
+            const float dx = cx * 32.0f + 16.0f - view.x, dz = cz * 32.0f + 16.0f - view.z;
+            return uint64_t(dx * dx + dz * dz < 200.0f * 200.0f ? 1 : 0);
+        });
+        mgr.setViewPoint(view);
+        WaterSkin::GeneratorFactory gen = [&log]() -> WaterSkin::GeneratorSource {
+            return [&log](const glm::ivec2& c, std::vector<ColumnRuns>& out) {
+                SeaWorld::runs(c.x * 32, c.y * 32, 1, out);
+                std::lock_guard<std::mutex> lk(log.mu); log.gen.push_back(c);
+            };
+        };
+        WaterSkin::GeneratorFactory smp = [&log]() -> WaterSkin::GeneratorSource {
+            return [&log](const glm::ivec2& c, std::vector<ColumnRuns>& out) {
+                SeaWorld::runs(c.x * 32, c.y * 32, 4, out);
+                std::lock_guard<std::mutex> lk(log.mu); log.sampled.push_back(c);
+            };
+        };
+        mgr.setSkinGeneratorSource(gen, sampledSource ? smp : WaterSkin::GeneratorFactory{});
+    };
+    // the red control: today's path (no sampled source) - every never-loaded column within the reach is a generator flood
+    {
+        WaterCoreManager red(ground); AnalyticRecord rec; JobLog log;
+        make(red, rec, log, false);
+        settleSea(red);
+        long past = 0;
+        for (const glm::ivec2& c : log.gen) if (log.farthest({c}, vcOf(view)) > 512.0f) ++past;
+        std::printf("[sea] RED (no sampled source): %zu generator jobs, %ld of them past gen_m 512 m\n", log.gen.size(), past);
+        EXPECT_GT(past, 100);
+        red.setSkinGeneratorSource(nullptr);
+    }
+    WaterCoreManager mgr(ground); AnalyticRecord rec; JobLog log;
+    make(mgr, rec, log, true);
+    settleSea(mgr);
+    struct Count { int points = 0, holes = 0, doubles = 0, bySkin = 0, island = 0, islandDrawn = 0; float levelWorst = 0.0f; };
+    auto count = [&](float radius) {
+        Count c;
+        for (int z = -1024; z <= 1024; z += 32) for (int x = -1024; x <= 1024; x += 32) {
+            const float px = x + 0.5f, pz = z + 0.5f;
+            if (glm::length(glm::vec2(px - view.x, pz - view.z)) > radius) continue;
+            float rt = 0.0f, st = 0.0f; bool recorded = false; int claims = 0;
+            const bool r = mgr.drawnAtWorld(px, pz, rt, recorded);
+            const bool s = mgr.skinDrawnAtWorld(px, pz, st, &claims);
+            if (!SeaWorld::sea(x, z)) { if (x >= 600 && x < 800 && z > -100 && z < 100) { ++c.island; c.islandDrawn += s; } continue; }
+            ++c.points;
+            if (!r && !s) ++c.holes;
+            if ((r && s) || claims > 1) ++c.doubles;
+            if (s) { ++c.bySkin; c.levelWorst = std::max(c.levelWorst, std::abs(st - 16.0f)); }
+        }
+        return c;
+    };
+    const Count on = count(1024.0f - 150.0f);
+    const auto& st = mgr.skinStats();
+    const float genFar = log.farthest(log.gen, vcOf(view));   // the skin measures from the viewer's chunk column centre
+    std::printf("[sea] %d sea points: skin %d, holes %d, doubles %d, level worst %.5f; island %d points, %d drawn by the skin\n",
+                on.points, on.bySkin, on.holes, on.doubles, on.levelWorst, on.island, on.islandDrawn);
+    std::printf("[sea] jobs: generator %zu (farthest column %.0f m), sampled %zu; held %d (sampled %d), upgrades %ld; levels %d\n",
+                log.gen.size(), genFar, log.sampled.size(), st.genHeld, st.sampledHeld, st.upgrades, st.levels);
+    EXPECT_EQ(on.holes, 0);
+    EXPECT_EQ(on.doubles, 0);
+    EXPECT_GT(on.bySkin, on.points / 2);
+    EXPECT_LE(on.levelWorst, 1e-3f);
+    EXPECT_GT(on.island, 10);
+    EXPECT_EQ(on.islandDrawn, 0);
+    EXPECT_LE(genFar, 512.0f);
+    EXPECT_GT(st.sampledHeld, 100);
+    // the swap: the viewer moves 300 m along +x; the band gen_m +- 100 m of the new view is watched every frame
+    std::vector<glm::vec2> band;
+    for (int z = -1024; z <= 1024; z += 16) for (int x = -1024; x <= 1024; x += 16) {
+        const glm::vec2 p(x + 0.5f, z + 0.5f);
+        const float d = glm::length(p - glm::vec2(300.0f, 0.0f));
+        float t = 0.0f;
+        if (SeaWorld::sea(x, z) && d > 412.0f && d < 612.0f && glm::length(p) < 1024.0f - 150.0f && mgr.skinDrawnAtWorld(p.x, p.y, t)) band.push_back(p);
+    }
+    view = glm::vec3(300.0f, 30.0f, 0.0f);
+    mgr.setViewPoint(view);
+    const long upgrades0 = st.upgrades;
+    long holeFrames = 0, holesWorst = 0, frames = 0;
+    for (int i = 0; i < 20000; ++i) {
+        mgr.surfaceFields(); mgr.skinFields(); ++frames;
+        long holes = 0;
+        for (const glm::vec2& p : band) { float t = 0.0f, rt = 0.0f; bool rc = false; if (!mgr.skinDrawnAtWorld(p.x, p.y, t) && !mgr.drawnAtWorld(p.x, p.y, rt, rc)) ++holes; }
+        if (holes) { ++holeFrames; holesWorst = std::max(holesWorst, holes); }
+        if (mgr.recordDrawStats().pending == 0 && st.pending == 0 && st.genPending == 0) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    std::printf("[sea] moved 300 m: %zu band points watched over %ld frames - %ld frames with a hole (worst %ld); upgrades %ld\n",
+                band.size(), frames, holeFrames, holesWorst, st.upgrades - upgrades0);
+    EXPECT_GT(band.size(), 50u);
+    EXPECT_EQ(holeFrames, 0);
+    EXPECT_GT(st.upgrades - upgrades0, 10);
+    mgr.setSkinGeneratorSource(nullptr);
 }

@@ -4091,6 +4091,14 @@ void Application::update(float deltaTime) {
             // 54.3 (W5.2b): a simulated reach follows the viewer along a river (throttled inside; water_av_river_follow)
             { const auto t = WClock::now(); waterCore->followRiver(waterCore->viewPoint(), glfwGetTime()); m_waterCpu.follow = wms(t); }
             { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
+            // W6.1 (§55.1): the skin's reach follows the far terrain's (maxDistance x its view scale - FarTerrainManager's own reach),
+            // so the water is drawn as far as the land is; 1024 with no far terrain. water_av_skin far_m pins it (far_m_follow resumes)
+            if (!m_skinFarMPinned) {
+                const auto* ft = renderCoordinator ? renderCoordinator->getFarTerrainManager() : nullptr;
+                const bool farOn = ft && ft->params().enabled;   // (not `far`: a Windows macro)
+                Core::Water::WaterCoreManager::s_skin.farM = farOn ? ft->params().maxDistance * ft->params().viewScale : 1024.0f;
+                m_skinFarMSource = farOn ? "far_terrain" : "default";
+            }
             // 51.4 step 2: the far skin's generator source - its own copy of the streaming generator (the worker shares nothing with
             // this thread), made when the skin is on and the generator or the world changed
             if (Core::Water::WaterCoreManager::s_skin.on) {
@@ -4102,6 +4110,9 @@ void Application::update(float deltaTime) {
                         waterCore->setSkinGeneratorSource([sg]() -> Core::Water::WaterSkin::GeneratorSource {
                             auto copy = std::make_shared<WorldGenerator>(*sg);   // one per worker, copied on this thread
                             return [copy](const glm::ivec2& c, std::vector<Core::Water::ColumnRuns>& out) { generatedWaterRuns(*copy, c, out); };
+                        }, [sg]() -> Core::Water::WaterSkin::GeneratorSource {   // W6.1: the sampled source - its own copy too
+                            auto copy = std::make_shared<WorldGenerator>(*sg);
+                            return [copy](const glm::ivec2& c, std::vector<Core::Water::ColumnRuns>& out) { sampledWaterRuns(*copy, c, out); };
                         });
                         // 51.16: the generator summaries cached beside the world DB (a pure cache, keyed by the recipe + the water version)
                         std::string cachePath;
@@ -14040,8 +14051,12 @@ void Application::registerWaterCommands() {
              {"revision", waterCore->recordRevision()}};
     });
     // 51.4 S3: the far skin - recorded water beyond the record tiles (draw_m) drawn as coarse fields on clipmap rings. Omitted =
-    // unchanged. on (default ON - owner 2026-11-11, 51.4g); far_m its reach, 0..the far plane (maxChunkRenderDistance - beyond
-    // it the quads are clipped anyway); base_cell_m 4 or 8 (a level-0 cell must lie inside one 8 m record tile, or the seam would cut
+    // unchanged. on (default ON - owner 2026-11-11, 51.4g); far_m its reach (m) - by default it FOLLOWS the far terrain's reach
+    // (W6.1, §55.1: the water drawn as far as the land); setting it pins it, far_m_follow:true resumes following. Clamped to
+    // 0..max(4096, the far terrain's reach): the clamp was maxChunkRenderDistance (its comment: "beyond it the quads are clipped") -
+    // measured false (55.0: Coast's 96 m with the skin drawing to 1 km), and it refused a reach the far terrain draws. Past the far
+    // terrain the skin would draw water with no land beside it; levels are capped at kMaxLevels anyway. gen_m (W6.1): the generator's
+    // summaries within it, the sampled ones everywhere first - 0..far_m; base_cell_m 4 or 8 (a level-0 cell must lie inside one 8 m record tile, or the seam would cut
     // it - anything else is refused, not rounded); ring_cells 8..256, rounded up to a multiple of 4 (each level then sits on the next
     // one's lattice); summaries_per_call 1..1024 (chunk columns summarized a call). The echo: the values in force and the stats.
     reg.on("water_av_skin", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -14055,7 +14070,13 @@ void Application::registerWaterCommands() {
         }
         if (cmd.params.contains("on")) k.on = cmd.params.value("on", false);
         if (cmd.params.contains("gen_cache")) k.genCache = cmd.params.value("gen_cache", true);   // 51.16: applied next frame (the source is remade)
-        if (cmd.params.contains("far_m")) k.farM = std::clamp(cmd.params.value("far_m", 1024.0f), 0.0f, maxChunkRenderDistance);
+        {
+            const auto* ft = renderCoordinator ? renderCoordinator->getFarTerrainManager() : nullptr;
+            const float farCap = std::max(4096.0f, ft ? ft->params().maxDistance * ft->params().viewScale : 0.0f);
+            if (cmd.params.contains("far_m")) { k.farM = std::clamp(cmd.params.value("far_m", 1024.0f), 0.0f, farCap); m_skinFarMPinned = true; m_skinFarMSource = "api"; }
+            if (cmd.params.value("far_m_follow", false)) m_skinFarMPinned = false;   // the next frame sets it from the far terrain
+        }
+        if (cmd.params.contains("gen_m")) k.genM = std::clamp(cmd.params.value("gen_m", 1024.0f), 0.0f, 8192.0f);
         if (cmd.params.contains("ring_cells")) k.ringCells = (std::clamp(cmd.params.value("ring_cells", 64), 8, 256) + 3) / 4 * 4;
         if (cmd.params.contains("summaries_per_call")) k.summariesPerCall = std::clamp(cmd.params.value("summaries_per_call", 32), 1, 1024);
         if (cmd.params.contains("generator_threads")) {   // 1..8; applies when the source is next made (the world or the generator changes)
@@ -14063,7 +14084,9 @@ void Application::registerWaterCommands() {
             m_skinGenFrom = nullptr; m_skinGenResets = -1;   // remade on the next frame with the new count
         }
         const auto& s = waterCore->skinStats();
-        r = {{"on", k.on}, {"far_m", k.farM}, {"base_cell_m", k.baseCellM}, {"ring_cells", k.ringCells}, {"summaries_per_call", k.summariesPerCall},
+        r = {{"on", k.on}, {"far_m", k.farM}, {"far_m_source", m_skinFarMPinned ? "api" : m_skinFarMSource}, {"gen_m", k.genM},
+             {"sampled_source", waterCore->hasSkinSampledSource()}, {"sampled_built", s.sampledBuilt}, {"sampled_held", s.sampledHeld},
+             {"upgrades", s.upgrades}, {"base_cell_m", k.baseCellM}, {"ring_cells", k.ringCells}, {"summaries_per_call", k.summariesPerCall},
              {"draw_m", M::s_locality.drawM}, {"levels", s.levels}, {"ring_cells_used", s.ringCells}, {"fields", s.fields}, {"wet_cells", s.wetCells},
              {"summaries", s.summaries}, {"summaries_built", s.summariesBuilt}, {"summaries_built_last_call", s.summariesBuiltLastCall},
              {"pending", s.pending}, {"fields_rebuilt_last_call", s.fieldsRebuiltLastCall}, {"ms_last_call", s.msLastCall}, {"ms_max", s.msMax},

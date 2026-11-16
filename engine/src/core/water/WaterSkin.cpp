@@ -72,32 +72,38 @@ void summarizeSkinCells(const std::vector<ColumnRuns>& runs, std::map<std::pair<
 // nearest-first spiral the first build used jumped round its ring and re-sampled it whole each time (~1.1 s a column, measured)
 static constexpr int kGenBlock = 8;
 struct WaterSkin::Worker {
-    std::vector<GeneratorSource> fns;   // one per thread
+    std::vector<GeneratorSource> fns;    // one per thread
+    std::vector<GeneratorSource> sfns;   // W6.1: the sampled source, one per thread (empty: none)
     std::mutex mu;
     std::condition_variable cv;
-    std::deque<std::vector<uint64_t>> queue;   // blocks, each its columns in walking order
+    std::deque<std::vector<uint64_t>> queue;    // blocks, each its columns in walking order
+    std::deque<std::vector<uint64_t>> squeue;   // W6.1: sampled blocks - served first (cheap: the whole reach fills fast)
     size_t queuedColumns = 0;
     int inFlight = 0;
-    std::vector<std::pair<uint64_t, std::vector<ColumnRuns>>> done;
+    struct Done { uint64_t key; std::vector<ColumnRuns> runs; bool sampled; };
+    std::vector<Done> done;
     bool stop = false;
     std::vector<std::thread> th;
     void run(int i) {
         for (;;) {
             std::vector<uint64_t> block;
+            bool sampled = false;
             {
                 std::unique_lock<std::mutex> lk(mu);
-                cv.wait(lk, [&] { return stop || !queue.empty(); });
+                cv.wait(lk, [&] { return stop || !queue.empty() || !squeue.empty(); });
                 if (stop) return;
-                block = std::move(queue.front()); queue.pop_front();
+                if (!squeue.empty()) { block = std::move(squeue.front()); squeue.pop_front(); sampled = true; }
+                else { block = std::move(queue.front()); queue.pop_front(); }
                 queuedColumns -= block.size(); inFlight += static_cast<int>(block.size());
             }
+            const GeneratorSource& fn = sampled ? sfns[static_cast<size_t>(i)] : fns[static_cast<size_t>(i)];
             for (size_t k = 0; k < block.size(); ++k) {
                 const uint64_t key = block[k];
                 std::vector<ColumnRuns> runs;
-                fns[static_cast<size_t>(i)](glm::ivec2(static_cast<int>(static_cast<int32_t>(key >> 32)), static_cast<int>(static_cast<int32_t>(key & 0xffffffffull))), runs);
+                fn(glm::ivec2(static_cast<int>(static_cast<int32_t>(key >> 32)), static_cast<int>(static_cast<int32_t>(key & 0xffffffffull))), runs);
                 std::lock_guard<std::mutex> lk(mu);
                 --inFlight;
-                done.emplace_back(key, std::move(runs));
+                done.push_back(Done{key, std::move(runs), sampled});
                 if (stop) { inFlight -= static_cast<int>(block.size() - k - 1); return; }
             }
         }
@@ -233,7 +239,9 @@ WaterSkin::WaterSkin() = default;
 
 WaterSkin::~WaterSkin() { setGeneratorSource(nullptr); }
 
-void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads) {
+bool WaterSkin::hasSampledSource() const { return m_worker && !m_worker->sfns.empty(); }
+
+void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads, GeneratorFactory sampled) {
     if (m_gc) { flushGeneratorCache(); m_gc.reset(); }   // 51.16: written, closed (a cache belongs to its source)
     m_gcStats.state = GcOff;
     if (m_worker) {
@@ -243,19 +251,20 @@ void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads) {
         m_worker.reset();
     }
     // the old source's summaries go (another world's generator must never answer); the record's stay
-    for (auto it = m_sum.begin(); it != m_sum.end();) { if (it->second.fromGen) it = m_sum.erase(it); else { it->second.requested = false; ++it; } }
+    for (auto it = m_sum.begin(); it != m_sum.end();) { if (it->second.fromGen) it = m_sum.erase(it); else { it->second.requested = false; it->second.requestedS = false; ++it; } }
     ++m_sumVersion; m_scanValid = false; ++m_genEpoch;
     if (!factory) return;
     m_worker = std::make_unique<Worker>();
     const int n = std::clamp(threads, 1, 8);
     for (int i = 0; i < n; ++i) m_worker->fns.push_back(factory());   // made here, each used by its own thread alone
+    if (sampled) for (int i = 0; i < n; ++i) m_worker->sfns.push_back(sampled());
     Worker* w = m_worker.get();
     for (int i = 0; i < n; ++i) m_worker->th.emplace_back([w, i] { w->run(i); });
 }
 
 void WaterSkin::clear() {
     m_sum.clear(); m_fieldMap.clear(); m_out.clear(); m_levelKeys.clear(); m_keyValid = false; m_resSeen = ~0ull; m_scanValid = false; m_lastPending = 0;
-    if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->queue.clear(); m_worker->queuedColumns = 0; m_worker->done.clear(); }
+    if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->queue.clear(); m_worker->squeue.clear(); m_worker->queuedColumns = 0; m_worker->done.clear(); }
     if (m_gc && !m_gc->verifyKeys.empty()) m_gc->verifyRequeue = true;   // 51.16: the verification's jobs went with the queue
 }
 
@@ -399,10 +408,23 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         m_worker->cv.notify_all();
     }
     if (m_worker) {
-        std::vector<std::pair<uint64_t, std::vector<ColumnRuns>>> done;
+        std::vector<Worker::Done> done;
         { std::lock_guard<std::mutex> lk(m_worker->mu); done.swap(m_worker->done); }
         genDrained = static_cast<int>(done.size());
-        for (auto& [key, runs] : done) {
+        for (auto& [key, runs, sampledJob] : done) {
+            if (sampledJob) {   // W6.1: a sampled summary - drawn until the generator's lands, never over it
+                const auto it = m_sum.find(key);
+                if (it == m_sum.end() || !it->second.requestedS) continue;   // forgotten meanwhile
+                Summary& sm = it->second;
+                sm.requestedS = false;
+                const int cx = static_cast<int>(static_cast<int32_t>(key >> 32)), cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
+                if (resident(cx, cz)) { m_scanValid = false; continue; }
+                if (sm.built && sm.fromGen && !sm.sampled) continue;            // the generator's came first: it stays
+                buildSummary(cx, cz, sm, runs);
+                sm.fromGen = true; sm.sampled = true; sm.spanRev = in.spanRevision; sm.res = 0;
+                ++m_stats.sampledBuilt;
+                continue;
+            }
             if (m_gc && m_gc->verifyKeys.count(key)) {   // 51.16: a verified column - the generator's against the file's, bit-exact
                 const int vx = static_cast<int>(static_cast<int32_t>(key >> 32)), vz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
                 Summary fresh;
@@ -446,8 +468,9 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                 runs.insert(runs.end(), sm.storedRuns.begin(), sm.storedRuns.end());
                 std::vector<ColumnRuns>().swap(sm.storedRuns);
             }
+            if (sm.built && sm.sampled) ++m_stats.upgrades;
             buildSummary(cx, cz, sm, runs);
-            sm.fromGen = true; sm.spanRev = in.spanRevision; sm.res = 0;
+            sm.fromGen = true; sm.sampled = false; sm.spanRev = in.spanRevision; sm.res = 0;
             ++m_stats.genBuilt;
             // 51.16: written to the cache - a column with stored chunks never (its summary is not the generator's alone)
             if (m_gc && sm.storedCy.empty() && m_gcStats.state != GcLoading && m_gcStats.state != GcVerifying && !m_gc->entries.count(key)) {
@@ -478,7 +501,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     m_scanValid = true; m_scanCx = vcx; m_scanCz = vcz; m_scanSpanRev = in.spanRevision; m_scanReach = reach; m_scanResGen = m_resGen;
     const long cx0 = floorDivL(static_cast<long>(std::floor(vc.x - reach)), 32), cx1 = floorDivL(static_cast<long>(std::floor(vc.x + reach)), 32);
     const long cz0 = floorDivL(static_cast<long>(std::floor(vc.z - reach)), 32), cz1 = floorDivL(static_cast<long>(std::floor(vc.z + reach)), 32);
-    std::vector<std::pair<float, uint64_t>> stale, genAsk;
+    std::vector<std::pair<float, uint64_t>> stale, genAsk, sAsk;
     int storedReads = 0;
     std::unordered_map<uint64_t, std::vector<int>> stored;   // 51.4f: chunk column -> its stored chunks' y (one query a scan)
     if (scan && m_worker && in.storedChunks && *in.storedChunks) {
@@ -493,11 +516,19 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         const uint64_t key = columnKey(static_cast<int>(cx), static_cast<int>(cz));
         const auto it = m_sum.find(key);
         if (!resident(static_cast<int>(cx), static_cast<int>(cz))) {
+            // W6.1: every never-loaded column first gets a SAMPLED summary (cheap, served first), the generator's within genM (it
+            // replaces the sampled one when it lands; never the other way). A column with stored (edited) chunks: the generator's only
+            std::vector<int> cys;
+            if (const auto st = stored.find(key); st != stored.end()) cys = st->second;
+            const bool hasS = m_worker && !m_worker->sfns.empty();
+            const Summary* cur = it == m_sum.end() ? nullptr : &it->second;
+            const bool haveGenerated = cur && cur->built && cur->fromGen && !cur->sampled;
+            const bool haveSampled = cur && cur->built && cur->fromGen && cur->sampled;
+            if (hasS && cys.empty() && !haveGenerated && !haveSampled && !(cur && cur->requestedS)) sAsk.push_back({d2, key});
+            const bool withinGen = !hasS || !cys.empty() || d2 <= s.genM * s.genM;
             // step 2: the generator's - asked once (it never goes stale on the span revision: the record is not its source)
-            if (it == m_sum.end() || ((!it->second.built || !it->second.fromGen) && !it->second.requested)) {
+            if (withinGen && !haveGenerated && !(cur && cur->requested)) {
                 // 51.4f: its stored (edited) chunks read now - on this thread, a few a call; the rest asked on a later call
-                std::vector<int> cys;
-                if (const auto st = stored.find(key); st != stored.end()) cys = st->second;
                 if (!cys.empty()) {
                     if (storedReads >= kStoredReadsPerCall || !in.storedRuns || !*in.storedRuns) { ++m_stats.pending; continue; }
                     ++storedReads;
@@ -512,7 +543,8 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                     else if (const auto ce = m_gc->entries.find(key); st == GcLoaded && ce != m_gc->entries.end()) {
                         Summary& sm = m_sum[key];
                         std::copy(ce->second.begin(), ce->second.end(), std::begin(sm.cells));
-                        sm.built = true; sm.fromGen = true; sm.requested = false; sm.spanRev = in.spanRevision; sm.res = 0;
+                        if (sm.built && sm.sampled) ++m_stats.upgrades;
+                        sm.built = true; sm.fromGen = true; sm.sampled = false; sm.requested = false; sm.spanRev = in.spanRevision; sm.res = 0;
                         sm.storedCy.clear(); sm.storedRuns.clear();
                         sm.version = ++m_sumVersion;
                         ++m_gcStats.hits;
@@ -542,19 +574,20 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         std::vector<ColumnRuns> runs;
         (*in.reader)(glm::ivec3(cx * 32, kYLo, cz * 32), glm::ivec3(cx * 32 + 31, kYHi, cz * 32 + 31), runs);
         buildSummary(cx, cz, sm, runs);
-        sm.spanRev = in.spanRevision; sm.fromGen = false; sm.requested = false;
+        sm.spanRev = in.spanRevision; sm.fromGen = false; sm.sampled = false; sm.requested = false;
         sm.res = (in.residentColumn && *in.residentColumn) ? (*in.residentColumn)(cx, cz) : 0;
         ++m_stats.summariesBuiltLastCall; ++m_stats.summariesBuilt;
     }
-    if (m_worker && !genAsk.empty()) {
+    auto enqueue = [&](const std::vector<std::pair<float, uint64_t>>& ask, bool sampledJobs) {
+        if (!m_worker || ask.empty()) return;
         // 51.4e: grouped into blocks (nearest block first, by its nearest column), each walked serpentine
         std::map<std::pair<long, long>, std::pair<float, std::vector<uint64_t>>> blocks;
-        for (const auto& [d2, key] : genAsk) {
+        for (const auto& [d2, key] : ask) {
             const long cx = static_cast<int32_t>(key >> 32), cz = static_cast<int32_t>(key & 0xffffffffull);
             auto& b = blocks[{floorDivL(cx, kGenBlock), floorDivL(cz, kGenBlock)}];
             if (b.second.empty() || d2 < b.first) b.first = d2;
             b.second.push_back(key);
-            m_sum[key].requested = true;
+            if (sampledJobs) m_sum[key].requestedS = true; else m_sum[key].requested = true;
         }
         std::vector<std::pair<float, std::vector<uint64_t>>> order;
         for (auto& [bk, b] : blocks) {
@@ -569,16 +602,19 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         std::sort(order.begin(), order.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
         {
             std::lock_guard<std::mutex> lk(m_worker->mu);
-            for (auto& [d, keys] : order) { m_worker->queuedColumns += keys.size(); m_worker->queue.push_back(std::move(keys)); }
+            auto& q = sampledJobs ? m_worker->squeue : m_worker->queue;
+            for (auto& [d, keys] : order) { m_worker->queuedColumns += keys.size(); q.push_back(std::move(keys)); }
         }
         m_worker->cv.notify_all();
-    }
+    };
+    enqueue(sAsk, true);
+    enqueue(genAsk, false);
     m_stats.summaries = static_cast<int>(m_sum.size());
     m_lastPending = m_stats.pending;
     m_stats.genPending = 0;
     if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_stats.genPending = static_cast<int>(m_worker->queuedColumns) + m_worker->inFlight; }
     // counted only on a call that changed the summaries: a walk over thousands of 2.4 KB entries is ~0.2 ms of cache misses (live, 51.4c)
-    if (scan || m_stats.summariesBuiltLastCall > 0 || genDrained > 0) { m_stats.genHeld = 0; for (const auto& [key, sm] : m_sum) if (sm.fromGen) ++m_stats.genHeld; }
+    if (scan || m_stats.summariesBuiltLastCall > 0 || genDrained > 0) { m_stats.genHeld = m_stats.sampledHeld = 0; for (const auto& [key, sm] : m_sum) { if (sm.fromGen) ++m_stats.genHeld; if (sm.fromGen && sm.sampled) ++m_stats.sampledHeld; } }
 
     // the fields: a level is rebuilt only when what it reads moved - its snapped square, the summaries, the volumes, the settings,
     // and for level 0 the set of record tiles in range (a still camera over a still record rebuilds nothing; a moving one rebuilds

@@ -318,6 +318,8 @@ private:
     std::vector<Core::Water::GpuSurfaceDraw> m_gpuSurfaceDraws;    // 29 S1: this frame's device-drawn surfaces, fed to the renderer
     std::vector<const Core::Water::WaterSurfaceField*> m_surfaceFieldsWithSkin;   // 51.4 S3: this frame's fields then the far skin's
     bool m_skinGenCacheOn = true;   // 51.16: the cache setting the source was made with (a change remakes it)
+    bool m_skinFarMPinned = false;  // W6.1: water_av_skin set far_m - it no longer follows the far terrain's reach (far_m_follow resumes)
+    const char* m_skinFarMSource = "default";   // W6.1: where far_m came from: "far_terrain", "default" (1024, no far terrain) or "api"
     const WorldGenerator* m_skinGenFrom = nullptr; long m_skinGenResets = -1;     // 51.4 step 2: the generator the skin's source copies
     std::unordered_map<uint64_t, uint64_t> m_residentColumns;                      // 51.4: chunk column -> residency stamp
     uint64_t m_residentColumnsSeen = 0; bool m_residentColumnsValid = false;

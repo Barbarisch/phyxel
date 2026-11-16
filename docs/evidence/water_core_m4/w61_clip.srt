@@ -1,0 +1,304 @@
+1
+00:00:00,000 --> 00:00:01,200
+the sea drawn as far as the land (far terrain 2 km) - camera 18 m up
+t 0 s | 32 fps | the water's reach 2048 m
+
+2
+00:00:01,200 --> 00:00:02,300
+the sea drawn as far as the land (far terrain 2 km) - camera 18 m up
+t 1 s | 49 fps | the water's reach 2048 m
+
+3
+00:00:02,300 --> 00:00:03,200
+the sea drawn as far as the land (far terrain 2 km) - camera 18 m up
+t 2 s | 65 fps | the water's reach 2048 m
+
+4
+00:00:03,200 --> 00:00:04,100
+the sea drawn as far as the land (far terrain 2 km) - camera 18 m up
+t 3 s | 37 fps | the water's reach 2048 m
+
+5
+00:00:04,100 --> 00:00:05,300
+the sea drawn as far as the land (far terrain 2 km) - camera 18 m up
+t 4 s | 15 fps | the water's reach 2048 m
+
+6
+00:00:05,300 --> 00:00:06,200
+the sea drawn as far as the land (far terrain 2 km) - camera 20 m up
+t 5 s | 37 fps | the water's reach 2048 m
+
+7
+00:00:06,200 --> 00:00:07,100
+the sea drawn as far as the land (far terrain 2 km) - camera 22 m up
+t 6 s | 45 fps | the water's reach 2048 m
+
+8
+00:00:07,100 --> 00:00:08,300
+the sea drawn as far as the land (far terrain 2 km) - camera 25 m up
+t 7 s | 9 fps | the water's reach 2048 m
+
+9
+00:00:08,300 --> 00:00:09,200
+the sea drawn as far as the land (far terrain 2 km) - camera 29 m up
+t 8 s | 21 fps | the water's reach 2048 m
+
+10
+00:00:09,200 --> 00:00:10,000
+the sea drawn as far as the land (far terrain 2 km) - camera 33 m up
+t 9 s | 13 fps | the water's reach 2048 m
+
+11
+00:00:10,000 --> 00:00:11,300
+the sea drawn as far as the land (far terrain 2 km) - camera 36 m up
+t 10 s | 13 fps | the water's reach 2048 m
+
+12
+00:00:11,300 --> 00:00:12,200
+the sea drawn as far as the land (far terrain 2 km) - camera 43 m up
+t 11 s | 13 fps | the water's reach 2048 m
+
+13
+00:00:12,200 --> 00:00:13,100
+the sea drawn as far as the land (far terrain 2 km) - camera 48 m up
+t 12 s | 16 fps | the water's reach 2048 m
+
+14
+00:00:13,100 --> 00:00:14,300
+the sea drawn as far as the land (far terrain 2 km) - camera 53 m up
+t 13 s | 41 fps | the water's reach 2048 m
+
+15
+00:00:14,300 --> 00:00:15,100
+the sea drawn as far as the land (far terrain 2 km) - camera 60 m up
+t 14 s | 35 fps | the water's reach 2048 m
+
+16
+00:00:15,100 --> 00:00:16,200
+the sea drawn as far as the land (far terrain 2 km) - camera 65 m up
+t 15 s | 17 fps | the water's reach 2048 m
+
+17
+00:00:16,200 --> 00:00:17,400
+the sea drawn as far as the land (far terrain 2 km) - camera 72 m up
+t 16 s | 15 fps | the water's reach 2048 m
+
+18
+00:00:17,400 --> 00:00:18,200
+the sea drawn as far as the land (far terrain 2 km) - camera 80 m up
+t 17 s | 16 fps | the water's reach 2048 m
+
+19
+00:00:18,200 --> 00:00:19,100
+the sea drawn as far as the land (far terrain 2 km) - camera 86 m up
+t 18 s | 17 fps | the water's reach 2048 m
+
+20
+00:00:19,100 --> 00:00:20,700
+the sea drawn as far as the land (far terrain 2 km) - camera 91 m up
+t 19 s | 17 fps | the water's reach 2048 m
+
+21
+00:00:20,700 --> 00:00:21,200
+the sea drawn as far as the land (far terrain 2 km) - camera 102 m up
+t 21 s | 13 fps | the water's reach 2048 m
+
+22
+00:00:21,200 --> 00:00:22,100
+the sea drawn as far as the land (far terrain 2 km) - camera 105 m up
+t 21 s | 14 fps | the water's reach 2048 m
+
+23
+00:00:22,100 --> 00:00:23,200
+the sea drawn as far as the land (far terrain 2 km) - camera 110 m up
+t 22 s | 5 fps | the water's reach 2048 m
+
+24
+00:00:23,200 --> 00:00:24,100
+the sea drawn as far as the land (far terrain 2 km) - camera 117 m up
+t 23 s | 14 fps | the water's reach 2048 m
+
+25
+00:00:24,100 --> 00:00:25,000
+the sea drawn as far as the land (far terrain 2 km) - camera 122 m up
+t 24 s | 12 fps | the water's reach 2048 m
+
+26
+00:00:25,000 --> 00:00:26,000
+the sea drawn as far as the land (far terrain 2 km) - camera 127 m up
+t 25 s | 12 fps | the water's reach 2048 m
+
+27
+00:00:26,000 --> 00:00:27,200
+the sea drawn as far as the land (far terrain 2 km) - camera 132 m up
+t 26 s | 13 fps | the water's reach 2048 m
+
+28
+00:00:27,200 --> 00:00:28,100
+the sea drawn as far as the land (far terrain 2 km) - camera 137 m up
+t 27 s | 13 fps | the water's reach 2048 m
+
+29
+00:00:28,100 --> 00:00:29,400
+the sea drawn as far as the land (far terrain 2 km) - camera 140 m up
+t 28 s | 15 fps | the water's reach 2048 m
+
+30
+00:00:29,400 --> 00:00:30,200
+the sea drawn as far as the land (far terrain 2 km) - camera 145 m up
+t 29 s | 13 fps | the water's reach 2048 m
+
+31
+00:00:30,200 --> 00:00:31,100
+the sea drawn as far as the land (far terrain 2 km) - camera 147 m up
+t 30 s | 15 fps | the water's reach 2048 m
+
+32
+00:00:31,100 --> 00:00:32,000
+the sea drawn as far as the land (far terrain 2 km) - camera 148 m up
+t 31 s | 14 fps | the water's reach 2048 m
+
+33
+00:00:32,000 --> 00:00:33,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 32 s | 9 fps | the water's reach 2048 m
+
+34
+00:00:33,300 --> 00:00:34,100
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 33 s | 4 fps | the water's reach 2048 m
+
+35
+00:00:34,100 --> 00:00:35,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 34 s | 170 fps | the water's reach 2048 m
+
+36
+00:00:35,300 --> 00:00:36,100
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 35 s | 2 fps | the water's reach 2048 m
+
+37
+00:00:36,100 --> 00:00:37,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 36 s | 39 fps | the water's reach 2048 m
+
+38
+00:00:37,200 --> 00:00:38,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 37 s | 1 fps | the water's reach 2048 m
+
+39
+00:00:38,200 --> 00:00:39,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 38 s | 169 fps | the water's reach 2048 m
+
+40
+00:00:39,200 --> 00:00:40,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 39 s | 40 fps | the water's reach 2048 m
+
+41
+00:00:40,300 --> 00:00:41,100
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 40 s | 36 fps | the water's reach 2048 m
+
+42
+00:00:41,100 --> 00:00:42,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 41 s | 153 fps | the water's reach 2048 m
+
+43
+00:00:42,200 --> 00:00:43,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 42 s | 21 fps | the water's reach 2048 m
+
+44
+00:00:43,300 --> 00:00:44,100
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 43 s | 36 fps | the water's reach 2048 m
+
+45
+00:00:44,100 --> 00:00:45,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 44 s | 37 fps | the water's reach 2048 m
+
+46
+00:00:45,300 --> 00:00:46,100
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 45 s | 32 fps | the water's reach 2048 m
+
+47
+00:00:46,100 --> 00:00:47,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 46 s | 34 fps | the water's reach 2048 m
+
+48
+00:00:47,200 --> 00:00:48,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 47 s | 35 fps | the water's reach 2048 m
+
+49
+00:00:48,300 --> 00:00:49,100
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 48 s | 35 fps | the water's reach 2048 m
+
+50
+00:00:49,100 --> 00:00:50,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 49 s | 51 fps | the water's reach 2048 m
+
+51
+00:00:50,200 --> 00:00:51,000
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 50 s | 64 fps | the water's reach 2048 m
+
+52
+00:00:51,000 --> 00:00:52,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 51 s | 155 fps | the water's reach 2048 m
+
+53
+00:00:52,200 --> 00:00:53,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 52 s | 140 fps | the water's reach 2048 m
+
+54
+00:00:53,300 --> 00:00:54,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 53 s | 64 fps | the water's reach 2048 m
+
+55
+00:00:54,200 --> 00:00:55,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 54 s | 141 fps | the water's reach 2048 m
+
+56
+00:00:55,300 --> 00:00:56,000
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 55 s | 42 fps | the water's reach 2048 m
+
+57
+00:00:56,000 --> 00:00:57,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 56 s | 40 fps | the water's reach 2048 m
+
+58
+00:00:57,200 --> 00:00:58,400
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 57 s | 151 fps | the water's reach 2048 m
+
+59
+00:00:58,400 --> 00:00:59,200
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 58 s | 40 fps | the water's reach 2048 m
+
+60
+00:00:59,200 --> 00:01:00,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 59 s | 127 fps | the water's reach 2048 m
+
+61
+00:01:00,300 --> 00:01:01,300
+the sea drawn as far as the land (far terrain 2 km) - camera 150 m up
+t 60 s | 144 fps | the water's reach 2048 m

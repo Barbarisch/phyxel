@@ -15,8 +15,10 @@
 #include "core/Chunk.h"
 #include "core/water/WaterSkin.h"
 #include "core/water/WaterCoreManager.h"
+#include <algorithm>
 #include <memory>
 #include <thread>
+#include <vector>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -563,4 +565,89 @@ TEST(WaterSkinGeneratorTest, TheCachedSkinEqualsTheGeneratedSkin) {
 
 TEST(WaterSkinGeneratorTest, TheGenCacheShipsOn) {
     EXPECT_TRUE(WaterSkin::Settings{}.genCache) << "51.16: the generator summary cache ships on";
+}
+
+// W6.1 (WaterCore §55.1): the SAMPLED summary (sampledWaterRuns - one generator column per 4 m cell against the bake's level) against
+// the GENERATOR's (generatedWaterRuns - the full flood) on WaterBench_Coast's recipe (Perlin, seed 20260804), over a 6 x 6 block of
+// chunk columns across its beach (x 96..287, z 640..831: the sand at sea level z ~656-672, the seabed north of it). A cell is wet in
+// the generated summary when at least half its 16 columns are (the skin's half rule), in the sampled when its centre column is.
+// Predictions, written before the run: <= 5 % of the cells differ, every one of them beside a generated shoreline (a neighbour cell of
+// another generated state); where both are wet the levels agree within 1 mm (the sea level); a sampled column costs well under the
+// generated one (printed). The chunked-vs-whole equality: each column sampled alone by a fresh generator copy = sampled in a shuffled
+// block walk by another copy - every run identical.
+TEST(WaterSkinGeneratorTest, TheSampledSummaryAgreesWithTheGeneratedOne) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260804u);
+    ASSERT_NE(g.hydrology(), nullptr);
+    const int cx0 = 3, cz0 = 20, n = 6;
+    const int cells = n * 8;
+    std::vector<int> genWet(cells * cells, 0), smpWet(cells * cells, 0);
+    std::vector<float> genTop(cells * cells, -1e30f), smpTop(cells * cells, -1e30f);
+    double genMs = 0.0, smpMs = 0.0;
+    std::vector<ColumnRuns> runs;
+    std::map<std::pair<int, int>, std::vector<ColumnRuns>> sampledBlock;
+    for (int cz = cz0; cz < cz0 + n; ++cz) for (int cx = cx0; cx < cx0 + n; ++cx) {
+        auto t0 = std::chrono::steady_clock::now();
+        generatedWaterRuns(g, glm::ivec2(cx, cz), runs);
+        genMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        for (const ColumnRuns& c : runs) {
+            const int i = (c.x - cx0 * 32) / 4, j = (c.z - cz0 * 32) / 4;
+            genWet[i + cells * j]++;
+            for (const ColumnRun& r : c.runs) genTop[i + cells * j] = std::max(genTop[i + cells * j], r.topY);
+        }
+        t0 = std::chrono::steady_clock::now();
+        sampledWaterRuns(g, glm::ivec2(cx, cz), runs);
+        smpMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        sampledBlock[{cx, cz}] = runs;
+        for (const ColumnRuns& c : runs) {
+            const int i = (c.x - cx0 * 32) / 4, j = (c.z - cz0 * 32) / 4;
+            smpWet[i + cells * j] = 1;
+            for (const ColumnRun& r : c.runs) smpTop[i + cells * j] = std::max(smpTop[i + cells * j], r.topY);
+        }
+    }
+    int inner = 0, wetG = 0, wetS = 0, differ = 0, differAway = 0;
+    float levelWorst = 0.0f;
+    for (int j = 1; j < cells - 1; ++j) for (int i = 1; i < cells - 1; ++i) {
+        const int k = i + cells * j;
+        const bool gw = 2 * genWet[k] >= 16, sw = smpWet[k] != 0;
+        ++inner; wetG += gw; wetS += sw;
+        if (gw && sw) levelWorst = std::max(levelWorst, std::abs(genTop[k] - smpTop[k]));
+        if (gw == sw) continue;
+        ++differ;
+        bool shore = false;
+        for (int dj = -1; dj <= 1; ++dj) for (int di = -1; di <= 1; ++di) shore |= (2 * genWet[(i + di) + cells * (j + dj)] >= 16) != gw;
+        if (!shore) ++differAway;
+    }
+    std::printf("[sampled] Coast %d x %d chunk columns: %d inner cells - generated wet %d, sampled wet %d, differ %d (%.2f %%), %d of them "
+                "away from a generated shore; level worst %.4f m; cost generated %.1f ms / column, sampled %.2f ms / column\n",
+                n, n, inner, wetG, wetS, differ, 100.0 * differ / inner, differAway, levelWorst, genMs / (n * n), smpMs / (n * n));
+    EXPECT_GT(wetG, inner / 10);          // the block holds sea
+    EXPECT_LT(wetG, inner * 9 / 10);      // and land: a shore crosses it
+    EXPECT_LE(differ, inner / 20);
+    EXPECT_EQ(differAway, 0);
+    EXPECT_LE(levelWorst, 1e-3f);
+    // the equality: alone (a fresh copy per column) vs a shuffled walk (one other copy)
+    std::vector<std::pair<int, int>> order;
+    for (const auto& kv : sampledBlock) order.push_back(kv.first);
+    std::reverse(order.begin(), order.end());
+    std::swap(order[3], order[17]);
+    WorldGenerator walk(g);
+    int mismatched = 0;
+    auto same = [](const std::vector<ColumnRuns>& p, const std::vector<ColumnRuns>& q) {
+        if (p.size() != q.size()) return false;
+        for (size_t i = 0; i < p.size(); ++i) {
+            if (p[i].x != q[i].x || p[i].z != q[i].z || p[i].runs.size() != q[i].runs.size()) return false;
+            for (size_t r = 0; r < p[i].runs.size(); ++r)
+                if (p[i].runs[r].bottomY != q[i].runs[r].bottomY || p[i].runs[r].topY != q[i].runs[r].topY) return false;
+        }
+        return true;
+    };
+    for (const auto& [cx, cz] : order) {
+        WorldGenerator alone(WorldGenerator::GenerationType::Perlin, 20260804u);
+        std::vector<ColumnRuns> a, b;
+        sampledWaterRuns(alone, glm::ivec2(cx, cz), a);
+        sampledWaterRuns(walk, glm::ivec2(cx, cz), b);
+        if (!same(a, b) || !same(a, sampledBlock[{cx, cz}])) ++mismatched;
+    }
+    std::printf("[sampled] alone vs shuffled walk vs block: %d of %zu chunk columns differ\n", mismatched, order.size());
+    EXPECT_EQ(mismatched, 0);
 }

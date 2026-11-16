@@ -74,7 +74,8 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
    steps in play) BUILT, not signed off (54.3); W5.3 (one ripple layer over the river near the viewer - no line at a reach's
    edge, no wait at a swap) BUILT, not signed off (54.4; the owner: "definitly looks better").**
 4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
-   **§55: step 0 MEASURED (what draws the sea today); next W6.1 (the sea to the horizon).**
+   **§55: step 0 MEASURED (what draws the sea today); W6.1 (the sea drawn as far as the land) BUILT, not signed off
+   (`w61_clip.mp4`, 55.1).**
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
@@ -14299,7 +14300,7 @@ READY with amendments A1-A4; built as designed).
   owner's list. "Water constantly flowing": the design already simulates only near the player (the follow reach) and draws the rest
   from the record - written down here as the rule W6 keeps (the sea's swell offshore is appearance, never simulated).
 
-## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today)
+## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1)
 
 **55.0 Step 0 (2026-11-16) - what draws the sea today, measured before W6 is designed** (`tools/water_w6_step0.py`, WaterBench_Coast,
 the shipped game.json, restored world; two engine runs, the old sheet ON (shipped) and OFF (RIG: game.json `water.enabled` false -
@@ -14320,6 +14321,68 @@ sand, looking out), high (136 m up, pitch -12, looking out to sea)).
   horizon, the recorded sea from the generator (no water where the generator has land); (2) the old sheet deleted (§9's ledger kept
   it until W6; it draws nothing); (3) the shore band near the player (the pond model) with the swell offshore as appearance - after
   (1), each designed and design-checked first.
+
+**55.1 W6.1 (2026-11-16) BUILT, not signed off - the sea drawn as far as the land** (`/design-check` READY with two amendments,
+both built: (1) the `far_m` clamp; (2) the sampled-vs-generated difference bounded by a test and written down).
+- **Why it was not just "raise far_m":** a never-loaded chunk column's summary is the generator's full flood - measured here
+  **116 ms a chunk column** on Coast's recipe (51.16: 166 s to fill 1 km cold); 2 km is 4x the columns.
+- **Built:**
+  - `sampledWaterRuns` (`WaterSkinSource.{h,cpp}`): per 4 m skin cell ONE generator column at its centre (`sampleSurface` - the far
+    terrain's own function) against generation's flood rule WITHOUT its path: the level of the nearest wet hydrology-bake cell within
+    the flood's reach (256 m = `kWaterExtentSteps`) whose level is above this ground, kept only where the depression-filled height is
+    not below it; written as the cell's 16 columns. **0.76 ms a chunk column** (150x cheaper). Not drawn by it: carved rivers
+    (`riverOrder >= 3` columns read dry). **The first version** (the bake's own cell only - the design-check's wording) **was RED in
+    its own test**: 690 wet cells against the generator's 1,491, 744 differences away from any shore - generation floods 256 columns
+    past a wet bake cell, so a coastal 128 m band went missing. Fixed at the cause (the rule above) before anything shipped.
+  - `WaterSkin`: every never-loaded column first gets a SAMPLED summary (its own worker queue, served first - the whole reach fills
+    fast); within `gen_m` (new knob, 1024 m) the generator's replaces it when it lands, never the reverse (a sampled job finishing
+    after the generator's is dropped). A column with stored (edited) chunks: the generator's only (51.4f's cut). The 51.16 cache
+    holds generator summaries only (a cache hit counts as an upgrade). Stats `sampled_built`, `sampled_held`, `upgrades`.
+  - `far_m` FOLLOWS the far terrain's reach (`maxDistance` x `viewScale`; 1024 with no far terrain), set each frame by the engine;
+    `water_av_skin {far_m}` pins it, `{far_m_follow: true}` resumes; echo `far_m_source` (far_terrain / default / api), `gen_m`,
+    `sampled_source`. **The clamp (amendment 1):** it was `maxChunkRenderDistance` with the comment "beyond it the quads are
+    clipped anyway" - false (Coast: 96 m, the skin drawing 1 km); now 0..max(4096, the far terrain's reach). `LodTierLedger.md` row 9.
+- **Tests** (red first where the code existed):
+  - `WaterSkinTest.TheSeaIsDrawnAsFarAsTheLand` (analytic sea, far_m 1024, gen_m 512 - the rig scaled down so the analytic sources
+    stay fast): **RED (today's path, no sampled source): 3,739 generator jobs, 2,982 of them past gen_m**; built: 623 / 623 sea
+    points drawn, 0 holes, 0 doubles, level exact; the island control (land past gen_m) 0 of 42 drawn; generator jobs only within
+    gen_m (farthest 510 m - measured from the viewer's chunk column centre, the skin's own rule; my first run measured from the
+    viewer and read 533 m: a test fix); the viewer moved 300 m: 1,123 swap-band points watched over 34 frames - **0 frames with a
+    hole**, 399 upgrades.
+  - `WaterSkinGeneratorTest.TheSampledSummaryAgreesWithTheGeneratedOne` (Coast's recipe, 6 x 6 chunk columns across the beach, 2,116
+    cells): **2 cells differ (0.09 %; prediction <= 5 %), both beside a generated shore**; levels identical; the chunked-vs-whole
+    equality: each column sampled alone / in a shuffled walk / in the block - 0 of 36 differ.
+  - Unit suite: 4,440 passed, 20 skipped, 3 failed - the known three (52.2's line).
+  - GPU water integration (`phyxel_integration_tests`, Water* / *Ripple* / *Record* / *River*): 94 / 96 - the known two (54.1's line).
+- **Live L4** (WaterBench_Coast, shipped game.json - far terrain 2048 - restored world; RIG for the cold fill: the cache file moved
+  aside, restored after):
+  - **Cold session** (`w61_fill_cold.json`, the high pose 136 m up): the sampled reach - 15,081 chunk columns, 5 levels, to 2,048 m -
+    filled in **4.1 s**; the generator's within 1 km replaced it over **171 s** (3,400 upgrades). Second session from the cache
+    (`w61_fill_warm.json`): **10.4 s**. The skin's worst call this session 232 ms (step 0's session, the old code: 408 ms - the
+    51.x first build of the fields; not changed here).
+  - **The seabed band gone** (`w61_fill_cold_high{,_noskin}.png`): the band between step 0's skin end and the far terrain's end (rows
+    201-228): step 0 74 % sand-coloured, now **0 %**; the skin switched off at the same pose: 93 % (the control - it is the skin that
+    covers it). The warm session's control read 0 % - at 10 s the far terrain had not streamed in (sky, not sand): not a valid control.
+  - **Cost, ABBA on one engine** (`w61_cost.json`, the high pose): far_m 2048 **41.1 / 41.5 fps, CPU 24.4 / 24.1 ms, GPU 24.4 /
+    23.3 ms**; 1024 **42.3 / 41.8 fps, CPU 23.6 / 23.9, GPU 24.3 / 23.6** - ~0.5 ms CPU, at the edge of the spread (one more level:
+    20 fields vs 14). Generator jobs were still running on the workers during it (both states).
+  - **The owner's clip: `docs/evidence/water_core_m4/w61_clip.mp4`** (the beach -> 150 m up looking out to sea in 30 s, hold, turn
+    60 degrees each way; captioned). **Looked at (1 / 19 / 35 / 43 / 53 s):** the sea to the horizon from the beach; climbing, the
+    sea runs out to the skin's 2 km; turning, the coastline drawn along the water for 2 km. Past 2 km the band below the horizon
+    stays dark (item C, not built). The climb runs 12-17 fps (CPU 57-82 ms, one 261 ms frame at the top) with the skin idle (no
+    jobs, no summaries changing) - the climb's cost is unsplit (streaming / far terrain as the camera rises, not measured); 36-155
+    fps at rest at 150 m.
+- **Found, logged, left (one line each):** (1) **a hole in the near sea at a high pose reached directly** - a chunk column with ANY
+  resident chunk is read from the record (`refreshResidentColumns`), so at 136 m up, where a higher chunk loaded and the sea-level one
+  did not, the skin draws the column's empty record (seabed, a ~120 x 40 m rectangle - `w61_check_high.png`); the 2-D residency of
+  §(1391)'s probe defect, in the skin since 51.4; not in the clip (it climbs from the beach, the sea chunks load first). (2) The skin's
+  worst call 232-408 ms at a session's first fields (51.x).
+- **Drift (one row each):** (1) the design said "sampled past gen_m"; built: sampled EVERYWHERE first, the generator's replacing it
+  within gen_m - the reach fills in 4 s instead of waiting on the generator (a shore inside gen_m can step once from the sampled to the
+  generated, 0.09 % of cells). (2) No hysteresis at gen_m: a generator summary is never downgraded, so there is nothing to flap. (3)
+  Sampled summaries are not cached (no cache format change): 0.76 ms each, the whole reach in 4 s.
+- **Not in W6.1:** the band past the far terrain (C - shared with land, the owner's call); the old sheet's deletion (W6.1b, next);
+  the shore band (W6.2); the residency hole above.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
