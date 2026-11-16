@@ -1,0 +1,17 @@
+M5f-1 (the era hook falsified with a FIXTURE era) - predictions, written 2026-11-15 21:17 BEFORE the tests are compiled or run
+(tree d03d453a; regression chain 312 still running; design check in docs/WorldForgeV2Plan.md; D68 open and not needed here).
+The fixture is NOT a real era and grounds nothing: era "fixture", one hamlet tier (the medieval hamlet's data with its
+weights replaced and plot depth 18-20), one typology "blockhouse" 7 wide x 15 long, 3 storeys, gable to the street, and
+a second typology "croft" of the SAME NAME as the medieval one but 5 x 6, 2 storeys.
+
+PF.1 headless RED run (chain 313, tests only - patch 70):
+  a. ASecondErasTypologyIsFoundByItsOwnName: RED - get("blockhouse", "fixture") returns null (stored as
+     "fixture:blockhouse", looked up plain); get("croft", "fixture") returns null (finds the medieval croft, period
+     mismatch). Controls green: get("croft", "medieval") medieval; get("blockhouse", "medieval") null.
+  b. ASecondEraPlansItsOwnBuildings: RED - every lot's footprint is the 8 x 6 stand-in and stories 1 (confidence high for
+     the footprint; the typology string itself will read "blockhouse").
+  c. ATypologyTheEraLacksIsRefusedNotStoodIn: RED - the map is planned with stand-ins and no refusal.
+  Count: the map suite's 37 old tests ok + 3 new failed (+ the legacy dressing/layout/paver tests if run in the same filter).
+Every miss will be written below.
+  c2 (added before any run): the fixture tier asking for the medieval-only "tavern" - RED: the planner's plain lookup
+     finds the medieval tavern and plans it (borrowing across eras).

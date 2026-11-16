@@ -1,0 +1,60 @@
+M5f-2 grounding record - the Roman roadside settlement of strip buildings (D68 RULED 2026-11-15)
+Written 2026-11-15 21:36 from the grounding-auditor's second pass (web, this session). RETRIEVED = the auditor read the quoted
+sentence on a page it opened; everything else is NOT a source. Wikipedia entries are secondary. Nothing here is yet a
+number in the program data: this file is what a number may cite, and what it may not.
+
+RETRIEVED
+ 1. Strip house, general: "bis zu 40 Meter lang ... nur zwischen fuenf und 16 Meter breit"; houses wall to wall, sharing
+    a wall, or parted by a narrow passage (ambitus); yard behind with oven / well. de.wikipedia "Streifenhaus (roemisch)"
+    https://de.wikipedia.org/wiki/Streifenhaus_(r%C3%B6misch) (secondary)
+ 2. Heidelberg vicus: narrow side to the street "only 6-12 meters wide", length "up to 38 meters".
+    https://en.wikipedia.org/wiki/Heidelberg_in_the_Roman_period (secondary)
+ 3. Ladenburg / Lopodunum (a civitas capital - an UPPER bound): "Parzellen waren 8-10 m breit, die Baukoerper zunaechst
+    ca. 30, in der juengsten Phase bis ueber 50 m lang"; elsewhere "Parzellenbreiten von 6-9 m"; posts c. AD 75, sill beams
+    early 2nd c., stone later 2nd c.; "The road was lined by a continuous portico and the back yards contained wells and
+    latrines". LEIZA Transformation project (Kaiser & Sommer cited)
+    https://www1.leiza.de/transformation/deutschland/staedteobergermanienbilder/ladenburg/ladenburglopodunum.htm
+ 4. Noricum vici (small roadside settlements): Linz Hahnengasse length 38.2 m, parcel width at least 12.4 m; Mautern strip
+    parcels "ca. 400 m2 (10 x 40 m)"; Moosham House B "220 m2 (12.2 x 18 m)", parcel 33.3 x 12.2-14.7 m; Gleisdorf
+    single-room house "52 m2 (7 x 7.5 m)", multi-room "85 m2 (9 x 9.5 m)" in a 16.5 x 22 m enclosure. Streets: Linz
+    greatest width 6 m, cross streets 3 m; Mautern up to 6.5 m; Traismauer oldest phase max 4 m.
+    https://www1.leiza.de/transformation/noricum/vici_noricum/vici-noricum-english.htm
+ 5. Britain (the pages do not call these strip buildings): Brough-on-Humber Building D "approximately 12.0m long by 5.0m
+    wide", F "11.0m long by 6.0m wide", sill beams (Hunter-Mann, Internet Archaeology 9,
+    https://intarch.ac.uk/journal/issue9/brough/bldings.html); Elms Farm, Heybridge Building 40 "as large as 14m by 6m",
+    Building 54 "9m wide and at least 10.5m long" (Atkinson & Preston, Internet Archaeology 40,
+    https://www.intarch.ac.uk/journal/issue40/1/2-4.html); the Britannia plot-size paper, FOOTNOTES ONLY: "an original 1/4
+    actus (8.8 m) allotment" (Cambridge Core, article A6A19D0835A894646D798A54451E7943) - main text not retrieved.
+ 6. Storeys: Silchester ERTB1 "is assumed to have been of single-storey build" - an assumption, not evidence
+    (https://intarch.ac.uk/journal/issue21/4/p2_ertb1.htm); Eisenberg: strip houses "werden mindestens zweistoeckig
+    rekonstruiert" - a reconstruction (http://m.vicus-eisenberg.de/00006.html). Ostia (Italy) shop mezzanine "usually at a
+    height of three-and-a-half to four metres" (https://ostia-antica.org/dict/topics/shops/shops-intro.htm) - a proxy only.
+ 7. Layout: veranda / porticus on the street reaching the roadside ditch; the FRONT of the house often cellared; gabled roof
+    on posts along the long axis (Eisenberg); cellar in front, portico-like canopies, wells and pits at the back (Wiesloch,
+    https://de.wikipedia.org/wiki/Vicus_Wiesloch, vicus about 300 x 190 m). No portico depth in metres.
+ 8. Construction: rubble plinth with timber-framed walls above; roofs of red tile, sometimes slate (Nettersheim,
+    https://archaeologischer-landschaftspark.de/erkennen/wohnbebauung.html); gable to the street
+    (https://de.wikipedia.org/wiki/Vicus).
+ 9. Spacing: Nettersheim "ein Abstand in Gehwegbreite" between houses (no metres); Eisenberg an eaves-drip alley, no
+    common wall; item 1: party walls or an ambitus.
+10. Road and scale: roads "from about 5 metres to more than 10 metres" (English Heritage,
+    https://www.english-heritage.org.uk/learn/story-of-england/romans/roman-roads); Elms Farm Road 1 "some 8m wide";
+    Nettersheim dense building on both sides of an "8 bis 12 m breiten Strassendamm" for over 500 m; Hibaldstow at least
+    750 m along both sides of Ermine Street, buildings within a 50 m strip (secondary); British small towns "typically
+    covering an area of 10ha or less", marked by "an absence of public buildings" (LEIZA,
+    https://www1.leiza.de/transformation/unitedkingdom/smalltowns/smalltowns_englisch.htm).
+11. Against the model: the same LEIZA page - in the small towns "the simple rectangular buildings do not always have the
+    same elongated form"; a round house at Duston (Northamptonshire HER MNN115542); Brough Building C probably aisled.
+
+NOT RETRIEVED / NO SOURCE (may not be cited): Perring 1987 and 2002, Hall 2005, MacMahon (BAR 356), Burnham & Wacher 1990,
+Kaiser & Sommer Lopodunum I - none opened; named British strip buildings (London Newgate Street, 1 Poultry; Verulamium
+XIV; Caerwent; Wroxeter; Braughing); Walheim, Schwarzenacker, Bliesbruck; portico depth; WALL THICKNESS; eaves, ridge and
+ceiling heights; the gap between houses in metres; the number of plots in the smallest roadside settlement; any real
+evidence for an upper floor in a British strip building.
+
+What this supports, and what it does not (my reading, to be put to the design check - not yet data):
+  frontage 6-12 m (continental; 5-6 m for the British excavated examples); length 18-38 m in small vici (11-14 m British
+  examples); plot about 10-12 m x 33-40 m (Noricum); the gable and a portico to the road; front shop, living behind, yard
+  with well behind; timber on sills over a rubble plinth; a road 6-8 m wide through it. ONE storey is the only reading
+  with any text behind it and that text is an assumption; two storeys is a modern reconstruction. Heights, wall thickness,
+  portico depth and house-to-house gap have NO SOURCE.

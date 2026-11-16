@@ -195,3 +195,7 @@ PM.11 regression on this tree (patches 60-69), BEFORE the runs: chain 311 unit s
   test); chain 312 full live-site + realizer set 35 ok / 0 failed; the market test green with 12 columns under a prop;
   town 76 / 0; city 89 + its market crossings (guess 4 -> 93) in both city tests; hamlet 16, village 34, the 28 record and
   the legacy 42 / 11 unchanged - unless the dressing's new seating moves a legacy square's props into a walked route.
+
+PM.11 RESULT, part 1 (written 2026-11-15 21:12; tree = commit d03d453a): chain 311 unit set 183 ok, 0 failed, exit 0 (20:52:30). As
+  predicted. Chain 312 (live-site + realizer set) started 20:52:36, build 0 errors; 3 tests ok at this writing, no FAILED
+  line; nothing claimed for it.
