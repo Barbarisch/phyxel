@@ -1,0 +1,23 @@
+{
+ "edited_chunks": [
+  [
+   255,
+   0,
+   3
+  ]
+ ],
+ "saved_chunks": 1,
+ "saved": [
+  [
+   255,
+   0,
+   3
+  ]
+ ],
+ "loaded": 1,
+ "target_equal_after_load": true,
+ "target_differs_from_generator": true,
+ "others_equal_generator": 31,
+ "others": 31,
+ "others_marked_edited": 0
+}

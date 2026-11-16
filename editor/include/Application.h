@@ -679,6 +679,11 @@ private:
     void handleVoxFoundRegion(const Core::APICommand& cmd, int generationType, const std::string& typeName,
                               uint32_t seed, nlohmann::json& response);   // F2.8 (type = WorldGenerator::GenerationType)
     void handleVoxFoundEdit(const nlohmann::json& edit, nlohmann::json& response);   // F2.16 incremental rebuild
+    /// F3.3: the region palette index of a material (appended with its textures and card / see-through sets when
+    /// new); -1 + `err` for an unknown material or a full palette. "air" / "" = 0.
+    int voxFoundMaterial(const std::string& name, std::string* err);
+    void handleVoxFoundSave(nlohmann::json& response);   // F3.3: the edited chunks, codec v3, world.db
+    nlohmann::json loadVoxFoundSaved();                  // F3.3: saved chunks into the editable region
     void registerSettlementCommands();   // build_settlement: compose a settlement (subdivide+populate+build each)
     void registerWorldForgeCommands();   // worldforge_*: world-scale plan preview/apply/status/map (docs/WorldForge.md)
     void registerDoorCommands();

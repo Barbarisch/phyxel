@@ -2603,3 +2603,46 @@ TEST(VoxFoundMesher, PickFindsTheFirstSolidVoxel) {
                 hits ? double(steps) / hits : 0.0);
     EXPECT_GT(hits, 200u);
 }
+
+// F3.3: a saved chunk wins over the generator. Edits on chunk 0 only; only that chunk is marked edited; its store goes
+// through codec v3; a FRESH region from the same generator + loadChunk of the decoded store = the edited voxels in
+// both chunks (the neighbour's border plane follows), and every list = a full rebuild.
+TEST(VoxFoundMesher, SavedChunkReloadsExactly) {
+    TwoChunks t;
+    buildTwoChunks(t, 3303u);
+    std::mt19937 rng(3304u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    for (int it = 0; it < 60; ++it) {   // brushes on chunk 0, many against its +x face (the shared border)
+        const int s = 1 << rnd(0, 3);
+        const glm::ivec3 at(it % 3 == 0 ? rnd(248, 255) : rnd(0, 255), rnd(80, 150), rnd(0, 255));
+        const uint8_t m = uint8_t(rnd(0, 4));
+        RegionEdit::Stats st;
+        ASSERT_TRUE(t.edit.brush(at, s, m, st));
+        const glm::ivec3 lo = brushCell(at, s);
+        for (int x = lo.x; x < lo.x + s; ++x)
+            for (int y = lo.y; y < lo.y + s; ++y)
+                for (int z = lo.z; z < lo.z + s; ++z) mirrorSet(t, {x, y, z}, m);
+    }
+    ASSERT_TRUE(t.edit.chunk(0).edited);
+    ASSERT_FALSE(t.edit.chunk(1).edited);
+    std::vector<std::string> pal{"air", "Stone", "Dirt", "Grass", "Leaf"};
+    std::string err;
+    const std::vector<uint8_t> blob = t.edit.chunk(0).store.encodeV3(pal, &err);
+    ASSERT_FALSE(blob.empty()) << err;
+
+    TwoChunks fresh;
+    buildTwoChunks(fresh, 3303u);   // the generator's state
+    BlockStore saved;
+    std::vector<std::string> names;
+    ASSERT_TRUE(BlockStore::decodeV3(blob.data(), blob.size(), saved, names, &err)) << err;
+    std::vector<uint8_t> map(names.size(), 0);
+    for (size_t k = 1; k < names.size(); ++k)
+        map[k] = uint8_t(std::find(pal.begin(), pal.end(), names[k]) - pal.begin());
+    saved.remapMaterials(map);
+    const RegionEdit::Stats st = fresh.edit.loadChunk(0, saved);
+    EXPECT_GT(st.voxelsChanged, 0u);
+    EXPECT_TRUE(fresh.edit.chunk(0).edited);
+    fresh.dense = t.dense;   // the expected voxels: the edited mirror
+    expectFullRebuildEqual(fresh, "after load");
+    std::printf("[f33 reload] chunk 0: %zu B blob, %zu voxels written by the load\n", blob.size(), st.voxelsChanged);
+}

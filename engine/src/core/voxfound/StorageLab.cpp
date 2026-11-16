@@ -459,6 +459,210 @@ int BlockStore::fillBlock(glm::ivec3 b, uint8_t m) {
     return n;
 }
 
+// ---- F3.3: codec v3 ------------------------------------------------------------------------------------------
+namespace {
+constexpr uint32_t kMagicV3 = 0x33465850u;   // "PXF3" little-endian
+constexpr uint8_t kVersionV3 = 1;
+constexpr uint8_t kDetailedTag = 255;
+void put8(std::vector<uint8_t>& o, uint32_t v) { o.push_back(uint8_t(v)); }
+void put16(std::vector<uint8_t>& o, uint32_t v) {
+    o.push_back(uint8_t(v));
+    o.push_back(uint8_t(v >> 8));
+}
+void put32(std::vector<uint8_t>& o, uint32_t v) {
+    for (int k = 0; k < 4; ++k) o.push_back(uint8_t(v >> (8 * k)));
+}
+struct Reader {
+    const uint8_t* p;
+    size_t n, at = 0;
+    bool ok = true;
+    bool need(size_t k) {
+        if (!ok || n - at < k) ok = false;
+        return ok;
+    }
+    uint32_t u8() { return need(1) ? p[at++] : 0u; }
+    uint32_t u16() {
+        if (!need(2)) return 0;
+        const uint32_t v = uint32_t(p[at]) | uint32_t(p[at + 1]) << 8;
+        at += 2;
+        return v;
+    }
+    uint32_t u32() {
+        if (!need(4)) return 0;
+        uint32_t v = 0;
+        for (int k = 0; k < 4; ++k) v |= uint32_t(p[at + size_t(k)]) << (8 * k);
+        at += 4;
+        return v;
+    }
+};
+}  // namespace
+
+std::vector<uint8_t> BlockStore::encodeV3(const std::vector<std::string>& palette, std::string* err) const {
+    auto fail = [&](const std::string& why) {
+        if (err) *err = why;
+        return std::vector<uint8_t>{};
+    };
+    const size_t nBlocks = m_dir.size();
+    // per block: its uniform material, or -1 (detailed); the materials used
+    std::vector<int> uni(nBlocks, -1);
+    bool used[256] = {};
+    used[0] = true;
+    for (size_t bi = 0; bi < nBlocks; ++bi) {
+        const uint64_t e = m_dir[bi];
+        if (!(e & kDetailed)) {
+            uni[bi] = int(e & 0xFF);
+            used[e & 0xFF] = true;
+            continue;
+        }
+        const Detailed& d = m_pool[uint32_t(e & 0xFFFFFFFFull)];
+        bool one = true;
+        for (int i = 0; i < 512; ++i) {
+            used[d.mat[i]] = true;
+            one = one && d.mat[i] == d.mat[0];
+        }
+        if (one) uni[bi] = d.mat[0];   // canonical: a detailed block of one material is written uniform
+    }
+    // the chunk-local palette: air first, then the used materials in ascending store order (canonical)
+    int local[256];
+    std::vector<uint8_t> order;
+    for (int m = 0; m < 256; ++m) {
+        local[m] = -1;
+        if (!used[m]) continue;
+        local[m] = int(order.size());
+        order.push_back(uint8_t(m));
+    }
+    if (order.size() > 255) return fail("codec v3: more than 255 materials in one chunk");
+    std::vector<uint8_t> o;
+    put32(o, kMagicV3);
+    put8(o, kVersionV3);
+    put8(o, 0);   // flags: no optional channels yet
+    put16(o, uint32_t(m_dim.x));
+    put16(o, uint32_t(m_dim.y));
+    put16(o, uint32_t(m_dim.z));
+    put16(o, uint32_t(order.size()));
+    for (uint8_t m : order) {
+        if (m != 0 && m >= palette.size()) return fail("codec v3: material " + std::to_string(m) + " has no name");
+        const std::string name = m == 0 ? std::string() : palette[m];
+        if (name.size() > 255) return fail("codec v3: material name longer than 255 bytes");
+        put8(o, uint32_t(name.size()));
+        o.insert(o.end(), name.begin(), name.end());
+    }
+    // the directory, RLE in block index order
+    const size_t runCountAt = o.size();
+    put32(o, 0);
+    uint32_t runs = 0;
+    for (size_t bi = 0; bi < nBlocks;) {
+        const uint8_t tag = uni[bi] < 0 ? kDetailedTag : uint8_t(local[uni[bi]]);
+        size_t len = 1;
+        while (bi + len < nBlocks && len < 65535 &&
+               (uni[bi + len] < 0 ? kDetailedTag : uint8_t(local[uni[bi + len]])) == tag)
+            ++len;
+        put16(o, uint32_t(len));
+        put8(o, tag);
+        ++runs;
+        bi += len;
+    }
+    for (int k = 0; k < 4; ++k) o[runCountAt + size_t(k)] = uint8_t(runs >> (8 * k));
+    // the detailed blocks, in directory order: (runLen - 1, local material) pairs over the 512 voxels
+    for (size_t bi = 0; bi < nBlocks; ++bi) {
+        if (uni[bi] >= 0) continue;
+        const Detailed& d = m_pool[uint32_t(m_dir[bi] & 0xFFFFFFFFull)];
+        for (int i = 0; i < 512;) {
+            int len = 1;
+            while (i + len < 512 && len < 256 && d.mat[i + len] == d.mat[i]) ++len;
+            put8(o, uint32_t(len - 1));
+            put8(o, uint32_t(local[d.mat[i]]));
+            i += len;
+        }
+    }
+    return o;
+}
+
+bool BlockStore::decodeV3(const uint8_t* data, size_t size, BlockStore& out, std::vector<std::string>& names,
+                          std::string* err) {
+    auto fail = [&](const std::string& why) {
+        if (err) *err = "codec v3: " + why;
+        return false;
+    };
+    if (!data) return fail("no data");
+    Reader r{data, size};
+    if (r.u32() != kMagicV3 || !r.ok) return fail("not a PXF3 blob");
+    const uint32_t version = r.u8(), flags = r.u8();
+    if (!r.ok || version != kVersionV3) return fail("unknown version");
+    if (flags != 0) return fail("unknown optional channels");
+    glm::ivec3 dim;   // read one at a time: argument evaluation order is unspecified (MSVC reads right to left)
+    dim.x = int(r.u16());
+    dim.y = int(r.u16());
+    dim.z = int(r.u16());
+    if (!r.ok) return fail("truncated header");
+    for (int a = 0; a < 3; ++a)
+        if (dim[a] <= 0 || dim[a] % kBlock != 0 || dim[a] > 1024) return fail("bad dims");
+    const glm::ivec3 nb = dim / kBlock;
+    const size_t nBlocks = size_t(nb.x) * size_t(nb.y) * size_t(nb.z);
+    const uint32_t nPal = r.u16();
+    if (!r.ok || nPal < 1 || nPal > 255) return fail("bad palette count");
+    std::vector<std::string> pal(nPal);
+    for (uint32_t k = 0; k < nPal; ++k) {
+        const uint32_t len = r.u8();
+        if (!r.need(len)) return fail("truncated palette");
+        pal[k].assign(reinterpret_cast<const char*>(data + r.at), len);
+        r.at += len;
+    }
+    if (!pal[0].empty()) return fail("palette entry 0 must be air");
+    const uint32_t runs = r.u32();
+    if (!r.ok || runs > nBlocks) return fail("bad run count");
+    BlockStore s(dim);
+    size_t bi = 0, detailed = 0;
+    std::vector<uint32_t> detailedAt;
+    for (uint32_t k = 0; k < runs; ++k) {
+        const uint32_t len = r.u16(), tag = r.u8();
+        if (!r.ok || len == 0 || bi + len > nBlocks) return fail("bad directory run");
+        if (tag != kDetailedTag && tag >= nPal) return fail("directory material outside the palette");
+        for (uint32_t q = 0; q < len; ++q, ++bi) {
+            if (tag == kDetailedTag) {
+                detailedAt.push_back(uint32_t(bi));
+                ++detailed;
+            } else {
+                s.m_dir[bi] = tag;
+            }
+        }
+    }
+    if (bi != nBlocks) return fail("directory does not cover every block");
+    s.m_pool.resize(detailed);
+    for (size_t k = 0; k < detailed; ++k) {
+        Detailed& d = s.m_pool[k];
+        for (uint64_t& w : d.solid) w = 0;
+        int i = 0;
+        while (i < 512) {
+            const uint32_t len = r.u8() + 1, m = r.u8();
+            if (!r.ok) return fail("truncated detailed block");
+            if (m >= nPal || i + int(len) > 512) return fail("bad detailed run");
+            for (uint32_t q = 0; q < len; ++q, ++i) {
+                d.mat[i] = uint8_t(m);
+                if (m) d.solid[i >> 6] |= 1ull << (i & 63);
+            }
+        }
+        s.m_dir[detailedAt[k]] = kDetailed | uint32_t(k);
+    }
+    if (r.at != size) return fail("trailing bytes");
+    out = std::move(s);
+    names = std::move(pal);
+    return true;
+}
+
+void BlockStore::remapMaterials(const std::vector<uint8_t>& map) {
+    auto to = [&](uint8_t m) { return m < map.size() ? map[m] : m; };
+    for (uint64_t& e : m_dir)
+        if (!(e & kDetailed)) e = (e & ~0xFFull) | to(uint8_t(e & 0xFF));
+    for (Detailed& d : m_pool) {
+        for (uint64_t& w : d.solid) w = 0;
+        for (int i = 0; i < 512; ++i) {
+            d.mat[i] = to(d.mat[i]);
+            if (d.mat[i]) d.solid[i >> 6] |= 1ull << (i & 63);
+        }
+    }
+}
+
 size_t BlockStore::uniformBlocks() const {
     size_t n = 0;
     for (uint64_t e : m_dir) n += !(e & kDetailed);

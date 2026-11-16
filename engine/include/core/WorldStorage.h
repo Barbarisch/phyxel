@@ -76,6 +76,13 @@ public:
 
     /// Levels present for a chunk, ascending. Empty when nothing is persisted.
     std::vector<int> getLodLevels(const glm::ivec3& chunkCoord);
+
+    /// VoxelFoundationPlan F3.3: the new store's chunks (codec v3, 'PXF3'), table voxfound_chunk_blobs. Only chunks
+    /// that differ from the generator are written; a row wins over the generator when its region is built.
+    bool saveVoxFoundBlob(const glm::ivec3& chunkCoord, const std::vector<uint8_t>& data);
+    bool loadVoxFoundBlob(const glm::ivec3& chunkCoord, std::vector<uint8_t>& outData);
+    bool deleteVoxFoundBlob(const glm::ivec3& chunkCoord);
+    std::vector<glm::ivec3> getVoxFoundBlobCoords();
     
     // Individual cube operations
     bool deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);

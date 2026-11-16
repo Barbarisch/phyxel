@@ -1,0 +1,75 @@
+F3.3 -- codec v3 (VoxelFoundationPlan §3.6, §3.5a point 7, §9b). Written 2026-11-16, BEFORE any code.
+
+The F3 row's second half: "save/load round-trips exactly". §3.6: "Codec v3: per chunk, the directory, then detailed
+blocks run-length encoded. Optional channels follow." §3.5a point 7: only chunks that differ from what the
+deterministic generator would produce are saved; a saved chunk wins over the generator from then on.
+Today: PXB2 (ChunkBlobCodec) -- palette, RLE over the 32^3 cubes, then explicit subcube / microcube lists, one blob per
+chunk in world.db's chunk_blobs. The new store has no codec and no persistence yet.
+
+Format v3 (little-endian), one blob per 32 m chunk:
+  u32 magic 'PXF3' | u8 version 1 | u8 flags (0; reserved for the optional channels: tint / state / part / fill)
+  u16 dim x, y, z (voxels, multiples of 8)
+  u16 paletteCount | paletteCount x (u8 nameLen, name)    -- a CHUNK-LOCAL palette (§3.1), entry 0 = air
+  u32 runCount | runCount x (u16 runLen, u8 tag)           -- the directory, RLE in block index order;
+       tag < 255: a run of uniform blocks of local material `tag`; tag 255: a run of detailed blocks
+  per detailed block, in directory order: (u8 runLen - 1, u8 local material) pairs summing to exactly 512 voxels
+A detailed block whose 512 voxels are one material is written as uniform (the encoding is canonical). More than 255
+materials in one chunk is refused (encode error). Decode bounds-checks every field and rejects unknown versions,
+trailing bytes and run sums that do not match.
+
+Change:
+1. BlockStore::encodeV3(palette) / BlockStore::decodeV3(...) (+ remapMaterials for the region palette).
+2. world.db table voxfound_chunk_blobs (chunk x, y, z, version, data); WorldStorage save / load / list / delete.
+3. RegionEdit: a chunk an edit changed is marked edited; loadChunk(i, store) writes a saved chunk into the region
+   through the same exact incremental rebuild as an edit (whole blocks where the saved block is uniform; the
+   neighbours' border planes follow). API: {"save":true} writes the edited chunks only; a region build with
+   {"load_saved":true} builds from the generator, then loads every saved chunk of the region.
+
+Red first (CPU):
+- VoxFoundStorageLab.CodecV3RoundTripsExactly: engine terrain + flora-like leaf blobs + random churn, and the
+  degenerate stores (all air, all one material, every block detailed with random voxels, 255 materials, odd dims):
+  decode(encode(s)) equals s voxel for voxel with the same names; encoding is canonical (encode of the decoded store
+  = the same bytes).
+- VoxFoundStorageLab.CodecV3RejectsMalformedBlobs: every truncation of a blob, 2,000 random byte flips, a wrong
+  magic / version, trailing bytes: decode returns false or a store with the stated dims, never a crash.
+- VoxFoundMesher.SavedChunkReloadsExactly: the two-chunk region; edits on chunk 0 only; encode the edited chunks
+  (exactly one); a fresh region from the generator + loadChunk = the edited stores, and every list = a full rebuild.
+All red on stubs.
+
+Predictions:
+1. Exact: every round trip equal (CPU); live, after 200 edits + save + a fresh region build with load_saved, every
+   chunk's voxels equal the pre-save store (per-chunk voxel hash), the lists equal a full rebuild (verify 0
+   mismatches), 0 px at forest_floor_open and overview_south vs the pre-save capture.
+2. Only edited chunks saved: the count = chunks with edited voxels (of 32).
+3. Blob size per gate-region chunk: ground chunks 0.2-1.0 MB (F1: ~1.5-3.9 MB in the store per forest footprint;
+   RLE inside detailed blocks ~3-5x), sky chunks ~ 100 B-2 KB (one run); vs the dense 16.7 MB.
+4. Encode 5-30 ms per ground chunk, decode 5-30 ms (CPU, single thread); load (decode + loadChunk's rebuild of a
+   whole edited chunk) dominated by the rebuild, 0.2-2 s per chunk.
+Not compared: PXB2's size for the same chunks (today's chunks hold 1/9 m content, not the same voxels).
+
+==== MEASURED (2026-11-16; voxfound_f33_gate.txt / .json, voxfound_f33_onechunk.json; one session, Release) ====
+Red first: CodecV3RoundTripsExactly, CodecV3RejectsMalformedBlobs, SavedChunkReloadsExactly red on the stubs.
+The round-trip test then caught a real decoder bug: the three dims were read inside one constructor call, whose
+argument order is unspecified (MSVC: right to left), so a non-cubic store came back with x and z swapped -- cubic
+stores hid it. Fixed (one read per statement). Also a test bug fixed against the written prediction: its "255
+materials" case drew 256 (air + 255); now 255, and a 256th is checked to be refused. CPU 70/70, GPU 22/22.
+Malformed blobs: every truncation of a 1,617 B blob refused, trailing byte / magic / version refused; 9 of 2,000
+random corruptions decode to a valid (different) store, the rest are refused, none crashed.
+1. Exact, live: after 200 generator edits + 40 picked brushes (verify 0 mismatches on every 10th), save, a rebuild
+   from the generator (control: all 32 edited chunks differ from the saved state), a rebuild with load_saved: 32 of
+   32 chunk voxel hashes equal the pre-save store, edited flags equal; pixels reloaded vs before the save 0 / 0 px,
+   reloaded vs replace_all (a full rebuild) 0 / 0, control 0 / 0 (forest_floor_open, overview_south); a re-save of
+   the reloaded region is byte-identical for 32 of 32 chunks (canonical). HELD.
+2. Only edited chunks saved: in the main run every chunk was edited (32 of 32, not discriminating), so a second live
+   check edited ONE chunk (6 brushes in 255,0,3): 1 chunk saved, 1 loaded, its hash = the edited state (and differs
+   from the generator), the other 31 equal the generator and none is marked edited. HELD.
+3. Blob size (after the 240 edits): ground chunks (y 0) 62-230 KB, median 126 KB; upper chunks (y 1, the canopy)
+   7-830 KB, median 333 KB; 7.6 MB for the 32 chunks vs 62.9 MB in the store and 545.5 MB dense.
+   Predicted ground 0.2-1.0 MB: WRONG (smaller). Predicted "sky chunks 100 B-2 KB": WRONG -- the region's upper
+   chunks are not sky, they hold the forest canopy (the larger blobs).
+4. Encode 2.1 ms median (4.3 max) per ground chunk, 4.0 (10.3) per canopy chunk; decode 3.6 ms per chunk on
+   average; world.db write 65 ms for 32 rows. Predicted 5-30 ms: WRONG (faster). Load: loadChunk's rebuild of all
+   32 chunks 1.52 s (47 ms per chunk, 1.10 M voxels written); predicted 0.2-2 s PER chunk: WRONG (block by block,
+   only the blocks that differ). Region build with load_saved 26.9 s vs 25.5 s without.
+Verdict: the F3 row's second half holds: save / load round-trips exactly (voxels, lists, pixels, bytes), and only the
+chunks that differ from the generator are saved.

@@ -511,8 +511,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (gate 0.67 by 1.5 %): the brush writes voxel by voxel through set() + collapse (4 m +1.6 ms).
       F3.2b (2026-11-16): brushes {"edit":{"brush":{"at","size"}}} + {"pick":{...}} (DDA, air blocks skipped),
       whole-block writes, collapse(0.25) on the edit path. 1 m brush 0.50 ms, 1/2/4 voxels 0.19-0.24, pick 0.006.
-      NEXT: F3.3 codec v3 (per chunk: directory, then detailed blocks RLE; save/load round-trips voxel for voxel;
-      only chunks differing from the generator saved). Then F3.4 converter (PXB2), F3.5 the F3 exit gate.
+      F3.3 (2026-11-16): codec v3 'PXF3' (BlockStore::encodeV3/decodeV3), world.db voxfound_chunk_blobs,
+      {"save":true} / region build {"load_saved":true} / {"saved_clear":true} / {"store_hash":true}. Round trip
+      exact live (hashes, 0 px, byte-identical re-save). TRAP: never read several fields in one constructor call
+      (glm::ivec3(r.u16(), r.u16(), r.u16())) -- MSVC evaluates right to left.
+      NEXT: F3.4 converter from PXB2 (a cube -> one 8^3 block exactly; subcubes / microcubes resampled per §7a).
+      Then F3.5 the F3 exit gate.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

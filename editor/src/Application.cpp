@@ -13388,6 +13388,31 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             }
             return;
         }
+        if (cmd.params.value("save", false)) {   // F3.3: the edited chunks, codec v3, into world.db
+            handleVoxFoundSave(response);
+            return;
+        }
+        // F3.3 gate helpers: {"saved_clear":true} deletes the saved rows of the region's chunks; {"store_hash":true}
+        // returns each chunk's voxel hash (FNV-1a over its dense materials) and edited flag.
+        if (cmd.params.value("saved_clear", false) || cmd.params.value("store_hash", false)) {
+            auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
+            nlohmann::json rows = nlohmann::json::array();
+            size_t cleared = 0;
+            for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+                const auto& c = voxFoundEdit.chunk(i);
+                if (cmd.params.value("saved_clear", false) && ws && ws->deleteVoxFoundBlob(c.chunk)) ++cleared;
+                if (cmd.params.value("store_hash", false)) {
+                    const Core::VoxFound::VoxelGrid g = voxFoundEdit.dense(i);
+                    uint64_t h = 1469598103934665603ull;
+                    for (uint8_t v : g.mat) h = (h ^ v) * 1099511628211ull;
+                    rows.push_back({{"chunk", {c.chunk.x, c.chunk.y, c.chunk.z}}, {"hash", std::to_string(h)},
+                                    {"edited", c.edited}});
+                }
+            }
+            response = {{"cleared", cleared}, {"chunks", rows},
+                        {"saved_rows_total", ws ? ws->getVoxFoundBlobCoords().size() : size_t(0)}};
+            return;
+        }
         // {"edit":{...}}: F2.16 (§4.6 item 9) -- edit an editable region preview, rebuilt incrementally
         if (cmd.params.contains("edit")) {
             handleVoxFoundEdit(cmd.params["edit"], response);
@@ -13791,6 +13816,132 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         return;
 }
 
+int Application::voxFoundMaterial(const std::string& name, std::string* err) {
+    using namespace Core::VoxFound;
+    if (name.empty() || name == "air") return 0;
+    const auto* md = Core::MaterialRegistry::instance().getMaterial(name);
+    if (!md) {
+        if (err) *err = "unknown material " + name;
+        return -1;
+    }
+    size_t m = 1;
+    while (m < voxFoundPalette.size() && voxFoundPalette[m] != name) ++m;
+    if (m == voxFoundPalette.size()) {
+        if (m >= 256) {
+            if (err) *err = "palette full (256)";
+            return -1;
+        }
+        voxFoundPalette.push_back(name);
+        voxFoundLeafTex.resize(voxFoundPalette.size(), 0);
+        for (int f = 0; f < 6; ++f) {
+            const uint16_t t = Core::MaterialRegistry::instance().getTextureIndex(name, f);
+            voxFoundPreview.faceTex[m * 6 + size_t(f)] = t;
+            if (f == 0) voxFoundLeafTex[m] = t;
+        }
+        CardSet cards = voxFoundEdit.cards(), see = voxFoundEdit.seeThrough();
+        if (md->billboarded) cards.set(uint8_t(m));
+        if (md->billboarded || md->alpha < 0.99f) see.set(uint8_t(m));
+        voxFoundEdit.setMaterialSets(cards, see);
+    }
+    return int(m);
+}
+
+// docs/VoxelFoundationPlan.md F3.3 -- POST /api/debug/voxfound_preview {"save":true}: every chunk of the editable region
+// that an edit (or a load) changed is encoded with codec v3 (BlockStore::encodeV3) and written to world.db
+// (voxfound_chunk_blobs); chunks the generator still produces are not saved (§3.5a point 7).
+void Application::handleVoxFoundSave(nlohmann::json& response) {
+    using namespace Core::VoxFound;
+    auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
+    if (!ws || !ws->getDb()) {
+        response = {{"error", "no world storage (world.db) open"}};
+        return;
+    }
+    if (voxFoundEdit.empty()) {
+        response = {{"error", "no editable region preview"}};
+        return;
+    }
+    auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    size_t saved = 0, bytes = 0;
+    double encodeMs = 0.0, writeMs = 0.0;
+    nlohmann::json rows = nlohmann::json::array();
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+        const auto& c = voxFoundEdit.chunk(i);
+        if (!c.edited) continue;
+        std::string err;
+        const auto t0 = std::chrono::steady_clock::now();
+        const std::vector<uint8_t> blob = c.store.encodeV3(voxFoundPalette, &err);
+        const auto t1 = std::chrono::steady_clock::now();
+        if (blob.empty()) {
+            response = {{"error", err}, {"chunk", {c.chunk.x, c.chunk.y, c.chunk.z}}};
+            return;
+        }
+        if (!ws->saveVoxFoundBlob(c.chunk, blob)) {
+            response = {{"error", "world.db write failed"}, {"chunk", {c.chunk.x, c.chunk.y, c.chunk.z}}};
+            return;
+        }
+        const auto t2 = std::chrono::steady_clock::now();
+        encodeMs += ms(t0, t1);
+        writeMs += ms(t1, t2);
+        ++saved;
+        bytes += blob.size();
+        uint64_t bh = 1469598103934665603ull;   // FNV-1a of the blob: a re-save of a reload must be byte-identical
+        for (uint8_t v : blob) bh = (bh ^ v) * 1099511628211ull;
+        rows.push_back({{"chunk", {c.chunk.x, c.chunk.y, c.chunk.z}}, {"bytes", blob.size()}, {"blob_hash", std::to_string(bh)},
+                        {"store_bytes", c.store.memoryBytes()}, {"encode_ms", ms(t0, t1)}});
+    }
+    response = {{"saved_chunks", saved}, {"region_chunks", voxFoundEdit.chunkCount()}, {"bytes", bytes},
+                {"encode_ms", encodeMs}, {"write_ms", writeMs}, {"chunks", rows}, {"codec", "PXF3 v1"}};
+}
+
+// F3.3: every saved chunk (world.db voxfound_chunk_blobs) inside the editable region wins over the generator: decoded,
+// its materials mapped to the region palette by name, and written through RegionEdit::loadChunk (the exact incremental
+// rebuild; the neighbours' border planes follow). Then the drawn lists are assembled from the store.
+nlohmann::json Application::loadVoxFoundSaved() {
+    using namespace Core::VoxFound;
+    auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
+    if (!ws || !ws->getDb()) return {{"error", "no world storage (world.db) open"}};
+    auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    size_t loaded = 0, voxels = 0, bytes = 0;
+    double decodeMs = 0.0, writeMs = 0.0;
+    nlohmann::json errors = nlohmann::json::array();
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+        const glm::ivec3 cc = voxFoundEdit.chunk(i).chunk;
+        std::vector<uint8_t> blob;
+        if (!ws->loadVoxFoundBlob(cc, blob)) continue;
+        BlockStore saved;
+        std::vector<std::string> names;
+        std::string err;
+        const auto t0 = std::chrono::steady_clock::now();
+        if (!BlockStore::decodeV3(blob.data(), blob.size(), saved, names, &err)) {
+            errors.push_back({{"chunk", {cc.x, cc.y, cc.z}}, {"error", err}});
+            continue;
+        }
+        std::vector<uint8_t> map(names.size(), 0);
+        bool ok = true;
+        for (size_t k = 1; k < names.size() && ok; ++k) {
+            const int m = voxFoundMaterial(names[k], &err);
+            ok = m >= 0;
+            if (ok) map[k] = uint8_t(m);
+        }
+        if (!ok) {
+            errors.push_back({{"chunk", {cc.x, cc.y, cc.z}}, {"error", err}});
+            continue;
+        }
+        saved.remapMaterials(map);
+        const auto t1 = std::chrono::steady_clock::now();
+        const RegionEdit::Stats st = voxFoundEdit.loadChunk(i, saved);
+        const auto t2 = std::chrono::steady_clock::now();
+        decodeMs += ms(t0, t1);
+        writeMs += ms(t1, t2);
+        ++loaded;
+        voxels += st.voxelsChanged;
+        bytes += blob.size();
+    }
+    if (loaded) voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+    return {{"loaded_chunks", loaded}, {"bytes", bytes}, {"voxels_written", voxels}, {"decode_ms", decodeMs},
+            {"load_rebuild_ms", writeMs}, {"errors", errors}};
+}
+
 // docs/VoxelFoundationPlan.md F2.16 (§4.6 item 9) -- POST /api/debug/voxfound_preview {"edit":{...}}: edit a region
 // preview built with {"editable":true}, rebuilt INCREMENTALLY (RegionEdit: only the rows, sprig cells and blocks the
 // brush can change). Body: {"material":"air"|name, "lo":[x,y,z], "hi":[x,y,z]} (world 1/8 m voxels, inclusive) or
@@ -13855,34 +14006,13 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     }
     // the material: air, a palette entry, or a new palette entry (its textures and card / see-through sets added)
     const std::string matName = ej.value("material", std::string("air"));
-    uint8_t mat = 0;
-    if (matName != "air") {
-        const auto* md = Core::MaterialRegistry::instance().getMaterial(matName);
-        if (!md) {
-            response = {{"error", "unknown material " + matName}};
-            return;
-        }
-        size_t m = 1;
-        while (m < voxFoundPalette.size() && voxFoundPalette[m] != matName) ++m;
-        if (m == voxFoundPalette.size()) {
-            if (m >= 256) {
-                response = {{"error", "palette full (256)"}};
-                return;
-            }
-            voxFoundPalette.push_back(matName);
-            voxFoundLeafTex.resize(voxFoundPalette.size(), 0);
-            for (int f = 0; f < 6; ++f) {
-                const uint16_t t = Core::MaterialRegistry::instance().getTextureIndex(matName, f);
-                voxFoundPreview.faceTex[m * 6 + size_t(f)] = t;
-                if (f == 0) voxFoundLeafTex[m] = t;
-            }
-            CardSet cards = voxFoundEdit.cards(), see = voxFoundEdit.seeThrough();
-            if (md->billboarded) cards.set(uint8_t(m));
-            if (md->billboarded || md->alpha < 0.99f) see.set(uint8_t(m));
-            voxFoundEdit.setMaterialSets(cards, see);
-        }
-        mat = uint8_t(m);
+    std::string matErr;
+    const int matIndex = voxFoundMaterial(matName, &matErr);
+    if (matIndex < 0) {
+        response = {{"error", matErr}};
+        return;
     }
+    const uint8_t mat = uint8_t(matIndex);
     const auto t0 = std::chrono::steady_clock::now();
     // Rows executor: the CPU (meshRunsPlan) by default; {"device":true} re-meshes the planned rows on the device
     // (FaceBuilderGpu::rowsDelta). Measured 2026-11-15 (docs/evidence/voxfound_f216_prediction.txt): the device kernel
@@ -14434,6 +14564,9 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
         lodVolume.push_back(levelSolid[0] ? double(levelSolid[k]) * double(uint64_t(1) << (3 * k)) / double(levelSolid[0])
                                           : 0.0);
     }
+    // F3.3: {"load_saved":true} -- the saved chunks of this region win over the generator
+    nlohmann::json loadSaved = nullptr;
+    if (editable && cmd.params.value("load_saved", false)) loadSaved = loadVoxFoundSaved();
     response = {{"provenance", "engine WorldGenerator (" + typeName + " seed " + std::to_string(seed) +
                                    ") at 1/8 m, generated chunk by chunk by VoxFound::forEachRegionChunk" +
                                    (flora ? " + engine flora plan stamped from " + floraDir : "") +
@@ -14470,6 +14603,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                      ? gen.planFlora(lo.x * kChunkM, lo.z * kChunkM, (hi.x + 1) * kChunkM - 1, (hi.z + 1) * kChunkM - 1).size()
                      : size_t(0)},
                 {"editable", editable}, {"edit_store_bytes", voxFoundEdit.bytes()},   // F2.16
+                {"load_saved", loadSaved},   // F3.3
                 {"hide_world", renderCoordinator->hideWorld()}};
 }
 

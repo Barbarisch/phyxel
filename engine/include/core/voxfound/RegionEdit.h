@@ -35,6 +35,7 @@ public:
         std::vector<PackedFace> sprigs;
         std::vector<uint8_t> blocking;
         FaceConnect connect{};
+        bool edited = false;   // F3.3: an edit or a load changed its voxels (it differs from the generator: saved)
     };
     struct Stats {
         size_t chunksEdited = 0, chunksRebuilt = 0, voxelsChanged = 0;
@@ -99,6 +100,10 @@ public:
         size_t steps = 0;   // voxels + skipped blocks visited
     };
     PickHit pick(glm::dvec3 origin, glm::dvec3 dir, double maxVoxels) const;
+    /// F3.3: writes a saved chunk (same dims, materials in the region palette) into chunk i through the exact
+    /// incremental rebuild (block by block where they differ; the neighbours' border planes follow) and marks it
+    /// edited.
+    Stats loadChunk(size_t i, const BlockStore& saved);
     /// F3.2b: the material of world voxel p (air outside the region).
     uint8_t voxelAt(glm::ivec3 p) const;
 
@@ -114,8 +119,10 @@ public:
 private:
     int index(glm::ivec3 chunk) const;   // -1 = not in the store
     /// inside == nullptr: a BOX edit (blocks it covers entirely are written whole)
+    /// source (F3.3, loadChunk): the voxels of chunk sourceChunk come from this store instead of `material`.
     Stats applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std::function<bool(glm::ivec3)>* inside, uint8_t material,
-                    FaceBuilderGpu* gpu, std::string* err);
+                    FaceBuilderGpu* gpu, std::string* err, const BlockStore* source = nullptr,
+                    size_t sourceChunk = SIZE_MAX);
     std::vector<Chunk> m_chunks;
     glm::ivec3 m_lo{0}, m_hi{-1};
     int m_clusterBlocks = 4;

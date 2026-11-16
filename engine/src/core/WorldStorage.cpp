@@ -49,6 +49,10 @@ bool WorldStorage::loadLodBlob(const glm::ivec3&, int, std::vector<uint8_t>&) { 
 bool WorldStorage::deleteLodBlobs(const glm::ivec3&) { return false; }
 std::vector<int> WorldStorage::getLodLevels(const glm::ivec3&) { return {}; }
 std::vector<glm::ivec3> WorldStorage::getChunksWithLodBlobs() { return {}; }
+bool WorldStorage::saveVoxFoundBlob(const glm::ivec3&, const std::vector<uint8_t>&) { return false; }
+bool WorldStorage::loadVoxFoundBlob(const glm::ivec3&, std::vector<uint8_t>& out) { out.clear(); return false; }
+bool WorldStorage::deleteVoxFoundBlob(const glm::ivec3&) { return false; }
+std::vector<glm::ivec3> WorldStorage::getVoxFoundBlobCoords() { return {}; }
 bool WorldStorage::saveChunks(const std::vector<std::reference_wrapper<const Chunk>>& chunks) { return false; }
 bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chunk>>& chunks) { return false; }
 std::vector<glm::ivec3> WorldStorage::getChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk) { return {}; }
@@ -259,6 +263,17 @@ bool WorldStorage::createTables() {
         -- save), read often (whenever a distant region needs geometry without its
         -- full-resolution chunk becoming resident). One row per LEVEL, so a reader can fetch
         -- exactly the coarseness it needs instead of the whole pyramid.
+        -- VoxelFoundationPlan F3.3: the 1/8 m store's chunks (codec v3 'PXF3'), only those that differ from the
+        -- generator. Own table: today's chunk_blobs (PXB2) keeps its meaning until the default switches (F7).
+        CREATE TABLE IF NOT EXISTS voxfound_chunk_blobs (
+            chunk_x INTEGER NOT NULL,
+            chunk_y INTEGER NOT NULL,
+            chunk_z INTEGER NOT NULL,
+            version INTEGER NOT NULL,
+            data    BLOB NOT NULL,
+            PRIMARY KEY (chunk_x, chunk_y, chunk_z)
+        );
+
         CREATE TABLE IF NOT EXISTS chunk_lod_blobs (
             chunk_x INTEGER NOT NULL,
             chunk_y INTEGER NOT NULL,
@@ -881,6 +896,71 @@ std::vector<glm::ivec3> WorldStorage::getChunksWithLodBlobs() {
                             sqlite3_column_int(stmt, 1),
                             sqlite3_column_int(stmt, 2));
     }
+    sqlite3_finalize(stmt);
+    return coords;
+}
+
+// ---- VoxelFoundationPlan F3.3: codec v3 chunk blobs (statements prepared per call: written on save only) ----
+bool WorldStorage::saveVoxFoundBlob(const glm::ivec3& c, const std::vector<uint8_t>& data) {
+    if (!db || data.empty()) return false;
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql = "INSERT OR REPLACE INTO voxfound_chunk_blobs (chunk_x, chunk_y, chunk_z, version, data) "
+                      "VALUES (?, ?, ?, ?, ?);";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_int(stmt, 1, c.x);
+    sqlite3_bind_int(stmt, 2, c.y);
+    sqlite3_bind_int(stmt, 3, c.z);
+    sqlite3_bind_int(stmt, 4, 3);
+    sqlite3_bind_blob(stmt, 5, data.data(), static_cast<int>(data.size()), SQLITE_TRANSIENT);
+    const bool ok = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+bool WorldStorage::loadVoxFoundBlob(const glm::ivec3& c, std::vector<uint8_t>& outData) {
+    outData.clear();
+    if (!db) return false;
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql = "SELECT data FROM voxfound_chunk_blobs WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_int(stmt, 1, c.x);
+    sqlite3_bind_int(stmt, 2, c.y);
+    sqlite3_bind_int(stmt, 3, c.z);
+    bool ok = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const void* blob = sqlite3_column_blob(stmt, 0);
+        const int n = sqlite3_column_bytes(stmt, 0);
+        if (blob && n > 0) {
+            const uint8_t* p = static_cast<const uint8_t*>(blob);
+            outData.assign(p, p + n);
+            ok = true;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+bool WorldStorage::deleteVoxFoundBlob(const glm::ivec3& c) {
+    if (!db) return false;
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql = "DELETE FROM voxfound_chunk_blobs WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_int(stmt, 1, c.x);
+    sqlite3_bind_int(stmt, 2, c.y);
+    sqlite3_bind_int(stmt, 3, c.z);
+    const bool ok = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+std::vector<glm::ivec3> WorldStorage::getVoxFoundBlobCoords() {
+    std::vector<glm::ivec3> coords;
+    if (!db) return coords;
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql = "SELECT chunk_x, chunk_y, chunk_z FROM voxfound_chunk_blobs;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return coords;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+        coords.emplace_back(sqlite3_column_int(stmt, 0), sqlite3_column_int(stmt, 1), sqlite3_column_int(stmt, 2));
     sqlite3_finalize(stmt);
     return coords;
 }

@@ -132,6 +132,18 @@ public:
         if (!(e & kDetailed)) return uint8_t(e & 0xFF);
         return m_pool[uint32_t(e & 0xFFFFFFFFull)].mat[(p.z & 7) + 8 * ((p.y & 7) + 8 * (p.x & 7))];
     }
+    /// F3.3 codec v3 (§3.6; format in docs/evidence/voxfound_f33_prediction.txt): 'PXF3', dims, a chunk-local
+    /// palette (names from `palette`, indexed by this store's materials; entry 0 = air), the directory RLE in block
+    /// order (tag 255 = detailed), then each detailed block's 512 voxels RLE. Canonical: a detailed block holding one
+    /// material is written uniform. Empty result + `err` if the store uses more than 255 materials or a material has
+    /// no palette name.
+    std::vector<uint8_t> encodeV3(const std::vector<std::string>& palette, std::string* err = nullptr) const;
+    /// Decodes a v3 blob: `out` gets the voxels (materials = indices into `names`, the blob's local palette).
+    /// Bounds-checks everything; false (+ `err`) on malformed / truncated / unknown-version data.
+    static bool decodeV3(const uint8_t* data, size_t size, BlockStore& out, std::vector<std::string>& names,
+                         std::string* err = nullptr);
+    /// Rewrites every material m to map[m] (map must cover every material in the store).
+    void remapMaterials(const std::vector<uint8_t>& map);
     /// F3.2b: writes block b (block coordinates) as ONE uniform entry of material m (its detailed slot, if any, is
     /// freed) and returns how many of its voxels changed. Equal to 512 set() calls + collapse().
     int fillBlock(glm::ivec3 b, uint8_t m);

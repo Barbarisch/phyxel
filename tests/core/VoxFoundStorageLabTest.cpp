@@ -463,3 +463,142 @@ TEST(VoxFoundStorageLab, FillBlockEqualsVoxelWrites) {
     }
     EXPECT_GT(partial, 200u);   // fills of detailed blocks happened
 }
+
+// ---- F3.3: codec v3 ------------------------------------------------------------------------------------------
+namespace {
+std::vector<std::string> paletteOf(size_t n) {
+    std::vector<std::string> p{"air"};
+    for (size_t i = 1; i < n; ++i) p.push_back("Mat" + std::to_string(i));
+    return p;
+}
+// decode(encode(s)) == s voxel for voxel with the same names, and the encoding is canonical
+void expectRoundTrip(const BlockStore& s, const VoxelGrid& ref, const std::vector<std::string>& pal,
+                     const std::string& what, size_t* bytesOut = nullptr) {
+    std::string err;
+    const std::vector<uint8_t> blob = s.encodeV3(pal, &err);
+    ASSERT_FALSE(blob.empty()) << what << " " << err;
+    BlockStore d;
+    std::vector<std::string> names;
+    ASSERT_TRUE(BlockStore::decodeV3(blob.data(), blob.size(), d, names, &err)) << what << " " << err;
+    ASSERT_EQ(d.dim(), ref.dim) << what;
+    // the decoded materials index `names`; map them back to the palette by name
+    std::vector<uint8_t> map(names.size(), 0);
+    for (size_t k = 0; k < names.size(); ++k) {
+        const auto it = std::find(pal.begin(), pal.end(), names[k]);
+        ASSERT_TRUE(it != pal.end() || k == 0) << what << " name " << names[k];
+        map[k] = k == 0 ? 0 : uint8_t(it - pal.begin());
+    }
+    d.remapMaterials(map);
+    ASSERT_EQ(compareToReference(d, ref, &err), 0u) << what << " " << err;
+    ASSERT_EQ(d.encodeV3(pal), blob) << what << " (not canonical)";
+    if (bytesOut) *bytesOut = blob.size();
+}
+}  // namespace
+
+TEST(VoxFoundStorageLab, CodecV3RoundTripsExactly) {
+    std::mt19937 rng(3301u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    // 1. engine terrain + leaf blobs + random churn (block-aligned and voxel edits)
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    VoxelArea a = buildTerrainArea(gen, {0, 0, 0}, {32, 32, 32});
+    std::vector<std::string> pal = a.palette;
+    pal.push_back("Leaf");
+    const uint8_t leaf = uint8_t(pal.size() - 1);
+    for (int b = 0; b < 8; ++b) {
+        const glm::ivec3 c(rnd(10, 245), rnd(10, 245), rnd(10, 245));
+        const int r = rnd(3, 9);
+        for (int x = -r; x <= r; ++x)
+            for (int y = -r; y <= r; ++y)
+                for (int z = -r; z <= r; ++z)
+                    if (x * x + y * y + z * z <= r * r && a.grid.in(c + glm::ivec3(x, y, z)))
+                        a.grid.set(c + glm::ivec3(x, y, z), leaf);
+    }
+    BlockStore s = BlockStore::fromGrid(a.grid);
+    size_t terrainBytes = 0;
+    expectRoundTrip(s, a.grid, pal, "terrain", &terrainBytes);
+    for (int it = 0; it < 60; ++it) {
+        const int size = rnd(0, 1) ? 8 : rnd(1, 12);
+        glm::ivec3 lo(rnd(0, a.grid.dim.x - size), rnd(0, a.grid.dim.y - size), rnd(0, a.grid.dim.z - size));
+        if (size == 8) lo = lo / 8 * 8;
+        const uint8_t m = uint8_t(rnd(0, int(pal.size()) - 1));
+        for (int x = lo.x; x < lo.x + size; ++x)
+            for (int y = lo.y; y < lo.y + size; ++y)
+                for (int z = lo.z; z < lo.z + size; ++z) {
+                    a.grid.set({x, y, z}, m);
+                    s.set({x, y, z}, m);
+                }
+        if (it % 3 == 0) s.collapse();   // round trips with and without pending detailed-but-uniform blocks
+        if (it % 10 == 9) expectRoundTrip(s, a.grid, pal, "churn " + std::to_string(it));
+    }
+    // 2. degenerate stores
+    {
+        VoxelGrid g;
+        g.resize({256, 256, 256});
+        size_t bytes = 0;
+        expectRoundTrip(BlockStore::fromGrid(g), g, paletteOf(2), "all air", &bytes);
+        EXPECT_LE(bytes, 64u);
+        for (uint8_t& v : g.mat) v = 1;
+        expectRoundTrip(BlockStore::fromGrid(g), g, paletteOf(2), "all one material", &bytes);
+        EXPECT_LE(bytes, 64u);
+    }
+    {
+        VoxelGrid g;
+        g.resize({64, 40, 24});   // every block detailed, random voxels, 255 materials (air + 254)
+        for (uint8_t& v : g.mat) v = uint8_t(rnd(0, 254));
+        expectRoundTrip(BlockStore::fromGrid(g), g, paletteOf(256), "all detailed, 255 materials");
+        g.mat[0] = 255;   // a 256th material: refused (tag 255 marks detailed runs)
+        std::string err;
+        EXPECT_TRUE(BlockStore::fromGrid(g).encodeV3(paletteOf(256), &err).empty());
+        EXPECT_FALSE(err.empty());
+    }
+    {
+        VoxelGrid g;
+        g.resize({8, 8, 8});
+        g.set({3, 4, 5}, 7);
+        expectRoundTrip(BlockStore::fromGrid(g), g, paletteOf(8), "one block");
+    }
+    std::printf("[f33 codec] terrain area %dx%dx%d: %zu B (store %.2f MB, dense %.2f MB)\n", a.grid.dim.x, a.grid.dim.y,
+                a.grid.dim.z, terrainBytes, BlockStore::fromGrid(a.grid).memoryBytes() / 1048576.0,
+                a.grid.mat.size() / 1048576.0);
+}
+
+TEST(VoxFoundStorageLab, CodecV3RejectsMalformedBlobs) {
+    std::mt19937 rng(3302u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    VoxelGrid g;
+    g.resize({16, 16, 24});
+    for (size_t i = 0; i < g.size(); ++i) g.mat[i] = g.pos(i).y < 6 ? 1 : (rnd(0, 9) == 0 ? uint8_t(rnd(1, 3)) : 0);
+    const std::vector<std::string> pal = paletteOf(4);
+    const std::vector<uint8_t> blob = BlockStore::fromGrid(g).encodeV3(pal);
+    ASSERT_GT(blob.size(), 16u);
+    BlockStore out;
+    std::vector<std::string> names;
+    std::string err;
+    ASSERT_TRUE(BlockStore::decodeV3(blob.data(), blob.size(), out, names, &err)) << err;
+    for (size_t n = 0; n < blob.size(); ++n)
+        EXPECT_FALSE(BlockStore::decodeV3(blob.data(), n, out, names, &err)) << "truncated to " << n;
+    std::vector<uint8_t> extra = blob;
+    extra.push_back(0);
+    EXPECT_FALSE(BlockStore::decodeV3(extra.data(), extra.size(), out, names, &err)) << "trailing byte";
+    std::vector<uint8_t> bad = blob;
+    bad[0] ^= 0xFF;
+    EXPECT_FALSE(BlockStore::decodeV3(bad.data(), bad.size(), out, names, &err)) << "magic";
+    bad = blob;
+    bad[4] = 99;
+    EXPECT_FALSE(BlockStore::decodeV3(bad.data(), bad.size(), out, names, &err)) << "version";
+    size_t accepted = 0;
+    for (int it = 0; it < 2000; ++it) {
+        std::vector<uint8_t> f = blob;
+        for (int k = rnd(1, 4); k > 0; --k) f[size_t(rnd(0, int(f.size()) - 1))] = uint8_t(rnd(0, 255));
+        if (BlockStore::decodeV3(f.data(), f.size(), out, names, &err)) {
+            ++accepted;   // a valid blob of other voxels: it must be a whole store
+            ASSERT_EQ(out.dim() % 8, glm::ivec3(0));
+            for (int x = 0; x < out.dim().x; x += 5)
+                for (int y = 0; y < out.dim().y; y += 5)
+                    for (int z = 0; z < out.dim().z; z += 5) ASSERT_LT(out.get({x, y, z}), names.size());
+        }
+    }
+    std::printf("[f33 malformed] %zu B blob: every truncation refused; %zu of 2000 random corruptions decode to a "
+                "valid store, the rest refused\n",
+                blob.size(), accepted);
+}

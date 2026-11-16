@@ -93,6 +93,39 @@ bool RegionEdit::brush(glm::ivec3 at, int size, uint8_t material, Stats& st, Fac
     return true;
 }
 
+RegionEdit::Stats RegionEdit::loadChunk(size_t i, const BlockStore& saved) {
+    Stats total;
+    if (i >= m_chunks.size() || saved.dim() != m_chunks[i].store.dim()) return total;
+    // block by block where the saved voxels differ: each through the same exact incremental rebuild as an edit
+    const glm::ivec3 nb = saved.dim() / 8;
+    for (int bx = 0; bx < nb.x; ++bx)
+        for (int by = 0; by < nb.y; ++by)
+            for (int bz = 0; bz < nb.z; ++bz) {
+                const glm::ivec3 b(bx, by, bz);
+                uint8_t us = 0, uc = 0;
+                const bool sUni = saved.uniformBlock(b, us), cUni = m_chunks[i].store.uniformBlock(b, uc);
+                if (sUni && cUni && us == uc) continue;
+                bool differs = sUni && cUni;
+                for (int k = 0; k < 512 && !differs; ++k) {
+                    const glm::ivec3 p = b * 8 + glm::ivec3(k >> 6, (k >> 3) & 7, k & 7);
+                    differs = saved.at(p) != m_chunks[i].store.at(p);
+                }
+                if (!differs) continue;
+                const glm::ivec3 lo = m_chunks[i].originVoxel + b * 8;
+                const Stats st = applyImpl(lo, lo + 7, nullptr, 0, nullptr, nullptr, &saved, i);
+                total.voxelsChanged += st.voxelsChanged;
+                total.chunksRebuilt += st.chunksRebuilt;
+                total.facesAdded += st.facesAdded;
+                total.facesRemoved += st.facesRemoved;
+                total.blocksFilled += st.blocksFilled;
+                total.rebuilt.insert(total.rebuilt.end(), st.rebuilt.begin(), st.rebuilt.end());
+            }
+    std::sort(total.rebuilt.begin(), total.rebuilt.end());
+    total.rebuilt.erase(std::unique(total.rebuilt.begin(), total.rebuilt.end()), total.rebuilt.end());
+    m_chunks[i].edited = true;   // a saved chunk keeps winning over the generator
+    return total;
+}
+
 uint8_t RegionEdit::voxelAt(glm::ivec3 p) const {
     const glm::ivec3 c(floorDiv(p.x, kN), floorDiv(p.y, kN), floorDiv(p.z, kN));
     const int i = index(c);
@@ -196,7 +229,8 @@ RegionEdit::PickHit RegionEdit::pick(glm::dvec3 o, glm::dvec3 dir, double maxT) 
 }
 
 RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std::function<bool(glm::ivec3)>* inside,
-                                        uint8_t material, FaceBuilderGpu* gpu, std::string* err) {
+                                        uint8_t material, FaceBuilderGpu* gpu, std::string* err,
+                                        const BlockStore* source, size_t sourceChunk) {
     Stats st;
     lo = glm::max(lo, m_lo * kN);
     hi = glm::min(hi, (m_hi + 1) * kN - 1);
@@ -227,8 +261,12 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
                 for (int bz = b0.z; bz <= b1.z; ++bz) {
                     const glm::ivec3 bl(bx * 8, by * 8, bz * 8);
                     const glm::ivec3 sLo = glm::max(clo, bl), sHi = glm::min(chi, bl + 7);
-                    if (!inside && sLo == bl && sHi == bl + 7) {
-                        const int n = c.store.fillBlock({bx, by, bz}, material);
+                    uint8_t srcUniform = 0;   // F3.3: a load writes the saved block; uniform = one entry
+                    const bool fromSource = source && i == sourceChunk;
+                    if (source && !fromSource) continue;
+                    if (!inside && sLo == bl && sHi == bl + 7 &&
+                        (!fromSource || source->uniformBlock({bx, by, bz}, srcUniform))) {
+                        const int n = c.store.fillBlock({bx, by, bz}, fromSource ? srcUniform : material);
                         if (n) {
                             st.voxelsChanged += size_t(n);
                             eLo = glm::min(eLo, bl);
@@ -242,8 +280,9 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
                             for (int z = sLo.z; z <= sHi.z; ++z) {
                                 const glm::ivec3 p(x, y, z);
                                 if (inside && !(*inside)(c.originVoxel + p)) continue;
-                                if (c.store.at(p) == material) continue;
-                                c.store.set(p, material);
+                                const uint8_t want = fromSource ? source->at(p) : material;
+                                if (c.store.at(p) == want) continue;
+                                c.store.set(p, want);
                                 ++st.voxelsChanged;
                                 eLo = glm::min(eLo, p);
                                 eHi = glm::max(eHi, p);
@@ -251,6 +290,7 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
                 }
         if (eLo.x > eHi.x) continue;
         voxelEdited[i] = 1;
+        c.edited = true;   // F3.3: differs from the generator now (saved by {"save":true})
         vLo[i] = eLo;
         vHi[i] = eHi;
         grow(i, eLo, eHi);

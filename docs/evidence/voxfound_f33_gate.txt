@@ -1,0 +1,9 @@
+build {"faces": 477858, "error": null, "load_saved": null, "wall_s": 25.5}
+cleared {"cleared": 32, "rows_left": 0} control load {"bytes": 0, "decode_ms": 0.0, "errors": [], "load_rebuild_ms": 0.0, "loaded_chunks": 0, "voxels_written": 0}
+edited chunks 32 of 32 verify mismatches 0
+save {"saved_chunks": 32, "region_chunks": 32, "bytes": 7990671, "encode_ms": 106.58610000000002, "write_ms": 65.2114, "error": null}
+control generator {"edited_differ": 32, "unedited_equal": 0, "unedited": 0}
+load {"bytes": 7990671, "decode_ms": 116.13999999999999, "errors": [], "load_rebuild_ms": 1515.7774, "loaded_chunks": 32, "voxels_written": 1097597, "wall_s": 26.9} roundtrip {"chunks_equal": 32, "chunks": 32, "edited_flags_equal": 32}
+pixels {"forest_floor_open": {"L_vs_A": 0, "L_vs_F": 0, "F_vs_L2": 0}, "overview_south": {"L_vs_A": 0, "L_vs_F": 0, "F_vs_L2": 0}}
+resave {"chunks": 32, "identical": 32}
+end
