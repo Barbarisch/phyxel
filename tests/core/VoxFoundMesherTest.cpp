@@ -2272,7 +2272,116 @@ TEST(VoxFoundMesher, RegionEditAssemblesOnlyWhatChanged) {
     }
     EXPECT_GT(partial, 30u);
     EXPECT_LE(relaid, 4u);
+    // F3.2a: the edit store is the BlockStore -- the whole RegionEdit (voxels, faces, sprigs, planes) <= 1/5 of the
+    // two dense grids it replaced
+    std::printf("[f32a store] RegionEdit %.2f MB for 2 chunks (dense voxels alone %.2f MB)\n", edit.bytes() / 1048576.0,
+                2.0 * N * N * N / 1048576.0);
+    EXPECT_LE(edit.bytes() * 5, size_t(2) * N * N * N);
     std::printf("[f31 assemble] sprig spans re-placed %zu times\n", relaid);
     std::printf("[f31 assemble] %zu partial steps: %.1f KB written per step (the whole image is %.1f KB)\n", partial,
                 partial ? double(bytes) / partial / 1024.0 : 0.0, partial ? double(imageBytes) / partial / 1024.0 : 0.0);
+}
+
+// ---- F3.2a (VoxelFoundationPlan §9b): the edit store is the BlockStore ------------------------------------------
+// The incremental rebuild reads the BlockStore. Engine terrain at 1/8 m with leaf blobs (a card material), real border
+// planes, 80 random brushes (1 voxel .. 3 m boxes and spheres, air / ground / leaf, near the ground); the store and a
+// dense grid get the same voxels. After every edit: the store equals the grid voxel for voxel (every 10th edit in
+// full), and its readers equal the grid's -- the rows delta (lazy and whole-row executors), the sprig update, the
+// blocking bits and their change report. Red on stubs that return empty results.
+TEST(VoxFoundMesher, BlockStoreReadersEqualTheDenseOnes) {
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7u);
+    VoxelArea area = surfaceArea(gen, 0, 0, 4);
+    VoxelGrid& g = area.grid;
+    std::mt19937 rng(3201u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    const uint8_t leaf = uint8_t(area.palette.size());
+    const int nMat = int(area.palette.size());
+    CardSet cards;
+    cards.set(leaf);
+    for (int b = 0; b < 12; ++b) {   // leaf blobs above the ground
+        const int x = rnd(10, g.dim.x - 11), z = rnd(10, g.dim.z - 11);
+        int top = g.dim.y - 1;
+        while (top > 0 && g.mat[g.idx({x, top, z})] == 0) --top;
+        const glm::ivec3 c(x, std::min(g.dim.y - 10, top + rnd(4, 12)), z);
+        const int r = rnd(3, 9);
+        for (int dx = -r; dx <= r; ++dx)
+            for (int dy = -r; dy <= r; ++dy)
+                for (int dz = -r; dz <= r; ++dz)
+                    if (dx * dx + dy * dy + dz * dz <= r * r && g.in(c + glm::ivec3(dx, dy, dz)))
+                        g.set(c + glm::ivec3(dx, dy, dz), leaf);
+    }
+    Neighbours nb;
+    nb.resize(g.dim, false);
+    for (int a = 0; a < 3; ++a)
+        for (int s : {-1, 1})
+            for (int v = 0; v < g.dim[(a + 2) % 3]; ++v)
+                for (int u = 0; u < g.dim[(a + 1) % 3]; ++u)
+                    if (rnd(0, 1)) nb.set(a, s, u, v, true);
+    const Edges e(nb);
+    BlockStore st = BlockStore::fromGrid(g);
+    std::string why;
+    ASSERT_EQ(compareToReference(st, g, &why), 0u) << why;
+    std::vector<PackedFace> faces = packedRuns(g, e, &cards);
+    SprigParams sp;
+    sp.cards = cards;
+    sp.worldOriginVoxel = {77, -5, 311};
+    sp.threshold24 = 1u << 23;
+    std::vector<PackedFace> sprigsG = foliageSprigs(g, e, sp), sprigsS = sprigsG;
+    std::vector<uint8_t> blockG = blockBlocking(g, cards);
+    ASSERT_EQ(blockBlocking(st, cards), blockG);
+    std::vector<uint8_t> blockS = blockG;
+    size_t added = 0;
+    for (int it = 0; it < 80; ++it) {
+        const int size = rnd(0, 3) == 0 ? 1 : rnd(2, 24);
+        const int x = rnd(0, g.dim.x - size), z = rnd(0, g.dim.z - size);
+        int top = g.dim.y - 1;
+        while (top > 0 && g.mat[g.idx({x, top, z})] == 0) --top;
+        const glm::ivec3 lo(x, std::clamp(top - size / 2 + rnd(-6, 6), 0, g.dim.y - size), z), hi = lo + size - 1;
+        const int pick = rnd(0, 9);
+        const uint8_t m = pick < 4 ? 0 : (pick < 7 ? uint8_t(rnd(1, nMat - 1)) : leaf);
+        const bool sphere = rnd(0, 2) == 0;
+        const glm::vec3 c = glm::vec3(lo + hi) * 0.5f;
+        for (int a = lo.x; a <= hi.x; ++a)
+            for (int b = lo.y; b <= hi.y; ++b)
+                for (int k = lo.z; k <= hi.z; ++k) {
+                    if (sphere && glm::length(glm::vec3(a, b, k) - c) > float(size) * 0.5f) continue;
+                    g.set({a, b, k}, m);
+                    st.set({a, b, k}, m);
+                }
+        st.collapse();
+        const std::string at = "edit " + std::to_string(it);
+        if (it % 10 == 9) ASSERT_EQ(compareToReference(st, g, &why), 0u) << at << " " << why;
+        const RunsPlan plan = planRunsDelta(g.dim, faces, lo, hi);
+        const RunsDelta dG = meshRunsPlan(g, e, plan, &cards);
+        const RunsDelta dS = meshRunsPlan(st, e, plan, &cards);
+        ASSERT_EQ(dS.removed, dG.removed) << at;
+        ASSERT_EQ(sortedKeys(dS.added), sortedKeys(dG.added)) << at;
+        ASSERT_EQ(dS.cellsEvaluated, dG.cellsEvaluated) << at;
+        if (it % 10 == 0)
+            ASSERT_EQ(sortedKeys(meshRunsPlanWholeRows(st, e, plan, &cards).added),
+                      sortedKeys(meshRunsPlanWholeRows(g, e, plan, &cards).added))
+                << at;
+        added += dG.added.size();
+        const size_t aG = updateSprigs(sprigsG, g, e, sp, lo, hi), aS = updateSprigs(sprigsS, st, e, sp, lo, hi);
+        ASSERT_EQ(aS, aG) << at;
+        ASSERT_EQ(sortedKeys(sprigsS), sortedKeys(sprigsG)) << at;
+        const bool cG = updateBlockBlocking(g, cards, lo, hi, blockG), cS = updateBlockBlocking(st, cards, lo, hi, blockS);
+        ASSERT_EQ(cS, cG) << at;
+        ASSERT_EQ(blockS, blockG) << at;
+        std::vector<char> gone(faces.size(), 0);
+        for (uint32_t r : dG.removed) gone[r] = 1;
+        std::vector<PackedFace> next;
+        for (size_t i = 0; i < faces.size(); ++i)
+            if (!gone[i]) next.push_back(faces[i]);
+        next.insert(next.end(), dG.added.begin(), dG.added.end());
+        faces.swap(next);
+    }
+    VoxelGrid back;
+    st.toGrid(back);
+    ASSERT_EQ(back.dim, g.dim);
+    ASSERT_TRUE(back.mat == g.mat);
+    std::printf("[f32a readers] 80 edits on %dx%dx%d: %zu faces added; store %.2f MB vs dense %.2f MB (%zu detailed "
+                "blocks)\n",
+                g.dim.x, g.dim.y, g.dim.z, added, st.memoryBytes() / 1048576.0, g.mat.size() / 1048576.0,
+                st.detailedBlocks());
 }

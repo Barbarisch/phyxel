@@ -392,6 +392,53 @@ void BlockStore::collapse() {
     m_free.shrink_to_fit();
 }
 
+BlockStore BlockStore::fromGrid(const VoxelGrid& g) {
+    BlockStore s(g.dim);
+    for (int bx = 0; bx < s.m_nb.x; ++bx)
+        for (int by = 0; by < s.m_nb.y; ++by)
+            for (int bz = 0; bz < s.m_nb.z; ++bz) {
+                Detailed d;
+                bool uniform = true;
+                for (int x = 0; x < kBlock; ++x)
+                    for (int y = 0; y < kBlock; ++y) {
+                        const size_t row = g.idx({bx * kBlock + x, by * kBlock + y, bz * kBlock});
+                        std::memcpy(d.mat + inBlock({x, y, 0}), &g.mat[row], kBlock);
+                    }
+                for (int i = 1; i < 512 && uniform; ++i) uniform = d.mat[i] == d.mat[0];
+                uint64_t& e = s.m_dir[s.blockIndex({bx, by, bz})];
+                if (uniform) {
+                    e = d.mat[0];
+                    continue;
+                }
+                for (uint64_t& w : d.solid) w = 0;
+                for (int i = 0; i < 512; ++i)
+                    if (d.mat[i]) d.solid[i >> 6] |= 1ull << (i & 63);
+                e = kDetailed | uint32_t(s.m_pool.size());
+                s.m_pool.push_back(d);
+            }
+    s.m_pool.shrink_to_fit();
+    return s;
+}
+
+void BlockStore::toGrid(VoxelGrid& g) const {
+    g.dim = m_dim;
+    g.mat.assign(size_t(m_dim.x) * size_t(m_dim.y) * size_t(m_dim.z), 0);
+    g.part.clear();
+    g.fixed.clear();
+    for (int bx = 0; bx < m_nb.x; ++bx)
+        for (int by = 0; by < m_nb.y; ++by)
+            for (int bz = 0; bz < m_nb.z; ++bz) {
+                const uint64_t e = m_dir[blockIndex({bx, by, bz})];
+                const Detailed* d = (e & kDetailed) ? &m_pool[uint32_t(e & 0xFFFFFFFFull)] : nullptr;
+                for (int x = 0; x < kBlock; ++x)
+                    for (int y = 0; y < kBlock; ++y) {
+                        uint8_t* row = &g.mat[g.idx({bx * kBlock + x, by * kBlock + y, bz * kBlock})];
+                        if (d) std::memcpy(row, d->mat + inBlock({x, y, 0}), kBlock);
+                        else std::memset(row, int(e & 0xFF), kBlock);
+                    }
+            }
+}
+
 size_t BlockStore::uniformBlocks() const {
     size_t n = 0;
     for (uint64_t e : m_dir) n += !(e & kDetailed);

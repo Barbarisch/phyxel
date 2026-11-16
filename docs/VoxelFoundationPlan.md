@@ -1828,7 +1828,7 @@ Every rig is checked for:
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building (hidden-face culling, merging in and across blocks) + drawing through today's lighting; the §4.6 render optimizations rebuilt on blocks (culling, occlusion, indirect draws, shadow casters, block LOD pyramid, direction culling); T-junction handling | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate. **F2.19 re-run 2026-11-15: performance holds at all 5 poses (new store 2.1-9.4 ms faster whole frame; memory 1.2-1.7×; 11-13 MB per frame); pixels measured, every residual traced to FC content gaps; contour-stripe defect found and fixed** | a scene that works today doesn't, and we can't find and fix why |
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
-| **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; next F3.2 brushes + the BlockStore edit store** | — |
+| **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; F3.2a: the edit store is the BlockStore, 545.5 → 62.9 MB, exact, 1 m 0.66 ms; next F3.2b brushes + picking** | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
 | **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
@@ -1886,9 +1886,10 @@ Items, in order (each: prediction, red test, build, measured on/off):
 - **F3.1 Edit cost.** What F2.16/F2.17 left owed: rows re-meshed over the whole slice width (3.8 ms of a 1 m edit's
   4.5), the 32³-block connectivity flood on every edit (0.4-0.8 ms), and the reassembly that copies the whole level
   image and every chunk's lists into the Preview (2.5 ms).
-- **F3.2 Brushes and the edit store.** Place / break with brushes of 1, 2, 4, 8 voxels per side on the voxel grid
-  (§1), in voxel coordinates over the API; the edit store becomes the `BlockStore` (F1) instead of a dense 16.7 MB
-  grid per chunk (545 MB for the gate region).
+- **F3.2 Brushes and the edit store.** (a) the edit store becomes the `BlockStore` (F1) instead of a dense 16.7 MB
+  grid per chunk (545 MB for the gate region), with the F3.1 edit cost kept; (b) place / break with brushes of 1, 2,
+  4, 8 voxels per side on the voxel grid (§1), in voxel coordinates over the API, and picking that returns a voxel
+  position and face (§7 item 4's interface; wiring the editor's keys to it is F7).
 - **F3.3 Codec v3** (§3.6): per chunk the directory, then the detailed blocks run-length encoded; save / load
   round-trips voxel for voxel; only chunks that differ from the generator are saved (§3.5a point 7).
 - **F3.4 Converter** from PXB2: a cube → one 8³ block (exact); subcubes / microcubes resampled (§7a).
@@ -1926,6 +1927,23 @@ Items, in order (each: prediction, red test, build, measured on/off):
   2-13 ms per chunk; a 4 m brush is ~20x below per block. The 1 m p90 (0.75 ms) is 2.7x below 2 ms but above the 0.67
   line. Owed: incremental connectivity (the 0.16 ms flood); the per-chunk face span copy (`FacePool::write` copies a
   rebuilt chunk's whole span).
+
+**F3.2a 2026-11-16 — the edit store is the BlockStore (545.5 → 62.9 MB on the gate region, exact).**
+- Built: `RegionEdit::Chunk` holds a `BlockStore` (F1) built once from the region build's grid
+  (`BlockStore::fromGrid`, whole blocks at a time) and collapsed after every edit that touched it; the dense grid is
+  gone. The incremental rebuild reads the store through the same code as before, templated on a reader
+  (`meshRunsPlan`, the whole-row reference, `updateSprigs`, `blockBlocking` / `updateBlockBlocking`; a uniform block
+  answers its blocking bit from the directory entry). Paths that need a dense grid expand it on demand
+  (`RegionEdit::dense`, `BlockStore::toGrid`): verify, `replace_all`, the opt-in device rows.
+- Red first: `BlockStoreReadersEqualTheDenseOnes` (80 edits on engine terrain with leaf blobs and real border planes:
+  every reader equal to the dense one after every edit; the store round-trips). CPU 64/64, GPU 22/22.
+- Measured live (F3.1's gate and edit generator, the same 200 edits; `voxfound_f32a_*`, prediction
+  `voxfound_f32a_prediction.txt`): 0 mismatches in 153 verified edits; 0 px vs a full rebuild at two poses. The edit
+  store is 62.9 MB after the build vs 545.5 MB (8.7x), 73.5 MB after 400 edits. Region build +1.0 s.
+- Edit cost, request to lists ready (median): 1 voxel 0.36, **1 m 0.66** (F3.1's gate ≤ 0.67 still held, by 1.5 %),
+  4 m 7.2 ms. Paired per edit against F3.1: the store adds +0.05 ms at 1 m and +1.6 ms at 4 m. The cause is the
+  brush writing voxel by voxel through `set()` and collapsing afterwards (4 m: set +0.74, collapse +0.24).
+- Owed to F3.2b (brushes): whole-block writes, so a block a brush covers becomes one directory entry.
 
 ## 10. Performance tiers
 

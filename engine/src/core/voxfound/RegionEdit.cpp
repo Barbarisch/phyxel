@@ -16,7 +16,7 @@ double msSince(std::chrono::steady_clock::time_point t) {
 size_t RegionEdit::bytes() const {
     size_t b = 0;
     for (const Chunk& c : m_chunks) {
-        b += c.grid.mat.size() + c.faces.size() * sizeof(PackedFace) + c.groups.size() * sizeof(FaceCluster) +
+        b += c.store.memoryBytes() + c.faces.size() * sizeof(PackedFace) + c.groups.size() * sizeof(FaceCluster) +
              c.sprigs.size() * sizeof(PackedFace) + c.blocking.size();
         for (const auto& p : c.border.bits) b += p.size() * sizeof(uint32_t);
     }
@@ -56,13 +56,12 @@ void RegionEdit::addChunk(const RegionChunk& rc, const std::vector<PackedFace>& 
     Chunk c;
     c.chunk = rc.chunk;
     c.originVoxel = rc.originVoxel;
-    c.grid.dim = rc.grid.dim;
-    c.grid.mat = rc.grid.mat;   // materials only
+    c.store = BlockStore::fromGrid(rc.grid);   // F3.2a: the edit store (materials only)
     c.border = rc.border;
     for (const PackedFace& f : builderOut) (isSprig(f) ? c.sprigs : c.faces).push_back(f);
     c.groups = splitByDirection(c.faces, clusterFaces(c.faces, m_clusterBlocks, m_octant));
-    c.blocking = blockBlocking(c.grid, m_seeThrough);
-    c.connect = connectivityFromBlocking(c.grid.dim / 8, c.blocking);
+    c.blocking = blockBlocking(c.store, m_seeThrough);
+    c.connect = connectivityFromBlocking(c.store.dim() / 8, c.blocking);
     m_chunks.push_back(std::move(c));
 }
 
@@ -102,9 +101,8 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
                 for (int z = clo.z; z <= chi.z; ++z) {
                     const glm::ivec3 p(x, y, z);
                     if (!inside(c.originVoxel + p)) continue;
-                    uint8_t& m = c.grid.mat[c.grid.idx(p)];
-                    if (m == material) continue;
-                    m = material;
+                    if (c.store.at(p) == material) continue;
+                    c.store.set(p, material);
                     ++st.voxelsChanged;
                     eLo = glm::min(eLo, p);
                     eHi = glm::max(eHi, p);
@@ -132,7 +130,7 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
                         p[a] = layer;
                         p[ua] = u;
                         p[va] = v;
-                        nb.border.set(a, -s, u, v, c.grid.mat[c.grid.idx(p)] != 0);
+                        nb.border.set(a, -s, u, v, c.store.at(p) != 0);
                     }
                 glm::ivec3 pl = eLo, ph = eHi;
                 pl[a] = ph[a] = s < 0 ? kN : -1;   // the plane lies just outside the neighbour
@@ -140,12 +138,17 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
             }
     }
     st.setMs = msSince(tSet);
+    // F3.2a: the changed blocks that are uniform again return to one directory entry, the pool is compacted
+    const auto tCollapse = std::chrono::steady_clock::now();
+    for (size_t i = 0; i < n; ++i)
+        if (voxelEdited[i]) m_chunks[i].store.collapse();
+    st.collapseMs = msSince(tCollapse);
     for (size_t i = 0; i < n; ++i) {
         if (bLo[i].x > bHi[i].x) continue;
         Chunk& c = m_chunks[i];
         const Edges e(c.border);
         auto t = std::chrono::steady_clock::now();
-        const RunsPlan plan = planRunsDelta(c.grid.dim, c.faces, bLo[i], bHi[i]);
+        const RunsPlan plan = planRunsDelta(c.store.dim(), c.faces, bLo[i], bHi[i]);
         st.planMs += msSince(t);
         RunsDelta d;
         const auto tr = std::chrono::steady_clock::now();
@@ -154,7 +157,9 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
             // the device grid needs this chunk's changed voxels only (a border-plane-only chunk: none)
             const glm::ivec3 dLo = voxelEdited[i] ? vLo[i] : glm::ivec3(1), dHi = voxelEdited[i] ? vHi[i] : glm::ivec3(0);
             std::string gerr;
-            if (gpu->rowsDelta(residentKey(i), c.grid, c.border, dLo, dHi, plan, &m_cards, d.added,
+            VoxelGrid dense;   // F3.2a: the device path takes a dense grid (opt-in; the expansion is in rows wall)
+            c.store.toGrid(dense);
+            if (gpu->rowsDelta(residentKey(i), dense, c.border, dLo, dHi, plan, &m_cards, d.added,
                                &gerr)) {
                 d.removed = plan.removed;
                 d.rowsMeshed = plan.rows();
@@ -168,7 +173,7 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
             }
         }
         if (!done) {
-            d = m_legacyF31 ? meshRunsPlanWholeRows(c.grid, e, plan, &m_cards) : meshRunsPlan(c.grid, e, plan, &m_cards);
+            d = m_legacyF31 ? meshRunsPlanWholeRows(c.store, e, plan, &m_cards) : meshRunsPlan(c.store, e, plan, &m_cards);
             if (gpu) gpu->forgetResident(residentKey(i));   // the fallback changed voxels behind the device's copy
         }
         st.rowsWallMs += msSince(tr);
@@ -177,13 +182,13 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
         applyClusteredDelta(c.faces, c.groups, d, m_clusterBlocks, m_octant);
         st.clusterMs += msSince(t);
         t = std::chrono::steady_clock::now();
-        st.sprigsAdded += updateSprigs(c.sprigs, c.grid, e, sprigParams(i), bLo[i], bHi[i]);
+        st.sprigsAdded += updateSprigs(c.sprigs, c.store, e, sprigParams(i), bLo[i], bHi[i]);
         st.sprigMs += msSince(t);
         if (voxelEdited[i]) {
             t = std::chrono::steady_clock::now();
             // F3.1: connectivity is a function of the blocking bits alone -- flood only when one changed
-            if (updateBlockBlocking(c.grid, m_seeThrough, vLo[i], vHi[i], c.blocking) || m_legacyF31) {
-                c.connect = connectivityFromBlocking(c.grid.dim / 8, c.blocking);
+            if (updateBlockBlocking(c.store, m_seeThrough, vLo[i], vHi[i], c.blocking) || m_legacyF31) {
+                c.connect = connectivityFromBlocking(c.store.dim() / 8, c.blocking);
                 ++st.connectFloods;
             }
             st.connectMs += msSince(t);

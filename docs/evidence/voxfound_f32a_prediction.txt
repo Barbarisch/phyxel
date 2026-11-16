@@ -1,0 +1,55 @@
+F3.2a -- the edit store becomes the BlockStore (VoxelFoundationPlan §9b). Written 2026-11-16, BEFORE any code.
+
+Today (F2.16-F3.1) RegionEdit keeps each chunk's voxels as a dense VoxelGrid: 256^3 B = 16.7 MB per chunk, 545.5 MB
+(edit_store_bytes) for the gate region's 32 chunks. F1 built the store's CPU form (BlockStore: 8 B directory entry per
+8^3 block, detailed blocks 512 B material + 64 B mask in a pool, collapse() per edit batch) and measured it on the same
+forest (Perlin s7 forest (8160,96): 3.90 MB per 32 x 32 m footprint with flora, 6.04 detailed blocks per column).
+
+Change:
+1. RegionEdit::Chunk holds a BlockStore (built from the region build's grid once per chunk; collapse() at the end of
+   every edit that touched the chunk). The dense grid is dropped after the conversion.
+2. The incremental rebuild reads the store: meshRunsPlan (and the legacy whole-row executor), foliageSprigsBox /
+   updateSprigs, blockBlocking / updateBlockBlocking get BlockStore overloads (the same code, templated on the reader).
+3. Paths that need a dense grid get one built on demand from the store (BlockStore -> VoxelGrid): verify, replace_all,
+   the opt-in device rows (whole upload on a resident miss). Their cost is reported, not part of the edit path.
+
+Red first:
+- CPU VoxFoundMesher.BlockStoreReadersEqualTheDenseOnes: engine terrain + random brush churn; after every edit the
+  BlockStore overloads (rows delta, sprigs, blocking) equal the VoxelGrid ones on the same voxels, and the store
+  equals the dense reference (compareToReference). Red on stubs that return empty results.
+- CPU VoxFoundMesher.RegionEditAssemblesOnlyWhatChanged keeps passing with the store inside RegionEdit; plus
+  RegionEdit::bytes() <= 1/5 of the dense bytes on its two chunks.
+
+Predictions (live, gate region, Release, F3.1's gate script and edit generator, every edit verified):
+1. Exact: 0 face / sprig / connectivity mismatches; 0 px vs replace_all at the two poses.
+2. Edit store: 40-80 MB for the 32 chunks (16 forest footprints x ~3.9 MB, the upper chunks almost all one entry per
+   block + their 256 KB directories) vs 545.5 MB: 7-14x smaller (F1's gate asked >= 5x).
+3. Edit cost (request to lists ready, median): 1 voxel 0.3-0.5 ms, 1 m 0.5-0.67 ms (F3.1 0.53; reads through the
+   directory cost more per cell, collapse adds 0.02-0.1 ms), 4 m 6-10 ms. Stop line: 1 m median > 0.67 ms -> profile
+   before anything else (the F3.1 gate must keep holding).
+4. Region build + conversion: +0.3-1.5 s on the ~26 s build (32 x 16.7 M voxels scanned once).
+
+==== MEASURED (2026-11-16; voxfound_f32a_gate.txt / .json / _edits.jsonl; one session, Release, Battle.net launcher
+     only, no WoW before or after; F3.1's gate with the same edit generator, so every edit is the same as F3.1's) ====
+Red first: BlockStoreReadersEqualTheDenseOnes red on the stubs (store empty), green after (80 edits on engine terrain
+with leaf blobs and real border planes: rows delta lazy + whole-row, sprigs, blocking + change report equal to the
+dense readers after every edit; toGrid round-trips; store 1.60 MB vs 12.0 MB dense on that area). The RegionEdit
+bytes bound (<= 1/5 of the dense grids: 4.70 MB vs 32 MB on the test's two chunks) was added with the switch and NOT
+run red first (the dense voxels alone are 32 MB > the 6.4 MB bound). CPU 64/64, GPU 22/22.
+1. Exact: 0 face / sprig / connectivity mismatches in 153 verified edits; 0 px vs replace_all at forest_floor_open
+   and overview_south, controls 0 px; after 200 more edits 1 px, as in all three F3.1 runs. HELD.
+2. Edit store: 62.9 MB after the build vs 545.5 MB dense: 8.7x smaller (predicted 40-80 MB, 7-14x: HELD); 67.3 MB
+   after the 200 timed edits, 73.5 MB after 200 more (edits add detailed blocks).
+3. Request to lists ready, median / p90 ms (F3.1 run 3 on the same edits, other session, in brackets):
+     1 voxel 0.36 / 0.96 (0.29 / 0.75); 1 m 0.66 / 1.31 (0.53 / 0.75); 2 m 1.42 / 2.08 (1.04 / 1.33);
+     4 m 7.21 / 9.16 (6.17 / 7.84).
+   Predicted 1 voxel 0.3-0.5 HELD; 1 m 0.5-0.67 HELD (0.66: the stop line not crossed, by 1.5 %); 4 m 6-10 HELD.
+   Paired per edit (same edit in both sessions), median difference store - dense: 1 voxel +0.006, 1 m +0.049
+   (set +0.016, rows +0.009, plan +0.007), 2 m +0.22 (set +0.08, collapse +0.05), 4 m +1.60 (set +0.74, collapse
+   +0.24) ms. The rest of the shift in medians is per-edit noise (the legacy arm: 1 m 6.22 here vs 7.06 there).
+   Cause: the brush writes voxel by voxel through set() (a directory branch per voxel, a block made detailed and then
+   collapsed back), not a block at a time.
+4. Region build + conversion: wall 26.8 s vs 25.8 s (F3.1 run 3): +1.0 s (predicted +0.3-1.5: HELD).
+Verdict: the store is 8.7x smaller and exact; the F3.1 gate still holds at the median with almost no margin. Owed
+to F3.2b (brushes): whole-block writes (a brush block fully covered becomes one directory entry, no per-voxel set,
+no collapse of it), which is where the 4 m cost went.

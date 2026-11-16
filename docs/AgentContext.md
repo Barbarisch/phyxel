@@ -507,8 +507,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       median request to lists ready (p90 0.75; F2.17 path 7.1 ms same session; {"legacy":true} is the A/B), exact
       (verify + 0 px). Lazy rows, flood skipped unless a blocking bit flips, assemble in place + sprig spans.
       Edit timings vary up to 4x between sessions for the SAME work: always A/B in one session (ABBA).
-      NEXT: F3.2 (brushes 1/2/4/8 voxels in voxel coords over the API; the edit store becomes the BlockStore instead
-      of a dense 16.7 MB grid per chunk = 545 MB on the gate region). Then F3.3 codec v3, F3.4 converter, F3.5 gate.
+      F3.2a (2026-11-16): RegionEdit's store is the BlockStore (545.5 -> 62.9 MB, exact); 1 m edit 0.66 ms median
+      (gate 0.67 by 1.5 %): the brush writes voxel by voxel through set() + collapse (4 m +1.6 ms).
+      NEXT: F3.2b (brushes 1/2/4/8 voxels on the voxel grid in voxel coords over the API, whole-block writes for
+      covered blocks; picking -> voxel position + face). Then F3.3 codec v3, F3.4 converter, F3.5 gate.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

@@ -30,6 +30,8 @@
 
 namespace Phyxel::Core::VoxFound {
 
+class BlockStore;   // StorageLab.h (F1); F3.2a: the incremental rebuild reads it directly
+
 struct Quad {
     glm::ivec3 o{0};
     uint8_t axis = 0;
@@ -380,6 +382,10 @@ RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, gl
 RunsDelta meshRunsPlan(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards = nullptr);
 /// F2.16's executor, kept as the reference for F3.1's: every planned row evaluated over the whole slice width.
 RunsDelta meshRunsPlanWholeRows(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards = nullptr);
+/// F3.2a: the same executors reading the BlockStore (the edit store) -- equal to the VoxelGrid ones on the same voxels
+/// (VoxFoundMesher.BlockStoreReadersEqualTheDenseOnes).
+RunsDelta meshRunsPlan(const BlockStore& s, Edges outside, const RunsPlan& plan, const CardSet* cards = nullptr);
+RunsDelta meshRunsPlanWholeRows(const BlockStore& s, Edges outside, const RunsPlan& plan, const CardSet* cards = nullptr);
 /// The sprigs (foliageSprigs) of the cells in [lo, hi] (clamped to the grid).
 std::vector<PackedFace> foliageSprigsBox(const VoxelGrid& g, Edges outside, const SprigParams& p, glm::ivec3 lo,
                                          glm::ivec3 hi);
@@ -387,12 +393,17 @@ std::vector<PackedFace> foliageSprigsBox(const VoxelGrid& g, Edges outside, cons
 /// [lo - 1, hi + 1] and appends that box's new ones. Returns the number of sprigs added.
 size_t updateSprigs(std::vector<PackedFace>& sprigs, const VoxelGrid& g, Edges outside, const SprigParams& p,
                     glm::ivec3 lo, glm::ivec3 hi);
+size_t updateSprigs(std::vector<PackedFace>& sprigs, const BlockStore& s, Edges outside, const SprigParams& p,
+                    glm::ivec3 lo, glm::ivec3 hi);   // F3.2a
 /// F2.10's per-block rule kept as data: blocking[b] = 1 iff all 512 voxels of block b are solid and not see-through
 /// (index b.z + nb.z * (b.y + nb.y * b.x)). Grid sides must be multiples of 8. updateBlockBlocking redoes the blocks
 /// the voxel box [lo, hi] touches and returns whether any bit changed (F3.1: no change = the connectivity, a function
 /// of the bits alone, is unchanged); connectivityFromBlocking is blockFaceConnectivity's flood over them.
 std::vector<uint8_t> blockBlocking(const VoxelGrid& g, const CardSet& seeThrough);
 bool updateBlockBlocking(const VoxelGrid& g, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
+                         std::vector<uint8_t>& blocking);
+std::vector<uint8_t> blockBlocking(const BlockStore& s, const CardSet& seeThrough);   // F3.2a
+bool updateBlockBlocking(const BlockStore& s, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
                          std::vector<uint8_t>& blocking);
 FaceConnect connectivityFromBlocking(glm::ivec3 nBlocks, const std::vector<uint8_t>& blocking);
 /// Keeps one chunk's faces in clusterFaces + splitByDirection order through a delta (`groups` = the direction groups

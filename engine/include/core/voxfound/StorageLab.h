@@ -116,7 +116,30 @@ BlockStats blockStats(const VoxelGrid& g);    // grid dims must be multiples of 
 class BlockStore {
 public:
     explicit BlockStore(glm::ivec3 dimVoxels);   // dims must be multiples of kBlock
+    BlockStore() : BlockStore(glm::ivec3(0)) {}
+    /// F3.2a: the store of a dense grid (whole blocks written at once: uniform blocks stay one entry).
+    static BlockStore fromGrid(const VoxelGrid& g);
+    /// F3.2a: the dense grid of the store (dim + material only), for the paths that need one (verify, uploads).
+    void toGrid(VoxelGrid& g) const;
     glm::ivec3 dim() const { return m_dim; }
+    bool in(glm::ivec3 p) const {
+        return p.x >= 0 && p.y >= 0 && p.z >= 0 && p.x < m_dim.x && p.y < m_dim.y && p.z < m_dim.z;
+    }
+    /// get() without the range check (p must be inside).
+    uint8_t at(glm::ivec3 p) const {
+        const glm::ivec3 b(p.x >> 3, p.y >> 3, p.z >> 3);
+        const uint64_t e = m_dir[blockIndex(b)];
+        if (!(e & kDetailed)) return uint8_t(e & 0xFF);
+        return m_pool[uint32_t(e & 0xFFFFFFFFull)].mat[(p.z & 7) + 8 * ((p.y & 7) + 8 * (p.x & 7))];
+    }
+    /// true + the material when block b is one uniform entry (a detailed block may still hold one material until
+    /// collapse()).
+    bool uniformBlock(glm::ivec3 b, uint8_t& m) const {
+        const uint64_t e = m_dir[blockIndex(b)];
+        if (e & kDetailed) return false;
+        m = uint8_t(e & 0xFF);
+        return true;
+    }
     void set(glm::ivec3 p, uint8_t material);
     uint8_t get(glm::ivec3 p) const;             // out of range reads air
     bool blockSolidAny(glm::ivec3 block) const;  // §3.2 solidity summary: any solid voxel in this block

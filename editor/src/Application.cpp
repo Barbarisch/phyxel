@@ -13779,7 +13779,8 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
             const SprigParams sp = voxFoundEdit.sprigParams(i);
             std::vector<PackedFace> out;
             std::string err;
-            if (!voxFoundBuilder->build(c.grid, Edges(c.border), out, &err, &sp)) {
+            const VoxelGrid g = voxFoundEdit.dense(i);   // F3.2a: the store expanded for the full rebuild
+            if (!voxFoundBuilder->build(g, Edges(c.border), out, &err, &sp)) {
                 response = {{"error", err}};
                 return;
             }
@@ -13870,7 +13871,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
                 {"sprigs_added", st.sprigsAdded}, {"rows_on_device", st.onDevice}, {"rows_error", rowsErr},
                 {"plan_ms", st.planMs}, {"rows_wall_ms", st.rowsWallMs}, {"rows_gpu_ms", st.rowsGpuMs},
                 {"upload_bytes", st.uploadBytes}, {"resident_misses", st.residentMisses},
-                {"set_ms", st.setMs}, {"faces_ms", st.facesMs}, {"cluster_ms", st.clusterMs},
+                {"set_ms", st.setMs}, {"collapse_ms", st.collapseMs}, {"edit_store_bytes", voxFoundEdit.bytes()}, {"faces_ms", st.facesMs}, {"cluster_ms", st.clusterMs},
                 {"sprig_ms", st.sprigMs}, {"connect_ms", st.connectMs}, {"rebuild_ms", ms(t0, t1)},
                 {"assemble_ms", ms(t1, t2)}, {"faces", voxFoundPreview.liveFaces()},
                 {"connect_floods", st.connectFloods}, {"assemble_bytes", voxFoundPreview.lastCopyBytes},
@@ -13885,7 +13886,8 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
             const SprigParams sp = voxFoundEdit.sprigParams(i);
             std::vector<PackedFace> out;
             std::string err;
-            if (!voxFoundBuilder->build(c.grid, Edges(c.border), out, &err, &sp)) {
+            const VoxelGrid g = voxFoundEdit.dense(i);   // F3.2a: the store expanded for the full rebuild
+            if (!voxFoundBuilder->build(g, Edges(c.border), out, &err, &sp)) {
                 response["verify_error"] = err;
                 break;
             }
@@ -13901,7 +13903,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
             diff.clear();
             std::set_symmetric_difference(sa.begin(), sa.end(), sb.begin(), sb.end(), std::back_inserter(diff));
             sprigMiss += diff.size();
-            connMiss += c.connect != blockFaceConnectivity(c.grid, voxFoundEdit.seeThrough()) ? 1u : 0u;
+            connMiss += c.connect != blockFaceConnectivity(g, voxFoundEdit.seeThrough()) ? 1u : 0u;
             // "replace_with_full": draw the full rebuild's lists instead (the pixel A/B reference)
             if (ej.value("replace_with_full", false)) voxFoundEdit.replaceFaces(i, out);
         }

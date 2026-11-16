@@ -28,7 +28,7 @@ public:
     struct Chunk {
         glm::ivec3 chunk{0};         // engine chunk coordinate
         glm::ivec3 originVoxel{0};   // world 1/8 m voxel of grid voxel (0,0,0)
-        VoxelGrid grid;              // dim + mat only (part / fixed left empty)
+        BlockStore store;            // F3.2a: the voxels (materials), the F1 store instead of a dense 256^3 grid
         Neighbours border;
         std::vector<PackedFace> faces;     // level-0 solid faces, cluster order
         std::vector<FaceCluster> groups;   // their direction groups
@@ -39,7 +39,7 @@ public:
     struct Stats {
         size_t chunksEdited = 0, chunksRebuilt = 0, voxelsChanged = 0;
         size_t facesRemoved = 0, facesAdded = 0, rowsMeshed = 0, sprigsAdded = 0;
-        double facesMs = 0, sprigMs = 0, connectMs = 0, clusterMs = 0, setMs = 0;
+        double facesMs = 0, sprigMs = 0, connectMs = 0, clusterMs = 0, setMs = 0, collapseMs = 0;
         double planMs = 0, rowsWallMs = 0, rowsGpuMs = 0;   // facesMs = plan + rows (device wall, or the CPU executor)
         size_t uploadBytes = 0, residentMisses = 0;
         size_t connectFloods = 0;   // F3.1: floods run (only when a block's "blocks sight" bit changed)
@@ -56,6 +56,12 @@ public:
     bool empty() const { return m_chunks.empty(); }
     size_t chunkCount() const { return m_chunks.size(); }
     const Chunk& chunk(size_t i) const { return m_chunks[i]; }
+    /// F3.2a: chunk i's voxels as a dense grid (dim + material), for the paths that need one (verify, replace_all).
+    VoxelGrid dense(size_t i) const {
+        VoxelGrid g;
+        m_chunks[i].store.toGrid(g);
+        return g;
+    }
     size_t bytes() const;
 
     /// Starts a store for the chunks [lo, hi]. cards = leaf materials (no faces, sprigs); seeThrough = F2.10's set.
