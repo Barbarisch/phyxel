@@ -72,8 +72,9 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
    with flow). **§54: W5.1 (the record carries its current) and W5.2a (a near reach simulated) BUILT, not signed off; the seam's
    cause - the record's river rising downstream - the owner's call (54.2); W5.2b (the reach follows the player; the water core
    steps in play) BUILT, not signed off (54.3); W5.3 (one ripple layer over the river near the viewer - no line at a reach's
-   edge, no wait at a swap) BUILT, not signed off (54.4); W5 next: the owner's look at w53_clip, then W6.**
+   edge, no wait at a swap) BUILT, not signed off (54.4; the owner: "definitly looks better").**
 4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
+   **§55: step 0 MEASURED (what draws the sea today); next W6.1 (the sea to the horizon).**
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
@@ -14292,6 +14293,33 @@ READY with amendments A1-A4; built as designed).
   creek window's 4 m moves); in-flight steps dropped at a device move do not count their broken water (`broken_m3`, a stat); the
   record's level steps (54.2's seam cause, the owner's call) show under the river where the ripples fade.
 - **Not in W5.3:** the forcing on the GPU (drift 1); a farther ripple reach (the atlas); the seam's cause (54.2); D9's cut.
+- **The owner on w53_clip (verbatim, 2026-11-16):** "definitly looks better. hopefully fps issues will be worked out at some point. i
+  would bet that having water constantly flowing would cause too many issues, but i will let you figure it out. keep going". Status
+  stays built, not signed off (the sign-off sweep, §0a item 5). The frame rate: track C (the tier tables) and D9's cut, both on the
+  owner's list. "Water constantly flowing": the design already simulates only near the player (the follow reach) and draws the rest
+  from the record - written down here as the rule W6 keeps (the sea's swell offshore is appearance, never simulated).
+
+## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today)
+
+**55.0 Step 0 (2026-11-16) - what draws the sea today, measured before W6 is designed** (`tools/water_w6_step0.py`, WaterBench_Coast,
+the shipped game.json, restored world; two engine runs, the old sheet ON (shipped) and OFF (RIG: game.json `water.enabled` false -
+the sheet has no runtime switch; restored after). Three poses: the spawn (50 m up, the beach and the sea), the shore (2 m over the
+sand, looking out), high (136 m up, pitch -12, looking out to sea)).
+- **The old sea sheet (`water.frag`) draws nothing visible:** sheet on vs off differ only where wind moves grass and leaves (pixels
+  off by > 8: spawn 0.38 %, shore 2.1 % - the blade band, high 0.0004 %). Read from the code: its water-layer grid is the old water's
+  hydro grid, "off-grid is dry in every mode" (`WaterRenderPipeline.cpp`), and W4.2 stopped binding it. The sea on screen is already
+  the new water's: the record tiles near (`draw_m` 48) and the far skin (51.4) beyond.
+- **The sea stops short of the horizon** (high pose, `w6s0_off_high{,_noskin,_nowater}.png`; the skin and record drawing switched off
+  in turn to say which draws what): the skin's water ends at ~1,020 m (its `far_m` 1024 - 4 levels of 64 cells, 4-32 m); past it the
+  SEABED shows (pale sand, the far terrain - `farTerrain.maxDistance` 2048); past the far terrain's last drawn row (~1,550 m at this
+  pitch) NOTHING is drawn - the sky below the horizon (dark navy, `sky.frag`) fills the band up to the horizon line. From the beach
+  (shore pose) the sea reads to the horizon (the skin's 1 km is past the visible horizon at 2 m eye height).
+- **Seen, logged, left:** the record tiles at the spawn and high poses: 0 built, 119 / 95 pending after 20 s (the skin draws there -
+  51.4's handover; whether the pending count ever drains at 50 m up is not looked at).
+- **What W6 needs, from this:** (1) the sea drawn to the horizon - the skin's reach out to the far terrain's and a ring past it to the
+  horizon, the recorded sea from the generator (no water where the generator has land); (2) the old sheet deleted (§9's ledger kept
+  it until W6; it draws nothing); (3) the shore band near the player (the pond model) with the swell offshore as appearance - after
+  (1), each designed and design-checked first.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
