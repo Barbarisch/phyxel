@@ -284,6 +284,29 @@ public:
     const RiverFollowState& riverFollowState() const { return m_followState; }
     /// Call once a frame with the viewer (world m) and a clock (s): throttled to m_follow.checkS inside.
     void followRiver(const glm::vec3& viewer, double nowS);
+    /// 54.4 (W5.3): ONE ripple layer over the RIVER near the viewer - the record's river and any reach over it alike, so the ripples
+    /// do not stop at a reach's edge and are not remade at every swap (the owner on w52b_clip: "it takes a while for the ripples to
+    /// show up as the camera moves. and the line between ripples and not is very obvious"). Its window follows the viewer (the reach
+    /// rule's side, rippleWindowSide(rippleM), on the 4 m lattice); its cells: a reach volume's surface where one holds the column
+    /// (the awake volume wins), else the record (riverRippleFromRecord); its forcing: the bed shear of the water's current
+    /// (bedShearRippleImpulse - the volume's formula) within rippleM of the viewer. Alive while river water (a non-zero record
+    /// current, or a reach) lies in the window. A reach takes no layer of its own while this is on; ponds keep theirs. Appearance
+    /// only: it moves no water. ON by default (WaterRippleTest pins it).
+    struct RiverRipple { bool on = true; };
+    struct RiverRippleStats {
+        bool active = false; int slot = -1; glm::ivec2 origin{0}; int side = 0;
+        int wetCells = 0, riverCells = 0, reachCells = 0, forcedCells = 0, kinematicCells = 0;
+        int rebuilds = 0, made = 0, dropped = 0, waiting = 0;   ///< the record part rebuilt (window moved / record changed); layers made / dropped; no free slot
+        double ms = 0.0, rebuildMs = 0.0;
+        /// the step split (this step) and the session's worst of each: the window's move (the GPU levels synced back), the record
+        /// part's rebuild, the reaches' overlay + forcing + bodies, the layer's step (record / submit)
+        double shiftMs = 0.0, overlayMs = 0.0, stepMs = 0.0;
+        double msMax = 0.0, shiftMsMax = 0.0, rebuildMsMax = 0.0, overlayMsMax = 0.0, stepMsMax = 0.0;
+    };
+    void setRiverRipple(const RiverRipple& r) { m_river = r; }
+    const RiverRipple& riverRipple() const { return m_river; }
+    const RiverRippleStats& riverRippleStats() const { return m_riverStats; }
+    const RippleLayer* riverRippleLayer() const { return m_riverLayer.get(); }
     /// 54.2: the volume's prescribed-surface columns (replaces the list; CPU and GPU). False for an unknown id or a GPU refusal.
     bool setBoundaries(int id, const std::vector<BoundarySpec>& b, std::string* err);
     bool setAutoSleep(int id, bool on);
@@ -879,6 +902,7 @@ public:
     int kickRipplesForTest(float x, float z, float impulse) {
         int n = 0;
         for (auto& av : m_avs) if (av->ripple) { av->ripple->addImpulse(x, z, impulse); ++n; }
+        if (m_riverLayer) { m_riverLayer->addImpulse(x, z, impulse); ++n; }   // 54.4
         return n;
     }
     /// E2 (docs/WaterCore.md 19.6): where the water is still MOVING since the last call - per volume, a
@@ -1105,6 +1129,23 @@ private:
     RiverFollow m_follow;              // 54.3
     RiverFollowState m_followState;
     void releaseFollowReach();
+    // 54.4 (W5.3): the river ripple layer
+    RiverRipple m_river;
+    RiverRippleStats m_riverStats;
+    std::unique_ptr<RippleLayer> m_riverLayer;
+    int m_riverSlot = -1;
+    RiverRippleRecord m_riverRec;                 // the record part (rebuilt when the window moves or the record changes)
+    glm::ivec4 m_riverRecKey{0};                  //   its window (origin x, z, side) and
+    uint64_t m_riverRecRev = ~0ull;               //   the span revision it read
+    std::vector<glm::vec2> m_riverVel;            // the cells' current this step (the record's, a reach's where one holds the column)
+    std::vector<float> m_riverDepth, m_riverTop;  //   and depth / surface
+    std::vector<uint8_t> m_riverIsReach;          //   1 where a reach's surface gave the cell
+    uint32_t m_riverFrame = 0;                    // the forcing's hash frame
+    uint64_t m_riverSpanWrites = 0;               // writeSpans calls (a reach's release, a sleep): the record part reads again
+    glm::ivec2 riverWindowOrigin(bool has, const glm::ivec2& cur, int side) const;
+    void refreshRiverRecord(const glm::ivec2& origin, int side);
+    bool riverCoversReaches() const { return m_river.on && m_rstats.on; }
+    void stepRiverRipple(float dt, bool gpu);
     WaterBodyTable m_bodies;
     std::vector<WriteBackRecord> m_autoSlept;
     long m_worldResets = 0;   // A2i (47)

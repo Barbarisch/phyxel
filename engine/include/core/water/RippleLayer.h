@@ -52,6 +52,7 @@ public:
 
     /// 1 = water (evolves), 0 = masked (solid / dry: r held at 0). Set before step(); default all water.
     std::vector<uint8_t>& mask() { return m_mask; }
+    const std::vector<uint8_t>& mask() const { return m_mask; }
     /// Cells on the layer's border that are water continue past the volume: absorbed over 2 cells (no reflection).
     void setOpenBorder(bool open) { m_openBorder = open; }
 

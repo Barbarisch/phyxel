@@ -131,6 +131,52 @@ TEST_F(WaterRippleGpuParityTest, ABodyCrossingTheSurface) {
     EXPECT_LE(d.maxDiff, 0.01f * d.maxAbs);
 }
 
+// (6) WaterCore 54.4 (W5.3): a window MOVED ON THE DEVICE (RippleGpu::shift - no wait) equals the CPU's move. A ring on a 0.5 m/s
+// current in a 160 x 60 window; at frames 30, 31 and 70 the window moves (+36, 0), (-9, +4), (+20, -13) cells, as the river layer's
+// does in 4 m steps (frame 31: a move while the frame-30 move's step is still in flight). Parity as above (<= 1 %). RED: the CPU's
+// levels moved but the device's left (shiftOrigin alone, no device copy, not marked dirty) - the device keeps stepping the old
+// window: parity fails.
+TEST_F(WaterRippleGpuParityTest, AWindowMovedOnTheDevice) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto runShift = [&](bool device) {
+        std::vector<glm::vec2> vel(160 * 60, glm::vec2(0.5f, 0.0f));
+        RippleLayer cpu({0, 0}, 160, 60), g({0, 0}, 160, 60);
+        for (RippleLayer* L : {&cpu, &g}) { L->setOpenBorder(true); L->setBreakSlope(0.0f); }
+        const float dt = 1.0f / 60.0f;
+        auto moveAt = [](int f) { return f == 30 ? glm::ivec2(36, 0) : f == 31 ? glm::ivec2(-9, 4) : f == 70 ? glm::ivec2(20, -13) : glm::ivec2(0); };
+        int deviceMoves = 0;
+        for (int f = 0; f < 120; ++f) {
+            const glm::ivec2 mv = moveAt(f);
+            if (mv != glm::ivec2(0)) cpu.shiftOrigin(cpu.origin() + mv);
+            auto src = [&](RippleLayer& L) { if (f == 0 || f == 50) L.addImpulse(80.5f * kD, 30.5f * kD, 50.0f); };   // world position
+            src(cpu); cpu.advect(vel, dt); cpu.step(dt);
+            gpu.collect({&g});
+            if (mv != glm::ivec2(0)) {
+                if (device) { if (gpu.shift(g, g.origin() + mv)) ++deviceMoves; else { g.shiftOrigin(g.origin() + mv); gpu.markDirty(g); } }
+                else g.shiftOrigin(g.origin() + mv);   // the red: the device not moved
+            }
+            src(g);
+            gpu.record(g, dt, &vel);
+            gpu.submit();
+        }
+        gpu.drain({&g});
+        Diff d;
+        for (size_t i = 0; i < cpu.heights().size(); ++i) {
+            d.maxAbs = std::max(d.maxAbs, std::abs(cpu.heights()[i]));
+            d.maxDiff = std::max(d.maxDiff, std::abs(cpu.heights()[i] - g.heights()[i]));
+        }
+        return std::make_pair(d, deviceMoves);
+    };
+    const auto [d, moves] = runShift(true);
+    const auto [red, redMoves] = runShift(false);
+    std::printf("  moved on the device (%d moves): max |gpu - cpu| %.3e m of max |cpu| %.3e m (%.3f %%); RED (device not moved): %.3e (%.1f %%)\n",
+                moves, d.maxDiff, d.maxAbs, 100.0 * d.maxDiff / d.maxAbs, red.maxDiff, 100.0 * red.maxDiff / red.maxAbs);
+    ASSERT_GT(d.maxAbs, 1e-4f);
+    EXPECT_EQ(moves, 3) << "every move went through the device";
+    EXPECT_LE(d.maxDiff, 0.01f * d.maxAbs);
+    EXPECT_GT(red.maxDiff, 0.01f * red.maxAbs) << "the red: a window moved on the CPU alone must leave parity";
+}
+
 // H1b-T4 COST (diagnostic): the three 25.31 windows with flow-forcing impulses on every water cell and a sheared current.
 // CPU wall per frame of the GPU path (collect + record + submit; the wait is reported apart - here nothing renders in
 // between, so it is the device time itself) and the device time; the CPU step for comparison.

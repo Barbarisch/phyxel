@@ -71,7 +71,8 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
 3. **W5 - rivers at scale:** generated rivers that FLOW (near reaches simulated, fed and drained from the record; far reaches drawn
    with flow). **§54: W5.1 (the record carries its current) and W5.2a (a near reach simulated) BUILT, not signed off; the seam's
    cause - the record's river rising downstream - the owner's call (54.2); W5.2b (the reach follows the player; the water core
-   steps in play) BUILT, not signed off (54.3); next W5.3 (the drawn surface moves).**
+   steps in play) BUILT, not signed off (54.3); W5.3 (one ripple layer over the river near the viewer - no line at a reach's
+   edge, no wait at a swap) BUILT, not signed off (54.4); W5 next: the owner's look at w53_clip, then W6.**
 4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
@@ -13995,7 +13996,7 @@ each, 51.3b) = **~390 MB of GPU memory**, over the pinned 256 MB kept-memory cap
 patch-only allowance. Not built. The other parts (the CPU grid for a GPU patch, 12-14 ms; the tile wakes) are code changes with no
 trade, larger, not started. Not measured: the API round trip's ~30 ms split; the recorder's own cost.
 
-## 54. W5 - rivers that flow (owner's order 2026-11-14, item 3). Status: W5.1 BUILT, not signed off (`w5_clip.mp4`); W5.2a BUILT, not signed off (`w52_clip.mp4`) - its seam fails where the record's river rises downstream: the fix is the owner's call (54.2); W5.2b BUILT, not signed off (`w52b_clip.mp4`, 54.3)
+## 54. W5 - rivers that flow (owner's order 2026-11-14, item 3). Status: W5.1 BUILT, not signed off (`w5_clip.mp4`); W5.2a BUILT, not signed off (`w52_clip.mp4`) - its seam fails where the record's river rises downstream: the fix is the owner's call (54.2); W5.2b BUILT, not signed off (`w52b_clip.mp4`, 54.3); W5.3 BUILT, not signed off (`w53_clip.mp4`, 54.4)
 
 **Step 0 - the inventory (2026-11-15, read from the code; W5 in §27: "a far reach is a record with a discharge and appearance flow; a
 near reach is simulated, fed and drained at its ends from the record"; gates: the creek bench's numbers on a simulated reach inside a
@@ -14215,6 +14216,82 @@ READY with amendments A1-A4; built as designed).
   echo only); the 5 s straight line in the clip not identified.
 - **Not in W5.2b:** the seam's cause (the owner's call, 54.2); the make's stall cut (D9); a touch far from the viewer (no remote edit
   source exists); splashes in generated lakes waking patches (W4's gap); the drawn surface moving (W5.3).
+
+**54.4 W5.3 (2026-11-15) BUILT, not signed off - the river's surface moves: ONE ripple layer over the river near the viewer**
+(`/design-check` READY with amendments 1-3, folded in below).
+- **The owner on w52b_clip (verbatim, 2026-11-15):** "honestly this looks pretty good. it is very jittery, and it takes a while for
+  the "ripples" to show up as the camera moves. and the line between ripples and not is very obvious. but the actual look of the
+  water is very good".
+- **Read from the code before the design:** a reach volume had its OWN ripple layer - its window the reach's whole box, made at rest
+  at every make (every 16 m), its forcing faded to zero over its outer 8 m - and the record's tiles drew none (`rippleLayer = -1`).
+  So the LINE was the reach's box edge (an 8 m faded band, then flat record) and the WAIT was every swap's new layer starting at rest.
+- **Not built - §27's "scrolling flow on rivers":** the owner's standing rule (45.3) - no decorative overlay patterns on water,
+  motion comes from the simulation and meets the shores - is later and the owner's; the motion here is the ripple layer's.
+- **Built:**
+  - `WaterCoreManager` river ripple layer (`RiverRipple {on}`, ON by default, pinned by `WaterRippleTest.TheRiverLayerIsOnByDefault`):
+    one layer, its window the L2 rule (`rippleWindowSide(ripple_m)` - 458 cells at the shipped 21 m - on the 4 m lattice, centred
+    on the viewer); its cells the record's (`RiverReach.h riverRippleFromRecord` - pure: wet, current, depth, surface per 1/9 m cell
+    from the record by world column) with every reach's surface laid over its own box (the awake volume wins its columns); its
+    forcing the bed shear of that water's current - `bedShearRippleImpulse`, now ONE formula for a volume's layer and the river's -
+    within `ripple_m` of the viewer (amendment 1: full to the reach of the draw, where the reach's own layer had faded its outer 8 m);
+    bodies crossing the record's surface drive it with their whole vertical motion (no grid holds them there); droplets landing in a
+    reach kick it. Wanted while river water (a non-zero record current, or a reach) lies in its window; its slot is taken before a
+    waiting pond's (4 slots - amendment 3: 3 left for ponds while a river is near). A reach takes no layer of its own while it is on.
+  - Record tiles draw it (`field.rippleLayer` = its slot; a slot change re-meshes them). `water_surface.frag`: a layer reads 0
+    outside its window (was a clamp to the edge row - amendment 2; `LightingPipeline.md` §9 line, the `.spv` rebuilt).
+  - **The window moves ON THE DEVICE** (`RippleGpu::shift`): both levels copied row by row into the free slots, recorded after what is
+    in flight - no wait; the in-flight steps' results for the old window are not collected. **Found by the first integration run:** the
+    move through `syncPrev` (drain + a fenced copy) waited behind the water's own GPU work - **103 ms** worst at a 4 m move; after: 1.5 ms.
+    The pond / creek windows still move through `syncPrev` (unchanged; logged below).
+  - API `water_ripples {river: {on}}` - omitted = unchanged; echoes `river {on, active, slot, origin, side, wet / river / reach /
+    forced / kinematic cells, rebuilds, the step split (shift, rebuild, overlay + forcing, layer step) and each one's worst}`.
+    `tools/water_w52b_follow.py` gains `--river on|off`, cost states `ron` / `roff` and the layer's ms in its 1 Hz sampler.
+- **Tests** (red first where the code existed):
+  - `RiverReachTest.TheRiverRippleRecordIsTheSameHoweverTheRecordIsRead` (the chunked-vs-whole equality): 4 windows of 458 x 458
+    cells, negative origins - 0 differ read chunked (split at y 32) + shuffled; each sampled cell reads its own world column; control
+    (chunk x -1 missing): differs (28,854 vs 57,708 wet). `TheBedShearForcingIsTheVolumesFormula` pins the one formula.
+  - `WaterRippleGpuParityTest.AWindowMovedOnTheDevice`: three moves (one while the last move's step is in flight) - GPU vs the CPU's
+    move **0.001 %**; RED (the CPU's levels moved, the device's not) **100.4 %**.
+  - `WaterRecordTilesTest.ARiverRippleHasNoLineAtAReachEdge` (the FakeRecord river, a 40 m reach, the viewer 6 m inside each edge for
+    20 s; the RMS facet slope of whichever drawn layer holds the cell, 0 where none does, in 2 m strips): **downstream outside / inside
+    0.97, upstream 0.99** (prediction 0.75-1.33); control (two strips inside) 1.00; RED (the layer off): **outside 0.0000** (the
+    record unrippled), inside the downstream edge 0.118 vs 0.169 deeper in (the reach's faded band), upstream inside 0.026. One layer
+    made, never remade; the reach's water and the record **bit-identical** with the layer on and off (ripples carry no water).
+  - `WaterRecordTilesTest.ARiverRippleIsThereAsTheViewerMoves` (the shipped follow; the viewer stands 20 s then walks 160 m at 5 m/s,
+    10 swaps; the RMS slope within 12 m every 0.5 s): **minimum 89 % of steady** (prediction >= 70 %); RED (the layer off) **44 %**
+    (each swap's new layer at rest). **Spin-up 2.0 s** from the first make to 70 % (prediction 2-4 s - no warm start needed). The
+    layer's worst step 13.5 ms (window move 1.5, record rebuild 1.7, overlay + forcing 7.4, layer step 6.5 - each its own worst).
+  - Unit (the 54.3 set): 645 / 645. GPU water integration 93 / 95: the known two (54.1's line).
+- **Live L4** (WaterBench_RiverCarve, the shipped game.json, restored world):
+  - **The edge, as stills** (`tools/water_w53_edge.py` -> `w53_edge_{on,off}_{look,ripple}.png`, `w53_edge.json`): the camera 8 m
+    over the river 11 m inside the follow reach's downstream edge, looking down the river (RIG: the follow's margin 2 m for the stills
+    - shipped 8; at 8 the aiming chased the reach downstream - restored after). **Looked at:** ON - the ripples run on across the edge,
+    the ripple-height view (debug 7, tonemap curve 0, exposure 1 - the first take at the shipped x8 read white) unbroken to the
+    distance fade; OFF (the engine before 54.4) - the ripple height stops in a straight line at the box edge, flat grey past it, and
+    the drawn water past the edge flat with the record's level steps showing.
+  - **Cost - one flight per fresh engine, ABBA** (`w53_cost_fresh1-4.json`, the 54.3 flight): layer ON **15.7 / 16.3 fps median, CPU
+    63.7 / 61.2 ms, GPU 13.1 / 12.7 ms**; OFF **16.9 / 23.6 fps, CPU 59.3 / 42.5 ms, GPU 12.2 / 12.5 ms** - the OFF pair alone spreads
+    17 ms of CPU; the flight's own ~55 ms (54.3) dominates. **The layer's own step in flight: 3.5 ms CPU median, 5.4 ms max (1 Hz
+    samples, `w53_clip.json`); worst frame 8.7 ms**; 13k cells forced at this river (the test river: 47k).
+  - **The owner's clip: `docs/evidence/water_core_m4/w53_clip.mp4`** (fresh engine, the 54.3 flight, captioned). **Looked at (3 / 25 /
+    39 s):** the near river rippled with the sun's glint at 3 s; at 25 and 39 s the ripples cover the river nearest the camera and the
+    water further down the frame is smooth - **that is the ripple reach (`ripple_m` 21 m: full to 13 m, faded to 0 at 21 m), not a
+    reach edge**: from 12 m up looking 20-40 m ahead, much of the river on screen lies past it. 2-16 fps in those frames (the flight;
+    the longest frame a second 185 ms median outside swaps, 435 ms in swap seconds).
+- **The owner's three points, answered:** the LINE at a reach's edge: gone (tests 0.97 / 0.99, stills). The WAIT as the camera moves:
+  the ripples within 12 m never fell below 89 % while walking (44 % before); the 2 s spin-up now happens only at the window's front,
+  past the draw's fade. What stays visible: **the ripples fade out with distance (13 -> 21 m)** - the L2 knob `ripple_m`, capped at 24 m
+  by the renderer's 512-cell atlas; a farther reach is a renderer change (a bigger atlas or a second, coarser layer) - the owner's call
+  after seeing the clip. **"Very jittery"**: the flight's own frame time (~55 ms CPU, unsplit, 54.3) and each swap's make (110-163 ms,
+  D9's class, the owner's cut unanswered) - not W5.3; this step added no wait (the 103 ms window move it found is fixed).
+- **Drift (one row each):** (1) the design said "if the forcing costs > 2 ms, it goes to the GPU ripple step - measure first":
+  measured **3.5 ms median** for the whole layer step (overlay + forcing ~3 ms of it) - the GPU forcing is NOT built here; the next
+  cost step if the owner keeps this look. (2) `RippleGpu::shift` was not in the design - the blocker its first run found, fixed at
+  its cause. (3) The design check quoted `ripple_m` 24; the shipped default is 21 (`kRippleMDefault`), 24 the clamp.
+- **Seen, logged, left (one line each):** pond / creek windows still move through `syncPrev` (a drain + fence - the same wait, at a
+  creek window's 4 m moves); in-flight steps dropped at a device move do not count their broken water (`broken_m3`, a stat); the
+  record's level steps (54.2's seam cause, the owner's call) show under the river where the ripples fade.
+- **Not in W5.3:** the forcing on the GPU (drift 1); a farther ripple reach (the atlas); the seam's cause (54.2); D9's cut.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

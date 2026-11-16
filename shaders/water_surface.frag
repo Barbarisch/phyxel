@@ -81,7 +81,9 @@ float rippleWeight(vec2 xz) {
 }
 float rippleAt(int L, int x, int z) {
     const ivec4 m = rip.meta[L];
-    x = clamp(x, 0, m.y - 1); z = clamp(z, 0, m.z - 1);
+    // 54.4 (W5.3): outside the layer's window the water has no ripple (0) - the river layer is drawn on record tiles that reach past
+    // its window; the old clamp smeared the edge row outward (harmless while a layer covered its whole field: its rim absorbs to 0)
+    if (x < 0 || z < 0 || x >= m.y || z >= m.z) return 0.0;
     return rip.rh[m.x + x + m.y * z];
 }
 // The ripple slope (dr/dx, dr/dz) and height at world xz. FACETS (the owner's microcube look, default): the slope of

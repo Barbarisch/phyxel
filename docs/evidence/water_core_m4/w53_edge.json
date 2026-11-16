@@ -1,0 +1,177 @@
+{
+ "bench": "WaterBench_RiverCarve",
+ "river_default": {
+  "active": true,
+  "asleep": false,
+  "dropped": 2,
+  "forced_cells": 30393,
+  "kinematic_cells": 0,
+  "made": 3,
+  "max_ms": {
+   "all": 11.2298,
+   "overlay": 5.4583,
+   "rebuild": 1.5834,
+   "shift": 1.0847,
+   "step": 5.6751
+  },
+  "ms": 3.4122,
+  "on": true,
+  "origin": [
+   -15705,
+   -9356
+  ],
+  "overlay_ms": 3.0978,
+  "reach_cells": 28674,
+  "rebuild_ms": 0.6096,
+  "rebuilds": 825,
+  "river_cells": 42066,
+  "shift_ms": 0.0,
+  "side": 458,
+  "slot": 0,
+  "step_ms": 0.3141,
+  "waiting": 0,
+  "wet_cells": 42066
+ },
+ "follow_margin_rig": 2.0,
+ "box": {
+  "min": [
+   -1736,
+   18,
+   -1040
+  ],
+  "max": [
+   -1697,
+   23,
+   -1001
+  ]
+ },
+ "crossing": [
+  -1727.94,
+  -999.22
+ ],
+ "dir": [
+  -0.588,
+  0.809
+ ],
+ "pose": {
+  "x": -1721.4774870611864,
+  "y": 28.06,
+  "z": -1008.1192015951326,
+  "yaw": 125.99275440562741,
+  "pitch": -36.0
+ },
+ "aims": 1,
+ "river_on": {
+  "active": true,
+  "asleep": false,
+  "dropped": 2,
+  "forced_cells": 23933,
+  "kinematic_cells": 0,
+  "made": 3,
+  "max_ms": {
+   "all": 11.2298,
+   "overlay": 5.4583,
+   "rebuild": 1.5834,
+   "shift": 1.0847,
+   "step": 5.6751
+  },
+  "ms": 3.0554,
+  "on": true,
+  "origin": [
+   -15723,
+   -9303
+  ],
+  "overlay_ms": 2.7985,
+  "reach_cells": 28161,
+  "rebuild_ms": 0.6812,
+  "rebuilds": 833,
+  "river_cells": 34830,
+  "shift_ms": 0.0,
+  "side": 458,
+  "slot": 0,
+  "step_ms": 0.2567,
+  "waiting": 0,
+  "wet_cells": 34830
+ },
+ "follow_on": {
+  "reach_id": 11,
+  "min": [
+   -1736,
+   18,
+   -1040
+  ],
+  "max": [
+   -1697,
+   23,
+   -1001
+  ],
+  "makes": 10
+ },
+ "river_off": {
+  "active": false,
+  "asleep": true,
+  "dropped": 3,
+  "forced_cells": 0,
+  "kinematic_cells": 0,
+  "made": 3,
+  "max_ms": {
+   "all": 11.2298,
+   "overlay": 5.4583,
+   "rebuild": 1.5834,
+   "shift": 1.0847,
+   "step": 5.6751
+  },
+  "ms": 0.0,
+  "on": false,
+  "origin": [
+   -15723,
+   -9303
+  ],
+  "overlay_ms": 2.8057,
+  "reach_cells": 0,
+  "rebuild_ms": 0.6812,
+  "rebuilds": 833,
+  "river_cells": 0,
+  "shift_ms": 0.0,
+  "side": 0,
+  "slot": -1,
+  "step_ms": 0.255,
+  "waiting": 0,
+  "wet_cells": 0
+ },
+ "follow_off": {
+  "reach_id": 11,
+  "min": [
+   -1736,
+   18,
+   -1040
+  ],
+  "max": [
+   -1697,
+   23,
+   -1001
+  ],
+  "makes": 10
+ },
+ "follow_margin_restored": 8.0,
+ "shots": {
+  "on": [
+   "w53_edge_on_look.png",
+   "w53_edge_on_ripple.png"
+  ],
+  "off": [
+   "w53_edge_off_look.png",
+   "w53_edge_off_ripple.png"
+  ]
+ },
+ "tonemap_restored": {
+  "bloom": 0.0,
+  "bloomClamp": 8.0,
+  "bloomKnee": 0.5,
+  "bloomRadius": 1.0,
+  "bloomThreshold": 1.0,
+  "curve": 1,
+  "exposure": 8.0,
+  "success": true
+ }
+}

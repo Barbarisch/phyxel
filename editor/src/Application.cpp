@@ -14691,6 +14691,13 @@ void Application::registerWaterCommands() {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setRipples(cmd.params.value("enabled", true));
         if (cmd.params.contains("smooth")) waterCore->setRippleSmooth(cmd.params.value("smooth", false));
+        // 54.4 (W5.3): {river: {on}} the river ripple layer (the record's river and its reaches alike, one window round the viewer);
+        // omitted = unchanged; its reach is ripple_m (water_locality). Echoed under "river".
+        if (cmd.params.contains("river") && cmd.params["river"].is_object()) {
+            auto rv = waterCore->riverRipple();
+            rv.on = cmd.params["river"].value("on", rv.on);
+            waterCore->setRiverRipple(rv);
+        }
         // 25.26 RC: the flow forcing's constant C_f (impulse per area per step = C_f rho u*^2 dt xi); 0 = off. Clamped to 20: past
         // it the ripples of a 0.5 m/s creek exceed the breaking limit everywhere (all forcing, no water)
         if (cmd.params.contains("gpu")) waterCore->setRippleGpu(cmd.params.value("gpu", true));   // 25.34: the A/B switch
@@ -14757,7 +14764,15 @@ void Application::registerWaterCommands() {
                            {"count", s.handovers}, {"last_s", s.lastHandoverS}}},
              {"wind", {{"pa", waterCore->rippleWind().pa}, {"deg", waterCore->rippleWind().deg}, {"mps", waterCore->rippleWind().mps},
                        {"length_m", waterCore->rippleWind().lengthM}, {"evolve_s", waterCore->rippleWind().evolveS}}},
-             {"pitch_m", Core::Water::RippleLayer::kPitch}};
+             {"pitch_m", Core::Water::RippleLayer::kPitch},
+             {"river", [&] { const auto& rs = waterCore->riverRippleStats();
+                 return nlohmann::json{{"on", waterCore->riverRipple().on}, {"active", rs.active}, {"slot", rs.slot}, {"origin", {rs.origin.x, rs.origin.y}},
+                                       {"side", rs.side}, {"wet_cells", rs.wetCells}, {"river_cells", rs.riverCells}, {"reach_cells", rs.reachCells},
+                                       {"forced_cells", rs.forcedCells}, {"kinematic_cells", rs.kinematicCells}, {"rebuilds", rs.rebuilds},
+                                       {"rebuild_ms", rs.rebuildMs}, {"shift_ms", rs.shiftMs}, {"overlay_ms", rs.overlayMs}, {"step_ms", rs.stepMs},
+                                       {"max_ms", {{"all", rs.msMax}, {"shift", rs.shiftMsMax}, {"rebuild", rs.rebuildMsMax}, {"overlay", rs.overlayMsMax}, {"step", rs.stepMsMax}}},
+                                       {"made", rs.made}, {"dropped", rs.dropped}, {"waiting", rs.waiting}, {"ms", rs.ms},
+                                       {"asleep", waterCore->riverRippleLayer() ? waterCore->riverRippleLayer()->asleep() : true}}; }()}};
     });
     reg.on("water_transport", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 26.5 - the owner's A/B
         // all_faces: the all-faces-at-once fill transport (the fixed creek) on every volume, CPU and GPU, from the next step;

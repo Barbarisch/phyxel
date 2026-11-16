@@ -134,3 +134,60 @@ TEST(RiverReachTest, TheNearestRiverPointIsTheSameHoweverTheRecordIsRead) {
     EXPECT_FALSE(eq(ctl, ref)) << "the control: a record missing the point's chunk must change the answer";
     EXPECT_FALSE(none.found);
 }
+
+// WaterCore §54.4 (W5.3): the river ripple layer's record part (riverRippleFromRecord - wet, current, depth, surface per 1/9 m cell
+// of the window) is a pure function of world position and the record: the record read whole or chunk by chunk (split at y 32,
+// shuffled) gives the same arrays, bit for bit; the window placed anywhere (negative origins, a world column split by the window's
+// edge) reads each cell from its own world column. Control: the record missing one chunk's piece changes the arrays.
+TEST(RiverReachTest, TheRiverRippleRecordIsTheSameHoweverTheRecordIsRead) {
+    const auto whole = wholeRecord(-80, 80, -40, 80);
+    auto lookup = [](const std::vector<ColumnRuns>& rec) {
+        auto col = std::make_shared<std::map<std::pair<int, int>, std::pair<float, float>>>(joinColumnRuns(rec, -1e9f, 1e9f));
+        return RecordColumnFn([col](int wx, int wz, float& t, float& b) {
+            const auto it = col->find({wx, wz});
+            if (it == col->end()) return false;
+            t = it->second.first; b = it->second.second; return true;
+        });
+    };
+    auto chunked = chunkedRecord(whole);
+    std::mt19937 rng(5);
+    std::shuffle(chunked.begin(), chunked.end(), rng);
+    const RecordColumnFn wholeFn = lookup(whole), chunkFn = lookup(chunked);
+    auto eq = [](const RiverRippleRecord& a, const RiverRippleRecord& b) {
+        return a.wet == b.wet && a.vel == b.vel && a.depth == b.depth && a.top == b.top && a.riverCells == b.riverCells;
+    };
+    int differ = 0, windows = 0, riverCells = 0;
+    for (const glm::ivec2 o : {glm::ivec2(-500, -100), glm::ivec2(-229, 13), glm::ivec2(4, 50), glm::ivec2(-77, -31)}) {
+        RiverRippleRecord a, b;
+        riverRippleFromRecord(o, 458, 458, wholeFn, current, a);
+        riverRippleFromRecord(o, 458, 458, chunkFn, current, b);
+        ++windows; riverCells += a.riverCells;
+        if (!eq(a, b)) ++differ;
+        // each cell reads its own world column (the floor division at negative lattice coordinates)
+        for (int z = 0; z < a.nz; z += 37) for (int x = 0; x < a.nx; x += 41) {
+            const int wx = riverFloorDiv(o.x + x, 9), wz = riverFloorDiv(o.y + z, 9);
+            float t = 0.0f, bb = 0.0f;
+            const bool wet = wholeFn(wx, wz, t, bb) && t > bb;
+            const size_t i = static_cast<size_t>(x) + static_cast<size_t>(a.nx) * z;
+            ASSERT_EQ(a.wet[i] != 0, wet) << "cell (" << x << ", " << z << ") of the window at (" << o.x << ", " << o.y << ")";
+            if (wet) { EXPECT_EQ(a.top[i], t); EXPECT_EQ(a.depth[i], t - bb); EXPECT_EQ(a.vel[i], current(wx, wz, t, bb)); }
+        }
+    }
+    RiverRippleRecord ref, ctl;
+    riverRippleFromRecord(glm::ivec2(-229, 13), 458, 458, wholeFn, current, ref);
+    riverRippleFromRecord(glm::ivec2(-229, 13), 458, 458, lookup(chunkedRecord(whole, -1)), current, ctl);
+    std::printf("  %d windows (458 x 458 cells): %d differ read chunked + shuffled; %d river cells; control (chunk x -1 missing): %s (%d vs %d wet)\n",
+                windows, differ, riverCells, eq(ref, ctl) ? "SAME" : "differs", ctl.wetCells, ref.wetCells);
+    EXPECT_EQ(differ, 0);
+    EXPECT_GT(riverCells, 50000);
+    EXPECT_FALSE(eq(ref, ctl)) << "the control: a record missing a chunk must change the arrays";
+}
+
+// 54.4: the bed-shear forcing is ONE formula (the volume's ripple forcing and the record river's), pinned
+TEST(RiverReachTest, TheBedShearForcingIsTheVolumesFormula) {
+    const float speed = 0.6f, depth = 2.0f, n = kRiverBedManning, cf = 200.0f, dt = 1.0f / 60.0f;
+    const float ustar = speed * n * std::sqrt(9.81f) / std::pow(depth, 1.0f / 6.0f);
+    EXPECT_FLOAT_EQ(bedShearRippleImpulse(speed, depth, n, cf, dt), cf * 1000.0f * ustar * ustar * dt);
+    EXPECT_EQ(bedShearRippleImpulse(0.0f, depth, n, cf, dt), 0.0f);
+    EXPECT_EQ(kRiverBedManning, 0.035f);
+}

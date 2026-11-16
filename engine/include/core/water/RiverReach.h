@@ -112,6 +112,49 @@ inline RiverPoint nearestRiverPoint(const glm::vec2& viewer, float radiusM, cons
     return best;
 }
 
+/// The bed roughness a river reach is made with and the record's river ripples are forced with (the creek bench's n, 26.13).
+constexpr float kRiverBedManning = 0.035f;
+
+/// 26.13 / 54.4: the impulse per unit area a step of flowing water puts into its ripple layer from the bed's shear - u* = u n
+/// sqrt(g) / d^(1/6) (Manning's friction), impulse = C_f rho u*^2 dt. ONE formula for a simulated volume and the record's river,
+/// so the ripples' strength is the same either side of a reach's edge (W5.3).
+inline float bedShearRippleImpulse(float speed, float depth, float nBed, float cf, float dt) {
+    const float ustar = speed * nBed * std::sqrt(9.81f) / std::pow(std::max(depth, 1e-3f), 1.0f / 6.0f);
+    return cf * 1000.0f * ustar * ustar * dt;
+}
+
+/// 54.4 (W5.3): the record's water under a ripple window of nx x nz lattice cells (1/9 m) at lattice `origin` - per cell: wet, the
+/// record's current, the top run's depth and surface. Every cell of one world column takes that column's record (spans are per
+/// world column). A pure function of world position and the record (RecordColumnFn / RecordCurrentFn) - the same arrays whatever
+/// way the record is read (RiverReachTest: whole vs chunked + shuffled). riverCells = wet cells whose current is not zero.
+struct RiverRippleRecord {
+    glm::ivec2 origin{0}; int nx = 0, nz = 0;
+    std::vector<uint8_t> wet; std::vector<glm::vec2> vel; std::vector<float> depth, top;
+    int wetCells = 0, riverCells = 0;
+};
+inline void riverRippleFromRecord(const glm::ivec2& origin, int nx, int nz, const RecordColumnFn& column, const RecordCurrentFn& current,
+                                  RiverRippleRecord& out, int perMetre = 9) {
+    out.origin = origin; out.nx = nx; out.nz = nz; out.wetCells = 0; out.riverCells = 0;
+    const size_t n = static_cast<size_t>(std::max(nx, 0)) * static_cast<size_t>(std::max(nz, 0));
+    out.wet.assign(n, 0); out.vel.assign(n, glm::vec2(0.0f)); out.depth.assign(n, 0.0f); out.top.assign(n, 0.0f);
+    if (!column || n == 0) return;
+    const int wx0 = riverFloorDiv(origin.x, perMetre), wx1 = riverFloorDiv(origin.x + nx - 1, perMetre);
+    const int wz0 = riverFloorDiv(origin.y, perMetre), wz1 = riverFloorDiv(origin.y + nz - 1, perMetre);
+    for (int wz = wz0; wz <= wz1; ++wz) for (int wx = wx0; wx <= wx1; ++wx) {
+        float t = 0.0f, b = 0.0f;
+        if (!column(wx, wz, t, b) || t <= b) continue;
+        const glm::vec2 v = current ? current(wx, wz, t, b) : glm::vec2(0.0f);
+        const bool river = v.x != 0.0f || v.y != 0.0f;
+        const int x0 = std::max(wx * perMetre - origin.x, 0), x1 = std::min((wx + 1) * perMetre - origin.x, nx);
+        const int z0 = std::max(wz * perMetre - origin.y, 0), z1 = std::min((wz + 1) * perMetre - origin.y, nz);
+        for (int z = z0; z < z1; ++z) for (int x = x0; x < x1; ++x) {
+            const size_t i = static_cast<size_t>(x) + static_cast<size_t>(nx) * z;
+            out.wet[i] = 1; out.vel[i] = v; out.depth[i] = t - b; out.top[i] = t;
+            ++out.wetCells; if (river) ++out.riverCells;
+        }
+    }
+}
+
 /// The record's discharge across the ring (m^3/s): in = over the inflow columns, out = over the others whose current leaves the
 /// box (each grid column is h wide; the depth is the record's).
 inline void ringDischarge(const std::vector<RingColumn>& ring, float h, double& qIn, double& qOut) {

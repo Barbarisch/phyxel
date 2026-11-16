@@ -164,6 +164,14 @@ TEST(WaterRippleTest, TheHandOverIsOnByDefault) {
     EXPECT_NEAR(WaterCoreManager::RippleHandover{}.rate(), std::log(1.5e-3f / RippleLayer::kSleepHeight) / 1.5f, 1e-5f);
 }
 
+// 54.4 (W5.3): the river ripple layer is ON by default - a pinned contract: flipping it updates this in the same commit
+TEST(WaterRippleTest, TheRiverLayerIsOnByDefault) {
+    EXPECT_TRUE(WaterCoreManager::RiverRipple{}.on);
+    WaterCoreManager mgr{[](const glm::ivec3&) { return 0; }};
+    EXPECT_TRUE(mgr.riverRipple().on);
+    EXPECT_EQ(mgr.riverRippleLayer(), nullptr) << "no river near: no layer";
+}
+
 // A12 (45.1) - the hand-over: once the rings are faint (under 1.5 mm), an extra damping a = ln(1.5 / 0.2) / 1.5 s fades them to the
 // sleep height in ~1.5 s - continuously (no frame loses more than e^(-a dt)) - instead of the film's slow fade. Control: the same
 // layer left alone is still awake 2 s later (the 59-76 s near pond of 44.7). The same rate on the GPU step is the same m_a term.

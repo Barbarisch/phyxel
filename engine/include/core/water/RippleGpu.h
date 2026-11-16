@@ -51,6 +51,11 @@ public:
     bool record(RippleLayer& L, float dt, const std::vector<glm::vec2>* vel, std::string* err = nullptr);
     void submit();
     void syncPrev(RippleLayer& L, const std::vector<RippleLayer*>& live);
+    /// 54.4 (W5.3): move layer L's window to `newOrigin` ON THE DEVICE - both levels copied row by row into the free slots (the cells the move uncovers zeroed), recorded into this frame's commands after whatever is in flight (the queue runs in order): no wait.
+    /// The CPU's levels are shifted too (L.shiftOrigin) and the in-flight steps' results for the old window are not collected (they would land 4 m off for a frame).
+    /// False = no device state or the CPU's copy is newer (the caller shifts on the CPU and marks it dirty, as before).
+    /// syncPrev's drain + fence waited behind the water's own GPU work: 103 ms worst at a 4 m move.
+    bool shift(RippleLayer& L, const glm::ivec2& newOrigin);
     /// Wait for and consume everything in flight (syncPrev, switching the backend off).
     void drain(const std::vector<RippleLayer*>& live);
     void markDirty(RippleLayer& L);

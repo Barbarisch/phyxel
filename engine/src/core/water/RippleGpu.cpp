@@ -434,6 +434,42 @@ void RippleGpu::syncPrev(RippleLayer& L, const std::vector<RippleLayer*>& live) 
     std::memcpy(L.m_prev.data(), s.prevDown.mapped, 4 * N);
 }
 
+bool RippleGpu::shift(RippleLayer& L, const glm::ivec2& newOrigin) {
+    if (!ready()) return false;
+    auto it = m_states.find(L.uid());
+    if (it == m_states.end() || it->second.dirty) return false;   // the CPU's copy is the newest: the caller shifts it
+    State& s = it->second;
+    const glm::ivec2 d = newOrigin - L.origin();
+    if (d == glm::ivec2(0)) return true;
+    ensureCommands();
+    const VkDeviceSize N = s.n;
+    const int nx = s.nx, nz = s.nz;
+    // the free slots zeroed (the cells the move uncovers), then each level's surviving rows copied in at their new place
+    for (int k : {2, 3}) vkCmdFillBuffer(m_cmd, s.state.buf, 4 * N * static_cast<VkDeviceSize>(s.slot[k]), 4 * N, 0);
+    barrier(m_cmd);
+    const int x0 = std::max(0, -d.x), x1 = std::min(nx, nx - d.x);   // new x whose old x = x + d.x lies in the window
+    std::vector<VkBufferCopy> rows;
+    if (x1 > x0)
+        for (int lvl = 0; lvl < 2; ++lvl)
+            for (int z = 0; z < nz; ++z) {
+                const int oz = z + d.y;
+                if (oz < 0 || oz >= nz) continue;
+                VkBufferCopy c{};
+                c.srcOffset = 4 * (N * static_cast<VkDeviceSize>(s.slot[lvl]) + static_cast<VkDeviceSize>(x0 + d.x) + static_cast<VkDeviceSize>(nx) * oz);
+                c.dstOffset = 4 * (N * static_cast<VkDeviceSize>(s.slot[2 + lvl]) + static_cast<VkDeviceSize>(x0) + static_cast<VkDeviceSize>(nx) * z);
+                c.size = 4 * static_cast<VkDeviceSize>(x1 - x0);
+                rows.push_back(c);
+            }
+    if (!rows.empty()) vkCmdCopyBuffer(m_cmd, s.state.buf, s.state.buf, static_cast<uint32_t>(rows.size()), rows.data());
+    barrier(m_cmd);
+    std::swap(s.slot[0], s.slot[2]); std::swap(s.slot[1], s.slot[3]);   // the shifted levels ARE r and prev now
+    // the steps in flight computed the old window: their r is not collected into the shifted layer
+    for (Sub& sb : m_subs)
+        sb.layers.erase(std::remove_if(sb.layers.begin(), sb.layers.end(), [&](const std::pair<uint64_t, bool>& e) { return e.first == s.uid; }), sb.layers.end());
+    L.shiftOrigin(newOrigin);   // the CPU's levels (what is drawn until the next collect) moved alike
+    return true;
+}
+
 void RippleGpu::markDirty(RippleLayer& L) {
     auto it = m_states.find(L.uid());
     if (it != m_states.end()) it->second.dirty = true;

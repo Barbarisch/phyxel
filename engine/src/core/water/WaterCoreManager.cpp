@@ -849,6 +849,7 @@ void WaterCoreManager::refreshRippleShapeStats() {
 std::vector<RippleLayer*> WaterCoreManager::liveRippleLayers() {
     std::vector<RippleLayer*> out;
     for (auto& av : m_avs) if (av->ripple) out.push_back(av->ripple.get());
+    if (m_riverLayer) out.push_back(m_riverLayer.get());   // 54.4
     return out;
 }
 
@@ -1185,7 +1186,7 @@ WaterCoreManager::RiverReachResult WaterCoreManager::makeRiverReach(const glm::v
     const int id = create(lo, hi, 1.0f / static_cast<float>(kMicroPerVoxel), "eulerian", &err, backend, 0);
     if (!id) { r.error = "create refused: " + err; return r; }
     setPartialWake(id, false); setTallBand(id, 0.0f); setRecordTiles(id, false); setAutoSleep(id, false);
-    setBedManning(id, 0.035f);   // the creek bench's n (26.13), W5.1's default
+    setBedManning(id, kRiverBedManning);   // the creek bench's n (26.13), W5.1's default; the river ripple layer forces the record with it (54.4)
     const double seeded = seedFromSpans(id);
     Av* av = nullptr;
     for (auto& a : m_avs) if (a->id == id) av = a.get();
@@ -1966,6 +1967,7 @@ WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
     out.bodies = static_cast<int>(m_bodies.size());
     m_bodies.clear();
     m_rippleBodies.clear();
+    m_riverLayer.reset(); m_riverSlot = -1; m_riverRecRev = ~0ull; m_riverRec = RiverRippleRecord{};   // 54.4: another world's river
     m_solidHold.clear();
     // the record's caches: another world's columns must never answer for this one (the residency hash is not trusted with a full swap)
     m_recordCols.clear(); ++m_recordGen;
@@ -2597,12 +2599,18 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
             av->fieldStepSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         }
         av->field.rippleLayer = (av->ripple && m_rstats.on && av->rippleSlot >= 0) ? av->rippleSlot : -1;   // 22; L2: the slot (rippleLayers())
+        if (av->isReach && riverCoversReaches() && m_riverLayer && m_riverSlot >= 0) av->field.rippleLayer = m_riverSlot;   // 54.4: the river layer
         av->field.gpuDrawn = av->gpuVol && m_gpu && m_gpu->surfaceView(*av->gpuVol).ok;   // 29 S1
         m_fields[i] = &av->field;
     }
     WaterHostProfile::lap("surf.5 rest", hp);
     refreshRecordTiles();   // §27 W1a: the recorded water near the camera, after the volumes (a volume owns its columns first)
     WaterHostProfile::lap("surf.6 record tiles' surfaces", hp);
+    {   // 54.4: the record's tiles draw the river ripple layer (the shader reads 0 outside its window); a change of slot re-meshes them
+        const int want = (m_riverLayer && m_riverSlot >= 0 && m_rstats.on) ? m_riverSlot : -1;
+        for (auto& [key, t] : m_recordTiles)
+            if (t.wet && t.field.rippleLayer != want) { t.field.rippleLayer = want; t.field.version = ++m_recordBuilds; }
+    }
     for (auto& [key, t] : m_recordTiles) if (t.wet) m_fields.push_back(&t.field);
     return m_fields;
 }
@@ -2697,6 +2705,7 @@ void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec
 void WaterCoreManager::writeSpans(const std::vector<ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunks) {
     const uint64_t before = m_spanRevision ? m_spanRevision() : 0;
     m_spanWriter(runs, yLo, yHi, unwritten, chunks);
+    ++m_riverSpanWrites;   // 54.4: the river layer's record part reads again
     const uint64_t after = m_spanRevision ? m_spanRevision() : 0;
     if (!m_spanRevision || after == before || s_recordTilesAllStaleForTest) return;
     std::set<std::pair<int, int>> touched;
@@ -2806,7 +2815,7 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     bpart(2);
     t.field.source = kRecordDrawSourceBit | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
     t.field.version = ++m_recordBuilds;
-    t.field.rippleLayer = -1;
+    t.field.rippleLayer = (m_riverLayer && m_riverSlot >= 0 && m_rstats.on) ? m_riverSlot : -1;   // 54.4: the river ripple layer
     t.field.look = packLook(lookAt(tx * T + T / 2, tz * T + T / 2));
 }
 
@@ -2958,9 +2967,10 @@ void WaterCoreManager::stepDroplets(float dt) {
         Av* av = volumeById(landed[i].volumeId);
         if (!av) continue;
         m_dstats.landedM3 += landed[i].volume; ++m_dstats.landings;
-        if (av->ripple && m_rstats.on && landed[i].vel.y < 0.0f) {   // 22.3.1: the drop's downward momentum, per unit area of its lattice cell
+        RippleLayer* landL = av->ripple ? av->ripple.get() : (av->isReach && m_riverLayer ? m_riverLayer.get() : nullptr);   // 54.4: a reach's rings are the river layer's
+        if (landL && m_rstats.on && landed[i].vel.y < 0.0f) {   // 22.3.1: the drop's downward momentum, per unit area of its lattice cell
             const float d = RippleLayer::kPitch;
-            av->ripple->addImpulse(landAt[i].x, landAt[i].z, 1000.0f * landed[i].volume * -landed[i].vel.y / (d * d));
+            landL->addImpulse(landAt[i].x, landAt[i].z, 1000.0f * landed[i].volume * -landed[i].vel.y / (d * d));
             ++m_rstats.impulses;
         }
         // 51.11: no deposit - the droplet carried no water (the owner's decision, 2026-10-11)
@@ -2974,6 +2984,7 @@ std::vector<const RippleLayer*> WaterCoreManager::rippleLayers() const {
     if (!m_rstats.on) return out;
     for (const auto& av : m_avs)
         if (av->ripple && av->rippleSlot >= 0 && av->rippleSlot < kRippleMaxLayers) out[av->rippleSlot] = av->ripple.get();
+    if (m_riverLayer && m_riverSlot >= 0 && m_riverSlot < kRippleMaxLayers) out[m_riverSlot] = m_riverLayer.get();   // 54.4
     return out;
 }
 
@@ -2992,6 +3003,11 @@ std::vector<WaterCoreManager::RippleSlotInfo> WaterCoreManager::rippleSlots() co
         if (av->rippleSlot < 0) continue;
         RippleSlotInfo i; i.slot = av->rippleSlot; i.volumeId = av->id;
         if (av->ripple) { i.origin = av->ripple->origin(); i.nx = av->ripple->nx(); i.nz = av->ripple->nz(); }
+        out.push_back(i);
+    }
+    if (m_riverSlot >= 0) {   // 54.4: the river layer (volume id -1)
+        RippleSlotInfo i; i.slot = m_riverSlot; i.volumeId = -1;
+        if (m_riverLayer) { i.origin = m_riverLayer->origin(); i.nx = m_riverLayer->nx(); i.nz = m_riverLayer->nz(); }
         out.push_back(i);
     }
     std::sort(out.begin(), out.end(), [](const RippleSlotInfo& a, const RippleSlotInfo& b) { return a.slot < b.slot; });
@@ -3016,12 +3032,13 @@ void WaterCoreManager::assignRippleSlots() {
     auto boxD = [&](const Av& av) {
         return WaterLocality::horizontalDistanceToBox(m_view, glm::vec2(av.minVoxel.x, av.minVoxel.z), glm::vec2(av.maxVoxel.x + 1, av.maxVoxel.z + 1));
     };
-    auto eligible = [](const Av& av) { return av.transport == "eulerian" && !av.solver->transport().ownsMass(); };
+    // 54.4: a reach takes no layer of its own while the river layer covers it
+    auto eligible = [this](const Av& av) { return av.transport == "eulerian" && !av.solver->transport().ownsMass() && !(av.isReach && riverCoversReaches()); };
     // drop: a layer made under the other rule; with the reach on, a pond beyond r + kRippleDropM, or a window whose side r changed
     for (auto& up : m_avs) {
         Av& av = *up;
         if (!av.ripple && av.rippleSlot < 0) continue;
-        bool drop = av.rippleReachMade != reach;
+        bool drop = av.rippleReachMade != reach || (av.isReach && riverCoversReaches());   // 54.4
         if (!drop && reach) {
             const int boxX = (av.maxVoxel.x - av.minVoxel.x + 1) * 9, boxZ = (av.maxVoxel.z - av.minVoxel.z + 1) * 9;
             drop = r <= 0.0f || boxD(av) > r + WaterLocality::kRippleDropM ||
@@ -3033,6 +3050,30 @@ void WaterCoreManager::assignRippleSlots() {
     }
     bool used[kRippleMaxLayers] = {};
     for (const auto& av : m_avs) if (av->rippleSlot >= 0 && av->rippleSlot < kRippleMaxLayers) used[av->rippleSlot] = true;
+    {   // 54.4 (W5.3): the river layer - wanted while river water (a non-zero record current, or a reach) lies in its window; its slot
+        // is taken before any waiting pond's (it holds the river's ripples across every reach swap); a held slot is never taken away
+        const int rside = WaterLocality::rippleWindowSide(r);
+        bool wanted = false;
+        m_riverStats.waiting = 0;
+        if (riverCoversReaches() && r > 0.0f) {
+            if (m_riverLayer && (m_riverLayer->nx() != rside || m_riverLayer->nz() != rside)) { m_riverLayer.reset(); ++m_riverStats.dropped; }   // ripple_m changed
+            const glm::ivec2 o = riverWindowOrigin(m_riverLayer != nullptr, m_riverLayer ? m_riverLayer->origin() : glm::ivec2(0), rside);
+            refreshRiverRecord(o, rside);
+            bool reachIn = false;
+            for (const auto& av : m_avs)
+                if (av->isReach && av->minVoxel.x * 9 < o.x + rside && (av->maxVoxel.x + 1) * 9 > o.x && av->minVoxel.z * 9 < o.y + rside && (av->maxVoxel.z + 1) * 9 > o.y) reachIn = true;
+            wanted = m_riverRec.riverCells > 0 || reachIn;
+        }
+        if (!wanted) {
+            if (m_riverLayer) ++m_riverStats.dropped;
+            m_riverLayer.reset(); m_riverSlot = -1;
+        } else if (m_riverSlot < 0) {
+            for (int s = 0; s < kRippleMaxLayers && m_riverSlot < 0; ++s) if (!used[s]) m_riverSlot = s;
+            if (m_riverSlot < 0) m_riverStats.waiting = 1;
+        }
+        if (m_riverSlot >= 0) used[m_riverSlot] = true;
+        m_riverStats.active = wanted && m_riverSlot >= 0;
+    }
     auto take = [&](Av& av) {
         for (int s = 0; s < kRippleMaxLayers; ++s)
             if (!used[s]) { used[s] = true; av.rippleSlot = s; av.rippleReachMade = reach; ++m_rstats.made; return true; }
@@ -3073,6 +3114,149 @@ RippleLayer& WaterCoreManager::rippleWindow(std::unique_ptr<RippleLayer>& layer,
         if (gpu) m_rgpu->markDirty(L);
     }
     return L;
+}
+
+glm::ivec2 WaterCoreManager::riverWindowOrigin(bool has, const glm::ivec2& cur, int side) const {
+    // the reach rule's placement (L2) over an unbounded box: centred on the viewer, moved in kRippleMoveCells (4 m) steps
+    const glm::ivec3 lo(-1000000, 0, -1000000), hi(1000000, 0, 1000000);
+    return WaterLocality::rippleWindowOrigin(has, cur, m_view, lo, hi, side, side, true);
+}
+
+void WaterCoreManager::refreshRiverRecord(const glm::ivec2& origin, int side) {
+    const glm::ivec4 key(origin.x, origin.y, side, 0);
+    const uint64_t rev = (m_spanRevision ? m_spanRevision() : 0) * 1000003ull + m_riverSpanWrites * 7919ull + static_cast<uint64_t>(m_recordGen);
+    if (key == m_riverRecKey && rev == m_riverRecRev && m_riverRec.nx == side) return;
+    const auto t0 = std::chrono::steady_clock::now();
+    const RecordColumnFn column = [this](int wx, int wz, float& top, float& bottom) {   // the cached record (followRiver's read)
+        ColumnLevels lv;
+        if (!recordColumnRuns(wx, wz, lv) || lv.n <= 0) return false;
+        top = lv.top[0]; bottom = lv.bottom[0]; return true;
+    };
+    riverRippleFromRecord(origin, side, side, m_spanReader ? column : RecordColumnFn(), m_recordCurrent, m_riverRec, kMicroPerVoxel);
+    m_riverRecKey = key; m_riverRecRev = rev;
+    ++m_riverStats.rebuilds;
+    m_riverStats.rebuildMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    m_riverStats.rebuildMsMax = std::max(m_riverStats.rebuildMsMax, m_riverStats.rebuildMs);
+}
+
+void WaterCoreManager::stepRiverRipple(float dt, bool gpu) {
+    const auto t0 = std::chrono::steady_clock::now();
+    RiverRippleStats& st = m_riverStats;
+    st.wetCells = st.riverCells = st.reachCells = st.forcedCells = st.kinematicCells = 0;
+    st.slot = m_riverSlot; st.side = 0;
+    if (!m_riverStats.active || m_riverSlot < 0) { st.ms = 0.0; return; }
+    const float r = std::clamp(s_locality.rippleM, 0.0f, WaterLocality::kRippleMMax);
+    const int side = WaterLocality::rippleWindowSide(r);
+    const glm::ivec2 want = riverWindowOrigin(m_riverLayer != nullptr, m_riverLayer ? m_riverLayer->origin() : glm::ivec2(0), side);
+    if (!m_riverLayer) { m_riverLayer = std::make_unique<RippleLayer>(want, side, side, 9.81f); ++st.made; }   // the border absorbs
+    RippleLayer& L = *m_riverLayer;
+    using SC = std::chrono::steady_clock;
+    auto msSince = [](SC::time_point a) { return std::chrono::duration<double, std::milli>(SC::now() - a).count(); };
+    st.shiftMs = 0.0;
+    if (want != L.origin()) {   // the window moved (4 m steps): the field keeps its world position (as every window)
+        const auto ts = SC::now();
+        // on the device, recorded after what is in flight - no wait (syncPrev's drain + fence waited behind the water's GPU work:
+        // 103 ms worst a move, the first integration run); without a device state the CPU's copy is the newest: shifted here
+        if (!(gpu && m_rgpu->shift(L, want))) { L.shiftOrigin(want); if (gpu) m_rgpu->markDirty(L); }
+        st.shiftMs = msSince(ts); st.shiftMsMax = std::max(st.shiftMsMax, st.shiftMs);
+    }
+    refreshRiverRecord(L.origin(), side);   // a no-op unless the window moved or the record changed
+    const auto tOverlay = SC::now();
+    const int nx = L.nx(), nz = L.nz();
+    const size_t N = static_cast<size_t>(nx) * nz;
+    const float d = RippleLayer::kPitch;
+    // the cells: the record's, then every reach's surface over them (the awake volume wins its columns - readerColumn's rule)
+    auto& mask = L.mask();
+    mask = m_riverRec.wet;
+    m_riverVel = m_riverRec.vel; m_riverDepth = m_riverRec.depth; m_riverTop = m_riverRec.top;
+    m_riverIsReach.assign(N, 0);
+    std::vector<float> nBedOf;   // per cell only where a reach holds it (its own n); else kRiverBedManning
+    for (const auto& up : m_avs) {
+        const Av& av = *up;
+        if (!av.isReach) continue;
+        const WaterSurfaceField& f = av.field;
+        if (f.nx <= 0 || f.cols.empty()) continue;
+        // the volume's box in lattice cells, clipped to the window
+        const int bx0 = std::max(av.minVoxel.x * 9 - L.origin().x, 0), bx1 = std::min((av.maxVoxel.x + 1) * 9 - L.origin().x, nx);
+        const int bz0 = std::max(av.minVoxel.z * 9 - L.origin().y, 0), bz1 = std::min((av.maxVoxel.z + 1) * 9 - L.origin().y, nz);
+        if (bx0 >= bx1 || bz0 >= bz1) continue;
+        const float nBed = av.solver->params().bedManning > 0.0f ? av.solver->params().bedManning : kRiverBedManning;
+        if (nBedOf.empty()) nBedOf.assign(N, kRiverBedManning);
+        for (int z = bz0; z < bz1; ++z) for (int x = bx0; x < bx1; ++x) {
+            const size_t i = L.idx(x, z);
+            const float wx = (L.origin().x + x + 0.5f) * d, wz = (L.origin().y + z + 0.5f) * d;
+            const int cx = static_cast<int>(std::floor(wx / f.h)) - f.origin.x, cz = static_cast<int>(std::floor(wz / f.h)) - f.origin.z;
+            m_riverIsReach[i] = 1; nBedOf[i] = nBed;
+            if (cx < 0 || cz < 0 || cx >= f.nx || cz >= f.nz) { mask[i] = 0; m_riverVel[i] = glm::vec2(0.0f); continue; }
+            const SurfaceColumn& c = f.at(cx, cz);
+            const int runs = std::min(static_cast<int>(c.runs + 0.5f), kSurfaceMaxRuns);
+            if (runs <= 0) { mask[i] = 0; m_riverVel[i] = glm::vec2(0.0f); continue; }
+            mask[i] = 1; m_riverVel[i] = glm::vec2(c.u, c.w);
+            m_riverTop[i] = c.top[runs - 1]; m_riverDepth[i] = std::max(c.top[runs - 1] - c.bottom[runs - 1], 1e-3f);
+            ++st.reachCells;
+        }
+    }
+    // the forcing: the bed shear of the water's current within rippleM of the viewer (where the draw's fade shows it - amendment 1:
+    // full to the reach, zero past it; the window's margin lies past it on every side after any move, so the absorbing rim is quiet)
+    const uint32_t frame = ++m_riverFrame;
+    std::vector<float> raw;
+    const float r2 = r * r;
+    if (m_flowForcing > 0.0f && m_rpattern.slope < 0.0f) {
+        for (int z = 0; z < nz; ++z) {
+            const float wz = (L.origin().y + z + 0.5f) * d, dz = wz - m_view.z;
+            if (dz * dz > r2) continue;
+            for (int x = 0; x < nx; ++x) {
+                const size_t i = L.idx(x, z);
+                if (!mask[i]) continue;
+                const float wx = (L.origin().x + x + 0.5f) * d, dx = wx - m_view.x;
+                if (dx * dx + dz * dz > r2) continue;
+                const float speed = std::sqrt(m_riverVel[i].x * m_riverVel[i].x + m_riverVel[i].y * m_riverVel[i].y);
+                if (speed < 1e-3f) continue;
+                const float a = bedShearRippleImpulse(speed, m_riverDepth[i], nBedOf.empty() ? kRiverBedManning : nBedOf[i], m_flowForcing, dt);
+                // the volume's hash on WORLD lattice cells (a pure function of world position and the frame)
+                uint32_t hh = static_cast<uint32_t>(L.origin().x + x) * 73856093u ^ static_cast<uint32_t>(L.origin().y + z) * 19349663u ^ frame * 83492791u;
+                hh ^= hh >> 13; hh *= 0x5bd1e995u; hh ^= hh >> 15;
+                const float xi = (hh & 0xFFFFu) / 32767.5f - 1.0f;
+                if (raw.empty()) raw.assign(N, 0.0f);
+                raw[i] = a * xi;
+                ++st.forcedCells;
+            }
+        }
+    }
+    if (!raw.empty()) L.addImpulseField(raw);
+    // bodies crossing the RECORD's surface: their whole vertical motion (no grid holds it); in a reach the 1/9 m grid holds the body
+    // itself (the kinematic remainder is 0 there, as on the reach's own layer before)
+    for (const MovingSolid& b : m_rippleBodies) {
+        if (std::abs(b.velocity.y) < 0.01f) continue;
+        const glm::ivec2 c0 = L.cellAt(b.centre.x, b.centre.z);
+        if (!L.inBounds(c0.x, c0.y)) continue;
+        const size_t ic = L.idx(c0.x, c0.y);
+        if (!mask[ic] || m_riverIsReach[ic]) continue;
+        const float top = m_riverTop[ic];
+        if (!(b.centre.y - b.halfExtents.y < top && b.centre.y + b.halfExtents.y > top)) continue;   // not at the waterline
+        const glm::vec2 lo(b.centre.x - b.halfExtents.x, b.centre.z - b.halfExtents.z), hi(b.centre.x + b.halfExtents.x, b.centre.z + b.halfExtents.z);
+        const glm::ivec2 a0 = L.cellAt(lo.x, lo.y), a1 = L.cellAt(hi.x, hi.y);
+        for (int z = std::max(a0.y, 0); z <= std::min(a1.y, nz - 1); ++z) for (int x = std::max(a0.x, 0); x <= std::min(a1.x, nx - 1); ++x) {
+            const size_t i = L.idx(x, z);
+            if (!mask[i] || m_riverIsReach[i]) continue;
+            const float x0 = (L.origin().x + x) * d, z0 = (L.origin().y + z) * d;
+            const float ox = std::max(0.0f, std::min(x0 + d, hi.x) - std::max(x0, lo.x)), oz = std::max(0.0f, std::min(z0 + d, hi.y) - std::max(z0, lo.y));
+            const float vhp = b.velocity.y * ox * oz / (d * d);
+            if (std::abs(vhp) < 1e-5f) continue;
+            L.setKinematic(x, z, vhp);
+            ++st.kinematicCells; ++m_rstats.kinematicCellsTotal;
+        }
+    }
+    for (size_t i = 0; i < N; ++i) if (mask[i]) { ++st.wetCells; if (m_riverVel[i].x != 0.0f || m_riverVel[i].y != 0.0f) ++st.riverCells; }
+    L.setBreakSlope(m_rstats.breakSlope);
+    st.overlayMs = msSince(tOverlay); st.overlayMsMax = std::max(st.overlayMsMax, st.overlayMs);
+    { const auto tl = SC::now(); stepLayer(L, dt, &m_riverVel); st.stepMs = msSince(tl); st.stepMsMax = std::max(st.stepMsMax, st.stepMs); m_updateCpu.rLayer += st.stepMs; }
+    m_rstats.brokenM3 += L.takeBroken();
+    ++m_rstats.layers; m_rstats.cells += static_cast<long>(N);
+    if (!L.asleep()) ++m_rstats.awake;
+    st.origin = L.origin(); st.side = side;
+    st.ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    st.msMax = std::max(st.msMax, st.ms);
 }
 
 void WaterCoreManager::stepRipples(float dt) {
@@ -3183,8 +3367,7 @@ void WaterCoreManager::stepRipples(float dt) {
                 if (speed < 1e-3f) continue;
                 const int top = std::min(static_cast<int>(c->runs + 0.5f), kSurfaceMaxRuns) - 1;
                 const float depth = std::max(c->top[top] - c->bottom[top], 1e-3f);
-                const float ustar = speed * nBed * std::sqrt(9.81f) / std::pow(depth, 1.0f / 6.0f);
-                const float a = m_flowForcing * 1000.0f * ustar * ustar * dt;
+                const float a = bedShearRippleImpulse(speed, depth, nBed, m_flowForcing, dt);   // 54.4: one formula with the river layer's
                 // fade over the window's outer 8 m where its border is open (the ripples die away before the absorbing rim)
                 const float edge = static_cast<float>(std::min(std::min(x, z), std::min(nx - 1 - x, nz - 1 - z)));
                 const float fade = std::clamp(edge / 72.0f, 0.0f, 1.0f);
@@ -3255,6 +3438,8 @@ void WaterCoreManager::stepRipples(float dt) {
         if (!L.asleep()) ++m_rstats.awake;   // the shape stats: refreshRippleShapeStats (on demand)
     }
     WaterHostProfile::lap("ripples.2 masks + layers", hpr);
+    stepRiverRipple(dt, gpu);   // 54.4 (W5.3)
+    WaterHostProfile::lap("ripples.3 the river layer", hpr);
     m_rstats.gpu = gpu;
     if (gpu) {
         { const auto ts = RClock::now(); m_rgpu->submit(); m_updateCpu.rSubmit = rms(ts); }   // 25.34: no wait - the next frame collects it

@@ -1837,3 +1837,201 @@ TEST_F(WaterRecordTilesTest, AReachFollowsTheViewerAlongARiver) {
     EXPECT_LT(std::abs(dam.books), 1e-3);
     EXPECT_GE(dam.recordAbove - g.recordAbove, 0.1) << "A4: the record above a dam stays raised after the reach that held it is gone";
 }
+
+// WaterCore §54.4 (W5.3): the river's ripples - the owner on w52b_clip: "it takes a while for the ripples to show up as the camera
+// moves. and the line between ripples and not is very obvious". One ripple layer over the river near the viewer (the record's river
+// and the reach alike). The measure: the RMS facet slope (the shader's central difference, 1/9 m) of whichever drawn layer holds a
+// water cell - 0 where none does (the record drew flat before) - over cells of the river away from its banks (z 15..24).
+namespace {
+struct RippleProbe {
+    // the slope at world lattice cell (gx, gz) as drawn: the first slot's layer whose window holds it with water there; -1 = no layer
+    static float slopeAt(const std::vector<const RippleLayer*>& layers, int gx, int gz) {
+        for (const RippleLayer* L : layers) {
+            if (!L) continue;
+            const int x = gx - L->origin().x, z = gz - L->origin().y;
+            if (!L->inBounds(x, z) || !L->mask()[L->idx(x, z)]) continue;
+            auto h = [&](int a, int b) { return L->inBounds(a, b) ? L->heights()[L->idx(a, b)] : 0.0f; };
+            const float k = 0.5f / RippleLayer::kPitch;
+            const float sx = (h(x + 1, z) - h(x - 1, z)) * k, sz = (h(x, z + 1) - h(x, z - 1)) * k;
+            return std::sqrt(sx * sx + sz * sz);
+        }
+        return 0.0f;
+    }
+    // sum of squared slopes and the cell count over world metres [x0, x1) x [z0, z1)
+    static void accumulate(const WaterCoreManager& mgr, float x0, float x1, float z0, float z1, double& sum, long& n) {
+        const auto layers = mgr.rippleLayers();
+        for (int gz = static_cast<int>(std::floor(z0 * 9.0f)); gz < static_cast<int>(std::floor(z1 * 9.0f)); ++gz)
+            for (int gx = static_cast<int>(std::floor(x0 * 9.0f)); gx < static_cast<int>(std::floor(x1 * 9.0f)); ++gx) {
+                const float s = slopeAt(layers, gx, gz);
+                sum += static_cast<double>(s) * s; ++n;
+            }
+    }
+};
+struct RiverRig {
+    FakeRecord record;
+    std::unique_ptr<WaterCoreManager> mgr;
+    std::string err;
+    bool make(VkDevice device, VkPhysicalDevice physicalDevice, VkQueue queue, uint32_t qf, bool riverOn, bool follow) {
+        auto state = [](const glm::ivec3& m) -> int {
+            constexpr int M = 9;
+            if (m.y < 0) return 1;
+            if (m.z < 13 * M || m.z >= 27 * M) return 1;   // the banks
+            return 0;
+        };
+        mgr = std::make_unique<WaterCoreManager>(state);
+        if (!mgr->initGpu(device, physicalDevice, queue, qf, "shaders", &err)) return false;
+        mgr->setDroplets(false);
+        record.install(*mgr);
+        for (int x = -64; x < 224; ++x) for (int z = 13; z <= 26; ++z) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+        mgr->setRecordCurrent([](int, int wz, float, float) { return (wz >= 13 && wz <= 26) ? glm::vec2(0.6f, 0.0f) : glm::vec2(0.0f); });
+        WaterCoreManager::RiverFollow f; f.on = follow; mgr->setRiverFollow(f);
+        WaterCoreManager::RiverRipple rr; rr.on = riverOn; mgr->setRiverRipple(rr);
+        mgr->setRealtime(true);
+        return true;
+    }
+};
+}
+
+// (1) NO LINE AT A REACH'S EDGE. A 40 m reach made at x 20 (box x 0..39); the viewer 12 m up, 6 m inside the downstream edge for 20 s,
+// then 6 m inside the upstream edge for 20 s (both strips well inside the 21 m ripple reach). Over each stay's last 5 s: the RMS slope
+// in the 2 m strip just INSIDE the edge vs the 2 m strip just OUTSIDE it. Prediction (written before the run): with the river layer
+// the two within 25 % (ratio 0.75-1.33) at both edges; RED (the river layer off - each reach its own layer, the record unrippled):
+// outside 0, and inside below the control's (the reach's forcing faded over its last 8 m). Control: two strips both inside the reach
+// (4-6 m and 2-4 m from the edge) - ratio ~1, the measure is not noise. Books: the reach's water and the record identical with the
+// layer on and off (ripples carry no water).
+namespace {
+struct EdgeRun { double inD = 0, outD = 0, ctlA = 0, ctlB = 0, inU = 0, outU = 0, mass = 0, record = 0; int lo = 0, hi = 0, made = 0, wet = 0, forced = 0; double ms = 0; bool ok = false; std::string err; };
+}
+TEST_F(WaterRecordTilesTest, ARiverRippleHasNoLineAtAReachEdge) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto run = [&](bool riverOn) {
+        EdgeRun out;
+        RiverRig rig;
+        if (!rig.make(device, physicalDevice, queue, queueFamilyIndex, riverOn, false)) { out.err = rig.err; return out; }
+        WaterCoreManager& mgr = *rig.mgr;
+        const auto rr = mgr.makeRiverReach(glm::vec2(20.0f, 20.0f), 20.0f, 2.0f, "gpu");
+        if (!rr.id) { out.err = rr.error; return out; }
+        out.lo = rr.lo.x; out.hi = rr.hi.x + 1;   // the box's world x extent [lo, hi)
+        const float dt = 1.0f / 60.0f;
+        auto rms = [](double s, long n) { return n ? std::sqrt(s / n) : 0.0; };
+        auto stay = [&](float vx, float edge, double& in, double& outS, double* ca, double* cb) {
+            mgr.setViewPoint(glm::vec3(vx, 12.0f, 20.0f));
+            double si = 0, so = 0, sa = 0, sb = 0; long ni = 0, no = 0, na = 0, nb = 0;
+            for (int k = 0; k < 1200; ++k) {
+                mgr.update(dt);
+                if (k >= 900 && k % 15 == 0) {   // the last 5 s, every 0.25 s
+                    RippleProbe::accumulate(mgr, edge - 2.0f, edge, 15.0f, 25.0f, si, ni);
+                    RippleProbe::accumulate(mgr, edge, edge + 2.0f, 15.0f, 25.0f, so, no);
+                    if (ca) { const float s = vx > edge ? 1.0f : -1.0f;   // inward from the edge
+                              RippleProbe::accumulate(mgr, std::min(edge + s * 6.0f, edge + s * 4.0f), std::max(edge + s * 6.0f, edge + s * 4.0f), 15.0f, 25.0f, sa, na);
+                              RippleProbe::accumulate(mgr, std::min(edge + s * 4.0f, edge + s * 2.0f), std::max(edge + s * 4.0f, edge + s * 2.0f), 15.0f, 25.0f, sb, nb); }
+                }
+            }
+            in = rms(si, ni); outS = rms(so, no);
+            if (ca) { *ca = rms(sa, na); *cb = rms(sb, nb); }
+        };
+        // the downstream edge: "inside" is [hi - 2, hi), "outside" [hi, hi + 2)
+        stay(static_cast<float>(out.hi) - 6.0f, static_cast<float>(out.hi), out.inD, out.outD, &out.ctlA, &out.ctlB);
+        // the upstream edge: inside [lo, lo + 2), outside [lo - 2, lo) - accumulate's strips are [edge - 2, edge) and [edge, edge + 2)
+        stay(static_cast<float>(out.lo) + 6.0f, static_cast<float>(out.lo), out.outU, out.inU, nullptr, nullptr);
+        const auto& st = mgr.riverRippleStats();
+        out.made = st.made; out.wet = st.wetCells; out.forced = st.forcedCells; out.ms = st.ms;
+        out.mass = mgr.totalMass(); out.record = rig.record.total();
+        out.ok = true;
+        return out;
+    };
+    const EdgeRun g = run(true), red = run(false);
+    ASSERT_TRUE(g.ok) << g.err; ASSERT_TRUE(red.ok) << red.err;
+    auto pr = [](const char* tag, const EdgeRun& r) {
+        std::printf("  %s: box x [%d, %d); DOWNSTREAM edge RMS slope inside %.4f, outside %.4f (ratio %.2f); control (both inside) %.4f / %.4f (ratio %.2f);\n"
+                    "      UPSTREAM inside %.4f, outside %.4f (ratio %.2f); river layer made %d, wet %d, forced %d cells, %.2f ms; mass %.6f m^3, record %.6f m^3\n",
+                    tag, r.lo, r.hi, r.inD, r.outD, r.inD > 0 ? r.outD / r.inD : 0.0, r.ctlA, r.ctlB, r.ctlA > 0 ? r.ctlB / r.ctlA : 0.0,
+                    r.inU, r.outU, r.inU > 0 ? r.outU / r.inU : 0.0, r.made, r.wet, r.forced, r.ms, r.mass, r.record);
+    };
+    pr("GREEN (river layer on)", g); pr("RED (river layer off)", red);
+    EXPECT_GT(g.inD, 0.0); EXPECT_GT(g.inU, 0.0);
+    EXPECT_NEAR(g.outD / g.inD, 1.0, 0.33); EXPECT_GE(g.outD / g.inD, 0.75);
+    EXPECT_NEAR(g.outU / g.inU, 1.0, 0.33); EXPECT_GE(g.outU / g.inU, 0.75);
+    EXPECT_NEAR(g.ctlB / g.ctlA, 1.0, 0.25) << "the control: two strips inside the reach agree - the measure is not noise";
+    EXPECT_EQ(red.outD, 0.0) << "the red: the record outside the reach had no ripples";
+    EXPECT_EQ(g.made, 1) << "one river layer, never remade";
+    EXPECT_EQ(g.mass, red.mass) << "ripples carry no water";
+    EXPECT_EQ(g.record, red.record);
+}
+
+// (2) THE RIPPLES ARE THERE AS THE VIEWER MOVES. The shipped follow (a reach swapped every 16 m); the viewer 12 m up stands at x 0
+// for 20 s (the steady RMS slope within 12 m of it, S, over the last 5 s; and the spin-up: the first 0.5 s sample >= 0.7 S after the
+// first make), then walks to x 160 at 5 m/s (32 s, ~10 swaps). Prediction: every 0.5 s sample of the walk >= 0.7 S; spin-up 2-4 s
+// (the creek bench's). RED (the river layer off): the samples dip at swaps (a new reach layer starts at rest) - its minimum < 0.7 S.
+namespace {
+struct WalkRun { double steady = 0, minWalk = 1e9, meanWalk = 0, spinS = -1; int samples = 0, made = 0, makes = 0, dropped = 0; double worstAtX = 0, maxMs = 0; bool ok = false; std::string err; };
+}
+TEST_F(WaterRecordTilesTest, ARiverRippleIsThereAsTheViewerMoves) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto run = [&](bool riverOn) {
+        WalkRun out;
+        RiverRig rig;
+        if (!rig.make(device, physicalDevice, queue, queueFamilyIndex, riverOn, true)) { out.err = rig.err; return out; }
+        WaterCoreManager& mgr = *rig.mgr;
+        const float dt = 1.0f / 60.0f;
+        double t = 0.0, firstMake = -1.0;
+        auto near12 = [&](const glm::vec3& v) {   // the RMS slope over river cells within 12 m of the viewer
+            const auto layers = mgr.rippleLayers();
+            double s = 0; long n = 0;
+            for (int gz = 15 * 9; gz < 25 * 9; ++gz) for (int gx = static_cast<int>(std::floor((v.x - 12.0f) * 9.0f)); gx < static_cast<int>(std::floor((v.x + 12.0f) * 9.0f)); ++gx) {
+                const float wx = (gx + 0.5f) / 9.0f, wz = (gz + 0.5f) / 9.0f;
+                if ((wx - v.x) * (wx - v.x) + (wz - v.z) * (wz - v.z) > 144.0f) continue;
+                const float sl = RippleProbe::slopeAt(layers, gx, gz);
+                s += static_cast<double>(sl) * sl; ++n;
+            }
+            return n ? std::sqrt(s / n) : 0.0;
+        };
+        auto frame = [&](const glm::vec3& v) {
+            mgr.setViewPoint(v);
+            mgr.followRiver(v, t);
+            mgr.update(dt);
+            t += dt;
+            if (firstMake < 0.0 && mgr.riverFollowState().makes > 0) firstMake = t;
+            out.maxMs = std::max(out.maxMs, mgr.riverRippleStats().ms);
+        };
+        std::vector<std::pair<double, double>> still;   // (t since the first make, sample)
+        for (int k = 0; k < 1200; ++k) {
+            frame(glm::vec3(0.0f, 12.0f, 20.0f));
+            if (k % 30 == 29 && firstMake >= 0.0) still.push_back({t - firstMake, near12(glm::vec3(0.0f, 12.0f, 20.0f))});
+        }
+        double s = 0; int n = 0;
+        for (const auto& [ts, v] : still) if (ts >= still.back().first - 5.0) { s += v * v; ++n; }
+        out.steady = n ? std::sqrt(s / n) : 0.0;
+        for (const auto& [ts, v] : still) if (v >= 0.7 * out.steady) { out.spinS = ts; break; }
+        double sum = 0;
+        for (int k = 1; k <= 1920; ++k) {
+            const glm::vec3 v(5.0f * k * dt, 12.0f, 20.0f);
+            frame(v);
+            if (k % 30 == 0) {
+                const double x = near12(v);
+                ++out.samples; sum += x;
+                if (x < out.minWalk) { out.minWalk = x; out.worstAtX = v.x; }
+            }
+        }
+        out.meanWalk = out.samples ? sum / out.samples : 0.0;
+        out.makes = mgr.riverFollowState().makes; out.made = mgr.riverRippleStats().made; out.dropped = mgr.riverRippleStats().dropped;
+        { const auto& st = mgr.riverRippleStats();
+          std::printf("    the river layer's worst step %.2f ms: window move %.2f, record rebuild %.2f, overlay + forcing %.2f, layer step %.2f ms (each its own worst); %d rebuilds\n",
+                      st.msMax, st.shiftMsMax, st.rebuildMsMax, st.overlayMsMax, st.stepMsMax, st.rebuilds); }
+        out.ok = true;
+        return out;
+    };
+    const WalkRun g = run(true), red = run(false);
+    ASSERT_TRUE(g.ok) << g.err; ASSERT_TRUE(red.ok) << red.err;
+    auto pr = [](const char* tag, const WalkRun& r) {
+        std::printf("  %s: steady RMS slope within 12 m %.4f; spin-up to 70 %% %.1f s after the first make; walk (%d samples, %d reach makes): min %.4f (%.0f %% of steady, at x %.0f), mean %.4f;\n"
+                    "      river layers made %d, dropped %d; the river layer's step max %.2f ms\n",
+                    tag, r.steady, r.spinS, r.samples, r.makes, r.minWalk, r.steady > 0 ? 100.0 * r.minWalk / r.steady : 0.0, r.worstAtX, r.meanWalk, r.made, r.dropped, r.maxMs);
+    };
+    pr("GREEN (river layer on)", g); pr("RED (river layer off)", red);
+    EXPECT_GT(g.steady, 0.0);
+    EXPECT_GE(g.minWalk, 0.7 * g.steady) << "the ripples near the viewer never fade out as it moves";
+    EXPECT_EQ(g.made, 1) << "one river layer the whole walk";
+    EXPECT_GE(g.makes, 10);
+    EXPECT_LT(red.minWalk, 0.7 * red.steady) << "the red: a reach's own layer starts at rest at every swap";
+}

@@ -19,6 +19,8 @@ swap window >= half its speed outside them).
     python tools/water_w52b_follow.py [--tag w52b_follow]
     python tools/water_w52b_follow.py --cost [--reps 2]
     python tools/water_w52b_follow.py --clip [--tag w52b_clip]
+54.4 (W5.3): --river on|off sets the river ripple layer (water_ripples {river: {on}}) for the flight / clip; --cost states "ron" /
+"roff" = follow on (shipped) with the river layer on / off.
 Writes docs/evidence/water_core_m4/<tag>.json.
 """
 import argparse, json, math, pathlib, shutil, statistics, subprocess, sys, threading, time
@@ -103,6 +105,10 @@ class Sampler:
                 f = follow(self.api)
                 row.update({k: f.get(k) for k in ("reach_id", "makes", "releases", "refusals", "last_make_ms", "last_error", "min", "max", "point_found")})
             except Exception as ex: row["err2"] = str(ex)
+            try:   # 54.4: the river ripple layer's step (this frame) and its session worst
+                rv = self.api.debug("water_ripples", {"shape": False}).get("river") or {}
+                row.update({"river_active": rv.get("active"), "river_ms": rv.get("ms"), "river_max_ms": (rv.get("max_ms") or {}).get("all")})
+            except Exception: pass
             try:
                 cp = self.api.get("/api/camera/path")
                 row["progress"] = cp.get("progress"); row["playing"] = cp.get("playing")
@@ -194,6 +200,7 @@ def main():
     ap.add_argument("--speed", type=float, default=4.0)
     ap.add_argument("--window", default="WaterBench_RiverCarve")
     ap.add_argument("--crop", default="954:560:243:60")
+    ap.add_argument("--river", choices=("on", "off"), default=None)   # 54.4: the river ripple layer for the flight / clip
     a = ap.parse_args()
     tag = a.tag or ("w52b_cost" if a.cost else "w52b_clip" if a.clip else "w52b_follow")
     api = Api(a.url); api.wait_status(600)
@@ -203,6 +210,10 @@ def main():
     f0 = follow(api)
     print("realtime (read, not set):", rt, "| follow:", {k: f0.get(k) for k in ("on", "radius_m", "half_m", "margin_m", "realtime")}, flush=True)
     out = {"bench": "WaterBench_RiverCarve", "realtime_default": rt.get("realtime"), "follow_default": f0}
+    rv = api.debug("water_ripples", {"shape": False}).get("river")
+    out["river_ripple_default"] = rv
+    print("river ripple layer (read):", rv, flush=True)
+    if a.river: out["river_ripple_set"] = api.debug("water_ripples", {"shape": False, "river": {"on": a.river == "on"}}).get("river")
     if not rt.get("realtime"): print("!! realtime is OFF by default - the prediction failed", flush=True)
     camera_set(api, SITE["cam"]); time.sleep(12.0)
     path = trace(api)
@@ -216,7 +227,9 @@ def main():
         for k, state in enumerate(order):
                 rep = k
                 api.debug("water_av_realtime", {"on": state != "rtoff"})
-                follow(api, on=(state == "on")); time.sleep(3.0)
+                follow(api, on=(state in ("on", "ron", "roff")))
+                if state in ("ron", "roff"): api.debug("water_ripples", {"shape": False, "river": {"on": state == "ron"}})   # 54.4
+                time.sleep(3.0)
                 s = Sampler(api).start(); secs = fly(api, wps, a.speed); rows = s.finish()
                 sm = summarise(rows); sm.update({"rep": rep, "state": state, "flight_s": round(secs, 1)})
                 print({k: sm[k] for k in ("rep", "state", "fps", "cpu_ms", "gpu_ms", "samples_with_reach", "samples")}, flush=True)
@@ -225,8 +238,9 @@ def main():
         def mean(state, k): v = [r[k]["mean"] for r in runs if r["state"] == state and r[k]["mean"] is not None]; return round(statistics.mean(v), 2) if v else None
         out["runs"] = runs
         def med(state, k): v = [r[k]["median"] for r in runs if r["state"] == state and r[k]["median"] is not None]; return round(statistics.mean(v), 2) if v else None
-        out["summary"] = {st: {k: mean(st, k) for k in ("fps", "cpu_ms", "gpu_ms")} for st in ("rtoff", "off", "on")}
-        out["summary_medians"] = {st: {k: med(st, k) for k in ("fps", "cpu_ms", "gpu_ms")} for st in ("rtoff", "off", "on")}
+        out["summary"] = {st: {k: mean(st, k) for k in ("fps", "cpu_ms", "gpu_ms")} for st in ("rtoff", "off", "on", "ron", "roff")}
+        out["summary_medians"] = {st: {k: med(st, k) for k in ("fps", "cpu_ms", "gpu_ms")} for st in ("rtoff", "off", "on", "ron", "roff")}
+        out["river_ripple_end"] = api.debug("water_ripples", {"shape": False}).get("river")
         print("summary:", out["summary"])
     else:
         log = (EV / f"{tag}_debris_tmp.csv").resolve()
