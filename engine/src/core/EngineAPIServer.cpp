@@ -2171,7 +2171,6 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_span_scan",      waterEndpoint("water_span_scan"));  // occupancy §5.2
     srv.Post("/api/debug/water_ground_sync",    waterEndpoint("water_ground_sync"));  // grounded grid (un-baked worlds)
     srv.Post("/api/debug/water_spans_stored",   waterEndpoint("water_spans_stored")); // chunk-resident span readback
-    srv.Post("/api/debug/water_render_grid",    waterEndpoint("water_render_grid"));  // what the sheet would DRAW per column (camera-walk probe)
     srv.Post("/api/debug/water_ledger",         waterEndpoint("water_ledger"));       // WaterCore Phase A: Σ mass by representation
     srv.Post("/api/debug/water_probe_rect",     waterEndpoint("water_probe_rect"));   // WaterCore Phase A: per-column surface + mass over a rect
     srv.Post("/api/debug/place_water_box",      waterEndpoint("place_water_box"));    // WaterCore Phase A: fill a box of cells in one command
@@ -2198,7 +2197,6 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_sleep",       waterEndpoint("water_av_sleep"));       // Phase D: write-back + free
     srv.Post("/api/debug/water_av_wake",        waterEndpoint("water_av_wake"));        // Phase D: flood over spans -> volume
     srv.Post("/api/debug/water_body_table",     waterEndpoint("water_body_table"));     // Phase D: Tier A records
-    srv.Post("/api/debug/water_render_inject",  waterEndpoint("water_render_inject"));  // Phase D5: probe self-test injection
     srv.Post("/api/debug/water_render_core",    waterEndpoint("water_render_core"));    // Phase F: mesh | cells | off
     srv.Post("/api/debug/water_shore",          waterEndpoint("water_shore"));          // Phase G: the shoreline band
     srv.Post("/api/debug/water_coupling",       waterEndpoint("water_coupling"));       // Phase E: coupling status + A/B

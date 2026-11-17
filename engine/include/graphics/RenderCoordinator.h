@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/WaterSpanGridKey.h"
 #include "core/Types.h"
 #include "core/LodService.h"
 #include "core/WorldConstants.h"
@@ -549,14 +548,12 @@ public:
 
     // CPU water cellular-automaton sim — its surface cells are rendered per-cell.
 
-    // Water (Phase 0: implicit sea-level surface — see docs/Water.md).
-    // TODO: sea level + enabled should come from per-world config, not render state.
-    void  setWaterEnabled(bool enabled) { m_waterEnabled = enabled; }
-    bool  isWaterEnabled() const { return m_waterEnabled; }
+    // The world's sea level (game.json water.seaLevel) - read by water_ground_sync (editor worlds' open-water spans). The old
+    // flat sea sheet drawn at it was deleted (WaterCore §55.2 W6.1b); nothing draws at this level by itself.
     void  setSeaLevel(float y) { m_seaLevel = y; }
     float getSeaLevel() const { return m_seaLevel; }
-    // Read-only view of the sea-sheet pipeline for the `water_render_grid` probe (what the renderer
-    // would draw per column). Null before Vulkan init / without a water pipeline.
+    // Read-only view of the underwater overlay + the sea state (wind, swell, clock - the shore band reads them).
+    // Null before Vulkan init.
     const WaterRenderPipeline* waterRenderPipeline() const { return waterPipeline.get(); }
     /// The micro occupancy object (three-state query) for the WaterCore solid binding (§15.1).
     const VoxelLightOccupancyGpu* lightOccupancy() const { return m_lightOccupancy.get(); }
@@ -567,14 +564,12 @@ public:
     void setWaterCoreGpuSurfaces(const std::vector<Core::Water::GpuSurfaceDraw>* draws) { m_waterCoreGpuSurfaces = draws; }
     void setWaterFineField(const Core::Water::WaterSurfaceField* field) { m_waterFineField = field; }   // G4: the nested fine band
     void setWaterShoreField(const Core::Water::WaterSurfaceField* field) { m_waterShoreField = field; }   // Phase G: the shore band's surface, meshed with the volumes'
-    /// G3: the per-body look of a world column (the span grid packs it per column, the underwater overlay
-    /// reads it at the eye). Unset = the derived look everywhere.
-    void setWaterLookResolver(std::function<Core::Water::WaterLook(int, int, float)> r) { m_waterLookResolver = std::move(r); ++m_waterLookRevision; }   ///< (x, z, stored top or NaN)
+    /// G3: the per-body look of a world column (the underwater overlay reads it at the eye). Unset = the derived look.
+    void setWaterLookResolver(std::function<Core::Water::WaterLook(int, int, float)> r) { m_waterLookResolver = std::move(r); }   ///< (x, z, stored top or NaN)
     /// WaterCore 52 W4.1: the camera's depth under the water it is in (m, 0 = not in water), from the new water (the host's reader:
     /// the awake volumes, else the record). Set = the camera's underwater test asks it, and the underwater fog draws whenever it says
-    /// submerged, not only with the sea plane on (a generated lake on the new water drew no fog: w4_readers_before_underwater.png).
+    /// submerged (a generated lake on the new water drew no fog: w4_readers_before_underwater.png). Unset = no underwater fog.
     void setWaterDepthQuery(std::function<float(const glm::vec3&)> q) { m_waterDepthQuery = std::move(q); }
-    void bumpWaterLookRevision() { ++m_waterLookRevision; m_spanGridCooldown = 0; }
     void setWaterCoreRenderMode(Core::Water::WaterCoreRenderMode m) { m_waterCoreMode = m; }
     Core::Water::WaterCoreRenderMode waterCoreRenderMode() const { return m_waterCoreMode; }
     size_t waterCoreMeshVertices() const { return m_waterCoreMesh.vertices.size(); }
@@ -603,34 +598,24 @@ public:
     void setWaterCoreDefaultClarity(float m) { if (waterSurfacePipeline) waterSurfacePipeline->setDefaultClarity(m); }
     float waterCoreDefaultClarity() const { return waterSurfacePipeline ? waterSurfacePipeline->defaultClarity() : 0.0f; }
     int  waterCoreDebugMode() const { return waterSurfacePipeline ? waterSurfacePipeline->debugMode() : 0; }
-    /// Phase D (16.4): the live volumes' world boxes + their revision; the span grid masks those columns.
-    void setWaterCoreVolumeBoxes(const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, uint64_t revision) { m_waterCoreBoxes = boxes; m_waterCoreBoxRevision = revision; }
-    /// Phase D5 probe self-test: upload an all-dry grid and hold it (frozen) until restore(false), which rebuilds.
-    void injectDrySpanGrid(bool on);
     /// Phase B2 debug draw: FLIP particles as water-shaded cubes of their cell size through the dynamic
     /// voxel pipeline (docs/WaterCore.md §15.9). Null or empty = nothing drawn.
     void setWaterCoreParticles(const std::vector<glm::vec4>* particles) { m_waterCoreParticles = particles; }
 
-    // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
-    // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
+    // Gerstner swell (WaterSystemV3 Phase 2) - the shore band's ocean ring reads it. Amplitude 0 = flat.
     void setWaves(float amplitude, float wavelength, float windDirectionRadians);
     // Current swell settings as {amplitude, wavelength, windDirection}; zeroes if no pipeline.
     glm::vec3 waveSettings() const;
 
     // Wind SPEED in m/s (v4 W3). Drives the per-body profile: fetch-limited wave energy (SMB/CERC)
-    // and Cox-Munk ripple roughness. Setting it rebuilds the hydrology texture, since both are
-    // baked per column there. Default 6.7 = Beaufort 4 mid-point = today's look.
+    // and Cox-Munk ripple roughness. Default 6.7 = Beaufort 4 mid-point = today's look.
     void setWindSpeed(float metresPerSecond);
     float windSpeed() const;
 
     // ── Water Appearance v4, W1 (docs/Water.md) ───────────────────────────────────
-    // Force a turbidity/roughness profile onto every wet column, bypassing per-body derivation.
-    // THE POSITIVE CONTROL for the profile pipe: derivation is neutral in W1, so a measurable pixel
-    // change under an override is what proves body → texture → shader → frame actually carries the
-    // value. Deliberately routed through the REAL production path (it re-uploads the hydrology
-    // texture) rather than a side channel, so it cannot pass while the shipped path is broken.
-    // `active = false` restores derivation. Only affects worlds with a hydrology bake — a flat-sea
-    // world has no bodies and therefore no profiles, by construction.
+    // Force a turbidity/roughness profile, bypassing per-body derivation. It reached the surface only through the old sea
+    // sheet's per-column texture; since the sheet's deletion (WaterCore §55.2 W6.1b) it reaches the UNDERWATER FOG only
+    // (the new water's look is the per-body record - water_look {body, ...}). `active = false` restores derivation.
     void setWaterLook(bool active, float turbidity, float roughness);
     // {active ? 1 : 0, turbidity, roughness}.
     glm::vec3 waterLook() const;
@@ -643,21 +628,6 @@ public:
     // v4 item with real per-fragment cost — measure in Release.
     void setWaterSsr(bool on) { m_waterSsrEnabled = on; }
 
-    // ── GROUNDED WATER GRID (docs/Water.md) ────────────────────────────────────────
-    // Upload a per-voxel-column water grid built from LIVE terrain, for worlds with NO hydrology
-    // bake. rgba is the same packing as the bake path (R = level or the <-1e5 dry sentinel,
-    // G = wave energy, B = turbidity, A = roughness), cellSize is 1 voxel, and it is passed to the
-    // pipeline NEGATIVE — the sign tells the shaders that off-grid columns are DRY, because a
-    // bounded world has no implicit ocean beyond its edges. This replaces the implicit flat sea
-    // for such worlds: with it bound, a column with no terrain under it cannot draw water.
-    void uploadGroundedWaterGrid(const std::vector<float>& rgba, int cellsX, int cellsZ,
-                                 float originX, float originZ);
-
-    // THE SANE BASELINE (docs/Water.md, user order 2026-08-04): streaming baked worlds render
-    // water from CHUNK SPANS over resident chunks, off-grid dry — one placement rule, coverage
-    // identical to terrain residency, content viewer-independent. Replaces the bake as the
-    // placement source on screen. Called per frame; rebuilds on chunk arrivals, rate-limited.
-    void updateSpanWaterGrid();
     bool waterSsr() const { return m_waterSsrEnabled; }
 
     // Is the camera under water, and how far? Returns 0 above the surface, 1 fully submerged, and
@@ -1114,20 +1084,10 @@ private:
     /// uploaded report "not solid", i.e. they degrade to NO OCCLUSION — never to wrong geometry.
     void updateLightOccupancy();
 
-    // Water-layer P1: identity of the last hydrology bake uploaded to the sea pipeline. Starts
-    // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
-    // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
-    uint64_t m_waterLookRevision = 0;   // Phase D5: look / wind / wave changes re-pack the span grid (no bake upload exists any more)
-    bool     m_spanGridFrozen = false;  // the probe's self-test injects a dry grid and holds it until restore
-    Core::SpanGridKey m_spanGridKey;    // rebuild the span water grid when the RESIDENT SET, the span revision or the AV set changes (WaterCore.md 16.4)
-    bool   m_spanGridBuilt = false;
-    const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_waterCoreBoxes = nullptr;   // live AV boxes (+ the shore band's): their columns are the AV's, not the grid's
     const Core::Water::WaterSurfaceField* m_waterShoreField = nullptr;   // Phase G
     const Core::Water::WaterSurfaceField* m_waterFineField = nullptr;    // G4
     std::function<Core::Water::WaterLook(int, int, float)> m_waterLookResolver;   // G3
     std::function<float(const glm::vec3&)> m_waterDepthQuery;                     // 52 W4.1
-    uint64_t m_waterCoreBoxRevision = 0;
-    int    m_spanGridCooldown = 0;
     // v4 W1 water-look override (see setWaterLook). Neutral values = today's look exactly.
     bool  m_waterLookActive = false;
     float m_waterLookTurbidity = 0.0f;
@@ -1450,8 +1410,7 @@ private:
     // pipelines' params so grass and foliage can never see diverging wind.
     WindSystem windSystem;
 
-    // Water surface. Default OFF; enabled + sea level come from the per-world game
-    // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.
+    // The underwater overlay + the sea state (the old sea sheet's pipeline; the sheet deleted in WaterCore §55.2 W6.1b).
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
     const std::vector<const Core::Water::WaterSurfaceField*>* m_waterCoreFields = nullptr;   // Phase F: the volumes' surface fields
     const std::vector<Core::Water::GpuSurfaceDraw>* m_waterCoreGpuSurfaces = nullptr;        // 29 S1
@@ -1467,14 +1426,11 @@ private:
     void*          m_flipDebugMapped = nullptr;
     static constexpr uint32_t kFlipDebugMaxParticles = 32768;            // 12.6 MB of faces; the draw subsamples above it
     void renderFlipParticlesDebug();
-    bool  m_waterEnabled = false;
-    float m_seaLevel = Core::kSeaLevelY; // shared default (WorldConstants.h) — must match the
-                                         // water sim or the plane draws where no water is
+    float m_seaLevel = Core::kSeaLevelY; // shared default (WorldConstants.h)
 
     // Per-cell water surface rendering (the CPU sim's actual field).
     std::unique_ptr<WaterSurfaceRenderPipeline> waterSurfacePipeline;   // WaterCore Phase F
-    // True for frames where the reflection pass was rendered for the water plane
-    // (decided before the scene pass, consumed when the water surface is drawn).
+    // True for frames where water screen-space reflection is on (decided before the scene pass).
     bool  m_waterReflectionActive = false;
 
     // GPU particle physics (non-owning — owned by Application)

@@ -376,7 +376,8 @@ everywhere; bulk water as particles (particles = splash/spray only).
    impulses while capturing); Σ|h| is not monotone for waves; multiplicative verlet damping
    needs `exp(−2k·dt)`.
 
-8b. **The camera-walk probe — AUTOMATED 2026-10-08: `python tools/water_camera_probe.py <bench>`**
+8b. **The camera-walk probe — AUTOMATED 2026-10-08; RETIRED 2026-11-16 with the sheet it read (WaterCore §55.2 W6.1b - the tool,
+   `water_render_grid` and `water_render_inject` are deleted; git history has them): `python tools/water_camera_probe.py <bench>`**
    (WaterRethink.md WP0). It poses far, settles, reads `water_render_grid` (what the sheet would
    DRAW per column, from the pipeline's CPU shadow of the uploaded grid) + `water_spans_stored
    {columns:true}` (what chunks HOLD + resident chunk columns), poses near, reads again, and
@@ -413,9 +414,9 @@ water-vs-OIT ordering (untested).
 
 `engine/include/core/`: `WaterManager.h` · `WaterSimulation` · `WaterOccupancy.h` ·
 `WaterProfile.h` · `WaterBodyIndex.h` · `RippleField.h` · `WorldConstants.h` (kSeaLevelY).
-`engine/src/graphics/`: `WaterRenderPipeline` (sea clipmap) · `WaterCellRenderPipeline` ·
-`SeaMesh` · `RenderCoordinator` (hydro upload, grounded grid).
-`shaders/`: `water.vert/.frag` · `water_cell.*` · `water_underwater.frag` ·
+`engine/src/graphics/`: `WaterRenderPipeline` (sea clipmap; the sheet, `SeaMesh` and the hydro/grounded grids DELETED 2026-11-16,
+WaterCore §55.2) · `WaterCellRenderPipeline` · `RenderCoordinator`.
+`shaders/`: `water.vert/.frag` (deleted §55.2) · `water_cell.*` · `water_underwater.frag` ·
 **`water_common.glsl`** (the shared shading).
 Debug API: `water_stats` · `water_probe` · `water_footprint` · `water_validate` ·
 `water_span_scan` · `water_ground_sync` · `water_spans_stored` · `water_bake_info` · `water_bodies` ·

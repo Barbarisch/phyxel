@@ -19,7 +19,7 @@ float seaSwellHeight(const SeaSwellParams& p, float x, float z, float t) {
     float h = 0.0f;
     for (int i = 0; i < 4; ++i) {
         const float k = 6.28318530718f / c[i].wavelength;
-        const float cph = std::sqrt(9.81f / k);                       // deep-water phase speed, as water.vert
+        const float cph = std::sqrt(9.81f / k);                       // deep-water phase speed
         const float f = k * (c[i].dir.x * x + c[i].dir.y * z - cph * t);
         h += c[i].amplitude * std::sin(f);
     }

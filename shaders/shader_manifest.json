@@ -356,19 +356,9 @@
       "sources": "ee83da1d79ec4b74747e6ff3caae749314709d2d0314ae673a223b83f1472c83",
       "spv_present": true
     },
-    "water.frag": {
-      "built": true,
-      "sources": "8b069bf08b53310dd0e4c74ff10291d3b4d783f6c941dc70d067092ade04ed62",
-      "spv_present": true
-    },
-    "water.vert": {
-      "built": true,
-      "sources": "6a1b8b482823eeaaa4d47a419adc505ea3139e6d92673e243a900c1d2e321f5c",
-      "spv_present": true
-    },
     "water_surface.frag": {
       "built": true,
-      "sources": "2a308ec5a291a9e39db8498136b1bbeeba5d047a352f1f41a68750e66fdf0404",
+      "sources": "4873a922109e56b673dea441d974f4731677b83f994deea3c226984f64caa3eb",
       "spv_present": true
     },
     "water_surface.vert": {

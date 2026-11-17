@@ -403,8 +403,9 @@ core that replaces it is [`docs/WaterCore.md`](docs/WaterCore.md) (design of rec
 - **Water runtime fills it** (the new water core, `docs/WaterCore.md`) — generation writes the bake's lakes, rivers and
   sea into chunk-resident **water spans** (the record); the core simulates small patches where something disturbs them
   and draws the rest from the record. The old camera-following CA (`WaterManager`/`WaterSimulation`) was DELETED
-  2026-11-14 (WaterCore §52 W4.3). game.json `water.enabled` now only switches the flat sea PLANE. Debug: `water_stats`
-  (plane + camera), `water_query {points, boxes}` (what bodies/camera read), `water_table_level {x,z}`,
+  2026-11-14 (WaterCore §52 W4.3); the old flat sea SHEET (`water.vert/.frag`, `SeaMesh`) 2026-11-16 (§55.2 W6.1b) -
+  game.json `water.enabled` is now ignored. Debug: `water_stats`
+  (sea level + camera), `water_query {points, boxes}` (what bodies/camera read), `water_table_level {x,z}`,
   `water_validate {x1,z1,x2,z2,maxY}` (bake-vs-terrain rim-leak check), `water_av_*` (the core's volumes).
 
 ### Biomes, Flora & the World Recipe

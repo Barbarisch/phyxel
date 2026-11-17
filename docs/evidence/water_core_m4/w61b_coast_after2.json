@@ -1,0 +1,63 @@
+{
+ "bench": "coast",
+ "state": "after2",
+ "status": {
+  "api_version": "1.0",
+  "build_config": "Release",
+  "engine": "phyxel",
+  "port": 8109,
+  "status": "ok"
+ },
+ "water_stats": {
+  "camera_depth_below": 0.0,
+  "camera_submergence": 0.0,
+  "render_sea_level": 16.0,
+  "total_mass": 0.0
+ },
+ "poses": {
+  "spawn": {
+   "pose": {
+    "x": 165.0,
+    "y": 50.0,
+    "z": 600.0,
+    "yaw": 90.0,
+    "pitch": -28.0
+   },
+   "still": "w61b_coast_after2_spawn.png",
+   "fps": 23.68486363511252,
+   "cpu_ms": 42.23860055208206,
+   "gpu_ms": 41.469264
+  },
+  "shore": {
+   "pose": {
+    "x": 165.0,
+    "y": 18.0,
+    "z": 668.0,
+    "yaw": 90.0,
+    "pitch": -8.0
+   },
+   "still": "w61b_coast_after2_shore.png",
+   "fps": 58.25429136910706,
+   "cpu_ms": 17.166150733828545,
+   "gpu_ms": 17.410384
+  },
+  "high": {
+   "pose": {
+    "x": 165.0,
+    "y": 136.0,
+    "z": 600.0,
+    "yaw": 90.0,
+    "pitch": -12.0
+   },
+   "still": "w61b_coast_after2_high.png",
+   "fps": 75.1521009174831,
+   "cpu_ms": 13.307049870491028,
+   "gpu_ms": 13.442224
+  }
+ },
+ "sheet_grid_rebuilds": {
+  "count": 0,
+  "idle_wait_ms_total": 0,
+  "idle_wait_ms_max": 0.0
+ }
+}

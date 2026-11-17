@@ -3904,15 +3904,6 @@ async def list_tools() -> list[Tool]:
                 "x1": {"type": "integer"}, "z1": {"type": "integer"}, "x2": {"type": "integer"}, "z2": {"type": "integer"}}},
         ),
         Tool(
-            name="water_render_grid",
-            description="What the sea sheet would DRAW per column over a world-XZ rect (the camera-walk probe's observable): placement source (flat/bake/grounded), grid origin/cells/cell size, wet/dry/off-grid counts, level range, optional wet-column list. Diff this from two vantages and against water_spans_stored to catch a camera-existence violation (docs/Water.md sec. 8 #8b). Rect max 2048x2048.",
-            inputSchema={"type": "object", "properties": {
-                "x1": {"type": "integer"}, "z1": {"type": "integer"}, "x2": {"type": "integer"}, "z2": {"type": "integer"},
-                "columns": {"type": "boolean", "description": "Also list wet columns as [x,z,level] (default false)"},
-                "max_columns": {"type": "integer", "description": "Cap on the listed wet columns (default 65536)"}},
-                "required": ["x1", "z1", "x2", "z2"]},
-        ),
-        Tool(
             name="water_validate",
             description="L2 bake-vs-terrain rim-leak check over a world-XZ rect: rim, rim_leaks, worst leak, wet, unloaded. A zero is NOT a pass unless unloaded == 0 and wet > 0.",
             inputSchema={"type": "object", "properties": {
@@ -6190,7 +6181,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         return await api_get("/api/world/terrain_height", params)
 
     # --- Water (every water debug route is POST /api/debug/<name> with the args as the body) ---
-    elif name in ("water_stats", "water_spans_stored", "water_render_grid",
+    elif name in ("water_stats", "water_spans_stored",
                   "water_validate", "water_find_river", "water_table_level", "water_bake_info",
                   "water_waves", "water_look"):
         return await api_post(f"/api/debug/{name}", dict(args), timeout=300)

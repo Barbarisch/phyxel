@@ -23,7 +23,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §7)
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
 #include "graphics/WaterSurfaceRenderPipeline.h"   // 27.27 arena_no_grow red control
-#include "graphics/WaterRenderPipeline.h"   // water_render_grid probe (renderWaterAt)
+#include "graphics/WaterRenderPipeline.h"   // the sea state (wind, swell, clock) the shore band reads
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/ChunkArenaSystem.h"       // Phase 4.3 region arenas (docs/RegionArenaPlan.md)
@@ -146,7 +146,7 @@ float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.
 #include <sstream>
 #include <algorithm>
 #include <unordered_set>
-#include "core/WaterSpanGridKey.h"
+#include "core/WaterSpanGridKey.h"   // residentSetHash / chunkCoordHash64 (the skin's residency key)
 #include "core/WaterSkinSource.h"   // 51.4 step 2
 #include <set>
 #include <chrono>
@@ -2880,11 +2880,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     }
 #endif
 
-    // Water renders from what the chunks HOLD (docs/Water.md §6 step 2). The --project boot loads
-    // chunks in core WorldInitializer, which cannot reach the render coordinator — so the bind
-    // happens here, once everything exists. (applyProjectSelection covers the in-session
-    // project-open path with its own call.) A saved basin shows its water at boot, no command.
-    rebuildGroundedWaterFromSpans();
 
     return true;
 }
@@ -2950,46 +2945,6 @@ void Application::onLauncherResult(const LauncherResult& result) {
         default:
             break;
     }
-}
-
-long Application::rebuildGroundedWaterFromSpans() {
-    if (!chunkManager || !renderCoordinator) return 0;
-    const WorldGenerator* sg = chunkManager->getStreamingGenerator();
-    if (sg && sg->hydrology()) return 0;              // baked worlds render via the bake upload
-    if (chunkManager->chunkMap.empty()) return 0;
-
-    // Bounds of the loaded chunks, in columns.
-    glm::ivec3 lo(INT_MAX), hi(INT_MIN);
-    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
-        lo = glm::min(lo, cc); hi = glm::max(hi, cc);
-    }
-    const int minX = lo.x * 32, minZ = lo.z * 32;
-    const int w = (hi.x - lo.x + 1) * 32, d = (hi.z - lo.z + 1) * 32;
-    if (static_cast<long long>(w) * d > (1 << 21)) return 0;   // editor-scale worlds only
-
-    // Derive the per-column grid from what chunks HOLD. A column's surface is the topmost clip
-    // across its vertical chunk stack (clips at a chunk ceiling continue above, so the highest
-    // wet chunk owns the surface).
-    std::vector<float> rgba(static_cast<size_t>(w) * d * 4);
-    for (size_t i = 0; i < rgba.size(); i += 4) {
-        rgba[i] = -1e30f; rgba[i + 1] = 1.0f; rgba[i + 2] = 0.0f; rgba[i + 3] = 1.0f;
-    }
-    long wet = 0;
-    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
-        if (!chunk) continue;
-        for (const auto& s : chunk->getWaterSpans()) {
-            const int gx = cc.x * 32 + s.x - minX, gz = cc.z * 32 + s.z - minZ;
-            float* px = &rgba[(static_cast<size_t>(gz) * w + gx) * 4];
-            const float topWorld = static_cast<float>(cc.y) * 32.0f + s.top;
-            if (px[0] < -1e5f) ++wet;                  // first span for this column
-            if (topWorld > px[0]) px[0] = topWorld;    // topmost clip wins
-        }
-    }
-    renderCoordinator->uploadGroundedWaterGrid(rgba, w, d,
-                                               static_cast<float>(minX), static_cast<float>(minZ));
-    LOG_INFO("Application", "Grounded water bound from chunk spans: {} wet columns over {}x{}",
-             wet, w, d);
-    return wet;
 }
 
 void Application::applyProjectSelection(const std::string& projectPath) {
@@ -3058,9 +3013,6 @@ void Application::applyProjectSelection(const std::string& projectPath) {
             // so characters fall through the world. (Runtime/WorldInitializer path
             // already does this; the editor project-open path previously skipped it.)
             chunkManager->buildAllChunkPhysics();
-            // Water renders from what the chunks HOLD (docs/Water.md §6 step 2): a saved basin
-            // shows its water at boot with no command, or shows none if none was ever stored.
-            rebuildGroundedWaterFromSpans();
             LOG_INFO("Application", "Loaded {} chunk(s) from project world database", loaded.size());
         } else {
             LOG_INFO("Application", "Project world database is empty  --  world will be built from game.json");
@@ -3712,7 +3664,7 @@ void Application::waterWorldChanged(const char* reason, bool restore) {
         renderCoordinator->setWaterCoreSurfaceFields(nullptr);
         renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
     }
-    m_waterMaskBoxes.clear(); m_displaceState.clear(); m_lastAutoSleep = {}; m_waterHeldEdits = 0;
+    m_displaceState.clear(); m_lastAutoSleep = {}; m_waterHeldEdits = 0;
     { std::lock_guard<std::mutex> lock(m_riverCurrentMutex); m_riverCurrentCache.clear(); }   // 54: another world's rivers
     if (shoreBand) shoreBand->clear();
     if (fineBand) fineBand->clear();
@@ -4203,13 +4155,6 @@ void Application::update(float deltaTime) {
                 }
             }
             if (renderCoordinator) {
-                m_waterMaskBoxes = waterCore->volumeBoxes();
-                uint64_t maskRev = waterCore->avRevision() * 1000003ull;
-                // §27 W1a: the record tiles near the camera are drawn by the pond surface - the span sheet leaves them too
-                for (const auto& b : waterCore->recordTileBoxes()) m_waterMaskBoxes.push_back(b);
-                maskRev ^= waterCore->recordRevision() * 0x9E3779B97F4A7C15ull;
-                if (m_shoreOn && shoreBand && shoreBand->active()) { m_waterMaskBoxes.push_back(shoreBand->maskBox()); maskRev ^= shoreBand->record().revision; }
-                renderCoordinator->setWaterCoreVolumeBoxes(&m_waterMaskBoxes, maskRev);   // Phase D: the span grid leaves these columns to the volumes (+ the band)
                 renderCoordinator->setWaterShoreField(m_shoreOn && shoreBand && shoreBand->active() ? &shoreBand->field() : nullptr);
                 renderCoordinator->setWaterFineField(m_shoreOn && m_fineOn && fineBand && fineBand->active() ? &fineBand->field() : nullptr);   // G4
             }
@@ -7083,10 +7028,9 @@ void Application::autoLoadGameDefinition() {
                 const nlohmann::json core = water.contains("core") && water["core"].is_object() ? water["core"] : nlohmann::json::object();
                 waterCore->setRealtime(core.value("realtime", true));
             }
-            if (renderCoordinator) {
-                renderCoordinator->setWaterEnabled(water.value("enabled", false));
-                renderCoordinator->setSeaLevel(seaLevel);
-            }
+            // water.enabled switched the old flat sea sheet only (52 W4.2); the sheet is deleted (WaterCore §55.2 W6.1b) and the key
+            // is ignored - the new water draws whatever the world records.
+            if (renderCoordinator) renderCoordinator->setSeaLevel(seaLevel);
             // Buoyancy + water drag for dynamic bodies (small-scale Phase 4.2): the CPU
             // rigid-body world reads submersion through this injected query — physics never
             // links the water.
@@ -13168,8 +13112,8 @@ void Application::registerWaterCommands() {
     static constexpr float kTableDry = -1e29f;   // below it a bake level reads dry (HydrologyMap's NO_WATER is -1e30)
 
     // ── water_ground_sync (docs/Water.md — grounded water for UN-BAKED worlds) ────
-    // Builds a per-voxel-column water grid from the LIVE chunk terrain and binds it to the water
-    // renderer, replacing the implicit flat sea. Per column: find the topmost solid voxel, then let
+    // Writes open-water spans into the loaded chunks from the LIVE terrain (the new water draws them from the record; the old
+    // sheet's grid this used to bind was deleted, WaterCore §55.2 W6.1b). Per column: find the topmost solid voxel, then let
     // Phyxel::buildOpenWaterSpan decide wetness against the world's sea level — the SAME function
     // whose structural guarantee is "a span's bottom is the terrain surface and nothing else". So:
     //   * a column whose ground stands at/above sea level  -> dry (no sheet through hillsides);
@@ -13210,9 +13154,7 @@ void Application::registerWaterCommands() {
         // Spans grouped per chunk — this command is the EDITOR-WORLD writer of chunk-resident
         // water (docs/Water.md §2 layer 1): un-baked worlds have no generation-time span pass, so
         // the scan persists its result into the chunks (and from there into the world DB via the
-        // normal blob save). ⚑The RENDER upload happens at the END, derived FROM the chunks — the
-        // scan never feeds the renderer directly, so there is exactly one render derivation
-        // (rebuildGroundedWaterFromSpans) whether water arrives by boot-load or by this command.
+        // normal blob save). The scan never feeds the renderer: the water core draws what the chunks hold.
         std::unordered_map<glm::ivec3, std::vector<Chunk::WaterSpanLocal>, ChunkCoordHash> chunkSpans;
         auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
         long wet = 0, solidCols = 0;
@@ -13269,13 +13211,11 @@ void Application::registerWaterCommands() {
         }
         chunkManager->bumpWaterSpanRevision();
 
-        // Render THROUGH the chunks: the one derivation, shared with the boot-load path.
-        const long boundWet = rebuildGroundedWaterFromSpans();
         r = {{"success", true}, {"columns", (long long)w * d}, {"solid_columns", solidCols},
-             {"wet_columns", wet}, {"wet_columns_bound", boundWet}, {"sea_level", sea},
+             {"wet_columns", wet}, {"sea_level", sea},
              {"chunks_with_spans", spanChunks}, {"spans_stored", spansStored},
              {"bounds", {{"minX", minX}, {"maxX", maxX}, {"minZ", minZ}, {"maxZ", maxZ}}},
-             {"mode", "grounded (off-grid dry), rendered from chunk spans"}};
+             {"mode", "spans written to the chunks (drawn by the water core's record tiles)"}};
     });
 
     // ── water_spans_stored — read back the CHUNK-RESIDENT spans (docs/Water.md §2 layer 1) ───
@@ -13340,67 +13280,8 @@ void Application::registerWaterCommands() {
              {"source", "chunk-resident (world data, not a derivation)"}};
     });
 
-    // What the RENDERER holds per column over a world-XZ rect — the camera-walk probe's observable
-    // (Water.md §8 #8b, WaterRethink.md WP0). Reads the sea sheet's CPU shadow of the uploaded
-    // level grid through the same lookup rules as water.vert/water.frag, so "wet here?" is
-    // answered without a screenshot. Diffing this from two vantages, and against
-    // `water_spans_stored`, is how a camera-existence violation is caught automatically.
-    // {x1,z1,x2,z2, "columns": bool (list wet columns), "max_columns": N (default 65536)}
-    // Phase D5: the camera-walk probe's self-test injection. {"dry": true} uploads an all-dry grid and
-    // freezes the span grid (the renderer now disagrees with the stored spans everywhere there is
-    // water); {"dry": false} restores by forcing a rebuild. Replaces the bake-upload reversion the
-    // self-test used to provoke through water_look, which no longer exists.
-    reg.on("water_render_inject", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (!renderCoordinator) { r = {{"error", "no render coordinator"}}; return; }
-        const bool on = cmd.params.value("dry", true);
-        renderCoordinator->injectDrySpanGrid(on);
-        const auto* wp = renderCoordinator->waterRenderPipeline();
-        r = {{"success", true}, {"dry_injected", on}, {"source", wp ? wp->hydroModeName() : "n/a"}};
-    });
-    reg.on("water_render_grid", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        const auto* wp = renderCoordinator ? renderCoordinator->waterRenderPipeline() : nullptr;
-        if (!wp) { r = {{"error", "water render pipeline not available"}}; return; }
-        const int x1 = cmd.params.value("x1", 0), z1 = cmd.params.value("z1", 0);
-        const int x2 = cmd.params.value("x2", 0), z2 = cmd.params.value("z2", 0);
-        const int lx = std::min(x1, x2), hx = std::max(x1, x2);
-        const int lz = std::min(z1, z2), hz = std::max(z1, z2);
-        const long long cols = static_cast<long long>(hx - lx + 1) * (hz - lz + 1);
-        // Bounded so a typo cannot stall the game loop: 2048² is the span grid's own ceiling.
-        if (cols > 2048LL * 2048LL) { r = {{"error", "rect too large (max 2048x2048 columns)"}}; return; }
-        const bool listWet = cmd.params.value("columns", false);
-        const size_t maxList = static_cast<size_t>(std::max(0, cmd.params.value("max_columns", 65536)));
-        const float seaLevel = renderCoordinator->getSeaLevel();
-        long wet = 0, dry = 0, offGrid = 0;
-        float minLv = 1e30f, maxLv = -1e30f;
-        nlohmann::json list = nlohmann::json::array();
-        bool truncated = false;
-        for (int z = lz; z <= hz; ++z) {
-            for (int x = lx; x <= hx; ++x) {
-                const auto c = wp->renderWaterAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f, seaLevel);
-                if (!c.onGrid) ++offGrid;
-                if (!c.wet) { ++dry; continue; }
-                ++wet;
-                minLv = std::min(minLv, c.level); maxLv = std::max(maxLv, c.level);
-                if (listWet) {
-                    if (list.size() < maxList) list.push_back({x, z, c.level});
-                    else truncated = true;
-                }
-            }
-        }
-        const glm::vec3 hp = wp->hydroParams();
-        r = {{"source", wp->hydroModeName()},
-             {"water_enabled", renderCoordinator->isWaterEnabled()},
-             {"sea_level", seaLevel},
-             {"cells", {{"x", wp->hydroCellsX()}, {"z", wp->hydroCellsZ()}}},
-             {"origin", {{"x", hp.x}, {"z", hp.y}}},
-             {"cell_size", hp.z != 0.0f ? 1.0f / hp.z : 0.0f},
-             {"columns", cols}, {"wet", wet}, {"dry", dry}, {"off_grid", offGrid},
-             {"min_level", wet ? minLv : 0.0f}, {"max_level", wet ? maxLv : 0.0f},
-             {"wet_columns", list}, {"wet_columns_truncated", truncated},
-             {"note", "sheet PLACEMENT source only: per-pixel depth gates (dry-land, rim-wall) are not reproduced; cell water (authored worlds) is a separate source"}};
-    });
-
-    // set_sea_level {level}: the sea PLANE's height (the sheet; the record's sea is generation's - 52 W4.3b). Echoes it.
+    // set_sea_level {level}: the level water_ground_sync fills editor worlds to (the record's sea is generation's - 52 W4.3b;
+    // the sheet drawn at it is deleted, §55.2). Echoes it.
     reg.on("set_sea_level", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
         renderCoordinator->setSeaLevel(cmd.params.value("level", Core::kSeaLevelY));
@@ -13618,7 +13499,6 @@ void Application::registerWaterCommands() {
             }
             std::vector<std::string> notes;
             rec->look = clampLook(lk, &notes);
-            renderCoordinator->bumpWaterLookRevision();   // the span grid re-packs the per-column look
             const WaterLookPacked pk = packLook(rec->look);
             const nlohmann::json named = r.contains("named_region") ? r["named_region"] : nlohmann::json();
             r = {{"success", true}, {"body", rec->id}, {"cls", rec->cls}, {"origin", rec->origin}, {"level", rec->level},
@@ -13838,7 +13718,6 @@ void Application::registerWaterCommands() {
         r = {{"total_mass", 0.0}};
         if (renderCoordinator) {
             float depthBelow = 0.0f;
-            r["plane_enabled"]       = renderCoordinator->isWaterEnabled();
             r["render_sea_level"]    = renderCoordinator->getSeaLevel();
             r["camera_submergence"]  = renderCoordinator->cameraSubmergence(depthBelow);
             r["camera_depth_below"]  = depthBelow;

@@ -1,6 +1,6 @@
 #include "atmosphere.glsl"   // the sky the water reflects is the sky the dome draws (Phase F2)
 //
-// water_common.glsl — shading shared by the flat sea plane (water.frag) and the per-cell sim
+// water_common.glsl — shading shared by the water surfaces (the flat sea plane's water.frag was deleted, WaterCore §55.2) and the per-cell sim
 // surface (water_cell.frag), so the two renderers cannot drift apart visually.
 //
 // WaterSystemV3 Phase 1: water now draws in its OWN pass after the scene pass, so it can sample

@@ -1,0 +1,50 @@
+{
+ "bench": "river",
+ "state": "after2",
+ "status": {
+  "api_version": "1.0",
+  "build_config": "Release",
+  "engine": "phyxel",
+  "port": 8110,
+  "status": "ok"
+ },
+ "water_stats": {
+  "camera_depth_below": 0.0,
+  "camera_submergence": 0.0,
+  "render_sea_level": 16.0,
+  "total_mass": 0.0
+ },
+ "poses": {
+  "spawn": {
+   "pose": {
+    "x": -1728.0,
+    "y": 115.0,
+    "z": -1320.0,
+    "yaw": 90.0,
+    "pitch": -28.0
+   },
+   "still": "w61b_river_after2_spawn.png",
+   "fps": 11.402760029822963,
+   "cpu_ms": 88.95109966397285,
+   "gpu_ms": 30.623632
+  },
+  "bank": {
+   "pose": {
+    "x": -1716.0,
+    "y": 40.0,
+    "z": -1180.0,
+    "yaw": 90.0,
+    "pitch": -20.0
+   },
+   "still": "w61b_river_after2_bank.png",
+   "fps": 2.5668423433328886,
+   "cpu_ms": 389.8136615753174,
+   "gpu_ms": 34.1372
+  }
+ },
+ "sheet_grid_rebuilds": {
+  "count": 0,
+  "idle_wait_ms_total": 0,
+  "idle_wait_ms_max": 0.0
+ }
+}

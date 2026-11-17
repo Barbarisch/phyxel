@@ -1424,7 +1424,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   - **GPU port** = `shaders/water_flow.comp` (gather formulation, opt-in via `water_gpu`
     command). Works + conserves mass, but **NOT yet a perf win** (synchronous per-step readback);
     CPU is the reference path.
-  - **Render** = `WaterRenderPipeline` (flat implicit sea plane, procedural sky/sun reflection)
+  - **Render** = `WaterRenderPipeline` (flat implicit sea plane - DELETED 2026-11-16, WaterCore §55.2; the class keeps the underwater fog + sea state)
     + `WaterCellRenderPipeline` (per-cell instanced surface; **sloped seamless tops** via a
     shared corner-height grid, **side faces + vertical waterfall curtains**, depth-darkened
     translucency). Mist = soft `VfxSystem` bursts at detected waterfall lips (`WaterManager::

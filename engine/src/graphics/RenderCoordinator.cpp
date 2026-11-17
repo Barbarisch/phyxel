@@ -1017,27 +1017,16 @@ bool RenderCoordinator::initUISystem() {
 
 void RenderCoordinator::setMaxChunkRenderDistance(float distance) {
     maxChunkRenderDistance = distance;
-    // The sea's wave zone has to outreach the far plane, or its taper is a ring of flattening water
-    // centred on the camera (a visible vortex from above). 1.35x gives the taper somewhere no one
-    // can see it, including into the screen corners where the diagonal FOV reaches furthest.
-    if (waterPipeline) waterPipeline->setWaveRadius(distance * 1.35f);
 }
 
 void RenderCoordinator::setWaves(float amplitude, float wavelength, float windDirectionRadians) {
     if (!waterPipeline) return;
-    const float oldDir = waterPipeline->windDirection();
     waterPipeline->setWaves(amplitude, wavelength, windDirectionRadians);
-    // v4 W3: wave energy is now FETCH-limited, and fetch depends on the wind HEADING — so changing
-    // direction changes every body's sea and the hydrology texture must be rebuilt. Before W3 the
-    // direction only rotated the swell in the vertex shader and no CPU state depended on it.
-    if (oldDir != waterPipeline->windDirection()) ++m_waterLookRevision;   // the span grid re-packs G/B/A (Phase D5)
 }
 
 void RenderCoordinator::setWindSpeed(float metresPerSecond) {
     if (!waterPipeline) return;
     waterPipeline->setWindSpeed(metresPerSecond);
-    // Speed drives both fetch-limited energy and Cox-Munk roughness, both packed into the span grid.
-    ++m_waterLookRevision;
 }
 
 float RenderCoordinator::windSpeed() const {
@@ -1053,180 +1042,7 @@ glm::vec3 RenderCoordinator::waveSettings() const {
 void RenderCoordinator::setWaterLook(bool active, float turbidity, float roughness) {
     m_waterLookActive = active;
     m_waterLookTurbidity = turbidity;
-    m_waterLookRoughness = roughness;
-    // The span grid re-packs its G/B/A from the override on its next rebuild (Phase D5: there is
-    // no bake upload to revert to - the reversion the camera-walk probe's self-test used to inject
-    // no longer exists; it injects a dry grid instead, see injectDrySpanGrid).
-    ++m_waterLookRevision;
-}
-
-void RenderCoordinator::uploadGroundedWaterGrid(const std::vector<float>& rgba, int cellsX,
-                                                int cellsZ, float originX, float originZ) {
-    if (!waterPipeline || !vulkanDevice || cellsX <= 0 || cellsZ <= 0) return;
-    if (rgba.size() < static_cast<size_t>(cellsX) * cellsZ * 4) return;   // short buffer: refuse
-    // Descriptor rewrite on a possibly in-flight set — same once-per-rebind idle the bake path
-    // takes. Grounded syncs are command-driven (world edit / explicit call), not per-frame.
-    vkDeviceWaitIdle(vulkanDevice->getDevice());
-    VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
-    // cellSize -1: one voxel per cell, NEGATIVE = grounded mode (off-grid is dry; see the header).
-    waterPipeline->recordHydrologyUpload(oneShot, rgba.data(), cellsX, cellsZ,
-                                         originX, originZ, -1.0f);
-    vulkanDevice->endSingleTimeCommands(oneShot);
-}
-
-void RenderCoordinator::injectDrySpanGrid(bool on) {
-    if (!waterPipeline || !vulkanDevice) return;
-    m_spanGridFrozen = on;
-    if (on) {
-        vkDeviceWaitIdle(vulkanDevice->getDevice());
-        VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
-        waterPipeline->recordHydrologyUpload(oneShot, nullptr, 0, 0, 0.0f, 0.0f, 0.0f);   // the 1x1 dry sentinel: nothing drawn
-        vulkanDevice->endSingleTimeCommands(oneShot);
-    } else {
-        ++m_waterLookRevision;   // forces the next rebuild
-        m_spanGridCooldown = 0;
-    }
-}
-
-void RenderCoordinator::updateSpanWaterGrid() {
-    // ── THE SANE BASELINE (user order 2026-08-04): where there is water in the world, the engine
-    // renders water — and nothing else renders any. ONE placement rule at every distance: chunk
-    // spans over resident chunks, off-grid DRY (the grounded shader mode). Coverage follows chunk
-    // RESIDENCY — exactly the rule terrain itself obeys — so water is visible precisely where its
-    // ground is visible, and the CONTENT at any world position is span truth regardless of the
-    // viewer (the camera invariant: residency picks what is shown, never what exists).
-    // The coarse bake no longer places any water on screen; it remains generation's connectivity
-    // hint only. Streaming baked worlds only — authored worlds keep their existing paths
-    // (grounded via water_ground_sync, or the implicit flat sea).
-    if (!waterPipeline || !chunkManager || !vulkanDevice) return;
-    const WorldGenerator* gen = chunkManager->getStreamingGenerator();
-    const Phyxel::HydrologyMap* hydro = gen ? gen->hydrology() : nullptr;
-    if (!hydro) return;
-    if (chunkManager->chunkMap.empty()) return;
-
-    // Rebuild when the RESIDENT SET changes (not its count: streaming swaps N chunks for N others
-    // along a walk and the count-keyed grid drew dry water over 5,120 columns - WaterRethink WP1
-    // step 6), when a runtime span writer bumped the span revision, or when an active volume was
-    // created/destroyed (its columns are masked out below). Rate-limited by the cooldown - a cost
-    // bound only (the fine-window lesson: a build-once grid captures an empty post-teleport chunk
-    // map as "all dry" forever).
-    if (m_spanGridFrozen) return;   // the probe's injected dry grid holds until restore
-    if (m_spanGridCooldown > 0) --m_spanGridCooldown;
-    const auto tKey0 = std::chrono::steady_clock::now();
-    const Core::SpanGridKey key = Core::makeSpanGridKey(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end(),
-                                                        chunkManager->waterSpanRevision(), m_waterCoreBoxRevision, m_waterLookRevision);
-    const double keyMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tKey0).count();
-    if (m_spanGridBuilt && key == m_spanGridKey) return;
-    if (m_spanGridCooldown > 0) return;
-    const size_t chunkCount = chunkManager->chunkMap.size();
-
-    // Bounds of resident chunks, clamped to a hard cap. ⚑No silent caps: if residency outruns the
-    // cap the excess is logged — those chunks' terrain renders with dry water, which is exactly
-    // the defect class, so the log line is the tripwire.
-    glm::ivec3 lo(INT_MAX), hi(INT_MIN);
-    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
-        lo = glm::min(lo, cc); hi = glm::max(hi, cc);
-    }
-    constexpr int kMaxCells = 2048;                       // 2048² cols × 16 B = 64 MB ceiling
-    int minX = lo.x * 32, minZ = lo.z * 32;
-    int w = (hi.x - lo.x + 1) * 32, d = (hi.z - lo.z + 1) * 32;
-    if (w > kMaxCells) {
-        const int cx = minX + w / 2;
-        LOG_WARN("RenderCoordinator", "span water grid clamped in X ({} > {}): outer chunks render dry water", w, kMaxCells);
-        minX = cx - kMaxCells / 2; w = kMaxCells;
-    }
-    if (d > kMaxCells) {
-        const int cz = minZ + d / 2;
-        LOG_WARN("RenderCoordinator", "span water grid clamped in Z ({} > {}): outer chunks render dry water", d, kMaxCells);
-        minZ = cz - kMaxCells / 2; d = kMaxCells;
-    }
-
-    // The per-BODY look survives: the bake's coarse RGBA (level+energy+turbidity+roughness) is
-    // built once and its G/B/A are copied per column, so W2/W3 appearance is unchanged — only
-    // PLACEMENT (R and wet/dry) comes from the spans.
-    std::vector<float> coarse;
-    {
-        Phyxel::WaterLookOverride ovr;
-        ovr.active = m_waterLookActive; ovr.turbidity = m_waterLookTurbidity; ovr.roughness = m_waterLookRoughness;
-        Phyxel::WaterWind wind;
-        wind.speedMs = waterPipeline->windSpeed(); wind.dirRadians = waterPipeline->windDirection();
-        Phyxel::buildHydroUpload(*hydro, gen->waterBodies(), ovr, coarse, wind);
-    }
-    const float invCell = 1.0f / hydro->cellSize();
-    const int cw = hydro->cellsX(), ch = hydro->cellsZ();
-    const float cox = hydro->originX(), coz = hydro->originZ();
-
-    std::vector<float> rgba(static_cast<size_t>(w) * d * 4);
-    for (size_t i = 0; i < rgba.size(); i += 4) {
-        rgba[i] = -1e30f; rgba[i + 1] = 1.0f; rgba[i + 2] = 0.0f; rgba[i + 3] = 1.0f;
-    }
-    // Columns owned by a live active volume are the volume's to draw (its surface feed), not the
-    // grid's: drawing both is double water. Existence is unchanged - the spans stay in the chunk.
-    auto inVolume = [this](int wx, int wz) {
-        if (!m_waterCoreBoxes) return false;
-        for (const auto& b : *m_waterCoreBoxes)
-            if (wx >= b.first.x && wx <= b.second.x && wz >= b.first.z && wz <= b.second.z) return true;
-        return false;
-    };
-    long wet = 0, masked = 0;
-    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
-        if (!chunk) continue;
-        const int bx = cc.x * 32, bz = cc.z * 32;
-        if (bx + 31 < minX || bx >= minX + w || bz + 31 < minZ || bz >= minZ + d) continue;
-        for (const auto& s : chunk->getWaterSpans()) {
-            const int gx = bx + s.x - minX, gz = bz + s.z - minZ;
-            if (gx < 0 || gx >= w || gz < 0 || gz >= d) continue;
-            if (inVolume(bx + s.x, bz + s.z)) { ++masked; continue; }
-            float* px = &rgba[(static_cast<size_t>(gz) * w + gx) * 4];
-            const float top = static_cast<float>(cc.y) * 32.0f + s.top;
-            if (px[0] < -1e5f) {
-                ++wet;
-                // Look from the coarse body cell under this column (neutral where the bake is dry).
-                const int ccx = static_cast<int>((static_cast<float>(bx + s.x) + 0.5f - cox) * invCell);
-                const int ccz = static_cast<int>((static_cast<float>(bz + s.z) + 0.5f - coz) * invCell);
-                if (ccx >= 0 && ccx < cw && ccz >= 0 && ccz < ch) {
-                    const float* cp = &coarse[(static_cast<size_t>(ccz) * cw + ccx) * 4];
-                    if (cp[0] > -1e5f) { px[1] = cp[1]; px[2] = cp[2]; px[3] = cp[3]; }
-                }
-            }
-            if (top > px[0]) px[0] = top;              // topmost clip wins
-        }
-    }
-
-    // G3: the per-body look, one texel per column beside the data texel (neutral = unset). Turbidity
-    // and roughness a body sets replace the derived B/A unless the W1 positive control is active.
-    std::vector<float> lookTex(static_cast<size_t>(w) * d * 4);
-    for (size_t i = 0; i < lookTex.size(); i += 4) { lookTex[i] = -1.0f; lookTex[i + 1] = -1.0f; lookTex[i + 2] = -1.0f; lookTex[i + 3] = 0.0f; }
-    long lookColumns = 0;
-    if (m_waterLookResolver) {
-        for (int gz = 0; gz < d; ++gz) for (int gx = 0; gx < w; ++gx) {
-            float* px = &rgba[(static_cast<size_t>(gz) * w + gx) * 4];
-            if (px[0] < -1e5f) continue;   // dry: nothing to look at
-            const Core::Water::WaterLook lk = m_waterLookResolver(minX + gx, minZ + gz, px[0]);
-            if (!lk.any()) continue;
-            const Core::Water::WaterLookPacked pk = Core::Water::packLook(lk);
-            float* lt = &lookTex[(static_cast<size_t>(gz) * w + gx) * 4];
-            lt[0] = pk.look0.x; lt[1] = pk.look0.y; lt[2] = pk.look0.z; lt[3] = pk.look0.w;
-            if (!m_waterLookActive) { if (lk.hasTurbidity()) px[2] = lk.turbidity; if (lk.hasRoughness()) px[3] = lk.roughness; }
-            ++lookColumns;
-        }
-    }
-
-    // Same swap discipline as the grounded path: the image size can change between rebuilds
-    // (residency bounds move), which recreates the image + rewrites the descriptor — idle first.
-    const auto tIdle0 = std::chrono::steady_clock::now();
-    vkDeviceWaitIdle(vulkanDevice->getDevice());   // measured and logged below; a per-frame-in-flight upload is the open perf item (16.4)
-    const double idleMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tIdle0).count();
-    VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
-    waterPipeline->recordHydrologyUpload(oneShot, rgba.data(), w, d,
-                                         static_cast<float>(minX), static_cast<float>(minZ), -1.0f, lookTex.data());
-    vulkanDevice->endSingleTimeCommands(oneShot);
-    m_spanGridKey = key; m_spanGridBuilt = true;
-    m_spanGridCooldown = 30;
-    char timing[96];
-    std::snprintf(timing, sizeof timing, "key %.3f ms, idle wait %.2f ms", keyMs, idleMs);   // LOG_* takes bare {} only
-    LOG_INFO("RenderCoordinator", "Span water grid: {}x{} at ({}, {}), {} wet columns, {} masked by volumes, {} with a body look, {} chunks ({})",
-             w, d, minX, minZ, wet, masked, lookColumns, chunkCount, timing);
+    m_waterLookRoughness = roughness;   // the underwater overlay's turbidity reads the override
 }
 
 glm::vec3 RenderCoordinator::waterLook() const {
@@ -1239,7 +1055,8 @@ glm::vec3 RenderCoordinator::waterLook() const {
 //   1. The SIM, whenever the camera is inside its region. It is the only thing that knows about
 //      lakes at any altitude AND is connectivity-gated — a sealed dry cavity below sea level reads
 //      DRY here, where a bare "camera.y < seaLevel" test would wrongly fog it.
-//   2. Sea level, as the fallback outside the region (the implicit ocean the flat plane draws).
+//   (2. Sea level, the old flat sheet's fallback - deleted with the sheet, WaterCore §55.2 W6.1b: a level with no water
+//    under it is the universal water level the owner's rule forbids.)
 //
 // Both fade over a short band at the surface so breaking through doesn't pop.
 float RenderCoordinator::cameraSubmergence(float& depthBelow) const {
@@ -1253,12 +1070,6 @@ float RenderCoordinator::cameraSubmergence(float& depthBelow) const {
 
     if (m_waterDepthQuery) {   // 52 W4.1: the new water (the host's readers: the volumes, else the record)
         depthBelow = std::max(0.0f, m_waterDepthQuery(eye));
-        return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
-    }
-
-    if (m_waterEnabled) {   // no host query: the sea plane's level
-        depthBelow = m_seaLevel - eye.y;
-        if (depthBelow <= 0.0f) { depthBelow = 0.0f; return 0.0f; }
         return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
     }
     return 0.0f;
@@ -3486,20 +3297,6 @@ void RenderCoordinator::drawFrame() {
         return; // Skip this frame — render cleanly on the next one
     }
 
-    // WATER LAYER: binding 3 must be valid before the first draw. The 1x1 dry sentinel draws
-    // NOTHING (Phase D5: the implicit flat sea and the bake-as-placement upload are deleted -
-    // they were the universal water level the user's rule forbids). Water on screen comes from
-    // the span grid (baked worlds) or the grounded grid (authored worlds) only.
-    if (waterPipeline && !waterPipeline->hydrologyBound()) {
-        vkDeviceWaitIdle(vulkanDevice->getDevice());
-        VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
-        waterPipeline->recordHydrologyUpload(oneShot, nullptr, 0, 0, 0.0f, 0.0f, 0.0f);
-        vulkanDevice->endSingleTimeCommands(oneShot);
-    }
-
-    // Span-derived water placement for baked worlds (the only placement; see the function).
-    updateSpanWaterGrid();
-
     // Wait for previous frame
     {
         CPU_PROFILE_SCOPE(&m_cpuTiming, "Fence Wait");   // time the CPU spends waiting on the GPU
@@ -4342,7 +4139,6 @@ void RenderCoordinator::drawFrame() {
     // render-pass-COMPATIBLE with this one (identical attachment formats/counts), so nothing is
     // rebuilt.
     // ---------------------------------------------------------------------------------------
-    const bool drawWaterPlane = m_waterEnabled && waterPipeline;
     using Core::Water::WaterCoreRenderMode;
     // Phase F: the mesh, rebuilt from the volumes' surface fields every frame (a pure function of them)
     bool drawCoreMesh = false;
@@ -4374,29 +4170,16 @@ void RenderCoordinator::drawFrame() {
     const bool drawGpuSurfaces = waterSurfacePipeline && waterSurfacePipeline->gpuSurfaceReady() && m_waterCoreMode == WaterCoreRenderMode::Mesh
                                  && m_waterCoreGpuSurfaces && !m_waterCoreGpuSurfaces->empty();
     drawCoreMesh = drawCoreMesh || drawGpuSurfaces;
-    if (drawWaterPlane || drawCoreMesh || m_uiSystem) {
+    if (drawCoreMesh || m_uiSystem || (waterPipeline && m_waterDepthQuery)) {   // the underwater fog needs the pass even with no surface in view
         if (drawCoreTiles) waterSurfacePipeline->uploadTiles(vulkanDevice->getCommandBuffer(currentFrame), m_waterTiler, static_cast<uint32_t>(currentFrame));   // 26.30: outside any pass
         if (drawGpuSurfaces) Graphics::WaterSurfaceRenderPipeline::gpuSurfaceBarrier(vulkanDevice->getCommandBuffer(currentFrame));   // 29 S1: outside any pass
         // Snapshot the scene colour for refraction BEFORE the pass begins (outside any pass).
-        if (drawWaterPlane || drawCoreMesh) {
+        if (drawCoreMesh) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterRefractCapture");
             postProcessor->captureRefraction(vulkanDevice->getCommandBuffer(currentFrame));
         }
         postProcessor->beginWaterRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
 
-        if (drawWaterPlane) {
-            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Water");
-            waterPipeline->render(
-                vulkanDevice->getCommandBuffer(currentFrame),
-                vulkanDevice->getDescriptorSet(currentFrame),
-                *camera,
-                cachedProjectionMatrix,
-                m_seaLevel,
-                2.0f * maxChunkRenderDistance,
-                vulkanDevice->getSwapChainExtent(),
-                m_waterReflectionActive
-            );
-        }
         if (drawCoreMesh) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterSurface");
             if (drawCoreTiles)
@@ -4409,7 +4192,7 @@ void RenderCoordinator::drawFrame() {
 
         // Underwater fog (WaterSystemV3 Phase 1 item 5) — AFTER the surfaces so it also fogs the
         // underside of the water above the camera, but BEFORE the HUD so the HUD stays readable.
-        if (waterPipeline && (drawWaterPlane || m_waterDepthQuery)) {   // 52 W4.1: any water the camera is in, not only the sea plane's world
+        if (waterPipeline && m_waterDepthQuery) {   // 52 W4.1: any water the camera is in
             float depthBelow = 0.0f;
             const float submergence = cameraSubmergence(depthBelow);
             if (submergence > 0.0f) {

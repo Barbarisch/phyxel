@@ -75,7 +75,7 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
    edge, no wait at a swap) BUILT, not signed off (54.4; the owner: "definitly looks better").**
 4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
    **§55: step 0 MEASURED (what draws the sea today); W6.1 (the sea drawn as far as the land) BUILT, not signed off
-   (`w61_clip.mp4`, 55.1).**
+   (`w61_clip.mp4`, 55.1); W6.1b (the old sea sheet deleted) DONE (55.2); next W6.2 (the shore band near the player).**
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
@@ -451,7 +451,7 @@ goes; (4) everything stays in git history (`git show <hash>:<path>`). Sizes are 
 | **DELETED 2026-10-09 (Phase D5, §16.9)** — Flat-sea mode and bake-as-placement in `WaterRenderPipeline` / `RenderCoordinator` (`invCellSize == 0`, the `buildHydroUpload` placement upload at RC.cpp:3395–3419, the `m_lastHydroUploaded` reset hazard in `setWaterLook`/`setWindSpeed`/`setWaves`) | parts of `RenderCoordinator.cpp` (~60 lines), `water.vert`/`water.frag` branches (`basinLevelAt`), `WaterRenderPipeline` sentinel upload | the sheet draw; `water_look`/`water_waves` routes | Span placement only (grounded mode becomes the only mode); look changes re-pack G/B/A into the span grid | **Phase D** (with WP1 step 5/6) — the camera-walk probe self-test must then be re-pointed at a different injectable violation, or retired with a note | This is the "universal water level" the user's rule forbids; its removal is a rule, not a cleanup. `water.enabled` semantics change (pinned tests updated) |
 | **`kinematicRiverFlow`**, river pins, `setRiverQuery`/`setRiverOrderQuery`/`setRiverFlowQuery` bindings | inside `WaterManager` + `Application.cpp:6615–6656` | `Application`, `WaterManagerTest` | River reaches as bodies with discharge; real transport inside AVs (Phase G) | with `WaterManager` | None beyond the manager's |
 | **Debris water tiles' source** (`DebrisRuntime::updateWater` reading `WaterManager::columnWater`) | `engine/src/core/DebrisRuntime.cpp:157–232` (kept), `shaders/solver_shared.h` tile format (kept) | GPU debris solver (`solver_integrate.comp` buoyancy/drag/current — kept) | Same tiles fed from the AV surface + velocity (Phase E) | not deleted — re-pointed | The Phase 6c bench (`tools/debris_settle_bench.py`) is the regression gate for the re-point |
-| **Keep unchanged:** `Chunk::WaterSpanLocal` + codec v2 + `waterSpansForBlock`; `HydrologyMap`/`FlowField`/`PriorityFlood`/`WaterBodyIndex` (gain `filledAt`, outlets); `WaterOccupancy` (+1b); `WaterProfile`; `WaterRenderPipeline` sheet + `water_common.glsl` + `water_underwater.frag`; `SeaMesh`; buoyancy/drag/wading **interfaces** (`setWaterQuery`, `WaterHooks`); the 30 routes + 13 MCP tools + `water_render_grid` + probes (extended with `water_mass_ledger`, `water_av_list`, `water_av_probe`); benches + references | — | — | — | — | Drag/buoyancy *tables* (VoxelDynamicsWorld.cpp:381–412 constants, `buoyancy` 1.6 default) retire only when S6 passes with integrated forces |
+| **Keep unchanged:** `Chunk::WaterSpanLocal` + codec v2 + `waterSpansForBlock`; `HydrologyMap`/`FlowField`/`PriorityFlood`/`WaterBodyIndex` (gain `filledAt`, outlets); `WaterOccupancy` (+1b); `WaterProfile`; `WaterRenderPipeline` (**the sheet + `SeaMesh` + `water.vert/.frag` DELETED 2026-11-16, §55.2**; the class keeps the underwater fog + the sea state) + `water_common.glsl` + `water_underwater.frag`; buoyancy/drag/wading **interfaces** (`setWaterQuery`, `WaterHooks`); the 30 routes + 13 MCP tools + `water_render_grid` + probes (extended with `water_mass_ledger`, `water_av_list`, `water_av_probe`); benches + references | — | — | — | — | Drag/buoyancy *tables* (VoxelDynamicsWorld.cpp:381–412 constants, `buoyancy` 1.6 default) retire only when S6 passes with integrated forces |
 
 **Order of removal, for the record:** CA + `water_flow.comp` (after B) → flat-sea/bake placement
 (D) → `WaterManager` (after D/E) → `RippleField` and the cell renderer (after F). Each is its own
@@ -13873,7 +13873,7 @@ adds no feature (30.0 rule 5); the acceptance test came first (`tools/water_w4_o
   ran every frame, and `water.bakedTable` (default true) bound the hydrology table, so it filled its 64 x 32 x 64 region round the
   camera from the table and drew it nowhere (0 surface cells). **Red** (`w4_old_before_*.json`): RiverCarve (`water.enabled` off)
   **11,833** cells' worth at the lake; Coast (on) **32,192** at sea. The readers already answered from the record there (52.1).
-- **What `water.enabled` means now:** the sea PLANE only (the sheet, kept by §9 until W6). Every game that set it is a generated world
+- **What `water.enabled` means now:** the sea PLANE only (the sheet, kept by §9 until W6) [since §55.2 (2026-11-16): nothing - the sheet is deleted, the key ignored]. Every game that set it is a generated world
   (`proving_grounds`, `water_bench_coast`, `water_bench_river`, the Coast and River benches), whose sea is in the record
   (`waterSpanAt`: below sea level = ocean) - no world loses its sea. Flat worlds have no record water and none set it.
 - **Built:** `Application::kOldCaWaterRuns = false` (one switch, one revert; W4.3 deletes it with the old code): no follow, no step, no
@@ -14300,7 +14300,7 @@ READY with amendments A1-A4; built as designed).
   owner's list. "Water constantly flowing": the design already simulates only near the player (the follow reach) and draws the rest
   from the record - written down here as the rule W6 keeps (the sea's swell offshore is appearance, never simulated).
 
-## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1)
+## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2)
 
 **55.0 Step 0 (2026-11-16) - what draws the sea today, measured before W6 is designed** (`tools/water_w6_step0.py`, WaterBench_Coast,
 the shipped game.json, restored world; two engine runs, the old sheet ON (shipped) and OFF (RIG: game.json `water.enabled` false -
@@ -14308,7 +14308,8 @@ the sheet has no runtime switch; restored after). Three poses: the spawn (50 m u
 sand, looking out), high (136 m up, pitch -12, looking out to sea)).
 - **The old sea sheet (`water.frag`) draws nothing visible:** sheet on vs off differ only where wind moves grass and leaves (pixels
   off by > 8: spawn 0.38 %, shore 2.1 % - the blade band, high 0.0004 %). Read from the code: its water-layer grid is the old water's
-  hydro grid, "off-grid is dry in every mode" (`WaterRenderPipeline.cpp`), and W4.2 stopped binding it. The sea on screen is already
+  hydro grid, "off-grid is dry in every mode" (`WaterRenderPipeline.cpp`), and W4.2 stopped binding it [WRONG - 55.2: the span grid
+  was still built from the resident spans every rebuild and bound; the new water drew over it]. The sea on screen is already
   the new water's: the record tiles near (`draw_m` 48) and the far skin (51.4) beyond.
 - **The sea stops short of the horizon** (high pose, `w6s0_off_high{,_noskin,_nowater}.png`; the skin and record drawing switched off
   in turn to say which draws what): the skin's water ends at ~1,020 m (its `far_m` 1024 - 4 levels of 64 cells, 4-32 m); past it the
@@ -14383,6 +14384,44 @@ both built: (1) the `far_m` clamp; (2) the sampled-vs-generated difference bound
   Sampled summaries are not cached (no cache format change): 0.76 ms each, the whole reach in 4 s.
 - **Not in W6.1:** the band past the far terrain (C - shared with land, the owner's call); the old sheet's deletion (W6.1b, next);
   the shore band (W6.2); the residency hole above.
+
+**55.2 W6.1b (2026-11-16) DONE - the old sea sheet deleted** (a §9 removal - no feature, no design-check; one commit, one revert).
+- **What it was found to do first** (`tools/water_w61b_sheet.py`, the old build, the two benches whose game.json turned it on -
+  `water.enabled` true: Coast, River; no other project in PhyxelProjects sets it): step 0's "W4.2 stopped binding it" was WRONG.
+  `updateSpanWaterGrid` ran every frame and re-bound the sheet's per-column grid from the resident spans (Coast: 448 x 512 columns,
+  60,603 wet) on every residency change, each rebuild behind a `vkDeviceWaitIdle`. Measured, per bench session (~2 min of poses):
+  **Coast 47 rebuilds, 2.2 s of device-idle waits, worst 126 ms; a second pass 8 rebuilds, 527 ms, worst 213 ms; River 12-15
+  rebuilds, 175-302 ms, worst 167 ms** - hitches, with the sheet's surface drawn under the new water (which covers it: 55.0).
+- **Deleted** (consumers re-pointed in the same commit): the sheet's draw, clipmap and buffers (`WaterRenderPipeline` render path,
+  `SeaMesh.{h,cpp}`, `shaders/water.{vert,frag}` + `.spv`, `build_shaders.bat` lines, the manifest); the per-column grid (the hydro
+  image, `recordHydrologyUpload`, `renderWaterAt`, `hydroModeName`); `RenderCoordinator::{updateSpanWaterGrid,
+  uploadGroundedWaterGrid, injectDrySpanGrid, setWaterCoreVolumeBoxes, bumpWaterLookRevision, setWaterEnabled}` and their state;
+  `Application::rebuildGroundedWaterFromSpans` (boot + project-open + `water_ground_sync` - which still writes the editor worlds'
+  spans, drawn by the record tiles); the routes `water_render_grid` + `water_render_inject`, the MCP tool `water_render_grid`, and
+  `tools/water_camera_probe.py`; the camera's sea-level underwater fallback (with no water query, the eye under `seaLevel` read
+  submerged - the universal level the owner's rule forbids; the host's water query is always set). Tests deleted with their code:
+  `SeaMeshTest` (5). `WaterSpanGridKey.h` stays (the skin's residency hash uses it; the first build failed without it - fixed).
+  **Kept:** the underwater fog pipeline (set 1 bindings 0-2; the push block as is) and the sea state (wind, swell, clock - the
+  shore band's `SeaSwell` and the per-body profile read them; `SeaSwell` is now the swell's only definition). game.json
+  `water.enabled` is ignored. The W1 `water_look {active}` override now reaches the underwater fog only (the surface it reached was
+  the sheet's).
+- **After** (same tool, same poses, the new build): **0 grid rebuilds on both benches**. Stills before vs after (pixels off by > 8):
+  Coast high 0.0004 %, spawn 2.3 %, shore 11.9 % - the shore's is the grass band (above the grass line: 1.5 % > 8, 0.002 % > 32,
+  the sea's shimmer); River bank 5.3 %. **River spawn 11.9 % (10.3 % > 32): a real change** - the sheet drew one more slab of
+  water over the canyon (middle of `w61b_river_before2_spawn.png`) that nothing draws now. What it drew is in the RECORD: River's
+  stored spans ahead of the spawn camera hold tops at 64 / 96 / 108.6 m over 39,000 columns beside a 21-27 m river (e.g.
+  (-1664, -1243): ground 92, water to 108.59) - the tall walls of water standing in the air at River's spawn, drawn by the new water
+  before and after. Logged, not fixed (one line below).
+- **Cost: NOT comparable.** Another session's engine and World of Warcraft shared the GPU (99-100 % busy) during the before runs;
+  WoW had closed by the after runs. Read as given, not as the deletion's: Coast high 15-18 -> 75-95 fps, River spawn 5-8 -> 11-13
+  fps. The deletion's own share (the sheet's draw + the stalls) is unsplit. The stalls are counted from the log, which is not
+  affected by the sharing.
+- **Suites:** unit 4,435 passed, 20 skipped, 3 failed - the known three (4,440 at 55.1 less `SeaMeshTest`'s 5); GPU water
+  (integration, `*Water*:*Gpu*`) 94 passed, 2 failed - the known two.
+- **Logged, left (one line each):** (1) **P3's camera-walk probe is retired with the sheet** - nothing now checks "what is drawn =
+  what is stored" per column for the record tiles + skin; a probe over them is owed (the sign-off sweep or W6.2's tests). (2)
+  **River's record holds water standing in the air** at its spawn (above) - a generation-side defect (the 51.14 level rivers or
+  the D4 trunk), seen in both stills; for the sign-off sweep.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

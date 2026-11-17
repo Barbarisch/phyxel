@@ -294,7 +294,6 @@ private:
     Core::Water::ShoreBandParams shoreParams;
     bool m_shoreOn = false;
     glm::vec2 m_shoreLastTry{0.0f};                                      // where the last siting was attempted (retry after half a radius)
-    std::vector<std::pair<glm::ivec3, glm::ivec3>> m_waterMaskBoxes;  // live volumes + the band: columns the span grid / sheet leave alone
     bool siteShoreBand(std::string* err);                               // (re)site the band at the camera from the voxels + stored spans
     // G4 (docs/WaterCore.md 18.8): the fine band - 1/3 m columns near the camera, nested in the 1 m band
     std::unique_ptr<Core::Water::ShoreBand> fineBand;
@@ -729,13 +728,6 @@ private:
     bool launcherActive_ = false;
     void onLauncherResult(const LauncherResult& result);
     void applyProjectSelection(const std::string& projectPath);
-
-    // Rebuild the grounded water render grid FROM CHUNK-RESIDENT SPANS (docs/Water.md §6 step 2,
-    // editor path). Chunks are the only source — the renderer draws what the world data holds, so
-    // saved water appears at boot with no command, and every writer (generation, ground_sync)
-    // renders through one derivation. No-op on baked/streaming worlds (their layer is the
-    // hydrology upload) and when no chunks are loaded. Returns the number of wet columns bound.
-    long rebuildGroundedWaterFromSpans();
 
     // Main menu bar
     void renderMainMenuBar();

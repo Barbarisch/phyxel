@@ -3,8 +3,8 @@
 #include <glm/glm.hpp>
 
 // WaterCore Phase G (docs/WaterCore.md 18): the sea sheet's swell as a CPU function, so the
-// shoreline band's ocean boundary holds the SAME surface the sheet draws beside it. A port of the
-// four Gerstner components in shaders/water.vert (wind direction + three spread directions;
+// shoreline band's ocean boundary held the SAME surface the sheet drew beside it. (The sheet and its shaders/water.vert were
+// deleted in §55.2 W6.1b; this is now the swell's only definition.) The four Gerstner components (wind direction + three spread directions;
 // wavelengths lambda, 0.61 lambda, 0.33 lambda, 5 lambda; amplitudes a, 0.52 a, 0.28 a, 0.70 a; deep-water
 // phase speed sqrt(g / k)). The sheet displaces vertices horizontally too (the trochoid's swing);
 // the band prescribes the HEIGHT at a column, so this returns the vertical sum at the undisplaced
