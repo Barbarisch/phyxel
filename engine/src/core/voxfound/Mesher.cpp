@@ -240,7 +240,9 @@ uint8_t blockBlocksR(const Rd& r, const CardSet& seeThrough, glm::ivec3 b) {
 }
 
 template <class Rd>
-bool updateBlockingR(const Rd& r, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi, std::vector<uint8_t>& blocking) {
+bool updateBlockingR(const Rd& r, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi, std::vector<uint8_t>& blocking,
+                     std::vector<uint32_t>* flipped = nullptr) {
+    if (flipped) flipped->clear();
     const glm::ivec3 nb = r.dim / 8;
     const glm::ivec3 blo = glm::max(lo, glm::ivec3(0)) / 8, bhi = glm::min(hi, r.dim - 1) / 8;
     if (lo.x > r.dim.x - 1 || lo.y > r.dim.y - 1 || lo.z > r.dim.z - 1 || hi.x < 0 || hi.y < 0 || hi.z < 0) return false;
@@ -248,8 +250,10 @@ bool updateBlockingR(const Rd& r, const CardSet& seeThrough, glm::ivec3 lo, glm:
     for (int bx = blo.x; bx <= bhi.x; ++bx)
         for (int by = blo.y; by <= bhi.y; ++by)
             for (int bz = blo.z; bz <= bhi.z; ++bz) {
-                uint8_t& b = blocking[size_t(bz + nb.z * (by + nb.y * bx))];
+                const size_t k = size_t(bz + nb.z * (by + nb.y * bx));
+                uint8_t& b = blocking[k];
                 const uint8_t now = blockBlocksR(r, seeThrough, {bx, by, bz}) ? 1 : 0;
+                if (now != b && flipped) flipped->push_back(uint32_t(k));
                 changed |= now != b;
                 b = now;
             }
@@ -1201,8 +1205,8 @@ bool updateBlockBlocking(const VoxelGrid& g, const CardSet& seeThrough, glm::ive
     return updateBlockingR(GridRead{g}, seeThrough, lo, hi, blocking);
 }
 bool updateBlockBlocking(const BlockStore& st, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
-                         std::vector<uint8_t>& blocking) {
-    return updateBlockingR(StoreRead{st}, seeThrough, lo, hi, blocking);
+                         std::vector<uint8_t>& blocking, std::vector<uint32_t>* flipped) {
+    return updateBlockingR(StoreRead{st}, seeThrough, lo, hi, blocking, flipped);
 }
 std::vector<uint8_t> blockBlocking(const BlockStore& st, const CardSet& seeThrough) {
     std::vector<uint8_t> out;
@@ -1257,6 +1261,163 @@ FaceConnect connectivityFromBlocking(glm::ivec3 nb, const std::vector<uint8_t>& 
             if (faces & (1u << f)) out[size_t(f)] |= faces;
     }
     return out;
+}
+
+uint8_t BlockConnectivity::faceBits(int i) const {
+    const int sy = m_nb.z, sx = m_nb.z * m_nb.y;
+    const int x = i / sx, r = i - x * sx, y = r / sy, z = r - y * sy;
+    return uint8_t((x == 0 ? 1u : 0u) | (x == m_nb.x - 1 ? 2u : 0u) | (y == 0 ? 4u : 0u) | (y == m_nb.y - 1 ? 8u : 0u) |
+                   (z == 0 ? 16u : 0u) | (z == m_nb.z - 1 ? 32u : 0u));
+}
+int32_t BlockConnectivity::root(int32_t l) const {
+    while (m_parent[size_t(l)] != l) {
+        m_parent[size_t(l)] = m_parent[size_t(m_parent[size_t(l)])];   // path halving
+        l = m_parent[size_t(l)];
+    }
+    return l;
+}
+void BlockConnectivity::rebuild(glm::ivec3 nb, const std::vector<uint8_t>& blocking) {
+    // the flood of connectivityFromBlocking, keeping each component's label and face mask
+    m_nb = nb;
+    ++m_floods;
+    const int total = nb.x * nb.y * nb.z;
+    m_label.assign(size_t(std::max(0, total)), -1);
+    m_parent.clear();
+    m_mask.clear();
+    std::fill(std::begin(m_count), std::end(m_count), 0u);
+    thread_local std::vector<int32_t> stack;
+    const int sy = nb.z, sx = nb.z * nb.y;
+    for (int i = 0; i < total; ++i) {
+        if (blocking[size_t(i)] || m_label[size_t(i)] >= 0) continue;
+        const int32_t id = int32_t(m_parent.size());
+        uint8_t faces = 0;
+        m_label[size_t(i)] = id;
+        stack.clear();
+        stack.push_back(i);
+        while (!stack.empty()) {
+            const int c = stack.back();
+            stack.pop_back();
+            faces |= faceBits(c);
+            const int x = c / sx, r = c - x * sx, y = r / sy, z = r - y * sy;
+            auto visit = [&](int k) {
+                if (blocking[size_t(k)] || m_label[size_t(k)] >= 0) return;
+                m_label[size_t(k)] = id;
+                stack.push_back(k);
+            };
+            if (x > 0) visit(c - sx);
+            if (x + 1 < nb.x) visit(c + sx);
+            if (y > 0) visit(c - sy);
+            if (y + 1 < nb.y) visit(c + sy);
+            if (z > 0) visit(c - 1);
+            if (z + 1 < nb.z) visit(c + 1);
+        }
+        m_parent.push_back(id);
+        m_mask.push_back(faces);
+        ++m_count[faces];
+    }
+}
+void BlockConnectivity::openBlock(int i) {
+    // a new root; every neighbour component joins it (opening a cell can only merge)
+    const int32_t id = int32_t(m_parent.size());
+    m_parent.push_back(id);
+    uint8_t mask = faceBits(i);
+    const int sy = m_nb.z, sx = m_nb.z * m_nb.y;
+    const int x = i / sx, r = i - x * sx, y = r / sy, z = r - y * sy;
+    auto join = [&](int k) {
+        const int32_t l = m_label[size_t(k)];
+        if (l < 0) return;
+        const int32_t rt = root(l);
+        if (rt == id) return;
+        --m_count[m_mask[size_t(rt)]];
+        mask |= m_mask[size_t(rt)];
+        m_parent[size_t(rt)] = id;
+    };
+    if (x > 0) join(i - sx);
+    if (x + 1 < m_nb.x) join(i + sx);
+    if (y > 0) join(i - sy);
+    if (y + 1 < m_nb.y) join(i + sy);
+    if (z > 0) join(i - 1);
+    if (z + 1 < m_nb.z) join(i + 1);
+    m_mask.push_back(mask);
+    ++m_count[mask];
+    m_label[size_t(i)] = id;
+}
+void BlockConnectivity::closeBlock(int i, bool& needFlood) {
+    const int32_t rt = root(m_label[size_t(i)]);
+    m_label[size_t(i)] = -1;
+    const int sy = m_nb.z, sx = m_nb.z * m_nb.y;
+    const glm::ivec3 b(i / sx, (i % sx) / sy, i % sy);
+    // the open cells of the 3x3x3 neighbourhood (clipped), the block itself excluded; slot = (dx+1)*9 + (dy+1)*3 + dz+1
+    int cell[27];
+    bool open[27] = {}, seen[27] = {};
+    int nbr[6], nn = 0;
+    for (int dx = -1; dx <= 1; ++dx)
+        for (int dy = -1; dy <= 1; ++dy)
+            for (int dz = -1; dz <= 1; ++dz) {
+                const int s = (dx + 1) * 9 + (dy + 1) * 3 + dz + 1;
+                const glm::ivec3 p = b + glm::ivec3(dx, dy, dz);
+                if (s == 13 || p.x < 0 || p.y < 0 || p.z < 0 || p.x >= m_nb.x || p.y >= m_nb.y || p.z >= m_nb.z) continue;
+                cell[s] = p.z + sy * p.y + sx * p.x;
+                open[s] = m_label[size_t(cell[s])] >= 0;
+                if (open[s] && std::abs(dx) + std::abs(dy) + std::abs(dz) == 1) nbr[nn++] = s;
+            }
+    if (nn == 0) {   // no open neighbour: the block was a component alone
+        --m_count[m_mask[size_t(rt)]];
+        return;
+    }
+    ++m_local;
+    // from the first open neighbour through open cells of the neighbourhood
+    int q[27], qn = 0;
+    q[qn++] = nbr[0];
+    seen[nbr[0]] = true;
+    uint8_t reachedFaces = 0;
+    for (int h = 0; h < qn; ++h) {
+        const int s = q[h];
+        reachedFaces |= faceBits(cell[s]);
+        const int sx3 = s / 9, sy3 = (s / 3) % 3, sz3 = s % 3;
+        const int st[6][3] = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
+        for (const auto& d : st) {
+            const int a = sx3 + d[0], c = sy3 + d[1], e = sz3 + d[2];
+            if (a < 0 || a > 2 || c < 0 || c > 2 || e < 0 || e > 2) continue;
+            const int t = a * 9 + c * 3 + e;
+            if (!open[t] || seen[t]) continue;
+            seen[t] = true;
+            q[qn++] = t;
+        }
+    }
+    for (int k = 1; k < nn; ++k)
+        if (!seen[nbr[k]]) {
+            needFlood = true;   // the neighbours may be split apart: only the flood can tell
+            return;
+        }
+    const uint8_t own = faceBits(i);
+    if ((reachedFaces & own) != own) needFlood = true;   // a chunk face the component may have touched only here
+}
+void BlockConnectivity::update(const std::vector<uint8_t>& blocking, const std::vector<uint32_t>& flipped) {
+    if (m_label.size() != blocking.size()) {
+        rebuild(m_nb, blocking);
+        return;
+    }
+    bool flood = false;
+    for (uint32_t k : flipped) {   // one at a time: a flip not applied yet still reads as its old bit (its label)
+        const bool want = blocking[k] != 0, now = m_label[k] < 0;
+        if (want == now) continue;
+        if (want) closeBlock(int(k), flood);
+        else openBlock(int(k));
+        if (flood) break;
+    }
+    if (flood || m_parent.size() > 4 * m_label.size() + 64) rebuild(m_nb, blocking);   // or the labels grew too many
+}
+FaceConnect BlockConnectivity::connect() const {
+    FaceConnect c{0, 0, 0, 0, 0, 0};
+    for (uint32_t m = 1; m < 64; ++m)
+        if (m_count[m])
+            for (int f = 0; f < 6; ++f)
+                if (m & (1u << f)) c[size_t(f)] |= uint8_t(m);
+    return c;
+}
+size_t BlockConnectivity::bytes() const {
+    return m_label.capacity() * 4 + m_parent.capacity() * 4 + m_mask.capacity();
 }
 
 namespace {

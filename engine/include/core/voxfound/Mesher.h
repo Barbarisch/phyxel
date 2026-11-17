@@ -410,8 +410,36 @@ bool updateBlockBlocking(const VoxelGrid& g, const CardSet& seeThrough, glm::ive
                          std::vector<uint8_t>& blocking);
 std::vector<uint8_t> blockBlocking(const BlockStore& s, const CardSet& seeThrough);   // F3.2a
 bool updateBlockBlocking(const BlockStore& s, const CardSet& seeThrough, glm::ivec3 lo, glm::ivec3 hi,
-                         std::vector<uint8_t>& blocking);
+                         std::vector<uint8_t>& blocking, std::vector<uint32_t>* flipped = nullptr);   // F3.5b: + indices
 FaceConnect connectivityFromBlocking(glm::ivec3 nBlocks, const std::vector<uint8_t>& blocking);
+
+/// F3.5b: connectivityFromBlocking kept incrementally. Per block a component label (-1 = blocking), union-find over the
+/// labels, per root the mask of chunk faces the component touches, and a count of roots per mask; connect()[f] = OR of
+/// the masks present that have bit f -- the flood's result. A block that opens merges its neighbours' components
+/// (never floods); a block that closes floods only when a local test in its 3x3x3 neighbourhood cannot show that its
+/// component stays connected with the same faces. Exact: VoxFoundMesher.IncrementalConnectivityEqualsTheFlood.
+class BlockConnectivity {
+public:
+    void rebuild(glm::ivec3 nBlocks, const std::vector<uint8_t>& blocking);   // the flood, labels kept
+    /// `blocking` holds the new bits; `flipped` the indices whose bit changed since the last rebuild / update.
+    void update(const std::vector<uint8_t>& blocking, const std::vector<uint32_t>& flipped);
+    FaceConnect connect() const;
+    size_t floods() const { return m_floods; }        // rebuilds, the first included
+    size_t localTests() const { return m_local; }     // closes decided by the local test
+    size_t bytes() const;
+
+private:
+    int32_t root(int32_t l) const;
+    uint8_t faceBits(int i) const;
+    void closeBlock(int i, bool& needFlood);
+    void openBlock(int i);
+    glm::ivec3 m_nb{0};
+    std::vector<int32_t> m_label;              // per block; -1 = blocking
+    mutable std::vector<int32_t> m_parent;     // union-find over labels (path halving in root())
+    std::vector<uint8_t> m_mask;               // per label: the faces its component touches (valid at roots)
+    uint32_t m_count[64] = {};                 // roots per mask
+    size_t m_floods = 0, m_local = 0;
+};
 /// Keeps one chunk's faces in clusterFaces + splitByDirection order through a delta (`groups` = the direction groups
 /// over `faces`; RunsDelta::removed index `faces`): removed faces leave their group, added faces join the group of
 /// their cell and direction (new groups are inserted in order, empty ones dropped), and only touched groups recompute

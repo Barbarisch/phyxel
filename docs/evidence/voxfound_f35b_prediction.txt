@@ -1,0 +1,48 @@
+F3.5b -- incremental connectivity (VoxelFoundationPlan F3.5a: owed before F3.5's second run). Written 2026-11-16,
+BEFORE any engine code change.
+
+Why: F3.5a's uncontended A/B (voxfound_f35a_ab.json) -- a full-block brush is 0.61-0.72 ms to lists ready and 0.35 ms
+of it is connectivityFromBlocking's flood over the chunk's 32^3 blocks, run whenever a block's "blocks sight" bit
+flips (every full-block place / break does).
+
+Design (exact by construction): per chunk a component label per block (-1 = blocking), union-find over the labels, a
+face mask per root (which of the 6 chunk faces the component touches), and a histogram of root masks (64 entries);
+FaceConnect[f] = OR of every mask with count > 0 that has bit f (= the flood's out[f] |= faces per component).
+- A block that OPENS: a new root, the distinct roots of its open neighbours unioned into it, mask = their OR | its own
+  face bits. Never floods (adding a cell can only merge).
+- A block that CLOSES: no open neighbour -> it was a component alone (its mask leaves the histogram). Else a local
+  test in its 3x3x3 neighbourhood (clipped to the chunk): if every open 6-neighbour is reached from the first one
+  through open cells of the neighbourhood other than it, the component stays connected; and if, for each chunk face
+  the block touched, a reached cell touches it too, its mask is unchanged -> nothing else changes. Otherwise the
+  chunk floods (a rebuild of every label) -- the only flood left.
+- Several flips in one edit are applied one at a time (the not-yet-applied ones read with their old bit).
+- {"legacy":true} (F3.1's A/B) keeps the flood on every edit; F3.5b's A/B: {"legacy_connect":true} floods whenever a
+  bit flips (F3.5a's path).
+
+Predictions:
+1. Tests (red first on a stub that floods on every update): random flip sequences on 32^3-block grids (sparse /
+   dense / mixed, single flips, whole-region boxes, cells on chunk faces and corners) -> connect() = the flood at every
+   step; a brush-like sequence (single blocks in open air and on the ground) floods on < 5 % of its updates. The
+   region test (RegionEdit) stays equal to a full rebuild. CPU and GPU suites green.
+2. Live, uncontended, F3.5a's A/B script with {"legacy_connect":true} as A (same seeds, ABBA, every edit verified):
+   connect_ms median 0.35 -> <= 0.02; request to lists ready median interior / face / edge / corner each <= 0.40 ms
+   (F3.5a: 0.66 / 0.61 / 0.72 / 0.48 minus ~0.33); floods on <= 10 % of edits; 0 mismatches.
+3. Memory: labels + parents ~0.25 MB per chunk, ~8 MB on the 32-chunk gate region (edit_store_bytes is unaffected;
+   reported separately).
+Stop line: any connectivity mismatch stops the run there.
+
+==== MEASURED (2026-11-16) ====
+1. Tests: red first on a stub that flooded on every update (voxfound_f35b_red.txt: brush-like 1,031 updates, 1,031
+   floods). Green after: 4,500 random updates (densities 20 / 55 / 85 %, single flips a third on chunk faces / edges
+   / corners, boxes of 1-6 blocks, flips in shuffled order) equal to the flood at every step; brush-like 1,031
+   updates, 2 floods, 784 decided by the local test. CPU 77/77, GPU 22/22. HELD.
+2. Live (voxfound_f35b_ab.*: F3.5a's script, same seeds, ABBA, A = {"legacy_connect":true}; WoW not running, but
+   ANOTHER SESSION'S ENGINE (G:\Github\phyxel\phyxel.exe) was running before and after -- noted, paired A/B in one
+   session). 480 verified, 0 mismatches. Request to lists ready median / p90 (ms), A -> B:
+     interior 0.651 / 1.005 -> 0.320 / 0.670     face 0.622 / 0.921 -> 0.311 / 0.608
+     edge     0.696 / 1.132 -> 0.357 / 0.874     corner 0.491 / 1.181 -> 0.279 / 0.864
+   connect_ms 0.35 -> 0.003 (<= 0.02: HELD); every kind <= 0.40: HELD; edits that flooded 112 / 128 -> 0 / 128
+   (<= 10 %: HELD). 3. Labels + union-find 4.2 MB over the 32 chunks (132 KB each; predicted ~8 MB: smaller, the
+   parent array holds one entry per component, not per block).
+Verdict: incremental connectivity holds exactly; a one-block brush is now ~0.3 ms to lists ready anywhere in the
+region, ~7x below today's 2 ms low end.

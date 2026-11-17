@@ -14022,6 +14022,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     std::string rowsErr;
     voxFoundEdit.setLegacyF31(ej.value("legacy", false));   // F3.1 A/B: F2.17's edit path
     voxFoundEdit.setLegacyBorder(ej.value("legacy_border", false));   // F3.5a A/B: F3.5's border handling
+    voxFoundEdit.setLegacyConnect(ej.value("legacy_connect", false));   // F3.5b A/B: F3.5a's flood
     FaceBuilderGpu* rowsGpu = ej.value("device", false) ? voxFoundBuilder.get() : nullptr;
     RegionEdit::Stats st;
     if (brush == "brush")
@@ -14056,7 +14057,8 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
                 {"assemble_ms", ms(t1, t2)}, {"faces", voxFoundPreview.liveFaces()},
                 {"connect_floods", st.connectFloods}, {"blocks_filled", st.blocksFilled}, {"brush_size", brushSize}, {"assemble_bytes", voxFoundPreview.lastCopyBytes},
                 {"legacy", voxFoundEdit.legacyF31()}, {"legacy_border", voxFoundEdit.legacyBorder()},
-                {"chunks_changed", st.changed.size()},
+                {"chunks_changed", st.changed.size()}, {"legacy_connect", voxFoundEdit.legacyConnect()},
+                {"connect_bytes", voxFoundEdit.connectBytes()},
                 {"sprigs", voxFoundPreview.liveSprigs()}};
     if (ej.value("verify", false) && voxFoundBuilder) {
         // every rebuilt chunk, fully, on the device: the same voxels + border planes through FaceBuilderGpu

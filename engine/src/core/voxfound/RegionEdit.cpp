@@ -13,6 +13,12 @@ double msSince(std::chrono::steady_clock::time_point t) {
 }
 }  // namespace
 
+size_t RegionEdit::connectBytes() const {
+    size_t b = 0;
+    for (const Chunk& c : m_chunks) b += c.conn.bytes();
+    return b;
+}
+
 size_t RegionEdit::bytes() const {
     size_t b = 0;
     for (const Chunk& c : m_chunks) {
@@ -61,7 +67,8 @@ void RegionEdit::addChunk(const RegionChunk& rc, const std::vector<PackedFace>& 
     for (const PackedFace& f : builderOut) (isSprig(f) ? c.sprigs : c.faces).push_back(f);
     c.groups = splitByDirection(c.faces, clusterFaces(c.faces, m_clusterBlocks, m_octant));
     c.blocking = blockBlocking(c.store, m_seeThrough);
-    c.connect = connectivityFromBlocking(c.store.dim() / 8, c.blocking);
+    c.conn.rebuild(c.store.dim() / 8, c.blocking);   // F3.5b: the flood, keeping its labels
+    c.connect = c.conn.connect();
     m_chunks.push_back(std::move(c));
 }
 
@@ -393,11 +400,22 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
         if (voxelEdited[i]) {
             t = std::chrono::steady_clock::now();
             // F3.1: connectivity is a function of the blocking bits alone -- flood only when one changed
-            if (updateBlockBlocking(c.store, m_seeThrough, vLo[i], vHi[i], c.blocking) || m_legacyF31) {
+            std::vector<uint32_t> flips;
+            if (updateBlockBlocking(c.store, m_seeThrough, vLo[i], vHi[i], c.blocking, &flips) || m_legacyF31) {
                 const FaceConnect was = c.connect;
-                c.connect = connectivityFromBlocking(c.store.dim() / 8, c.blocking);
+                if (m_legacyF31 || m_legacyConnect) {   // F3.5a's flood; the labels are rebuilt on the next update
+                    c.connect = connectivityFromBlocking(c.store.dim() / 8, c.blocking);
+                    c.connStale = true;
+                    ++st.connectFloods;
+                } else {
+                    const size_t f0 = c.conn.floods();
+                    if (c.connStale) c.conn.rebuild(c.store.dim() / 8, c.blocking);
+                    else c.conn.update(c.blocking, flips);   // F3.5b: floods only when a close may split
+                    c.connStale = false;
+                    c.connect = c.conn.connect();
+                    st.connectFloods += c.conn.floods() - f0;
+                }
                 connectChanged = c.connect != was;
-                ++st.connectFloods;
             }
             st.connectMs += msSince(t);
         }

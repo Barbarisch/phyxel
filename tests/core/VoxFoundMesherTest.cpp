@@ -2785,3 +2785,64 @@ TEST(VoxFoundMesher, PlanThroughGroupsEqualsTheFullScan) {
     EXPECT_LT(smallExamined, smallBoxes * ch.faces.size() / 50) << "a small box examines < 2 % of the faces on average";
     EXPECT_LT(worst, ch.faces.size() / 10);
 }
+
+// F3.5b: BlockConnectivity::update = the flood (connectivityFromBlocking) after every update, over 32^3-block grids:
+// random grids of three densities with single flips (a third on the chunk's faces / edges / corners) and boxes of 1-6
+// blocks set open or blocking (several flips in one update); then a brush-like sequence on a terrain (ground below
+// y 12, single blocks placed and broken around the surface and in open air) that must flood on < 5 % of its updates.
+TEST(VoxFoundMesher, IncrementalConnectivityEqualsTheFlood) {
+    const glm::ivec3 nb(32, 32, 32);
+    const int total = nb.x * nb.y * nb.z;
+    std::mt19937 rng(3531u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    auto idx = [&](glm::ivec3 b) { return uint32_t(b.z + nb.z * (b.y + nb.y * b.x)); };
+    auto edgeCoord = [&]() { return rnd(0, 1) ? 0 : 31; };
+    for (int density : {20, 55, 85}) {
+        std::vector<uint8_t> blocking(size_t(total), 0);
+        for (auto& b : blocking) b = rnd(0, 99) < density ? 1 : 0;
+        BlockConnectivity bc;
+        bc.rebuild(nb, blocking);
+        ASSERT_EQ(bc.connect(), connectivityFromBlocking(nb, blocking)) << density;
+        for (int it = 0; it < 1500; ++it) {
+            std::vector<uint32_t> flipped;
+            glm::ivec3 lo(rnd(0, 31), rnd(0, 31), rnd(0, 31));
+            if (it % 3 == 0)   // on a face, an edge or a corner of the chunk
+                for (int a = 0, k = rnd(1, 3); a < k; ++a) lo[rnd(0, 2)] = edgeCoord();
+            const glm::ivec3 hi = it % 4 == 3 ? glm::min(lo + glm::ivec3(rnd(0, 5), rnd(0, 5), rnd(0, 5)), glm::ivec3(31)) : lo;
+            const uint8_t v = it % 4 == 3 ? uint8_t(rnd(0, 1)) : uint8_t(1 - blocking[idx(lo)]);
+            for (int x = lo.x; x <= hi.x; ++x)
+                for (int y = lo.y; y <= hi.y; ++y)
+                    for (int z = lo.z; z <= hi.z; ++z) {
+                        const uint32_t k = idx({x, y, z});
+                        if (blocking[k] == v) continue;
+                        blocking[k] = v;
+                        flipped.push_back(k);
+                    }
+            std::shuffle(flipped.begin(), flipped.end(), rng);   // any order
+            bc.update(blocking, flipped);
+            ASSERT_EQ(bc.connect(), connectivityFromBlocking(nb, blocking)) << "density " << density << " step " << it;
+        }
+    }
+    // brush-like
+    std::vector<uint8_t> blocking(size_t(total), 0);
+    for (int x = 0; x < 32; ++x)
+        for (int y = 0; y < 12; ++y)
+            for (int z = 0; z < 32; ++z) blocking[idx({x, y, z})] = 1;
+    BlockConnectivity bc;
+    bc.rebuild(nb, blocking);
+    const size_t flood0 = bc.floods();
+    size_t updates = 0;
+    for (int it = 0; it < 2000; ++it) {
+        const glm::ivec3 b(rnd(0, 31), it % 2 ? rnd(9, 15) : rnd(16, 30), rnd(0, 31));
+        const uint8_t v = uint8_t(rnd(0, 1));
+        if (blocking[idx(b)] == v) continue;
+        blocking[idx(b)] = v;
+        bc.update(blocking, {idx(b)});
+        ++updates;
+        ASSERT_EQ(bc.connect(), connectivityFromBlocking(nb, blocking)) << "brush step " << it;
+    }
+    const size_t floods = bc.floods() - flood0;
+    std::printf("[f35b connect] brush-like: %zu updates, %zu floods, %zu local tests; %zu B\n", updates, floods,
+                bc.localTests(), bc.bytes());
+    EXPECT_LT(floods * 20, updates) << "floods on < 5 % of the updates";
+}

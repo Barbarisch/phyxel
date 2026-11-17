@@ -34,6 +34,8 @@ public:
         std::vector<FaceCluster> groups;   // their direction groups
         std::vector<PackedFace> sprigs;
         std::vector<uint8_t> blocking;
+        BlockConnectivity conn;     // F3.5b: connect kept incrementally over `blocking`
+        bool connStale = false;     // F3.5b: a legacy flood changed `blocking` behind `conn`
         FaceConnect connect{};
         bool edited = false;   // F3.3: an edit or a load changed its voxels (it differs from the generator: saved)
     };
@@ -139,6 +141,7 @@ private:
     double m_sprigSlack = 0.25;    // F3.1: slack per sprig span, x1.5 after each overflow
     bool m_legacyF31 = false;
     bool m_legacyBorder = false;
+    bool m_legacyConnect = false;
 
 public:
     /// F3.1 A/B: true = F2.17's edit path (rows over the whole slice width, the flood on every edit, every chunk's pool
@@ -149,6 +152,10 @@ public:
     /// chunk assembled, the plan scanning every face). Same results.
     void setLegacyBorder(bool on) { m_legacyBorder = on; }
     bool legacyBorder() const { return m_legacyBorder; }
+    /// F3.5b A/B: true = F3.5a's connectivity (the whole flood whenever a blocking bit flips). Same results.
+    void setLegacyConnect(bool on) { m_legacyConnect = on; }
+    bool legacyConnect() const { return m_legacyConnect; }
+    size_t connectBytes() const;   // F3.5b: every chunk's labels and union-find
     uint32_t sprigLayouts() const { return m_sprigLayouts; }
 
 private:

@@ -3,7 +3,7 @@ engine session. Gate region (engine-generated: /api/debug/voxfound_preview Perli
 2..5, {"editable":true}), rebuilt before each run so every run starts from the generator's state; today's world hidden.
 N size-8 brushes per run, interleaved interior / chunk face / edge / corner, place (Stone / Dirt) or break; every edit
 verified (a full FaceBuilderGpu rebuild of every re-planned chunk). Stops at the first mismatch.
-usage: voxfound_f35a_ab.py out_prefix [n] [order e.g. ABBA]"""
+usage: voxfound_f35a_ab.py out_prefix [n] [order e.g. ABBA] [A switch, default legacy_border; F3.5b: legacy_connect]"""
 import json, random, sys, time, urllib.request
 
 API = "http://127.0.0.1:8120"
@@ -25,6 +25,7 @@ def call(m, p, b=None):
 out_prefix = sys.argv[1]
 N = int(sys.argv[2]) if len(sys.argv) > 2 else 120
 ORDER = sys.argv[3] if len(sys.argv) > 3 else "ABBA"
+ASWITCH = sys.argv[4] if len(sys.argv) > 4 else "legacy_border"
 rng = random.Random(3511)
 
 
@@ -51,7 +52,7 @@ for i in range(N):
     EDITS.append({"kind": KINDS[k], "at": point(k), "material": rng.choice(["Stone", "Dirt"]) if place else "air"})
 
 FIELDS = ["rebuild_ms", "assemble_ms", "plan_ms", "rows_wall_ms", "cluster_ms", "sprig_ms", "connect_ms",
-          "assemble_bytes", "voxels_changed", "chunks_changed"]
+          "assemble_bytes", "voxels_changed", "chunks_changed", "connect_floods", "connect_bytes"]
 runs = []
 stop = None
 for r, mode in enumerate(ORDER):
@@ -62,7 +63,7 @@ for r, mode in enumerate(ORDER):
     rows = []
     for i, e in enumerate(EDITS):
         res = call("POST", P, {"edit": {"material": e["material"], "brush": {"at": e["at"], "size": 8}, "verify": True,
-                                        "legacy_border": mode == "A"}})
+                                        ASWITCH: mode == "A"}})
         v = res.get("verify") or {}
         mism = v.get("face_mismatches", 0) + v.get("sprig_mismatches", 0) + v.get("connectivity_mismatches", 0)
         row = {"run": r, "mode": mode, "i": i, "kind": e["kind"], "chunks": len(res.get("chunks_rebuilt", [])),

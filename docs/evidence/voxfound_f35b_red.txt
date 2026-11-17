@@ -1,0 +1,20 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundMesher.IncrementalConnectivity*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundMesher
+[ RUN      ] VoxFoundMesher.IncrementalConnectivityEqualsTheFlood
+[f35b connect] brush-like: 1031 updates, 1031 floods, 0 local tests; 6 B
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundMesherTest.cpp(2847): error: Expected: (floods * 20) < (updates), actual: 20620 vs 1031
+floods on < 5 % of the updates
+
+[  FAILED  ] VoxFoundMesher.IncrementalConnectivityEqualsTheFlood (5208 ms)
+[----------] 1 test from VoxFoundMesher (5208 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (5208 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundMesher.IncrementalConnectivityEqualsTheFlood
+
+ 1 FAILED TEST
