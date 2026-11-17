@@ -527,7 +527,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       edge 1.14 -> 0.72, interior 0.66: a full-block edit floods (0.35 ms), so the F3 line still fails for those.
       F3.5b (2026-11-16): BlockConnectivity (labels + union-find, local 3x3x3 test on close) -- exact, connect
       0.35 -> 0.003 ms, a one-block brush 0.28-0.36 ms median anywhere ({"legacy_connect":true} = A/B).
-      NEXT: the F3.5 second run (voxfound_f35_gate.py poses _run2; prediction in voxfound_f35_prediction.txt).
+      F3.5 second run (2026-11-16): exact (1,000 verified edits, 10 reloads, 0 px, byte-identical re-save); every
+      (size, kind) median <= 0.42 ms. F3 CLOSED.
+      NEXT: F4 -- fracture core, CPU reference (bonds, patterns, pieces, anchoring, crumbs); read the plan's F4 section
+      and write the first increment's prediction before code.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

@@ -65,3 +65,26 @@ chunks left out of the assemble, the plan through the direction groups).
 (Note 2026-11-16: the second run above was held back until after F3.5b -- F3.5a's uncontended A/B showed a full-block brush still
 0.66-0.72 ms from the connectivity flood alone being 0.35 ms; incremental connectivity comes first, this prediction
 stands for the run after it.)
+
+==== SECOND RUN -- MEASURED (2026-11-16; voxfound_f35_gate_run2.txt / .json / _edits.jsonl / f35_run2_*.png; one
+     session, Release, the F3.5b build; only my engine running, no WoW, checked before and after) ====
+A first attempt of this run crashed at the pixel step (the engine answers the screenshot path relative to the repo
+root and the script ran from docs/evidence); its 1,000 edits and 10 reloads had all held. The script now resolves the
+path; the whole run was repeated from the start and is the one reported.
+1. Exact at every step: 0 mismatches in 1,000 verified edits (426 picked, 223 on a chunk face, 162 on an edge, 189 at
+   a corner; sizes 218 / 168 / 173 / 191 of 1 / 2 / 4 / 8 with voxels changed); 10 / 10 reloads with all 32 hashes
+   equal; final pixels 0 / 0 at both poses vs replace_all (controls 0 / 0); the re-save byte-identical (31 / 31).
+   HELD. By eye (f35_run2_for_L / ove_L): the edits' blocks and holes, no chunk line anywhere in the 4 x 4 overview.
+2. Edit cost, request to lists ready, median / p90 (ms), every (size, kind) cell:
+     size 1: picked 0.125 / 0.339, face 0.114 / 0.418, edge 0.227 / 0.514, corner 0.137 / 0.393
+     size 2: picked 0.129 / 0.241, face 0.228 / 0.527, edge 0.116 / 0.389, corner 0.317 / 0.797
+     size 4: picked 0.175 / 0.355, face 0.183 / 0.518, edge 0.200 / 0.475, corner 0.233 / 0.585
+     size 8: picked 0.258 / 0.505, face 0.263 / 0.469, edge 0.339 / 0.748, corner 0.417 / 0.731
+   Every cell <= 0.67: HELD (worst median 0.417, a one-block brush at a chunk corner = 4.8x below today's 2 ms).
+   Sizes 1-4 0.11-0.32: HELD. Reloaded regions: size 1 0.122 -> 0.133, size 8 batches 0-2 vs 7-9 within +-20 %: HELD.
+3. Saved chunks 23 / 28 / 29 / 30 / then 31 (one chunk never edited this run; the first run reached 32); blobs 5.7-7.7
+   MB; save 0.12-0.21 s; reload 25.6-25.8 s (load's rebuild 0.37-0.54 s). HELD.
+4. Edit store 62.9 -> 84.4 MB (1.34x; <= 1.4x): HELD.
+Verdict: the F3 row's exit criteria hold on the gate region -- edits are exact under 1,000 cycles, 10 reloads and
+every brush size at chunk borders, edges and corners; a one-block edit is 0.26-0.42 ms median to lists ready
+(today's chunk rebuild 2-13 ms); save / load round-trips exactly. F3 closes.

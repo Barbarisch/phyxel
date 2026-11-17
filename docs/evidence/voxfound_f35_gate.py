@@ -42,7 +42,10 @@ def call(m, p, b=None):
 def shot(name, settle=4.0):
     time.sleep(settle)
     d = os.path.join(HERE, name)
-    shutil.copy(call("GET", "/api/screenshot")["path"], d)
+    src = call("GET", "/api/screenshot")["path"]
+    if not os.path.isabs(src):   # the engine answers relative to its working directory (the repo root)
+        src = os.path.join(HERE, "..", "..", src)
+    shutil.copy(src, d)
     return np.asarray(Image.open(d).convert("RGB")).astype(np.int16)
 
 
