@@ -188,3 +188,23 @@ L4, second look (written 2026-11-17 12:54) - same exe (built 12:31, BEFORE the f
   OPEN: the ClayTile render mismatch (roofs of every style that uses ClayTile would be affected if the lead is right -
     not checked on a medieval stone_manor); the editor growing to 10 GB and stalling after four small fills beside a
     built settlement (one observation, not investigated).
+
+L4, third look (written 2026-11-17 14:25) - the roof colour, one bounded test. No prediction written (I expected the "adjacent
+  material id" lead to show a ClayTile block drawn as thatch; it did not).
+  WHAT PRODUCED IT: the same Release exe on StructGenTest with NO settlement; two 3 x 3 x 3 blocks by POST
+    /api/world/fill - Thatch at x 40-42 and ClayTile at x 45-47 (y 17-19, z 40-42), both confirmed by GET
+    /api/world/voxel (material Thatch / ClayTile); one screenshot, camera (50, 21.5, 47) yaw -135 pitch -22:
+    docs/evidence/worldforge_v2/m5f2a_l4_material_blocks.png. Hand-placed test blocks, not generator output.
+  WHAT IT SHOWS: the ClayTile block draws ITS OWN texture - the plain-tile grid and the green moss streaks of
+    clay_tile_*.png are plainly there, repeating about nine times across each cube face - but PALE TAN, not the source
+    image's orange-red. The Thatch block beside it draws dark grey-brown (it stands partly in a tree's shade).
+  SO: the "ClayTile drawn with Thatch's layer" lead is REFUTED. The straw-coloured, coursed roofs in the settlement
+    screenshots are the clay tile texture, small and washed out: a colour-rendition matter (it persisted with the tone
+    curve off), not a wrong material and not a wrong texture layer. Also read: the BC7 texture cache
+    (cache/textures/, built 2026-10-14) is keyed on the source images' content and not on materials.json - a material
+    re-ordered without any image changing would hit a stale cache; materials.json last changed 2026-10-07, before the
+    cache, so that is not what happened here.
+  NOT DONE: why the albedo reads pale (lighting / exposure / the material's colorTint 0.72, 0.40, 0.26 / texture
+    encoding) - a rendering question for its own session; no comparison against a reference capture of the same
+    texture; Thatch's dark look not examined.
+  Engine stopped by killing the process; the project's default.db not written.
