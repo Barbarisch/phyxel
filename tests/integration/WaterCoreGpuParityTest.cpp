@@ -2044,3 +2044,129 @@ TEST_F(WaterCoreGpuParityTest, GpuBoundaryMatchesCpu) {
     EXPECT_LT(std::abs(ur), 0.05) << "the red control: without the kernel the GPU reach stays still";
     EXPECT_EQ(rEx, 0.0);
 }
+
+// W6.2 STEP 0 (WaterCore 55.3) - does TODAY's pond model (the GPU core, its boundary kernel) carry a swell onto a beach? 18.4
+// measured the old CPU core: at 1 m and 1/3 m a 0.3 m swell died within 12 m (0.03 m left), at 1/9 m half of it arrived - and 18.4
+// moved the shore to a column solver, which 27.4 (W6) refuses without the owner's explicit call. A measurement, not a gate (run with
+// --gtest_also_run_disabled_tests). The rig (18.4's): a channel 1 m wide, 3 m deep for 40 m, then a 1:10 beach to 3.6 m at 76 m;
+// the first 2 m held at 3 m + eta with the depth-averaged velocity written (a wavemaker through the W5.2 kernel, re-sent every tick);
+// eta = a cos(k x - w t), a 0.3 m, lambda 14 m at 3 m depth (linear dispersion: T 3.2 s, c 4.37 m/s), ramped in over two periods;
+// 24 s at 60 Hz. Reported: the wave's height (half the crest-to-trough range over 12-24 s) 12 m and 24 m past the driver and at
+// 36 m (the beach's toe), against the driven 0.3 m; the run-up (the highest beach bed with >= 1 cm of water, above the still line)
+// against Hunt (R = H xi, xi = tan(beta) / sqrt(H / L0), H 0.6 m, L0 = g T^2 / 2 pi: 0.31 m); the books; ms per tick. Control: a 0
+// (calm) - the surface still within 5 mm, no run-up.
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagW62DoesTheCoreCarryASwell) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const double d0 = 3.0, L = 76.0, toe = 40.0, slope = 0.1, lambda = 14.0;
+    const double kw = 2.0 * 3.14159265358979 / lambda;
+    const double om = std::sqrt(kG * kw * std::tanh(kw * d0)), T = 2.0 * 3.14159265358979 / om, c = om / kw;
+    auto bedAt = [&](double x) { return x < toe ? 0.0 : (x - toe) * slope; };
+    struct Out { double amp[3] = {0, 0, 0}; double runUp = 0.0, runUp1mm = 0.0, crest = 0.0, books = 0.0, ex = 0.0, msTick = 0.0; double calmMax = 0.0; };
+    auto run = [&](float h, double a, float thr) {
+        Out o;
+        const int NX = static_cast<int>(std::lround(L / h)), NY = static_cast<int>(std::lround(4.333 / h)), NZ = std::max(3, static_cast<int>(std::lround(1.0 / h)));
+        Tank t(NX, NY, NZ, h);
+        t.extra = [&, h](const glm::ivec3& cc) { return (cc.y + 0.5) * h < bedAt((cc.x + 0.5) * h) ? Occ::Solid : Occ::Air; };
+        const int dRows = static_cast<int>(std::lround(d0 / h));
+        for (int z = 0; z < NZ; ++z) for (int x = 0; x < NX; ++x) for (int y = 0; y < dRows; ++y)
+            if ((y + 0.5) * h >= bedAt((x + 0.5) * h)) t.grid.f(x, y, z) = 1.0f;
+        auto* vol = make(t); if (!vol) return o;
+        SolverParams p; p.pondFriction = 0.0f; p.bedManning = 0.025f; p.liquidThreshold = thr;   // sand
+        const int nDrive = static_cast<int>(std::lround(2.0 / h));
+        std::vector<GpuBoundary> bs;
+        for (int z = 0; z < NZ; ++z) for (int x = 0; x < nDrive; ++x) { GpuBoundary b; b.col = x + NX * z; b.rows = static_cast<float>(d0 / h); bs.push_back(b); }
+        std::string err; if (!gpu.setBoundaries(*vol, bs, &err)) { ADD_FAILURE() << err; gpu.destroyVolume(vol); return o; }
+        const double g0 = t.grid.totalMass(), cellV = static_cast<double>(h) * h * h;
+        const int st[3] = {static_cast<int>((2.0 + 12.0) / h), static_cast<int>((2.0 + 24.0) / h), static_cast<int>(36.0 / h)};
+        double lo[3] = {1e9, 1e9, 1e9}, hi[3] = {-1e9, -1e9, -1e9};
+        WaterGrid out = t.grid;
+        auto surf = [&](int x) { double s = 0.0; for (int z = 0; z < NZ; ++z) s += out.columnMass(x, z) / (static_cast<double>(h) * h); return bedAt((x + 0.5) * h) + s / NZ; };
+        const int ticks = 24 * 60;
+        double ms = 0.0;
+        for (int k = 0; k < ticks; ++k) {
+            const double tt = (k + 1) * static_cast<double>(kDt), ramp = std::min(1.0, tt / (2.0 * T));
+            std::vector<GpuBoundary> cur; gpu.readBoundaries(*vol, cur);
+            for (GpuBoundary& b : cur) {
+                const double x = (b.col % NX + 0.5) * h, eta = a * ramp * std::cos(kw * x - om * tt);
+                b.rows = static_cast<float>((d0 + eta) / h); b.ux = static_cast<float>(eta * c / d0); b.qn = (b.col % NX == 0) ? std::max(0.0f, b.ux) : 0.0f;
+            }
+            if (!gpu.setBoundaries(*vol, cur, &err)) { ADD_FAILURE() << err; break; }
+            const auto t0 = std::chrono::steady_clock::now();
+            gpu.step(*vol, p, kDt, 1, 40); gpu.settle(*vol);
+            ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            if (k % 4) continue;
+            gpu.download(*vol, out);
+            if (tt >= 12.0) for (int i = 0; i < 3; ++i) { const double s = surf(st[i]); lo[i] = std::min(lo[i], s); hi[i] = std::max(hi[i], s); }
+            for (int x = static_cast<int>(toe / h); x < NX; ++x) {
+                double dep = 0.0; for (int z = 0; z < NZ; ++z) dep += out.columnMass(x, z) / (static_cast<double>(h) * h); dep /= NZ;
+                if (dep >= 0.01) o.runUp = std::max(o.runUp, bedAt((x + 0.5) * h) - d0);
+                if (dep >= 0.001) o.runUp1mm = std::max(o.runUp1mm, bedAt((x + 0.5) * h) - d0);
+                if (dep >= 0.01) o.crest = std::max(o.crest, bedAt((x + 0.5) * h) + dep - d0);
+            }
+            for (int i = 0; i < 3; ++i) o.calmMax = std::max(o.calmMax, std::abs(surf(st[i]) - d0));
+        }
+        for (int i = 0; i < 3; ++i) o.amp[i] = 0.5 * (hi[i] - lo[i]);
+        std::vector<GpuBoundary> rb; gpu.readBoundaries(*vol, rb);
+        for (const auto& b : rb) o.ex += b.exchanged() * cellV;
+        gpu.download(*vol, out);
+        o.books = out.totalMass() + gpu.sumFLoForTest(*vol) * cellV - g0 - o.ex;
+        o.msTick = ms / ticks;
+        gpu.destroyVolume(vol);
+        return o;
+    };
+    const double L0 = kG * T * T / (2.0 * 3.14159265358979), H = 0.6, hunt = H * slope / std::sqrt(H / L0);
+    std::printf("  the wave: a 0.30 m, lambda 14 m, d 3 m -> T %.2f s, c %.2f m/s; Hunt's run-up %.2f m (L0 %.1f m)\n", T, c, hunt, L0);
+    for (const auto& [h, thr] : std::vector<std::pair<float, float>>{{1.0f / 9.0f, 0.5f}, {1.0f / 3.0f, 0.5f}, {1.0f / 9.0f, 0.2f}}) {
+        const Out w = run(h, 0.3, thr), calm = run(h, 0.0, thr);
+        std::printf("  h 1/%d, liquid threshold %.1f: height 12 m in %.3f, 24 m in %.3f, at the toe %.3f m (driven 0.300); run-up %.3f m (>= 1 mm: %.3f; highest wet surface on the beach %+.3f; Hunt %.2f); books %+.2e m^3 (exchanged %+.4f); %.2f ms/tick\n",
+                    static_cast<int>(std::lround(1.0 / h)), thr, w.amp[0], w.amp[1], w.amp[2], w.runUp, w.runUp1mm, w.crest, hunt, w.books, w.ex, w.msTick);
+        std::printf("         CALM control: surface off the still line at most %.4f m; run-up %.3f m; books %+.2e m^3\n", calm.calmMax, calm.runUp, calm.books);
+    }
+}
+
+// W6.2 STEP 0 (55.3), part 2 - what a shore PATCH of a useful size costs in today's pond model: a 24 m wide, 36 m long beach at
+// 1/9 m (1:20 from 1.5 m deep at its seaward edge to the still line at 30 m, 6 m of dry sand above), sparse bricks (the engine's
+// volumes), the same 0.3 m / 14 m wavemaker over its seaward 2 m; 8 s at 60 Hz, ms per tick (step + settle - the test's
+// synchronous call, not the engine's async one) after the first 2 s; the cells and bricks held. A measurement (disabled).
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagW62ShorePatchCost) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const double d0 = 1.5, L = 36.0, W = 24.0, slope = 0.05, lambda = 14.0, a = 0.3;
+    const double kw = 2.0 * 3.14159265358979 / lambda, om = std::sqrt(kG * kw * std::tanh(kw * d0)), c = om / kw;
+    for (float h : {1.0f / 9.0f, 1.0f / 3.0f}) {
+        const int NX = static_cast<int>(std::lround(L / h)), NY = static_cast<int>(std::lround(2.4 / h)), NZ = static_cast<int>(std::lround(W / h));
+        Tank t(NX, NY, NZ, h);
+        t.extra = [h, slope](const glm::ivec3& cc) { return (cc.y + 0.5) * h < (cc.x + 0.5) * h * slope ? Occ::Solid : Occ::Air; };
+        const int dRows = static_cast<int>(std::lround(d0 / h));
+        long wet = 0;
+        for (int z = 0; z < NZ; ++z) for (int x = 0; x < NX; ++x) for (int y = 0; y < dRows; ++y)
+            if ((y + 0.5) * h >= (x + 0.5) * h * slope) { t.grid.f(x, y, z) = 1.0f; ++wet; }
+        t.bakeOcc();
+        std::string err;
+        WaterCoreGpu::Volume* vol = gpu.createVolume(t.grid, &err, BrickOptions{true, 0, false});
+        ASSERT_NE(vol, nullptr) << err;
+        SolverParams p; p.pondFriction = 0.0f; p.bedManning = 0.025f;
+        const int nDrive = static_cast<int>(std::lround(2.0 / h));
+        std::vector<GpuBoundary> bs;
+        for (int z = 0; z < NZ; ++z) for (int x = 0; x < nDrive; ++x) { GpuBoundary b; b.col = x + NX * z; b.rows = static_cast<float>(d0 / h); bs.push_back(b); }
+        ASSERT_TRUE(gpu.setBoundaries(*vol, bs, &err)) << err;
+        double ms = 0.0, msSet = 0.0; int n = 0;
+        for (int k = 0; k < 8 * 60; ++k) {
+            const double tt = (k + 1) * static_cast<double>(kDt), ramp = std::min(1.0, tt * om / (4.0 * 3.14159265358979));
+            const auto ts = std::chrono::steady_clock::now();
+            std::vector<GpuBoundary> cur; gpu.readBoundaries(*vol, cur);
+            for (GpuBoundary& b : cur) {
+                const double x = (b.col % NX + 0.5) * h, eta = a * ramp * std::cos(kw * x - om * tt);
+                b.rows = static_cast<float>((d0 + eta) / h); b.ux = static_cast<float>(eta * c / d0); b.qn = (b.col % NX == 0) ? std::max(0.0f, b.ux) : 0.0f;
+            }
+            ASSERT_TRUE(gpu.setBoundaries(*vol, cur, &err)) << err;
+            const auto t0 = std::chrono::steady_clock::now();
+            gpu.step(*vol, p, kDt, 1, 40); gpu.settle(*vol);
+            const auto t1 = std::chrono::steady_clock::now();
+            if (tt < 2.0) continue;
+            ms += std::chrono::duration<double, std::milli>(t1 - t0).count(); msSet += std::chrono::duration<double, std::milli>(t0 - ts).count(); ++n;
+        }
+        std::printf("  shore patch %.0f x %.0f m at 1/%d: %d x %d x %d cells, %ld wet at the start (%.2f M); step + settle %.2f ms/tick, the wavemaker's re-send %.2f ms/tick\n",
+                    W, L, static_cast<int>(std::lround(1.0 / h)), NX, NY, NZ, wet, wet / 1e6, ms / n, msSet / n);
+        gpu.destroyVolume(vol);
+    }
+}

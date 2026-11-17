@@ -75,7 +75,9 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
    edge, no wait at a swap) BUILT, not signed off (54.4; the owner: "definitly looks better").**
 4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
    **§55: step 0 MEASURED (what draws the sea today); W6.1 (the sea drawn as far as the land) BUILT, not signed off
-   (`w61_clip.mp4`, 55.1); W6.1b (the old sea sheet deleted) DONE (55.2); next W6.2 (the shore band near the player).**
+   (`w61_clip.mp4`, 55.1); W6.1b (the old sea sheet deleted) DONE (55.2); W6.2 (the shore band near the player) step 0
+   MEASURED (55.3): today's core carries a swell at 1/9 m but its run-up is a quarter of Hunt's - HOW the band is built is the
+   owner's call (55.3, three options).**
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
@@ -14300,7 +14302,7 @@ READY with amendments A1-A4; built as designed).
   owner's list. "Water constantly flowing": the design already simulates only near the player (the follow reach) and draws the rest
   from the record - written down here as the rule W6 keeps (the sea's swell offshore is appearance, never simulated).
 
-## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2)
+## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2); W6.2 step 0 MEASURED - the owner's call (55.3)
 
 **55.0 Step 0 (2026-11-16) - what draws the sea today, measured before W6 is designed** (`tools/water_w6_step0.py`, WaterBench_Coast,
 the shipped game.json, restored world; two engine runs, the old sheet ON (shipped) and OFF (RIG: game.json `water.enabled` false -
@@ -14422,6 +14424,48 @@ both built: (1) the `far_m` clamp; (2) the sampled-vs-generated difference bound
   what is stored" per column for the record tiles + skin; a probe over them is owed (the sign-off sweep or W6.2's tests). (2)
   **River's record holds water standing in the air** at its spawn (above) - a generation-side defect (the 51.14 level rivers or
   the D4 trunk), seen in both stills; for the sign-off sweep.
+
+**55.3 W6.2 step 0 (2026-11-17) MEASURED - can today's pond model be the shore band?** (before any design; the integration
+exe, Release; `WaterCoreGpuParityTest.DISABLED_DiagW62DoesTheCoreCarryASwell` + `DISABLED_DiagW62ShorePatchCost`, run with
+`--gtest_also_run_disabled_tests`). **Why first:** 18.4 measured the OLD CPU core unable to carry a swell (1 m and 1/3 m: dead
+within 12 m; 1/9 m: half of it, out of budget) and moved the shore to a column solver (`ShoreSolver` / `ShoreBand`, built, off),
+which 27.4's W6 line refuses without the owner's explicit call ("a second kind of water"). The core has changed since (the GPU
+solver, sparse bricks, the W5.2 boundary kernel), so the finding was re-measured, not assumed.
+- **The rig (18.4's):** a channel 1 m wide, 3 m deep for 40 m, then a 1:10 beach; its first 2 m held at 3 m + eta with the
+  depth-averaged velocity written (a wavemaker through `wc_boundary`, re-sent every tick); a 0.3 m, 14 m wave (T 3.2 s), ramped in
+  over two periods; 24 s; sand (Manning 0.025), pond friction 0. Control: calm (a 0).
+- **Results:**
+
+| cells, liquid threshold | wave height 12 m / 24 m in / at the beach's toe (driven 0.300) | run-up (>= 1 cm water; Hunt 0.31 m) | highest wet surface on the beach | books (exchanged) | ms / tick |
+|---|---|---|---|---|---|
+| 1/9 m, 0.5 (shipped) | **0.248 / 0.231 / 0.227** | **0.072 m (23 %)** | +0.310 m | -1.5e-4 m^3 (1.80) | 2.0 |
+| 1/3 m, 0.5 | 0.212 / 0.182 / 0.159 | 0.000 m | +0.341 m | -1.1e-3 m^3 (2.05) | 0.9 |
+| 1/9 m, 0.2 (a rig value) | 0.245 / 0.206 / 0.193 | 0.161 m (52 %) | +0.334 m | -1.5e-4 m^3 (2.04) | 2.0 |
+
+  Calm control, every row: the surface within 0.0000 m of the still line, run-up 0, books <= 3.3e-5 m^3.
+- **Read:** (1) **carrying is solved** - at 1/9 m 76-83 % of the swell reaches the beach (18.4's old core: 0.11-0.12). (2) **The
+  run-up is not:** the water rises the full +0.31 m against the sand (the wave's height IS there at the shore) but the wet edge
+  climbs 7 cm - the swash is a sheet a few cm thick, under the liquid threshold (a 1/9 m cell half full is 5.6 cm), which the
+  projection treats as film and does not move. A lower threshold doubles it (0.16 m) - pointing at that cause, not proving it; not a fix (the threshold
+  is every pond's, 26.9 signed off). The plan's S12 gate (Hunt +-20 %) fails today. (3) The column solver on its own rig (18.5, a
+  1:20 beach): 0.175 m vs Hunt 0.145 m - inside the gate.
+- **Cost** (part 2: a 24 x 36 m beach patch, 1:20 from 1.5 m deep to the still line at 30 m, sparse bricks, the same wavemaker):
+  **1/9 m 0.37 M wet cells, 4.1 ms a tick** (step + settle, the test's synchronous call - the engine's async call and its CPU share
+  not measured); the wavemaker's re-send 0.1 ms. 1/3 m: 0.97 ms (fixed per-call cost dominates). W5.2's 40 x 40 m river reach for
+  scale: 2.7-5.3 ms of device time a call.
+- **The owner's call - how the shore band is built** (nothing built until answered):
+  - **A. The pond model at 1/9 m as it is** (W5.2's reach machinery at the shore, the wavemaker its seaward ring): the swell comes in
+    and rises against the sand, the waterline moves a quarter of the way it should (on a 1:20 beach ~1.4 m back and forth instead of
+    ~6 m). ~4 ms of GPU a tick for a 24 x 36 m patch.
+  - **B. Fix the swash at its cause in the pond model first** (a wet front: a thin sheet on a slope moves - a core change touching
+    every pond's thin-film rule, so every signed-off pond test re-run), then A. Research-sized; the S12 gate is its test.
+  - **C. The column solver** (`ShoreBand`, 18.5-18.8, built and tested, run-up inside Hunt's gate): a second kind of water at the
+    shore - against 27.4's line and the one-water rule unless the owner says otherwise.
+  - **Recommendation: B**, bounded - this rig is its acceptance test (run-up within Hunt's 20 % at 1/9 m, the calm control still,
+    the pond suite unchanged); if it cannot be done without moving a signed-off pond result, fall back to A and say so.
+- **Also found:** nothing draws the swell today - since 55.2 the record tiles and the skin draw the sea flat (`water_surface.frag`
+  sets `wavePhase` 0); `SeaSwell` is read only by the old `ShoreBand` (off). The swell offshore as appearance (27.4) is part of W6.2
+  after the band, and meets 45.3's rule (no decorative pattern on water) - its look is the owner's too.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
