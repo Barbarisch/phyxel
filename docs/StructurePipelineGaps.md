@@ -1111,3 +1111,29 @@ Also open: creek spans (orders 1-2 on the 2/3 shelf) need a float-bottom WaterSp
   waterline.
 - **(G4) Two bands cost 5.65 ms p95 together on the CPU** (single thread). The solver's rates loop is
   embarrassingly parallel per line; threading or a GPU port is the cost lever if the fine band ships.
+
+## 2026-11-17 - the generated stair and its guard are not bonded to the building (found by VoxelFoundation F4.2)
+
+- **What:** `StructureRealizer::realizeShell`, for the 9 x 7 m two-story cottage (the F2 mesher test's program),
+  emits stair treads with two problems:
+  - consecutive treads touch only along an edge, never face to face;
+  - no tread touches a wall or a stringer.
+
+  The guard over the stairwell (464 voxels, 1 m tall) touches nothing either.
+- **Measured:** with the shell's bottom layer fixed, a face-connected flood finds unanchored pieces on both grids:
+  - 1/8 m: 12 pieces, 1,168 voxels (11 treads of 16 x 2 x 2 voxels, plus the guard);
+  - today's 1/9 m: 13 pieces, 2,000 voxels.
+
+  It is a generator design defect, not the grid conversion.
+- **Why it matters:** the fracture model (VoxelFoundationPlan §6.5) anchors by face bonds, so these parts count as
+  loose from the start.
+  - On the first break that reaches them, they fall.
+  - The anchoring search has to treat them as an exception: F4.2 excludes pieces that were loose before a hit,
+    unless the cut touches them.
+- **Fix (owed, generator):**
+  - Stairs need a carriage (stringers, or a solid wedge under the treads) bonded to the floor below and the floor
+    above.
+  - A guard needs posts bonded to the floor.
+  - Add an L2 invariant to the structure validation suite: every voxel of a realized shell is face-connected to
+    its foundation.
+- Evidence: `docs/evidence/voxfound_f42_run2.txt` (the UNANCHORED lines).

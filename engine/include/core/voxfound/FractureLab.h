@@ -82,6 +82,36 @@ FractureResult fractureReference(const VoxelGrid& grid, const Hit& hit,
 /// Write a result's damage into the grid (progressive damage: the next hit sees it).
 void applyDamage(VoxelGrid& grid, const FractureResult& r);
 
+// ---- F4.2 anchoring at scale (§3.5a point 6): block graph first, voxels only near the cut ---------------
+
+/// What the store keeps per block (8^3 voxels): the solid voxels' components inside the block and which of
+/// them hold a fixed voxel.
+struct BlockSummary {
+    static constexpr int kB = 8;
+    glm::ivec3 nb{0};                         // blocks per axis
+    std::vector<uint16_t> local;              // per voxel: 1-based component inside its block, 0 = air
+    std::vector<uint32_t> compBase;           // per block: index of its first component in compFixed
+    std::vector<uint8_t> compFixed;           // per component (flat): holds a fixed voxel
+    size_t components = 0;
+    size_t blockIndex(glm::ivec3 b) const { return size_t(b.z) + size_t(nb.z) * (size_t(b.y) + size_t(nb.y) * size_t(b.x)); }
+};
+BlockSummary summarizeBlocks(const VoxelGrid& g);
+
+struct AnchorStats {
+    size_t searches = 0;
+    size_t voxelNodes = 0;                    // voxels visited one by one (dirty blocks)
+    size_t compNodes = 0;                     // (block, component) nodes visited
+    size_t faceScans = 0;                     // voxel pairs examined on block faces
+    size_t dirtyBlocks = 0;
+    size_t looseVoxels = 0;
+    size_t loosePieces = 0;
+};
+
+/// The pieces a new cut set frees: per voxel a loose piece id (1-based), 0 = anchored or not touched by the cut.
+/// Exact on a grid that was fully anchored before the cut.
+std::vector<uint32_t> findLoose(const VoxelGrid& g, const BlockSummary& s, const std::vector<uint8_t>& cut,
+                                AnchorStats* stats = nullptr);
+
 // ---- the independent checker -------------------------------------------------------------
 
 struct PieceLabels {

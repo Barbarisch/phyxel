@@ -1,0 +1,68 @@
+F4.2 -- anchoring at scale: block graph first (plan §3.5a point 6, §6.5 step 2)
+Written 2026-11-17 BEFORE any F4.2 code.
+
+The question after a cut: "is this piece still bonded to something fixed?" A plain flood can search a whole town,
+because everything connects through the terrain. §3.5a.6 bounds it:
+  - search the block graph first (8^3 = 512 voxels per block);
+  - stop as soon as the search reaches something fixed (terrain / a fixed voxel) or something already known anchored;
+  - refine voxel by voxel only near the cut.
+F4 measures the worst-case search size on the wall and column rigs plus a whole-building rig.
+
+THE METHOD (fixed here)
+  BlockSummary (what the store keeps per block, §3.2; built once per grid here, its cost reported separately):
+    per block, the solid voxels' components inside the block (6-connected), a local label per voxel, and per
+    component whether it holds a fixed voxel.
+  findLoose(grid, summary, cut):
+    - dirty blocks = blocks holding an endpoint of a cut bond; the search runs voxel by voxel in them;
+    - every other block is searched as its components: one node per (block, component);
+    - seeds = the endpoints of the cut bonds; a breadth-first search from each unlabelled seed over uncut bonds,
+      moving between nodes through the solid voxel pairs on the shared block face;
+    - it stops at the first node holding a fixed voxel or already marked anchored, and marks everything it visited
+      anchored; a search that runs out is a loose piece: its voxels are listed (voxel nodes + whole components).
+  Output: per voxel, a loose piece id (0 = anchored or not touched by the cut).
+  It is exact if: the loose voxels = the reference's loose voxels (labelPieces over the same cuts), with the same
+  partition, on grids that were fully anchored before the hit.
+
+THE RIGS
+  - stone wall and column + lintel (§8, hand-built shapes, stated in F0);
+  - a whole building: the ENGINE's generator -- StructureRealizer::realizeShell on the 1/8 m grid
+    (StructureGrid::foundation()), the 9 x 7 m two-story timber cottage with crawlspace and gable roof that the F2
+    mesher test uses; its bottom voxel layer is fixed (it rests on the ground: terrain is an anchor, §3.5a.6).
+    Materials by name: Stone brittle T 10, Glass glass T 1, everything else brittle T 4 (no part ids or grain:
+    the shell does not carry them yet -- stated).
+  - hits: random solid voxels, random axis direction, E/T 0.3-100 (log-uniform), fixed rng; the building 200 hits,
+    each rig 100.
+
+PREDICTIONS
+  P1 exact: on every hit the loose pieces equal the reference's, voxel for voxel (0 mismatches).
+  P2 building size: 85k-120k solid voxels, ~450-700 occupied blocks (estimate from wall / floor / roof areas).
+  P3 search size on the building (nodes visited = voxel nodes + component nodes):
+     worst case <= 40,000 nodes (voxel nodes dominate: up to ~75 dirty blocks x 512 at E/T 100 near a wall),
+     median <= 5,000; component nodes at worst <= 1,500.
+     Against the flood a plain search would do (every solid voxel of the building): worst <= 40 %, median <= 5 %.
+  P4 the wall and column rigs: the search never exceeds the rig (<= 1,152 / 112 voxels + blocks), and it is not
+     smaller than the dirty voxels (those rigs are only 6 and 4 blocks: the block graph cannot help there).
+  P5 cost (CPU, Release): the building search median <= 1 ms, worst <= 10 ms; the summary build for the building
+     5-30 ms (once; the store will keep it incrementally like BlockConnectivity).
+  Red first: findLoose as a stub that reports nothing loose -> P1 fails on every hit that frees a piece.
+
+RED (voxfound_f42_red.txt): the stub fails every hit whose cut frees a piece.
+RUN 1 (voxfound_f42_run1.txt): every BUILDING hit failed at the same voxel, including hits that cut nothing -- the
+  generated building is NOT fully anchored before any hit (the method's stated precondition). Not a search bug:
+  12 pieces are unbonded from the start -- 11 stair treads (16 x 2 x 2 voxels each, touching each other only along
+  an edge and touching no wall) and the stairwell guard (464 voxels); 1,168 voxels. The same building on today's
+  1/9 m grid has 13 such pieces (2,000 voxels): a generator design defect, logged in StructurePipelineGaps.md
+  2026-11-17 (owed: a stair carriage, guard posts, an L2 "every voxel bonded to the foundation" invariant).
+  The comparison now excludes voxels loose before the hit that the cut does not touch (counted and printed);
+  nothing else changed. The wall and column rigs were already exact in run 1.
+RUN 2 (voxfound_f42_run2.txt), all 400 hits exact:
+  P1 held: 0 mismatches (wall 100, column 100, building 200 hits; 95 building hits freed something).
+  P2 held: 102,536 solid voxels, 519 occupied blocks, 561 block components.
+  P3 held: building nodes median 1,055 (1.0 % of the solid voxels), worst 8,558 (8.3 %): voxel nodes 8,457,
+     component nodes 326 (estimates: median <= 5,000 / 5 %, worst <= 40,000 / 40 %, components <= 1,500).
+  P4 held: wall worst 1,000 of 1,152 voxels, column worst 112 of 112 -- on rigs of 6 and 4 blocks the block
+     graph cannot help, as predicted.
+  P5 MISSED on the median: building 1.2 ms median (estimate <= 1 ms), worst 2.7 ms (<= 10 held); summary 14 ms
+     (5-30 held). Diagnosis: the search visits ~1,000 nodes, but each call allocates and clears per-voxel arrays
+     over the whole 331,128-cell grid and scans the dense cut array for seeds -- O(grid) setup, not search. The
+     engine's path will get the seeds from the break and keep its buffers; recorded, not fixed here.

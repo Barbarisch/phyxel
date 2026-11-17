@@ -1829,7 +1829,7 @@ Every rig is checked for:
 | **F2** | GPU face building (hidden-face culling, merging in and across blocks) + drawing through today's lighting; the §4.6 render optimizations rebuilt on blocks (culling, occlusion, indirect draws, shadow casters, block LOD pyramid, direction culling); T-junction handling | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate. **F2.19 re-run 2026-11-15: performance holds at all 5 poses (new store 2.1-9.4 ms faster whole frame; memory 1.2-1.7×; 11-13 MB per frame); pixels measured, every residual traced to FC content gaps; contour-stripe defect found and fixed** | a scene that works today doesn't, and we can't find and fix why |
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
 | **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; F3.2a: the edit store is the BlockStore, 545.5 → 62.9 MB, exact; F3.2b: brushes 1/2/4/8 + picking over the API, a 1 m brush 0.50 ms, pick 0.006 ms; F3.3: codec v3 + world.db, save / load round-trips exactly (voxels, lists, pixels, bytes), only edited chunks saved; F3.4: PXB2 converter (cubes exact, thirds / ninths by volume, no material dropped from a cell), a saved city drawn through the new store; F3.5 first run: exact under 1,000 edits + 10 reloads, edit cost met inside a chunk but NOT on chunk borders (0.69-0.90 ms); F3.5a: a border edit costs what an interior one does (exact; corner 1.00 -> 0.48 ms uncontended), but a full-block edit was 0.61-0.72 ms of which the connectivity flood was 0.35; F3.5b: incremental connectivity (exact, floods 112/128 -> 0/128 edits), a one-block brush 0.28-0.36 ms median anywhere; F3.5 second run (size and kind independent): exact under 1,000 verified edits + 10 reloads, 0 px, byte-identical re-save, every (size, kind) median ≤ 0.42 ms (a one-block brush 0.26-0.42) — CLOSED 2026-11-16; owed into later rows: the thin-part occupancy rule (converter), the small-leaf look (FC), edit store growth (1.34× over 1,000 edits)** | — |
-| **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference. **F4.1 2026-11-17 (§9c): the CPU reference — all 8 §8 rig predictions pass (the edge hit only trivially), equal to the independent checker, deterministic, conserving per material, nested in energy, under 300 random hits; pictures for review; owed: the owner's review, the anchoring search size at scale, the GPU port** | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
+| **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference. **F4.1 2026-11-17 (§9c): the CPU reference — all 8 §8 rig predictions pass (the edge hit only trivially), equal to the independent checker, deterministic, conserving per material, nested in energy, under 300 random hits; pictures for review. F4.2 (§9c): anchoring through the block graph is exact under 400 random hits; on an engine-generated building the worst search is 8,558 nodes (8.3 % of its voxels), the median 1,055; found that the generator's stair treads and guard are unbonded on both grids (logged). Owed: the owner's review, the GPU port** | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
 | **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
 | **F7** | Move the consumers over (§7), default switched | full test suite green; L4 live checks | — |
@@ -2234,6 +2234,61 @@ second mistake made a whole chair count as crumbs: the crumb threshold had been 
 - **A stronger edge-hit rig.** At E/T 5 nothing comes loose, so the edge-vs-centre prediction holds only trivially.
 - **GPU-parity details.** The Voronoi is integer-exact. The stress compares, the level choice and the glass angle
   are floating point, so the GPU port must match them or move them to integers.
+
+### F4.2 Anchoring at scale (2026-11-17)
+
+This answers §3.5a point 6: after a cut, is a piece still bonded to something fixed, without flooding the town?
+- Prediction: `voxfound_f42_prediction.txt`, written before the code.
+- Red: a stub that frees nothing failed every hit that frees a piece.
+
+**The method.**
+- **`BlockSummary`** is what the store keeps per block (§3.2): the solid voxels' components inside each 8³ block,
+  and which components hold a fixed voxel.
+- **`findLoose(grid, summary, cut)`** works like this:
+  - It searches voxel by voxel only in dirty blocks, i.e. blocks holding an endpoint of a cut bond.
+  - Every other block is one node per component. Nodes connect through the solid voxel pairs on shared block faces.
+  - It runs a breadth-first search from each endpoint of a cut bond.
+  - It stops at the first fixed node, or a node already known to be anchored.
+  - A search that runs out without stopping is a loose piece.
+
+**The rigs:**
+- the wall and the column (from §8);
+- a whole building from the engine's generator: `StructureRealizer::realizeShell` on the 1/8 m grid, the F2 9×7 m
+  two-story cottage, with its bottom layer fixed. 102,536 solid voxels, 519 blocks, 561 block components.
+
+**Results.** 400 random hits at E/T 0.3-100: **exact** — 0 mismatches with the reference's loose pieces.
+
+| Rig | Hits (freeing) | Nodes visited, median | Worst | Worst as % of solid voxels | ms median / worst |
+|---|---|---|---|---|---|
+| Stone wall (6 blocks) | 100 (43) | 233 | 1,000 | 86.8 % | 0.03 / 0.10 |
+| Column + lintel (4 blocks) | 100 (64) | 79 | 112 | 100 % | 0.01 / 0.02 |
+| Building (519 blocks) | 200 (95) | 1,055 (1.0 %) | 8,558: 8,457 voxel nodes + 326 component nodes | 8.3 % | 1.2 / 2.7 |
+
+- **The wall and the column:** on rigs of 6 and 4 blocks, the block graph cannot help, as predicted.
+- **The building:** the worst search is 12× smaller than flooding the building.
+  - Voxel nodes near the cut dominate the worst case. The block graph crosses the rest in ≤ 326 nodes.
+  - The 1.2 ms median missed my ≤ 1 ms estimate. The cause is setup, not search: each call allocates per-voxel
+    arrays over the whole 331k-cell grid and scans the dense cut array for seeds. The engine's path takes its seeds
+    from the break and keeps its buffers.
+
+**Found: the generator's stair isn't bonded to the building.**
+- 11 treads touch each other only along an edge, and touch no wall.
+- The stairwell guard touches nothing.
+- Together that is 1,168 voxels on 1/8 m. The same building on today's 1/9 m grid has the same defect: 13 pieces,
+  2,000 voxels.
+
+Under §6.5 these parts are loose before any hit. The comparison therefore excludes pieces that were loose before
+the hit, unless the cut touches them; they are counted and printed.
+- Logged in `StructurePipelineGaps.md` (2026-11-17).
+- Owed to the generator:
+  - a stair carriage;
+  - guard posts;
+  - an L2 invariant: every voxel of a realized shell is bonded to its foundation.
+
+**Still owed in F4:**
+- the owner's review of the F4.1 pictures;
+- the GPU port, equal to the reference (F4.3);
+- the incremental store-kept summary (like F3.5b's `BlockConnectivity`), measured inside a streamed town at F8.
 
 ## 10. Performance tiers
 

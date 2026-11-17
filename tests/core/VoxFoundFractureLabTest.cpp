@@ -19,6 +19,16 @@
 #include <fstream>
 #include <random>
 
+#include <map>
+#include <set>
+#include <unordered_map>
+
+#include <nlohmann/json.hpp>
+
+#include "core/BuildingProgram.h"
+#include "core/StructureGrid.h"
+#include "core/StructureRealizer.h"
+#include "core/StyleProfile.h"
 #include "core/voxfound/FractureLab.h"
 
 using namespace Phyxel::Core::VoxFound;
@@ -326,6 +336,213 @@ TEST(VoxFoundFractureLab, StressRandomHitsAgreeConserveNestAndAccumulate) {
     std::printf("[fracture lab] stress: 300 hits, %zu cuts, %zu nesting checks, %zu hits where a repeat cut more\n",
                 cutTotal, nested, progressive);
     EXPECT_GT(progressive, 0u);
+}
+
+// ---- F4.2 anchoring at scale: block graph first (voxfound_f42_prediction.txt) ----------------------------
+
+namespace {
+
+// The whole-building rig. Provenance: the ENGINE's generator -- StructureRealizer::realizeShell on the 1/8 m grid
+// (the F2 mesher test's 9 x 7 m two-story timber cottage, crawlspace, gable roof). Its bottom voxel layer is fixed
+// (it rests on the ground). Materials by name: Stone brittle T 10, Glass T 1, everything else brittle T 4.
+Rig rigBuilding(const Phyxel::Core::StructureGrid& grid = Phyxel::Core::StructureGrid::foundation()) {
+    using namespace Phyxel::Core;
+    StyleProfileRegistry reg;
+    reg.loadFromJson(nlohmann::json::parse(R"({
+        "timber_cottage": {
+            "roof_style": "gable", "foundation": "crawlspace",
+            "thickness": { "exterior_wall": 0.333, "interior_wall": 0.222,
+                           "foundation_wall": 0.667, "floor": 0.333, "ceiling": 0.222 },
+            "materials": { "structure": "WoodPlanks", "floor": "Wood", "roof": "WoodShingle", "foundation": "Stone" },
+            "roof": { "pitch": 0.8 }
+        }
+    })"));
+    nlohmann::json j;
+    j["name"] = "anchor_case"; j["style"] = "timber_cottage";
+    j["footprint"] = nlohmann::json::array({9, 7});
+    j["substructure"] = "crawlspace"; j["roof_style"] = "gable";
+    j["stories"] = nlohmann::json::array();
+    for (int s = 0; s < 2; ++s) {
+        nlohmann::json st;
+        st["height"] = 3;
+        st["rooms"] = nlohmann::json::array({{{"id", "r" + std::to_string(s)}, {"rect", {0, 0, 9, 7}}, {"purpose", "living"}}});
+        st["portals"] = nlohmann::json::array();
+        if (s == 0)
+            st["portals"].push_back({{"between", {"exterior", "r0"}}, {"pos", {4, 0}}, {"width", 1}, {"height", 2}, {"kind", "door"}});
+        st["portals"].push_back({{"between", {"exterior", "r" + std::to_string(s)}}, {"pos", {0, 3}}, {"width", 1},
+                                 {"height", 1}, {"kind", "window"}});
+        st["stairs"] = nlohmann::json::array();
+        if (s == 0)
+            st["stairs"].push_back({{"from_story", 0}, {"to_story", 1}, {"rect", {6, 1, 2, 5}}, {"form", "straight"}});
+        j["stories"].push_back(st);
+    }
+    const auto sh = StructureRealizer::realizeShell(BuildingProgram::fromJson(j), *reg.get("timber_cottage"),
+                                                    grid);
+    Rig r;
+    r.name = "building";
+    if (!sh.ok) return r;
+    glm::ivec3 lo, hi;
+    if (!sh.canvas.microBounds(lo, hi)) return r;
+    r.grid.resize(hi - lo + glm::ivec3(1));
+    r.grid.voxelM = 1.0f / float(grid.perM);
+    r.mats.assign(1, FractureMaterial{"air"});
+    std::map<std::string, uint8_t> pal;
+    for (const auto& v : sh.canvas.occupiedCells()) {
+        const std::string m = sh.canvas.materialAt(v.x, v.y, v.z);
+        auto it = pal.find(m);
+        if (it == pal.end()) {
+            FractureMaterial fm{m, FractureClass::Brittle, 4.0f, glm::vec3(0.0f), 0.3f};
+            if (m.find("Stone") != std::string::npos) fm.toughness = 10.0f;
+            if (m.find("Glass") != std::string::npos) { fm.cls = FractureClass::Glass; fm.toughness = 1.0f; }
+            r.mats.push_back(fm);
+            it = pal.emplace(m, uint8_t(r.mats.size() - 1)).first;
+        }
+        const glm::ivec3 p = v - lo;
+        r.grid.set(p, it->second, 0, p.y == 0);
+    }
+    return r;
+}
+
+// The fast loose set equals the reference's (labelPieces over the same cuts) as a partition, voxel for voxel.
+::testing::AssertionResult looseEqualsReference(const VoxelGrid& g, const std::vector<uint8_t>& cut,
+                                                const std::vector<uint32_t>& fast, const std::vector<uint8_t>& preLoose,
+                                                size_t* skipped = nullptr) {
+    const PieceLabels L = labelPieces(g, cut);
+    std::unordered_map<uint32_t, uint32_t> fwd, back;
+    for (size_t i = 0; i < g.size(); ++i) {
+        if (!g.mat[i]) continue;
+        const bool refLoose = !L.anchored[L.label[i]];
+        const uint32_t f = fast[i];
+        if (preLoose[i] && f == 0) {  // loose before the hit and untouched by it: not this search's question
+            if (skipped) ++*skipped;
+            continue;
+        }
+        if (refLoose != (f != 0))
+            return ::testing::AssertionFailure() << "voxel " << i << (refLoose ? " loose in the reference only" : " loose in findLoose only");
+        if (!f) continue;
+        auto a = fwd.emplace(f, L.label[i]).first;
+        auto b = back.emplace(L.label[i], f).first;
+        if (a->second != L.label[i] || b->second != f)
+            return ::testing::AssertionFailure() << "loose partition differs at voxel " << i;
+    }
+    return ::testing::AssertionSuccess();
+}
+
+struct AnchorRun {
+    std::string name;
+    size_t solid = 0, blocks = 0, hits = 0, cutHits = 0, looseHits = 0, preLoose = 0;
+    std::vector<size_t> nodes;
+    std::vector<double> ms;
+    size_t worstVoxel = 0, worstComp = 0;
+};
+
+AnchorRun anchorHits(Rig rig, int nHits, uint64_t seed) {
+    AnchorRun out;
+    out.name = rig.name;
+    out.solid = rig.grid.solidCount();
+    const BlockSummary s = summarizeBlocks(rig.grid);
+    std::set<size_t> occ;
+    for (size_t i = 0; i < rig.grid.size(); ++i)
+        if (rig.grid.mat[i]) {
+            const glm::ivec3 b = rig.grid.pos(i) / BlockSummary::kB;
+            occ.insert(size_t(b.z) + 1000u * (size_t(b.y) + 1000u * size_t(b.x)));
+        }
+    out.blocks = occ.size();
+    std::vector<uint8_t> preLoose(rig.grid.size(), 0);
+    {
+        const PieceLabels L0 = labelPieces(rig.grid, {});
+        for (size_t i = 0; i < rig.grid.size(); ++i)
+            if (rig.grid.mat[i] && !L0.anchored[L0.label[i]]) { preLoose[i] = 1; ++out.preLoose; }
+    }
+    std::mt19937_64 rng(seed);
+    std::uniform_real_distribution<double> U(0.0, 1.0);
+    for (int h = 0; h < nHits; ++h) {
+        size_t i = 0;
+        do { i = size_t(U(rng) * double(rig.grid.size())) % rig.grid.size(); } while (!rig.grid.mat[i]);
+        glm::vec3 dir(0.0f);
+        dir[int(U(rng) * 3) % 3] = U(rng) < 0.5 ? -1.0f : 1.0f;
+        const double eot = 0.3 * std::pow(100.0 / 0.3, U(rng));
+        rig.hit = {glm::vec3(rig.grid.pos(i)) + 0.5f, dir, float(eot) * rig.mats[rig.grid.mat[i]].toughness, rng()};
+        const FractureResult r = fractureReference(rig.grid, rig.hit, rig.mats);
+        AnchorStats st;
+        const auto t0 = std::chrono::steady_clock::now();
+        const std::vector<uint32_t> loose = findLoose(rig.grid, s, r.cut, &st);
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        ++out.hits;
+        EXPECT_TRUE(looseEqualsReference(rig.grid, r.cut, loose, preLoose)) << rig.name << " hit " << h << " E/T " << eot;
+        if (cutStats(rig.grid, r.cut).cut == 0) continue;
+        ++out.cutHits;
+        if (st.looseVoxels) ++out.looseHits;
+        out.nodes.push_back(st.voxelNodes + st.compNodes);
+        out.ms.push_back(ms);
+        out.worstVoxel = std::max(out.worstVoxel, st.voxelNodes);
+        out.worstComp = std::max(out.worstComp, st.compNodes);
+    }
+    return out;
+}
+
+template <class T> T median(std::vector<T> v) {
+    if (v.empty()) return T{};
+    std::sort(v.begin(), v.end());
+    return v[v.size() / 2];
+}
+
+}  // namespace
+
+TEST(VoxFoundFractureLab, AnchoringSearchEqualsTheReferenceOnRigsAndABuilding) {
+    const Rig building = rigBuilding();
+    ASSERT_GT(building.grid.solidCount(), 0u) << "the building generator produced nothing";
+    {
+        // before any hit: which parts of the generated shell are not bonded (face-to-face) to its base?
+        const PieceLabels L = labelPieces(building.grid, {});
+        for (uint32_t id = 1; id <= L.pieces(); ++id) {
+            if (L.anchored[id]) continue;
+            glm::ivec3 lo(1 << 30), hi(-(1 << 30));
+            std::map<std::string, size_t> mats;
+            for (size_t i = 0; i < building.grid.size(); ++i)
+                if (L.label[i] == id) {
+                    lo = glm::min(lo, building.grid.pos(i));
+                    hi = glm::max(hi, building.grid.pos(i));
+                    ++mats[building.mats[building.grid.mat[i]].name];
+                }
+            std::string m;
+            for (const auto& [k, v] : mats) m += k + ":" + std::to_string(v) + " ";
+            std::printf("[anchoring] building UNANCHORED before any hit: piece %u, %zu voxels, (%d,%d,%d)-(%d,%d,%d) %s\n",
+                        id, L.size[id], lo.x, lo.y, lo.z, hi.x, hi.y, hi.z, m.c_str());
+        }
+    }
+    {
+        const auto t0 = std::chrono::steady_clock::now();
+        const BlockSummary s = summarizeBlocks(building.grid);
+        std::printf("[anchoring] building %d x %d x %d voxels, %zu solid; summary %zu components, %.2f ms\n",
+                    building.grid.dim.x, building.grid.dim.y, building.grid.dim.z, building.grid.solidCount(),
+                    s.components, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+    }
+    {
+        const Rig legacy = rigBuilding(Phyxel::Core::StructureGrid::legacy());
+        const PieceLabels L = labelPieces(legacy.grid, {});
+        size_t pieces = 0, vox = 0;
+        for (uint32_t id = 1; id <= L.pieces(); ++id)
+            if (!L.anchored[id]) { ++pieces; vox += L.size[id]; }
+        std::printf("[anchoring] the same building on today's 1/9 m grid: %zu solid, %zu unanchored pieces (%zu voxels)\n",
+                    legacy.grid.solidCount(), pieces, vox);
+    }
+    std::vector<AnchorRun> runs;
+    runs.push_back(anchorHits(rigStoneWall({12, 8, 0}, 1.0f), 100, 4201));
+    runs.push_back(anchorHits(rigColumnLintel(1.0f), 100, 4202));
+    runs.push_back(anchorHits(building, 200, 4203));
+    for (const AnchorRun& r : runs) {
+        const size_t worst = r.nodes.empty() ? 0 : *std::max_element(r.nodes.begin(), r.nodes.end());
+        const double worstMs = r.ms.empty() ? 0.0 : *std::max_element(r.ms.begin(), r.ms.end());
+        std::printf("[anchoring] %-14s loose before any hit (excluded unless the cut touches them): %zu voxels\n",
+                    r.name.c_str(), r.preLoose);
+        std::printf("[anchoring] %-14s solid %6zu blocks %4zu | hits %zu, cutting %zu, freeing %zu | nodes median %zu "
+                    "worst %zu (voxel %zu, comp %zu) = %.1f %% / %.1f %% of the solid voxels | ms median %.3f worst %.3f\n",
+                    r.name.c_str(), r.solid, r.blocks, r.hits, r.cutHits, r.looseHits, median(r.nodes), worst,
+                    r.worstVoxel, r.worstComp, 100.0 * double(median(r.nodes)) / double(r.solid),
+                    100.0 * double(worst) / double(r.solid), median(r.ms), worstMs);
+        EXPECT_GT(r.looseHits, 0u) << r.name << ": no hit freed anything -- the comparison would be empty";
+    }
 }
 
 // ---- F4.1 measured summary (+ the picture dump when VOXFOUND_FRACTURE_DUMP names a directory) -----------

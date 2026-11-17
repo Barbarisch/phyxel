@@ -310,6 +310,197 @@ void applyDamage(VoxelGrid& g, const FractureResult& r) {
     if (r.damage.size() == g.size()) g.damage = r.damage;
 }
 
+// ---- F4.2 anchoring at scale ---------------------------------------------------------------------------
+
+namespace {
+constexpr int kB = BlockSummary::kB;
+const glm::ivec3 kDir6[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+}  // namespace
+
+BlockSummary summarizeBlocks(const VoxelGrid& g) {
+    BlockSummary s;
+    s.nb = (g.dim + glm::ivec3(kB - 1)) / kB;
+    s.local.assign(g.size(), 0);
+    const size_t nBlocks = size_t(s.nb.x) * size_t(s.nb.y) * size_t(s.nb.z);
+    s.compBase.assign(nBlocks + 1, 0);
+    std::vector<size_t> q;
+    for (int bx = 0; bx < s.nb.x; ++bx)
+        for (int by = 0; by < s.nb.y; ++by)
+            for (int bz = 0; bz < s.nb.z; ++bz) {
+                const glm::ivec3 b(bx, by, bz), lo = b * kB, hi = glm::min(lo + glm::ivec3(kB), g.dim);
+                const size_t bi = s.blockIndex(b);
+                s.compBase[bi] = uint32_t(s.compFixed.size());
+                uint16_t label = 0;
+                for (int x = lo.x; x < hi.x; ++x)
+                    for (int y = lo.y; y < hi.y; ++y)
+                        for (int z = lo.z; z < hi.z; ++z) {
+                            const size_t i0 = g.idx({x, y, z});
+                            if (!g.mat[i0] || s.local[i0]) continue;
+                            ++label;
+                            uint8_t fixed = 0;
+                            s.local[i0] = label;
+                            q.assign(1, i0);
+                            while (!q.empty()) {
+                                const size_t i = q.back();
+                                q.pop_back();
+                                fixed |= g.fixed[i];
+                                const glm::ivec3 p = g.pos(i);
+                                for (const glm::ivec3& d : kDir6) {
+                                    const glm::ivec3 r = p + d;
+                                    if (glm::any(glm::lessThan(r, lo)) || glm::any(glm::greaterThanEqual(r, hi))) continue;
+                                    const size_t j = g.idx(r);
+                                    if (!g.mat[j] || s.local[j]) continue;
+                                    s.local[j] = label;
+                                    q.push_back(j);
+                                }
+                            }
+                            s.compFixed.push_back(fixed);
+                        }
+            }
+    s.compBase[nBlocks] = uint32_t(s.compFixed.size());
+    s.components = s.compFixed.size();
+    return s;
+}
+
+std::vector<uint32_t> findLoose(const VoxelGrid& g, const BlockSummary& s, const std::vector<uint8_t>& cut,
+                                AnchorStats* stats) {
+    AnchorStats st;
+    const size_t n = g.size();
+    std::vector<uint32_t> loose(n, 0);
+    if (cut.size() != n || s.local.size() != n) return loose;
+    const size_t nBlocks = s.compBase.size() - 1;
+    auto blockOf = [&](glm::ivec3 p) { return s.blockIndex(p / kB); };
+    // the bond between face neighbours i (at p) and the voxel at p + d; owned by the lower voxel
+    auto bondCut = [&](size_t i, const glm::ivec3& /*p*/, int dirIdx, size_t j) {
+        const int a = dirIdx / 2;
+        return ((dirIdx % 2 == 0) ? (cut[i] >> a) : (cut[j] >> a)) & 1;
+    };
+
+    // dirty blocks and seeds: the endpoints of cut bonds
+    std::vector<uint8_t> dirty(nBlocks, 0);
+    std::vector<size_t> seeds;
+    for (size_t i = 0; i < n; ++i) {
+        if (!cut[i] || !g.mat[i]) continue;
+        const glm::ivec3 p = g.pos(i);
+        for (int a = 0; a < 3; ++a) {
+            if (!((cut[i] >> a) & 1)) continue;
+            glm::ivec3 r = p;
+            r[a] += 1;
+            if (!g.in(r) || !g.mat[g.idx(r)]) continue;
+            dirty[blockOf(p)] = 1;
+            dirty[blockOf(r)] = 1;
+            seeds.push_back(i);
+            seeds.push_back(g.idx(r));
+        }
+    }
+    for (uint8_t d : dirty) st.dirtyBlocks += d;
+
+    // nodes: a voxel (index < n) in a dirty block, or a (block, component) node n + flat component index
+    const size_t nNodes = n + s.components;
+    std::vector<int32_t> mark(nNodes, 0);     // -1 anchored, > 0 loose piece id
+    std::vector<uint32_t> stamp(nNodes, 0);
+    uint32_t cur = 0;
+    std::vector<size_t> queue, visited;
+    auto nodeOf = [&](size_t j, const glm::ivec3& r) -> size_t {
+        const size_t b = blockOf(r);
+        return dirty[b] ? j : n + s.compBase[b] + s.local[j] - 1;
+    };
+    int32_t pieces = 0;
+    for (size_t seed : seeds) {
+        if (mark[seed] != 0) continue;
+        ++st.searches;
+        ++cur;
+        queue.assign(1, seed);
+        visited.assign(1, seed);
+        stamp[seed] = cur;
+        bool anchored = false;
+        auto visit = [&](size_t node) {
+            if (stamp[node] == cur) return;
+            stamp[node] = cur;
+            queue.push_back(node);
+            visited.push_back(node);
+        };
+        for (size_t qi = 0; qi < queue.size() && !anchored; ++qi) {
+            const size_t u = queue[qi];
+            if (mark[u] == -1) { anchored = true; break; }
+            if (u < n) {
+                ++st.voxelNodes;
+                if (g.fixed[u]) { anchored = true; break; }
+                const glm::ivec3 p = g.pos(u);
+                for (int d = 0; d < 6; ++d) {
+                    const glm::ivec3 r = p + kDir6[d];
+                    if (!g.in(r)) continue;
+                    const size_t j = g.idx(r);
+                    if (!g.mat[j] || bondCut(u, p, d, j)) continue;
+                    visit(nodeOf(j, r));
+                }
+            } else {
+                ++st.compNodes;
+                const size_t c = u - n;
+                if (s.compFixed[c]) { anchored = true; break; }
+                // its block: the one whose component range holds c
+                const size_t b = size_t(std::upper_bound(s.compBase.begin(), s.compBase.end(), uint32_t(c)) -
+                                        s.compBase.begin()) - 1;
+                const uint16_t label = uint16_t(c - s.compBase[b] + 1);
+                const glm::ivec3 bc(int(b / (size_t(s.nb.y) * size_t(s.nb.z))), int((b / size_t(s.nb.z)) % size_t(s.nb.y)),
+                                    int(b % size_t(s.nb.z)));
+                const glm::ivec3 lo = bc * kB, hi = glm::min(lo + glm::ivec3(kB), g.dim);
+                // walk the block's six faces: the component's voxels there and their solid neighbours outside
+                for (int d = 0; d < 6; ++d) {
+                    const int a = d / 2;
+                    const bool plus = d % 2 == 0;
+                    const int fixedCoord = plus ? hi[a] - 1 : lo[a];
+                    const int b1 = (a + 1) % 3, b2 = (a + 2) % 3;
+                    for (int u1 = lo[b1]; u1 < hi[b1]; ++u1)
+                        for (int u2 = lo[b2]; u2 < hi[b2]; ++u2) {
+                            glm::ivec3 p;
+                            p[a] = fixedCoord;
+                            p[b1] = u1;
+                            p[b2] = u2;
+                            const size_t i = g.idx(p);
+                            if (s.local[i] != label) continue;
+                            const glm::ivec3 r = p + kDir6[d];
+                            if (!g.in(r)) continue;
+                            ++st.faceScans;
+                            const size_t j = g.idx(r);
+                            if (!g.mat[j] || bondCut(i, p, d, j)) continue;
+                            visit(nodeOf(j, r));
+                        }
+                }
+            }
+        }
+        if (anchored) {
+            for (size_t v : visited) mark[v] = -1;
+            continue;
+        }
+        ++pieces;
+        for (size_t v : visited) {
+            mark[v] = pieces;
+            if (v < n) {
+                loose[v] = uint32_t(pieces);
+                ++st.looseVoxels;
+                continue;
+            }
+            const size_t c = v - n;
+            const size_t b = size_t(std::upper_bound(s.compBase.begin(), s.compBase.end(), uint32_t(c)) -
+                                    s.compBase.begin()) - 1;
+            const uint16_t label = uint16_t(c - s.compBase[b] + 1);
+            const glm::ivec3 bc(int(b / (size_t(s.nb.y) * size_t(s.nb.z))), int((b / size_t(s.nb.z)) % size_t(s.nb.y)),
+                                int(b % size_t(s.nb.z)));
+            const glm::ivec3 lo = bc * kB, hi = glm::min(lo + glm::ivec3(kB), g.dim);
+            for (int x = lo.x; x < hi.x; ++x)
+                for (int y = lo.y; y < hi.y; ++y)
+                    for (int z = lo.z; z < hi.z; ++z) {
+                        const size_t i = g.idx({x, y, z});
+                        if (s.local[i] == label) { loose[i] = uint32_t(pieces); ++st.looseVoxels; }
+                    }
+        }
+    }
+    st.loosePieces = size_t(pieces);
+    if (stats) *stats = st;
+    return loose;
+}
+
 PieceLabels labelPieces(const VoxelGrid& g, const std::vector<uint8_t>& cut) {
     PieceLabels L;
     const size_t n = g.size();

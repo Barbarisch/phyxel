@@ -1,0 +1,1564 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundFractureLab.Anchoring*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundFractureLab
+[ RUN      ] VoxFoundFractureLab.AnchoringSearchEqualsTheReferenceOnRigsAndABuilding
+[anchoring] building 73 x 81 x 56 voxels, 102536 solid; summary 0 components, 0.00 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 234 loose in the reference only)
+Expected: true
+stone_wall hit 0 E/T 28.285660691149825
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 33 loose in the reference only)
+Expected: true
+stone_wall hit 1 E/T 6.0561776646484802
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 767 loose in the reference only)
+Expected: true
+stone_wall hit 2 E/T 4.2737781160869472
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 11 loose in the reference only)
+Expected: true
+stone_wall hit 6 E/T 27.536157218505249
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 502 loose in the reference only)
+Expected: true
+stone_wall hit 7 E/T 7.9960139632594114
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 492 loose in the reference only)
+Expected: true
+stone_wall hit 12 E/T 37.742288088355224
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 10 loose in the reference only)
+Expected: true
+stone_wall hit 15 E/T 35.881107562485006
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 12 loose in the reference only)
+Expected: true
+stone_wall hit 19 E/T 27.702520450367508
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 788 loose in the reference only)
+Expected: true
+stone_wall hit 23 E/T 15.021048583575642
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 38 loose in the reference only)
+Expected: true
+stone_wall hit 25 E/T 5.2461099990014448
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 11 loose in the reference only)
+Expected: true
+stone_wall hit 27 E/T 46.096320995086074
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 641 loose in the reference only)
+Expected: true
+stone_wall hit 28 E/T 44.053390264091448
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 6 loose in the reference only)
+Expected: true
+stone_wall hit 29 E/T 62.648716760229
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 344 loose in the reference only)
+Expected: true
+stone_wall hit 30 E/T 12.085929857716584
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 39 loose in the reference only)
+Expected: true
+stone_wall hit 32 E/T 16.684840121445959
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 27 loose in the reference only)
+Expected: true
+stone_wall hit 33 E/T 54.997745770878218
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 543 loose in the reference only)
+Expected: true
+stone_wall hit 37 E/T 5.2554535560659525
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 3 loose in the reference only)
+Expected: true
+stone_wall hit 40 E/T 50.952670970546741
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 39 loose in the reference only)
+Expected: true
+stone_wall hit 41 E/T 30.097443119758225
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 696 loose in the reference only)
+Expected: true
+stone_wall hit 51 E/T 30.304945897565808
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 38 loose in the reference only)
+Expected: true
+stone_wall hit 52 E/T 10.43010621750939
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 827 loose in the reference only)
+Expected: true
+stone_wall hit 54 E/T 16.198787175084234
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 9 loose in the reference only)
+Expected: true
+stone_wall hit 55 E/T 50.969663891354848
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 261 loose in the reference only)
+Expected: true
+stone_wall hit 56 E/T 56.081804902409289
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 654 loose in the reference only)
+Expected: true
+stone_wall hit 60 E/T 53.069515287224064
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 497 loose in the reference only)
+Expected: true
+stone_wall hit 61 E/T 18.831584384291631
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 11 loose in the reference only)
+Expected: true
+stone_wall hit 62 E/T 57.969821039952862
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 575 loose in the reference only)
+Expected: true
+stone_wall hit 66 E/T 44.296923220730285
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 479 loose in the reference only)
+Expected: true
+stone_wall hit 68 E/T 19.265656133013682
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 21 loose in the reference only)
+Expected: true
+stone_wall hit 71 E/T 71.141753049826391
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 1111 loose in the reference only)
+Expected: true
+stone_wall hit 72 E/T 5.8656808651480103
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 491 loose in the reference only)
+Expected: true
+stone_wall hit 73 E/T 39.416054380490429
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 10 loose in the reference only)
+Expected: true
+stone_wall hit 74 E/T 40.235682113726092
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 621 loose in the reference only)
+Expected: true
+stone_wall hit 76 E/T 47.659448089825368
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 792 loose in the reference only)
+Expected: true
+stone_wall hit 79 E/T 23.714291439042011
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 29 loose in the reference only)
+Expected: true
+stone_wall hit 80 E/T 99.262004380554643
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 392 loose in the reference only)
+Expected: true
+stone_wall hit 84 E/T 9.796594052520069
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 42 loose in the reference only)
+Expected: true
+stone_wall hit 85 E/T 56.059236305551195
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 300 loose in the reference only)
+Expected: true
+stone_wall hit 86 E/T 14.180209744895588
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 13 loose in the reference only)
+Expected: true
+stone_wall hit 91 E/T 37.649142196230869
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 245 loose in the reference only)
+Expected: true
+stone_wall hit 92 E/T 48.792964393259169
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 203 loose in the reference only)
+Expected: true
+stone_wall hit 96 E/T 46.117400474616801
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 9 loose in the reference only)
+Expected: true
+stone_wall hit 99 E/T 73.100611827579399
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 0 E/T 2.2173582821182451
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 1 E/T 19.217174941587842
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 2 E/T 0.70907020522494146
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 3 E/T 64.654677897875558
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 5 E/T 27.356214991807111
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 10 E/T 4.0817919570555716
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 14 E/T 86.084153141628605
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 15 E/T 4.1449674544631936
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 16 E/T 31.867098525158585
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 18 E/T 6.9187581565208669
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 20 E/T 21.547320304101284
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 22 E/T 4.0061664361248299
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 25 E/T 64.035523443360844
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 26 E/T 7.026663029030054
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 27 E/T 39.190358926138231
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 28 E/T 7.9519862795622949
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 29 E/T 32.06775041973183
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 35 E/T 77.443487380183015
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 36 E/T 13.517669318877134
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 38 E/T 5.66748650248151
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 39 E/T 23.363519155774114
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 43 E/T 18.388298125947188
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 44 E/T 38.571235820481576
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 45 E/T 51.920069284265388
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 46 E/T 21.853754201800061
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 47 E/T 17.676819969736794
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 50 E/T 45.290633877206012
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 51 E/T 7.6562014643231464
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 52 E/T 5.424366527462487
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 53 E/T 45.915457502859162
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 54 E/T 16.317571504210793
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 56 E/T 3.973673705809345
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 57 E/T 5.0840288029728438
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 59 E/T 30.96382126902688
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 61 E/T 73.439654018518397
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 62 E/T 13.231075752925987
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 63 E/T 49.307261764921243
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 64 E/T 48.309182163495123
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 66 E/T 33.859327729225754
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 67 E/T 11.73580326988445
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 70 E/T 2.8023701469415294
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 71 E/T 20.205726527085051
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 73 E/T 70.171371929718632
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 74 E/T 18.85341823809997
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 75 E/T 5.1253574143816669
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 77 E/T 61.543021085302811
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 78 E/T 24.334893797625288
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 79 E/T 6.7006789098223765
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 80 E/T 15.295387796560743
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 82 E/T 96.609268072516983
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 83 E/T 29.938902169549362
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 84 E/T 11.078618946807357
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 85 E/T 16.364735892560756
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 86 E/T 12.332088455886547
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 88 E/T 14.203549564862017
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 90 E/T 82.092023111610885
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 91 E/T 4.851012861292145
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 93 E/T 46.150696818631886
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 94 E/T 48.316662585684703
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 95 E/T 13.344234673469321
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 96 E/T 2.8064004848020465
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 97 E/T 0.97352278756006472
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 98 E/T 42.698031221167291
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 24 loose in the reference only)
+Expected: true
+column_lintel hit 99 E/T 26.860641021638511
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 190978 loose in the reference only)
+Expected: true
+building hit 0 E/T 8.2245576936930451
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 1 E/T 0.7387871542154052
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 2 E/T 5.565937249513472
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 3 E/T 2.5009415722399724
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 4 E/T 0.46225976041315947
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 5 E/T 0.93643316517242858
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 115192 loose in the reference only)
+Expected: true
+building hit 6 E/T 78.453201294562348
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 7 E/T 1.2202447301292099
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 8 E/T 4.7070153051865438
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 9 E/T 70.878434896377726
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 49262 loose in the reference only)
+Expected: true
+building hit 10 E/T 80.944193408799109
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 11 E/T 1.5162302783000066
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 71533 loose in the reference only)
+Expected: true
+building hit 12 E/T 35.765818599772807
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 13 E/T 0.99255887139592724
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 14 E/T 0.97075937899963916
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 15 E/T 5.8416969182566278
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 16 E/T 2.9569066971155644
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 147145 loose in the reference only)
+Expected: true
+building hit 17 E/T 36.66147942773749
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 18 E/T 2.1688662024453045
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 19 E/T 40.691879311141221
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 113459 loose in the reference only)
+Expected: true
+building hit 20 E/T 3.7775301394348673
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 21 E/T 0.96188974075723366
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 118332 loose in the reference only)
+Expected: true
+building hit 22 E/T 66.256925862207709
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 23 E/T 1.908346746886088
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 24 E/T 3.4781650396740367
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 8326 loose in the reference only)
+Expected: true
+building hit 25 E/T 71.786421010495985
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 26 E/T 0.31557639603643761
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 27 E/T 1.3840415024411972
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 28 E/T 33.479469569292988
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 29 E/T 0.61020831365415662
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 30 E/T 1.4012835048990973
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 62795 loose in the reference only)
+Expected: true
+building hit 31 E/T 39.871262329028752
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 32 E/T 5.3944166115226375
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 33 E/T 0.94108422040295536
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 34 E/T 19.548240654463864
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 35 E/T 0.53090302321343008
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 36 E/T 0.90739660459408777
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 115482 loose in the reference only)
+Expected: true
+building hit 37 E/T 61.477278706524807
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 38 E/T 4.1177655518645384
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 72963 loose in the reference only)
+Expected: true
+building hit 39 E/T 2.1256752427207148
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 40 E/T 6.0019647911803338
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 163841 loose in the reference only)
+Expected: true
+building hit 41 E/T 8.5823128154858033
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 42 E/T 0.49108321109297981
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 7208 loose in the reference only)
+Expected: true
+building hit 43 E/T 22.751918164904382
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 44 E/T 3.710362354722323
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 49290 loose in the reference only)
+Expected: true
+building hit 45 E/T 20.199025567016449
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 207253 loose in the reference only)
+Expected: true
+building hit 46 E/T 78.558162704876352
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 47 E/T 13.417304706063598
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 186460 loose in the reference only)
+Expected: true
+building hit 48 E/T 59.764568175207764
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 49 E/T 6.2857454967808373
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 50 E/T 15.896046809521399
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 51 E/T 0.42978971150294526
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 6384 loose in the reference only)
+Expected: true
+building hit 52 E/T 23.420283981612346
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 64073 loose in the reference only)
+Expected: true
+building hit 53 E/T 63.519894936286775
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 54 E/T 1.0777006161949212
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 6778 loose in the reference only)
+Expected: true
+building hit 55 E/T 20.094056649078606
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 56 E/T 36.057566307418966
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 155735 loose in the reference only)
+Expected: true
+building hit 57 E/T 18.631597500174983
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 58 E/T 6.0461635453248403
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 59 E/T 5.6418227697895942
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 221848 loose in the reference only)
+Expected: true
+building hit 60 E/T 60.592636143974254
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 61 E/T 0.47904468850117782
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 28949 loose in the reference only)
+Expected: true
+building hit 62 E/T 19.137585935213789
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 77611 loose in the reference only)
+Expected: true
+building hit 63 E/T 97.014679120857068
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 64 E/T 1.6536616749811703
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 65 E/T 0.84627680691313989
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 6455 loose in the reference only)
+Expected: true
+building hit 66 E/T 40.141628747323338
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 67 E/T 0.61992919555925208
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 197152 loose in the reference only)
+Expected: true
+building hit 68 E/T 22.313191294614963
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 69 E/T 1.883852772327506
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 100260 loose in the reference only)
+Expected: true
+building hit 70 E/T 38.869644124798832
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 71 E/T 0.97374350571884993
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 72 E/T 0.47513297905240537
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 73 E/T 11.137484133049378
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 74 E/T 3.2315385481385444
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 75 E/T 8.8783508249407745
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 76 E/T 5.3485161966172186
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 77 E/T 0.66895308781239504
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 78 E/T 77.37728863674829
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 4751 loose in the reference only)
+Expected: true
+building hit 79 E/T 11.467261364506541
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 80 E/T 1.7885091773096584
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 81 E/T 2.8356491708078368
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 190137 loose in the reference only)
+Expected: true
+building hit 82 E/T 19.816744348287905
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 83 E/T 1.3383408981111875
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 84 E/T 0.58479598893937434
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 85 E/T 11.558673001482839
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 86 E/T 0.37180278592356025
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 87 E/T 1.2405839660765037
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 97242 loose in the reference only)
+Expected: true
+building hit 88 E/T 18.935715612369854
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 7883 loose in the reference only)
+Expected: true
+building hit 89 E/T 48.716278130177258
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 90 E/T 1.5747966750073654
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 91 E/T 4.862416943746882
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 92 E/T 0.67235049493417542
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 93 E/T 3.5973114989728003
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 94 E/T 0.49518486143961071
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 95 E/T 4.0710992620093931
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 96 E/T 0.92024332141404741
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 97 E/T 1.0644136175697945
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 98 E/T 8.3069100684307617
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 96993 loose in the reference only)
+Expected: true
+building hit 99 E/T 69.647412391851447
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 111776 loose in the reference only)
+Expected: true
+building hit 100 E/T 48.173798269632606
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 101 E/T 0.56106449093753452
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 102 E/T 2.3408892748120271
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 103 E/T 43.654025053323394
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 104 E/T 0.8873141978737229
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 105 E/T 79.086484989326308
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 106 E/T 8.578065662102544
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 107 E/T 1.550910843355527
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 94903 loose in the reference only)
+Expected: true
+building hit 108 E/T 13.75679328520811
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 109 E/T 11.878165709922396
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 110 E/T 0.72032007671201737
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 186592 loose in the reference only)
+Expected: true
+building hit 111 E/T 23.337050305640883
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 112 E/T 1.001638288565186
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 113 E/T 0.57516731289446055
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 114 E/T 4.1653144042305064
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 115 E/T 7.2592200865918208
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 123033 loose in the reference only)
+Expected: true
+building hit 116 E/T 29.231954248466462
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 117 E/T 5.5394745177194649
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 118 E/T 11.922019390927776
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 119 E/T 39.396701772818986
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 120 E/T 4.4092050781151437
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 121 E/T 1.104265546007615
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 122 E/T 1.5336831927263292
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 123 E/T 5.0710448297843911
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 171322 loose in the reference only)
+Expected: true
+building hit 124 E/T 16.015390776441297
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 125 E/T 0.56120028235249142
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 126 E/T 1.4394024819537565
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 127 E/T 2.808084883331579
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 128 E/T 3.0432401033013359
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 129 E/T 0.42415383945353768
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 130 E/T 14.941745319077716
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 94547 loose in the reference only)
+Expected: true
+building hit 131 E/T 18.736989796742257
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 182058 loose in the reference only)
+Expected: true
+building hit 132 E/T 6.9340048219525086
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 133 E/T 1.0606480934634392
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 134 E/T 1.6719773690178792
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 135 E/T 5.8359132418881048
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 6716 loose in the reference only)
+Expected: true
+building hit 136 E/T 30.976354840365804
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 140586 loose in the reference only)
+Expected: true
+building hit 137 E/T 48.630748138757021
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 5052 loose in the reference only)
+Expected: true
+building hit 138 E/T 9.4899063866976725
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 139 E/T 1.7823718853645045
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 121954 loose in the reference only)
+Expected: true
+building hit 140 E/T 15.19076007122109
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 192585 loose in the reference only)
+Expected: true
+building hit 141 E/T 28.234897311151602
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 142 E/T 0.41798104864222285
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 8543 loose in the reference only)
+Expected: true
+building hit 143 E/T 10.337808313219407
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 144 E/T 0.73639242601335231
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 145 E/T 18.260400599580972
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 159263 loose in the reference only)
+Expected: true
+building hit 146 E/T 31.742803597743844
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 192499 loose in the reference only)
+Expected: true
+building hit 147 E/T 25.931304328324973
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 191463 loose in the reference only)
+Expected: true
+building hit 148 E/T 80.62238201281663
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 149 E/T 9.4616821884343913
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 150 E/T 1.7462671708658057
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 162344 loose in the reference only)
+Expected: true
+building hit 151 E/T 27.098381932385081
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 152 E/T 0.53662795389915652
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 153 E/T 1.3245505971933114
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 154 E/T 0.37271462290393237
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 127466 loose in the reference only)
+Expected: true
+building hit 155 E/T 36.71227224495609
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 156 E/T 0.849614473647619
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 219688 loose in the reference only)
+Expected: true
+building hit 157 E/T 9.5211519147634771
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 158 E/T 0.43510542631585214
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 159 E/T 0.93249921746518571
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 160 E/T 1.6335401180113567
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 35554 loose in the reference only)
+Expected: true
+building hit 161 E/T 67.404209399003747
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 162 E/T 0.38203195768488607
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 163 E/T 2.2901511481877841
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 164 E/T 9.3253123840897487
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 1032 loose in the reference only)
+Expected: true
+building hit 165 E/T 32.894908789797455
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 194281 loose in the reference only)
+Expected: true
+building hit 166 E/T 3.8281236471906652
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 167 E/T 25.039759530409771
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 168 E/T 2.8423216975227312
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 7135 loose in the reference only)
+Expected: true
+building hit 169 E/T 16.553806583741025
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 170 E/T 30.538910123433674
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 114858 loose in the reference only)
+Expected: true
+building hit 171 E/T 16.304890747707994
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 4770 loose in the reference only)
+Expected: true
+building hit 172 E/T 17.646703620940389
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 173 E/T 0.32979989973204665
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 174 E/T 31.370430560459727
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 175 E/T 0.52663661718385391
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 1032 loose in the reference only)
+Expected: true
+building hit 176 E/T 58.600315657421618
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 177 E/T 1.6674366729113972
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 178 E/T 0.91000005767421721
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 179 E/T 3.777915309889007
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 180 E/T 0.40261652308123125
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 181 E/T 5.5835099321136532
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 182 E/T 16.667532255017214
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 183 E/T 0.37817422000266193
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 7859 loose in the reference only)
+Expected: true
+building hit 184 E/T 11.931887081248446
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 185 E/T 15.469787496051039
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 66920 loose in the reference only)
+Expected: true
+building hit 186 E/T 20.899287218356751
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 187 E/T 0.36784445678496874
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 62607 loose in the reference only)
+Expected: true
+building hit 188 E/T 44.955225683026491
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 189 E/T 1.3637292529044049
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 190 E/T 0.35703466884005813
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 191 E/T 5.8557038693049792
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 192 E/T 0.31449509499675887
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 193 E/T 2.4485202977381442
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 194 E/T 28.280148547128416
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 195 E/T 25.159547489046233
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 223002 loose in the reference only)
+Expected: true
+building hit 196 E/T 1.0418220478745233
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 4880 loose in the reference only)
+Expected: true
+building hit 197 E/T 80.482605601498719
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 127578 loose in the reference only)
+Expected: true
+building hit 198 E/T 12.611634132322797
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(461): error: Value of: looseEqualsReference(rig.grid, r.cut, loose)
+  Actual: false (voxel 7752 loose in the reference only)
+Expected: true
+building hit 199 E/T 32.369822020108579
+
+[anchoring] stone_wall     solid   1152 blocks    6 | hits 100, cutting 78, freeing 0 | nodes median 0 worst 0 (voxel 0, comp 0) = 0.0 % / 0.0 % of the solid voxels | ms median 0.000 worst 0.003
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(503): error: Expected: (r.looseHits) > (0u), actual: 0 vs 0
+stone_wall: no hit freed anything -- the comparison would be empty
+
+[anchoring] column_lintel  solid    112 blocks    4 | hits 100, cutting 66, freeing 0 | nodes median 0 worst 0 (voxel 0, comp 0) = 0.0 % / 0.0 % of the solid voxels | ms median 0.000 worst 0.000
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(503): error: Expected: (r.looseHits) > (0u), actual: 0 vs 0
+column_lintel: no hit freed anything -- the comparison would be empty
+
+[anchoring] building       solid 102536 blocks  519 | hits 200, cutting 147, freeing 0 | nodes median 0 worst 0 (voxel 0, comp 0) = 0.0 % / 0.0 % of the solid voxels | ms median 0.203 worst 0.348
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(503): error: Expected: (r.looseHits) > (0u), actual: 0 vs 0
+building: no hit freed anything -- the comparison would be empty
+
+[  FAILED  ] VoxFoundFractureLab.AnchoringSearchEqualsTheReferenceOnRigsAndABuilding (4327 ms)
+[----------] 1 test from VoxFoundFractureLab (4327 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (4327 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundFractureLab.AnchoringSearchEqualsTheReferenceOnRigsAndABuilding
+
+ 1 FAILED TEST

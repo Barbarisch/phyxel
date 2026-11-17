@@ -531,9 +531,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (size, kind) median <= 0.42 ms. F3 CLOSED.
       F4.1 (2026-11-17): fractureReference() (voxfound/FractureLab) -- all 8 fracture-lab rig predictions pass, exact
       vs the checker / deterministic / conserving / nested under 300 random hits; pictures f41_*.png (plan §9c).
-      NEXT: F4.2 -- anchoring at scale (§3.5a.6: block graph first, measure the worst-case search on the wall /
-      column rigs + an engine-generated building), then F4.3 the GPU port equal to the reference. Owner review of
-      the f41 pictures is pending.
+      F4.2 (2026-11-17): BlockSummary + findLoose (block graph first, voxels only in dirty blocks) -- exact under
+      400 random hits; on the engine-generated cottage the worst search is 8,558 nodes (8.3 % of 102,536 voxels).
+      Found: the generator's stair treads + guard are unbonded on both grids (StructurePipelineGaps 2026-11-17).
+      NEXT: F4.3 -- the GPU port of fractureReference (+ pieces / anchoring), equal to the reference; prediction
+      first (plan §9c lists the float-parity points). Owner review of the f41 pictures is pending.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

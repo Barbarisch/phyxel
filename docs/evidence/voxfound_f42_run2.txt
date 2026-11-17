@@ -1,0 +1,32 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundFractureLab.Anchoring*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundFractureLab
+[ RUN      ] VoxFoundFractureLab.AnchoringSearchEqualsTheReferenceOnRigsAndABuilding
+[anchoring] building UNANCHORED before any hit: piece 2, 64 voxels, (49,13,10)-(64,14,11) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 3, 64 voxels, (49,15,12)-(64,16,13) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 4, 64 voxels, (49,17,14)-(64,18,15) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 5, 64 voxels, (49,19,16)-(64,20,17) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 6, 64 voxels, (49,21,18)-(64,22,19) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 7, 64 voxels, (49,23,20)-(64,24,21) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 8, 64 voxels, (49,25,22)-(64,26,23) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 9, 64 voxels, (49,27,24)-(64,28,25) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 10, 64 voxels, (49,29,26)-(64,30,27) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 11, 64 voxels, (49,31,28)-(64,32,29) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 12, 64 voxels, (49,33,30)-(64,34,31) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 13, 464 voxels, (49,38,8)-(64,45,29) Wood:464 
+[anchoring] building 73 x 81 x 56 voxels, 102536 solid; summary 561 components, 14.32 ms
+[anchoring] the same building on today's 1/9 m grid: 134555 solid, 13 unanchored pieces (2000 voxels)
+[anchoring] stone_wall     loose before any hit (excluded unless the cut touches them): 0 voxels
+[anchoring] stone_wall     solid   1152 blocks    6 | hits 100, cutting 78, freeing 43 | nodes median 233 worst 1000 (voxel 1000, comp 4) = 20.2 % / 86.8 % of the solid voxels | ms median 0.027 worst 0.099
+[anchoring] column_lintel  loose before any hit (excluded unless the cut touches them): 0 voxels
+[anchoring] column_lintel  solid    112 blocks    4 | hits 100, cutting 66, freeing 64 | nodes median 79 worst 112 (voxel 112, comp 2) = 70.5 % / 100.0 % of the solid voxels | ms median 0.011 worst 0.018
+[anchoring] building       loose before any hit (excluded unless the cut touches them): 1168 voxels
+[anchoring] building       solid 102536 blocks  519 | hits 200, cutting 147, freeing 95 | nodes median 1055 worst 8558 (voxel 8457, comp 326) = 1.0 % / 8.3 % of the solid voxels | ms median 1.215 worst 2.690
+[       OK ] VoxFoundFractureLab.AnchoringSearchEqualsTheReferenceOnRigsAndABuilding (4582 ms)
+[----------] 1 test from VoxFoundFractureLab (4582 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (4582 ms total)
+[  PASSED  ] 1 test.
