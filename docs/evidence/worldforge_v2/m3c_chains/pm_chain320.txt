@@ -1,0 +1,57 @@
+pm_chain320 - the live set's run time (owner 2026-11-17: "3 hours is way too fucking long in general"). TEST-RIG work only;
+no engine source changes. Written 2026-11-17 09:40, BEFORE patch 76 is applied or anything is built.
+
+MEASURED from chain 319's log (Debug, 18 live tests + 18 realizer tests, ~205 min of test time):
+  - every rig set-up prints "recipe + plan + templates" 138-145 s (one 194 s); 20+ set-ups -> ~45 min
+  - identical builds repeated: hamlet 3 map (x3: HamletThree, ForgesDoor, Seat), village map (x2), village crofts=false
+    (x2), town margin 32 (x2: TownBuilds, Market), city (x2: WalledCity, Towers)
+  - one city test: gate unit 625 s, 25 buildings 498 s, street sweep 107 s, set-up 188 s
+
+PT.1 (patch 76, test file only): (a) the recipe is baked once per process and copied into each rig's generator;
+  (b) SharedRig: tests that realize the same site with the same overrides hold one built world and read it; a key
+  asked for with different overrides is refused, not served.
+  Chain 320a (Debug, filter = the hamlet trio + EverySeat): PREDICTIONS
+    - compiles (the generator's copy-assignment is the unknown; if it does not compile I say so and use another route)
+    - 4 ok / 0 failed; HamletThree builds once, 16 / 0, 71 fixtures; ForgesDoor and Seat print "[ shared ] build reused"
+      and run in < 5 s each (were 4.4 min each); EverySeat (own rig, stone_keep) 16 / 0, 71 fixtures
+    - the second rig's "recipe" figure < 5 s (GUESS: the 140 s is ~120 s recipe + ~20 s templates - never split)
+    - total < 9 min (was 17.6 min for these four in chain 319)
+PT.2 Release (chain 320b, same filter, Release build of phyxel_tests): PREDICTIONS
+    - same tallies (16 / 0, 71 fixtures x2) - if any tally differs between Debug and Release that is a finding, reported
+    - at least 4x faster than 320a (GUESS, no measurement behind it)
+PT.3 full live set in whichever configuration PT.2 supports: 36 ok / 0 failed, every gate line equal to chain 319's
+    (28/0, 16/0, 34/0, 76/0, 94/0, 42/11, 24/0; market 0 unpaved, 12 overhang). Time GUESS: Debug ~115 min; Release unknown.
+RISKS stated: a shared world means a later test can see an earlier test's writes - the holders were grepped for chunk /
+  placed-object writes (none found in the eight holders; the writes are in the headless and ground-restore tests,
+  which keep their own rigs); a Release-only run would stop exercising Debug assertions.
+PT.1 RESULT - chain 320a (written 2026-11-17 09:44; Debug, exe 09:35:45, run 09:35:49 - 09:43:36 = 7.8 min):
+  compiles; 4 ok / 0 failed; HamletThree 16 / 0, 71 fixtures (334.8 s, of which recipe 187.0 s - the first bake);
+  EverySeat 16 / 0, 71 fixtures (131.8 s; its rig: "recipe 0.0 s", templates ~16.6 s); ForgesDoor 1 ms and Seat 342 ms,
+  both printing "[ shared ] build 'hamlet3-map' reused". All four predictions held (total 7.8 min < 9; was 17.6).
+  The split is now measured: the recipe bake is ~120-187 s, templates ~17 s per rig. NOT shown: that a copied generator
+  yields the same world as a freshly baked one beyond these tallies (16 / 0, 71 fixtures on the second rig).
+PT.2 RESULT - chain 320b (written 2026-11-17 09:51; RELEASE, build 09:43:56 - 09:50:06 = 6.2 min incremental, exe 09:50:03,
+  run 09:50:06 - 09:50:43 = 37 s): 4 ok / 0 failed; HamletThree 16 / 0, 71 fixtures (27.8 s, recipe 19.4 s, build 5.6 s);
+  EverySeat 16 / 0, 71 fixtures (8.1 s); ForgesDoor 0 ms, Seat 47 ms (shared). Same tallies as Debug; 7.8 min -> 37 s
+  = ~13x (predicted "at least 4x", a guess - held). Only the hamlet is compared between configurations so far.
+PT.3 PREDICTION for chain 320c (written 2026-11-17 09:51, before the run): RELEASE, the full live + realizer set:
+  36 ok / 0 failed; gate lines equal to chain 319's per build (28/0 9 doors 79 fixtures; 16/0 6 doors 71; 34/0 11 doors
+  176, and 181 fixtures on the slope-weight arm; 76/0 24 doors 396; 94/0 25 doors 408; 42 walkable / 11 blocked 17 doors
+  226; fixture hamlet 24/0 6 doors 146); market 0 unpaved, 12 overhang columns. Time GUESS: under 20 min.
+  If a tally differs from Debug, that is a finding to report, not something to adjust.
+PT.3 RESULT - chain 320c (written 2026-11-17 10:00; RELEASE, exe 09:50:03, run 09:51:08 - 09:58:49 = 7.7 min):
+  36 ok / 0 failed. Every gate line as predicted and as chain 319 printed it: 28/0 (9 doors, 79 fixtures); 16/0 (6, 71);
+  34/0 (11, 176; 181 on the slope-weight arm); 76/0 (24, 396); 94/0 (25, 408); 42 walkable / 11 blocked (17, 226);
+  fixture hamlet 24/0 (6, 146); market 0 unpaved, 12 overhang columns. The distinct gate / lot / wall / market / fixture
+  record lines of 319 (Debug, every build its own world) and 320c (Release, shared worlds, copied recipe) were diffed
+  after dropping the timings - result on the next line.
+  Time: ~205 min of Debug test time -> 7.7 min (the "under 20 min" guess held). Slowest: legacy city 89.5 s, walled city
+  68.7 s, MapsDoor-on-every-lot 58.4 s (headless planner sweep), ground restore 44.0 s, first hamlet 41.4 s (19.3 s bake).
+  NOT measured: peak memory with worlds held; the full set on the PATCHED Debug build (only the 4 hamlet tests ran
+  there); whether Release hides anything a Debug assertion would catch. The unit set was not re-run (test-file-only change
+  to a different test file's translation unit - stated, not measured).
+  DIFF RESULT: 134 distinct record lines in each, diff empty (rc 0) - lot lists, gate lines, wall / way-out lines,
+  market and fixture lines are the same text in both runs.
+STANDING CHANGE (2026-11-17): live-site chains run on RELEASE by default (CFG=Release m5b_cfg_chain.sh N "<filter>" in the
+  session scratchpad; ~8 min for the full set, ~6 min for an incremental Release build after an engine edit). A Debug
+  pass of the live set is kept for milestone closes only, and is said so in the record when skipped.

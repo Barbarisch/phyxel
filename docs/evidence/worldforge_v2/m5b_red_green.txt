@@ -1548,3 +1548,35 @@ service and legacy-layout lookups are the live half, not started; "byte-identica
 say is that for period "" or "medieval" the new branch is not entered (read, not measured). typologyCaps and
 croftTypologies select among drawn typologies and are not lot sources (read at SettlementMapPlanner.cpp:413, :714). (4)
 recorded as open, not fixed.
+
+== M5f-1 LIVE HALF - solution-auditor, 2026-11-17 (commit f442ba5f; files, logs and git only - nothing built or run) ==
+RAW VERDICT: PASS WITH CONDITIONS (narrow claim only)
+CLAIMS AUDITED (the auditor's words, condensed only by dropping repeated log quotes):
+ - "Fixture-era hamlet realized from the era's own pack: 6 lots, 6 structures with rooms on two storeys, 0 lot failures,
+   gate 24 / 0 over 6 doors of 6" -> REAL (as logged), with a weakness. "blockhouse" exists in no medieval registry and
+   resources/room_programs/fixture.json does not exist, so an unread pack would refuse at the plan or the forge. BUT the
+   fixture record is byte-identical to the tavern: the test shows the era-qualified name resolves and the pack loads,
+   NOT that the pack's contents were what was built. wrongLot checks map lots, not placed structures; the placed
+   structures' typology is printed, never asserted; period prints "?"; twoStorey counts metadata rooms, not voxels.
+ - "Red when the registry's era lookup is disabled" -> REAL but NARROW: a plan refusal; the forge and the service never
+   ran, so it shows nothing about either reading the pack.
+ - "Unit 186 / 0, live 36 / 0" -> REAL for 186 / 0; 36 / 0 read from the runner's summary (no EXIT line).
+ - Evidence postdates the code: mostly - green run 317 and mutation 317m ran patch 74; the committed patch 75 state is
+   covered by chain 319 only.
+CONDITIONS:
+ 1. Say that the pack's contents are not distinguished from medieval's (the record is a copy of the tavern).
+ 2. Assert each placed structure's metadata typology == "blockhouse"; fix the "period ?" gap; assert on voxels or
+    realized rooms rather than the metadata room count.
+ 3. The forge / makeBp pack plumbing has no red of its own - a mutation dropping room_program_pack is needed before
+    "the pack reaches the forge" is claimed rather than inferred.
+ 4. The mutation's red is a plan refusal only (already stated).
+ 5. Open as stated: patch 75 lookups unfalsified; bbox 9 (x2) vs 12 (x4) unexplained; one Debug rig, one seed, no
+    Release, no L4; a 16.7 h idle gap and no EXIT line for chain 319.
+ 6. "Realized from its own room-program pack" in the commit message is slightly stronger than the evidence (cond. 1).
+THE TEST THAT WOULD CATCH THE BUG (auditor): alter the fixture "blockhouse" so it differs observably from the tavern,
+ assert the placed structure's room list equals the altered record and period == "fixture" in the metadata; separately
+ mutate the forge or makeBp to drop room_program_pack and show the red there.
+MY RESPONSE (2026-11-17): all six accepted. The commit message's "realized from its own room-program pack" is withdrawn
+ to "a pack-only typology name resolves and builds; the contents are a copy of the tavern, so not distinguished".
+ Conditions 1-3 are the next M5f-1 work (PL.4, to be predicted before the run), after the live set's run time is cut
+ (pm_chain320.txt) - they need several live runs. Nothing more is claimed until then.

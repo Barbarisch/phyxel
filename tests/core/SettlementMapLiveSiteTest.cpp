@@ -29,6 +29,7 @@
 #include <cstdio>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include "core/TownWall.h"    // towerFootprintCells (M5d-3)
 #include "core/TowerForge.h"  // TowerSpec (the storey, M5d-3)
@@ -137,18 +138,33 @@ struct LiveSiteRig {
     // M5b-1a (O21 a): the rig WITH flora - each generated chunk decorated by the template manager from the same
     // generator (ObjectTemplateManager::decorateChunk, the live worker's decorator). Off for every other arm.
     bool flora = false;
+    // patch 76: a rig held by SharedRig is set up and realized ONCE; later holders read it (they must not write it)
+    std::string sharedKey, builtSig;
+    bool isSetUp = false, built = false;
+    int setUpMargin = -1;
+    nlohmann::json builtOut;
 
     bool setUp(int siteId, int marginU) { return setUpSite([siteId](const WorldForgeSite& s) { return s.id == siteId; }, marginU); }
     bool setUpTier(const std::string& tier, int marginU) {   // the lowest id of that tier
         return setUpSite([tier](const WorldForgeSite& s) { return s.tier == tier; }, marginU);
     }
     bool setUpSite(const std::function<bool(const WorldForgeSite&)>& pick, int marginU) {
+        if (isSetUp) {
+            if (marginU != setUpMargin) { why = "shared rig '" + sharedKey + "' was set up with another margin"; return false; }
+            std::printf("[ shared ] rig '%s' reused (site %d, %d chunks)\n", sharedKey.c_str(), site->id, chunksGenerated);
+            return true;
+        }
         const auto t0 = std::chrono::steady_clock::now();
         cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
         cm.configureStreamingGeneration(true, WorldGenerator::GenerationType::Perlin, 20260816u);
         gen = cm.getStreamingGenerator();
         if (!gen) { why = "no streaming generator"; return false; }
-        gen->applyRecipe(civRecipe(20260816u));
+        // patch 76: the recipe (coarse model, hydrology, civ plan, WorldForge plan) is baked once per process and
+        // copied - the copy the streaming workers take (ChunkManager.cpp: make_unique<WorldGenerator>(*m_worldGenerator))
+        static std::unique_ptr<WorldGenerator> proto;
+        if (!proto) { gen->applyRecipe(civRecipe(20260816u)); proto = std::make_unique<WorldGenerator>(*gen); }
+        else *gen = *proto;
+        const double tRecipe = secondsSince(t0);
         const WorldForgePlan* box = gen->worldForge();
         if (!box) { why = "the recipe produced no WorldForge plan"; return false; }
         for (const auto& s : box->sites()) if (pick(s) && (!site || s.id < site->id)) site = &s;
@@ -178,9 +194,10 @@ struct LiveSiteRig {
                     ++chunksGenerated;
                 }
         std::printf("[ M5a-1 ] rig: site %d (%s) centre (%d, %d) %d x %d seed %u surfaceY %.1f; margin %d u, surface %d..%d, "
-                    "%d chunks generated (recipe + plan + templates %.1f s, chunks %.1f s)\n",
+                    "%d chunks generated (recipe + plan + templates %.1f s [recipe %.1f s], chunks %.1f s)\n",
                     site->id, site->tier.c_str(), site->pos.x, site->pos.y, site->width, site->depth, site->seed,
-                    site->surfaceY, marginU, surfaceLo, surfaceHi, chunksGenerated, tPlan, secondsSince(t0) - tPlan);
+                    site->surfaceY, marginU, surfaceLo, surfaceHi, chunksGenerated, tPlan, tRecipe, secondsSince(t0) - tPlan);
+        isSetUp = true; setUpMargin = marginU;
         return true;
     }
 
@@ -320,7 +337,44 @@ struct LiveSiteRig {
 };
 
 // Plan the site through the canonical params and run every unit; the gate's verdict + the record for the ledger.
+nlohmann::json realizeOnce(LiveSiteRig& rig, bool legacyLayout, const nlohmann::json& overrides);
 nlohmann::json realize(LiveSiteRig& rig, bool legacyLayout, const nlohmann::json& overrides = nlohmann::json::object()) {
+    if (rig.sharedKey.empty()) return realizeOnce(rig, legacyLayout, overrides);
+    const std::string sig = overrides.dump() + (legacyLayout ? "|legacy" : "|map");
+    if (rig.built) {
+        if (sig != rig.builtSig) {   // a key that names two different builds is a rig bug - refuse, never hand back the wrong world
+            nlohmann::json bad; bad["plan_error"] = "shared rig '" + rig.sharedKey + "' was built with " + rig.builtSig + ", asked for " + sig;
+            return bad;
+        }
+        std::printf("[ shared ] build '%s' reused (%s)\n", rig.sharedKey.c_str(), sig.c_str());
+        return rig.builtOut;
+    }
+    rig.builtOut = realizeOnce(rig, legacyLayout, overrides);
+    rig.builtSig = sig; rig.built = true;
+    return rig.builtOut;
+}
+
+// One built world per key, held until its last stated holder is done (so the laptop does not keep every tier resident).
+struct SharedRig {
+    struct Slot { std::unique_ptr<LiveSiteRig> rig; int usesLeft = 0; };
+    static std::map<std::string, Slot>& slots() { static std::map<std::string, Slot> m; return m; }
+    static LiveSiteRig& get(const std::string& k, int uses) {
+        Slot& sl = slots()[k];
+        if (!sl.rig) { sl.rig = std::make_unique<LiveSiteRig>(); sl.rig->sharedKey = k; sl.usesLeft = uses; }
+        return *sl.rig;
+    }
+    std::string key;
+    LiveSiteRig& rig;
+    SharedRig(const std::string& k, int uses) : key(k), rig(get(k, uses)) {}
+    ~SharedRig() {
+        auto it = slots().find(key);
+        if (it != slots().end() && --it->second.usesLeft <= 0) slots().erase(it);
+    }
+    SharedRig(const SharedRig&) = delete;
+    SharedRig& operator=(const SharedRig&) = delete;
+};
+
+nlohmann::json realizeOnce(LiveSiteRig& rig, bool legacyLayout, const nlohmann::json& overrides) {
     nlohmann::json params = WorldForgeBuildService::settlementParamsFor(*rig.gen->worldForge(), *rig.site);
     for (auto it = overrides.begin(); it != overrides.end(); ++it) params[it.key()] = it.value();
     if (legacyLayout) params["legacy_layout"] = true;
@@ -481,7 +535,7 @@ TEST(SettlementMapLiveSiteTest, TheLegacyControlBuildsHamletThree) {
 // 1-micro step at micro (-71708, 489, 20470)). RED by the live record until the croft's floor is fixed: a settlement
 // whose every lot is a croft on its own toft must pass the gate like the control does.
 TEST(SettlementMapLiveSiteTest, HamletThreeBuildsFromItsMap) {
-    LiveSiteRig rig;
+    SharedRig sh("hamlet3-map", 3); LiveSiteRig& rig = sh.rig;   // patch 76
     ASSERT_TRUE(rig.setUp(3, 24)) << rig.why;
     pinTheRecord(rig);
     const auto out = realize(rig, /*legacyLayout=*/false);
@@ -573,7 +627,7 @@ static MapAgreement mapAgreement(const nlohmann::json& out) {
 }
 
 TEST(SettlementMapLiveSiteTest, TheFirstVillageBuildsFromItsMapWithEveryDoorMeasured) {
-    LiveSiteRig rig;
+    SharedRig sh("village-map", 2); LiveSiteRig& rig = sh.rig;   // patch 76
     ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
     const auto out = realize(rig, /*legacyLayout=*/false);
     ASSERT_FALSE(out.contains("plan_error")) << "the planner refused the first village: " << out.dump();
@@ -611,7 +665,7 @@ TEST(SettlementMapLiveSiteTest, TheFirstVillageBuildsFromItsMapWithEveryDoorMeas
 // grown map: a routed primary way with lanes, the market area, every door measured, the gate's verdict reported, the
 // ribbon paver's columns > 0. The first town through its map headless; its L4 is m5b_l4.sh.
 TEST(SettlementMapLiveSiteTest, TheTownBuildsFromItsGrownMapWithEveryDoorMeasured) {
-    LiveSiteRig rig;
+    SharedRig sh("town32-map", 2); LiveSiteRig& rig = sh.rig;   // patch 76
     // chain 112: two lots at the 140 x 60 site's edge were refused on "target chunk not materialized" with a 24-cube
     // margin (a hall house's 16 x 8 footprint plus its roof reach past it) - the margin is the rig's, 32 here (stated)
     ASSERT_TRUE(rig.setUpTier("town", 32)) << rig.why;
@@ -821,7 +875,7 @@ TEST(SettlementMapLiveSiteTest, EverySeatUsesItsStylesOwnThresholdOffset) {
 // Hamlet 3 of the baseline world through its map: every built building's recorded door (the wall cell + normal the
 // forge reports) equals its map lot's door + the site origin. RED as built (chain 149): the map carries no door.
 TEST(SettlementMapLiveSiteTest, TheForgesDoorIsTheMapsDoor) {
-    LiveSiteRig rig;
+    SharedRig sh("hamlet3-map", 3); LiveSiteRig& rig = sh.rig;   // patch 76
     ASSERT_TRUE(rig.setUp(3, 24)) << rig.why;
     const auto out = realize(rig, /*legacyLayout=*/false);
     ASSERT_FALSE(out.contains("plan_error")) << out.dump();
@@ -949,7 +1003,7 @@ TEST(SettlementMapLiveSiteTest, TheMapsDoorIsTheForgesDoorOnEveryPlannedLot) {
 // level as the realizer READ it from the paving stamp) has a map lot with the same pad_y and the same way_level; and
 // no map lot states a seat the realizer did not take. RED as built (chain 154): the map carries no seat.
 TEST(SettlementMapLiveSiteTest, TheSeatIsTheMapsPad) {
-    LiveSiteRig rig;
+    SharedRig sh("hamlet3-map", 3); LiveSiteRig& rig = sh.rig;   // patch 76
     ASSERT_TRUE(rig.setUp(3, 24)) << rig.why;
     const auto out = realize(rig, /*legacyLayout=*/false);
     ASSERT_FALSE(out.contains("plan_error")) << out.dump();
@@ -1306,7 +1360,9 @@ TEST(SettlementMapLiveSiteTest, TheVillageFencesAndTerracesItsParcelsNotItsTofts
     std::vector<std::array<int, 4>> backRows;   // the audit's F6: the parcel's own cells that touch one of those - its new back row
     Arm arms[2];
     for (int a = 0; a < 2; ++a) {
-        LiveSiteRig rig;
+        std::optional<SharedRig> sh; std::optional<LiveSiteRig> own;   // patch 76: the slope-weight arm keeps its own world
+        if (a == 0) sh.emplace("village-nocrofts", 2); else own.emplace();
+        LiveSiteRig& rig = sh ? sh->rig : *own;
         ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
         nlohmann::json ov = nlohmann::json::object();
         ov["crofts"] = false;   // M5c-2: one variable - a croft owns the rows its parcel gave up and fences them (stated in pm_chain217.txt)
@@ -1388,7 +1444,7 @@ TEST(SettlementMapLiveSiteTest, TheVillageClearsAndFencesItsCrofts) {
     Arm arms[2];
     int ox = 0, oz = 0;
     for (int a = 0; a < 2; ++a) {
-        LiveSiteRig rig;
+        SharedRig sh(a == 0 ? "village-map" : "village-nocrofts", 2); LiveSiteRig& rig = sh.rig;   // patch 76
         ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
         nlohmann::json ov = nlohmann::json::object();
         if (a == 1) ov["crofts"] = false;
@@ -1558,7 +1614,7 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagTheCityOnTheTownSite) {
 // road through the wall wherever the wall stands on it. The rig is chain 252's (stated): the CITY's program on the
 // baseline world's town site, Debug, one seed - the baseline world seats no city.
 TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
-    LiveSiteRig rig;
+    SharedRig sh("city-map", 2); LiveSiteRig& rig = sh.rig;   // patch 76
     ASSERT_TRUE(rig.setUpTier("town", 48)) << rig.why;
     nlohmann::json ov; ov["tier"] = "city";
     const auto out = realize(rig, /*legacyLayout=*/false, ov);
@@ -1702,7 +1758,7 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
 // micro) must FAIL the climb (the control: the measure feels the stair); and the wall is still a wall where a drum
 // stands in it. ONE Debug rig: the city's program on the baseline town site (the rig of chain 252), one seed.
 TEST(SettlementMapLiveSiteTest, TheCitysTowersCanBeEnteredAndClimbed) {
-    LiveSiteRig rig;
+    SharedRig sh("city-map", 2); LiveSiteRig& rig = sh.rig;   // patch 76
     ASSERT_TRUE(rig.setUpTier("town", 48)) << rig.why;
     nlohmann::json ov; ov["tier"] = "city";
     const auto out = realize(rig, /*legacyLayout=*/false, ov);
@@ -2029,7 +2085,7 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagWhereTheWaysMeetTheRoads) {
 // paving material in its top cell (coarse: one paving voxel in the cell counts - stated); (2) a walker on foot, started
 // on the main street inside the market, reaches every such cell; (3) the build's own record and gate say the same.
 TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
-    LiveSiteRig rig;
+    SharedRig sh("town32-map", 2); LiveSiteRig& rig = sh.rig;   // patch 76
     ASSERT_TRUE(rig.setUpTier("town", 32)) << rig.why;
     const auto out = realize(rig, /*legacyLayout=*/false);
     ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
