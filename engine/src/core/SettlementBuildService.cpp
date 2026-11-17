@@ -3450,14 +3450,19 @@ nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkabi
     const int doors = ran ? walkability.value("doors", -1) : -1;
     const int built = ran ? walkability.value("built", -1) : -1;
     const bool doorless = ran && built > 0 && doors >= 0 && doors < built;
+    // pm_chain327 (chain 323): built == 0 used to read "passed" ("the lot failures carry that") - a fixture hamlet whose
+    // six lots were all refused printed "passed, 0 doors of 0 built". A plan with no building is refused at plan time,
+    // so 0 built HERE means every lot failed: nothing was measured, and a settlement of nothing is not a pass ("empty").
+    const bool empty = ran && built == 0;
     std::string gate = "not_run";
     bool failsBuild = false;
     if (ran) {
-        if (blocked <= 0 && skipped <= 0 && !doorless) gate = "passed";
+        if (blocked <= 0 && skipped <= 0 && !doorless && !empty) gate = "passed";
         else if (allowUnwalkable)         gate = "overridden";
         else if (blocked > 0) { gate = "blocked";  failsBuild = true; }
         else if (skipped > 0) { gate = "unseated"; failsBuild = true; }
-        else                  { gate = "doorless"; failsBuild = true; }
+        else if (doorless)    { gate = "doorless"; failsBuild = true; }
+        else                  { gate = "empty";    failsBuild = true; }
     }
     nlohmann::json out = {{"gate", gate}, {"walkable", walkable}, {"blocked", blocked},
                           {"skipped", skipped}, {"fails_build", failsBuild}};
@@ -3470,6 +3475,8 @@ nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkabi
         if (doorless)
             out["error"] = out["error"].get<std::string>() + "; doorless: " + std::to_string(built - doors) + " of "
                            + std::to_string(built) + " built building(s) recorded no front door - the gate measured nothing for them";
+        if (empty)
+            out["error"] = out["error"].get<std::string>() + "; nothing built: every lot was refused, so the gate measured no door";
     }
     return out;
 }

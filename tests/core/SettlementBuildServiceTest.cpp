@@ -575,12 +575,32 @@ TEST(SettlementBuildServiceTest, AGateThatMeasuredNoDoorOfABuiltBuildingDoesNotP
     // every built building with a door: passed as before
     const nlohmann::json full = {{"walkable", 9}, {"blocked", 0}, {"skipped", 0}, {"doors", 3}, {"built", 3}};
     EXPECT_EQ(SettlementBuildService::gateOutcome(full, false).value("gate", ""), "passed");
-    // nothing built at all (every lot refused twice): no door to measure is not a doorless building - the lot failures
-    // carry that outcome; and a result without the counts (an older record) keeps its old reading
+    // nothing built at all (every lot refused): not a doorless building - and, since chain 323 (pm_chain327.txt), not a
+    // pass either: "empty" (ANothingBuiltGateIsNotAPass). A result without the counts (an older record) keeps its old reading
     const nlohmann::json nothing = {{"walkable", 0}, {"blocked", 0}, {"skipped", 0}, {"doors", 0}, {"built", 0}};
-    EXPECT_EQ(SettlementBuildService::gateOutcome(nothing, false).value("gate", ""), "passed");
+    EXPECT_EQ(SettlementBuildService::gateOutcome(nothing, false).value("gate", ""), "empty");
     const nlohmann::json legacy = {{"walkable", 0}, {"blocked", 0}, {"skipped", 0}};
     EXPECT_EQ(SettlementBuildService::gateOutcome(legacy, false).value("gate", ""), "passed");
+}
+
+// pm_chain327.txt (chain 323, the fixture hamlet with its pack withheld): 6 lots, every one refused by the forge, and
+// the gate read "passed, 0 walkable / 0 blocked, 0 doors of 0 built". A plan with no building is refused at plan time,
+// so built == 0 at the gate means every lot failed: a settlement of nothing is not a walkable settlement.
+TEST(SettlementBuildServiceTest, ANothingBuiltGateIsNotAPass) {
+    const nlohmann::json nothing = {{"walkable", 0}, {"blocked", 0}, {"skipped", 0}, {"doors", 0}, {"built", 0}};
+    auto o = SettlementBuildService::gateOutcome(nothing, false);
+    EXPECT_EQ(o.value("gate", ""), "empty");
+    EXPECT_TRUE(o.value("fails_build", false)) << "0 buildings built, 0 doors measured: the gate passed on nothing";
+    EXPECT_NE(o.value("error", std::string()).find("nothing built"), std::string::npos) << o.dump();
+    o = SettlementBuildService::gateOutcome(nothing, true);
+    EXPECT_EQ(o.value("gate", ""), "overridden");
+    EXPECT_FALSE(o.value("fails_build", true));
+    // a blocked route still names the verdict when both hold (routes that are not doors: a wall's gates)
+    const nlohmann::json both = {{"walkable", 0}, {"blocked", 2}, {"skipped", 0}, {"doors", 0}, {"built", 0}};
+    EXPECT_EQ(SettlementBuildService::gateOutcome(both, false).value("gate", ""), "blocked");
+    // one building built and measured is not empty
+    const nlohmann::json one = {{"walkable", 3}, {"blocked", 0}, {"skipped", 0}, {"doors", 1}, {"built", 1}};
+    EXPECT_EQ(SettlementBuildService::gateOutcome(one, false).value("gate", ""), "passed");
 }
 
 // M5a-1 (audit 16, F7): the gate's room goal box is a pure function, pinned here on the hamlet croft's room, on rooms

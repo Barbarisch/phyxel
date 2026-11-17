@@ -1,0 +1,32 @@
+pm_chain327 - a walkability gate over NOTHING BUILT must not read "passed" (O32 a2; found in chain 323: 6 lots, all 6
+refused by the forge, the gate printed "passed, 0 walkable / 0 blocked, 0 doors of 0 built"). Written 2026-11-17 11:06, before any edit.
+
+WHAT IS THERE: SettlementBuildService::gateOutcome treats built == 0 as a pass by a DELIBERATE earlier reading (M5a-1,
+chain 74: "nothing built at all: the lot failures carry that outcome"), pinned by SettlementBuildServiceTest
+AGateThatMeasuredNoDoorOfABuiltBuildingDoesNotPass (the "nothing" case expects "passed"). Consequence read from
+WorldForgeBuildService.cpp: a site whose every lot was refused is not refused by the gate, so it goes on to be recorded
+as built. A plan with no building is already refused at plan time, so built == 0 at the gate can only mean every lot failed.
+CHANGE: built == 0 (counts present) -> gate "empty", fails_build true, overridable like the others, its own error text.
+  Order of the verdict's name: blocked > unseated > doorless > empty. A record without the counts keeps its old reading.
+ASSERTION CHANGE, STATED BEFORE THE RUN: the pinned "nothing" case flips from "passed" to "empty" + fails_build; I am
+  reversing my own chain-74 reading, on the chain-323 evidence. New test ANothingBuiltGateIsNotAPass holds it.
+PREDICTIONS
+  chain 327 (Release, test edits only, filter SettlementBuildServiceTest.*Gate*): the new test RED ("passed" where
+    "empty" is expected); the amended old test RED on the same case.
+  chain 328 (the fix): both green.
+  chain 329 (Release, live fixture test with the chain-323 mutation re-applied): RED as in 323 (6 forge refusals, 0
+    structures) and the gate line now reads "empty", not "passed". Mutation restored, git diff empty.
+  chain 330 Release full live set 36 ok / 0 failed, record lines identical to chain 324's; chain 331 Debug unit set
+    187 ok / 0 failed (186 + the new test). GUESS: no existing test builds zero buildings and expects a pass.
+RESULTS (written 2026-11-17 11:35) - every prediction held:
+  chain 327 (Release, tests only; exe 11:07:07): RED - 3 ok / 2 failed: the new test and the amended old one both read
+    "passed" where "empty" is expected.
+  chain 328 (the fix; exe 11:07:51): 5 ok / 0 failed.
+  chain 329 (Release, live fixture test with the pack hand-off mutated again; exe 11:08:13): RED as in 323 - 6 forge
+    refusals, 0 structures - and the gate line now reads "empty - 0 walkable, 0 blocked, 0 skipped over 0 doors of 0
+    built; 6 lot failures". Mutation removed by restoring the saved fixed file (cmp identical, no MUTATION text left).
+  chain 330 (Release, full live + realizer set; exe 11:09:06, run to 11:17:04): 36 ok / 0 failed; the 126 distinct
+    gate / lot / wall / market record lines identical to chain 324's (diff empty).
+  chain 331 (Debug, unit set; 11:17:28 - 11:33:52): 187 ok / 0 failed (186 + the new test).
+  NOT measured: the WorldForge build path's reaction (a site whose every lot fails is now refused by the gate instead of
+  recorded as built - read from WorldForgeBuildService.cpp, not run); no L4.
