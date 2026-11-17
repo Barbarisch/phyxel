@@ -119,3 +119,28 @@ PL.7 (written 2026-11-17 12:27, before the edits): the two audits' conditions.
     structures, gate 30 / 0 over 10 doors, 272 fixtures - with the relabelled data.
   STATE AT COMMIT: full live set last run at chain 341 and Debug unit set at chain 343 - both BEFORE the label-only
     data rewrite and the test additions of PL.7; not re-run after.
+
+L4 (written 2026-11-17 12:36) - the first look at a built Roman settlement. No prediction was written for this; it is a record.
+  WHAT PRODUCED IT: build/editor/Release/phyxel.exe built 2026-11-17 12:31 from HEAD e52a6ff5, launched directly with
+    --project StructGenTest (the flat tester) --port 8460; ONE call to the engine's own generator:
+    POST /api/settlement/build {"era":"roman","tier":"hamlet","styles":["roman_strip"],"position":{"x":28,"y":17,"z":16},
+    "width":104,"depth":64,"seed":5,"entries":[{"x":0,"z":32,"cls":2}],"residents":false,"async":false}. Nothing hand-placed.
+  RAW RESULT: the HTTP call itself returned {"error":"Request timed out waiting for game loop","timeout_ms":5000} (a
+    synchronous build outlasts the route's 5 s wait - the build went on); the engine log then has
+    "[M5A-MAP] roman/hamlet seed 5: 10 lots, 1 ways, 2 nodes, entry 0, sampler flat, 0 dropped" (12:32:25) and
+    "walkability gate: 30 walkable, 0 blocked over 30 routes (10 front doors of 10 built, 0 skipped)" (12:34:39);
+    GET /api/placed_objects: 550 objects, 10 structures; house_1 record {typology strip_building, period roman, style
+    roman_strip}, bbox (28,17,25)-(37,24,43); its assembly plan's roof: ClayTile, pitch 45, gable.
+  SCREENSHOTS (GET /api/screenshot, free camera): docs/evidence/worldforge_v2/m5f2a_l4_overview.png (camera 150,75,112
+    yaw -135 pitch -38), m5f2a_l4_oblique.png (140,32,78 pitch -20), m5f2a_l4_street.png (66,20,60 pitch -6).
+  WHAT I SEE in them: ten long narrow gabled houses side by side in one row, gable ends and doors on a grey road, a
+    door and a small window in each gable, narrow gaps between neighbours, all on ONE side of the road (seed 5 = 10 lots).
+  WHAT IS WRONG OR UNEXPLAINED in them: (1) the roofs read as pale straw, not red tile - the plan says ClayTile, so
+    either that material looks like this or something else is drawn; not checked against a thatch roof side by side.
+    (2) white picket fences stand at the house fronts - the medieval fence, which this tier never asked for (no
+    "fences" block). (3) the walls are dark horizontal planking - the engine's timber-wall material, no plinth visible
+    at this distance. (4) nothing marks a shop front; no portico (as stated). (5) the "flat tester" shows trees and snow
+    around the settlement - the world is not the empty flat plane its notes describe; not looked into.
+    (6) editor FPS 6-10 on the laptop with the settlement in view (one reading each, not a measurement).
+  The engine was stopped by killing the process I launched; the project's default.db and -wal were not written
+    (timestamps unchanged), so the tester was left as found.
