@@ -74,10 +74,40 @@ struct FractureModel {
     static constexpr float kGlassRing = 1.7f;        // glass ring radius ratio
 };
 
+/// F4.3: the per-hit scalars and tables, computed once on the host and shared by the CPU reference and the GPU
+/// port. Everything per bond / per voxel is then integer arithmetic (docs/evidence/voxfound_f43_prediction.txt).
+/// Fixed-point units: positions in 1/16 voxel ("q16"); the Voronoi in 1/1024 voxel.
+struct FracturePlan {
+    bool valid = false;                       // a solid voxel was hit
+    uint8_t hitMat = 0;
+    double eOverT = 0.0;
+    int64_t eq = 0;                           // E in 1/16
+    int32_t cq = 0;                           // round(256 cbrt(E/T))
+    int32_t L = 0;                            // the stress length (0.25 m) in q16
+    int32_t hit16[3] = {0, 0, 0};             // the hit point in q16
+    int kmax = 0;                             // finest pattern level (spacing >= one voxel)
+    uint64_t seed = 1;
+    std::vector<int64_t> cellC;               // per level k: [2k] plain, [2k + 1] fibrous Voronoi spacing (1/1024 voxel)
+    std::vector<int32_t> tq;                  // per material: toughness in 1/16 (>= 1)
+    std::vector<int32_t> partQ;               // per material: part bond scale in 1/1000
+    std::vector<int8_t> grainAxis;            // per material: -1 or the grain axis
+    std::vector<uint8_t> glass;               // per material
+    std::vector<uint8_t> partWhole;           // per part id (dense): the part moves as a unit
+    int glassAxis = 2, glassU = 0, glassV = 1;  // the glass plane: across the hit's dominant axis
+    int sectors = 4;
+    std::vector<int64_t> ringR2;              // ring = count of entries <= rho^2 (q16 squared)
+    std::vector<int32_t> bounds;              // ring r >= 1: sectors x (x, y) at (r - 1) * sectors * 2, sorted by angle
+};
+FracturePlan planFracture(const VoxelGrid& g, const Hit& hit, const std::vector<FractureMaterial>& mats);
+
 /// F4. The CPU reference: the source of truth the GPU port must equal.
 FractureResult fractureReference(const VoxelGrid& grid, const Hit& hit,
                                  const std::vector<FractureMaterial>& mats,
                                  const FractureKnobs& knobs = {});
+
+/// Number pieces from a parent forest (par[root] == root) in order of each piece's first voxel and fill piece,
+/// pieceAnchored, pieceSize, pieceKind. Shared by the CPU reference and the GPU port.
+void finishPieces(const VoxelGrid& g, FractureResult& r, std::vector<uint32_t>& par, const FractureKnobs& knobs);
 
 /// Write a result's damage into the grid (progressive damage: the next hit sees it).
 void applyDamage(VoxelGrid& grid, const FractureResult& r);

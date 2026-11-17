@@ -421,6 +421,11 @@
       "sources": "6f93d3b4aefe4d53cd277bef37068628ae8b031fe9771857fbc934d82b7f5c1f",
       "spv_present": true
     },
+    "voxfound_fracture.comp": {
+      "built": true,
+      "sources": "be047df0cf58d57497c93153820d18bc014bb0db0f03b6e7f7cf68d7fc9294e3",
+      "spv_present": true
+    },
     "voxfound_leafmass.frag": {
       "built": true,
       "sources": "e3be58f3685190911b88a67f5f82d18ec5f821755d4a48b2011ae72f04961475",

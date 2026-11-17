@@ -1,0 +1,277 @@
+#version 450
+// docs/VoxelFoundationPlan.md F4.3 -- the fracture core on the GPU (FractureGpu). The CPU reference is
+// FractureLab.cpp fractureReference (its integer form, voxfound_f43_prediction.txt); this must equal it exactly:
+// cut bits, damage, and (through the shared host numbering) pieces. One thread per voxel.
+//   pass 0 ids   : the Voronoi id per level (brittle / fibrous) or the glass id (slot 0) of every solid voxel;
+//   pass 1 bonds : the cut bits of the voxel's +x / +y / +z bonds and its damage;
+//   pass 2 init  : label = own index (solid) or 0xFFFFFFFF (air);
+//   pass 3 hook  : for every uncut bond to +x/+y/+z: hook the larger root under the smaller (atomicMin);
+//   pass 4 jump  : label = label[label] (pointer jumping).
+// Passes 3-4 repeat until a round changes nothing; the converged label is the component's minimum voxel index.
+// The device has no 64-bit integers: u64 values are uvec2 (x = low word, y = high word).
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 0) readonly buffer Vox { uvec2 vox[]; };   // x: mat | fixed << 8 | damage << 16; y: part
+layout(std430, binding = 1) readonly buffer Params { uint prm[]; };
+layout(std430, binding = 2) buffer Ids { uint ids[]; };            // n * (kmax + 1)
+layout(std430, binding = 3) buffer Out { uint outv[]; };           // cut bits | damage << 8
+layout(std430, binding = 4) buffer Label { uint label[]; };
+layout(std430, binding = 5) buffer Flags { uint flags[]; };        // per round: count of changes
+
+layout(push_constant) uniform PC {
+    uint pass_;
+    uint round_;
+    uint n;
+    uint pad;
+} pc;
+
+// ---- the parameter block (FractureGpu.cpp writes it in this order) ----
+const uint P_DIMX = 0u, P_DIMY = 1u, P_DIMZ = 2u, P_KMAX = 3u, P_L = 4u, P_CQ = 5u, P_HX = 6u, P_HY = 7u, P_HZ = 8u,
+           P_SEED = 9u /* 2 words */, P_SECTORS = 11u, P_GU = 12u, P_GV = 13u, P_NRINGS = 14u, P_NMATS = 15u,
+           P_NPARTS = 16u, P_LHS = 17u /* 2 */, P_NUM2 = 19u /* 2 */, P_OFF_CELLC = 21u, P_OFF_MAT = 22u,
+           P_OFF_PART = 23u, P_OFF_RING = 24u, P_OFF_BOUND = 25u, P_VALID = 26u, P_GRAINBOND = 27u;
+// tables: cellC[(kmax+1)*2] as int; per material 4 words (tq, partQ, grainAxis + 1, glass); partWhole[nparts];
+// ringR2[nrings] as 2 words; bounds[nrings * sectors * 2] as int
+
+// ---- u64 on uvec2 ----
+uvec2 u64(uint lo) { return uvec2(lo, 0u); }
+uvec2 add64(uvec2 a, uvec2 b) { uint c; uint lo = uaddCarry(a.x, b.x, c); return uvec2(lo, a.y + b.y + c); }
+uvec2 mul32(uint a, uint b) { uint hi, lo; umulExtended(a, b, hi, lo); return uvec2(lo, hi); }
+uvec2 mul64(uvec2 a, uvec2 b) {   // the low 64 bits
+    uvec2 r = mul32(a.x, b.x);
+    r.y += a.x * b.y + a.y * b.x;
+    return r;
+}
+uvec2 xor64(uvec2 a, uvec2 b) { return a ^ b; }
+uvec2 shr64(uvec2 a, uint s) {
+    if (s == 0u) return a;
+    if (s >= 32u) return uvec2(a.y >> (s - 32u), 0u);
+    return uvec2((a.x >> s) | (a.y << (32u - s)), a.y >> s);
+}
+bool lt64(uvec2 a, uvec2 b) { return a.y < b.y || (a.y == b.y && a.x < b.x); }
+bool le64(uvec2 a, uvec2 b) { return !lt64(b, a); }
+uvec2 sext(int v) { return uvec2(uint(v), v < 0 ? 0xFFFFFFFFu : 0u); }
+
+uvec2 splitmix(uvec2 x) {
+    x = add64(x, uvec2(0x7F4A7C15u, 0x9E3779B9u));
+    x = mul64(xor64(x, shr64(x, 30u)), uvec2(0x1CE4E5B9u, 0xBF58476Du));
+    x = mul64(xor64(x, shr64(x, 27u)), uvec2(0x133111EBu, 0x94D049BBu));
+    return xor64(x, shr64(x, 31u));
+}
+uvec2 hashCell(int level, int qx, int qy, int qz) {
+    const uvec2 seed = uvec2(prm[P_SEED], prm[P_SEED + 1u]);
+    uvec2 h = splitmix(xor64(seed, uvec2(0u, uint(level) << 8)));   // level << 40
+    h = splitmix(xor64(h, sext(qx)));
+    h = splitmix(xor64(h, sext(qy)));
+    return splitmix(xor64(h, sext(qz)));
+}
+
+int floorDiv(int a, int b) {
+    int q = a / b;
+    if ((a % b != 0) && ((a < 0) != (b < 0))) --q;
+    return q;
+}
+
+ivec3 dims() { return ivec3(int(prm[P_DIMX]), int(prm[P_DIMY]), int(prm[P_DIMZ])); }
+ivec3 posOf(uint i) {
+    const ivec3 d = dims();
+    return ivec3(int(i / uint(d.z * d.y)), int((i / uint(d.z)) % uint(d.y)), int(i % uint(d.z)));
+}
+uint idxOf(ivec3 p) {
+    const ivec3 d = dims();
+    return uint(p.z) + uint(d.z) * (uint(p.y) + uint(d.y) * uint(p.x));
+}
+bool inGrid(ivec3 p) { return all(greaterThanEqual(p, ivec3(0))) && all(lessThan(p, dims())); }
+
+uint matOf(uint i) { return vox[i].x & 0xFFu; }
+uint fixedOf(uint i) { return (vox[i].x >> 8) & 0xFFu; }
+uint dmgOf(uint i) { return (vox[i].x >> 16) & 0xFFu; }
+uint partOf(uint i) { return vox[i].y; }
+uint matTab(uint m, uint w) { return prm[prm[P_OFF_MAT] + m * 4u + w]; }   // 0 tq, 1 partQ, 2 grain+1, 3 glass
+
+uint voronoiId(ivec3 p, int k, int grainAxis) {
+    int X[3] = int[3](p.x * 1024 + 512, p.y * 1024 + 512, p.z * 1024 + 512);
+    if (grainAxis >= 0)
+        for (int a = 0; a < 3; ++a)
+            if (a != grainAxis) X[a] *= 4;   // FractureModel::kGrainStretch
+    const int C = int(prm[prm[P_OFF_CELLC] + uint(2 * k + (grainAxis >= 0 ? 1 : 0))]);
+    const int q[3] = int[3](floorDiv(X[0], C), floorDiv(X[1], C), floorDiv(X[2], C));
+    uvec2 best = uvec2(0xFFFFFFFFu, 0x7FFFFFFFu);
+    uvec2 bestH = uvec2(0u);
+    for (int dx = -1; dx <= 1; ++dx)
+        for (int dy = -1; dy <= 1; ++dy)
+            for (int dz = -1; dz <= 1; ++dz) {
+                const int c[3] = int[3](q[0] + dx, q[1] + dy, q[2] + dz);
+                const uvec2 h = hashCell(k, c[0], c[1], c[2]);
+                uvec2 d2 = uvec2(0u);
+                for (int a = 0; a < 3; ++a) {
+                    const uint jit = shr64(h, uint(a * 21)).x & 0x1FFFFFu;
+                    const uvec2 jc = shr64(mul32(jit, uint(C)), 21u);         // (jit * C) >> 21  (< C)
+                    const int s = c[a] * C + int(jc.x);
+                    const int dd = X[a] - s;
+                    const uint ad = uint(abs(dd));
+                    d2 = add64(d2, mul32(ad, ad));
+                }
+                if (lt64(d2, best) || (d2 == best && lt64(h, bestH))) { best = d2; bestH = h; }
+            }
+    return bestH.x | 1u;
+}
+
+int halfOf(int x, int y) { return (y < 0 || (y == 0 && x < 0)) ? 1 : 0; }
+bool angleLE(int ax, int ay, int bx, int by) {
+    const int ha = halfOf(ax, ay), hb = halfOf(bx, by);
+    if (ha != hb) return ha < hb;
+    return ax * by - ay * bx >= 0;
+}
+
+uint glassId(ivec3 p) {
+    const int gu = int(prm[P_GU]), gv = int(prm[P_GV]);
+    const int hu = int(prm[P_HX + uint(gu)]), hv = int(prm[P_HX + uint(gv)]);
+    const int du = p[gu] * 16 + 8 - hu, dv = p[gv] * 16 + 8 - hv;
+    const uvec2 rho2 = add64(mul32(uint(abs(du)), uint(abs(du))), mul32(uint(abs(dv)), uint(abs(dv))));
+    const uint nr = prm[P_NRINGS];
+    int ring = 0;
+    for (uint k = 0u; k < nr; ++k) {
+        const uint o = prm[P_OFF_RING] + 2u * k;
+        if (le64(uvec2(prm[o], prm[o + 1u]), rho2)) ++ring;
+    }
+    int sector = 0;
+    const int ns = int(prm[P_SECTORS]);
+    if (ring > 0) {
+        const uint b = prm[P_OFF_BOUND] + uint(ring - 1) * uint(ns) * 2u;
+        for (int j = 0; j < ns; ++j)
+            if (angleLE(int(prm[b + uint(2 * j)]), int(prm[b + uint(2 * j + 1)]), du, dv)) ++sector;
+        sector = sector % ns;
+    }
+    return hashCell(98, ring, sector, 0).x | 1u;
+}
+
+uint dist2(ivec3 p, int axis) {   // q16 squared; axis -1 = the voxel centre, else the bond midpoint toward +axis
+    uint d2 = 0u;
+    for (int a = 0; a < 3; ++a) {
+        const int m = p[a] * 16 + 8 + (a == axis ? 8 : 0) - int(prm[P_HX + uint(a)]);
+        d2 += uint(m * m);
+    }
+    return d2;
+}
+
+int levelAt(uint d2) {
+    const int kmax = int(prm[P_KMAX]), L = int(prm[P_L]), cq = int(prm[P_CQ]);
+    int lv = 0;
+    for (int k = 0; k <= kmax; ++k) {
+        const int A = 2 * cq * L - (256 << k) * L;
+        if (A < 0) continue;
+        const uint s = uint(256 << k);
+        if (le64(mul32(s * s, d2), mul32(uint(A), uint(A)))) lv = k;
+    }
+    return lv;
+}
+
+void main() {
+    const uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.n) return;
+    const uint kslots = prm[P_KMAX] + 1u;
+
+    if (pc.pass_ == 0u) {   // ids
+        const uint m = matOf(i);
+        if (m == 0u || prm[P_VALID] == 0u) return;
+        const ivec3 p = posOf(i);
+        if (matTab(m, 3u) != 0u) {
+            ids[i * kslots] = glassId(p);
+            return;
+        }
+        const int grain = int(matTab(m, 2u)) - 1;
+        for (uint k = 0u; k < kslots; ++k) ids[i * kslots + k] = voronoiId(p, int(k), grain);
+        return;
+    }
+
+    if (pc.pass_ == 1u) {   // bonds + damage
+        const uint ma = matOf(i);
+        uint dmgOut = dmgOf(i);
+        if (ma == 0u) { outv[i] = dmgOut << 8; return; }
+        if (prm[P_VALID] == 0u) { outv[i] = dmgOut << 8; return; }
+        const ivec3 p = posOf(i);
+        const uint L2 = prm[P_L] * prm[P_L];
+        const uvec2 lhs = uvec2(prm[P_LHS], prm[P_LHS + 1u]);
+        uint cutBits = 0u;
+        for (int a = 0; a < 3; ++a) {
+            ivec3 q = p;
+            q[a] += 1;
+            if (!inGrid(q)) continue;
+            const uint j = idxOf(q);
+            const uint mb = matOf(j);
+            if (mb == 0u) continue;
+            const bool partsDiffer = partOf(i) != partOf(j);
+            const bool matsDiffer = ma != mb;
+            uint kq = 1000u;
+            if (partsDiffer) kq = min(matTab(ma, 1u), matTab(mb, 1u));
+            else if (!matsDiffer && int(matTab(ma, 2u)) - 1 == a) kq = prm[P_GRAINBOND];
+            const uint dmg = max(dmgOf(i), dmgOf(j));
+            const uint d2 = dist2(p, a);
+            const uint f = min(matTab(ma, 0u), matTab(mb, 0u)) * kq * (510u - dmg);   // < 2^32 (host guard)
+            const uvec2 rhs = mul32(f, L2 + d2);
+            if (lt64(lhs, rhs)) continue;
+            bool candidate = partsDiffer || matsDiffer;
+            const uint part = partOf(i);
+            const bool whole = part != 0u && prm[prm[P_OFF_PART] + part] != 0u;
+            if (!candidate && !whole) {
+                if (matTab(ma, 3u) != 0u) {
+                    candidate = ids[i * kslots] != ids[j * kslots];
+                } else {
+                    const int lv = levelAt(d2);
+                    for (int k = 0; k <= lv && !candidate; ++k)
+                        candidate = ids[i * kslots + uint(k)] != ids[j * kslots + uint(k)];
+                }
+            }
+            if (candidate) cutBits |= 1u << uint(a);
+        }
+        // damage: add = min(255, round(255 Eq L^2 / (Tq (L^2 + d2)))): the largest a with a * 2 den <= num2 + den
+        const uvec2 den = mul32(matTab(ma, 0u), L2 + dist2(p, -1));
+        const uvec2 rhs = add64(uvec2(prm[P_NUM2], prm[P_NUM2 + 1u]), den);
+        const uvec2 den2 = add64(den, den);
+        uint lo = 0u, hi = 255u;
+        while (lo < hi) {
+            const uint mid = (lo + hi + 1u) >> 1;
+            if (le64(mul64(den2, u64(mid)), rhs)) lo = mid; else hi = mid - 1u;
+        }
+        dmgOut = min(255u, dmgOut + lo);
+        outv[i] = cutBits | (dmgOut << 8);
+        return;
+    }
+
+    if (pc.pass_ == 2u) {   // labels
+        label[i] = matOf(i) != 0u ? i : 0xFFFFFFFFu;
+        return;
+    }
+
+    if (pc.pass_ == 3u) {   // hook: the larger root under the smaller, over every uncut +axis bond
+        if (matOf(i) == 0u) return;
+        const ivec3 p = posOf(i);
+        const uint cutBits = outv[i] & 0xFFu;
+        for (int a = 0; a < 3; ++a) {
+            if ((cutBits & (1u << uint(a))) != 0u) continue;
+            ivec3 q = p;
+            q[a] += 1;
+            if (!inGrid(q)) continue;
+            const uint j = idxOf(q);
+            if (matOf(j) == 0u) continue;
+            const uint ri = label[i], rj = label[j];
+            if (ri == rj) continue;
+            const uint hiR = max(ri, rj), loR = min(ri, rj);
+            const uint before = atomicMin(label[hiR], loR);
+            if (before > loR) atomicAdd(flags[pc.round_], 1u);
+        }
+        return;
+    }
+
+    if (pc.pass_ == 4u) {   // pointer jumping
+        if (matOf(i) == 0u) return;
+        const uint l = label[i];
+        const uint ll = label[l];
+        if (ll < l) {
+            atomicMin(label[i], ll);
+            atomicAdd(flags[pc.round_], 1u);
+        }
+        return;
+    }
+}

@@ -1,0 +1,3141 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundFractureGpu*
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from VoxFoundFractureGpu
+[ RUN      ] VoxFoundFractureGpu.EveryLabRigEqualsTheReference
+[32m[08:34:23.836] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)[0m
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 5.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E     5.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 15.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E    15.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 20.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E    20.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 30.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E    30.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 50.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E    50.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 80.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E    80.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 120.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E   120.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 200.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E   200.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 300.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E   300.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 500.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E   500.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 800.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E   800.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall E 50.000000: F4.3 RED STUB
+
+[fracture gpu] stone_wall   E    50.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall E 48.000000: F4.3 RED STUB
+
+[fracture gpu] brick_wall   E    48.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall E 180.000000: F4.3 RED STUB
+
+[fracture gpu] brick_wall   E   180.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam E 32.000000: F4.3 RED STUB
+
+[fracture gpu] beam         E    32.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane E 20.000000: F4.3 RED STUB
+
+[fracture gpu] glass_pane   E    20.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel E 300.000000: F4.3 RED STUB
+
+[fracture gpu] column_lintel E   300.0: -1.000 ms device, 0 rounds, 0 submits
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair E 32.000000: F4.3 RED STUB
+
+[fracture gpu] chair        E    32.0: -1.000 ms device, 0 rounds, 0 submits
+[fracture gpu] rigs: 0 / 18 equal in every channel
+[  FAILED  ] VoxFoundFractureGpu.EveryLabRigEqualsTheReference (383 ms)
+[ RUN      ] VoxFoundFractureGpu.RandomHitsAndRepeatedBlowsEqualTheReference
+[32m[08:34:23.929] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)[0m
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 0: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 0 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 1: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 1 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 2: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 2 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 3: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 3 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 4: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 4 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 5: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 5 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 6: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 6 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 7: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 7 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 8: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 8 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 9: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 9 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 10: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 10 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 11: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 11 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 12: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 12 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 13: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 13 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 14: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 14 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 15: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 15 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 16: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 16 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 17: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 17 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 18: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 18 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 19: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 19 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 20: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 20 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 21: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 21 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 22: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 22 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 23: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 23 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 24: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 24 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 25: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 25 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 26: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 26 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 27: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 27 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 28: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 28 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 29: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 29 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 30: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 30 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 31: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 31 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 32: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 32 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 33: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 33 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 34: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 34 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 35: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 35 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 36: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 36 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 37: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 37 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 38: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 38 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 39: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 39 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 40: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 40 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 41: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 41 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 42: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 42 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 43: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 43 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 44: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 44 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 45: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 45 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 46: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 46 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 47: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 47 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 48: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 48 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 49: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 49 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 50: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 50 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 51: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 51 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 52: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 52 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 53: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 53 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 54: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 54 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 55: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 55 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 56: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 56 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 57: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 57 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 58: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 58 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 59: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 59 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 60: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 60 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 61: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 61 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 62: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 62 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 63: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 63 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 64: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 64 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 65: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 65 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 66: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 66 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 67: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 67 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 68: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 68 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 69: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 69 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 70: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 70 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 71: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 71 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 72: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 72 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 73: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 73 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 74: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 74 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 75: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 75 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 76: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 76 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 77: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 77 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 78: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 78 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 79: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 79 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 80: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 80 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 81: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 81 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 82: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 82 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 83: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 83 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 84: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 84 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 85: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 85 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 86: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 86 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 87: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 87 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 88: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 88 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 89: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 89 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 90: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 90 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 91: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 91 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 92: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 92 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 93: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 93 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 94: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 94 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 95: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 95 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 96: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 96 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 97: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 97 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 98: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 98 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 99: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 99 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 100: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 100 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 101: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 101 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 102: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 102 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 103: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 103 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 104: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 104 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 105: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 105 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 106: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 106 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 107: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 107 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 108: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 108 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 109: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 109 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 110: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 110 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 111: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 111 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 112: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 112 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 113: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 113 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 114: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 114 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 115: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 115 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 116: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 116 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 117: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 117 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 118: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 118 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 119: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 119 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 120: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 120 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 121: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 121 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 122: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 122 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 123: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 123 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 124: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 124 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 125: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 125 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 126: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 126 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 127: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 127 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 128: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 128 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 129: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 129 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 130: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 130 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 131: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 131 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 132: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 132 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 133: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 133 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 134: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 134 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 135: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 135 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 136: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 136 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 137: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 137 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 138: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 138 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 139: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 139 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 140: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 140 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 141: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 141 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 142: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 142 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 143: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 143 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 144: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 144 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 145: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 145 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 146: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 146 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 147: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 147 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 148: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 148 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 149: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 149 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 150: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 150 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 151: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 151 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 152: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 152 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 153: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 153 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 154: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 154 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 155: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 155 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 156: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 156 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 157: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 157 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 158: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 158 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 159: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 159 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 160: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 160 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 161: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 161 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 162: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 162 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 163: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 163 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 164: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 164 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 165: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 165 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 166: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 166 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 167: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 167 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 168: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 168 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 169: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 169 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 170: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 170 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 171: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 171 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 172: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 172 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 173: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 173 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 174: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 174 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 175: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 175 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 176: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 176 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 177: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 177 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 178: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 178 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 179: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 179 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 180: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 180 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 181: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 181 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 182: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 182 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 183: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 183 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 184: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 184 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 185: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 185 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 186: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 186 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 187: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 187 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 188: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 188 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 189: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 189 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 190: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 190 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 191: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 191 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 192: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 192 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 193: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 193 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 194: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 194 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 195: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 195 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 196: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 196 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 197: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 197 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 198: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 198 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 199: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 199 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 200: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 200 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 201: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 201 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 202: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 202 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 203: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 203 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 204: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 204 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 205: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 205 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 206: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 206 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 207: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 207 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 208: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 208 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 209: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 209 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 210: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 210 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 211: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 211 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 212: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 212 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 213: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 213 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 214: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 214 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 215: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 215 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 216: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 216 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 217: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 217 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 218: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 218 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 219: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 219 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 220: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 220 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 221: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 221 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 222: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 222 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 223: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 223 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 224: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 224 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 225: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 225 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 226: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 226 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 227: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 227 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 228: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 228 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 229: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 229 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 230: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 230 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 231: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 231 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 232: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 232 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 233: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 233 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 234: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 234 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 235: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 235 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 236: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 236 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 237: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 237 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 238: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 238 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 239: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 239 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 240: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 240 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 241: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 241 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 242: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 242 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 243: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 243 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 244: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 244 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 245: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 245 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 246: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 246 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 247: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 247 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 248: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 248 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 249: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 249 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 250: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 250 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 251: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 251 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 252: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 252 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 253: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 253 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 254: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 254 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 255: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 255 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 256: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 256 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 257: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 257 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 258: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 258 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 259: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 259 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 260: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 260 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 261: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 261 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 262: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 262 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 263: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 263 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 264: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 264 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 265: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 265 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 266: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 266 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 267: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 267 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 268: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 268 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 269: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 269 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 270: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 270 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 271: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 271 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 272: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 272 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 273: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 273 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 274: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 274 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 275: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 275 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 276: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 276 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 277: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 277 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 278: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 278 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 279: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 279 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 280: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 280 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 281: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 281 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 282: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 282 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 283: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 283 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 284: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 284 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 285: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 285 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 286: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 286 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 287: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 287 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 288: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 288 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 289: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 289 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 290: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 290 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 291: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 291 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 292: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 292 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 293: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 293 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 294: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+stone_wall hit 294 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 295: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+brick_wall hit 295 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 296: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+beam hit 296 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 297: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+glass_pane hit 297 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 298: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+column_lintel hit 298 repeated: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 299: F4.3 RED STUB
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(50): error: Value of: ok
+  Actual: false
+Expected: true
+chair hit 299 repeated: F4.3 RED STUB
+
+[fracture gpu] random: 0 / 600 hits equal in every channel
+[  FAILED  ] VoxFoundFractureGpu.RandomHitsAndRepeatedBlowsEqualTheReference (240 ms)
+[ RUN      ] VoxFoundFractureGpu.CostPerBreakOnALargeWall
+[32m[08:34:24.167] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)[0m
+[fracture gpu] large wall 256 x 128 x 4 = 131072 voxels
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundFractureGpuTest.cpp(161): error: Value of: gpu.fracture(rig.grid, rig.hit, rig.mats, gr, &err)
+  Actual: false
+Expected: true
+F4.3 RED STUB
+
+[  FAILED  ] VoxFoundFractureGpu.CostPerBreakOnALargeWall (96 ms)
+[----------] 3 tests from VoxFoundFractureGpu (720 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (720 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 3 tests, listed below:
+[  FAILED  ] VoxFoundFractureGpu.EveryLabRigEqualsTheReference
+[  FAILED  ] VoxFoundFractureGpu.RandomHitsAndRepeatedBlowsEqualTheReference
+[  FAILED  ] VoxFoundFractureGpu.CostPerBreakOnALargeWall
+
+ 3 FAILED TESTS

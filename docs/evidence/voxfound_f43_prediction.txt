@@ -1,0 +1,55 @@
+F4.3 -- the fracture core's GPU port, equal to the CPU reference (plan F4 row: "Then the GPU port, equal to the
+reference"; §8: GPU = CPU reference, GPU ms per break at 10 / 100 / 1,000 pieces)
+Written 2026-11-17 BEFORE any F4.3 code.
+
+STEP 1 -- the reference becomes exact integer arithmetic (a precondition for bit-equality: GLSL float division and
+transcendentals are not correctly rounded, and the device has no 64-bit ints, so the shader emulates them on uvec2).
+  A host prelude, shared by both paths, computes the per-hit scalars once (planFracture):
+    the hit material, e = E / T, Cq = round(256 cbrt e); E and every toughness quantized to 1/16; the hit point to
+    1/16 voxel; L = round(16 * 0.25 m / voxel); per part the "moves whole" flag (as F4.1); for glass the ring
+    thresholds R_k^2 = ceil((r0 * 1.7^k)^2) and per ring the n sector-boundary vectors (cos, sin) * 2^14.
+  Per bond / per voxel, integers only:
+    cut     : Eq * L^2 * 1000 * 510 >= Tq_min * kq * (510 - damage) * (L^2 + d^2)      (kq: 300 / 4000 / 1000)
+    level   : the finest k with A_k = 2 Cq L - 256 2^k L >= 0 and A_k^2 >= (256 2^k)^2 d^2
+    damage  : add = min(255, round(255 Eq L^2 / (Tq (L^2 + d^2))))
+    glass   : the plane across the hit's dominant axis; ring = number of R_k^2 <= rho^2; sector by exact half-plane
+              and cross-product tests against the boundary vectors
+    Voronoi : unchanged (already integer: 1/1024 voxel, splitmix64 seeds)
+  Prediction: the 14 F4.1 tests and the F4.2 test stay green. Rig numbers: identical to F4.1 run 2 except possibly
+  where a bond sat exactly on a float rounding edge -- expect 0 changed rig numbers; glass may differ (the sector
+  labels and ring edges are now rounded differently), still >= 6 shards over >= 6 sectors.
+
+STEP 2 -- FractureGpu (shaders/voxfound_fracture.comp), one thread per voxel, passes:
+  0 ids     : the Voronoi id per level (or the glass id) per solid voxel;
+  1 bonds   : cut bits per voxel (its +x/+y/+z bonds) and damage;
+  2 label   : connected components over uncut bonds -- label = voxel index, atomicMin over neighbours + pointer
+              jumping, repeated until nothing changes (the converged label is the component's minimum voxel index);
+  3 anchor  : per component, OR of its voxels' fixed bits (atomicOr at the root).
+  The host reads labels back and numbers pieces by ascending root -- the reference numbers pieces in order of
+  their first voxel, which IS the minimum index, so piece ids equal the reference's exactly; kinds from sizes.
+  Accepted only on EXACT equality with fractureReference: cut, damage, piece, pieceAnchored, pieceSize, pieceKind.
+
+PREDICTIONS
+  P1 exact on every §8 rig (all energies of the F4.1 sweep) and on 300 random hits (the F4.1 stress set): 0 differing
+     voxels in any channel. Red first: a FractureGpu stub that returns implemented = false.
+  P2 GPU ms per break (device time, timestamps, the whole chain incl. label iterations), measured on a large stone
+     wall (256 x 128 x 4 voxels, 131k voxels, base fixed) at energies chosen to give ~10 / ~100 / ~1,000 loose
+     pieces: 0.2-3 ms at 10 pieces, rising with the cut region; <= 10 ms at ~1,000 pieces. The label passes dominate
+     (expected 5-20 iterations). Host time (submit + waits + readback) reported separately.
+  P3 the CPU reference on the same big-wall breaks: 5-50 ms; the GPU >= 5x faster on device time at 1,000 pieces.
+
+STEP 1 MEASURED (voxfound_f43_step1.txt): the 15 fracture-lab tests green on the integer reference. Every rig number
+  identical to F4.1 run 2 (prediction held); glass's x / y cut counts swapped (92 / 93 vs 93 / 92: the sector origin
+  now follows the grid axes) with the same 34 shards, 8 / 8 sectors. The random stress set moved slightly (29,344 vs
+  29,349 cuts; repeats cutting more 139 vs 138) because energies are now quantized to 1/16. F4.2: exact, numbers
+  unchanged except 148 vs 147 building hits that cut.
+RED (voxfound_f43_red.txt): a stub FractureGpu::fracture returning false -- all 3 tests fail (619 failures).
+RUN 1 (voxfound_f43_run1.txt; only the Battle.net launcher running, no WoW, no other engine):
+  P1 HELD: 18 / 18 rig cases and 600 / 600 random hits (300 + each repeated on its damaged grid) equal in every
+     channel; the large wall equal at all 7 energies. First run, no fixes.
+  P2 partly: device time 1.47-1.82 ms per break at 0 / 7 / 38 / 122 / 369 / 936 / 1,981 loose pieces, 9-10
+     rounds (estimate 5-20 held; <= 3 ms at 10 pieces held; <= 10 ms at ~1,000 held). But "rising with the cut
+     region" was WRONG: the cost is flat, because every pass runs over the whole 131k-voxel grid (the id pass
+     computes every pattern level for every voxel). The lever: run the passes only over the stressed box (where
+     s can reach the weakest bond). Host 3.6-4.0 ms (upload, readback, numbering).
+  P3 held: CPU reference 14.2-51.5 ms; at 936 pieces 34.2 ms vs 1.65 ms device = 21x.

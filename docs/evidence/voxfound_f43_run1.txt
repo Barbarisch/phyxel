@@ -1,0 +1,47 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundFractureGpu*
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from VoxFoundFractureGpu
+[ RUN      ] VoxFoundFractureGpu.EveryLabRigEqualsTheReference
+[32m[08:34:56.537] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)[0m
+[fracture gpu] stone_wall   E     5.0: 0.076 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    15.0: 0.077 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    20.0: 0.076 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    30.0: 0.077 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    50.0: 0.076 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    80.0: 0.077 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E   120.0: 0.077 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E   200.0: 0.077 ms device, 8 rounds, 2 submits
+[fracture gpu] stone_wall   E   300.0: 0.076 ms device, 6 rounds, 2 submits
+[fracture gpu] stone_wall   E   500.0: 0.077 ms device, 6 rounds, 2 submits
+[fracture gpu] stone_wall   E   800.0: 0.077 ms device, 6 rounds, 2 submits
+[fracture gpu] stone_wall   E    50.0: 0.076 ms device, 7 rounds, 2 submits
+[fracture gpu] brick_wall   E    48.0: 0.076 ms device, 7 rounds, 2 submits
+[fracture gpu] brick_wall   E   180.0: 0.075 ms device, 4 rounds, 2 submits
+[fracture gpu] beam         E    32.0: 0.073 ms device, 6 rounds, 2 submits
+[fracture gpu] glass_pane   E    20.0: 0.049 ms device, 7 rounds, 2 submits
+[fracture gpu] column_lintel E   300.0: 0.074 ms device, 6 rounds, 2 submits
+[fracture gpu] chair        E    32.0: 0.233 ms device, 7 rounds, 2 submits
+[fracture gpu] rigs: 18 / 18 equal in every channel
+[       OK ] VoxFoundFractureGpu.EveryLabRigEqualsTheReference (243 ms)
+[ RUN      ] VoxFoundFractureGpu.RandomHitsAndRepeatedBlowsEqualTheReference
+[32m[08:34:56.651] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)[0m
+[fracture gpu] random: 600 / 600 hits equal in every channel
+[       OK ] VoxFoundFractureGpu.RandomHitsAndRepeatedBlowsEqualTheReference (504 ms)
+[ RUN      ] VoxFoundFractureGpu.CostPerBreakOnALargeWall
+[32m[08:34:57.154] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)[0m
+[fracture gpu] large wall 256 x 128 x 4 = 131072 voxels
+[fracture gpu] large wall E/T      8:    230 cuts,     0 loose pieces (   0 bodies) | GPU 1.746 ms device (10 rounds), 3.77 ms host | CPU reference 14.16 ms
+[fracture gpu] large wall E/T     20:    504 cuts,     7 loose pieces (   5 bodies) | GPU 1.740 ms device (9 rounds), 3.71 ms host | CPU reference 14.31 ms
+[fracture gpu] large wall E/T     50:   1473 cuts,    38 loose pieces (  16 bodies) | GPU 1.817 ms device (9 rounds), 3.82 ms host | CPU reference 14.82 ms
+[fracture gpu] large wall E/T    150:   4421 cuts,   122 loose pieces (  59 bodies) | GPU 1.761 ms device (10 rounds), 3.92 ms host | CPU reference 16.90 ms
+[fracture gpu] large wall E/T    400:  11291 cuts,   369 loose pieces ( 174 bodies) | GPU 1.693 ms device (9 rounds), 4.01 ms host | CPU reference 22.77 ms
+[fracture gpu] large wall E/T   1000:  28002 cuts,   936 loose pieces ( 468 bodies) | GPU 1.645 ms device (9 rounds), 3.64 ms host | CPU reference 34.24 ms
+[fracture gpu] large wall E/T   2500:  52801 cuts,  1981 loose pieces ( 947 bodies) | GPU 1.471 ms device (9 rounds), 3.86 ms host | CPU reference 51.53 ms
+[       OK ] VoxFoundFractureGpu.CostPerBreakOnALargeWall (353 ms)
+[----------] 3 tests from VoxFoundFractureGpu (1102 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (1102 ms total)
+[  PASSED  ] 3 tests.
