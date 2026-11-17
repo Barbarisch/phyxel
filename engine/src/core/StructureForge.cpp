@@ -235,7 +235,8 @@ StructureForge::StageReport StructureForge::stageIntake(Context& ctx) {
     // code change adds an era. A missing pack refuses by name (M0).
     const std::string period = ctx.params.value("period", std::string("medieval"));
     if (period != "medieval") {
-        const std::string pack = "resources/room_programs/" + period + ".json";
+        // M5f-1: {"room_program_pack": path} names the era's pack (like room_program); the default is the shipped place
+        const std::string pack = ctx.params.value("room_program_pack", "resources/room_programs/" + period + ".json");
         if (!ctx.roomReg.loadPeriodPack(pack, period)) {
             // The refusal says what IS available (PeriodAxisTest pins known_periods).
             rep.action = StageReport::Action::Refused;

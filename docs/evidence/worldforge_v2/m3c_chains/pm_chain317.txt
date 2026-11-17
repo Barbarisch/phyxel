@@ -1,0 +1,68 @@
+M5f-1, LIVE HALF (a fixture-era hamlet BUILT on the live rig) - predictions, written 2026-11-16 12:51 BEFORE the test is compiled or run
+(tree a1ceb8d2 + patch 74).
+The live fixture is NOT the headless one: its "blockhouse" is the medieval TAVERN's record copied verbatim into a pack
+stamped period "fixture" (two storeys, a program this forge already builds on the village rig), asked for by a hamlet tier
+copied from the medieval hamlet with its weights replaced. So the test asks one thing: does the ERA reach the built
+building - not whether the forge can build an unfamiliar program. Nothing here is grounded or shipped; the two JSON files
+are written by the test into the working directory and removed.
+Patch 74: (engine) a "room_program_pack" parameter on the settlement build and on the structure build - the path of the
+era's pack, default resources/room_programs/<era>.json as before - passed from the settlement to each building; the
+settlement's error echoes the path it tried. (test) AFixtureErasHamletIsBuiltFromItsOwnPack on the hamlet rig. The two
+plain lookups left in the service (SettlementBuildService.cpp:1211 legacy-only, :1279 the door fallback) are NOT changed
+in this patch, so that a red caused by them can be seen.
+PL.1 chain 317 (the one live test, Debug, ~15 min). I do not know this path; guesses, each to be marked hit or miss:
+  a. plan: not refused; every lot "blockhouse", stories 2 (medium-high: the planner half is measured headless).
+  b. buildings: guess RED somewhere. Candidates in order: (i) the door - the service's fallback lookup at :1279 is plain,
+     but the map's own predicted door (era-aware since patch 72) should come first, so the door is probably right;
+     (ii) the forge: with patch 72 its get(typ, period) now finds "fixture:blockhouse" - before patch 72 it could not
+     have - so the building may simply build; (iii) furnishing / signage keyed on the typology NAME "tavern" (the bar,
+     the sign) will not find "blockhouse" and the building may refuse a gate or come out unfurnished.
+     Guess: lot failures > 0 OR fixtures missing; confidence low. If it is green on the first run, the live half's
+     only engine change was the pack parameter and the remaining plain lookups are unfalsified.
+  c. the gate: unknown; recorded.
+  d. every built structure's metadata carries two storeys of rooms (medium).
+Every miss will be written below.
+
+PL.1 RESULT - chain 317 (written 2026-11-16 13:01; patch 74 over a1ceb8d2; the one live test, hamlet rig, Debug): 1 ok, 0 failed,
+  EXIT 0 - GREEN ON ITS FIRST RUN.
+  a. HIT: 6 lots, all blockhouse, stories 2.
+  b. MISS: I guessed red (furnishing or forge). 0 lot failures, 6 structures placed, 146 fixtures.
+  c. gate passed, 24 walkable / 0 blocked, 6 doors of 6 built.
+  d. HIT: every structure has 7 rooms on 2 storeys.
+  Seen, not predicted: the placed structure's metadata carries NO period (prints "?") - a built building does not say
+  which era it is; bbox heights 9 (2 structures) and 12 (4) for the same typology - not explained.
+  WHAT THIS RUN DOES NOT SHOW: the test has never been red. The two plain lookups left in the service were not
+  exercised to failure (unfalsified).
+PL.2 MUTATION, prediction BEFORE the run (chain 317m): the registry's era-qualified branch (patch 72, RoomProgram.h)
+  disabled by hand, everything else as chain 317. Prediction: RED - the plan is refused with "the era 'fixture' has no
+  typology 'blockhouse'" (the planner's refusal now reads the same lookup). The header is restored after the run and its
+  hash checked against 3a365f2f9caec860.
+
+PL.2 RESULT - chain 317m (written 2026-11-16 13:07): RED as predicted - 0 ok, 1 failed; plan REFUSED in 0.1 s: "the era 'fixture'
+  has no typology 'blockhouse' (the hamlet tier asks for it)". RoomProgram.h restored, hash 3a365f2f9caec860 (matches).
+  So the live test depends on the registry's era lookup. It is a refusal at the plan, though: the mutation shows nothing
+  about the forge or the service lookups, which were never reached.
+PL.3 (patch 75, written BEFORE the build): the service's two remaining plain lookups (SettlementBuildService.cpp, the
+  legacy natural footprint and the door fallback) ask by (typology, era). UNFALSIFIED - no run has shown them wrong; the
+  change is for consistency and is labelled so. SettlementLayout.cpp:287 / :511 (the legacy grid layouts) NOT changed.
+  Regression predictions: chain 318 unit set 186 ok / 0 failed; chain 319 full live-site + realizer set 36 ok / 0 failed
+  (35 + the fixture test; the market test green with 12 overhang columns; gates town 76 / 0, city 94 / 0, hamlet 16,
+  village 34, the 28 and 42 / 7 records unchanged; fixture hamlet 24 / 0).
+PL.3 RESULT part 1 - chain 318 (written 2026-11-17 09:16): unit set 186 ok / 0 failed, as predicted (run 2026-11-16
+  13:08:57 - 13:24:58, exe built 13:08:54).
+PL.3 chain 319 IN PROGRESS (written 2026-11-17 09:16): started 2026-11-16 13:24:59. Its wrapper shell was stopped by the
+  harness for low memory while the session was idle; the test process (pid 21712) survived and was measured still
+  writing its log on 2026-11-17 09:13 (160 KB in ~45 s). 16 of 36 ok, 0 failed so far. The run spans an overnight gap
+  with little progress (cause not measured; laptop sleep is my guess). The chain file will carry no EXIT line - the
+  result will be read from the test runner's own summary.
+PL.3 RESULT part 2 - chain 319 (written 2026-11-17 09:36): 36 ok / 0 failed, as predicted - read from the test runner's
+  own summary ("[  PASSED  ] 36 tests", ended 2026-11-17 ~09:33); the chain file has no EXIT line (wrapper stopped).
+  Gate tallies as printed: hamlet control 28 / 0; hamlet map 16 / 0 (x4 builds); village 34 / 0 (x5 builds); town 76 / 0
+  (x2); city 94 / 0 (x2); legacy city 42 walkable / 11 blocked; fixture hamlet 24 / 0 over 6 doors of 6, 146 fixtures, 6
+  structures with rooms on two storeys; market: 0 unpaved, 12 columns under an overhang.
+  MISS in my prediction text: I wrote the legacy-city record as "42 / 7". The run prints 42 walkable / 11 blocked, and
+  chains 298 and 312 print the same line - the record is unchanged; the "7" was my transcription error, not a change.
+  Wall-clock 72534 s, of which 60244 s is one idle gap inside the market test's rig set-up (16:28 -> 09:12; cause not
+  measured, laptop sleep is my guess). Test time excluding that gap: ~205 min.
+  NOT measured by this run: the two service lookups of patch 75 are still unfalsified; structure records still carry
+  no period ("period ?"); bbox heights 9 (x2) vs 12 (x4) still unexplained. One Debug rig, one seed, no Release, no L4.

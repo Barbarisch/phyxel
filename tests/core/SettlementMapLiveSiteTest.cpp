@@ -21,6 +21,7 @@
 #include <array>
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
+#include <fstream>
 
 #include <chrono>
 #include <climits>
@@ -2236,4 +2237,55 @@ TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
     EXPECT_GT(marketRoutes, 0) << "the gate walked no market route";
     EXPECT_EQ(marketBlocked, 0);
     EXPECT_EQ(out.value("gate", std::string()), "passed");
+}
+
+// M5f-1, the live half (pm_chain317.txt): a hamlet of a FIXTURE era, BUILT. The fixture's one typology is the medieval
+// tavern's record under another name and another era, so the question is only whether the era reaches the building.
+TEST(SettlementMapLiveSiteTest, AFixtureErasHamletIsBuiltFromItsOwnPack) {
+    const std::string fProgram = "test_fixture_live_program.json", fPack = "test_fixture_live_pack.json";
+    {
+        std::ifstream a("resources/settlement_program.json"), b("resources/room_program.json");
+        ASSERT_TRUE(a.is_open() && b.is_open());
+        nlohmann::json sp, rp; a >> sp; b >> rp;
+        nlohmann::json tier = sp["eras"]["medieval"]["tiers"]["hamlet"];
+        tier["typology_weights"] = nlohmann::json{{"blockhouse", 1}};
+        tier["crofts"] = nlohmann::json::object();
+        nlohmann::json era; era["eras"]["fixture"]["tiers"]["hamlet"] = tier;
+        const nlohmann::json& progs = rp.contains("programs") ? rp["programs"] : rp;
+        ASSERT_TRUE(progs.contains("tavern"));
+        nlohmann::json pack = {{"period", "fixture"}, {"programs", {{"blockhouse", progs["tavern"]}}}};
+        std::ofstream(fProgram) << era.dump(2);
+        std::ofstream(fPack) << pack.dump(2);
+    }
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("hamlet", 24)) << rig.why;
+    const auto out = realize(rig, /*legacyLayout=*/false, nlohmann::json{{"era", "fixture"}, {"tier", "hamlet"}, {"settlement_program", fProgram}, {"room_program_pack", fPack}});
+    std::remove(fProgram.c_str()); std::remove(fPack.c_str());
+    ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+    const nlohmann::json lots = out["map"].value("lots", nlohmann::json::array());
+    int wrongLot = 0;
+    for (const auto& l : lots) if (l.value("typology", std::string()) != "blockhouse" || l.value("stories", 0) != 2) ++wrongLot;
+    int structures = 0, twoStorey = 0;
+    for (const auto& [id, o] : rig.placed.getAllObjects()) {
+        if (o.category != "structure") continue;
+        ++structures;
+        const nlohmann::json bld = o.metadata.value("building", nlohmann::json::object());
+        int top = -1, rooms = 0;
+        for (const auto& rm : bld.value("rooms", nlohmann::json::array())) { ++rooms; top = std::max(top, rm.value("story", 0)); }
+        if (top + 1 == 2) ++twoStorey;
+        std::printf("[ M5f-1 ] structure %s at (%d,%d,%d): typology %s, period %s, %d rooms on %d storeys, bbox height %d%s", id.c_str(), o.position.x, o.position.y, o.position.z,
+                    bld.value("typology", o.metadata.value("typology", std::string("?"))).c_str(), bld.value("period", o.metadata.value("period", std::string("?"))).c_str(),
+                    rooms, top + 1, o.boundingMax.y - o.boundingMin.y + 1, "\n");
+    }
+    std::printf("[ M5f-1 ] live fixture hamlet: %zu lots (%d not a two-storey blockhouse on the map), %d structures placed, %d with rooms on two storeys; lot failures %zu: %s%s",
+                lots.size(), wrongLot, structures, twoStorey, out["lot_failures"].size(), out["lot_failures"].dump().substr(0, 600).c_str(), "\n");
+    std::printf("[ M5f-1 ] gate: %s, %d walkable / %d blocked, %d doors of %d built; %d fixtures placed%s", out.value("gate", std::string("?")).c_str(), out.value("walkable", 0), out.value("blocked", 0),
+                out.value("doors", -1), out.value("built", -1), out.value("fixtures", 0), "\n");
+    EXPECT_GE(lots.size(), 3u);
+    EXPECT_EQ(wrongLot, 0) << "map lots that are not the fixture era's two-storey blockhouse";
+    EXPECT_EQ(out["lot_failures"].size(), 0u) << "lots the forge refused";
+    EXPECT_EQ(structures, static_cast<int>(lots.size())) << "a structure placed per lot";
+    EXPECT_EQ(twoStorey, structures) << "built structures whose rooms are not on two storeys";
+    EXPECT_GT(out.value("fixtures", 0), 0) << "the buildings came out unfurnished";
+    EXPECT_EQ(out.value("gate", std::string()), "passed") << out.value("blocked", 0) << " routes blocked";
 }

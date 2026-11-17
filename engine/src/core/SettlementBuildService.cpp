@@ -386,8 +386,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          {"room_program", roomProgramPath}};
             return res;
         }
+        // M5f-1: {"room_program_pack": path} names the era's pack; "" = the shipped place. Handed on to every building.
+        const std::string roomProgramPack = era == "medieval" ? std::string()
+            : p.value("room_program_pack", "resources/room_programs/" + era + ".json");
         if (era != "medieval") {
-            const std::string pack = "resources/room_programs/" + era + ".json";
+            const std::string& pack = roomProgramPack;
             if (!roomReg.loadPeriodPack(pack, era)) {
                 res.error = {{"error", "no room-program pack for era '" + era + "': " + pack +
                                       " (the engine never substitutes another era's buildings)"},
@@ -1208,7 +1211,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             auto naturalRect = [&](const Core::BuildingVariant& v) {
                 int w = plotW, d = plotD;
                 if (!mainStreetMode && !mapLots) {   // a map lot's footprint IS the typology's natural, oriented size
-                    if (const Core::RoomProgram* rp = roomReg.get(v.typology)) {
+                    if (const Core::RoomProgram* rp = roomReg.get(v.typology, era)) {
                         const Core::NaturalFootprint nf = Core::naturalFootprintOf(*rp);   // M5b-1: one derivation
                         const int natLong = nf.longU, natShort = nf.shortU;
                         if (plotW >= plotD) { w = natLong; d = natShort; }
@@ -1276,7 +1279,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // frontage; the autofill is deterministic in (typology, footprint, front, the position seed), so the
                 // door's wall cell is PREDICTED here exactly as the forge will place it, and the way is read at its
                 // approach (two cells out along the normal). The midpoint stays the fallback.
-                if (const Core::RoomProgram* rp = roomReg.get(var.typology)) {
+                if (const Core::RoomProgram* rp = roomReg.get(var.typology, era)) {
                     Core::BuildingProgram pp;
                     pp.name = var.typology; pp.typology = var.typology; pp.footprintW = bw; pp.footprintD = bd;
                     pp.substructure = "slab"; pp.front = front;
@@ -1302,7 +1305,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
             }
             auto makeBp = [&](const Core::BuildingVariant& v, int w, int d, int x, int z) {
-                return nlohmann::json{
+                nlohmann::json bpj = nlohmann::json{
                     {"schema", "v2"}, {"type", "house"}, {"style", v.style}, {"typology", v.typology},
                     {"period", era}, {"room_program", roomProgramPath},   // M0: the era reaches every building
                     {"footprint_shape", v.footprintShape}, {"front", front},
@@ -1312,6 +1315,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     {"stories", nlohmann::json::array({nlohmann::json{{"height", 3}}})},
                     {"allow_ungrounded", allowUngrounded}   // settlement gate already ran
                 };
+                if (!roomProgramPack.empty()) bpj["room_program_pack"] = roomProgramPack;   // M5f-1: the era's pack reaches the forge
+                return bpj;
             };
             nlohmann::json bp  = makeBp(var, bw, bd, bx, bz);
             nlohmann::json bp2 = makeBp(var2, bw2, bd2, bx2, bz2);
