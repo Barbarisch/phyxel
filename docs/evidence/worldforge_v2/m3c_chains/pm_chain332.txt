@@ -170,3 +170,21 @@ RESULTS of PL.8 (written 2026-11-17 12:40)
   chain 347 (Release, full live + realizer set; run to 12:48:38): 37 ok / 0 failed; the 126 distinct medieval record
     lines identical to chain 341's (diff empty). The Debug unit set was NOT re-run after the fence data and the two new
     measures (last: chain 343, 188 / 0); chain 346 ran SettlementProgramTest on Release, 0 failed.
+
+L4, second look (written 2026-11-17 12:54) - same exe (built 12:31, BEFORE the fence data change; data is read at run time), same
+  project, same single call to POST /api/settlement/build (async this time: job 1000000 accepted).
+  Engine log: "fences: 0 parcels fenced, 10 unfenced by policy ... 0 micros" (12:51:20); "walkability gate: 30 walkable,
+    0 blocked over 30 routes (10 front doors of 10 built, 0 skipped)" (12:51:29).
+  docs/evidence/worldforge_v2/m5f2a_l4_street_nofence.png (camera 66,20,60 yaw -135 pitch -6, the pose of
+    m5f2a_l4_street.png): the picket fences at the house fronts are GONE - before / after at one pose.
+  The roof question: m5f2a_l4_street_tonemap0.png, the same pose after POST /api/debug/tonemap {"curve":0}: the roofs
+    are STILL straw-coloured with horizontal courses. So it is not the tone curve. GET /api/materials in that engine:
+    Thatch id 31 (thatch_*.png), ClayTile id 32 (clay_tile_*.png) - ADJACENT ids. A LEAD, not a finding: ClayTile
+    may be drawn with the neighbouring material's texture layer. The test I tried to settle it did NOT complete: four
+    2 x 2 x 2 blocks by POST /api/world/fill (Thatch, ClayTile, Slate, Bricks at x 60 / 64 / 68 / 72, y 17-18, z 54-55);
+    three existed when queried, the fourth never appeared, two screenshot calls timed out waiting for the game loop,
+    and the engine process had grown to 10.1 GB - I stopped it. No picture of the blocks exists.
+  The project's default.db and -wal were again not written; the tester is as found.
+  OPEN: the ClayTile render mismatch (roofs of every style that uses ClayTile would be affected if the lead is right -
+    not checked on a medieval stone_manor); the editor growing to 10 GB and stalling after four small fills beside a
+    built settlement (one observation, not investigated).
