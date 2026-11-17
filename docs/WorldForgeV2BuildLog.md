@@ -718,3 +718,27 @@ kitchen), green 322, mutation 323 (the service not handing the pack on: 6 forge 
 Audited PASS WITH CONDITIONS (ledger). Open: the forge's own read of the pack unmutated; rooms read from the record, not
 voxels; the period field echoes the request; a gate over 0 doors still prints "passed"; fixture era only, one seed,
 Release live set only, no L4. The whole loop took ~35 min on the new rig.
+
+### 2026-11-17 - the gate over nothing built; M5f-2a, the Roman strip building as data
+
+**The empty gate (066e6cd5, 23eee679; pm_chain327.txt).** A fixture hamlet whose six lots were all refused printed
+"gate: passed, 0 doors of 0 built". `gateOutcome` now reads "empty" and fails the build (overridable) when nothing was
+built; this reverses the earlier reading that the lot failures carry that outcome. Red 327, green 328, the live mutation
+329 prints "empty"; Release live set 36 / 0 with the medieval record lines identical by diff, Debug unit set 187 / 0.
+Audited PASS WITH CONDITIONS; stale comments and the MCP description fixed, the unseated-over-empty order pinned. The
+WorldForge build path's refusal of such a site is read from the code, not run.
+
+**M5f-2a (pm_chain332.txt; design check and O33 in the plan).** The first shipped second-era data: `roman.json`
+(strip_building), `eras.roman.tiers.hamlet`, style `roman_strip` - every number labelled in the files; three grounding
+passes plus three publications read directly (m5f_strip_building_grounding.txt). Headless on a flat 104 x 64, 8 seeds:
+68 lots, all one-storey 8 x 18 strip buildings, door on the street end, every lot on the through road, neighbours 2
+apart, no overlap; a control with the old spacing measure gives gaps of 7. Live (Release, the village site): 10 lots,
+10 structures, 0 refusals, gate 30 / 0 over 10 doors. Engine change: an opt-in parcel-edge sociability measure
+(`bells.sociability.measure: edge`) - the centre measure spaced narrow deep lots 7 apart whatever the data said;
+medieval tiers do not set it (live set 37 / 0 with medieval lines identical by diff; unit set 188 / 0 after an integrity
+test that looked every era up in the medieval file was made era-aware). Audited PASS WITH CONDITIONS and ACCEPT WITH
+CHANGES (15 label corrections applied, values unchanged). **Not a roadside settlement yet:** on terrain 6 of 10 houses
+form the row and 4 stray (read by eye); one side fills before the other; no portico; one storey by design choice; the
+9- and 2-cube test thresholds were set after seeing the output; the road is assumed along x in the test; a Roman build
+without an explicit styles list gets medieval styles; the tier borrows the village site (O33); no L4 - nobody has looked
+at a strip building; the full live and unit sets were not re-run after the final label / test-only changes.

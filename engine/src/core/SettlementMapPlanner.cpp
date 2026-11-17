@@ -484,6 +484,16 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                         }
                         // the distance is measured from the candidate's CENTRE to the nearest seated lot's edge, so the
                         // preferred value is the gap plus half the toft's depth (stated in the bells' sources entry)
+                        if (seated > 0 && B.socialFromEdge) {
+                            // M5f-2a: the clear distance between this parcel and the nearest seated one (0 = touching)
+                            float nearest = 1e9f;
+                            for (const auto& l : map.lots) {
+                                const int dx = std::max(0, std::max(s.rect.x - l.rect.x1(), l.rect.x - s.rect.x1()));
+                                const int dz = std::max(0, std::max(s.rect.z - l.rect.z1(), l.rect.z - s.rect.z1()));
+                                nearest = std::min(nearest, std::sqrt(static_cast<float>(dx * dx + dz * dz)));
+                            }
+                            interest *= bell(nearest, socG0, socG1);
+                        } else
                         if (seated > 0) interest *= bell(lotDist[static_cast<size_t>(g.idx(s.rect.x + s.rect.w / 2, s.rect.z + s.rect.d / 2))], socG0 + static_cast<float>(d.depth) * 0.5f, socG1);
                         if (interest > 1e-6f) cands.push_back({x, z, o, pal, interest, s});
                     }

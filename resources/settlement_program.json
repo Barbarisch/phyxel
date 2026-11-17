@@ -3,6 +3,69 @@
   "_units": "cubes (metres). street.main_width / lane_width are paved widths; plot.depth_* is the toft depth back from the street; setback is the yard between street edge and building front.",
   "_era_hook": "Top-level `eras` map is the extension point: a future era (e.g. iron_age, renaissance) adds its own tiers WITHOUT C++ changes. Only `medieval` ships; the loader must surface an unknown era as an ERROR, never silently default.",
   "eras": {
+    "roman": {
+      "tiers": {
+        "hamlet": {
+          "description": "A roadside settlement (vicus) of strip buildings in the north-west provinces - houses in a row on both sides of a through road, narrow ends to it.",
+          "morphology": "main_street",
+          "buildings": {
+            "min": 5,
+            "max": 12
+          },
+          "street": {
+            "main_width": 6,
+            "lane_width": 3,
+            "material": "Gravel"
+          },
+          "plot": {
+            "frontage": "from_typology",
+            "depth_min": 22,
+            "depth_max": 28,
+            "side_gap": 0
+          },
+          "setback": {
+            "min": 1,
+            "max": 1
+          },
+          "typology_weights": {
+            "strip_building": 1
+          },
+          "crofts": {},
+          "public": {},
+          "bells": {
+            "road_access": {
+              "preferred_u": 1,
+              "spread_u": 3,
+              "floor": 0.05
+            },
+            "slope": {
+              "relief_half_u": 3
+            },
+            "water": {
+              "preferred_u": 16,
+              "spread_u": 16,
+              "floor": 0.3
+            },
+            "sociability": {
+              "gap_u": 0,
+              "spread_u": 3,
+              "measure": "edge"
+            }
+          },
+          "sources": {
+            "bells": "DESIGN: the planner's growth parameters, not Roman measurements. road_access, slope and water are the medieval street tiers' values unchanged. sociability gap 0 / spread 3 measured parcel edge to parcel edge ('measure': 'edge' - the default centre measure spaces a narrow, deep parcel 7 cubes from its neighbour whatever the gap says) seats each PARCEL against the last - expressing the qualitative record (houses wall to wall or parted by a narrow passage; a row of at least five in one trench; two rows along the road), for which no spacing in metres exists.",
+            "morphology": "GROUNDED: 'two rows of houses along the main roads' at Euskirchen-Billig, Juenkerath and Stolberg-Breinigerberg (LEIZA Germania Inferior vici page, third pass of the record); dense building on both sides of the road at Nettersheim, and at Hibaldstow (secondary). Record: docs/evidence/worldforge_v2/m5f_strip_building_grounding.txt",
+            "buildings": "min 5 REASONED: Ottmarsheim 'eine Reihe von mindestens fuenf Haeusern' is one row in one excavation trench (secondary) - it shows such a row existed, NOT a minimum settlement size. max 12 REASONED. NO SOURCE for a plot count of a small roadside settlement.",
+            "street": "GROUNDED, one pick inside a range: Linz (Noricum) greatest street width 6 m, cross streets 3 m; Mautern up to 6.5 m; Traismauer's oldest phase at most 4 m (LEIZA Noricum vici); elsewhere roads run from about 5 m to over 10 m (English Heritage) and Nettersheim's road bed is 8-12 m. These are overall street widths; the engine treats the value as the paved width. Gravel is REASONED - no surfacing text retrieved for a vicus road.",
+            "plot": "DESIGN: depth 22-28 is cut to the 64-deep site the settlement is proven on. Retrieved plots are DEEPER: about 10 x 40 m at Mautern, 33.3 m at Moosham (O33).",
+            "plot.side_gap": "DESIGN: 0 - neighbouring PARCELS touch. With the 1-cube setback on each side the HOUSES then stand 2 m apart. Texts give party walls, a narrow ambitus, or 'ein Abstand in Gehwegbreite' (Nettersheim) - NO metres anywhere.",
+            "setback": "DESIGN: 1 cube, in front and (the planner's rule) on each side, so neighbouring houses stand 2 m apart on touching parcels. The Twelve Tables' 2.5 feet is 5th-c. BC Rome, not a vicus. The portico's ground in front is NOT reserved.",
+            "typology_weights": "The era has one typology so far (M5f-2a). Other attested buildings of a small roadside settlement (simple rectangular houses that are not elongated; a round house at Duston) are not modelled.",
+            "tier": "The era's smallest tier (D68). Keyed 'hamlet' because tier names are shared across eras; it does not fit a hamlet's 56 x 44 site rectangle (O33)."
+          }
+        }
+      }
+    },
     "medieval": {
       "tiers": {
         "hamlet": {

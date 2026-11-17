@@ -143,6 +143,63 @@
         "roof.pitch_deg": "FLAT: keeps were battlemented wall-walks (a low lead roof behind the parapet), not a pitched roof",
         "ceiling_target": "ANTHROPOMETRIC + status: keep halls are tall"
       }
+    },
+    "roman_strip": {
+      "description": "Roman strip building, north-west provinces: timber framing on a rubble-stone plinth, tiled gable roof. (The infill of the frame is not in the record - no daub source.)",
+      "roof_style": "gable",
+      "foundation": "crawlspace",
+      "source": "Record: docs/evidence/worldforge_v2/m5f_strip_building_grounding.txt (third pass, 2026-11-17).",
+      "thickness": {
+        "exterior_wall": 0.222,
+        "interior_wall": 0.111,
+        "foundation_wall": 0.556,
+        "floor": 0.333,
+        "ceiling": 0.111
+      },
+      "materials": {
+        "structure": "WoodPlanks",
+        "cladding": "WoodPlanks",
+        "trim": "WoodPlanks",
+        "floor": "Wood",
+        "roof": "ClayTile",
+        "foundation": "Stone"
+      },
+      "trim": {
+        "baseboard_height": 0.0,
+        "casing_width": 0.0
+      },
+      "flags": {
+        "exposed_beams": true,
+        "quoins": false
+      },
+      "roof": {
+        "pitch_deg": 45.0,
+        "overhang": 0.4
+      },
+      "ceiling": {
+        "humble": 2.5,
+        "grand": 3.0
+      },
+      "sources": {
+        "roof_style": "GROUNDED: gabled roof, the gable to the street (Eisenberg; de.wikipedia Vicus).",
+        "foundation": "DESIGN, NO SOURCE: 'crawlspace' is the engine's substructure kind, copied from timber_cottage. The record has cellars at the front (under the portico) or the back of some houses - not modelled.",
+        "thickness.exterior_wall": "NO ROMAN SOURCE: the medieval wattle-and-daub figure (timber_cottage, 0.222) reused BY ANALOGY of construction ('rubble plinth with timber-framed walls above', Nettersheim). The retrieved Roman widths are plinths or stone walls, not the timber wall.",
+        "thickness.interior_wall": "NO SOURCE: timber_cottage's inferred value, reused.",
+        "thickness.foundation_wall": "GROUNDED from TOWN evidence: standing wall widths 'einheitlich bei 50 cm' (Straumann 2011, Augusta Raurica Insula 50, a colonia - the width of the standing wall, and the author leaves open whether it is full stone or a plinth for framing) and 60 cm for a stone strip house at Bad Wimpfen, a civitas capital (cited by Straumann from Kortuem 2005, not opened); a rubble foundation 0.61 m wide in Britain (Mac Mahon 2000). 0.556 (5 micro) lies between them. No width is retrieved for a small roadside settlement.",
+        "thickness.floor": "NO SOURCE: timber_cottage's inferred value. Retrieved floors are clay or simple mortar (LEIZA) - not modelled.",
+        "thickness.ceiling": "NO SOURCE: timber_cottage's inferred value.",
+        "materials.structure": "GROUNDED as construction (timber framing on sill beams over a rubble plinth: Nettersheim, Brough-on-Humber, LEIZA); WoodPlanks is the engine's timber-wall material.",
+        "materials.cladding": "DESIGN: the engine's timber-wall material; the frame's infill is NOT in the record.",
+        "materials.trim": "DESIGN: engine material pick.",
+        "materials.floor": "DESIGN: 'Wood' is the engine's floor material; the retrieved floors are clay or mortar.",
+        "materials.roof": "GROUNDED: 'roofs of red tile, sometimes slate' (Nettersheim). ClayTile is the engine's tile material.",
+        "materials.foundation": "GROUNDED as construction: a rubble / stone plinth (Nettersheim; Brough footing stones). 'Stone' is the engine material.",
+        "trim": "DESIGN: no trim modelled (0 / 0), as timber_cottage.",
+        "flags": "DESIGN, NO SOURCE: exposed_beams and quoins copied from timber_cottage; nothing in the record speaks to either.",
+        "roof.pitch_deg": "GROUNDED as a MINIMUM (one statement): 'A roof with a minimum pitch of 45 degrees seems to have been the most effective for both thatch and tile roofs' (Mac Mahon, The taberna structures of Roman Britain, Durham 2000 - Britain; its own source not opened). 45 is that floor, not a measured pitch of any strip building.",
+        "roof.overhang": "FLAGGED modern analog, as timber_cottage - NO Roman source.",
+        "ceiling": "DESIGN, NO ROMAN SOURCE: 2.5 / 3.0 are timber_cottage's ceiling targets, which that style labels anthropometric (character clearance), not period. No eaves, ridge or ceiling height of a strip building is retrieved; Ostia's 3.5 m ground storey is an Italian proxy and Mac Mahon's 2 m is a door height."
+      }
     }
   }
 }

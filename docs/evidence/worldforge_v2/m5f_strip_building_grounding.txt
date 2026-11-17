@@ -58,3 +58,62 @@ What this supports, and what it does not (my reading, to be put to the design ch
   with well behind; timber on sills over a rubble plinth; a road 6-8 m wide through it. ONE storey is the only reading
   with any text behind it and that text is an assumption; two storeys is a modern reconstruction. Heights, wall thickness,
   portico depth and house-to-house gap have NO SOURCE.
+
+==== THIRD PASS, 2026-11-17 (grounding-auditor, web) + what I then read myself from three open-access PDFs ====
+The auditor's result for the seven NO SOURCE items: no retrieved number for portico depth, wall thickness, any height,
+the house-to-house gap in metres, room depths or cellar size. Partial: Twelve Tables VII.1 "Clearance shall be two and
+one-half feet" (Yale Avalon, https://avalon.law.yale.edu/ancient/twelve_tables.asp - a translation of a fragmentary
+text, 5th c. BC Rome; no evidence it was applied in a provincial vicus; the word ambitus is not on the page); Ottmarsheim
+vicus "sechs Keller und vier Steinbrunnen ... eine Reihe von mindestens fuenf Haeusern" (de.wikipedia, secondary; one
+excavation window, not a settlement total); Bad Wimpfen (a civitas capital - upper bound) plots "8 - 12m wide", houses
+"20-30m long", "each plot contained a single building" (LEIZA); front room often spanning the full width, read as a shop;
+rear part one large room with rooms partitioned off in its corners; yard with oven and/or well (de.wikipedia, LEIZA).
+Its tool could not open four publications (size limit / bot wall). I downloaded three and read their text (pdftotext;
+the fourth, Kreckel's Eisenberg dissertation, sits behind a bot challenge and was left alone):
+
+A. Sven Straumann, Die Nordwestecke der Insula 50 von Augusta Raurica (Forschungen in Augst 47, Augst 2011) - a craft
+   quarter in a COLONIA (a town, so an upper-context source for a roadside vicus), building 5003 with its narrow side to
+   the Venusstrasse. READ BY ME, quoted from the extracted text:
+   - portico: "zeigt sich die Portikus nun als rund 2 m breiter gedeckter Fussgaengerbereich" (along both streets); "von
+     Gebaeude 5003.C eine 2 m breite Portikus"; a stone portico wall divided by pier foundations at regular intervals.
+   - roadside ditch along the portico wall: "ein rund 90 cm breiter Strassengraben".
+   - walls: "Die Breiten des Aufgehenden liegen einheitlich bei 50 cm" - and the author leaves open whether that is a
+     full stone wall or a plinth for timber framing ("muss die Rekonstruktion des Aufgehenden ... offen bleiben");
+     later walls "Breite des aufgehenden Mauerwerks: 60 cm", "etwa 70 cm", "Mauerstaerken zwischen 40 cm und 70 cm".
+     Footnote 119: "Die tragenden Waende eines Streifenhauses aus Stein in Wimpfen wiesen eine Mauerstaerke von 60 cm
+     auf" (citing Kortuem 2005, 256 - not opened; wall widths and reconstructed building heights: Kaiser/Sommer 1994,
+     344-351 - not opened).
+   - span and upper floor: the beams "mussten ... lediglich 6-7 m ueberspannen"; an upper floor is called possible
+     ("eines allfaelligen Obergeschosses") and elsewhere "unter Voraussetzung einer kaum zu belegenden
+     Zweigeschossigkeit" - i.e. hardly demonstrable. Building 5003.D "ungefaehr 21 m lang".
+B. A. J. Mac Mahon, The taberna structures of Roman Britain (PhD thesis, Durham 2000, etheses.durham.ac.uk/4367; OCR
+   text). READ BY ME:
+   - porticoes in TOWNS: Colchester "porticoes flanked the streets. These were usually 3m wide and had a floor surface
+     of compacted gravel"; Verulamium insula xiv "a continuous colonnade about 3.35m wide fronting the tabernae";
+     Wroxeter "a colonnade some 6m wide" (forum side - not a house portico).
+   - roof: "A roof with a minimum pitch of 45 [degrees] seems to have been the most effective for both thatch and tile
+     roofs" (the thesis's statement, its own source at note 223 not opened); "The oldest form of roofing is thought to be
+     a gable roof".
+   - doors: interior doorways "normally averaged 2m in height and 1m in width"; Ostia "the average height of the ground
+     story is known to be 3.5m" (Italy - a proxy, as in the first pass).
+   - a rubble foundation "0.61m wide" (one building; context not read further).
+   - standing two-storey masonry sides survive at Meonstoke, Stanwick, Carsington and Batten Hanger (rural, not strip
+     buildings) - "To date there have been no such finds in any urban settlement."
+C. Basel Materialhefte 17 (Rittergasse 16): only general typology text found (cellars under the portico or at the back;
+   Sommer's definition of the strip house by its long-rectangular plan); no new number taken from it.
+
+STILL NO SOURCE after three passes: any eaves, ridge or ceiling height of a strip building; the gap between two strip
+houses in metres from an excavation; the depth of the front room; cellar size; the number of plots in the smallest
+roadside settlement (only ">= 5 in one trench"); real evidence for an upper floor in a strip building (the only texts
+are an assumption of one storey, modern two-storey reconstructions, and "hardly demonstrable").
+
+ADDITIONS 2026-11-17 (the label audit found two things cited in the data that this record did not hold):
+ - Straumann 2011 (FiA 47), read by me in the extracted text: "Zwei weitere Pfeiler (Pf 5003.D.1 und Pf 5003.D.2)
+   untergliedern in regelmaessigen Abstaenden von 5,30 m die Westfassade von Gebaeude 5003.D" - a pier spacing along a
+   facade in a colonia; not a bay length of a timber strip house, and not used for any number.
+ - LEIZA, Germania Inferior vici (third pass, opened by the grounding auditor, as reported by it - I did not open it):
+   front room often spanning the full width, usually read as a shop; early houses at Juenkerath and Zuelpich "post-built
+   or cill-beam structures", later "stone dwarf walls"; "The floors were made of clay or simple mortar"; Euskirchen-
+   Billig, Juenkerath and Stolberg-Breinigerberg have "two rows of houses along the main roads" (no counts).
+   https://www1.leiza.de/transformation/deutschland/vicientstehunggermaniainferior/transformationgivici_engl.htm
+ - The record has NO text for daub or any infill of the timber frame.

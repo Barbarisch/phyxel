@@ -2366,3 +2366,48 @@ TEST(SettlementMapLiveSiteTest, AFixtureErasHamletIsBuiltFromItsOwnPack) {
     EXPECT_GT(out.value("fixtures", 0), 0) << "the buildings came out unfurnished";
     EXPECT_EQ(out.value("gate", std::string()), "passed") << out.value("blocked", 0) << " routes blocked";
 }
+
+// M5f-2a (pm_chain332.txt): the SHIPPED second era, BUILT. A Roman roadside settlement of strip buildings from the
+// shipped data alone (no pack or program override), on the village's site (O33: a hamlet's 56 x 44 does not hold it).
+TEST(SettlementMapLiveSiteTest, ARomanRoadsideSettlementIsBuilt) {
+    LiveSiteRig rig;
+    ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
+    const auto out = realize(rig, /*legacyLayout=*/false, nlohmann::json{{"era", "roman"}, {"tier", "hamlet"}, {"styles", nlohmann::json::array({"roman_strip"})}});
+    ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+    const nlohmann::json lots = out["map"].value("lots", nlohmann::json::array());
+    int wrongLot = 0;
+    for (const auto& l : lots) if (l.value("typology", std::string()) != "strip_building" || l.value("stories", 0) != 1) ++wrongLot;
+    int structures = 0, wrongRecord = 0, wrongRooms = 0;
+    for (const auto& [id, o] : rig.placed.getAllObjects()) {
+        if (o.category != "structure") continue;
+        ++structures;
+        const nlohmann::json bld = o.metadata.value("building", nlohmann::json::object());
+        if (bld.value("typology", std::string()) != "strip_building" || bld.value("period", std::string()) != "roman") ++wrongRecord;
+        int shop = -1, living = -1, upper = 0;
+        for (const auto& rm : bld.value("rooms", nlohmann::json::array())) {
+            if (rm.value("story", 0) != 0) { ++upper; continue; }
+            if (!rm.contains("rect")) continue;
+            const int area = rm["rect"][2].get<int>() * rm["rect"][3].get<int>();
+            const std::string p = rm.value("purpose", std::string());
+            if (p == "salesroom") shop = std::max(shop, area);
+            if (p == "living") living = std::max(living, area);
+        }
+        if (shop <= 0 || living <= shop || upper != 0) ++wrongRooms;
+        std::printf("[ M5f-2a ] %s at (%d,%d,%d): typology %s, period %s, style %s; salesroom %d cells, living %d cells, %d upper rooms; bbox %d x %d x %d%s", id.c_str(),
+                    o.position.x, o.position.y, o.position.z, bld.value("typology", std::string("?")).c_str(), bld.value("period", std::string("?")).c_str(),
+                    bld.value("style", std::string("?")).c_str(), shop, living, upper, o.boundingMax.x - o.boundingMin.x + 1, o.boundingMax.y - o.boundingMin.y + 1,
+                    o.boundingMax.z - o.boundingMin.z + 1, "\n");
+    }
+    std::printf("[ M5f-2a ] live roman roadside settlement: %zu lots (%d not a one-storey strip building on the map), %d structures; records wrong %d, rooms wrong %d; lot failures %zu: %s%s",
+                lots.size(), wrongLot, structures, wrongRecord, wrongRooms, out["lot_failures"].size(), out["lot_failures"].dump().substr(0, 700).c_str(), "\n");
+    std::printf("[ M5f-2a ] gate: %s, %d walkable / %d blocked, %d doors of %d built; %d fixtures placed%s", out.value("gate", std::string("?")).c_str(), out.value("walkable", 0),
+                out.value("blocked", 0), out.value("doors", -1), out.value("built", -1), out.value("fixtures", 0), "\n");
+    EXPECT_GE(lots.size(), 5u) << "under the tier's minimum";
+    EXPECT_EQ(wrongLot, 0);
+    EXPECT_EQ(out["lot_failures"].size(), 0u) << "lots the forge refused";
+    EXPECT_EQ(structures, static_cast<int>(lots.size())) << "a structure placed per lot";
+    EXPECT_EQ(wrongRecord, 0) << "placed structures whose record is not strip_building / roman";
+    EXPECT_EQ(wrongRooms, 0) << "placed structures without a front salesroom and a strictly larger living room on one storey";
+    EXPECT_GT(out.value("fixtures", 0), 0) << "the buildings came out unfurnished";
+    EXPECT_EQ(out.value("gate", std::string()), "passed") << out.value("blocked", 0) << " routes blocked";
+}

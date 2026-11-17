@@ -58,17 +58,22 @@ TEST(SettlementProgramTest, EveryTierTypologyExistsInRoomProgram) {
     SettlementProgramRegistry sreg;
     RoomProgramRegistry rreg;
     if (!loadShipped(sreg) || !loadRooms(rreg)) GTEST_SKIP() << "canon files not reachable from CWD";
-    for (const std::string& era : sreg.eras())
+    for (const std::string& era : sreg.eras()) {
+        // M5f-2a (pm_chain332, chain 342): an era other than medieval keeps its programs in its own pack, looked up by
+        // (name, era). The pack must load - an era in the settlement program without one could build nothing.
+        if (era != "medieval")
+            ASSERT_TRUE(rreg.loadPeriodPack("resources/room_programs/" + era + ".json", era)) << "era '" << era << "' has no room-program pack";
         for (const std::string& tier : sreg.tiers(era)) {
             const SettlementTierPreset* t = sreg.get(era, tier);
             ASSERT_NE(t, nullptr);
             for (const auto& [typ, w] : t->typologyWeights)
-                EXPECT_TRUE(rreg.contains(typ))
+                EXPECT_TRUE(era == "medieval" ? rreg.contains(typ) : rreg.get(typ, era) != nullptr)
                     << era << "/" << tier << " weights unknown typology '" << typ << "'";
             for (const auto& [typ, w] : t->coreTypologyWeights)
-                EXPECT_TRUE(rreg.contains(typ))
+                EXPECT_TRUE(era == "medieval" ? rreg.contains(typ) : rreg.get(typ, era) != nullptr)
                     << era << "/" << tier << " CORE weights unknown typology '" << typ << "'";
         }
+    }
 }
 
 // Grounding rule: every shipped tier carries per-value provenance (sources may FLAG a value as

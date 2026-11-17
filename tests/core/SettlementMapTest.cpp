@@ -2089,6 +2089,134 @@ struct FixtureEra {
 };
 }  // namespace
 
+// M5f-2a (pm_chain332.txt): the SHIPPED second era. A Roman roadside settlement plans strip buildings from the shipped
+// files alone (settlement_program.json eras.roman, room_programs/roman.json): the narrow side on the street, 8 x 18,
+// one storey. The site is the village's 104 x 64 - a hamlet's 56 x 44 does not hold two rows of 18-long houses (O33).
+TEST(SettlementMapTest, ARomanRoadsideSettlementPlansStripBuildingsGableOn) {
+    SettlementProgramRegistry program; RoomProgramRegistry rooms;
+    ASSERT_TRUE(program.loadFromFile("resources/settlement_program.json"));
+    ASSERT_TRUE(rooms.loadFromFile("resources/room_program.json"));
+    const auto* tier = program.get("roman", "hamlet");
+    ASSERT_NE(tier, nullptr) << "the shipped settlement program has no era roman with a hamlet tier";
+    ASSERT_TRUE(rooms.loadPeriodPack("resources/room_programs/roman.json", "roman")) << "the shipped roman room-program pack did not load";
+    int plans = 0, lots = 0, wrongType = 0, wrongStories = 0, notGableOn = 0, noDoor = 0, doorNotOnShortSide = 0, fewest = 1 << 30;
+    int onPrimary = 0, widestGap = 0, bothSides = 0;   // PL.5: the row (pm_chain332.txt)
+    int overlapping = 0, controlNarrowest = 1 << 30;   // PL.7: the audits' conditions
+    for (unsigned seed = 1; seed <= 8; ++seed) {
+        SettlementMapInput in;
+        in.tier = tier; in.rooms = &rooms; in.era = "roman";
+        in.seed = seed; in.W = 104; in.D = 64;
+        in.heightAt = flatHeight; in.waterAt = {};
+        in.entries = {{0, 32, 1}};
+        const SettlementMap m = planSettlementMap(in);
+        if (!m.ok()) { std::printf("[ M5f-2a ] roman seed %u: REFUSED: %s%s", seed, m.refusal.c_str(), "\n"); continue; }
+        ++plans;
+        if (seed == 1) {   // the layout as data, one seed (chain 336 diagnostic: where the ways and the doors are)
+            for (const auto& w : m.ways) {
+                std::string pts;
+                for (int nid : w.nodes) for (const auto& nd : m.nodes) if (nd.id == nid) pts += " (" + std::to_string(nd.x) + "," + std::to_string(nd.z) + ")";
+                std::printf("[ M5f-2a ]   way %d %s width %.0f:%s%s", w.id, w.highway.c_str(), w.width, pts.c_str(), "\n");
+            }
+            for (const auto& l : m.lots)
+                std::printf("[ M5f-2a ]   lot %d footprint [%d,%d,%d,%d] orientation %d door (%d,%d) way %d%s", l.id, l.footprint.x, l.footprint.z, l.footprint.w,
+                            l.footprint.d, l.orientation, l.doorX, l.doorZ, l.way, "\n");
+        }
+        fewest = std::min(fewest, static_cast<int>(m.lots.size()));
+        for (const auto& l : m.lots) {
+            ++lots;
+            if (l.typology != "strip_building") ++wrongType;
+            if (l.stories != 1) ++wrongStories;
+            // the street runs across the door's facing: orientation 0 / 2 faces +-Z, so the footprint's w lies along it
+            const bool facesZ = (l.orientation == 0 || l.orientation == 2);
+            const int along = facesZ ? l.footprint.w : l.footprint.d, back = facesZ ? l.footprint.d : l.footprint.w;
+            if (along != 8 || back != 18) ++notGableOn;
+            // "fronts the through road": the door stands within 9 cubes of the primary way's centre line and faces it.
+            // 9 was set AFTER seeing chain 336 (the doors stood 8 from the centre line) - it pins what the planner
+            // does, it is not derived. A lot's own `way` is its approach, so it is not the test. The road is ASSUMED
+            // to run along x (this test's entry).
+            if (l.hasDoor) {
+                double best = 1e9;
+                for (const auto& w : m.ways) {
+                    if (w.highway != "primary") continue;
+                    for (size_t k = 0; k + 1 < w.nodes.size(); ++k) {
+                        const MapNode *a = nullptr, *b = nullptr;
+                        for (const auto& nd : m.nodes) { if (nd.id == w.nodes[k]) a = &nd; if (nd.id == w.nodes[k + 1]) b = &nd; }
+                        if (!a || !b) continue;
+                        const double vx = b->x - a->x, vz = b->z - a->z, len2 = vx * vx + vz * vz;
+                        double t = len2 > 0 ? ((l.doorX - a->x) * vx + (l.doorZ - a->z) * vz) / len2 : 0.0;
+                        t = std::max(0.0, std::min(1.0, t));
+                        best = std::min(best, std::hypot(l.doorX - (a->x + t * vx), l.doorZ - (a->z + t * vz)));
+                    }
+                }
+                // the road runs along x here (the entry is on the x = 0 edge): a house facing it has orientation 0 or 2
+                if (best <= 9.0 && facesZ) ++onPrimary;
+            }
+            if (!l.hasDoor) { ++noDoor; continue; }
+            // the door's wall cell lies on the footprint edge that faces the street (a short side)
+            const bool onFront = l.orientation == 0 ? l.doorZ == l.footprint.z + l.footprint.d - 1
+                               : l.orientation == 2 ? l.doorZ == l.footprint.z
+                               : l.orientation == 1 ? l.doorX == l.footprint.x + l.footprint.w - 1
+                                                    : l.doorX == l.footprint.x;
+            if (!onFront) ++doorNotOnShortSide;
+        }
+        std::printf("[ M5f-2a ] roman seed %u: %zu lots, %zu ways; first lot %s %d x %d orientation %d, %d storey(s)%s", seed, m.lots.size(), m.ways.size(),
+                    m.lots.empty() ? "-" : m.lots[0].typology.c_str(), m.lots.empty() ? 0 : m.lots[0].footprint.w, m.lots.empty() ? 0 : m.lots[0].footprint.d,
+                    m.lots.empty() ? -1 : m.lots[0].orientation, m.lots.empty() ? 0 : m.lots[0].stories, "\n");
+        // the rows: on each side of the road (by the door's facing) the footprints in x order, and the gaps between neighbours
+        int sides = 0, seedGap = 0;
+        for (const int o : {0, 2}) {
+            std::vector<std::pair<int, int>> spans;
+            for (const auto& l : m.lots) if (l.orientation == o) spans.push_back({l.footprint.x, l.footprint.x + l.footprint.w});
+            if (spans.empty()) continue;
+            ++sides;
+            std::sort(spans.begin(), spans.end());
+            for (size_t k = 0; k + 1 < spans.size(); ++k) seedGap = std::max(seedGap, spans[k + 1].first - spans[k].second);
+        }
+        if (sides == 2) ++bothSides;
+        widestGap = std::max(widestGap, seedGap);
+        // PL.7: no two footprints overlap - all pairs, whatever their orientation (a negative gap passed the row check)
+        for (size_t a = 0; a < m.lots.size(); ++a)
+            for (size_t b = a + 1; b < m.lots.size(); ++b) {
+                const Rect &fa = m.lots[a].footprint, &fb = m.lots[b].footprint;
+                if (fa.x < fb.x1() && fb.x < fa.x1() && fa.z < fb.z1() && fb.z < fa.z1()) ++overlapping;
+            }
+        // PL.7, the CONTROL: the same tier with the sociability measure put back to the centre must NOT make rows
+        // (chain 338: gaps of 7) - the row assertion below is one that fails without the edge measure
+        {
+            SettlementTierPreset centre = *tier;
+            centre.bells.socialFromEdge = false;
+            SettlementMapInput cin = in; cin.tier = &centre;
+            const SettlementMap cm = planSettlementMap(cin);
+            int cGap = 0;
+            for (const int o : {0, 2}) {
+                std::vector<std::pair<int, int>> spans;
+                for (const auto& l : cm.lots) if (l.orientation == o) spans.push_back({l.footprint.x, l.footprint.x + l.footprint.w});
+                std::sort(spans.begin(), spans.end());
+                for (size_t k = 0; k + 1 < spans.size(); ++k) cGap = std::max(cGap, spans[k + 1].first - spans[k].second);
+            }
+            controlNarrowest = std::min(controlNarrowest, cGap);
+            std::printf("[ M5f-2a ]   seed %u control (centre measure): %zu lots, widest gap %d%s", seed, cm.lots.size(), cGap, "\n");
+        }
+        std::printf("[ M5f-2a ]   seed %u rows: %d side(s) of the road in use, widest gap between neighbours %d%s", seed, sides, seedGap, "\n");
+    }
+    std::printf("[ M5f-2a ] roman roadside settlements: %d plans of 8, %d lots (fewest %d); wrong typology %d, not one storey %d, not 8 along x 18 back %d, no door %d, door not on the street's short side %d%s",
+                plans, lots, plans ? fewest : 0, wrongType, wrongStories, notGableOn, noDoor, doorNotOnShortSide, "\n");
+    std::printf("[ M5f-2a ] the row: %d of %d lots face the through road within 9 cubes of its centre line; widest gap between neighbours %d; both sides in use on %d of %d plans (printed, not asserted)%s",
+                onPrimary, lots, widestGap, bothSides, plans, "\n");
+    EXPECT_EQ(onPrimary, lots) << "lots that do not front the through road";
+    // 2 = two 1-cube setbacks on touching parcels; like the 9 above it was fixed after seeing the output
+    EXPECT_LE(widestGap, 2) << "a gap between neighbouring houses on one side of the road wider than 2 cubes - not a row";
+    EXPECT_EQ(overlapping, 0) << "pairs of footprints that overlap";
+    EXPECT_GT(controlNarrowest, 2) << "the centre measure made a row on some seed: the control no longer shows the row check failing";
+    EXPECT_EQ(plans, 8) << "seeds the planner refused";
+    EXPECT_GE(plans ? fewest : 0, 5) << "a plan under the tier's minimum of 5";
+    EXPECT_EQ(wrongType, 0);
+    EXPECT_EQ(wrongStories, 0);
+    EXPECT_EQ(notGableOn, 0) << "lots whose narrow side is not on the street";
+    EXPECT_EQ(noDoor, 0);
+    EXPECT_EQ(doorNotOnShortSide, 0);
+}
+
 // (a) the registry: an era's typology is found by ITS OWN NAME under its era, and a name two eras share resolves to the
 // era asked for - never to the other one, never to nothing
 TEST(SettlementMapTest, ASecondErasTypologyIsFoundByItsOwnName) {

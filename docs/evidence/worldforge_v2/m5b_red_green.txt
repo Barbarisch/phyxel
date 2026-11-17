@@ -1606,3 +1606,73 @@ MY RESPONSE (2026-11-17): accepted. Condition 4 answered after the audit, so NOT
  kitchen 49 cells against a next largest of 35. That added clause has no red run of its own. Conditions 1-3 and 5 stay
  open (O32). The period-on-record default "medieval" for callers passing no period is a new record field, not compared
  by any test.
+
+== THE EMPTY GATE (commit 066e6cd5) - solution-auditor, 2026-11-17 (code, logs and git only) ==
+RAW VERDICT: PASS WITH CONDITIONS
+CLAIMS AUDITED (the auditor's words, shortened):
+ - "gateOutcome returns 'empty' with fails_build true (overridable) when built == 0; a record without counts stays
+   'passed'" -> REAL.
+ - "Verdict ordering blocked > unseated > doorless > empty" -> PARTIAL: the code orders them so, the test only pinned
+   blocked over empty; doorless vs empty cannot co-occur.
+ - "Red before green (327, 328)" -> REAL: both failures read "passed" - the property, not something incidental; the
+   source hash changes between the chains, the tests do not.
+ - "Live 323 'passed' -> 329 'empty'" -> REAL; 329 is a deliberately failing mutation run - read it as a demonstration.
+ - "Regression 36 / 0, 126 identical lines; 187 / 0" -> the counts verified; the 126-line diff NOT verified by it.
+ - "WorldForge refusal read from code only" -> accurate and honestly stated.
+HUNT: (a) every consumer reads fails_build / error, none enumerates the names - except the MCP tool description
+ (already stale) and the header + .cpp comments still saying "a built count of 0 ... the lot failures carry that";
+ (b) built == 0 at the gate can only mean every queued lot failed (every plan path refuses an empty building list;
+ the gate unit runs after the lot units); residual risk: a future tier that builds no lots by design would read
+ "empty"; (c) the red was the property; (d) no stale exe; (e) "126 identical lines" has no artifact.
+CONDITIONS: 1. update the stale header comment, .cpp comment and MCP description; 2. pin unseated over empty or drop
+ the ordering claim; 3. show or cite the diff artifact or drop it; 4. keep the WorldForge statement scoped as code-read.
+MY RESPONSE (2026-11-17): 1 done (header, .cpp comment, MCP description); 2 done (an unseated-over-empty assertion
+ added; green in chain 334, never seen red - the code already ordered them so); 3: the diffs are made in the session
+ scratchpad and are NOT in the repo - the claim stands only as "I ran diff and it printed nothing", which is what the
+ records say; no artifact is committed; 4 unchanged.
+
+== M5f-2a (the Roman strip building as data) - solution-auditor, 2026-11-17 (working tree on 066e6cd5; nothing built or run by it) ==
+RAW VERDICT: PASS WITH CONDITIONS
+CLAIMS AUDITED (the auditor's words, shortened):
+ - Claim 1, headless (68 lots, 8 seeds, strip_building, one storey, 8 x 18, door on the street end, facing the road,
+   gaps <= 2) -> REAL, with limits: the row check has been seen failing (gaps 10 in 337, 7 in 338) and passing (339).
+   The 9- and 2-cube thresholds were set AFTER seeing the data - they pin observed output; 2 is loosely principled, 9
+   is derived from nothing; a comment said 6 where the code uses 9. Orientation 1 / 3 lots do not escape (they fail
+   onPrimary). NOT catchable by the checks: overlap (a negative gap passes), one lot on a side, a road not along x.
+   "From shipped data alone" holds for the planner; the LIVE test passes styles ["roman_strip"] - without it a Roman
+   build gets the medieval style palette (O32 f).
+ - Claim 2, "medieval unchanged" -> REAL by reading (socialFromEdge defaults false, set only by "measure": "edge",
+   read nowhere else; no dependence on era or style order), partial at run time (live 37 / 0; the auditor did not
+   re-diff the 126 lines; chain 343 unfinished when it wrote).
+ - Claim 3, live -> REAL for what it states. period on the record is the request echoed; what shows the Roman pack was
+   used is the TYPOLOGY (strip_building exists only in roman.json and the forge refuses a null lookup). "living >
+   salesroom" follows from the bays in the data and tests nothing independent; rooms read from the record, not voxels.
+ - Labels: mostly honest; one attribution questioned (street width: Linz vs Mautern).
+CONDITIONS: 1. no commit before chain 343 reports; 2. keep the 066e6cd5 follow-ups and asset_requests.json out of this
+ commit; 3. fix the Linz / Mautern label and the 6-vs-9 comment; 4. say the thresholds were set after seeing the data,
+ the road is assumed along x, overlap is not asserted, the record's period is an echo; 5. say a Roman settlement
+ without an explicit styles list gets medieval styles.
+THE TEST THAT WOULD CATCH THE REMAINING GAPS (auditor): assert no two footprints overlap; count lots per row; pin the
+ "centre" measure as a mutation that goes red with gaps of 7.
+MY RESPONSE: 1, 2, 4, 5 accepted and followed in the commits. 3: the comment is fixed; on Linz / Mautern the grounding
+ record's item 4 reads "Streets: Linz greatest width 6 m, cross streets 3 m; Mautern up to 6.5 m; Traismauer oldest
+ phase max 4 m" - the data's attribution matches the record as written; neither of us re-opened the LEIZA page, so the
+ record itself is unverified on that point (stated). The overlap assertion and the centre-measure pin: added (PL.7).
+
+== M5f-2a data labels - grounding-auditor, 2026-11-17 (label against record; no URL re-opened) ==
+RAW VERDICT: ACCEPT WITH CHANGES. "No number is invented outright. Several labels claim more than the record holds, and
+ a few numbers carry no label."
+OVERSTATED (its table): width ("6-8 sits inside all of them" - it only overlaps, sits below most Noricum parcels;
+ Ladenburg / Wimpfen are civitas capitals, unflagged); the 5.30 m pier spacing (not in the record); proportion_max
+ ("the most elongated this record allows" - the record allows 6+); rooms / morphology citations of a LEIZA Germania
+ Inferior page not in the record; buildings.min 5 called GROUNDED (one row in one trench is not a minimum size); the
+ ceiling label keyed to a key that does not exist and called anthropometric without a derivation.
+UNLABELLED: plot.side_gap, typology_weights, bay_length, roof_style, foundation ("crawlspace" - no support), the
+ materials other than structure / floor / roof, trim, flags. UNSUPPORTED word: "daub infill".
+INCONSISTENT: "houses stand 2 m apart" against side_gap 0 and "wall to wall".
+REQUIRED: its 15 wording changes (town flags on Augusta Raurica, Ladenburg, Wimpfen, Colchester, Verulamium,
+ Silchester; one storey stated as a DESIGN CHOICE; 45 degrees stated as a MINIMUM; the 6-8 x 18 pairing stated as not
+ attested; the rest as above).
+MY RESPONSE: all 15 applied in patch 78c - labels and two descriptions only; the script asserts every VALUE equals the
+ working copy's (the values chains 339-341 ran). The two citations missing from the record (5.30 m; the LEIZA Germania
+ Inferior page) are added to the record with their quotes; "daub" is removed. buildings.min is relabelled REASONED.

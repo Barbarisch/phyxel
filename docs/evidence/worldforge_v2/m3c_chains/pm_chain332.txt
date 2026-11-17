@@ -1,0 +1,121 @@
+pm_chain332 - M5f-2a: the Roman strip building as DATA (design check in the plan, 2026-11-17). Written 2026-11-17 11:20, before any
+data file is added or changed. All runs RELEASE unless said. Grounding: m5f_strip_building_grounding.txt (three passes).
+
+THE DATA (labels travel in each file's "sources"):
+  room_programs/roman.json  strip_building: width 6-8 (GROUNDED range 6-12, secondary + LEIZA), bays 3 x bay_length 6 = 18
+    long (bottom of the GROUNDED 18-38; the 3 x 6 split is the ENGINE's bay grid - DESIGN), one storey (the only text is an
+    assumption), no "entrance" rule = the short wall to the street (gable to the road: GROUNDED), rooms salesroom 1 bay
+    in front / living 2 bays behind (front shop + large room behind: GROUNDED as a layout; the 6 m depth: DESIGN).
+  settlement_program.json  eras.roman.tiers.hamlet: main_street; buildings 5-12 (5: Ottmarsheim ">= 5 in a row", one
+    trench, secondary; 12: REASONED, no count exists); street 6 / 3 Gravel (Linz 6 m and 3 m: GROUNDED; Gravel REASONED);
+    plot depth 22-28 (DESIGN: cut to the borrowed 64-deep site - retrieved plots are 33-40 deep); setback 1.
+    CORRECTION to the design check's text, stated now: it says "a 2-cube setback leaves the portico's ground open". In
+    the planner a setback is also half the side spacing, so 2 would put 4 m between houses; I use 1 (1 m in front, 2 m
+    between neighbours - "a walkway's width" at Nettersheim is the only text, no metres). The portico ground is NOT kept.
+  structure_styles.json  roman_strip: gable ClayTile at 45 deg (Mac Mahon: >= 45), plinth 0.556 m (5 micro; retrieved
+    0.5 - 0.6), timber wall 0.222 (the medieval wattle-and-daub figure BY ANALOGY - no Roman source), the rest the
+    timber_cottage's existing engine values, each labelled.
+TESTS (written with the data, red first where a red exists):
+  headless ARomanRoadsideSettlementPlansStripBuildingsGableOn (SettlementMapTest): shipped files only; era roman, tier
+    hamlet, 104 x 64, seeds 1..8: every lot strip_building, one storey, footprint 8 along the street x 18 back from it,
+    the door on a short side, >= 5 lots, no overlap (the suite's invariants).
+  live ARomanRoadsideSettlementIsBuilt (LiveSiteRig, the VILLAGE site, overrides era roman / tier hamlet / styles
+    [roman_strip]): >= 5 lots, 0 lot failures, a structure per lot, each record typology strip_building + period roman,
+    ground rooms salesroom and living with living strictly the larger, gate passed.
+PREDICTIONS
+  chain 332 (tests added, NO data yet): both RED - headless: the program has no era roman (null tier, assertion);
+    live: plan refused.
+  chain 333 (data added): headless GREEN is my expectation but NOT confident - unknowns: whether 12 lots of 10-wide
+    frontage seat on 104 with the growth, whether the planner accepts a tier without "bells" / "fences" / "public".
+    live: UNKNOWN - the forge has never built an 8 x 18 one-storey 3-bay house with 6 m bays or this style; I expect
+    at least one refusal or blocked route on the first run and will report what it is rather than tune blind.
+  Whatever 333 shows, no medieval file content changes: the full live set's medieval record lines stay identical by diff
+    and the unit set stays at 187 ok (+ the new headless test = 188).
+
+RESULTS (written 2026-11-17 11:45)
+  chain 332 (tests, no data; exe 11:34:53): RED as predicted - 0 ok / 2 failed: headless "the shipped settlement program
+    has no era roman with a hamlet tier"; live plan refused "unknown era/tier: roman/hamlet".
+  chain 333 (data added; same exe - data is read at run time): 2 ok / 0 failed.
+    headless: 8 plans of 8, 68 lots (5..12), all strip_building, one storey, 8 along x 18 back, door on the street side.
+    live (village site): 10 lots, 10 structures, 0 lot failures, each record strip_building / roman / roman_strip,
+    salesroom 56 cells and living 88 cells, no upper rooms, bbox 10 x 8 x 19; gate passed 30 walkable / 0 blocked over
+    10 doors of 10; 272 fixtures.
+  MISSES: (1) I expected a refusal or a blocked route on the first live run - there was none. (2) The rooms are 7 and 11
+    deep (56 and 88 cells of 8 wide), not the 6 and 12 the 1 : 2 bays say - not explained, not looked into.
+  FINDING (reading the lot lists, then chains 334-336): the settlement is NOT yet the roadside row the sources describe.
+    Live (terrain): 10 lots on 9 different ways, four of them turned side-on to the road axis (orientation 1 / 3).
+    Headless flat seed 1 (chain 336 dump): one primary way (0,32)-(103,32), six houses all on ONE side, 10 cubes apart
+    (footprints at x 1, 19, 37, ... each 8 wide), each with its own 3-wide "lane" spur to the road. My first two
+    measures of "fronts the road" were wrong and both read 0 of 68: lot.way is the lot's own spur (chain 334), and a
+    6-cube door-to-centre-line threshold is too tight - the doors stand 8 from the centre line (chain 335).
+    Cause, READ not yet shown: the tier has no "bells", so the growth uses the loose HAMLET defaults (sociability gap 3,
+    spread 14), and plot.side_gap 1 + setback 1 on each side keeps footprints at least 3 apart.
+PL.5 (written 2026-11-17 11:45, before the run): the row as an asserted property, headless flat, 8 seeds:
+    (a) every lot faces the through road (orientation across it) with its door within 9 cubes of the primary centre line
+        (half the 6-wide road + setback + the door spur; 9 is my reading of chain 336's 8, +1);
+    (b) on each side of the road the houses stand in a row: no gap between neighbouring footprints over 2 cubes
+        ("wall to wall", an ambitus, or "a walkway's width" - no metres in any source; 2 = 2 x the 1-cube setback).
+    Both sides in use is PRINTED, not asserted (the sources say two rows; no count to assert against).
+    chain 337 (assertions, data unchanged): RED on (b) - seed 1 shows 10-cube gaps; (a) I expect to hold headless.
+    chain 338 (data: plot.side_gap 0; bells road_access 1 / 3 / 0.05 as the medieval street tiers, sociability gap 0
+        spread 3; all planner parameters - DESIGN, labelled, expressing the grounded "rows, close-set"): GREEN is the
+        aim; NOT confident - if the growth cannot make a row from data alone, that is the finding and it needs code.
+  (the times on the two headings above were typed without `date`; the runs they describe are 11:35 - 11:42 by the logs)
+  chain 337 (assertions, data unchanged; exe 11:41): RED - widest gap 10 on all 8 seeds (predicted); and (a) is red too,
+    which I did NOT expect: 56 of 68 lots face the road within 9 cubes. Both sides in use on 4 of 8 plans.
+  chain 338 (side_gap 0 + bells in data): STILL RED - widest gap 7 on all 8 seeds, 63 of 68 on the road. Data alone does
+    not make a row. Seed 1: six houses at a fixed pitch of 15 (8 wide, 7 apart), one side.
+  CAUSE (read in SettlementMapPlanner.cpp, the growth's scoring): the sociability bell measures from the candidate's
+    CENTRE to the nearest seated lot's edge and prefers gap_u + HALF THE TOFT'S DEPTH. That suits a wide, shallow
+    medieval toft; a strip lot is 10 wide and 22 deep, so the "preferred" neighbour sits 11 from its centre = 6-7 clear.
+    The second era falsifies an assumption of the planner (what D9 is for).
+PL.6 (written 2026-11-17 11:42, before the edit): an OPT-IN measure - bells.sociability.measure "edge": the bell is taken on the
+    clear distance between the candidate's parcel and the nearest seated parcel (0 = touching), preferred gap_u.
+    Default (absent) = the centre measure, so every medieval plan is computed exactly as before.
+    chain 339 (code + roman data measure "edge"): the headless test GREEN is the aim - (b) widest gap <= 2 I expect to
+      hold (parcels touch, footprints 2 apart). (a) all lots on the road: NOT confident (the 5 strays may remain).
+      Both sides: I expect ONE side to fill before the other is used (the far side is 8+ away) - printed.
+    Regression after: unit set 188 ok (187 + the roman headless test), live set 37 ok (36 + the roman live test), the
+      medieval record lines identical by diff to chain 330, and the map suite's medieval prints unchanged.
+RESULTS of PL.6 (written 2026-11-17 11:45)
+  chain 339 (code + data "measure": "edge"; Release, exe 11:43:57): headless GREEN - 8 plans of 8, 68 lots; 68 of 68 face
+    the through road within 9 cubes of its centre line; widest gap between neighbours 2 on every seed; ONE way per plan
+    (the road itself - no per-lot lanes). Both sides in use on 2 of 8 plans (the 11- and 12-lot seeds): one side fills
+    (10 houses on 104) before the other is touched, as expected and stated. (a) held - I was not confident it would.
+  chain 340 (Release, the live roman test on the village site, real terrain): 1 ok; 10 lots, 10 structures, 0 lot
+    failures, gate passed 30 / 0 over 10 doors of 10, 272 fixtures. THE ROW ON TERRAIN, read by me from the lot list (not
+    asserted, not measured by code): 6 of the 10 houses (lots 0-3, 5 and - one parcel off - 4) stand side by side facing
+    the same way at a 10-cube pitch; lots 6, 7 and 8 are turned side-on on lanes of their own and lot 9 stands alone at
+    the far edge. 8 ways for 10 lots. So on real ground the settlement is a row plus four strays - not yet the sources'
+    two rows. Why the four stray (slope? the far side's distance?) is NOT investigated.
+  Not done in this increment: no L4 / no screenshot - nobody has LOOKED at a strip building; the 7 / 11 room depths
+    against the 1 : 2 bays unexplained; no stress run of the forge on the longest footprint; nothing audited yet.
+REGRESSION (written 2026-11-17 12:10)
+  chain 341 (Release, full live + realizer set; run to 11:52:54): 37 ok / 0 failed, as predicted (36 + the roman live
+    test); the 126 distinct medieval gate / lot / wall / market lines identical to chain 330's (diff empty; the roman
+    test's own lines filtered out of both sides before the diff).
+  chain 342 (Debug, unit set; run to 12:09:31): 187 ok / 1 FAILED - predicted 188 / 0, a MISS.
+    The failure: SettlementProgramTest.EveryTierTypologyExistsInRoomProgram - it walks EVERY era's tiers and looks each
+    typology up in room_program.json (the medieval file) by bare name; roman/hamlet's strip_building is not there. The
+    test encodes "one room-program file", which the era packs made false; I did not look for tests that enumerate eras.
+  ASSERTION CHANGE, STATED BEFORE THE RUN: that test becomes era-aware - a non-medieval era's pack
+    (resources/room_programs/<era>.json) must load, and each typology must resolve by (name, era). For medieval it
+    checks exactly what it did. It is stricter for a new era (a missing pack now fails it), not looser.
+  chain 343 prediction: unit set 188 ok / 0 failed.
+  chain 343 (Debug, unit set, the era-aware integrity test; run 12:10:16 - 12:26:53): 188 ok / 0 failed, as predicted.
+PL.7 (written 2026-11-17 12:27, before the edits): the two audits' conditions.
+  (i) data relabelled by patch 78c (15 wording changes; the script asserts every VALUE equals the working copy's);
+  (ii) the headless test gains: no two footprints overlap (all pairs, all orientations) on every seed; a CONTROL - the
+       same tier with the sociability measure put back to the centre must NOT make rows (widest gap > 2; chain 338
+       showed 7) - so the row assertion is pinned as able to fail; the "6 cubes" comment corrected to 9.
+  chain 344 prediction (Release; SettlementMapTest.*, SettlementProgramTest.*, SettlementBuildServiceTest.*, the live
+    roman test): all green; overlap 0; the control's widest gap 7 on all 8 seeds (GUESS from 338 - there side_gap was
+    already 0, as now); roman rows unchanged (68 of 68, gap 2); live 10 lots, gate 30 / 0.
+  NOT re-run after these label / test-only changes: the full live set and the Debug unit set (last: 341 and 343).
+  chain 344 (written 2026-11-17 12:30; Release, exe 12:27:49): 72 ok / 0 failed (SettlementMapTest, SettlementProgramTest,
+    SettlementBuildServiceTest and the live roman test), as predicted. The control (centre measure): widest gap 7 on all
+    8 seeds - so the row assertion is one that fails without the edge measure. Roman rows unchanged: 68 of 68, gap 2,
+    both sides on 2 of 8. The overlap assertion passed (0 overlapping pairs; no red seen for it). Live: 10 lots, 10
+    structures, gate 30 / 0 over 10 doors, 272 fixtures - with the relabelled data.
+  STATE AT COMMIT: full live set last run at chain 341 and Debug unit set at chain 343 - both BEFORE the label-only
+    data rewrite and the test additions of PL.7; not re-run after.

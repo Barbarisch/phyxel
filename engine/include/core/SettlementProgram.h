@@ -60,6 +60,11 @@ struct BellSpec {
     float waterFloor = 0.3f;     ///< the water factor never drops below this (a croft far from water still builds)
     int   socialGapU = 3;        ///< the preferred gap to the nearest seated lot (plot.side_gap + 2)
     int   socialSpreadU = 14;
+    /// M5f-2a (pm_chain332 PL.6): how the sociability bell measures. false (the default, every medieval tier): from the
+    /// candidate's CENTRE to the nearest seated lot's edge, preferred gap + half the toft's depth - right for a wide,
+    /// shallow toft. true (`"measure": "edge"`): the clear distance between the two parcels, preferred gap - needed by
+    /// a narrow, deep parcel (the Roman strip lot), which the centre measure spaces 7 cubes apart whatever the data says.
+    bool  socialFromEdge = false;
 };
 
 /// Public/communal features a tier provides (assets land in later phases).

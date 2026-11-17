@@ -98,6 +98,7 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         if (b.contains("sociability") && b["sociability"].is_object()) {
             t.bells.socialGapU = b["sociability"].value("gap_u", t.bells.socialGapU);
             t.bells.socialSpreadU = b["sociability"].value("spread_u", t.bells.socialSpreadU);
+            t.bells.socialFromEdge = b["sociability"].value("measure", std::string("centre")) == "edge";   // M5f-2a
         }
     }
     if (rec.contains("setback") && rec["setback"].is_object()) {

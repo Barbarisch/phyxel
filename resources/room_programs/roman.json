@@ -1,0 +1,48 @@
+{
+  "period": "roman",
+  "_comment": "Roman era room programs (WorldForge v2 M5f-2a, 2026-11-17). Units: cubes (1 cube = 1 m). Every number is labelled in 'sources' as GROUNDED (a retrieved text in the record), REASONED, DESIGN (an engine or fit decision) or NO SOURCE. Grounding record: docs/evidence/worldforge_v2/m5f_strip_building_grounding.txt",
+  "programs": {
+    "strip_building": {
+      "description": "Roman strip building (Streifenhaus) of a roadside settlement in the north-west provinces: the narrow gable end on the road, a shop or workshop across the front, the living room behind, a yard at the back. Timber framing on a rubble plinth, tiled gable roof. One storey (a design choice - see sources.stories).",
+      "wealth_tier": "middling",
+      "width_min": 6,
+      "width_max": 8,
+      "bay_length": 6,
+      "bays": 3,
+      "proportion_max": 3.0,
+      "stories": 1,
+      "windows": {
+        "width": 1,
+        "height": 1,
+        "per_bay": 0.5,
+        "walls": "front"
+      },
+      "rooms": [
+        {
+          "id": "shop",
+          "purpose": "salesroom",
+          "bays": 1
+        },
+        {
+          "id": "living",
+          "purpose": "living",
+          "bays": 2
+        }
+      ],
+      "source": "Strip-house dimensions and layout: de.wikipedia 'Streifenhaus (roemisch)' and 'Heidelberg in the Roman period' (secondary), LEIZA Transformation project pages (Ladenburg, Noricum vici, Bad Wimpfen, Germania Inferior vici). Record: docs/evidence/worldforge_v2/m5f_strip_building_grounding.txt",
+      "sources": {
+        "width": "GROUNDED range, REASONED pick. Retrieved frontages: 5-16 m in general (de.wikipedia Streifenhaus), Heidelberg vicus 6-12 m, Ladenburg parcels 6-9 m and 8-10 m, Bad Wimpfen plots 8-12 m (Ladenburg and Wimpfen are civitas capitals - upper bounds), British excavated buildings 5-6 m wide. 6-8 OVERLAPS the Heidelberg and Ladenburg ranges and sits BELOW most small-vici parcels in Noricum (Linz at least 12.4 m, Mautern 10 m, Moosham 12.2 m; Gleisdorf houses 7-9 m). It is a pick near the narrow end, not a typical value.",
+        "length": "GROUNDED range, REASONED pick: small vici 18-38 m (Moosham House B 12.2 x 18 m; Linz 38.2 m; Heidelberg up to 38 m); British examples 11-14 m. 18 is the bottom of the continental range, taken because the live site it is proven on is 64 deep (docs/WorldForgeV2Plan.md O33) - longer houses are attested and not yet buildable here. The PAIRING 6-8 x 18 is a DESIGN choice, not an attested building: the 18 m Moosham house is 12.2 m wide.",
+        "bay_length": "DESIGN: 6 is the ENGINE's frame bay. No Roman bay length for a timber strip house was found.",
+        "bays": "DESIGN: bays x bay_length is the ENGINE's frame grid. The one retrieved pier spacing is 5.30 m - 'untergliedern in regelmaessigen Abstaenden von 5,30 m die Westfassade von Gebaeude 5003.D' (Straumann 2011, Augusta Raurica Insula 50 (a TOWN - an upper-context source for a roadside settlement)) - and it is not used.",
+        "proportion_max": "REASONED: 3.0 is the limit of the CHOSEN footprint (18 long x 6 wide). The record allows far more elongated houses (38 / 6 = 6.3) and squarer ones (Moosham 12.2 x 18 = 1.5).",
+        "stories": "ONE STOREY IS A DESIGN CHOICE resting on an assumption. The only text for one storey is itself an assumption: Silchester ERTB1 'is assumed to have been of single-storey build' (a town, and not called a strip building). Two storeys is a modern reconstruction (Eisenberg); Straumann calls a second storey 'kaum zu belegen'. NO SOURCE for real upper-floor evidence in a strip building either way.",
+        "entrance": "GROUNDED: the narrow / gable side faces the street (de.wikipedia Vicus; Eisenberg; Heidelberg). Expressed by the ABSENCE of an 'entrance' rule (the planner then puts the short wall on the street).",
+        "rooms": "GROUNDED as a layout: a front room across the whole width read as a shop, a large room behind with rooms partitioned off in its corners (de.wikipedia Streifenhaus; LEIZA Germania Inferior vici page, third pass of the record). The front room's 6 m depth is DESIGN (one engine bay) - NO SOURCE for its depth. Hearth, corner rooms, cellar and the yard's oven / well are attested and NOT modelled.",
+        "portico": "NOT BUILT (stated departure): a portico about 2 m wide is attested at Augusta Raurica Insula 50 (a colonia) and 3-3.35 m at Colchester and Verulamium - all TOWNS; no portico depth is retrieved for a roadside settlement. The forge has no such element.",
+        "windows": "NO SOURCE: the medieval tenement's window rule, reused so the forge has one.",
+        "wealth_tier": "REASONED: craftsman-traders; the engine's furnishing tier, not a Roman category."
+      }
+    }
+  }
+}
