@@ -600,7 +600,7 @@ async def list_tools() -> list[Tool]:
             description=("Compose a whole settlement with the engine's generator (POST /api/settlement/build): "
                          "program mode {era, tier (hamlet|village|town|city), seed, position{x,y,z}, width, depth, "
                          "terrain:bool, density, allow_unwalkable:bool}. Async by default (returns job_id; poll "
-                         "get_job_status). The response carries 'walkability' + 'gate' (passed|blocked|overridden); a "
+                         "get_job_status). The response carries 'walkability' + 'gate' (passed|blocked|unseated|doorless|empty|overridden|not_run); a "
                          "blocked gate FAILS the build unless allow_unwalkable is true. This is THE provenance route "
                          "for a generated town (never hand-assemble one)."),
             inputSchema={"type": "object", "properties": {

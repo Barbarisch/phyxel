@@ -162,15 +162,19 @@ public:
 
     /// The gate's verdict as a pure function of its result (shared by the editor's
     /// build_settlement response, the WorldForge checkpoint and the post-gate units):
-    ///   {"gate": "not_run" | "passed" | "blocked" | "unseated" | "doorless" | "overridden",
+    ///   {"gate": "not_run" | "passed" | "blocked" | "unseated" | "doorless" | "empty" | "overridden",
     ///    "walkable": N, "blocked": N, "skipped": N, "doors": N, "built": N, "fails_build": bool}
     /// not_run  = the gate never produced a result (no world)
-    /// passed   = 0 blocked routes, 0 unseated doors, a door recorded for every built building
+    /// passed   = 0 blocked routes, 0 unseated doors, at least one building built and a door recorded
+    ///            for every built building
     /// blocked  = >0 blocked and allow_unwalkable is false  -> fails_build = true
     /// unseated = a front door whose endpoint does not seat (M0 row 2d)   -> fails_build = true
     /// doorless = fewer doors recorded than buildings built (M5a-1: the gate measured nothing for
-    ///            them; a built count of 0 is not doorless - the lot failures carry it) -> fails_build
-    /// overridden = any of the three and allow_unwalkable is true -> fails_build = false
+    ///            them) -> fails_build
+    /// empty    = 0 buildings built (every lot refused: a plan with no building is refused at plan
+    ///            time) - the gate measured nothing at all (pm_chain327) -> fails_build
+    /// overridden = any of the four and allow_unwalkable is true -> fails_build = false
+    /// The verdict's NAME when several hold: blocked, then unseated, then doorless, then empty.
     static nlohmann::json gateOutcome(const nlohmann::json& walkability, bool allowUnwalkable);
 
     /// M5a-1: the goal box of a "door -> room" route - the room's INNER FLOOR AREA in world micro

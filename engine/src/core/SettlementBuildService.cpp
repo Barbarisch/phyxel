@@ -3445,7 +3445,7 @@ nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkabi
     // headless rig built 3 and 5 buildings whose doors were never recorded and "passed" on 0 routes.
     // The gate unit records how many buildings realized and how many front doors it saw; a
     // shortfall fails the build like a blocked route ("doorless"), with the same override. A
-    // built count of 0 (every lot refused) is not doorless - the lot failures carry that; a
+    // built count of 0 (every lot refused) is not doorless - it is "empty", below; a
     // result without the counts (an older record) keeps its old reading.
     const int doors = ran ? walkability.value("doors", -1) : -1;
     const int built = ran ? walkability.value("built", -1) : -1;

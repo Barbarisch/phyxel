@@ -598,6 +598,9 @@ TEST(SettlementBuildServiceTest, ANothingBuiltGateIsNotAPass) {
     // a blocked route still names the verdict when both hold (routes that are not doors: a wall's gates)
     const nlohmann::json both = {{"walkable", 0}, {"blocked", 2}, {"skipped", 0}, {"doors", 0}, {"built", 0}};
     EXPECT_EQ(SettlementBuildService::gateOutcome(both, false).value("gate", ""), "blocked");
+    // and so does an unseated endpoint (the audit of 066e6cd5: the order was claimed, only blocked was pinned)
+    const nlohmann::json unseated = {{"walkable", 0}, {"blocked", 0}, {"skipped", 1}, {"doors", 0}, {"built", 0}};
+    EXPECT_EQ(SettlementBuildService::gateOutcome(unseated, false).value("gate", ""), "unseated");
     // one building built and measured is not empty
     const nlohmann::json one = {{"walkable", 3}, {"blocked", 0}, {"skipped", 0}, {"doors", 1}, {"built", 1}};
     EXPECT_EQ(SettlementBuildService::gateOutcome(one, false).value("gate", ""), "passed");
