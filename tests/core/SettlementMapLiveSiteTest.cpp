@@ -62,8 +62,9 @@ using Phyxel::ForgeTest::floorModN;
 namespace {
 inline std::string chr10() { return std::string(1, static_cast<char>(10)); }
 
-WorldRecipe civRecipe(uint32_t seed) {
+WorldRecipe civRecipe(uint32_t seed, const std::string& era = "medieval") {
     WorldRecipe r;
+    r.worldforge.era = era;   // M5f-2b: the recipe's era (the site rects and every settlement build follow it)
     r.version = 2;
     r.type = "Perlin";
     r.seed = seed;
@@ -138,6 +139,7 @@ struct LiveSiteRig {
     // M5b-1a (O21 a): the rig WITH flora - each generated chunk decorated by the template manager from the same
     // generator (ObjectTemplateManager::decorateChunk, the live worker's decorator). Off for every other arm.
     bool flora = false;
+    std::string era = "medieval";   // M5f-2b: the world's era - set BEFORE setUp (a roman world has its own site rects)
     // patch 76: a rig held by SharedRig is set up and realized ONCE; later holders read it (they must not write it)
     std::string sharedKey, builtSig;
     bool isSetUp = false, built = false;
@@ -161,8 +163,9 @@ struct LiveSiteRig {
         if (!gen) { why = "no streaming generator"; return false; }
         // patch 76: the recipe (coarse model, hydrology, civ plan, WorldForge plan) is baked once per process and
         // copied - the copy the streaming workers take (ChunkManager.cpp: make_unique<WorldGenerator>(*m_worldGenerator))
-        static std::unique_ptr<WorldGenerator> proto;
-        if (!proto) { gen->applyRecipe(civRecipe(20260816u)); proto = std::make_unique<WorldGenerator>(*gen); }
+        static std::map<std::string, std::unique_ptr<WorldGenerator>> protos;   // one baked recipe per era (M5f-2b)
+        std::unique_ptr<WorldGenerator>& proto = protos[era];
+        if (!proto) { gen->applyRecipe(civRecipe(20260816u, era)); proto = std::make_unique<WorldGenerator>(*gen); }
         else *gen = *proto;
         const double tRecipe = secondsSince(t0);
         const WorldForgePlan* box = gen->worldForge();
@@ -2367,12 +2370,16 @@ TEST(SettlementMapLiveSiteTest, AFixtureErasHamletIsBuiltFromItsOwnPack) {
     EXPECT_EQ(out.value("gate", std::string()), "passed") << out.value("blocked", 0) << " routes blocked";
 }
 
-// M5f-2a (pm_chain332.txt): the SHIPPED second era, BUILT. A Roman roadside settlement of strip buildings from the
-// shipped data alone (no pack or program override), on the village's site (O33: a hamlet's 56 x 44 does not hold it).
+// M5f-2a / M5f-2b (pm_chain332.txt, pm_chain348.txt): the SHIPPED second era, BUILT in a world of its own era. The
+// recipe says roman; the lowest hamlet of that world's plan is realized on ITS OWN site rectangle (76 x 88) with no era
+// or tier override - the era reaches the build from the recipe. Only the style is passed: the build service's default
+// palette is still medieval (O32 f).
 TEST(SettlementMapLiveSiteTest, ARomanRoadsideSettlementIsBuilt) {
     LiveSiteRig rig;
-    ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
-    const auto out = realize(rig, /*legacyLayout=*/false, nlohmann::json{{"era", "roman"}, {"tier", "hamlet"}, {"styles", nlohmann::json::array({"roman_strip"})}});
+    rig.era = "roman";
+    ASSERT_TRUE(rig.setUpTier("hamlet", 24)) << rig.why;
+    EXPECT_EQ(rig.site->width, 76); EXPECT_EQ(rig.site->depth, 88);   // the roman hamlet's derived rect, from the plan
+    const auto out = realize(rig, /*legacyLayout=*/false, nlohmann::json{{"styles", nlohmann::json::array({"roman_strip"})}});
     ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
     const nlohmann::json lots = out["map"].value("lots", nlohmann::json::array());
     int wrongLot = 0;

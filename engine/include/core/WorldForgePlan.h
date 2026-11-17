@@ -311,7 +311,9 @@ public:
     /// grown band's target on 4 of 6 flat seeds, the smallest 92 x 56, x 1.25 area); town 140 x 60 the L4-tested
     /// size (the same test measures it against the grown map); city 160 x 160 = the program's reference_site
     /// (MEASURED, CityForgePlan M4). Every tier of the civ ladder has a rect here ("outpost" = the hamlet's).
-    static TierPreset tierPresetDerived(const std::string& tier);
+    /// M5f-2b: the rect is a function of (era, tier). Era medieval - and any era without an entry of its own - is
+    /// the table above, unchanged; the era's own entries are in the .cpp with their derivation.
+    static TierPreset tierPresetDerived(const std::string& tier, const std::string& era = "medieval");
 
     /// The canonical settlement seed for a site position (closes the "settlement seed is
     /// caller-supplied" gap): pure hash of (worldSeed, world position), the same derivation

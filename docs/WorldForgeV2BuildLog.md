@@ -742,3 +742,23 @@ form the row and 4 stray (read by eye); one side fills before the other; no port
 9- and 2-cube test thresholds were set after seeing the output; the road is assumed along x in the test; a Roman build
 without an explicit styles list gets medieval styles; the tier borrows the village site (O33); no L4 - nobody has looked
 at a strip building; the full live and unit sets were not re-run after the final label / test-only changes.
+
+### 2026-11-17 - M5f-2a in the engine; M5f-2b, the site rectangle by era and tier
+
+**First looks (c5bb697a, 63dad1d9, f3f69d90).** The Release editor's settlement route built a Roman row on the flat
+tester (10 structures, gate 30 / 0; screenshots m5f2a_l4_*.png). Looking found medieval picket fences at the fronts (a
+tier with no fences block got the program default - switched off in the roman tier, red 13474 micro-cells then 0, and a
+before / after screenshot at one pose) and roofs that draw straw-coloured although the placed voxels measure as ClayTile
+and the textures are red - not tone mapping; cause not found (lead: ClayTile id 32 beside Thatch id 31).
+
+**M5f-2b (pm_chain348.txt; design check in the plan).** `WorldForgePlan::tierPresetDerived(tier, era)`: medieval and
+any era without an entry get the old table; roman + hamlet gets 76 x 88 - depth two retrieved plots + the road, width
+the measured smallest (60, 20 flat seeds) x 1.25. The roman tier's plot depth is back at the retrieved 33-40. Red on
+the hamlet's 56 x 44 (every seed refused), green on the derived rect (20 of 20; rows 68 of 68, both sides in use on 5 of
+8 seeds; hill rig 6 / 7 / 8 of target). Live: the lowest hamlet of a civ world whose recipe says roman, on its own
+rect, no era override - 11 lots, 11 structures, gate 33 / 0. Release live set 37 / 0 with medieval record lines
+identical by diff; Debug unit set 189 / 0. Audited PASS WITH CONDITIONS. Open: on that terrain 7 of 11 houses form the
+row (read by eye; the plan gives the site one corner entry - candidate cause, untested); the hash pins do not run the
+civ path, so "medieval civ unchanged" rests on reading and the live diff; larger roman tiers keep medieval rects and
+their build-time refusal is not run; the style is still passed by the test; no L4 for 2b; full sets not re-run after
+the last test additions.

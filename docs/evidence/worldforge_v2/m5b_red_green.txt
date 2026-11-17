@@ -1676,3 +1676,30 @@ REQUIRED: its 15 wording changes (town flags on Augusta Raurica, Ladenburg, Wimp
 MY RESPONSE: all 15 applied in patch 78c - labels and two descriptions only; the script asserts every VALUE equals the
  working copy's (the values chains 339-341 ran). The two citations missing from the record (5.30 m; the LEIZA Germania
  Inferior page) are added to the record with their quotes; "daub" is removed. buildings.min is relabelled REASONED.
+
+== M5f-2b (the site rectangle by era and tier) - solution-auditor, 2026-11-17 (working tree on f3f69d90; nothing built or run by it) ==
+RAW VERDICT: PASS WITH CONDITIONS
+CLAIMS AUDITED (the auditor's words, shortened):
+ - Claim 1 (medieval table unchanged, the call site passes the era, no pinned hash can move) -> REAL by code reading;
+   the pin evidence is mostly a PROXY: the Perlin and Mountains pins ran and are OK, but they do not go through the civ
+   path, so they cannot detect a change in tierPresetDerived; no pinned hash covers a medieval civ-path world - that
+   rests on the reading and the live record-line diff (which it did not re-run).
+ - Claim 2 (76 x 88 derived, not picked) -> REAL for the measurement (60; 20 of 20 at 76 x 88; the test can fail). The
+   depth floor 88 is hard-coded in the test, so "depth >= 88" is circular - the depth is an asserted design sum, not
+   measured; width >= 60 does not pin 76; the "control" was table equality only; flat field only - the promised hill
+   stress was not present.
+ - Claim 3 (live: a roman world's hamlet, 76 x 88, no era override, 11 lots, gate 33 / 0) -> REAL (it asked for the gate
+   line to be confirmed past its grep cap); the roman site is at a different centre than the medieval one, so terrain is
+   not a controlled comparison.
+ - (a) no consumer recomputes a rect from the tier name without the era; REAL GAP: nothing tested that a roman world's
+   larger sites refuse, yet the plan said "stated, tested"; (c) era takes part in equality and serialization, whether
+   planHash includes it was not verified; (d) the per-era generator cache cannot leak; a future SHARED roman rig would
+   need the era in its key; (f) the new plot-depth label cited Ladenburg / Wimpfen figures that are building lengths.
+CONDITIONS: 1. test the refusal or say "untested"; 2. fix the Ladenburg / Wimpfen wording; 3. correct the centre figure
+ in pm_chain348; 4. state that the pins do not exercise the civ path; 5. keep the "7 of 11 in a row on terrain" caveat.
+MY RESPONSE: 1. the plan now says what is and is not shown - the larger tiers' rects and the absence of a roman tier of
+ those names are pinned headless (PL.9 ii); the build-time refusal itself is still NOT run. 2. reworded. 3. corrected in
+ the record. 4. stated in the record and here. 5. kept. Added beyond the conditions: the medieval table pinned for every
+ tier through the new function (PL.9 i), and the hill-rig run (PL.9 iii: 6 / 7 / 8 lots of their targets, 0 wet
+ segments). The gate line for claim 3 is in chain 350's and 351's logs ("gate: passed - 33 walkable, 0 blocked, 0
+ skipped over 11 doors of 11 built"). NOT done: a medieval civ-path plan hash pin; whether planHash includes the era.

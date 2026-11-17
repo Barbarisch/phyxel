@@ -79,7 +79,14 @@ WorldForgePlan::TierPreset WorldForgePlan::tierPreset(const std::string& tier) {
     return {"hamlet", 40, 32};
 }
 
-WorldForgePlan::TierPreset WorldForgePlan::tierPresetDerived(const std::string& tier) {
+WorldForgePlan::TierPreset WorldForgePlan::tierPresetDerived(const std::string& tier, const std::string& era) {
+    // M5f-2b (pm_chain348): the roman era's smallest tier is a roadside settlement of strip buildings. Depth 88 = two
+    // plots of the retrieved 40 (Mautern about 10 x 40 m; Moosham 33.3 m) + the 6-wide road (Linz), rounded up - the
+    // inputs GROUNDED, the sum DESIGN. Width 76 = the MEASURED smallest width that seats every target on 20 flat seeds
+    // at that depth (60, SettlementMapTest.RomanSiteRectSeatsTheBand) x 1.25, rounded up to 4 - the medieval rects'
+    // margin for slope and water dropouts (REASONED). The era has no larger tier: those keep the medieval rects below
+    // and refuse at build. Any other era: the medieval table.
+    if (era == "roman" && (tier == "hamlet" || tier == "outpost")) return {"hamlet", 76, 88};
     if (tier == "city") return {"city", 160, 160};
     if (tier == "town") return {"town", 140, 60};
     if (tier == "village") return {"village", 104, 64};   // chain 89: 80 x 48 seated the target on 4 of 6 flat seeds under the growth; smallest 92 x 56; x 1.25 area
@@ -576,7 +583,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     positions.reserve(picked.size());
     for (const auto& pk : picked) positions.push_back(pk.pos);
     for (size_t i = 0; i < picked.size(); ++i) {
-        const TierPreset preset = P.derivedSiteRects ? tierPresetDerived(tierOf[i]) : tierPreset(tierOf[i]);   // M5b-1 D43 (b)
+        const TierPreset preset = P.derivedSiteRects ? tierPresetDerived(tierOf[i], P.era) : tierPreset(tierOf[i]);   // M5b-1 D43 (b)
         WorldForgeSite site;
         site.id = static_cast<int>(i);
         site.tier = preset.name;

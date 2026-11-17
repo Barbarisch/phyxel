@@ -2089,6 +2089,76 @@ struct FixtureEra {
 };
 }  // namespace
 
+// M5f-2b (pm_chain348.txt): the roman hamlet's site rectangle, derived as D43 (b) derived the medieval ones. Depth 88 =
+// two plots of the retrieved 40 + the 6-wide road, rounded up (the inputs GROUNDED, the sum DESIGN); the width is
+// MEASURED here: the smallest, from 40 in steps of 4, at which every flat seed 1..20 seats its target. The derived rect
+// (WorldForgePlan::tierPresetDerived("hamlet", "roman")) must be at least that and seat them all.
+TEST(SettlementMapTest, RomanSiteRectSeatsTheBand) {
+    SettlementProgramRegistry program; RoomProgramRegistry rooms;
+    ASSERT_TRUE(program.loadFromFile("resources/settlement_program.json"));
+    ASSERT_TRUE(rooms.loadFromFile("resources/room_program.json"));
+    const auto* tier = program.get("roman", "hamlet");
+    ASSERT_NE(tier, nullptr);
+    ASSERT_TRUE(rooms.loadPeriodPack("resources/room_programs/roman.json", "roman"));
+    auto seatsAll = [&](int W, int D, int& short_, int& minSeated) {
+        short_ = 0; minSeated = INT_MAX;
+        for (unsigned seed = 1; seed <= 20; ++seed) {
+            SettlementMapInput in;
+            in.tier = tier; in.rooms = &rooms; in.era = "roman"; in.seed = seed; in.W = W; in.D = D;
+            in.heightAt = flatHeight; in.waterAt = {};
+            in.entries = {{0, D / 2, 1}};
+            const SettlementMap m = planSettlementMap(in);
+            const int seated = static_cast<int>(m.lots.size());
+            minSeated = std::min(minSeated, seated);
+            const int want = m.targetLots > 0 ? m.targetLots : tier->buildingsMin;
+            if (!m.ok() || seated < want) ++short_;
+        }
+        return short_ == 0;
+    };
+    const int D0 = 88;
+    int W = 40, sh = 0, mn = 0; bool found = false;
+    for (; W <= 200; W += 4) if (seatsAll(W, D0, sh, mn)) { found = true; break; }
+    std::printf("[ M5f-2b ] roman hamlet site: at depth %d the smallest width seating every target on 20 flat seeds: %s (band %d-%d)%s", D0,
+                found ? std::to_string(W).c_str() : "none up to 200", tier->buildingsMin, tier->buildingsMax, "\n");
+    ASSERT_TRUE(found);
+    const WorldForgePlan::TierPreset derived = WorldForgePlan::tierPresetDerived("hamlet", "roman");
+    int shortAtDerived = 0, minAtDerived = 0;
+    const bool derivedOk = seatsAll(derived.width, derived.depth, shortAtDerived, minAtDerived);
+    std::printf("[ M5f-2b ] roman hamlet site: DERIVED %d x %d seats the target on %d of 20 seeds (min seated %d)%s", derived.width, derived.depth, 20 - shortAtDerived, minAtDerived, "\n");
+    EXPECT_GE(derived.depth, D0) << "the derived rect is shallower than two retrieved plots and the road";
+    EXPECT_GE(derived.width, W) << "the derived rect is narrower than the measured smallest width " << W;
+    EXPECT_TRUE(derivedOk) << "the derived rect " << derived.width << " x " << derived.depth << " does not seat the target on " << shortAtDerived << " of 20 flat seeds";
+    // PL.9 (i): the medieval table through the new function, every tier, both spellings - the numbers as they stood
+    // before M5f-2b (no pinned plan hash runs the civ path, so this and the live record lines are what hold it)
+    struct Was { const char* tier; int w, d; };
+    for (const Was t : {Was{"hamlet", 56, 44}, Was{"outpost", 56, 44}, Was{"village", 104, 64}, Was{"town", 140, 60}, Was{"city", 160, 160}}) {
+        const WorldForgePlan::TierPreset med = WorldForgePlan::tierPresetDerived(t.tier, "medieval"), dflt = WorldForgePlan::tierPresetDerived(t.tier);
+        EXPECT_EQ(med.width, t.w) << t.tier; EXPECT_EQ(med.depth, t.d) << t.tier;
+        EXPECT_EQ(dflt.width, t.w) << t.tier; EXPECT_EQ(dflt.depth, t.d) << t.tier;
+    }
+    // PL.9 (ii): the roman era has no larger tier - a roman world's village / town / city sites keep the medieval
+    // rects, and the program holds no roman tier of that name, so a build of one refuses ("unknown era/tier")
+    for (const Was t : {Was{"village", 104, 64}, Was{"town", 140, 60}, Was{"city", 160, 160}}) {
+        const WorldForgePlan::TierPreset r = WorldForgePlan::tierPresetDerived(t.tier, "roman");
+        EXPECT_EQ(r.width, t.w) << t.tier; EXPECT_EQ(r.depth, t.d) << t.tier;
+        EXPECT_EQ(program.get("roman", t.tier), nullptr) << "a roman " << t.tier << " tier exists - give it a rect of its own";
+    }
+    // PL.9 (iii): the hill rig (the 5 % hillside with the creek), the stress the design check promised
+    for (unsigned seed = 1; seed <= 3; ++seed) {
+        SettlementMapInput in;
+        in.tier = tier; in.rooms = &rooms; in.era = "roman"; in.seed = seed; in.W = derived.width; in.D = derived.depth;
+        in.heightAt = hillHeight; in.waterAt = hillWater;
+        in.entries = {{0, derived.depth / 2, 1}};
+        const SettlementMap m = planSettlementMap(in);
+        const Violations v = measure(m, in.heightAt, in.maxRelief, in.waterAt);
+        std::printf("[ M5f-2b ] hill roman %d x %d seed %u: %zu lots of target %d (min %d), %zu ways, %d wet segments%s%s", derived.width, derived.depth, seed, m.lots.size(),
+                    m.targetLots, tier->buildingsMin, m.ways.size(), v.wayInWater, m.ok() ? "" : (" REFUSED: " + m.refusal).c_str(), "\n");
+        EXPECT_TRUE(m.ok()) << "hill seed " << seed << ": " << m.refusal;
+        EXPECT_GE(static_cast<int>(m.lots.size()), tier->buildingsMin) << "hill seed " << seed;
+        EXPECT_EQ(v.wayInWater, 0) << "hill seed " << seed << ": a way crosses the creek";
+    }
+}
+
 // M5f-2a (pm_chain332.txt): the SHIPPED second era. A Roman roadside settlement plans strip buildings from the shipped
 // files alone (settlement_program.json eras.roman, room_programs/roman.json): the narrow side on the street, 8 x 18,
 // one storey. The site is the village's 104 x 64 - a hamlet's 56 x 44 does not hold two rows of 18-long houses (O33).
@@ -2105,9 +2175,10 @@ TEST(SettlementMapTest, ARomanRoadsideSettlementPlansStripBuildingsGableOn) {
     for (unsigned seed = 1; seed <= 8; ++seed) {
         SettlementMapInput in;
         in.tier = tier; in.rooms = &rooms; in.era = "roman";
-        in.seed = seed; in.W = 104; in.D = 64;
+        const WorldForgePlan::TierPreset romanRect = WorldForgePlan::tierPresetDerived("hamlet", "roman");   // M5f-2b: the era's own site
+        in.seed = seed; in.W = romanRect.width; in.D = romanRect.depth;
         in.heightAt = flatHeight; in.waterAt = {};
-        in.entries = {{0, 32, 1}};
+        in.entries = {{0, romanRect.depth / 2, 1}};
         const SettlementMap m = planSettlementMap(in);
         if (!m.ok()) { std::printf("[ M5f-2a ] roman seed %u: REFUSED: %s%s", seed, m.refusal.c_str(), "\n"); continue; }
         ++plans;

@@ -19,8 +19,8 @@
           },
           "plot": {
             "frontage": "from_typology",
-            "depth_min": 22,
-            "depth_max": 28,
+            "depth_min": 33,
+            "depth_max": 40,
             "side_gap": 0
           },
           "setback": {
@@ -61,7 +61,7 @@
             "morphology": "GROUNDED: 'two rows of houses along the main roads' at Euskirchen-Billig, Juenkerath and Stolberg-Breinigerberg (LEIZA Germania Inferior vici page, third pass of the record); dense building on both sides of the road at Nettersheim, and at Hibaldstow (secondary). Record: docs/evidence/worldforge_v2/m5f_strip_building_grounding.txt",
             "buildings": "min 5 REASONED: Ottmarsheim 'eine Reihe von mindestens fuenf Haeusern' is one row in one excavation trench (secondary) - it shows such a row existed, NOT a minimum settlement size. max 12 REASONED. NO SOURCE for a plot count of a small roadside settlement.",
             "street": "GROUNDED, one pick inside a range: Linz (Noricum) greatest street width 6 m, cross streets 3 m; Mautern up to 6.5 m; Traismauer's oldest phase at most 4 m (LEIZA Noricum vici); elsewhere roads run from about 5 m to over 10 m (English Heritage) and Nettersheim's road bed is 8-12 m. These are overall street widths; the engine treats the value as the paved width. Gravel is REASONED - no surfacing text retrieved for a vicus road.",
-            "plot": "DESIGN: depth 22-28 is cut to the 64-deep site the settlement is proven on. Retrieved plots are DEEPER: about 10 x 40 m at Mautern, 33.3 m at Moosham (O33).",
+            "plot": "GROUNDED: plot depth 33-40 - Moosham parcel 33.3 m long, Mautern strip parcels about 10 x 40 m (LEIZA Noricum vici). (The longer figures in the record for Ladenburg, 30-50 m, and Bad Wimpfen, 20-30 m, are BUILDING lengths, and Wimpfen's 50-65 m plots are a civitas capital's - not used.) Possible since M5f-2b gave the era its own site rectangle; the house on it is still the 18 m minimum, so most of the plot is yard.",
             "plot.side_gap": "DESIGN: 0 - neighbouring PARCELS touch. With the 1-cube setback on each side the HOUSES then stand 2 m apart. Texts give party walls, a narrow ambitus, or 'ein Abstand in Gehwegbreite' (Nettersheim) - NO metres anywhere.",
             "setback": "DESIGN: 1 cube, in front and (the planner's rule) on each side, so neighbouring houses stand 2 m apart on touching parcels. The Twelve Tables' 2.5 feet is 5th-c. BC Rome, not a vicus. The portico's ground in front is NOT reserved.",
             "typology_weights": "The era has one typology so far (M5f-2a). Other attested buildings of a small roadside settlement (simple rectangular houses that are not elongated; a round house at Duston) are not modelled.",
