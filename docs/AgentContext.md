@@ -523,8 +523,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       hashes equal, 0 px, byte-identical re-save). Edit cost on chunk borders 0.69 / 0.82 / 0.90 ms (face / edge /
       corner, size 8) > 0.67: per-touched-chunk overhead. Script confounded size with kind (fix: draw independently).
       F3.5a (2026-11-16): border edits re-plan a neighbour only on a flipped border bit, assemble only chunks whose
-      lists changed, plan through the direction groups -- exact (480 verified live); contended A/B corner 1.00 -> 0.52.
-      NEXT: F3.5a A/B with WoW closed, then the F3.5 second run (voxfound_f35_gate.py poses _run2).
+      lists changed, plan through the direction groups -- exact (480 verified live); uncontended corner 1.00 -> 0.48,
+      edge 1.14 -> 0.72, interior 0.66: a full-block edit floods (0.35 ms), so the F3 line still fails for those.
+      NEXT: incremental connectivity (prediction first), then the F3.5 second run (voxfound_f35_gate.py poses _run2).
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

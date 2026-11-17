@@ -62,3 +62,6 @@ chunks left out of the assemble, the plan through the direction groups).
    within +-20 % of the first batches.
 3. Saved chunks / blobs / save / reload as the first run (6-8 MB, 0.1-0.3 s, 25-30 s).
 4. Edit store: within 1.4x of the build's after 1,000 edits (the first run 1.34x; F3.5a changes nothing there).
+(Note 2026-11-16: the second run above is NOT run yet -- F3.5a's uncontended A/B showed a full-block brush still
+0.66-0.72 ms from the connectivity flood alone being 0.35 ms; incremental connectivity comes first, this prediction
+stands for the run after it.)

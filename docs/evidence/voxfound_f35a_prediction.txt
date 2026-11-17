@@ -51,3 +51,23 @@ Stop line: any mismatch stops the run there.
    an interior edit 0.038 -> 0.012 ms. The border premium is gone (border <= interior); what remains is the interior
    cost, of which the connectivity flood is 0.35 ms here. The uncontended numbers (prediction 2) are owed to a run
    with WoW closed.
+
+==== MEASURED, part 2 (2026-11-16, UNCONTENDED: Battle.net launcher only, no WoW and no other session's tests,
+     checked before and after; voxfound_f35a_ab.*) ====
+Same script, seeds and ABBA order as part 1. 480 verified, 0 mismatches (3. HELD again). Request to lists ready,
+median / p90 (ms), A = F3.5 -> B = F3.5a; chunks assembled; assemble bytes:
+   interior 0.675 / 1.033 -> 0.656 / 1.040    1 -> 1    233 K -> 233 K
+   face     0.914 / 1.275 -> 0.605 / 0.913    2 -> 1    535 K -> 235 K
+   edge     1.142 / 1.529 -> 0.722 / 1.190    3 -> 1   1086 K -> 233 K
+   corner   1.000 / 1.673 -> 0.482 / 1.158    4 -> 1    847 K -> 151 K
+   plan: interior 0.038 -> 0.009, corner 0.186 -> 0.018 ms; connectivity flood 0.35 ms (0.13 at corners) in both.
+2. Against the prediction:
+   - corner - interior <= 0.15 ms: HELD (-0.17); neighbour plan <= 0.01 ms: HELD (whole corner edit's plan 0.018 over
+     4 chunks); assemble bytes at a border <= 2x interior: HELD (1.0x).
+   - interior 0.45-0.55 unchanged: WRONG -- 0.656 here and 0.675 on the old path (F3.2b's 0.50 was picked edits; these
+     are seeded size-8 blocks at 30-50 m, every one a full block that flips its blocking bit, so every one floods).
+   - face / edge / corner <= 0.67: face and corner HELD, edge WRONG (0.722).
+   The contended part-1 numbers were within 0.1 ms of these: WoW did not move this measurement much.
+Verdict: the border premium is gone (a border edit costs what an interior one does). The F3 line (<= 0.67 for a
+one-block brush) is still not met for a full-block brush anywhere: of its ~0.65 ms the connectivity flood is 0.35 ms.
+Owed before F3.5's second run: incremental connectivity (the plan's owed item, now the largest part of an edit).
