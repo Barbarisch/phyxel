@@ -144,3 +144,29 @@ L4 (written 2026-11-17 12:36) - the first look at a built Roman settlement. No p
     (6) editor FPS 6-10 on the laptop with the settlement in view (one reading each, not a measurement).
   The engine was stopped by killing the process I launched; the project's default.db and -wal were not written
     (timestamps unchanged), so the tester was left as found.
+
+PL.8 (written 2026-11-17 12:37, before the edits) - two things the L4 look found, measured on the live rig.
+  (a) the roof: resources/textures/source/clay_tile_side_n.png, opened by me, is red terracotta tile; the screenshot's
+      roofs are straw with horizontal courses. So what is PLACED is probably not ClayTile although the assembly plan's
+      roof says ClayTile. New measure in the live roman test: over each structure's top three cube rows, the solid
+      cubes / subcubes / microcubes tallied by material name; assert ClayTile > 0 and Thatch == 0.
+      PREDICTION chain 345: RED - Thatch present, ClayTile absent. (If it is green, the straw look is a render /
+      texture-index matter and I say so.) I do not yet know where a Thatch would come from.
+  (b) the fences: the tier has no "fences" block and the program's default fraction is 1.0 with material Log (the
+      medieval picket) - a medieval default leaking into another era. New assertion: the paths record's fence_micros
+      == 0. PREDICTION chain 345: RED (the terrain run recorded fence_micros 26544).
+      Fix planned: data - "fences": {"fraction": 0.0} labelled NO SOURCE (no fence is in the record; none is built).
+RESULTS of PL.8 (written 2026-11-17 12:40)
+  chain 345 (Release, the live roman test with the two new measures, data unchanged): RED - 0 ok / 1 failed.
+    (a) the roof: MISS - I predicted Thatch. Measured over the top three cube rows of the 10 structures, micro-cell
+        volumes by material: ClayTile 631800, Bricks 4410, WoodPlanks 2880; Thatch 0. What is PLACED is ClayTile.
+        So the straw-coloured, coursed roofs in the L4 screenshots are a RENDER matter: materials.json maps ClayTile to
+        clay_tile_*.png and I opened clay_tile_side_n.png and clay_tile_top.png - both red terracotta. Cause NOT FOUND
+        (the tester project's resources/textures is empty; whether the packed texture array is stale was not checked;
+        no medieval ClayTile roof was compared). The two roof assertions are green and have not been seen red.
+    (b) the fences: RED as predicted - fence_micros 13474, picket, Log.
+  chain 346 (data: "fences": {"fraction": 0.0}; Release; the roman live + headless tests and SettlementProgramTest):
+    8 ok / 0 failed; fence_micros 0; roofs as above; rows 68 of 68, gap 2; live 10 lots, gate 30 / 0, 272 fixtures.
+  chain 347 (Release, full live + realizer set; run to 12:48:38): 37 ok / 0 failed; the 126 distinct medieval record
+    lines identical to chain 341's (diff empty). The Debug unit set was NOT re-run after the fence data and the two new
+    measures (last: chain 343, 188 / 0); chain 346 ran SettlementProgramTest on Release, 0 failed.

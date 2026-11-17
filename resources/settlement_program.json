@@ -32,6 +32,9 @@
           },
           "crofts": {},
           "public": {},
+          "fences": {
+            "fraction": 0.0
+          },
           "bells": {
             "road_access": {
               "preferred_u": 1,
@@ -53,6 +56,7 @@
             }
           },
           "sources": {
+            "fences": "NO SOURCE, so NONE BUILT: no fence, hedge or boundary of a strip-house plot is in the grounding record (yards with ovens, wells and pits are; their enclosure is not). fraction 0 switches off the program's default - a picket of Log on every parcel, the medieval fence - which the first in-engine look (2026-11-17) showed standing at the house fronts.",
             "bells": "DESIGN: the planner's growth parameters, not Roman measurements. road_access, slope and water are the medieval street tiers' values unchanged. sociability gap 0 / spread 3 measured parcel edge to parcel edge ('measure': 'edge' - the default centre measure spaces a narrow, deep parcel 7 cubes from its neighbour whatever the gap says) seats each PARCEL against the last - expressing the qualitative record (houses wall to wall or parted by a narrow passage; a row of at least five in one trench; two rows along the road), for which no spacing in metres exists.",
             "morphology": "GROUNDED: 'two rows of houses along the main roads' at Euskirchen-Billig, Juenkerath and Stolberg-Breinigerberg (LEIZA Germania Inferior vici page, third pass of the record); dense building on both sides of the road at Nettersheim, and at Hibaldstow (secondary). Record: docs/evidence/worldforge_v2/m5f_strip_building_grounding.txt",
             "buildings": "min 5 REASONED: Ottmarsheim 'eine Reihe von mindestens fuenf Haeusern' is one row in one excavation trench (secondary) - it shows such a row existed, NOT a minimum settlement size. max 12 REASONED. NO SOURCE for a plot count of a small roadside settlement.",

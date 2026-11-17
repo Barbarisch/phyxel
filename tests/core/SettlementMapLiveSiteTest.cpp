@@ -2378,9 +2378,24 @@ TEST(SettlementMapLiveSiteTest, ARomanRoadsideSettlementIsBuilt) {
     int wrongLot = 0;
     for (const auto& l : lots) if (l.value("typology", std::string()) != "strip_building" || l.value("stories", 0) != 1) ++wrongLot;
     int structures = 0, wrongRecord = 0, wrongRooms = 0;
+    std::map<std::string, long> roofMat;   // PL.8 (a): what the top three cube rows of every structure are MADE of
     for (const auto& [id, o] : rig.placed.getAllObjects()) {
         if (o.category != "structure") continue;
         ++structures;
+        for (int y = o.boundingMax.y - 2; y <= o.boundingMax.y; ++y)
+            for (int x = o.boundingMin.x; x <= o.boundingMax.x; ++x)
+                for (int z = o.boundingMin.z; z <= o.boundingMax.z; ++z) {
+                    auto it = rig.cm.chunkMap.find(glm::ivec3(floorDiv32(x), floorDiv32(y), floorDiv32(z)));
+                    if (it == rig.cm.chunkMap.end() || !it->second) continue;
+                    Chunk& c = *it->second;
+                    const glm::ivec3 lp(floorModN(x, 32), floorModN(y, 32), floorModN(z, 32));
+                    if (const Cube* cube = c.getCubeAt(lp)) { roofMat[cube->getMaterialName()] += 729; continue; }
+                    for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz) {
+                        const glm::ivec3 sp(sx, sy, sz);
+                        if (const Subcube* sc = c.getSubcubeAt(lp, sp)) { roofMat[sc->getMaterialName()] += 27; continue; }
+                        for (Microcube* mc : c.getMicrocubesAt(lp, sp)) if (mc) roofMat[mc->getMaterialName()] += 1;
+                    }
+                }
         const nlohmann::json bld = o.metadata.value("building", nlohmann::json::object());
         if (bld.value("typology", std::string()) != "strip_building" || bld.value("period", std::string()) != "roman") ++wrongRecord;
         int shop = -1, living = -1, upper = 0;
@@ -2402,6 +2417,15 @@ TEST(SettlementMapLiveSiteTest, ARomanRoadsideSettlementIsBuilt) {
                 lots.size(), wrongLot, structures, wrongRecord, wrongRooms, out["lot_failures"].size(), out["lot_failures"].dump().substr(0, 700).c_str(), "\n");
     std::printf("[ M5f-2a ] gate: %s, %d walkable / %d blocked, %d doors of %d built; %d fixtures placed%s", out.value("gate", std::string("?")).c_str(), out.value("walkable", 0),
                 out.value("blocked", 0), out.value("doors", -1), out.value("built", -1), out.value("fixtures", 0), "\n");
+    std::string roofLine;
+    for (const auto& [name, n] : roofMat) roofLine += " " + name + "=" + std::to_string(n);
+    const long fenceMicros = out["paths"].value("fence_micros", -1L);
+    std::printf("[ M5f-2a ] the top three cube rows of the %d structures, in micro-cell volumes by material:%s%s", structures, roofLine.c_str(), "\n");
+    std::printf("[ M5f-2a ] fences: fence_micros %ld, fence_type %s, material %s%s", fenceMicros, out["paths"].value("fence_type", std::string("?")).c_str(),
+                out.value("fence_material", std::string("?")).c_str(), "\n");
+    EXPECT_GT(roofMat["ClayTile"], 0) << "no ClayTile in the roofs: the style's roof material is not what was placed";
+    EXPECT_EQ(roofMat["Thatch"], 0) << "Thatch in a Roman roof (the L4 look: straw roofs)";
+    EXPECT_EQ(fenceMicros, 0) << "fences built for a tier that asks for none (the medieval picket default)";
     EXPECT_GE(lots.size(), 5u) << "under the tier's minimum";
     EXPECT_EQ(wrongLot, 0);
     EXPECT_EQ(out["lot_failures"].size(), 0u) << "lots the forge refused";
