@@ -75,6 +75,7 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         t.street.laneWidth = s.value("lane_width", 0);
         t.street.material = s.value("material", std::string("Dirt"));
         t.street.backLanes = s.value("back_lanes", false);
+        t.street.throughMiddle = s.value("through_middle", false);   // M5f-2b
     }
     if (rec.contains("plot") && rec["plot"].is_object()) {
         const auto& p = rec["plot"];

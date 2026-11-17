@@ -15,7 +15,8 @@
           "street": {
             "main_width": 6,
             "lane_width": 3,
-            "material": "Gravel"
+            "material": "Gravel",
+            "through_middle": true
           },
           "plot": {
             "frontage": "from_typology",
@@ -56,6 +57,7 @@
             }
           },
           "sources": {
+            "street.through_middle": "DESIGN: with one arriving road the street is bent along the site's edge to its mid-line and run through the middle, so both sides of that run are deep enough for a full plot; the edge leg itself is one-sided and a few houses front it (an L-shaped street, not two straight rows). It makes up for a site rectangle that is not centred on its road (the live site's one entry was at a corner: 7 houses in the row, 4 turned side-on). The sources describe settlements ON a through road; seating the site on its road is the world plan's job and is not done.",
             "fences": "NO SOURCE, so NONE BUILT: no fence, hedge or boundary of a strip-house plot is in the grounding record (yards with ovens, wells and pits are; their enclosure is not). fraction 0 switches off the program's default - a picket of Log on every parcel, the medieval fence - which the first in-engine look (2026-11-17) showed standing at the house fronts.",
             "bells": "DESIGN: the planner's growth parameters, not Roman measurements. road_access, slope and water are the medieval street tiers' values unchanged. sociability gap 0 / spread 3 measured parcel edge to parcel edge ('measure': 'edge' - the default centre measure spaces a narrow, deep parcel 7 cubes from its neighbour whatever the gap says) seats each PARCEL against the last - expressing the qualitative record (houses wall to wall or parted by a narrow passage; a row of at least five in one trench; two rows along the road), for which no spacing in metres exists.",
             "morphology": "GROUNDED: 'two rows of houses along the main roads' at Euskirchen-Billig, Juenkerath and Stolberg-Breinigerberg (LEIZA Germania Inferior vici page, third pass of the record); dense building on both sides of the road at Nettersheim, and at Hibaldstow (secondary). Record: docs/evidence/worldforge_v2/m5f_strip_building_grounding.txt",

@@ -1703,3 +1703,29 @@ MY RESPONSE: 1. the plan now says what is and is not shown - the larger tiers' r
  tier through the new function (PL.9 i), and the hill-rig run (PL.9 iii: 6 / 7 / 8 lots of their targets, 0 wet
  segments). The gate line for claim 3 is in chain 350's and 351's logs ("gate: passed - 33 walkable, 0 blocked, 0
  skipped over 11 doors of 11 built"). NOT done: a medieval civ-path plan hash pin; whether planHash includes the era.
+
+== PL.10 / PL.11 (the corner entry; street.through_middle) - solution-auditor, 2026-11-17 (working tree on ed3aa56f; nothing built or run by it) ==
+RAW VERDICT: PASS WITH CONDITIONS
+CLAIMS AUDITED (the auditor's words, shortened):
+ - Claim 1 (cause) -> REAL, though not isolated: inferred from the path's shape, no single-variable control quoted.
+ - Claim 2 (opt-in, medieval unreachable) -> REAL, traced: default false, one parse, one true in the data, one gated use.
+ - Claim 3 (one way, doors within 9, gap <= 2, none refused; live 11 lots, 1 way, gate 33 / 0) -> REAL but weaker than
+   it sounds: only "ways == 1" is a discriminator (the old planner gave 2-6 ways); the other two were never seen red.
+ - Claim 4 (medieval unchanged) -> REAL to the extent stated; the diffs rest on the author's own diffing; the code
+   gating is the stronger argument.
+ - THE ASSERTION CHANGE: "an honest correction, but it narrowed what the test proves" - written before the next run,
+   the old checks were mis-specified for a bent street. LOST, and understated by the author: two rows on both sides;
+   a row of five or more; that 3 houses sit on a one-sided edge leg on EVERY plan (5 lots = 3 + 2: "half an L along the
+   site boundary"); nothing asserts a house faces the leg it fronts; a one-sided street passes.
+ - HOLES (code read, untested): a wet mid cell - the street "would cross water" with no fallback; only the left-edge
+   entry is exercised; an interior entry detours to the nearest edge; a centred entry now takes a 4-cell jog.
+ - VACUITY: the corner loop had no minimum-lot assertion.
+ - OVERSTATEMENT: the data label's "so both sides hold a full plot" is not measured; "7 + 4 reproduced on flat ground"
+   is 8 + 3 on flat ground.
+CONDITIONS: 1. a minimum-lot assertion per corner seed; 2. fix or document the wet-mid case, with a test; 3. state that
+ the output is an L-shaped street with a one-sided edge leg; 4. do not cite the never-red checks as evidence of the fix.
+MY RESPONSE: 1 added. 2: tested - and the hole is NOT there on that input: water on the aimed-at cell gives 0 wet street
+ segments because the route to a wet goal is empty and the old rule runs (chain 361; my red prediction missed; pinned,
+ never red; a comment records it). The other three edges and an interior entry remain untested. 3 and 4 stated in
+ pm_chain348.txt and in the data label; the per-seed split is printed (up to 6 lots, one side of the middle run is
+ empty). Not done: asserting facing-matches-leg or both-sides-in-use.

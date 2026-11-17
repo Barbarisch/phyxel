@@ -67,3 +67,95 @@ RESULT PL.9 - chain 353 (written 2026-11-17 13:57; Release; the roman headless t
   6, seed 2 7 of 7, seed 3 8 of 8; one way each, 0 wet segments - the rect holds its minimum on the hillside (it was
   unknown). NOT re-run after these test additions and the one label reword: the full live set (351) and the Debug unit
   set (352).
+
+PL.10 (written 2026-11-17 14:00, before the edit) - the strays on terrain: is it the corner entry?
+  Chain 350's live site got ONE entry at (0, 4) of a 76 x 88 rect. A headless variant of the row test's plan: flat
+  ground, the derived rect, the entry moved from the middle of the x = 0 edge (0, 44) to that corner (0, 4), seeds
+  1..8, PRINTED (ways, lots facing across x, the widest gap) - a diagnostic, nothing asserted.
+  PREDICTION: with the corner entry the primary way hugs the z = 4 edge, so only ONE side of it has room (the other is
+  4 cubes deep): at most 7 houses in the row, and the plans with 8+ lots put the rest side-on on lanes - the pattern
+  chain 350 showed (7 in the row, 4 strays). If instead all lots still line the road, the corner entry is NOT the
+  cause and the terrain is.
+RESULT PL.10 - chain 355 (written 2026-11-17 14:01; Release): the prediction held in substance. Flat ground, 76 x 88, entry at
+  (0, 4): the primary way runs (0,4) (13,4) (27,18) (71,18) (75,22) on every seed - not hugging z = 4 as I said, but a
+  quarter of the way in, which leaves the near side 18 deep (a 33-deep plot does not fit). 5-8 lots: all in the row;
+  9 lots: 8 + 1 side-on; 10: 8 + 2; 11: 8 + 3 (seed 7 seats 11 of its 12). So the corner entry alone reproduces chain
+  350's pattern on FLAT ground - terrain is not needed to explain it.
+  CAUSE (read in SettlementMapPlanner.cpp, the street tiers' spine): with one entry the main street is the cheapest
+  path from the entry to "the far edge's middle half" (z from D/4 to 3D/4) - it stops at the nearest allowed cell, a
+  quarter of the depth in. A wide shallow medieval toft tolerates that; a 33-deep strip plot does not.
+PL.11 (written 2026-11-17 14:01, before the edits): an OPT-IN spine rule, street.through_middle (the roman tier sets it; absent =
+  today's rule, so every medieval plan is computed as before). With ONE entry: the street runs from the entry along its
+  own edge to the rect's mid-line, then straight through the middle to the far edge (a band of +-2 round the middle).
+  With a second arriving road the existing through-route is kept. DESIGN, stated: it bends the arriving road in to
+  make up for a site rectangle that is not centred on that road - the real fix is to seat such a site ON its road
+  (the world plan), which this does not do.
+  Assertions added first: headless, the corner-entry plans (8 seeds): no lot side-on, widest gap <= 2; live: no lot
+  off the majority facing axis ("strays").
+  chain 356 PREDICTION (assertions, no code): RED - headless side-on lots on seeds 4-7 (1, 2, 3, 3); live 4 strays.
+  chain 357 PREDICTION (code + data): headless green - GUESS; the edge leg may strand a lot or two beside it. Live:
+    UNKNOWN on terrain (the forced route may cost more cut or meet steep ground); if strays remain I report how many.
+  Regression after: live 37, unit 189, medieval lines identical by diff - the flag is absent from every medieval tier.
+RESULTS (written 2026-11-17 14:05)
+  chain 356 (assertions, no code): RED as predicted - live "7 lots face +-Z, 4 face +-X - 4 strays"; headless corner
+    entry side-on lots on the larger seeds.
+  chain 357 (code + data through_middle): STILL RED on my assertions, and the output shows the assertions were asking
+    the wrong thing. The street now runs (0,4) (0,31) (3,34) (3,43) (4,44) (75,44): down the entry's edge, then through
+    the middle. EVERY lot is on that ONE way (headless: 1 way on all 8 seeds, seed 7 now seats 12 of 12; live: 11 lots,
+    1 way, where it was 7 ways). But two or three houses front the EDGE leg of the street, gable-on to it - so they
+    face +-X while the rest face +-Z, and my "no lot off the majority axis" / "no lot side-on" checks count them as
+    strays. They are not side-on to their street; the street has a corner. Live: 3 on the edge leg, 3 + 5 on the two
+    sides of the middle run (both sides in use); gate 33 / 0 over 11 doors. (My guess "the edge leg may strand a lot or
+    two beside it" was the right worry, wrongly framed.)
+  ASSERTION CHANGE, STATED BEFORE THE NEXT RUN: the property is "every house fronts the street", not "every house faces
+    the same axis". Headless corner-entry plans: exactly ONE way (the street - no lane of a lot's own), every door within
+    9 cubes of the street's line, and no gap wider than 2 between neighbours facing the same way (measured along x for
+    houses facing +-Z, along z for houses facing +-X). Live: exactly one way; the axis split is printed, not asserted.
+    This is a weaker statement than "two straight rows": a row may turn the corner with the road. Said plainly.
+  chain 358 PREDICTION: headless green; live green (1 way). GUESS for the gap along the edge leg: 2 (they seat at the
+    same 10-cube pitch).
+RESULTS (written 2026-11-17 14:18)
+  chain 358 (Release; the amended assertions): 3 ok / 0 failed. Headless corner entry, 8 seeds: 23 lots on the street's
+    edge leg (facing +-X), 0 ways beyond the street, 0 doors off the street, widest gap 2 (the guess held). Live: 1 way;
+    8 lots face +-Z, 3 face +-X (on the edge leg); gate 33 / 0 over 11 doors of 11; 319 fixtures.
+  chain 359 (Release, full live + realizer set; to 14:16:06): 37 ok / 0 failed; the 126 distinct medieval record lines
+    identical to chain 351's (diff empty).
+  chain 360 (Release, the unit set; to 14:17:29): 189 ok / 0 failed. The medieval map suite's own prints ("[ M5a ]" and
+    "[ M5b ]" lines, bake times stripped, 82 distinct) against chain 354's: ONE line differs, and only in a stress
+    timing (826.3 ms / 958.2 ms).
+  Both sets on Release only for this change; no Debug run, no L4.
+AUDIT of PL.10 / PL.11 (solution-auditor, PASS WITH CONDITIONS - raw verdict in the ledger). What it makes me say here:
+  - The output is an L-SHAPED STREET: the bent-in leg runs along the site's edge for ~27 cells and is one-sided by
+    construction; three houses front it on EVERY seed, whatever the lot count (5 lots = 3 on the middle run + 2 on the
+    edge leg). Do not read chain 358 as "roadside rows on both sides".
+  - Only "exactly one way" carried a red and a green (chain 355: 2-6 ways under the old rule). "Doors within 9" and
+    "gap <= 2" have never been seen red and are not evidence that the fix works.
+  - "7 + 4 reproduced on flat ground" was loose: flat chain 355 shows 8 + 3 at 11 lots; 7 + 4 is the live count.
+  - Claim 1 was inferred from the path's shape; no single-variable control was quoted. (The control exists in the same
+    test - the mid-edge entry (0, 44) plans, 68 of 68 on the road - but I did not set the two side by side.)
+PL.12 (written 2026-11-17 14:20, before the edits): the audit's conditions.
+  (a) the corner loop asserts at least the tier's minimum of 5 lots on every seed (a one-way plan with no lots passed);
+  (b) the wet mid-cell: water on (4, 44), the cell the bent street is aimed at. The auditor's reading of my code: the
+      street is routed to that cell and on from it - THROUGH water - with no fallback. New check: no street segment in
+      water on that plan. chain 361 PREDICTION: RED (wet segments > 0).
+      Fix: when the mid cell is water the two-leg route is not taken (the old rule, which never ends on a wet cell).
+      chain 362 PREDICTION: green, 0 wet segments; the plan may then show the old one-sided layout - printed.
+  (c) both sides of the middle run in use is PRINTED per seed for the corner entry (not asserted - a 5-lot plan with 3
+      on the edge leg has 2 left).
+  (d) the data label's "so both sides hold a full plot" becomes "deep enough for" - what the geometry gives, not a
+      measured outcome.
+RESULT PL.12 (written 2026-11-17 14:23)
+  chain 361 (Release; the new checks, NO code change): 1 ok / 0 failed.
+    (b) MISS - I predicted red. With water on (3..5, 43..45) the corner-entry plan (seed 5) has 0 wet street segments:
+        10 lots, 5 ways - the OLD rule's layout. The route to a wet goal comes back empty, so the two-leg street is not
+        taken and the fallback is. The auditor's reading of the code (and mine) was wrong; the hole does not exist on
+        this input. The check stays as a pin; it has never been red. Only a comment was added to the code.
+        What it DOES show: beside water at that cell the settlement silently reverts to lanes (5 ways) - the bent
+        street is all-or-nothing.
+    (a) every corner seed seats at least 5 (5..12).
+    (c) the two sides of the middle run, corner entry, seeds 1..8: 3+0, 3+1, 3+2, 3+3, 3+4, 3+5, 3+6, 3+0 - with 3 (2 on
+        seed 8) more on the edge leg. So up to 6 lots one side of the middle run is EMPTY (seeds 1 and 8) - a
+        one-sided street plus an L, at the small sizes.
+  chain 362 (Release; SettlementMapTest.*, SettlementProgramTest.*, the live roman test - after the comment and the label
+    reword): 49 ok / 0 failed; live 1 way, 8 + 3, gate 33 / 0. The full live and unit sets were NOT re-run after these
+    (last: chains 359 and 360).

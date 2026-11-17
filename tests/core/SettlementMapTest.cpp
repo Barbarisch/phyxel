@@ -2272,8 +2272,81 @@ TEST(SettlementMapTest, ARomanRoadsideSettlementPlansStripBuildingsGableOn) {
     }
     std::printf("[ M5f-2a ] roman roadside settlements: %d plans of 8, %d lots (fewest %d); wrong typology %d, not one storey %d, not 8 along x 18 back %d, no door %d, door not on the street's short side %d%s",
                 plans, lots, plans ? fewest : 0, wrongType, wrongStories, notGableOn, noDoor, doorNotOnShortSide, "\n");
+    // PL.10 / PL.11 (pm_chain348.txt): the same plans with the ONE entry at the site's corner (0, 4), where the live
+    // roman site's entry was (chain 350: 7 houses in the row, 4 strays). The street must still carry every house.
+    int cornerSideOn = 0, cornerGap = 0, cornerRefused = 0, cornerOffStreet = 0, cornerExtraWays = 0, cornerUnderMin = 0;
+    for (unsigned seed = 1; seed <= 8; ++seed) {
+        const WorldForgePlan::TierPreset rr = WorldForgePlan::tierPresetDerived("hamlet", "roman");
+        SettlementMapInput in;
+        in.tier = tier; in.rooms = &rooms; in.era = "roman"; in.seed = seed; in.W = rr.width; in.D = rr.depth;
+        in.heightAt = flatHeight; in.waterAt = {};
+        in.entries = {{0, 4, 1}};
+        const SettlementMap m = planSettlementMap(in);
+        int acrossX = 0, sideOn = 0;
+        for (const auto& l : m.lots) { if (l.orientation == 0 || l.orientation == 2) ++acrossX; else ++sideOn; }
+        cornerSideOn += sideOn;   // printed: houses on the street's edge leg face +-X (the street has a corner)
+        if (static_cast<int>(m.lots.size()) < tier->buildingsMin) ++cornerUnderMin;   // PL.12 (a): not vacuous
+        int north = 0, south = 0;   // PL.12 (c), printed: the two sides of the middle run (houses facing +-Z)
+        for (const auto& l : m.lots) { if (l.orientation == 0) ++north; else if (l.orientation == 2) ++south; }
+        std::printf("[ M5f-2b ]   corner seed %u: %d on the edge leg, %d and %d on the two sides of the middle run%s", seed, sideOn, north, south, "\n");
+        if (!m.ok()) ++cornerRefused;
+        cornerExtraWays += static_cast<int>(m.ways.size()) - 1;   // a way beyond the street = a lane of a lot's own
+        // every door within 9 cubes of the street's line, whichever leg
+        for (const auto& l : m.lots) {
+            double best = 1e9;
+            for (const auto& w : m.ways) {
+                if (w.highway != "primary") continue;
+                for (size_t k = 0; k + 1 < w.nodes.size(); ++k) {
+                    const MapNode *a = nullptr, *b = nullptr;
+                    for (const auto& nd : m.nodes) { if (nd.id == w.nodes[k]) a = &nd; if (nd.id == w.nodes[k + 1]) b = &nd; }
+                    if (!a || !b) continue;
+                    const double vx = b->x - a->x, vz = b->z - a->z, len2 = vx * vx + vz * vz;
+                    double t = len2 > 0 ? ((l.doorX - a->x) * vx + (l.doorZ - a->z) * vz) / len2 : 0.0;
+                    t = std::max(0.0, std::min(1.0, t));
+                    best = std::min(best, std::hypot(l.doorX - (a->x + t * vx), l.doorZ - (a->z + t * vz)));
+                }
+            }
+            if (!l.hasDoor || best > 9.0) ++cornerOffStreet;
+        }
+        // neighbours facing the same way: along x for +-Z, along z for +-X
+        for (int o = 0; o < 4; ++o) {
+            std::vector<std::pair<int, int>> spans;
+            for (const auto& l : m.lots) if (l.orientation == o) spans.push_back((o == 0 || o == 2) ? std::make_pair(l.footprint.x, l.footprint.x + l.footprint.w)
+                                                                                                    : std::make_pair(l.footprint.z, l.footprint.z + l.footprint.d));
+            std::sort(spans.begin(), spans.end());
+            for (size_t k = 0; k + 1 < spans.size(); ++k) cornerGap = std::max(cornerGap, spans[k + 1].first - spans[k].second);
+        }
+        std::string prim;
+        for (const auto& w : m.ways) if (w.highway == "primary") for (int nid : w.nodes) for (const auto& nd : m.nodes) if (nd.id == nid) prim += " (" + std::to_string(nd.x) + "," + std::to_string(nd.z) + ")";
+        std::printf("[ M5f-2b ] corner entry (0,4) seed %u: %zu lots (%d facing across x, %d side-on), %zu ways; primary:%s%s%s", seed, m.lots.size(), acrossX, sideOn,
+                    m.ways.size(), prim.c_str(), m.ok() ? "" : (" REFUSED: " + m.refusal).c_str(), "\n");
+    }
     std::printf("[ M5f-2a ] the row: %d of %d lots face the through road within 9 cubes of its centre line; widest gap between neighbours %d; both sides in use on %d of %d plans (printed, not asserted)%s",
                 onPrimary, lots, widestGap, bothSides, plans, "\n");
+    EXPECT_EQ(cornerRefused, 0) << "corner-entry plans refused";
+    // chain 357 -> 358 (stated in pm_chain348.txt before the run): "every house fronts the street", not "every house
+    // faces the same axis" - the street has a corner, and houses line both of its legs
+    std::printf("[ M5f-2b ] corner entry, 8 seeds: %d lots on the edge leg (facing +-X), %d ways beyond the street, %d doors off the street, widest gap %d%s",
+                cornerSideOn, cornerExtraWays, cornerOffStreet, cornerGap, "\n");
+    EXPECT_EQ(cornerUnderMin, 0) << "corner entry: plans under the tier's minimum of lots";
+    EXPECT_EQ(cornerExtraWays, 0) << "corner entry: a lot on a lane of its own, off the street";
+    // PL.12 (b): water on the very cell the bent street is aimed at (4, 44) - the street must not run through it
+    {
+        const WorldForgePlan::TierPreset rr = WorldForgePlan::tierPresetDerived("hamlet", "roman");
+        SettlementMapInput in;
+        in.tier = tier; in.rooms = &rooms; in.era = "roman"; in.seed = 5; in.W = rr.width; in.D = rr.depth;
+        in.heightAt = flatHeight;
+        in.waterAt = [](int x, int z) { return x >= 3 && x <= 5 && z >= 43 && z <= 45; };
+        in.entries = {{0, 4, 1}};
+        const SettlementMap m = planSettlementMap(in);
+        const Violations v = measure(m, in.heightAt, in.maxRelief, in.waterAt);
+        std::printf("[ M5f-2b ] wet mid-cell (3..5, 43..45), corner entry, seed 5: %zu lots, %zu ways, %d wet street segments%s%s", m.lots.size(), m.ways.size(), v.wayInWater,
+                    m.ok() ? "" : (" REFUSED: " + m.refusal).c_str(), "\n");
+        EXPECT_EQ(v.wayInWater, 0) << "the street runs through the water on the cell it was aimed at";
+        EXPECT_TRUE(m.ok()) << m.refusal;
+    }
+    EXPECT_EQ(cornerOffStreet, 0) << "corner entry: doors further than 9 cubes from the street's line";
+    EXPECT_LE(cornerGap, 2) << "corner entry: a gap wider than 2 between neighbours facing the same way";
     EXPECT_EQ(onPrimary, lots) << "lots that do not front the through road";
     // 2 = two 1-cube setbacks on touching parcels; like the 9 above it was fixed after seeing the output
     EXPECT_LE(widestGap, 2) << "a gap between neighbouring houses on one side of the road wider than 2 cubes - not a row";

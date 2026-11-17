@@ -30,6 +30,11 @@ struct StreetSpec {
     int         laneWidth = 0;   ///< secondary-lane paved width (cubes)
     std::string material = "Dirt";  ///< paving material (must exist in materials.json)
     bool        backLanes = false;  ///< burgage back lanes behind the plot rows (town+)
+    /// M5f-2b (pm_chain348 PL.11): with ONE arriving road the main street runs from the entry along its own edge to
+    /// the site's mid-line and then straight through the middle (`street.through_middle`). Absent / false = the rule
+    /// every medieval tier uses: the cheapest path to the far edge's middle half, which can stop a quarter of the
+    /// depth in - too close to the edge for a deep strip plot on that side.
+    bool        throughMiddle = false;
 };
 
 /// Plot (toft) sizing. Frontage is ALWAYS derived from the assigned typology's grounded

@@ -2384,6 +2384,15 @@ TEST(SettlementMapLiveSiteTest, ARomanRoadsideSettlementIsBuilt) {
     const nlohmann::json lots = out["map"].value("lots", nlohmann::json::array());
     int wrongLot = 0;
     for (const auto& l : lots) if (l.value("typology", std::string()) != "strip_building" || l.value("stories", 0) != 1) ++wrongLot;
+    // PL.11: the strays - lots that do not face across the axis most of them face across (0 / 2 against 1 / 3)
+    int facingZ = 0, facingX = 0;
+    for (const auto& l : lots) { const int o = l.value("orientation", -1); if (o == 0 || o == 2) ++facingZ; else ++facingX; }
+    const int strays = std::min(facingZ, facingX);
+    // chain 357 -> 358 (pm_chain348.txt): the street has a corner where the road is bent in, and houses line both
+    // legs - so the property is ONE way (no house on a lane of its own), not one facing axis; the split is printed
+    const size_t ways = out["map"].value("ways", nlohmann::json::array()).size();
+    std::printf("[ M5f-2b ] live rows: %zu way(s); %d lots face +-Z, %d face +-X (%d on the street's other leg)%s", ways, facingZ, facingX, strays, "\n");
+    EXPECT_EQ(ways, 1u) << "houses on lanes of their own, off the street";
     int structures = 0, wrongRecord = 0, wrongRooms = 0;
     std::map<std::string, long> roofMat;   // PL.8 (a): what the top three cube rows of every structure are MADE of
     for (const auto& [id, o] : rig.placed.getAllObjects()) {

@@ -335,7 +335,37 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
             else              for (int x = W / 4; x < (3 * W) / 4; ++x) goal[static_cast<size_t>(g.idx(x, 0))] = 1;
         }
         for (size_t i = 0; i < N; ++i) if (waterMask[i]) goal[i] = 0;   // a goal under water is no goal
-        const std::vector<int> spine = connect(g, g.idx(entry.x, entry.y), goal, in.reuse);
+        std::vector<int> spine;
+        if (!haveSecond && tier.street.throughMiddle) {
+            // M5f-2b (PL.11): one arriving road and a tier that asks for it - along the entry's own edge to the
+            // mid-line, then through the middle to the far edge (+-2 round the middle). Falls back to the rule below
+            // if either leg has no dry route - MEASURED for a wet mid cell (pm_chain348 PL.12, chain 361: water on the
+            // cell the street is aimed at gave no first leg, the old rule's street, 0 wet segments).
+            const int a = std::max(1, tier.street.mainWidth / 2 + 1);
+            const int dl = entry.x, dr = W - 1 - entry.x, db = entry.y, dt = D - 1 - entry.y;
+            const int m = std::min({dl, dr, db, dt});
+            glm::ivec2 mid(0, 0);
+            std::vector<uint8_t> far(N, 0);
+            if (m == dl || m == dr) {
+                mid = glm::ivec2(m == dl ? std::min(W - 1, a) : std::max(0, W - 1 - a), D / 2);
+                for (int z = std::max(0, D / 2 - 2); z <= std::min(D - 1, D / 2 + 2); ++z) far[static_cast<size_t>(g.idx(m == dl ? W - 1 : 0, z))] = 1;
+            } else {
+                mid = glm::ivec2(W / 2, m == db ? std::min(D - 1, a) : std::max(0, D - 1 - a));
+                for (int x = std::max(0, W / 2 - 2); x <= std::min(W - 1, W / 2 + 2); ++x) far[static_cast<size_t>(g.idx(x, m == db ? D - 1 : 0))] = 1;
+            }
+            for (size_t i = 0; i < N; ++i) if (waterMask[i]) far[i] = 0;
+            std::vector<uint8_t> toMid(N, 0);
+            toMid[static_cast<size_t>(g.idx(mid.x, mid.y))] = 1;
+            const std::vector<int> leg1 = connect(g, g.idx(entry.x, entry.y), toMid, in.reuse);
+            if (!leg1.empty()) {
+                const std::vector<int> leg2 = connect(g, g.idx(mid.x, mid.y), far, in.reuse);
+                if (!leg2.empty()) {
+                    spine = leg1;
+                    for (size_t k = 0; k < leg2.size(); ++k) if (spine.empty() || spine.back() != leg2[k]) spine.push_back(leg2[k]);
+                }
+            }
+        }
+        if (spine.empty()) spine = connect(g, g.idx(entry.x, entry.y), goal, in.reuse);
         if (spine.empty()) { map.refusal = "no dry route for the main street from the entry to the far edge"; return; }
         const float mainW = static_cast<float>(std::max(1, tier.street.mainWidth));
         const int cls = (tier.name == "town" || tier.name == "city") ? 3 : 2;
