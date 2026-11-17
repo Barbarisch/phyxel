@@ -1,0 +1,53 @@
+F3.5a -- the border edit overhead (VoxelFoundationPlan F3.5, owed before F3 closes). Written 2026-11-16, BEFORE any
+engine code change.
+
+Diagnosis (voxfound_f35a_profile.py, gate region, 120 size-8 brushes interleaved interior / face / edge / corner, no
+verify; voxfound_f35a_profile_contended_before.json). CONTENDED: WoW was running -- used for the phase split only, no
+number below is a gate number. Medians by chunks rebuilt (1 / 2 / 3 / 4), ms:
+  rebuild 0.57 / 0.65 / 0.79 / 0.76     assemble 0.11 / 0.27 / 0.50 / 0.46 (bytes 129 K / 480 K / 808 K / 1,044 K)
+  plan    0.03 / 0.08 / 0.14 / 0.16     cluster  0.02 / 0.08 / 0.11 / 0.14     sprig 0.02 / 0.04 / 0.09 / 0.05
+  rows    0.12 / 0.13 / 0.12 / 0.11     connect  0.36 / 0.36 / 0.37 / 0.35 (one flood, the edited chunk)
+Read: a size-8 brush is block-aligned, so it edits ONE chunk; the other 1-3 are rebuilt only because their border
+plane was written. Each of them pays three passes over its WHOLE face list (planRunsDelta scans every face;
+applyClusteredDelta copies every face one by one; the pool rewrites its whole face span, ~300 KB) whatever changed.
+
+Changes (all exact by construction; each pinned by a test shown red first):
+A. A neighbour is rebuilt only when a border bit actually flips (Stone over Dirt, or air over air, flips none).
+B. A rebuilt chunk whose face delta is empty as a multiset (removed faces = added faces), whose sprigs are unchanged
+   and whose connectivity is unchanged keeps its lists untouched and is left out of the assemble (Stats.changed);
+   verify still rebuilds every chunk in Stats.rebuilt, so a wrong skip would show as a mismatch.
+C. planRunsDelta through the direction groups: only the faces of groups whose box meets the edit box grown by 2 are
+   examined (a face that qualifies lies inside its group's box) -- the same plan (removed, slices) as today.
+D. applyClusteredDelta copies an untouched group as one block instead of face by face.
+Not in this increment (the plan's owed items): the pool span copy of a chunk whose faces DID change (a span rewrite
+proportional to the change needs a gapped layout), the 0.36 ms connectivity flood (incremental connectivity).
+
+Predictions:
+1. Tests: the new tests red before (A: a solidity-preserving border brush rebuilds 2 chunks today; B: an air brush on
+   an air border assembles 2 chunks today; C: today's plan examines every face), green after; every existing VoxFound
+   test green (CPU 74 + new, GPU 22/22).
+2. Live, uncontended (no WoW), the gate region, one session, the same seeded edits old path ({"legacy_border":true})
+   vs new in alternating order, size 8 by kind, request to lists ready median:
+     interior unchanged within +-10 % (0.45-0.55);
+     face / edge / corner each <= 0.67 (the F3 line); corner - interior <= 0.15 ms (today ~0.4).
+   The plan of a neighbour chunk <= 0.01 ms; assemble bytes of a corner edit <= 2x an interior one's in the median.
+3. Exact: every edit verified (faces, sprigs, connectivity of every planned chunk) 0 mismatches.
+Stop line: any mismatch stops the run there.
+
+==== MEASURED, part 1 (2026-11-16) ====
+1. Tests: red first with stubs that kept F3.5's behaviour (voxfound_f35a_red.txt: BorderEditsTouchOnlyTheChunksThat-
+   Change -- a Stone -> Dirt border brush re-planned {0, 1}, an air border brush assembled {0, 1}, 488 re-planned =
+   488 changed over 300 border brushes, 0 edits left the neighbour alone; PlanThroughGroupsEqualsTheFullScan -- every
+   box examined all 58,578 faces). The exactness assertions in the same tests (drawn spans = lists, groups tile the
+   faces, full rebuild equal every 50) already held. Green after: CPU 76/76 (74 + 2), GPU 22/22. 300 border
+   brushes: 435 re-planned, 255 changed, 53 edits left the neighbour alone; a box <= 8 examines 276 faces on average
+   (worst 2,997) of 58,578. HELD.
+3. Exact live: voxfound_f35a_ab.py, 4 runs x 120 seeded size-8 edits (ABBA, A = {"legacy_border":true}), every edit
+   verified: 480 verified, 0 mismatches. HELD.
+2. Cost -- CONTENDED (WoW running throughout: voxfound_f35a_ab_contended.*), so not the gate number; the A/B is in
+   one session on the same edits, request to lists ready median (ms), A -> B:
+     interior 0.707 -> 0.703   face 0.902 -> 0.695   edge 1.207 -> 0.709   corner 0.996 -> 0.519
+   chunks handed to the assemble (median) 1/2/3/4 -> 1/1/1/1; assemble bytes at an edge 1.09 MB -> 0.23 MB; plan of
+   an interior edit 0.038 -> 0.012 ms. The border premium is gone (border <= interior); what remains is the interior
+   cost, of which the connectivity flood is 0.35 ms here. The uncontended numbers (prediction 2) are owed to a run
+   with WoW closed.

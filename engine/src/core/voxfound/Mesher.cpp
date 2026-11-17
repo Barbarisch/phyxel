@@ -199,16 +199,29 @@ std::vector<PackedFace> sprigsBoxR(const Rd& r, Edges outside, const SprigParams
 }
 
 template <class Rd>
-size_t updateSprigsR(std::vector<PackedFace>& sprigs, const Rd& r, Edges outside, const SprigParams& p, glm::ivec3 lo, glm::ivec3 hi) {
+size_t updateSprigsR(std::vector<PackedFace>& sprigs, const Rd& r, Edges outside, const SprigParams& p, glm::ivec3 lo,
+                     glm::ivec3 hi, bool* changed = nullptr) {
     const glm::ivec3 rlo = lo - 1, rhi = hi + 1;
-    sprigs.erase(std::remove_if(sprigs.begin(), sprigs.end(),
-                                [&](const PackedFace& f) {
-                                    const glm::ivec3 c(int(f.a & 0xFF), int((f.a >> 8) & 0xFF), int((f.a >> 16) & 0xFF));
-                                    return c.x >= rlo.x && c.y >= rlo.y && c.z >= rlo.z && c.x <= rhi.x &&
-                                           c.y <= rhi.y && c.z <= rhi.z;
-                                }),
-                 sprigs.end());
+    auto inBox = [&](const PackedFace& f) {
+        const glm::ivec3 c(int(f.a & 0xFF), int((f.a >> 8) & 0xFF), int((f.a >> 16) & 0xFF));
+        return c.x >= rlo.x && c.y >= rlo.y && c.z >= rlo.z && c.x <= rhi.x && c.y <= rhi.y && c.z <= rhi.z;
+    };
     const std::vector<PackedFace> add = sprigsBoxR(r, outside, p, rlo, rhi);
+    if (changed) {
+        // F3.5a: the box's sprigs as a set; the same set leaves the list (and its order) untouched
+        std::vector<uint64_t> was, now;
+        for (const PackedFace& f : sprigs)
+            if (inBox(f)) was.push_back(f.key());
+        *changed = was.size() != add.size();
+        if (!*changed) {
+            for (const PackedFace& f : add) now.push_back(f.key());
+            std::sort(was.begin(), was.end());
+            std::sort(now.begin(), now.end());
+            *changed = was != now;
+        }
+        if (!*changed) return 0;
+    }
+    sprigs.erase(std::remove_if(sprigs.begin(), sprigs.end(), inBox), sprigs.end());
     sprigs.insert(sprigs.end(), add.begin(), add.end());
     return add.size();
 }
@@ -1050,7 +1063,9 @@ size_t RunsPlan::rows() const {
     return n;
 }
 
-RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, glm::ivec3 lo, glm::ivec3 hi) {
+namespace {
+RunsPlan planRunsDeltaImpl(glm::ivec3 dim, const std::vector<PackedFace>& before, const std::vector<FaceCluster>* groups,
+                           glm::ivec3 lo, glm::ivec3 hi) {
     RunsPlan plan;
     // Per axis and direction: the slices that can change, the (u, v) footprint, and per slice the removed faces' rows.
     struct Side {
@@ -1077,20 +1092,36 @@ RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, gl
         }
     }
     // faces whose rectangle grown by one meets the footprint of a slice that can change
-    for (size_t i = 0; i < before.size(); ++i) {
+    auto examine = [&](size_t i) {
         const PackedFace f = before[i];
         const int a = int((f.a >> 24) & 3u), db = int((f.a >> 26) & 1u);
         Side& sd = side[a][db];
         const glm::ivec3 o(int(f.a & 0xFF), int((f.a >> 8) & 0xFF), int((f.a >> 16) & 0xFF));
         const int s = o[a];
-        if (s < sd.sLo || s > sd.sHi) continue;
+        if (s < sd.sLo || s > sd.sHi) return;
         const int u = o[(a + 1) % 3], v = o[(a + 2) % 3];
         const int du = int(f.b & 0xFF) + 1, dv = int((f.b >> 8) & 0xFF) + 1;
-        if (u - 1 > sd.uHi || u + du < sd.uLo || v - 1 > sd.vHi || v + dv < sd.vLo) continue;
+        if (u - 1 > sd.uHi || u + du < sd.uLo || v - 1 > sd.vHi || v + dv < sd.vLo) return;
         plan.removed.push_back(uint32_t(i));
         const size_t k = size_t(s - sd.sLo);
         sd.rowLo[k] = std::min(sd.rowLo[k], v);
         sd.rowHi[k] = std::max(sd.rowHi[k], v + dv - 1);
+    };
+    if (!groups) {
+        for (size_t i = 0; i < before.size(); ++i) examine(i);
+        plan.examined = before.size();
+    } else {
+        // F3.5a: a face that qualifies has its plane within [lo - 1, hi + 2] along its axis and its rectangle within
+        // one of the footprint across it, so its box (and its group's, the union of its faces' boxes) meets
+        // [lo - 2, hi + 2]
+        const glm::ivec3 glo = lo - 2, ghi = hi + 2;
+        for (const FaceCluster& g : *groups) {
+            if (g.hi.x < glo.x || g.hi.y < glo.y || g.hi.z < glo.z || g.lo.x > ghi.x || g.lo.y > ghi.y || g.lo.z > ghi.z)
+                continue;
+            for (uint32_t i = g.first; i < g.first + g.count; ++i) examine(i);
+            plan.examined += g.count;
+        }
+        std::sort(plan.removed.begin(), plan.removed.end());   // groups come in face order; kept ascending regardless
     }
     // the rows to re-mesh: the footprint rows + the removed faces' rows (see the header)
     for (int a = 0; a < 3; ++a)
@@ -1112,6 +1143,16 @@ RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, gl
             }
         }
     return plan;
+}
+}  // namespace
+
+RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, glm::ivec3 lo, glm::ivec3 hi) {
+    return planRunsDeltaImpl(dim, before, nullptr, lo, hi);
+}
+
+RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, const std::vector<FaceCluster>& groups,
+                       glm::ivec3 lo, glm::ivec3 hi) {
+    return planRunsDeltaImpl(dim, before, &groups, lo, hi);
 }
 
 RunsDelta meshRunsPlan(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards) {
@@ -1143,8 +1184,8 @@ size_t updateSprigs(std::vector<PackedFace>& sprigs, const VoxelGrid& g, Edges o
     return updateSprigsR(sprigs, GridRead{g}, outside, p, lo, hi);
 }
 size_t updateSprigs(std::vector<PackedFace>& sprigs, const BlockStore& st, Edges outside, const SprigParams& p,
-                    glm::ivec3 lo, glm::ivec3 hi) {
-    return updateSprigsR(sprigs, StoreRead{st}, outside, p, lo, hi);
+                    glm::ivec3 lo, glm::ivec3 hi, bool* changed) {
+    return updateSprigsR(sprigs, StoreRead{st}, outside, p, lo, hi, changed);
 }
 
 
@@ -1242,8 +1283,7 @@ void boxOf(const std::vector<PackedFace>& faces, FaceCluster& c) {
 void applyClusteredDelta(std::vector<PackedFace>& faces, std::vector<FaceCluster>& groups, const RunsDelta& d,
                          int clusterBlocks, bool octantOrder) {
     const int cellV = std::max(1, clusterBlocks) * 8;
-    std::vector<char> gone(faces.size(), 0);
-    for (uint32_t i : d.removed) gone[i] = 1;
+    size_t ri = 0;   // d.removed is ascending and the groups tile `faces` in order: one cursor walks both
     std::vector<std::pair<uint32_t, PackedFace>> add;
     add.reserve(d.added.size());
     for (const PackedFace& f : d.added) add.push_back({groupKey(f, cellV, octantOrder), f});
@@ -1263,9 +1303,19 @@ void applyClusteredDelta(std::vector<PackedFace>& faces, std::vector<FaceCluster
         bool touched = false;
         if (gk == key) {
             const FaceCluster& o = groups[gi++];
-            for (uint32_t i = o.first; i < o.first + o.count; ++i)
-                if (gone[i]) touched = true;
-                else nf.push_back(faces[i]);
+            const uint32_t end = o.first + o.count;
+            if (ri < d.removed.size() && d.removed[ri] < end) {
+                touched = true;
+                for (uint32_t i = o.first; i < end; ++i) {
+                    if (ri < d.removed.size() && d.removed[ri] == i) {
+                        ++ri;
+                        continue;
+                    }
+                    nf.push_back(faces[i]);
+                }
+            } else {
+                nf.insert(nf.end(), faces.begin() + o.first, faces.begin() + end);   // F3.5a: an untouched group whole
+            }
             c.dir = o.dir;
             c.lo = o.lo;
             c.hi = o.hi;

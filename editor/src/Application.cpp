@@ -14021,6 +14021,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     // records the rows into the frame and writes the face pool on the device (no readback, no wait).
     std::string rowsErr;
     voxFoundEdit.setLegacyF31(ej.value("legacy", false));   // F3.1 A/B: F2.17's edit path
+    voxFoundEdit.setLegacyBorder(ej.value("legacy_border", false));   // F3.5a A/B: F3.5's border handling
     FaceBuilderGpu* rowsGpu = ej.value("device", false) ? voxFoundBuilder.get() : nullptr;
     RegionEdit::Stats st;
     if (brush == "brush")
@@ -14034,7 +14035,8 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     if (!ej.value("device", false) && voxFoundBuilder)
         for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
     const auto t1 = std::chrono::steady_clock::now();
-    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &st.rebuilt);   // F2.17: only the rebuilt chunks' spans
+    // F2.17: only the rebuilt chunks' spans; F3.5a: only those whose lists changed
+    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &st.changed);
     const auto t2 = std::chrono::steady_clock::now();
     auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
     nlohmann::json rebuilt = nlohmann::json::array();
@@ -14053,7 +14055,8 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
                 {"sprig_ms", st.sprigMs}, {"connect_ms", st.connectMs}, {"rebuild_ms", ms(t0, t1)},
                 {"assemble_ms", ms(t1, t2)}, {"faces", voxFoundPreview.liveFaces()},
                 {"connect_floods", st.connectFloods}, {"blocks_filled", st.blocksFilled}, {"brush_size", brushSize}, {"assemble_bytes", voxFoundPreview.lastCopyBytes},
-                {"legacy", voxFoundEdit.legacyF31()},
+                {"legacy", voxFoundEdit.legacyF31()}, {"legacy_border", voxFoundEdit.legacyBorder()},
+                {"chunks_changed", st.changed.size()},
                 {"sprigs", voxFoundPreview.liveSprigs()}};
     if (ej.value("verify", false) && voxFoundBuilder) {
         // every rebuilt chunk, fully, on the device: the same voxels + border planes through FaceBuilderGpu

@@ -119,9 +119,12 @@ RegionEdit::Stats RegionEdit::loadChunk(size_t i, const BlockStore& saved) {
                 total.facesRemoved += st.facesRemoved;
                 total.blocksFilled += st.blocksFilled;
                 total.rebuilt.insert(total.rebuilt.end(), st.rebuilt.begin(), st.rebuilt.end());
+                total.changed.insert(total.changed.end(), st.changed.begin(), st.changed.end());
             }
     std::sort(total.rebuilt.begin(), total.rebuilt.end());
     total.rebuilt.erase(std::unique(total.rebuilt.begin(), total.rebuilt.end()), total.rebuilt.end());
+    std::sort(total.changed.begin(), total.changed.end());
+    total.changed.erase(std::unique(total.changed.begin(), total.changed.end()), total.changed.end());
     m_chunks[i].edited = true;   // a saved chunk keeps winning over the generator
     return total;
 }
@@ -306,14 +309,19 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
                 Chunk& nb = m_chunks[size_t(j)];
                 const int ua = (a + 1) % 3, va = (a + 2) % 3;
                 const int layer = s < 0 ? 0 : kN - 1;
+                bool flipped = false;   // F3.5a: the neighbour is re-planned only if one of its border bits flips
                 for (int v = eLo[va]; v <= eHi[va]; ++v)
                     for (int u = eLo[ua]; u <= eHi[ua]; ++u) {
                         glm::ivec3 p;
                         p[a] = layer;
                         p[ua] = u;
                         p[va] = v;
-                        nb.border.set(a, -s, u, v, c.store.at(p) != 0);
+                        const bool solid = c.store.at(p) != 0;
+                        if (nb.border.solid(a, -s, u, v) == solid) continue;
+                        nb.border.set(a, -s, u, v, solid);
+                        flipped = true;
                     }
+                if (!flipped && !m_legacyBorder) continue;
                 glm::ivec3 pl = eLo, ph = eHi;
                 pl[a] = ph[a] = s < 0 ? kN : -1;   // the plane lies just outside the neighbour
                 grow(size_t(j), pl, ph);
@@ -330,7 +338,8 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
         Chunk& c = m_chunks[i];
         const Edges e(c.border);
         auto t = std::chrono::steady_clock::now();
-        const RunsPlan plan = planRunsDelta(c.store.dim(), c.faces, bLo[i], bHi[i]);
+        const RunsPlan plan = m_legacyBorder ? planRunsDelta(c.store.dim(), c.faces, bLo[i], bHi[i])
+                                             : planRunsDelta(c.store.dim(), c.faces, c.groups, bLo[i], bHi[i]);
         st.planMs += msSince(t);
         RunsDelta d;
         const auto tr = std::chrono::steady_clock::now();
@@ -361,16 +370,33 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
         st.rowsWallMs += msSince(tr);
         st.facesMs += msSince(t);
         t = std::chrono::steady_clock::now();
-        applyClusteredDelta(c.faces, c.groups, d, m_clusterBlocks, m_octant);
+        // F3.5a: a delta that removes exactly the faces it adds (as a set) leaves the list as it is
+        bool facesChanged = true;
+        if (!m_legacyBorder && d.removed.size() == d.added.size()) {
+            std::vector<uint64_t> was, now;
+            was.reserve(d.removed.size());
+            now.reserve(d.added.size());
+            for (uint32_t k : d.removed) was.push_back(c.faces[k].key());
+            for (const PackedFace& f : d.added) now.push_back(f.key());
+            std::sort(was.begin(), was.end());
+            std::sort(now.begin(), now.end());
+            facesChanged = was != now;
+        }
+        if (facesChanged) applyClusteredDelta(c.faces, c.groups, d, m_clusterBlocks, m_octant);
         st.clusterMs += msSince(t);
         t = std::chrono::steady_clock::now();
-        st.sprigsAdded += updateSprigs(c.sprigs, c.store, e, sprigParams(i), bLo[i], bHi[i]);
+        bool sprigsChanged = true;
+        st.sprigsAdded += updateSprigs(c.sprigs, c.store, e, sprigParams(i), bLo[i], bHi[i],
+                                       m_legacyBorder ? nullptr : &sprigsChanged);
         st.sprigMs += msSince(t);
+        bool connectChanged = false;
         if (voxelEdited[i]) {
             t = std::chrono::steady_clock::now();
             // F3.1: connectivity is a function of the blocking bits alone -- flood only when one changed
             if (updateBlockBlocking(c.store, m_seeThrough, vLo[i], vHi[i], c.blocking) || m_legacyF31) {
+                const FaceConnect was = c.connect;
                 c.connect = connectivityFromBlocking(c.store.dim() / 8, c.blocking);
+                connectChanged = c.connect != was;
                 ++st.connectFloods;
             }
             st.connectMs += msSince(t);
@@ -379,6 +405,7 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
         st.facesAdded += d.added.size();
         st.rowsMeshed += d.rowsMeshed;
         st.rebuilt.push_back(i);
+        if (facesChanged || sprigsChanged || connectChanged || m_legacyBorder) st.changed.push_back(i);
         ++st.chunksRebuilt;
     }
     return st;

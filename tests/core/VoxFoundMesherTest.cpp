@@ -2646,3 +2646,142 @@ TEST(VoxFoundMesher, SavedChunkReloadsExactly) {
     expectFullRebuildEqual(fresh, "after load");
     std::printf("[f33 reload] chunk 0: %zu B blob, %zu voxels written by the load\n", blob.size(), st.voxelsChanged);
 }
+
+namespace {
+// F3.5a: what the Preview draws for chunk c (its face span and its sprig span) = the chunk's lists
+void expectDrawnEqualsLists(const TwoChunks& t, const Preview& pv, const std::vector<uint16_t>& leafTex,
+                            const std::string& at) {
+    for (size_t c = 0; c < 2; ++c) {
+        const RegionEdit::Chunk& ch = t.edit.chunk(c);
+        const PreviewChunk& pc = pv.chunks[c];
+        ASSERT_EQ(size_t(pc.faceCount), ch.faces.size()) << at << " chunk " << c;
+        std::vector<PackedFace> drawn(pv.faces.begin() + pc.firstFace, pv.faces.begin() + pc.firstFace + pc.faceCount);
+        ASSERT_EQ(sortedKeys(drawn), sortedKeys(ch.faces)) << at << " chunk " << c;
+        ASSERT_EQ(size_t(pc.sprigCount), ch.sprigs.size()) << at << " chunk " << c;
+        std::vector<uint64_t> a, b;
+        for (uint32_t k = 0; k < pc.sprigCount; ++k) {
+            const PreviewSprig& s = pv.sprigs[pc.firstSprig + k];
+            a.push_back((uint64_t(s.cell & 0xFFFFFFu) << 32) | s.tex);
+        }
+        for (const PackedFace& s : ch.sprigs) b.push_back((uint64_t(s.a & 0xFFFFFFu) << 32) | leafTex[(s.b >> 16) & 0xFFu]);
+        std::sort(a.begin(), a.end());
+        std::sort(b.begin(), b.end());
+        ASSERT_EQ(a, b) << at << " chunk " << c;
+        ASSERT_EQ(pc.connect, ch.connect) << at << " chunk " << c;
+    }
+}
+// the direction groups tile the faces: contiguous from 0, each group's box = its faces' boxes, one direction each
+void expectGroupsTileFaces(const RegionEdit::Chunk& ch, const std::string& at) {
+    uint32_t next = 0;
+    for (const FaceCluster& g : ch.groups) {
+        ASSERT_EQ(g.first, next) << at;
+        ASSERT_GT(g.count, 0u) << at;
+        glm::ivec3 lo(std::numeric_limits<int>::max()), hi(std::numeric_limits<int>::min());
+        for (uint32_t i = g.first; i < g.first + g.count; ++i) {
+            ASSERT_EQ(faceDirIndex(ch.faces[i]), g.dir) << at;
+            glm::ivec3 a, b;
+            faceBox(ch.faces[i], a, b);
+            lo = glm::min(lo, a);
+            hi = glm::max(hi, b);
+        }
+        ASSERT_EQ(lo, g.lo) << at;
+        ASSERT_EQ(hi, g.hi) << at;
+        next = g.first + g.count;
+    }
+    ASSERT_EQ(size_t(next), ch.faces.size()) << at;
+}
+}  // namespace
+
+// F3.5a: a border edit re-plans the neighbour only when a border bit flips (Stone over Dirt flips none), and a
+// re-planned chunk whose lists did not change is not handed to the assemble (Stats.changed). Then 300 size-8 brushes on
+// the chunk border (place / break, mixed materials, in the ground and in the air): after every one the drawn spans =
+// the lists and the groups tile the faces; every 50 and at the end the lists = a full rebuild.
+TEST(VoxFoundMesher, BorderEditsTouchOnlyTheChunksThatChange) {
+    TwoChunks t;
+    buildTwoChunks(t, 3501u);
+    std::vector<uint16_t> leafTex(256);
+    for (size_t i = 0; i < leafTex.size(); ++i) leafTex[i] = uint16_t(1000 + i);
+    Preview pv;
+    pv.chunks.resize(2);
+    t.edit.assemble(pv, leafTex);
+    auto brushMirror = [&](glm::ivec3 lo, int s, uint8_t m) {
+        for (int x = lo.x; x < lo.x + s; ++x)
+            for (int y = lo.y; y < lo.y + s; ++y)
+                for (int z = lo.z; z < lo.z + s; ++z) mirrorSet(t, {x, y, z}, m);
+    };
+    // the block x 248..255, y 32..39 (all Stone, deep under the ground at h >= 71) becomes Dirt: solid -> solid
+    RegionEdit::Stats st;
+    ASSERT_TRUE(t.edit.brush({250, 33, 64}, 8, 2, st));
+    brushMirror({248, 32, 64}, 8, 2);
+    EXPECT_EQ(st.voxelsChanged, 512u);
+    EXPECT_EQ(st.rebuilt, std::vector<size_t>({0})) << "solid -> solid flips no border bit of chunk 1";
+    t.edit.assemble(pv, leafTex, &st.changed);
+    expectDrawnEqualsLists(t, pv, leafTex, "dirt");
+    // Stone into the air at y 200 (chunk 1's layer x = 0 is air there): chunk 1 re-planned, its lists unchanged
+    ASSERT_TRUE(t.edit.brush({250, 201, 64}, 8, 1, st));
+    brushMirror({248, 200, 64}, 8, 1);
+    EXPECT_EQ(st.rebuilt, std::vector<size_t>({0, 1}));
+    EXPECT_EQ(st.changed, std::vector<size_t>({0})) << "chunk 1's faces / sprigs / connectivity did not change";
+    t.edit.assemble(pv, leafTex, &st.changed);
+    expectDrawnEqualsLists(t, pv, leafTex, "air");
+    expectFullRebuildEqual(t, "first two");
+    std::mt19937 rng(3502u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    size_t replanned = 0, changed = 0, neighbourSkipped = 0;
+    for (int it = 0; it < 300; ++it) {
+        const glm::ivec3 at(rnd(0, 1) ? rnd(248, 255) : rnd(256, 263), rnd(10, 22) * 8 + rnd(0, 7), rnd(0, 255));
+        const uint8_t m = uint8_t(rnd(0, 4));
+        ASSERT_TRUE(t.edit.brush(at, 8, m, st));
+        brushMirror(brushCell(at, 8), 8, m);
+        replanned += st.rebuilt.size();
+        changed += st.changed.size();
+        neighbourSkipped += (st.voxelsChanged && st.rebuilt.size() < 2) ? 1 : 0;
+        const std::string where = "edit " + std::to_string(it);
+        t.edit.assemble(pv, leafTex, &st.changed);
+        expectDrawnEqualsLists(t, pv, leafTex, where);
+        for (size_t c = 0; c < 2; ++c) expectGroupsTileFaces(t.edit.chunk(c), where);
+        if (it % 50 == 49) expectFullRebuildEqual(t, where);
+    }
+    std::printf("[f35a border] 300 border brushes: %zu chunks re-planned, %zu changed, %zu edits left the neighbour "
+                "alone\n", replanned, changed, neighbourSkipped);
+    EXPECT_LT(changed, replanned);
+    EXPECT_GT(neighbourSkipped, 0u);
+}
+
+// F3.5a: the plan through the direction groups = the full scan (removed faces, slice jobs), for 400 boxes of 1-32
+// voxels anywhere in a chunk (corners and sides included), and a small box examines a small part of the faces.
+TEST(VoxFoundMesher, PlanThroughGroupsEqualsTheFullScan) {
+    TwoChunks t;
+    buildTwoChunks(t, 3503u);
+    std::mt19937 rng(3504u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    const RegionEdit::Chunk& ch = t.edit.chunk(0);
+    const glm::ivec3 dim = ch.store.dim();
+    size_t smallBoxes = 0, smallExamined = 0, worst = 0;
+    for (int it = 0; it < 400; ++it) {
+        const int s = it < 200 ? rnd(1, 8) : rnd(1, 32);
+        glm::ivec3 lo(rnd(-1, 256 - s + 1), rnd(60, 160), rnd(-1, 256 - s + 1));
+        if (it % 10 == 0) lo = {rnd(0, 1) ? -1 : 256 - s + 1, rnd(60, 160), rnd(0, 1) ? 0 : 256 - s};
+        const glm::ivec3 hi = lo + s - 1;
+        const RunsPlan a = planRunsDelta(dim, ch.faces, lo, hi);
+        const RunsPlan b = planRunsDelta(dim, ch.faces, ch.groups, lo, hi);
+        const std::string at = "box " + std::to_string(it);
+        ASSERT_EQ(a.removed, b.removed) << at;
+        ASSERT_EQ(a.slices.size(), b.slices.size()) << at;
+        for (size_t k = 0; k < a.slices.size(); ++k) {
+            const SliceJob &x = a.slices[k], &y = b.slices[k];
+            ASSERT_TRUE(x.axis == y.axis && x.dir == y.dir && x.s == y.s && x.w0 == y.w0 && x.w1 == y.w1 &&
+                        x.uLo == y.uLo && x.uHi == y.uHi && x.vLo == y.vLo && x.vHi == y.vHi)
+                << at << " slice " << k;
+        }
+        if (s <= 8) {
+            ++smallBoxes;
+            smallExamined += b.examined;
+            worst = std::max(worst, b.examined);
+        }
+    }
+    std::printf("[f35a plan] %zu faces; boxes <= 8: mean %.0f examined, worst %zu\n", ch.faces.size(),
+                double(smallExamined) / double(smallBoxes), worst);
+    EXPECT_LT(smallExamined, smallBoxes * ch.faces.size() / 50) << "a small box examines < 2 % of the faces on average";
+    EXPECT_LT(worst, ch.faces.size() / 10);
+}

@@ -1,0 +1,28 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundMesher.PlanThrough*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundMesher
+[ RUN      ] VoxFoundMesher.PlanThroughGroupsEqualsTheFullScan
+[f35a plan] 58578 faces; boxes <= 8: mean 58578 examined, worst 58578
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundMesherTest.cpp(2785): error: Expected: (smallExamined) < (smallBoxes * ch.faces.size() / 50), actual: 14878812 vs 297576
+a small box examines < 2 % of the faces on average
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundMesherTest.cpp(2786): error: Expected: (worst) < (ch.faces.size() / 10), actual: 58578 vs 5857
+
+[  FAILED  ] VoxFoundMesher.PlanThroughGroupsEqualsTheFullScan (9576 ms)
+[----------] 1 test from VoxFoundMesher (9576 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (9576 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundMesher.PlanThroughGroupsEqualsTheFullScan
+
+ 1 FAILED TEST
+(BorderEditsTouchOnlyTheChunksThatChange red output, same build:)
+VoxFoundMesherTest.cpp(2717): st.rebuilt {0, 1} != {0}  -- solid -> solid flips no border bit of chunk 1
+VoxFoundMesherTest.cpp(2724): st.changed {0, 1} != {0}  -- chunk 1's faces / sprigs / connectivity did not change
+[f35a border] 300 border brushes: 488 chunks re-planned, 488 changed, 0 edits left the neighbour alone
+(2747) changed < replanned: 488 vs 488;  (2748) neighbourSkipped > 0: 0 vs 0
+[  FAILED  ] VoxFoundMesher.BorderEditsTouchOnlyTheChunksThatChange (83045 ms)

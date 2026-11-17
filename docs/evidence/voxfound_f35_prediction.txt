@@ -50,3 +50,15 @@ measured here (F3.2b measured it: 0.50 ms median).
 Verdict: the F3 row's second half (save / load round-trips exactly) holds under 1,000 edits and 10 reloads. Its first
 half holds inside a chunk and NOT on chunk borders. Owed before F3 closes: the per-touched-chunk overhead of an edit
 (a border edit rebuilds 2-4 chunks), then this gate re-run with size and kind drawn independently.
+
+==== SECOND RUN -- prediction (2026-11-16, written BEFORE the run; after F3.5a, voxfound_f35a_*) ====
+Same method and stop line as the first run, with two changes: size and kind are drawn independently (rng 3521; tag
+"_run2" on every output), and the engine has F3.5a (neighbours re-planned only when a border bit flips, unchanged
+chunks left out of the assemble, the plan through the direction groups).
+1. Exact at every step, as the first run: 0 mismatches in 1,000 verified edits, 10 / 10 reloads with all hashes
+   equal, final pixels 0 / 0, the re-save byte-identical.
+2. Edit cost, request to lists ready, median: every (size, kind) cell <= 0.67 ms, size 8 included on chunk faces,
+   edges and corners (F3.5a contended A/B: border = interior +- 0.05 ms); sizes 1-4 0.15-0.5 ms; reloaded regions
+   within +-20 % of the first batches.
+3. Saved chunks / blobs / save / reload as the first run (6-8 MB, 0.1-0.3 s, 25-30 s).
+4. Edit store: within 1.4x of the build's after 1,000 edits (the first run 1.34x; F3.5a changes nothing there).

@@ -46,7 +46,8 @@ public:
         size_t connectFloods = 0;
         size_t blocksFilled = 0;     // F3.2b: blocks written whole   // F3.1: floods run (only when a block's "blocks sight" bit changed)
         bool onDevice = false;
-        std::vector<size_t> rebuilt;   // chunk indices whose faces / sprigs / connectivity were updated
+        std::vector<size_t> rebuilt;   // chunk indices re-planned (faces / sprigs / connectivity recomputed near the edit)
+        std::vector<size_t> changed;   // F3.5a: those whose lists actually changed (the ones assemble must rewrite)
     };
 
     void clear() {
@@ -137,12 +138,17 @@ private:
     uint32_t m_sprigLayouts = 0;   // F3.1: times every sprig span was placed (the first assemble + overflows)
     double m_sprigSlack = 0.25;    // F3.1: slack per sprig span, x1.5 after each overflow
     bool m_legacyF31 = false;
+    bool m_legacyBorder = false;
 
 public:
     /// F3.1 A/B: true = F2.17's edit path (rows over the whole slice width, the flood on every edit, every chunk's pool
     /// input rebuilt and the whole level image copied into the Preview). Same results, F2.17's cost.
     void setLegacyF31(bool on) { m_legacyF31 = on; }
     bool legacyF31() const { return m_legacyF31; }
+    /// F3.5a A/B: true = F3.5's path (a neighbour re-planned whenever its border plane is written, every re-planned
+    /// chunk assembled, the plan scanning every face). Same results.
+    void setLegacyBorder(bool on) { m_legacyBorder = on; }
+    bool legacyBorder() const { return m_legacyBorder; }
     uint32_t sprigLayouts() const { return m_sprigLayouts; }
 
 private:

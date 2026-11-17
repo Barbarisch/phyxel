@@ -4,7 +4,9 @@ Perlin s7 flora, chunks 254..257 x 0..1 x 2..5, {"editable":true}); today's worl
 corners) in 10 batches; after each batch save -> rebuild with load_saved -> every chunk hash equal; editing continues
 on the reloaded region. At the end: pixels vs replace_all at two poses, a byte-identical re-save. Stops at the first
 mismatch.
-usage: voxfound_f35_gate.py poses.json"""
+Second run (F3.5a): brush size and kind are drawn independently (the first run chose them by edit % 4 and edit % 2,
+which tied sizes 1 / 4 to picks and 2 / 8 to borders); outputs carry the tag.
+usage: voxfound_f35_gate.py poses.json [tag]"""
 import json, math, os, random, shutil, sys, time, urllib.request
 
 import numpy as np
@@ -67,8 +69,9 @@ def fwd(yaw, pitch):
 
 
 poses = json.load(open(sys.argv[1]))
+TAG = sys.argv[2] if len(sys.argv) > 2 else ""
 names = list(poses.keys())
-rng = random.Random(3501)
+rng = random.Random(3501 if not TAG else 3521)
 out = {"batches": []}
 build(False)
 call("POST", "/api/debug/foliage", {"windStrength": 0.0})
@@ -97,10 +100,10 @@ def border_point(size):
 for batch in range(10):
     edits = 0
     while edits < 100:
-        size = (1, 2, 4, 8)[edits % 4]
+        size = rng.choice((1, 2, 4, 8)) if TAG else (1, 2, 4, 8)[edits % 4]
         place = rng.random() < 0.5
         mat = rng.choice(MATS) if place else "air"
-        if edits % 2 == 0:
+        if (rng.random() < 0.5) if TAG else edits % 2 == 0:
             x, y, z, yaw, pitch = poses[names[rng.randrange(len(names))]]
             pk = call("POST", P, {"pick": {"origin": [x, y, z], "dir": fwd(yaw + rng.uniform(-25, 25), pitch + rng.uniform(-15, 10)),
                                            "max_m": 96, "size": size}})
@@ -114,7 +117,9 @@ for batch in range(10):
         v = res.get("verify") or {}
         mism = v.get("face_mismatches", 0) + v.get("sprig_mismatches", 0) + v.get("connectivity_mismatches", 0)
         row = {"batch": batch, "size": size, "kind": kind, "place": place, "voxels_changed": res.get("voxels_changed"),
-               "chunks": len(res.get("chunks_rebuilt", [])), "mismatches": mism, "error": res.get("error"),
+               "chunks": len(res.get("chunks_rebuilt", [])), "chunks_changed": res.get("chunks_changed"),
+               "assemble_ms": res.get("assemble_ms"), "plan_ms": res.get("plan_ms"), "connect_ms": res.get("connect_ms"),
+               "mismatches": mism, "error": res.get("error"),
                "ready_ms": (res.get("rebuild_ms") or 0) + (res.get("assemble_ms") or 0),
                "edit_store_bytes": res.get("edit_store_bytes")}
         log.append(row)
@@ -142,7 +147,7 @@ for batch in range(10):
     if equal != len(H):
         stop = {"batch": batch, "unequal": [list(c) for c in H if H2[c] != H[c]]}
         break
-with open(os.path.join(HERE, "voxfound_f35_gate_edits.jsonl"), "w") as f:
+with open(os.path.join(HERE, f"voxfound_f35_gate{TAG}_edits.jsonl"), "w") as f:
     for row in log:
         f.write(json.dumps(row) + "\n")
 out["stop"] = stop
@@ -164,6 +169,11 @@ for size in (1, 2, 4, 8):
                                "p90": q([r["ready_ms"] for r in rows], 0.9), "max": q([r["ready_ms"] for r in rows], 1.0),
                                "median_batches_0_2": q(first, 0.5), "median_batches_7_9": q(last, 0.5)}
 out["kinds"] = {k: sum(1 for r in log if r["kind"] == k) for k in sorted({r["kind"] for r in log})}
+out["cost_by_size_kind"] = {}
+for size in (1, 2, 4, 8):
+    for k in sorted({r["kind"] for r in log}):
+        rows = [r["ready_ms"] for r in log if r["size"] == size and r["kind"] == k and r["voxels_changed"]]
+        out["cost_by_size_kind"][f"s{size}_{k}"] = {"n": len(rows), "median": q(rows, 0.5), "p90": q(rows, 0.9)}
 print("cost", json.dumps(out["cost"]), "kinds", json.dumps(out["kinds"]), "mismatches", out["mismatches"], "stop", json.dumps(stop),
       flush=True)
 if not stop:
@@ -171,15 +181,15 @@ if not stop:
     for name in ("forest_floor_open", "overview_south"):
         x, y, z, yaw, pitch = poses[name]
         call("POST", "/api/camera", {"mode": "free", "position": {"x": x, "y": y, "z": z}, "yaw": yaw, "pitch": pitch})
-        L = shot(f"f35_{name[:3]}_L.png", 6.0)
-        L2 = shot(f"f35_{name[:3]}_L2.png", 2.0)
+        L = shot(f"f35{TAG}_{name[:3]}_L.png", 6.0)
+        L2 = shot(f"f35{TAG}_{name[:3]}_L2.png", 2.0)
         pix[name] = (L, L2)
     call("POST", P, {"edit": {"replace_all": True}})
     out["pixels"] = {}
     for name in pix:
         x, y, z, yaw, pitch = poses[name]
         call("POST", "/api/camera", {"mode": "free", "position": {"x": x, "y": y, "z": z}, "yaw": yaw, "pitch": pitch})
-        F = shot(f"f35_{name[:3]}_F.png", 6.0)
+        F = shot(f"f35{TAG}_{name[:3]}_F.png", 6.0)
         out["pixels"][name] = {"L_vs_F": px(pix[name][0], F), "L_vs_L2": px(pix[name][0], pix[name][1])}
     s1 = call("POST", P, {"save": True})   # the reloaded region saved again = the save it was loaded from
     h1 = {tuple(c["chunk"]): c["blob_hash"] for c in s1.get("chunks", [])}
@@ -188,5 +198,5 @@ if not stop:
     print("pixels", json.dumps(out["pixels"]), "resave", json.dumps(out["resave"]), flush=True)
 call("POST", "/api/debug/foliage", {"windStrength": 0.05})
 call("POST", "/api/debug/gi", {"enabled": True})
-json.dump(out, open(os.path.join(HERE, "voxfound_f35_gate.json"), "w"), indent=1)
+json.dump(out, open(os.path.join(HERE, f"voxfound_f35_gate{TAG}.json"), "w"), indent=1)
 print("end", flush=True)

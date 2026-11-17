@@ -375,9 +375,15 @@ struct SliceJob {
 struct RunsPlan {
     std::vector<uint32_t> removed;   // ascending
     std::vector<SliceJob> slices;
+    size_t examined = 0;             // F3.5a: faces of `before` tested against the footprint
     size_t rows() const;             // sum of w1 - w0 + 1
 };
 RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, glm::ivec3 lo, glm::ivec3 hi);
+/// F3.5a: the same plan, examining only the faces of the groups (FaceCluster boxes over `before`, covering it) whose
+/// box meets [lo - 2, hi + 2] -- a face the plan removes lies in its group's box. Equal to planRunsDelta
+/// (VoxFoundMesher.PlanThroughGroupsEqualsTheFullScan).
+RunsPlan planRunsDelta(glm::ivec3 dim, const std::vector<PackedFace>& before, const std::vector<FaceCluster>& groups,
+                       glm::ivec3 lo, glm::ivec3 hi);
 /// The CPU executor of a plan (the reference for the device one): RunsDelta with plan.removed and the added faces.
 RunsDelta meshRunsPlan(const VoxelGrid& g, Edges outside, const RunsPlan& plan, const CardSet* cards = nullptr);
 /// F2.16's executor, kept as the reference for F3.1's: every planned row evaluated over the whole slice width.
@@ -394,7 +400,7 @@ std::vector<PackedFace> foliageSprigsBox(const VoxelGrid& g, Edges outside, cons
 size_t updateSprigs(std::vector<PackedFace>& sprigs, const VoxelGrid& g, Edges outside, const SprigParams& p,
                     glm::ivec3 lo, glm::ivec3 hi);
 size_t updateSprigs(std::vector<PackedFace>& sprigs, const BlockStore& s, Edges outside, const SprigParams& p,
-                    glm::ivec3 lo, glm::ivec3 hi);   // F3.2a
+                    glm::ivec3 lo, glm::ivec3 hi, bool* changed = nullptr);   // F3.2a; F3.5a: changed = the set moved
 /// F2.10's per-block rule kept as data: blocking[b] = 1 iff all 512 voxels of block b are solid and not see-through
 /// (index b.z + nb.z * (b.y + nb.y * b.x)). Grid sides must be multiples of 8. updateBlockBlocking redoes the blocks
 /// the voxel box [lo, hi] touches and returns whether any bit changed (F3.1: no change = the connectivity, a function

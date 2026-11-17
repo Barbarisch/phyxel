@@ -1828,7 +1828,7 @@ Every rig is checked for:
 | **F1** | New store (CPU reference, then GPU) + read interfaces; convert the generated area; measure the §3.5a budgets (memory per chunk by biome, directory size, chunks generated per second, mirror read-back). **Progress 2026-11-11:** CPU `BlockStore` (directory + detailed pool, `collapse()` per edit batch with pool compaction, solidity summary) equal to the dense reference on terrain and under 200 batches of random brush churn (5 tests red on the stub, then green); flora cost measured (§3.5a) | memory ≥ 5x better on the town; every read-interface query equal; a 256 m radius fits in ≤ 3 GB | memory win < 5x; generation too slow to keep up with a sprint |
 | **F2** | GPU face building (hidden-face culling, merging in and across blocks) + drawing through today's lighting; the §4.6 render optimizations rebuilt on blocks (culling, occlusion, indirect draws, shadow casters, block LOD pyramid, direction culling); T-junction handling | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate. **F2.19 re-run 2026-11-15: performance holds at all 5 poses (new store 2.1-9.4 ms faster whole frame; memory 1.2-1.7×; 11-13 MB per frame); pixels measured, every residual traced to FC content gaps; contour-stripe defect found and fixed** | a scene that works today doesn't, and we can't find and fix why |
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
-| **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; F3.2a: the edit store is the BlockStore, 545.5 → 62.9 MB, exact; F3.2b: brushes 1/2/4/8 + picking over the API, a 1 m brush 0.50 ms, pick 0.006 ms; F3.3: codec v3 + world.db, save / load round-trips exactly (voxels, lists, pixels, bytes), only edited chunks saved; F3.4: PXB2 converter (cubes exact, thirds / ninths by volume, no material dropped from a cell), a saved city drawn through the new store; F3.5 first run: exact under 1,000 edits + 10 reloads, edit cost met inside a chunk but NOT on chunk borders (0.69-0.90 ms); next: the border edit overhead, then F3.5 again** | — |
+| **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; F3.2a: the edit store is the BlockStore, 545.5 → 62.9 MB, exact; F3.2b: brushes 1/2/4/8 + picking over the API, a 1 m brush 0.50 ms, pick 0.006 ms; F3.3: codec v3 + world.db, save / load round-trips exactly (voxels, lists, pixels, bytes), only edited chunks saved; F3.4: PXB2 converter (cubes exact, thirds / ninths by volume, no material dropped from a cell), a saved city drawn through the new store; F3.5 first run: exact under 1,000 edits + 10 reloads, edit cost met inside a chunk but NOT on chunk borders (0.69-0.90 ms); F3.5a: a border edit costs what an interior one does (exact; contended A/B corner 1.00 -> 0.52 ms); next: F3.5a uncontended, then F3.5 again** | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
 | **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
@@ -2041,6 +2041,42 @@ borders.**
   0.13-0.2 s; reload 26 s.
 - **Owed before F3 closes:** the per-touched-chunk overhead of a border edit (each chunk pays its own plan, row
   executor, cluster update and pool span), then F3.5 re-run with size and kind drawn independently.
+
+**F3.5a 2026-11-16 — the border edit overhead: a border edit now costs what an interior one does (exact).**
+- Diagnosis (`voxfound_f35a_profile.py`; contended, used for the phase split only):
+  - a size-8 brush is block-aligned, so it edits ONE chunk; the other 1-3 were re-planned only because their border
+    plane was written;
+  - each of those paid three passes over its whole face list (the plan's scan, the cluster update's copy, the pool's
+    span rewrite, ~300 KB) whatever changed;
+  - assemble grew 0.11 → 0.46 ms, plan 0.03 → 0.16, cluster 0.02 → 0.14 from 1 to 4 chunks.
+- Changes, all exact by construction:
+  - (A) a neighbour is re-planned only when one of its border bits flips;
+  - (B) a re-planned chunk whose face delta is empty as a set, whose sprigs and connectivity are unchanged, keeps its
+    lists and is left out of the assemble (`Stats.changed`; verify still rebuilds every re-planned chunk);
+  - (C) the plan examines only the faces of direction groups whose box meets the edit box grown by 2;
+  - (D) the cluster update copies an untouched group as one block.
+  - A/B switch `{"legacy_border":true}`.
+- Red first (`voxfound_f35a_red.txt`):
+  - BorderEditsTouchOnlyTheChunksThatChange: today re-plans and assembles both chunks for a Stone → Dirt / an air
+    border brush;
+  - PlanThroughGroupsEqualsTheFullScan: today examines all 58,578 faces.
+  - Green: CPU 76/76, GPU 22/22; a box ≤ 8 now examines 276 faces on average.
+- Live A/B (`voxfound_f35a_ab.py`, ABBA, 4 × 120 seeded size-8 edits): 480 verified, 0 mismatches. Request to lists
+  ready, median, old → new, CONTENDED (WoW was running):
+
+  | Edit position | Old (ms) | New (ms) |
+  |---|---|---|
+  | Interior | 0.71 | 0.70 |
+  | Chunk face | 0.90 | 0.70 |
+  | Chunk edge | 1.21 | 0.71 |
+  | Chunk corner | 1.00 | 0.52 |
+
+  Chunks assembled went from 1/2/3/4 to 1/1/1/1.
+- **Owed:**
+  - the uncontended numbers;
+  - F3.5's second run (size and kind independent; prediction appended to `voxfound_f35_prediction.txt`).
+- What remains of an edit's cost is the interior one, of which the connectivity flood is about half (incremental
+  connectivity, owed).
 
 ## 10. Performance tiers
 
