@@ -908,7 +908,8 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
     ctx.response["rooms"] = roomsJ;
     if (placedObjectManager && !ctx.objectId.empty()) {
         placedObjectManager->setMetadata(ctx.objectId, "building",
-            {{"typology", ctx.typ}, {"function", ctx.program.function},
+            {{"typology", ctx.typ}, {"period", ctx.params.value("period", std::string("medieval"))},   // M5f-1 (O32): the era is on the record
+             {"function", ctx.program.function},
              {"style", ctx.program.style}, {"rooms", roomsJ}});
     }
     return rep;

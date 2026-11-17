@@ -66,3 +66,48 @@ PL.3 RESULT part 2 - chain 319 (written 2026-11-17 09:36): 36 ok / 0 failed, as 
   measured, laptop sleep is my guess). Test time excluding that gap: ~205 min.
   NOT measured by this run: the two service lookups of patch 75 are still unfalsified; structure records still carry
   no period ("period ?"); bbox heights 9 (x2) vs 12 (x4) still unexplained. One Debug rig, one seed, no Release, no L4.
+
+PL.4 (written 2026-11-17 10:08, BEFORE any of it is built) - the auditor's conditions 1-3 on the live half. All runs RELEASE
+  (pm_chain320.txt), one test: AFixtureErasHamletIsBuiltFromItsOwnPack.
+  New assertions (patch 77a, test only): every placed structure's building record has typology "blockhouse" and period
+  "fixture"; on storey 0 the largest room by rect area has purpose "kitchen" (in the medieval tavern it is the taproom,
+  2 bays of 4). The fixture pack is then changed (patch 77b) so its blockhouse is NOT the tavern: the same record with
+  the ground rooms re-bayed kitchen 2 / taproom 1 / service 1 (test data of a fixture era - no dimension is added or
+  changed: bays still sum to 4, bay_length and widths are the tavern's). Engine (77b): the forge writes "period" into the
+  structure's building record (O32's first item).
+  PREDICTIONS
+   chain 321 (77a only: new assertions, pack still the tavern copy, no period in the record): RED - period assertion
+     fails on all 6 ("?" / absent), largest-ground-room fails on all 6 (taproom); typology assertion passes; 24 / 0 gate.
+   chain 322 (77b): GREEN - 6 structures, each blockhouse / fixture / kitchen largest; gate passed. GUESSES: lot count
+     still 6 and gate 24 / 0 (the footprint is unchanged, but routes go to room centres, so the tally may move - if it
+     does I report it); fixtures count unknown (a 2-bay kitchen furnishes differently) - no prediction.
+   chain 323 (mutation: makeBp no longer hands room_program_pack to the building): RED with the forge refusing every
+     lot for want of resources/room_programs/fixture.json - 6 lot failures, 0 structures. Restored after, hash checked.
+   chain 324: full live set, 36 ok / 0 failed, the medieval gate lines unchanged from chain 320c; unit set 186 / 0.
+PL.4 RESULTS (written 2026-11-17 10:05; the "10:08" on the PL.4 heading was typed without running `date` - the
+  prediction was written at ~09:59, before the first build at 10:01):
+  chain 321 (77a; exe 10:01:26): RED as predicted - 0 ok / 1 failed; 6 structures, all "period ?" and largest ground room
+    'taproom' (49 cells); typology blockhouse on all 6; gate 24 / 0, 146 fixtures. (A first build attempt failed to
+    compile - a literal newline my patch script put inside a printf string; fixed by hand, no run happened on it.)
+  chain 322 (77b; exe 10:02:50): GREEN - 1 ok; 6 structures, each typology blockhouse / period fixture / largest ground
+    room 'kitchen' (49 cells), 7 rooms on 2 storeys; 0 lot failures; gate 24 / 0 over 6 doors of 6 (the guess held);
+    fixtures 174 (was 146 with the tavern's rooms - no prediction was made).
+  chain 323 (mutation, makeBp does not hand the pack on; exe 10:04:02): RED as predicted - 6 lot failures, each "no
+    room-program pack for period 'fixture': resources/room_programs/fixture.json (the engine never substitutes another
+    era)", 0 structures. Restored with git checkout; git reports the file clean (the sha256 differs from the pre-mutation
+    working copy only because checkout rewrote line endings - git diff is empty).
+  FINDING from 323: the walkability gate printed "passed, 0 walkable / 0 blocked, 0 doors of 0 built" - a gate that
+    measured nothing still reads "passed" (the chain-74 shape). The test fails on the structure count, not on the gate.
+  STILL NOT SHOWN: the forge's own read of the param (StructureForge.cpp ctx.params.value) has no mutation - only the
+    service's hand-off does; "largest ground room" is read from the structure's room record, not from voxels; bbox
+    heights 9 (x2) / 12 (x4) unexplained; patch 75's two lookups unfalsified.
+  chain 324 (RELEASE, full live + realizer set; exe 10:05:03, run 10:05:07 - 10:12:59 = 7.9 min): 36 ok / 0 failed, as
+    predicted. The distinct gate / lot / wall / market record lines diffed against chain 320c (126 lines): ONE line
+    differs - the fixture hamlet's own gate line, 146 -> 174 fixtures (the re-bayed blockhouse; expected, its tally 24 / 0
+    over 6 doors unchanged). Every medieval line is identical.
+  chain 325 (DEBUG, unit set; run 10:13:26 - 10:30:12): 186 ok / 0 failed, as predicted.
+  Scope: fixture era, one seed, live set on Release only for this change (Debug live set last run at chain 319, before
+  patches 76-77); no L4.
+  chain 326 (written 2026-11-17 10:34; after the PL.4 audit, its tie condition): the kitchen must be STRICTLY the largest
+    ground room. Release, exe 10:32:30: 1 ok; all 6 structures kitchen 49 cells, next largest 35; gate 24 / 0, 174
+    fixtures. No prediction was written for this run and the added clause has not been seen red.

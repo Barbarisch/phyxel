@@ -707,3 +707,14 @@ hamlet tests: 17.6 -> 7.8 min, same tallies), 320b (Release, same four: 37 s, sa
 run on Release by default. Not measured: peak memory with worlds held; the full set on the patched Debug build; what a
 Release-only run stops catching that Debug assertions would. No audit was run on this - it is a rig change, and the claim
 is only the counts, the diff and the timings above.
+
+### 2026-11-17 - M5f-1 live half: the first audit's conditions (pm_chain317.txt PL.4; chains 321-326)
+
+The fixture era's blockhouse is no longer a copy of the tavern (ground rooms re-bayed kitchen 2 / taproom 1 / service 1),
+the forge writes the period into a structure's building record, and the live test asserts on each PLACED structure:
+typology blockhouse, period fixture, the kitchen strictly the largest ground room. Red 321 (all 6 fail period and
+kitchen), green 322, mutation 323 (the service not handing the pack on: 6 forge refusals), full live set on Release 324
+(36 / 0, the medieval record lines identical to 320c by diff), Debug unit set 325 (186 / 0), 326 (tie clause, green only).
+Audited PASS WITH CONDITIONS (ledger). Open: the forge's own read of the pack unmutated; rooms read from the record, not
+voxels; the period field echoes the request; a gate over 0 doors still prints "passed"; fixture era only, one seed,
+Release live set only, no L4. The whole loop took ~35 min on the new rig.

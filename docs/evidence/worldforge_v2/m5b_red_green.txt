@@ -1580,3 +1580,29 @@ MY RESPONSE (2026-11-17): all six accepted. The commit message's "realized from 
  to "a pack-only typology name resolves and builds; the contents are a copy of the tavern, so not distinguished".
  Conditions 1-3 are the next M5f-1 work (PL.4, to be predicted before the run), after the live set's run time is cut
  (pm_chain320.txt) - they need several live runs. Nothing more is claimed until then.
+
+== M5f-1 PL.4 (the first audit's conditions 1-3) - solution-auditor, 2026-11-17 (working tree on 5541137b; nothing built or run by it) ==
+RAW VERDICT: PASS WITH CONDITIONS
+CLAIMS AUDITED (the auditor's words, shortened only where it repeats log quotes):
+ - "Each of the 6 structures' record reads typology 'blockhouse', period 'fixture', largest ground room 'kitchen'; red in
+   321, green in 322" -> REAL (narrow). Assertions not vacuous (largest starts "?", a missing rect or period fails); red
+   and green runs genuine, exes postdate the edits; the fixture test does not use SharedRig. Tie risk: only the winning
+   area is logged; strict ">" means a tie would go to the first room; missing: log all areas or assert strictly greater.
+ - "Period on the record" -> PROXY-ONLY for provenance: it echoes the request param; it shows the param reached the
+   forge context, not which pack built the structure. Side effect: the record now says "medieval" for every caller that
+   passes no period, and the 36-test comparison does not look at building records.
+ - "Mutating makeBp makes the test red with 6 forge refusals" -> REAL; restore confirmed (git diff empty); the red comes
+   from the structure count - the gate line still printed "passed, 0 walkable / 0 blocked".
+ - "Regression 36 / 0 with medieval lines identical; unit 186 / 0" -> REAL as logged (the auditor did not re-diff).
+CONDITIONS: 1. pack difference shown through the room record, not voxels; 2. the period assertion shows only that the
+ param reached the forge - not to be cited as evidence of which pack built the structure; 3. the forge's own read of
+ room_program_pack has no mutation; 4. a tie between ground-room areas is not excluded by the log; 5. scope - fixture
+ era, one seed, Release live set only, Debug live set not re-run after patches 76 / 77, no L4; 6. the timestamp slip is
+ admitted, logs internally consistent.
+THE TEST THAT WOULD CATCH THE BUG (auditor): a mutation in which the forge ignores the pack and builds the medieval
+ tavern - the kitchen assertion must go red on all 6; and assert kitchen area > every other ground room's.
+MY RESPONSE (2026-11-17): accepted. Condition 4 answered after the audit, so NOT covered by it: the assertion now also
+ requires the next-largest ground room to be strictly smaller; chain 326 (Release, exe 10:32:30) 1 ok, all 6 structures
+ kitchen 49 cells against a next largest of 35. That added clause has no red run of its own. Conditions 1-3 and 5 stay
+ open (O32). The period-on-record default "medieval" for callers passing no period is a new record field, not compared
+ by any test.

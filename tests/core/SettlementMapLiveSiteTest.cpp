@@ -2309,7 +2309,14 @@ TEST(SettlementMapLiveSiteTest, AFixtureErasHamletIsBuiltFromItsOwnPack) {
         nlohmann::json era; era["eras"]["fixture"]["tiers"]["hamlet"] = tier;
         const nlohmann::json& progs = rp.contains("programs") ? rp["programs"] : rp;
         ASSERT_TRUE(progs.contains("tavern"));
-        nlohmann::json pack = {{"period", "fixture"}, {"programs", {{"blockhouse", progs["tavern"]}}}};
+        // PL.4 (audit condition 1): the blockhouse is NOT the tavern - the ground rooms are re-bayed kitchen 2 / taproom 1 /
+        // service 1 (the tavern is taproom 2 / kitchen 1 / service 1), so a medieval tavern standing in is told apart on
+        // the built structure. Fixture data: the bays still sum to 4 and no dimension is added or changed.
+        nlohmann::json blockhouse = progs["tavern"];
+        blockhouse["rooms"] = nlohmann::json::array({nlohmann::json{{"id", "kitchen"}, {"purpose", "kitchen"}, {"bays", 2}},
+                                                     nlohmann::json{{"id", "taproom"}, {"purpose", "taproom"}, {"bays", 1}},
+                                                     nlohmann::json{{"id", "store"}, {"purpose", "service"}, {"bays", 1}}});
+        nlohmann::json pack = {{"period", "fixture"}, {"programs", {{"blockhouse", blockhouse}}}};
         std::ofstream(fProgram) << era.dump(2);
         std::ofstream(fPack) << pack.dump(2);
     }
@@ -2321,14 +2328,25 @@ TEST(SettlementMapLiveSiteTest, AFixtureErasHamletIsBuiltFromItsOwnPack) {
     const nlohmann::json lots = out["map"].value("lots", nlohmann::json::array());
     int wrongLot = 0;
     for (const auto& l : lots) if (l.value("typology", std::string()) != "blockhouse" || l.value("stories", 0) != 2) ++wrongLot;
-    int structures = 0, twoStorey = 0;
+    int structures = 0, twoStorey = 0, notBlockhouse = 0, notFixtureEra = 0, kitchenNotLargest = 0;   // PL.4 (audit conditions 1-2)
     for (const auto& [id, o] : rig.placed.getAllObjects()) {
         if (o.category != "structure") continue;
         ++structures;
         const nlohmann::json bld = o.metadata.value("building", nlohmann::json::object());
-        int top = -1, rooms = 0;
-        for (const auto& rm : bld.value("rooms", nlohmann::json::array())) { ++rooms; top = std::max(top, rm.value("story", 0)); }
+        int top = -1, rooms = 0, bestArea = -1, nextArea = -1;   // nextArea: the audit's tie condition
+        std::string largest = "?";
+        for (const auto& rm : bld.value("rooms", nlohmann::json::array())) {
+            ++rooms; top = std::max(top, rm.value("story", 0));
+            if (rm.value("story", 0) != 0 || !rm.contains("rect")) continue;
+            const int area = rm["rect"][2].get<int>() * rm["rect"][3].get<int>();
+            if (area > bestArea) { nextArea = bestArea; bestArea = area; largest = rm.value("purpose", std::string("?")); }
+            else nextArea = std::max(nextArea, area);
+        }
         if (top + 1 == 2) ++twoStorey;
+        if (bld.value("typology", std::string()) != "blockhouse") ++notBlockhouse;
+        if (bld.value("period", std::string()) != "fixture") ++notFixtureEra;
+        if (largest != "kitchen" || nextArea >= bestArea) ++kitchenNotLargest;   // strictly the largest - a tie is not the kitchen's
+        std::printf("[ M5f-1 ]   %s: largest ground room '%s' (%d cells; the next largest %d)%s", id.c_str(), largest.c_str(), bestArea, nextArea, "\n");
         std::printf("[ M5f-1 ] structure %s at (%d,%d,%d): typology %s, period %s, %d rooms on %d storeys, bbox height %d%s", id.c_str(), o.position.x, o.position.y, o.position.z,
                     bld.value("typology", o.metadata.value("typology", std::string("?"))).c_str(), bld.value("period", o.metadata.value("period", std::string("?"))).c_str(),
                     rooms, top + 1, o.boundingMax.y - o.boundingMin.y + 1, "\n");
@@ -2342,6 +2360,9 @@ TEST(SettlementMapLiveSiteTest, AFixtureErasHamletIsBuiltFromItsOwnPack) {
     EXPECT_EQ(out["lot_failures"].size(), 0u) << "lots the forge refused";
     EXPECT_EQ(structures, static_cast<int>(lots.size())) << "a structure placed per lot";
     EXPECT_EQ(twoStorey, structures) << "built structures whose rooms are not on two storeys";
+    EXPECT_EQ(notBlockhouse, 0) << "placed structures whose record is not typology blockhouse";
+    EXPECT_EQ(notFixtureEra, 0) << "placed structures whose record does not carry period fixture";
+    EXPECT_EQ(kitchenNotLargest, 0) << "placed structures whose largest ground room is not the fixture pack's 2-bay kitchen";
     EXPECT_GT(out.value("fixtures", 0), 0) << "the buildings came out unfurnished";
     EXPECT_EQ(out.value("gate", std::string()), "passed") << out.value("blocked", 0) << " routes blocked";
 }
