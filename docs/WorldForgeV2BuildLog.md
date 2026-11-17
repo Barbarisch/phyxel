@@ -762,3 +762,24 @@ row (read by eye; the plan gives the site one corner entry - candidate cause, un
 civ path, so "medieval civ unchanged" rests on reading and the live diff; larger roman tiers keep medieval rects and
 their build-time refusal is not run; the style is still passed by the test; no L4 for 2b; full sets not re-run after
 the last test additions.
+
+### 2026-11-17 - M5's stress sites and D69 (b): a settlement takes the dry ground its road reaches
+
+**Stress sites (d55f5781; pm_chain363.txt).** First run of the contract's list, headless: a 15-degree slope, an order-3
+river across the street, a coast. 45 plans, no invariant violation. The slope seats every tier's target (a missed
+prediction; way grades not examined). The river and the coast were REFUSED for every street tier.
+
+**D69 ruled (b), D70 ruled (a) by the owner 2026-11-17.** D69 (b) built headless (pm_chain364.txt): with no dry route
+to the far edge the main street ends at the deepest dry cell its paved band can stand on; nothing is planned in or
+across water; a dry side too small is refused for the tier's minimum or as "too shallow". Red 364 (24 refusals),
+green 365, then three defects found and fixed before commit: a lot across the water joined the street through its
+paved band (found by a side-agnostic check, chains 366-368); a small-bank plan took over ten minutes because every
+candidate across the water ran a full failed route search (a reachability flood prunes them: 4 s, chain 372); and the
+audit's band-over-water measure was red at 3154 cells - streets down a narrow spit and lanes beside a shore, behaviour
+older than D69 - answered by a GENERAL clearance: every routed way keeps its band radius from water (chains 375-377).
+77 stress plans: 0 band cells over water, 0 across a river, every refusal reasoned. Regression on Release: unit set
+201 / 0, live set 37 / 0, the medieval map-suite prints and all 141 live record lines identical. The clearance changed
+one recorded medieval behaviour - a town hemmed by water rows six cells from its street is one lot short and refused;
+that test's rig was widened, its assertions untouched. Audited PASS WITH CONDITIONS. Open: the bridge inside town
+(D69 (c)); diagonal shores and east / north entries; pruning neutrality on the 15 near-entry plans rests on reasoning;
+nothing realized on any stress site; no Debug run.

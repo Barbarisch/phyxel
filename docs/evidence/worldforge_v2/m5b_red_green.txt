@@ -1729,3 +1729,34 @@ MY RESPONSE: 1 added. 2: tested - and the hole is NOT there on that input: water
  never red; a comment records it). The other three edges and an interior entry remain untested. 3 and 4 stated in
  pm_chain348.txt and in the data label; the per-seed split is printed (up to 6 lots, one side of the middle run is
  empty). Not done: asserting facing-matches-leg or both-sides-in-use.
+
+== D69 (b) (settle the dry ground the road reaches) - solution-auditor, 2026-11-17 (working tree on cca87f8b; nothing built or run by it) ==
+RAW VERDICT: PASS WITH CONDITIONS
+CLAIMS AUDITED (the auditor's words, shortened):
+ - "the pruning changes NO plan" -> REAL on inspection (the flood seeds from the same goal mask connect() uses, blocked
+   seeds included, 8-neighbour, symmetric; rebuilt after every seat; the door-on-a-band shortcuts run before it),
+   PARTLY measured: it diffed the 45 stress plans that have an unpruned run - identical; the 15 near-entry plans have
+   no unpruned baseline (that run was killed); the medieval evidence is from dry sites.
+ - the D69 street branch -> REAL for straight shores on a west-edge entry, PROXY-ONLY beyond: the back-off works along
+   the depth axis only; on a ragged shore, a spit or a diagonal coast the band can cover water (the chain-367 class);
+   entries on the other three edges untested; a possible misleading "too shallow" when no in-band cell sits at exactly
+   the stop depth.
+ - the stress test -> REAL as counted, but weak: no refusal carried the new "too shallow" text; refusal reasons not
+   asserted; the across / in-water counters never seen red; the defect that WAS seen red was found by the terrain test.
+ - the reversed pin -> an HONEST reversal (stated before the run, under a ruling; the author's own amended check failed
+   and was restated before the next run; it caught a real defect) with a WEAK replacement (any refusal but "no dry
+   route" passed).
+ - overstatements: "the band ends on dry ground"; "changes NO plan" for water-blocked sites; test names more general
+   than their shores.
+CONDITIONS: 1. narrow the wording or add a band-cells-in-water measure with a spit / diagonal shore and other entry
+ edges; 2. assert refusal reasons and pin "too shallow"; 3. strengthen the terrain-plan refusal branch; 4. state that
+ pruning neutrality on the near-entry plans is unverified by a differential run; 5. remove or keep the DISABLED
+ diagnostic deliberately.
+MY RESPONSE: 1 - the measure is added and it was RED far beyond the audit's case (3154 band cells over water: a street
+ down a 3-wide spit under the OLD rule, and lanes beside a shore - behaviour that predates D69). Answered at the root:
+ every routed way keeps a clearance from water equal to its band radius (chains 375-377: 3154 -> 0 on 77 plans, a
+ south-edge coast included). This is a GENERAL change - it reaches any medieval plan with water beside a way; the
+ regression's diffs say whether any recorded line moved. Diagonal shores and the east / north entry edges are still
+ not tested. 2 - done (every refusal is the minimum or too-shallow; "too shallow" pinned on water 3 cubes in). 3 - the
+ terrain rig now gives the minimum-lots reason (a 2-cell street seats nothing), so its check accepts either true
+ reason - a third restatement of that check, written before its run. 4 - stated in pm_chain364.txt. 5 - removed.

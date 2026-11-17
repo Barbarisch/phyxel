@@ -1,0 +1,182 @@
+pm_chain364 - D69 (b), ruled 2026-11-17: a street-tier settlement on a coast or a water-cut site settles the dry ground
+its road reaches. Written 2026-11-17 14:41, before any edit. Release.
+
+THE RULE: only when the main street has NO dry route to the far edge (today's refusal, one arriving road): the street
+  runs from the entry to the DEEPEST dry cell it can reach - deepest = furthest from the entry's edge, within the
+  middle half of the site across that axis, reachable from the entry without entering water. Then the growth runs as
+  ever; a site whose dry ground cannot seat the tier's minimum is still refused, now with the growth's own reason.
+  Nothing changes for a plan that is not refused today. No bridge (D69 (c), later).
+ASSERTION CHANGES, STATED BEFORE THE RUN:
+  - SettlementMapTest.TheContractsStressSites gains: no plan refused with "no dry route"; on the river case every lot
+    stands on the entry side of the water; on the coast case no lot's footprint is in water.
+  - SettlementTerrainPlanTest's PIN of chain 132 ("a village cut by water is refused with the street's reason") is
+    REVERSED by the ruling: it becomes "is not planned through the water" - the plan either seats on the entry side with
+    no footprint in or beyond the band, or is refused for the tier's minimum; never a street in water. I do not know
+    which of the two that rig gives.
+PREDICTIONS
+  chain 364 (assertions, no code): RED - 24 "no dry route" refusals in the stress test; the terrain-plan pin fails
+    as amended (the plan is still refused with the old reason).
+  chain 365 (code): the stress test green on "no dry route"; GUESSES for what seats: coast (60 % dry) - every tier seats
+    at least its minimum except possibly the city (96 x 160 of dry ground for 20+ lots with a market - unsure); river
+    (the near half dry) - village and town seat their minimum, the roman hamlet (38 x 88 of dry ground, plots 33 deep)
+    and the city unsure. Whatever is refused carries the minimum-lots reason. 0 wet segments, 0 lots across the water.
+  Regression: unit 190 (189 + the stress test added in chain 363), live 37, medieval record lines identical by diff -
+    no live site is refused today, so none takes the new branch.
+RESULTS (written 2026-11-17 14:43)
+  chain 364 (assertions, no code): RED as predicted - 24 refused for want of a dry route; the terrain-plan site still
+    refused with the old reason.
+  chain 365 (code): the stress test GREEN - 45 plans, 0 refused, 0 lots across the river, 0 footprints in water, 0
+    invariant violations. Better than my guesses: EVERY tier seats its full target on both sites, the city (21 of 21)
+    and the roman hamlet (6 of 6) included - on seed 1; the other seeds are in the log, none refused.
+    The terrain-plan test: RED on MY amended check - "cut site: planned, 7 lots, 7 in or beyond the water". The band
+    there is at x 4..5 of a 96-wide site, and my check assumed the road arrives at the WEST edge (it counts a lot with
+    x >= the band as "beyond"). Seven lots east of a band at x 4 means the settlement stands on the big side - which is
+    right if the road arrives there, and wrong (a lane across water) if it arrives at x = 0. I do not know which from
+    this output.
+  ASSERTION CHANGE, STATED BEFORE THE NEXT RUN: the terrain-plan check becomes side-agnostic and adds what I had not
+    asked: no lot's footprint overlaps the band, ALL lots stand on ONE side of it, and no way node lies in the band or
+    is joined across it (every way's nodes on one side). If lots stand east and a way crosses, that is a real defect.
+  chain 366 PREDICTION: green - one side, no way across. If a way crosses the band, I report it as found.
+  chains 366-367 (written 2026-11-17 14:45): the side-agnostic check is RED and it found a REAL DEFECT in what I had just built. The
+    village rig: water at x 4..5, the road arrives at x 0. Way 0 (the street) runs (0,14)-(3,14) on the 4-wide west
+    strip; seven lots stand EAST of the water; the first lane ends at (5,14) - a node IN the water - because the
+    street's paved band (a disc of half the street's width round its centre line) reaches from x 3 over the water
+    cells, and a lane that touches the band counts as connected. So lots across the water were "joined" to the street
+    through water, with no bridge - exactly what D69 (b) rules out. The stress test did not show it (its dry side was
+    big enough that the growth never looked across) and its "lots across the river" check passed for that reason only.
+  FIX, stated before the run: in the D69 branch the street stops SHORT of the deepest dry cell by half its width + 1,
+    so its band ends on dry ground. For this rig that leaves no street to speak of on a 4-wide strip, and I predict the
+    village is then REFUSED for the tier's minimum (no connectable lot) - the D69 (a) case, "too little dry ground".
+  chain 368 PREDICTION: the terrain-plan test green by its refusal branch (refused, and not with "no dry route"); the
+    stress test still green with every plan seated (streets 3-4 cells shorter). If lots still stand across water
+    anywhere, the lane router crosses water by itself and that is the next finding.
+  chain 368 (written 2026-11-17 14:46): the stress test green - 45 plans, 0 refused, 0 across the river, 0 in water. The terrain-plan
+    rig: REFUSED as predicted, but with the OLD words - "no dry route for the main street from the entry to the far
+    edge" - because a 4-wide strip leaves no room to stop short and the code falls through to the old refusal. The
+    outcome is right (D69 (a): too little dry ground); the reason is not what happened. My test asks that those words
+    be gone, and it is right to: the reason should say the dry ground on the road's side is too shallow.
+  CHANGE, stated before the run: that case gets its own refusal text - "the dry ground the road reaches is too shallow
+    for the main street (N cubes before the water)"; "no dry route ..." stays for a site with no reachable dry ground
+    in the band at all, and for the two-road case. chain 369 PREDICTION: both tests green.
+  chain 369 (written 2026-11-17 14:47): 12 ok / 0 failed. The cut village is refused with "the dry ground the road reaches is too
+    shallow for the main street (4 cubes before the water)"; the stress test as in 368.
+  A HARDER CASE, stated before the run: the river 24-28 cubes from the entry edge - a near bank big enough for a street
+    but too small for most targets. The question chain 367 left open: does the growth seat lots ACROSS the water and
+    join them by a lane through it? Check: no lot beyond the band, 0 wet segments, no way node in the band.
+  chain 370 PREDICTION: UNKNOWN. If the lane router refuses water, the larger tiers are refused for their minimum (a
+    stated D69 (a) outcome) and nothing stands across. If lots stand across, that is a defect to fix before commit.
+  chain 370 (written 2026-11-17 14:59): DID NOT FINISH - the stress test with the near-entry river ran over 10 minutes and I killed the
+    test process (pid 10440; 45 result lines in the log, the 46th never printed - stdout is buffered, so WHICH plan
+    was running is not known from the log). chain 371, a diagnostic: the hamlet on that site plans in 0.42 s (river at
+    24..28, and at 25 and 26) - so it is not the hamlet and not a hang in the cluster growth.
+  READING (not yet shown): a street tier whose near bank is small. Before D69 such a site was refused at once. Now the
+    growth runs, and every candidate lot whose door is on the FAR side of the water costs a full failed route search
+    over that whole side (connect() explores everything it can reach before giving up): about 100 000 candidates x a
+    search of up to 20 000 cells, per seating attempt, on the city. Not a hang - hours. A defect D69 (b) exposed.
+  FIX, stated before the run: once per seating attempt, flood outward from the way network (or the entry) over
+    unblocked cells; a candidate whose door-approach cell is outside that flood is skipped BEFORE the route search. The
+    search would have failed for exactly those candidates, so no plan changes - a pruning. (Checked by the medieval
+    record-line diff and the map suite's prints.)
+  chain 372 PREDICTION: the stress test finishes in seconds; near-entry river: no lot across, 0 nodes in water; the
+    larger tiers on a 24-deep bank are refused for their minimum or seat it - unknown which.
+  chain 372 (written 2026-11-17 15:00; Release, run by hand with a 240 s limit - not the chain script): the stress test finishes in
+    4.4 s - 60 plans, 10 refused, each with a reason, 0 invariant violations, 0 lots across the river, 0 footprints in
+    water, 0 way nodes in water. The near-entry river (a 24-deep bank), seed 1: hamlet 3 of target 4 (seated); village
+    5 of 7, town 5 of 16, city 13 of 21, roman hamlet 4 of 6 - each REFUSED "no buildable, connectable lot for the
+    tier's minimum (N of M seated)", nothing across. So the reading of chain 370 held: it was the failed searches, and
+    the pruning removes them. (That the pruning changes NO plan is what the regression's diffs are for.)
+  NOTE on the unit set: SettlementTerrainPlanTest is not in the m5b2 filter string I copied for the Release unit runs
+    (chains 354, 360) - O20 says it belongs in every M5 increment's set. It is added from chain 373 on, so the count
+    rises by that suite's tests; the earlier Release unit runs of today did NOT include it (the Debug chain script's own
+    list was not checked for it either).
+REGRESSION (written 2026-11-17 15:11; Release) - as predicted, with the count corrected:
+  chain 373 (unit set + SettlementTerrainPlanTest; to 15:01:55): 201 ok / 0 failed (190 + that suite's 11; I had
+    predicted "190" before noticing the suite was missing from the list). The medieval map suite's own prints
+    ("[ M5a ]" / "[ M5b ]", timings stripped, 82 distinct lines) identical to chain 360's - diff empty. So the
+    pruning changed no medieval plan that those prints record.
+  chain 374 (live + realizer set; to 15:10:30): 37 ok / 0 failed; the 126 distinct medieval record lines identical to
+    chain 359's; the roman live site unchanged (1 way, 8 + 3, gate 33 / 0 over 11 doors).
+  No Debug run. Nothing realized on a coastal or river-cut site.
+AUDIT (solution-auditor, PASS WITH CONDITIONS; raw verdict in the ledger). What it makes me state:
+  - "the band ends on dry ground" held ALONG THE STREET'S AXIS on straight shores only; nothing measured the band's
+    cells beside a ragged shore. Every stress shore was a vertical stripe and every entry the west edge's middle.
+  - "the pruning changes no plan": shown by diff on the 45 plans that have an unpruned run and on the medieval prints;
+    for the 15 near-entry plans it rests on reasoning only (their unpruned run never finished). The one unpruned point
+    there: chain 371's hamlet (3 lots, 3 ways unpruned) against chain 372's (3 lots, 3 ways pruned).
+  - the refusal reason was not asserted; the "too shallow" text was pinned nowhere; the new stress counters were never red.
+PL.2 (written 2026-11-17 15:14, before the edits): the audit's test.
+  NEW MEASURE: band cells over water - every way's centre line rasterized node to node, and every cell within its band
+    radius (round(width) / 2, the planner's own r) counted if it is water.
+  NEW CASES: a dry SPIT - water over the far 60 % except a strip 3 cubes wide along the street's line; and a coast with
+    the road arriving at the SOUTH edge (water over the far 40 % in z) for the village and the roman hamlet.
+  NEW ASSERTIONS: 0 band cells over water; every refusal's reason is the minimum-lots text or "too shallow"; the
+    terrain-plan rig's refusal says "too shallow". The DISABLED diagnostic is removed.
+  chain 375 PREDICTION (tests only): RED on the spit - the street runs down the 3-wide strip with its band over water
+    (band cells in water > 0), or the plan is refused with a misleading reason. The south-entry coast: unknown.
+  FIX planned: the D69 street keeps a CLEARANCE - it may only use cells further from water than its band radius; the
+    deepest such cell is its end. That replaces the back-off and covers ragged shores and bends.
+  chain 375 (written 2026-11-17 15:16; tests only): RED as predicted, and WIDER than predicted. 75 plans + 2 south-edge plans:
+    3154 band cells over water in all. (i) the spit: the far edge is reachable down the 3-wide strip, so the OLD rule
+    (not the D69 branch) runs the street along it - 124 (village), 336 (town), 384 (city), 180 (roman hamlet) band cells
+    over water, every seed. (ii) 12-28 band cells on the town (coast and river, seeds 2-3) and the city (near river,
+    seed 3): LANES passing beside the shore. Both are behaviour that predates D69 - a way's centre line stays out of
+    water, its paved band does not. The south-edge coast: 0 band cells, seated 8 of 8 and 7 of 7, no refusal. Refusal
+    reasons: all the minimum-lots text.
+  FIX, stated before the run - GENERAL, so it reaches medieval plans that have water beside a way:
+    every routed way keeps a CLEARANCE from water equal to its own band radius (a cell nearer water than that is closed
+    to the route; main street and lanes each by their width; a path 1 wide has radius 0 and is unchanged). A far-edge
+    goal inside that clearance is no goal. The D69 street ends at the deepest CLEAR cell (this replaces the back-off).
+    A site with no water is routed exactly as before.
+  chain 376 PREDICTION: stress 0 band cells over water; the spit: the settlement stays on the mainland (the street
+    ends before the strip) and seats its target or is refused for the minimum - unknown which per tier; the cut
+    village refused "too shallow". RISK, stated: the medieval map prints and the live record lines may CHANGE where a
+    site has water beside a way - if they do I report every changed line; that would be a medieval behaviour change
+    made under D69 and I will say so in the commit.
+  chain 376 (written 2026-11-17 15:17; the clearance): the stress test GREEN - 77 plans, 0 band cells over water (was 3154), 0 across
+    a river, 0 footprints or way nodes in water, 0 no-dry-route, every refusal the minimum-lots text. The spit: every
+    tier stays on the mainland and seats (hamlet 3 of 4, village 7 of 7, town 15 of 16, city 21 of 21, roman 6 of 6 on
+    seed 1). 13 of 75 refused (was 11).
+    The cut-village rig: RED on the assertion I added an hour ago. It is now refused "no buildable, connectable lot for
+    the tier's minimum (0 of 6 seated)", not "too shallow": with the clearance the 4-wide strip leaves a 2-cell street
+    (cells 0..1 are clear of the water for a band of radius 2), the street exists, and no lot can be seated on it.
+    Both reasons are true of that site; the minimum-lots one is what the planner actually ran into.
+  ASSERTION CHANGE, STATED BEFORE THE NEXT RUN (the third on this check today): the cut-village rig accepts either
+    reason (the tier's minimum, or too shallow) and still forbids "no dry route". The "too shallow" text gets its own
+    pin where it really occurs: a village whose water starts 3 cubes from the entry edge (no clear cell beyond the
+    entry's own column). chain 377 PREDICTION: both green; that plan refused with "too shallow".
+  chain 377 (written 2026-11-17 15:18; Release, by hand): both green. Water from x = 3 (village) is refused "the dry ground the road
+    reaches is too shallow for the main street (3 cubes before the water)" - that text now has a pin. The cut-village
+    rig: refused for the tier's minimum (0 of 6 seated), accepted by the amended check. Stress: 0 band cells over water.
+REGRESSION after the clearance (written 2026-11-17 15:28; Release):
+  chain 378 (unit set): 200 ok / 1 FAILED - a MEDIEVAL change, as the stated risk said could happen.
+    SettlementMapTest.ATierWithAMarketCarriesOneOnItsPrimaryWay, its "not-placed" rig only: a town on 140 x 76 with
+    water flanking the main street six cells off it on both sides (rows broken by 6-wide dry gaps). Before: planned,
+    and the market not placed for want of a dry place. Now: REFUSED on all 3 seeds, "no buildable, connectable lot for
+    the tier's minimum (14 of 15 seated)" - with lanes kept clear of the water rows one lot fewer can be reached, and
+    the town falls one short of its minimum. The 55 market plans before it are unchanged (0 refused).
+    The medieval map suite's 82 distinct print lines: identical to chain 373's.
+  chain 379 (live + realizer set): 37 ok / 0 failed; ALL 141 distinct record lines (medieval and roman) identical to
+    chain 374's. No live site has water beside a way closely enough to move.
+  So the clearance changed ONE recorded medieval behaviour: a town hemmed by water rows 6 cells from its street is
+    now one lot short and refused. That is the rule working (a lane's paving no longer lies over those rows), and it
+    breaks that RIG, which exists to show a market is not placed where every place on the street is wet.
+  RIG CHANGE, stated before the run (the assertions of that branch are NOT changed): the site is deepened from 76 to
+    92 so the town has dry ground for its minimum behind the water rows; the rows stay six cells off the street.
+  chain 380 PREDICTION: the town plans on all 3 seeds; no market, the note says "no dry place"; unit set 201 / 0.
+    If the town is still refused I look at why before touching anything else.
+  chain 380 (written 2026-11-17 15:30): MISS - deepening the rig to 92 changed nothing: still refused, 14 of 15, all 3 seeds.
+  chain 381 (a dump of seed 1): the street runs (0,46)-(139,46); the 14 lots stand just beyond the two water rows, ONE
+    behind each dry gap (gaps every 20 cubes: 7 a side on 140), each on its own 4-cell lane through its gap. Depth was
+    never the limit: a gap holds one lane, the lot behind it plugs it, so the rig's capacity is the number of gaps.
+    Before the clearance a second route could squeeze past in a 6-wide gap; now it cannot. The market note is as the
+    rig intends ("no dry place for the market along the main street").
+  RIG CHANGE, stated before the run (replacing the depth change, which is reverted to 76): the site is WIDENED from
+    140 to 180 - nine gaps a side, room for 18 lots against a target of 16. Rows, gaps and assertions unchanged.
+  chain 382 PREDICTION: the town plans on all 3 seeds, no market, note "no dry place".
+  chain 382 (written 2026-11-17 15:32): the widened rig (180 x 76) - the town plans on all 3 seeds, no market, the note "no dry place
+    for the market along the main street (10 water cells at its middle)". As predicted.
+  chain 383 (Release unit set, by hand, to 15:32): 201 ok / 0 failed in 85.8 s; the medieval map suite's 82 print lines
+    identical to chain 373's. The live set was last run at chain 379 (37 / 0, all 141 record lines identical) on this
+    same engine code; only a test rig changed after it.
+  STATE: D69 (b) built, headless only. Nothing realized on a coastal or river-cut site. No Debug run of either set.
+    Diagonal shores and roads arriving from the east or north edge untested. D69 (c), the bridge inside town, not started.

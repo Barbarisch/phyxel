@@ -275,6 +275,29 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
     }
     std::vector<float> waterDist, netDist, lotDist;
     chamfer(W, D, waterMask, waterDist);
+    // pm_chain364 PL.2 (the audit's band-over-water measure, chain 375): a way's paved band is a disc of
+    // round(width) / 2 round its centre line. The centre line stayed out of water; the band did not (a street down a
+    // 3-wide spit, a lane beside a shore). Every routed way now keeps a CLEARANCE: a cell nearer water than the band's
+    // radius + 1 is closed to it. The chamfer distance never exceeds the true one, so the test is conservative. With no
+    // water both masks are empty and every route is as before.
+    auto bandRadius = [](float w) { return std::max(0, static_cast<int>(std::lround(w)) / 2); };
+    const int rMainBand = bandRadius(static_cast<float>(std::max(1, tier.street.mainWidth)));
+    const int rLaneBand = bandRadius(tier.street.laneWidth > 0 ? static_cast<float>(tier.street.laneWidth)
+                                                             : static_cast<float>(std::max(1, static_cast<int>(std::lround((2.0f * in.agent.halfWidthMicro + 1.0f) / 9.0f)))));
+    std::vector<uint8_t> nearWaterMain(N, 0), nearWaterLane(N, 0);
+    if (anyWater)
+        for (size_t i = 0; i < N; ++i) {
+            if (waterMask[i]) continue;
+            if (rMainBand > 0 && waterDist[i] < static_cast<float>(rMainBand) + 1.0f) nearWaterMain[i] = 1;
+            if (rLaneBand > 0 && waterDist[i] < static_cast<float>(rLaneBand) + 1.0f) nearWaterLane[i] = 1;
+        }
+    // a main-street route: the grid as it stands now (lots, the network's reuse) with the clearance closed
+    auto routeMain = [&](int start, const std::vector<uint8_t>& goalCells) {
+        if (!anyWater || rMainBand == 0) return connect(g, start, goalCells, in.reuse);
+        Grid t = g;
+        for (size_t i = 0; i < N; ++i) if (nearWaterMain[i]) t.blocked[i] = 1;
+        return connect(t, start, goalCells, in.reuse);
+    };
     // the entry: the arriving road's end, or (no road) the site edge nearest the first lot, set at its connection
     for (const auto& e : in.entries) if (g.inside(e.x, e.z)) entryMask[static_cast<size_t>(g.idx(e.x, e.z))] = 1;
     // register a routed way: nodes at its direction changes, its steepest grade, the centre cells on the network
@@ -334,7 +357,7 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
             else if (m == db) for (int x = W / 4; x < (3 * W) / 4; ++x) goal[static_cast<size_t>(g.idx(x, D - 1))] = 1;
             else              for (int x = W / 4; x < (3 * W) / 4; ++x) goal[static_cast<size_t>(g.idx(x, 0))] = 1;
         }
-        for (size_t i = 0; i < N; ++i) if (waterMask[i]) goal[i] = 0;   // a goal under water is no goal
+        for (size_t i = 0; i < N; ++i) if (waterMask[i] || nearWaterMain[i]) goal[i] = 0;   // a goal under water, or with its band over water, is no goal
         std::vector<int> spine;
         if (!haveSecond && tier.street.throughMiddle) {
             // M5f-2b (PL.11): one arriving road and a tier that asks for it - along the entry's own edge to the
@@ -353,19 +376,76 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                 mid = glm::ivec2(W / 2, m == db ? std::min(D - 1, a) : std::max(0, D - 1 - a));
                 for (int x = std::max(0, W / 2 - 2); x <= std::min(W - 1, W / 2 + 2); ++x) far[static_cast<size_t>(g.idx(x, m == db ? D - 1 : 0))] = 1;
             }
-            for (size_t i = 0; i < N; ++i) if (waterMask[i]) far[i] = 0;
+            for (size_t i = 0; i < N; ++i) if (waterMask[i] || nearWaterMain[i]) far[i] = 0;
             std::vector<uint8_t> toMid(N, 0);
             toMid[static_cast<size_t>(g.idx(mid.x, mid.y))] = 1;
-            const std::vector<int> leg1 = connect(g, g.idx(entry.x, entry.y), toMid, in.reuse);
+            const std::vector<int> leg1 = nearWaterMain[static_cast<size_t>(g.idx(mid.x, mid.y))] ? std::vector<int>() : routeMain(g.idx(entry.x, entry.y), toMid);
             if (!leg1.empty()) {
-                const std::vector<int> leg2 = connect(g, g.idx(mid.x, mid.y), far, in.reuse);
+                const std::vector<int> leg2 = routeMain(g.idx(mid.x, mid.y), far);
                 if (!leg2.empty()) {
                     spine = leg1;
                     for (size_t k = 0; k < leg2.size(); ++k) if (spine.empty() || spine.back() != leg2[k]) spine.push_back(leg2[k]);
                 }
             }
         }
-        if (spine.empty()) spine = connect(g, g.idx(entry.x, entry.y), goal, in.reuse);
+        if (spine.empty()) spine = routeMain(g.idx(entry.x, entry.y), goal);
+        int dryDepth = -1;   // D69 (b): how deep the dry ground runs from the entry's edge, when the far edge cannot be reached
+        if (spine.empty() && !haveSecond && !waterMask[static_cast<size_t>(g.idx(entry.x, entry.y))]) {
+            // D69 (b), ruled 2026-11-17 (pm_chain364): no dry route to the far edge - a coast, a river across the
+            // site. The settlement takes the dry ground its road reaches: the street runs to the DEEPEST dry cell
+            // (furthest from the entry's edge, inside the middle half across that axis) reachable from the entry
+            // without entering water. No bridge (D69 (c)). A site too small on its dry side is refused by the
+            // growth for the tier's minimum, as before.
+            const int dl = entry.x, dr = W - 1 - entry.x, db = entry.y, dt = D - 1 - entry.y;
+            const int m = std::min({dl, dr, db, dt});
+            auto depthOf = [&](int x, int z) { return m == dl ? x : m == dr ? W - 1 - x : m == db ? z : D - 1 - z; };
+            auto inBand = [&](int x, int z) { return (m == dl || m == dr) ? (z >= D / 4 && z < (3 * D) / 4) : (x >= W / 4 && x < (3 * W) / 4); };
+            std::vector<uint8_t> seen(N, 0);
+            std::vector<int> frontier{g.idx(entry.x, entry.y)};
+            seen[static_cast<size_t>(frontier[0])] = 1;
+            int deepest = -1;
+            for (size_t qi = 0; qi < frontier.size(); ++qi) {
+                const int cx = frontier[qi] % W, cz = frontier[qi] / W;
+                if (inBand(cx, cz)) deepest = std::max(deepest, depthOf(cx, cz));
+                static const int N4[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+                for (const auto& nb : N4) {
+                    const int nx = cx + nb[0], nz = cz + nb[1];
+                    if (!g.inside(nx, nz)) continue;
+                    const size_t ni = static_cast<size_t>(g.idx(nx, nz));
+                    if (seen[ni] || waterMask[ni]) continue;
+                    seen[ni] = 1; frontier.push_back(static_cast<int>(ni));
+                }
+            }
+            // chains 367 / 375: run to the shore itself the street's band lay over the water (and a lot across it
+            // "joined" the street there). The street ends at the deepest CLEAR cell - one its band can stand on -
+            // reachable from the entry over clear cells; a ragged shore or a spit too narrow for the band is not used.
+            dryDepth = deepest;
+            std::vector<uint8_t> seenC(N, 0);
+            std::vector<int> clearCells{g.idx(entry.x, entry.y)};
+            seenC[static_cast<size_t>(clearCells[0])] = 1;
+            int deepestClear = -1;
+            for (size_t qi = 0; qi < clearCells.size(); ++qi) {
+                const int cx = clearCells[qi] % W, cz = clearCells[qi] / W;
+                if (inBand(cx, cz) && !nearWaterMain[static_cast<size_t>(clearCells[qi])]) deepestClear = std::max(deepestClear, depthOf(cx, cz));
+                static const int N4c[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+                for (const auto& nb : N4c) {
+                    const int nx = cx + nb[0], nz = cz + nb[1];
+                    if (!g.inside(nx, nz)) continue;
+                    const size_t ni = static_cast<size_t>(g.idx(nx, nz));
+                    if (seenC[ni] || waterMask[ni] || nearWaterMain[ni]) continue;
+                    seenC[ni] = 1; clearCells.push_back(static_cast<int>(ni));
+                }
+            }
+            if (deepestClear > 0) {
+                std::vector<uint8_t> shore(N, 0);
+                for (const int ci : clearCells) { const int cx = ci % W, cz = ci / W; if (inBand(cx, cz) && !nearWaterMain[static_cast<size_t>(ci)] && depthOf(cx, cz) == deepestClear) shore[static_cast<size_t>(ci)] = 1; }
+                spine = routeMain(g.idx(entry.x, entry.y), shore);
+            }
+        }
+        if (spine.empty() && dryDepth >= 0) {   // D69 (a): the road's side of the water cannot hold a street
+            map.refusal = "the dry ground the road reaches is too shallow for the main street (" + std::to_string(dryDepth + 1) + " cubes before the water)";
+            return;
+        }
         if (spine.empty()) { map.refusal = "no dry route for the main street from the entry to the far edge"; return; }
         const float mainW = static_cast<float>(std::max(1, tier.street.mainWidth));
         const int cls = (tier.name == "town" || tier.name == "city") ? 3 : 2;
@@ -412,7 +492,7 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                 std::vector<uint8_t> g2(N, 0);
                 if (alongX) { const int zz = side == 0 ? 0 : D - 1; for (int x = W / 4; x < (3 * W) / 4; ++x) if (!waterMask[static_cast<size_t>(g.idx(x, zz))]) g2[static_cast<size_t>(g.idx(x, zz))] = 1; }
                 else        { const int xx = side == 0 ? 0 : W - 1; for (int z = D / 4; z < (3 * D) / 4; ++z) if (!waterMask[static_cast<size_t>(g.idx(xx, z))]) g2[static_cast<size_t>(g.idx(xx, z))] = 1; }
-                const std::vector<int> axis = connect(g, mid, g2, in.reuse);
+                const std::vector<int> axis = routeMain(mid, g2);
                 if (!axis.empty()) registerWay(axis, "primary", mainW, cls);
             }
         }
@@ -472,6 +552,27 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
             std::vector<float> accessDist;
             if (haveNet) accessDist = netDist;
             else if (haveEntry) chamfer(W, D, entryMask, accessDist);
+            // pm_chain364 (chain 370): the cells a route can reach from the network (or the entry) over unblocked
+            // ground. A candidate whose door-approach cell is outside it would fail its route search - after that
+            // search has explored its whole side of the water. Flooding once prunes them; no plan changes.
+            std::vector<uint8_t> reach;
+            if (haveNet || haveEntry) {
+                const std::vector<uint8_t>& src = haveNet ? netMask : entryMask;
+                reach.assign(N, 0);
+                std::vector<int> fr;
+                for (size_t i = 0; i < N; ++i) if (src[i]) { reach[i] = 1; fr.push_back(static_cast<int>(i)); }
+                static const int NB8[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+                for (size_t qi = 0; qi < fr.size(); ++qi) {
+                    const int cx = fr[qi] % W, cz = fr[qi] / W;
+                    for (const auto& nb : NB8) {
+                        const int nx = cx + nb[0], nz = cz + nb[1];
+                        if (!g.inside(nx, nz)) continue;
+                        const size_t ni = static_cast<size_t>(g.idx(nx, nz));
+                        if (reach[ni] || g.blocked[ni] || nearWaterLane[ni]) continue;
+                        reach[ni] = 1; fr.push_back(static_cast<int>(ni));
+                    }
+                }
+            }
             // every candidate (x, z, orientation): fully buildable, off every way's band and the market, clear of seated
             // lots by the side gap. A summed-area table of the unusable cells makes the rect test O(1); the lot's relief
             // is the buildability map's window relief at the lot's centre (the window, 6, is half a lot - the rule
@@ -559,7 +660,9 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                         entryMask[static_cast<size_t>(g.idx(e.x, e.y))] = 1;
                         goal = entryMask;
                     }
+                    if (!reach.empty() && !reach[static_cast<size_t>(di)]) continue;   // no route exists: skip the search
                     Grid gg = g;   // the candidate's own lot blocks nothing yet; its door starts outside the rect
+                    if (anyWater && rLaneBand > 0) for (size_t i = 0; i < N; ++i) if (nearWaterLane[i]) gg.blocked[i] = 1;   // a lane keeps its band off the water
                     path = connect(gg, di, goal, in.reuse);
                     if (path.empty()) continue;
                 }

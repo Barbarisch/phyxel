@@ -1943,10 +1943,13 @@ TEST(SettlementMapTest, ATierWithAMarketCarriesOneOnItsPrimaryWay) {
     EXPECT_GT(measured, 0) << "every map refused: nothing was measured";
     {   // the not-placed branch (never seen on the 55 plans): water flanks the main street on both sides, six cells off
         // its row, with dry gaps narrower than the market - every 12 x 12 rect on the street holds water
-        const int D = 76;
+        // RIG CHANGE 2026-11-17 (pm_chain364.txt, chains 378-382): the site was 140 wide. Since every way keeps a
+        // clearance from water each 6-wide gap holds ONE lane and the lot behind it plugs it - 7 gaps a side, 14 lots,
+        // one under the town's minimum, refused. 180 wide gives 9 gaps a side. Rows, gaps and assertions unchanged.
+        const int D = 76, kFlankW = 180;
         const auto flanked = [D](int x, int z) { return (z == D / 2 - 6 || z == D / 2 + 6) && (x % 20) >= 6; };
         for (unsigned seed = 1; seed <= 3; ++seed) {
-            const SettlementMapInput in = inputFor("town", 140, D, flatHeight, flanked, seed);
+            const SettlementMapInput in = inputFor("town", kFlankW, D, flatHeight, flanked, seed);
             const SettlementMap m = planSettlementMap(in);
             const std::string what = "town flat, water flanking the street, seed " + std::to_string(seed);
             if (!m.ok()) { ADD_FAILURE() << what << ": the map is refused (" << m.refusal << "): the rig does not make the case"; continue; }
@@ -2097,28 +2100,73 @@ TEST(SettlementMapTest, TheContractsStressSites) {
     RoomProgramRegistry romanRooms;
     ASSERT_TRUE(romanRooms.loadFromFile("resources/room_program.json"));
     ASSERT_TRUE(romanRooms.loadPeriodPack("resources/room_programs/roman.json", "roman"));
-    struct Case { const char* name; std::function<int(int, int)> h; std::function<std::function<bool(int, int)>(int)> water; };
+    struct Case { const char* name; std::function<int(int, int)> h; std::function<std::function<bool(int, int)>(int, int)> water; };
+    // the band a way paves: every cell within round(width) / 2 of its centre line (the planner's own radius), in water
+    auto bandCellsInWater = [](const SettlementMap& m, const std::function<bool(int, int)>& waterAt, int W, int D) {
+        if (!waterAt) return 0;
+        std::set<std::pair<int, int>> wet;
+        for (const auto& w : m.ways) {
+            const int r = std::max(0, static_cast<int>(std::lround(w.width)) / 2);
+            for (size_t k = 0; k + 1 < w.nodes.size(); ++k) {
+                const MapNode* a = m.node(w.nodes[k]); const MapNode* b = m.node(w.nodes[k + 1]);
+                if (!a || !b) continue;
+                const int steps = std::max(std::abs(b->x - a->x), std::abs(b->z - a->z));
+                for (int st = 0; st <= steps; ++st) {
+                    const int cx = a->x + (steps ? (b->x - a->x) * st / steps : 0), cz = a->z + (steps ? (b->z - a->z) * st / steps : 0);
+                    for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) {
+                        if (dx * dx + dz * dz > r * r) continue;
+                        const int x = cx + dx, z = cz + dz;
+                        if (x < 0 || z < 0 || x >= W || z >= D) continue;
+                        if (waterAt(x, z)) wet.insert({x, z});
+                    }
+                }
+            }
+        }
+        return static_cast<int>(wet.size());
+    };
     const std::vector<Case> cases = {
         {"15 degrees", [](int x, int) { return 30 + static_cast<int>(std::floor(0.2679f * static_cast<float>(x))); },
-                       [](int) { return std::function<bool(int, int)>(); }},
+                       [](int, int) { return std::function<bool(int, int)>(); }},
         {"order-3 river across the street", flatHeight,
-                       [](int W) { return std::function<bool(int, int)>([W](int x, int) { return x >= W / 2 - 2 && x <= W / 2 + 2; }); }},
+                       [](int W, int) { return std::function<bool(int, int)>([W](int x, int) { return x >= W / 2 - 2 && x <= W / 2 + 2; }); }},
         {"coast (far 40 % water)", flatHeight,
-                       [](int W) { return std::function<bool(int, int)>([W](int x, int) { return x * 10 >= W * 6; }); }},
+                       [](int W, int) { return std::function<bool(int, int)>([W](int x, int) { return x * 10 >= W * 6; }); }},
+        // PL.2 (the audit): a ragged shore - water over the far 60 % except a dry spit 3 wide along the street's line
+        {"coast with a dry spit", flatHeight,
+                       [](int W, int D) { return std::function<bool(int, int)>([W, D](int x, int z) { return x * 10 >= W * 4 && !(z >= D / 2 - 1 && z <= D / 2 + 1); }); }},
+        // chain 370: the river close to the entry - a near bank that holds a street and few lots
+        {"order-3 river near the entry", flatHeight,
+                       [](int, int) { return std::function<bool(int, int)>([](int x, int) { return x >= 24 && x <= 28; }); }},
     };
     struct Site { const char* era; const char* tier; };
     int plans = 0, refused = 0, noReason = 0, bad = 0;
+    int noDryRoute = 0, lotsAcrossTheRiver = 0, lotsInWater = 0, nodesInWater = 0;   // D69 (b), pm_chain364.txt
+    int bandInWater = 0, otherReason = 0;   // PL.2 (the audit)
     for (const Case& c : cases)
         for (const Site st : {Site{"medieval", "hamlet"}, Site{"medieval", "village"}, Site{"medieval", "town"}, Site{"medieval", "city"}, Site{"roman", "hamlet"}}) {
             const WorldForgePlan::TierPreset rect = WorldForgePlan::tierPresetDerived(st.tier, st.era);
             for (unsigned seed = 1; seed <= 3; ++seed) {
-                SettlementMapInput in = inputFor(st.tier, rect.width, rect.depth, c.h, c.water(rect.width), seed);
+                SettlementMapInput in = inputFor(st.tier, rect.width, rect.depth, c.h, c.water(rect.width, rect.depth), seed);
                 if (std::string(st.era) == "roman") { in.tier = rigs().program.get("roman", "hamlet"); in.rooms = &romanRooms; in.era = "roman"; }
                 ASSERT_NE(in.tier, nullptr) << st.era << "/" << st.tier;
                 const SettlementMap m = planSettlementMap(in);
                 const Violations v = measure(m, in.heightAt, in.maxRelief, in.waterAt);
                 ++plans;
-                if (!m.ok()) { ++refused; if (m.refusal.empty()) ++noReason; }
+                if (!m.ok()) { ++refused; if (m.refusal.empty()) ++noReason; if (m.refusal.find("no dry route") != std::string::npos) ++noDryRoute;
+                               if (m.refusal.find("tier's minimum") == std::string::npos && m.refusal.find("too shallow") == std::string::npos) ++otherReason; }
+                const int bandWet = bandCellsInWater(m, in.waterAt, rect.width, rect.depth);
+                bandInWater += bandWet;
+                if (bandWet) std::printf("[ M5 stress ]   ^ next line: %d band cells over water%s", bandWet, "\n");
+                if (in.waterAt)
+                    for (const auto& l : m.lots) {
+                        bool wet = false;
+                        for (int z = l.footprint.z; z < l.footprint.z1() && !wet; ++z) for (int x = l.footprint.x; x < l.footprint.x1() && !wet; ++x) wet = in.waterAt(x, z);
+                        if (wet) ++lotsInWater;
+                        const bool nearRiver = std::string(c.name).find("near the entry") != std::string::npos;
+                        if (std::string(c.name).find("river") != std::string::npos && l.footprint.x > (nearRiver ? 28 : rect.width / 2 + 2)) ++lotsAcrossTheRiver;
+                    }
+                if (in.waterAt)   // a way NODE in water (chain 367's defect was a node, not a segment)
+                    for (const auto& nd : m.nodes) if (in.waterAt(nd.x, nd.z)) ++nodesInWater;
                 const int wrong = v.overlaps + v.lotOutside + v.wayInWater + v.lotNoWay;
                 bad += wrong;
                 int bankA = 0, bankB = 0;   // lots on the entry side / the far side of x = W / 2 (the river case reads it)
@@ -2129,6 +2177,39 @@ TEST(SettlementMapTest, TheContractsStressSites) {
             }
         }
     std::printf("[ M5 stress ] %d plans, %d refused (%d without a reason), %d invariant violations%s", plans, refused, noReason, bad, "\n");
+    std::printf("[ M5 stress ] D69 (b): %d refused for want of a dry route, %d lots across the river, %d footprints in water%s", noDryRoute, lotsAcrossTheRiver, lotsInWater, "\n");
+    EXPECT_EQ(noDryRoute, 0) << "plans refused for want of a dry route: D69 (b) settles the dry ground the road reaches";
+    EXPECT_EQ(lotsAcrossTheRiver, 0) << "lots beyond a river the street cannot cross (no bridge is built)";
+    EXPECT_EQ(lotsInWater, 0) << "footprints standing in water";
+    std::printf("[ M5 stress ] way nodes in water: %d%s", nodesInWater, "\n");
+    EXPECT_EQ(nodesInWater, 0) << "way nodes in water";
+    // PL.2: the road arriving at the SOUTH edge of a coast (water over the far 40 % in z)
+    for (const Site st : {Site{"medieval", "village"}, Site{"roman", "hamlet"}}) {
+        const WorldForgePlan::TierPreset rect = WorldForgePlan::tierPresetDerived(st.tier, st.era);
+        const int D = rect.depth;
+        SettlementMapInput in = inputFor(st.tier, rect.width, rect.depth, flatHeight, std::function<bool(int, int)>([D](int, int z) { return z * 10 >= D * 6; }), 2);
+        in.entries = {{rect.width / 2, 0, 1}};
+        if (std::string(st.era) == "roman") { in.tier = rigs().program.get("roman", "hamlet"); in.rooms = &romanRooms; in.era = "roman"; }
+        const SettlementMap m = planSettlementMap(in);
+        const Violations v = measure(m, in.heightAt, in.maxRelief, in.waterAt);
+        const int bandWet = bandCellsInWater(m, in.waterAt, rect.width, rect.depth);
+        bandInWater += bandWet;
+        if (!m.ok() && m.refusal.find("no dry route") != std::string::npos) ++noDryRoute;
+        std::printf("[ M5 stress ] coast, road from the SOUTH edge   %s/%-7s %3d x %-3d seed 2: %2zu lots of target %2d, %zu ways; wet segments %d, band cells over water %d%s%s", st.era, st.tier,
+                    rect.width, rect.depth, m.lots.size(), m.targetLots, m.ways.size(), v.wayInWater, bandWet, m.ok() ? "" : (" REFUSED: " + m.refusal).c_str(), "\n");
+        EXPECT_EQ(v.wayInWater, 0);
+    }
+    {   // the "too shallow" refusal, where it occurs: water from 3 cubes in - no clear cell beyond the entry's column
+        SettlementMapInput in = inputFor("village", 104, 64, flatHeight, std::function<bool(int, int)>([](int x, int) { return x >= 3; }), 1);
+        const SettlementMap m = planSettlementMap(in);
+        std::printf("[ M5 stress ] water from x = 3 (village): %s%s", m.ok() ? "PLANNED" : m.refusal.c_str(), "\n");
+        EXPECT_FALSE(m.ok());
+        EXPECT_NE(m.refusal.find("too shallow"), std::string::npos) << m.refusal;
+    }
+    std::printf("[ M5 stress ] PL.2: %d band cells over water in all, %d refusals with a reason that is neither the minimum nor too-shallow, %d no-dry-route%s", bandInWater, otherReason, noDryRoute, "\n");
+    EXPECT_EQ(bandInWater, 0) << "cells of a way's paved band over water";
+    EXPECT_EQ(otherReason, 0) << "refusals whose reason is neither the tier's minimum nor a too-shallow dry side";
+    EXPECT_EQ(noDryRoute, 0) << "a south-edge coast refused for want of a dry route";
     EXPECT_EQ(noReason, 0) << "refusals without a reason";
     EXPECT_EQ(bad, 0) << "overlaps, lots outside the site, ways in water or lots without a way on a stress site";
 }

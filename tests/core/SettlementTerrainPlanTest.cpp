@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <map>
 
 #include <algorithm>
 #include <cstdio>
@@ -343,8 +344,49 @@ TEST(SettlementTerrainPlanTest, WaterInsideFootprintIsNotBuildable) {
     HeadlessWorld cut(kChunksX, [](int, int) { return 16; });
     floodBandX(cut, kChunksX, x0, x1, 16);
     const auto cutPlan = planOn(cut, kW, kD, /*terrain=*/true);
-    EXPECT_FALSE(cutPlan.ok());
-    EXPECT_NE(cutPlan.error.value("error", std::string()).find("no dry route"), std::string::npos) << cutPlan.error.dump();
+    // D69 (b), ruled 2026-11-17 (pm_chain364.txt) - the chain-132 pin ("refused with the street's reason") is REVERSED:
+    // a village cut by water settles the dry ground its road reaches, or is refused for the tier's minimum; either
+    // way nothing is planned in or across the water and the street's old reason is gone.
+    if (cutPlan.ok()) {
+        // (chain 365 -> 366, stated in pm_chain364.txt: side-agnostic - the road may arrive on either side of the band)
+        int inBand = 0, west = 0, east = 0, nodesInBand = 0, waysAcross = 0;
+        for (const auto& l : cutPlan.map.value("lots", nlohmann::json::array())) {
+            const int fx = l["footprint"][0].get<int>(), fw = l["footprint"][2].get<int>();
+            if (fx <= x1 && fx + fw - 1 >= x0) ++inBand; else if (fx + fw - 1 < x0) ++west; else ++east;
+        }
+        std::map<int, int> nodeX;
+        for (const auto& n : cutPlan.map.value("nodes", nlohmann::json::array())) {
+            const int nx = n.value("x", 0);
+            nodeX[n.value("id", -1)] = nx;
+            if (nx >= x0 && nx <= x1) ++nodesInBand;
+        }
+        for (const auto& w : cutPlan.map.value("ways", nlohmann::json::array())) {
+            bool anyWest = false, anyEast = false;
+            for (const auto& nid : w.value("nodes", nlohmann::json::array())) { const int nx = nodeX[nid.get<int>()]; if (nx < x0) anyWest = true; if (nx > x1) anyEast = true; }
+            if (anyWest && anyEast) ++waysAcross;
+        }
+        std::printf("[ terrain plan ] cut site (water x %d..%d): planned, %d lots west, %d east, %d in the band; %d way nodes in the band, %d ways joined across it%s",
+                    x0, x1, west, east, inBand, nodesInBand, waysAcross, "\n");
+        for (const auto& w : cutPlan.map.value("ways", nlohmann::json::array())) {   // the ways as data (chain 367 diagnostic)
+            std::string pts;
+            for (const auto& nid : w.value("nodes", nlohmann::json::array()))
+                for (const auto& n : cutPlan.map.value("nodes", nlohmann::json::array())) if (n.value("id", -1) == nid.get<int>()) pts += " (" + std::to_string(n.value("x", 0)) + "," + std::to_string(n.value("z", 0)) + ")";
+            std::printf("[ terrain plan ]   way %d %s:%s%s", w.value("id", -1), w.value("highway", std::string("?")).c_str(), pts.c_str(), "\n");
+        }
+        std::printf("[ terrain plan ]   entry node %d; params entries %s%s", cutPlan.map.value("entry_node", -1), cutPlan.map.value("entries", nlohmann::json()).dump().c_str(), "\n");
+        EXPECT_EQ(inBand, 0) << "a footprint in the water";
+        EXPECT_TRUE(west == 0 || east == 0) << "lots on both sides of water no street crosses";
+        EXPECT_EQ(nodesInBand, 0) << "a way node in the water";
+        EXPECT_EQ(waysAcross, 0) << "a way joined across the water";
+    } else {
+        std::printf("[ terrain plan ] cut site: refused - %s%s", cutPlan.error.dump().c_str(), "\n");
+        EXPECT_EQ(cutPlan.error.value("error", std::string()).find("no dry route"), std::string::npos) << cutPlan.error.dump();
+        // PL.2 (the audit; amended chain 376 -> 377, stated in pm_chain364.txt): the reason is one of the two true
+        // ones - the tier's minimum (a 2-cell street on the 4-wide strip seats nothing) or a too-shallow dry side.
+        // The "too shallow" text is pinned where it occurs, in SettlementMapTest.TheContractsStressSites.
+        const std::string why = cutPlan.error.value("error", std::string());
+        EXPECT_TRUE(why.find("tier's minimum") != std::string::npos || why.find("too shallow") != std::string::npos) << cutPlan.error.dump();
+    }
 }
 
 // ---------------------------------------------------------------------------
