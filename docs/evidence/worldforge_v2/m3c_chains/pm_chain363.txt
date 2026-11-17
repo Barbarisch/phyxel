@@ -1,0 +1,42 @@
+pm_chain363 - M5's contracted STRESS list, headless (plan §5 M5: "Stress: 400 lots (the cap), a site on a 15 degree
+slope, a site bisected by an order-3 river (bridge inside town), a site on a coast"). Written 2026-11-17 14:30, before the test
+exists. Owner 2026-11-17: "keep going. and remember to follow the plan" - M5f's D9 clause is met in the letter; what M5
+still owes is in the plan's status update; this is the part of it that needs no ruling and no new world.
+
+THE RIG (SettlementMapTest.TheContractsStressSites, Release): the planner alone, each medieval tier on its derived
+rect and the roman hamlet on its own, seeds 1..3, one road arriving at the middle of the west edge.
+  (a) 15 degrees: height = 30 + floor(x * tan 15 deg) - a rise of 0.268 per cube along the street's axis.
+  (b) the river: a band of water 5 cubes wide (the engine's own width for Strahler order 3, FlowField.h) across the
+      whole site at x = W / 2 - the main street has to cross it.
+  (c) the coast: water over the far 40 % of the site (x >= 0.6 W).
+  (d) 400 lots: already measured by BakeTimeIsReportedAndTheGrowthReachesManyLots (136 of 400 seated on 200 x 160) -
+      cited, not repeated.
+ASSERTED on every plan, refused or not: no lot overlaps another, no lot outside the site, no way segment in water, no
+  lot without a way; a refused plan carries a reason. NOT asserted: that a plan succeeds - I do not know that it does.
+PREDICTIONS
+  (a) the hill rig is a 5 % slope and seats the minimum; at 26.8 % a lot 8-18 cubes across spans 2-5 cubes of relief.
+      I expect REFUSALS on most tiers (the minimum not seated) and no invariant violation on what is planned. Which
+      tiers survive: unknown.
+  (b) the planner has no bridge and treats water as impassable: street tiers REFUSED "no dry route for the main street
+      from the entry to the far edge"; the cluster hamlet seats on the entry bank only. 0 wet segments everywhere.
+      So "bridge inside town" is NOT BUILT - if the run shows otherwise I am wrong about the code.
+  (c) the far edge is under water, and a goal under water is no goal: street tiers REFUSED for want of a dry route;
+      the hamlet plans on the land. 0 wet segments.
+RESULTS - chain 363 (written 2026-11-17 14:31; Release; 1 ok / 0 failed): 45 plans (3 sites x 5 tiers x 3 seeds), 24 refused,
+  every refusal with a reason, 0 invariant violations (overlaps, lots outside, ways in water, lots without a way).
+  (a) 15 degrees - MISS. I predicted refusals on most tiers. EVERY tier seats its full target on all 3 seeds
+      (hamlet 4 of 4, village 7 of 7, town 16 of 16, city 21 of 21, roman hamlet 6 of 6 on seed 1). The relief cap over
+      a lot is 6 cubes (SettlementMapInput::maxRelief) and a lot 8-18 cubes along a 26.8 % slope spans 2-5: it fits.
+      NOT examined: the grade of the WAYS (the street runs straight up a 26.8 % slope where a world road's cap is
+      8 %), whether such a street or its doorsteps are walkable once built, terraces - nothing was realized.
+  (b) the order-3 river across the street - as predicted. The four street tiers and the roman hamlet are REFUSED on
+      every seed: "no dry route for the main street from the entry to the far edge". The cluster hamlet seats 3 of its
+      target 4 on the entry bank, none beyond. 0 wet segments. The contract's "bridge inside town" is NOT BUILT: a
+      site a river bisects is not planned at all.
+  (c) the coast - as predicted. The street tiers and the roman hamlet are REFUSED with the same reason (the far edge
+      is under water, so the street has no goal); the cluster hamlet seats 4 of 4 on the land. A coastal site of any
+      street tier is refused outright - though 60 % of it is dry.
+  (d) 400 lots: not repeated here (136 of 400 seated on 200 x 160, the existing test).
+  The refusal in (b) is PINNED as measured behaviour by SettlementTerrainPlanTest (chain 132: a village cut by water
+  "is refused with the street's reason, not planned with a street through the water"). Changing what a water-cut or
+  coastal site does is a design decision (D69, proposed in the plan) - nothing was changed.

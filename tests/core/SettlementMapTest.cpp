@@ -2089,6 +2089,50 @@ struct FixtureEra {
 };
 }  // namespace
 
+// pm_chain363.txt: M5's contracted stress sites, headless - a 15-degree slope, a site bisected by an order-3 river, a
+// site on a coast (the 400-lot cap is BakeTimeIsReportedAndTheGrowthReachesManyLots). The invariants are asserted on
+// every plan; whether a plan SUCCEEDS is printed, not asserted - this is the first time any of them is run.
+TEST(SettlementMapTest, TheContractsStressSites) {
+    ASSERT_TRUE(rigs().programOk);
+    RoomProgramRegistry romanRooms;
+    ASSERT_TRUE(romanRooms.loadFromFile("resources/room_program.json"));
+    ASSERT_TRUE(romanRooms.loadPeriodPack("resources/room_programs/roman.json", "roman"));
+    struct Case { const char* name; std::function<int(int, int)> h; std::function<std::function<bool(int, int)>(int)> water; };
+    const std::vector<Case> cases = {
+        {"15 degrees", [](int x, int) { return 30 + static_cast<int>(std::floor(0.2679f * static_cast<float>(x))); },
+                       [](int) { return std::function<bool(int, int)>(); }},
+        {"order-3 river across the street", flatHeight,
+                       [](int W) { return std::function<bool(int, int)>([W](int x, int) { return x >= W / 2 - 2 && x <= W / 2 + 2; }); }},
+        {"coast (far 40 % water)", flatHeight,
+                       [](int W) { return std::function<bool(int, int)>([W](int x, int) { return x * 10 >= W * 6; }); }},
+    };
+    struct Site { const char* era; const char* tier; };
+    int plans = 0, refused = 0, noReason = 0, bad = 0;
+    for (const Case& c : cases)
+        for (const Site st : {Site{"medieval", "hamlet"}, Site{"medieval", "village"}, Site{"medieval", "town"}, Site{"medieval", "city"}, Site{"roman", "hamlet"}}) {
+            const WorldForgePlan::TierPreset rect = WorldForgePlan::tierPresetDerived(st.tier, st.era);
+            for (unsigned seed = 1; seed <= 3; ++seed) {
+                SettlementMapInput in = inputFor(st.tier, rect.width, rect.depth, c.h, c.water(rect.width), seed);
+                if (std::string(st.era) == "roman") { in.tier = rigs().program.get("roman", "hamlet"); in.rooms = &romanRooms; in.era = "roman"; }
+                ASSERT_NE(in.tier, nullptr) << st.era << "/" << st.tier;
+                const SettlementMap m = planSettlementMap(in);
+                const Violations v = measure(m, in.heightAt, in.maxRelief, in.waterAt);
+                ++plans;
+                if (!m.ok()) { ++refused; if (m.refusal.empty()) ++noReason; }
+                const int wrong = v.overlaps + v.lotOutside + v.wayInWater + v.lotNoWay;
+                bad += wrong;
+                int bankA = 0, bankB = 0;   // lots on the entry side / the far side of x = W / 2 (the river case reads it)
+                for (const auto& l : m.lots) { if (l.footprint.x + l.footprint.w / 2 < rect.width / 2) ++bankA; else ++bankB; }
+                std::printf("[ M5 stress ] %-32s %s/%-7s %3d x %-3d seed %u: %2zu lots of target %2d (min %d; %d entry side, %d far side), %zu ways; overlaps %d outside %d wet %d no-way %d%s%s",
+                            c.name, st.era, st.tier, rect.width, rect.depth, seed, m.lots.size(), m.targetLots, in.tier->buildingsMin, bankA, bankB, m.ways.size(),
+                            v.overlaps, v.lotOutside, v.wayInWater, v.lotNoWay, m.ok() ? "" : (" REFUSED: " + m.refusal).c_str(), "\n");
+            }
+        }
+    std::printf("[ M5 stress ] %d plans, %d refused (%d without a reason), %d invariant violations%s", plans, refused, noReason, bad, "\n");
+    EXPECT_EQ(noReason, 0) << "refusals without a reason";
+    EXPECT_EQ(bad, 0) << "overlaps, lots outside the site, ways in water or lots without a way on a stress site";
+}
+
 // M5f-2b (pm_chain348.txt): the roman hamlet's site rectangle, derived as D43 (b) derived the medieval ones. Depth 88 =
 // two plots of the retrieved 40 + the 6-wide road, rounded up (the inputs GROUNDED, the sum DESIGN); the width is
 // MEASURED here: the smallest, from 40 in steps of 4, at which every flat seed 1..20 seats its target. The derived rect
