@@ -55,3 +55,10 @@ PT.3 RESULT - chain 320c (written 2026-11-17 10:00; RELEASE, exe 09:50:03, run 0
 STANDING CHANGE (2026-11-17): live-site chains run on RELEASE by default (CFG=Release m5b_cfg_chain.sh N "<filter>" in the
   session scratchpad; ~8 min for the full set, ~6 min for an incremental Release build after an engine edit). A Debug
   pass of the live set is kept for milestone closes only, and is said so in the record when skipped.
+UNIT SET ON RELEASE (written 2026-11-17 13:59; owner asked how long a regression takes now) - chain 354, the m5b2 unit filter on the
+  Release exe built 13:57:06: 189 ok / 0 failed in 74.5 s (the runner's total), against ~16 min on Debug (chain 352:
+  189 ok / 0 failed, the same tree bar chain 353's later test additions). Same count, same verdicts; no per-line record
+  diff was made between the two configurations. No prediction was written - it is a timing.
+  STANDING CHANGE: a regression = the live set + the unit set, both on Release (~8.5 min + ~1.5 min incl. the
+  incremental build). A Debug pass of both is kept for milestone closes, and the record says when it was skipped.
+  Not measured: what Debug-only assertions inside the engine would have caught that Release does not.
