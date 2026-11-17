@@ -76,8 +76,8 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
 4. **W6 - shores and the open sea:** the sea as recorded water to the horizon, a simulated band at the shore near the player.
    **§55: step 0 MEASURED (what draws the sea today); W6.1 (the sea drawn as far as the land) BUILT, not signed off
    (`w61_clip.mp4`, 55.1); W6.1b (the old sea sheet deleted) DONE (55.2); W6.2 (the shore band near the player) step 0
-   MEASURED (55.3): today's core carries a swell at 1/9 m but its run-up is a quarter of Hunt's - HOW the band is built is the
-   owner's call (55.3, three options).**
+   MEASURED (55.3): today's core carries a swell at 1/9 m; on generated (full-cube) shores its swash matches the column solver's
+   within 5 %; the owner: "build band now" (the fine-slope run-up shortfall a known limit). Next: W6.2's design-check.**
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
@@ -14302,7 +14302,7 @@ READY with amendments A1-A4; built as designed).
   owner's list. "Water constantly flowing": the design already simulates only near the player (the follow reach) and draws the rest
   from the record - written down here as the rule W6 keeps (the sea's swell offshore is appearance, never simulated).
 
-## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2); W6.2 step 0 MEASURED - the owner's call (55.3)
+## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2); W6.2 step 0 MEASURED (55.3) - the owner: build the band now
 
 **55.0 Step 0 (2026-11-16) - what draws the sea today, measured before W6 is designed** (`tools/water_w6_step0.py`, WaterBench_Coast,
 the shipped game.json, restored world; two engine runs, the old sheet ON (shipped) and OFF (RIG: game.json `water.enabled` false -
@@ -14466,6 +14466,28 @@ solver, sparse bricks, the W5.2 boundary kernel), so the finding was re-measured
 - **Also found:** nothing draws the swell today - since 55.2 the record tiles and the skin draw the sea flat (`water_surface.frag`
   sets `wavePhase` 0); `SeaSwell` is read only by the old `ShoreBand` (off). The swell offshore as appearance (27.4) is part of W6.2
   after the band, and meets 45.3's rule (no decorative pattern on water) - its look is the owner's too.
+- **THE OWNER'S CALL (2026-11-17): B** - "fix run-up first": the swash fixed at its cause in the pond model, this rig its
+  acceptance test (run-up within Hunt's 20 % at 1/9 m, the calm control still, the pond suite unchanged); if it cannot be done
+  without moving a signed-off pond result, fall back to A and say so.
+- **CORRECTION (same day, after the owner's answer) - the run-up shortfall is on ground the world does not generate.** My question
+  to the owner framed the 7 cm as "a quarter of the way it should (~1.4 m instead of ~6 m on a gentle beach)". 18.5 had already
+  written down that generated beaches are FULL-CUBE staircases (Coast: a 1 m riser every ~22 m, a 24 m shelf exactly at the still
+  level) where Hunt's formula has no meaning; the rig above is a smooth 1:10 slope of 1/9 m steps. Measured on the world's ground
+  (part 3, `DISABLED_DiagW62CoastStepsPondVsColumn`: bed -3 / -2 / -1 m in 12-20 m steps, the 24 m shelf at the still level, +1 m
+  beyond; the same wave; the pond model at 1/9 m beside the column solver at 1/3 m - 18.5's run-up reference - on the same
+  profile and driver, 24 s):
+
+| model | how far onto the shelf water >= 1 cm reached | the front's swing, 16-24 s | depth on the shelf 2 / 6 / 12 m in, at the end | books | ms / tick |
+|---|---|---|---|---|---|
+| column solver, 1/3 m | 8.83 m | 1.83 .. 8.83 m | 0.059 / 0.047 / 0.000 m | - | - |
+| **pond model, 1/9 m** | **8.39 m (-5 %)** | **0.17 .. 8.39 m** | 0.148 / 0.058 / 0.000 m | -9.7e-5 m^3 | 1.95 |
+
+  **On generated shores the pond model's swash already matches the reference** (reach within 5 %, the waterline moving in and out
+  over 8 m); it holds more water just past the riser (0.15 vs 0.06 m at 2 m in). The shortfall is a sub-voxel-slope case (1/9 m
+  steps: player-carved or future smoother terrain). The owner was asked again with this (below).
+- **THE OWNER'S CALL, REVISED (2026-11-17): "Build band now"** - W6.2 is built on today's pond model (1/9 m) on generated shores;
+  the fine-slope run-up shortfall (the 1:10 rig: 7 cm vs Hunt 31 cm) is a KNOWN LIMIT, logged, fixed later if player-made or
+  smoother beaches need it. Next: W6.2's design, `/design-check` first.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

@@ -7,6 +7,7 @@
 #include "core/water/WaterCoreGpu.h"
 #include "core/water/WaterSurfaceMesh.h"
 #include "core/water/WaterCoreManager.h"
+#include "core/water/ShoreSolver.h"
 #include <cmath>
 #include <chrono>
 #include <algorithm>
@@ -2169,4 +2170,88 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagW62ShorePatchCost) {
                     W, L, static_cast<int>(std::lround(1.0 / h)), NX, NY, NZ, wet, wet / 1e6, ms / n, msSet / n);
         gpu.destroyVolume(vol);
     }
+}
+
+// W6.2 STEP 0 (55.3), part 3 - the swash on the ground the WORLD has. Generated beaches are full-cube staircases (18.5: Coast's
+// "1:20 beach" is a 1 m riser every ~22 m with a 24 m shelf exactly at the still level), where Hunt's formula has no meaning. The
+// profile here (still level 0): bed -3 to 12 m, -2 to 30 m, -1 to 50 m, the SHELF at 0 from 50 to 74 m, +1 beyond (dry); the same
+// 0.3 m / 14 m wave over the first 2 m; 24 s. The pond model (GPU, 1/9 m) beside the column solver (ShoreSolver, 1/3 m - 18.5's
+// run-up reference: Hunt within 21 % on a smooth beach) on the same profile and driver. Reported for each: how far onto the shelf
+// water >= 1 cm reached (max over 8-24 s) and the front's swing over the last 8 s (min..max - does the waterline move back and
+// forth or only advance?), the depth on the shelf 2 / 6 / 12 m in at the end, the books. A measurement (disabled).
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagW62CoastStepsPondVsColumn) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const double L = 80.0, shelf0 = 50.0, a = 0.3, lambda = 14.0, dDrive = 3.0;
+    const double kw = 2.0 * 3.14159265358979 / lambda, om = std::sqrt(kG * kw * std::tanh(kw * dDrive)), c = om / kw, T = 2.0 * 3.14159265358979 / om;
+    auto bed = [&](double x) { return x < 12.0 ? -3.0 : x < 30.0 ? -2.0 : x < shelf0 ? -1.0 : x < 74.0 ? 0.0 : 1.0; };
+    auto drive = [&](double x, double tt, double& eta, double& u) { const double ramp = std::min(1.0, tt / (2.0 * T)); eta = a * ramp * std::cos(kw * x - om * tt); u = eta * c / dDrive; };
+    struct Res { double runIn = -1.0, swingLo = 1e9, swingHi = -1e9, dep[3] = {0, 0, 0}, books = 0.0; };
+    auto frontOf = [&](const std::function<double(double)>& depthAtX, double dx) {
+        double f = -1.0; for (double x = shelf0 + 0.5 * dx; x < 74.0; x += dx) if (depthAtX(x) >= 0.01) f = x - shelf0; return f; };
+    // the column solver
+    Res col;
+    {
+        const float h = 1.0f / 3.0f; const int nx = static_cast<int>(std::lround(L / h));
+        ShoreSolver sv(glm::vec2(0.0f), nx, 1, h);
+        for (int x = 0; x < nx; ++x) { const double wx = (x + 0.5) * h; sv.col(x, 0).bed = static_cast<float>(bed(wx)); sv.col(x, 0).eta = std::max(0.0, bed(wx)); }
+        const double m0 = sv.totalMass(); double ex = 0.0;
+        for (int k = 1; k <= 24 * 60; ++k) {
+            const double tt = k * static_cast<double>(kDt);
+            const double before = sv.totalMass();
+            for (int x = 0; x < static_cast<int>(2.0 / h); ++x) { double e, u; drive((x + 0.5) * h, tt, e, u); sv.prescribe(x, 0, e, glm::vec2(static_cast<float>(u), 0.0f)); }
+            const ShoreStepReport rr = sv.step(kDt); (void)before; (void)rr;
+            if (tt < 8.0) continue;
+            const double f = frontOf([&](double x) { return sv.depth(static_cast<int>(x / h), 0); }, h);
+            col.runIn = std::max(col.runIn, f);
+            if (tt >= 16.0) { col.swingLo = std::min(col.swingLo, f); col.swingHi = std::max(col.swingHi, f); }
+        }
+        (void)ex; (void)m0;
+        const double at[3] = {2.0, 6.0, 12.0};
+        for (int i = 0; i < 3; ++i) col.dep[i] = sv.depth(static_cast<int>((shelf0 + at[i]) / h), 0);
+    }
+    // the pond model
+    Res pond; double msTick = 0.0;
+    {
+        const float h = 1.0f / 9.0f;
+        const int NX = static_cast<int>(std::lround(L / h)), NY = static_cast<int>(std::lround(4.333 / h)), NZ = 9;
+        Tank t(NX, NY, NZ, h);
+        t.extra = [&, h](const glm::ivec3& cc) { return (cc.y + 0.5) * h - 3.0 < bed((cc.x + 0.5) * h) ? Occ::Solid : Occ::Air; };
+        const int dRows = static_cast<int>(std::lround(3.0 / h));
+        for (int z = 0; z < NZ; ++z) for (int x = 0; x < NX; ++x) for (int y = 0; y < dRows; ++y)
+            if ((y + 0.5) * h - 3.0 >= bed((x + 0.5) * h)) t.grid.f(x, y, z) = 1.0f;
+        auto* vol = make(t); ASSERT_NE(vol, nullptr);
+        SolverParams p; p.pondFriction = 0.0f; p.bedManning = 0.025f;
+        std::vector<GpuBoundary> bs;
+        for (int z = 0; z < NZ; ++z) for (int x = 0; x < static_cast<int>(2.0 / h); ++x) { GpuBoundary b; b.col = x + NX * z; b.rows = static_cast<float>(3.0 / h); bs.push_back(b); }
+        std::string err; ASSERT_TRUE(gpu.setBoundaries(*vol, bs, &err)) << err;
+        const double g0 = t.grid.totalMass(), cellV = static_cast<double>(h) * h * h;
+        WaterGrid out = t.grid;
+        auto depthAtX = [&](double x) { const int ix = static_cast<int>(x / h); double s = 0.0; for (int z = 0; z < NZ; ++z) s += out.columnMass(ix, z) / (static_cast<double>(h) * h); return s / NZ; };
+        for (int k = 1; k <= 24 * 60; ++k) {
+            const double tt = k * static_cast<double>(kDt);
+            std::vector<GpuBoundary> cur; gpu.readBoundaries(*vol, cur);
+            for (GpuBoundary& b : cur) { double e, u; drive((b.col % NX + 0.5) * h, tt, e, u); b.rows = static_cast<float>((3.0 + e) / h); b.ux = static_cast<float>(u); b.qn = (b.col % NX == 0) ? std::max(0.0f, b.ux) : 0.0f; }
+            ASSERT_TRUE(gpu.setBoundaries(*vol, cur, &err)) << err;
+            const auto t0 = std::chrono::steady_clock::now();
+            gpu.step(*vol, p, kDt, 1, 40); gpu.settle(*vol);
+            msTick += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            if (tt < 8.0 || (k % 4)) continue;
+            gpu.download(*vol, out);
+            const double f = frontOf(depthAtX, h);
+            pond.runIn = std::max(pond.runIn, f);
+            if (tt >= 16.0) { pond.swingLo = std::min(pond.swingLo, f); pond.swingHi = std::max(pond.swingHi, f); }
+        }
+        gpu.download(*vol, out);
+        const double at[3] = {2.0, 6.0, 12.0};
+        for (int i = 0; i < 3; ++i) pond.dep[i] = depthAtX(shelf0 + at[i]);
+        std::vector<GpuBoundary> rb; gpu.readBoundaries(*vol, rb);
+        double ex = 0.0; for (const auto& b : rb) ex += b.exchanged() * cellV;
+        pond.books = out.totalMass() + gpu.sumFLoForTest(*vol) * cellV - g0 - ex;
+        gpu.destroyVolume(vol);
+        msTick /= 24 * 60;
+    }
+    for (const auto& [name, r] : std::vector<std::pair<const char*, Res>>{{"column solver 1/3 m", col}, {"pond model 1/9 m  ", pond}})
+        std::printf("  %s: onto the 24 m shelf %.2f m (front's swing over 16-24 s %.2f .. %.2f m); depth on the shelf at 2 / 6 / 12 m %.3f / %.3f / %.3f m\n",
+                    name, r.runIn, r.swingLo, r.swingHi, r.dep[0], r.dep[1], r.dep[2]);
+    std::printf("  pond books %+.2e m^3; %.2f ms/tick\n", pond.books, msTick);
 }
