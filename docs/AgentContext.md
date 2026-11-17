@@ -529,8 +529,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       0.35 -> 0.003 ms, a one-block brush 0.28-0.36 ms median anywhere ({"legacy_connect":true} = A/B).
       F3.5 second run (2026-11-16): exact (1,000 verified edits, 10 reloads, 0 px, byte-identical re-save); every
       (size, kind) median <= 0.42 ms. F3 CLOSED.
-      NEXT: F4 -- fracture core, CPU reference (bonds, patterns, pieces, anchoring, crumbs); read the plan's F4 section
-      and write the first increment's prediction before code.
+      F4.1 (2026-11-17): fractureReference() (voxfound/FractureLab) -- all 8 fracture-lab rig predictions pass, exact
+      vs the checker / deterministic / conserving / nested under 300 random hits; pictures f41_*.png (plan §9c).
+      NEXT: F4.2 -- anchoring at scale (§3.5a.6: block graph first, measure the worst-case search on the wall /
+      column rigs + an engine-generated building), then F4.3 the GPU port equal to the reference. Owner review of
+      the f41 pictures is pending.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

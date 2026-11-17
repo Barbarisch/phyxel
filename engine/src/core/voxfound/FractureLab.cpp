@@ -2,15 +2,312 @@
 
 #include "core/voxfound/FractureLab.h"
 
+#include <algorithm>
+#include <cmath>
 #include <deque>
 #include <unordered_map>
 
 namespace Phyxel::Core::VoxFound {
 
-FractureResult fractureReference(const VoxelGrid& /*grid*/, const Hit& /*hit*/,
-                                 const std::vector<FractureMaterial>& /*mats*/) {
-    // F4 builds this. Until then every fracture-lab prediction is red.
-    return FractureResult{};
+// ---- F4.1: the CPU reference (model fixed in docs/evidence/voxfound_f41_prediction.txt) ------------------
+
+namespace {
+
+constexpr double kTwoPi = 6.28318530717958647692;
+
+uint64_t splitmix(uint64_t x) {
+    x += 0x9E3779B97F4A7C15ULL;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
+    return x ^ (x >> 31);
+}
+
+uint64_t hashCell(uint64_t seed, int level, int64_t qx, int64_t qy, int64_t qz) {
+    uint64_t h = splitmix(seed ^ (uint64_t(uint32_t(level)) << 40));
+    h = splitmix(h ^ uint64_t(qx));
+    h = splitmix(h ^ uint64_t(qy));
+    return splitmix(h ^ uint64_t(qz));
+}
+
+int64_t floorDiv(int64_t a, int64_t b) {
+    int64_t q = a / b;
+    if ((a % b != 0) && ((a < 0) != (b < 0))) --q;
+    return q;
+}
+
+// The pattern's view of one material: Voronoi (brittle / fibrous, optional grain axis) or polar (glass).
+struct MatInfo {
+    float toughness = 1.0f;
+    float partScale = 0.3f;
+    bool glass = false;
+    int grainAxis = -1;   // fibrous: the dominant axis of the grain (the lab's grains are axis-aligned)
+};
+
+class Pattern {
+public:
+    Pattern(const VoxelGrid& g, const Hit& hit, float cbrtE) : m_g(g), m_hit(hit), m_cbrtE(cbrtE) {
+        // level k spacing kLevel0M / 2^k; finest level still >= one voxel
+        m_kmax = 0;
+        while (FractureModel::kLevel0M / float(1 << (m_kmax + 1)) >= g.voxelM - 1e-6f && m_kmax < 12) ++m_kmax;
+        m_ids.assign(g.size() * size_t(m_kmax + 1), 0);
+        // glass: the plane across the hit direction
+        glm::vec3 d = glm::length(hit.dir) > 0 ? glm::normalize(hit.dir) : glm::vec3(0, 0, 1);
+        glm::vec3 t = std::fabs(d.x) < 0.9f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+        m_u = glm::normalize(glm::cross(d, t));
+        m_v = glm::cross(d, m_u);
+        m_sectors = std::max(4, int(std::lround(4.0 * cbrtE)));
+        m_r0 = 0.5 * cellM(0.0);
+    }
+    int kmax() const { return m_kmax; }
+
+    /// h(d): the local cell size in metres.
+    double cellM(double dM) const {
+        return FractureModel::kCellM * (1.0 + dM / FractureModel::kStressLengthM) / m_cbrtE;
+    }
+    /// The finest level whose spacing is still >= h(d).
+    int level(double dM) const {
+        const double h = cellM(dM);
+        int L = -1;
+        for (int k = 0; k <= m_kmax; ++k)
+            if (FractureModel::kLevel0M / double(1 << k) >= h) L = k;
+        return std::max(L, 0);
+    }
+
+    uint32_t voronoi(size_t i, int k, int grainAxis) {
+        uint32_t& slot = m_ids[i * size_t(m_kmax + 1) + size_t(k)];
+        if (slot) return slot;
+        // fixed point: 1024 units per voxel; a voxel centre is p * 1024 + 512 (exact)
+        const glm::ivec3 p = m_g.pos(i);
+        int64_t X[3] = {int64_t(p.x) * 1024 + 512, int64_t(p.y) * 1024 + 512, int64_t(p.z) * 1024 + 512};
+        double spacing = double(FractureModel::kLevel0M) / double(1 << k) / double(m_g.voxelM) * 1024.0;
+        if (grainAxis >= 0) {
+            // fibrous: cells of the same volume, kGrainStretch (4) times longer along the grain than across.
+            // Across-grain coordinates are multiplied by 4 (exact) and the spacing by 4^(2/3): a cell is then
+            // 4^(2/3) h along the grain and 4^(2/3) / 4 = 4^(-1/3) h across it.
+            for (int a = 0; a < 3; ++a)
+                if (a != grainAxis) X[a] *= int64_t(FractureModel::kGrainStretch);
+            spacing *= std::cbrt(double(FractureModel::kGrainStretch) * double(FractureModel::kGrainStretch));
+        }
+        const int64_t C = std::max<int64_t>(1, std::llround(spacing));
+        const int64_t q[3] = {floorDiv(X[0], C), floorDiv(X[1], C), floorDiv(X[2], C)};
+        int64_t best = INT64_MAX;
+        uint64_t bestH = 0;
+        for (int dx = -1; dx <= 1; ++dx)
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dz = -1; dz <= 1; ++dz) {
+                    const int64_t c[3] = {q[0] + dx, q[1] + dy, q[2] + dz};
+                    const uint64_t h = hashCell(m_hit.seed, k, c[0], c[1], c[2]);
+                    int64_t d2 = 0;
+                    for (int a = 0; a < 3; ++a) {
+                        const int64_t jit = int64_t((h >> (a * 21)) & 0x1FFFFF);  // 21 bits
+                        const int64_t s = c[a] * C + ((jit * C) >> 21);
+                        const int64_t dd = X[a] - s;
+                        d2 += dd * dd;
+                    }
+                    if (d2 < best || (d2 == best && h < bestH)) { best = d2; bestH = h; }
+                }
+        slot = uint32_t(bestH) | 1u;
+        return slot;
+    }
+
+    uint32_t glassId(size_t i) {
+        uint32_t& slot = m_ids[i * size_t(m_kmax + 1)];
+        if (slot) return slot;
+        const glm::dvec3 r = (glm::dvec3(m_g.pos(i)) + 0.5 - glm::dvec3(m_hit.point)) * double(m_g.voxelM);
+        const double ru = glm::dot(r, glm::dvec3(m_u)), rv = glm::dot(r, glm::dvec3(m_v));
+        const double rho = std::sqrt(ru * ru + rv * rv);
+        int ring = 0, sector = 0;
+        if (rho >= m_r0) {
+            ring = 1 + int(std::floor(std::log(rho / m_r0) / std::log(double(FractureModel::kGlassRing))));
+            double th = std::atan2(rv, ru);
+            if (th < 0) th += kTwoPi;
+            const uint64_t wh = hashCell(m_hit.seed, 99, ring, 0, 0);
+            const double wobble = 0.3 * (double(wh & 0xFFFF) / 65536.0 - 0.5);  // +-0.15 sector per ring
+            sector = int(std::floor(th / kTwoPi * m_sectors + wobble));
+            sector = ((sector % m_sectors) + m_sectors) % m_sectors;
+        }
+        slot = uint32_t(hashCell(m_hit.seed, 98, ring, sector, 0)) | 1u;
+        return slot;
+    }
+
+private:
+    const VoxelGrid& m_g;
+    const Hit& m_hit;
+    double m_cbrtE;
+    int m_kmax = 0;
+    std::vector<uint32_t> m_ids;
+    glm::vec3 m_u{1, 0, 0}, m_v{0, 1, 0};
+    int m_sectors = 4;
+    double m_r0 = 0.1;
+};
+
+uint8_t hitMaterial(const VoxelGrid& g, const Hit& hit) {
+    const glm::vec3 d = glm::length(hit.dir) > 0 ? glm::normalize(hit.dir) : glm::vec3(0, 0, 1);
+    for (int s = 0; s <= 16; ++s) {
+        const glm::ivec3 p = glm::ivec3(glm::floor(hit.point + d * (0.5f * float(s))));
+        if (g.in(p) && g.mat[g.idx(p)]) return g.mat[g.idx(p)];
+    }
+    // nearest solid within 2 voxels (lowest index on ties)
+    const glm::ivec3 c = glm::ivec3(glm::floor(hit.point));
+    float best = 1e9f;
+    uint8_t m = 0;
+    for (int dx = -2; dx <= 2; ++dx)
+        for (int dy = -2; dy <= 2; ++dy)
+            for (int dz = -2; dz <= 2; ++dz) {
+                const glm::ivec3 p = c + glm::ivec3(dx, dy, dz);
+                if (!g.in(p) || !g.mat[g.idx(p)]) continue;
+                const float dd = glm::length(glm::vec3(p) + 0.5f - hit.point);
+                if (dd < best) { best = dd; m = g.mat[g.idx(p)]; }
+            }
+    return m;
+}
+
+uint32_t ufFind(std::vector<uint32_t>& par, uint32_t a) {
+    while (par[a] != a) { par[a] = par[par[a]]; a = par[a]; }
+    return a;
+}
+
+}  // namespace
+
+FractureResult fractureReference(const VoxelGrid& g, const Hit& hit, const std::vector<FractureMaterial>& mats,
+                                 const FractureKnobs& knobs) {
+    FractureResult r;
+    r.implemented = true;
+    const size_t n = g.size();
+    r.cut.assign(n, 0);
+    r.damage = g.damage.size() == n ? g.damage : std::vector<uint8_t>(n, 0);
+
+    std::vector<MatInfo> mi(mats.size());
+    for (size_t m = 0; m < mats.size(); ++m) {
+        mi[m].toughness = std::max(mats[m].toughness, 1e-6f);
+        mi[m].partScale = mats[m].partBondScale;
+        mi[m].glass = mats[m].cls == FractureClass::Glass;
+        if (mats[m].cls == FractureClass::Fibrous) {
+            const glm::vec3 a = glm::abs(mats[m].grain);
+            const int ax = a.x >= a.y && a.x >= a.z ? 0 : (a.y >= a.z ? 1 : 2);
+            if (a[ax] > 0.5f) mi[m].grainAxis = ax;
+        }
+    }
+
+    const uint8_t hm = hitMaterial(g, hit);
+    const double E = hit.energy;
+    const double e = hm ? E / double(mi[hm].toughness) : 0.0;
+    const double cbrtE = std::cbrt(std::max(e, 1e-9));
+    const double l = FractureModel::kStressLengthM;
+    const double vm = g.voxelM;
+    auto stressAt = [&](glm::dvec3 vox) {
+        const glm::dvec3 dv = (vox - glm::dvec3(hit.point)) * vm;
+        const double d2 = glm::dot(dv, dv);
+        return std::pair<double, double>(E / (1.0 + d2 / (l * l)), std::sqrt(d2));
+    };
+
+    Pattern pat(g, hit, cbrtE);
+
+    // parts: a part no bigger than the local cell moves as a unit (§6.4 ingredient 3)
+    std::unordered_map<uint16_t, std::pair<size_t, glm::dvec3>> parts;
+    for (size_t i = 0; i < n; ++i)
+        if (g.mat[i] && g.part[i]) {
+            auto& pp = parts[g.part[i]];
+            ++pp.first;
+            pp.second += glm::dvec3(g.pos(i)) + 0.5;
+        }
+    std::unordered_map<uint16_t, bool> snapped;
+    for (const auto& [id, pp] : parts) {
+        const glm::dvec3 c = pp.second / double(pp.first);
+        const double dM = glm::length((c - glm::dvec3(hit.point)) * vm);
+        snapped[id] = std::cbrt(double(pp.first)) * vm <= pat.cellM(dM);
+    }
+
+    if (hm) {
+        static const glm::ivec3 kAx[3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+        for (size_t i = 0; i < n; ++i) {
+            const uint8_t ma = g.mat[i];
+            if (!ma) continue;
+            const glm::ivec3 p = g.pos(i);
+            for (int a = 0; a < 3; ++a) {
+                const glm::ivec3 q = p + kAx[a];
+                if (!g.in(q)) continue;
+                const size_t j = g.idx(q);
+                const uint8_t mb = g.mat[j];
+                if (!mb) continue;
+                ++r.bondsTested;
+                const auto [s, dM] = stressAt(glm::dvec3(p) + 0.5 + 0.5 * glm::dvec3(kAx[a]));
+                const bool partsDiffer = g.part[i] != g.part[j];
+                const bool matsDiffer = ma != mb;
+                double k = 1.0;
+                if (partsDiffer) k = std::min(mi[ma].partScale, mi[mb].partScale);
+                else if (!matsDiffer && mi[ma].grainAxis == a) k = FractureModel::kGrainBond;
+                const uint8_t dmg = g.damage.size() == n ? std::max(g.damage[i], g.damage[j]) : uint8_t(0);
+                const double S = std::min(mi[ma].toughness, mi[mb].toughness) * k *
+                                 (1.0 - FractureModel::kDamageWeaken * double(dmg) / 255.0);
+                if (s < S) continue;
+                bool candidate = partsDiffer || matsDiffer;
+                if (!candidate && !(g.part[i] && snapped[g.part[i]])) {
+                    if (mi[ma].glass) {
+                        candidate = pat.glassId(i) != pat.glassId(j);
+                    } else {
+                        const int L = pat.level(dM);
+                        for (int lv = 0; lv <= L && !candidate; ++lv)
+                            candidate = pat.voronoi(i, lv, mi[ma].grainAxis) != pat.voronoi(j, lv, mi[ma].grainAxis);
+                    }
+                }
+                if (!candidate) continue;
+                ++r.candidates;
+                r.cut[i] |= uint8_t(1u << a);
+            }
+        }
+        // damage (§6.4): every solid voxel gains its share of the stress, cut or not
+        for (size_t i = 0; i < n; ++i) {
+            if (!g.mat[i]) continue;
+            const double s = stressAt(glm::dvec3(g.pos(i)) + 0.5).first / double(mi[g.mat[i]].toughness);
+            const int add = int(std::lround(255.0 * std::min(1.0, s)));
+            r.damage[i] = uint8_t(std::min(255, int(r.damage[i]) + add));
+        }
+    }
+
+    // pieces: union-find over uncut bonds; ids in order of each piece's first voxel (deterministic)
+    std::vector<uint32_t> par(n);
+    for (size_t i = 0; i < n; ++i) par[i] = uint32_t(i);
+    for (size_t i = 0; i < n; ++i) {
+        if (!g.mat[i]) continue;
+        const glm::ivec3 p = g.pos(i);
+        for (int a = 0; a < 3; ++a) {
+            if (r.cut[i] & (1u << a)) continue;
+            glm::ivec3 q = p;
+            q[a] += 1;
+            if (!g.in(q)) continue;
+            const size_t j = g.idx(q);
+            if (!g.mat[j]) continue;
+            const uint32_t ra = ufFind(par, uint32_t(i)), rb = ufFind(par, uint32_t(j));
+            if (ra != rb) par[std::max(ra, rb)] = std::min(ra, rb);
+        }
+    }
+    r.piece.assign(n, 0);
+    r.pieceAnchored.assign(1, 0);
+    r.pieceSize.assign(1, 0);
+    std::vector<uint32_t> rootId(n, 0);
+    for (size_t i = 0; i < n; ++i) {
+        if (!g.mat[i]) continue;
+        const uint32_t root = ufFind(par, uint32_t(i));
+        if (!rootId[root]) {
+            rootId[root] = uint32_t(r.pieceSize.size());
+            r.pieceSize.push_back(0);
+            r.pieceAnchored.push_back(0);
+        }
+        const uint32_t id = rootId[root];
+        r.piece[i] = id;
+        ++r.pieceSize[id];
+        if (g.fixed[i]) r.pieceAnchored[id] = 1;
+    }
+    r.pieceKind.assign(r.pieceSize.size(), PieceKind::Anchored);
+    for (size_t id = 1; id < r.pieceSize.size(); ++id)
+        if (!r.pieceAnchored[id])
+            r.pieceKind[id] = r.pieceSize[id] < knobs.crumbVoxels ? PieceKind::Crumb : PieceKind::Body;
+    return r;
+}
+
+void applyDamage(VoxelGrid& g, const FractureResult& r) {
+    if (r.damage.size() == g.size()) g.damage = r.damage;
 }
 
 PieceLabels labelPieces(const VoxelGrid& g, const std::vector<uint8_t>& cut) {
@@ -117,6 +414,7 @@ Rig base(const std::string& name, glm::ivec3 dim, float voxelM) {
     r.name = name;
     r.voxelM = voxelM;
     r.grid.resize(dim);
+    r.grid.voxelM = voxelM;
     r.mats = labMaterials();
     return r;
 }

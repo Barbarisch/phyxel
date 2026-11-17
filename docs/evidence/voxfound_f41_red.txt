@@ -1,0 +1,101 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundFractureLab.*
+[==========] Running 12 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 12 tests from VoxFoundFractureLab
+[ RUN      ] VoxFoundFractureLab.CheckerLabelsUncutGridAsOnePieceAnchoredByItsBase
+[       OK ] VoxFoundFractureLab.CheckerLabelsUncutGridAsOnePieceAnchoredByItsBase (0 ms)
+[ RUN      ] VoxFoundFractureLab.CheckerSplitsAlongAFullCutPlaneAndFindsTheLoosePart
+[       OK ] VoxFoundFractureLab.CheckerSplitsAlongAFullCutPlaneAndFindsTheLoosePart (0 ms)
+[ RUN      ] VoxFoundFractureLab.CheckerCountsMortarCutsInTheBrickWall
+[       OK ] VoxFoundFractureLab.CheckerCountsMortarCutsInTheBrickWall (0 ms)
+[ RUN      ] VoxFoundFractureLab.CheckerRejectsAnUnimplementedResult
+[       OK ] VoxFoundFractureLab.CheckerRejectsAnUnimplementedResult (0 ms)
+[ RUN      ] VoxFoundFractureLab.StoneWallEnergySweep
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(47): error: Value of: a.implemented
+  Actual: false
+Expected: true
+fractureReference is not implemented yet (F4)
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(45): stone_wall
+
+[  FAILED  ] VoxFoundFractureLab.StoneWallEnergySweep (0 ms)
+[ RUN      ] VoxFoundFractureLab.StoneWallEdgeHitChipsAtLeastAsMuchAsCentre
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(47): error: Value of: a.implemented
+  Actual: false
+Expected: true
+fractureReference is not implemented yet (F4)
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(45): stone_wall
+
+[  FAILED  ] VoxFoundFractureLab.StoneWallEdgeHitChipsAtLeastAsMuchAsCentre (0 ms)
+[ RUN      ] VoxFoundFractureLab.BrickWallBreaksAlongMortar
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(47): error: Value of: a.implemented
+  Actual: false
+Expected: true
+fractureReference is not implemented yet (F4)
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(45): brick_wall
+
+[  FAILED  ] VoxFoundFractureLab.BrickWallBreaksAlongMortar (0 ms)
+[ RUN      ] VoxFoundFractureLab.BeamSplitsAlongTheGrain
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(47): error: Value of: a.implemented
+  Actual: false
+Expected: true
+fractureReference is not implemented yet (F4)
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(45): beam
+
+[  FAILED  ] VoxFoundFractureLab.BeamSplitsAlongTheGrain (0 ms)
+[ RUN      ] VoxFoundFractureLab.GlassPaneShattersRadially
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(47): error: Value of: a.implemented
+  Actual: false
+Expected: true
+fractureReference is not implemented yet (F4)
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(45): glass_pane
+
+[  FAILED  ] VoxFoundFractureLab.GlassPaneShattersRadially (0 ms)
+[ RUN      ] VoxFoundFractureLab.SeveredColumnFreesTheLintel
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(47): error: Value of: a.implemented
+  Actual: false
+Expected: true
+fractureReference is not implemented yet (F4)
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(45): column_lintel
+
+[  FAILED  ] VoxFoundFractureLab.SeveredColumnFreesTheLintel (0 ms)
+[ RUN      ] VoxFoundFractureLab.ChairBreaksAtItsJoints
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(47): error: Value of: a.implemented
+  Actual: false
+Expected: true
+fractureReference is not implemented yet (F4)
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(45): chair
+
+[  FAILED  ] VoxFoundFractureLab.ChairBreaksAtItsJoints (0 ms)
+[ RUN      ] VoxFoundFractureLab.ControlBelowToughnessCutsNothingAndAddsDamage
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(47): error: Value of: a.implemented
+  Actual: false
+Expected: true
+fractureReference is not implemented yet (F4)
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundFractureLabTest.cpp(45): stone_wall
+
+[  FAILED  ] VoxFoundFractureLab.ControlBelowToughnessCutsNothingAndAddsDamage (0 ms)
+[----------] 12 tests from VoxFoundFractureLab (1 ms total)
+
+[----------] Global test environment tear-down
+[==========] 12 tests from 1 test suite ran. (1 ms total)
+[  PASSED  ] 4 tests.
+[  FAILED  ] 8 tests, listed below:
+[  FAILED  ] VoxFoundFractureLab.StoneWallEnergySweep
+[  FAILED  ] VoxFoundFractureLab.StoneWallEdgeHitChipsAtLeastAsMuchAsCentre
+[  FAILED  ] VoxFoundFractureLab.BrickWallBreaksAlongMortar
+[  FAILED  ] VoxFoundFractureLab.BeamSplitsAlongTheGrain
+[  FAILED  ] VoxFoundFractureLab.GlassPaneShattersRadially
+[  FAILED  ] VoxFoundFractureLab.SeveredColumnFreesTheLintel
+[  FAILED  ] VoxFoundFractureLab.ChairBreaksAtItsJoints
+[  FAILED  ] VoxFoundFractureLab.ControlBelowToughnessCutsNothingAndAddsDamage
+
+ 8 FAILED TESTS

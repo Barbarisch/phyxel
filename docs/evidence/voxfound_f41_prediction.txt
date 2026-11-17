@@ -1,0 +1,100 @@
+F4.1 -- fracture core, CPU reference (bonds, patterns, pieces, anchoring, crumbs, damage)
+Written 2026-11-17 BEFORE any F4 code. Plan: docs/VoxelFoundationPlan.md §6.3-6.5, §6.9, §8 (rigs + their
+predictions were written in F0 and are not changed here).
+
+Red state (before code): VoxFoundFractureLabTest 4 checker tests green, the 8 rig predictions red
+(fractureReference returns implemented = false) -- voxfound_f41_red.txt.
+
+THE MODEL (fixed here, before the first run; lengths in metres, so the same rules run on world voxels
+1/8 m and item voxels 1/64 m -- §6.8)
+
+  e = E / T of the material at the hit (the first solid voxel along the hit direction).
+  Stress at distance d (metres) from the hit:  s(d) = E / (1 + (d / l)^2),  l = 0.25 m.
+  A bond (two face-adjacent solid voxels) has strength
+     S = T_min(a, b) * k * (1 - 0.5 * max(damage_a, damage_b) / 255)
+     k = partBondScale (0.3)           if the two voxels have different part ids     (mortar, glue)
+     k = 1 + 3 * |bond axis . grain|  otherwise (fibrous: a bond across the fibres is 4x stronger)
+  A bond is a CANDIDATE when it lies on a weak plane:
+     - a part or material boundary, or
+     - a boundary of the crack pattern at the local level (below).
+  A candidate bond is CUT when s(d_bond) >= S. Nothing else is ever cut.
+
+  The crack pattern (§6.4):
+   - brittle + fibrous: intersection of jittered-grid Voronoi partitions at levels k = 0..L, spacing
+     1 m / 2^k, seeds hashed from (hit seed, level, absolute grid cell). Local cell size
+       h(d) = 0.5 m * (1 + d / l) / cbrt(e)          (small near the hit, larger away; shrinks with energy)
+     and the bond's level L = floor(log2(1 m / h(d))) clamped to [0, finest level >= one voxel].
+     Fibrous: distances along the grain are compressed 4x, so cells are 4x longer along the grain.
+   - glass: polar cells about the hit in the plane across the hit direction: n = round(4 cbrt(e)) radial
+     sectors (small per-ring wobble) x rings at r0 * 1.7^k, r0 = h(0) / 2.
+   - parts: a part whose equivalent size cbrt(volume) is <= h at its centroid moves as a unit (the pattern
+     does not enter it; its cracks run along its boundary = mortar / joints). Larger parts are cut by the
+     pattern like plain material.
+  Nesting (brittle / fibrous, no prior damage): raising e only lowers h and the thresholds, so
+  cut(e) is a subset of cut(e') for e < e' -> loose matter never decreases with energy. Glass is not nested.
+
+  Pieces: union-find over uncut bonds. Anchored = the piece holds a fixed voxel. Loose pieces: crumbs when
+  volume < 4 world voxels (4 / 512 m^3; a tier knob, it never changes which voxels are loose), else bodies.
+  Damage: every solid voxel gains round(255 * min(1, s(d) / T)) (saturating), cut or not.
+
+PREDICTIONS (numbers estimated from the model by hand, before running it)
+
+  Rig predictions from §8 (unchanged; these are the exit test):
+   P1 stone wall, centre, E/T 1.5 .. 80: loose voxels never decrease; more loose pieces and a smaller mean
+      loose piece at 80 than at 2. Estimate: no loose matter at 1.5 and 2 (cut radius <= 2 voxels, cells
+      3-4 voxels); at 80 the cut radius is ~18 voxels, i.e. most of the wall: loose voxels 50-100 % of 1,152,
+      >= 50 loose pieces, crumbs the majority by count, bodies the majority by volume.
+   P2 stone wall, edge hit (22,14) >= centre hit at E/T 5 in loose voxels (free surfaces close cells).
+   P3 brick wall E/T 8: > 80 % of cut bonds between bricks. Estimate: 100 % -- every brick's centroid is
+      >= 0.125 m from the hit, where h >= 0.375 m > a brick's 0.315 m, so no brick is entered. Bricks first
+      split at E/T ~ 13.5.
+   P4 beam E/T 8: cut bonds in y + z > 3x cut bonds in x. Estimate: x cuts <= 8 (x bonds are 4x stronger:
+      cut only within 2 voxels of the hit, and the pattern is 4x coarser along x), y + z cuts 15-60.
+      THE RISKIEST prediction: the beam is only 2 x 2 voxels across, so it depends on where the cells fall.
+   P5 glass E/T 20: >= 6 loose shards over >= 6 of 8 sectors. Estimate: 11 sectors x rings at
+      0.7 / 1.3 / 2.1 / 3.6 / 6.2 voxels inside the 8.7-voxel cut radius -> 20-50 loose shards, 8 / 8 sectors.
+   P6 column + lintel E/T 30: every lintel voxel loose, the column base anchored. Estimate: the lintel is
+      snapped (moves whole), its joint to the column is cut (s >= 0.3 T everywhere on the rig).
+   P7 chair (1/64 m) E/T 8: > 80 % of cut bonds between parts, >= 2 pieces. Estimate: every part is snapped
+      (largest equivalent size 0.25 m for the seat at 0.31 m from the hit, h 0.56 m); every joint is within
+      reach (s >= 1.37 T at the farthest) -> exactly 6 pieces, 100 % between parts.
+   P8 control, stone E/T 0.5: nothing cut; damage at the hit voxel = 128 (+-1).
+
+  Common to every rig (exact): the result equals the independent checker (pieces + anchoring); two runs
+  identical (cut, damage, pieces); conservation per material (anchored + bodies + crumbs = before).
+
+  Stress (new test, the scaling dimension = hits): 300 random hits over all rigs (random point on the rig,
+  random direction, E/T 0.3-100, random seed): checker agreement, determinism and conservation at every hit;
+  nesting cut(e) subset of cut(2e) for every brittle / fibrous hit; damage then a second identical hit cuts
+  at least as much (progressive damage, §6.4).
+
+  Cost (CPU reference, Release, not a budget -- the GPU port is the runtime path): 0.2-30 ms per rig hit;
+  the chair (29,376 voxels, 7 levels) the slowest.
+
+  Pictures: an exploded view per rig (loose pieces pushed out from the hit, crumbs white) and an animated
+  stone-wall energy sweep, rendered from the reference's output by tools-free PIL (no engine): the owner's
+  video review of real breaking needs bodies (F5) and is owed there; these stills show the crack patterns.
+
+FIRST RUN (2026-11-17, Release; output voxfound_f41_run1.txt): 13 / 14 green, P4 RED.
+  P1 held: loose voxels 0,0,0,0,11,16,33,280,672,744 over E/T 1.5..80 (never decreasing); 43 loose pieces at 80
+     (estimate >= 50: MISSED), 65 % of the wall loose (estimate 50-100 %), crumbs 22 vs bodies 21 by count, bodies
+     712 vs crumbs 32 voxels by volume. No loose matter until E/T 8 (estimate: none at 1.5 and 2 -- held, but the
+     energy for the first piece is higher than I guessed).
+  P2 held only trivially: edge and centre both loosen 0 voxels at E/T 5 (40 vs 78 cuts). Weak -- noted.
+  P3 held as estimated: 398 / 398 cuts between bricks (100 %); at E/T 30 688 / 710 (97 %), bricks start to split.
+  P4 RED: cuts x 3, y 3, z 3 -> (y + z) / x = 2 < 3. Diagnosis (code, not tuning): the fibrous transform stretched
+     the cells 4x along the grain WITHOUT narrowing them across it, so a fibrous cell of "size h" had volume 4 h^3;
+     across the grain the cells were 4-8 voxels against a 2-voxel beam, and the pattern could not enter it.
+     Fix: "stretched" keeps the volume -- 4^(2/3) h along the grain, 4^(-1/3) h across (aspect 4, volume h^3).
+  P5 held: 34 loose shards (estimate 20-50), 8 / 8 sectors.
+  P6 held: every lintel voxel loose, the base anchored (the column itself shattered: 11 voxels stay anchored).
+  P7 held as estimated: exactly 6 pieces, 108 / 108 cuts between parts. BUT all 6 were labelled crumbs: the crumb
+     threshold was written in m^3 (4 world voxels), so at 1/64 m a chair seat (1,728 voxels, 0.0066 m^3) counted as
+     dust. The plan's rule is "crumbs (< N voxels)" of the grid's own voxels (§6.5); the threshold moves to that.
+  P8 held (nothing cut); damage at the hit voxel 107, not 128 (MISSED: I estimated at d = 0; the voxel centre is
+     0.108 m from the hit point: 255 * 0.5 / 1.187 = 107).
+  Stress: 300 hits, checker / determinism / conservation / knob invariance at every hit; 250 nesting checks held;
+     a repeated blow cut more in 137 / 300.
+  Cost 0.03-0.63 ms per rig hit (estimate 0.2-30).
+SECOND RUN prediction (after the two fixes, nothing else changed): P4 (y + z) >= 15 with x <= 8 (ratio > 3); every
+  other rig unchanged except the chair's kinds (6 bodies, 0 crumbs); the stress test still green.

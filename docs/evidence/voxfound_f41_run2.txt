@@ -1,0 +1,65 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundFractureLab.*
+[==========] Running 14 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 14 tests from VoxFoundFractureLab
+[ RUN      ] VoxFoundFractureLab.CheckerLabelsUncutGridAsOnePieceAnchoredByItsBase
+[       OK ] VoxFoundFractureLab.CheckerLabelsUncutGridAsOnePieceAnchoredByItsBase (0 ms)
+[ RUN      ] VoxFoundFractureLab.CheckerSplitsAlongAFullCutPlaneAndFindsTheLoosePart
+[       OK ] VoxFoundFractureLab.CheckerSplitsAlongAFullCutPlaneAndFindsTheLoosePart (0 ms)
+[ RUN      ] VoxFoundFractureLab.CheckerCountsMortarCutsInTheBrickWall
+[       OK ] VoxFoundFractureLab.CheckerCountsMortarCutsInTheBrickWall (0 ms)
+[ RUN      ] VoxFoundFractureLab.CheckerRejectsAnUnimplementedResult
+[       OK ] VoxFoundFractureLab.CheckerRejectsAnUnimplementedResult (0 ms)
+[ RUN      ] VoxFoundFractureLab.StoneWallEnergySweep
+[fracture lab] stone wall centre E/T   1.5: 7 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   2.0: 18 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   3.0: 41 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   5.0: 78 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   8.0: 118 cuts, 1 loose pieces, 11 loose voxels
+[fracture lab] stone wall centre E/T  12.0: 185 cuts, 3 loose pieces, 16 loose voxels
+[fracture lab] stone wall centre E/T  20.0: 341 cuts, 7 loose pieces, 33 loose voxels
+[fracture lab] stone wall centre E/T  30.0: 515 cuts, 11 loose pieces, 280 loose voxels
+[fracture lab] stone wall centre E/T  50.0: 712 cuts, 31 loose pieces, 672 loose voxels
+[fracture lab] stone wall centre E/T  80.0: 822 cuts, 43 loose pieces, 744 loose voxels
+[       OK ] VoxFoundFractureLab.StoneWallEnergySweep (12 ms)
+[ RUN      ] VoxFoundFractureLab.StoneWallEdgeHitChipsAtLeastAsMuchAsCentre
+[       OK ] VoxFoundFractureLab.StoneWallEdgeHitChipsAtLeastAsMuchAsCentre (0 ms)
+[ RUN      ] VoxFoundFractureLab.BrickWallBreaksAlongMortar
+[fracture lab] brick wall: 398 cuts, 398 between bricks
+[       OK ] VoxFoundFractureLab.BrickWallBreaksAlongMortar (0 ms)
+[ RUN      ] VoxFoundFractureLab.BeamSplitsAlongTheGrain
+[fracture lab] beam: cuts x 2, y 9, z 5
+[       OK ] VoxFoundFractureLab.BeamSplitsAlongTheGrain (0 ms)
+[ RUN      ] VoxFoundFractureLab.GlassPaneShattersRadially
+[fracture lab] glass: 34 loose shards, 8 of 8 sectors
+[       OK ] VoxFoundFractureLab.GlassPaneShattersRadially (0 ms)
+[ RUN      ] VoxFoundFractureLab.SeveredColumnFreesTheLintel
+[       OK ] VoxFoundFractureLab.SeveredColumnFreesTheLintel (0 ms)
+[ RUN      ] VoxFoundFractureLab.ChairBreaksAtItsJoints
+[       OK ] VoxFoundFractureLab.ChairBreaksAtItsJoints (3 ms)
+[ RUN      ] VoxFoundFractureLab.ControlBelowToughnessCutsNothingAndAddsDamage
+[fracture lab] control: damage at the hit voxel 107
+[       OK ] VoxFoundFractureLab.ControlBelowToughnessCutsNothingAndAddsDamage (0 ms)
+[ RUN      ] VoxFoundFractureLab.StressRandomHitsAgreeConserveNestAndAccumulate
+[fracture lab] stress: 300 hits, 29349 cuts, 250 nesting checks, 138 hits where a repeat cut more
+[       OK ] VoxFoundFractureLab.StressRandomHitsAgreeConserveNestAndAccumulate (431 ms)
+[ RUN      ] VoxFoundFractureLab.SummaryAndPictureDump
+[fracture lab] stone_centre_e2  voxels   1152 cuts    18 (between parts     0; x    7 y    7 z    4) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.10 ms
+[fracture lab] stone_centre_e5  voxels   1152 cuts    78 (between parts     0; x   25 y   29 z   24) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.15 ms
+[fracture lab] stone_centre_e12 voxels   1152 cuts   185 (between parts     0; x   61 y   71 z   53) bodies   2 (   15 vox) crumbs   1 (   1 vox) anchored  1136 vox  0.26 ms
+[fracture lab] stone_centre_e30 voxels   1152 cuts   515 (between parts     0; x  179 y  196 z  140) bodies   7 (  275 vox) crumbs   4 (   5 vox) anchored   872 vox  0.47 ms
+[fracture lab] stone_centre_e80 voxels   1152 cuts   822 (between parts     0; x  298 y  310 z  214) bodies  21 (  712 vox) crumbs  22 (  32 vox) anchored   408 vox  0.70 ms
+[fracture lab] stone_edge_e5    voxels   1152 cuts    40 (between parts     0; x   16 y   18 z    6) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.13 ms
+[fracture lab] brick_e8         voxels   1024 cuts   398 (between parts   398; x  142 y  256 z    0) bodies  24 (  384 vox) crumbs   0 (   0 vox) anchored   640 vox  0.11 ms
+[fracture lab] brick_e30        voxels   1024 cuts   710 (between parts   688; x  249 y  455 z    6) bodies  59 (  880 vox) crumbs  10 (  16 vox) anchored   128 vox  0.12 ms
+[fracture lab] beam_e8          voxels    128 cuts    16 (between parts     0; x    2 y    9 z    5) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored   128 vox  0.03 ms
+[fracture lab] glass_e20        voxels    576 cuts   185 (between parts     0; x   93 y   92 z    0) bodies  14 (   88 vox) crumbs  20 (  32 vox) anchored   456 vox  0.07 ms
+[fracture lab] column_e30       voxels    112 cuts    40 (between parts     4; x    9 y   23 z    8) bodies   4 (   93 vox) crumbs   7 (   8 vox) anchored    11 vox  0.04 ms
+[fracture lab] chair_e8         voxels   4320 cuts   108 (between parts   108; x    0 y  108 z    0) bodies   6 ( 4320 vox) crumbs   0 (   0 vox) anchored     0 vox  0.71 ms
+[       OK ] VoxFoundFractureLab.SummaryAndPictureDump (16 ms)
+[----------] 14 tests from VoxFoundFractureLab (467 ms total)
+
+[----------] Global test environment tear-down
+[==========] 14 tests from 1 test suite ran. (468 ms total)
+[  PASSED  ] 14 tests.

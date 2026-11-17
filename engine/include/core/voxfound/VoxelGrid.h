@@ -20,9 +20,11 @@ namespace Phyxel::Core::VoxFound {
 
 struct VoxelGrid {
     glm::ivec3 dim{0};
+    float voxelM = 0.125f;            // edge of one voxel in metres (world 1/8 m, items 1/64 m)
     std::vector<uint8_t> mat;
     std::vector<uint16_t> part;
     std::vector<uint8_t> fixed;
+    std::vector<uint8_t> damage;      // optional (empty = none): accumulated damage toward breaking (§3.1)
 
     void resize(glm::ivec3 d) {
         dim = d;
@@ -30,6 +32,7 @@ struct VoxelGrid {
         mat.assign(n, 0);
         part.assign(n, 0);
         fixed.assign(n, 0);
+        damage.clear();
     }
     size_t size() const { return size_t(dim.x) * size_t(dim.y) * size_t(dim.z); }
     bool in(glm::ivec3 p) const {

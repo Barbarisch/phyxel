@@ -4,12 +4,14 @@
 // The model in one line (§6.3): a break CUTS BONDS along a crack pattern inside the damaged region;
 // then whatever is no longer bonded to anything anchored comes loose as pieces.
 //
-// What exists now (F0):
-//  - the rigs of §8, each with its written prediction;
+// What exists:
+//  - the rigs of §8, each with its written prediction (F0);
 //  - an INDEPENDENT checker: labels pieces from the cut bonds by its own flood fill, decides anchoring,
-//    and measures the cuts (between vs within parts, by direction). F4's result must agree with it;
-//  - fractureReference(), declared with its final signature but NOT IMPLEMENTED: it returns
-//    implemented = false. Every fracture-lab test is therefore red until F4 (red before green).
+//    and measures the cuts (between vs within parts, by direction). The reference must agree with it (F0);
+//  - fractureReference() (F4.1): stress falloff from the hit, bond strengths (parts = mortar, grain, damage),
+//    crack patterns (nested Voronoi levels for brittle / fibrous, polar for glass, small parts move whole),
+//    pieces by union-find, anchoring, bodies vs crumbs, damage. Model + predictions:
+//    docs/evidence/voxfound_f41_prediction.txt; plan §9c.
 //
 // Bonds: voxel p's bond to p+x / p+y / p+z is stored on p as bit CutPX / CutPY / CutPZ.
 
@@ -42,17 +44,43 @@ struct Hit {
 
 enum CutBit : uint8_t { CutPX = 1, CutPY = 2, CutPZ = 4 };
 
+enum class PieceKind : uint8_t { Anchored = 0, Body = 1, Crumb = 2 };
+
 struct FractureResult {
     bool implemented = false;
     std::vector<uint8_t> cut;                 // per voxel, CutBit flags
     std::vector<uint8_t> damage;              // per voxel, accumulated damage after the hit (§6.4)
     std::vector<uint32_t> piece;              // per voxel: piece id, 0 = air; pieces numbered from 1
     std::vector<uint8_t> pieceAnchored;       // indexed by piece id (entry 0 unused)
+    std::vector<uint32_t> pieceSize;          // voxels per piece id (entry 0 unused)
+    std::vector<PieceKind> pieceKind;         // per piece id (entry 0 unused)
+    size_t candidates = 0;                    // bonds on a weak plane that the stress reached
+    size_t bondsTested = 0;
 };
 
-/// F4. The CPU reference: the source of truth the GPU port must equal. NOT IMPLEMENTED in F0.
+/// Tier knobs (§6.9): they change how loose matter is simulated, never which bonds break.
+struct FractureKnobs {
+    uint32_t crumbVoxels = 4;                 // loose pieces of fewer voxels (of the grid's own size) are crumbs
+};
+
+/// The model's constants (fixed in voxfound_f41_prediction.txt before the first run).
+struct FractureModel {
+    static constexpr float kStressLengthM = 0.25f;   // l: s(d) = E / (1 + (d / l)^2)
+    static constexpr float kLevel0M = 1.0f;          // pattern level 0 spacing
+    static constexpr float kCellM = 0.5f;            // h(d) = kCellM (1 + d / l) / cbrt(e)
+    static constexpr float kGrainStretch = 4.0f;     // fibrous cells this much longer along the grain (same volume)
+    static constexpr float kGrainBond = 4.0f;        // a bond across the fibres is this much stronger
+    static constexpr float kDamageWeaken = 0.5f;     // full damage halves a bond
+    static constexpr float kGlassRing = 1.7f;        // glass ring radius ratio
+};
+
+/// F4. The CPU reference: the source of truth the GPU port must equal.
 FractureResult fractureReference(const VoxelGrid& grid, const Hit& hit,
-                                 const std::vector<FractureMaterial>& mats);
+                                 const std::vector<FractureMaterial>& mats,
+                                 const FractureKnobs& knobs = {});
+
+/// Write a result's damage into the grid (progressive damage: the next hit sees it).
+void applyDamage(VoxelGrid& grid, const FractureResult& r);
 
 // ---- the independent checker -------------------------------------------------------------
 

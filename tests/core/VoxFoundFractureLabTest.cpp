@@ -13,7 +13,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <random>
 
 #include "core/voxfound/FractureLab.h"
 
@@ -31,6 +35,8 @@ struct Outcome {
     uint32_t loosePieces = 0;
 };
 
+::testing::AssertionResult conserved(const VoxelGrid& g, const FractureResult& r, size_t nMats);
+
 Outcome run(const Rig& rig) {
     Outcome o;
     o.r = fractureReference(rig.grid, rig.hit, rig.mats);
@@ -47,6 +53,7 @@ void commonChecks(const Rig& rig, bool expectCuts) {
     ASSERT_TRUE(a.implemented) << "fractureReference is not implemented yet (F4)";
     std::string why;
     EXPECT_TRUE(resultMatchesChecker(rig.grid, a, &why)) << why;
+    EXPECT_TRUE(conserved(rig.grid, a, rig.mats.size()));
     const FractureResult b = fractureReference(rig.grid, rig.hit, rig.mats);
     EXPECT_EQ(a.cut, b.cut);
     EXPECT_EQ(a.piece, b.piece);
@@ -54,6 +61,37 @@ void commonChecks(const Rig& rig, bool expectCuts) {
     const CutStats s = cutStats(rig.grid, a.cut);
     if (expectCuts) EXPECT_GT(s.cut, 0u);
     else EXPECT_EQ(s.cut, 0u);
+}
+
+// Conservation (§6.5 point 4): per material, anchored + bodies + crumbs = before, exactly; and the piece
+// table agrees with the per-voxel labels.
+::testing::AssertionResult conserved(const VoxelGrid& g, const FractureResult& r, size_t nMats) {
+    std::vector<size_t> before(nMats, 0), after(nMats * 3, 0);
+    std::vector<uint32_t> size(r.pieceSize.size(), 0);
+    for (size_t i = 0; i < g.size(); ++i) {
+        if (!g.mat[i]) continue;
+        ++before[g.mat[i]];
+        const uint32_t id = r.piece[i];
+        if (id == 0 || id >= r.pieceSize.size()) return ::testing::AssertionFailure() << "voxel without a piece";
+        ++size[id];
+        ++after[size_t(g.mat[i]) * 3 + size_t(r.pieceKind[id])];
+    }
+    for (size_t id = 1; id < size.size(); ++id) {
+        if (size[id] != r.pieceSize[id]) return ::testing::AssertionFailure() << "pieceSize wrong for " << id;
+        if ((r.pieceKind[id] == PieceKind::Anchored) != (r.pieceAnchored[id] != 0))
+            return ::testing::AssertionFailure() << "kind / anchored disagree for " << id;
+    }
+    for (size_t m = 1; m < nMats; ++m)
+        if (before[m] != after[m * 3] + after[m * 3 + 1] + after[m * 3 + 2])
+            return ::testing::AssertionFailure() << "material " << m << " not conserved";
+    return ::testing::AssertionSuccess();
+}
+
+size_t looseVoxels(const FractureResult& r) {
+    size_t n = 0;
+    for (size_t id = 1; id < r.pieceSize.size(); ++id)
+        if (!r.pieceAnchored[id]) n += r.pieceSize[id];
+    return n;
 }
 
 }  // namespace
@@ -211,4 +249,130 @@ TEST(VoxFoundFractureLab, ControlBelowToughnessCutsNothingAndAddsDamage) {
     const FractureResult r = fractureReference(rig.grid, rig.hit, rig.mats);
     ASSERT_EQ(r.damage.size(), rig.grid.size());
     EXPECT_GT(r.damage[rig.grid.idx({12, 8, 0})], 0u);
+    std::printf("[fracture lab] control: damage at the hit voxel %u\n", unsigned(r.damage[rig.grid.idx({12, 8, 0})]));
+}
+
+// ---- F4.1 stress: the scaling dimension is hits (§6.9 determinism, §6.5 conservation) ------------------
+
+namespace {
+Rig rigByIndex(int k) {
+    switch (k) {
+        case 0: return rigStoneWall({12, 8, 0}, 1.0f);
+        case 1: return rigBrickWall(1.0f);
+        case 2: return rigBeam(1.0f);
+        case 3: return rigGlassPane(1.0f);
+        case 4: return rigColumnLintel(1.0f);
+        default: return rigChair(1.0f);
+    }
+}
+}  // namespace
+
+TEST(VoxFoundFractureLab, StressRandomHitsAgreeConserveNestAndAccumulate) {
+    std::mt19937_64 rng(4101);
+    std::uniform_real_distribution<double> U(0.0, 1.0);
+    size_t nested = 0, progressive = 0, cutTotal = 0;
+    for (int h = 0; h < 300; ++h) {
+        Rig rig = rigByIndex(h % 6);
+        const glm::ivec3 dim = rig.grid.dim;
+        // a random solid voxel; the hit lands on its centre, from a random axis direction
+        size_t i = 0;
+        do { i = size_t(U(rng) * double(rig.grid.size())) % rig.grid.size(); } while (!rig.grid.mat[i]);
+        const int axis = int(U(rng) * 3) % 3;
+        glm::vec3 dir(0.0f);
+        dir[axis] = U(rng) < 0.5 ? -1.0f : 1.0f;
+        const double eot = 0.3 * std::pow(100.0 / 0.3, U(rng));
+        const uint8_t m = rig.grid.mat[i];
+        rig.hit = {glm::vec3(rig.grid.pos(i)) + 0.5f, dir, float(eot) * rig.mats[m].toughness, rng()};
+        SCOPED_TRACE(rig.name + " hit " + std::to_string(h) + " E/T " + std::to_string(eot) + " dim " +
+                     std::to_string(dim.x));
+
+        const FractureResult a = fractureReference(rig.grid, rig.hit, rig.mats);
+        std::string why;
+        ASSERT_TRUE(resultMatchesChecker(rig.grid, a, &why)) << why;
+        ASSERT_TRUE(conserved(rig.grid, a, rig.mats.size()));
+        const FractureResult b = fractureReference(rig.grid, rig.hit, rig.mats);
+        ASSERT_EQ(a.cut, b.cut);
+        ASSERT_EQ(a.piece, b.piece);
+        ASSERT_EQ(a.damage, b.damage);
+        cutTotal += cutStats(rig.grid, a.cut).cut;
+
+        // tier knob: the crumb threshold changes kinds only, never pieces
+        FractureKnobs none;
+        none.crumbVoxels = 0;
+        const FractureResult k0 = fractureReference(rig.grid, rig.hit, rig.mats, none);
+        ASSERT_EQ(a.piece, k0.piece);
+        ASSERT_EQ(a.cut, k0.cut);
+
+        // nesting: twice the energy cuts a superset (brittle / fibrous; glass is not nested)
+        if (rig.mats[m].cls != FractureClass::Glass) {
+            Hit h2 = rig.hit;
+            h2.energy *= 2.0f;
+            const FractureResult c = fractureReference(rig.grid, h2, rig.mats);
+            for (size_t v = 0; v < rig.grid.size(); ++v)
+                ASSERT_EQ(a.cut[v] & ~c.cut[v], 0) << "a cut vanished at 2x energy, voxel " << v;
+            ASSERT_GE(looseVoxels(c), looseVoxels(a));
+            ++nested;
+        }
+
+        // progressive damage: the same blow again, on the damaged grid, cuts at least as much
+        VoxelGrid g2 = rig.grid;
+        applyDamage(g2, a);
+        const FractureResult d = fractureReference(g2, rig.hit, rig.mats);
+        for (size_t v = 0; v < rig.grid.size(); ++v)
+            ASSERT_EQ(a.cut[v] & ~d.cut[v], 0) << "a cut vanished on the damaged grid, voxel " << v;
+        ASSERT_TRUE(conserved(g2, d, rig.mats.size()));
+        if (cutStats(g2, d.cut).cut > cutStats(rig.grid, a.cut).cut) ++progressive;
+    }
+    std::printf("[fracture lab] stress: 300 hits, %zu cuts, %zu nesting checks, %zu hits where a repeat cut more\n",
+                cutTotal, nested, progressive);
+    EXPECT_GT(progressive, 0u);
+}
+
+// ---- F4.1 measured summary (+ the picture dump when VOXFOUND_FRACTURE_DUMP names a directory) -----------
+
+TEST(VoxFoundFractureLab, SummaryAndPictureDump) {
+    struct Case { std::string tag; Rig rig; };
+    std::vector<Case> cases;
+    for (float e : {2.0f, 5.0f, 12.0f, 30.0f, 80.0f})
+        cases.push_back({"stone_centre_e" + std::to_string(int(e)), rigStoneWall({12, 8, 0}, e)});
+    cases.push_back({"stone_edge_e5", rigStoneWall({22, 14, 0}, 5.0f)});
+    cases.push_back({"brick_e8", rigBrickWall(8.0f)});
+    cases.push_back({"brick_e30", rigBrickWall(30.0f)});
+    cases.push_back({"beam_e8", rigBeam(8.0f)});
+    cases.push_back({"glass_e20", rigGlassPane(20.0f)});
+    cases.push_back({"column_e30", rigColumnLintel(30.0f)});
+    cases.push_back({"chair_e8", rigChair(8.0f)});
+    const char* dir = std::getenv("VOXFOUND_FRACTURE_DUMP");
+    for (const Case& c : cases) {
+        const Rig& rig = c.rig;
+        double best = 1e30;
+        FractureResult r;
+        for (int rep = 0; rep < 5; ++rep) {
+            const auto t0 = std::chrono::steady_clock::now();
+            r = fractureReference(rig.grid, rig.hit, rig.mats);
+            best = std::min(best, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+        }
+        const CutStats s = cutStats(rig.grid, r.cut);
+        size_t bodies = 0, crumbs = 0, bodyVox = 0, crumbVox = 0, anchoredVox = 0;
+        for (size_t id = 1; id < r.pieceSize.size(); ++id) {
+            if (r.pieceKind[id] == PieceKind::Body) { ++bodies; bodyVox += r.pieceSize[id]; }
+            else if (r.pieceKind[id] == PieceKind::Crumb) { ++crumbs; crumbVox += r.pieceSize[id]; }
+            else anchoredVox += r.pieceSize[id];
+        }
+        std::printf("[fracture lab] %-16s voxels %6zu cuts %5zu (between parts %5zu; x %4zu y %4zu z %4zu) "
+                    "bodies %3zu (%5zu vox) crumbs %3zu (%4zu vox) anchored %5zu vox  %.2f ms\n",
+                    c.tag.c_str(), rig.grid.solidCount(), s.cut, s.betweenParts, s.alongX, s.alongY, s.alongZ, bodies,
+                    bodyVox, crumbs, crumbVox, anchoredVox, best);
+        if (!dir) continue;
+        std::ofstream f(std::string(dir) + "/" + c.tag + ".txt");
+        f << "dim " << rig.grid.dim.x << " " << rig.grid.dim.y << " " << rig.grid.dim.z << "\n";
+        f << "hit " << rig.hit.point.x << " " << rig.hit.point.y << " " << rig.hit.point.z << " " << rig.hit.dir.x << " "
+          << rig.hit.dir.y << " " << rig.hit.dir.z << "\n";
+        for (size_t i = 0; i < rig.grid.size(); ++i) {
+            if (!rig.grid.mat[i]) continue;
+            const glm::ivec3 p = rig.grid.pos(i);
+            f << p.x << " " << p.y << " " << p.z << " " << int(rig.grid.mat[i]) << " " << r.piece[i] << " "
+              << int(r.pieceKind[r.piece[i]]) << " " << int(r.cut[i]) << "\n";
+        }
+    }
 }
