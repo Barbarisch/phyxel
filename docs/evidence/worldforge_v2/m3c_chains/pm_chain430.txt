@@ -1,0 +1,24 @@
+pm_chain430.txt - O37 (f), (g): MEASURE the levelled market's edge and what lies under its paving (the live town).
+(written 2026-11-18 14:11, BEFORE any run of this chain; HEAD 9a89d007)
+
+TEST-ONLY increment (no engine change): TheTownsMarketIsPavedAndWalked gains
+  (f) for every market edge pair whose standing levels differ by more than the walker's 4 micro: what the cell
+      beyond is (a door's approach = a lot's door + its normal x 1..4; a house footprint; a yard; open ground), the
+      greatest step, and whether the higher side's centre column is solid from the lower level up (a hole = an
+      overhang or an open fill). ASSERTED: 0 beside a door's approach, 0 holes. The rest printed.
+  (g) under the paving: 9 columns a prop-free cell whose top voxel is the paving, 45 micro down: any air = hollow.
+      ASSERTED: 0 hollow.
+  PREDICTION chain 430 (the town market test alone): 16 edge steps (as chain 429), the greatest 17 to 27 micro;
+  beyond them GUESS mostly open ground and yards, 0 door approaches (the gate walks every door and passed), a few
+  houses possible (an eave stood over the market's row z 40); holes 0 and hollow 0 (the applier fills from the
+  ground up - by reading). If hollow > 0 or holes > 0 that is a real defect and is fixed next.
+RESULTS (written 2026-11-18 14:13)
+  chain 430 (exe 14:11:58, Release, the town market test alone): passes. "the market's edge steps over the walker's:
+    16 (the greatest 17 micro) - beyond them: 0 a door's approach, 0 a house, 0 a yard, 16 open ground; 0 with a hole
+    in the higher side's face"; "under the market's paving: 1206 columns scanned 45 micro down, 0 with air in them".
+    As predicted (no house, no yard either). The steps are on the market's north row (z 51 against z 52 at 1422, 17
+    micro) and its east and west ends (8 micro).
+  STATED: these two checks have NEVER BEEN SEEN TO FAIL - no red exists for them (they are measurements added after
+  the fact, on one town). "Open ground" means "inside no lot"; whether it is a way's band was not classified. The
+  full live set was NOT re-run: the only change since chain 429 is inside this one test's body, and it was run.
+  The walled city's market is still not asserted. No Debug run. Not audited (a test-only measurement).

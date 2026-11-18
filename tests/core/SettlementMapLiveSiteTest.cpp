@@ -2347,6 +2347,7 @@ TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
     // (4b) RECORDED, not asserted: the market's edge against the ground outside it - can it be entered off the streets?
     {
         int edges = 0, walkableEdges = 0, cliffs = 0, unseated = 0, shown = 0;
+        int cliffDoor = 0, cliffHouse = 0, cliffYard = 0, cliffOpen = 0, cliffWorst = 0, cliffOverhang = 0;
         for (int z = sq.z; z < sq.z1(); ++z) for (int x = sq.x; x < sq.x1(); ++x) {
             if (propCells.count({x, z})) continue;
             for (const auto& d : {std::pair<int, int>{1, 0}, std::pair<int, int>{0, 1}, std::pair<int, int>{-1, 0}, std::pair<int, int>{0, -1}}) {
@@ -2356,10 +2357,49 @@ TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
                 const int si = seat(x, z), so = seat(ox2, oz2);
                 if (si == INT_MIN || so == INT_MIN) { ++unseated; continue; }
                 if (std::abs(si - so) <= box.maxStepUpMicro) ++walkableEdges;
-                else { ++cliffs; if (shown++ < 10) std::printf("[ M5e-1 ]   edge step: market cell %d,%d at %d, outside %d,%d at %d (%d micro)%s", x, z, si, ox2, oz2, so, so - si, chr10().c_str()); }
+                else {
+                    // O37 (f) (pm_chain430.txt): what stands beyond a step the walker cannot take, and is the higher side solid
+                    const auto inRect = [&](const Core::Rect& r) { return ox2 >= r.x && ox2 < r.x1() && oz2 >= r.z && oz2 < r.z1(); };
+                    bool fp = false, yard = false, approach = false;
+                    for (const auto& l : sm.lots) {
+                        if (inRect(l.footprint)) fp = true; else if (inRect(l.rect)) yard = true;
+                        if (l.hasDoor) for (int k = 1; k <= 4; ++k) if (l.doorX + l.doorNX * k == ox2 && l.doorZ + l.doorNZ * k == oz2) approach = true;
+                    }
+                    if (approach) ++cliffDoor; else if (fp) ++cliffHouse; else if (yard) ++cliffYard; else ++cliffOpen;
+                    cliffWorst = std::max(cliffWorst, std::abs(si - so));
+                    {   // the face between them: every micro of the HIGHER cell's centre column from the lower standing level up to its own is solid
+                        const int hx = so > si ? ox2 : x, hz = so > si ? oz2 : z, lo2 = std::min(si, so), hi2 = std::max(si, so);
+                        bool hole = false;
+                        for (int y = lo2; y < hi2 - 1 && !hole; ++y) hole = !rig.solidMicro((sm.originX + hx) * 9 + 4, y, (sm.originZ + hz) * 9 + 4);
+                        if (hole) ++cliffOverhang;
+                    }
+                    ++cliffs; if (shown++ < 10) std::printf("[ M5e-1 ]   edge step: market cell %d,%d at %d, outside %d,%d at %d (%d micro)%s", x, z, si, ox2, oz2, so, so - si, chr10().c_str()); }
             }
         }
         std::printf("[ M5e-1 ] the market's edge (recorded only): %d edge pairs, %d within the walker's step, %d a step too high or deep, %d with a side nobody can stand on%s", edges, walkableEdges, cliffs, unseated, chr10().c_str());
+        std::printf("[ O37f ] the market's edge steps over the walker's: %d (the greatest %d micro) - beyond them: %d a door's approach, %d a house, %d a yard, %d open ground; %d with a hole in the higher side's face%s",
+                    cliffs, cliffWorst, cliffDoor, cliffHouse, cliffYard, cliffOpen, cliffOverhang, chr10().c_str());
+        EXPECT_EQ(cliffDoor, 0) << "a door's approach meets the market over a step the walker cannot take";
+        EXPECT_EQ(cliffOverhang, 0) << "the face of a step at the market's edge has a hole in it (an overhang or an open fill)";
+    }
+    // O37 (g) (pm_chain430.txt): nothing hollow under the paving - 9 columns a cell, 45 micro (5 cubes) down from the paved top
+    {
+        long cols = 0, hollow = 0; int shownV = 0;
+        for (int z = sq.z; z < sq.z1(); ++z) for (int x = sq.x; x < sq.x1(); ++x) {
+            if (propCells.count({x, z})) continue;
+            for (const int j : {1, 4, 7}) for (const int i : {1, 4, 7}) {
+                const int mx = (sm.originX + x) * 9 + i, mz = (sm.originZ + z) * 9 + j;
+                const int ty = microTop(mx, mz);
+                if (ty == INT_MIN || microMaterial(mx, ty, mz) != paving) continue;   // an eave's column: not the paving's top
+                ++cols;
+                int air = 0;
+                for (int y = ty - 1; y >= ty - 45; --y) if (!rig.solidMicro(mx, y, mz)) ++air;
+                if (air) { ++hollow; if (shownV++ < 8) std::printf("[ O37g ]   hollow under the paving: cell %d,%d column %d,%d top %d, %d air micro in the 45 below%s", x, z, i, j, ty, air, chr10().c_str()); }
+            }
+        }
+        std::printf("[ O37g ] under the market's paving: %ld columns scanned 45 micro down, %ld with air in them%s", cols, hollow, chr10().c_str());
+        EXPECT_GT(cols, 0L);
+        EXPECT_EQ(hollow, 0L) << "paved market columns with air under the paving";
     }
     // (3) the record and the gate
     const nlohmann::json rec = out["paths"].value("market", nlohmann::json::object());
