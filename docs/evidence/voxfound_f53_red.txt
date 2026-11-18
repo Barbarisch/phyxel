@@ -1,0 +1,56 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodyDraw*
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from VoxFoundBodyDraw
+[ RUN      ] VoxFoundBodyDraw.D1FacesAreExactOnEveryRigAndRandomHits
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyDrawTest.cpp(47): error: Expected equality of these values:
+  set.first.size()
+    Which is: 0
+  ex.bodies.size()
+    Which is: 2
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyDrawTest.cpp(94): stone_wall E/T 12.000000
+
+[  FAILED  ] VoxFoundBodyDraw.D1FacesAreExactOnEveryRigAndRandomHits (0 ms)
+[ RUN      ] VoxFoundBodyDraw.D2FacesAreBuiltOnceWhileBodiesMove
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyDrawTest.cpp(130): error: Value of: set.faces.empty()
+  Actual: true
+Expected: false
+
+[  FAILED  ] VoxFoundBodyDraw.D2FacesAreBuiltOnceWhileBodiesMove (1 ms)
+[ RUN      ] VoxFoundBodyDraw.D3IdentityPoseIsExact
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyDrawTest.cpp(159): error: Expected equality of these values:
+  set.first.size()
+    Which is: 0
+  sim.bodies().size()
+    Which is: 7
+
+[  FAILED  ] VoxFoundBodyDraw.D3IdentityPoseIsExact (0 ms)
+[ RUN      ] VoxFoundBodyDraw.D4MovedPoseMatchesDouble
+unknown file: error: SEH exception with code 0xc0000005 thrown in the test body.
+Stack trace:
+
+
+[  FAILED  ] VoxFoundBodyDraw.D4MovedPoseMatchesDouble (877 ms)
+[ RUN      ] VoxFoundBodyDraw.D5CostOnALargeWall
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyDrawTest.cpp(47): error: Expected equality of these values:
+  set.first.size()
+    Which is: 0
+  ex.bodies.size()
+    Which is: 468
+
+[  FAILED  ] VoxFoundBodyDraw.D5CostOnALargeWall (35 ms)
+[----------] 5 tests from VoxFoundBodyDraw (916 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (916 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 5 tests, listed below:
+[  FAILED  ] VoxFoundBodyDraw.D1FacesAreExactOnEveryRigAndRandomHits
+[  FAILED  ] VoxFoundBodyDraw.D2FacesAreBuiltOnceWhileBodiesMove
+[  FAILED  ] VoxFoundBodyDraw.D3IdentityPoseIsExact
+[  FAILED  ] VoxFoundBodyDraw.D4MovedPoseMatchesDouble
+[  FAILED  ] VoxFoundBodyDraw.D5CostOnALargeWall
+
+ 5 FAILED TESTS

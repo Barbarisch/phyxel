@@ -548,9 +548,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F5.2b (2026-11-17): BodySimGpu + voxfound_bodies.comp -- every F5.2a rig passes on the GPU (first run),
       within 0.33 mm of the reference on R1/R2/R4, bit-equal across runs; cost MISSED (8-19 ms / tick: a ~310-dispatch
       floor; levers in plan §9d, owed to F5.5).
-      NEXT: F5.3 -- drawing bodies with one transform (§6.7 "Drawing": faces built once per body, drawn with the
-      body's transform; the §4.2 face record + a body index); read §4.2 and the F2 face path first, write the
-      prediction before code; it needs a visual test in the engine (FeatureDesignKeys).
+      F5.3 (2026-11-18): bodies drawn with one transform (BodyDraw + voxfound_body.vert / _shadow.vert; one draw,
+      poses camera-relative per frame; varied tile from the REST frame via one voxel.frag line). Live route
+      POST /api/debug/voxfound_bodies on project VoxFoundBodies (tools/voxfound_f53_gate.py). At rest = the preview
+      path (15/185k px above a +-1 control floor); 947 bodies MISSED cost (1.19 ms main, 18.5 ms face build).
+      TRAP: launch_engine dies silently (no log) -- python312.dll not on PATH; prepend
+      C:\Users\jack\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none to PATH and Start-Process it.
+      NEXT: F5.4 -- the rest / bake-in hybrid (D6, §6.7 "Rest"): asleep bodies over the budget bake back into the world
+      grid farthest first; gates = conservation exact + the visual pop measured; write the prediction before code.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

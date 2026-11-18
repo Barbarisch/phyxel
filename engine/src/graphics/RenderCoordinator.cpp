@@ -814,6 +814,7 @@ RenderCoordinator::~RenderCoordinator() {
     releaseVoxFoundTexBuffer();
     releaseVoxFoundCull();
     releaseVoxFoundShadowCull();
+    releaseVoxFoundBodies();   // F5.3
     if (m_matSimBuffer != VK_NULL_HANDLE && vulkanDevice) {   // MatSim P1b raw-cell view buffer
         vkUnmapMemory(vulkanDevice->getDevice(), m_matSimMemory);
         vkDestroyBuffer(vulkanDevice->getDevice(), m_matSimBuffer, nullptr);
@@ -3181,6 +3182,126 @@ void RenderCoordinator::renderVoxFoundSprigs() {
 // voxfound_face.vert + voxel.frag (the static pipeline's state) in the main scene pass. One host-visible
 // buffer, re-filled only when the preview's revision moves (a debug view: a frame in flight may see the
 // next list for one frame; a regrow waits for the device first).
+// ---- docs/VoxelFoundationPlan.md F5.3: loose bodies, one transform each ----------------------------------------------
+void RenderCoordinator::releaseVoxFoundBodies() {
+    if (!vulkanDevice) return;
+    VkDevice dev = vulkanDevice->getDevice();
+    if (m_bodyFaceBuffer == VK_NULL_HANDLE && m_bodyPoseBuffer == VK_NULL_HANDLE) return;
+    vkDeviceWaitIdle(dev);
+    if (renderPipeline) renderPipeline->forgetVoxFoundSets();   // sets keyed on the freed handles (F2.16)
+    VkBuffer* bufs[2] = {&m_bodyFaceBuffer, &m_bodyPoseBuffer};
+    VkDeviceMemory* mems[2] = {&m_bodyFaceMemory, &m_bodyPoseMemory};
+    void** maps[2] = {&m_bodyFaceMapped, &m_bodyPoseMapped};
+    for (int i = 0; i < 2; ++i) {
+        if (*maps[i]) vkUnmapMemory(dev, *mems[i]);
+        if (*bufs[i] != VK_NULL_HANDLE) vkDestroyBuffer(dev, *bufs[i], nullptr);
+        if (*mems[i] != VK_NULL_HANDLE) vkFreeMemory(dev, *mems[i], nullptr);
+        *bufs[i] = VK_NULL_HANDLE;
+        *mems[i] = VK_NULL_HANDLE;
+        *maps[i] = nullptr;
+    }
+    m_bodyFaceCapacity = 0;
+    m_bodyFaceRevision = UINT64_MAX;
+    m_bodyPoseSlot = 0;
+    ++m_bodyPoseGeneration;
+}
+
+// Once per frame, before the shadow pass: faces (only when the set of bodies changed) and this frame's poses, made
+// camera-relative here in double (BodyDraw.h relativePose), so the main pass and the casters read the same numbers.
+void RenderCoordinator::prepareVoxFoundBodies() {
+    m_bodyFrameReady = false;
+    m_voxFoundBodyStats.bodies = m_voxFoundBodyStats.faces = m_voxFoundBodyStats.drawnFaces = 0;
+    m_voxFoundBodyStats.castFaces[0] = m_voxFoundBodyStats.castFaces[1] = 0;
+    const auto* bl = m_voxFoundBodies;
+    if (!bl || !bl->shown || bl->faces.empty() || bl->poses.empty() || !vulkanDevice || !camera) return;
+    using Core::VoxFound::BodyFace;
+    using Core::VoxFound::BodyPose;
+    VkDevice dev = vulkanDevice->getDevice();
+    const VkMemoryPropertyFlags hv = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    if (bl->faces.size() > m_bodyFaceCapacity || bl->poses.size() > m_bodyPoseSlot) {
+        size_t fc = std::max<size_t>(m_bodyFaceCapacity, size_t(1) << 12), pc = std::max<size_t>(m_bodyPoseSlot, 256);
+        while (fc < bl->faces.size()) fc *= 2;
+        while (pc < bl->poses.size()) pc *= 2;
+        releaseVoxFoundBodies();
+        vulkanDevice->createBuffer(VkDeviceSize(fc) * sizeof(BodyFace), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, hv,
+                                   m_bodyFaceBuffer, m_bodyFaceMemory);
+        vulkanDevice->createBuffer(VkDeviceSize(pc) * sizeof(BodyPose) * MAX_FRAMES_IN_FLIGHT,
+                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, hv, m_bodyPoseBuffer, m_bodyPoseMemory);
+        if (m_bodyFaceBuffer == VK_NULL_HANDLE || m_bodyPoseBuffer == VK_NULL_HANDLE ||
+            vkMapMemory(dev, m_bodyFaceMemory, 0, VK_WHOLE_SIZE, 0, &m_bodyFaceMapped) != VK_SUCCESS ||
+            vkMapMemory(dev, m_bodyPoseMemory, 0, VK_WHOLE_SIZE, 0, &m_bodyPoseMapped) != VK_SUCCESS) {
+            releaseVoxFoundBodies();
+            return;
+        }
+        m_bodyFaceCapacity = fc;
+        m_bodyPoseSlot = pc;
+    }
+    if (m_bodyFaceRevision != bl->facesRevision) {
+        const auto t0 = std::chrono::steady_clock::now();
+        if (m_bodyFaceRevision != UINT64_MAX) vkDeviceWaitIdle(dev);   // a frame in flight may read the old faces
+        std::memcpy(m_bodyFaceMapped, bl->faces.data(), bl->faces.size() * sizeof(BodyFace));
+        m_bodyFaceRevision = bl->facesRevision;
+        m_voxFoundBodyStats.faceUploadMs =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        ++m_voxFoundBodyStats.faceUploads;
+    }
+    const auto t0 = std::chrono::steady_clock::now();
+    const glm::dvec3 cam(camera->getPosition());
+    BodyPose* dst = static_cast<BodyPose*>(m_bodyPoseMapped) + size_t(currentFrame) * m_bodyPoseSlot;
+    for (size_t i = 0; i < bl->poses.size(); ++i) dst[i] = Core::VoxFound::relativePose(bl->poses[i], cam);
+    m_voxFoundBodyStats.poseMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    m_voxFoundBodyStats.bodies = uint32_t(bl->poses.size());
+    m_voxFoundBodyStats.faces = uint32_t(bl->faces.size());
+    m_bodyFrameReady = true;
+}
+
+void RenderCoordinator::renderVoxFoundBodies() {
+    if (!m_bodyFrameReady || !renderPipeline || m_voxFoundTexBuffer == VK_NULL_HANDLE) return;
+    if (!renderPipeline->ensureVoxFoundBodyPipeline("shaders/voxfound_body.vert.spv")) return;
+    VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundBodyPipeline());
+    vulkanDevice->bindVertexBuffers(currentFrame);
+    vulkanDevice->bindIndexBuffer(currentFrame);
+    vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
+    // set 1: the preview's texture table + this frame's pose slot
+    renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer, m_bodyPoseBuffer, false,
+                                        VkDeviceSize(currentFrame) * m_bodyPoseSlot * sizeof(Core::VoxFound::BodyPose));
+    const VkDeviceSize off = 0;
+    vkCmdBindVertexBuffers(cmd, 1, 1, &m_bodyFaceBuffer, &off);
+    vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(0.0f),
+                                m_voxFoundBodies->mutate ? 1u : 0u, glm::vec3(0.0f), 0.0f);
+    const uint32_t n = uint32_t(m_voxFoundBodies->faces.size());
+    vkCmdDrawIndexed(cmd, 36u, n, 0, 0, 0);
+    m_voxFoundBodyStats.drawnFaces = n;
+}
+
+void RenderCoordinator::castVoxFoundBodies(VkCommandBuffer cmd, ShadowMap& map, const glm::mat4& lightSpaceMatrix,
+                                           int slot) {
+    if (!m_bodyFrameReady || !m_voxFoundBodies->castShadows) return;
+    VkPipeline p = map.ensureVoxFoundBodyPipeline();
+    if (p == VK_NULL_HANDLE) return;
+    const VkDescriptorSet set = map.voxFoundBodySet(
+        m_bodyPoseBuffer, VkDeviceSize(m_bodyPoseSlot) * sizeof(Core::VoxFound::BodyPose) * MAX_FRAMES_IN_FLIGHT,
+        m_bodyPoseGeneration);
+    if (set == VK_NULL_HANDLE) return;
+    GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VoxFound Bodies Shadow");
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, map.getPipelineLayout(), 0, 1, &set, 0, nullptr);
+    vulkanDevice->bindVertexBuffers(currentFrame);
+    vulkanDevice->bindIndexBuffer(currentFrame);
+    const VkDeviceSize off = 0;
+    vkCmdBindVertexBuffers(cmd, 1, 1, &m_bodyFaceBuffer, &off);
+    struct { glm::mat4 lightSpaceMatrix; glm::vec3 chunkBaseOffset; uint32_t useChunkDataSsbo; uint32_t drawIndexBase; } pc;
+    pc.lightSpaceMatrix = lightSpaceMatrix;
+    pc.chunkBaseOffset = glm::vec3(0.0f);
+    pc.useChunkDataSsbo = 0u;
+    pc.drawIndexBase = uint32_t(size_t(currentFrame) * m_bodyPoseSlot);
+    vkCmdPushConstants(cmd, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+    const uint32_t n = uint32_t(m_voxFoundBodies->faces.size());
+    vkCmdDrawIndexed(cmd, 36u, n, 0, 0, 0);
+    m_voxFoundBodyStats.castFaces[slot] = n;
+}
+
 void RenderCoordinator::renderVoxFoundPreview() {
     m_voxFoundDrawn = 0;
     if (!m_voxFoundPreview || !m_voxFoundPreview->shown || m_voxFoundPreview->faces.empty() || !renderPipeline || !vulkanDevice || !camera) return;
@@ -3981,6 +4102,8 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
     // cascades like chunks do (not far: chunks don't either). Same pipeline layout + state as the chunk casters,
     // 36-index both-windings draw (M5). Uses the buffer the main pass uploaded (a debug view: the very first frame
     // after a change casts the previous list).
+    // F5.3: loose bodies cast into the mid and near cascades like the preview's faces (no per-body light cull yet)
+    if (cascade != kCascadeFar) castVoxFoundBodies(commandBuffer, map, lightSpaceMatrix, cascade == kCascadeNear ? 1 : 0);
     if (cascade != kCascadeFar) m_voxFoundShadowFaces[cascade == kCascadeNear ? 1 : 0] = 0;
     if (cascade == kCascadeMid) m_voxFoundShadowSprigs = 0;
     if (cascade != kCascadeFar && m_voxFoundPreview && m_voxFoundPreview->shown && m_voxFoundPreview->castFaces &&
@@ -5140,6 +5263,7 @@ void RenderCoordinator::drawFrame() {
     // F2.17 (§4.6 item 10): the preview's face pool -- copies before the first pass that reads the faces
     recordVoxFoundPoolUpdate(cmd);
 
+    prepareVoxFoundBodies();   // F5.3: this frame's body poses, before the first pass that reads them
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
         CPU_PROFILE_SCOPE(&m_cpuTiming, "Shadow Pass");
@@ -5340,6 +5464,10 @@ void RenderCoordinator::drawFrame() {
         {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VoxFound Preview");
             renderVoxFoundPreview();
+        }
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VoxFound Bodies");   // F5.3
+            renderVoxFoundBodies();
         }
         // F2.3 its leaf sprigs as today's leaf cards (separate scope: card cost is measured on its own)
         {

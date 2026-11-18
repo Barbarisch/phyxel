@@ -24,6 +24,7 @@
 #include "core/WaterManager.h"               // WaterSurfaceCell (WaterCore debug feed)
 #include "core/voxfound/Preview.h"           // F2.2 1/8 m face preview
 #include "core/voxfound/ClusterCullGpu.h"    // F2.11 GPU draw-building pass
+#include "core/voxfound/BodyDraw.h"          // F5.3 loose bodies, one transform each
 #include <array>
 #include <functional>
 #include <future>
@@ -622,6 +623,16 @@ public:
     void setMatSimFaces(const std::vector<Phyxel::DynamicSubcubeInstanceData>* faces) { m_matSimFaces = faces; }
     /// docs/VoxelFoundationPlan.md F2.2: the 1/8 m face preview (main view, receives shadows, casts none yet). nullptr = off.
     void setVoxFoundPreview(const Core::VoxFound::Preview* p) { m_voxFoundPreview = p; }
+    /// docs/VoxelFoundationPlan.md F5.3: loose bodies, drawn with one transform each (main pass after the preview, and
+    /// cast into the mid + near cascades). Needs the preview's texture table (a preview must be set). nullptr = off.
+    void setVoxFoundBodies(const Core::VoxFound::BodyDrawList* b) { m_voxFoundBodies = b; }
+    struct VoxFoundBodyStats {
+        uint32_t bodies = 0, faces = 0, drawnFaces = 0, castFaces[2] = {0, 0};
+        double poseMs = 0.0;          // CPU: poses made camera-relative + written, last frame
+        double faceUploadMs = 0.0;    // CPU: the last face upload (once per set of bodies)
+        uint64_t faceUploads = 0;
+    };
+    VoxFoundBodyStats voxFoundBodyStats() const { return m_voxFoundBodyStats; }
     /// GPU-side face count drawn by the preview last frame (0 = off).
     uint32_t voxFoundPreviewFacesDrawn() const { return m_voxFoundDrawn; }
     uint32_t voxFoundPreviewSprigsDrawn() const { return m_voxFoundSprigsDrawn; }
@@ -1558,6 +1569,25 @@ private:
     void*          m_matSimMapped = nullptr;
     void renderMatSimDebug();
     const Core::VoxFound::Preview* m_voxFoundPreview = nullptr;   // F2.2 1/8 m face preview
+    // F5.3 loose bodies: faces (host-visible, grows; rewritten after a device wait when the set of bodies changes) and
+    // poses (host-visible, one slot of kBodyPoseSlot poses per frame in flight; written once per frame)
+    const Core::VoxFound::BodyDrawList* m_voxFoundBodies = nullptr;
+    VkBuffer       m_bodyFaceBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_bodyFaceMemory = VK_NULL_HANDLE;
+    void*          m_bodyFaceMapped = nullptr;
+    size_t         m_bodyFaceCapacity = 0;
+    uint64_t       m_bodyFaceRevision = UINT64_MAX;
+    VkBuffer       m_bodyPoseBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_bodyPoseMemory = VK_NULL_HANDLE;
+    void*          m_bodyPoseMapped = nullptr;
+    size_t         m_bodyPoseSlot = 0;          // poses per frame slot (a multiple of 4: 256 B aligned)
+    uint64_t       m_bodyPoseGeneration = 0;    // bumps when the pose buffer is remade
+    bool           m_bodyFrameReady = false;    // this frame's poses are written
+    VoxFoundBodyStats m_voxFoundBodyStats;
+    void prepareVoxFoundBodies();               // before the shadow pass
+    void renderVoxFoundBodies();                // main pass, after the preview
+    void castVoxFoundBodies(VkCommandBuffer cmd, ShadowMap& map, const glm::mat4& lightSpaceMatrix, int slot);
+    void releaseVoxFoundBodies();
     VkBuffer       m_voxFoundBuffer = VK_NULL_HANDLE;              // host-visible, grows to fit
     VkDeviceMemory m_voxFoundMemory = VK_NULL_HANDLE;
     void*          m_voxFoundMapped = nullptr;

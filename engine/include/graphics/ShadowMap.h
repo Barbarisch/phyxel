@@ -57,6 +57,10 @@ public:
     /// (the preview's per-cluster chunk origins), for voxfound_face_shadow.vert's multidraw path. Rewritten (after a
     /// device wait) when the buffer or its generation changes (a recycled handle must not skip the rewrite). VK_NULL_HANDLE on failure.
     VkDescriptorSet voxFoundOriginSet(VkBuffer buffer, VkDeviceSize bytes, uint64_t generation);
+    /// docs/VoxelFoundationPlan.md F5.3: the caster for loose bodies (voxfound_body_shadow.vert, BodyFace 12 B), same
+    /// layout + state; and a set of the chunk-data layout bound to the body pose buffer (its own pool, same rewrite rule).
+    VkPipeline ensureVoxFoundBodyPipeline();
+    VkDescriptorSet voxFoundBodySet(VkBuffer buffer, VkDeviceSize bytes, uint64_t generation);
 
     // ---- C2.1 (docs/ContinuousLodPlan.md): per-draw chunk data for multidraw ----
     /// One multidraw per arena BLOCK needs the per-chunk origin out of push constants,
@@ -109,7 +113,14 @@ private:
     VkPipeline voxFoundLodPipeline = VK_NULL_HANDLE;           // F2.14 (lazy)
     VkPipelineLayout voxFoundLodLayout = VK_NULL_HANDLE;
     bool voxFoundLodFailed = false;
-    VkPipeline buildVoxFoundPipeline(const char* vertSpv, const char* fragSpv, VkPipelineLayout layout);
+    VkPipeline buildVoxFoundPipeline(const char* vertSpv, const char* fragSpv, VkPipelineLayout layout,
+                                     uint32_t instanceStride = 8, uint32_t instanceWords = 2);
+    VkPipeline voxFoundBodyPipeline = VK_NULL_HANDLE;          // F5.3 (lazy)
+    bool voxFoundBodyFailed = false;
+    VkDescriptorPool voxFoundBodyPool = VK_NULL_HANDLE;
+    VkDescriptorSet  voxFoundBodySetHandle = VK_NULL_HANDLE;
+    VkBuffer         voxFoundBodyBound = VK_NULL_HANDLE;
+    uint64_t         voxFoundBodyGeneration = UINT64_MAX;
     VkDescriptorPool voxFoundOriginPool = VK_NULL_HANDLE;   // F2.12 (lazy)
     VkDescriptorSet  voxFoundOriginSetHandle = VK_NULL_HANDLE;
     VkBuffer         voxFoundOriginBound = VK_NULL_HANDLE;

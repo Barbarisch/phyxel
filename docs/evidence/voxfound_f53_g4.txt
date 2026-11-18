@@ -1,0 +1,8 @@
+{'bodies': 464, 'body_faces': 27011}
+E/T 1000 shown {'Shadow Pass': [17.5463], 'Scene Pass': [13.8445], 'VoxFound Bodies': [0.6134], 'VoxFound Bodies Shadow': [0.1075, 0.1403]}
+E/T 1000 hidden {'Shadow Pass': [18.0092], 'Scene Pass': [14.3437], 'VoxFound Bodies': [0.0]}
+{'bodies': 947, 'body_faces': 54439}
+E/T 2500 shown {'Shadow Pass': [18.5209], 'Scene Pass': [14.3754], 'VoxFound Bodies': [1.193], 'VoxFound Bodies Shadow': [0.257, 0.3144]}
+E/T 2500 hidden {'Shadow Pass': [17.8482], 'Scene Pass': [14.1292], 'VoxFound Bodies': [0.0]}
+stone_wall 28 bodies shown {'Shadow Pass': [17.7934], 'Scene Pass': [16.8013], 'VoxFound Bodies': [0.0328], 'VoxFound Bodies Shadow': [0.002, 0.002]}
+stone_wall hidden {'Shadow Pass': [17.818], 'Scene Pass': [16.8827], 'VoxFound Bodies': [0.0]}

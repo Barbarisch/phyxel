@@ -1638,6 +1638,20 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/voxfound_bodies -- docs/VoxelFoundationPlan.md F5.3: a lab rig broken, its loose pieces drawn
+    // with one transform each. Body: see editor/src/VoxFoundBodiesLab.cpp.
+    srv.Post("/api/debug/voxfound_bodies", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("voxfound_bodies", params, 120000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     srv.Post("/api/debug/micro_cells", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = req.body.empty() ? json::object() : json::parse(req.body);

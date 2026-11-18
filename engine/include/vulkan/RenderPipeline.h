@@ -69,6 +69,10 @@ public:
     /// F2.11: the same pipeline state with shaders/voxfound_face_mdi.vert (chunk origin per indirect draw).
     bool ensureVoxFoundMdiPipeline(const std::string& vertSpvPath);
     VkPipeline getVoxFoundMdiPipeline() const { return voxFoundMdiPipeline; }
+    /// docs/VoxelFoundationPlan.md F5.3: loose bodies (shaders/voxfound_body.vert, BodyFace instances of 12 B), the
+    /// preview's layout + state; set 1 binding 1 = the body pose buffer (bindVoxFoundFaceTex with it as the origins).
+    bool ensureVoxFoundBodyPipeline(const std::string& vertSpvPath);
+    VkPipeline getVoxFoundBodyPipeline() const { return voxFoundBodyPipeline; }
     /// F2.14f: the coarse leaf mass, drawn with voxfound_leafmass.frag (shaded as leaf cards) through the same two
     /// vertex shaders and state. Its multidraw reads its own origin table: bindVoxFoundFaceTex(..., leafSet = true)
     /// binds a second set-1 descriptor set, so the two multidraws of one frame never rewrite a set in use.
@@ -203,6 +207,8 @@ private:
     uint64_t voxFoundSetTick = 0;
     VkShaderModule voxFoundMdiVertModule = VK_NULL_HANDLE;      // F2.11
     VkPipeline voxFoundMdiPipeline = VK_NULL_HANDLE;
+    VkShaderModule voxFoundBodyVertModule = VK_NULL_HANDLE;     // F5.3
+    VkPipeline voxFoundBodyPipeline = VK_NULL_HANDLE;
     VkShaderModule voxFoundLeafFragModule = VK_NULL_HANDLE;     // F2.14f
     VkPipeline voxFoundLeafPipeline = VK_NULL_HANDLE, voxFoundLeafMdiPipeline = VK_NULL_HANDLE;
     void createDepthPrepassPipelines();   // best effort: leaves them null (feature unavailable) on failure

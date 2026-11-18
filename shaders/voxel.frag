@@ -271,7 +271,12 @@ void main() {
     // small magnitude, so the sum is camera-independent — rotations never re-roll.
     bool varied = ((flags >> 15u) & 1u) != 0u;
     vec3 worldPosAbs = phxWorldPosAbs(vChunkBaseAbs, inWorldPos, vChunkBaseRel);
-    sampleVoxelPBR(textureIndex, texCoord, varied, worldPosAbs, inNormal, textureColor, nrmRaw, rough);
+    // VoxelFoundationPlan F5.3: a loose BODY's face (bit 16 with the LOD bit 23 clear; voxfound_body.vert) carries its
+    // REST-frame world-face coordinates in texCoord, so the varied tile is picked where the voxel was when it broke
+    // off and moves with the piece (worldFaceUV of (u, 0, v) with an up normal returns (u, v) unchanged).
+    const bool bodyRestUV = varied && (flags & ((1u << 16u) | (1u << 23u))) == (1u << 16u);
+    sampleVoxelPBR(textureIndex, texCoord, varied, bodyRestUV ? vec3(texCoord.x, 0.0, texCoord.y) : worldPosAbs,
+                   bodyRestUV ? vec3(0.0, 1.0, 0.0) : inNormal, textureColor, nrmRaw, rough);
 
     // Per-layer material props (metallic, roughness scalar) from the atlas SSBO. Global index
     // = within-class layer, offset by count512 for the 1024 class. The authored roughness scalar

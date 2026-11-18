@@ -106,6 +106,9 @@
 #include "core/voxfound/LodBuilderGpu.h"
 #include "core/voxfound/Preview.h"
 #include "core/voxfound/RegionEdit.h"
+#include "core/voxfound/BodyDraw.h"       // F5.3 bodies lab
+#include "core/voxfound/BodySim.h"
+#include "core/voxfound/FractureLab.h"
 #include "core/water/WadeDrag.h"
 #include "core/water/ShoreBand.h"
 #include "scene/NPCEntity.h"
@@ -298,6 +301,23 @@ private:
     Core::VoxFound::RegionEdit voxFoundEdit;                           // F2.16 editable region store ({"editable":true})
     std::vector<std::string> voxFoundPalette;                          // F2.16 the region palette (edits may append)
     std::vector<uint16_t> voxFoundLeafTex;                             // F2.16 sprig texture per palette material
+    // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)
+    struct VoxFoundBodiesLab {
+        Core::VoxFound::VoxelGrid world;                    // what stays in the world (the sim holds a reference)
+        std::vector<Core::VoxFound::FractureMaterial> mats;
+        std::unique_ptr<Core::VoxFound::BodySimRef> sim;
+        Core::VoxFound::BodyDrawList draw;                  // what the renderer draws (setVoxFoundBodies)
+        glm::dvec3 areaOriginM{0.0};                        // world metres of grid voxel (0,0,0)
+        std::string rigName;
+        size_t crumbs = 0, refused = 0, previewFaces = 0;
+        long tick = 0;
+        double accum = 0.0, lastStepMs = 0.0;
+        bool running = false, asWorld = false;
+    } voxFoundBodiesLab;
+    void handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::json& response);
+    void stepVoxFoundBodies(float dt);
+    void voxFoundBodiesPublish();
+    bool voxFoundBodiesRebuildWorld(std::string* err);
     void applyWaterSpanEdit(int x, int y, int z, bool solid);          // Phase D2: edits never create water (docs/WaterCore.md 16.3)
     long m_waterHeldEdits = 0;                                          // Phase D2: edits held because a run reaches into a non-resident chunk
     // Phase G (docs/WaterCore.md 18.5): the shoreline band - solved water along the shore around the camera

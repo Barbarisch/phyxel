@@ -1,0 +1,26 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodyDraw*
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from VoxFoundBodyDraw
+[ RUN      ] VoxFoundBodyDraw.D1FacesAreExactOnEveryRigAndRandomHits
+[body draw] D1: 1150 bodies, 27766 faces, all exact
+[       OK ] VoxFoundBodyDraw.D1FacesAreExactOnEveryRigAndRandomHits (88 ms)
+[ RUN      ] VoxFoundBodyDraw.D2FacesAreBuiltOnceWhileBodiesMove
+[body draw] D2: 21 bodies, 638 faces built once; body 0 moved 0.97 m over 300 ticks
+[       OK ] VoxFoundBodyDraw.D2FacesAreBuiltOnceWhileBodiesMove (865 ms)
+[ RUN      ] VoxFoundBodyDraw.D3IdentityPoseIsExact
+[body draw] D3: 1552 corners; worst 0 m (whole-metre camera), 1.06e-07 m (any camera)
+[       OK ] VoxFoundBodyDraw.D3IdentityPoseIsExact (1 ms)
+[ RUN      ] VoxFoundBodyDraw.D4MovedPoseMatchesDouble
+[body draw] D4: 21 bodies turned up to 180.0 deg; worst corner 3.31e-07 m, normal 1.7e-07, |n|-1 1.2e-07
+[       OK ] VoxFoundBodyDraw.D4MovedPoseMatchesDouble (854 ms)
+[ RUN      ] VoxFoundBodyDraw.D5CostOnALargeWall
+[body draw] D5 large wall E/T 1000: 468 bodies, 27217 faces (326604 B), faces per body median 43 max 196; build 9.67 ms, poses 0.0122 ms (best of 5)
+[body draw] D5 large wall E/T 2500: 947 bodies, 54493 faces (653916 B), faces per body median 43 max 196; build 18.51 ms, poses 0.0240 ms (best of 5)
+[       OK ] VoxFoundBodyDraw.D5CostOnALargeWall (387 ms)
+[----------] 5 tests from VoxFoundBodyDraw (2197 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (2197 ms total)
+[  PASSED  ] 5 tests.

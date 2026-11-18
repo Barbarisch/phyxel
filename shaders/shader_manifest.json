@@ -368,7 +368,7 @@
     },
     "voxel.frag": {
       "built": true,
-      "sources": "812efaa3bc93c98d8f08236a68caba8d61eb83e3bdfeaa11c018abb111812313",
+      "sources": "8f091c6b654108f5a382430abc629ae221b70dfd62669c02beed2718c5df9e6a",
       "spv_present": true
     },
     "voxel_depth.frag": {
@@ -379,6 +379,16 @@
     "voxfound_bodies.comp": {
       "built": true,
       "sources": "7dd5c602c5d001224bb9ecc79e1f7401a406aa3a8809db293bb6b40d272e5503",
+      "spv_present": true
+    },
+    "voxfound_body.vert": {
+      "built": true,
+      "sources": "d933a286973728cf1d662d31198760fa6d9b5cef7a7b9b29ad3950b4e6f463f6",
+      "spv_present": true
+    },
+    "voxfound_body_shadow.vert": {
+      "built": true,
+      "sources": "a83d36ec77e927047c73e17b821150f152671069e480c007b28d1d624978be34",
       "spv_present": true
     },
     "voxfound_cull.comp": {

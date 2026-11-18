@@ -173,6 +173,37 @@ bool RenderPipeline::ensureVoxFoundMdiPipeline(const std::string& vertSpvPath) {
                                &attrs, voxFoundLayout);
 }
 
+// docs/VoxelFoundationPlan.md F5.3: loose bodies, one transform each (voxfound_body.vert). The preview's layout (set 1 =
+// face texture table + the pose buffer at binding 1) and state; the instance is BodyFace = PackedFace + body index.
+bool RenderPipeline::ensureVoxFoundBodyPipeline(const std::string& vertSpvPath) {
+    if (voxFoundBodyPipeline != VK_NULL_HANDLE) return true;
+    if (!ensureVoxFoundPipeline("shaders/voxfound_face.vert.spv")) return false;   // the layout + set 1
+    if (voxFoundBodyVertModule == VK_NULL_HANDLE) {
+        auto code = Utils::readFile(vertSpvPath);
+        if (code.empty()) {
+            LOG_WARN("RenderPipeline", "voxfound bodies: cannot read " + vertSpvPath);
+            return false;
+        }
+        voxFoundBodyVertModule = createShaderModule(code);
+    }
+    VkVertexInputBindingDescription bind{};
+    bind.binding = 1;
+    bind.stride = 12;
+    bind.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    std::vector<VkVertexInputAttributeDescription> attrs(3);
+    for (uint32_t i = 0; i < 3; ++i) {
+        attrs[i].binding = 1;
+        attrs[i].location = 1 + i;
+        attrs[i].format = VK_FORMAT_R32_UINT;
+        attrs[i].offset = 4 * i;
+    }
+    return buildStaticPipeline(fragShaderModule, VK_TRUE, Graphics::DepthConvention::sceneDepthCompareOp(),
+                               VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                                   VK_COLOR_COMPONENT_A_BIT,
+                               voxFoundBodyPipeline, "voxfound bodies", voxFoundBodyVertModule, &bind, &attrs,
+                               voxFoundLayout);
+}
+
 bool RenderPipeline::ensureVoxFoundLeafPipelines(const std::string& fragSpvPath) {
     if (voxFoundLeafPipeline != VK_NULL_HANDLE && voxFoundLeafMdiPipeline != VK_NULL_HANDLE) return true;
     if (!ensureVoxFoundPipeline("shaders/voxfound_face.vert.spv")) return false;
@@ -1087,6 +1118,14 @@ void RenderPipeline::cleanup() {
     if (voxFoundMdiVertModule != VK_NULL_HANDLE) {
         vkDestroyShaderModule(device, voxFoundMdiVertModule, nullptr);
         voxFoundMdiVertModule = VK_NULL_HANDLE;
+    }
+    if (voxFoundBodyPipeline != VK_NULL_HANDLE) {   // F5.3
+        vkDestroyPipeline(device, voxFoundBodyPipeline, nullptr);
+        voxFoundBodyPipeline = VK_NULL_HANDLE;
+    }
+    if (voxFoundBodyVertModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, voxFoundBodyVertModule, nullptr);
+        voxFoundBodyVertModule = VK_NULL_HANDLE;
     }
     if (voxFoundLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device, voxFoundLayout, nullptr);

@@ -62,6 +62,10 @@ void ShadowMap::cleanup() {
     }
     if (chunkDataPool != VK_NULL_HANDLE) { vkDestroyDescriptorPool(vkDevice, chunkDataPool, nullptr); chunkDataPool = VK_NULL_HANDLE; for (uint32_t f = 0; f < kFrames; ++f) chunkDataSet[f] = VK_NULL_HANDLE; }
     if (voxFoundOriginPool != VK_NULL_HANDLE) { vkDestroyDescriptorPool(vkDevice, voxFoundOriginPool, nullptr); voxFoundOriginPool = VK_NULL_HANDLE; }
+    if (voxFoundBodyPool != VK_NULL_HANDLE) { vkDestroyDescriptorPool(vkDevice, voxFoundBodyPool, nullptr); voxFoundBodyPool = VK_NULL_HANDLE; }
+    voxFoundBodySetHandle = VK_NULL_HANDLE;
+    voxFoundBodyBound = VK_NULL_HANDLE;
+    voxFoundBodyGeneration = UINT64_MAX;
     voxFoundOriginSetHandle = VK_NULL_HANDLE;
     voxFoundOriginBound = VK_NULL_HANDLE;
     if (chunkDataLayout != VK_NULL_HANDLE) { vkDestroyDescriptorSetLayout(vkDevice, chunkDataLayout, nullptr); chunkDataLayout = VK_NULL_HANDLE; }
@@ -75,6 +79,8 @@ void ShadowMap::cleanup() {
         voxFoundPipeline = VK_NULL_HANDLE;
     }
     voxFoundFailed = false;
+    if (voxFoundBodyPipeline != VK_NULL_HANDLE) { vkDestroyPipeline(vkDevice, voxFoundBodyPipeline, nullptr); voxFoundBodyPipeline = VK_NULL_HANDLE; }
+    voxFoundBodyFailed = false;
     if (voxFoundLodPipeline != VK_NULL_HANDLE) { vkDestroyPipeline(vkDevice, voxFoundLodPipeline, nullptr); voxFoundLodPipeline = VK_NULL_HANDLE; }
     if (voxFoundLodLayout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(vkDevice, voxFoundLodLayout, nullptr); voxFoundLodLayout = VK_NULL_HANDLE; }
     voxFoundLodFailed = false;
@@ -512,7 +518,58 @@ VkPipeline ShadowMap::ensureVoxFoundLodPipeline() {
     return voxFoundLodPipeline;
 }
 
-VkPipeline ShadowMap::buildVoxFoundPipeline(const char* vertSpv, const char* fragSpv, VkPipelineLayout layout) {
+// F5.3: loose bodies cast like the preview's faces; the instance is BodyFace (PackedFace + body index, 12 B).
+VkPipeline ShadowMap::ensureVoxFoundBodyPipeline() {
+    if (voxFoundBodyPipeline != VK_NULL_HANDLE || voxFoundBodyFailed) return voxFoundBodyPipeline;
+    if (pipelineLayout == VK_NULL_HANDLE || renderPass == VK_NULL_HANDLE) return VK_NULL_HANDLE;
+    voxFoundBodyPipeline = buildVoxFoundPipeline("voxfound_body_shadow.vert.spv", "shadow.frag.spv", pipelineLayout, 12, 3);
+    voxFoundBodyFailed = voxFoundBodyPipeline == VK_NULL_HANDLE;
+    return voxFoundBodyPipeline;
+}
+
+VkDescriptorSet ShadowMap::voxFoundBodySet(VkBuffer buffer, VkDeviceSize bytes, uint64_t generation) {
+    if (buffer == VK_NULL_HANDLE || chunkDataLayout == VK_NULL_HANDLE) return VK_NULL_HANDLE;
+    VkDevice vkDevice = device->getDevice();
+    if (voxFoundBodyPool == VK_NULL_HANDLE) {
+        VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1};
+        VkDescriptorPoolCreateInfo pi{};
+        pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pi.maxSets = 1;
+        pi.poolSizeCount = 1;
+        pi.pPoolSizes = &size;
+        if (vkCreateDescriptorPool(vkDevice, &pi, nullptr, &voxFoundBodyPool) != VK_SUCCESS) {
+            voxFoundBodyPool = VK_NULL_HANDLE;
+            return VK_NULL_HANDLE;
+        }
+        VkDescriptorSetAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        ai.descriptorPool = voxFoundBodyPool;
+        ai.descriptorSetCount = 1;
+        ai.pSetLayouts = &chunkDataLayout;
+        if (vkAllocateDescriptorSets(vkDevice, &ai, &voxFoundBodySetHandle) != VK_SUCCESS) {
+            voxFoundBodySetHandle = VK_NULL_HANDLE;
+            return VK_NULL_HANDLE;
+        }
+    }
+    if (voxFoundBodyBound != buffer || voxFoundBodyGeneration != generation) {
+        if (voxFoundBodyBound != VK_NULL_HANDLE) vkDeviceWaitIdle(vkDevice);   // in-flight frames may use the set
+        VkDescriptorBufferInfo bi{buffer, 0, bytes};
+        VkWriteDescriptorSet w{};
+        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w.dstSet = voxFoundBodySetHandle;
+        w.dstBinding = 0;
+        w.descriptorCount = 1;
+        w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        w.pBufferInfo = &bi;
+        vkUpdateDescriptorSets(vkDevice, 1, &w, 0, nullptr);
+        voxFoundBodyBound = buffer;
+        voxFoundBodyGeneration = generation;
+    }
+    return voxFoundBodySetHandle;
+}
+
+VkPipeline ShadowMap::buildVoxFoundPipeline(const char* vertSpv, const char* fragSpv, VkPipelineLayout layout,
+                                            uint32_t instanceStride, uint32_t instanceWords) {
     auto fail = [&](const char* why) {
         LOG_ERROR("ShadowMap", "voxfound caster pipeline ({}): {}", vertSpv, why);
         return VK_NULL_HANDLE;
@@ -539,10 +596,10 @@ VkPipeline ShadowMap::buildVoxFoundPipeline(const char* vertSpv, const char* fra
     std::vector<VkVertexInputAttributeDescription> attrs = Vulkan::Vertex::getAttributeDescriptions();
     VkVertexInputBindingDescription inst{};
     inst.binding = 1;
-    inst.stride = 8;
+    inst.stride = instanceStride;
     inst.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
     bindings.push_back(inst);
-    for (uint32_t i = 0; i < 2; ++i) {
+    for (uint32_t i = 0; i < instanceWords; ++i) {
         VkVertexInputAttributeDescription a{};
         a.binding = 1;
         a.location = 1 + i;

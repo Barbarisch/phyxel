@@ -3867,6 +3867,8 @@ void Application::update(float deltaTime) {
         mainThreadJobs->tick(1);
     }
 
+    stepVoxFoundBodies(deltaTime);   // F5.3 bodies lab (its own run switch; inert without a rig)
+
     // Skip simulation when paused (API commands and jobs still process)
     if (gamePaused) return;
 
@@ -14651,6 +14653,13 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
 // The lab is created at init; a handler that runs before it exists, or throws on a mistyped field,
 // answers with an error instead of reaching the legacy dispatch.
 void Application::registerMatSimCommands() {
+    m_commandRegistry.on("voxfound_bodies", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // F5.3
+        try {
+            handleVoxFoundBodies(cmd, r);
+        } catch (const std::exception& e) {
+            r = {{"error", std::string("voxfound_bodies: ") + e.what()}};
+        }
+    });
     m_commandRegistry.on("voxfound_preview", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         try {
             handleVoxFoundPreview(cmd, r);

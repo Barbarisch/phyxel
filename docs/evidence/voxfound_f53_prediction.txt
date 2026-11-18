@@ -1,0 +1,123 @@
+F5.3 -- drawing bodies with one transform (plan §6.7 "Drawing", §4.2, F5 row)
+Written 2026-11-18 BEFORE any F5.3 code.
+
+Plan text: "a body is a small block grid with one transform. Faces are built once when the body is made, drawn with the
+body's transform; the record is the §4.2 face record + a body index. No per-voxel float transform."
+
+WHAT F5.3 BUILDS
+  Core (engine/*/core/voxfound/BodyDraw.*, CPU; tested in VoxFoundBodyDrawTest):
+  - BodyFace = the 8 B PackedFace (Mesher.h, unchanged) + a uint32 body index = 12 B per drawn face.
+  - buildBodyFaces(bodies) -> BodyDrawSet {faces (body after body, ascending body index), first/count per body}:
+    each body's grid meshed ONCE with meshRuns(grid, Outside::Air) (the CPU reference the GPU face builder equals,
+    F2.1); positions are body-grid-local (the record's 8-bit fields: a body side <= 256 voxels, refused otherwise,
+    counted). The faces never change after this; only poses do.
+  - BodyPose (std430, 64 B per body): rotation quaternion (float), the translation of body-grid voxel (0,0,0)
+    RELATIVE TO THE CAMERA (metres, computed in double on the CPU each frame, then float), the voxel size, and the
+    body's grid origin in its source area (voxels) for the texture: the texture is a pure function of where the
+    voxel WAS in the area (§4.3 at the moment of the break), so a piece carries its texture with it.
+    poseOf(SimBody, areaOrigin, camera) = T + R * local, T = pos - R * comLocal.
+  - A CPU mirror of the vertex shader's corner transform (bodyCornerRel, float) so the transform is unit-tested.
+  Renderer:
+  - shaders/voxfound_body.vert: voxfound_face.vert with the body transform (same corner table, faceID order, UV
+    orientation and voxel.frag); instance = BodyFace (binding 1, stride 12, locations 1-3); set 1 = the face
+    texture table (binding 0) + the pose buffer (binding 1), the preview's layout reused. Normal rotated by R.
+    ONE draw for every body (vkCmdDrawIndexed 36 x faces).
+  - shaders/voxfound_body_shadow.vert: the caster twin (mid + near cascades, as the preview's faces), poses from the
+    shadow pipeline's set 0.
+  - Poses: one host-visible buffer, one slot per frame in flight, written once per frame.
+  Live test (editor): POST /api/debug/voxfound_bodies -- a §8 lab rig (stone wall / brick wall / lintel / beam /
+    glass), engine materials by name, placed at a stated world position on a drawn 2-voxel stone floor; the
+    remainder drawn through today's preview path (FaceBuilderGpu), bodies through the new path; the hit breaks it,
+    F5.1 extracts, the CPU REFERENCE solver (BodySimRef) steps at 60 Hz fixed dt (max 4 ticks per frame) -- RIG
+    DIFFERENCE, stated: the shipped path will be the GPU solver; F5.2b's dispatch floor (8-19 ms per tick) makes it
+    unusable live until F5.5's levers. Knobs: pause / ticks, bodies shown, cast shadows, "as_world" (the bodies'
+    voxels written back into the preview grid instead, the gate's control), "mutate" (a 0.5 degree rotation on
+    every body, the gate's mutation).
+  Provenance: hand-built lab rigs (FractureLab §8), pieces from F5.1's extraction of F4.1's fracture; no generator
+  output is involved (the plan's F5.3 tests the draw, not content).
+
+PREDICTIONS (unit, CPU)
+  D1 faces exact: on every §8 rig (stone wall x3 hits, brick wall, beam, glass pane, column + lintel, chair) and 200
+     random stone-wall hits, every body's faces cover its exposed unit faces exactly (coverageErrors = 0), every
+     face carries its own body index, ranges are contiguous and sum to the total. 0 bodies refused (all < 256).
+  D2 built once: over 300 ticks of the R8b blast (21 bodies), the face array is never rebuilt: its hash is unchanged
+     and buildBodyFaces is called once (a counter).
+  D3 identity pose is exact: before the first step, every face corner through the float mirror equals the corner's
+     true world position (bodyOrigin + corner) * voxelM minus the camera EXACTLY (0.0 m) for a camera at a whole
+     metre; within 1e-6 m for a camera at an arbitrary position <= 100 m away.
+  D4 moved pose: after 300 ticks of R8b, every corner of every body within 3e-6 m of the double-precision
+     R * local + T; rotated normals unit to 1e-6 and equal R * n to 1e-6.
+  D5 cost (CPU, the F5.1 large wall 256 x 128 x 4 at E/T 1000 and 2500, ~100 and ~950 bodies): buildBodyFaces
+     2-15 ms total; 12 B per face; faces per body 6-60 median. Pose fill for 1,000 bodies <= 0.05 ms.
+
+PREDICTIONS (live, L4, Release; one chunk; the GPU shared with WoW and another session's engine -- stated)
+  G1 the draw is invisible at rest: the stone wall broken by a hit, solver paused before the first tick. Bodies drawn
+     by the new path vs the same voxels drawn by the preview path ("as_world") at the same pose, debug tonemap off,
+     the wall's screen box: <= 0.01 % of box pixels differ (float sums in a different order; F2.5 measured 0 px).
+     Control (two shots of the same mode): 0 px. Mutation ("mutate", 0.5 degrees): >= 1 % of the box differs.
+  G2 the pieces move with the solver: the route reports each body's centre and tick; a screenshot sequence
+     (t = 0, 0.25, 0.5, 1, 3 s) goes to the owner (the live breaking check moved from F4 to F5). Pieces stay whole
+     (no gaps inside a piece: its faces are one rigid set); resting pieces do not visibly sink into the floor
+     (F5.2's depths <= 1 cm). The pixel-exact check of the transform is G1 + D3/D4; G2 is the eye check.
+  G3 shadows: a piece in flight (paused mid-air) casts: the floor under it darkens between cast on and cast off
+     (>= 0.5 % of the frame differs, all darker on the floor); with no bodies shown, cast on/off differ by 0 px.
+  G4 cost (gpu_timing, the "VoxFound Bodies" scope): R8b's 21 bodies <= 0.05 ms main + <= 0.05 ms shadow; the
+     large-wall E/T 2500 (~950 bodies) <= 0.3 ms main. CPU pose fill + upload <= 0.1 ms per frame. Whole-frame FPS
+     with the bodies shown within noise of hidden at 21 bodies.
+  G5 chunks: bodies are not chunked at all; the remainder is one preview area inside one chunk. Nothing per chunk
+     can show (stated, nothing to measure here).
+
+WHAT WOULD COUNT AS A MISS
+  any D1 coverage error; a rebuild during motion; G1 above 0.01 %; a piece visibly coming apart or detaching from its
+  shadow; G4 above the stated costs.
+
+=====================================================================================================================
+RESULTS (2026-11-18; written after the runs, predictions above untouched)
+
+RED: a stub BodyDraw.cpp failed all 5 unit tests (voxfound_f53_red.txt).
+
+RUN 1 (voxfound_f53_run1.txt): D1 D2 D4 D5 pass; D3 FAILED on its hand-written check -- MY EXPECTATION WAS WRONG, not the
+  code: a +Y face's du spans z (Mesher u = (axis+1)%3), not x. Fixed in the test only; recorded there. Run 2: 5/5.
+  D1 exact: 1,150 bodies / 27,766 faces over 6 rigs x 4 energies + 200 random hits, 0 coverage errors, 0 refused.
+  D2 built once: 21 bodies, 638 faces, hash unchanged over 300 ticks, 1 build; body 0 moved 0.97 m.
+  D3 identity: worst 0 m (whole-metre camera), 1.06e-7 m (any camera). PASS.
+  D4 moved: bodies turned up to 180 deg; worst corner 3.31e-7 m (<= 3e-6), normal 1.7e-7, |n|-1 1.2e-7. PASS.
+  D5 cost: E/T 1000 468 bodies 27,217 faces, build 9.7 ms; E/T 2500 947 bodies 54,493 faces (654 KB), build 18.5 ms --
+     MISSED (predicted 2-15 ms). Median 43 faces per body (in 6-60), max 196. Poses 0.024 ms for 947 (<= 0.05). The
+     lever if it matters: build per body on the GPU in one batch (F5.5), or only for bodies that are new.
+
+LIVE (Release, RTX 4090, 1600 x 900; GPU NOT shared this time: no WoW, no other engine). Project VoxFoundBodies.
+  Harness: tools/voxfound_f53_gate.py; raw records voxfound_f53_live.jsonl, voxfound_f53_g4.txt; PNGs voxfound_f53_*.png.
+  Rig differences, stated: (a) the rig stands on a 2-voxel fixed floor 4 m wide around it, part of the fracture grid,
+  so the same stone-wall hit gives 28 bodies + 41 crumbs here vs 21 in the unit rig; (b) motion by the CPU reference
+  solver at 60 Hz (max 4 ticks/frame), the gates step it explicitly with {"ticks":N}; (c) the scene around the rig is
+  NOT the single Flat chunk the project's game.json asks for (a forest, a cliff and fauna were drawn -- not
+  investigated; fauna removed with /api/debug/residents, the rig lifted to y = 20 above the grass); (d) effect time
+  frozen, tonemap curve 0.
+  G1 invisible at rest: the control (two shots, same mode) was NOT 0 px as predicted: 19.9 % of the box differs by
+     exactly 1 level (a temporal source left after freezing effect time; unexplained). Measured against that floor:
+     bodies vs as_world differ in 15 of 185,000 box px by more than 1 (0.0081 %, max 6, isolated edge pixels) --
+     within the 0.01 % prediction. Mutation (0.5 deg): 121,071 px, max 184. PASS against the floor; the 0-px control
+     prediction MISSED.
+  G2 eye check: blast (8000 N s) sequence t = 0 / 0.25 / 0.5 / 1 / 3 s from the side -- pieces fly, turn, keep their
+     stone texture (varied tile from the rest frame) and shadows, and pile on the floor; 8 of 28 still awake at 3 s.
+     Solver note (F5.2's owed item, not the draw): max penetration 50 mm at 0.25 s and 41 mm at 0.5 s during the
+     impacts, 9.4 mm at 1 s, 5.5 mm at 3 s. Owner review pending.
+  G3 shadows: a piece in flight (tick 12 of the blast): cast on vs off differs in 15.3 % of the frame, 220,148 px
+     darker and 209 lighter ("all darker" was the prediction: 0.1 % lighter, recorded); with the bodies hidden, on vs
+     off differ in 5 px by 1 level (noise). Control 27 px by 1. PASS.
+  G4 cost (gpu_timing median of 200 frames, 12 s settle after every change):
+     stone wall 28 bodies / 700 faces: main 0.033 ms (<= 0.05 PASS), shadow 0.002 + 0.002 ms (PASS); scene pass
+       16.80 vs 16.88 ms hidden -- within noise (PASS). (A first window that spanned a state change read 0.074 ms;
+       discarded as unsettled.)
+     large wall E/T 1000, 464 bodies / 27,011 faces: main 0.61 ms, shadow 0.11 + 0.14 ms.
+     large wall E/T 2500, 947 bodies / 54,439 faces: main 1.19 ms -- MISSED (<= 0.3 predicted, ~4x); shadow 0.26 +
+       0.31 ms. The cost follows the faces (~22 ns each, the 36-index cube per face as the preview), not the bodies.
+       Levers for F5.5: frustum / light cull per body (nothing is culled now), the face count itself (meshRuns, not
+       greedy), the rest/bake-in of F5.4 (asleep bodies return to the world grid).
+     CPU: poses 0.0125 ms per frame at 947 (<= 0.1 PASS); face upload 0.06-0.2 ms once per break.
+  G5 chunks: bodies are not chunked; nothing per chunk can show. Stated.
+
+HARNESS TRAP FOUND: the MCP launch_engine (and a bare launch) dies within 2 s with no log -- python312.dll (the uv
+  CPython 3.12 the build links) is not on this session's PATH. Launch with
+  C:\Users\jack\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none prepended to PATH.
