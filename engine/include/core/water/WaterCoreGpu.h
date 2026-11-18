@@ -219,6 +219,7 @@ public:
         std::vector<int> sourceCells;    ///< dense indices of the pumps (their bricks stay stored)
         Buffer bnd;                      ///< 54.2: HOST-VISIBLE GpuBoundary array (allocated by setBoundaries; empty = none)
         int boundaryCount = 0;           ///< 54.2: prescribed-surface columns run each tick
+        bool swellBoundaries = false;    ///< 55.5: some are SWELL columns - their level pinned again at the call's end (wc_boundary modes 5 / 6)
         std::vector<int> boundaryCells;  ///< 54.2: dense index of each column's cell at its target row (its brick stays stored, as a pump's)
         double swellTime = 0.0;          ///< 55.4: the swell's clock at the next call's first tick (s)
         std::vector<GpuBoundary> hostBoundaries;   ///< 54.2: their exchanges as the last collected call left them
@@ -602,6 +603,7 @@ public:
     /// §27 W1b TEST ONLY: recorded columns NOT walled - the halo stores their bricks as air and they are not frozen, so awake water
     /// beside them pours in (the water then sits in cells AND in the record): the red control.
     static inline bool s_recordedOpenForTest = false;
+    static inline bool s_swellEndPinOffForTest = false;   ///< 55.5 TEST: no end-of-call pin of the swell columns (the red control)
     static inline bool s_boundariesOffForTest = false;   ///< 54.2 TEST: the boundary kernel not dispatched (the red control: today's GPU)
     /// §27 W1b TEST ONLY: the seed leaves fPrev at 0 (the live cascade's cause) - the red control of the wake-speed bound.
     static inline bool s_seedSkipsFPrevForTest = false;

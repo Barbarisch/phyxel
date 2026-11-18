@@ -125,14 +125,18 @@ void buildWaterSurfaceMeshRect(const WaterSurfaceField& f, int rx0, int rz0, int
         }
         return n ? sum / static_cast<float>(n) : ownTop;
     };
-    auto quad = [&](const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& d, float depth, float side, const glm::vec3& outward, float foam, const glm::vec2& flow) {
+    // §55.5 (W6.2b): the sea's quantised depth at each vertex (a top face's four corners; a side face's top edge - its foot stays put)
+    static constexpr uint32_t kNoSea[4] = {0u, 0u, 0u, 0u};
+    auto quad = [&](const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& d, float depth, float side, const glm::vec3& outward, float foam, const glm::vec2& flow,
+                    const uint32_t* sq = kNoSea) {
         glm::vec3 nrm = glm::cross(c - a, b - d);
         if (glm::dot(nrm, outward) < 0.0f) nrm = -nrm;   // the geometric normal, oriented out of the water
         const float len = glm::length(nrm);
         nrm = len > 1e-12f ? nrm / len : outward;
         const uint32_t base = static_cast<uint32_t>(out.vertices.size());
-        // 22 (22.8 F1): the spare float carries the ripple layer as index + 1 - 0 keeps meaning "none"
-        for (const glm::vec3& p : {a, b, c, d}) out.vertices.push_back({p, depth, nrm, side, foam, flow, static_cast<float>(f.rippleLayer + 1)});
+        // 22 (22.8 F1): the spare float carries the ripple layer as index + 1 - 0 keeps meaning "none"; §55.5: + 16 x the sea's q
+        const glm::vec3 ps[4] = {a, b, c, d};
+        for (int k = 0; k < 4; ++k) out.vertices.push_back({ps[k], depth, nrm, side, foam, flow, waterVertexPad(f.rippleLayer + 1, sq[k])});
         out.indices.insert(out.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
     };
     for (int z = std::max(rz0, 0); z < std::min(rz1, f.nz); ++z)
@@ -177,15 +181,20 @@ void buildWaterSurfaceMeshRect(const WaterSurfaceField& f, int rx0, int rz0, int
                     }
                     continue;   // a skin cell has no lateral faces (its dry and masked neighbours: no wall)
                 }
-                quad({x0, y00, z0}, {x0, y01, z1}, {x1, y11, z1}, {x1, y10, z0}, depth, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), foam, flow);
+                // §55.5: the sea's depth at the corners - the TOP run only (the free surface); a lower run is never the sea's top
+                const bool topRun = r == n - 1;
+                const uint32_t q00 = topRun ? f.seaCorner(x, z) : 0u, q10 = topRun ? f.seaCorner(x + 1, z) : 0u;
+                const uint32_t q11 = topRun ? f.seaCorner(x + 1, z + 1) : 0u, q01 = topRun ? f.seaCorner(x, z + 1) : 0u;
+                const uint32_t qTop[4] = {q00, q01, q11, q10};
+                quad({x0, y00, z0}, {x0, y01, z1}, {x1, y11, z1}, {x1, y10, z0}, depth, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), foam, flow, qTop);
                 ++out.topQuads;
                 // lateral faces: -x, +x, -z, +z
-                struct Side { int dx, dz; glm::vec3 a, b; float ya, yb; };
+                struct Side { int dx, dz; glm::vec3 a, b; float ya, yb; uint32_t qa, qb; };
                 const Side sides[4] = {
-                    {-1, 0, {x0, 0, z0}, {x0, 0, z1}, y00, y01},
-                    {+1, 0, {x1, 0, z1}, {x1, 0, z0}, y11, y10},
-                    {0, -1, {x1, 0, z0}, {x0, 0, z0}, y10, y00},
-                    {0, +1, {x0, 0, z1}, {x1, 0, z1}, y01, y11},
+                    {-1, 0, {x0, 0, z0}, {x0, 0, z1}, y00, y01, q00, q01},
+                    {+1, 0, {x1, 0, z1}, {x1, 0, z0}, y11, y10, q11, q10},
+                    {0, -1, {x1, 0, z0}, {x0, 0, z0}, y10, y00, q10, q00},
+                    {0, +1, {x0, 0, z1}, {x1, 0, z1}, y01, y11, q01, q11},
                 };
                 for (const Side& s : sides) {
                     const SurfaceColumn* nb = col(x + s.dx, z + s.dz);
@@ -196,7 +205,8 @@ void buildWaterSurfaceMeshRect(const WaterSurfaceField& f, int rx0, int rz0, int
                     if (std::max(s.ya, s.yb) - floorY < 1e-4f) continue;
                     glm::vec3 a = s.a, b = s.b; a.y = s.ya; b.y = s.yb;
                     glm::vec3 c2 = b, d = a; c2.y = floorY; d.y = floorY;
-                    quad(a, b, c2, d, depth, 1.0f, glm::vec3(static_cast<float>(s.dx), 0.0f, static_cast<float>(s.dz)), foam, flow);
+                    const uint32_t qSide[4] = {s.qa, s.qb, 0u, 0u};   // the face's top edge rides the top face's edge; its foot stays
+                    quad(a, b, c2, d, depth, 1.0f, glm::vec3(static_cast<float>(s.dx), 0.0f, static_cast<float>(s.dz)), foam, flow, qSide);
                     ++out.sideQuads;
                 }
             }

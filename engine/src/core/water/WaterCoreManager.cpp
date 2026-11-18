@@ -1310,6 +1310,23 @@ bool WaterCoreManager::isSeaColumn(int wx, int wz, float top) const {
     return r && r->cls == "ocean";
 }
 
+SeaDepthGrid WaterCoreManager::seaDepthGridFor(const glm::ivec3& lo, const glm::ivec3& hi) const {
+    SeaDepthGrid g;
+    const int H = s_seaDrawNoHaloForTest ? 0 : kSeaDrawHaloVoxels;
+    g.x0 = lo.x - H; g.z0 = lo.z - H; g.nx = hi.x - lo.x + 1 + 2 * H; g.nz = hi.z - lo.z + 1 + 2 * H;
+    g.d.assign(static_cast<size_t>(std::max(0, g.nx)) * static_cast<size_t>(std::max(0, g.nz)), 0.0f);
+    if (!m_spanReader || g.nx <= 0 || g.nz <= 0) return g;
+    std::vector<ColumnRuns> runs;
+    m_spanReader(glm::ivec3(g.x0, lo.y, g.z0), glm::ivec3(g.x0 + g.nx - 1, hi.y, g.z0 + g.nz - 1), runs);
+    const auto col = joinColumnRuns(runs, static_cast<float>(lo.y), static_cast<float>(hi.y + 1));
+    for (const auto& [k, tb] : col) {
+        const int X = k.first - g.x0, Z = k.second - g.z0;
+        if (X < 0 || Z < 0 || X >= g.nx || Z >= g.nz || tb.first <= tb.second) continue;
+        if (isSeaColumn(k.first, k.second, tb.first)) g.d[static_cast<size_t>(X) + static_cast<size_t>(g.nx) * Z] = tb.first - tb.second;
+    }
+    return g;
+}
+
 WaterCoreManager::ShoreBandResult WaterCoreManager::makeShoreBand(const glm::vec2& c, const glm::vec2& landward, float yHint) {
     ShoreBandResult r;
     const auto t0 = std::chrono::steady_clock::now();
@@ -1355,6 +1372,9 @@ WaterCoreManager::ShoreBandResult WaterCoreManager::makeShoreBand(const glm::vec
         if (it == col.end() || it->second.first <= it->second.second) { av->shoreDry.insert({wx, wz}); ++r.dryColumns; continue; }
         if (isSeaColumn(wx, wz, it->second.first)) { av->shoreSea[{wx, wz}] = it->second.first; ++r.seaColumns; }
     }
+    // 55.5 (W6.2b): the swell columns' depth is the DRAWN sea's (seaDepthGridFor, quantised as the record's corners are), so the
+    // band's edge and the record beside it evaluate one function with one input
+    const SeaDepthGrid seaD = seaDepthGridFor(lo, hi);
     const int per = std::max(1, av->per), nx = sp.dims.x, nz = sp.dims.z, S = kShoreStripCells;
     std::vector<BoundarySpec> bs;
     for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
@@ -1368,7 +1388,7 @@ WaterCoreManager::ShoreBandResult WaterCoreManager::makeShoreBand(const glm::vec
         if (av->shoreSea.count({wx, wz})) {   // the sea: a swell column
             b.swellAmp = m_seaSwell.amplitude; b.swellLambda = m_seaSwell.wavelength; b.swellWind = m_seaSwell.windRad;
             b.worldXZ = glm::vec2((static_cast<float>(sp.origin.x + x) + 0.5f) * sp.h, (static_cast<float>(sp.origin.z + z) + 0.5f) * sp.h);
-            b.stillDepth = it->second.first - it->second.second;
+            b.stillDepth = s_seaDrawOffForTest ? it->second.first - it->second.second : seaDepthFromQ(seaDepthQ(seaD.at(b.worldXZ.x, b.worldXZ.y)));
             ++r.swellColumns;
         } else if (ring) { b.freeVelocity = true; ++r.levelColumns; }   // other water at the edge (a lake): its level held, open
         else continue;
@@ -3003,6 +3023,28 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
             }
         }
     }
+    if (!s_seaDrawOffForTest) {
+        // 55.5 (W6.2b) B1: a column a live volume draws is ANOTHER drawer's (27.15: runs < 0, its top = bottom: no level to meet) -
+        // dropped, it read as an empty neighbour and the mesher walled the volume's box from the record's top down to the bed (the
+        // owner's "gaps" on w62_clip: a water wall where the band was lower, a see-through sliver over the bed where it was higher)
+        for (int fz = 0; fz < t.field.nz; ++fz) for (int fx = 0; fx < t.field.nx; ++fx) {
+            const int wx = seaFloorDiv(t.field.origin.x + fx, per), wz = seaFloorDiv(t.field.origin.z + fz, per);
+            if (!owned(wx, wz)) continue;
+            SurfaceColumn& sc = t.field.cols[static_cast<size_t>(fx) + static_cast<size_t>(t.field.nx) * fz];
+            sc = SurfaceColumn{}; sc.top[0] = sc.bottom[0] = 0.0f; sc.runs = -1.0f;
+        }
+        // B2: the sea's depth at every corner (the drawn swell's limit; 0 off the sea and on a waterline)
+        const SeaDepthGrid g = seaDepthGridFor(lo, hi);
+        const int cnx = t.field.nx + 1, cnz = t.field.nz + 1;
+        t.field.seaQ.assign(static_cast<size_t>(cnx) * static_cast<size_t>(cnz), 0);
+        bool any = false;
+        for (int cz = 0; cz < cnz; ++cz) for (int cx = 0; cx < cnx; ++cx) {
+            const uint32_t q = seaCornerQ(g, t.field.origin.x + cx, t.field.origin.z + cz, per);
+            t.field.seaQ[static_cast<size_t>(cx) + static_cast<size_t>(cnx) * cz] = static_cast<uint8_t>(q);
+            any = any || q != 0u;
+        }
+        if (!any) t.field.seaQ.clear();
+    } else t.field.seaQ.clear();
     bpart(2);
     t.field.source = kRecordDrawSourceBit | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
     t.field.version = ++m_recordBuilds;

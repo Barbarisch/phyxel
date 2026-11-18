@@ -1773,6 +1773,7 @@ bool WaterCoreGpu::setBoundaries(Volume& vol, const std::vector<GpuBoundary>& b,
     if (!b.empty()) std::memcpy(vol.bnd.mapped, b.data(), b.size() * sizeof(GpuBoundary));
     vol.boundaryCount = static_cast<int>(b.size());
     vol.hostBoundaries = b;
+    vol.swellBoundaries = std::any_of(b.begin(), b.end(), [](const GpuBoundary& g) { return g.swellAmp > 0.0f; });
     vol.boundaryCells.clear();
     const int nx = vol.spec.dims.x, ny = vol.spec.dims.y;
     for (const GpuBoundary& g : b) {
@@ -3114,6 +3115,14 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         }
         capAt(8);
         stamp(cmd, vol, TsSweepBirths);
+    }
+    if (vol.boundaryCount > 0 && vol.swellBoundaries && !s_boundariesOffForTest && !s_swellEndPinOffForTest) {
+        // 55.5 (W6.2b): the swell columns' level pinned at the call's END time (level only): the surface drawn from this state is the
+        // swell the sea beside the band is drawn with (a tick's inflow had raised the ring a mean 5 cm over it)
+        WcPush bp = push; bp.iparam = vol.boundaryCount;
+        bp.param0 = static_cast<float>(swellT0 + static_cast<double>(ticks) * dt);
+        for (int parity = 0; parity < 2; ++parity) { bp.mode = 5 + parity; dispatch(cmd, *vol.pipes[Boundary], bp, static_cast<size_t>(vol.boundaryCount)); }
+        barrier(cmd);
     }
     if (!capture) std::swap(capBuf, vol.stageCap);   // the capture buffer is back in place (only the recording needed it hidden)
     vol.slotsUsed = fullSlots; vol.colCount = fullCols;   // 26.31 step 2: every stored brick from here

@@ -2086,11 +2086,12 @@ TEST_F(WaterCoreGpuParityTest, GpuSwellBoundaryMatchesTheCpuSwell) {
         for (const GpuBoundary& b : rb) {
             if (b.swellAmp <= 0.0f) { ctlWorst = std::max({ctlWorst, (double)std::abs(b.rows - 8.5f), (double)std::abs(b.ux - 0.1f), (double)std::abs(b.uz - 0.2f)}); continue; }
             ++swellCols;
-            const SeaSwellColumn c = seaSwellColumn(sp, b.worldX, b.worldZ, static_cast<float>(t0), b.depth, false);   // the band's drive: no return current
+            // 55.5: the entry holds what was held LAST - the call's end pin (wc_boundary modes 5 / 6) at t0 + the call's one tick
+            const SeaSwellColumn c = seaSwellColumn(sp, b.worldX, b.worldZ, static_cast<float>(t0 + kDt), b.depth, false);   // the band's drive: no return current
             worstH = std::max(worstH, (double)std::abs((b.rows - still) * h - c.height));
             worstU = std::max(worstU, (double)std::max(std::abs(b.ux - c.uAvg.x), std::abs(b.uz - c.uAvg.y)));
         }
-        const SeaSwellColumn c0 = seaSwellColumn(sp, bs[0].worldX, bs[0].worldZ, static_cast<float>(t0), depth, false);
+        const SeaSwellColumn c0 = seaSwellColumn(sp, bs[0].worldX, bs[0].worldZ, static_cast<float>(t0 + kDt), depth, false);
         std::printf("  t %.2f s: column (0,0) GPU level %+.4f m, u (%+.4f, %+.4f); CPU %+.4f m, u (%+.4f, %+.4f), depth scale %.3f\n", t0,
                     (rb[0].rows - still) * h, rb[0].ux, rb[0].uz, c0.height, c0.uAvg.x, c0.uAvg.y, c0.depthScale);
     }

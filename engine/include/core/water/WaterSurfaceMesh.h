@@ -83,7 +83,12 @@ struct WaterSurfaceField {
     /// 51.4 S3: each column's pad1 / pad2 carry the part of the cell its top quad covers, in x and in z (skinInsetEncode): the far
     /// skin's coarse cells drawn over their wet columns' extent only, so a straight shore stays on the shore at any cell size
     bool insetCols = false;
+    /// §55.5 (W6.2b): the sea's quantised still depth at each CORNER ((nx + 1) x (nz + 1), index x + (nx + 1) z; SeaDraw.h
+    /// seaCornerQ) - the drawn swell's depth limit, packed into the vertex's spare float. Empty = no sea drawn (every field but the
+    /// record's tiles)
+    std::vector<uint8_t> seaQ;
     const SurfaceColumn& at(int x, int z) const { return cols[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]; }
+    uint32_t seaCorner(int x, int z) const { return seaQ.empty() ? 0u : seaQ[static_cast<size_t>(x) + static_cast<size_t>(nx + 1) * z]; }
 };
 
 /// CPU extraction from the grid (runs of layers with f * h >= 1 mm; the top of a run is its highest
@@ -105,9 +110,11 @@ struct WaterSurfaceVertex {
     float     side;      ///< 0 = top face, 1 = lateral face
     float     foam;      ///< 0..1 whitewater (G2)
     glm::vec2 flow;      ///< surface velocity, x and z (m/s) (G2)
-    float     pad = 0.0f;
+    float     pad = 0.0f;    ///< the ripple layer + 1 (0..15) + 16 x the sea's quantised depth q (0..255; §55.5 W6.2b) - waterVertexPad
 };
 static_assert(sizeof(WaterSurfaceVertex) == 48, "water_surface.vert expects 48-byte vertices");
+/// §55.5: the spare float packed - exact in a float (< 2^24). The vertex shader unpacks both; the ripple index is < 8 (rip.geo[8])
+inline float waterVertexPad(int rippleLayerPlusOne, uint32_t seaQ) { return static_cast<float>((rippleLayerPlusOne & 15) + 16 * static_cast<int>(seaQ & 255u)); }
 
 /// G3: one draw per field, so each body's look reaches the shader in the push block.
 struct WaterSurfaceRange { uint32_t firstIndex = 0, indexCount = 0; WaterLookPacked look; };

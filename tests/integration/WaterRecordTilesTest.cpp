@@ -1988,6 +1988,189 @@ TEST_F(WaterRecordTilesTest, AShoreBandFollowsTheViewerAndTheSwashMoves) {
     EXPECT_EQ(red.maxVols, 0) << "the red control: follow off makes nothing";
 }
 
+// WaterCore §55.5 (W6.2b): THE SWELL MEETS THE BAND WITH NO STEP - the owner on w62_clip.mp4 (2026-11-18): "the harsh edges it creates
+// between the short water and the greater ocean is terrible and jarring. there is obvious gaps and different water heights ... that
+// water movement needs to blend into greater body of water". Live (Coast) the band's seaward ring swung 15.90-16.34 m beside a flat
+// 16.000 record, and the record's tiles walled the band's box down to the bed. The rig: test 3's staircase sea, the band parked at the
+// waterline (0.3 m swell), 20 instants over the stay's last 4 s. Measured at every corner on the band's box edge where the band holds
+// water inside and the record outside: the band's drawn corner (the mean of its edge columns' tops - its mesher's edge rule) against
+// the record's drawn corner (its columns' level + the drawn swell, SeaDraw.h's CPU mirror of water_surface.vert at the corner's own q
+// and the band's clock). Plus: the record's side faces ON the box border (the walls), the corner depth bit-equal across every pair of
+// record tiles sharing an edge, and the sea corners drawn. Prediction: today (the red control, s_seaDrawOffForTest) a step of ~0.3 m
+// and ~9 walls a metre of border; after, <= 2 cm and none. Controls: amplitude 0 (no step either way); the tiles' depth read WITHOUT
+// the halo (s_seaDrawNoHaloForTest) - the seam corners must then differ (the comparison can see it).
+namespace {
+struct SwellEdgeRun {
+    bool ok = false; std::string err;
+    int samples = 0, corners = 0, shoreCorners = 0; double worst = 0.0, worstStart = 0.0, sumSq = 0.0, shoreWorst = 0.0, shoreSum = 0.0; float bandLo = 1e9f, bandHi = -1e9f;
+    long walls = 0; int seamCorners = 0, seamDiffer = 0; long seaCorners = 0; double borderM = 0.0;
+};
+}
+
+TEST_F(WaterRecordTilesTest, TheSwellMeetsTheBandWithNoStep) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    constexpr float L = 4.0f;
+    constexpr int per = 9;
+    auto bedAt = [](int z) { return z < -30 ? 1.0f : z < -12 ? 2.0f : z < 8 ? 3.0f : z < 32 ? 4.0f : 5.0f; };
+    auto run = [&](float amp, bool redOff, bool noHalo) {
+        SwellEdgeRun out;
+        WaterCoreManager::s_seaDrawOffForTest = redOff; WaterCoreManager::s_seaDrawNoHaloForTest = noHalo; WaterCoreGpu::s_swellEndPinOffForTest = redOff;
+        auto state = [bedAt, per](const glm::ivec3& m) -> int {
+            if (m.y < 0) return 1;
+            const int z = m.z >= 0 ? m.z / per : -((-m.z + per - 1) / per);
+            return m.y < static_cast<int>(bedAt(z) * per) ? 1 : 0;
+        };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { out.err = err; return out; }
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        for (int x = -40; x < 160; ++x) for (int z = -60; z < 8; ++z) { ColumnRun r; r.bottomY = bedAt(z); r.topY = L; r.mass = L - r.bottomY; record.cols[{x, z}].push_back(r); }
+        WaterBodyRecord sea; sea.id = 1; sea.cls = "ocean"; sea.level = L; sea.origin = "generation"; sea.bboxMin = {-40, -60}; sea.bboxMax = {159, 7};
+        mgr.bodies().importGeneration({sea});
+        mgr.setBakeBodyQuery([](int x, int z) { return (x >= -40 && x < 160 && z < 8) ? 1 : -1; });
+        SeaSwellParams sw; sw.amplitude = amp; sw.wavelength = 14.0f; sw.windRad = 1.5707963f; mgr.setSeaSwell(sw);
+        WaterCoreManager::RiverFollow rf; rf.on = false; mgr.setRiverFollow(rf);
+        const glm::vec3 viewer(20.0f, 12.0f, 6.0f);
+        mgr.setViewPoint(viewer);
+        mgr.setRealtime(false);
+        const SeaDrawParams draw{};
+        const float dt = 1.0f / 60.0f;
+        double t = 0.0;
+        for (int k = 0; k < 480; ++k) {
+            mgr.setSeaSwellTime(t);
+            mgr.followShore(viewer, t);
+            const int id = mgr.shoreFollowState().id;
+            if (id) { AvRecord rec; mgr.step(id, 1, dt, &rec); }
+            const double tStep = t;
+            t += dt;
+            if (!id || k < 240 || k % 12) continue;
+            mgr.surfaceFields();
+            for (int g = 0; g < 200 && mgr.recordDrawStats().pending > 0; ++g) mgr.surfaceFields();
+            const std::vector<const WaterSurfaceField*> F = mgr.surfaceFields();
+            const WaterSurfaceField* band = nullptr;
+            std::vector<const WaterSurfaceField*> rec;
+            for (const WaterSurfaceField* f : F) {
+                if (WaterCoreManager::isRecordDrawField(*f)) rec.push_back(f);
+                else if (f->source == id) band = f;
+            }
+            if (!band) { out.err = "no band field"; continue; }
+            const auto& st = mgr.shoreFollowState();
+            const int X0 = st.lo.x * per, X1 = (st.hi.x + 1) * per, Z0 = st.lo.z * per, Z1 = (st.hi.z + 1) * per;
+            auto bandTop = [&](int mx, int mz, float& y) {
+                const int bx = mx - band->origin.x, bz = mz - band->origin.z;
+                if (bx < 0 || bz < 0 || bx >= band->nx || bz >= band->nz) return false;
+                const SurfaceColumn& c = band->at(bx, bz);
+                const int n = std::min(static_cast<int>(c.runs + 0.5f), kSurfaceMaxRuns);
+                if (n <= 0) return false;
+                y = c.top[n - 1]; return true;
+            };
+            auto recField = [&](int mx, int mz) -> const WaterSurfaceField* {
+                for (const WaterSurfaceField* f : rec)
+                    if (mx >= f->origin.x && mz >= f->origin.z && mx < f->origin.x + f->nx && mz < f->origin.z + f->nz) return f;
+                return nullptr;
+            };
+            auto recTop = [&](int mx, int mz, float& y) {
+                const WaterSurfaceField* f = recField(mx, mz);
+                if (!f) return false;
+                const SurfaceColumn& c = f->at(mx - f->origin.x, mz - f->origin.z);
+                const int n = std::min(static_cast<int>(c.runs + 0.5f), kSurfaceMaxRuns);
+                if (n <= 0) return false;
+                y = c.top[n - 1]; return true;
+            };
+            // one corner (cx, cz) on the box edge: in0 / in1 the band's columns beside it, out0 / out1 the record's
+            auto corner = [&](int cx, int cz, glm::ivec2 in0, glm::ivec2 in1, glm::ivec2 out0, glm::ivec2 out1) {
+                float s = 0.0f, y = 0.0f; int n = 0;
+                if (bandTop(in0.x, in0.y, y)) { s += y; ++n; }
+                if (bandTop(in1.x, in1.y, y)) { s += y; ++n; }
+                if (!n) return;
+                const float bandY = s / static_cast<float>(n);
+                float r = 0.0f; int m = 0;
+                if (recTop(out0.x, out0.y, y)) { r += y; ++m; }
+                if (recTop(out1.x, out1.y, y)) { r += y; ++m; }
+                if (!m) return;
+                const WaterSurfaceField* f = recField(out0.x, out0.y);
+                if (!f) f = recField(out1.x, out1.y);
+                const uint32_t q = f ? f->seaCorner(cx - f->origin.x, cz - f->origin.z) : 0u;
+                const float wx = static_cast<float>(cx) / per, wz = static_cast<float>(cz) / per;
+                const float fade = seaDrawFade(std::hypot(wx - viewer.x, wz - viewer.z), draw);
+                const float recY = r / static_cast<float>(m) + seaDrawnOffset(sw, wx, wz, static_cast<float>(tStep), q, fade);
+                const float recYNext = r / static_cast<float>(m) + seaDrawnOffset(sw, wx, wz, static_cast<float>(tStep + dt), q, fade);
+                // a WATERLINE corner (a dry voxel column touches it): the record's water edge is held at the still level by design, the
+                // band's swash runs past it - the surf zone at the band's side edges, measured apart (55.5: not fixed here)
+                bool waterline = false;
+                for (int zz = seaFloorDiv(cz - 1, per); zz <= seaFloorDiv(cz, per); ++zz)
+                    for (int xx = seaFloorDiv(cx - 1, per); xx <= seaFloorDiv(cx, per); ++xx) if (!record.cols.count({xx, zz})) waterline = true;
+                const double d = std::abs(static_cast<double>(bandY - recYNext));
+                if (waterline) { ++out.shoreCorners; out.shoreWorst = std::max(out.shoreWorst, d); out.shoreSum += d; return; }
+                out.worstStart = std::max(out.worstStart, std::abs(static_cast<double>(bandY - recY)));
+                if (std::getenv("SHORE_DIAG") && d > 0.03)
+                    std::printf("    corner (%.2f, %.2f) t %.2f: band %.3f record %.3f (q %u, D %.2f, record level %.3f) d %.3f\n", wx, wz, tStep, bandY, recY, q,
+                                seaDepthFromQ(q), r / static_cast<float>(m), d);
+                out.worst = std::max(out.worst, d); out.sumSq += d * d; ++out.corners;
+                out.bandLo = std::min(out.bandLo, bandY); out.bandHi = std::max(out.bandHi, bandY);
+            };
+            for (int cx = X0 + 1; cx < X1; ++cx) corner(cx, Z0, {cx - 1, Z0}, {cx, Z0}, {cx - 1, Z0 - 1}, {cx, Z0 - 1});              // the seaward edge
+            for (int cz = Z0 + 1; cz < Z1; ++cz) {
+                corner(X0, cz, {X0, cz - 1}, {X0, cz}, {X0 - 1, cz - 1}, {X0 - 1, cz});                                              // the -x side
+                corner(X1, cz, {X1 - 1, cz - 1}, {X1 - 1, cz}, {X1, cz - 1}, {X1, cz});                                              // the +x side
+            }
+            ++out.samples;
+            if (out.samples == 1) {   // the record's walls on the box border, the tiles' seams, the sea drawn (the record is static: once)
+                const float h = 1.0f / per, e = 1e-4f;
+                for (const WaterSurfaceField* f : rec) {
+                    WaterSurfaceMesh m; buildWaterSurfaceMesh(*f, m);
+                    for (size_t v = 0; v + 3 < m.vertices.size(); v += 4) {
+                        if (m.vertices[v].side < 0.5f || m.vertices[v].side > 1.5f) continue;
+                        bool onX0 = true, onX1 = true, onZ0 = true, onZ1 = true, inZ = true, inX = true;
+                        for (size_t j = v; j < v + 4; ++j) {
+                            const glm::vec3& p = m.vertices[j].pos;
+                            onX0 = onX0 && std::abs(p.x - X0 * h) < e; onX1 = onX1 && std::abs(p.x - X1 * h) < e;
+                            onZ0 = onZ0 && std::abs(p.z - Z0 * h) < e; onZ1 = onZ1 && std::abs(p.z - Z1 * h) < e;
+                            inZ = inZ && p.z > Z0 * h - e && p.z < Z1 * h + e; inX = inX && p.x > X0 * h - e && p.x < X1 * h + e;
+                        }
+                        if (((onX0 || onX1) && inZ) || ((onZ0 || onZ1) && inX)) ++out.walls;
+                    }
+                    for (const WaterSurfaceField* g : rec) {
+                        if (g->origin.x == f->origin.x + f->nx && g->origin.z == f->origin.z)
+                            for (int j = 0; j <= f->nz; ++j) { ++out.seamCorners; if (f->seaCorner(f->nx, j) != g->seaCorner(0, j)) ++out.seamDiffer; }
+                        if (g->origin.z == f->origin.z + f->nz && g->origin.x == f->origin.x)
+                            for (int i = 0; i <= f->nx; ++i) { ++out.seamCorners; if (f->seaCorner(i, f->nz) != g->seaCorner(i, 0)) ++out.seamDiffer; }
+                    }
+                    for (int j = 0; j <= f->nz; ++j) for (int i = 0; i <= f->nx; ++i) if (f->seaCorner(i, j)) ++out.seaCorners;
+                }
+                out.borderM = 2.0 * ((X1 - X0) + (Z1 - Z0)) * h;
+            }
+        }
+        WaterCoreManager::s_seaDrawOffForTest = false; WaterCoreManager::s_seaDrawNoHaloForTest = false; WaterCoreGpu::s_swellEndPinOffForTest = false;
+        out.ok = out.samples > 0;
+        if (!out.ok && out.err.empty()) out.err = "no band was made (" + mgr.shoreFollowState().lastError + ")";
+        return out;
+    };
+    const SwellEdgeRun g = run(0.3f, false, false), red = run(0.3f, true, false), calm = run(0.0f, false, false), nh = run(0.3f, false, true);
+    ASSERT_TRUE(g.ok) << g.err; ASSERT_TRUE(red.ok) << red.err; ASSERT_TRUE(calm.ok) << calm.err; ASSERT_TRUE(nh.ok) << nh.err;
+    auto pr = [](const char* tag, const SwellEdgeRun& r) {
+        std::printf("  %s: %d instants x the box edge, %d open-water corners: band vs record drawn worst %.4f m (rms %.4f; at the call's START clock %.4f);\n"
+                    "      %d waterline corners (the surf zone at the side edges, apart): worst %.4f, mean %.4f m; the band's edge swung %.3f .. %.3f m;\n"
+                    "      record walls on the box border %ld (%.0f m of border); tile seams: %d of %d corners differ; sea corners drawn %ld\n",
+                    tag, r.samples, r.corners, r.worst, r.corners ? std::sqrt(r.sumSq / r.corners) : 0.0, r.worstStart, r.shoreCorners, r.shoreWorst,
+                    r.shoreCorners ? r.shoreSum / r.shoreCorners : 0.0, r.bandLo, r.bandHi, r.walls, r.borderM, r.seamDiffer, r.seamCorners, r.seaCorners);
+    };
+    pr("GREEN", g); pr("RED (today: the sea drawn flat, the box walled)", red); pr("CALM (amplitude 0)", calm); pr("CONTROL (the depth read without its halo)", nh);
+    EXPECT_LE(g.worst, 0.02) << "the band's edge and the sea drawn beside it: no step";
+    EXPECT_EQ(g.walls, 0) << "the record draws no wall into the band's columns";
+    EXPECT_EQ(g.seamDiffer, 0) << "the corner depth is one number at a tile seam";
+    EXPECT_GT(g.seaCorners, 0) << "the sea is drawn";
+    EXPECT_GT(red.worst, 0.1) << "the red control: today's step";
+    // [no red walls: the band's box is tile-aligned, so no record tile ever held one of its columns - today's code drew no wall here
+    //  either; the live gaps were the see-through slivers the height step opens at the band's unfaced edge. B1 stays for a box that is
+    //  not tile-aligned, pinned by the green count]
+    EXPECT_LE(calm.worst, 0.005) << "calm: no step";
+    // [read without the halo, both tiles zero their edge corners (the waterline rule sees a missing column) - they agree, and a flat line
+    //  runs along every tile edge: the control shows as sea corners lost, not as a seam difference]
+    EXPECT_LT(nh.seaCorners, g.seaCorners) << "the control: without the halo the tiles' edge corners lose the sea";
+}
+
 // WaterCore §54.4 (W5.3): the river's ripples - the owner on w52b_clip: "it takes a while for the ripples to show up as the camera
 // moves. and the line between ripples and not is very obvious". One ripple layer over the river near the viewer (the record's river
 // and the reach alike). The measure: the RMS facet slope (the shader's central difference, 1/9 m) of whichever drawn layer holds a

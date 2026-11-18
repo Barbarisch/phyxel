@@ -59,9 +59,15 @@ void main() {
         for (int y = 0; y < pc.ny; ++y) { if (!stored(x, y, z)) continue; const uint ci = cellIdx(x, y, z); if (liq[ci] == 1u) liq[ci] = 2u; }
         return;
     }
-    const bool openOnly = pc.mode >= 3;
+    // modes 5 / 6 (55.5, W6.2b): the SWELL columns' level pinned again at the END of a call (pc.param0 = the call's end time), level
+    // only: a tick's inflow through the outer face raised the ring ~u d dt / h (~9 cm at 0.6 m/s, 1 m deep) after its pin, and the
+    // surface drawn from that state stood a mean 5 cm over the swell the sea beside it is drawn with (TheSwellMeetsTheBandWithNoStep).
+    // The next call's first pin is at the same time - the same level, so the physics is the same; the change is counted as exchange.
+    const bool endPin = pc.mode >= 5;
+    const bool openOnly = pc.mode == 3 || pc.mode == 4;
     if (openOnly && b.freeVel == 0.0) return;
-    if (((x + z) & 1) != (openOnly ? pc.mode - 3 : pc.mode)) return;
+    if (endPin && !(b.swellAmp > 0.0)) return;
+    if (((x + z) & 1) != (openOnly ? pc.mode - 3 : (endPin ? pc.mode - 5 : pc.mode))) return;
     if (!openOnly && b.swellAmp > 0.0) {
         float eta; vec2 ua;
         seaSwellColumnG(b.swellAmp, b.swellLambda, b.swellWind, b.worldX, b.worldZ, pc.param0, b.depth, eta, ua);
@@ -78,6 +84,7 @@ void main() {
         addEx(b.exHi, b.exLo, a); b.exLo += twoSumErr(want, -f[ci], a);   // want - f, exactly
         addEx(b.exHi, b.exLo, -fLo[ci]);                                     // and the remainder the cell held
         f[ci] = want; fLo[ci] = 0.0;
+        if (endPin) continue;   // 55.5: the level only - the velocity and the inflow term belong to the next tick's pin
         src[ci] = b.qn > 0.0 ? b.qn * pc.h * pc.h * want : 0.0;   // the inflow through the box's outer face, this cell's wet share
         if (want > 0.0 && b.freeVel == 0.0) {
             if (!blocked(x - 1, y, z)) u[uIdx(x, y, z)] = b.ux;

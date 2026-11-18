@@ -2206,6 +2206,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_river_reach", waterEndpoint("water_av_river_reach"));   // 54.2 W5.2: a simulated river reach
     srv.Post("/api/debug/water_av_river_follow", waterEndpoint("water_av_river_follow"));   // 54.3 W5.2b: a reach follows the viewer along a river
     srv.Post("/api/debug/water_av_shore_follow", waterEndpoint("water_av_shore_follow"));   // 55.4 W6.2a: a shore band follows the viewer along a beach
+    srv.Post("/api/debug/water_sea_draw", waterEndpoint("water_sea_draw"));   // 55.5 W6.2b: the swell drawn on the record's sea
     srv.Post("/api/debug/water_query",          waterEndpoint("water_query"));          // 52 W4.1: what the readers of water read (bodies, camera)
     srv.Post("/api/debug/water_av_census",      waterEndpoint("water_av_census"));
     srv.Post("/api/debug/water_av_record_draw", waterEndpoint("water_av_record_draw")); // §27 W1a: recorded water drawn by the pond surface

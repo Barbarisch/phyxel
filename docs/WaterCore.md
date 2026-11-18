@@ -80,8 +80,12 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
    within 5 %; the owner: "build band now" (the fine-slope run-up shortfall a known limit). W6.2a (the band) BUILT, tests
    green (55.4: the swash swings 0-9 m on the shelf, the band follows 100 %, the sea goes back at its still level, books 1e-5 m^3;
    L4 on Coast: the sea named by generation's rule, the release rule fixed (the record exact along a 100 m walk), +2.25 ms a frame
-   standing / +9.3 ms walking, each swap one 100-200 ms frame - OPEN; the band's sea 3.2 cm under the swell - OPEN). Next: W6.2b's
-   design check (the swell drawn outside the band), then the owner's one clip for W6.2.**
+   standing / +9.3 ms walking, each swap one 100-200 ms frame - OPEN; the band's sea 3.2 cm under the swell - OPEN). **The owner
+   (2026-11-18, on `w62_clip.mp4`): "the water movement itself isnt bad, but the harsh edges it creates between the short water and
+   the greater ocean is terrible and jarring. there is obvious gaps and different water heights ... that water movement needs to
+   blend into greater body of water."** W6.2b (the band blends into the sea: the sea drawn with the band's own swell, the ring
+   pinned at the call's end) BUILT, not signed off (55.5: the band's edge vs the sea beside it 0.9 cm worst in the rig, was 40 cm;
+   no measurable frame cost; the surf zone at the band's side edges 16 cm - OPEN). The owner's one clip for W6.2: `w62b_clip.mp4`.**
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
@@ -14306,7 +14310,7 @@ READY with amendments A1-A4; built as designed).
   owner's list. "Water constantly flowing": the design already simulates only near the player (the follow reach) and draws the rest
   from the record - written down here as the rule W6 keeps (the sea's swell offshore is appearance, never simulated).
 
-## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2); W6.2 step 0 MEASURED (55.3) - the owner: build the band now; W6.2a the shore band BUILT, L4 done (55.4: +2.25 ms standing, +9.3 ms walking, a 100-200 ms frame per swap - OPEN)
+## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2); W6.2 step 0 MEASURED (55.3) - the owner: build the band now; W6.2a the shore band BUILT, L4 done (55.4: +2.25 ms standing, +9.3 ms walking, a 100-200 ms frame per swap - OPEN); W6.2b the band blends into the sea BUILT, not signed off (55.5, `w62b_clip.mp4`)
 
 **55.0 Step 0 (2026-11-16) - what draws the sea today, measured before W6 is designed** (`tools/water_w6_step0.py`, WaterBench_Coast,
 the shipped game.json, restored world; two engine runs, the old sheet ON (shipped) and OFF (RIG: game.json `water.enabled` false -
@@ -14603,6 +14607,88 @@ W6.2a.** Two parts, built a then b, one owner clip at the end.
     in it). Not shown to the owner yet: the plan's one owner clip comes after W6.2b.
   - Harness notes: `/api/camera` does not report a camera_path's pose (`/api/camera/path` does); requests during a pass slow the
     frames on this bench (~5 s a poll round) - measure with the recorder and no polls.
+
+### 55.5 W6.2b - the band blends into the sea (2026-11-18). Status: BUILT, not signed off
+
+**The owner (2026-11-18, on `w62_clip.mp4`):** "the water movement itself isnt bad, but the harsh edges it creates between the short
+water and the greater ocean is terrrible and jarring. there is obvious gaps and different water heights. looks really bad. not sure how
+we need to do it, but that water movement needs to blend into greater body of water". W6.2b's acceptance became BLEND: no visible
+edge, no gap, no step.
+
+**Measured first (Coast, the band x 152-175 z 680-703, a transect at x 164, 6 samples 0.7 s apart, `water_av_column`):** the band's
+seaward ring column (z 703) swung 15.90 .. 16.34 m while the record column beside it (z 704) stood at a flat 16.000 (calm: both
+16.000). Stills (`w62b_l4_eye_sea_off.png`): the band a slab over a flat sea, a strip of bare bed behind it.
+
+**Design check (2026-11-18): READY with amendments.** B1 a column a live volume draws is "another drawer's" in the record's tile
+(`runs = -1`, the 27.15 rule) - no wall into it; B2 the swell DRAWN on the record's sea - `water_surface.vert` raises a vertex whose
+spare float carries the sea's quantised depth q (`waterVertexPad`: ripple layer + 1 + 16 q) by `seaSwellColumnG` (the band's own
+function, no Stokes return) at the band's clock, depth-limited by D; D = the sea's still depth box-filtered over 3 x 3 voxel columns,
+bilinear between column centres (`SeaDraw.h` `SeaDepthGrid`, read by `WaterCoreManager::seaDepthGridFor` with a 2-voxel halo across
+tile edges - one function for the record's corners AND the band's ring columns' `GpuBoundary.depth`); a WATERLINE corner (a dry
+voxel column touches it) q = 0 - the water edge stays at the still level; a side face's top edge rides its top face's edge; the
+displacement fades out over [reach - fade, reach] = [40, 48] m (the skin beyond is flat); ONE clock a frame (`Application`: the
+band's `setSeaSwellTime` and the renderer's `setWaterSeaSwell` take the same `waveTime()`); a vertex-only push range at 128-160 B
+(the pull path's pattern). API `water_sea_draw {on, reach_m 0-48, fade_m 0-24}` (reach clamped to the record tiles' 48 m: the skin
+beyond draws flat; fade at most the reach), echoes the result and the swell. Default ON, pinned by `SeaSwellIsDrawnByDefault`.
+
+**Two things the first test run found (both measured, both changed the build):**
+1. **No walls on today's code either** - the band's box is tile-aligned (24 m = 3 record tiles), so no record tile ever holds one of
+   its columns; my code-read diagnosis (2) was wrong for this geometry. The live "gaps" were the see-through slivers the height step
+   opens at the band's unfaced edge (no face there by design: the record continues the water). B1 stays (a box that is not
+   tile-aligned), pinned by the green wall count 0.
+2. **The band's drawn edge stood a mean +5.4 cm over the swell** (worst 9.5 cm, seaward edge, D 1 m) even with the record drawn: the
+   ring is pinned at the START of each tick and the tick's inflow through the outer face then raises it ~u d dt / h (~9 cm at
+   0.6 m/s, 1 m deep); inflow-only, nothing takes it out before the surface is read. **Fixed: `wc_boundary` modes 5 / 6** pin the
+   swell columns' LEVEL again at the call's END time (level only - the velocity and the inflow term stay the next tick's pin's; the
+   next call's first pin is at the same time, so the physics is unchanged; the change counted as exchange). `GpuSwellBoundaryMatches-
+   TheCpuSwell` now compares the entries at the call's end (what was held last): 7.0e-6 m / 1.6e-5 m/s.
+
+**Tests (red controls in the same run):**
+- `ShoreReachTest.TheSeaDepthIsTheSameHoweverTheRecordIsTiled` (unit): 133,225 tile corners read with the halo - 0 differ from the whole
+  region; without the halo (control) 76,699 differ; the deep sea's depth scale 1.000; the waterline corner q 0; D never rises toward
+  the shore.
+- `ShoreReachTest.TheSeaDepthRidesTheSpareFloat`: a top face's 4 corners carry their q, a side face's top edge its corners', its foot 0;
+  the ripple layer intact. `SeaSwellIsDrawnByDefault` pins the knobs.
+- **`WaterRecordTilesTest.TheSwellMeetsTheBandWithNoStep`** (test 3's staircase, the band parked at the waterline, 0.3 m swell, 20
+  instants over the stay's last 4 s, every corner on the band's box edge - the band's drawn corner vs the record's drawn corner at the
+  call's end clock):
+
+| run | open-water corners: worst / rms | waterline corners (side edges, surf zone) worst / mean | walls on the box border | tile-seam corners differing | sea corners drawn |
+|---|---|---|---|---|---|
+| **GREEN** | **0.9 cm / 0.32 cm** (at the call's START clock 1.35 cm) | 15.9 / 4.1 cm | 0 | 0 of 8,979 | 382,958 |
+| RED (today: sea flat, no end pin) | 40.3 / 14.9 cm | 33.3 / 9.8 cm | 0 | 0 | 0 |
+| CALM (amplitude 0) | 0 / 0 | 0 / 0 | 0 | 0 | 382,958 |
+| CONTROL (D without the halo) | 19.4 / 8.1 cm | 8.0 / 2.5 cm | 0 | 0 | 362,952 (the tile edges zeroed: a flat line) |
+
+  Gates: green open water <= 2 cm, walls 0, seams 0, sea drawn; red > 10 cm; calm <= 5 mm; the no-halo control loses sea corners.
+- Regressions: test 3 green, its band's sea still -3.2 cm under the swell inside (OPEN, as before); the reach / boundary / record-tile
+  suites pass (53); `GpuFlipBulkParityAndRunup` fails as before (one of the known three).
+
+**L4 on Coast (Release, the shipped game.json, the world restored after):**
+- Stills, the band parked (test viewer), the same poses, only `water_sea_draw` toggled: `w62b_l4_eye_sea_off.png` - the slab and the
+  bare-bed strip behind it; `w62b_l4_eye_sea_on.png` - the waves run on from the band into the sea, its edge not seen;
+  `w62b_l4_edge_sea_on.png` - from inside the band looking out to sea, continuous.
+- From 30 m (45 deg down) a faint outline of the band's box still shows with the draw on - **OPEN, logged** (not measured).
+- **Cost, whole frame (engine_timing, ABBA x 2 at the shore pose x 163 z 668 y 22, `w62b_l4.json`):** the first ABBA unsettled (60-99 ms
+  frames - streaming after the moves, both states; discarded); the second: draw ON 19.85 / 19.66 ms, OFF 21.21 / 19.56 ms - **no
+  measurable difference** (GPU 14.37 / 14.12 vs 14.54 / 14.48 ms). Not measured: the record tiles' build cost with the halo read
+  (the corner pass: 5,329 corners a tile).
+- **The owner's one clip for W6.2: `w62b_clip.mp4`** (`tools/water_w62_clip.py --tag w62b_clip`: the beach at eye height x 130 -> 190
+  at 5 m/s, then up to 30 m; stills `w62b_clip_still_swell.png` / `_calm.png`). Looked at: the waves continue from the band into the
+  sea; at 6.5 s a faint vertical sheet at the band's side edge in the surf zone (the waterline corners above); the dark zigzag seen
+  from 30 m is the beach's terrain staircase under clear water (in `w62_clip.mp4` too), not a gap. (The tool's sea-off still showed
+  no band at all - not trusted, not kept; the L4 pair is the before / after.)
+
+**OPEN, logged:** the side edges in the surf zone (the band's swash meets a record waterline held at the still level: 16 cm worst in
+the rig) - fixes to weigh: the band's side strips not driven on shore columns, a wider box along the beach (needs `kMaxBoundaries`),
+the record's waterline drawn from the band's edge; the faint box outline from above; the swap hitch (55.4); the band's sea 3.2 cm
+under the swell inside; the shader's composition (q unpack, fade) has no GPU = CPU test (the swell function under it does:
+`GpuSwellBoundaryMatchesTheCpuSwell`) - **drift from the check's T6:** a vertex-stage readback needs a pipeline harness the tests do
+not have; the transect of drawn heights is the CPU mirror (T4) and the stills. **The owner's look call (45.3):** the sea's waves are
+the band's swell drawn, depth-limited to nothing at every waterline - not a pattern over a shore; the owner judges on the clip.
+
+**Tiers:** `reach_m` 0 / 24 / 48 (30 fps: the band off and the reach 24; 60 / 120: 48), the skin's normals (not built); appearance
+only - the record, the band's physics and every body's reading are the same at every setting.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

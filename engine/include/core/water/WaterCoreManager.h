@@ -12,6 +12,7 @@
 #include "core/water/WaterCoreGpu.h"   // Phase C backend (optional; CPU reference without it)
 #include "core/water/WaterBodyTable.h"   // Phase D Tier A records
 #include "core/water/SeaSwell.h"          // 55.4 W6.2a: the swell the shore band is driven by
+#include "core/water/SeaDraw.h"           // 55.5 W6.2b: the swell drawn on the record's sea
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
 #include "core/water/WaterGpuSurfaceDraw.h" // 29 S1: the surface drawn from the device
 #include "core/water/WaterDroplets.h"      // 21: the droplet crown
@@ -335,6 +336,14 @@ public:
     /// Without a query the table's class "ocean" decides (the tests' FakeRecord rigs).
     using SeaLevelQuery = std::function<bool(int x, int z, float& level)>;
     void setSeaQuery(SeaLevelQuery at, std::function<bool()> anywhere) { m_seaAt = std::move(at); m_seaAnywhere = std::move(anywhere); }
+    /// 55.5 (W6.2b): the sea's still depth per voxel column over [lo, hi] (x, z) plus the halo D needs (kSeaDrawHaloVoxels), read
+    /// from the record between lo.y and hi.y: a column is the sea's by isSeaColumn; its depth the top run's top - bottom. One function
+    /// for the record's tiles (their corners) and the band's ring (its swell columns' depth), so the two meet on the same number
+    SeaDepthGrid seaDepthGridFor(const glm::ivec3& lo, const glm::ivec3& hi) const;
+    /// 55.5 TEST ONLY: the red control - the grid read without its halo (a tile's edge corners then depend on the tile)
+    static inline bool s_seaDrawNoHaloForTest = false;
+    /// 55.5 TEST ONLY: the red state - record tiles drop a live volume's columns (their mesher walls the box) and carry no sea depth
+    static inline bool s_seaDrawOffForTest = false;
     /// 54.4 (W5.3): ONE ripple layer over the RIVER near the viewer - the record's river and any reach over it alike, so the ripples
     /// do not stop at a reach's edge and are not remade at every swap (the owner on w52b_clip: "it takes a while for the ripples to
     /// show up as the camera moves. and the line between ripples and not is very obvious"). Its window follows the viewer (the reach

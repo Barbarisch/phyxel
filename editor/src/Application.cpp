@@ -4063,7 +4063,9 @@ void Application::update(float deltaTime) {
               // (water_waves) on the renderer's clock (handed to the band's next call: A4)
               if (const auto* wp = renderCoordinator ? renderCoordinator->waterRenderPipeline() : nullptr) {
                   Core::Water::SeaSwellParams sw; sw.amplitude = wp->waveAmplitude(); sw.wavelength = wp->waveLength(); sw.windRad = wp->windDirection();
-                  waterCore->setSeaSwell(sw); waterCore->setSeaSwellTime(wp->waveTime());
+                  const float waveT = wp->waveTime();   // 55.5: ONE clock a frame - the band's and the sea drawn beside it
+                  waterCore->setSeaSwell(sw); waterCore->setSeaSwellTime(waveT);
+                  renderCoordinator->setWaterSeaSwell(sw, waveT);
               }
               waterCore->followShore(waterCore->viewPoint(), glfwGetTime());
               m_waterCpu.follow = wms(t); }
@@ -14526,6 +14528,23 @@ void Application::registerWaterCommands() {
              {"point_found", st.pointFound}, {"point", {st.point.x, st.point.y}},
              {"makes", st.makes}, {"releases", st.releases}, {"refusals", st.refusals}, {"last_error", st.lastError},
              {"last_make_ms", st.lastMakeMs}, {"max_make_ms", st.maxMakeMs}, {"exchanged_m3", st.exchangedM3}, {"residue_m3", st.residueM3}, {"thin_dropped_m3", st.thinDroppedM3}};
+    });
+    // 55.5 (W6.2b): the swell DRAWN on the record's sea - {on, reach_m, fade_m}, each omitted = unchanged; echoes the result and the
+    // swell it draws (water_waves sets that). Appearance only: the record is never moved.
+    reg.on("water_sea_draw", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        auto d = renderCoordinator->waterSeaDraw();
+        if (cmd.params.contains("on")) d.on = cmd.params.value("on", true);
+        // reach at most the record tiles' own (WaterLocality drawM, 48 m): past it the far skin draws the sea FLAT, so a drawn swell
+        // reaching further would end in a step at the skin
+        if (cmd.params.contains("reach_m")) d.reachM = std::clamp(cmd.params.value("reach_m", d.reachM), 0.0f, Core::Water::WaterLocality::kDrawMDefault);
+        // fade at most the reach (a fade wider than the reach would start it behind the viewer)
+        if (cmd.params.contains("fade_m")) d.fadeM = std::clamp(cmd.params.value("fade_m", d.fadeM), 0.0f, 24.0f);
+        d.fadeM = std::min(d.fadeM, d.reachM);
+        renderCoordinator->setWaterSeaDraw(d);
+        const auto* wp = renderCoordinator->waterRenderPipeline();
+        r = {{"success", true}, {"on", d.on}, {"reach_m", d.reachM}, {"fade_m", d.fadeM},
+             {"swell", {{"amplitude", wp ? wp->waveAmplitude() : 0.0f}, {"wavelength", wp ? wp->waveLength() : 0.0f}, {"wind", wp ? wp->windDirection() : 0.0f}}}};
     });
     // 55.4 (W6.2a): the shore band's follow - {on, radius_m, landward_m, margin_m}, each omitted = unchanged; echoes them and the
     // follow's state (its band, makes / releases / refusals, the last error, swell columns, the make's ms, the books' terms).

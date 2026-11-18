@@ -5,6 +5,8 @@ WaterBench_Coast (port 8109), the engine's defaults (the follow ON, swell 0.45 m
 engine (camera_path, constant 5 m/s): along the beach at eye height (x 130 -> 190, z 690, y 18.5 - the sea from z ~686-698), then up
 to 30 m over the band. Captioned with the phase, the band (makes), the frame rate. Before the clip: two stills at the same eye-height
 pose - the swell ON, then amplitude 0 (the band remade: its columns copy the swell when made) - <tag>_still_swell.png / _calm.png.
+§55.5 (W6.2b): the sea beyond the band is drawn with the band's own swell (water_sea_draw, default ON); one more still with that draw
+OFF (today's look before W6.2b: the band a slab over a flat sea) - <tag>_still_seaoff.png.
 
     python tools/water_w62_clip.py [--tag w62_clip]
 Writes docs/evidence/water_core_m4/<tag>.mp4 / .srt / .json and the stills.
@@ -59,6 +61,9 @@ def main():
     # the stills: the swell ON, then calm (the band remade so its columns take the new amplitude)
     camera_set(api, EYE); follow(api, {"on": True}); st = wait_band(api); time.sleep(8.0)
     still(ff, a.window, a.crop, EV / f"{a.tag}_still_swell.png")
+    api.post("/api/debug/water_sea_draw", {"on": False}); time.sleep(1.0)
+    still(ff, a.window, a.crop, EV / f"{a.tag}_still_seaoff.png")
+    api.post("/api/debug/water_sea_draw", {"on": True}); time.sleep(1.0)
     api.debug("water_waves", {"amplitude": 0.0}); follow(api, {"on": False}); time.sleep(1.0); follow(api, {"on": True}); wait_band(api); time.sleep(8.0)
     still(ff, a.window, a.crop, EV / f"{a.tag}_still_calm.png")
     api.debug("water_waves", {"amplitude": amp}); follow(api, {"on": False}); time.sleep(1.0)
@@ -85,12 +90,12 @@ def main():
     for i, r in enumerate(rows):
         t1 = rows[i + 1]["t"] if i + 1 < len(rows) else r["t"] + 1.0
         y = r["cam"][1] or 0.0
-        if started is None or r["t"] < started: ph = "the shore band: simulated where the sea meets the beach, driven by the swell"
+        if started is None or r["t"] < started: ph = "the shore band (simulated) - the sea beyond drawn with the same swell"
         elif y < 20.0: ph = "walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)"
         else: ph = "up to 30 m over the band"
         lines.append(f"{i + 1}\n{srt_time(r['t'])} --> {srt_time(t1)}\n{ph}\nt {r['t']:.1f} s | {(r['fps'] or 0):.0f} fps | band {r['band']} | swaps {r['makes']}\n")
     (EV / f"{a.tag}.srt").write_text("\n".join(lines), encoding="utf-8")
-    out = {"bench": "WaterBench_Coast", "path": PATH, "eye": EYE, "swell": waves, "follow_at_start": s0, "follow_at_end": follow(api), "rows": rows}
+    out = {"bench": "WaterBench_Coast", "path": PATH, "eye": EYE, "swell": waves, "sea_draw": api.post("/api/debug/water_sea_draw", {}), "follow_at_start": s0, "follow_at_end": follow(api), "rows": rows}
     (EV / f"{a.tag}.json").write_text(json.dumps(out, indent=1))
     style = "FontName=Arial,FontSize=12,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1,Alignment=2,MarginV=6"
     subprocess.run([ff, "-y", "-loglevel", "error", "-i", raw.name, "-vf", f"crop={a.crop},scale=1280:-2,subtitles={a.tag}.srt:force_style='{style}'",

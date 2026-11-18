@@ -25,6 +25,13 @@ struct WaterSurfacePush {
     glm::vec4 look1;   // G3: turbidity (< 0 unset), roughness (< 0 unset)
 };
 static_assert(sizeof(WaterSurfacePush) == 128, "push block must stay within the 128-byte guarantee");
+// §55.5 (W6.2b): water_surface.vert's own range after the shared 128 bytes - the sea's swell drawn on the record (as the pull
+// path's field block: a vertex-only range past 128, which this device already carries)
+struct WaterSurfaceSeaPush {
+    glm::vec4 sea0;   // amplitude (m), wavelength (m), wind (rad), the band's clock (s)
+    glm::vec4 sea1;   // reach (m), fade (m), on (1 / 0), -
+};
+static_assert(sizeof(WaterSurfaceSeaPush) == 32, "55.5: the sea block is 32 bytes at offset 128");
 // 29 S1: water_surface_pull.vert's block - the shared 128 bytes, then the vertex stage's own (the field's lattice)
 struct WaterSurfacePullPush {
     WaterSurfacePush base;
@@ -145,7 +152,9 @@ void WaterSurfaceRenderPipeline::createBuffers() {
 }
 
 void WaterSurfaceRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLayout) {
-    VkPushConstantRange pc{}; pc.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT; pc.offset = 0; pc.size = sizeof(WaterSurfacePush);
+    std::array<VkPushConstantRange, 2> pcr{};
+    pcr[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT; pcr[0].offset = 0; pcr[0].size = sizeof(WaterSurfacePush);
+    pcr[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT; pcr[1].offset = sizeof(WaterSurfacePush); pcr[1].size = sizeof(WaterSurfaceSeaPush);   // 55.5
     std::array<VkDescriptorSetLayoutBinding, 3> binds{};
     binds[0].binding = 0; binds[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; binds[0].descriptorCount = 1; binds[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     binds[1] = binds[0]; binds[1].binding = 1;
@@ -153,7 +162,7 @@ void WaterSurfaceRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout
     VkDescriptorSetLayoutCreateInfo li{}; li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO; li.bindingCount = 3; li.pBindings = binds.data();
     if (vkCreateDescriptorSetLayout(m_device, &li, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) throw std::runtime_error("water-surface descriptor set layout");
     std::array<VkDescriptorSetLayout, 2> sets = {uboLayout, m_descriptorSetLayout};
-    VkPipelineLayoutCreateInfo pli{}; pli.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; pli.setLayoutCount = 2; pli.pSetLayouts = sets.data(); pli.pushConstantRangeCount = 1; pli.pPushConstantRanges = &pc;
+    VkPipelineLayoutCreateInfo pli{}; pli.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; pli.setLayoutCount = 2; pli.pSetLayouts = sets.data(); pli.pushConstantRangeCount = 2; pli.pPushConstantRanges = pcr.data();
     if (vkCreatePipelineLayout(m_device, &pli, nullptr, &m_pipelineLayout) != VK_SUCCESS) throw std::runtime_error("water-surface pipeline layout");
 }
 
@@ -255,6 +264,13 @@ void WaterSurfaceRenderPipeline::pushLook(VkCommandBuffer commandBuffer, const C
     vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(WaterSurfacePush), &pc);
 }
 
+void WaterSurfaceRenderPipeline::pushSea(VkCommandBuffer cmd) {
+    WaterSurfaceSeaPush sp{};
+    sp.sea0 = glm::vec4(m_seaSwell.amplitude, m_seaSwell.wavelength, m_seaSwell.windRad, m_seaTime);
+    sp.sea1 = glm::vec4(m_seaDraw.reachM, m_seaDraw.fadeM, m_seaDraw.on ? 1.0f : 0.0f, 0.0f);
+    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(WaterSurfacePush), sizeof(WaterSurfaceSeaPush), &sp);
+}
+
 void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet, const Camera& camera,
                                         const glm::mat4& projectionMatrix, const Core::Water::WaterSurfaceMesh& mesh,
                                         VkExtent2D screenExtent, uint32_t frame) {
@@ -275,6 +291,7 @@ void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescrip
     VkDescriptorSet sets[] = {uboSet, m_descriptorSet};
     const uint32_t dynOff = static_cast<uint32_t>(slot * m_rippleSlotBytes);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 2, sets, 1, &dynOff);
+    pushSea(commandBuffer);
     VkDeviceSize off = 0;
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBuffer[slot], &off);
     vkCmdBindIndexBuffer(commandBuffer, m_indexBuffer[slot], 0, VK_INDEX_TYPE_UINT32);
@@ -485,6 +502,7 @@ void WaterSurfaceRenderPipeline::renderTiles(VkCommandBuffer cmd, VkDescriptorSe
     VkDescriptorSet sets[] = {uboSet, m_descriptorSet};
     const uint32_t dynOff = static_cast<uint32_t>(slot * m_rippleSlotBytes);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 2, sets, 1, &dynOff);
+    pushSea(cmd);
     // the view's four side planes (row 3 +- rows 0 and 1 of viewProj) do not depend on the depth convention (reverse-Z); a tile
     // wholly outside one is not drawn. Near and far are not tested.
     const glm::mat4 vp = projectionMatrix * camera.getViewMatrix();
@@ -497,13 +515,15 @@ void WaterSurfaceRenderPipeline::renderTiles(VkCommandBuffer cmd, VkDescriptorSe
         }
         return true;
     };
+    // 55.5: a sea vertex rises or falls by at most the swell's total height (the sum of the four amplitudes, 2.5 a)
+    const float seaPad = m_seaDraw.on ? 2.5f * std::max(0.0f, m_seaSwell.amplitude) : 0.0f;
     VkDeviceSize off = 0;
     vkCmdBindVertexBuffers(cmd, 0, 1, &m_vArena.buffer, &off);
     vkCmdBindIndexBuffer(cmd, m_iArena.buffer, 0, VK_INDEX_TYPE_UINT32);
     for (const auto& [key, t] : tiler.tiles()) {
         auto g = m_gpuTiles.find(key);
         if (g == m_gpuTiles.end() || g->second.indexCount == 0) continue;
-        if (m_cull && !visible(t.lo, t.hi)) { ++m_tileStats.culled; continue; }
+        if (m_cull && !visible(t.lo - glm::vec3(0.0f, seaPad, 0.0f), t.hi + glm::vec3(0.0f, seaPad, 0.0f))) { ++m_tileStats.culled; continue; }   // 55.5: + the drawn swell
         pushLook(cmd, camera, projectionMatrix, screenExtent, &t.look);
         vkCmdDrawIndexed(cmd, g->second.indexCount, 1, static_cast<uint32_t>(g->second.iOff / sizeof(uint32_t)),
                          static_cast<int32_t>(g->second.vOff / sizeof(Core::Water::WaterSurfaceVertex)), 0);

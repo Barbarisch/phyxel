@@ -9,6 +9,7 @@
 
 #include "core/water/WaterSurfaceMesh.h"
 #include "core/water/WaterGpuSurfaceDraw.h"
+#include "core/water/SeaDraw.h"   // 55.5 W6.2b
 
 namespace Phyxel {
 namespace Graphics {
@@ -97,6 +98,10 @@ public:
     int  debugMode() const { return m_debugMode; }
     /// WaterCore 21.3 A/B: true draws the pre-21.3 constant (unlit) in-scatter. Default false (lit).
     void setScatterLegacy(bool on) { m_scatterLegacy = on; }
+    /// §55.5 (W6.2b): the swell drawn on the record's sea - the band's swell and clock (set once a frame with the band's), the draw's knobs
+    void setSeaSwell(const Core::Water::SeaSwellParams& p, float t) { m_seaSwell = p; m_seaTime = t; }
+    void setSeaDraw(const Core::Water::SeaDrawParams& d) { m_seaDraw = d; }
+    const Core::Water::SeaDrawParams& seaDraw() const { return m_seaDraw; }
     void setHorizonGuard(bool on) { m_horizonGuard = on; }   ///< WaterCore 22.12 B2 (default on; off = the A/B control)
     /// WaterCore 25.26 M: the simulated water's default Secchi depth (m) where a body sets none; 0 = the derived clear water.
     void setDefaultClarity(float m) { m_defaultClarity = m < 0.0f ? 0.0f : m; }
@@ -141,6 +146,8 @@ private:
     int      m_debugMode = 0;
     bool     m_scatterLegacy = false;
     bool     m_horizonGuard = true;
+    Core::Water::SeaSwellParams m_seaSwell; float m_seaTime = 0.0f; Core::Water::SeaDrawParams m_seaDraw;   // 55.5
+    void pushSea(VkCommandBuffer cmd);
     float    m_defaultClarity = 5.0f;   // 25.26 M (owner: "a slight murkiness... not much"; 5 m picked from the A/B sheets, 3 m read too strong on the creek)
     // 22: ripple heights, one host-coherent buffer of kFrames slots, bound as a dynamic storage buffer (set 1 binding 2)
     VkBuffer m_rippleBuffer = VK_NULL_HANDLE; VkDeviceMemory m_rippleMemory = VK_NULL_HANDLE; void* m_rippleMapped = nullptr;

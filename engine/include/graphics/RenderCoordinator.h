@@ -594,6 +594,10 @@ public:
     void setWaterCoreScatterLegacy(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setScatterLegacy(on); }
     bool waterCoreScatterLegacy() const { return waterSurfacePipeline && waterSurfacePipeline->scatterLegacy(); }
     void setWaterCoreHorizonGuard(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setHorizonGuard(on); }
+    /// 55.5 (W6.2b): the swell drawn on the record sea - the band's swell and clock, once a frame; the draw's knobs (water_sea_draw)
+    void setWaterSeaSwell(const Core::Water::SeaSwellParams& p, float t) { if (waterSurfacePipeline) waterSurfacePipeline->setSeaSwell(p, t); }
+    void setWaterSeaDraw(const Core::Water::SeaDrawParams& d) { if (waterSurfacePipeline) waterSurfacePipeline->setSeaDraw(d); }
+    Core::Water::SeaDrawParams waterSeaDraw() const { return waterSurfacePipeline ? waterSurfacePipeline->seaDraw() : Core::Water::SeaDrawParams{}; }
     bool waterCoreHorizonGuard() const { return waterSurfacePipeline && waterSurfacePipeline->horizonGuard(); }
     void setWaterCoreDefaultClarity(float m) { if (waterSurfacePipeline) waterSurfacePipeline->setDefaultClarity(m); }
     float waterCoreDefaultClarity() const { return waterSurfacePipeline ? waterSurfacePipeline->defaultClarity() : 0.0f; }
