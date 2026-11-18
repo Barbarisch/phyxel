@@ -103,9 +103,17 @@ struct Grid {
     std::vector<int> h;            // surface y per cell
     std::vector<uint8_t> blocked;  // water or a seated lot
     std::vector<uint8_t> onNet;    // on a way
+    // D69 (c1): cells a WAY may enter although blocked (fordable creek water), and cells that cost kFordStepCost a
+    // step (the ford and the ground a way's band would share with it). Empty = none (every route as before).
+    std::vector<uint8_t> ford, costly;
     int idx(int x, int z) const { return z * W + x; }
     bool inside(int x, int z) const { return x >= 0 && z >= 0 && x < W && z < D; }
 };
+
+// D69 (c1) (pm_chain394.txt): a step onto a ford cell, or onto ground within a way's band of one, costs this many dry
+// steps. DESIGN, not grounded (no source prices a ford): a straight crossing of a 2-wide creek by a 3-wide lane
+// touches about 6 such cells, so a way walks round a creek's end up to about 40 cells away and fords beyond that.
+constexpr float kFordStepCost = 8.0f;
 
 // Dijkstra from `start` to the nearest goal cell (a way cell or an entry); the M4 cost model
 std::vector<int> connect(const Grid& g, int start, const std::vector<uint8_t>& goal, float reuse) {
@@ -127,11 +135,12 @@ std::vector<int> connect(const Grid& g, int start, const std::vector<uint8_t>& g
             const int tx = cx + nb[0], tz = cz + nb[1];
             if (!g.inside(tx, tz)) continue;
             const int ti = g.idx(tx, tz);
-            if (g.blocked[static_cast<size_t>(ti)] && !goal[static_cast<size_t>(ti)]) continue;
+            if (g.blocked[static_cast<size_t>(ti)] && !goal[static_cast<size_t>(ti)] && !(!g.ford.empty() && g.ford[static_cast<size_t>(ti)])) continue;
             const float stepLen = (nb[0] && nb[1]) ? 1.41421356f : 1.0f;
             const float grade = std::fabs(static_cast<float>(g.h[static_cast<size_t>(ti)] - g.h[static_cast<size_t>(cur)])) / stepLen;
             float c = stepLen * (1.0f + s_pathSlopeAversion * grade) * (1.0f + s_pathSlopeAversion * grade);
             if (g.onNet[static_cast<size_t>(ti)]) c *= reuse;
+            if (!g.costly.empty() && g.costly[static_cast<size_t>(ti)]) c *= kFordStepCost;
             if (gc[static_cast<size_t>(cur)] + c < gc[static_cast<size_t>(ti)] - 1e-6f) {
                 gc[static_cast<size_t>(ti)] = gc[static_cast<size_t>(cur)] + c;
                 parent[static_cast<size_t>(ti)] = cur;
@@ -275,6 +284,19 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
     }
     std::vector<float> waterDist, netDist, lotDist;
     chamfer(W, D, waterMask, waterDist);
+    // D69 (c1) (pm_chain394.txt): water a way may FORD (the caller's fordAt: a creek by the world road's rule). The
+    // clearance below is kept from every OTHER water; a ford cell and the ground a band would share with it stay open
+    // to a way at kFordStepCost. With no fordAt, hardDist is waterDist and nothing differs.
+    std::vector<uint8_t> fordMask(N, 0), hardMask = waterMask;
+    bool anyFord = false;
+    if (anyWater && in.fordAt)
+        for (int z = 0; z < D; ++z) for (int x = 0; x < W; ++x) {
+            const size_t i = static_cast<size_t>(g.idx(x, z));
+            if (waterMask[i] && in.fordAt(x, z)) { fordMask[i] = 1; hardMask[i] = 0; anyFord = true; }
+        }
+    std::vector<float> hardDist, fordDist;
+    if (anyFord) { chamfer(W, D, hardMask, hardDist); chamfer(W, D, fordMask, fordDist); }
+    const std::vector<float>& clearDist = anyFord ? hardDist : waterDist;
     // pm_chain364 PL.2 (the audit's band-over-water measure, chain 375): a way's paved band is a disc of
     // round(width) / 2 round its centre line. The centre line stayed out of water; the band did not (a street down a
     // 3-wide spit, a lane beside a shore). Every routed way now keeps a CLEARANCE: a cell nearer water than the band's
@@ -288,14 +310,23 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
     if (anyWater)
         for (size_t i = 0; i < N; ++i) {
             if (waterMask[i]) continue;
-            if (rMainBand > 0 && waterDist[i] < static_cast<float>(rMainBand) + 1.0f) nearWaterMain[i] = 1;
-            if (rLaneBand > 0 && waterDist[i] < static_cast<float>(rLaneBand) + 1.0f) nearWaterLane[i] = 1;
+            if (rMainBand > 0 && clearDist[i] < static_cast<float>(rMainBand) + 1.0f) nearWaterMain[i] = 1;
+            if (rLaneBand > 0 && clearDist[i] < static_cast<float>(rLaneBand) + 1.0f) nearWaterLane[i] = 1;
         }
+    std::vector<uint8_t> costlyMain, costlyLane;
+    if (anyFord) {
+        costlyMain.assign(N, 0); costlyLane.assign(N, 0);
+        for (size_t i = 0; i < N; ++i) {
+            if (fordMask[i] || fordDist[i] < static_cast<float>(rMainBand) + 1.0f) costlyMain[i] = 1;
+            if (fordMask[i] || fordDist[i] < static_cast<float>(rLaneBand) + 1.0f) costlyLane[i] = 1;
+        }
+    }
     // a main-street route: the grid as it stands now (lots, the network's reuse) with the clearance closed
     auto routeMain = [&](int start, const std::vector<uint8_t>& goalCells) {
-        if (!anyWater || rMainBand == 0) return connect(g, start, goalCells, in.reuse);
+        if (!anyWater || (rMainBand == 0 && !anyFord)) return connect(g, start, goalCells, in.reuse);
         Grid t = g;
         for (size_t i = 0; i < N; ++i) if (nearWaterMain[i]) t.blocked[i] = 1;
+        if (anyFord) { t.ford = fordMask; t.costly = costlyMain; }
         return connect(t, start, goalCells, in.reuse);
     };
     // the entry: the arriving road's end, or (no road) the site edge nearest the first lot, set at its connection
@@ -320,6 +351,11 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                 keepNode = (cx - px != nx - cx) || (cz - pz != nz - cz);   // a direction change
             }
             if (keepNode) w.nodes.push_back(nodeAt(map, nodeIndex, cx, cz, g.h[static_cast<size_t>(path[k])]));
+            if (fordMask[static_cast<size_t>(path[k])]) {   // D69 (c1): a run of the centre line in FORDABLE water is one recorded crossing (never other water: the audit)
+                const bool runOn = k > 0 && fordMask[static_cast<size_t>(path[k - 1])] && !map.crossings.empty() && map.crossings.back().way == w.id;
+                if (!runOn) { SettlementMap::Crossing c; c.way = w.id; map.crossings.push_back(c); }
+                map.crossings.back().cells.push_back({cx, cz});
+            }
             g.onNet[static_cast<size_t>(path[k])] = 1;
             for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) {
                 if (dx * dx + dz * dz > r * r) continue;   // a disc: every band cell within r of the centre line (chain 91)
@@ -568,7 +604,7 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                         const int nx = cx + nb[0], nz = cz + nb[1];
                         if (!g.inside(nx, nz)) continue;
                         const size_t ni = static_cast<size_t>(g.idx(nx, nz));
-                        if (reach[ni] || g.blocked[ni] || nearWaterLane[ni]) continue;
+                        if (reach[ni] || (g.blocked[ni] && !fordMask[ni]) || nearWaterLane[ni]) continue;
                         reach[ni] = 1; fr.push_back(static_cast<int>(ni));
                     }
                 }
@@ -665,11 +701,14 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                     // O16 (pm_chain380.txt): the candidate's own FOOTPRINT is closed to its lane (the door starts
                     // outside the rect). It was open, and on a hillside the cheapest line cut a corner through the
                     // house's front wall row (CityLab, lot 35). A way already there stays open, as the seating below
-                    // keeps it. The YARD stays open: closing it re-plans three live sites (chain 385) - open item.
+                    // keeps it. The YARD stays open, and a diagonal step may still pass the footprint's CORNER
+                    // (pm_chain394, chains 396-398): closing either re-plans the live town onto a market-dressing
+                    // weakness (O35 b, c) - open, in that order.
                     for (int zz = c.shape.footprint.z; zz < c.shape.footprint.z1(); ++zz)
                         for (int xx = c.shape.footprint.x; xx < c.shape.footprint.x1(); ++xx)
                             if (!gg.onNet[static_cast<size_t>(gg.idx(xx, zz))]) gg.blocked[static_cast<size_t>(gg.idx(xx, zz))] = 1;
                     if (anyWater && rLaneBand > 0) for (size_t i = 0; i < N; ++i) if (nearWaterLane[i]) gg.blocked[i] = 1;   // a lane keeps its band off the water
+                    if (anyFord) { gg.ford = fordMask; gg.costly = costlyLane; }   // D69 (c1): but may ford a creek
                     path = connect(gg, di, goal, in.reuse);
                     if (path.empty()) continue;
                 }

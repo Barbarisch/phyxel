@@ -57,6 +57,15 @@ nlohmann::json SettlementMap::toJson() const {
     j["refusal"] = refusal;
     if (!marketNote.empty()) j["market_note"] = marketNote;
     if (marketLane > 0) j["market_lane"] = marketLane;
+    if (!crossings.empty()) {   // D69 (c1)
+        nlohmann::json cs = nlohmann::json::array();
+        for (const auto& c : crossings) {
+            nlohmann::json cells = nlohmann::json::array();
+            for (const auto& [x, z] : c.cells) cells.push_back({x, z});
+            cs.push_back({{"way", c.way}, {"kind", c.kind}, {"cells", cells}});
+        }
+        j["crossings"] = cs;
+    }
     j["dropped_lots"] = droppedLots;
     j["target_lots"] = targetLots;
     j["buildable_fraction"] = buildableFraction;
@@ -161,6 +170,13 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
     m.refusal = j.value("refusal", std::string());
     m.marketNote = j.value("market_note", std::string());
     m.marketLane = j.value("market_lane", 0);
+    if (j.contains("crossings") && j["crossings"].is_array())
+        for (const auto& cj : j["crossings"]) {
+            Crossing c; c.way = cj.value("way", -1); c.kind = cj.value("kind", std::string("ford"));
+            if (cj.contains("cells") && cj["cells"].is_array())
+                for (const auto& cell : cj["cells"]) if (cell.is_array() && cell.size() == 2) c.cells.push_back({cell[0].get<int>(), cell[1].get<int>()});
+            m.crossings.push_back(std::move(c));
+        }
     m.droppedLots = j.value("dropped_lots", 0);
     m.targetLots = j.value("target_lots", 0);
     m.buildableFraction = j.value("buildable_fraction", -1.0f);

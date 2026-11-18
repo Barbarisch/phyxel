@@ -1779,3 +1779,22 @@ CONDITIONS: 1. state the unit-set move; 2. word the live-plan interpretation as 
  counter; 3. disclose the tierPreset behaviour change; 4. keep the yard crossing and the unmeasured band intrusion open.
 MY RESPONSE: 1, 2, 3 stated in pm_chain380.txt (the interpretation is labelled UNPROVEN; the pre-fix counter was not
  run). 4 registered as O35 in the plan. Not done: why the seed-3 hamlet plans moved; the counter on every live map.
+
+== D69 (c1), a way fords a creek (headless planner, synthetic rig) - solution-auditor, 2026-11-18 (working tree on 60341315; nothing built or run by it) ==
+RAW VERDICT: PASS WITH CONDITIONS
+CLAIMS AUDITED (the auditor's words, shortened):
+ - evidence vs final sources -> OK (exe 10:27:40 after the last edit; no corner-rule code left, only the comment).
+ - red then green -> REAL but narrower than stated: one flat, straight, 2-wide perpendicular creek. The invariant
+   "every way cell in water lies in a crossing" was NEAR-TAUTOLOGICAL (crossings were recorded from any water the
+   path touched); the real discriminators were the control arms and the east-lot count. Not measured: a band over
+   ford water away from a crossing, connectivity across the ford, other creek geometries, kFordStepCost's detours.
+ - no-ford identity -> SUPPORTED by the logs (763 print lines and 5911 record lines identical after timings), not
+   proven by reading: registerWay could write a "crossings" key on a no-ford map (a goal cell in water).
+ - the weakened assertion -> its stated reason NOT supported: the footprint hit is on plans the ford makes, the
+   controls read 0, chain 394 did not show it on the ford arm. Disclosed and visible, but not "pre-existing".
+CONDITIONS: 1. correct the record on "present before the ford change"; 2. record crossings only on fordable cells
+ and add an arm where a way could touch non-fordable water; 3. state the tautology and add a band-over-water measure.
+MY RESPONSE (chains 401-403, after the audit; NOT re-audited): 1 corrected in pm_chain394.txt and in the test's
+ comment. 2 done (fordMask; the half-river arm: crossings only south of z 32). 3 done (band cells over water away
+ from a crossing: 0 on 13 plans - on a rig where the creek is perpendicular to every way). Regression re-run on the
+ final exe: unit 202 / 0, live 38 / 0, all prints identical.

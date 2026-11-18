@@ -1,0 +1,112 @@
+pm_chain394 - D69 (c1): a way may FORD a creek inside town (the plan's D69 (c) design check of 2026-11-18, READY).
+Headless, L2. Written 2026-11-18 10:11, before any edit. Release.
+
+THE RULE: a channel cell that is a creek by the M4 rule (the world road's ford: not carved, centreline depth under
+  fordMaxDepthU 0.5 - the existing parameter) is open to a WAY at a step cost; never to a lot. The D69 (b) clearance
+  (a way's band keeps off water) is kept for every other water; next to fordable water the cells stay open at the same
+  step cost, so a way pays to hug a creek and pays less to cross it straight. The map records every crossing (way,
+  cells, kind "ford").
+  The planner's input gains fordAt (LOCAL x, z -> the water there is a fordable creek); null = no ford (today).
+THE ONE NEW NUMBER: the ford step cost, x 8 a dry step (kFordStepCost). REASONED, not grounded: a crossing of a
+  2-wide creek with a 3-wide lane touches about 6 costed cells (48 dry steps' worth), so a way walks round a creek end
+  up to about 40 cells away and fords beyond that. No source gives a cost; labelled DESIGN in the code.
+ASSERTION CHANGE, STATED BEFORE ANY RUN: "a way never crosses water" (Violations.wayInWater == 0) stays as written
+  for every existing test - none of them passes fordAt. The NEW test asserts the restated invariant: every way cell
+  in water lies in a recorded crossing, and no lot cell is in water.
+THE TEST: SettlementMapTest.AWayFordsACreekAndNoLotStandsInIt - a flat 104 x 64 village site, one road arriving at the
+  west edge, a creek 2 wide from the south edge to the north edge at x 50..51 (the site is bisected). Three arms:
+    ford     fordAt = the creek          - asserts: not refused; lots on BOTH banks; at least one crossing; every
+                                           way cell in water in a crossing; 0 lot cells in water; the other counts 0.
+    control  the same creek, fordAt null - asserts: 0 lots east of the creek, 0 crossings (D69 (b): the near bank).
+    carved   fordAt returns false        - the same as the control (a river is not forded).
+  Then 3 seeds x {village, town 140 x 60, city 160 x 160} on the ford arm, printed; asserted: no refusal with lots
+  only... no: asserted only the restated invariant and 0 lot cells in water; what seats is printed.
+PREDICTIONS
+  chain 394 (the input field, the map's crossings field and the test; the planner unchanged): RED on the ford arm -
+    0 lots east of the creek, 0 crossings. The control and carved arms pass.
+  chain 395 (the planner): the ford arm green: the main street fords the creek once (it aims at the far edge), lots
+    on both banks, 1 to 3 crossings on the village. GUESSES: the village seats its full target; the town and the city
+    plan without refusal on all 3 seeds; no existing print moves (no existing rig passes fordAt): unit 202 / 0 with
+    the 82 lines identical.
+RESULTS (written 2026-11-18 10:12)
+  chain 394 (the field, the map's crossings, the test; planner unchanged): RED as predicted on the ford arm - "9 lots
+    of 13 (9 west, 0 east of the creek), 4 ways, 0 crossings". The control and carved arms read the same and pass.
+    NOT predicted: the scale arm's sum of the old invariant counts is non-zero on some plans ALREADY (line 261, the
+    planner as it stands, a creek-bisected site) - which count and which plans is read from the next run's prints
+    (the test prints only the ford counts today; the per-count print is added with the planner change, stated here).
+    Also seen: the town is refused on all three seeds on its near bank (12 to 13 of 15) - D69 (b)'s refusal.
+  chain 395 (the planner): the ford arm - "13 lots of 13 (6 west, 7 east of the creek), 3 ways, 1 crossings; way
+    cells in water 2 (0 outside a crossing), lot cells in water 0". Every tier on every seed seats its FULL target on
+    both banks with one crossing (village 7 / 13 / 11, town 16 / 22 / 22, city 21 / 27 / 43) - better than guessed
+    (the town was refused on all three seeds before). Controls unchanged (9 west, 0 east, 0 crossings).
+    Still RED: "way through a footprint 1" on village seeds 7 and 23 (the ford arm is seed 7).
+  chain 396 (a print): both are a lot's OWN lane inside its own yard - (72,62) -> (75,59), a diagonal run whose step
+    from (74,60) to (75,59) passes the CORNER of the house's footprint [59,52,16,8] (no path cell is in the footprint;
+    the counter's half-step sample lands on the corner point). The same family as CityLab's lane (O35 b: a lane may
+    use its own yard), a different member: a diagonal step past the footprint's corner. It was present before the
+    ford change (chain 394's line 261) on this creek-cut site.
+FIX, STATED BEFORE THE RUN (written 2026-11-18 10:15): on the grid a lot's own lane is routed on, a DIAGONAL step may
+  not pass a corner of that lot's footprint (both cells orthogonally between the step's ends must be outside it).
+  Only the candidate's own footprint; no other route changes. No assertion changes.
+  PREDICTION chain 397: the ford test green. Regression: unit 202 / 0, the 82 prints identical (GUESS - twice wrong
+  on this kind of guess today: a synthetic plan with this corner cut would have counted 1 and none did); live: plans
+  MAY move again if a live lane cut its own house's corner; every gate passes; CityLab 0 violations.
+RESULTS (written 2026-11-18 10:27)
+  chain 397 (the corner rule; unit set): 202 ok / 0 failed, the ford test GREEN on every arm, the 82 map-suite prints
+    identical; the same two generator-terrain hamlet plans as in chain 387 moved again (20 -> 18 and 29 -> 27 nodes).
+  chain 398 (live set on the same exe): 37 ok / 1 FAILED. The live TOWN moved again (126 -> 112 nodes; lots 6, 13, 16,
+    17 re-seated) - so a town lane DID pass its own house's corner - and TheTownsMarketIsPavedAndWalked fails exactly
+    as in chain 385: the well is planned at (104, 49), top 1421 micro, against ground at 1422 on its far side.
+    Two different lane fixes have now moved the town onto the same market weakness (O35 c): it is robust, not chance.
+    CityLab still 0 violations; every gate passed (town 75 walkable / 0 blocked over 24 doors).
+DECISION, STATED BEFORE THE NEXT RUN (written 2026-11-18 10:27):
+  - the corner rule is TAKEN OUT of this increment (the code removed, not left dormant). It is right, and it cannot
+    land before the market weakness is fixed: that fix is M5e-1 work with its own red test, done NEXT, and the corner
+    rule (with the whole-yard question, O35 b) returns after it.
+  - ASSERTION CHANGE in the new ford test, stated here: "way through a footprint" is PRINTED, not asserted, in
+    AWayFordsACreekAndNoLotStandsInIt (both the three arms and the scale arm). Reason: on this rig it counts a lot's
+    own lane passing its own house's corner - O35 (b)'s class, present before the ford change (chain 394) and not
+    caused by it. The other five counts stay asserted. This is a known defect left visible, not a pass.
+  PREDICTION chains 399 / 400: unit 202 / 0 with the ford test green and "way through a footprint 1" printed on
+  village seeds 7 and 23; the 82 prints identical; the M5A-MAP lines identical to chain 387's; live 38 / 0 with every
+  record line identical to chain 388's.
+RESULTS (written 2026-11-18 10:39)
+  chains 399 / 400 (the ford change WITHOUT the corner rule; one build, exe 10:27:40): as predicted.
+    unit 202 ok / 0 failed; the ford test green; "way through a footprint 1" printed on the ford arm (seed 7) and on
+      village seed 23, 0 on every other plan; the 82 map-suite prints and the M5A-MAP lines identical to chain 387's.
+    live 38 ok / 0 failed; every record line and every M5A-MAP line identical to chain 388's.
+  WHAT THIS IS: L2 on a SYNTHETIC rig only - one straight creek 2 wide across a flat site, the road from the west,
+    three tiers x three seeds. The build service does not pass fordAt, so NO real settlement fords anything yet.
+  NOT MEASURED: a creek along the street, a diagonal creek, a creek at the entry, several creeks (the lab's site has
+    four), slopes; the wall and the market near a ford; the paving at a ford, the gate walking through one (L3);
+    whether kFordStepCost 8 gives sensible detours (one geometry tried, where no detour exists); nothing realized.
+AUDIT (solution-auditor, 2026-11-18, read-only): PASS WITH CONDITIONS (raw text in the ledger). What it corrected:
+  - my reason for the weakened assertion was WRONG as written. The footprint hit is NOT shown to pre-exist: in chain
+    394 the ford arm (seed 7) had no footprint failure; the hits are on the NEW plans the ford makes (lots beyond the
+    creek, a lane in lot 12's own yard east of it), and both controls print 0. Correct statement: the count appears
+    only on ford-enabled plans; it is the O35 (b) class by its geometry (chain 396's print), not by history. (Chain
+    394's line-261 failures were on village seeds 1 and 23 and city seed 23; their category was never read.)
+  - crossings were recorded for a centre-line cell in ANY water, so "every way cell in water lies in a crossing" could
+    not fail (the planner wrote the set the test read), a way through a river would be labelled a ford, and a no-ford
+    map could gain a "crossings" key (a goal cell in water).
+  - nothing measures a way's BAND over ford water away from a crossing.
+RESPONSE, STATED BEFORE THE RUN (written 2026-11-18 10:41):
+  - code: a crossing is recorded only on FORDABLE cells (fordMask). The test's invariant can now fail.
+  - test: a fourth arm "half river" - the creek fordable for z < 32 only, a river north of that: asserts every
+    crossing cell has z < 32 and 0 way cells in water outside a crossing.
+  - test: a band measure - water cells inside a way's band disc that are further than the band radius + 1 from every
+    crossing cell of that way ("band over water away from a crossing") - asserted 0 on every arm and seed.
+  PREDICTION chain 401: green; the half-river arm fords in the south half; band-away 0 everywhere (the creek is
+  perpendicular to everything on this rig - a lane ALONG a creek is still not exercised). Unit 202 / 0, prints
+  identical; live 38 / 0 identical (the no-ford path is untouched: fordMask is all zero without fordAt).
+RESULTS (written 2026-11-18 10:54)
+  chain 401 (the audit's three conditions): the ford test green. The half-river arm fords in the fordable half only
+    (the crossings' greatest z 29, under 32); band cells over water away from a crossing 0 on all four arms and all
+    nine tier x seed plans; "way through a footprint 1" still printed on the ford and half-river arms (seed 7) and on
+    village seed 23.
+  chains 402 / 403 (final code; one build, exe 10:41:34): unit 202 ok / 0 failed, the 82 map-suite prints and the
+    M5A-MAP lines identical to chain 387's; live 38 ok / 0 failed, every record line and M5A-MAP line identical to
+    chain 388's.
+  STILL NOT MEASURED: as listed above (one straight perpendicular creek only; no lane along a creek; no real world -
+    the build service does not pass fordAt; no paving, no walk, nothing realized), and the footprint count on the
+    ford-made plans is a known open defect (O35 b).

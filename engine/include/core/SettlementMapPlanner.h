@@ -48,6 +48,10 @@ struct SettlementMapInput {
     std::function<bool(int, int)> waterAt;
     struct Entry { int x = 0, z = 0; int cls = 1; };
     std::vector<Entry> entries;                   ///< where the arriving roads meet the site rect (LOCAL), by road class
+    /// D69 (c1) (pm_chain394.txt): LOCAL (x,z) -> the water there is a FORDABLE creek (the world road's ford rule:
+    /// a channel that is not carved and shallower than WorldForgeParams::fordMaxDepthU). A WAY may cross such cells
+    /// at a step cost; a lot never stands on them. Null = no water is forded (every way keeps out of all water).
+    std::function<bool(int, int)> fordAt;
     int maxRelief = 6;                            ///< the buildable relief cap over a lot (cubes) - analyzeSite's rule
     AgentBox agent;                               ///< the walk corridor the paths are sized for
     /// M5d-1b (chain 253: the walled city sealed its arriving road): LOCAL (x,z) -> the WORLD road's class there

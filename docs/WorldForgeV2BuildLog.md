@@ -811,3 +811,16 @@ rectangles have a creek through them, all on flat lowland (the flattest: relief 
 -1200); none has a relief of 16 to 28 with the creek in its middle. Painting the hill onto a creek site removes the
 creek (bump at the pin: relief 16, no channel; bump beside it: relief 12, an order-1 trickle). On the flat creek site
 the city is REFUSED (5 of 20 lots) - no bridge inside town. D71 raised (which site the city L4 uses); D69 (c) is next.
+
+### 2026-11-18 - D69 (c1): a way may ford a creek (headless planner, synthetic rig only)
+
+Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain394.txt` (chains 394-403, Release). The planner's input gains
+`fordAt` (the water there is a creek by the world road's ford rule); a WAY may cross such cells at `kFordStepCost`
+(x 8, DESIGN - no source), a lot never; the map records each crossing (`crossings`: way, cells, kind). Red (chain
+394: nothing beyond the creek, the town refused on its near bank) then green: a creek-bisected flat site seats every
+tier's full target on both banks with one crossing, 3 seeds x 3 tiers; controls (no `fordAt`; a river; a half river)
+hold. With no `fordAt` nothing moves: unit 202 / 0 and live 38 / 0, all prints identical.
+NOT built: the build service does not pass `fordAt`, so no real settlement fords anything; no paving rule at a ford,
+no walk through one (L3), nothing realized. Tried and removed: a rule against a lane passing its own house's corner -
+it is right, but it re-plans the live town onto the market-dressing weakness (O35 b, c), which is fixed first.
+Audited PASS WITH CONDITIONS; the three conditions answered after the audit and not re-audited (ledger).

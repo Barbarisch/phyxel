@@ -146,6 +146,10 @@ struct SettlementMap {
     std::vector<MapLot> lots;
     std::vector<MapArea> areas;
     MapWall wall;              ///< M5d-1: the circuit wall (absent on a tier without `walls`)
+    /// D69 (c1): where a way crosses fordable water - the way, its centre-line cells in the water (in the way's
+    /// order) and the kind ("ford"). Written to JSON only when there is one.
+    struct Crossing { int way = -1; std::string kind = "ford"; std::vector<std::pair<int, int>> cells; };
+    std::vector<Crossing> crossings;
     int entryNode = -1;        ///< the node where the first arriving road meets the site (-1 = none)
     float bakeMs = 0.0f;       ///< the planner's wall time (diagnostic, never hashed)
     std::string refusal;       ///< non-empty = the planner refused the site, with the reason
