@@ -1834,3 +1834,32 @@ MY RESPONSE (after the audit; NOT re-audited): 4 fixed (the warning's wording by
  plan's O37 row and in the build log. The market-edge figures are NOT explained.
 RE-RUN ON THE FINAL EXE (13:17:17, after the responses; recorded 13:30): unit 209 / 0 (chain 418), live 38 / 0 (chain
  419), record lines identical to chains 415 / 417; the expected-red O37 test RED (chain 420: 0 wells, 0 stalls).
+
+=== O37 (a) the plaza paved level with its street - solution-auditor read (recorded 2026-11-18 14:00; HEAD e4605e73 + the working tree; read-only; detail in m3c_chains/pm_chain421.txt) ===
+RAW VERDICT: PASS WITH CONDITIONS (the narrow claim holds: the town's well and 1 stall stand after the change, red
+before and green after, headers postdate the code). The record is not cleaner than that. (Read only, ran nothing.)
+FINDINGS (the auditor's, condensed):
+ 1. unit red-before-green REAL "but weak and tuned after the fact": the assertion is only level > 0 (rolling passes
+    with 2 windows), the ring rule is one-sided, the rig was widened 12 x 12 -> 16 x 16 and the rule changed (every
+    way -> the widest) between runs. At 12 x 12 - the live market's size - the rig gave 1 of 5 and 0. "The unit test
+    is not evidence about the town's geometry. The live test is the only measure of that."
+ 2. live REAL for what it measures (1 well, 1 stall, 2 of 2 standing, gate 75 / 0; red in chain 419 / 420). Gaps:
+    "the walk stood in 7 of 10 prop cells" is printed, not asserted; "141 cells reached of 134" unexplained.
+ 3. counts backed (exe 13:45:56 after both sources); chain 429 has no header, its provenance is the exe's time.
+ 4. determinism sound; caveats: `widest` is taken once across ALL plazas (a second plaza beside only narrower ways
+    would get no source and silently keep the old behaviour - one plaza is tested); colWidth is first-writer-wins.
+ 5. ways unmoved and the step limit still asserted on real plan output (5 grounds) - adequate; the step to the
+    ground OUTSIDE the plaza is not bounded.
+ 6. deep fill / cut correct BY CONSTRUCTION in the applier (SettlementBuildService.cpp 113-215) - reasoning, not a
+    measurement: nothing scans for a void under the paving or an overhang beside a cut.
+ 7. the market's edge is an unmeasured cliff (market 1405 against outside 1422 along z 51 / 52: 17 micro), recorded
+    only; nothing checks which outside cells are lots; lot pads were seated by a paving plan WITHOUT the plaza.
+ 8. the record's open items are disclosed honestly; the test's name suggests the whole plaza is level - it is not.
+ 9. the walled city's market is only logged (5 placed / 3 dropped, span 0); no live test asserts it.
+CONDITIONS: say the unit test is a rig-tuned smoke check; assert or explain 141 > 134; measure the market edge
+ (cliff pairs beside a lot or door, the deepest cut / fill) and scan for a void under deep fill; fix or test the
+ global widest; assert the walled city's market or say it is not; run Debug once or say it was not.
+MY RESPONSE (NOT re-audited; NO code changed after the audit, so the evidence above still postdates the code):
+ every condition is DISCLOSED, none is built - they are registered in the plan's O37 row (f) to (k) as the next work.
+ 141 = 134 prop-free cells + the 7 prop cells the walk stood in (the reached set is not filtered by prop cells) -
+ read from the two printed lines, not separately measured. No Debug run.

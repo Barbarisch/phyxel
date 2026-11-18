@@ -1,5 +1,6 @@
 #include "core/StreetPaver.h"
 
+#include <climits>
 #include <algorithm>
 #include <queue>
 #include <cmath>
@@ -158,6 +159,7 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
     plan.material = material;
     if (!groundMicroAt) return plan;
     std::unordered_map<long long, int> cols;   // first writer wins (a junction keeps the first way's surface)
+    std::unordered_map<long long, int> colWidth;   // O37 (a): the paved width of the way that wrote the column
     for (const auto& w : ways) {
         if (w.cells.size() < 2 || w.widthCubes <= 0) continue;
         const float r = 0.5f * static_cast<float>(w.widthCubes) * 9.0f;   // the ribbon's half-width (micro)
@@ -185,7 +187,7 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                     const glm::vec2 q = pa + ab * t;
                     if (glm::length(pt - q) > r) continue;
                     const int i = std::clamp(static_cast<int>(std::lround(t * static_cast<float>(last))), 0, last);
-                    cols.emplace(colKey(x, z), centre.cells[static_cast<size_t>(i)].surfaceY);
+                    if (cols.emplace(colKey(x, z), centre.cells[static_cast<size_t>(i)].surfaceY).second) colWidth[colKey(x, z)] = w.widthCubes;
                 }
         }
     }
@@ -226,6 +228,51 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
             for (int z = r.y * 9; z < (r.y + r.w) * 9; ++z)
                 for (int x = r.x * 9; x < (r.x + r.z) * 9; ++x)
                     if (!cols.count(colKey(x, z))) pz.emplace(colKey(x, z), groundMicroAt(x, z));
+        // O37 (a) (pm_chain421.txt): the plaza is the WIDENED STREET - a column takes the surface of the nearest column
+        // of the WIDEST way beside the plaza (the street the market widens; chain 422: with every way a source a
+        // steep cross lane put its own slope on the square) - distance through the plaza, 4-neighbour, a breadth-first
+        // front in a fixed order - not its own ground. The narrower ways cross at their own grade. At its own ground a plaza beside a street graded level across
+        // a slope climbed 1 : 1 either side of it and no well or stall could stand (the live town, chain 410). The
+        // ground under it is cut or filled like a way's. A plaza no way touches keeps its own ground. The clamps and
+        // the relaxation below still hold every column within the walker's step of the ways and of its neighbours.
+        {
+            std::vector<long long> order;
+            order.reserve(pz.size());
+            for (const auto& r : plazas)
+                for (int z = r.y * 9; z < (r.y + r.w) * 9; ++z)
+                    for (int x = r.x * 9; x < (r.x + r.z) * 9; ++x)
+                        if (pz.count(colKey(x, z))) order.push_back(colKey(x, z));
+            std::unordered_map<long long, int> level;   // plaza column -> the way surface it carries
+            std::vector<long long> front;
+            int widest = 0;
+            for (const long long k : order) {
+                const int x = static_cast<int>(k >> 32), z = static_cast<int>(static_cast<int32_t>(k & 0xffffffffLL));
+                for (const auto& nb : NB) { const auto w = colWidth.find(colKey(x + nb[0], z + nb[1])); if (w != colWidth.end()) widest = std::max(widest, w->second); }
+            }
+            for (const long long k : order) {
+                const int x = static_cast<int>(k >> 32), z = static_cast<int>(static_cast<int32_t>(k & 0xffffffffLL));
+                int best = INT_MAX;   // beside several such columns: the lowest (deterministic)
+                for (const auto& nb : NB) {
+                    const auto w = cols.find(colKey(x + nb[0], z + nb[1]));
+                    if (w == cols.end()) continue;
+                    const auto ww = colWidth.find(w->first);
+                    if (ww != colWidth.end() && ww->second == widest) best = std::min(best, w->second);
+                }
+                if (best != INT_MAX && level.emplace(k, best).second) front.push_back(k);
+            }
+            while (!front.empty()) {
+                std::vector<long long> next;
+                for (const long long k : front) {
+                    const int x = static_cast<int>(k >> 32), z = static_cast<int>(static_cast<int32_t>(k & 0xffffffffLL));
+                    for (const auto& nb : NB) {
+                        const long long nk = colKey(x + nb[0], z + nb[1]);
+                        if (pz.count(nk) && level.emplace(nk, level[k]).second) next.push_back(nk);
+                    }
+                }
+                front.swap(next);
+            }
+            for (const auto& [k, S] : level) pz[k] = S;
+        }
         using QE = std::pair<int, long long>;
         // min over the way columns of (sign * S + cap * distance through the plaza)
         const auto spread = [&](int sign) {

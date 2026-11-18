@@ -2123,7 +2123,7 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagWhereTheWaysMeetTheRoads) {
 // ground off its street, so its well and stalls are dropped (said in the record) and TheTownsMarketIsPavedAndWalked can
 // no longer fail on "no props". THIS is the functional claim that is not met: a well and a stall STAND in the market.
 // Run by hand (--gtest_also_run_disabled_tests); it goes green when the market is levelled, and is then enabled.
-TEST(SettlementMapLiveSiteTest, DISABLED_O37_TheTownsMarketHasAWellAndAStallStanding) {
+TEST(SettlementMapLiveSiteTest, O37_TheTownsMarketHasAWellAndAStallStanding) {   // ENABLED in chain 428 (pm_chain421.txt): green since the plaza is paved level with its street
     SharedRig sh("town32-map-o37", 1); LiveSiteRig& rig = sh.rig;
     ASSERT_TRUE(rig.setUpTier("town", 32)) << rig.why;
     const auto out = realize(rig, /*legacyLayout=*/false);
@@ -2179,8 +2179,10 @@ TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
         int wellsDropped = 0, dropped = 0;
         for (const auto& d : sd.value("dropped", nlohmann::json::array())) { ++dropped; if (d == "well") ++wellsDropped; }
         EXPECT_EQ(wells + wellsDropped, tier->pub.well ? 1 : 0) << "the town's well neither stands nor is said to be dropped";
+        EXPECT_EQ(wells, tier->pub.well ? 1 : 0) << "the town's well does not stand in its market";   // restored before chain 428 (pm_chain421.txt)
+        EXPECT_GT(sd.value("placed", 0), 0) << "nothing stands in the market: the checks below are vacuous";
         EXPECT_EQ(static_cast<int>(dress.props.size()) + dropped, (tier->pub.well ? 1 : 0) + tier->pub.stalls) << "props asked for that are neither placed nor dropped";
-        std::printf("[ O35c ] OPEN (O37): %d wells stand, %d dropped for want of level ground%s", wells, wellsDropped, chr10().c_str());
+        std::printf("[ O35c ] %d wells stand, %d dropped for want of level ground%s", wells, wellsDropped, chr10().c_str());
         EXPECT_TRUE(sd.value("on_live_ground", false)) << "the dressing was not planned on the live surface";
         EXPECT_EQ(sd.value("skipped", -1), 0);
         EXPECT_LE(sd.value("ground_span_max_micro", 999), 4) << "a prop stands across a step of the live surface (more than a walker's step-up)";
@@ -2374,7 +2376,7 @@ TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
         for (const auto& p : dress.props) { if (p.type == "well") ++wells; else if (p.type == "market_stall") ++stalls; }
         std::printf("[ M5e-1 ] dressing planned: %d wells, %d stalls of %d asked; stall fronts reached %d of %d (recorded only)%s", wells, stalls, tier->pub.stalls,
                     wk.value("market_stalls_reached", -1), wk.value("market_stall_routes", -1), chr10().c_str());
-        if (tier->pub.well) EXPECT_LE(wells, 1) << "the live town's market plans " << wells << " wells";   // amended before chain 417: 0 = dropped and said (asserted above, O37)
+        if (tier->pub.well) EXPECT_EQ(wells, 1) << "the live town's market plans " << wells << " wells";   // restored before chain 428
         // the audit (8): the stall fronts could not fail. Here they can: one route a stall the test's own dressing plans, each reached.
         EXPECT_EQ(wk.value("market_stall_routes", -1), stalls) << "the gate's stall routes are not the stalls the dressing plans (the test's seed is not the build's?)";
         EXPECT_EQ(wk.value("market_stalls_reached", -1), wk.value("market_stall_routes", -2)) << "a stall's front is not reached on foot from the main street";

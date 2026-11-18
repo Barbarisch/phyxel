@@ -1,0 +1,86 @@
+pm_chain421.txt - O37 (a): the market is paved LEVEL WITH ITS WAYS (the widened street), so props can stand.
+(written 2026-11-18 13:39, BEFORE any run of this chain)
+
+DESIGN CHECK (short form; the plan carries the paragraph)
+  Cause (pm_chain404, chain 410): planWayPaving lays a plaza column at ITS OWN GROUND, held within 1 micro a micro
+  of the ways and relaxed - so beside a street graded level across a slope the plaza climbs / falls 1 : 1.
+  Change: a plaza column takes the surface of the NEAREST WAY COLUMN (distance through the plaza, 4-neighbour,
+  ties by the queue's order - deterministic), i.e. the street's level is carried across the square ("the market is
+  the widened street", the plan's own wording); a plaza no way touches keeps its own ground. The existing clamps
+  (within the walker's step of every way column) and the lower-envelope relaxation stay, so the ways' columns still
+  do not move and no step exceeds the step-up. The ground under it is CUT or FILLED by the paver's existing cut /
+  fill (a way already does both).
+  1 voxel aesthetic: a terrace of paving, micro surface - no new idiom. 2 chunks: the paving plan is a function of
+     the ground and the map's ways; no chunk quantity. 3 pipeline: the settlement's ways unit; consumers after it
+     (sweep, dressing, doorsteps, gate) read the live surface. Risk named: the plaza's EDGE becomes a retaining step
+     against the natural ground (up to the square's relief); a door or lane that entered the market over its edge
+     off a way may be cut off - the blocking gate says so. 4 API: none; the record gains the plaza's deepest cut and
+     fill. 5 test: L2 unit (level spots exist on a tilted plaza; ways unmoved; steps within the step-up), L3 / live:
+     the O37 test (a well and a stall STAND, span <= 4 micro) enabled, the town's gate.
+  No real-world number is sized here. NOT in this increment: a retaining wall or steps at the plaza's edge; a cap on
+  the earthwork's depth (recorded, not bounded).
+RED TEST: SettlementMapTest.ThePlazaIsLevelWithItsWays - the ways / plaza rig of ThePlazaIsPavedWithoutMovingTheWays
+  on its four grounds plus "tilted across the street" (level along z, one cube per 2 cells across - the live town's
+  case). Counted from the plan: 2 x 2-cell windows of plaza-only columns whose surface spans <= 4 micro with no
+  column of the one-cell ring more than 2 above (the dressing's rule, measured here on the PAVING PLAN, not by the
+  dressing planner). Asserted: level windows > 0 on every ground; ways unmoved; no step over the step-up.
+  PREDICTION chain 421 (RED, paver unchanged): flat passes (the control); "tilted across the street" FAILS with 0
+  level windows; hill 5 % and rolling GUESS pass already (gentle); the bench UNKNOWN.
+  PREDICTION chain 422 (GREEN): every ground > 0 level windows; moved 0; steps 0; fill and cut both > 0 on the tilt.
+RESULTS (written 2026-11-18 13:39)
+  chain 421 (RED, paver unchanged, exe 13:39:29): ThePlazaIsLevelWithItsWays FAILS; level 2 x 2 windows of 5:
+    flat 5, hill 5 % 4, rolling 0, the bench 2, tilted across the street 0. Ways moved 0, steps 0 everywhere.
+    PREDICTION MISS: rolling was guessed to pass. (Deepest cut / fill already 16 to 34 micro: the old plaza's
+    clamps to the ways cut and filled too.)
+  chain 422 (every way a source, exe 13:40:02): STILL RED - rolling 0, tilted 0 level windows (ways moved 0, steps
+    0; the old plaza test and StreetPaverTest pass). PREDICTION MISS. Cause (read from the rig, not measured apart):
+    the cross lane climbs the tilt and its columns are as near as the main street's, so the square takes the lane's
+    slope. RULE CHANGED before chain 423 (stated): the sources are the columns of the WIDEST way beside the plaza
+    (the street the market widens); narrower ways cross at their own grade.
+  chains 423 / 424 (the widest way as the source; exe 13:40:45, then a grid print): tilted 1 level window of 5,
+    rolling 0, bench 3. The grid shows the paving IS level now ("34-34" over both pads of the tilted plaza, with
+    ramps only beside the cross lane; on rolling "9-9" and "27-27" patches following the street's own steps) - and
+    that the RIG is too tight: a 7-wide street through a 12 x 12 square leaves 2.5 rows a side, so only one row of
+    windows exists and its ring takes in the ramp cells.
+  TEST AMENDED before chain 425 (stated): the new test's plaza is 16 x 16 (the city's). Same ways, same grounds,
+  same counted rule. PREDICTION chain 425: level > 0 on all five grounds; rolling GUESS small (its street steps).
+RESULTS (written 2026-11-18 13:42)
+  chain 425 (GREEN on the 16 x 16 rig, exe 13:42:10): level windows of 45 - flat 45, hill 30, rolling 2, bench 25,
+    tilted 21; ways moved 0, steps 0; the old plaza test and StreetPaverTest pass (16 / 16). Deepest cut 27 / fill
+    36 micro on the tilt (4 cubes of fill at the plaza's low edge: a retaining step, not built as a wall).
+  chain 426 (the SAME amended test on the OLD paver - StreetPaver.cpp stashed, then restored): RED - rolling 0,
+    tilted 0 (flat 45, hill 30, bench 20). So the amended rig is red before and green after.
+  PREDICTION chain 427 (live: the town's market test + the DISABLED O37 test by hand; the paver restored): the O37
+    test GREEN - 1 well and >= 1 stall stand, span <= 4 (GUESS; risk: the town's street is graded along its length
+    and the square inherits it; the plaza's edge is now a retaining step up to about 3 cubes - a door or lane over
+    it may be BLOCKED at the gate, which would fail the build). The market test passes with wells standing 1.
+RESULTS (written 2026-11-18 13:45)
+  chain 427 (live, exe 13:43:01): the market test passes and the O37 test (by hand) is GREEN: "1 wells, 1 stalls
+    standing; dropped [3 x market_stall]", span 0 micro, the well at (104, 49), a stall at (97, 49), stall fronts
+    reached 1 of 1; gate 75 walkable / 0 blocked over 24 doors. The square's surface: rows z 45 to 51 level across
+    all 12 cells ("27-27"); rows z 40 to 44 still fall to the south (a second, narrower way crosses there at its
+    own grade). THREE of four stalls are still dropped. The market's recorded edge is WORSE: "48 edge pairs, 14
+    within the walker's step, 16 a step too high or deep, 18 with a side nobody can stand on" (chain 419: 8 too
+    high or deep) - the retaining step this design makes, recorded, not asserted, nothing built against it.
+  ASSERTION CHANGES before chain 428 (stated): the O37 test is ENABLED (renamed without DISABLED_); the market
+  test's "one well stands" is RESTORED (both places) and "placed > 0" is added so its prop checks are not vacuous.
+  PREDICTION chain 428 (unit, 210 tests): 0 failed; [ M5a ] / [ M5b ] and M5A-MAP lines identical to chain 418's
+    (the paver is not in those prints) - but the [ M5e-1 ] "plaza on ..." fill / cut counts change (seen in chain
+    423). chain 429 (live, 39 tests): 0 failed IF the walled city and the other square-bearing builds keep their
+    gates with a levelled plaza (UNKNOWN - the retaining step may block a route); record lines move on every build
+    with a market.
+  chain 428 (unit, exe 13:45:56; a first build attempt failed on my own edit - a comment swallowed the test's
+    opening brace - fixed, rebuilt): 210 ok / 0 failed; [ M5a ] / [ M5b ] and M5A-MAP lines identical to chain 418's.
+RESULTS (written 2026-11-18 13:58)
+  chain 429 (live set, exe 13:45:56, run directly, exit 0 at 13:57:50): 39 ok / 0 failed (38 + the O37 test, now
+    enabled and green). Against chain 419: 36 record lines differ - the town's market lines (1 well and 1 stall
+    stand; "134 cells without a prop, 134 paved"; cube tops 152..155; the walk reaches every prop-free cell), the
+    market's edge (8 -> 16 pairs a step too high or deep, 18 -> 14 within the walker's step), fixtures 393 -> 395 and
+    403 -> 406. Every gate line is otherwise the same (the one "blocked - 42 walkable, 11 blocked" build is in
+    chain 419 too: the test that expects it). Dressing on map builds: town 2 placed / 3 dropped (twice: two builds
+    of the town), the walled city 5 placed / 3 dropped, all with a ground span of 0 micro; the legacy city 5 placed
+    with a span of 9 (no ground read, as before).
+  Release only. No Debug run. Nothing viewed in the engine. Not yet audited at the time of writing.
+AUDIT (solution-auditor, 2026-11-18 14:00): RAW VERDICT: PASS WITH CONDITIONS - "the narrow claim holds: the town's well
+  and 1 stall stand after the change". Full findings in the ledger. No code changed after the audit; the conditions
+  are disclosed in the plan's O37 row, not built.

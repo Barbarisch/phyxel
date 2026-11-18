@@ -853,3 +853,21 @@ the owner the same day (aab3587a).
   (`DISABLED_O37_TheTownsMarketHasAWellAndAStallStanding`, red in chain 420). The market's recorded edge figures
   got worse (2 -> 8 edge steps too high or deep) and are not explained.
 - Audited PASS WITH CONDITIONS (ledger); responses not re-audited. No Debug run; nothing viewed in the engine.
+
+### 2026-11-18 - O37 (a): the market is paved level with its street; the town has a well again
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain421.txt` (chains 421 to 429).
+- `planWayPaving`: a plaza column starts at the surface of the nearest column of the WIDEST way beside the plaza
+  (the street the market widens), not at its own ground; the clamps to the ways and the relaxation are unchanged, the
+  ground is cut or filled by the existing applier. First tried with every way as a source (a steep cross lane put
+  its slope on the square) - changed.
+- Live town (Release): 1 well and 1 stall stand, ground span 0 micro, gate 75 walkable / 0 blocked. The O37 test is
+  enabled and green; "one well stands" is asserted again. Unit 210 / 0, live 39 / 0.
+- NOT fixed: 3 of the town's 4 stalls are still dropped; the square's south half still slopes (a narrower way
+  crosses it at its own grade); the square's edge is now a bare retaining step (up to 17 micro against the ground
+  outside; 16 edge pairs a step too high or deep, was 8) with nothing built or asserted against it; fill depth under
+  the square is correct by reading the applier, not by a scan; the walled city's market is logged, not asserted.
+- The unit test (`ThePlazaIsLevelWithItsWays`) is a rig-tuned smoke check (16 x 16, "some level window exists");
+  the live town is the evidence.
+- Audited PASS WITH CONDITIONS; the conditions are disclosed (O37 f to k), not built. No Debug run; nothing viewed
+  in the engine.

@@ -2098,6 +2098,77 @@ TEST(SettlementMapTest, ThePlazaIsPavedWithoutMovingTheWays) {
     EXPECT_GE(measured, 2);
 }
 
+// O37 (a) (pm_chain421.txt): the plaza is paved level with its ways, so a prop can stand on it. Measured on the PAVING
+// PLAN: 2 x 2-cell windows of plaza-only columns whose surface spans <= 4 micro with no column of the one-cell ring
+// more than 2 above the window's highest (the dressing's level rule, counted here from the plan's columns).
+TEST(SettlementMapTest, ThePlazaIsLevelWithItsWays) {
+    struct G { const char* name; std::function<int(int, int)> h; };
+    const std::function<int(int, int)> tilt = [](int, int z) { return 30 + z / 2; };   // level along the main way (z const), one cube per 2 cells across it
+    const std::vector<G> grounds{{"flat", flatHeight}, {"hill 5 %", hillHeight}, {"rolling", slopeRolling}, {"a 4-cube bench", bandHeight}, {"tilted across the street", tilt}};
+    const AgentBox box;
+    const std::vector<WayRibbon> ways{{{{10, 20}, {40, 20}}, 7}, {{{25, 5}, {25, 35}}, 3}};
+    const glm::ivec4 plaza(17, 12, 16, 16);   // the city's 16 x 16 (amended before chain 425: 12 x 12 with a 7-wide street left 2.5 rows a side - no room for a 2 x 2 and its ring)
+    int measured = 0;
+    for (const G& g : grounds) {
+        const std::function<int(int, int)> gm = [&g](int mx, int mz) { return groundMicroFrom(g.h, mx, mz); };
+        const PavingPlan a = planWayPaving(ways, gm, box, "Cobblestone");
+        const PavingPlan b = planWayPaving(ways, gm, box, "Cobblestone", {plaza});
+        std::map<std::pair<int, int>, int> A, B;
+        for (const auto& c : a.columns) A[{c.x, c.z}] = c.surface;
+        for (const auto& c : b.columns) B[{c.x, c.z}] = c.surface;
+        if (A.empty()) { std::printf("[ O37 ] plaza on %s: the ways pave nothing here - not measured%s", g.name, "\n"); continue; }
+        int moved = 0, steps = 0, windows = 0, level = 0, deepCut = 0, deepFill = 0;
+        const auto inPlazaCell = [&](int cx, int cz) { return cx >= plaza.x && cx < plaza.x + plaza.z && cz >= plaza.y && cz < plaza.y + plaza.w; };
+        for (const auto& [k, S] : A) { const auto it = B.find(k); if (it == B.end() || it->second != S) ++moved; }
+        for (int z = plaza.y * 9; z < (plaza.y + plaza.w) * 9; ++z) for (int x = plaza.x * 9; x < (plaza.x + plaza.z) * 9; ++x) {
+            const auto it = B.find({x, z});
+            if (it == B.end()) continue;
+            if (!A.count({x, z})) { const int t0 = gm(x, z); deepCut = std::max(deepCut, t0 - it->second); deepFill = std::max(deepFill, it->second - t0); }
+            for (const auto& d : {std::pair<int, int>{1, 0}, std::pair<int, int>{0, 1}}) {
+                const auto jt = B.find({x + d.first, z + d.second});
+                if (jt != B.end() && std::abs(jt->second - it->second) > box.maxStepUpMicro) ++steps;
+            }
+        }
+        for (int cz = plaza.y + 1; cz + 2 <= plaza.y + plaza.w - 1; ++cz) for (int cx = plaza.x + 1; cx + 2 <= plaza.x + plaza.z - 1; ++cx) {
+            bool plazaOnly = true; int lo = INT_MAX, hi = INT_MIN, ring = INT_MIN;
+            for (int z = (cz - 1) * 9; z < (cz + 3) * 9 && plazaOnly; ++z) for (int x = (cx - 1) * 9; x < (cx + 3) * 9; ++x) {
+                const bool in = x >= cx * 9 && x < (cx + 2) * 9 && z >= cz * 9 && z < (cz + 2) * 9;
+                const auto it = B.find({x, z});
+                if (in) { if (it == B.end() || A.count({x, z})) { plazaOnly = false; break; } lo = std::min(lo, it->second); hi = std::max(hi, it->second); }
+                else ring = std::max(ring, it != B.end() ? it->second : gm(x, z));
+            }
+            if (!plazaOnly) continue;
+            ++windows;
+            if (hi - lo <= 4 && ring <= hi + 2) ++level;
+        }
+        std::printf("[ O37 ] plaza on %s: %d way columns moved; steps over the step-up %d; 2 x 2 windows off the ways %d, level %d; deepest cut %d micro, deepest fill %d micro%s",
+                    g.name, moved, steps, windows, level, deepCut, deepFill, "\n");
+        if (level < windows) {   // diagnostic (chain 424): per cell lowest-highest above the plaza's lowest; W = a cell with a way column
+            int base = INT_MAX;
+            for (const auto& [k, S] : B) if (inPlazaCell(k.first / 9, k.second / 9)) base = std::min(base, S);
+            for (int cz = plaza.y + plaza.w; cz >= plaza.y - 1; --cz) {
+                std::string row;
+                for (int cx = plaza.x - 1; cx <= plaza.x + plaza.z; ++cx) {
+                    int lo = INT_MAX, hi = INT_MIN; bool way = false;
+                    for (int z = cz * 9; z < cz * 9 + 9; ++z) for (int x = cx * 9; x < cx * 9 + 9; ++x) {
+                        const auto it = B.find({x, z});
+                        const int v = it != B.end() ? it->second : gm(x, z);
+                        lo = std::min(lo, v); hi = std::max(hi, v); way = way || A.count({x, z});
+                    }
+                    row += " " + std::to_string(lo - base) + "-" + std::to_string(hi - base) + (way ? "W" : (inPlazaCell(cx, cz) ? "" : "o"));
+                }
+                std::printf("[ O37 ]   z %2d:%s%s", cz, row.c_str(), "\n");
+            }
+        }
+        ++measured;
+        EXPECT_EQ(moved, 0) << g.name;
+        EXPECT_EQ(steps, 0) << g.name;
+        EXPECT_GT(windows, 0) << g.name << ": no window off the ways - the rig measures nothing";
+        EXPECT_GT(level, 0) << g.name << ": no level place for a prop anywhere in the plaza";
+    }
+    EXPECT_GE(measured, 3);
+}
+
 // ---- M5f-1 (D9): the era hook, falsified with a FIXTURE era ---------------------------------------------------------
 // The fixture is not a real era and grounds nothing: it exists to differ from the medieval data in every way the
 // planner reads - a typology name the medieval canon lacks, a footprint that is not the 8 x 6 stand-in, three
