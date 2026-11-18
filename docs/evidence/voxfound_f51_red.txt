@@ -1,0 +1,17 @@
+extractBodies is not implemented
+[  FAILED  ] VoxFoundBodies.FreeBoxMassPropertiesAreAnalytic (0 ms)
+extractBodies is not implemented
+[  FAILED  ] VoxFoundBodies.EveryRigConservesAndBodiesMatchBruteForce (0 ms)
+extractBodies is not implemented
+[  FAILED  ] VoxFoundBodies.RandomHitsConserve (0 ms)
+extractBodies is not implemented
+[  FAILED  ] VoxFoundBodies.RepeatedHitsOnAWallConserveEveryStep (0 ms)
+extractBodies is not implemented
+[  FAILED  ] VoxFoundBodies.CostOnALargeWall (18 ms)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 5 tests, listed below:
+[  FAILED  ] VoxFoundBodies.FreeBoxMassPropertiesAreAnalytic
+[  FAILED  ] VoxFoundBodies.EveryRigConservesAndBodiesMatchBruteForce
+[  FAILED  ] VoxFoundBodies.RandomHitsConserve
+[  FAILED  ] VoxFoundBodies.RepeatedHitsOnAWallConserveEveryStep
+[  FAILED  ] VoxFoundBodies.CostOnALargeWall

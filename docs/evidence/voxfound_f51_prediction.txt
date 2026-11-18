@@ -1,0 +1,56 @@
+F5.1 -- extraction: loose pieces leave the world grid as bodies (plan §6.5 step 3, §6.7; F5 row)
+Written 2026-11-17 BEFORE any F5.1 code.
+
+F5's increments (plan order of the F5 row):
+  F5.1 extraction (CPU reference) -- this file;
+  F5.2 GPU simulation with voxel collision (world, then body-body);
+  F5.3 drawing with one transform;
+  F5.4 rest / bake-in hybrid (D6), conservation + pop measured;
+  F5.5 the exit stress: 100 -> 1,000 bodies.
+
+WHAT F5.1 BUILDS (engine/*/core/voxfound/Bodies.*, CPU reference; tested in VoxFoundBodiesTest)
+  extractBodies(world, fractureResult, hit, mats) -> {bodies, crumbs}:
+  - every voxel of a piece of kind Body or Crumb is removed from the world grid; Anchored pieces stay untouched;
+  - a Body is a small grid (the piece's bounding box) + origin in world voxels; voxels keep material, part and
+    damage; mass, centre of mass and inertia tensor (about the centre, world axes) from the voxels: each voxel a
+    uniform cube of side v (the grid's voxelM), m = density * v^3, I_voxel = m v^2 / 6 * Id + parallel axis;
+  - a Crumb keeps position, material, part, damage: counted, never deleted (F6 turns them into powder);
+  - the hit's momentum P = hit.impulse * hit.dir (new Hit field, N s) is shared over the bodies:
+      w_i = m_i * 1 / (1 + (d_i / 0.25 m)^2), d_i = distance from the hit to the body's nearest voxel centre,
+      dp_i = P * w_i / sum w; applied at that nearest voxel (ties: lowest grid index), so
+      v_i = dp_i / m_i, omega_i = I_i^-1 ((x_i - c_i) x dp_i).
+    This is a modelling choice (the same falloff as the stress, §6.4), not a measured law; what is tested is that
+    momentum is conserved and that the split is deterministic. Crumbs get no momentum in F5.1 (F6).
+  - densities (kg/m^3, typical handbook values): Stone 2600, Bricks 1900, Wood 700, Glass 2500, WoodItem 700.
+
+PREDICTIONS
+  P1 conservation, exact: on every §8 rig over the F4.1 energy sweep and on 300 random hits, per material
+     world_before = world_after + sum(body voxels) + crumbs; and voxel-for-voxel: every removed voxel appears in
+     exactly one body or crumb at the same world position with the same material, part and damage.
+  P2 the world after: no voxel of a Body / Crumb piece remains; every Anchored voxel is unchanged (material, part,
+     fixed, damage). Body count = Body pieces; crumb count = voxels of Crumb pieces.
+  P3 mass properties: a free 8 x 4 x 2-voxel stone box (nothing fixed, energy 0: one loose body) gives
+     m = 64 * 2600 * 0.125^3 = 325 kg, the centre at the box centre, I = m (b^2 + c^2) / 12 per axis, off-diagonals
+     0, relative error <= 1e-9. Every body on the rigs equals an independent brute-force sum (double) to 1e-9.
+  P4 momentum: sum of m_i v_i = P to 1e-9 relative whenever there is at least one body; I_i omega_i =
+     (x_i - c_i) x dp_i to 1e-9; two runs equal bit for bit.
+  P5 churn: a stone wall hit 20 times in a row (each hit on the world left by the previous extraction, damage kept),
+     conservation exact after EVERY hit; the world never gains a voxel.
+  P6 cost (CPU, the F4.3 large wall 256 x 128 x 4, at the energies giving ~100 and ~1,000 loose pieces):
+     extraction 1-6 ms (one pass over the grid + one over the loose voxels). Reported, not gated.
+
+RED: a stub extractBodies returning implemented = false -- every test fails.
+
+RED (voxfound_f51_red.txt): the stub failed all 5 tests.
+RUN 1 (voxfound_f51_run1.txt), first run, no fixes:
+  P1 HELD, P2 HELD: 6 rigs x 10 energies (557 bodies, 51,237 body voxels, 494 crumbs) and 300 random hits
+     (1,491 bodies, 239,168 voxels, 1,037 crumbs): every loose voxel in exactly one body or crumb, every anchored
+     voxel unchanged, per-material counts exact; two runs bit-equal.
+  P3 HELD: free box m 325.000 kg, I 8.46354 / 28.77604 / 33.85417 kg m^2 (closed form, <= 1e-9); every body equals
+     the brute-force sum to 1e-9.
+  P4 HELD: momentum sums to P and I w = r x dp to 1e-9 on every extraction.
+  P5 HELD: 20 hits in a row, exact after each; 988 of the wall's 1,152 voxels left as 31 bodies + 66 crumbs.
+  P6 within the estimate: large wall 0.48 ms (59 bodies, 87 crumbs), 2.44 ms (468 / 651), 5.09 ms (947 / 1,407).
+     CAVEAT: Wow.exe (3 GB) was running during this run (it was not running before the build); CPU-only, reported,
+     not gated.
+  Full suites: CPU VoxFound* 97/97, GPU VoxFound* 25/25.

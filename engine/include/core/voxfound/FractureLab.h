@@ -33,6 +33,7 @@ struct FractureMaterial {
     float toughness = 1.0f;                   // energy needed to start cutting (lab units)
     glm::vec3 grain{0.0f};                    // fibrous materials: the long axis (unit), else 0
     float partBondScale = 0.3f;               // a bond between two parts is this strong vs within a part
+    float density = 1000.0f;                  // kg / m^3 (F5.1: body mass, centre, inertia)
 };
 
 struct Hit {
@@ -40,6 +41,7 @@ struct Hit {
     glm::vec3 dir{0.0f, 0.0f, 1.0f};          // unit, into the material
     float energy = 0.0f;                      // lab units, compared with toughness
     uint64_t seed = 1;                        // the event's seed (determinism, §6.9)
+    float impulse = 0.0f;                     // N s along dir, shared over the loose bodies (F5.1)
 };
 
 enum CutBit : uint8_t { CutPX = 1, CutPY = 2, CutPZ = 4 };

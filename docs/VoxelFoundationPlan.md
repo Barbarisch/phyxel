@@ -1829,8 +1829,8 @@ Every rig is checked for:
 | **F2** | GPU face building (hidden-face culling, merging in and across blocks) + drawing through today's lighting; the §4.6 render optimizations rebuilt on blocks (culling, occlusion, indirect draws, shadow casters, block LOD pyramid, direction culling); T-junction handling | the same engine-generated scenes that run today run on the new store in the same performance tier (whole frame, GPU memory, bytes per frame), measured at 5 poses; pixel diff within the gate. **F2.19 re-run 2026-11-15: performance holds at all 5 poses (new store 2.1-9.4 ms faster whole frame; memory 1.2-1.7×; 11-13 MB per frame); pixels measured, every residual traced to FC content gaps; contour-stripe defect found and fixed** | a scene that works today doesn't, and we can't find and fix why |
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
 | **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; F3.2a: the edit store is the BlockStore, 545.5 → 62.9 MB, exact; F3.2b: brushes 1/2/4/8 + picking over the API, a 1 m brush 0.50 ms, pick 0.006 ms; F3.3: codec v3 + world.db, save / load round-trips exactly (voxels, lists, pixels, bytes), only edited chunks saved; F3.4: PXB2 converter (cubes exact, thirds / ninths by volume, no material dropped from a cell), a saved city drawn through the new store; F3.5 first run: exact under 1,000 edits + 10 reloads, edit cost met inside a chunk but NOT on chunk borders (0.69-0.90 ms); F3.5a: a border edit costs what an interior one does (exact; corner 1.00 -> 0.48 ms uncontended), but a full-block edit was 0.61-0.72 ms of which the connectivity flood was 0.35; F3.5b: incremental connectivity (exact, floods 112/128 -> 0/128 edits), a one-block brush 0.28-0.36 ms median anywhere; F3.5 second run (size and kind independent): exact under 1,000 verified edits + 10 reloads, 0 px, byte-identical re-save, every (size, kind) median ≤ 0.42 ms (a one-block brush 0.26-0.42) — CLOSED 2026-11-16; owed into later rows: the thin-part occupancy rule (converter), the small-leaf look (FC), edit store growth (1.34× over 1,000 edits)** | — |
-| **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference. **F4.1 2026-11-17 (§9c): the CPU reference — all 8 §8 rig predictions pass (the edge hit only trivially), equal to the independent checker, deterministic, conserving per material, nested in energy, under 300 random hits; pictures for review. F4.2 (§9c): anchoring through the block graph is exact under 400 random hits; on an engine-generated building the worst search is 8,558 nodes (8.3 % of its voxels), the median 1,055; found that the generator's stair treads and guard are unbonded on both grids (logged). F4.3 (§9c): the GPU port equals the integer reference in every channel — 18/18 rig cases, 600/600 random hits, first run; 1.5-1.8 ms device per break on a 131k-voxel wall at 0-1,981 pieces (21× the CPU at ~1,000; flat, because it covers the whole grid). Exit test met; owed: the owner's review of the crack pictures** | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
-| **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
+| **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference. **F4.1 2026-11-17 (§9c): the CPU reference — all 8 §8 rig predictions pass (the edge hit only trivially), equal to the independent checker, deterministic, conserving per material, nested in energy, under 300 random hits; pictures for review. F4.2 (§9c): anchoring through the block graph is exact under 400 random hits; on an engine-generated building the worst search is 8,558 nodes (8.3 % of its voxels), the median 1,055; found that the generator's stair treads and guard are unbonded on both grids (logged). F4.3 (§9c): the GPU port equals the integer reference in every channel — 18/18 rig cases, 600/600 random hits, first run; 1.5-1.8 ms device per break on a 131k-voxel wall at 0-1,981 pieces (21× the CPU at ~1,000; flat, because it covers the whole grid). Exit test met. The owner reviewed the crack pictures 2026-11-17 ("cracks look good"): CLOSED** | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
+| **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid. **F5.1 2026-11-17 (§9d): extraction, CPU reference — loose pieces leave the world as bodies (grid, mass, centre, inertia from voxels; the hit's momentum shared) and crumbs; exact conservation voxel for voxel on every rig and 300 random hits and over 20 hits in a row; mass properties equal the closed form and a brute-force sum to 1e-9; momentum conserved; 5.1 ms for 947 bodies + 1,407 crumbs on the large wall** | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
 | **F7** | Move the consumers over (§7), default switched | full test suite green; L4 live checks | — |
 | **F8** | Scale and stress: a whole town, 100 simultaneous breaks, 1,000 edit/break cycles, crossing chunk borders | invariants hold at every step | — |
@@ -2286,7 +2286,7 @@ the hit, unless the cut touches them; they are counted and printed.
   - an L2 invariant: every voxel of a realized shell is bonded to its foundation.
 
 **Still owed in F4:**
-- the owner's review of the F4.1 pictures;
+- the owner's review of the F4.1 pictures (done 2026-11-17: "cracks look good");
 - the GPU port, equal to the reference (F4.3);
 - the incremental store-kept summary (like F3.5b's `BlockConnectivity`), measured inside a streamed town at F8.
 
@@ -2343,6 +2343,46 @@ are not correctly rounded, and the device has no 64-bit ints, so the shader emul
 
 The owner's review of the crack pictures is the remaining stop condition. The generator's unbonded stair is owed to
 the structure generator.
+
+**F4 closed 2026-11-17.** The owner reviewed the pictures: "cracks look good". The live check (things breaking and
+falling in the engine) moves to F5, where loose pieces become bodies.
+
+## 9d. F5: bodies
+
+F5's increments, in the order of the F5 row:
+1. F5.1 extraction (CPU reference);
+2. F5.2 GPU simulation with voxel collision (against the world, then body against body);
+3. F5.3 drawing with one transform;
+4. F5.4 the rest / bake-in hybrid (D6), conservation and pop measured;
+5. F5.5 the exit stress: 100 → 1,000 bodies.
+
+### F5.1 Extraction (2026-11-17)
+
+`extractBodies` (`engine/*/core/voxfound/Bodies.*`) runs after a break (§6.5 step 3):
+- every voxel of a loose piece leaves the world grid; anchored pieces stay untouched (the hit's damage applied);
+- a **Body** piece becomes a small grid (its bounding box) with an origin in world voxels. Its voxels keep material,
+  part and damage. Mass, centre of mass and the inertia tensor come from the voxels: each voxel a uniform cube,
+  density per material (handbook values, kg/m³: Stone 2600, Bricks 1900, Wood 700, Glass 2500);
+- a **Crumb** piece's voxels become crumbs: position, material, part, damage. Counted, never deleted; F6 turns them
+  into powder;
+- the hit's momentum (`Hit::impulse`, N·s along the hit direction) is shared over the bodies with the stress falloff
+  of §6.4 (weight = mass / (1 + (d / 0.25 m)²), d to the body's voxel nearest the hit) and applied at that voxel, so
+  a body also spins. This split is a modelling choice; what is tested is that momentum is conserved. Crumbs get no
+  momentum yet.
+
+Prediction: `voxfound_f51_prediction.txt`. Red: a stub failed all 5 tests. Run 1, no fixes (`voxfound_f51_run1.txt`):
+- **Conservation, exact.** 6 rigs × 10 energies (557 bodies, 494 crumbs) and 300 random hits (1,491 bodies, 1,037
+  crumbs): every loose voxel is in exactly one body or crumb at the same position with the same material, part and
+  damage; every anchored voxel is unchanged; per-material counts equal. Two runs are bit-equal.
+- **Churn.** A stone wall hit 20 times in a row, each on the world the last extraction left: exact after every hit
+  (988 of 1,152 voxels end up as 31 bodies and 66 crumbs).
+- **Mass properties.** A free 8×4×2 stone box: 325.000 kg, I = 8.46354 / 28.77604 / 33.85417 kg·m², equal to the
+  closed form to 1e-9. Every body equals an independent brute-force sum to 1e-9.
+- **Momentum.** The bodies' momenta sum to the hit's to 1e-9, and I·ω = r × Δp on every body.
+- **Cost** (CPU, the F4.3 large wall): 0.48 ms (59 bodies, 87 crumbs), 2.44 ms (468 / 651), 5.09 ms (947 / 1,407),
+  inside the 1-6 ms estimate. WoW was running during this run, so the figures are an upper bound; reported, not gated.
+
+Next: F5.2, the GPU simulation with voxel collision.
 
 ## 10. Performance tiers
 

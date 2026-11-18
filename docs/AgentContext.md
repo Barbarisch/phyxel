@@ -537,9 +537,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F4.3 (2026-11-17): the reference is integer arithmetic (planFracture host prelude); FractureGpu +
       voxfound_fracture.comp equal it in every channel (18/18 rigs, 600/600 random hits, first run); 1.5-1.8 ms
       device per break on a 131k-voxel wall, flat in pieces (whole-grid passes -- lever: the stressed box).
-      F4 exit test met; owner review of the f41 crack pictures pending.
-      NEXT: F5 -- bodies (extraction, GPU simulation with voxel collision, one-transform drawing, the rest / bake-in
-      hybrid D6); read the plan's F5 row + §6.7 and write the first increment's prediction before code.
+      F4 CLOSED: exit test met; the owner reviewed the crack pictures ("cracks look good", 2026-11-17).
+      F5.1 (2026-11-17): extractBodies (voxfound/Bodies) -- loose pieces leave the world as bodies (grid, mass,
+      centre, inertia, the hit's momentum shared) + crumbs; exact voxel-for-voxel conservation, 1e-9 mass props,
+      momentum conserved (plan §9d).
+      NEXT: F5.2 -- GPU body simulation with voxel collision (against the world, then body-body; §6.7, risk 3);
+      study GpuParticlePhysics / voxel_contact.glsl / CollisionProxyPlan.md first, write the prediction before code.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
