@@ -1,0 +1,122 @@
+pm_chain453.txt - O36 (c), (d): fords on other creek shapes (headless planner, synthetic rigs), and the ford's cost.
+(written 2026-11-18 15:45, BEFORE any run of this chain; HEAD e415e737)
+
+STRESS TEST (the scale axis is the creek's SHAPE): SettlementMapTest.FordsHoldOnOtherCreekShapes - 9 shapes x 3
+  tiers (village 104 x 64, town 140 x 60, city 160 x 160) x 3 seeds = 81 plans, the invariant asserted on EVERY plan:
+    straight (the control: the existing rig) | diagonal | along the street (a creek parallel to the main street, 3
+    cells off it) | at the entry (x 3..4) | several (every 30 cells) | meander | wide (5 cells) | on a slope (the
+    ground climbs east) | beside non-fordable water (a fordable creek, a pond and a RIVER further east: no lot and
+    no way may be beyond or in the river).
+  Asserted on each: 0 lot cells in water; 0 way cells in water outside a recorded crossing; 0 crossing cells on dry
+  ground; 0 crossing cells in NON-fordable water; 0 band cells over water away from a crossing; the map invariants
+  0 (overlaps, through a footprint, outside, no way, door off its way, bad way); a walled tier that plans has its
+  wall, and no two gates of one way within a gate's width. Printed, not asserted: refused plans, lots seated.
+  (d) the ford's cost (kFordStepCost 8, DESIGN): a city with a creek that has a DRY END g cells north of the main
+  street, g = 10 and g = 60 - printed: crossings and lots beyond the creek. The code's comment says a way walks
+  round an end up to about 40 cells away and fords beyond that. NOT asserted (a design number's behaviour, recorded).
+  PREDICTION chain 453: NOT all green. GUESSES: straight / entry / several / wide pass; "along the street" breaks
+  the band rule (a street 6-7 wide 3 cells from a parallel creek has band cells over water away from any crossing)
+  or refuses; "diagonal" and "meander" show band cells over water away from a crossing (a band's disc clips a
+  slanting creek beside a ford); the river arm holds (nothing beyond it). (d): g = 10 -> 0 crossings, g = 60 -> some.
+RESULTS (written 2026-11-18 15:46)
+  chain 453 (exe 15:45:23): the stress test FAILS - "81 plans, 0 refused, 20 with a broken invariant".
+    PASS on every plan: straight, diagonal, at the entry, meander, wide, on a slope (54 plans).
+    BROKEN: "along the street" 4 of 9 (band cells over water away from a crossing 2 to 6); "several" 8 of 9 (band 1
+      to 61; on the three cities ALSO 2 to 4 way cells in water outside a crossing, and one way through a
+      footprint); "beside a pond and a river" 9 of 9 (band 5 to 25, even with 0 crossings; one way through a
+      footprint). Nothing beyond the river, no crossing in non-fordable water, no lot in water, no wall missing.
+    PREDICTION: half right ("along the street" breaks the band rule) and half wrong (diagonal and meander hold;
+    "several" and the pond / river arm break).
+    (d) RECORDED: with a dry end 10 OR 60 cells from the street the city makes 0 crossings and still seats lots east
+      (13 to 34): the ways walk round the end both times. The code's comment ("fords beyond about 40") is NOT what
+      happens at 60. PREDICTION MISS.
+  chain 454: a DIAGNOSTIC (per way: water cells outside any crossing, band cells over water away from its own
+  crossings). No assertion change.
+  chain 454 (diagnostic, the same exe + the print): THREE causes, by way:
+   A. "beside a pond and a river": the PRIMARY is 50 cells long with no crossing - it STOPS on the fordable creek's
+      bank with its end cap over the creek (band 5 to 17). When the far edge cannot be reached (the river), the
+      D69 (b) fallback floods "dry ground" and stops at ANY water, a fordable creek included.
+   B. "several", cities: the primary is 167 / 175 cells on a 160 site - it is carried through its gate to a node
+      beyond the ring, and that stretch crosses a creek lying outside the site unchecked and unrecorded (2 way cells
+      in water, band 51). On the VILLAGE the 5 band cells are at x = 104 = W: my rig put a creek outside the site -
+      a test artifact.
+   C. lanes (width 3) with 1 to 10 band cells over a creek and no crossing of their own: by a fordable creek a
+      lane's clearance is only a cost, so a lane runs or ends beside the creek with its band over it.
+   Not located: "through a footprint 1" on two city seed-23 plans.
+FIXES (stated before chain 455):
+   A. the fallback's floods pass fordable water; the street's end cell stands clear of EVERY water by its band.
+   B. the stretch beyond the site: stops before non-fordable water; a fordable cell on it is a recorded crossing.
+   C. a lot candidate whose lane's band lies over water further than the radius + 1 from the lane's own ford cells is
+      not taken (the lot is not seated there).
+   The code comment on kFordStepCost is corrected to what (d) measured.
+  TEST AMENDED (stated): "several" is x % 30 in {10, 11} (creeks inside the village; on the city one lies just
+  outside the east edge, where the way is carried to its gate).
+  PREDICTION chain 455: 81 plans, 0 broken - GUESS 55 %; C may refuse plans (lots lost by creeks: "refused" may rise
+  from 0); the footprint count on city seed 23 may remain (cause unknown).
+RESULTS (written 2026-11-18 15:50)
+  chain 455 (the three fixes, exe 15:49:42): "81 plans, 0 refused, 3 with a broken invariant" (was 20). The pond /
+    river arm and "along the street" hold on every plan; no plan is refused by fix C. The 3 left are the "several"
+    cities: the primary's END at the site's east edge has 17 band cells over the creek at x 160 / 161 - just OUTSIDE
+    the site. On seed 23 also "through a footprint 1" (not located).
+  TEST AMENDED before chain 456 (stated): the band check counts water INSIDE the site only; what it leaves out is
+  printed. This is a LIMIT, registered (O36 n): the planner does not see water just beyond the site's edge, where a
+  way's end band can lie. The footprint hit is printed with its way and lot.
+  PREDICTION chain 456: 2 of the 3 pass; city seed 23 still fails on the footprint.
+  chain 456 (exe 15:50:55): "81 plans, 0 refused, 1 with a broken invariant"; 17 band cells outside the site left
+    out on 3 plans (printed). The last: "several", city seed 23 - "way 5 (lane) segment (155,99)-(154,98): 3 samples
+    inside lot 31 hall_house footprint [139,98,16,8] ... its way 4": ANOTHER lot's lane begins inside lot 31's
+    house - that lot's door approach cell (one outside its own rect) lies in its neighbour's footprint.
+  FIX D (stated before chain 457): a candidate whose door-approach cell is blocked (a seated lot's ground, water) and
+  not on the network is not taken. This is not a ford rule: it can move any plan that had such a lot.
+  PREDICTION chain 457 (the full unit set, 211 tests): the stress test green (81 / 0); the other tests pass; record
+  lines identical to chain 449's UNLESS a synthetic plan had a door opening onto a neighbour's ground (UNKNOWN).
+RESULTS (written 2026-11-18 15:55)
+  chain 457 (fix D, exe 15:52:11, the full unit set): 210 ok / 1 FAILED - the stress test, on the SAME plan with the
+    SAME hit. PREDICTION MISS: my cause was wrong (it was not the door approach). Fix D is REMOVED (no test shows
+    it). Record lines identical to chain 449's with D in.
+  CAUSE, second reading (from the planner, not separately measured): the lane search's GOAL is the network's mask -
+  the ways' BANDS - and a goal cell is open even where blocked; a street's band lies over the front row of a house
+  built flush to it, so a later lot's lane ended on that row, inside lot 31's footprint.
+  FIX E (stated before chain 458): a seated lot's cells are removed from the lane search's goal.
+  PREDICTION chain 458 (full unit set): the stress test green; record lines identical to chain 449's unless a
+  synthetic plan had a lane ending on a house's front row (UNKNOWN).
+RESULTS (written 2026-11-18 15:57)
+  chain 458 (fix E, exe 15:55:17, the full unit set): 211 ok / 0 failed. "creek shapes: 81 plans, 0 refused, 0 with a
+    broken invariant" (17 band cells outside the site left out on 3 plans, printed). [ M5a ] / [ M5b ] lines identical
+    to chain 449's; M5A-MAP: the two generator hamlet seed-3 plans move (5 lots 18 -> 20 nodes; 6 lots 27 -> more) -
+    a lane there ended on a house's front row (these are the two plans of O35 e that moved unexplained before).
+  PREDICTION chain 459 (live, 41): 0 failed; the live sites whose lanes ended on a house's front row re-plan (UNKNOWN
+  which; the fixture hamlet and the town are candidates); every gate passes; the creek city still builds.
+RESULTS (written 2026-11-18 16:08)
+  chain 459 (live, exe 15:55:17, exit 0 at 16:08:16): 41 ok / 0 failed; the record lines are identical to chain
+    450's (no live site re-planned: PREDICTION MISS - I expected the fixture hamlet or the town to move). The creek
+    city still builds (gate passed, 74 walkable, 4 fords walked along their lanes, 4 gate routes needing their gates).
+  WHAT IS SHOWN: headless planner invariants on 81 synthetic plans (flat ground except one arm), all L2. NOT shown:
+  any of these shapes built; water outside the site's edge; a creek wider than 5; the ford cost changed (it is
+  measured, not tuned). Release only. No Debug run. Not yet audited at the time of writing.
+AUDIT (solution-auditor, 2026-11-18 about 16:10): RAW VERDICT: PASS WITH CONDITIONS ("claims 1 and 2 hold as stated;
+  claim 3 omits one measured lot loss; claim 4: neither amendment hides a defect the test could have seen, but the
+  second masks a real class, now registered"). Full text in the ledger.
+  chain 460 (test only: counts added; exe 16:12:18): "accepted plans below their lot target: 1 (1 lots short in all);
+    crossings recorded beyond the site: 0" - SHORT: "beside a pond and a river, village seed 7 seats 12 of 13" (13 of
+    13 before the fixes; the cause is NOT diagnosed - rule C or fix A). And fix B NEVER RECORDED a crossing on the 81
+    plans: my claim that B cured the "several" cities is WITHDRAWN - that count fell because I moved the creek.
+  TEST EXTENDED before chain 461 (stated): a tenth shape, "a creek between the edge and the gate" (x = W + 4, W + 5
+  beside the straight creek) - the case fix B is for. PREDICTION chain 461: on the three cities a crossing is
+  recorded beyond the site (B fires) and the invariant holds; villages and towns (no wall) are untouched. If no
+  crossing is recorded there either, B is removed as unproven.
+  chain 461 (exe 16:13:15): 90 plans, 0 broken, 1 short; "crossings recorded beyond the site: 0" - the new shape did
+    NOT make B fire (PREDICTION MISS: the way is not carried through water there at all). Shape amended before
+    chain 462 (stated): the tenth shape is chain 453's own pattern (x % 30 in {14, 15}), which then put 2 way cells
+    in water beyond the city's edge. If B records nothing on it, B is removed.
+RESULTS (written 2026-11-18 16:15)
+  chain 462 (exe 16:14:03; only the test file changed since the engine of chains 458 / 459): "90 plans, 0 refused, 0
+    with a broken invariant"; "accepted plans below their lot target: 1 (1 lots short in all); crossings recorded
+    beyond the site: 4" - on the three cities of the tenth shape way 0 (and way 4 on seed 23) records a 2-cell
+    crossing at x 164 beyond the edge. B FIRES; its red is chain 453's cities (2 to 4 way cells in water outside a
+    crossing on this same pattern).
+  STANDING: engine = chains 458 (unit 211 / 0) and 459 (live 41 / 0); after them only the stress test changed and
+  was run alone. NOT DIAGNOSED: the one lot lost (village seed 7 by the pond and river, 12 of 13). NOT ISOLATED: A, B
+  and C went in together; E's red is one plan. Fix B also changes a build WITHOUT fords: a way is no longer carried
+  through its gate over ANY water on the stretch (it used to cross it unrecorded) - no existing test moved.
+  L2, headless, synthetic. Release only. The audit's responses are not re-audited.

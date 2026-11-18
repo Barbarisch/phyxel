@@ -114,7 +114,8 @@ struct Grid {
 
 // D69 (c1) (pm_chain394.txt): a step onto a ford cell, or onto ground within a way's band of one, costs this many dry
 // steps. DESIGN, not grounded (no source prices a ford): a straight crossing of a 2-wide creek by a 3-wide lane
-// touches about 6 such cells, so a way walks round a creek's end up to about 40 cells away and fords beyond that.
+// touches about 6 such cells. MEASURED (pm_chain453.txt, O36 d): a city's ways walked round a creek's dry end 10 AND 60
+// cells from the main street rather than ford (0 crossings) - the "about 40 cells" once written here did not hold.
 constexpr float kFordStepCost = 8.0f;
 
 // Dijkstra from `start` to the nearest goal cell (a way cell or an entry); the M4 cost model
@@ -451,7 +452,7 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                     const int nx = cx + nb[0], nz = cz + nb[1];
                     if (!g.inside(nx, nz)) continue;
                     const size_t ni = static_cast<size_t>(g.idx(nx, nz));
-                    if (seen[ni] || waterMask[ni]) continue;
+                    if (seen[ni] || hardMask[ni]) continue;   // O36 (c): a fordable creek does not end the dry ground (hardMask is waterMask without a ford)
                     seen[ni] = 1; frontier.push_back(static_cast<int>(ni));
                 }
             }
@@ -459,25 +460,31 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
             // "joined" the street there). The street ends at the deepest CLEAR cell - one its band can stand on -
             // reachable from the entry over clear cells; a ragged shore or a spit too narrow for the band is not used.
             dryDepth = deepest;
+            const auto endClear = [&](int ci) {
+                const size_t i = static_cast<size_t>(ci);
+                return !waterMask[i] && !nearWaterMain[i] && !(rMainBand > 0 && waterDist[i] < static_cast<float>(rMainBand) + 1.0f);
+            };
             std::vector<uint8_t> seenC(N, 0);
             std::vector<int> clearCells{g.idx(entry.x, entry.y)};
             seenC[static_cast<size_t>(clearCells[0])] = 1;
             int deepestClear = -1;
             for (size_t qi = 0; qi < clearCells.size(); ++qi) {
                 const int cx = clearCells[qi] % W, cz = clearCells[qi] / W;
-                if (inBand(cx, cz) && !nearWaterMain[static_cast<size_t>(clearCells[qi])]) deepestClear = std::max(deepestClear, depthOf(cx, cz));
+                // O36 (c) (pm_chain453.txt): the street's END stands clear of EVERY water by its band - a fordable creek too
+                // (the street ended on a creek's bank with its end cap over the creek: "beside a pond and a river")
+                if (inBand(cx, cz) && endClear(clearCells[qi])) deepestClear = std::max(deepestClear, depthOf(cx, cz));
                 static const int N4c[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
                 for (const auto& nb : N4c) {
                     const int nx = cx + nb[0], nz = cz + nb[1];
                     if (!g.inside(nx, nz)) continue;
                     const size_t ni = static_cast<size_t>(g.idx(nx, nz));
-                    if (seenC[ni] || waterMask[ni] || nearWaterMain[ni]) continue;
+                    if (seenC[ni] || hardMask[ni] || nearWaterMain[ni]) continue;
                     seenC[ni] = 1; clearCells.push_back(static_cast<int>(ni));
                 }
             }
             if (deepestClear > 0) {
                 std::vector<uint8_t> shore(N, 0);
-                for (const int ci : clearCells) { const int cx = ci % W, cz = ci / W; if (inBand(cx, cz) && !nearWaterMain[static_cast<size_t>(ci)] && depthOf(cx, cz) == deepestClear) shore[static_cast<size_t>(ci)] = 1; }
+                for (const int ci : clearCells) { const int cx = ci % W, cz = ci / W; if (inBand(cx, cz) && endClear(ci) && depthOf(cx, cz) == deepestClear) shore[static_cast<size_t>(ci)] = 1; }
                 spine = routeMain(g.idx(entry.x, entry.y), shore);
             }
         }
@@ -723,6 +730,11 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                         entryMask[static_cast<size_t>(g.idx(e.x, e.y))] = 1;
                         goal = entryMask;
                     }
+                    // O36 (c) (pm_chain453.txt, chain 457): a lane does not END inside a house. The network's mask is the
+                    // ways' BANDS, and a street's band lies over the front row of a house built flush to it (setback 0) -
+                    // a goal cell is open to the search even where it is blocked, so a later lot's lane ended on that
+                    // row ("several", city seed 23: way 5 into lot 31's footprint). A seated lot's cells are no goal.
+                    if (haveNet) for (size_t i = 0; i < N; ++i) if (goal[i] && lotMask[i]) goal[i] = 0;
                     if (!reach.empty() && !reach[static_cast<size_t>(di)]) continue;   // no route exists: skip the search
                     Grid gg = g;
                     // O16 (pm_chain380.txt): the candidate's own FOOTPRINT is closed to its lane (the door starts
@@ -739,6 +751,25 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                     if (anyFord) { gg.ford = fordMask; gg.costly = costlyLane; }   // D69 (c1): but may ford a creek
                     path = connect(gg, di, goal, in.reuse);
                     if (path.empty()) continue;
+                    // O36 (c) (pm_chain453.txt): by a fordable creek a lane's clearance is a cost, not a wall (it must
+                    // reach its ford), so a lane could run or end beside the creek with its band over it. A candidate
+                    // whose lane's band (a disc of the lane's radius round each cell) lies over water further than the
+                    // radius + 1 from the lane's own ford cells is not taken.
+                    if (anyFord && rLaneBand > 0) {
+                        std::vector<std::pair<int, int>> own;
+                        for (const int pc : path) if (fordMask[static_cast<size_t>(pc)]) own.push_back({pc % W, pc / W});
+                        bool bandInWater = false;
+                        for (size_t k = 0; k + 1 < path.size() && !bandInWater; ++k) {   // the last cell is the network's
+                            const int cx = path[k] % W, cz = path[k] / W;
+                            for (int dz = -rLaneBand; dz <= rLaneBand && !bandInWater; ++dz) for (int dx = -rLaneBand; dx <= rLaneBand && !bandInWater; ++dx) {
+                                if (dx * dx + dz * dz > rLaneBand * rLaneBand || !g.inside(cx + dx, cz + dz) || !waterMask[static_cast<size_t>(g.idx(cx + dx, cz + dz))]) continue;
+                                bool near = false;
+                                for (const auto& o : own) if (std::abs(o.first - (cx + dx)) <= rLaneBand + 1 && std::abs(o.second - (cz + dz)) <= rLaneBand + 1) { near = true; break; }
+                                if (!near) bandInWater = true;
+                            }
+                        }
+                        if (bandInWater) continue;
+                    }
                 }
                 // seat the lot
                 MapLot l; l.id = static_cast<int>(map.lots.size()); l.rect = c.shape.rect; l.footprint = c.shape.footprint;
@@ -1342,9 +1373,21 @@ static void planWall(SettlementMap& map, const SettlementMapInput& in) {
                     if (!ringAt.count({ex + dx * k, ez + dz * k})) continue;
                     const int tx = ex + dx * (k + 3), tz = ez + dz * (k + 3);
                     if (wet[gi(tx, tz)] || forbidden[gi(tx, tz)]) break;
+                    // O36 (c) (pm_chain453.txt): the stretch beyond the site is a way like any other - it does not enter
+                    // water that is not fordable, and a fordable cell on it is a recorded crossing ("several": a creek
+                    // between the site's edge and the gate was crossed unseen)
+                    SettlementMap::Crossing beyond; beyond.way = w.id;
+                    bool hardWater = false;
+                    for (int q = 1; q <= k + 3 && !hardWater; ++q) {
+                        const int qx = ex + dx * q, qz = ez + dz * q;
+                        if (!wet[gi(qx, qz)]) continue;
+                        if (in.fordAt && in.fordAt(qx, qz)) beyond.cells.push_back({qx, qz}); else hardWater = true;
+                    }
+                    if (hardWater) break;
                     MapNode out; out.id = nextId++; out.x = tx; out.z = tz; out.y = hgt[gi(tx, tz)];
                     map.nodes.push_back(out);
                     if (endIdx == 0) w.nodes.insert(w.nodes.begin(), out.id); else w.nodes.push_back(out.id);
+                    if (!beyond.cells.empty()) map.crossings.push_back(beyond);
                     break;
                 }
             }

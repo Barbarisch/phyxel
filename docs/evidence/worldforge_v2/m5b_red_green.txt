@@ -1925,3 +1925,34 @@ MY RESPONSE (after the audit; NOT re-audited; test file only - the engine is unc
    level; the control (the lane's cross-section at the crossing walled up) is blocked on all 4 (chain 452). Two
    bugs of my own in the first version of this control were found by its failing (chain 451) and are recorded.
  3 DONE (printed). 4 NOT DONE - disclosed in the plan's O36 row. Finding 3 stands as a limit.
+
+=== O36 (c), (d) fords on other creek shapes (headless stress) - solution-auditor read (recorded 2026-11-18 16:15; HEAD e415e737 + the working tree; read-only; detail in m3c_chains/pm_chain453.txt) ===
+RAW VERDICT: PASS WITH CONDITIONS (claims 1 and 2 hold as stated; claim 3 omits one measured lot loss; claim 4:
+neither amendment hides a defect the test could have seen, but the second masks a real class, now registered).
+FINDINGS (the auditor's, condensed):
+ 1. the stress red -> green is real (20, 3, 1, 0 of 81) but A, B and C were never isolated; E is read from code, its
+    red is one plan; D was a wrong diagnosis, removed and recorded.
+ 2. UNREPORTED LOT LOSS: "beside a pond and a river, village seed 7" 13 of 13 before, 12 of 13 after A + B + C; the
+    test printed lots and never asserted them; cause undiagnosed (rule C is a plain skip with no retry).
+ 3. the test's band measure is the SAME formula as the planner's rule C: for lanes it is 0 by construction. What is
+    independent: it covers every way, reads recorded crossings, samples the map's nodes; and it was seen failing.
+ 4. rule C passes a perpendicular or diagonal ford; a lane along the shore before fording is rejected (intended).
+ 5. fix A is identical without a ford; with no clear end cell the fallback refuses with no retry (no plan shows it).
+ 6. fix B: crossing cells outside the site are harmless to consumers; B changes NON-ford behaviour (any wet cell on
+    the stretch stops the carry-through); "nothing shows B ever fired".
+ 7. fix E: lotMask is the lot RECT; a lot whose only near net cells are band cells over other lots would lose its
+    goal - not seen on the 81 plans; "no live site moved" is shown for lot lines only (node counts are not in them).
+ 8. the pond and river arm is meaningful (one shape, flat). 9. the amendments: the first removed a rig artifact; the
+    second leaves 17 real band cells over water beyond the edge unasserted - printed and registered.
+ 10. (d) is unexplained: by the cost model a ford should beat a 120-cell detour; measured 0 crossings at 10 and 60.
+     Fords are only ever chosen when the creek spans the whole site.
+ 11. evidence postdates the code. 12. overstatements: "each fix tied to a diagnosed cause", "0 refused".
+CONDITIONS: report (and diagnose or assert) the 12 of 13; show that B fires or drop the claim, and note its non-ford
+ change; keep O36 n and "L2, headless, synthetic" in every summary.
+MY RESPONSE (after the audit; test file only; NOT re-audited):
+ - the lot loss is COUNTED and printed by the test ("accepted plans below their lot target: 1 (1 lots short)") and
+   reported; NOT diagnosed, NOT asserted.
+ - B: with a tenth shape (chain 453's own pattern) B records 4 crossings beyond the site on the three cities and the
+   invariant holds on 90 plans (chain 462). Two earlier attempts to show it did not (recorded). My claim that B
+   cured the "several" cities is withdrawn: that count fell because I moved the creek. B's non-ford change is stated.
+ - the rest is disclosed in the plan's O36 row (n to r).

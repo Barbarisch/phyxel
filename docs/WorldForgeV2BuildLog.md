@@ -905,3 +905,20 @@ Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain442.txt` (chains 442 to 
 - NOT done: the ford rule is still opt-in; the engine's own gate check is not constrained against a water gap; the
   passage-end rule falls back silently; one city, one recipe, creeks 1 to 2 cells wide; no Debug run; nothing viewed
   in the engine.
+
+### 2026-11-18 - O36 (c), (d): fords on other creek shapes - a headless stress test and four planner fixes
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain453.txt` (chains 453 to 462). L2, headless, synthetic.
+- `SettlementMapTest.FordsHoldOnOtherCreekShapes`: 10 creek shapes x 3 tiers x 3 seeds = 90 plans, the ford
+  invariants asserted on each. First run (9 shapes): 20 of 81 broken. Now 0 of 90, none refused, one plan a lot short.
+- Fixes: (A) when the far edge cannot be reached the main street no longer stops on a fordable creek's bank with its
+  end cap over it; (B) a way carried through its gate beyond the site stops before non-fordable water and records a
+  ford on that stretch (this also changes builds without fords); (C) a lot whose lane's band would lie over a creek
+  away from the lane's own ford is not seated; (E) a lane no longer ends inside a house built flush to a street (not
+  a ford rule; two generator hamlet plans moved).
+- (d) measured, not tuned: a city's ways walked round a creek's dry end 10 and 60 cells from the street rather than
+  ford. Unexplained against the cost model; the code comment that claimed otherwise is corrected.
+- Release unit 211 / 0, live 41 / 0; no live record line changed.
+- Open: one lot lost on one plan (undiagnosed); A, B, C not isolated; water just beyond the site's edge is not seen
+  by the planner (17 band cells on 3 plans, printed, not asserted); the band check shares its formula with rule C;
+  none of these shapes is built. Audited PASS WITH CONDITIONS; responses not re-audited. No Debug run.

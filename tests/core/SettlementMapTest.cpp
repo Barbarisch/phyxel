@@ -2701,6 +2701,148 @@ TEST(SettlementMapTest, ATypologyTheEraLacksIsRefusedNotStoodIn) {
     EXPECT_FALSE(m2.ok()) << "the fixture era borrowed the medieval tavern";
 }
 
+// O36 (c), (d) (pm_chain453.txt): fords on other creek shapes - the stress phase of D69 (c1). The first proof was one
+// straight creek square to every way.
+TEST(SettlementMapTest, FordsHoldOnOtherCreekShapes) {
+    ASSERT_TRUE(rigs().programOk);
+    struct Shape { const char* name; int kind; };
+    struct Site { const char* tier; int W, D; };
+    const auto slope = [](int x, int) { return 30 + x / 8; };
+    // fordable water and other water, by shape (W, D = the site)
+    const auto fordable = [](int kind, int W, int D) {
+        return std::function<bool(int, int)>([kind, W, D](int x, int z) {
+            (void)W;
+            switch (kind) {
+                case 0: case 7: case 8: return x == 50 || x == 51;                                  // straight (8: with a pond and a river)
+                case 9: return x % 30 == 14 || x % 30 == 15;                                        // chain 453's own pattern: on the city a creek at x 164 / 165, between the edge and the gate (the audit: fix B)
+                case 1: { const int c = 30 + z / 2; return x == c || x == c + 1; }                   // diagonal
+                case 2: return z == D / 2 + 6 || z == D / 2 + 7;                                    // along the street, beside it
+                case 3: return x == 3 || x == 4;                                                    // at the entry
+                case 4: return x % 30 == 10 || x % 30 == 11;                                        // several (amended before chain 455: was 14 / 15, which put a creek at x = W on the village - outside the site, where the planner has no water)
+                case 5: { const int c = 50 + static_cast<int>(std::lround(8.0 * std::sin(z / 9.0))); return x == c || x == c + 1; }   // meander
+                default: return x >= 48 && x <= 52;                                                 // 6: wide (5 cells)
+            }
+        });
+    };
+    const auto other = [](int kind, int W, int D) {
+        return std::function<bool(int, int)>([kind, W, D](int x, int z) {
+            if (kind != 8) return false;
+            const bool pond = x >= 60 && x < 68 && z >= D / 2 - 14 && z < D / 2 - 8;
+            const bool river = x >= W - 30 && x < W - 27;
+            return pond || river;
+        });
+    };
+    int plans = 0, refused = 0, bad = 0, shortPlans = 0, lotsShort = 0, beyondCrossings = 0;
+    for (const Shape sh : {Shape{"straight", 0}, Shape{"diagonal", 1}, Shape{"along the street", 2}, Shape{"at the entry", 3}, Shape{"several", 4}, Shape{"meander", 5}, Shape{"wide", 6},
+                           Shape{"on a slope", 7}, Shape{"beside a pond and a river", 8}, Shape{"a creek between the edge and the gate", 9}})
+        for (const Site st : {Site{"village", 104, 64}, Site{"town", 140, 60}, Site{"city", 160, 160}})
+            for (const unsigned seed : {1u, 7u, 23u}) {
+                const auto ford = fordable(sh.kind, st.W, st.D), oth = other(sh.kind, st.W, st.D);
+                const std::function<bool(int, int)> water = [ford, oth](int x, int z) { return ford(x, z) || oth(x, z); };
+                SettlementMapInput in = inputFor(st.tier, st.W, st.D, sh.kind == 7 ? std::function<int(int, int)>(slope) : std::function<int(int, int)>(flatHeight), water, seed);
+                ASSERT_NE(in.tier, nullptr);
+                in.fordAt = ford;
+                const SettlementMap m = planSettlementMap(in);
+                ++plans;
+                FordCount c = fordCount(m, water, 50);
+                // amended before chain 456 (pm_chain453.txt): the BAND check reads water INSIDE THE SITE only - the planner
+                // has no water outside it (a creek at x = W under a street's end at the edge is out of its sight: O36 n)
+                const int sW = st.W, sD = st.D;
+                const std::function<bool(int, int)> waterInSite = [water, sW, sD](int x, int z) { return x >= 0 && z >= 0 && x < sW && z < sD && water(x, z); };
+                const int bandOutside = c.bandAway - fordCount(m, waterInSite, 50).bandAway;
+                c.bandAway -= bandOutside;
+                const Violations v = measure(m, in.heightAt, in.maxRelief);
+                int crossOther = 0, lotsBeyondRiver = 0, doubled = 0;
+                for (const auto& cr : m.crossings) for (const auto& cell : cr.cells) if (oth(cell.first, cell.second)) ++crossOther;
+                if (sh.kind == 8) for (const auto& l : m.lots) if (l.rect.x >= st.W - 27) ++lotsBeyondRiver;
+                for (size_t i = 0; i < m.wall.gates.size(); ++i) for (size_t j = i + 1; j < m.wall.gates.size(); ++j) {
+                    const auto& g1 = m.wall.gates[i]; const auto& g2 = m.wall.gates[j];
+                    if (g1.way == g2.way && g1.way >= 0 && std::abs(g1.x - g2.x) + std::abs(g1.z - g2.z) <= std::max(g1.width, g2.width)) ++doubled;
+                }
+                const bool wallMissing = in.tier->walls.enabled && m.ok() && !m.wall.present;
+                const int inv = v.overlaps + v.wayThroughFootprint + v.lotOutside + v.lotNoWay + v.lotDoorOffWay + v.badWay;
+                const bool ok = c.lotCellsInWater == 0 && c.wayCellsNotInACrossing == 0 && c.crossingCellsDry == 0 && crossOther == 0 && c.bandAway == 0 && inv == 0 && lotsBeyondRiver == 0 && !wallMissing && doubled == 0;
+                if (!m.ok()) ++refused;
+                if (!ok) ++bad;
+                // the audit of O36 c: lots below the tier's target (a plan can be ACCEPTED short), and crossings recorded
+                // beyond the site (fix B: does it ever fire?) - counted and printed, not asserted
+                if (m.ok() && static_cast<int>(m.lots.size()) < m.targetLots) { ++shortPlans; lotsShort += m.targetLots - static_cast<int>(m.lots.size());
+                    std::printf("[ O36c ]   SHORT: %s, %s seed %u seats %zu of %d%s", sh.name, st.tier, seed, m.lots.size(), m.targetLots, "\n"); }
+                for (const auto& cr : m.crossings) { bool out = false; for (const auto& cell : cr.cells) if (cell.first < 0 || cell.second < 0 || cell.first >= st.W || cell.second >= st.D) out = true;
+                    if (out) { ++beyondCrossings; std::printf("[ O36c ]   a crossing BEYOND the site: %s, %s seed %u, way %d, %zu cells from %d,%d%s", sh.name, st.tier, seed, cr.way, cr.cells.size(), cr.cells.front().first, cr.cells.front().second, "\n"); } }
+                std::printf("[ O36c ] %s, %s seed %u: %s%zu lots of %d, %zu ways, %d crossings | lot cells in water %d, way cells in water outside a crossing %d, crossing cells dry %d, in other water %d, "
+                            "band over water away from a crossing %d, invariants %d (through a footprint %d, no way %d, door off %d, bad way %d), beyond the river %d, wall %s, doubled gates %d%s%s",
+                            sh.name, st.tier, seed, m.ok() ? "" : "REFUSED - ", m.lots.size(), m.targetLots, m.ways.size(), c.crossings, c.lotCellsInWater, c.wayCellsNotInACrossing, c.crossingCellsDry, crossOther,
+                            c.bandAway, inv, v.wayThroughFootprint, v.lotNoWay, v.lotDoorOffWay, v.badWay, lotsBeyondRiver,
+                            !in.tier->walls.enabled ? "n/a" : m.wall.present ? "present" : ("ABSENT " + m.wall.refusal).c_str(), doubled, ok ? "" : "   <-- BROKEN", "\n");
+                if (bandOutside) std::printf("[ O36c ]   (%d band cells over water OUTSIDE the site - not counted)%s", bandOutside, "\n");
+                if (v.wayThroughFootprint)   // chain 456: which way, which lot
+                    for (const auto& wy : m.ways)
+                        for (size_t k = 0; k + 1 < wy.nodes.size(); ++k) {
+                            const MapNode* a = m.node(wy.nodes[k]); const MapNode* b = m.node(wy.nodes[k + 1]);
+                            if (!a || !b) continue;
+                            const int steps = std::max(1, static_cast<int>(std::ceil(std::hypot(static_cast<float>(b->x - a->x), static_cast<float>(b->z - a->z)) * 2.0f)));
+                            for (const auto& l : m.lots) {
+                                int inside = 0;
+                                for (int sp = 0; sp <= steps; ++sp) {
+                                    const float t = static_cast<float>(sp) / static_cast<float>(steps);
+                                    const float x = static_cast<float>(a->x) + t * static_cast<float>(b->x - a->x), z = static_cast<float>(a->z) + t * static_cast<float>(b->z - a->z);
+                                    if (x >= static_cast<float>(l.footprint.x) && x < static_cast<float>(l.footprint.x1()) && z >= static_cast<float>(l.footprint.z) && z < static_cast<float>(l.footprint.z1())) ++inside;
+                                }
+                                if (inside)
+                                    std::printf("[ O36c ]     way %d (%s, width %.0f) segment (%d,%d)-(%d,%d): %d samples inside lot %d %s footprint [%d,%d,%d,%d] rect [%d,%d,%d,%d] orientation %d, its way %d%s", wy.id,
+                                                wy.highway.c_str(), wy.width, a->x, a->z, b->x, b->z, inside, l.id, l.typology.c_str(), l.footprint.x, l.footprint.z, l.footprint.w, l.footprint.d,
+                                                l.rect.x, l.rect.z, l.rect.w, l.rect.d, l.orientation, l.way, "\n");
+                            }
+                        }
+                if (!ok) {   // chain 454 diagnostic (pm_chain453.txt): which way - its water cells outside ANY crossing, and its band cells over water away from ITS crossings
+                    std::set<std::pair<int, int>> anyCross;
+                    for (const auto& cr : m.crossings) for (const auto& cell : cr.cells) anyCross.insert(cell);
+                    for (const auto& w : m.ways) {
+                        int wetOut = 0, wetOther = 0, band = 0, own = 0; std::pair<int, int> first{-1, -1}, firstBand{-1, -1};
+                        for (const auto& cr : m.crossings) if (cr.way == w.id) own += static_cast<int>(cr.cells.size());
+                        const int r = std::max(0, static_cast<int>(std::lround(w.width)) / 2);
+                        std::pair<int, int> at{INT_MIN, 0};
+                        std::vector<std::pair<int, int>> line;
+                        for (int nid : w.nodes) if (const MapNode* n = m.node(nid)) {
+                            if (at.first == INT_MIN) { at = {n->x, n->z}; line.push_back(at); continue; }
+                            while (at.first != n->x || at.second != n->z) { at.first += (n->x > at.first) - (n->x < at.first); at.second += (n->z > at.second) - (n->z < at.second); line.push_back(at); }
+                        }
+                        for (const auto& c2 : line) {
+                            if (water(c2.first, c2.second)) { if (!anyCross.count(c2)) { if (!wetOut++) first = c2; } if (oth(c2.first, c2.second)) ++wetOther; }
+                            for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) {
+                                if (dx * dx + dz * dz > r * r || !water(c2.first + dx, c2.second + dz)) continue;
+                                bool near = false;
+                                for (const auto& cr : m.crossings) { if (cr.way != w.id) continue; for (const auto& cell : cr.cells) if (std::abs(cell.first - (c2.first + dx)) <= r + 1 && std::abs(cell.second - (c2.second + dz)) <= r + 1) { near = true; break; } if (near) break; }
+                                if (!near) { if (!band++) firstBand = {c2.first + dx, c2.second + dz}; }
+                            }
+                        }
+                        if (wetOut || band || wetOther)
+                            std::printf("[ O36c ]     way %d %s width %.0f (%zu cells, %d own crossing cells): %d cells in water outside any crossing (first %d,%d), %d in non-fordable water, %d band cells over water away from its own crossings (first %d,%d)%s",
+                                        w.id, w.highway.c_str(), w.width, line.size(), own, wetOut, first.first, first.second, wetOther, band, firstBand.first, firstBand.second, "\n");
+                    }
+                }
+                EXPECT_TRUE(ok) << sh.name << ", " << st.tier << " seed " << seed;
+            }
+    std::printf("[ O36c ] creek shapes: %d plans, %d refused, %d with a broken invariant%s", plans, refused, bad, "\n");
+    std::printf("[ O36c ] accepted plans below their lot target: %d (%d lots short in all); crossings recorded beyond the site: %d%s", shortPlans, lotsShort, beyondCrossings, "\n");
+    EXPECT_EQ(bad, 0);
+    EXPECT_LT(refused, plans / 2) << "most plans are refused: the stress measures little";
+
+    // (d) the ford's cost, RECORDED: a creek with a dry end g cells north of the main street (the road arrives at z = D / 2)
+    for (const int g : {10, 60})
+        for (const unsigned seed : {1u, 7u, 23u}) {
+            const int W = 160, D = 160;
+            const std::function<bool(int, int)> creek = [g, D](int x, int z) { return (x == 50 || x == 51) && z < D / 2 + g; };
+            SettlementMapInput in = inputFor("city", W, D, flatHeight, creek, seed);
+            in.fordAt = creek;
+            const SettlementMap m = planSettlementMap(in);
+            const FordCount c = fordCount(m, creek, 50);
+            std::printf("[ O36d ] a creek with a dry end %d cells from the street, city seed %u: %zu lots of %d (%d west, %d east), %d crossings%s%s", g, seed, m.lots.size(), m.targetLots,
+                        c.lotsWest, c.lotsEast, c.crossings, m.ok() ? "" : (" REFUSED: " + m.refusal).c_str(), "\n");
+        }
+}
+
 // O35 (c) step 3 (pm_chain404.txt): the market is sited on level ground. The live town's market stood on the main
 // street's middle cell with 5 cubes of relief in 12 cells - a level street between two 1 : 1 cobbled slopes, on which
 // no well or stall can stand level.
