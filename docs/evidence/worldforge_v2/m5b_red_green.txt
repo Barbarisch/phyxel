@@ -1798,3 +1798,39 @@ MY RESPONSE (chains 401-403, after the audit; NOT re-audited): 1 corrected in pm
  comment. 2 done (fordMask; the half-river arm: crossings only south of z 32). 3 done (band cells over water away
  from a crossing: 0 on 13 plans - on a rig where the creek is perpendicular to every way). Regression re-run on the
  final exe: unit 202 / 0, live 38 / 0, all prints identical.
+
+=== O35 (b) the lane corner rule, O35 (c) a market prop on level ground, the market sited on level ground - solution-auditor read (recorded 2026-11-18 13:19; HEAD aab3587a + the working tree; read-only; detail in m3c_chains/pm_chain404.txt) ===
+RAW VERDICT: PASS WITH CONDITIONS. Claims 1, 2 and 4 hold as stated. Claim 3 is only partly proven. Claim 5 is
+honest. Claim 6's assertion change is defensible, but the live market test can no longer fail on the town's market
+having no props. (The auditor read the diff, the record and the logs; it ran nothing and did not re-count the 209.)
+FINDINGS (the auditor's, condensed; its words where quoted):
+ 1. corner rule REAL, "with a weak red": the red is the PRINTED count of 1 on two ford plans in the previous commit,
+    not an assertion run on code without the rule. No lot lost (doors 24 / 24 and 25 / 25, 0 lot failures); four
+    live lots re-seated, fixtures 396 -> 393 and 408 -> 403.
+ 2. level rule REAL for the planner rule and "tautological in its definition": the unit checks restate the planner's
+    own rule (independently coded; the controls show 2 + 1 in cubes, 645 of 888 in micro). The micro test has no red
+    run. Neither measures the physical property (a prop that does not hang open) - only the live test does, and it
+    is vacuous on the town.
+ 3. the live sampler PARTIAL: capture and unit order are sound; a cell with no ground is never level, so a failed
+    scan is not told apart from a real drop; eaves count as ground (conservative). "The live positive path was
+    never exercised non-vacuously": the town places 0 props, the walled city 2 (span 0) and nothing asserts it.
+ 4. market siting REAL, with proxies (the test's middle is the way's middle cell; the "none level" invariant was
+    relaxed after chain 413 and cannot see a market moved to a place of equal relief). Relief <= 1 does not
+    guarantee that props stand. The live town's market DID NOT MOVE - only the hill-rig city did.
+ 5. counts HONEST; the chain headers do not hash SettlementLayout.cpp / .h or MarketDressingTest.cpp (chain 408 was
+    built after those edits).
+ 6. the assertion change "honest in process, weak in effect": conservation checks that pass when everything is
+    dropped. Disclosure incomplete: the walled city also drops 6 props (places 2); the market's recorded edge got
+    worse ("2 a step too high or deep" -> 8, "24 within the walker's step" -> 18; plaza columns 1774 -> 3410).
+ 7. legacy layouts: placement unchanged, but `dropped` is filled from a stall shortfall and the unit's warning
+    called it a ground failure on a legacy city that placed 5 props.
+ 8. the planner's note logic traced correct.
+CONDITIONS: 1 say the walled city loses props too; 2 say the siting change did not move the live town; 3 say the
+ live positive path is untested; 4 fix or disclose the mislabelled warning; 5 disclose the market-edge figures;
+ 6 say the corner red was a printed count, the micro test and the middle are controls / proxies, the siting invariant
+ was relaxed; 7 keep an explicitly named expected-open check so O37 stays red somewhere.
+MY RESPONSE (after the audit; NOT re-audited): 4 fixed (the warning's wording by path); 7 done -
+ DISABLED_O37_TheTownsMarketHasAWellAndAStallStanding, expected RED, run by hand; 1, 2, 3, 5, 6 are disclosed in the
+ plan's O37 row and in the build log. The market-edge figures are NOT explained.
+RE-RUN ON THE FINAL EXE (13:17:17, after the responses; recorded 13:30): unit 209 / 0 (chain 418), live 38 / 0 (chain
+ 419), record lines identical to chains 415 / 417; the expected-red O37 test RED (chain 420: 0 wells, 0 stalls).

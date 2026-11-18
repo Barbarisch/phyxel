@@ -824,3 +824,32 @@ NOT built: the build service does not pass `fordAt`, so no real settlement fords
 no walk through one (L3), nothing realized. Tried and removed: a rule against a lane passing its own house's corner -
 it is right, but it re-plans the live town onto the market-dressing weakness (O35 b, c), which is fixed first.
 Audited PASS WITH CONDITIONS; the three conditions answered after the audit and not re-audited (ledger).
+
+### 2026-11-18 - O35 (b, c): the lane corner rule, market props on level ground, the market sited on level ground
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain404.txt` (chains 404 to 420). D71 and D72 were ruled (a) by
+the owner the same day (aab3587a).
+- **Corner rule (O35 b, part).** `Grid::noCut`: a lot's own lane may not step diagonally past the corner of its own
+  house. The ford test asserts "way through a footprint" == 0 again (the red was a printed count of 1, not an
+  assertion run). A lane may still cross its own yard - open.
+- **Level rule (O35 c).** `planSquareDressing` takes a `SquareGround` (per cell lowest / highest surface, a
+  tolerance). A prop stands only where its footprint's surface spans no more than the tolerance and no ring cell is
+  more than half of it above; else the nearest free level spot, else it is listed in `dropped`. On a map build the
+  dressing unit reads the LIVE paved surface in micro (tolerance 4 = the walker's step-up, DESIGN use) and rebuilds
+  the market gate from the props that stand. The first attempt - the plan-time cube ground - was wrong (chain 407:
+  the paver's ramps are not in it) and was removed. Legacy layouts read no ground.
+- **Market siting.** The planner takes the dry place along the main street, nearest the middle first, whose rect has
+  a relief of at most 1 cube (DESIGN); none = the market stays and the map's note says so. A "least relief" fallback
+  was tried and removed (chain 413: it moved a rolling city's market 24 cells for 5 -> 3 cubes and the wall no
+  longer closed on that plan - a wall weakness, noted in O37).
+- **Counts (Release, exe 13:17:17):** unit 209 / 0, live 38 / 0. Moves: the live town's lots re-seated by the corner
+  rule (75 walkable / 0 blocked over 24 doors, was 76), fixtures 396 -> 393 and 408 -> 403; two hamlet seed-3 plans;
+  the hill-rig city's market (14 -> 13 ways).
+- **NOT fixed, and worse to look at (O37):** the live town's market has no level ground off its street (a level lane
+  between two 1 : 1 paved slopes, 5 cubes in 12 cells) and no level place exists along its street, so the siting
+  rule did not move it and ALL FIVE props are dropped: the town has no well and no stalls. The walled city drops 6
+  and places 2. Before, those props were placed on the slope (spans up to 25 micro) and nothing measured it. The
+  live "props stand" checks are now vacuous on the town; the unmet claim is kept as an expected-red test
+  (`DISABLED_O37_TheTownsMarketHasAWellAndAStallStanding`, red in chain 420). The market's recorded edge figures
+  got worse (2 -> 8 edge steps too high or deep) and are not explained.
+- Audited PASS WITH CONDITIONS (ledger); responses not re-audited. No Debug run; nothing viewed in the engine.

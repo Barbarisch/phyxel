@@ -248,8 +248,8 @@ TEST(SettlementMapTest, AWayFordsACreekAndNoLotStandsInIt) {
         // lane passing its own house's corner (O35 b's class by its geometry). It appears only on the plans the ford
         // makes (lots beyond the creek); both controls read 0. A known defect left visible - to be asserted again
         // when the corner rule lands (after the market-dressing fix).
-        std::printf("[ D69c ]   %s: way through a footprint %d (printed, O35 b)%s", arm.name, v.wayThroughFootprint, "\n");
-        EXPECT_EQ(v.overlaps + v.lotOutside + v.lotNoWay + v.lotDoorOffWay + v.badWay, 0) << arm.name;
+        std::printf("[ D69c ]   %s: way through a footprint %d (asserted again: the corner rule, pm_chain404)%s", arm.name, v.wayThroughFootprint, "\n");
+        EXPECT_EQ(v.overlaps + v.wayThroughFootprint + v.lotOutside + v.lotNoWay + v.lotDoorOffWay + v.badWay, 0) << arm.name;
         if (arm.mode == 3) continue;
         if (arm.mode == 0) {
             EXPECT_TRUE(m.ok()) << m.refusal;
@@ -300,7 +300,7 @@ TEST(SettlementMapTest, AWayFordsACreekAndNoLotStandsInIt) {
             EXPECT_EQ(c.lotCellsInWater, 0) << s.tier << " seed " << seed;
             EXPECT_EQ(c.wayCellsNotInACrossing, 0) << s.tier << " seed " << seed;
             EXPECT_EQ(c.bandAway, 0) << s.tier << " seed " << seed << ": a way's band lies over water away from its crossing";
-            EXPECT_EQ(v.overlaps + v.lotOutside + v.lotNoWay + v.lotDoorOffWay + v.badWay, 0) << s.tier << " seed " << seed;
+            EXPECT_EQ(v.overlaps + v.wayThroughFootprint + v.lotOutside + v.lotNoWay + v.lotDoorOffWay + v.badWay, 0) << s.tier << " seed " << seed;
         }
 }
 
@@ -2623,4 +2623,95 @@ TEST(SettlementMapTest, ATypologyTheEraLacksIsRefusedNotStoodIn) {
     const SettlementMap m2 = planSettlementMap(fy.input(7));
     std::printf("[ M5f-1 ] a medieval-only typology asked by the fixture era: ok %d, %zu lots, refusal '%s'%s", m2.ok() ? 1 : 0, m2.lots.size(), m2.refusal.c_str(), "\n");
     EXPECT_FALSE(m2.ok()) << "the fixture era borrowed the medieval tavern";
+}
+
+// O35 (c) step 3 (pm_chain404.txt): the market is sited on level ground. The live town's market stood on the main
+// street's middle cell with 5 cubes of relief in 12 cells - a level street between two 1 : 1 cobbled slopes, on which
+// no well or stall can stand level.
+namespace {
+struct MarketSite { bool has = false; Rect rect{0, 0, 0, 0}; int relief = -1, leastOnOffer = INT_MAX, nodes = 0, atMiddle = -1; };
+MarketSite marketSite(const SettlementMap& m, const SettlementMapInput& in) {
+    MarketSite k;
+    const int mw = in.tier->pub.marketW, md = in.tier->pub.marketD;
+    const auto relief = [&](const Rect& r) {
+        int lo = INT_MAX, hi = INT_MIN;
+        for (int z = r.z; z < r.z1(); ++z) for (int x = r.x; x < r.x1(); ++x) { const int h = in.heightAt(x, z); lo = std::min(lo, h); hi = std::max(hi, h); }
+        return hi - lo;
+    };
+    for (const auto& a : m.areas) if (a.landuse == "market") { k.has = true; k.rect = a.rect; k.relief = relief(a.rect); }
+    for (const auto& w : m.ways) {
+        if (w.highway != "primary") continue;
+        std::vector<int> rs;
+        // every CELL of the way (amended before chain 412, pm_chain404.txt: the nodes alone were 2 to 4 places): the
+        // straight 8-direction run between consecutive nodes, a step at a time
+        std::vector<std::pair<int, int>> cells;
+        for (int nid : w.nodes) if (const MapNode* n = m.node(nid)) {
+            if (cells.empty()) { cells.push_back({n->x, n->z}); continue; }
+            int x = cells.back().first, z = cells.back().second;
+            while (x != n->x || z != n->z) { x += (n->x > x) - (n->x < x); z += (n->z > z) - (n->z < z); cells.push_back({x, z}); }
+        }
+        for (const auto& [cx, cz] : cells) {
+            const Rect r{std::clamp(cx - mw / 2, 0, in.W - mw), std::clamp(cz - md / 2, 0, in.D - md), mw, md};
+            bool wet = false;
+            for (int z = r.z; z < r.z1() && !wet; ++z) for (int x = r.x; x < r.x1() && !wet; ++x) wet = in.waterAt && in.waterAt(x, z);
+            if (wet) continue;
+            rs.push_back(relief(r));
+        }
+        if (rs.empty()) continue;
+        k.nodes += static_cast<int>(rs.size());
+        k.leastOnOffer = std::min(k.leastOnOffer, *std::min_element(rs.begin(), rs.end()));
+        if (k.atMiddle < 0) k.atMiddle = rs[rs.size() / 2];
+        break;   // the first primary way is the main street
+    }
+    return k;
+}
+int tiltDiv(int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); }
+}  // namespace
+
+TEST(SettlementMapTest, TheMarketTakesLevelGroundAlongTheMainStreet) {
+    ASSERT_TRUE(rigs().programOk);
+    const auto dry = [](int, int) { return false; };
+    struct Terrain { const char* name; int kind; };   // the ground is level along z = D / 2 (the arriving road's line) in every kind
+    const auto ground = [](int kind, int W, int D) {
+        return std::function<int(int, int)>([kind, W, D](int x, int z) {
+            const int across = z - D / 2;
+            switch (kind) {
+                case 0: return 30;                                                                       // flat (the control)
+                case 1: return 30 + ((x >= W / 2 - 16 && x < W / 2 + 16) ? tiltDiv(across, 3) : 0);      // a tilted band round the middle
+                case 2: return 30 + tiltDiv(across, 3);                                                  // tilted everywhere (no level place)
+                case 3: return 30 + ((x < W / 2 + 10) ? tiltDiv(across, 4) : 0);                         // level only on the far third
+                default: return 30 + tiltDiv(across * ((x / 24) % 2 ? 1 : 0), 3);                        // alternating tilted and level strips
+            }
+        });
+    };
+    int plans = 0, refused = 0, bad = 0, moved = 0;
+    for (const char* tier : {"town", "city"})
+        for (const Terrain t : {Terrain{"flat", 0}, Terrain{"a tilted band at the middle", 1}, Terrain{"tilted everywhere", 2}, Terrain{"level on the far third", 3}, Terrain{"tilted and level strips", 4}})
+            for (const unsigned seed : {1u, 7u, 23u}) {
+                const int W = std::string(tier) == "city" ? 160 : 140, D = std::string(tier) == "city" ? 160 : 60;
+                const SettlementMapInput in = inputFor(tier, W, D, ground(t.kind, W, D), dry, seed);
+                ASSERT_NE(in.tier, nullptr);
+                const SettlementMap m = planSettlementMap(in);
+                ++plans;
+                const std::string what = std::string(tier) + ", " + t.name + ", seed " + std::to_string(seed);
+                if (!m.ok()) { ++refused; std::printf("[ O35c ] %s: REFUSED: %s%s", what.c_str(), m.refusal.c_str(), "\n"); continue; }
+                const MarketSite k = marketSite(m, in);
+                std::printf("[ O35c ] %s: %zu lots of %d; market at (%d, %d) relief %d; the middle offers %d, the least on offer %d over %d places; note: %s%s",
+                            what.c_str(), m.lots.size(), m.targetLots, k.rect.x, k.rect.z, k.relief, k.atMiddle, k.leastOnOffer, k.nodes, m.marketNote.c_str(), "\n");
+                ASSERT_TRUE(k.has) << what << ": no market on a dry site";
+                ASSERT_GT(k.nodes, 0) << what;
+                // amended before chain 415 (pm_chain404.txt): with NO level place on offer the market stays at the middle
+                // (not "the levellest"): level if a level place is on offer, else the middle's relief
+                const bool ok = k.leastOnOffer <= 1 ? k.relief <= 1 : k.relief == k.atMiddle;
+                if (!ok) ++bad;
+                EXPECT_TRUE(ok) << what << ": the market's relief is " << k.relief << " and a place along the main street offers " << k.leastOnOffer;
+                if (k.relief != k.atMiddle) ++moved;
+                if (t.kind == 0) { EXPECT_EQ(k.relief, 0); EXPECT_TRUE(m.marketNote.empty()) << what << ": a note on a flat site: " << m.marketNote; }
+                if (k.relief > 1) EXPECT_FALSE(m.marketNote.empty()) << what << ": the market is not on level ground and the map does not say so";
+                const Violations v = measure(m, in.heightAt, in.maxRelief);
+                EXPECT_EQ(v.overlaps + v.lotOutside + v.lotNoWay + v.lotDoorOffWay + v.badWay, 0) << what;
+            }
+    std::printf("[ O35c ] market sites: %d plans, %d refused, %d with a market off the levellest ground on offer, %d where the measured place differs from the middle's%s", plans, refused, bad, moved, "\n");
+    EXPECT_EQ(bad, 0);
+    EXPECT_LT(refused, plans) << "every plan was refused: the test measured nothing";
 }

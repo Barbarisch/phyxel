@@ -1,3 +1,6 @@
+#include <climits>
+#include <cstdio>
+#include <functional>
 #include <gtest/gtest.h>
 
 #include <queue>
@@ -230,4 +233,162 @@ TEST(MarketDressingTest, DressedSquareStaysWalkable) {
         EXPECT_TRUE(reachable) << p.type << " at (" << p.cx << "," << p.cz
                                << ") is walled off from the street network";
     }
+}
+
+// O35 (c) (pm_chain404.txt): a prop stands on LEVEL ground. The live town's well was planned across one level step of
+// a stepped market with a second step beside it (top 1421 micro, the ground beside 1422). The planner had no heights.
+namespace {
+struct LevelCount { int props = 0, straddle = 0, sunk = 0; };
+// straddle = a prop whose footprint cells are not at one height; sunk = a prop with a ring cell HIGHER than its base
+LevelCount countLevel(const SquareDressing& d, const std::function<int(int, int)>& ground) {
+    LevelCount c;
+    for (const auto& p : d.props) {
+        ++c.props;
+        const int h = ground(p.cx, p.cz);
+        bool str = false, snk = false;
+        for (int z = p.cz - 1; z <= p.cz + p.d; ++z)
+            for (int x = p.cx - 1; x <= p.cx + p.w; ++x) {
+                const bool in = x >= p.cx && x < p.cx + p.w && z >= p.cz && z < p.cz + p.d;
+                if (in && ground(x, z) != h) str = true;
+                if (!in && ground(x, z) > h) snk = true;
+            }
+        if (str) ++c.straddle; else if (snk) ++c.sunk;
+    }
+    return c;
+}
+// a map-like square: side x side at (20, 20), one carriageway 3 wide through its middle along X
+MainStreetLayout squareRig(int side) {
+    MainStreetLayout m;
+    m.hasSquare = true; m.ok = true;
+    m.marketSquare = Rect{20, 20, side, side};
+    m.squareBandsGiven = true;
+    m.squareBands.push_back(Rect{20, 20 + side / 2 - 1, side, 3});
+    return m;
+}
+int fdiv(int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); }
+// a ground in cubes: each cell at one height, tolerance 0
+SquareGround cubes(const std::function<int(int, int)>& h) {
+    SquareGround g; g.tolerance = 0;
+    g.at = [h](int x, int z) { const int v = h(x, z); return std::make_pair(v, v); };
+    return g;
+}
+}  // namespace
+
+TEST(MarketDressingTest, APropStandsOnLevelGround) {
+    Fixture f;
+    ASSERT_TRUE(f.ok);
+    PublicSpec pub = f.town->pub;
+    ASSERT_TRUE(pub.well); ASSERT_GT(pub.stalls, 0);
+    const auto msl = squareRig(12);
+    const auto flat = [](int, int) { return 50; };
+    const auto terraceZ4 = [](int, int z) { return 50 + fdiv(z, 4); };       // level terraces 4 deep, one cube apart
+    const auto stairZ1 = [](int, int z) { return 50 + z; };                  // one cube a cell: no level 2 x 2 anywhere
+    const auto nl = "\n";
+
+    // CONTROL (the plan as shipped: no ground): on the terraces it stands props across a step or under a rise
+    const auto blind = planSquareDressing(msl, pub, 11);
+    const LevelCount cb = countLevel(blind, terraceZ4);
+    std::printf("[ O35c ] no ground given, measured on terraces 4 deep: %d props, %d across a step, %d under a rise%s", cb.props, cb.straddle, cb.sunk, nl);
+    EXPECT_GT(cb.straddle + cb.sunk, 0) << "the control does not show the defect: the rig measures nothing";
+
+    // (1) a level square: the ground changes nothing
+    const auto onFlat = planSquareDressing(msl, pub, 11, cubes(flat));
+    ASSERT_EQ(onFlat.props.size(), blind.props.size());
+    for (size_t i = 0; i < blind.props.size(); ++i) {
+        EXPECT_EQ(onFlat.props[i].type, blind.props[i].type);
+        EXPECT_EQ(onFlat.props[i].cx, blind.props[i].cx); EXPECT_EQ(onFlat.props[i].cz, blind.props[i].cz);
+        EXPECT_EQ(onFlat.props[i].rotDeg, blind.props[i].rotDeg);
+    }
+    // (2) terraces: every prop level, the well kept
+    const auto onT = planSquareDressing(msl, pub, 11, cubes(terraceZ4));
+    const LevelCount ct = countLevel(onT, terraceZ4);
+    int wells = 0, stalls = 0;
+    for (const auto& p : onT.props) { if (p.type == "well") ++wells; if (p.type == "market_stall") ++stalls; }
+    std::printf("[ O35c ] terraces 4 deep with the ground: %d props (%d well, %d stalls), %d across a step, %d under a rise, %zu dropped%s", ct.props, wells, stalls, ct.straddle, ct.sunk, onT.dropped.size(), nl);
+    EXPECT_EQ(ct.straddle, 0); EXPECT_EQ(ct.sunk, 0);
+    EXPECT_EQ(wells, 1) << "a level 2 x 2 with no rise beside it exists on terraces 4 deep: the well must find it";
+    // (3) a stair of one cube a cell: nothing can stand level - said, not placed
+    const auto onS = planSquareDressing(msl, pub, 11, cubes(stairZ1));
+    const LevelCount cs = countLevel(onS, stairZ1);
+    std::printf("[ O35c ] a stair of one cube a cell: %d props placed, %zu dropped%s", cs.props, onS.dropped.size(), nl);
+    EXPECT_EQ(cs.props, 0) << "a prop was stood on a stair";
+    EXPECT_EQ(static_cast<int>(onS.dropped.size()), 1 + pub.stalls) << "the well and every stall must be SAID to be dropped";
+
+    // SCALE: square sides x terrace depths x both axes x seeds, town and city (statue) asks: 0 violations at every one
+    int plans = 0, placed = 0, dropped = 0, bad = 0, noWell = 0;
+    for (const SettlementTierPreset* t : {f.town, f.city})
+        for (int side : {8, 12, 16, 24})
+            for (int depth : {3, 4, 6, 9})
+                for (int axis = 0; axis < 2; ++axis)
+                    for (unsigned seed : {1u, 7u, 23u}) {
+                        const auto m = squareRig(side);
+                        const std::function<int(int, int)> g = [depth, axis](int x, int z) { return 50 + fdiv(axis ? x : z, depth); };
+                        const auto d = planSquareDressing(m, t->pub, seed, cubes(g));
+                        const LevelCount c = countLevel(d, g);
+                        ++plans; placed += c.props; dropped += static_cast<int>(d.dropped.size()); bad += c.straddle + c.sunk;
+                        bool w = false;
+                        for (const auto& p : d.props) {
+                            if (p.type == "well") w = true;
+                            EXPECT_TRUE(inside(propRect(p), m.marketSquare));
+                            for (const auto& b : m.squareBands) if (p.type != "statue_hero") EXPECT_FALSE(overlaps(propRect(p), b)) << p.type << " in the carriageway";
+                            for (const auto& q : d.props) if (&p != &q) EXPECT_FALSE(overlaps(propRect(p), propRect(q)));
+                        }
+                        if (t->pub.well && !w) ++noWell;
+                        EXPECT_EQ(c.straddle + c.sunk, 0) << t->name << " side " << side << " depth " << depth << " axis " << axis << " seed " << seed;
+                    }
+    std::printf("[ O35c ] scale: %d plans, %d props placed, %d dropped, %d not level, %d plans without the well asked for%s", plans, placed, dropped, bad, noWell, nl);
+    EXPECT_EQ(bad, 0);
+}
+
+// O35 (c): the realizer's ground - MICRO, a cell's lowest and highest column, tolerance = the step-up (4). The plaza as
+// the paver lays it: terraces `depth` cells deep, 9 micro apart, the last cell of each a ramp up to the next.
+TEST(MarketDressingTest, APropStandsOnLevelGroundInMicro) {
+    Fixture f;
+    ASSERT_TRUE(f.ok);
+    const auto nl = "\n";
+    int plans = 0, placed = 0, dropped = 0, bad = 0, wells = 0, blindBad = 0, blindProps = 0;
+    const auto notLevel = [](const SquareProp& p, const SquareGround& g) {
+        int lo = INT_MAX, hi = INT_MIN, ring = INT_MIN;
+        for (int z = p.cz - 1; z <= p.cz + p.d; ++z)
+            for (int x = p.cx - 1; x <= p.cx + p.w; ++x) {
+                const auto c = g.at(x, z);
+                if (x >= p.cx && x < p.cx + p.w && z >= p.cz && z < p.cz + p.d) { lo = std::min(lo, c.first); hi = std::max(hi, c.second); }
+                else ring = std::max(ring, c.second);
+            }
+        return !(hi - lo <= 4 && ring <= hi + 2);
+    };
+    for (const SettlementTierPreset* t : {f.town, f.city})
+        for (int side : {8, 12, 16, 24})
+            for (int depth : {3, 4, 6, 9})
+                for (int axis = 0; axis < 2; ++axis)
+                    for (unsigned seed : {1u, 7u, 23u}) {
+                        const auto m = squareRig(side);
+                        SquareGround g; g.tolerance = 4;
+                        g.at = [depth, axis](int x, int z) {
+                            const int u = axis ? x : z, t0 = fdiv(u, depth), r = u - t0 * depth, base = 1400 + 9 * t0;
+                            return r == depth - 1 ? std::make_pair(base, base + 8) : std::make_pair(base, base);   // the ramp cell
+                        };
+                        const auto d = planSquareDressing(m, t->pub, seed, g);
+                        for (const auto& p : planSquareDressing(m, t->pub, seed).props) { ++blindProps; if (notLevel(p, g)) ++blindBad; }   // the CONTROL: no ground
+                        ++plans; placed += static_cast<int>(d.props.size()); dropped += static_cast<int>(d.dropped.size());
+                        for (const auto& p : d.props) {
+                            if (p.type == "well") ++wells;
+                            int lo = INT_MAX, hi = INT_MIN, ring = INT_MIN;
+                            for (int z = p.cz - 1; z <= p.cz + p.d; ++z)
+                                for (int x = p.cx - 1; x <= p.cx + p.w; ++x) {
+                                    const auto c = g.at(x, z);
+                                    if (x >= p.cx && x < p.cx + p.w && z >= p.cz && z < p.cz + p.d) { lo = std::min(lo, c.first); hi = std::max(hi, c.second); }
+                                    else ring = std::max(ring, c.second);
+                                }
+                            const bool ok = hi - lo <= 4 && ring <= hi + 2;
+                            if (!ok) ++bad;
+                            EXPECT_TRUE(ok) << p.type << " at " << p.cx << "," << p.cz << ": footprint " << lo << ".." << hi << ", ring up to " << ring
+                                            << " (" << t->name << " side " << side << " depth " << depth << " axis " << axis << " seed " << seed << ")";
+                        }
+                    }
+    std::printf("[ O35c ] micro scale: %d plans, %d props placed (%d wells), %d dropped, %d not level%s", plans, placed, wells, dropped, bad, nl);
+    EXPECT_EQ(bad, 0);
+    EXPECT_GT(placed, 0) << "nothing stood anywhere: the arm measures nothing";
+    std::printf("[ O35c ] micro scale, the control (planned without the ground): %d props, %d not level%s", blindProps, blindBad, nl);
+    EXPECT_GT(blindBad, 0) << "the control shows no defect: the arm measures nothing";
 }

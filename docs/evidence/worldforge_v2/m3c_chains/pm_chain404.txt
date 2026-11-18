@@ -1,0 +1,217 @@
+pm_chain404.txt - O35 (c): a market prop planned against a level step; then the lane corner rule (O35 b) back in.
+(written 2026-11-18 12:28, BEFORE any run of this chain; D71 and D72 were ruled (a) by the owner at 12:26)
+
+STEP 1 - DIAGNOSE (no assertion change). The corner rule of chain 397 is re-added to the planner (Grid::noCut: a
+  diagonal step may not pass the corner of the candidate's own footprint), so the live town re-plans as in chains
+  385 / 398; the market test gains a print of the micro tops round a prop that does not stand.
+  PREDICTION chain 404 (live, TheTownsMarketIsPavedAndWalked only): FAILS as chain 398 - the well at (104, 49), top
+  1421, ground beside 1422. The print shows (GUESS) the well's own four cells at about 1410-1413 and ONE side of its
+  ring a whole cube (9 micro) higher: a terrain level step inside the sloped plaza, paved cell by cell at each
+  cell's own height - not a raised way band. If instead the high cells are a way's band, the fix belongs to the
+  paver, not the dressing.
+RESULTS (written 2026-11-18 12:33)
+  chain 404 (exe 12:29, Release, the corner rule in): the market test FAILS as predicted - well at (104, 49), top 1421,
+  ground beside 1422, "props standing 2 of 3". The print (micro tops at cell centres, +z up):
+      z 51:  1413  1422  1422  1422  1422  1422  1422
+      z 50:  1413  1413  1413 [1413][1413] 1413  1422
+      z 49:  1404  1404  1404 [1414][1408] 1413  1413
+      z 48:  1404  1404  1404  1404  1404  1404  1404
+  PREDICTION MISS (partly): it is terrain steps inside the plaza, paved cell by cell (as guessed, not a way band) -
+  but TWO steps, not one: the well's own footprint lies ACROSS one step (z 49 at 1404, z 50 at 1413; the prop is
+  seated on the high side and hangs open over the low one) and the next step up (1422) is its ring. The unit's own
+  record says the same of another prop: "the widest ground span under a prop 25 micro" - a stall across two steps,
+  which the test's "stands" check passes because a stall is tall. The market is 4 cubes of relief over 12 cells.
+  Also seen, NOT this increment: plank top voxels in the market row z 40 (cells 105, 107) - a building's eave over
+  the market's edge row, counted by the test as columns under an overhang.
+
+STEP 2 - THE FIX, designed before the red run (written 2026-11-18 12:33)
+  Cause: planSquareDressing has no ground. Change: an optional ground sampler (settlement-local cell -> cubes).
+  With it a prop is placed only on LEVEL ground: every footprint cell at one height, and no cell of the one-cell
+  ring higher (DESIGN rule - one cube is 9 micro, over the walker's 4-micro step-up; a ring cell LOWER is allowed:
+  the prop stands at a terrace's edge). A well / statue whose anchor fails takes the nearest free level spot; a
+  stall's row moves to its next pitch; none = the prop is listed in `dropped` (said, not lost). No sampler = every
+  plan as before.
+  The build plans the dressing ONCE, on the ground the map was planned on (mi.heightAt), writes it on the map
+  (market_props, market_props_dropped; JSON only when present) and the dressing unit places those. Not sized from any
+  real-world number; no new dimension.
+  NOT in this increment: levelling the market itself (a market of 4 cubes relief stays a stepped plaza); whether a
+  walker can use a stall front; the planned ground (natural ground) vs the live paved surface is CHECKED by the live
+  test, not derived.
+  ASSERTION CHANGES, stated before the run:
+   - TheTownsMarketIsPavedAndWalked reads the props from the map (sm.marketProps) instead of re-planning them; adds:
+     one well on the map, the unit placed every map prop, and the unit's "ground_span_max_micro" <= 4.
+   - new unit test MarketDressingTest.APropStandsOnLevelGround (control without ground; flat = identical; terraces;
+     a one-cube stair = everything dropped and said; scale 2 tiers x 4 sides x 4 depths x 2 axes x 3 seeds = 192).
+   - MarketDressingTest.* joins the unit filter (it was not in it): the unit count rises by its 5 tests.
+  PREDICTION chain 405 (RED: the level rule is a STUB returning true; unit, MarketDressingTest.* only): the 4 old tests
+  pass; the new one FAILS on (2) not level > 0, (3) props placed on the stair, and the scale arm > 0 not level; the
+  control arm shows > 0 and "flat = identical" holds.
+RESULTS (written 2026-11-18 12:35)
+  chain 405 (RED, stub, exe built this chain): as predicted - 4 old tests pass, APropStandsOnLevelGround FAILS:
+    control "5 props, 2 across a step, 1 under a rise"; with the ground (stub) the same 2 + 1; the stair "5 props
+    placed, 0 dropped"; scale "192 plans, 888 props placed, 0 dropped, 555 not level". Flat = identical held.
+  PREDICTION chain 406 (GREEN, the level rule real; MarketDressingTest.*): 5 / 5 pass; terraces: 1 well, 0 not level,
+  stalls GUESS 2-4; the stair: 0 placed, 1 + stalls dropped; scale: 0 not level, some dropped (GUESS: every depth-3
+  plan loses props; "plans without the well" > 0 at depth 3 where a 2 x 2 with a level ring row barely fits).
+RESULTS (written 2026-11-18 12:36)
+  chain 406 (GREEN, exe 12:35:53): MarketDressingTest 5 / 5. Control unchanged (2 + 1); terraces with the ground
+    "3 props (1 well, 2 stalls), 0 across a step, 0 under a rise, 2 dropped"; the stair "0 placed, 5 dropped"; scale
+    "192 plans, 606 props placed, 642 dropped, 0 not level, 0 plans without the well asked for".
+    PREDICTION MISS: no plan lost its well (guessed some at depth 3). More than half the props asked for are dropped
+    on terraced squares - stalls (3 x 2 plus a level uphill ring row) rarely fit a terrace 3 or 4 deep. Honest, and
+    a real cost of the rule: a stepped market is a poor market (levelling it is not in this increment).
+  PREDICTION chain 407 (live, the town market test only, the corner rule in): PASSES. The well moves off (104, 49)
+  to level ground (GUESS: the 1404 terrace, z 46-48); every map prop stands; span <= 4 micro; stalls GUESS 1-2 with
+  some dropped. RISK named: the plan's ground is the generator's natural ground and the live surface is paved - if
+  they disagree at a step the span assertion or "stands" fails and says so.
+RESULTS (written 2026-11-18 12:40)
+  chain 407 (live, exe 12:36): the market test FAILS on the new span assertion - the RISK named above. Props on the
+    map "well@104,48 market_stall@98,49; dropped 3" (blind: well@104,49, stalls @102,41 and @97,49); both stand
+    (2 of 2), the walk reaches every cell - but "ground_span_max_micro 9": the generator's natural ground called
+    (104..105, 48..49) level and the live paved plaza has a step through it. PREDICTION MISS: the plan-time ground is
+    the WRONG ground. The paver lays the plaza on the live ground, held to the ways' graded surfaces beside it and
+    slope-limited (StreetPaver.h M5e-1) - ramps and terraces in micro that no cube height field states.
+DESIGN CHANGE, stated before the next run (written 2026-11-18 12:40):
+  - the dressing on a map is planned BY THE DRESSING UNIT on the live paved surface: SquareGround { at(x, z) ->
+    (lowest, highest) micro column of the cell (the columns the seat already reads), tolerance 4 micro = the walker's
+    step-up (DESIGN use of an existing number) }. Level = footprint lowest..highest <= tolerance AND no ring cell more
+    than tolerance / 2 (2 micro, DESIGN) above the footprint's highest point. Legacy layouts: no ground, as before.
+  - the plan-time dressing (no ground) still seeds the market gate; the unit re-plans, then rebuilds the gate's
+    start / crossings / stall fronts from the props that stand (marketGateFor).
+  - the map's market_props fields of patch 1 are REMOVED (the map is written before the units run; two sources of
+    truth). The unit's record carries each prop (local cell, footprint, front) and what was dropped.
+  ASSERTION CHANGES: the unit test's samplers become SquareGround in cubes (tolerance 0 - the same rule as chain 406);
+  a second unit test APropStandsOnLevelGroundInMicro (ramped terraces, (lo, hi), tolerance 4; 192 plans; its check
+  measures span <= 4 and ring <= highest + 2 itself). The live test reads the props from the unit's record; asserts
+  one well placed, on_live_ground, skipped 0, span <= 4. (The "placed == map props" assertion goes with the map fields.)
+  PREDICTION chain 408 (unit, MarketDressingTest.*): 6 / 6; the cube arms print the same lines as chain 406; the micro
+  arm 0 not level, placed > 0, GUESS about half dropped.
+  PREDICTION chain 409 (live, the market test): PASSES - span <= 4, the well and at least one stall stand (GUESS).
+RESULTS (written 2026-11-18 12:41)
+  chain 408 (exe 12:41:19): MarketDressingTest 6 / 6; the cube arms print chain 406's lines exactly; micro arm "192
+    plans, 387 props placed (126 wells), 861 dropped, 0 not level" (more dropped than guessed: 69 %).
+    STATED: the micro test was written AFTER the rule and has no red run of its own; a control is added to it now
+    (the plan without the ground, measured by the same check, must show > 0 not level) - a check that the arm
+    measures, not a red-before-green.
+RESULTS (written 2026-11-18 12:46)
+  chain 409 (exe 12:42, unit + the live market test): MarketDressingTest 6 / 6, the micro control "888 props, 645
+    not level". LIVE: the market test FAILS - "5 props the tier asks for found no level ground", 0 placed.
+    PREDICTION MISS (the well and a stall were guessed to stand).
+  chain 410 (diagnostic: the unit prints the surface it read; micro above the square's lowest, lo-hi per cell):
+      z 51: 36-36 x6, 38-45 x6        z 45-47: 27-27 across all 12 cells
+      z 50: 27-35 .. 36-36 .. 38-45   z 44: 19-27 .. 27-27
+      z 49: 27-27 .. 27-35 .. 36-36   z 43:  9-17 .. 21-27
+      z 48: 27-27 x10, 27-35 x2       z 41-42: 0-9 ..; z 40: 0-0 .. (0-45 under an eave)
+    The only level ground in the live town's market is the main street itself (z 45-47, the lane the dressing keeps
+    clear); north of it the paved plaza climbs 9 micro a cell, south of it it falls 9 micro a cell - a 1 : 1 cobbled
+    slope either side of a level street, 45 micro (5 cubes) of relief in 12 cells. The level rule is right to refuse
+    all five props. The DEFECT IS THE MARKET'S SITE: the planner puts the market on the main street's middle cell
+    whatever the ground (it slides along the street only for water).
+STEP 3 - THE MARKET IS SITED ON LEVEL GROUND (design, written 2026-11-18 12:46, before its red run)
+  Planner: among the dry places along the main street, nearest the middle first, the market takes the first whose
+  rect has a relief (highest - lowest ground cell, cubes, the planner's own height field) <= 1 cube (DESIGN cap: one
+  step line at most inside the square - the grain the dressing's level rule can use; NOT a sourced real-world slope);
+  if none, the dry place of least relief (nearest the middle on a tie), and the map's market_note says so with the
+  relief. The middle when it is level = every plan as before. The water slide and its note are kept.
+  EXPECTED TO MOVE: any plan whose middle market rect has a relief over 1 - the live town for certain (5), others
+  unknown until run. Each move will be named.
+  Red test: SettlementMapTest.TheMarketTakesLevelGroundAlongTheMainStreet - a site tilted across the main street in
+  a band round its middle and level elsewhere; the test measures, from the map's primary way and the same height
+  function, the relief of the market rect at every node of the primary; invariant: market relief <= max(1, the least
+  relief any node offers). Controls: a flat site (the market is where it was - compared with the plan's own middle);
+  a site tilted everywhere (no level place: the market stays, the note says why). Scale: town and city x 3 seeds x
+  5 terrains.
+  PREDICTION chain 411 (RED, planner unchanged): the banded-tilt arm fails (market relief about 4 with level places
+  on offer); flat and tilted-everywhere pass as controls except the missing note on tilted-everywhere.
+RESULTS (written 2026-11-18 12:47)
+  chain 411 (RED, planner unchanged, exe 12:47:02): the new test FAILS - "30 plans, 0 refused, 18 with a market off
+    the levellest ground on offer"; the flat arm passes (relief 0, no note); tilted-everywhere fails only on the
+    missing note. As predicted, except: the test saw only 2 to 4 places per plan (a way's NODES are its corners).
+  TEST AMENDED before the green run (stated): the places on offer are every CELL of the primary way (the straight
+  runs between its nodes), not its nodes. This makes the invariant stricter, not weaker.
+  PREDICTION chain 412 (GREEN): 30 plans, 0 off the levellest ground; notes on every tilted-everywhere plan and on
+  each moved market; flat untouched. GUESS: "level on the far third" moves the market about 20 cells east.
+RESULTS (written 2026-11-18 12:48)
+  chain 412 (GREEN, exe 12:48:07): the test passes - "30 plans, 0 refused, 0 with a market off the levellest ground
+    on offer, 18 where the measured place differs from the middle's"; 140 to 176 places per plan; flat: relief 0, no
+    note; every tilted-everywhere plan carries the "not level ... no dry place is more level" note; moved markets
+    carry "N cells along the main street ... not level (relief A; here B)". Every plan seated its full lot target.
+STEP 4 - THE CORNER RULE (O35 b) IS IN THE TREE since chain 404 (Grid::noCut). ASSERTION RESTORED, stated before the
+  run: AWayFordsACreekAndNoLotStandsInIt asserts "way through a footprint" == 0 again (arms and scale arm).
+  The WHOLE-YARD question (a lane may cross its own yard) is NOT taken: still open (O35 b, O36 e).
+FULL REGRESSION, predictions (written before the runs):
+  chain 413 (unit filter + MarketDressingTest.*): 202 + 6 + 1 = 209 tests, 0 failed. The ford test green WITH the
+    footprint assertion. MOVES expected and to be named: (i) the two generator-terrain hamlet plans of chains 387 /
+    397 (the corner rule: 20 -> 18 and 29 -> 27 nodes); (ii) any [ M5a ] / [ M5b ] print of a town or city on a hill
+    rig whose middle market rect has relief > 1 (the market rule) - GUESS 2 to 6 lines; new market notes on the
+    M5e-1 rigs. Flat rigs: identical.
+  chain 414 (live set): the live TOWN re-plans (the corner rule AND the market rule: its market moves off the
+    5-cube slope if a place with relief <= 1 exists along its street - UNKNOWN; if none, the least-relief place and
+    possibly still no level ground for a well -> the market test fails on "one well" and says so). The town-site
+    city likewise. Hamlets, villages: no market - only the corner rule's moves (the fixture hamlet as chain 398).
+    GUESS: 38 / 0 if a level market place exists; every gate passes.
+RESULTS (written 2026-11-18 12:51)
+  chain 413 (unit, exe 12:48:07): 208 ok / 1 FAILED. PREDICTION MISS.
+    - TheWallHoldsAcrossSeedsAndTiers: "rolling 160x160" city seeds 1 and 9 - "no wall: the route did not close into
+      a ring". Seed 1's market moved 24 cells for a relief of 5 -> 3 (the "least relief" fallback: still not level),
+      the cross axis moved with it, and the wall's route no longer closes on the new plan. A market moved for no
+      gain, and a wall weakness exposed by it (the wall refuses on a plan it was not tried on - noted for O37).
+    - the footprint assertion was NOT restored in this run (my edit failed on its anchor); it is restored now.
+    - record lines: 82 [ M5a ] / [ M5b ] lines, ONE differs ("axes city ... 27 lots, 14 ways" -> "13 ways": the hill
+      city's market moved); M5A-MAP: the two hamlet seed-3 lines (20 -> 18, 29 -> 27 nodes) as predicted.
+DESIGN CHANGE, stated before the next run: with NO place of relief <= 1 along the street the market STAYS where it
+  was (the first dry place) and the note says "not level ... no dry place along the main street is level". The
+  "least relief" move is removed. Test invariant amended to match: a level place on offer -> market relief <= 1;
+  none -> the market's relief equals the middle's.
+  PREDICTION chain 415 (unit, 209 tests): 0 failed IF rolling seeds 1 and 9 have no level place (seed 1: yes, least
+  was 3; seed 9: UNKNOWN - if its market still moves the wall may still refuse, and that is then a wall defect to
+  fix, not to step round). The "axes city" line may return to 14 ways.
+RESULTS (written 2026-11-18 12:53)
+  chain 415 (unit, exe 12:51:44): 209 ok / 0 failed. The wall test passes again (rolling seeds 1 and 9 keep their
+    markets: no level place). The ford test is green WITH the footprint assertion restored. Record lines against
+    chain 402: ONE of the 82 differs - "axes city ... (27 lots, 14 ways)" -> "13 ways" (the hill city's market
+    found a level place and moved; chain 397 showed the corner rule alone leaves the 82 identical); M5A-MAP: the two
+    hamlet seed-3 lines only (20 -> 18, 29 -> 27 nodes; the corner rule, as chains 387 / 397). 39 market notes
+    printed across the suites. market sites: 30 plans, 0 off level ground. micro: 0 not level, control 645 of 888.
+  chain 416 (live set, the same exe): prediction as written for chain 414 above.
+RESULTS (written 2026-11-18 13:03)
+  chain 416 (live, exe 12:51:44): 37 ok / 1 FAILED - TheTownsMarketIsPavedAndWalked, on "one well" only (twice: my
+    new assertion and the old "plans 1 wells"). PREDICTION: the "UNKNOWN" branch - the live town's street offers NO
+    12 x 12 place of relief <= 1, the market stays at (96, 40) and all five props are dropped and said. The market
+    is paved 144 of 144 cells, walked 144 of 144, 3 market routes / 0 blocked. Gates: town 75 walkable / 0 blocked
+    over 24 doors (was 76), the second 94 / 0 over 25. 39 record lines differ from chain 403 (the town's re-seated
+    lots by the corner rule, the fixture counts 396 -> 393 and 408 -> 403, the market's lines). A legacy-layout
+    build placed 5 props with a span of 9 micro (no ground on the legacy path, as designed). CityLab: market note
+    "not level (relief 3 cubes) and no dry place ... is level".
+  WHAT THIS MEANS, plainly: before today the committed town showed a well and two stalls "standing" on a 1 : 1 slope
+  (spans up to 25 micro under a prop, never measured). Now nothing stands there and the record says why. The town
+  has NO WELL. That is a content loss and an open defect (O37: a market on a hillside is not levelled), not a fix
+  of the market.
+ASSERTION CHANGE, stated before chain 417: in TheTownsMarketIsPavedAndWalked "one well stands" becomes "every well
+  asked for stands OR is named in the unit's dropped list" and "placed + dropped == asked"; the old "plans 1 wells"
+  becomes "<= 1". The number of wells standing is printed with the word OPEN.
+  PREDICTION chain 417 (live set, rebuilt): 38 / 0; record lines identical to chain 416's except the new print.
+RESULTS (written 2026-11-18 13:14)
+  chain 417 (live set, exe 13:04:00): 38 ok / 0 failed; the 141 record lines identical to chain 416's; prints
+    "[ O35c ] OPEN (O37): 0 wells stand, 1 dropped for want of level ground".
+    PROVENANCE: the harness killed the wrapper shell for low memory at about 13:09; the test process (pid 59808)
+    was not killed, kept advancing and exited by itself at about 13:13 - nothing was restarted. The chain file has
+    no RUN EXIT line for that reason; the counts are from the test's own output (m5b_stp_r417.txt).
+    NOT RE-RUN: the unit set on this exe. Its evidence is chain 415 (exe 12:51:44); the only source change after
+    it is in tests/core/SettlementMapLiveSiteTest.cpp (the two well assertions), which the unit filter does not run.
+  No Debug run. Nothing viewed in the engine.
+AUDIT (solution-auditor, 2026-11-18 about 13:20): RAW VERDICT: PASS WITH CONDITIONS (the full text is in the ledger).
+  Answered in code BEFORE chain 418 (stated): (4) the dressing unit's warning no longer calls a legacy stall shortfall
+  a ground failure; (7) a new DISABLED_O37_TheTownsMarketHasAWellAndAStallStanding - the functional claim that is NOT
+  met, kept runnable, expected RED. The other conditions are disclosures (below and in the plan's O37).
+  PREDICTION chain 418 (unit, 209) 0 failed, lines as chain 415. chain 419 (live) 38 / 0, lines as chain 417.
+  chain 420 (the DISABLED O37 test by hand): RED - 0 wells, 0 stalls, 5 dropped.
+RESULTS (written 2026-11-18 13:30)
+  chain 418 (unit, exe 13:17:17, the final code): 209 ok / 0 failed; [ M5a ] / [ M5b ] and M5A-MAP lines identical
+    to chain 415's.
+  chain 419 (live set, the same exe, run directly, exit 0 at 13:28:26): 38 ok / 0 failed; the 141 record lines
+    identical to chain 417's. The warning now reads by path (town 5 and walled city 6 "no free LEVEL ground ...";
+    the legacy city 3 "no room on the square's pads").
+  chain 420 (the DISABLED O37 test by hand): RED as predicted - "0 wells, 0 stalls standing; dropped [well, 4 x
+    market_stall]".
+  All Release. No Debug run. Nothing viewed in the engine. The audit's responses are not re-audited.

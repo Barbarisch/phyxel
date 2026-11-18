@@ -13,8 +13,10 @@
 // bands are the corridors that L3 slice will probe.
 // ============================================================================
 
+#include <functional>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "core/BuildingProgram.h"     // Rect
@@ -189,9 +191,20 @@ struct SquareProp {
     int rotDeg = 0;      ///< 0=+Z | 90=-X | 180=-Z | 270=+X front (stalls face their street)
 };
 
+/// O35 (c): the ground a square's props stand on. `at(x, z)` = the (lowest, highest) surface height inside the
+/// settlement-local cell, in the caller's unit (cubes: lowest == highest; the realizer: micro, the live paved
+/// surface); `tolerance` in that unit (cubes 0; micro = the walker's step-up, DESIGN). Empty `at` = no ground known.
+struct SquareGround {
+    std::function<std::pair<int, int>(int, int)> at;
+    int tolerance = 0;
+};
+
 struct SquareDressing {
     std::vector<SquareProp> props;
     bool ok = false;     ///< false = no square to dress (caller keeps the legacy well path)
+    /// O35 (c): what the tier asks for and the square could not take (one entry per prop: its type). With a ground
+    /// sampler this includes a prop that found no LEVEL ground - said, not silently lost.
+    std::vector<std::string> dropped;
 };
 
 /// Dress the market square (place_public_spaces #43, CityForgePlan M1): the square is split by its
@@ -203,7 +216,14 @@ struct SquareDressing {
 /// the through-street edges (fronts to the street, 1-cube pitch gap), 1 cube clear of the square
 /// perimeter, never overlapping each other or the well (>= 1 cube clearance). Honest degradation:
 /// pads too small host fewer/no stalls. Deterministic in (msl, pub, seed).
-SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec& pub, unsigned seed);
+///
+/// O35 (c) (pm_chain404.txt): `ground` (see SquareGround; empty = a level square, every plan as before) makes a prop
+/// stand on LEVEL ground: its footprint's surface within `tolerance` from lowest to highest point (one across a step
+/// hangs open on its low side), and no cell of the one-cell ring round it more than `tolerance / 2` above the
+/// footprint's highest point (a prop against a rise is sunk under the terrace above it). A prop whose anchor fails
+/// takes the nearest free level spot (the well, the statue) or its row's next pitch (a stall); none = `dropped`.
+SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec& pub, unsigned seed,
+                                  const SquareGround& ground = {});
 
 /// One yard prop sited on a parcel (place_yard_props #29 / place_garden #25 minimum slice).
 struct YardProp {

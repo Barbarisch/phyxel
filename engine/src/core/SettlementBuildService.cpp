@@ -467,6 +467,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         struct MarketCross { glm::ivec2 a{0, 0}, b{0, 0}; std::string label; };
         struct MarketGate { bool present = false; glm::ivec4 rect{0}; glm::ivec2 start{0, 0}; bool hasStart = false; std::vector<MarketCross> crossings, stalls; int waysInSquare = 0; };
         auto sharedMarket = std::make_shared<MarketGate>();
+        // O35 (c): the market gate's start, crossings and stall fronts for a given dressing. Set at plan time from the
+        // dressing planned WITHOUT the ground; the dressing unit plans it again on the live paved surface and calls this.
+        std::function<void(const std::vector<Core::SquareProp>&)> marketGateFor;
         int primaryWayId = -1;
         // {"legacy_layout": true}: the layout AS BUILT before M5a for a program tier - the CONTROL of the L4
         // A/B (the same site, seed and terrain through the grid, so a gate refusal can be attributed)
@@ -566,38 +569,43 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             if (msl.hasSquare && tierP) {
                 const Core::Rect sq = msl.marketSquare;
                 mapPlazas.push_back(glm::ivec4(ox + sq.x, oz + sq.z, sq.w, sq.d));
-                MarketGate& mk = *sharedMarket;
-                mk.present = true; mk.rect = mapPlazas.back();
-                std::set<std::pair<int, int>> propCells;
-                const Core::SquareDressing dress = Core::planSquareDressing(msl, tierP->pub, seed);
-                for (const auto& pr : dress.props) for (int z = pr.cz; z < pr.cz + pr.d; ++z) for (int x = pr.cx; x < pr.cx + pr.w; ++x) propCells.insert({x, z});
-                const auto inSq = [&](const Core::MapNode* n) { return n && n->x >= sq.x && n->x < sq.x1() && n->z >= sq.z && n->z < sq.z1() && !propCells.count({n->x, n->z}); };
-                long bestD = -1;
-                for (const auto& w : siteMap.ways) {
-                    const Core::MapNode* first = nullptr; const Core::MapNode* last = nullptr;
-                    for (int nid : w.nodes) {
-                        const Core::MapNode* n = siteMap.node(nid);
-                        if (!inSq(n)) continue;
-                        if (!first) first = n;
-                        last = n;
-                        if (w.highway == "primary") {
-                            const long dx = 2L * n->x - (2L * sq.x + sq.w), dz = 2L * n->z - (2L * sq.z + sq.d), d2 = dx * dx + dz * dz;
-                            if (bestD < 0 || d2 < bestD) { bestD = d2; mk.start = {ox + n->x, oz + n->z}; mk.hasStart = true; }
+                sharedMarket->present = true; sharedMarket->rect = mapPlazas.back();
+                auto mapP = std::make_shared<const Core::SettlementMap>(siteMap);
+                marketGateFor = [sharedMarket, mapP, sq, ox, oz](const std::vector<Core::SquareProp>& props) {
+                    MarketGate& mk = *sharedMarket;
+                    const Core::SettlementMap& siteMap = *mapP;
+                    mk.hasStart = false; mk.crossings.clear(); mk.stalls.clear(); mk.waysInSquare = 0;
+                    std::set<std::pair<int, int>> propCells;
+                    for (const auto& pr : props) for (int z = pr.cz; z < pr.cz + pr.d; ++z) for (int x = pr.cx; x < pr.cx + pr.w; ++x) propCells.insert({x, z});
+                    const auto inSq = [&](const Core::MapNode* n) { return n && n->x >= sq.x && n->x < sq.x1() && n->z >= sq.z && n->z < sq.z1() && !propCells.count({n->x, n->z}); };
+                    long bestD = -1;
+                    for (const auto& w : siteMap.ways) {
+                        const Core::MapNode* first = nullptr; const Core::MapNode* last = nullptr;
+                        for (int nid : w.nodes) {
+                            const Core::MapNode* n = siteMap.node(nid);
+                            if (!inSq(n)) continue;
+                            if (!first) first = n;
+                            last = n;
+                            if (w.highway == "primary") {
+                                const long dx = 2L * n->x - (2L * sq.x + sq.w), dz = 2L * n->z - (2L * sq.z + sq.d), d2 = dx * dx + dz * dz;
+                                if (bestD < 0 || d2 < bestD) { bestD = d2; mk.start = {ox + n->x, oz + n->z}; mk.hasStart = true; }
+                            }
                         }
+                        if (first) ++mk.waysInSquare;   // the audit of M5e-1 (6): a way with ONE node in the square is counted and has no crossing
+                        if (first && last && first != last)
+                            mk.crossings.push_back({{ox + first->x, oz + first->z}, {ox + last->x, oz + last->z},
+                                                    "the market: across it along way " + std::to_string(w.id) + " (" + w.highway + ")"});
                     }
-                    if (first) ++mk.waysInSquare;   // the audit of M5e-1 (6): a way with ONE node in the square is counted and has no crossing
-                    if (first && last && first != last)
-                        mk.crossings.push_back({{ox + first->x, oz + first->z}, {ox + last->x, oz + last->z},
-                                                "the market: across it along way " + std::to_string(w.id) + " (" + w.highway + ")"});
-                }
-                int si = 0;
-                for (const auto& pr : dress.props) {
-                    if (pr.type != "market_stall") continue;
-                    // the cell in front of the stall (its front per rotDeg: 0 = +Z, 90 = -X, 180 = -Z, 270 = +X), at the middle of that side
-                    glm::ivec2 f(pr.cx + pr.w / 2, pr.cz + pr.d / 2);
-                    if (pr.rotDeg == 0) f.y = pr.cz + pr.d; else if (pr.rotDeg == 180) f.y = pr.cz - 1; else if (pr.rotDeg == 90) f.x = pr.cx - 1; else f.x = pr.cx + pr.w;
-                    mk.stalls.push_back({mk.start, {ox + f.x, oz + f.y}, "the market: the main street -> the front of stall " + std::to_string(si++)});
-                }
+                    int si = 0;
+                    for (const auto& pr : props) {
+                        if (pr.type != "market_stall") continue;
+                        // the cell in front of the stall (its front per rotDeg: 0 = +Z, 90 = -X, 180 = -Z, 270 = +X), at the middle of that side
+                        glm::ivec2 f(pr.cx + pr.w / 2, pr.cz + pr.d / 2);
+                        if (pr.rotDeg == 0) f.y = pr.cz + pr.d; else if (pr.rotDeg == 180) f.y = pr.cz - 1; else if (pr.rotDeg == 90) f.x = pr.cx - 1; else f.x = pr.cx + pr.w;
+                        mk.stalls.push_back({mk.start, {ox + f.x, oz + f.y}, "the market: the main street -> the front of stall " + std::to_string(si++)});
+                    }
+                };
+                marketGateFor(Core::planSquareDressing(msl, tierP->pub, seed).props);
             }
             droppedPlots = siteMap.droppedLots;
             for (const auto& l : siteMap.lots) {
@@ -2614,11 +2622,53 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (programMode && tierP && mainStreetMode && placedObjectManager && objectTemplateManager &&
             chunkManager && msl.hasSquare) {
             units.push_back({"square dressing",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP]() {
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP, marketGateFor, mapMode = mapLots]() {
             if (!chunkManager || !placedObjectManager || !objectTemplateManager) return;
             int placed = 0, skipped = 0, unseated = 0, spanMax = 0;
             nlohmann::json seats = nlohmann::json::array();
-            const auto dress = Core::planSquareDressing(msl, pubSpec, seed);
+            // O35 (c) (pm_chain404.txt): on a map the dressing is planned HERE, on the surface the props will stand on -
+            // the live paved plaza, in micro, per cell its lowest and highest column (the same columns the seat below
+            // reads). The plaza is the ground stepped and ramped, not a plane: the live town's well was planned across
+            // one step with a second beside it. A prop takes level ground or is dropped, and that is said. The legacy
+            // layouts keep the dressing planned without the ground.
+            constexpr int kLevelTolMicro = 4;   // the walker's step-up (AgentBox / AnimatedVoxelCharacter 4/9 m): DESIGN use
+            std::map<std::pair<int, int>, std::pair<int, int>> cellGround;
+            Core::SquareGround live;
+            if (mapMode) {
+                live.tolerance = kLevelTolMicro;
+                live.at = [&](int lx, int lz) {
+                    const auto key = std::make_pair(lx, lz);
+                    const auto it = cellGround.find(key);
+                    if (it != cellGround.end()) return it->second;
+                    const int cx = ox + lx, cz = oz + lz, hint = terrainTopAt(cx, cz);
+                    int lo = INT_MAX, hi = INT_MIN;
+                    for (int mz = cz * 9; mz < (cz + 1) * 9; mz += 2)
+                        for (int mx = cx * 9; mx < (cx + 1) * 9; mx += 2)
+                            for (int y = (hint + 6) * 9; y > (hint - 6) * 9; --y)
+                                if (chunkManager->occupiedMicro(glm::ivec3(mx, y, mz))) { lo = std::min(lo, y); hi = std::max(hi, y); break; }
+                    // no ground found: never level (a span no tolerance covers)
+                    const std::pair<int, int> g = hi == INT_MIN ? std::make_pair(INT_MIN / 2, INT_MAX / 2) : std::make_pair(lo, hi);
+                    cellGround[key] = g;
+                    return g;
+                };
+            }
+            const auto dress = Core::planSquareDressing(msl, pubSpec, seed, live);
+            if (mapMode && marketGateFor) marketGateFor(dress.props);   // the gate walks to the stalls that stand
+            if (!dress.dropped.empty()) {
+                // (the audit of O35 c, 7: without the ground a shortfall is only pads too small - it was worded as a ground failure)
+                LOG_WARN_FMT("Settlement", "square dressing: " << dress.dropped.size() << " props the tier asks for are not placed: " << (mapMode ? "no free LEVEL ground in the market (or no room)" : "no room on the square's pads (no ground is read on a legacy layout)"));
+                // the surface it read, so a drop can be checked by eye: per cell lowest-highest micro above the square's lowest
+                if (mapMode) {
+                    const Core::Rect sq = msl.marketSquare;
+                    int base = INT_MAX;
+                    for (int z = sq.z; z < sq.z1(); ++z) for (int x = sq.x; x < sq.x1(); ++x) base = std::min(base, std::max(live.at(x, z).first, INT_MIN / 4));
+                    for (int z = sq.z1() - 1; z >= sq.z; --z) {
+                        std::string row;
+                        for (int x = sq.x; x < sq.x1(); ++x) { const auto g = live.at(x, z); row += " " + std::to_string(g.first - base) + "-" + std::to_string(g.second - base); }
+                        LOG_INFO_FMT("Settlement", "square ground (micro above " << base << ") z " << z << ":" << row);
+                    }
+                }
+            }
             for (const auto& p : dress.props) {
                 const std::string tmpl = Core::FurnitureCatalog::templateFor(p.type);
                 bool ok = false;
@@ -2639,14 +2689,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     else {
                         ok = !placedObjectManager->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, hi + 1, cz * 9), p.rotDeg, "").empty();
                         spanMax = std::max(spanMax, hi - lo);
-                        seats.push_back({{"type", p.type}, {"x", cx}, {"z", cz}, {"y_micro", hi + 1}, {"ground_span_micro", hi - lo}, {"placed", ok}});
+                        seats.push_back({{"type", p.type}, {"x", cx}, {"z", cz}, {"y_micro", hi + 1}, {"ground_span_micro", hi - lo}, {"placed", ok},
+                                         {"cx", p.cx}, {"cz", p.cz}, {"w", p.w}, {"d", p.d}, {"rot", p.rotDeg}});
                     }
                 }
                 (ok ? ++placed : ++skipped);
             }
             LOG_INFO_FMT("Settlement", "square dressing: " << placed << " placed, "
                          << skipped << " skipped (" << unseated << " found no ground), the widest ground span under a prop " << spanMax << " micro");
-            (*propsJsonP)["square_dressing"] = {{"placed", placed}, {"skipped", skipped}, {"unseated", unseated}, {"ground_span_max_micro", spanMax}, {"props", seats}};
+            (*propsJsonP)["square_dressing"] = {{"placed", placed}, {"skipped", skipped}, {"unseated", unseated}, {"ground_span_max_micro", spanMax}, {"props", seats},
+                                                {"dropped", dress.dropped}, {"on_live_ground", mapMode}};
             }});
         }
 

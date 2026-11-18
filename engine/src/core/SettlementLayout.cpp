@@ -620,7 +620,8 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
 }
 
 SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec& pub,
-                                  unsigned seed) {
+                                  unsigned seed, const SquareGround& ground) {
+    const auto& groundAt = ground.at;
     SquareDressing out;
     if (!msl.hasSquare) return out;                       // honest: nothing to dress
     if (!pub.well && !pub.statue && pub.stalls <= 0) return out;
@@ -683,6 +684,36 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
             if (overlaps(g, o)) return false;
         return true;
     };
+    // O35 (c): level ground under and round a prop (see the header). No sampler = every spot is level.
+    auto level = [&](const Rect& r) {
+        if (!groundAt) return true;
+        int lo = INT_MAX, hi = INT_MIN;
+        for (int z = r.z; z < r.z1(); ++z)
+            for (int x = r.x; x < r.x1(); ++x) { const auto g = groundAt(x, z); lo = std::min(lo, g.first); hi = std::max(hi, g.second); }
+        if (hi - lo > ground.tolerance) return false;
+        for (int z = r.z - 1; z <= r.z1(); ++z)
+            for (int x = r.x - 1; x <= r.x1(); ++x) {
+                if (x >= r.x && x < r.x1() && z >= r.z && z < r.z1()) continue;
+                if (groundAt(x, z).second > hi + ground.tolerance / 2) return false;
+            }
+        return true;
+    };
+    // the free LEVEL spot nearest the square's centre for a w x d prop: inside the perimeter inset, off every band,
+    // clear of what stands. Ties: the first in z, then x (deterministic).
+    auto nearestFree = [&](int w, int d, int& bx, int& bz) {
+        long best = -1;
+        for (int z = sq.z + 1; z + d <= sq.z1() - 1; ++z)
+            for (int x = sq.x + 1; x + w <= sq.x1() - 1; ++x) {
+                const Rect wr{x, z, w, d};
+                bool free = clearOf(wr) && level(wr);
+                for (const auto& b : bands) if (free && overlaps(wr, b)) free = false;
+                if (!free) continue;
+                const long dx = 2L * x + w - (2L * sq.x + sq.w), dz = 2L * z + d - (2L * sq.z + sq.d);
+                const long d2 = dx * dx + dz * dz;
+                if (best < 0 || d2 < best) { best = d2; bx = x; bz = z; }
+            }
+        return best >= 0;
+    };
     auto put = [&](const std::string& type, int cx, int cz, int w, int d, int rot) {
         out.props.push_back({type, cx, cz, w, d, rot});
         occupied.push_back(Rect{cx, cz, w, d});
@@ -702,6 +733,7 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
             const int hi = alongX ? b.z1() - sr.z1() : b.x1() - sr.x1();
             if (lo < 2 || hi < 2) { statueAtCentre = false; break; }
         }
+        if (statueAtCentre && !level(sr)) statueAtCentre = false;   // O35 (c)
         if (statueAtCentre) put("statue_hero", scx, scz, kStatueW, kStatueD, 0);
     }
 
@@ -714,6 +746,7 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
         if (wellAtCentre && msl.squareBandsGiven)
             for (const auto& b : bands)
                 if (overlaps(Rect{sq.x + sq.w / 2, sq.z + sq.d / 2, kWellW, kWellD}, b)) { wellAtCentre = false; break; }
+        if (wellAtCentre && !level(Rect{sq.x + sq.w / 2, sq.z + sq.d / 2, kWellW, kWellD})) wellAtCentre = false;   // O35 (c)
         if (wellAtCentre) {
             put("well", sq.x + sq.w / 2, sq.z + sq.d / 2, kWellW, kWellD, 0);
         } else {
@@ -721,7 +754,7 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
             for (const auto& pad : pads) {
                 const int wx = pad.x + (pad.w - kWellW) / 2, wz = pad.z + (pad.d - kWellD) / 2;
                 if (pad.w < kWellW || pad.d < kWellD) continue;
-                if (!clearOf(Rect{wx, wz, kWellW, kWellD})) continue;
+                if (!clearOf(Rect{wx, wz, kWellW, kWellD}) || !level(Rect{wx, wz, kWellW, kWellD})) continue;
                 put("well", wx, wz, kWellW, kWellD, 0);
                 wellPlaced = true;
                 break;
@@ -729,32 +762,30 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
             // M5e-1 (chain 300: the rolling town planned no well - a bent way's stepped bands left no pad two cubes
             // square, and a build with a square places no verge well either). On a map the well then takes the free
             // spot nearest the square's centre: inside the perimeter inset, off every band, clear of what stands.
-            if (!wellPlaced && msl.squareBandsGiven) {
-                int bx = 0, bz = 0; long best = -1;
-                for (int z = sq.z + 1; z + kWellD <= sq.z1() - 1; ++z)
-                    for (int x = sq.x + 1; x + kWellW <= sq.x1() - 1; ++x) {
-                        const Rect wr{x, z, kWellW, kWellD};
-                        bool free = clearOf(wr);
-                        for (const auto& b : bands) if (free && overlaps(wr, b)) free = false;
-                        if (!free) continue;
-                        const long dx = 2L * x + kWellW - (2L * sq.x + sq.w), dz = 2L * z + kWellD - (2L * sq.z + sq.d);
-                        const long d2 = dx * dx + dz * dz;
-                        if (best < 0 || d2 < best) { best = d2; bx = x; bz = z; }
-                    }
-                if (best >= 0) put("well", bx, bz, kWellW, kWellD, 0);
+            if (!wellPlaced && (msl.squareBandsGiven || groundAt)) {
+                int bx = 0, bz = 0;
+                if (nearestFree(kWellW, kWellD, bx, bz)) { put("well", bx, bz, kWellW, kWellD, 0); wellPlaced = true; }
             }
+            if (!wellPlaced) out.dropped.push_back("well");   // O35 (c): said
         }
     }
     // A statue requested but displaced from the centre lands on the next free pad (after the well
     // so the well keeps the biggest pad).
     if (pub.statue && !statueAtCentre) {
+        bool statuePlaced = false;
         for (const auto& pad : pads) {
             const int px = pad.x + (pad.w - kStatueW) / 2, pz = pad.z + (pad.d - kStatueD) / 2;
             if (pad.w < kStatueW || pad.d < kStatueD) continue;
-            if (!clearOf(Rect{px, pz, kStatueW, kStatueD})) continue;
+            if (!clearOf(Rect{px, pz, kStatueW, kStatueD}) || !level(Rect{px, pz, kStatueW, kStatueD})) continue;
             put("statue_hero", px, pz, kStatueW, kStatueD, 0);
+            statuePlaced = true;
             break;
         }
+        if (!statuePlaced && groundAt) {   // O35 (c): the pads' centres are not level - the nearest level spot
+            int bx = 0, bz = 0;
+            if (nearestFree(kStatueW, kStatueD, bx, bz)) { put("statue_hero", bx, bz, kStatueW, kStatueD, 0); statuePlaced = true; }
+        }
+        if (!statuePlaced) out.dropped.push_back("statue_hero");
     }
 
     // ---- STALLS: rows flush against each pad's through-band edge, fronts facing the street.
@@ -793,7 +824,7 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
             const int cz = horiz ? fixed : run;
             const Rect r{cx, cz, w, d};
             if (r.x1() > sq.x1() - 1 || r.z1() > sq.z1() - 1) break;  // perimeter inset
-            if (!clearOf(r)) continue;
+            if (!clearOf(r) || !level(r)) continue;
             put("market_stall", cx, cz, w, d, rot);
             --remaining;
         }
@@ -836,7 +867,7 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
         std::vector<Rect> fronts;
         for (const Cand& c : cands) {
             if (remaining <= 0) break;
-            if (!clearOf(c.r)) continue;
+            if (!clearOf(c.r) || !level(c.r)) continue;
             bool free = true;
             for (const auto& o : occupied) if (overlaps(c.front, o)) { free = false; break; }
             for (const auto& f : fronts) if (free && (overlaps(c.r, f) || overlaps(c.front, f))) free = false;
@@ -846,6 +877,8 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
             --remaining;
         }
     }
+
+    for (int i = 0; i < remaining; ++i) out.dropped.push_back("market_stall");   // O35 (c): said
 
     out.ok = true;
     return out;

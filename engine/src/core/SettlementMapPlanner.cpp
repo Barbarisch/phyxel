@@ -106,6 +106,8 @@ struct Grid {
     // D69 (c1): cells a WAY may enter although blocked (fordable creek water), and cells that cost kFordStepCost a
     // step (the ford and the ground a way's band would share with it). Empty = none (every route as before).
     std::vector<uint8_t> ford, costly;
+    // O35 (b) (pm_chain404.txt): cells whose CORNER a diagonal step may not pass (a lot's own house, for its own lane).
+    std::vector<uint8_t> noCut;
     int idx(int x, int z) const { return z * W + x; }
     bool inside(int x, int z) const { return x >= 0 && z >= 0 && x < W && z < D; }
 };
@@ -136,6 +138,7 @@ std::vector<int> connect(const Grid& g, int start, const std::vector<uint8_t>& g
             if (!g.inside(tx, tz)) continue;
             const int ti = g.idx(tx, tz);
             if (g.blocked[static_cast<size_t>(ti)] && !goal[static_cast<size_t>(ti)] && !(!g.ford.empty() && g.ford[static_cast<size_t>(ti)])) continue;
+            if (nb[0] && nb[1] && !g.noCut.empty() && (g.noCut[static_cast<size_t>(g.idx(tx, cz))] || g.noCut[static_cast<size_t>(g.idx(cx, tz))])) continue;
             const float stepLen = (nb[0] && nb[1]) ? 1.41421356f : 1.0f;
             const float grade = std::fabs(static_cast<float>(g.h[static_cast<size_t>(ti)] - g.h[static_cast<size_t>(cur)])) / stepLen;
             float c = stepLen * (1.0f + s_pathSlopeAversion * grade) * (1.0f + s_pathSlopeAversion * grade);
@@ -503,16 +506,40 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                 return n;
             };
             const int m0 = static_cast<int>(spine.size() / 2), sn = static_cast<int>(spine.size());
-            int pick = -1;
+            // O35 (c) step 3 (pm_chain404.txt): and it stands on LEVEL ground. The live town's market took the middle
+            // cell on 5 cubes of relief in 12 cells - a level street between two 1 : 1 paved slopes where no well or
+            // stall can stand. Of the dry places, nearest the middle first, the first whose rect's relief (highest -
+            // lowest ground cell) is within kMarketRelief; none = the market stays where it was (the first dry
+            // place: moving it to ground that is still not level re-plans a town for nothing - chain 413) and the note
+            // says so. A level middle plans what it always did.
+            constexpr int kMarketRelief = 1;   // cubes. DESIGN: at most one step line inside the square - the grain the
+                                               // dressing's level rule can use. Not a sourced real-world slope.
+            const auto reliefIn = [&](const Rect& r) {
+                int lo = INT_MAX, hi = INT_MIN;
+                for (int z = r.z; z < r.z1(); ++z) for (int x = r.x; x < r.x1(); ++x) { const int h = g.h[static_cast<size_t>(g.idx(x, z))]; lo = std::min(lo, h); hi = std::max(hi, h); }
+                return hi - lo;
+            };
+            int pick = -1, firstDry = -1;
             for (int k = 0; k < sn && pick < 0; ++k)
                 for (const int i : {m0 + k, m0 - k}) {
                     if (i < 0 || i >= sn || (k == 0 && i != m0)) continue;
-                    if (wetIn(rectAt(spine[static_cast<size_t>(i)])) == 0) { pick = i; break; }
+                    const Rect r = rectAt(spine[static_cast<size_t>(i)]);
+                    if (wetIn(r) != 0) continue;
+                    if (firstDry < 0) firstDry = i;
+                    if (reliefIn(r) <= kMarketRelief) { pick = i; break; }
                 }
+            if (pick < 0) pick = firstDry;   // no level place: where it always stood (or no dry place at all)
             if (pick < 0) {
                 map.marketNote = "no dry place for the market along the main street (" + std::to_string(wetIn(rectAt(mid))) + " water cells at its middle)";
             } else {
-            if (pick != m0) map.marketNote = "the market stands " + std::to_string(std::abs(pick - m0)) + " cells along the main street from its middle: water at the middle";
+            const int reliefHere = reliefIn(rectAt(spine[static_cast<size_t>(pick)]));
+            if (pick != m0 && firstDry != m0) map.marketNote = "the market stands " + std::to_string(std::abs(pick - m0)) + " cells along the main street from its middle: water at the middle";
+            if (pick != firstDry)
+                map.marketNote += std::string(map.marketNote.empty() ? "" : "; ") + "the market stands " + std::to_string(std::abs(pick - m0)) + " cells along the main street from its middle: the ground "
+                                  + (firstDry == m0 ? "at the middle" : "at the nearest dry place") + " is not level (relief " + std::to_string(reliefIn(rectAt(spine[static_cast<size_t>(firstDry)])))
+                                  + " cubes; here " + std::to_string(reliefHere) + ")";
+            else if (reliefHere > kMarketRelief)
+                map.marketNote += std::string(map.marketNote.empty() ? "" : "; ") + "the market's ground is not level (relief " + std::to_string(reliefHere) + " cubes) and no dry place along the main street is level";
             mid = spine[static_cast<size_t>(pick)];
             marketCx = mid % W; marketCz = mid / W;
             map.marketLane = std::max(0, tier.street.laneWidth);   // D67 PROPOSED: the lane a way keeps clear across the market
@@ -704,9 +731,10 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                     // keeps it. The YARD stays open, and a diagonal step may still pass the footprint's CORNER
                     // (pm_chain394, chains 396-398): closing either re-plans the live town onto a market-dressing
                     // weakness (O35 b, c) - open, in that order.
+                    gg.noCut.assign(N, 0);
                     for (int zz = c.shape.footprint.z; zz < c.shape.footprint.z1(); ++zz)
                         for (int xx = c.shape.footprint.x; xx < c.shape.footprint.x1(); ++xx)
-                            if (!gg.onNet[static_cast<size_t>(gg.idx(xx, zz))]) gg.blocked[static_cast<size_t>(gg.idx(xx, zz))] = 1;
+                            if (!gg.onNet[static_cast<size_t>(gg.idx(xx, zz))]) { gg.blocked[static_cast<size_t>(gg.idx(xx, zz))] = 1; gg.noCut[static_cast<size_t>(gg.idx(xx, zz))] = 1; }
                     if (anyWater && rLaneBand > 0) for (size_t i = 0; i < N; ++i) if (nearWaterLane[i]) gg.blocked[i] = 1;   // a lane keeps its band off the water
                     if (anyFord) { gg.ford = fordMask; gg.costly = costlyLane; }   // D69 (c1): but may ford a creek
                     path = connect(gg, di, goal, in.reuse);
