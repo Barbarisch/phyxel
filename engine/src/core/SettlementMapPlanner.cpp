@@ -1207,7 +1207,12 @@ static void planWall(SettlementMap& map, const SettlementMapInput& in) {
             const auto it = at.find(leg[k]);
             if (it == at.end()) { at[leg[k]] = walk.size(); walk.push_back(leg[k]); continue; }
             const size_t back = it->second;
-            if (last) {   // the ring closes on a cell of its own start: what lies before that cell is a spur, dropped
+            // O37 (d) (pm_chain431.txt): on the last leg a collision closes the ring only where it meets the walk's
+            // FIRST half - its start. The leg before can reach the last corner by a detour (a creek city: water is dear)
+            // and the last leg then starts back along that tail; taken as the closing, everything before the collided
+            // cell was erased and "2 cells, closed" refused the wall (chain 413's rolling city, chain 433's creek city).
+            // A collision with the tail is a loop like on any other leg.
+            if (last && back * 2 <= walk.size()) {   // the ring closes on a cell of its own start: what lies before that cell is a spur, dropped
                 walk.erase(walk.begin(), walk.begin() + static_cast<std::ptrdiff_t>(back));
                 closed = true; break;
             }

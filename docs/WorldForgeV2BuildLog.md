@@ -871,3 +871,20 @@ Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain421.txt` (chains 421 to 
   the live town is the evidence.
 - Audited PASS WITH CONDITIONS; the conditions are disclosed (O37 f to k), not built. No Debug run; nothing viewed
   in the engine.
+
+### 2026-11-18 - O36 (a): the build service can give the planner the ford rule; the creek city is planned (plan only)
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain431.txt` (chains 431 to 441).
+- `SettlementBuildService`, generator sampler, OPT-IN (`"ford": true`): `fordAt` = the channel is hit, not carved,
+  shallower than the plan's `fordMaxDepthU`, and the column holds no standing water - the world road's own rule. It
+  was first on by default; the audit pointed out that every real build over a creek would then plan a ford nothing
+  paves or walks, so it is off unless asked until O36 (b).
+- The lab's creek city (CityLab's recipe pinned at (-1200, -1040), D71 (a)): refused at 5 of 20 lots without the
+  rule, PLANNED with it - 20 of 20 lots, 4 crossings, invariants 0, wall present. All 1479 wet columns of the site
+  are fordable creek. All 20 lots stand beyond the first creek from the road's entry.
+- `planWall`: on the last leg a collision with the walk's tail is a loop, not the ring closing (it erased the whole
+  walk: "2 cells, closed"). Seen failing on this one live plan only; the closing rule is a heuristic. The creek
+  city's wall is measured: 534 ring cells, 5 gates, 3 water gaps, no house or market cell outside (red with the rule
+  reverted). O37 (d) is not claimed.
+- Release unit 210 / 0, live 40 / 0; no existing live site moved. NOTHING is realized at a ford: no paving rule, no
+  walk, no building on the creek city. Audited PASS WITH CONDITIONS; responses not re-audited. No Debug run.

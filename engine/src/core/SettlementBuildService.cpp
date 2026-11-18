@@ -523,6 +523,19 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     const float level = mapGen->waterLevelAt(static_cast<float>(wx), static_cast<float>(wz));
                     return level > mapGen->naturalGroundAt(wx, wz);
                 };
+                // O36 (a) (pm_chain431.txt; D69 (c1)): a WAY may ford a creek - the world road's own rule (WorldForgePlan
+                // decideCrossings): the channel is not carved, its centre-line depth is under the plan's ford bound, and
+                // the column holds no standing water. A lot never stands in it. OPT-IN ({"ford": true}; the audit of
+                // O36 a): nothing yet paves or walks a ford (O36 b), so no build plans one unless asked.
+                if (p.value("ford", false)) {
+                    const float fordMax = mapGen->worldForge() ? mapGen->worldForge()->params().fordMaxDepthU : WorldForgeParams().fordMaxDepthU;
+                    mi.fordAt = [mapGen, ox, oz, fordMax](int x, int z) {
+                        const int wx = ox + x, wz = oz + z;
+                        const FlowField::ChannelHit ch = mapGen->channelHitAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f);
+                        if (!ch.hit || ch.carved || ch.fullDepth >= fordMax) return false;
+                        return !(mapGen->waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > mapGen->naturalGroundAt(wx, wz));
+                    };
+                }
             } else if (chunkManager && terrain) {
                 mi.waterAt = [waterAt, ox, oz](int x, int z) { return waterAt(ox + x, oz + z); };
             }

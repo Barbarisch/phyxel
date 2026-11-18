@@ -301,6 +301,11 @@ TEST(SettlementMapTest, AWayFordsACreekAndNoLotStandsInIt) {
             EXPECT_EQ(c.wayCellsNotInACrossing, 0) << s.tier << " seed " << seed;
             EXPECT_EQ(c.bandAway, 0) << s.tier << " seed " << seed << ": a way's band lies over water away from its crossing";
             EXPECT_EQ(v.overlaps + v.wayThroughFootprint + v.lotOutside + v.lotNoWay + v.lotDoorOffWay + v.badWay, 0) << s.tier << " seed " << seed;
+            // O37 (d) / O36 (pm_chain431.txt, added before chain 434): a walled tier keeps its wall on a plan that fords
+            if (in.tier->walls.enabled && m.ok()) {
+                std::printf("[ D69c ]   %s seed %u: wall %s %s%s", s.tier, seed, m.wall.present ? "present" : "ABSENT", m.wall.refusal.c_str(), "\n");
+                EXPECT_TRUE(m.wall.present) << s.tier << " seed " << seed << ": " << m.wall.refusal;
+            }
         }
 }
 

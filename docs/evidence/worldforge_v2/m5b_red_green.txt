@@ -1863,3 +1863,37 @@ MY RESPONSE (NOT re-audited; NO code changed after the audit, so the evidence ab
  every condition is DISCLOSED, none is built - they are registered in the plan's O37 row (f) to (k) as the next work.
  141 = 134 prop-free cells + the 7 prop cells the walk stood in (the reached set is not filtered by prop cells) -
  read from the two printed lines, not separately measured. No Debug run.
+
+=== O36 (a) the ford rule reaches the planner from the build service; the wall's last leg - solution-auditor read (recorded 2026-11-18 14:38; HEAD 1b437b83 + the working tree; read-only; detail in m3c_chains/pm_chain431.txt) ===
+RAW VERDICT: PASS WITH CONDITIONS (L2 plan-only claim on the live generator is real; the wall fix is thinly proven
+and the new default changes realized builds). (Read the record, the diff and the logs; ran nothing.)
+FINDINGS (the auditor's, condensed):
+ 1. red to green on the live generator REAL: refused at 5 of 20 (chain 431, exe before the service edit), accepted
+    20 of 20 with 4 crossings and invariants 0 after; the control asserted. The record's misses are logged.
+ 2. the wall: the diagnosis is right by reading (stops[0] is walk[0], the final collision has back = 0, so the ring
+    always closes unless route() fails; the `at` map stays consistent). "The rule back * 2 <= walk.size() is a
+    heuristic, not proven": a first-half collision at back > 0 closes mid-leg and drops the prefix (which may hold
+    stops[0]); a start spur longer than half the walk would be mis-handled. No test constructs either. The red is ONE
+    live data point; the unit ford arm does not reproduce it; chain 413's rolling city was never re-run - O37 (d)
+    is NOT to be called fixed. The creek city's wall was asserted only as "present" - a degenerate ring would pass.
+ 3. counts backed by the logs; "no live site re-planned" holds for the record lines only.
+ 4. the test's water predicate is the service's formula written twice: "way cells in water outside a crossing == 0"
+    cannot fail on an error shared by both; the control arm is the real discriminator.
+ 5. "lots beyond a ford 20 of 20" is plausible; it is a bank-connectivity proxy, asserted only as > 0; the
+    pre-registered "lots on both sides" was dropped (0 lots on the entry's bank).
+ 6. the fordAt lambda is correct (consulted only on water cells).
+ 7. "ford" defaulting to TRUE changed every generator-sampler plan, worldforge_build included: a plan once refused
+    over a creek would be accepted and realized with nothing that paves or walks a ford; not echoed, not documented.
+ 8. overstatements: "wall present" without size or enclosure; the pointer to chain 413 as the same defect unverified.
+CONDITIONS: 1 measure the creek city's wall (ring cells, every lot cell inside) or say it is unmeasured; 2 a unit
+ red / green for the tail collision or state "live-only, n = 1", and do not claim O37 (d); 3 gate the ford default
+ or state that builds now plan fords nothing realizes; 4 call the lots-beyond measure a bank-connectivity proxy.
+MY RESPONSE (after the audit; NOT re-audited):
+ 1 DONE - the test floods from outside the ring and asserts no house cell and no market cell is reached; RED with
+   the wall rule reverted (chain 438: no ring, 1536 of 1536 house cells outside), GREEN restored (chain 439: 534
+   ring cells, 5 gates, 3 water gaps, 0 of 1536 outside, market 0).
+ 2 STATED - live-only, n = 1; no unit rig reproduces the tail collision; the rule is a heuristic; O37 (d) stays open
+   (the rolling city of chain 413 is not re-run: its market no longer moves, so that plan no longer exists).
+ 3 DONE - the ford rule is OPT-IN ({"ford": true}); the default build is what it was. Not echoed in the result.
+ 4 STATED - a bank-connectivity proxy; and the city seats NO lot on the entry's bank (all 20 beyond the first creek).
+RE-RUN ON THE FINAL EXE (14:35:46; recorded 14:48): unit 210 / 0 (chain 440), live 40 / 0 (chain 441), record lines identical to chains 436 / 437.

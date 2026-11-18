@@ -1,0 +1,87 @@
+pm_chain431.txt - O36 (a): the build service gives the planner the ford rule; the lab's creek city (D71 (a)) is planned.
+(written 2026-11-18 14:14, BEFORE any run of this chain; HEAD 1b437b83)
+
+DESIGN (short; the D69 (c) design check of 2026-11-18 in the plan covers the rule)
+  SettlementBuildService, generator sampler only: mi.fordAt(x, z) = the generator's channel at the column is hit,
+  NOT carved, its centre-line depth is under the plan's fordMaxDepthU (WorldForgeParams, 0.5 u, the M4 ford bound -
+  the world road's own rule, WorldForgePlan decideCrossings), and the column holds no standing water (the hydrology
+  level is not above the natural ground). Param "ford": false switches it off (the control). Chunk-independent: a
+  function of world position through the generator. No new number.
+  What a ford IS in voxels is NOT designed here: this step is the PLAN (L2 on the live generator). The paving at a
+  ford and the walk through one are O36 (b), next.
+RED TEST (live): SettlementMapLiveSiteTest.TheCreekCityFordsItsCreek - CityLab's recipe pinned at (-1200, -1040), no
+  bump (variant A of pm_chain389: four parallel channels, the city refused at 5 of 20 lots). Asserted: the plan is
+  accepted with its full lot target; >= 1 recorded crossing; lots stand on BOTH sides of a crossed channel (counted
+  as: some lot is reachable from the entry only through a crossing - measured by a flood over dry ways' cells);
+  0 lot cells in water; every way cell in water lies in a recorded crossing; the map invariants 0.
+  CONTROL arm: the same plan with "ford": false is refused as today.
+  PREDICTION chain 431 (RED, service unchanged): both arms refused "5 of 20"-like; the test fails on the ford arm.
+  PREDICTION chain 432 (GREEN): the ford arm seats 20 of 20 (GUESS - a channel may be deeper than 0.5 u or hold
+  standing water somewhere, then fewer), crossings GUESS 2 to 6; the control arm still refused.
+RESULTS (written 2026-11-18 14:15)
+  chain 431 (RED, service unchanged, exe 14:14:54): as predicted - both arms "REFUSED: no buildable, connectable lot
+    for the tier's minimum (5 of 20 seated)", 0 crossings. The site: 1479 wet columns, ALL fordable creek (0
+    standing, 0 carved, 0 at 0.5 u or deeper). NOTED: my "lots beyond a ford" count reads 2 with NO crossing on the
+    map - the dry-flood proxy miscounts lots whose approach is not near a way cell; it is a weak measure and is
+    asserted only as > 0 together with crossings > 0.
+  chain 432 (GREEN, exe 14:15:51): the ford arm "plan accepted; 20 lots of 20, 8 ways, 4 crossings (6 cells); way
+    cells in water 6 (0 outside a crossing); lot cells in water 0", invariants 0; the control still refused at 5 of
+    20. As predicted. BUT: (1) "wall ABSENT" on the forded plan (present on the refused one); (2) "lots beyond a
+    ford 20" of 20 - my proxy is wrong, not the plan.
+  TEST AMENDED before chain 433 (stated): lots beyond water = lots with no footprint cell in the entry's dry bank (a
+  4-connected flood of the site's dry cells from the entry). The wall's refusal is printed.
+  chain 433 (exe 14:16:42): the amended measure - the entry's bank is 7397 dry cells of 25600; on the ford arm ALL 20
+    lots stand beyond water (the hull's corners start at x 49: the city seats east of the first channel), the
+    control's 5 lots stand on the entry's bank (0 beyond). The wall's refusal on the forded plan: "the route did not
+    close into a ring (10 corners, 2 cells, closed; ...)" - the SAME refusal as chain 413's rolling city (O37 d).
+WALL DEFECT (read from planWall, written before chain 434): the closed walk ends "closed" with 2 cells when the
+  LAST leg's first step lands on the walk's own TAIL (the leg before it reached the last corner by a detour and the
+  last leg starts back along it). The code takes any collision on the last leg as the ring closing on its START and
+  erases everything before the collided cell - here everything.
+  FIX (stated): on the last leg a collision in the walk's second half is a loop like on any other leg (the walk is
+  cut back to it and the leg goes on); only a collision in the first half closes the ring.
+  RED first: the live test asserts the creek city's wall (ABSENT in chain 433), and the unit ford test's scale arm
+  asserts the wall on walled tiers. PREDICTION chain 434 (RED, planner unchanged; the unit ford test + the live creek
+  test): live FAILS on the wall; the unit arm UNKNOWN (one straight creek - may or may not show it).
+  chain 434 (RED, exe 14:18:23; a first build failed on my own string literal, fixed): the live creek test FAILS on
+    the wall ("the creek city has no wall: the route did not close into a ring (10 corners, 2 cells, closed ...)");
+    the unit ford scale arm shows the wall PRESENT on city seeds 1, 7, 23 - it does not reproduce the defect (one
+    straight creek). The red is the live site only.
+  PREDICTION chain 435 (GREEN, the last-leg rule): the creek city's wall present (GUESS: with water gaps where it
+  crosses the four channels); the unit ford test unchanged.
+  chain 435 (GREEN, exe 14:19:04): the creek city "plan accepted; 20 lots of 20, 8 ways, 4 crossings (6 cells) ...
+    wall present"; the unit ford test and the five wall tests pass (7 ok).
+FULL REGRESSION, predictions (written before the runs):
+  chain 436 (unit, 210): 0 failed; [ M5a ] / [ M5b ] lines identical to chain 428's; M5A-MAP lines identical UNLESS
+    a generator-sampler hamlet has a fordable creek on its site (then its plan may move - to be named).
+  chain 437 (live, 40 tests): 0 failed. Any live site with a creek re-plans (UNKNOWN which; the town and the hamlets
+    printed wet cells in their water checks before). Sites without water: record lines identical to chain 429's.
+  chain 436 (unit, exe 14:19:04): 210 ok / 0 failed; [ M5a ] / [ M5b ] and M5A-MAP lines identical to chain 428's.
+RESULTS (written 2026-11-18 14:32)
+  chain 437 (live set, exe 14:19:04, run directly, exit 0 at 14:31:54): 40 ok / 0 failed (39 + the creek city). The
+    141 record lines are identical to chain 429's: NO existing live site re-planned (no "crossings" key on any of
+    their maps) - none of them has a fordable creek between its lots, or none was needed.
+  WHAT IS AND IS NOT SHOWN: the creek city is PLANNED (L2, on the live generator): 20 of 20 lots, 4 crossings, wall
+  present, invariants 0, the control refused. NOTHING is realized there: no paving at a ford, no walk through one,
+  no building. Whether the generator emits anything at a fordable creek that a walker or the paver meets is not
+  known. Release only. No Debug run. Not yet audited at the time of writing.
+AUDIT (solution-auditor, 2026-11-18 about 14:36): RAW VERDICT: PASS WITH CONDITIONS ("L2 plan-only claim on the live
+  generator is real; the wall fix is thinly proven and the new default changes realized builds"). Full text in the
+  ledger. ANSWERED IN CODE before chain 438 (stated):
+   - the ford rule is OPT-IN ({"ford": true}); the default build plans no ford until O36 (b) paves and walks one. The
+     creek test's ford arm asks for it; its control is now the default.
+   - the creek city's wall is MEASURED: ring cells, gates, water gaps, and a flood from outside the ring that must
+     reach no house cell and no market cell.
+  PREDICTION chain 438 (the creek test with the wall rule REVERTED - the planner file stashed): RED on the wall and on
+  the enclosure (every house cell "outside": there is no ring). chain 439 (restored): green, 0 house cells outside.
+RESULTS (written 2026-11-18 14:36)
+  chain 438 (the wall rule REVERTED, exe 14:35:19): RED - "wall ABSENT", "0 ring cells ... house cells outside the
+    ring 1536 of 1536, market cells outside 256". chain 439 (restored, exe 14:35:46): GREEN - "534 ring cells, box
+    50..164 x 0..153, 5 gates, 3 water gaps; enclosed 14860 cells; house cells outside the ring 0 of 1536, market
+    cells outside 0". The control (now the DEFAULT, no ford) refused at 5 of 20 in both.
+  chains 440 / 441 (unit and live on exe 14:35:46): prediction - 210 / 0 and 40 / 0, record lines identical to
+    chains 436 / 437 (the default is the old behaviour again).
+RESULTS (written 2026-11-18 14:48)
+  chain 440 (unit, exe 14:35:46): 210 ok / 0 failed; record lines identical to chain 436's.
+  chain 441 (live, the same exe, exit 0): 40 ok / 0 failed; the 141 record lines identical to chain 437's.
+  Release only. No Debug run. Nothing realized at a ford. The audit's responses are not re-audited.

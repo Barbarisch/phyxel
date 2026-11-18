@@ -2757,6 +2757,126 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagScanCityLabForACreekSite) {
 
 // O35 (a) (pm_chain389.txt, chain 391): the hill painted ONTO a creek site - does the creek survive, and what relief
 // does a 160 u site see? Three variants at one pin; a measurement, run by name.
+// O36 (a) (pm_chain431.txt; D71 (a)): the lab's creek city. The build service gives the planner the world road's ford
+// rule, and the city that was refused at 5 of 20 lots (no way over its four creek channels) is planned across them.
+TEST(SettlementMapLiveSiteTest, TheCreekCityFordsItsCreek) {
+    const int px = -1200, pz = -1040;
+    LiveSiteRig rig;
+    rig.recipeKey = "citylab-A no bump"; rig.worldSeed = 7001u;
+    rig.recipeFn = [px, pz] { return cityLabRecipe(false, px, pz, 0.0f, 0.0f); };
+    ASSERT_TRUE(rig.setUp(0, 24)) << rig.why;
+    ASSERT_EQ(rig.site->tier, "city");
+    const int W = rig.site->width, D = rig.site->depth, ox = rig.site->pos.x - W / 2, oz = rig.site->pos.y - D / 2;
+    WorldGenerator* gen = rig.gen;
+    const std::function<bool(int, int)> wet = [gen, ox, oz](int x, int z) {
+        const int wx = ox + x, wz = oz + z;
+        if (gen->channelHitAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f).hit) return true;
+        return gen->waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > gen->naturalGroundAt(wx, wz);
+    };
+    const std::function<int(int, int)> h = [gen, ox, oz](int x, int z) { return static_cast<int>(std::floor(gen->naturalGroundAt(ox + x, oz + z))); };
+    {   // the site's water by kind (the test's own reading of the generator, not the service's)
+        int wetN = 0, creek = 0, deep = 0, carved = 0, standing = 0;
+        for (int z = 0; z < D; ++z) for (int x = 0; x < W; ++x) {
+            if (!wet(x, z)) continue;
+            ++wetN;
+            const auto ch = gen->channelHitAt(static_cast<float>(ox + x) + 0.5f, static_cast<float>(oz + z) + 0.5f);
+            const bool st = gen->waterLevelAt(static_cast<float>(ox + x), static_cast<float>(oz + z)) > gen->naturalGroundAt(ox + x, oz + z);
+            if (st) ++standing; else if (ch.carved) ++carved; else if (ch.fullDepth >= 0.5f) ++deep; else ++creek;
+        }
+        std::printf("[ O36a ] the creek city's site %d x %d at (%d, %d): %d wet columns - %d standing water, %d carved river, %d creek 0.5 u or deeper, %d fordable creek%s",
+                    W, D, rig.site->pos.x, rig.site->pos.y, wetN, standing, carved, deep, creek, chr10().c_str());
+    }
+    SettlementBuildService::Deps deps;
+    deps.chunkManager = &rig.cm; deps.templates = &rig.templates; deps.placedObjects = &rig.placed;
+    for (const bool ford : {true, false}) {
+        nlohmann::json params = WorldForgeBuildService::settlementParamsFor(*gen->worldForge(), *rig.site);
+        if (ford) params["ford"] = true;   // opt-in (the audit of O36 a); the control is the default
+        const auto plan = SettlementBuildService::plan(params, deps);
+        const Core::SettlementMap m = plan.map.is_object() ? Core::SettlementMap::fromJson(plan.map) : Core::SettlementMap();
+        int lotWet = 0, wayWet = 0, wayWetOutside = 0, crossingCells = 0;
+        std::set<std::pair<int, int>> inCrossing;
+        for (const auto& c : m.crossings) for (const auto& cell : c.cells) { inCrossing.insert(cell); ++crossingCells; }
+        for (const auto& l : m.lots) for (int z = l.rect.z; z < l.rect.z1(); ++z) for (int x = l.rect.x; x < l.rect.x1(); ++x) if (wet(x, z)) ++lotWet;
+        // every way's cells (the straight 8-direction runs between its nodes)
+        std::set<std::pair<int, int>> wayCells;
+        for (const auto& w : m.ways) {
+            std::pair<int, int> at{INT_MIN, INT_MIN};
+            for (int nid : w.nodes) if (const Core::MapNode* n = m.node(nid)) {
+                if (at.first == INT_MIN) { at = {n->x, n->z}; wayCells.insert(at); continue; }
+                while (at.first != n->x || at.second != n->z) { at.first += (n->x > at.first) - (n->x < at.first); at.second += (n->z > at.second) - (n->z < at.second); wayCells.insert(at); }
+            }
+        }
+        for (const auto& c : wayCells) if (wet(c.first, c.second)) { ++wayWet; if (!inCrossing.count(c)) ++wayWetOutside; }
+        // lots beyond water (amended before chain 433, pm_chain431.txt: the first measure - a flood over dry WAY cells -
+        // read 2 with no crossing and 20 of 20 with four): the site's DRY cells are flooded 4-connected from the entry,
+        // water stops the flood; a lot with no footprint cell in that component stands beyond water.
+        std::vector<uint8_t> bank(static_cast<size_t>(W) * D, 0);
+        if (const Core::MapNode* e = m.node(m.entryNode)) {
+            std::vector<std::pair<int, int>> stack{{std::clamp(e->x, 0, W - 1), std::clamp(e->z, 0, D - 1)}};
+            while (!stack.empty()) {
+                const auto c = stack.back(); stack.pop_back();
+                if (c.first < 0 || c.second < 0 || c.first >= W || c.second >= D || wet(c.first, c.second)) continue;
+                uint8_t& b = bank[static_cast<size_t>(c.second) * W + c.first];
+                if (b) continue;
+                b = 1;
+                stack.push_back({c.first + 1, c.second}); stack.push_back({c.first - 1, c.second}); stack.push_back({c.first, c.second + 1}); stack.push_back({c.first, c.second - 1});
+            }
+        }
+        int lotsBeyond = 0, bankCells = 0;
+        for (const uint8_t b : bank) bankCells += b;
+        for (const auto& l : m.lots) {
+            bool onBank = false;
+            for (int z = l.footprint.z; z < l.footprint.z1() && !onBank; ++z) for (int x = l.footprint.x; x < l.footprint.x1() && !onBank; ++x) onBank = bank[static_cast<size_t>(z) * W + x] != 0;
+            if (!onBank) ++lotsBeyond;
+        }
+        std::printf("[ O36a ]   the entry's bank: %d dry cells of %d reached without crossing water; wall refusal: '%s'%s", bankCells, W * D, m.wall.refusal.c_str(), chr10().c_str());
+        const MapInvariants::Violations vi = MapInvariants::measure(m, h, 6, wet);
+        std::printf("[ O36a ] %s: plan %s%s; %zu lots of %d, %zu ways, %zu crossings (%d cells); way cells in water %d (%d outside a crossing); lot cells in water %d; lots beyond a ford %d; "
+                    "overlaps %d, through a footprint %d, outside %d, no way %d, door off its way %d, bad way %d; wall %s, market note '%s'%s",
+                    ford ? "FORD" : "CONTROL (ford off)", plan.ok() ? "accepted" : "REFUSED: ", plan.ok() ? "" : plan.error.value("error", std::string("?")).c_str(),
+                    m.lots.size(), m.targetLots, m.ways.size(), m.crossings.size(), crossingCells, wayWet, wayWetOutside, lotWet, lotsBeyond,
+                    vi.overlaps, vi.wayThroughFootprint, vi.lotOutside, vi.lotNoWay, vi.lotDoorOffWay, vi.badWay, m.wall.present ? "present" : "ABSENT", m.marketNote.c_str(), chr10().c_str());
+        EXPECT_EQ(lotWet, 0) << "a lot stands in water";
+        EXPECT_EQ(wayWetOutside, 0) << "a way is in water outside a recorded crossing";
+        if (ford) {
+            EXPECT_TRUE(plan.ok()) << plan.error.dump();
+            EXPECT_EQ(static_cast<int>(m.lots.size()), m.targetLots) << "the creek city does not seat its lot target";
+            EXPECT_GT(m.crossings.size(), 0u) << "nothing forded the creek";
+            EXPECT_GT(lotsBeyond, 0) << "no lot stands beyond a ford";
+            EXPECT_TRUE(m.wall.present) << "the creek city has no wall: " << m.wall.refusal;   // added before chain 434 (red in chain 433: ABSENT)
+            {   // the audit of O36 a (1): the wall is a ring ROUND the lots - a flood from outside the ring's box, the ring's
+                // cells as the barrier (4-connected), must reach no cell of a lot's footprint or of the market
+                std::set<std::pair<int, int>> ring;
+                int x0 = INT_MAX, x1 = INT_MIN, z0 = INT_MAX, z1 = INT_MIN;
+                for (const auto& c : m.wall.ring) { ring.insert({c.x, c.z}); x0 = std::min(x0, c.x); x1 = std::max(x1, c.x); z0 = std::min(z0, c.z); z1 = std::max(z1, c.z); }
+                std::set<std::pair<int, int>> outside;
+                if (!ring.empty()) {
+                    std::vector<std::pair<int, int>> stack{{x0 - 1, z0 - 1}};
+                    while (!stack.empty()) {
+                        const auto c = stack.back(); stack.pop_back();
+                        if (c.first < x0 - 1 || c.first > x1 + 1 || c.second < z0 - 1 || c.second > z1 + 1 || ring.count(c) || !outside.insert(c).second) continue;
+                        stack.push_back({c.first + 1, c.second}); stack.push_back({c.first - 1, c.second}); stack.push_back({c.first, c.second + 1}); stack.push_back({c.first, c.second - 1});
+                    }
+                }
+                int lotCellsOut = 0, lotCells = 0, marketOut = 0;
+                const auto isOut = [&](int x, int z) { return x < x0 || x > x1 || z < z0 || z > z1 || outside.count({x, z}) > 0; };
+                for (const auto& l : m.lots) for (int z = l.footprint.z; z < l.footprint.z1(); ++z) for (int x = l.footprint.x; x < l.footprint.x1(); ++x) { ++lotCells; if (isOut(x, z)) ++lotCellsOut; }
+                for (const auto& a : m.areas) if (a.landuse == "market") for (int z = a.rect.z; z < a.rect.z1(); ++z) for (int x = a.rect.x; x < a.rect.x1(); ++x) if (isOut(x, z)) ++marketOut;
+                const long boxCells = static_cast<long>(x1 - x0 + 1) * (z1 - z0 + 1);
+                std::printf("[ O36a ]   the wall: %zu ring cells, box %d..%d x %d..%d, %zu gates, %zu water gaps; enclosed %ld cells; house cells outside the ring %d of %d, market cells outside %d%s",
+                            m.wall.ring.size(), x0, x1, z0, z1, m.wall.gates.size(), m.wall.waterGaps.size(), boxCells - static_cast<long>(outside.size()) + (ring.empty() ? 0 : 0) - static_cast<long>(ring.size()), lotCellsOut, lotCells, marketOut, chr10().c_str());
+                EXPECT_GT(lotCells, 0);
+                EXPECT_EQ(lotCellsOut, 0) << "a house stands outside the creek city's wall";
+                EXPECT_EQ(marketOut, 0) << "the market lies outside the creek city's wall";
+            }
+            EXPECT_EQ(vi.overlaps + vi.wayThroughFootprint + vi.lotOutside + vi.lotNoWay + vi.lotDoorOffWay + vi.badWay, 0);
+        } else {
+            EXPECT_FALSE(plan.ok()) << "the control (ford off) is accepted: the site does not make the case";
+            EXPECT_EQ(m.crossings.size(), 0u);
+        }
+    }
+}
+
 TEST(SettlementMapLiveSiteTest, DISABLED_DiagCityLabHillOnACreek) {
     struct Variant { const char* key; bool hill; float hx, hz; };
     const int px = -1200, pz = -1040;
