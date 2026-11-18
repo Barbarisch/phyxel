@@ -1,0 +1,112 @@
+pm_chain380 - O16, the READY headless step (the plan's O16 design check): CityLab = the WorldSheetLab recipe + one
+painted hill + one pinned city-tier site at the origin; bake headless; record the site's relief, whether a creek
+crosses it, and the planner's map on it with the L2 invariants - before any engine launch.
+Written 2026-11-18 09:29, before any edit. Release. Owner 2026-11-18: "can we keep following the plan?"
+
+WHAT IS READ FIRST (no run): a pinned site's tier name comes from worldforge.pinTiers; its rectangle from
+  WorldForgePlan::tierPreset on a recipe WITHOUT worldforge.civ - and that literal table has no city (anything that is
+  not town / village is the hamlet 40 x 32). So the specified CityLab (no civ) cannot hold a city today.
+THE RIG (DESIGN, a test world - no sized real-world number):
+  recipe = WorldSheetLab's world block (Perlin 7001, its sheet block with erosion 200 steps, its raised height spline)
+    + sheet.upliftMask [{x 0, z 0, radiusU 512, deltaU 24}] + worldforge {sitePins [(0,0)], pinTiers ["city"]}.
+  deltaU 24 is the plan's "amplitude 24 u" (section 16). radiusU 512 is MINE: the bump is added at macro cell centres
+    (512 u apart, the origin is a cell CORNER, the four nearest centres 362 u away); 512 is the smallest radius that
+    leaves most of the 24 on those four cells (24 x exp(-0.25) = 18.7; at 256 it would be 8.8). Stated, not grounded.
+  siteCount stays at the default 5 (the clamp's floor is 3): the pin is site 0, the others are scored - they give the
+    city its arriving roads. Not "one site" as section 16 words it; stated.
+  The origin is a real meso tile seam (the WorldSheetLab pose note) - the site straddles it.
+  CONTROL for the hill: the same recipe WITHOUT the bump, sampled over the same rectangle.
+  CONTROL for the tier fix: the version-1 plan-hash pins (WorldForgeStressTest.VersionOnePlanHashesArePinned) and the
+    medieval map-suite prints, unchanged.
+THE TEST: SettlementMapLiveSiteTest.CityLabIsSitedAndPlanned (the rig's recipe becomes a parameter; nothing realized -
+  SettlementBuildService::plan only, on the generated chunks). The invariant counter (Violations / measure) moves from
+  SettlementMapTest.cpp into a shared test header, unchanged.
+  ASSERTS: the pin's record is tier city, 160 x 160, centre (0, 0); the plan is not refused; lots > 0; 0 overlaps,
+    0 ways through a footprint, 0 lots outside, 0 lots with no way, 0 doors off their way, 0 way segments in water.
+  PRINTS (measured, not asserted): surface lo / hi over the rectangle with and without the bump; water columns in the
+    rectangle by the planner's own predicate; channel columns by Strahler order; lots, ways, the wall (present /
+    ring cells / gates / water gaps), the market (area or the note), the bake time.
+PREDICTIONS
+  chain 380 (the test, no engine change): RED - the record reads hamlet 40 x 32.
+  chain 381 (tierPreset gains city 160 x 160): the record reads city 160 x 160 at (0, 0). GUESSES for the rest:
+    - the origin is land (I do not know - if it is sea or a lake the plan is refused and the pin has to move);
+    - relief over the rectangle 4 to 14 u, and LITTLE of it from the bump: a 512-radius hill is nearly flat across
+      160 u at its top. With-bump minus no-bump at the centre: +10 to +22 u;
+    - no order-2 creek inside the rectangle (a hilltop sheds water); 0 water columns;
+    - the city plans 20 to 27 lots, a wall with at least one gate, a market, 0 violations;
+    - plan time under 30 s; the hash pins and the map-suite prints do not move; unit 201 / 0, live 38 / 0.
+RESULTS (written 2026-11-18 09:33)
+  chain 380 (the test, no engine change): RED as predicted - "site 0 (hamlet) centre (0, 0) 40 x 32".
+  chain 381 (tierPreset gains city): the record reads city 160 x 160 at (0, 0); the version-1 hash pin test passes.
+    The test is still RED - on an invariant, not on the tier:
+    - land: RIGHT (surface 117..152; the box's other four sites lie 1000+ u west at y 18..36).
+    - relief: MISS. 35 u over the rectangle (I guessed 4 to 14) - and 35 WITHOUT the hill too (108..143). The site is
+      a hillside of the lab's own terrain, about 1 in 4.6 corner to corner; it is not "a gentle hill". The bump adds 9
+      at the centre (I guessed 10 to 22 - a miss by one) and does not change the relief.
+    - water: RIGHT - 0 wet columns, no channel column of any order. So there is NO creek through the site; section
+      16's "one order-2 creek through the site" is not met at this pin.
+    - the plan: NOT refused; 40 lots (I guessed 20 to 27 - a miss; the program's band is 20 to 48), 36 ways (3 primary,
+      33 lanes), a wall of 664 ring cells with 4 gates and 7 of 11 towers, a 16 x 16 market at the centre; 0.8 s.
+    - invariants: MISS - "way through a footprint" = 2 (I predicted 0). Every other count 0. Not yet known whether
+      the planner routed a way through a building or the counter misreads something on this map; diagnosed next
+      (the offending way and lot printed; the assertion is NOT changed).
+  chain 382 (diagnostic print only): the two counts are ONE lane - way 32, lot 35's own lane (a hall house, footprint
+    [68,121,16,8], facing -Z): its line runs (78,120) -> (79,121) -> (81,119), one node INSIDE the front wall row of
+    the house it serves. A real planner defect, not a counter misread. Cause, read in planGrowth: the lot's lane is
+    routed BEFORE the lot is seated, on a grid where "the candidate's own lot blocks nothing yet" - on gentle rigs
+    the cheapest route never enters the lot; on this hillside the slope cost made a step through it cheaper.
+FIX, STATED BEFORE THE RUN (written 2026-11-18 09:34): the candidate's own rect is blocked on the grid its lane is
+  routed on (cells already on a way stay open, as the seating rule keeps them). The door-approach cell is always
+  outside the rect (lotDoorApproach), so no lot loses its start. No assertion changes.
+  PREDICTION chain 383: way through a footprint 0 on CityLab; the lot count may move from 40 (the lane takes another
+  line; unsure). Medieval: the map-suite prints and the live record lines identical - a GUESS: the footprint counter
+  was 0 on all of them, but a lane through its own YARD was never counted, so a plan could move.
+  chain 383 (the candidate's own RECT closed to its lane): CityLab GREEN - way through a footprint 0, every count 0;
+    40 lots still, 33 ways (36 before), the wall 662 ring cells, 4 gates, 6 of 10 towers.
+  chains 384 / 385 (regression on that fix): unit 201 ok / 0 failed, the 82 medieval map-suite prints identical.
+    Live 37 ok / 1 FAILED, and my "identical" guess was a MISS: the live TOWN (19 ways -> 18, 122 nodes -> 137), the
+    town-site CITY (117 nodes -> 116) and the fixture hamlet (13 nodes -> 12) plans moved. So on shipped live sites a
+    lane already ran through its own lot's YARD (never the footprint - that counter was 0) and nothing measured it.
+    Every gate still passed (town 75 walkable / 0 blocked over 24 doors). The failure:
+    TheTownsMarketIsPavedAndWalked - "a planned prop is not standing": with the lanes moved, the market's pads moved
+    and the well is planned at (104, 49), against a one-cube level step INSIDE the market (well top 1421 micro, the
+    paving on its other side 1422). The dressing planner has no heights; the market's paving was never level on this
+    site (cube tops 152..156 - the edge steps were "recorded only", O31). A real weakness the old plan did not hit.
+DECISION, STATED BEFORE THE NEXT RUN (written 2026-11-18 09:47): the fix is NARROWED to what the failing invariant
+  measures - the candidate's FOOTPRINT is closed to its lane, not its whole rect. Reason: closing the yard is a
+  larger change than this step owes (it re-plans three shipped live sites and lands on the market-dressing weakness,
+  which is M5e-1 work). It is NOT dropped: the two findings (a lane may cross its own yard; a market prop may be
+  planned against a level step) are registered as an open item with this evidence. No assertion is changed.
+  PREDICTION chains 386 - 388: CityLab way through a footprint 0 (the lane may now cross lot 35's yard); unit 201 / 0
+  with identical prints; live 38 / 0 with all record lines identical to chain 379 - a GUESS again: a live lane
+  through a footprint's cell would have been counted before, so none should move.
+RESULTS (written 2026-11-18 09:58)
+  chains 387 / 388 (the FOOTPRINT closed to its lane; one build, exe 09:47:27):
+    unit 201 ok / 0 failed, the 82 medieval map-suite prints identical to chain 378's.
+    live 38 ok / 0 failed (37 + the CityLab test). CityLab: 40 lots, 36 ways (33 lanes, 3 primary), the wall 664
+      ring cells / 4 gates / 0 water gaps / 7 of 11 towers, a 16 x 16 market, every invariant count 0.
+    My "all record lines identical" guess was a MISS a second time: 138 distinct lines against 141, and two shipped
+      live plans moved - the TOWN (19 ways, 122 nodes -> 126; lots 13 to 17+ re-seated) and the FIXTURE hamlet
+      (13 nodes -> 12; its blockhouse re-seated; 174 fixtures -> 182). The medieval hamlet, village, town-site city and
+      the roman hamlet did not move. What that means: on the live town and the fixture hamlet a lane DID pass through
+      a cell of the house it serves - the defect was in shipped plans, and no test ran the invariant counter on a map
+      planned on a baked site (only on the synthetic rigs). The gate lines are otherwise identical (every gate passed
+      before and after), and the market test passes on the moved town.
+  NOT MEASURED: the invariant counter on the other live sites' maps (only CityLab's is asserted); which live lane
+    crossed which footprint before the fix (inferred from the plans moving, not printed); nothing realized on CityLab;
+    no Debug run.
+  WHAT CITYLAB IS NOT, against section 16: not a gentle hill (relief 35 with or without the painted bump) and no
+    creek through the site. The pin has to move, or the specification has to be restated - next step: a headless
+    scan of the box for a 160 x 160 rectangle with an order-2 creek and a relief near the specified 24.
+AUDIT (solution-auditor, 2026-11-18, read-only): PASS WITH CONDITIONS - the ledger has the raw text. Corrections it forced:
+  - "the unit set is identical" holds for the 82 map-suite PRINT lines only. Two plans on generator terrain in the unit
+    set MOVED and I had not looked: SettlementTerrainPlanTest's hamlet seed 3 plans (25 -> 29 nodes and 19 -> 20,
+    entry 4 -> 8, crofts 4 planned -> 3, "1 streets" -> "3 streets"). Tests pass before and after; WHY these moved,
+    croft and street counts included, is NOT explained.
+  - "the live town and fixture hamlet had a lane through a house's footprint" is an INFERENCE from their plans moving.
+    No pre-fix counter was printed on those maps; closing footprint cells also changes later candidates' routes and
+    reuse, so a cascade from one changed lane is an equally open reading. UNPROVEN.
+  - tierPreset "city" IS a behaviour change for any non-civ recipe that pins "city": it was the hamlet 40 x 32, it is
+    now 160 x 160. None found in the repo; project world databases were not inspected.
+  - the counter samples a way's centre line only (a lane's paved BAND clipping a footprint is not seen), it does not
+    count a lane across its own yard, and it is asserted on ONE planned map (one city, one seed, one hillside).

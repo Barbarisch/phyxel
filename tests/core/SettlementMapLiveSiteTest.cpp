@@ -52,6 +52,7 @@
 #include "core/WorldForgePlan.h"
 #include "core/WorldGenerator.h"
 #include "core/WorldRecipe.h"
+#include "SettlementMapInvariants.h"
 
 using namespace Phyxel;
 using namespace Phyxel::Core;
@@ -73,6 +74,32 @@ WorldRecipe civRecipe(uint32_t seed, const std::string& era = "medieval") {
     r.worldforge.siteCount = 8;
     r.worldforge.regionRadius = 2048;
     r.worldforge.minSpacing = 400;
+    return r;
+}
+
+// O16 (pm_chain380.txt): CityLab's recipe - WorldSheetLab's world block (PhyxelProjects/WorldSheetLab/game.json: Perlin
+// 7001, the sheet with Cordonnier's erosion, the raised height spline) + one painted hill at the origin (deltaU 24 =
+// the plan's amplitude; radiusU 512 = the smallest the 512 u macro grid keeps most of, a rig choice) + one pinned
+// city-tier site at the origin. withHill false = the hill's control. Differs from the editor's first load in one
+// thing: a blank recipe (the engine's biome defaults), not makeRecipe()'s biome snapshot - as civRecipe.
+nlohmann::json cityLabWorldforge() {
+    return {{"enabled", true}, {"sitePins", nlohmann::json::array({{{"x", 0}, {"z", 0}}})}, {"pinTiers", nlohmann::json::array({"city"})}};
+}
+nlohmann::json cityLabSheet(bool withHill) {
+    nlohmann::json sheet = {{"macroCellU", 512}, {"continentCells", 16}, {"mesoCellU", 32}, {"mesoTileCells", 256}, {"mesoSteps", 4},
+                            {"diffusion", 0.1}, {"talusSlope", 0.7}, {"thermalRate", 0.5}, {"pagerTiles", 64}, {"erosionSteps", 200},
+                            {"erosionDt", 250000.0}, {"erosionK", 5.61e-07}, {"erosionM", 0.5}, {"erosionUpliftMax", 0.0005}, {"erosionMaxSlope", 0.577}};
+    if (withHill) sheet["upliftMask"] = nlohmann::json::array({{{"x", 0.0}, {"z", 0.0}, {"radiusU", 512.0}, {"deltaU", 24.0}}});
+    return sheet;
+}
+WorldRecipe cityLabRecipe(bool withHill) {
+    WorldRecipe r;
+    r.version = 2;
+    r.type = "Perlin";
+    r.seed = 7001u;
+    r.sheet = WorldRecipe::sheetFromJson(cityLabSheet(withHill));
+    r.heightSpline = {{0.0f, -40.0f}, {0.3f, 16.0f}, {0.55f, 220.0f}, {0.8f, 380.0f}, {1.0f, 400.0f}};
+    r.worldforge = WorldForgeParams::fromJson(cityLabWorldforge());
     return r;
 }
 
@@ -140,6 +167,10 @@ struct LiveSiteRig {
     // generator (ObjectTemplateManager::decorateChunk, the live worker's decorator). Off for every other arm.
     bool flora = false;
     std::string era = "medieval";   // M5f-2b: the world's era - set BEFORE setUp (a roman world has its own site rects)
+    // O16: a world of its own - set BEFORE setUp. recipeKey names the baked prototype; empty = the civ recipe of `era`.
+    std::string recipeKey;
+    std::function<WorldRecipe()> recipeFn;
+    uint32_t worldSeed = 20260816u;
     // patch 76: a rig held by SharedRig is set up and realized ONCE; later holders read it (they must not write it)
     std::string sharedKey, builtSig;
     bool isSetUp = false, built = false;
@@ -158,14 +189,14 @@ struct LiveSiteRig {
         }
         const auto t0 = std::chrono::steady_clock::now();
         cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        cm.configureStreamingGeneration(true, WorldGenerator::GenerationType::Perlin, 20260816u);
+        cm.configureStreamingGeneration(true, WorldGenerator::GenerationType::Perlin, worldSeed);
         gen = cm.getStreamingGenerator();
         if (!gen) { why = "no streaming generator"; return false; }
         // patch 76: the recipe (coarse model, hydrology, civ plan, WorldForge plan) is baked once per process and
         // copied - the copy the streaming workers take (ChunkManager.cpp: make_unique<WorldGenerator>(*m_worldGenerator))
         static std::map<std::string, std::unique_ptr<WorldGenerator>> protos;   // one baked recipe per era (M5f-2b)
-        std::unique_ptr<WorldGenerator>& proto = protos[era];
-        if (!proto) { gen->applyRecipe(civRecipe(20260816u, era)); proto = std::make_unique<WorldGenerator>(*gen); }
+        std::unique_ptr<WorldGenerator>& proto = protos[recipeKey.empty() ? era : recipeKey];
+        if (!proto) { gen->applyRecipe(recipeFn ? recipeFn() : civRecipe(20260816u, era)); proto = std::make_unique<WorldGenerator>(*gen); }
         else *gen = *proto;
         const double tRecipe = secondsSince(t0);
         const WorldForgePlan* box = gen->worldForge();
@@ -2450,4 +2481,105 @@ TEST(SettlementMapLiveSiteTest, ARomanRoadsideSettlementIsBuilt) {
     EXPECT_EQ(wrongRooms, 0) << "placed structures without a front salesroom and a strictly larger living room on one storey";
     EXPECT_GT(out.value("fixtures", 0), 0) << "the buildings came out unfurnished";
     EXPECT_EQ(out.value("gate", std::string()), "passed") << out.value("blocked", 0) << " routes blocked";
+}
+
+// O16, the READY headless step (the plan's O16 design check; pm_chain380.txt): CityLab - the WorldSheetLab recipe, one
+// painted hill, one pinned city-tier site at the origin. Nothing is realized: the site's record, its ground, its water
+// and the planner's map on it, with the map's L2 invariants. The hill's control is the same recipe without the bump.
+TEST(SettlementMapLiveSiteTest, CityLabIsSitedAndPlanned) {
+    LiveSiteRig rig;
+    rig.recipeKey = "citylab"; rig.worldSeed = 7001u; rig.recipeFn = [] { return cityLabRecipe(true); };
+    ASSERT_TRUE(rig.setUp(0, 24)) << rig.why;
+    const WorldForgePlan& box = *rig.gen->worldForge();
+    for (const auto& s : box.sites())
+        std::printf("[ O16 ] box site %d: %s %d x %d at (%d, %d), surfaceY %.1f%s", s.id, s.tier.c_str(), s.width, s.depth, s.pos.x, s.pos.y, s.surfaceY, "\n");
+    std::printf("[ O16 ] box roads: %zu%s", box.roads().size(), "\n");
+    ASSERT_EQ(rig.site->tier, "city") << "the pinned city-tier site is recorded as another tier";
+    EXPECT_EQ(rig.site->width, 160); EXPECT_EQ(rig.site->depth, 160);
+    EXPECT_EQ(rig.site->pos.x, 0); EXPECT_EQ(rig.site->pos.y, 0);
+    const int W = rig.site->width, D = rig.site->depth, ox = rig.site->pos.x - W / 2, oz = rig.site->pos.y - D / 2;
+    WorldGenerator* gen = rig.gen;
+    auto wet = [gen](int wx, int wz) {   // the planner's own water predicate (SettlementBuildService: mi.waterAt)
+        if (gen->channelHitAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f).hit) return true;
+        return gen->waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > gen->naturalGroundAt(wx, wz);
+    };
+    WorldGenerator ctl(WorldGenerator::GenerationType::Perlin, 7001u);
+    ctl.applyRecipe(cityLabRecipe(false));
+    int lo = INT_MAX, hi = INT_MIN, cLo = INT_MAX, cHi = INT_MIN, wetCols = 0, carved = 0;
+    std::map<int, int> byOrder;
+    for (int z = 0; z < D; ++z)
+        for (int x = 0; x < W; ++x) {
+            const auto c = gen->sampleSurface(ox + x, oz + z);
+            lo = std::min(lo, c.surfaceY); hi = std::max(hi, c.surfaceY);
+            if (c.riverOrder > 0) ++byOrder[c.riverOrder];
+            if (c.carvedRiver) ++carved;
+            if (wet(ox + x, oz + z)) ++wetCols;
+            const int cy = ctl.sampleSurface(ox + x, oz + z).surfaceY;
+            cLo = std::min(cLo, cy); cHi = std::max(cHi, cy);
+        }
+    const int centre = gen->sampleSurface(rig.site->pos.x, rig.site->pos.y).surfaceY, cCentre = ctl.sampleSurface(rig.site->pos.x, rig.site->pos.y).surfaceY;
+    std::string orders;
+    for (const auto& [o, n] : byOrder) orders += " order " + std::to_string(o) + ": " + std::to_string(n);
+    std::printf("[ O16 ] site ground over %d x %d: surface %d..%d (relief %d), centre %d; WITHOUT the hill %d..%d (relief %d), centre %d (the hill adds %d at the centre)%s",
+                W, D, lo, hi, hi - lo, centre, cLo, cHi, cHi - cLo, cCentre, centre - cCentre, "\n");
+    std::printf("[ O16 ] site water: %d wet columns of %d by the planner's predicate; channel columns:%s; carved-river columns %d%s", wetCols, W * D,
+                orders.empty() ? " none" : orders.c_str(), carved, "\n");
+    SettlementBuildService::Deps deps;
+    deps.chunkManager = &rig.cm; deps.templates = &rig.templates; deps.placedObjects = &rig.placed;
+    const nlohmann::json params = WorldForgeBuildService::settlementParamsFor(box, *rig.site);
+    std::printf("[ O16 ] params: %s%s", params.dump().c_str(), "\n");
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto plan = SettlementBuildService::plan(params, deps);
+    const double tPlan = secondsSince(t0);
+    if (plan.map.is_object()) std::printf("[ O16 ] map refusal: '%s'%s", plan.map.value("refusal", std::string()).c_str(), "\n");
+    ASSERT_TRUE(plan.ok()) << "the city is refused on CityLab: " << plan.error.dump();
+    const Core::SettlementMap m = Core::SettlementMap::fromJson(plan.map);
+    const std::function<int(int, int)> h = [gen, ox, oz](int x, int z) { return static_cast<int>(std::floor(gen->naturalGroundAt(ox + x, oz + z))); };
+    const std::function<bool(int, int)> w = [wet, ox, oz](int x, int z) { return wet(ox + x, oz + z); };
+    const MapInvariants::Violations v = MapInvariants::measure(m, h, 6, w);
+    std::map<std::string, int> typ, hw;
+    for (const auto& l : m.lots) ++typ[l.typology];
+    for (const auto& wy : m.ways) ++hw[wy.highway];
+    std::string typs, hws, areas;
+    for (const auto& [k, n] : typ) typs += " " + k + " " + std::to_string(n);
+    for (const auto& [k, n] : hw) hws += " " + k + " " + std::to_string(n);
+    for (const auto& a : m.areas)
+        if (a.landuse != "croft") areas += " " + a.landuse + " [" + std::to_string(a.rect.x) + "," + std::to_string(a.rect.z) + "," + std::to_string(a.rect.w) + "," + std::to_string(a.rect.d) + "]";
+    int towersBuilt = 0;
+    for (const auto& t : m.wall.towers) if (t.built) ++towersBuilt;
+    std::printf("[ O16 ] map: %s / %s, %zu lots (%s ), %zu ways (%s ), planned in %.1f s (the growth's own bake %.0f ms)%s", m.tier.c_str(), m.morphology.c_str(), m.lots.size(),
+                typs.c_str(), m.ways.size(), hws.c_str(), tPlan, m.bakeMs, "\n");
+    std::printf("[ O16 ] wall: %s, %zu ring cells, %zu gates, %zu water gaps, %d of %zu towers built%s%s; areas:%s; market note '%s'%s", m.wall.present ? "present" : "ABSENT",
+                m.wall.ring.size(), m.wall.gates.size(), m.wall.waterGaps.size(), towersBuilt, m.wall.towers.size(), m.wall.refusal.empty() ? "" : " - ", m.wall.refusal.c_str(),
+                areas.empty() ? " none" : areas.c_str(), m.marketNote.c_str(), "\n");
+    std::printf("[ O16 ] invariants: no way %d, door off its way %d, overlaps %d, way through a footprint %d, outside %d, relief over 6 on the NATURAL ground %d (printed: the lots are terraced), bad way %d, way segments in water %d%s",
+                v.lotNoWay, v.lotDoorOffWay, v.overlaps, v.wayThroughFootprint, v.lotOutside, v.lotRelief, v.badWay, v.wayInWater, "\n");
+    // chain 382: WHICH way segment enters WHICH footprint (the counter's own sampling, half-cube steps)
+    for (const auto& wy : m.ways)
+        for (size_t k = 0; k + 1 < wy.nodes.size(); ++k) {
+            const MapNode* a = m.node(wy.nodes[k]); const MapNode* b = m.node(wy.nodes[k + 1]);
+            if (!a || !b) continue;
+            const float len = std::hypot(static_cast<float>(b->x - a->x), static_cast<float>(b->z - a->z));
+            const int steps = std::max(1, static_cast<int>(std::ceil(len * 2.0f)));
+            for (const auto& l : m.lots) {
+                int inside = 0;
+                for (int st = 0; st <= steps; ++st) {
+                    const float t = static_cast<float>(st) / static_cast<float>(steps);
+                    const float x = static_cast<float>(a->x) + t * static_cast<float>(b->x - a->x), z = static_cast<float>(a->z) + t * static_cast<float>(b->z - a->z);
+                    if (x >= static_cast<float>(l.footprint.x) && x < static_cast<float>(l.footprint.x1()) && z >= static_cast<float>(l.footprint.z) && z < static_cast<float>(l.footprint.z1())) ++inside;
+                }
+                if (inside)
+                    std::printf("[ O16 ]   way %d (%s, width %.0f, %zu nodes) segment %zu (%d,%d)-(%d,%d) has %d of %d samples inside lot %d %s footprint [%d,%d,%d,%d] rect [%d,%d,%d,%d] orientation %d, the lot's own way %d%s",
+                                wy.id, wy.highway.c_str(), wy.width, wy.nodes.size(), k, a->x, a->z, b->x, b->z, inside, steps + 1, l.id, l.typology.c_str(), l.footprint.x, l.footprint.z,
+                                l.footprint.w, l.footprint.d, l.rect.x, l.rect.z, l.rect.w, l.rect.d, l.orientation, l.way, "\n");
+            }
+        }
+    EXPECT_GT(m.lots.size(), 0u);
+    EXPECT_EQ(v.overlaps, 0) << "two lots overlap";
+    EXPECT_EQ(v.wayThroughFootprint, 0) << "a way crosses a building footprint";
+    EXPECT_EQ(v.lotOutside, 0) << "a lot outside the site";
+    EXPECT_EQ(v.lotNoWay, 0) << "a lot fronts no way";
+    EXPECT_EQ(v.lotDoorOffWay, 0) << "a lot's door is off its way";
+    EXPECT_EQ(v.badWay, 0);
+    EXPECT_EQ(v.wayInWater, 0) << "a way segment crosses water";
 }

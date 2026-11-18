@@ -74,6 +74,10 @@ const char* WorldForgePlan::roadMaterial(int cls) {
 // the live-verified sizes; hamlet 40x32 is REASONED (smaller than the smallest tested village,
 // fits the 3-6 building tier band) — logged in docs/WorldForge.md grounding notes.
 WorldForgePlan::TierPreset WorldForgePlan::tierPreset(const std::string& tier) {
+    // O16 (pm_chain380.txt): a PINNED site may name the city tier (worldforge.pinTiers) on a recipe without the civ
+    // plan; it fell through to the hamlet's 40 x 32. The rect is tierPresetDerived's (the program's reference site).
+    // The score rank never assigns a city, so no plan without such a pin moves (the version-1 hashes are pinned).
+    if (tier == "city") return {"city", 160, 160};
     if (tier == "town") return {"town", 140, 60};
     if (tier == "village") return {"village", 80, 48};
     return {"hamlet", 40, 32};

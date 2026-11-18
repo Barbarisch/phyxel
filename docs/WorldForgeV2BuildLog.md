@@ -783,3 +783,22 @@ one recorded medieval behaviour - a town hemmed by water rows six cells from its
 that test's rig was widened, its assertions untouched. Audited PASS WITH CONDITIONS. Open: the bridge inside town
 (D69 (c)); diagonal shores and east / north entries; pruning neutrality on the 15 near-entry plans rests on reasoning;
 nothing realized on any stress site; no Debug run.
+
+### 2026-11-18 - O16, the headless CityLab step: a pinned city, and a lane through its own house
+
+Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain380.txt` (predictions before each run; chains 380-388, Release).
+`CityLab` as built = the WorldSheetLab recipe + one painted hill (deltaU 24, radiusU 512 - a rig choice) + one pinned
+city-tier site at the origin; `PhyxelProjects/CityLab/game.json`, a copy at `docs/evidence/worldforge_v2/citylab_game.json`,
+the same recipe in `SettlementMapLiveSiteTest`'s `cityLabRecipe`. Nothing was realized and no engine was launched.
+- A pinned city could not be expressed without the civ plan: `WorldForgePlan::tierPreset` had no city (red, chain 380:
+  "hamlet 40 x 32"). It has one now (160 x 160) - a behaviour change for any non-civ recipe pinning "city".
+- Measured on the site: land (surface 117..152), relief 35 u with or without the bump (the bump adds 9 at the centre),
+  0 wet columns, no channel of any order. So CityLab is NOT section 16's gentle hill with a creek.
+- The planner's map: not refused; 40 lots, 36 ways, a wall (664 ring cells, 4 gates, 7 of 11 towers), a 16 x 16 market;
+  0.6 s. One invariant was red: a lane entered the footprint of the house it serves (the lot's lane is routed before
+  the lot is seated, on a grid where its own lot was open). Fixed: the candidate's footprint is closed to its lane.
+- Regression: unit 201 / 0, live 38 / 0. Plans MOVED: the live town, the fixture hamlet and two generator-terrain
+  hamlet plans in the unit set; every gate still passes. Whether those plans had the same defect is inferred, not shown.
+- Closing the whole lot (yard included) re-planned three live sites and put the town's market well against a level
+  step (one live test failed) - not taken; registered as O35.
+Audited PASS WITH CONDITIONS (ledger). Open: O35; the pin must move or section 16 be restated; no Debug run.

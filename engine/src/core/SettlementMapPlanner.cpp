@@ -661,7 +661,14 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                         goal = entryMask;
                     }
                     if (!reach.empty() && !reach[static_cast<size_t>(di)]) continue;   // no route exists: skip the search
-                    Grid gg = g;   // the candidate's own lot blocks nothing yet; its door starts outside the rect
+                    Grid gg = g;
+                    // O16 (pm_chain380.txt): the candidate's own FOOTPRINT is closed to its lane (the door starts
+                    // outside the rect). It was open, and on a hillside the cheapest line cut a corner through the
+                    // house's front wall row (CityLab, lot 35). A way already there stays open, as the seating below
+                    // keeps it. The YARD stays open: closing it re-plans three live sites (chain 385) - open item.
+                    for (int zz = c.shape.footprint.z; zz < c.shape.footprint.z1(); ++zz)
+                        for (int xx = c.shape.footprint.x; xx < c.shape.footprint.x1(); ++xx)
+                            if (!gg.onNet[static_cast<size_t>(gg.idx(xx, zz))]) gg.blocked[static_cast<size_t>(gg.idx(xx, zz))] = 1;
                     if (anyWater && rLaneBand > 0) for (size_t i = 0; i < N; ++i) if (nearWaterLane[i]) gg.blocked[i] = 1;   // a lane keeps its band off the water
                     path = connect(gg, di, goal, in.reuse);
                     if (path.empty()) continue;

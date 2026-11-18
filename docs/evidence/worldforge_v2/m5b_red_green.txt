@@ -1760,3 +1760,22 @@ MY RESPONSE: 1 - the measure is added and it was RED far beyond the audit's case
  not tested. 2 - done (every refusal is the minimum or too-shallow; "too shallow" pinned on water 3 cubes in). 3 - the
  terrain rig now gives the minimum-lots reason (a 2-cell street seats nothing), so its check accepts either true
  reason - a third restatement of that check, written before its run. 4 - stated in pm_chain364.txt. 5 - removed.
+
+== O16, the headless CityLab step (pinned city tier; a lane through its own house) - solution-auditor, 2026-11-18 (working tree on 1beaf060; nothing built or run by it) ==
+RAW VERDICT: PASS WITH CONDITIONS
+CLAIMS AUDITED (the auditor's words, shortened):
+ - evidence postdates the final code -> CONFIRMED (planner hash f90604b4 in chains 387 / 388, exe 09:47:27 newer than
+   every edited file); weakness: the chain START lines do not hash WorldForgePlan.cpp, the live test or the new header.
+ - the moved invariant counter -> CONFIRMED unchanged (every removed line is in the header; only `inline` and a namespace).
+ - the counter sees the defect and is asserted on a real planned map -> YES (2 in r381, the offender printed in r382,
+   0 in r388) - but it samples the centre line only (no band), does not count a lane across its own yard, and is
+   asserted on ONE map: one instance, not a class.
+ - "two live plans moved because a lane crossed its own footprint" -> INFERRED, not shown; cascades not excluded. And
+   the unit set moved too, unreported: SettlementTerrainPlanTest hamlet seed 3 (nodes 25 -> 29, 19 -> 20; crofts 4 ->
+   3; streets 1 -> 3) - "identical" is true of the 82 print lines only.
+ - tierPreset city -> red and green real; a behaviour change for a non-civ recipe pinning "city"; "the score rank never
+   assigns city" not verified by it; no such recipe found in the repo, project databases not inspected.
+CONDITIONS: 1. state the unit-set move; 2. word the live-plan interpretation as an inference or print the pre-fix
+ counter; 3. disclose the tierPreset behaviour change; 4. keep the yard crossing and the unmeasured band intrusion open.
+MY RESPONSE: 1, 2, 3 stated in pm_chain380.txt (the interpretation is labelled UNPROVEN; the pre-fix counter was not
+ run). 4 registered as O35 in the plan. Not done: why the seed-3 hamlet plans moved; the counter on every live map.

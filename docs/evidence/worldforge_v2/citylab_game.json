@@ -1,0 +1,102 @@
+{
+  "name": "CityLab",
+  "description": "WorldForge v2 plan section 16 'CityLab' AS BUILT 2026-11-18 (O16, docs/evidence/worldforge_v2/m3c_chains/pm_chain380.txt): the WorldSheetLab recipe (Perlin 7001, version-2 sheet with erosion) + one painted hill at the origin (sheet.upliftMask deltaU 24, radiusU 512 - a rig choice) + one pinned city-tier site at the origin (worldforge.sitePins / pinTiers). MEASURED headless, not as specified: the site's relief is 35 u with or without the bump (a hillside, not a gentle hill) and NO creek crosses it; siteCount stays 5, so four scored sites exist 1000+ u west. Residents and the build are not in this file: POST /api/worldforge/build. The same recipe is SettlementMapLiveSiteTest's cityLabRecipe - keep the two in step. Delete worlds/default.db before a recipe change (the stored recipe wins).",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 7001,
+    "streaming": true,
+    "loadRadius": 8,
+    "unloadRadius": 11,
+    "from": {
+      "x": -1,
+      "y": 0,
+      "z": -1
+    },
+    "to": {
+      "x": 1,
+      "y": 0,
+      "z": 1
+    },
+    "sheet": {
+      "macroCellU": 512,
+      "continentCells": 16,
+      "mesoCellU": 32,
+      "mesoTileCells": 256,
+      "mesoSteps": 4,
+      "diffusion": 0.1,
+      "talusSlope": 0.7,
+      "thermalRate": 0.5,
+      "pagerTiles": 64,
+      "erosionSteps": 200,
+      "erosionDt": 250000.0,
+      "erosionK": 5.61e-07,
+      "erosionM": 0.5,
+      "erosionUpliftMax": 0.0005,
+      "erosionMaxSlope": 0.577,
+      "upliftMask": [
+        {
+          "x": 0.0,
+          "z": 0.0,
+          "radiusU": 512.0,
+          "deltaU": 24.0
+        }
+      ]
+    },
+    "heightSpline": [
+      {
+        "x": 0.0,
+        "y": -40.0
+      },
+      {
+        "x": 0.3,
+        "y": 16.0
+      },
+      {
+        "x": 0.55,
+        "y": 220.0
+      },
+      {
+        "x": 0.8,
+        "y": 380.0
+      },
+      {
+        "x": 1.0,
+        "y": 400.0
+      }
+    ],
+    "worldforge": {
+      "sitePins": [
+        {
+          "x": 0,
+          "z": 0
+        }
+      ],
+      "pinTiers": [
+        "city"
+      ]
+    }
+  },
+  "camera": {
+    "position": {
+      "x": 0,
+      "y": 252,
+      "z": 200
+    },
+    "yaw": -90,
+    "pitch": -35
+  },
+  "player": {
+    "type": "animated",
+    "position": {
+      "x": 0,
+      "y": 170,
+      "z": -100
+    }
+  },
+  "dayNight": {
+    "enabled": true,
+    "timeOfDay": 9.0,
+    "dayLengthSeconds": 1200
+  }
+}
