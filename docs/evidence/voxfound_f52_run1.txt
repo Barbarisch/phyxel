@@ -1,0 +1,93 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySim*
+[==========] Running 8 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 8 tests from VoxFoundBodySim
+[ RUN      ] VoxFoundBodySim.R1FreeFallIsExact
+[body sim] R1 free fall: worst |y - closed form| 7.516e-14 m
+[       OK ] VoxFoundBodySim.R1FreeFallIsExact (0 ms)
+[ RUN      ] VoxFoundBodySim.R2FlatDropRestsAndStays
+[body sim] R2 flat drop: rest y 0.24974 m (penetration 0.26 mm), drift 3-8 s 0.000 mm, late speed 0.0000, asleep by 3 s 1
+[       OK ] VoxFoundBodySim.R2FlatDropRestsAndStays (4 ms)
+[ RUN      ] VoxFoundBodySim.R3TiltedSlabRestsOnALargeFace
+[body sim] R3 tilted slab: thin axis 89.98 deg from vertical, centre y 0.2499 m, asleep 1
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(121): error: Expected: (tiltDeg) <= (2.0), actual: 89.980961144233149 vs 2
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(122): error: The difference between b.pos.y and 0.125 is 0.12485014752547907, which exceeds 0.005, where
+b.pos.y evaluates to 0.24985014752547907,
+0.125 evaluates to 0.125, and
+0.005 evaluates to 0.0050000000000000001.
+
+[  FAILED  ] VoxFoundBodySim.R3TiltedSlabRestsOnALargeFace (4 ms)
+[ RUN      ] VoxFoundBodySim.R4FrictionSlideDistance
+[body sim] R4 slide: 0.2391 m (Coulomb 0.2548), rise 0.09 mm, final tilt 0.76 deg, speed 0.0000
+[       OK ] VoxFoundBodySim.R4FrictionSlideDistance (3 ms)
+[ RUN      ] VoxFoundBodySim.R5StackStaysStacked
+[body sim] R5 stack of 5: worst move 1302.17 mm, 0 / 5 asleep
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(171): error: Expected: (worst) <= (0.01), actual: 1.3021694100424501 vs 0.01
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(172): error: Expected equality of these values:
+  asleep
+    Which is: 0
+  5
+
+[  FAILED  ] VoxFoundBodySim.R5StackStaysStacked (89 ms)
+[ RUN      ] VoxFoundBodySim.R6HeadOnCollisionConservesMomentum
+[body sim] R6 head-on: |P| / (m v) worst 3.70e-01, worst overlap 16.13 mm, after: |v| 0.1273 / 0.0995
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(195): error: Expected: (worstP) <= (1e-6), actual: 0.36957462076074304 vs 1e-06
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(196): error: Expected: (worstPen) <= (0.01), actual: 0.016130113488518699 vs 0.01
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(197): error: Expected: (speed(sim.bodies()[0])) <= (0.1), actual: 0.1273130758950109 vs 0.1
+
+[  FAILED  ] VoxFoundBodySim.R6HeadOnCollisionConservesMomentum (10 ms)
+[ RUN      ] VoxFoundBodySim.R7TheLintelFallsAndRests
+[body sim] R7 lintel E/T 30: 4 bodies, 4 asleep at 10 s (last awake tick 155), max penetration 18.18 mm, deep points 0, capped 3825, max contacts 38, 0.05 ms / tick mean (worst 0.23)
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(235): error: Expected: (pen) <= (0.01), actual: 0.018181505397501491 vs 0.01
+
+[  FAILED  ] VoxFoundBodySim.R7TheLintelFallsAndRests (29 ms)
+[ RUN      ] VoxFoundBodySim.R8BrokenWallPilesRest
+[body sim] R8 stone wall E/T 30: 7 bodies, 5 asleep at 10 s (last awake tick 600), max penetration 83.78 mm, deep points 7433, capped 89430, max contacts 132, 0.49 ms / tick mean (worst 0.84)
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(234): error: Expected equality of these values:
+  asleep
+    Which is: 5
+  sim.bodies().size()
+    Which is: 7
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(235): error: Expected: (pen) <= (0.01), actual: 0.083777963773999542 vs 0.01
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(236): error: Expected equality of these values:
+  deep
+    Which is: 7433
+  0u
+    Which is: 0
+
+[body sim] R8 stone wall E/T 80: 21 bodies, 3 asleep at 10 s (last awake tick 600), max penetration 103.94 mm, deep points 4739, capped 360685, max contacts 474, 2.17 ms / tick mean (worst 3.01)
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(234): error: Expected equality of these values:
+  asleep
+    Which is: 3
+  sim.bodies().size()
+    Which is: 21
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(235): error: Expected: (pen) <= (0.01), actual: 0.10394212924059412 vs 0.01
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(236): error: Expected equality of these values:
+  deep
+    Which is: 4739
+  0u
+    Which is: 0
+
+[  FAILED  ] VoxFoundBodySim.R8BrokenWallPilesRest (1616 ms)
+[----------] 8 tests from VoxFoundBodySim (1760 ms total)
+
+[----------] Global test environment tear-down
+[==========] 8 tests from 1 test suite ran. (1760 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 5 tests, listed below:
+[  FAILED  ] VoxFoundBodySim.R3TiltedSlabRestsOnALargeFace
+[  FAILED  ] VoxFoundBodySim.R5StackStaysStacked
+[  FAILED  ] VoxFoundBodySim.R6HeadOnCollisionConservesMomentum
+[  FAILED  ] VoxFoundBodySim.R7TheLintelFallsAndRests
+[  FAILED  ] VoxFoundBodySim.R8BrokenWallPilesRest
+
+ 5 FAILED TESTS

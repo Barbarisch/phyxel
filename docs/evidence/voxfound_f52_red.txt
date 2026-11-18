@@ -1,0 +1,27 @@
+BodySimRef is a stub
+[  FAILED  ] VoxFoundBodySim.R1FreeFallIsExact (0 ms)
+BodySimRef is a stub
+[  FAILED  ] VoxFoundBodySim.R2FlatDropRestsAndStays (0 ms)
+BodySimRef is a stub
+[  FAILED  ] VoxFoundBodySim.R3TiltedSlabRestsOnALargeFace (0 ms)
+BodySimRef is a stub
+[  FAILED  ] VoxFoundBodySim.R4FrictionSlideDistance (0 ms)
+BodySimRef is a stub
+[  FAILED  ] VoxFoundBodySim.R5StackStaysStacked (0 ms)
+BodySimRef is a stub
+[  FAILED  ] VoxFoundBodySim.R6HeadOnCollisionConservesMomentum (0 ms)
+BodySimRef is a stub
+[  FAILED  ] VoxFoundBodySim.R7TheLintelFallsAndRests (0 ms)
+BodySimRef is a stub
+BodySimRef is a stub
+[  FAILED  ] VoxFoundBodySim.R8BrokenWallPilesRest (1 ms)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 8 tests, listed below:
+[  FAILED  ] VoxFoundBodySim.R1FreeFallIsExact
+[  FAILED  ] VoxFoundBodySim.R2FlatDropRestsAndStays
+[  FAILED  ] VoxFoundBodySim.R3TiltedSlabRestsOnALargeFace
+[  FAILED  ] VoxFoundBodySim.R4FrictionSlideDistance
+[  FAILED  ] VoxFoundBodySim.R5StackStaysStacked
+[  FAILED  ] VoxFoundBodySim.R6HeadOnCollisionConservesMomentum
+[  FAILED  ] VoxFoundBodySim.R7TheLintelFallsAndRests
+[  FAILED  ] VoxFoundBodySim.R8BrokenWallPilesRest

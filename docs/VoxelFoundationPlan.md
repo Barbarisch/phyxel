@@ -1830,7 +1830,7 @@ Every rig is checked for:
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
 | **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; F3.2a: the edit store is the BlockStore, 545.5 → 62.9 MB, exact; F3.2b: brushes 1/2/4/8 + picking over the API, a 1 m brush 0.50 ms, pick 0.006 ms; F3.3: codec v3 + world.db, save / load round-trips exactly (voxels, lists, pixels, bytes), only edited chunks saved; F3.4: PXB2 converter (cubes exact, thirds / ninths by volume, no material dropped from a cell), a saved city drawn through the new store; F3.5 first run: exact under 1,000 edits + 10 reloads, edit cost met inside a chunk but NOT on chunk borders (0.69-0.90 ms); F3.5a: a border edit costs what an interior one does (exact; corner 1.00 -> 0.48 ms uncontended), but a full-block edit was 0.61-0.72 ms of which the connectivity flood was 0.35; F3.5b: incremental connectivity (exact, floods 112/128 -> 0/128 edits), a one-block brush 0.28-0.36 ms median anywhere; F3.5 second run (size and kind independent): exact under 1,000 verified edits + 10 reloads, 0 px, byte-identical re-save, every (size, kind) median ≤ 0.42 ms (a one-block brush 0.26-0.42) — CLOSED 2026-11-16; owed into later rows: the thin-part occupancy rule (converter), the small-leaf look (FC), edit store growth (1.34× over 1,000 edits)** | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference. **F4.1 2026-11-17 (§9c): the CPU reference — all 8 §8 rig predictions pass (the edge hit only trivially), equal to the independent checker, deterministic, conserving per material, nested in energy, under 300 random hits; pictures for review. F4.2 (§9c): anchoring through the block graph is exact under 400 random hits; on an engine-generated building the worst search is 8,558 nodes (8.3 % of its voxels), the median 1,055; found that the generator's stair treads and guard are unbonded on both grids (logged). F4.3 (§9c): the GPU port equals the integer reference in every channel — 18/18 rig cases, 600/600 random hits, first run; 1.5-1.8 ms device per break on a 131k-voxel wall at 0-1,981 pieces (21× the CPU at ~1,000; flat, because it covers the whole grid). Exit test met. The owner reviewed the crack pictures 2026-11-17 ("cracks look good"): CLOSED** | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
-| **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid. **F5.1 2026-11-17 (§9d): extraction, CPU reference — loose pieces leave the world as bodies (grid, mass, centre, inertia from voxels; the hit's momentum shared) and crumbs; exact conservation voxel for voxel on every rig and 300 random hits and over 20 hits in a row; mass properties equal the closed form and a brute-force sum to 1e-9; momentum conserved; 5.1 ms for 947 bodies + 1,407 crumbs on the large wall** | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
+| **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid. **F5.1 2026-11-17 (§9d): extraction, CPU reference — loose pieces leave the world as bodies (grid, mass, centre, inertia from voxels; the hit's momentum shared) and crumbs; exact conservation voxel for voxel on every rig and 300 random hits and over 20 hits in a row; mass properties equal the closed form and a brute-force sum to 1e-9; momentum conserved; 5.1 ms for 947 bodies + 1,407 crumbs on the large wall. F5.2a (§9d): the CPU reference body solver — the engine's AVBD extended to voxel bodies (full inertia, symmetric voxel-on-voxel contacts, any size); 11/11 rig tests after 7 recorded run-1 fixes; momentum at 8 iterations MISSED its prediction (4.7 % of m v in an impact tick, 0.7 % at 32); a blast's 21 pieces fly, pile and sleep with ≤ 8.5 mm overlap. Owed: hard-contact fires 273-563 per run** | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
 | **F7** | Move the consumers over (§7), default switched | full test suite green; L4 live checks | — |
 | **F8** | Scale and stress: a whole town, 100 simultaneous breaks, 1,000 edit/break cycles, crossing chunk borders | invariants hold at every step | — |
@@ -2382,7 +2382,55 @@ Prediction: `voxfound_f51_prediction.txt`. Red: a stub failed all 5 tests. Run 1
 - **Cost** (CPU, the F4.3 large wall): 0.48 ms (59 bodies, 87 crumbs), 2.44 ms (468 / 651), 5.09 ms (947 / 1,407),
   inside the 1-6 ms estimate. WoW was running during this run, so the figures are an upper bound; reported, not gated.
 
-Next: F5.2, the GPU simulation with voxel collision.
+### F5.2a The CPU reference body solver (2026-11-17)
+
+**What exists.** The engine's GPU solver (`GpuParticlePhysics`, `solver_*.comp`) runs AVBD, but every body is one
+box with sphere inertia and it can't run headless. So `BodySimRef` (`engine/*/core/voxfound/BodySim.*`) uses the same
+algorithm and constants and extends them to §6.7's bodies:
+- a body is its F5.1 voxel grid with the full inertia tensor;
+- contacts are voxel-on-voxel and symmetric: X's surface corners are tested against Y's cells and Y's corners against
+  X's, with the world as a static Y;
+- body-body broadphase is on world AABBs (any size), with a per-pair cap of 8 and every dropped candidate counted;
+- the engine's hard-contact pass is included, extended to body-body.
+
+It runs in double precision, Gauss-Seidel per colour, deterministically. Prediction: `voxfound_f52_prediction.txt`.
+Red: a stub failed all 8.
+
+**Run 1: 3 of 8 passed.** One rig was mis-specified (R3's slab started about 20° from its narrow face and stood on
+it). The amended assertion and an intended R3b were written before run 2. The contact model needed seven fixes, each
+recorded with its numbers:
+1. Sample points are inset 0.001 voxel into their own solid.
+2. A sample contacts only through an exit facing its own face. Side-face samples on edges had taken 6 of a pair's 8
+   slots, and a 5-box stack sank 1.30 m.
+3. The capped contact set persists from tick to tick.
+4. Exits are searched over 26 neighbours. Jagged fracture faces gave 11 cm false depths and deep points.
+5. Speculative contacts use faces only, and the alignment slack is 0.05 voxel. Both stopped a sliding box tipping.
+6. A body-body impact starts soft (0.2 × the reduced mass / dt²).
+7. The hard-contact pass is included, with the world pass last.
+
+**Run 2: 11 of 11 pass.**
+
+| Rig | Measured |
+|---|---|
+| R1 free fall | 7.5e-14 m from the closed form |
+| R2 flat drop | rests 0.19 mm deep, asleep by 3 s, no drift |
+| R3 / R3b slab | flat on a face within 0.05°; R3b on its large face |
+| R4 slide | 0.238 m vs Coulomb 0.255 m (−6.5 %), no tip |
+| R5 stack of 5 | 2.1 mm, all asleep |
+| R6 head-on | momentum **MISSED** "1e-6": 4.7 % of m·v at 8 iterations, 0.72 % at 32. AVBD conserves momentum only when converged. The 8-iteration gate (5 %) was set after the measurement and says so. |
+| R7 lintel | 4 bodies asleep by 3.4 s, 3.75 mm, none deep |
+| R8 broken wall | 2.1 / 0.7 mm. But the pieces barely moved, because 20 N·s spread over about 3 t of rubble is small. |
+| R8b blast (8,000 N·s) | pieces fly at up to 7.8 m/s, pile, all 21 asleep by 4 s, 8.5 mm, none through the ground |
+
+**Owed:**
+- the hard-contact clamp fires 273 times (R7) and 563 times (R8b); the engine's settle bench wants 0 after the impact
+  window;
+- the cap dropped about 35k candidates in R8.
+
+CPU reference cost: 0.2-1.1 ms per tick mean, 10.9 ms worst, at 21 bodies (WoW was running).
+
+Next: F5.2b, the GPU port, compared with the reference by the same invariants (not bit-equality, as the prediction
+says).
 
 ## 10. Performance tiers
 

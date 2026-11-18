@@ -1,0 +1,468 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFound*
+[==========] Running 108 tests from 5 test suites.
+[----------] Global test environment set-up.
+[----------] 5 tests from VoxFoundBodies
+[ RUN      ] VoxFoundBodies.FreeBoxMassPropertiesAreAnalytic
+[bodies] free box: m 325.000 kg, I 8.46354 / 28.77604 / 33.85417 kg m^2, v 0.09231 m/s, |w| 8.55e-02
+[       OK ] VoxFoundBodies.FreeBoxMassPropertiesAreAnalytic (0 ms)
+[ RUN      ] VoxFoundBodies.EveryRigConservesAndBodiesMatchBruteForce
+[bodies] rigs x sweep: 557 bodies (51237 voxels), 494 crumbs
+[       OK ] VoxFoundBodies.EveryRigConservesAndBodiesMatchBruteForce (30 ms)
+[ RUN      ] VoxFoundBodies.RandomHitsConserve
+[bodies] 300 random hits: 1491 bodies (239168 voxels), 1037 crumbs
+[       OK ] VoxFoundBodies.RandomHitsConserve (139 ms)
+[ RUN      ] VoxFoundBodies.RepeatedHitsOnAWallConserveEveryStep
+[bodies] 20 hits in a row: 988 of 1152 voxels removed, 31 bodies, 66 crumbs
+[       OK ] VoxFoundBodies.RepeatedHitsOnAWallConserveEveryStep (4 ms)
+[ RUN      ] VoxFoundBodies.CostOnALargeWall
+[bodies] large wall E/T   150: 59 bodies, 87 crumbs, extraction 0.48 ms (best of 5)
+[bodies] large wall E/T  1000: 468 bodies, 651 crumbs, extraction 2.39 ms (best of 5)
+[bodies] large wall E/T  2500: 947 bodies, 1407 crumbs, extraction 4.90 ms (best of 5)
+[       OK ] VoxFoundBodies.CostOnALargeWall (171 ms)
+[----------] 5 tests from VoxFoundBodies (346 ms total)
+
+[----------] 11 tests from VoxFoundBodySim
+[ RUN      ] VoxFoundBodySim.R1FreeFallIsExact
+[body sim] R1 free fall: worst |y - closed form| 7.516e-14 m
+[       OK ] VoxFoundBodySim.R1FreeFallIsExact (2 ms)
+[ RUN      ] VoxFoundBodySim.R2FlatDropRestsAndStays
+[body sim] R2 flat drop: rest y 0.24981 m (penetration 0.19 mm), drift 3-8 s 0.000 mm, late speed 0.0000, asleep by 3 s 1
+[       OK ] VoxFoundBodySim.R2FlatDropRestsAndStays (8 ms)
+[ RUN      ] VoxFoundBodySim.R3TiltedSlabRestsFlatOnAFace
+[body sim] R3 tilted slab (as first written): vertical body axis 1 (0.01 deg off), centre y 0.2499 m (face half-height 0.2500), asleep 1
+[       OK ] VoxFoundBodySim.R3TiltedSlabRestsFlatOnAFace (10 ms)
+[ RUN      ] VoxFoundBodySim.R3bSlabThinAxisNearVerticalRestsOnItsLargeFace
+[body sim] R3b slab, thin axis 30 deg from vertical: vertical body axis 2 (0.05 deg off), centre y 0.1248 m (face half-height 0.1250), asleep 1
+[       OK ] VoxFoundBodySim.R3bSlabThinAxisNearVerticalRestsOnItsLargeFace (12 ms)
+[ RUN      ] VoxFoundBodySim.R4FrictionSlideDistance
+[body sim] R4 slide: 0.2383 m (Coulomb 0.2548), rise 0.01 mm, final tilt 0.00 deg, speed 0.0000
+[       OK ] VoxFoundBodySim.R4FrictionSlideDistance (8 ms)
+[ RUN      ] VoxFoundBodySim.R5StackStaysStacked
+[body sim] R5 stack of 5: worst move 2.10 mm, 5 / 5 asleep
+[       OK ] VoxFoundBodySim.R5StackStaysStacked (31 ms)
+[ RUN      ] VoxFoundBodySim.R6HeadOnCollisionAt8Iterations
+[body sim] R6 head-on, 8 iterations: |P| / (m v) worst 4.67e-02, worst overlap 0.37 mm, after: |v| 0.0522 / 0.0493
+[       OK ] VoxFoundBodySim.R6HeadOnCollisionAt8Iterations (23 ms)
+[ RUN      ] VoxFoundBodySim.R6HeadOnCollisionAt32Iterations
+[body sim] R6 head-on, 32 iterations: |P| / (m v) worst 7.20e-03, worst overlap 0.75 mm, after: |v| 0.0000 / 0.0000
+[       OK ] VoxFoundBodySim.R6HeadOnCollisionAt32Iterations (19 ms)
+[ RUN      ] VoxFoundBodySim.R7TheLintelFallsAndRests
+[body sim] R7 lintel E/T 30: 4 bodies, 4 asleep at 10 s (last awake tick 202), max penetration 3.75 mm, deep points 0, capped 4893, max contacts 34, hard-contact fires 273, 0.19 ms / tick mean (worst 0.90)
+[       OK ] VoxFoundBodySim.R7TheLintelFallsAndRests (118 ms)
+[ RUN      ] VoxFoundBodySim.R8bABlastThrowsThePiecesOutAndTheyPile
+[body sim] R8b stone wall E/T 80, 8000 N s: 21 bodies, 21 asleep at 15 s (last awake tick 239), max penetration 8.52 mm, deep points 0, capped 34899, max contacts 366, hard-contact fires 563, 1.08 ms / tick mean (worst 10.87)
+[       OK ] VoxFoundBodySim.R8bABlastThrowsThePiecesOutAndTheyPile (1026 ms)
+[ RUN      ] VoxFoundBodySim.R8BrokenWallPilesRest
+[body sim] R8 stone wall E/T 30: 7 bodies, 7 asleep at 10 s (last awake tick 43), max penetration 2.10 mm, deep points 0, capped 12272, max contacts 130, hard-contact fires 0, 0.21 ms / tick mean (worst 3.68)
+[body sim] R8 stone wall E/T 80: 21 bodies, 21 asleep at 10 s (last awake tick 30), max penetration 0.70 mm, deep points 0, capped 35911, max contacts 464, hard-contact fires 0, 0.66 ms / tick mean (worst 11.40)
+[       OK ] VoxFoundBodySim.R8BrokenWallPilesRest (569 ms)
+[ DISABLED ] VoxFoundBodySim.DISABLED_DiagStackTrace
+[ DISABLED ] VoxFoundBodySim.DISABLED_DiagHeadOn
+[ DISABLED ] VoxFoundBodySim.DISABLED_DiagSlide
+[----------] 11 tests from VoxFoundBodySim (1832 ms total)
+
+[----------] 15 tests from VoxFoundFractureLab
+[ RUN      ] VoxFoundFractureLab.CheckerLabelsUncutGridAsOnePieceAnchoredByItsBase
+[       OK ] VoxFoundFractureLab.CheckerLabelsUncutGridAsOnePieceAnchoredByItsBase (0 ms)
+[ RUN      ] VoxFoundFractureLab.CheckerSplitsAlongAFullCutPlaneAndFindsTheLoosePart
+[       OK ] VoxFoundFractureLab.CheckerSplitsAlongAFullCutPlaneAndFindsTheLoosePart (0 ms)
+[ RUN      ] VoxFoundFractureLab.CheckerCountsMortarCutsInTheBrickWall
+[       OK ] VoxFoundFractureLab.CheckerCountsMortarCutsInTheBrickWall (0 ms)
+[ RUN      ] VoxFoundFractureLab.CheckerRejectsAnUnimplementedResult
+[       OK ] VoxFoundFractureLab.CheckerRejectsAnUnimplementedResult (0 ms)
+[ RUN      ] VoxFoundFractureLab.StoneWallEnergySweep
+[fracture lab] stone wall centre E/T   1.5: 7 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   2.0: 18 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   3.0: 41 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   5.0: 78 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   8.0: 118 cuts, 1 loose pieces, 11 loose voxels
+[fracture lab] stone wall centre E/T  12.0: 185 cuts, 3 loose pieces, 16 loose voxels
+[fracture lab] stone wall centre E/T  20.0: 341 cuts, 7 loose pieces, 33 loose voxels
+[fracture lab] stone wall centre E/T  30.0: 515 cuts, 11 loose pieces, 280 loose voxels
+[fracture lab] stone wall centre E/T  50.0: 712 cuts, 31 loose pieces, 672 loose voxels
+[fracture lab] stone wall centre E/T  80.0: 822 cuts, 43 loose pieces, 744 loose voxels
+[       OK ] VoxFoundFractureLab.StoneWallEnergySweep (11 ms)
+[ RUN      ] VoxFoundFractureLab.StoneWallEdgeHitChipsAtLeastAsMuchAsCentre
+[       OK ] VoxFoundFractureLab.StoneWallEdgeHitChipsAtLeastAsMuchAsCentre (0 ms)
+[ RUN      ] VoxFoundFractureLab.BrickWallBreaksAlongMortar
+[fracture lab] brick wall: 398 cuts, 398 between bricks
+[       OK ] VoxFoundFractureLab.BrickWallBreaksAlongMortar (0 ms)
+[ RUN      ] VoxFoundFractureLab.BeamSplitsAlongTheGrain
+[fracture lab] beam: cuts x 2, y 9, z 5
+[       OK ] VoxFoundFractureLab.BeamSplitsAlongTheGrain (0 ms)
+[ RUN      ] VoxFoundFractureLab.GlassPaneShattersRadially
+[fracture lab] glass: 34 loose shards, 8 of 8 sectors
+[       OK ] VoxFoundFractureLab.GlassPaneShattersRadially (0 ms)
+[ RUN      ] VoxFoundFractureLab.SeveredColumnFreesTheLintel
+[       OK ] VoxFoundFractureLab.SeveredColumnFreesTheLintel (0 ms)
+[ RUN      ] VoxFoundFractureLab.ChairBreaksAtItsJoints
+[       OK ] VoxFoundFractureLab.ChairBreaksAtItsJoints (3 ms)
+[ RUN      ] VoxFoundFractureLab.ControlBelowToughnessCutsNothingAndAddsDamage
+[fracture lab] control: damage at the hit voxel 107
+[       OK ] VoxFoundFractureLab.ControlBelowToughnessCutsNothingAndAddsDamage (0 ms)
+[ RUN      ] VoxFoundFractureLab.StressRandomHitsAgreeConserveNestAndAccumulate
+[fracture lab] stress: 300 hits, 29344 cuts, 250 nesting checks, 139 hits where a repeat cut more
+[       OK ] VoxFoundFractureLab.StressRandomHitsAgreeConserveNestAndAccumulate (447 ms)
+[ RUN      ] VoxFoundFractureLab.AnchoringSearchEqualsTheReferenceOnRigsAndABuilding
+[anchoring] building UNANCHORED before any hit: piece 2, 64 voxels, (49,13,10)-(64,14,11) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 3, 64 voxels, (49,15,12)-(64,16,13) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 4, 64 voxels, (49,17,14)-(64,18,15) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 5, 64 voxels, (49,19,16)-(64,20,17) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 6, 64 voxels, (49,21,18)-(64,22,19) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 7, 64 voxels, (49,23,20)-(64,24,21) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 8, 64 voxels, (49,25,22)-(64,26,23) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 9, 64 voxels, (49,27,24)-(64,28,25) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 10, 64 voxels, (49,29,26)-(64,30,27) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 11, 64 voxels, (49,31,28)-(64,32,29) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 12, 64 voxels, (49,33,30)-(64,34,31) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 13, 464 voxels, (49,38,8)-(64,45,29) Wood:464 
+[anchoring] building 73 x 81 x 56 voxels, 102536 solid; summary 561 components, 14.95 ms
+[anchoring] the same building on today's 1/9 m grid: 134555 solid, 13 unanchored pieces (2000 voxels)
+[anchoring] stone_wall     loose before any hit (excluded unless the cut touches them): 0 voxels
+[anchoring] stone_wall     solid   1152 blocks    6 | hits 100, cutting 78, freeing 43 | nodes median 233 worst 1000 (voxel 1000, comp 4) = 20.2 % / 86.8 % of the solid voxels | ms median 0.026 worst 0.095
+[anchoring] column_lintel  loose before any hit (excluded unless the cut touches them): 0 voxels
+[anchoring] column_lintel  solid    112 blocks    4 | hits 100, cutting 66, freeing 64 | nodes median 79 worst 112 (voxel 112, comp 2) = 70.5 % / 100.0 % of the solid voxels | ms median 0.008 worst 0.015
+[anchoring] building       loose before any hit (excluded unless the cut touches them): 1168 voxels
+[anchoring] building       solid 102536 blocks  519 | hits 200, cutting 148, freeing 96 | nodes median 1055 worst 8558 (voxel 8457, comp 326) = 1.0 % / 8.3 % of the solid voxels | ms median 1.818 worst 3.945
+[       OK ] VoxFoundFractureLab.AnchoringSearchEqualsTheReferenceOnRigsAndABuilding (6477 ms)
+[ RUN      ] VoxFoundFractureLab.SummaryAndPictureDump
+[fracture lab] stone_centre_e2  voxels   1152 cuts    18 (between parts     0; x    7 y    7 z    4) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.12 ms
+[fracture lab] stone_centre_e5  voxels   1152 cuts    78 (between parts     0; x   25 y   29 z   24) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.16 ms
+[fracture lab] stone_centre_e12 voxels   1152 cuts   185 (between parts     0; x   61 y   71 z   53) bodies   2 (   15 vox) crumbs   1 (   1 vox) anchored  1136 vox  0.28 ms
+[fracture lab] stone_centre_e30 voxels   1152 cuts   515 (between parts     0; x  179 y  196 z  140) bodies   7 (  275 vox) crumbs   4 (   5 vox) anchored   872 vox  0.56 ms
+[fracture lab] stone_centre_e80 voxels   1152 cuts   822 (between parts     0; x  298 y  310 z  214) bodies  21 (  712 vox) crumbs  22 (  32 vox) anchored   408 vox  0.68 ms
+[fracture lab] stone_edge_e5    voxels   1152 cuts    40 (between parts     0; x   16 y   18 z    6) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.14 ms
+[fracture lab] brick_e8         voxels   1024 cuts   398 (between parts   398; x  142 y  256 z    0) bodies  24 (  384 vox) crumbs   0 (   0 vox) anchored   640 vox  0.13 ms
+[fracture lab] brick_e30        voxels   1024 cuts   710 (between parts   688; x  249 y  455 z    6) bodies  59 (  880 vox) crumbs  10 (  16 vox) anchored   128 vox  0.13 ms
+[fracture lab] beam_e8          voxels    128 cuts    16 (between parts     0; x    2 y    9 z    5) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored   128 vox  0.04 ms
+[fracture lab] glass_e20        voxels    576 cuts   185 (between parts     0; x   92 y   93 z    0) bodies  14 (   88 vox) crumbs  20 (  32 vox) anchored   456 vox  0.09 ms
+[fracture lab] column_e30       voxels    112 cuts    40 (between parts     4; x    9 y   23 z    8) bodies   4 (   93 vox) crumbs   7 (   8 vox) anchored    11 vox  0.06 ms
+[fracture lab] chair_e8         voxels   4320 cuts   108 (between parts   108; x    0 y  108 z    0) bodies   6 ( 4320 vox) crumbs   0 (   0 vox) anchored     0 vox  0.60 ms
+[       OK ] VoxFoundFractureLab.SummaryAndPictureDump (16 ms)
+[----------] 15 tests from VoxFoundFractureLab (6960 ms total)
+
+[----------] 59 tests from VoxFoundMesher
+[ RUN      ] VoxFoundMesher.SingleVoxelHasSixFaces
+[       OK ] VoxFoundMesher.SingleVoxelHasSixFaces (0 ms)
+[ RUN      ] VoxFoundMesher.SolidBlockMergesToSixQuads
+[       OK ] VoxFoundMesher.SolidBlockMergesToSixQuads (0 ms)
+[ RUN      ] VoxFoundMesher.DifferentMaterialsDoNotMergeAndHideTheSharedFace
+[       OK ] VoxFoundMesher.DifferentMaterialsDoNotMergeAndHideTheSharedFace (0 ms)
+[ RUN      ] VoxFoundMesher.FlatWallIsSixQuadsAcrossBlocksAndTwoThousandPerBlock
+[       OK ] VoxFoundMesher.FlatWallIsSixQuadsAcrossBlocksAndTwoThousandPerBlock (13 ms)
+[ RUN      ] VoxFoundMesher.MergedMeshCoversEveryExposedFaceExactlyOnce
+[       OK ] VoxFoundMesher.MergedMeshCoversEveryExposedFaceExactlyOnce (40 ms)
+[ RUN      ] VoxFoundMesher.MergedTerrainMeshIsExact
+[32m[20:47:21.773] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:47:22.081] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 874 bodies[0m
+[32m[20:47:22.081] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2263 maxOrder=5 drainageComplete=1[0m
+[       OK ] VoxFoundMesher.MergedTerrainMeshIsExact (4144 ms)
+[ RUN      ] VoxFoundMesher.RunMergeHandCounts
+[       OK ] VoxFoundMesher.RunMergeHandCounts (7 ms)
+[ RUN      ] VoxFoundMesher.RunMergeIsExact
+[32m[20:47:25.942] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[mesher] perlin s7 (0,0): runs 1713 vs greedy 1893 quads
+[       OK ] VoxFoundMesher.RunMergeIsExact (6967 ms)
+[ RUN      ] VoxFoundMesher.PackedFaceRoundTrips
+[       OK ] VoxFoundMesher.PackedFaceRoundTrips (0 ms)
+[ RUN      ] VoxFoundMesher.CardVoxelsEmitNoFacesButStillHideTheirNeighbours
+[       OK ] VoxFoundMesher.CardVoxelsEmitNoFacesButStillHideTheirNeighbours (0 ms)
+[ RUN      ] VoxFoundMesher.RunMergeWithCardsIsExact
+[       OK ] VoxFoundMesher.RunMergeWithCardsIsExact (7 ms)
+[ RUN      ] VoxFoundMesher.SprigHashIsTodaysFoliageHash
+[       OK ] VoxFoundMesher.SprigHashIsTodaysFoliageHash (0 ms)
+[ RUN      ] VoxFoundMesher.SprigThresholdIsDefinedInMetres
+[       OK ] VoxFoundMesher.SprigThresholdIsDefinedInMetres (0 ms)
+[ RUN      ] VoxFoundMesher.SprigsAreExposedCardCellsOnly
+[       OK ] VoxFoundMesher.SprigsAreExposedCardCellsOnly (0 ms)
+[ RUN      ] VoxFoundMesher.SprigThinningIsAFunctionOfWorldPosition
+[sprigs] slab kept 0.0730, threshold 0.0703
+[       OK ] VoxFoundMesher.SprigThinningIsAFunctionOfWorldPosition (0 ms)
+[ RUN      ] VoxFoundMesher.MeasuredFaceCountsOnGeneratedTerrain
+[32m[20:47:32.900] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:47:32.901] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] perlin s7 (0,0)                      culled   70327  greedy   1893  per-block   3697  | today proxy (1 m cubes)    53  -> greedy/today 35.7x, per-block/greedy 1.95x
+[32m[20:47:39.826] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:47:40.179] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[20:47:40.179] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+[32m[20:47:40.180] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] perlin s12345 (-1024,768)            culled   66562  greedy    742  per-block   1853  | today proxy (1 m cubes)    16  -> greedy/today 46.4x, per-block/greedy 2.50x
+[32m[20:47:46.000] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:47:46.354] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[20:47:46.354] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[32m[20:47:46.355] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] mountains s7 (2048,1024)             culled  114554  greedy  43102  per-block  49577  | today proxy (1 m cubes)  1037  -> greedy/today 41.6x, per-block/greedy 1.15x
+[32m[20:47:58.347] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:47:58.347] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] perlin s7 (0,0) + flora              culled  163297  greedy  16958  per-block  24177  | today proxy (1 m cubes)   811  -> greedy/today 20.9x, per-block/greedy 1.43x
+[32m[20:48:18.997] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:48:18.998] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] perlin s7 forest (8160,96) + flora   culled  591315  greedy 100946  per-block 128170  | today proxy (1 m cubes)  4209  -> greedy/today 24.0x, per-block/greedy 1.27x
+[       OK ] VoxFoundMesher.MeasuredFaceCountsOnGeneratedTerrain (65281 ms)
+[ RUN      ] VoxFoundMesher.MeasuredFaceCountsOnABuildingShellOnBothGrids
+[mesher] shell 9x7 m, 2 stories, grid 9: 134555 cells, culled 77484, greedy 404
+[mesher] shell 9x7 m, 2 stories, grid 8: 102536 cells, culled 61608, greedy 401
+[mesher] shell greedy 1/8 m vs 1/9 m: 0.99x
+[       OK ] VoxFoundMesher.MeasuredFaceCountsOnABuildingShellOnBothGrids (478 ms)
+[ RUN      ] VoxFoundMesher.NeighbourPlanesReproduceBothOutsideModes
+[       OK ] VoxFoundMesher.NeighbourPlanesReproduceBothOutsideModes (0 ms)
+[ RUN      ] VoxFoundMesher.ChunksAreInvisible
+[mesher] chunks invisible (beyond air): whole 11068 unit faces; chunks without neighbours 17752; sprigs 98
+[mesher] chunks invisible (beyond skip): whole 6555 unit faces; chunks without neighbours 6277; sprigs 98
+[       OK ] VoxFoundMesher.ChunksAreInvisible (46 ms)
+[ RUN      ] VoxFoundMesher.BlockConnectivityFollowsTodaysRule
+[       OK ] VoxFoundMesher.BlockConnectivityFollowsTodaysRule (0 ms)
+[ RUN      ] VoxFoundMesher.OcclusionWalkHidesWhatIsBehindASolidChunk
+[       OK ] VoxFoundMesher.OcclusionWalkHidesWhatIsBehindASolidChunk (0 ms)
+[ RUN      ] VoxFoundMesher.FaceBoxMatchesTheDrawnQuad
+[       OK ] VoxFoundMesher.FaceBoxMatchesTheDrawnQuad (0 ms)
+[ RUN      ] VoxFoundMesher.ClustersKeepEveryFaceAndBoundIt
+[32m[20:48:38.708] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[clusters] 1834 faces, clusterBlocks 1 -> 513 clusters
+[clusters] 1834 faces, clusterBlocks 2 -> 266 clusters
+[clusters] 1834 faces, clusterBlocks 4 -> 77 clusters
+[clusters] 1834 faces, clusterBlocks 8 -> 16 clusters
+[clusters] 1834 faces, clusterBlocks 32 -> 1 clusters
+[       OK ] VoxFoundMesher.ClustersKeepEveryFaceAndBoundIt (1220 ms)
+[ RUN      ] VoxFoundMesher.BoxInFrustumIsThePVertexTest
+[       OK ] VoxFoundMesher.BoxInFrustumIsThePVertexTest (0 ms)
+[ RUN      ] VoxFoundMesher.LightPlanesMatchTheClipVolume
+[light planes] 699 inside, 19301 outside, 0 wrong
+[       OK ] VoxFoundMesher.LightPlanesMatchTheClipVolume (0 ms)
+[ RUN      ] VoxFoundMesher.CasterBoxFollowsTodaysRuleAndTheLightBox
+[       OK ] VoxFoundMesher.CasterBoxFollowsTodaysRuleAndTheLightBox (0 ms)
+[ RUN      ] VoxFoundMesher.LodLevelIsHalfSolidAtLevelZero
+[       OK ] VoxFoundMesher.LodLevelIsHalfSolidAtLevelZero (0 ms)
+[ RUN      ] VoxFoundMesher.LodLevelKeepsTheMaterialSeenFromOutside
+[       OK ] VoxFoundMesher.LodLevelKeepsTheMaterialSeenFromOutside (0 ms)
+[ RUN      ] VoxFoundMesher.LodLevelsAreChunkIndependentAndScaleExactly
+[32m[20:48:39.930] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:48:39.931] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[       OK ] VoxFoundMesher.LodLevelsAreChunkIndependentAndScaleExactly (1726 ms)
+[ RUN      ] VoxFoundMesher.LodLevelsAboveTheMarginComeFromTheRegionExactly
+[32m[20:48:41.657] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:48:41.658] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[       OK ] VoxFoundMesher.LodLevelsAboveTheMarginComeFromTheRegionExactly (2910 ms)
+[ RUN      ] VoxFoundMesher.LodTopStatsMeasureTheViewFromAbove
+[       OK ] VoxFoundMesher.LodTopStatsMeasureTheViewFromAbove (0 ms)
+[ RUN      ] VoxFoundMesher.CoarseLevelsFromTwoPyramidsKeepTheGroundUnderTheCanopy
+[       OK ] VoxFoundMesher.CoarseLevelsFromTwoPyramidsKeepTheGroundUnderTheCanopy (1 ms)
+[ RUN      ] VoxFoundMesher.LeafMassFillThresholdsTheLeafPyramid
+[       OK ] VoxFoundMesher.LeafMassFillThresholdsTheLeafPyramid (0 ms)
+[ RUN      ] VoxFoundMesher.OctantOrderAndMergeRule
+[       OK ] VoxFoundMesher.OctantOrderAndMergeRule (0 ms)
+[ RUN      ] VoxFoundMesher.DirectionGroupsNeverHideAFaceThatFacesTheCamera
+[       OK ] VoxFoundMesher.DirectionGroupsNeverHideAFaceThatFacesTheCamera (169 ms)
+[ RUN      ] VoxFoundMesher.LightFacingFacesAloneGiveTheSameNearestHit
+[shadow dir] 3600 rays, 3546 hit, 0 differ
+[       OK ] VoxFoundMesher.LightFacingFacesAloneGiveTheSameNearestHit (334 ms)
+[ RUN      ] VoxFoundMesher.CasterSeamAddsExactlyTheLeafHiddenFaces
+[caster seam] main 1907, seam all 7041, seam depth 1 3131
+[       OK ] VoxFoundMesher.CasterSeamAddsExactlyTheLeafHiddenFaces (11 ms)
+[ RUN      ] VoxFoundMesher.ExitFacesCloseTheLightTestNextToLeaves
+[exit faces] 3600 rays, 3566 hit, 0 differ (light test alone: 402)
+[       OK ] VoxFoundMesher.ExitFacesCloseTheLightTestNextToLeaves (468 ms)
+[ RUN      ] VoxFoundMesher.MeasuredLodLevelsOnAGeneratedForest
+[32m[20:48:45.554] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:48:45.555] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[lod] forest (8160,96) level 0 (0.125 m): 42412 faces (1.000x L0), solid volume 1.0000x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 804 GrassSavanna 90 Log 18 LogJungle 182 LogPalm 15
+[lod] forest (8160,96) level 1 (0.250 m): 11164 faces (0.263x L0), solid volume 1.0194x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 774 GrassSavanna 90 Log 17 LogJungle 176 LogPalm 13
+[lod] forest (8160,96) level 2 (0.500 m): 2697 faces (0.064x L0), solid volume 1.0062x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 784 GrassSavanna 90 Log 16 LogJungle 157 LogPalm 10
+[lod] forest (8160,96) level 3 (1.000 m): 702 faces (0.017x L0), solid volume 0.9884x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 792 GrassSavanna 91 Log 12 LogJungle 133 LogPalm 8
+[lod] forest (8160,96) level 4 (2.000 m): 157 faces (0.004x L0), solid volume 0.9293x L0
+[lod]   up-facing m^2: Dirt 8 GrassForest 824 GrassSavanna 72 Log 8 LogJungle 104 LogPalm 4
+[lod]   top vs 1 m: mean 0.493 cells, max 4.750
+[lod] forest (8160,96) level 5 (4.000 m): 41 faces (0.001x L0), solid volume 0.9201x L0
+[lod]   up-facing m^2: GrassForest 864 GrassSavanna 48 Log 16 LogJungle 64
+[lod]   top vs 1 m: mean 0.526 cells, max 1.938
+[lod] forest (8160,96) level 6 (8.000 m): 5 faces (0.000x L0), solid volume 0.6265x L0
+[lod]   up-facing m^2: GrassForest 832 Log 64
+[lod]   top vs 1 m: mean 0.560 cells, max 1.250
+[lod] forest (8160,96) level 7 (16.000 m): 1 faces (0.000x L0), solid volume 1.2529x L0
+[lod]   up-facing m^2: GrassForest 1024
+[lod]   top vs 1 m: mean 0.283 cells, max 0.355
+[       OK ] VoxFoundMesher.MeasuredLodLevelsOnAGeneratedForest (24536 ms)
+[ RUN      ] VoxFoundMesher.LodLevelIsSizeOnScreen
+[       OK ] VoxFoundMesher.LodLevelIsSizeOnScreen (0 ms)
+[ RUN      ] VoxFoundMesher.LodPickRampsAcrossTheBandWithoutAPop
+[       OK ] VoxFoundMesher.LodPickRampsAcrossTheBandWithoutAPop (0 ms)
+[ RUN      ] VoxFoundMesher.LodLevelsNeverLeaveAHoleWhereTheyMeet
+[       OK ] VoxFoundMesher.LodLevelsNeverLeaveAHoleWhereTheyMeet (17 ms)
+[ RUN      ] VoxFoundMesher.LodBoxRangeCoversEveryFragmentInIt
+[       OK ] VoxFoundMesher.LodBoxRangeCoversEveryFragmentInIt (92 ms)
+[ RUN      ] VoxFoundMesher.LodCasterFloorIsTheShadowTexelAndTheBoxCoversIt
+[       OK ] VoxFoundMesher.LodCasterFloorIsTheShadowTexelAndTheBoxCoversIt (89 ms)
+[ RUN      ] VoxFoundMesher.LodCasterIsNeverCoarserThanTheSurfaceItShadows
+[       OK ] VoxFoundMesher.LodCasterIsNeverCoarserThanTheSurfaceItShadows (3 ms)
+[ RUN      ] VoxFoundMesher.LodSprigsHandOffToLeafMassWithoutAHole
+[       OK ] VoxFoundMesher.LodSprigsHandOffToLeafMassWithoutAHole (132 ms)
+[ RUN      ] VoxFoundMesher.LodFlagBitsLeaveTheStaticFlagsAlone
+[       OK ] VoxFoundMesher.LodFlagBitsLeaveTheStaticFlagsAlone (0 ms)
+[ RUN      ] VoxFoundMesher.IncrementalRebuildEqualsAFullRebuild
+[incremental] 300 edits: 46265 rows meshed of the 1044900 a full rebuild per edit meshes (4.43 %)
+[       OK ] VoxFoundMesher.IncrementalRebuildEqualsAFullRebuild (1385 ms)
+[ RUN      ] VoxFoundMesher.FacePoolUpdatesOnlyWhatChanged
+[facepool] 400 steps: 397 partial, 3 full (4 layouts, 43 moves); dirty faces 23.68 % of the live
+[       OK ] VoxFoundMesher.FacePoolUpdatesOnlyWhatChanged (866 ms)
+[ RUN      ] VoxFoundMesher.RowRebuildReadsOnlyNearTheFootprint
+[32m[20:49:12.679] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[f31 rows] 60 x 1 m edits on 256x192x256 terrain: 347647 cells evaluated vs 7840960 whole rows (4.43 %), 1112 faces added
+[       OK ] VoxFoundMesher.RowRebuildReadsOnlyNearTheFootprint (7990 ms)
+[ RUN      ] VoxFoundMesher.ConnectivityFloodRunsOnlyWhenABlockingBitChanges
+[f31 connect] 400 edits: 72 changed a blocking bit, 328 did not (flood skipped)
+[       OK ] VoxFoundMesher.ConnectivityFloodRunsOnlyWhenABlockingBitChanges (214 ms)
+[ RUN      ] VoxFoundMesher.RegionEditAssemblesOnlyWhatChanged
+[f32a store] RegionEdit 5.09 MB for 2 chunks (dense voxels alone 32.00 MB)
+[f31 assemble] sprig spans re-placed 4 times
+[f31 assemble] 36 partial steps: 588.7 KB written per step (the whole image is 1584.8 KB)
+[       OK ] VoxFoundMesher.RegionEditAssemblesOnlyWhatChanged (10460 ms)
+[ RUN      ] VoxFoundMesher.BlockStoreReadersEqualTheDenseOnes
+[32m[20:49:31.345] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[f32a readers] 80 edits on 256x192x256: 4812 faces added; store 1.60 MB vs dense 12.00 MB (1717 detailed blocks)
+[       OK ] VoxFoundMesher.BlockStoreReadersEqualTheDenseOnes (6919 ms)
+[ RUN      ] VoxFoundMesher.BrushEditsAreExactAndAligned
+[       OK ] VoxFoundMesher.BrushEditsAreExactAndAligned (54045 ms)
+[ RUN      ] VoxFoundMesher.PickFindsTheFirstSolidVoxel
+[f32b pick] 400 rays: 221 hits (91 from inside a solid voxel), 11.4 steps per hit
+[       OK ] VoxFoundMesher.PickFindsTheFirstSolidVoxel (10674 ms)
+[ RUN      ] VoxFoundMesher.SavedChunkReloadsExactly
+[f33 reload] chunk 0: 253673 B blob, 5439 voxels written by the load
+[       OK ] VoxFoundMesher.SavedChunkReloadsExactly (31648 ms)
+[ RUN      ] VoxFoundMesher.BorderEditsTouchOnlyTheChunksThatChange
+[f35a border] 300 border brushes: 435 chunks re-planned, 255 changed, 53 edits left the neighbour alone
+[       OK ] VoxFoundMesher.BorderEditsTouchOnlyTheChunksThatChange (90719 ms)
+[ RUN      ] VoxFoundMesher.PlanThroughGroupsEqualsTheFullScan
+[f35a plan] 58578 faces; boxes <= 8: mean 276 examined, worst 2997
+[       OK ] VoxFoundMesher.PlanThroughGroupsEqualsTheFullScan (10684 ms)
+[ RUN      ] VoxFoundMesher.IncrementalConnectivityEqualsTheFlood
+[f35b connect] brush-like: 1031 updates, 2 floods, 784 local tests; 132127 B
+[       OK ] VoxFoundMesher.IncrementalConnectivityEqualsTheFlood (3517 ms)
+[----------] 59 tests from VoxFoundMesher (337836 ms total)
+
+[----------] 18 tests from VoxFoundStorageLab
+[ RUN      ] VoxFoundStorageLab.TerrainAreaFollowsTheEngineGround
+[32m[20:52:59.555] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] worst |1/8 m ground top - today's cube top| at column centres: 0.500 m
+[       OK ] VoxFoundStorageLab.TerrainAreaFollowsTheEngineGround (387 ms)
+[ RUN      ] VoxFoundStorageLab.TopVoxelOfEveryColumnIsTheSurfaceMaterial
+[32m[20:52:59.942] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s7 (0,0): top voxel not the surface material in 0 of 65536 columns
+[32m[20:53:00.991] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s7 (512,-256): top voxel not the surface material in 0 of 65536 columns
+[32m[20:53:01.969] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s12345 (-1024,768): top voxel not the surface material in 0 of 65536 columns
+[32m[20:53:02.997] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] mountains s7 (0,0): top voxel not the surface material in 0 of 65536 columns
+[32m[20:53:04.292] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] mountains s7 (2048,1024): top voxel not the surface material in 0 of 65536 columns
+[       OK ] VoxFoundStorageLab.TopVoxelOfEveryColumnIsTheSurfaceMaterial (5586 ms)
+[ RUN      ] VoxFoundStorageLab.MeasuredBlockStatisticsOnGeneratedTerrain
+[32m[20:53:05.529] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s7 (0,0)             20 m tall:  20480 blocks,  1087 detailed (1.06 per block column),   9385 air,  10008 solid; est 0.79 MB vs dense 10.49 MB (13.3x); materials 3
+[32m[20:53:05.907] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s7 (512,-256)        18 m tall:  18432 blocks,   979 detailed (0.96 per block column),   8143 air,   9310 solid; est 0.71 MB vs dense 9.44 MB (13.3x); materials 3
+[32m[20:53:06.256] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s12345 (-1024,768)   17 m tall:  17408 blocks,   768 detailed (0.75 per block column),   7740 air,   8900 solid; est 0.58 MB vs dense 8.91 MB (15.3x); materials 3
+[32m[20:53:06.587] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] mountains s7 (0,0)          28 m tall:  28672 blocks,  1491 detailed (1.46 per block column),  11952 air,  15229 solid; est 1.09 MB vs dense 14.68 MB (13.5x); materials 3
+[32m[20:53:07.081] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] mountains s7 (2048,1024)    36 m tall:  36864 blocks,  2354 detailed (2.30 per block column),  20350 air,  14160 solid; est 1.65 MB vs dense 18.87 MB (11.4x); materials 4
+[       OK ] VoxFoundStorageLab.MeasuredBlockStatisticsOnGeneratedTerrain (2101 ms)
+[ RUN      ] VoxFoundStorageLab.PredictionTerrainHasAtMostThreeDetailedBlocksPerColumn
+[32m[20:53:07.631] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:07.933] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:08.243] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:08.562] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:09.132] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] VoxFoundStorageLab.PredictionTerrainHasAtMostThreeDetailedBlocksPerColumn (2063 ms)
+[ RUN      ] VoxFoundStorageLab.MeasuredFloraCostOnShippedBiomes
+[32m[20:53:09.695] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:09.696] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[32m[20:53:09.883] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:09.883] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s7 (0,0)                trees/plants planned 17 (stamped 9, procedural 0, missing 8: bush_flower tree_apple fern shrub_flat )
+              detailed per column bare 1.06 -> with flora 2.08; est 0.91 MB -> 1.51 MB per chunk footprint (35 m tall area)
+              stamped trees 8
+[32m[20:53:10.539] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:10.540] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s7 (512,-256)           trees/plants planned 19 (stamped 12, procedural 0, missing 7: tree_apple shrub_flat )
+              detailed per column bare 0.96 -> with flora 2.32; est 0.83 MB -> 1.64 MB per chunk footprint (33 m tall area)
+              stamped trees 10
+[32m[20:53:11.103] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:11.104] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s12345 (-1024,768)      trees/plants planned 3 (stamped 2, procedural 0, missing 1: fern )
+              detailed per column bare 0.75 -> with flora 0.75; est 0.70 MB -> 0.70 MB per chunk footprint (32 m tall area)
+              stamped trees 2
+[32m[20:53:11.495] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:11.496] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] mountains s7 (0,0)             trees/plants planned 17 (stamped 9, procedural 0, missing 8: bush_flower tree_apple fern shrub_flat )
+              detailed per column bare 1.46 -> with flora 2.44; est 1.21 MB -> 1.79 MB per chunk footprint (43 m tall area)
+              stamped trees 8
+[32m[20:53:12.275] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:12.275] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] mountains s7 (2048,1024)       trees/plants planned 0 (stamped 0, procedural 0, missing 0: )
+              detailed per column bare 2.30 -> with flora 2.30; est 1.65 MB -> 1.65 MB per chunk footprint (36 m tall area)
+              stamped trees 0
+[32m[20:53:12.865] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:12.865] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s7 forest (3200,96)     trees/plants planned 127 (stamped 105, procedural 0, missing 22: fern )
+              detailed per column bare 1.05 -> with flora 7.21; est 0.95 MB -> 4.59 MB per chunk footprint (41 m tall area)
+              stamped trees 65
+[32m[20:53:15.026] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:15.026] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s7 forest (8160,96)     trees/plants planned 100 (stamped 84, procedural 0, missing 16: fern )
+              detailed per column bare 1.03 -> with flora 6.94; est 0.94 MB -> 4.43 MB per chunk footprint (41 m tall area)
+              stamped trees 59
+[       OK ] VoxFoundStorageLab.MeasuredFloraCostOnShippedBiomes (7480 ms)
+[ RUN      ] VoxFoundStorageLab.BlockStoreEqualsTheDenseReference
+[32m[20:53:17.175] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] VoxFoundStorageLab.BlockStoreEqualsTheDenseReference (826 ms)
+[ RUN      ] VoxFoundStorageLab.BlockStoreCollapsesUniformBlocks
+[32m[20:53:18.002] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] VoxFoundStorageLab.BlockStoreCollapsesUniformBlocks (665 ms)
+[ RUN      ] VoxFoundStorageLab.BlockStoreMemoryWithinTheEstimate
+[32m[20:53:18.668] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] VoxFoundStorageLab.BlockStoreMemoryWithinTheEstimate (650 ms)
+[ RUN      ] VoxFoundStorageLab.BlockStoreOutOfRangeReadsAir
+[       OK ] VoxFoundStorageLab.BlockStoreOutOfRangeReadsAir (0 ms)
+[ RUN      ] VoxFoundStorageLab.BlockStoreChurnMatchesReferenceAtEveryBatch
+[32m[20:53:19.318] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] VoxFoundStorageLab.BlockStoreChurnMatchesReferenceAtEveryBatch (1204 ms)
+[ RUN      ] VoxFoundStorageLab.RegionChunksEqualTheRegionGeneratedWhole
+[32m[20:53:20.523] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:53:20.524] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[region] ground 22.2..25.6 m -> chunks y 0..1 (8 chunks)
+[region] 8 chunks, 55784346 solid voxels, whole-region flora stamped 142; voxel mismatches 0, border mismatches 0 of 1572864
+[       OK ] VoxFoundStorageLab.RegionChunksEqualTheRegionGeneratedWhole (13830 ms)
+[ RUN      ] VoxFoundStorageLab.FillBlockEqualsVoxelWrites
+[       OK ] VoxFoundStorageLab.FillBlockEqualsVoxelWrites (51 ms)
+[ RUN      ] VoxFoundStorageLab.CodecV3RoundTripsExactly
+[32m[20:53:34.406] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[f33 codec] terrain area 256x256x256: 7305 B (store 0.35 MB, dense 16.00 MB)
+[       OK ] VoxFoundStorageLab.CodecV3RoundTripsExactly (3980 ms)
+[ RUN      ] VoxFoundStorageLab.CodecV3RejectsMalformedBlobs
+[f33 malformed] 1617 B blob: every truncation refused; 9 of 2000 random corruptions decode to a valid store, the rest refused
+[       OK ] VoxFoundStorageLab.CodecV3RejectsMalformedBlobs (26 ms)
+[ RUN      ] VoxFoundStorageLab.ConverterCubesAreExact
+[       OK ] VoxFoundStorageLab.ConverterCubesAreExact (6 ms)
+[ RUN      ] VoxFoundStorageLab.ConverterResamplesByVolume
+[f34 resample] 119 cells (1697 subcubes, 23369 microcubes): solid volume 94.91 -> 92.59 m^3 (-2.44 %)
+[       OK ] VoxFoundStorageLab.ConverterResamplesByVolume (319 ms)
+[ RUN      ] VoxFoundStorageLab.ConverterKeepsEveryMaterialOfACell
+[f34 keep] 299 cells: 758 materials kept, 0 lost
+[       OK ] VoxFoundStorageLab.ConverterKeepsEveryMaterialOfACell (34 ms)
+[ RUN      ] VoxFoundStorageLab.ConverterRejectsMalformedPxb2
+[       OK ] VoxFoundStorageLab.ConverterRejectsMalformedPxb2 (0 ms)
+[----------] 18 tests from VoxFoundStorageLab (39218 ms total)
+
+[----------] Global test environment tear-down
+[==========] 108 tests from 5 test suites ran. (386194 ms total)
+[  PASSED  ] 108 tests.
+
+  YOU HAVE 3 DISABLED TESTS
+

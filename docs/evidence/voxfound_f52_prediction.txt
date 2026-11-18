@@ -1,0 +1,107 @@
+F5.2 -- bodies move and collide: the CPU reference body solver (F5.2a), then its GPU port (F5.2b)
+(plan F5 row "GPU simulation with voxel collision"; §6.7; risk 3)
+Written 2026-11-17 BEFORE any F5.2 code.
+
+WHAT EXISTS (survey of the engine's GPU solver, GpuParticlePhysics + solver_*.comp):
+  AVBD (augmented vertex block descent; Shallot / three-avbd lineage): per tick, integrate -> contacts at the
+  predicted iterate -> body colouring -> 8 iterations of {primal per colour (a 6x6 block solve per body), dual per
+  constraint} -> velocity from displacement -> warm start saved by feature key -> sleep. But every body is ONE
+  oriented box with SCALAR (sphere) inertia; world contacts sample 26 box points against the 1/9 m occupancy pool,
+  at most 6 per body; body-body is OBB-OBB SAT on a 1 m hash grid (bodies <= ~1 m); it cannot run headless (its
+  device needs a window surface) and no test runs it. Multi-voxel bodies exist only on the CPU solver (boxes).
+  So F5.2 builds the lab body solver on the SAME algorithm, extended to what §6.7 asks for:
+  - a body is its voxel grid (F5.1), with the FULL inertia tensor (I_world = R I_body R^T in the primal);
+  - contacts are voxel-on-voxel, symmetric: the surface lattice corners of X tested against the grid of Y and the
+    corners of Y against X (world = a static Y with the identity transform), so a world ridge between two body
+    corners is still caught. Escape rule per point in Y's voxel frame: inside a solid cell -> the nearest face
+    whose neighbour is empty (depth, normal); inside an empty cell within the 2 cm margin of a solid face neighbour
+    -> a speculative contact (gap); a point with no empty face neighbour is "deep" (counted);
+  - body-body broadphase on world AABBs (any size), then the voxel test; the cap is per contact pair (body-world or
+    body-body): K = 8, chosen as the deepest per normal direction, then farthest-point fill (keeps the support
+    polygon wide); every candidate dropped by the cap is counted, never silent;
+  - the engine's constants: dt 1/60, 8 iterations, alpha 0.99, beta 1e5, gamma 0.999, penalty 1..1e10, cold
+    contacts at m/dt^2, static-friction anchors, start-at-rest below 0.1 m/s, sleep 30 ticks under 0.05 m/s.
+    Friction per material (the engine's table: Stone 0.8, Bricks 0.8, Wood 0.6, Glass 0.2), pair = mean.
+  - a world ground option: y < 0 is solid (the lab grids end at y = 0).
+  The CPU reference is double precision, Gauss-Seidel per colour in ascending body order (deterministic).
+
+F5.2a PREDICTIONS (CPU reference; every rig a hand-built lab shape, 1/8 m voxels, stone unless stated)
+  R1 free fall, no contact, 120 ticks: y_n = y_0 - g dt^2 n (n + 1) / 2 to 1e-9 m (AVBD's primal is exact without
+     constraints).
+  R2 flat drop: a 4x4x4 box (0.5 m) dropped from 1 m onto a flat floor: at rest within 2 s; final penetration
+     <= 5 mm; from 3 s to 8 s drift <= 1 mm, speed <= 0.01 m/s; asleep by 3 s.
+  R3 tilted drop: an 8x4x2 slab dropped from 1 m rotated 30 deg about z and 20 deg about x: comes to rest on a
+     large face (its local 2-voxel axis within 2 deg of vertical), centre 0.125 m +- 5 mm above the floor; asleep
+     by 5 s.
+  R4 friction slide: a 4x2x4 box resting on the floor given 2 m/s along x: slides v^2 / (2 mu g) = 0.255 m
+     (mu 0.8) within +- 15 %; does not tip; no vertical bounce above 5 mm.
+  R5 stack: 5 boxes 4x2x4 stacked flush on the floor: after 5 s each moved <= 1 cm, all asleep.
+  R6 body-body, no gravity: two 4x4x4 boxes at 1 m/s toward each other: total momentum stays 0 to 1e-6 relative
+     to m v; AVBD contact is inelastic (no restitution, as the engine), so after contact each |v| <= 0.1 m/s;
+     interpenetration <= 1 cm at every tick.
+  R7 the lintel falls: rigColumnLintel at E/T 30 (the column severed), F5.1 extraction with a 20 N s push, the
+     bodies simulated on the world that is left (+ ground): every body asleep by 10 s; 0 bodies below the ground
+     (tunnelled); max penetration at rest <= 1 cm; deep points 0.
+  R8 a broken wall pile: rigStoneWall at E/T 30 and 80, the same checks as R7, plus the cost per tick of the CPU
+     reference reported (not gated: the reference is the oracle, the GPU is the product).
+  Red first: a stub step() that does nothing -- R1-R8 fail.
+
+F5.2b (GPU port; its own prediction section is written after F5.2a's results, before its code):
+  headless (raw-handle init, as FractureGpu); compared with the reference by the same invariants on every rig and
+  by trajectories on the non-chaotic rigs (R1, R2, R4: within 1 mm). NOT bit-equality: float on the GPU vs double
+  on the CPU and the colour order differ, and contact dynamics are chaotic -- F4.3's integer route does not apply
+  to a solver with sqrt / normalize / 6x6 solves. Said here before the work, not after a miss.
+
+RED (voxfound_f52_red.txt): the stub step() failed all 8 tests.
+RUN 1 (voxfound_f52_run1.txt): 3 / 8 pass -- R1 free fall exact (7.5e-14 m), R2 flat drop (0.26 mm, asleep by 3 s),
+  R4 slide 0.239 m vs Coulomb 0.255 (-6 %). Failed:
+  R3: MY RIG WAS WRONG -- Rz(30) Rx(20) leaves the thin axis 70 deg from vertical, i.e. the slab starts 20 deg from
+      standing on its narrow 8 x 2 face; it settled on that face (centre 0.2499 m = its half-height). Amended
+      (written before run 2): R3 asserts "flat on SOME face, centre at that face's half-height, asleep"; new R3b =
+      the intended rig (thin axis 30 deg from vertical) keeps the original prediction (the large face).
+  R5 stack collapsed (1.30 m), R6 momentum off by 0.37 m v + 16 mm overlap, R7 / R8 10 cm penetrations, deep points:
+      body-body contact. Diagnosis (a 2-box stack holds, 3 and 5 sink into each other): a sample point that sank a
+      hair into a flush face escaped SIDEWAYS through the nearby edge (an exact lattice corner is a tie; the side
+      direction won), so stacked bodies lost their vertical support. Fixes (recorded as run-1 fixes):
+      (a) samples are inset 1e-3 voxel into their own solid (removes the exact tie) -- not enough alone (R5 still
+          1.30 m);
+      (b) each sample carries the outward normal of the face it belongs to; the escape prefers the shallowest exit
+          within 60 deg of the opposite of that normal, and only falls back to the shallowest overall.
+      (b) alone took the 5-stack from 1.30 m to 0.58 m; a sweep then showed the CAP was the cause (uncapped: 0.54 mm;
+          8 contacts at 32 iterations: 0.50 mm): dumped contacts had only 2 vertical of a pair's 8, the rest 0.1 mm
+          SIDE contacts from side-face samples on edges. Fix (c): a sample makes a contact only through an exit within
+          60 deg of the opposite of its own face normal (each corner is sampled once per face, so the facing sample
+          covers it); stack 1.6 mm, lintel 0.11 mm.
+      (d) contact persistence: a warm (last-tick) candidate wins near-ties in the cap (1 mm depth, 2 cm spread) --
+          kept, though it was not the stack fix.
+      (e) R8's 11 cm readings + deep points: jagged fracture surfaces have inner edges; a point a millimetre past
+          one sat in a cell whose 6 face neighbours were solid. Exits now searched over all 26 neighbours (the
+          engine's voxel_contact.glsl does too), speculative contacts through faces only (a diagonal one made a
+          sliding box's leading edge push back: R4 tipped 12.9 deg), and an aligned exit may be at most 0.05 voxel
+          deeper than the shallowest (0.25 let a sliding box's front-face sample push it backwards).
+      (f) R6 momentum: Gauss-Seidel hands the first-solved body the push when a new contact starts stiff. Sweep of a
+          new body-body contact's stiffness (x m / dt^2): 0.1 -> 0.14 %, 0.3 -> 1 %, 1 (the engine's) -> 35 %,
+          100 -> 196 % of m v. Iterations: 8 -> 36 %, 16 -> 7 %, 24 -> 1.5 %, 32 -> 0.3 %. Alternating the colour
+          order made it worse (95 %). Kept: an IMPACT (closing > 0.5 m/s) between two moving bodies starts at
+          0.2 x the reduced mass / dt^2; resting contacts keep the stiff start (a soft start for all let a flush
+          stack sink 10 mm).
+      (g) the engine's hard-contact pass (positional, velocity-neutral, beyond 1 cm), extended to body-body (split by
+          inverse mass) and run with the world LAST (a body-body push after the world pass left a piece 16.5 mm in
+          the wall, asleep). Without it R7 kept 27-37 mm overlaps: AVBD corrects only 1 - alpha = 1 % per tick.
+RUN 2 (voxfound_f52_run2.txt; WoW running + another session's integration tests: timings are upper bounds):
+  R1 HELD 7.5e-14 m. R2 HELD 0.19 mm, asleep by 3 s, no drift. R3 (amended) HELD on its narrow face, 0.01 deg.
+  R3b HELD on the large face, 0.05 deg, centre 0.1248 m. R4 HELD 0.238 m vs 0.255 Coulomb (-6.5 %), no tip, no
+  rise. R5 HELD 2.10 mm, 5/5 asleep.
+  R6 MISSED as predicted ("momentum to 1e-6"): at 8 iterations 4.7e-2 of m v (bodies end at 0.05 m/s), overlap
+     0.37 mm. The prediction did not know AVBD conserves momentum only when converged. Gate revised AFTER the
+     measurement to <= 5 % at 8 iterations (stated in the test); a 32-iteration check written before its run
+     (<= 1 %) measured 0.72 %.
+  R7 HELD: 4 bodies asleep by 3.4 s, 3.75 mm, deep 0.
+  R8 HELD (E/T 30: 7 bodies, 2.10 mm; E/T 80: 21 bodies, 0.70 mm; deep 0, no hard-contact fires) -- but the pieces
+     barely moved (asleep by 0.5-0.7 s: 20 N s over ~3 t of rubble). R8b (written before its run): a blast,
+     8,000 N s, pieces leave at up to 7.8 m/s, fall and pile: all 21 asleep by 4 s, 8.52 mm, deep 0, none through
+     the ground. (400 N s first: the fastest piece got 0.39 m/s and friction stopped it in ~3 ticks -- correct.)
+  OWED, measured not gated: the hard-contact clamp fired 273 times in R7 and 563 in R8b (the engine's settle
+     bench demands 0 after the impact window -- not yet split by window here); the cap dropped 35k candidates in R8.
+  CPU reference cost: 0.19 ms / tick (4 bodies) to 1.10 ms mean / 10.9 ms worst (21 bodies, blast).
+  Suites: CPU VoxFound* 108/108, GPU VoxFound* 25/25.

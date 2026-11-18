@@ -625,11 +625,11 @@ std::vector<FractureMaterial> labMaterials() {
     std::vector<FractureMaterial> m(6);
     m[kAir] = {"air"};
     // densities: typical handbook values, kg / m^3 (voxfound_f51_prediction.txt)
-    m[kStone] = {"Stone", FractureClass::Brittle, 10.0f, glm::vec3(0.0f), 0.3f, 2600.0f};
-    m[kBricks] = {"Bricks", FractureClass::Brittle, 6.0f, glm::vec3(0.0f), 0.3f, 1900.0f};
-    m[kWood] = {"Wood", FractureClass::Fibrous, 4.0f, glm::vec3(1, 0, 0), 0.3f, 700.0f};
-    m[kGlass] = {"Glass", FractureClass::Glass, 1.0f, glm::vec3(0.0f), 0.3f, 2500.0f};
-    m[kWoodItem] = {"WoodItem", FractureClass::Fibrous, 4.0f, glm::vec3(0, 1, 0), 0.3f, 700.0f};
+    m[kStone] = {"Stone", FractureClass::Brittle, 10.0f, glm::vec3(0.0f), 0.3f, 2600.0f, 0.8f};
+    m[kBricks] = {"Bricks", FractureClass::Brittle, 6.0f, glm::vec3(0.0f), 0.3f, 1900.0f, 0.8f};
+    m[kWood] = {"Wood", FractureClass::Fibrous, 4.0f, glm::vec3(1, 0, 0), 0.3f, 700.0f, 0.6f};
+    m[kGlass] = {"Glass", FractureClass::Glass, 1.0f, glm::vec3(0.0f), 0.3f, 2500.0f, 0.2f};
+    m[kWoodItem] = {"WoodItem", FractureClass::Fibrous, 4.0f, glm::vec3(0, 1, 0), 0.3f, 700.0f, 0.6f};
     return m;
 }
 

@@ -34,6 +34,7 @@ struct FractureMaterial {
     glm::vec3 grain{0.0f};                    // fibrous materials: the long axis (unit), else 0
     float partBondScale = 0.3f;               // a bond between two parts is this strong vs within a part
     float density = 1000.0f;                  // kg / m^3 (F5.1: body mass, centre, inertia)
+    float friction = 0.5f;                    // Coulomb mu (F5.2; the engine material table)
 };
 
 struct Hit {
