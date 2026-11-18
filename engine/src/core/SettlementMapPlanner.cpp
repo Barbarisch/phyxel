@@ -1248,6 +1248,26 @@ static void planWall(SettlementMap& map, const SettlementMapInput& in) {
         std::vector<uint8_t> hit(wall.ring.size(), 0);
         for (const auto& c : line) { const auto it = ringAt.find(c); if (it != ringAt.end()) hit[it->second] = 1; }
         const size_t n = wall.ring.size();
+        // O36 (b) (pm_chain442.txt): a way that passes a CORNER of the ring touches it twice a few cells apart (the creek
+        // city: way 2 on the diagonal, gates at 92,153 and 91,151, each 7 wide - one blocked, one with no place to
+        // stand). Touches of ONE way closer along the ring than a gate is wide are one meeting: the cells between them
+        // count as hit, and the one gate stands at the middle of the whole stretch.
+        {
+            const size_t gw = static_cast<size_t>(std::max(in.tier->walls.gateWidthCubes, static_cast<int>(std::ceil(w.width))));
+            size_t anyHit = n;
+            for (size_t i = 0; i < n; ++i) if (hit[i]) { anyHit = i; break; }
+            if (anyHit < n) {
+                size_t lastHit = anyHit;
+                for (size_t k = 1; k <= n; ++k) {
+                    const size_t i = (anyHit + k) % n;
+                    if (!hit[i]) continue;
+                    const size_t gap = k - ((lastHit + n - anyHit) % n) - 1;   // un-hit cells between the previous touch and this one
+                    if (gap > 0 && gap <= gw && gap < n - 1) for (size_t q = 1; q <= gap; ++q) hit[(lastHit + q) % n] = 1;
+                    lastHit = i;
+                    if (i == anyHit) break;
+                }
+            }
+        }
         size_t start = n;
         for (size_t i = 0; i < n; ++i) if (!hit[i]) { start = i; break; }
         if (start == n) continue;   // the whole ring lies on one way: not a crossing this rule can gate

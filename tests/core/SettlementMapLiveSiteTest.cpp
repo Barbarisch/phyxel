@@ -2865,6 +2865,34 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityFordsItsCreek) {
                 const long boxCells = static_cast<long>(x1 - x0 + 1) * (z1 - z0 + 1);
                 std::printf("[ O36a ]   the wall: %zu ring cells, box %d..%d x %d..%d, %zu gates, %zu water gaps; enclosed %ld cells; house cells outside the ring %d of %d, market cells outside %d%s",
                             m.wall.ring.size(), x0, x1, z0, z1, m.wall.gates.size(), m.wall.waterGaps.size(), boxCells - static_cast<long>(outside.size()) + (ring.empty() ? 0 : 0) - static_cast<long>(ring.size()), lotCellsOut, lotCells, marketOut, chr10().c_str());
+                {   // chain 443 diagnostic (pm_chain442.txt): the gates, and the map round any two gates of one way within 6 cells
+                    for (const auto& g : m.wall.gates) std::printf("[ O36b ]   gate at %d,%d way %d width %d%s", g.x, g.z, g.way, g.width, chr10().c_str());
+                    for (size_t i = 0; i < m.wall.gates.size(); ++i) for (size_t j = i + 1; j < m.wall.gates.size(); ++j) {
+                        const auto& g1 = m.wall.gates[i]; const auto& g2 = m.wall.gates[j];
+                        if (g1.way != g2.way || std::abs(g1.x - g2.x) + std::abs(g1.z - g2.z) > 6) continue;
+                        for (int z = std::max(g1.z, g2.z) + 8; z >= std::min(g1.z, g2.z) - 10; --z) {
+                            std::string row;
+                            for (int x = std::min(g1.x, g2.x) - 14; x <= std::max(g1.x, g2.x) + 14; ++x) {
+                                char ch = (x < 0 || z < 0 || x >= W || z >= D) ? ' ' : '.';
+                                if (ch == '.' && wet(x, z)) ch = '~';
+                                for (const auto& l : m.lots) { if (x >= l.rect.x && x < l.rect.x1() && z >= l.rect.z && z < l.rect.z1()) ch = 'y'; if (x >= l.footprint.x && x < l.footprint.x1() && z >= l.footprint.z && z < l.footprint.z1()) ch = 'L'; }
+                                if (wayCells.count({x, z})) ch = '=';
+                                if (ring.count({x, z})) ch = wayCells.count({x, z}) ? 'X' : '#';
+                                if ((x == g1.x && z == g1.z) || (x == g2.x && z == g2.z)) ch = 'G';
+                                row += ch;
+                            }
+                            std::printf("[ O36b ]   z %3d %s%s", z, row.c_str(), chr10().c_str());
+                        }
+                    }
+                }
+                {   // added before chain 444 (pm_chain442.txt; red in chain 443: gates at 92,153 and 91,151 on way 2): one way, one gate where it meets the ring
+                    int doubled = 0;
+                    for (size_t i = 0; i < m.wall.gates.size(); ++i) for (size_t j = i + 1; j < m.wall.gates.size(); ++j) {
+                        const auto& g1 = m.wall.gates[i]; const auto& g2 = m.wall.gates[j];
+                        if (g1.way == g2.way && g1.way >= 0 && std::abs(g1.x - g2.x) + std::abs(g1.z - g2.z) <= std::max(g1.width, g2.width)) ++doubled;
+                    }
+                    EXPECT_EQ(doubled, 0) << "two gates of one way stand within a gate's width of each other";
+                }
                 EXPECT_GT(lotCells, 0);
                 EXPECT_EQ(lotCellsOut, 0) << "a house stands outside the creek city's wall";
                 EXPECT_EQ(marketOut, 0) << "the market lies outside the creek city's wall";
@@ -2874,6 +2902,203 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityFordsItsCreek) {
             EXPECT_FALSE(plan.ok()) << "the control (ford off) is accepted: the site does not make the case";
             EXPECT_EQ(m.crossings.size(), 0u);
         }
+    }
+}
+
+// O36 (b) (pm_chain442.txt): the creek city BUILT with fords on - what stands at a ford, and is it walked.
+TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
+    const int px = -1200, pz = -1040;
+    LiveSiteRig rig;
+    rig.recipeKey = "citylab-A no bump"; rig.worldSeed = 7001u;
+    rig.recipeFn = [px, pz] { return cityLabRecipe(false, px, pz, 0.0f, 0.0f); };
+    ASSERT_TRUE(rig.setUp(0, 24)) << rig.why;
+    const auto out = realize(rig, /*legacyLayout=*/false, nlohmann::json{{"ford", true}});
+    ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+    const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
+    Core::SettlementProgramRegistry reg;
+    ASSERT_TRUE(reg.loadFromFile("resources/settlement_program.json"));
+    const Core::SettlementTierPreset* tier = reg.get("medieval", "city");
+    ASSERT_NE(tier, nullptr);
+    const std::string paving = tier->street.material;
+    std::printf("[ O36b ] the creek city built: gate %s, %d walkable, %d blocked, %d skipped over %d doors of %d built; %zu lot failures; %zu lots, %zu crossings%s",
+                out.value("gate", std::string("?")).c_str(), out.value("walkable", 0), out.value("blocked", 0), out.value("skipped", 0), out.value("doors", -1), out.value("built", -1),
+                out.value("lot_failures", nlohmann::json::array()).size(), sm.lots.size(), sm.crossings.size(), chr10().c_str());
+    EXPECT_EQ(out.value("gate", std::string()), "passed");
+    EXPECT_EQ(out.value("blocked", -1), 0);
+    ASSERT_GT(sm.crossings.size(), 0u);
+    const int oy = static_cast<int>(rig.site->surfaceY);
+    auto topAt = [&](int cx, int cz) {
+        const int wx = sm.originX + cx, wz = sm.originZ + cz, top = settlementTopScan(&rig.cm, oy, wx, wz, true);
+        for (int y = (top + 2) * 9 + 8; y >= (top - 3) * 9; --y) if (rig.solidMicro(wx * 9 + 4, y, wz * 9 + 4)) return y;
+        return INT_MIN;
+    };
+    auto matAt = [&](int cx, int cz, int my) {
+        if (my == INT_MIN) return std::string("(none)");
+        const glm::ivec3 wp(sm.originX + cx, floorDivN(my, 9), sm.originZ + cz);
+        Chunk* ch = rig.cm.getChunkAtFast(wp);
+        if (!ch) return std::string("(no chunk)");
+        const glm::ivec3 lp = wp - ch->getWorldOrigin();
+        const int ry = floorModN(my, 9);
+        if (const Cube* c = ch->getCubeAt(lp)) return std::string(c->getMaterialName());
+        if (const Microcube* mc = ch->getMicrocubeAt(lp, glm::ivec3(1, ry / 3, 1), glm::ivec3(1, ry % 3, 1))) return std::string(mc->getMaterialName());
+        if (const Subcube* sc = ch->getSubcubeAt(lp, glm::ivec3(1, ry / 3, 1))) return std::string(sc->getMaterialName());
+        return std::string("(?)");
+    };
+    const std::function<bool(int, int, int)> occ = [&rig](int x, int y, int z) { return rig.cm.occupiedMicro(glm::ivec3(x, y, z)); };
+    Core::AgentBox box;
+    Core::TraversalProbe probe(occ, box);
+    auto seat = [&](int cx, int cz) {
+        const int mx = (sm.originX + cx) * 9 + 4, mz = (sm.originZ + cz) * 9 + 4, t = topAt(cx, cz);
+        if (t == INT_MIN) return INT_MIN;
+        for (int y = t - 9; y <= t + 18; ++y) if (probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) return y;
+        return INT_MIN;
+    };
+    {   // chain 447 diagnostic (pm_chain442.txt): every blocked route's ends, and the built surface round it - the highest solid
+        // micro at each cell's centre less the route's start level, in CUBES and ninths ("+1.3" = 1 cube 3 micro up); R = a ring cell
+        std::set<std::pair<int, int>> ring;
+        for (const auto& c : sm.wall.ring) ring.insert({c.x, c.z});
+        for (const auto& r : out["paths"].value("walkability", nlohmann::json::object()).value("routes", nlohmann::json::array())) {
+            if (r.value("walkable", true)) continue;
+            const auto fr = r.value("from", std::vector<int>{0, 0, 0}), to = r.value("to", std::vector<int>{0, 0, 0});
+            const int fx = floorDivN(fr[0], 9) - sm.originX, fz = floorDivN(fr[2], 9) - sm.originZ, tx = floorDivN(to[0], 9) - sm.originX, tz = floorDivN(to[2], 9) - sm.originZ;
+            std::printf("[ O36b ] BLOCKED route '%s': from cell %d,%d feet %d -> cell %d,%d feet %d%s", r.value("label", std::string("?")).c_str(), fx, fz, fr[1], tx, tz, to[1], chr10().c_str());
+            for (int z = std::max(fz, tz) + 5; z >= std::min(fz, tz) - 5; --z) {
+                std::string row;
+                for (int x = std::min(fx, tx) - 5; x <= std::max(fx, tx) + 5; ++x) {
+                    const int t = topAt(x, z);
+                    char buf[16];
+                    if (t == INT_MIN) std::snprintf(buf, sizeof buf, "   ?  ");
+                    else { const int d = t + 1 - fr[1]; std::snprintf(buf, sizeof buf, "%c%+d.%d%c", ring.count({x, z}) ? 'R' : ' ', d / 9, std::abs(d) % 9, (x == fx && z == fz) ? 'F' : (x == tx && z == tz) ? 'T' : ' '); }
+                    row += buf;
+                }
+                std::printf("[ O36b ]   z %3d %s%s", z, row.c_str(), chr10().c_str());
+            }
+        }
+    }
+    int unpaved = 0, notWalked = 0, cells = 0, controlLeaks = 0;
+    for (size_t ci = 0; ci < sm.crossings.size(); ++ci) {
+        const auto& c = sm.crossings[ci];
+        if (c.cells.empty()) continue;
+        // the way cells before and after the run: one step back from the first and on from the last, along the run (or its mirror for one cell)
+        const auto f = c.cells.front(), l = c.cells.back();
+        std::pair<int, int> dir{0, 0};
+        if (c.cells.size() > 1) dir = {l.first - c.cells[c.cells.size() - 2].first, l.second - c.cells[c.cells.size() - 2].second};
+        else if (const Core::MapWay* w = [&]() -> const Core::MapWay* { for (const auto& ww : sm.ways) if (ww.id == c.way) return &ww; return nullptr; }()) {
+            // a one-cell crossing: the way's direction at it, from its nodes
+            for (size_t k = 0; k + 1 < w->nodes.size(); ++k) {
+                const Core::MapNode* a = sm.node(w->nodes[k]); const Core::MapNode* b = sm.node(w->nodes[k + 1]);
+                if (!a || !b) continue;
+                const int sx = (b->x > a->x) - (b->x < a->x), sz = (b->z > a->z) - (b->z < a->z);
+                int x = a->x, z = a->z; bool on = false;
+                while (true) { if (x == f.first && z == f.second) { on = true; break; } if (x == b->x && z == b->z) break; x += sx; z += sz; }
+                if (on) { dir = {sx, sz}; break; }
+            }
+        }
+        const std::pair<int, int> before{f.first - dir.first * 2, f.second - dir.second * 2}, after{l.first + dir.first * 2, l.second + dir.second * 2};
+        std::string row;
+        for (const auto& cell : c.cells) {
+            ++cells;
+            const int t = topAt(cell.first, cell.second);
+            const std::string m = matAt(cell.first, cell.second, t);
+            if (m != paving) ++unpaved;
+            row += " (" + std::to_string(cell.first) + "," + std::to_string(cell.second) + ") " + std::to_string(t) + " " + m;
+        }
+        const int tb = topAt(before.first, before.second), ta = topAt(after.first, after.second);
+        // (amended before chain 452: the far end is seated from BELOW, near the near end's level - under a gate's arch
+        // the top-down seat stood on the wall, crossing 1 in chain 451)
+        const int sb = seat(before.first, before.second);
+        int sa = INT_MIN;
+        if (sb != INT_MIN) {
+            const int mx = (sm.originX + after.first) * 9 + 4, mz = (sm.originZ + after.second) * 9 + 4;
+            for (int y = sb - 45; y <= sb + 45; ++y) if (probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) { sa = y; break; }
+        }
+        // the audit of O36 b (2): the walk is CONFINED TO THE LANE - every cell that is not within one cell of the way's
+        // line from `before` to `after` is solid to the walker, so it cannot go round over open ground; it must arrive
+        // at `after` within a cube of that cell's own standing level (not on a wall above it). CONTROL: the same walk
+        // with the crossing's own cells walled up must FAIL - else the check proves nothing.
+        bool walked = false, controlWalked = false;
+        if (sb != INT_MIN && sa != INT_MIN && (dir.first || dir.second)) {
+            // (amended before chain 452: the control walls up the lane's whole CROSS-SECTION at the crossing - the cells
+            // within one of a crossing cell - not the centre cell alone, which a walker on a 3-wide lane steps round)
+            std::set<std::pair<int, int>> lane, ford;
+            for (const auto& cc : c.cells) for (int dz = -1; dz <= 1; ++dz) for (int dx = -1; dx <= 1; ++dx) ford.insert({cc.first + dx, cc.second + dz});
+            for (std::pair<int, int> at = before;; at = {at.first + dir.first, at.second + dir.second}) {
+                for (int dz = -1; dz <= 1; ++dz) for (int dx = -1; dx <= 1; ++dx) lane.insert({at.first + dx, at.second + dz});
+                if (at == after) break;
+            }
+            const int x0 = std::min(before.first, after.first) - 2, x1 = std::max(before.first, after.first) + 2, z0 = std::min(before.second, after.second) - 2, z1 = std::max(before.second, after.second) + 2;
+            const glm::ivec3 start((sm.originX + before.first) * 9 + 4, sb, (sm.originZ + before.second) * 9 + 4);
+            const glm::ivec3 lo((sm.originX + x0) * 9, std::min(sb, sa) - 45, (sm.originZ + z0) * 9), hi((sm.originX + x1) * 9 + 8, std::max(sb, sa) + 45, (sm.originZ + z1) * 9 + 8);
+            for (const bool control : {false, true}) {
+                const std::function<bool(int, int, int)> occLane = [&](int x, int y, int z) {
+                    const std::pair<int, int> cell{floorDivN(x, 9) - sm.originX, floorDivN(z, 9) - sm.originZ};
+                    if (!lane.count(cell)) return true;
+                    if (control && ford.count(cell)) return true;
+                    return rig.cm.occupiedMicro(glm::ivec3(x, y, z));
+                };
+                Core::TraversalProbe laneProbe(occLane, box);
+                bool got = false;
+                for (const auto& r : laneProbe.flood(start, lo, hi))
+                    if (floorDivN(r.x, 9) - sm.originX == after.first && floorDivN(r.z, 9) - sm.originZ == after.second && std::abs(r.y - sa) <= 9) { got = true; break; }
+                (control ? controlWalked : walked) = got;
+            }
+        }
+        if (!walked) ++notWalked;
+        if (controlWalked) ++controlLeaks;
+        std::printf("[ O36b ] crossing %zu (way %d, %zu cells, direction %d,%d):%s | before (%d,%d) top %d %s seat %d | after (%d,%d) top %d %s seat %d | %s%s", ci, c.way, c.cells.size(), dir.first, dir.second,
+                    row.c_str(), before.first, before.second, tb, matAt(before.first, before.second, tb).c_str(), sb, after.first, after.second, ta, matAt(after.first, after.second, ta).c_str(), sa,
+                    walked ? (controlWalked ? "walked ALONG THE LANE - but so was the CONTROL (the ford walled up)" : "WALKED along the lane; the control (the ford walled up) is blocked") : "NOT WALKED along the lane", chr10().c_str());
+    }
+    std::printf("[ O36b ] fords: %d crossing cells, %d not topped by %s; %zu crossings, %d not walked bank to bank%s", cells, unpaved, paving.c_str(), sm.crossings.size(), notWalked, chr10().c_str());
+    EXPECT_EQ(unpaved, 0) << "a ford's cell is not paved";
+    EXPECT_EQ(notWalked, 0) << "a ford is not walked from bank to bank along its lane";
+    EXPECT_EQ(controlLeaks, 0) << "a ford's walk passes with the ford walled up: the walk does not go through the ford";
+    // the audit of O36 b (1): "the gate passes the road" could be satisfied through a WATER GAP of the wall (a fordable creek
+    // is ordinary ground and the ring is left open over it). Each wall-gate route is walked again here (a) as built and
+    // (b) with the wall's band round ITS gate walled up (every cell within 4 of the gate cell that is a ring cell or within
+    // 2 of one). A real gate goes from walked to blocked; a route that still passes went through another opening.
+    {
+        std::set<std::pair<int, int>> ring;
+        for (const auto& c : sm.wall.ring) ring.insert({c.x, c.z});
+        for (const auto& g : sm.wall.waterGaps) std::printf("[ O36b ] wall water gap: %d ring cells from %d,%d%s", g.cells, g.x, g.z, chr10().c_str());
+        int gateRoutes = 0, gateNot = 0, gateElsewhere = 0;
+        for (const auto& r : out["paths"].value("walkability", nlohmann::json::object()).value("routes", nlohmann::json::array())) {
+            if (!r.value("wall_gate", false)) continue;
+            ++gateRoutes;
+            const auto fr = r.value("from", std::vector<int>{0, 0, 0}), to = r.value("to", std::vector<int>{0, 0, 0});
+            const std::string label = r.value("label", std::string("?"));
+            // the gate this route belongs to: the map gate nearest the route's middle
+            const int mx = (floorDivN(fr[0], 9) + floorDivN(to[0], 9)) / 2 - sm.originX, mz = (floorDivN(fr[2], 9) + floorDivN(to[2], 9)) / 2 - sm.originZ;
+            int gx = 0, gz = 0, bestD = INT_MAX;
+            for (const auto& g : sm.wall.gates) { const int d = std::abs(g.x - mx) + std::abs(g.z - mz); if (d < bestD) { bestD = d; gx = g.x; gz = g.z; } }
+            std::set<std::pair<int, int>> plug;
+            for (int z = gz - 4; z <= gz + 4; ++z) for (int x = gx - 4; x <= gx + 4; ++x) {
+                bool nearRing = false;
+                for (int dz = -2; dz <= 2 && !nearRing; ++dz) for (int dx = -2; dx <= 2 && !nearRing; ++dx) nearRing = ring.count({x + dx, z + dz}) > 0;
+                if (nearRing) plug.insert({x, z});
+            }
+            const glm::ivec3 start(fr[0], fr[1], fr[2]);
+            const glm::ivec3 lo(std::min(fr[0], to[0]) - 8 * 9, std::min(fr[1], to[1]) - 27, std::min(fr[2], to[2]) - 8 * 9), hi(std::max(fr[0], to[0]) + 8 * 9, std::max(fr[1], to[1]) + 36, std::max(fr[2], to[2]) + 8 * 9);
+            bool asBuilt = false, plugged = false;
+            for (const bool control : {false, true}) {
+                const std::function<bool(int, int, int)> occG = [&](int x, int y, int z) {
+                    if (control && plug.count({floorDivN(x, 9) - sm.originX, floorDivN(z, 9) - sm.originZ})) return true;
+                    return rig.cm.occupiedMicro(glm::ivec3(x, y, z));
+                };
+                Core::TraversalProbe gp(occG, box);
+                bool got = false;
+                for (const auto& c : gp.flood(start, lo, hi)) if (std::abs(c.x - to[0]) <= 4 && std::abs(c.z - to[2]) <= 4 && std::abs(c.y - to[1]) <= 9) { got = true; break; }
+                (control ? plugged : asBuilt) = got;
+            }
+            if (!asBuilt) ++gateNot;
+            if (plugged) ++gateElsewhere;
+            std::printf("[ O36b ] %s (gate %d,%d): as built %s; with the wall round the gate walled up %s%s", label.c_str(), gx, gz, asBuilt ? "walked" : "NOT WALKED",
+                        plugged ? "STILL WALKED - the route does not need the gate" : "blocked - the route goes through the gate", chr10().c_str());
+        }
+        std::printf("[ O36b ] wall gates: %d routes, %d not walked as built, %d that pass without their gate%s", gateRoutes, gateNot, gateElsewhere, chr10().c_str());
+        EXPECT_GT(gateRoutes, 0);
+        EXPECT_EQ(gateNot, 0);
+        EXPECT_EQ(gateElsewhere, 0) << "a gate route is walked with its gate walled up: it proves nothing about the gate";
     }
 }
 

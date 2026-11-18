@@ -1897,3 +1897,31 @@ MY RESPONSE (after the audit; NOT re-audited):
  3 DONE - the ford rule is OPT-IN ({"ford": true}); the default build is what it was. Not echoed in the result.
  4 STATED - a bank-connectivity proxy; and the city seats NO lot on the entry's bank (all 20 beyond the first creek).
 RE-RUN ON THE FINAL EXE (14:35:46; recorded 14:48): unit 210 / 0 (chain 440), live 40 / 0 (chain 441), record lines identical to chains 436 / 437.
+
+=== O36 (b) the creek city built across its fords; the wall's gate at a corner - solution-auditor read (recorded 2026-11-18 15:20; HEAD 58d25198 + the working tree; read-only; detail in m3c_chains/pm_chain442.txt) ===
+RAW VERDICT: PASS WITH CONDITIONS for the build/gate counts as recorded. FAIL for the ford claim ("walked bank to
+bank") and for "the gate passes the road". (Read-only: no builds or tests were run.)
+FINDINGS (the auditor's, condensed):
+ 1. MAIN: a wall-gate route is one flood in a +-8 cell box and the wall is left open over water; a creek crosses the
+    ring about 5 cells from way 2's gate, so the route could pass through the water gap, not the gate. "Not ruled
+    out, probably live." The weakness predates the change (every gate route).
+ 2. the ford "walked" check could not fail on the ford: a fordable creek is ordinary ground, the flood ran in a +-6
+    box at any height, no control; it would count a walker standing on a wall (crossing 1's far cell, seat 387).
+ 3. "topped by Cobblestone" is the paver's own output at one centre column a cell - no discriminator.
+ 4. the gate-merge arithmetic is correct; it merges any two touches of one way within the width (untested: a way
+    that leaves the ring and returns).
+ 5. the passage-end rule falls back SILENTLY to the old ends when it cannot resolve; it fires only when an axis end
+    is exactly a ring cell; "no ring cell within 2" was found by miss and is tuned to this city.
+ 6. the doubled gate: REAL red (merge stashed) and green; one city.
+ 7. gates are not counted against the ways that cross the ring.
+ 8. evidence postdates the code. 9. overstatements: "walked bank to bank", "the gate passes the road".
+CONDITIONS: 1 do not state "the gate passes the road" until gate routes are constrained; 2 do not state fords are
+ walked as lanes until 2 and 3 are fixed; 3 log the water gaps; 4 make the passage-end fallback loud.
+MY RESPONSE (after the audit; NOT re-audited; test file only - the engine is unchanged since chains 449 / 450):
+ 1 MEASURED - every wall-gate route of the creek city is walked again with the wall's band round its gate walled
+   up: all 4 go from walked to BLOCKED (chain 451, 452). The suspicion did not hold on this city: the gaps are at
+   (107, 2), (105, 148), (76, 3), outside every gate route's box. The engine's gate check itself is NOT constrained.
+ 2 FIXED IN THE TEST - the ford walk is confined to a 3-cell lane and must arrive at the far cell's own ground
+   level; the control (the lane's cross-section at the crossing walled up) is blocked on all 4 (chain 452). Two
+   bugs of my own in the first version of this control were found by its failing (chain 451) and are recorded.
+ 3 DONE (printed). 4 NOT DONE - disclosed in the plan's O36 row. Finding 3 stands as a limit.

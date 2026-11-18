@@ -888,3 +888,20 @@ Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain431.txt` (chains 431 to 
   reverted). O37 (d) is not claimed.
 - Release unit 210 / 0, live 40 / 0; no existing live site moved. NOTHING is realized at a ford: no paving rule, no
   walk, no building on the creek city. Audited PASS WITH CONDITIONS; responses not re-audited. No Debug run.
+
+### 2026-11-18 - O36 (b): the creek city built across its fords (opt-in); a wall gate at a ring corner
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain442.txt` (chains 442 to 452).
+- With `"ford": true` the lab's creek city is REALIZED: gate passed, 74 routes walkable, 0 blocked, 20 doors of 20.
+  Its 4 fords (1 or 2 cells) are paved (the surface dips up to 3 cubes there) and each is walked by a probe confined
+  to a 3-cell lane; the same walk with the ford walled up is blocked.
+- Two wall defects found on the way, both where a diagonal way passes a CORNER of the ring: `planWall` made two
+  gates two cells apart (touches of one way within a gate's width are now one gate), and the wall unit's gate
+  passage put an end on top of the wall (at such a gate the passage's ends are taken along the way, clear of the
+  band). Each of the city's 4 gate routes is blocked when the wall round its gate is walled up.
+- The first audit FAILED two claims as I had stated them (the ford walk and the gate walk could both have succeeded
+  by going round); the checks were rebuilt with controls, and my first control had two bugs of its own.
+- Release unit 210 / 0, live 41 / 0 on the engine of this commit; the final test-only change was run alone.
+- NOT done: the ford rule is still opt-in; the engine's own gate check is not constrained against a water gap; the
+  passage-end rule falls back silently; one city, one recipe, creeks 1 to 2 cells wide; no Debug run; nothing viewed
+  in the engine.

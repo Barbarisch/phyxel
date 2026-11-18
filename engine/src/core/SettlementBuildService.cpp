@@ -2097,6 +2097,18 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
                  spec = tierP->walls, layout, buildings, ox, oz, W, D, terrainTopAt, pathsJsonP, roadAtWorld, sharedWallCrossings, findWallCrossings, sharedWallGates, sharedWallTowers,
                  mapWall = siteMap.wall, mapBuild = mapLots,
+                 mapWayLines = [&siteMap]() {   // O36 (b): each way's cell line (the straight runs between its nodes), by way id
+                     std::map<int, std::vector<glm::ivec2>> m;
+                     for (const auto& w : siteMap.ways) {
+                         std::vector<glm::ivec2>& line = m[w.id];
+                         for (int nid : w.nodes) if (const Core::MapNode* nd = siteMap.node(nid)) {
+                             if (line.empty()) { line.push_back({nd->x, nd->z}); continue; }
+                             glm::ivec2 at = line.back();
+                             while (at.x != nd->x || at.y != nd->z) { at.x += (nd->x > at.x) - (nd->x < at.x); at.y += (nd->z > at.y) - (nd->z < at.y); line.push_back(at); }
+                         }
+                     }
+                     return m;
+                 }(),
                  mapWayNodes = [&siteMap]() { std::vector<glm::ivec2> v; for (const auto& w : siteMap.ways) for (const int id : w.nodes) if (const Core::MapNode* nd = siteMap.node(id)) v.push_back({nd->x, nd->z}); return v; }()]() {
             if (!chunkManager) return;
             std::vector<Core::Rect> footprints;
@@ -2207,7 +2219,35 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         const bool plusIn = mapInside.count({g.x + nx, g.z + nz}) > 0, minusIn = mapInside.count({g.x - nx, g.z - nz}) > 0;
                         if (plusIn != minusIn) {
                             const int s2 = plusIn ? -1 : 1;   // outward
-                            sharedWallGates->push_back({{ox + g.x - s2 * nx * 3, oz + g.z - s2 * nz * 3}, {ox + g.x + s2 * nx * 3, oz + g.z + s2 * nz * 3}, gateLabel, true});
+                            glm::ivec2 gin(g.x - s2 * nx * 3, g.z - s2 * nz * 3), gout(g.x + s2 * nx * 3, g.z + s2 * nz * 3);
+                            // O36 (b) (pm_chain442.txt): at a CORNER of the ring the axis normal's end can lie on the ring's other
+                            // arm - the walk was then seated on top of the wall and "blocked" (the creek city, way 2 on the
+                            // diagonal through a corner). The passage is then taken ALONG THE WAY: from the way's cell nearest
+                            // the gate, the first cell each way along its line that is at least 3 from the gate and off the
+                            // ring - one inside the ring, one not.
+                            if (g.way >= 0 && (ringAt.count({gin.x, gin.y}) || ringAt.count({gout.x, gout.y}))) {
+                                const auto lit = mapWayLines.find(g.way);
+                                const std::vector<glm::ivec2> line = lit != mapWayLines.end() ? lit->second : std::vector<glm::ivec2>();
+                                int near = -1, best = INT_MAX;
+                                for (int i = 0; i < static_cast<int>(line.size()); ++i) { const int d = std::abs(line[i].x - g.x) + std::abs(line[i].y - g.z); if (d < best) { best = d; near = i; } }
+                                const auto pick = [&](int step, glm::ivec2& outCell) {
+                                    for (int i = near + step; i >= 0 && i < static_cast<int>(line.size()); i += step) {
+                                        const glm::ivec2 c = line[i];
+                                        if (std::max(std::abs(c.x - g.x), std::abs(c.y - g.z)) < 3) continue;
+                                        bool underWall = false;   // chain 447: an end on the band's outer row (the ring is its inner line) was seated on the wall too
+                                        for (int dz = -2; dz <= 2 && !underWall; ++dz) for (int dx = -2; dx <= 2 && !underWall; ++dx) underWall = ringAt.count({c.x + dx, c.y + dz}) > 0;
+                                        if (underWall) continue;
+                                        outCell = c; return true;
+                                    }
+                                    return false;
+                                };
+                                glm::ivec2 p0, p1;
+                                if (near >= 0 && pick(-1, p0) && pick(+1, p1)) {
+                                    const bool in0 = mapInside.count({p0.x, p0.y}) > 0, in1 = mapInside.count({p1.x, p1.y}) > 0;
+                                    if (in0 != in1) { gin = in0 ? p0 : p1; gout = in0 ? p1 : p0; }
+                                }
+                            }
+                            sharedWallGates->push_back({{ox + gin.x, oz + gin.y}, {ox + gout.x, oz + gout.y}, gateLabel, true});
                             resolved = true;
                             break;
                         }

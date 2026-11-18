@@ -1,0 +1,121 @@
+pm_chain442.txt - O36 (b): the creek city BUILT with fords on; what stands at a ford, and can it be walked.
+(written 2026-11-18 14:49, BEFORE any run of this chain; HEAD 58d25198)
+
+STEP 1 - MEASURE (a new live test, no engine change): SettlementMapLiveSiteTest.TheCreekCityIsBuiltAcrossItsFords
+  realizes the creek city ({"ford": true}) with every unit and the blocking gate, then for each recorded crossing:
+  the live surface at each crossing cell and at the way cell before and after it (the highest solid micro at the
+  cell's centre, its material), and a TraversalProbe flood from the cell before to the cell after inside a box of
+  the crossing +- 6 cells (a walker crosses, or not).
+  ASSERTED (what O36 b's contract is): the build is not refused; the gate passes with 0 blocked; every crossing cell
+  is paved with the tier's street material; every crossing is walked bank to bank.
+  PREDICTION chain 442: UNKNOWN territory, guesses only - (i) the build is accepted and the gate passes (a fordable
+  creek is an UNCARVED channel: the generator emits ordinary ground there, so the paver paves across it like any
+  ground; GUESS 60 %); (ii) crossing cells paved: yes if (i); (iii) the walk crosses. If a unit treats the wet
+  columns as unbuildable (the realizer's waterAt) the ways unit may skip them or the gate may refuse - then that is
+  the defect to fix, with this test as its red.
+RESULTS (written 2026-11-18 14:51)
+  chain 442 (exe 14:49:19): the test FAILS on the gate - "gate blocked, 73 walkable, 1 blocked, 1 skipped over 20
+    doors of 20 built; 0 lot failures". THE FORDS HOLD: "6 crossing cells, 0 not topped by Cobblestone; 4 crossings,
+    0 not walked bank to bank" (prediction i half right, ii and iii right). At a ford the paved surface DIPS: 315 to
+    333 micro against 342 on the banks (up to 3 cubes: a fordable creek IS a depression in the live terrain here,
+    or the paver cuts into it - not yet told apart).
+    The block is at the WALL: "BLOCKED through the wall's gate @-1189,-969 (way 2) - the gate does not pass the
+    road" and "through the wall's gate @-1188,-967 (way 2) has no walkable end on one side" - two gates on one way
+    two cells apart at the ring's north side (local about (91, 151) and (92, 153)).
+  chain 443: a DIAGNOSTIC print in the creek plan test (the gates; the map round two gates of one way within 6
+  cells). No assertion change.
+  chain 443 (diagnostic, exe 14:51:15): gates "164,88 way 0", "51,79 way 0", "86,0 way 1", "92,153 way 2", "91,151
+    way 2". The map: the ring runs east along z 151, turns north at x 92 and east again along z 153; way 2 runs up
+    the diagonal THROUGH THAT CORNER and touches the ring at (91, 151) and at (92, 153) - two runs, two gates 7 wide
+    two cells apart.
+FIX (written before chain 444): planWall's gate rule - touches of ONE way closer along the ring than a gate is wide
+  are one meeting: the ring cells between them count as hit and one gate stands at the middle of the stretch.
+  RED: the creek plan test asserts "no two gates of one way within a gate's width" (two in chain 443) and the build
+  test's gate (blocked in chain 442). PREDICTION chain 444 (the plan test, the planner's change STASHED): RED on the
+  doubled gate. chain 445 (restored; the plan test, the build test, the unit wall tests): the plan test green with 4
+  gates; the unit wall tests unchanged; the build test - GUESS green (the gate is then at the ring's corner; whether
+  a 7-wide opening round a corner passes the road is UNKNOWN - if not, that is the next red).
+RESULTS (written 2026-11-18 14:55)
+  chain 444 (the gate merge STASHED, exe 14:52:31): RED - "two gates of one way stand within a gate's width of each
+    other". chain 445 (restored, exe 14:52:57): the plan test green - gates "164,88 way 0", "51,79 way 0", "86,0 way
+    1", "92,151 way 2" (ONE on way 2, at the ring's corner); the unit wall tests and the ford test pass (7 ok). The
+    BUILD test still fails: "gate blocked, 73 walkable, 1 blocked, 0 skipped" (the unseated end is gone) - "BLOCKED
+    through the wall's gate @-1188,-969 (way 2) - the gate does not pass the road". The guess failed as named.
+  CAUSE (read from SettlementBuildService's gate passage, chain 271's rule; not separately measured): the passage's
+  two ends are the gate cell +- 3 along an AXIS normal; at the corner (92, 151) the outward end (89, 151) is a cell
+  of the ring's west arm, so the walk's end is seated on top of the wall.
+  FIX (stated before chain 446): where an end of the axis passage is a ring cell and the gate belongs to a way, the
+  passage is taken along the way's own line (the first cell each way, >= 3 from the gate and off the ring; one
+  inside the ring, one not). A gate whose axis passage is clear of the ring is untouched.
+  PREDICTION chain 446 (the build test): gate passed, 0 blocked (GUESS 60 % - the L-shaped opening must really
+  pass a walker on the diagonal).
+  chains 446 / 447 (the passage along the way; exe 14:56:10, then a surface print): STILL BLOCKED. PREDICTION MISS.
+    The print: the route ran from cell (89, 148) feet 334 to cell (92, 154) feet 396 - the far end is a column of the
+    wall's OUTER band (the ring is the band's inner line; the band is two columns thick), so the walk was again
+    seated on top of the wall (+6.8 cubes). The wall's top reads +6.8 across the gate too: the gate is an arch.
+  RULE AMENDED before chain 448 (stated): an end along the way must have no ring cell within 2 cells of it.
+  PREDICTION chain 448: the gate route's ends are both on the ground; gate passed, 0 blocked - GUESS 50 %: if the
+  arch's opening does not line up with a way on the diagonal through a corner, it is blocked for real.
+RESULTS (written 2026-11-18 15:00)
+  chain 448 (exe 14:59:15): the build test PASSES - "the creek city built: gate passed, 74 walkable, 0 blocked, 0
+    skipped over 20 doors of 20 built; 0 lot failures; 20 lots, 4 crossings"; "the wall's gates - 4 walked through, 0
+    blocked"; "fords: 6 crossing cells, 0 not topped by Cobblestone; 4 crossings, 0 not walked bank to bank".
+FULL REGRESSION, predictions (written before the runs):
+  chain 449 (unit, 210): 0 failed; record lines identical to chain 440's UNLESS a synthetic plan had one way touching
+    the ring twice within a gate's width (then its gate count drops by one - to be named; the [ M5d-1 ] gate lines
+    are not in the diffed set, so the wall tests' own assertions are the check).
+  chain 450 (live, 41 tests): 0 failed; record lines identical to chain 441's unless a live wall had such a doubled
+    gate or a gate whose axis passage ended on the ring (the walled city: UNKNOWN).
+  chain 449 (unit, exe 14:59:15): 210 ok / 0 failed; record lines identical to chain 440's; every [ M5d-1 ] gate line of the synthetic wall plans identical too (no synthetic plan had a doubled gate).
+RESULTS (written 2026-11-18 15:13)
+  chain 450 (live, exe 14:59:15, exit 0 at 15:13:00): 41 ok / 0 failed (40 + the creek city built). Against chain
+    441: no record line removed or changed; 21 lines ADDED, all lot lines of the creek city's builds (corrected: no gate
+    line). The other walled builds' "the wall's gates" lines are identical (no live wall had a doubled gate or a
+    passage end on the ring).
+  WHAT IS SHOWN: ONE city, built once, on one recipe: 4 fords of 1 or 2 cells, paved and walked bank to bank by the
+  probe; the blocking gate passed (74 routes). NOT shown: a ford under a lane's full paved WIDTH (the walk is the
+  centre line's), what the water runtime draws at a paved ford, any other creek geometry (O36 c), a Debug run,
+  anything viewed in the engine. The ford rule is still opt-in. Not yet audited at the time of writing.
+AUDIT (solution-auditor, 2026-11-18 about 15:18): RAW VERDICT: "PASS WITH CONDITIONS for the build/gate counts as
+  recorded. FAIL for the ford claim ('walked bank to bank') and for 'the gate passes the road'." Full text in the
+  ledger. The two failed claims are WITHDRAWN as stated in chain 448's result above:
+   - the ford walk was a flood in a +-6 cell box at any height: a fordable creek is ordinary ground, so it "crossed"
+     wherever the ground was continuous, and it would count a walker standing on a wall;
+   - a wall-gate route is one flood in a +-8 cell box: the wall is left open over water, a creek crosses the ring
+     about 5 cells from way 2's gate, so the route can pass through the WATER GAP and not the gate. This weakness is
+     in the engine's own gate check (every gate route), not only in my test.
+  TEST CHANGES, stated before chain 451:
+   - the ford walk is CONFINED TO THE LANE (cells within one of the way's line from before to after; all else solid
+     to the walker) and must arrive within a cube of the far cell's own standing level; CONTROL: the same walk with
+     the crossing's cells walled up must fail;
+   - each wall-gate route is walked again as built and with the wall's band round its gate walled up: a real gate
+     goes from walked to blocked. The wall's water gaps are printed.
+  PREDICTION chain 451 (the build test): the fords pass the confined walk and their controls are blocked (GUESS 70 %:
+  a lane 3 wide across a dip of 3 cubes may have a riser over 4 micro - then a ford is NOT walkable and that is the
+  real finding); way 2's gate route STILL passes with its gate walled up (the auditor's prediction, and mine) - the
+  test then FAILS, and the engine's gate check has to be constrained.
+RESULTS (written 2026-11-18 15:18)
+  chain 451 (exe 15:16:51): the build test FAILS, not as predicted.
+    GATES: "4 routes, 0 not walked as built, 0 that pass without their gate" - every gate route is BLOCKED when the
+      wall round its gate is walled up, way 2's corner gate included. PREDICTION MISS (the auditor's and mine): the
+      routes do go through their gates. The wall's water gaps: 3 cells from (107, 2), 2 from (105, 148), 1 from
+      (76, 3) - none within the +-8 box of a gate route here. (The engine's gate check is still unconstrained in
+      general; on this city it is not fooled.)
+    FORDS: crossings 0, 2, 3 "walked ALONG THE LANE - but so was the CONTROL": my control walled up only the centre
+      cell and the walker stepped round it on the lane's side cells - a control bug. Crossing 1 "NOT WALKED along
+      the lane": its far end (51, 79) lies under a gate's arch and my seat stood on the wall (387).
+  TEST AMENDED before chain 452 (stated): the control walls up the lane's whole cross-section at the crossing; the
+  far end is seated from below near the near end's level.
+  PREDICTION chain 452: 4 fords walked along the lane, 4 controls blocked - GUESS 65 %; crossing 1 is the doubt (a
+  2-cell ford dipping to 315 from 342 with a gate 2 cells beyond).
+RESULTS (written 2026-11-18 15:20)
+  chain 452 (exe 15:18:31; only the test file changed since the engine of chains 449 / 450): the build test PASSES.
+    "gate passed, 74 walkable, 0 blocked, 0 skipped over 20 doors of 20 built"; each of the 4 crossings "WALKED along
+    the lane; the control (the ford walled up) is blocked"; "wall gates: 4 routes, 0 not walked as built, 0 that pass
+    without their gate". Crossing 1's far end now seats at 334 (the ground under the gate's arch).
+  STANDING OF THE EVIDENCE: the engine is the one of chains 449 (unit 210 / 0) and 450 (live 41 / 0); after them only
+  tests/core/SettlementMapLiveSiteTest.cpp changed, and the one test it changes was run on the new exe. The full
+  live set was NOT re-run on exe 15:18:31. The audit's responses are not re-audited.
+  STILL TRUE: "topped by Cobblestone" is the paver's own output at one column a cell; the lane walk is 3 cells wide
+  whatever the way's paved width; the passage-end rule keeps the old ends SILENTLY when it cannot resolve (not
+  fixed - disclosed); gates are not counted against the ways that cross the ring; one city, one recipe.
