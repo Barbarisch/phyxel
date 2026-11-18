@@ -2689,6 +2689,26 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagCityLabHillOnACreek) {
         SettlementBuildService::Deps deps;
         deps.chunkManager = &rig.cm; deps.templates = &rig.templates; deps.placedObjects = &rig.placed;
         const auto plan = SettlementBuildService::plan(WorldForgeBuildService::settlementParamsFor(*gen->worldForge(), *rig.site), deps);
+        {   // chain 393: the site at 4 u a character - '~' water (the planner's predicate), 'E' a road entry, '#' a seated footprint, '=' a way node
+            const nlohmann::json prm = WorldForgeBuildService::settlementParamsFor(*gen->worldForge(), *rig.site);
+            std::printf("[ O35 ] %s: entries %s, street_axis %s offset %d%s", v.key, prm.value("entries", nlohmann::json::array()).dump().c_str(),
+                        prm.value("street_axis", std::string("?")).c_str(), prm.value("street_offset", -1), "\n");
+            const Core::SettlementMap pm = plan.map.is_object() ? Core::SettlementMap::fromJson(plan.map) : Core::SettlementMap();
+            for (int z = D - 4; z >= 0; z -= 4) {
+                std::string row;
+                for (int x = 0; x < W; x += 4) {
+                    char ch = '.';
+                    int wetN = 0;
+                    for (int dz = 0; dz < 4; ++dz) for (int dx = 0; dx < 4; ++dx) if (wet(ox + x + dx, oz + z + dz)) ++wetN;
+                    if (wetN > 0) ch = '~';
+                    for (const auto& l : pm.lots) if (l.footprint.x < x + 4 && x < l.footprint.x1() && l.footprint.z < z + 4 && z < l.footprint.z1()) ch = '#';
+                    for (const auto& nd : pm.nodes) if (nd.x >= x && nd.x < x + 4 && nd.z >= z && nd.z < z + 4) ch = '=';
+                    for (const auto& e : prm.value("entries", nlohmann::json::array())) { const int ex = e.value("x", -1), ez = e.value("z", -1); if (ex >= x && ex < x + 4 && ez >= z && ez < z + 4) ch = 'E'; }
+                    row += ch;
+                }
+                std::printf("[ O35 ]   z %3d %s%s", z, row.c_str(), "\n");
+            }
+        }
         if (!plan.ok()) { std::printf("[ O35 ] %s: plan REFUSED: %s%s", v.key, plan.error.dump().c_str(), "\n"); continue; }
         const Core::SettlementMap m = Core::SettlementMap::fromJson(plan.map);
         const std::function<int(int, int)> h = [gen, ox, oz](int x, int z) { return static_cast<int>(std::floor(gen->naturalGroundAt(ox + x, oz + z))); };

@@ -55,3 +55,7 @@ RESULTS (written 2026-11-18 10:07)
   ALSO SEEN, not pursued: the origin's hillside (relief 35) seats 40 lots while B and C (relief 16 and 12) seat the
     minimum 20 - not explained.
   chain 392: CityLabIsSitedAndPlanned still passes on this exe (the recipe helper gained parameters): 40 lots, 0.
+  chain 393 (a map print of variant A, 4 u a character): the site is crossed by FOUR parallel channels about 30 u
+    apart (x about 16, 46, 74, 108 of 160), not one creek. The road arrives at the west edge (5, 91) - the same entry
+    listed four times, one per arriving road - and all five seated lots stand in the 16 u strip west of the first
+    channel. That is why 5 of 20: the planner cannot cross a creek. (Variant C's entry is on the north edge.)
