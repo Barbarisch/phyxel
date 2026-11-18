@@ -681,7 +681,7 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     const glm::ivec3 lo = av->minVoxel, hi = av->maxVoxel;
     // 54.2: a river REACH too - a slept box over a river is a pond to every later touch: its patches had no edges and pulled the
     // river's water into an edge-less volume (the first live W5.2 run: a wood block still afloat after the release woke one)
-    if (av->isPatch || av->isReach) {   // 51 S2: a patch's water is back in the record; its pond is still the slept box - no box for the patch
+    if (av->isPatch || av->isReach || av->isShoreBand) {   // 55.4: a shore band too; 51 S2: a patch's water is back in the record; its pond is still the slept box - no box for the patch
         // 51.3c: destroyed FIRST - built while it lived, its woken columns were still its own (buildRecordTile skips a live volume's
         // columns): the tiles were built dry there and marked current, then the destroy staled them and they were rebuilt 4 a frame
         // (the 40 x 40 m patch showed the bed for ~4 frames, live)
@@ -1090,6 +1090,7 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     if (m_gpu->surfaceTemplatePending(*av.gpuVol) && av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz)   // 29 S1
         for (const auto& [tx, tz] : av.recordedTileList) { markRecordedColumns(av, tx, tz); queueTileSurface(av, tx, tz); }
     m_gpu->setAsync(*av.gpuVol, m_realtime);   // 26.16: realtime frames never wait on the water's call (collected next frame)
+    if (av.isShoreBand && m_seaSwellTimeSet) m_gpu->setSwellTime(*av.gpuVol, m_seaSwellTime);   // 55.4 A4: the renderer's clock, this call's first tick
     const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, av.gpuSweeps);
     WaterHostProfile::lap("mgr.4 the GPU step (= gpu.* + collect.*)", hp);
     av.gpuStale = true;
@@ -1150,6 +1151,8 @@ bool WaterCoreManager::setBoundaries(int id, const std::vector<BoundarySpec>& b,
             GpuBoundary g; g.col = s.column.x + sp.dims.x * s.column.y;
             g.rows = s.targetY / sp.h - static_cast<float>(sp.origin.y);
             g.ux = s.uSurface.x; g.uz = s.uSurface.y; g.wy = s.wSurface; g.freeVel = s.freeVelocity ? 1.0f : 0.0f; g.qn = std::max(0.0f, s.inflowSpeed);
+            g.swellAmp = s.swellAmp; g.swellLambda = s.swellLambda; g.swellWind = s.swellWind;   // 55.4: a swell column
+            g.worldX = s.worldXZ.x; g.worldZ = s.worldXZ.y; g.stillRows = g.rows; g.depth = s.stillDepth;
             g.setExchanged(s.exchanged / cellV);
             gb.push_back(g);
         }
@@ -1289,6 +1292,173 @@ void WaterCoreManager::followRiver(const glm::vec3& viewer, double nowS) {
     const RiverReachResult r = makeRiverReach(glm::vec2(static_cast<float>(p.wx) + 0.5f, static_cast<float>(p.wz) + 0.5f), m_follow.halfM, p.top);
     if (!r.id) { ++s.refusals; s.lastError = r.error; s.nextTryS = nowS + kFollowRetryS; return; }
     s.id = r.id; s.lo = r.lo; s.hi = r.hi; ++s.makes;
+    s.lastMakeMs = r.createMs; s.maxMakeMs = std::max(s.maxMakeMs, r.createMs);
+}
+
+// 55.4 (W6.2a): the record's water at (wx, wz) with surface `top` belongs to the sea - its body (the bake's index, else the av
+// table's box match within 5 cm of `top`) is class "ocean"
+bool WaterCoreManager::isSeaColumn(int wx, int wz, float top) const {
+    const int b = bodyAt(wx, wz, top);
+    if (b == WaterBodyTable::kNoBody) return false;
+    const WaterBodyRecord* r = m_bodies.find(b);
+    return r && r->cls == "ocean";
+}
+
+WaterCoreManager::ShoreBandResult WaterCoreManager::makeShoreBand(const glm::vec2& c, const glm::vec2& landward, float yHint) {
+    ShoreBandResult r;
+    const auto t0 = std::chrono::steady_clock::now();
+    if (!m_spanReader) { r.error = "no span reader installed (the application owns the record)"; return r; }
+    if (!m_gpu) { r.error = "the shore band's swell columns are GPU only (no GPU backend)"; return r; }
+    const int T = kRecordTile, k = 1;   // A2: a 24 m box - its 1 m drive strip (7,452 columns) fits kMaxBoundaries (a 40 m box's would not)
+    const glm::vec2 at = c + landward * m_shoreFollow.landwardM;   // the swash runs up the beach: the box's middle tile is landward of the point
+    const int ctx = riverFloorDiv(static_cast<int>(std::floor(at.x)), T), ctz = riverFloorDiv(static_cast<int>(std::floor(at.y)), T);
+    glm::ivec3 lo((ctx - k) * T, 0, (ctz - k) * T), hi((ctx + k + 1) * T - 1, 0, (ctz + k + 1) * T - 1);
+    std::vector<ColumnRuns> runs;
+    m_spanReader(glm::ivec3(lo.x, static_cast<int>(std::floor(yHint)) - 24, lo.z), glm::ivec3(hi.x, static_cast<int>(std::ceil(yHint)) + 8, hi.z), runs);
+    float bed = std::numeric_limits<float>::max(), top = std::numeric_limits<float>::lowest();
+    for (const auto& col : runs) for (const auto& run : col.runs) { bed = std::min(bed, run.bottomY); top = std::max(top, run.topY); }
+    if (runs.empty() || top <= bed) { r.error = "no recorded water in the box"; return r; }
+    lo.y = static_cast<int>(std::floor(bed)) - 1; hi.y = static_cast<int>(std::ceil(top)) + 2;   // + 3 m over the still level: the swash and crests
+    {   // never two volumes over the same water (51 S2 amendment B)
+        auto overlaps = [&](const glm::ivec3& a0, const glm::ivec3& a1) { return a0.x <= hi.x && a1.x >= lo.x && a0.z <= hi.z && a1.z >= lo.z && a0.y <= hi.y && a1.y >= lo.y; };
+        std::string who;
+        for (const auto& a : m_avs) if (overlaps(a->minVoxel, a->maxVoxel)) who += " volume " + std::to_string(a->id);
+        for (const auto& sv : m_slept) if (overlaps(sv.lo, sv.hi)) who += " a slept box";
+        if (!who.empty()) { r.error = "the box overlaps live or slept water:" + who + " (release / wake it first)"; return r; }
+    }
+    std::string err;
+    const int id = create(lo, hi, 1.0f / static_cast<float>(kMicroPerVoxel), "eulerian", &err, "gpu", 0);
+    if (!id) { r.error = "create refused: " + err; return r; }
+    setPartialWake(id, false); setTallBand(id, 0.0f); setRecordTiles(id, false); setAutoSleep(id, false);
+    setBedManning(id, kShoreBedManning);
+    const double seeded = seedFromSpans(id);
+    Av* av = nullptr;
+    for (auto& a : m_avs) if (a->id == id) av = a.get();
+    if (!av) { r.error = "the volume vanished"; return r; }
+    if (std::find(av->occCache.begin(), av->occCache.end(), Occ::Unknown) != av->occCache.end()) {   // a chunk not resident
+        destroy(id); r.error = "a chunk under the box is not resident (the record would read dry there): not made"; return r;
+    }
+    const GridSpec sp = av->grid->spec();
+    std::vector<ColumnRuns> boxRuns;
+    m_spanReader(lo, hi, boxRuns);
+    const auto col = joinColumnRuns(boxRuns, static_cast<float>(lo.y), static_cast<float>(hi.y + 1));
+    // what each world column held when made: the release rule's classes (A3)
+    av->shoreSea.clear(); av->shoreDry.clear();
+    for (int wz = lo.z; wz <= hi.z; ++wz) for (int wx = lo.x; wx <= hi.x; ++wx) {
+        const auto it = col.find({wx, wz});
+        if (it == col.end() || it->second.first <= it->second.second) { av->shoreDry.insert({wx, wz}); ++r.dryColumns; continue; }
+        if (isSeaColumn(wx, wz, it->second.first)) { av->shoreSea[{wx, wz}] = it->second.first; ++r.seaColumns; }
+    }
+    const int per = std::max(1, av->per), nx = sp.dims.x, nz = sp.dims.z, S = kShoreStripCells;
+    std::vector<BoundarySpec> bs;
+    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+        const bool ring = x == 0 || z == 0 || x == nx - 1 || z == nz - 1;
+        const bool strip = x < S || z < S || x >= nx - S || z >= nz - S;
+        if (!strip) continue;
+        const int wx = riverFloorDiv(sp.origin.x + x, per), wz = riverFloorDiv(sp.origin.z + z, per);
+        const auto it = col.find({wx, wz});
+        if (it == col.end() || it->second.first <= it->second.second) continue;   // dry: the box's wall
+        BoundarySpec b; b.column = {x, z}; b.targetY = it->second.first;
+        if (av->shoreSea.count({wx, wz})) {   // the sea: a swell column
+            b.swellAmp = m_seaSwell.amplitude; b.swellLambda = m_seaSwell.wavelength; b.swellWind = m_seaSwell.windRad;
+            b.worldXZ = glm::vec2((static_cast<float>(sp.origin.x + x) + 0.5f) * sp.h, (static_cast<float>(sp.origin.z + z) + 0.5f) * sp.h);
+            b.stillDepth = it->second.first - it->second.second;
+            ++r.swellColumns;
+        } else if (ring) { b.freeVelocity = true; ++r.levelColumns; }   // other water at the edge (a lake): its level held, open
+        else continue;
+        bs.push_back(b);
+    }
+    if (m_seaSwellTimeSet) m_gpu->setSwellTime(*av->gpuVol, m_seaSwellTime);
+    if (!setBoundaries(id, bs, &err)) { destroy(id); r.error = "boundaries refused: " + err; return r; }
+    av->isShoreBand = true;
+    av->noSleepBefore = std::numeric_limits<double>::max();
+    r.id = id; r.lo = lo; r.hi = hi; r.seeded = seeded;
+    r.createMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    return r;
+}
+
+// A3 (55.4): the band goes back to the record under the SEA RULE - the sea is infinite and its level is the still level: a column
+// that held sea is written back at EXACTLY it (a trough at release would otherwise leave a dent in the sea, a crest a mound), a
+// column that was dry at most at it (the swash on the sand returns to the sea; water in a hollow below it stays - a pool), any other
+// column as any patch. What that adds or takes is counted (returnedM3: + taken back to the sea).
+void WaterCoreManager::releaseShoreBand() {
+    ShoreFollowState& s = m_shoreState;
+    if (!s.id) return;
+    Av* av = nullptr;
+    for (auto& a : m_avs) if (a->id == s.id) av = a.get();
+    if (av) {
+        syncFromGpu(*av, false);   // the call in flight settled first: its exchange is counted
+        WaterGrid& g = *av->grid;
+        const GridSpec sp = g.spec();
+        const int per = std::max(1, av->per);
+        const double cellV = g.cellVolume();
+        double taken = 0.0;
+        for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) {
+            const std::pair<int, int> w{riverFloorDiv(sp.origin.x + x, per), riverFloorDiv(sp.origin.z + z, per)};
+            const auto sea = av->shoreSea.find(w);
+            const bool dry = av->shoreDry.count(w) != 0;
+            if (sea == av->shoreSea.end() && !dry) continue;
+            const float L = sea != av->shoreSea.end() ? sea->second : (av->shoreSea.empty() ? std::numeric_limits<float>::max() : av->shoreSea.begin()->second);
+            const float Lrows = L / sp.h - static_cast<float>(sp.origin.y);
+            for (int y = 0; y < g.ny(); ++y) {
+                if (g.occ(x, y, z) != Occ::Air) continue;
+                const float want = std::clamp(Lrows - static_cast<float>(y), 0.0f, 1.0f);
+                float& f = g.f(x, y, z);
+                const float nf = sea != av->shoreSea.end() ? want : std::min(f, want);
+                taken += static_cast<double>(f - nf) * cellV;
+                f = nf;
+            }
+        }
+        s.returnedM3 += taken;
+    }
+    if (const AvRecord* rec = find(s.id)) {
+        s.exchangedM3 += rec->boundaryExchange; s.residueM3 += rec->residueDropped;
+        const WriteBackRecord wb = sleep(s.id, true);
+        if (!wb.ok) s.lastError = "release: " + wb.error;
+        s.thinDroppedM3 += wb.thinDropped;
+        ++s.releases;
+    }
+    s.id = 0;
+}
+
+void WaterCoreManager::followShore(const glm::vec3& viewer, double nowS) {
+    ShoreFollowState& s = m_shoreState;
+    if (s.id && !find(s.id)) s.id = 0;   // released elsewhere
+    if (!m_shoreFollow.on) { releaseShoreBand(); return; }
+    if (nowS - s.lastCheckS < static_cast<double>(m_shoreFollow.checkS)) return;
+    s.lastCheckS = nowS;
+    s.seaPresent = false;   // a world with no ocean body: nothing to follow (the default ON costs one scan of the table)
+    for (const auto& b : m_bodies.records()) if (b.cls == "ocean") { s.seaPresent = true; break; }
+    if (!s.seaPresent) { releaseShoreBand(); return; }
+    const RecordColumnFn column = [this](int wx, int wz, float& top, float& bottom) {
+        ColumnLevels lv;
+        if (!recordColumnRuns(wx, wz, lv) || lv.n <= 0) return false;
+        top = lv.top[0]; bottom = lv.bottom[0]; return true;
+    };
+    const RecordSeaFn sea = [this](int wx, int wz, float top) { return isSeaColumn(wx, wz, top); };
+    const glm::vec2 v(viewer.x, viewer.z);
+    const ShorePoint p = nearestShorePoint(v, m_shoreFollow.radiusM, column, sea);
+    s.pointFound = p.found; if (p.found) s.point = {p.wx, p.wz};
+    if (!p.found) {
+        if (!s.id) return;
+        const float dx = std::max({static_cast<float>(s.lo.x) - v.x, 0.0f, v.x - static_cast<float>(s.hi.x + 1)});
+        const float dz = std::max({static_cast<float>(s.lo.z) - v.y, 0.0f, v.y - static_cast<float>(s.hi.z + 1)});
+        if (std::sqrt(dx * dx + dz * dz) > m_shoreFollow.radiusM + kFollowLeaveM) releaseShoreBand();
+        return;
+    }
+    if (s.id) {
+        // the point the band was centred by: landwardM up the beach from the shore point (the shore point itself sits in the box's
+        // seaward tile - kept by it, the band would be remade at every check)
+        const float m = m_shoreFollow.marginM;
+        const float px = static_cast<float>(p.wx) + 0.5f + p.landward.x * m_shoreFollow.landwardM, pz = static_cast<float>(p.wz) + 0.5f + p.landward.y * m_shoreFollow.landwardM;
+        if (px >= static_cast<float>(s.lo.x) + m && px <= static_cast<float>(s.hi.x + 1) - m &&
+            pz >= static_cast<float>(s.lo.z) + m && pz <= static_cast<float>(s.hi.z + 1) - m) return;   // still well inside: keep it
+    }
+    if (nowS < s.nextTryS) return;
+    releaseShoreBand();   // written back first: the new band seeds from what this one left
+    const ShoreBandResult r = makeShoreBand(glm::vec2(static_cast<float>(p.wx) + 0.5f, static_cast<float>(p.wz) + 0.5f), p.landward, p.top);
+    if (!r.id) { ++s.refusals; s.lastError = r.error; s.nextTryS = nowS + kFollowRetryS; return; }
+    s.id = r.id; s.lo = r.lo; s.hi = r.hi; ++s.makes; s.swellColumns = r.swellColumns;
     s.lastMakeMs = r.createMs; s.maxMakeMs = std::max(s.maxMakeMs, r.createMs);
 }
 

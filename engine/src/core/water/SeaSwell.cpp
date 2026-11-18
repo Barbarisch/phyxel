@@ -50,7 +50,7 @@ SeaSwellSample seaSwellSample(const SeaSwellParams& p, float x, float z, float t
     return s;
 }
 
-SeaSwellColumn seaSwellColumn(const SeaSwellParams& p, float x, float z, float t, float depth) {
+SeaSwellColumn seaSwellColumn(const SeaSwellParams& p, float x, float z, float t, float depth, bool stokesReturn) {
     SeaSwellColumn s;
     if (p.amplitude <= 0.0f || p.wavelength <= 0.0f) return s;
     SeaSwellComponent c[4];
@@ -75,7 +75,7 @@ SeaSwellColumn seaSwellColumn(const SeaSwellParams& p, float x, float z, float t
         s.height += eta;
         const float cd = std::sqrt(9.81f / k * std::tanh(k * d));        // Airy at this depth: the transport belongs to the depth
         s.uAvg += c[i].dir * (eta * cd / d);
-        s.uAvg -= c[i].dir * (a * a * cd / (2.0f * d * d));   // minus the Stokes transport: the ring pumps no net mass
+        if (stokesReturn) s.uAvg -= c[i].dir * (a * a * cd / (2.0f * d * d));   // minus the Stokes transport: the ring pumps no net mass
     }
     const float froude = std::sqrt(9.81f * d), speed = glm::length(s.uAvg);   // never faster than the shallow-water wave: linear theory ends where the wave breaks
     if (speed > froude) s.uAvg *= froude / speed;

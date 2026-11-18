@@ -72,11 +72,17 @@ struct GpuBoundary {
     float exHi = 0.0f, exLo = 0.0f;           ///< fills written in (+) or taken out (-) over its life, and the rounding remainder
     float freeVel = 0.0f;      ///< 1 = the level only (W5.2 A1: an outflow edge), the velocity left to the solver - and FIXED (open)
     float qn = 0.0f;           ///< m/s INTO the box through the column's outer face (an inflow edge: the projection's divergence term)
-    float pad0 = 0.0f, pad1 = 0.0f, pad2 = 0.0f;
+    // 55.4 (W6.2a, amendment A1 - the push block is full): a SWELL column (swellAmp > 0) - the sea's still level plus the swell at
+    // the column, each tick: rows = stillRows + eta / h, (ux, uz) the depth-averaged velocity (SeaSwell's seaSwellColumn, the GLSL
+    // port in sea_swell.glsl), qn the inflow through the box's outer face; the tick's time is the push's param0 (setSwellTime)
+    float swellAmp = 0.0f, swellLambda = 14.0f, swellWind = 0.0f;   ///< the swell's parameters (SeaSwellParams); amplitude 0 = not a swell column
+    float worldX = 0.0f, worldZ = 0.0f;   ///< the column's centre, world m (the swell is a function of world position)
+    float stillRows = 0.0f;    ///< the sea's still level, cell rows above the grid floor
+    float depth = 0.0f;        ///< the record's still depth there (m): the swell's depth limit and transport
     double exchanged() const { return static_cast<double>(exHi) + static_cast<double>(exLo); }
     void setExchanged(double e) { exHi = static_cast<float>(e); exLo = static_cast<float>(e - static_cast<double>(exHi)); }
 };
-static_assert(sizeof(GpuBoundary) == 48, "GpuBoundary must match the GLSL struct");
+static_assert(sizeof(GpuBoundary) == 64, "GpuBoundary must match the GLSL struct (wc_boundary.comp)");
 
 struct GpuStepStats {
     int    ticks = 0;
@@ -214,6 +220,7 @@ public:
         Buffer bnd;                      ///< 54.2: HOST-VISIBLE GpuBoundary array (allocated by setBoundaries; empty = none)
         int boundaryCount = 0;           ///< 54.2: prescribed-surface columns run each tick
         std::vector<int> boundaryCells;  ///< 54.2: dense index of each column's cell at its target row (its brick stays stored, as a pump's)
+        double swellTime = 0.0;          ///< 55.4: the swell's clock at the next call's first tick (s)
         std::vector<GpuBoundary> hostBoundaries;   ///< 54.2: their exchanges as the last collected call left them
         int lastAllocated = 0, lastFreed = 0, lastRings = 0, lastCompacted = 0; long lastHeld = 0;
         std::vector<int> liquidAtStartForTest;
@@ -734,6 +741,9 @@ public:
     /// kMaxBoundaries or for a particle volume. Wakes the volume (a boundary moves water).
     bool setBoundaries(Volume& vol, const std::vector<GpuBoundary>& b, std::string* err);
     void readBoundaries(Volume& vol, std::vector<GpuBoundary>& out) const;   ///< 54.2: exchanges as the last collected call left them
+    /// 55.4 (W6.2a A4): the swell's clock for the volume's NEXT call - its tick k runs at t + k dt (the boundary kernel's param0); the
+    /// clock then runs on by the call's ticks. No wait (unlike setBoundaries): the manager passes the renderer's waveTime each call.
+    void setSwellTime(Volume& vol, double t) { vol.swellTime = t; }
     static constexpr int kMaxBoundaries = 8192;   ///< 54.2: a 56 m reach's ring at 1/9 m is 2,016 columns; x4 headroom
     void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending as the last collected call left them (26.16: no submission)
     /// Phase F: the surface field as the last step() left it in the staging ring (no submission: a memcpy).

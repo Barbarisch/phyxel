@@ -221,6 +221,11 @@ struct BoundarySpec {
                                      ///< A level-only column is also OPEN: its liquid cells are fixed at the still-water pressure.
     float  inflowSpeed = 0.0f;       ///< 54.2: m/s INTO the volume through the column's outer face (the box wall) - the projection sees
                                      ///< it in the column's divergence (a pump's term), or a walled-in inflow column could pass nothing on
+    // 55.4 (W6.2a): a SWELL column - the sea's still level (targetY) plus the swell at `worldXZ` each tick, with its depth-averaged
+    // velocity (SeaSwell's seaSwellColumn); the GPU kernel evaluates it (wc_boundary). GPU only: the CPU solver holds targetY.
+    float  swellAmp = 0.0f, swellLambda = 14.0f, swellWind = 0.0f;   ///< amplitude 0 = not a swell column
+    glm::vec2 worldXZ{0.0f, 0.0f};   ///< the column's centre (world m)
+    float  stillDepth = 0.0f;        ///< the record's still depth there (m)
 };
 
 struct StepReport {

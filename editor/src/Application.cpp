@@ -4041,7 +4041,15 @@ void Application::update(float deltaTime) {
             }
             refreshResidentColumns();   // 51.4: once a frame (the record cache and the far skin read it)
             // 54.3 (W5.2b): a simulated reach follows the viewer along a river (throttled inside; water_av_river_follow)
-            { const auto t = WClock::now(); waterCore->followRiver(waterCore->viewPoint(), glfwGetTime()); m_waterCpu.follow = wms(t); }
+            { const auto t = WClock::now(); waterCore->followRiver(waterCore->viewPoint(), glfwGetTime());
+              // 55.4 (W6.2a): the shore band follows the viewer along a beach, its sea edge driven by the swell the renderer has
+              // (water_waves) on the renderer's clock (handed to the band's next call: A4)
+              if (const auto* wp = renderCoordinator ? renderCoordinator->waterRenderPipeline() : nullptr) {
+                  Core::Water::SeaSwellParams sw; sw.amplitude = wp->waveAmplitude(); sw.wavelength = wp->waveLength(); sw.windRad = wp->windDirection();
+                  waterCore->setSeaSwell(sw); waterCore->setSeaSwellTime(wp->waveTime());
+              }
+              waterCore->followShore(waterCore->viewPoint(), glfwGetTime());
+              m_waterCpu.follow = wms(t); }
             { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
             // W6.1 (§55.1): the skin's reach follows the far terrain's (maxDistance x its view scale - FarTerrainManager's own reach),
             // so the water is drawn as far as the land is; 1024 with no far terrain. water_av_skin far_m pins it (far_m_follow resumes)
@@ -14501,6 +14509,32 @@ void Application::registerWaterCommands() {
              {"point_found", st.pointFound}, {"point", {st.point.x, st.point.y}},
              {"makes", st.makes}, {"releases", st.releases}, {"refusals", st.refusals}, {"last_error", st.lastError},
              {"last_make_ms", st.lastMakeMs}, {"max_make_ms", st.maxMakeMs}, {"exchanged_m3", st.exchangedM3}, {"residue_m3", st.residueM3}, {"thin_dropped_m3", st.thinDroppedM3}};
+    });
+    // 55.4 (W6.2a): the shore band's follow - {on, radius_m, landward_m, margin_m}, each omitted = unchanged; echoes them and the
+    // follow's state (its band, makes / releases / refusals, the last error, swell columns, the make's ms, the books' terms).
+    reg.on("water_av_shore_follow", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        auto f = waterCore->shoreFollow();
+        if (cmd.params.contains("on")) f.on = cmd.params.value("on", true);
+        // radius: under 8 m the search sits inside one record tile; over 48 m the 2 m lattice search (each point reads its 9 x 9
+        // neighbours for a dry one) outgrows its 0.5 s budget and the band is made where the viewer cannot see it
+        if (cmd.params.contains("radius_m")) f.radiusM = std::clamp(cmd.params.value("radius_m", 24.0f), 8.0f, 48.0f);
+        // landward: the box's middle tile this far up the beach from the shore point - 0 puts the waterline in the middle (half the
+        // box over the sea), over 12 m leaves the waterline outside the box's seaward tile and the band holds no swash
+        if (cmd.params.contains("landward_m")) f.landwardM = std::clamp(cmd.params.value("landward_m", 8.0f), 0.0f, 12.0f);
+        // margin: under the 8 m a fresh band leaves round its middle tile, or the band just made fails the keep test at the next check
+        if (cmd.params.contains("margin_m")) f.marginM = std::clamp(cmd.params.value("margin_m", 6.0f), 2.0f, 7.0f);
+        waterCore->setShoreFollow(f);
+        const auto& st = waterCore->shoreFollowState();
+        const auto& sw = waterCore->seaSwell();
+        r = {{"success", true}, {"on", f.on}, {"radius_m", f.radiusM}, {"landward_m", f.landwardM}, {"margin_m", f.marginM}, {"check_s", f.checkS},
+             {"realtime", waterCore->realtime()}, {"sea_present", st.seaPresent},
+             {"band_id", st.id}, {"min", {st.lo.x, st.lo.y, st.lo.z}}, {"max", {st.hi.x, st.hi.y, st.hi.z}},
+             {"point_found", st.pointFound}, {"point", {st.point.x, st.point.y}}, {"swell_columns", st.swellColumns},
+             {"swell", {{"amplitude", sw.amplitude}, {"wavelength", sw.wavelength}, {"wind", sw.windRad}}},
+             {"makes", st.makes}, {"releases", st.releases}, {"refusals", st.refusals}, {"last_error", st.lastError},
+             {"last_make_ms", st.lastMakeMs}, {"max_make_ms", st.maxMakeMs}, {"exchanged_m3", st.exchangedM3}, {"returned_m3", st.returnedM3},
+             {"residue_m3", st.residueM3}, {"thin_dropped_m3", st.thinDroppedM3}};
     });
     reg.on("water_av_column", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

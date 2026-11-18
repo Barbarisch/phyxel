@@ -8,6 +8,7 @@
 #include "core/water/WaterSurfaceMesh.h"
 #include "core/water/WaterCoreManager.h"
 #include "core/water/ShoreSolver.h"
+#include "core/water/SeaSwell.h"
 #include <cmath>
 #include <chrono>
 #include <algorithm>
@@ -2046,6 +2047,61 @@ TEST_F(WaterCoreGpuParityTest, GpuBoundaryMatchesCpu) {
     EXPECT_EQ(rEx, 0.0);
 }
 
+// WaterCore §55.4 (W6.2a, amendment A1): a SWELL boundary column on the GPU holds the sea's still level PLUS the swell at its world
+// position and the tick's time, with the swell's depth-averaged velocity - SeaSwell's seaSwellColumn, the swell's only definition,
+// ported to GLSL (sea_swell.glsl). The kernel's level (rows) and velocity per ring column after a 1-tick call, at three clock values,
+// against the CPU function at the same (x, z, t, depth): within 1e-4 m and 1e-4 m/s. The rig: a 2 x 2 m tank 1 m deep at 1/9 m, the
+// ring columns swell columns at world x/z offset by 100 m (the swell reads world position, not grid position); 0.3 m swell, 14 m,
+// wind 0.6 rad (the rig's 0.3 m vs shipped 0.45 m: 1 m of depth depth-limits both - gamma 0.78 - so the limit is exercised).
+// Controls: one non-swell column (amplitude 0) keeps its own level and velocity; RED today: no swell in the kernel (rows static).
+TEST_F(WaterCoreGpuParityTest, GpuSwellBoundaryMatchesTheCpuSwell) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 9.0f;
+    constexpr int N = 18, NY = 27;
+    const float still = 9.0f, depth = 1.0f, off = 100.0f;
+    Tank t(N, NY, N, h);
+    t.grid.fillBox({0, 0, 0}, {N - 1, 8, N - 1}, 1.0f);
+    auto* vol = make(t); ASSERT_TRUE(vol);
+    SeaSwellParams sp; sp.amplitude = 0.3f; sp.wavelength = 14.0f; sp.windRad = 0.6f;
+    std::vector<GpuBoundary> bs;
+    for (int z = 0; z < N; ++z) for (int x = 0; x < N; ++x) {
+        if (x != 0 && z != 0 && x != N - 1 && z != N - 1) continue;
+        GpuBoundary b; b.col = x + N * z; b.rows = still;
+        b.swellAmp = sp.amplitude; b.swellLambda = sp.wavelength; b.swellWind = sp.windRad;
+        b.worldX = off + (static_cast<float>(x) + 0.5f) * h; b.worldZ = off + (static_cast<float>(z) + 0.5f) * h;
+        b.stillRows = still; b.depth = depth;
+        if (x == 5 && z == 0) { b.swellAmp = 0.0f; b.rows = 8.5f; b.ux = 0.1f; b.uz = 0.2f; }   // the control: an ordinary held column
+        bs.push_back(b);
+    }
+    std::string err; ASSERT_TRUE(gpu.setBoundaries(*vol, bs, &err)) << err;
+    SolverParams p; p.pondFriction = 0.0f;
+    double worstH = 0.0, worstU = 0.0, ctlWorst = 0.0; int swellCols = 0;
+    for (double t0 : {3.0, 17.25, 123.4}) {
+        gpu.setSwellTime(*vol, t0);
+        gpu.step(*vol, p, kDt, 1, 20);
+        gpu.settle(*vol);
+        std::vector<GpuBoundary> rb; gpu.readBoundaries(*vol, rb);
+        ASSERT_EQ(rb.size(), bs.size());
+        swellCols = 0;
+        for (const GpuBoundary& b : rb) {
+            if (b.swellAmp <= 0.0f) { ctlWorst = std::max({ctlWorst, (double)std::abs(b.rows - 8.5f), (double)std::abs(b.ux - 0.1f), (double)std::abs(b.uz - 0.2f)}); continue; }
+            ++swellCols;
+            const SeaSwellColumn c = seaSwellColumn(sp, b.worldX, b.worldZ, static_cast<float>(t0), b.depth, false);   // the band's drive: no return current
+            worstH = std::max(worstH, (double)std::abs((b.rows - still) * h - c.height));
+            worstU = std::max(worstU, (double)std::max(std::abs(b.ux - c.uAvg.x), std::abs(b.uz - c.uAvg.y)));
+        }
+        const SeaSwellColumn c0 = seaSwellColumn(sp, bs[0].worldX, bs[0].worldZ, static_cast<float>(t0), depth, false);
+        std::printf("  t %.2f s: column (0,0) GPU level %+.4f m, u (%+.4f, %+.4f); CPU %+.4f m, u (%+.4f, %+.4f), depth scale %.3f\n", t0,
+                    (rb[0].rows - still) * h, rb[0].ux, rb[0].uz, c0.height, c0.uAvg.x, c0.uAvg.y, c0.depthScale);
+    }
+    std::printf("  %d swell columns x 3 times: worst level %.2e m, worst velocity %.2e m/s; the control column off its own values by %.2e\n", swellCols, worstH, worstU, ctlWorst);
+    gpu.destroyVolume(vol);
+    EXPECT_EQ(swellCols, 4 * (N - 1) - 1);
+    EXPECT_LT(worstH, 1e-4);
+    EXPECT_LT(worstU, 1e-4);
+    EXPECT_LT(ctlWorst, 1e-6) << "a column with no swell keeps the level and velocity it was given";
+}
+
 // W6.2 STEP 0 (WaterCore 55.3) - does TODAY's pond model (the GPU core, its boundary kernel) carry a swell onto a beach? 18.4
 // measured the old CPU core: at 1 m and 1/3 m a 0.3 m swell died within 12 m (0.03 m left), at 1/9 m half of it arrived - and 18.4
 // moved the shore to a column solver, which 27.4 (W6) refuses without the owner's explicit call. A measurement, not a gate (run with
@@ -2254,4 +2310,66 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagW62CoastStepsPondVsColumn) {
         std::printf("  %s: onto the 24 m shelf %.2f m (front's swing over 16-24 s %.2f .. %.2f m); depth on the shelf at 2 / 6 / 12 m %.3f / %.3f / %.3f m\n",
                     name, r.runIn, r.swingLo, r.swingHi, r.dep[0], r.dep[1], r.dep[2]);
     std::printf("  pond books %+.2e m^3; %.2f ms/tick\n", pond.books, msTick);
+}
+
+// W6.2a amendment A2 (55.4) - how wide must the band's drive strip be? Step 0 drove the first 2 m; a reach's ring is ONE 1/9 m
+// column. Step 0's Coast staircase profile (still level 0; bed -3 / -2 / -1, the 24 m shelf at 0 from 50 m, +1 beyond), driven
+// now by the boundary kernel's own SWELL columns (55.4: SeaSwell's four components, 0.3 m, 14 m, wind 0 - travelling up the beach)
+// over a strip 1 column, 1 m or 2 m wide at x = 0. The channel's side rows are solid (inside the grid), so no drive column lies on
+// the box's z edge (the kernel's qn would otherwise pour through a rig wall). Reported per width: how far onto the shelf water
+// >= 1 cm reached (8-24 s), the front's swing over 16-24 s, the books, ms a tick. The narrowest within 5 % of 2 m ships.
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagW62DriveWidth) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const double L = 80.0, shelf0 = 50.0;
+    auto bed = [&](double x) { return x < 12.0 ? -3.0 : x < 30.0 ? -2.0 : x < shelf0 ? -1.0 : x < 74.0 ? 0.0 : 1.0; };
+    const float h = 1.0f / 9.0f;
+    const int NX = static_cast<int>(std::lround(L / h)), NY = static_cast<int>(std::lround(4.333 / h)), NZ = 11;
+    const int dRows = static_cast<int>(std::lround(3.0 / h));
+    for (int width : {1, 9, 18}) {
+        Tank t(NX, NY, NZ, h);
+        t.extra = [&, h](const glm::ivec3& cc) { return (cc.z == 0 || cc.z == NZ - 1 || (cc.y + 0.5) * h - 3.0 < bed((cc.x + 0.5) * h)) ? Occ::Solid : Occ::Air; };
+        for (int z = 1; z < NZ - 1; ++z) for (int x = 0; x < NX; ++x) for (int y = 0; y < dRows; ++y)
+            if ((y + 0.5) * h - 3.0 >= bed((x + 0.5) * h)) t.grid.f(x, y, z) = 1.0f;
+        auto* vol = make(t); ASSERT_NE(vol, nullptr);
+        SolverParams p; p.pondFriction = 0.0f; p.bedManning = 0.025f;
+        std::vector<GpuBoundary> bs;
+        for (int z = 1; z < NZ - 1; ++z) for (int x = 0; x < width; ++x) {
+            GpuBoundary b; b.col = x + NX * z; b.rows = static_cast<float>(dRows);
+            b.swellAmp = 0.3f; b.swellLambda = 14.0f; b.swellWind = 0.0f;
+            b.worldX = (static_cast<float>(x) + 0.5f) * h; b.worldZ = (static_cast<float>(z) + 0.5f) * h;
+            b.stillRows = static_cast<float>(dRows); b.depth = 3.0f;
+            bs.push_back(b);
+        }
+        std::string err; ASSERT_TRUE(gpu.setBoundaries(*vol, bs, &err)) << err;
+        gpu.setSwellTime(*vol, 0.0);
+        const double g0 = t.grid.totalMass(), cellV = static_cast<double>(h) * h * h;
+        WaterGrid out = t.grid;
+        auto depthAtX = [&](double x) { const int ix = static_cast<int>(x / h); double s = 0.0; for (int z = 1; z < NZ - 1; ++z) s += out.columnMass(ix, z) / (static_cast<double>(h) * h); return s / (NZ - 2); };
+        auto frontOf = [&]() { double f = -1.0; for (double x = shelf0 + 0.5 * h; x < 74.0; x += h) if (depthAtX(x) >= 0.01) f = x - shelf0; return f; };
+        double runIn = -1.0, lo = 1e9, hi = -1e9, ms = 0.0, meanOff = 0.0, meanStrip = 0.0; int nMean = 0;
+        for (int k = 1; k <= 24 * 15; ++k) {   // 4 ticks a call (the follow's async call carries a frame's ticks), read every call
+            const auto t0 = std::chrono::steady_clock::now();
+            gpu.step(*vol, p, kDt, 4, 40); gpu.settle(*vol);
+            ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            const double tt = k * 4.0 * kDt;
+            if (tt < 8.0) continue;
+            gpu.download(*vol, out);
+            const double f = frontOf();
+            runIn = std::max(runIn, f);
+            if (tt >= 16.0) {
+                lo = std::min(lo, f); hi = std::max(hi, f);
+                double so = 0.0; int no = 0; for (double x = 14.0; x < 28.0; x += h) { so += depthAtX(x) - 2.0; ++no; }   // the bed -2 reach: the surface off the still level
+                double ss = 0.0; int ns = 0; for (double x = 2.5; x < 10.0; x += h) { ss += depthAtX(x) - 3.0; ++ns; }
+                meanOff += so / no; meanStrip += ss / ns; ++nMean;
+            }
+        }
+        gpu.download(*vol, out);
+        std::vector<GpuBoundary> rb; gpu.readBoundaries(*vol, rb);
+        double ex = 0.0; for (const auto& b : rb) ex += b.exchanged() * cellV;
+        const double books = out.totalMass() + gpu.sumFLoForTest(*vol) * cellV - g0 - ex;
+        std::printf("  drive %2d column(s) (%.2f m): onto the shelf %.2f m, the front's swing (16-24 s) %.2f .. %.2f m; exchanged %+.3f m^3, books %+.2e m^3; %.2f ms a tick\n",
+                    width, width * h, runIn, lo, hi, ex, books, ms / (24 * 60));
+        std::printf("      the mean surface off the still level over 16-24 s: 2.5-10 m %+.4f m, 14-28 m %+.4f m\n", meanStrip / std::max(nMean, 1), meanOff / std::max(nMean, 1));
+        gpu.destroyVolume(vol);
+    }
 }

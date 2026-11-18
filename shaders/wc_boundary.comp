@@ -22,10 +22,16 @@
 // (p = pg) - known, like a free surface. Without it the box's own wall closed the edge: a 2 m deep reach's water could neither
 // leave nor enter through a column whose far side is the box (incompressible cells), and the reach stood still
 // (ASimulatedReachCarriesTheRecordsRiver's first runs: 0.07 m/s where the record carries 0.6). WaterSolver::project's rule.
+// SWELL columns (55.4, W6.2a: swellAmp > 0): in modes 0 / 1 the column's target and velocity are the sea's still level plus the swell
+// at its world position and the tick's time (pc.param0), and the swell's depth-averaged velocity (sea_swell.glsl = SeaSwell's
+// seaSwellColumn); on the box's outer ring the inflow through the outer face (qn) is the velocity's inward part. Written back into
+// the entry, so the host reads what was held.
 #define WC_BRICKS_BINDING 7
 #include "water_core.glsl"
+#include "sea_swell.glsl"
 layout(local_size_x = 64) in;
-struct GpuBoundary { int col; float rows; float ux; float uz; float wy; float exHi; float exLo; float freeVel; float qn; float pad0, pad1, pad2; };
+struct GpuBoundary { int col; float rows; float ux; float uz; float wy; float exHi; float exLo; float freeVel; float qn;
+                     float swellAmp; float swellLambda; float swellWind; float worldX; float worldZ; float stillRows; float depth; };
 layout(std430, set = 0, binding = 0)          buffer F   { float f[]; };
 layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
 layout(std430, set = 0, binding = 2)          buffer U   { float u[]; };
@@ -56,6 +62,13 @@ void main() {
     const bool openOnly = pc.mode >= 3;
     if (openOnly && b.freeVel == 0.0) return;
     if (((x + z) & 1) != (openOnly ? pc.mode - 3 : pc.mode)) return;
+    if (!openOnly && b.swellAmp > 0.0) {
+        float eta; vec2 ua;
+        seaSwellColumnG(b.swellAmp, b.swellLambda, b.swellWind, b.worldX, b.worldZ, pc.param0, b.depth, eta, ua);
+        b.rows = b.stillRows + eta / pc.h; b.ux = ua.x; b.uz = ua.y; b.wy = 0.0;
+        vec2 n = vec2(x == 0 ? 1.0 : (x == pc.nx - 1 ? -1.0 : 0.0), z == 0 ? 1.0 : (z == pc.nz - 1 ? -1.0 : 0.0));
+        b.qn = (n.x != 0.0 || n.y != 0.0) ? max(0.0, dot(ua, normalize(n))) : 0.0;   // inflow only, as a river's edge (55.4 A2: signed set the sea down 6-8 cm)
+    }
     for (int y = 0; y < pc.ny; ++y) {
         if (!stored(x, y, z)) continue;
         const uint ci = cellIdx(x, y, z);

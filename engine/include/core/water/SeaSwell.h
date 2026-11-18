@@ -37,7 +37,10 @@ SeaSwellSample seaSwellSample(const SeaSwellParams& p, float x, float z, float t
 /// so the ring's time-mean mass flux is zero (a closed beach returns what the waves bring), the sum
 /// limited to the shallow-water speed sqrt(g d).
 struct SeaSwellColumn { float height = 0.0f; glm::vec2 uAvg{0.0f, 0.0f}; float depthScale = 1.0f; };   ///< depthScale < 1: the swell was depth-limited (gamma 0.78) at this column
-SeaSwellColumn seaSwellColumn(const SeaSwellParams& p, float x, float z, float t, float depth);
+/// `stokesReturn` false (55.4, the shore band): no return current - the band is open to an infinite sea whose level hold supplies
+/// the swash's water; written on the band's 1 m drive strip the return pulled its sea 7.5 cm below the swell (3.2 cm without it,
+/// AShoreBandFollowsTheViewerAndTheSwashMoves). The old column-solver band (a closed beach) keeps it.
+SeaSwellColumn seaSwellColumn(const SeaSwellParams& p, float x, float z, float t, float depth, bool stokesReturn = true);
 
 /// The four components' (direction, amplitude, wavelength) for tests and tools.
 struct SeaSwellComponent { glm::vec2 dir; float amplitude; float wavelength; };

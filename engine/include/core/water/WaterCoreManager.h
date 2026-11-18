@@ -11,6 +11,7 @@
 #include "core/water/WaterDisplaceGate.h"   // 44 (A10): who shoves the water
 #include "core/water/WaterCoreGpu.h"   // Phase C backend (optional; CPU reference without it)
 #include "core/water/WaterBodyTable.h"   // Phase D Tier A records
+#include "core/water/SeaSwell.h"          // 55.4 W6.2a: the swell the shore band is driven by
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
 #include "core/water/WaterGpuSurfaceDraw.h" // 29 S1: the surface drawn from the device
 #include "core/water/WaterDroplets.h"      // 21: the droplet crown
@@ -18,8 +19,10 @@
 #include "core/water/RippleGpu.h"          // 25.34: the ripple step on the GPU
 #include "core/water/WaterSkin.h"          // 51.4 S3: the far skin
 #include "core/water/RiverReach.h"         // 54.2 W5.2: the reach's edge columns
+#include "core/water/ShoreReach.h"         // 55.4 W6.2a: the shore band's follow search
 #include <unordered_map>
 #include <map>
+#include <set>
 #include <glm/glm.hpp>
 #include <array>
 #include <climits>
@@ -284,6 +287,45 @@ public:
     const RiverFollowState& riverFollowState() const { return m_followState; }
     /// Call once a frame with the viewer (world m) and a clock (s): throttled to m_follow.checkS inside.
     void followRiver(const glm::vec3& viewer, double nowS);
+    /// 55.4 (W6.2a): the SHORE BAND near the player - a simulated box where the sea meets the land, driven by the swell all round
+    /// its sea edge. makeShoreBand: makeRiverReach's box rule with one tile each side (a 24 m box: its 1 m drive strip's 7,452
+    /// columns fit kMaxBoundaries), centred on the tile `landwardM` beyond `centre` along `landward` (the swash runs up the beach);
+    /// GPU only; seeded from the record at rest; Manning n kShoreBedManning; every grid column of the box's outer 1 m strip whose
+    /// record water is the SEA (bodyAt -> class "ocean") becomes a swell column (A2: 1 m, inflow-only - the sea's mean level held
+    /// within 1 cm); a ring column of other water (a lake at the edge) holds its level. Refusals: makeRiverReach's.
+    struct ShoreBandResult {
+        int id = 0; glm::ivec3 lo{0}, hi{0};
+        int swellColumns = 0, levelColumns = 0, seaColumns = 0, dryColumns = 0;
+        double seeded = 0.0, createMs = 0.0;
+        std::string error;
+    };
+    ShoreBandResult makeShoreBand(const glm::vec2& centre, const glm::vec2& landward, float yHint);
+    static constexpr float kShoreBedManning = 0.025f;   ///< sand (step 0's rig, 55.3)
+    static constexpr int kShoreStripCells = 9;          ///< A2 (55.4): the drive strip, 1 m at 1/9 m
+    /// The follow (followRiver's rules): the nearest shore point within radiusM (nearestShorePoint: a sea column with a dry column
+    /// within 4 m, 2 m lattice); kept while the point stays marginM inside the band's box; released past radiusM + kFollowLeaveM.
+    /// ON by default (pinned: ShoreFollowIsOnByDefault) - it does nothing in a world with no ocean body. Release = the SEA RULE
+    /// (A3): the band's columns that held sea are written back at EXACTLY the still level, the dry ones at most at it, the rest as
+    /// any patch; the water that takes is counted (returnedM3: + taken back to the sea).
+    struct ShoreFollow { bool on = true; float radiusM = 24.0f, landwardM = 8.0f, marginM = 6.0f, checkS = 0.5f; };
+    struct ShoreFollowState {
+        int id = 0; glm::ivec3 lo{0}, hi{0};
+        int makes = 0, releases = 0, refusals = 0, swellColumns = 0;
+        std::string lastError;
+        double lastMakeMs = 0.0, maxMakeMs = 0.0;
+        double exchangedM3 = 0.0, residueM3 = 0.0, thinDroppedM3 = 0.0, returnedM3 = 0.0;   ///< the books (released bands, summed)
+        double lastCheckS = -1e30, nextTryS = -1e30;
+        bool pointFound = false, seaPresent = false; glm::ivec2 point{0};
+    };
+    void setShoreFollow(const ShoreFollow& f) { m_shoreFollow = f; }
+    const ShoreFollow& shoreFollow() const { return m_shoreFollow; }
+    const ShoreFollowState& shoreFollowState() const { return m_shoreState; }
+    void followShore(const glm::vec3& viewer, double nowS);
+    /// 55.4: the swell the band's sea edge is driven by (the renderer's water_waves) and its clock (the renderer's waveTime, s) -
+    /// the clock is handed to the band's next GPU call (A4: the call runs about one frame behind the draw)
+    void setSeaSwell(const SeaSwellParams& p) { m_seaSwell = p; }
+    const SeaSwellParams& seaSwell() const { return m_seaSwell; }
+    void setSeaSwellTime(double t) { m_seaSwellTime = t; m_seaSwellTimeSet = true; }
     /// 54.4 (W5.3): ONE ripple layer over the RIVER near the viewer - the record's river and any reach over it alike, so the ripples
     /// do not stop at a reach's edge and are not remade at every swap (the owner on w52b_clip: "it takes a while for the ripples to
     /// show up as the camera moves. and the line between ripples and not is very obvious"). Its window follows the viewer (the reach
@@ -991,6 +1033,9 @@ private:
         double noSleepBefore = 0.0;    // 32: a woken volume's grace (steady seconds) - auto-sleep waits for it
         bool isPatch = false;          // 51 S2: a PATCH of a slept pond (its box a disturbance's disc, the pond stays slept around it)
         bool isReach = false;          // 54.2 W5.2: a river REACH (boundaries from the record; released by releaseRiverReach)
+        bool isShoreBand = false;      // 55.4 W6.2a: a SHORE BAND (swell columns from the sea; released by the sea rule)
+        std::map<std::pair<int, int>, float> shoreSea;   // 55.4: the band's world columns that held SEA when made -> the still level (world m)
+        std::set<std::pair<int, int>> shoreDry;          // 55.4: ... that held no water when made
         glm::ivec3 patchParentLo{0}, patchParentHi{0};   // 51 S2: the slept box it belongs to
         double seededMass = 0.0;
         std::vector<WaterBodyTable::ColumnMass> seededColumns;   // per-column seed for the body credit
@@ -1132,6 +1177,12 @@ private:
     RiverFollow m_follow;              // 54.3
     RiverFollowState m_followState;
     void releaseFollowReach();
+    ShoreFollow m_shoreFollow;         // 55.4
+    ShoreFollowState m_shoreState;
+    SeaSwellParams m_seaSwell;
+    double m_seaSwellTime = 0.0; bool m_seaSwellTimeSet = false;
+    void releaseShoreBand();
+    bool isSeaColumn(int wx, int wz, float top) const;
     // 54.4 (W5.3): the river ripple layer
     RiverRipple m_river;
     RiverRippleStats m_riverStats;

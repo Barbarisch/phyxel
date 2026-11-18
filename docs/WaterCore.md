@@ -77,7 +77,9 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
    **§55: step 0 MEASURED (what draws the sea today); W6.1 (the sea drawn as far as the land) BUILT, not signed off
    (`w61_clip.mp4`, 55.1); W6.1b (the old sea sheet deleted) DONE (55.2); W6.2 (the shore band near the player) step 0
    MEASURED (55.3): today's core carries a swell at 1/9 m; on generated (full-cube) shores its swash matches the column solver's
-   within 5 %; the owner: "build band now" (the fine-slope run-up shortfall a known limit). Next: W6.2's design-check.**
+   within 5 %; the owner: "build band now" (the fine-slope run-up shortfall a known limit). W6.2a (the band) BUILT, tests
+   green (55.4: the swash swings 0-9 m on the shelf, the band follows 100 %, the sea goes back at its still level, books 1e-5 m^3;
+   OPEN: the band's sea 3.2 cm under the swell). Next: L4 on Coast, the owner's clip, then W6.2b's design check.**
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
@@ -14302,7 +14304,7 @@ READY with amendments A1-A4; built as designed).
   owner's list. "Water constantly flowing": the design already simulates only near the player (the follow reach) and draws the rest
   from the record - written down here as the rule W6 keeps (the sea's swell offshore is appearance, never simulated).
 
-## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2); W6.2 step 0 MEASURED (55.3) - the owner: build the band now
+## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2); W6.2 step 0 MEASURED (55.3) - the owner: build the band now; W6.2a the shore band BUILT, tests green, L4 next (55.4)
 
 **55.0 Step 0 (2026-11-16) - what draws the sea today, measured before W6 is designed** (`tools/water_w6_step0.py`, WaterBench_Coast,
 the shipped game.json, restored world; two engine runs, the old sheet ON (shipped) and OFF (RIG: game.json `water.enabled` false -
@@ -14488,6 +14490,84 @@ solver, sparse bricks, the W5.2 boundary kernel), so the finding was re-measured
 - **THE OWNER'S CALL, REVISED (2026-11-17): "Build band now"** - W6.2 is built on today's pond model (1/9 m) on generated shores;
   the fine-slope run-up shortfall (the 1:10 rig: 7 cm vs Hunt 31 cm) is a KNOWN LIMIT, logged, fixed later if player-made or
   smoother beaches need it. Next: W6.2's design, `/design-check` first.
+**55.4 W6.2 design + design check (2026-11-17): W6.2a READY with A1-A8 folded in; W6.2b (the swell drawn) gets its own check after
+W6.2a.** Two parts, built a then b, one owner clip at the end.
+- **W6.2a THE BAND.** `makeShoreBand(c, halfM)` = `makeRiverReach`'s box (8 m record tiles), seed and refusals; every ring column
+  holding OCEAN record water becomes a SWELL boundary: level = still level + eta(x,z,t), depth-averaged velocity from `seaSwellColumn`
+  (a GLSL port in a shared include). `followShore(viewer)`: `nearestShorePoint` (pure, `RiverReach.h` style: an ocean record column
+  within 4 m of a dry column, nearest the viewer within 24 m on the 2 m lattice); keep/swap/leave = `followRiver`'s. Knobs
+  ShoreFollow {on (default ON where the world has an ocean body), radiusM 24, halfM 12, marginM 6, checkS 0.5}. API
+  `water_av_shore_follow {on, radius_m 8-48, half_m 8-31, margin_m 2-16}`, echo + state (id, box, makes, releases, refusals,
+  swell columns, exchange, returned m^3, make ms). `water_waves` unchanged; it now drives the band.
+- **The check's amendments (they override the text above where they differ):**
+  - A1 the push block is FULL (`water_core.glsl` WcPush, 128 B): `GpuBoundary` 48 -> 64 B carries world x/z, still-level rows,
+    swell weight, amplitude, wavelength, wind; the tick's time in `param0` (t0 + k dt inside a multi-tick call). Parity test pins it.
+  - A2 drive width: the ring is one 1/9 m column, step 0 drove 2 m. Measured first (step 0's rig at 1 col / 1 m / 2 m); ship the
+    narrowest within 5 % of 2 m. If wider than 1 m, `kMaxBoundaries` 8192 -> 32768 (reason at the constant).
+  - A3 the release rule: OCEAN columns written back to EXACTLY the still level L (a clamp "at most L" would leave trough dents);
+    DRY columns at most L; other bodies as any patch; the difference counted as exchange.
+  - A4 the clock: the band's time = the renderer's `waveTime` at submission + k dt; the async step runs ~1 call behind the draw
+    (~7 cm phase, <= ~1.4 cm height at 0.45 m) - inside test 4's 2 cm gate, stated.
+  - A5 the side edges in the surf zone are driven too; the swash front is measured >= 4 m inside them.
+  - A6 (W6.2b) record tiles mesh per 1/9 m cell (displacement works); the skin's 4-64 m merged cells cannot show a 14 m swell by
+    displacement - normals only, per-component distance fades; tile displacement fades to 0 over 36-48 m; the vertex's spare float
+    is the ripple layer - pack ocean as layer + 1 + 8*ocean. W6.2b gets its own design check.
+  - A7 the rig's swell is 0.3 m; shipped 0.45 m; the live run uses 0.45.
+  - A8 cost: 24 x 24 m band ~2.7 ms GPU a tick scaled from step 0 - an ESTIMATE; the live run measures whole-frame ABBA + the swap hitch.
+  - Default change: ShoreFollow ON pinned by `ShoreFollowIsOnByDefault`, same commit.
+- **Tests, red first:** (1) `ShoreReachTest.TheNearestShorePointIsTheSameHoweverTheRecordIsRead` (control: a missing chunk);
+  (2) `GpuSwellBoundaryMatchesTheCpuSwell` (level/velocity vs `SeaSwell` at 3 times, 1e-4); (3) `AShoreBandFollowsTheViewerAndTheSwashMoves`
+  (Coast-profile shelf, follow >= 95 % of frames over an 80 m walk, front swing >= 3 m, release: sea columns at L within 1 mm, books
+  1e-4 m^3; calm control); (4) W6.2b's no-step test; (5) the drawn depth limit. Tiers: halfM, follow on/off (30 fps: off), 1/9 m only.
+- **Built so far (2026-11-17), tests red first:** (1) `ShoreReachTest.TheNearestShorePointIsTheSameHoweverTheRecordIsRead` (`ShoreReach.h`
+  `nearestShorePoint`): red (stub: 0 found), green: 31 of 40 viewers find a shore point, 0 not a shore column, 0 differ read chunked +
+  shuffled; the control (the point's chunk missing) moves (-78,-10) -> (-78,0); a lake and open sea give none. (2)
+  `GpuSwellBoundaryMatchesTheCpuSwell` (`GpuBoundary` 48 -> 64 B, `sea_swell.glsl`, `wc_boundary` swell columns, `setSwellTime`, the
+  clock in `param0`): red (level static 0.000 vs the CPU's -0.178 m), green: 67 columns x 3 times, worst 7.6e-6 m / 1.4e-5 m/s; the
+  control column untouched; `GpuBoundaryMatchesCpu` unchanged (0.36 %).
+- **A2 MEASURED (`DISABLED_DiagW62DriveWidth`: step 0's Coast staircase, the kernel's own 4-component swell 0.3 m / 14 m, wind 0, 24 s)
+  - DRIFT from A2's rule as written:** "the narrowest within 5 % of 2 m" assumed the 2 m strip is right; it is not - it sets the sea
+  DOWN. The measure that holds is the one the infinite sea gives: the mean surface offshore stays at the still level.
+
+| drive strip, face flux | onto the shelf | mean surface 2.5-10 m / 14-28 m (16-24 s) | exchanged | ms / tick |
+|---|---|---|---|---|
+| 1 column, inflow only | 14.83 m | +0.6 / +1.5 cm | +3.17 m^3 | 3.2 |
+| **1 m, inflow only** | **13.83 m** | **-1.0 / -0.5 cm** | +1.79 m^3 | 3.6 |
+| 2 m, inflow only | 12.72 m | -3.9 / -2.6 cm | +0.40 m^3 | 3.5 |
+| 1 column / 1 m / 2 m, SIGNED flux (the wave's outgoing half a sink) | 12.61 / 12.06 / 11.72 m | -8.0 / -5.8 .. -6.7 cm | -1.9 .. -2.4 m^3 | 3.2-3.9 |
+
+  Ships: a **1 m drive strip** (the band's outer 9 columns all round), the face flux **inflow only** (W5.2's river rule). Within 1 cm
+  of the still level offshore. A 24 m box's 1 m ring = 7,452 columns: under `kMaxBoundaries` 8,192 - the cap is NOT raised; half_m is clamped so the band's ring fits (a 32 m box's would be 10,044; the reason at the clamp site). Books <= 9e-5 m^3 every run. Not measured: a 2-D band (this is a 1 m channel); the live run measures it.
+- **The band built (`WaterCoreManager::makeShoreBand / followShore / releaseShoreBand`, `water_av_shore_follow`) - drift rows from the
+  design as checked:**
+  - **The box is fixed at 24 m (one tile each side), no `half_m` knob** - A2's 1 m strip on a 40 m box is 13,284 columns, over
+    `kMaxBoundaries`; a bigger band waits on raising the cap (logged). The API's knobs: `on`, `radius_m` 8-48, `landward_m` 0-12,
+    `margin_m` 2-7 (each clamp's reason at the clamp site).
+  - **The box sits 8 m UP THE BEACH from the shore point (`landward_m`)** - `nearestShorePoint` also returns the landward direction
+    (the mean offset to the dry columns within 4 m). Centred on the point's own tile the box held 8-15 m of shelf; the drive probe's
+    swash ran 12-14 m. The keep test uses the shifted point (the shore point itself sits in the box's seaward tile).
+  - The swell's parameters are copied into the band's columns when it is made: a `water_waves` change reaches the band at its next
+    make (re-sending the list stalls the GPU, 54.2) - logged.
+  - Sea columns: the box's outer 1 m strip where the record's body is class "ocean"; other water on the ring (a lake at the edge)
+    holds its level, open (W5.2's level-only rule); dry columns are the box's wall. GPU only (the CPU solver has no swell).
+- **Test 3 `AShoreBandFollowsTheViewerAndTheSwashMoves` (step 0's staircase across z, the sea class "ocean", 0.3 m swell up the
+  beach): GREEN.** The stay (12 s at the waterline): the swash front on the shelf swings **0 .. 9 m**; the walk (80 m at 5 m/s):
+  coverage **1.000** (961 / 961 frames), 11 makes / 11 releases / 0 refusals, one volume at most, none at the end; 3,078 swell
+  columns; make **106 ms max** (a hitch per swap - the live run measures it); A3: all 13,600 sea columns back at [bed, 4.000] exactly,
+  no water above 4 m on the shelf; books **-1.4e-5 m^3** (exchanged +21.75, returned to the sea +21.75 m^3). Calm: front 0 .. 0,
+  books -2.2e-6. Red (follow off): no volume. `ShoreFollowIsOnByDefault` pins the default.
+  - **Two things the first run found:** (a) the test stepped nothing in its synchronous stay (`update()` returns when not realtime -
+    a harness steps by hand); fixed in the test. (b) **The band's sea sat BELOW the swell**: 4 m inside the strips, off the swell's
+    own surface, time-mean over the stay **-7.5 cm** - the column solver's Stokes RETURN current (`seaSwellColumn`, a closed beach's
+    rule) written on every face of the drive strip pulled the band's water out. Dropped for the band (`stokesReturn = false`, the
+    CPU function's parameter, so the parity test still pins GLSL = CPU): **-3.2 cm**. Not the channel's 1 cm: the swash's storage on
+    the shelf is drawn from the band's narrow sea part. A regression gate at 5 cm in test 3; W6.2b's no-step test (2 cm) meets it
+    first - **OPEN**, logged.
+  - Suites: integration water 93 / 96 before the band (the known three: `GpuFlipBulkParityAndRunup`,
+    `ShortWaveMatchesAllFineAndTheBooksAreExact`, 51.4f's `ARippleLayerBeyondTheReachHoldsNoDeviceState`); after it, the reach / boundary
+    / shore tests all pass (`ASimulatedReachCarriesTheRecordsRiver`, `AReachFollowsTheViewerAlongARiver` unchanged).
+  - **Next: L4 on Coast** (the band following the camera along the beach; makes / refusals / make ms; the swash moving; whole frame
+    CPU + GPU band on / off ABBA at the shore pose; the swap hitch) - then the owner's clip; then W6.2b's own design check.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

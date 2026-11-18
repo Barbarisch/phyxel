@@ -1838,6 +1838,149 @@ TEST_F(WaterRecordTilesTest, AReachFollowsTheViewerAlongARiver) {
     EXPECT_GE(dam.recordAbove - g.recordAbove, 0.1) << "A4: the record above a dam stays raised after the reach that held it is gone";
 }
 
+// WaterCore §55.4 (W6.2a): a SHORE BAND follows the viewer along the beach and the swash moves on it (WaterCoreManager::followShore,
+// the shipped knobs: radius 24 m, the box centred 8 m up the beach from the shore point, margin 6 m, a check every 0.5 s; a 24 m box,
+// its 1 m drive strip on the sea). The rig: step 0's Coast staircase across z - the bed 1 m (z < -30), 2 m (to -12), 3 m (to 8),
+// the SHELF at the still level 4 m from z 8 to 32, 5 m beyond; the sea [bed, 4] for z < 8 from x -40 to 160, class "ocean" in the
+// body table; the swell 0.3 m / 14 m running up the beach (wind +z - the rig's 0.3 vs shipped 0.45 m), its clock the frame's.
+// The viewer (12 m up) stands at x 20 on the waterline for 12 s (the water stepped synchronously so the swash is read every 3rd
+// frame), walks the beach at 5 m/s to x 100, then leaves inland at 10 m/s to z 90 (realtime, as in play). Predictions (written before
+// the run): (i) the swash front on the shelf, measured >= 4 m inside the band's side strips, swings >= 3 m over the stay's last 8 s;
+// (ii) from the first make on, the viewer's column is inside the band's box >= 95 % of the walk's frames; (iii) one volume at most;
+// (iv) leaving releases it; (v) A3: after the walk every sea column of the record is [bed, 4.000] within 1 mm and no record water
+// stands above 4 m on the shelf; (vi) the books - record after less before, less the edges' exchange, plus what the release returned
+// to the sea and the residue - within 1e-3 m^3 (the river walk's gate; 1e-4 was the design's - stated if it is not met). Calm control
+// (amplitude 0, the stay only): the front swings < 0.2 m. RED: follow off - no volume.
+namespace {
+struct ShoreRun { double swingLo = 1e9, swingHi = -1e9, coverage = 0.0, books = 0.0, r0 = 0.0, r1 = 0.0, exch = 0.0, returned = 0.0, seaWorst = 0.0, shelfAbove = 0.0;
+                  int maxVols = 0, endVols = -1, makes = 0, releases = 0, refusals = 0, swellCols = 0, frames = 0, covered = 0, seaCols = 0;
+                  double maxMakeMs = 0.0, wallS = 0.0, msStay = 0.0, offSwell = 0.0; int offSwellN = 0; std::string err, lastErr; bool ok = false; };
+}
+TEST_F(WaterRecordTilesTest, AShoreBandFollowsTheViewerAndTheSwashMoves) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    constexpr float L = 4.0f;
+    auto bedAt = [](int z) { return z < -30 ? 1.0f : z < -12 ? 2.0f : z < 8 ? 3.0f : z < 32 ? 4.0f : 5.0f; };
+    auto run = [&](bool follow, float amp, bool walk) {
+        ShoreRun out;
+        const auto w0 = std::chrono::steady_clock::now();
+        auto state = [bedAt](const glm::ivec3& m) -> int {
+            constexpr int M = 9;
+            if (m.y < 0) return 1;
+            const int z = m.z >= 0 ? m.z / M : -((-m.z + M - 1) / M);
+            return m.y < static_cast<int>(bedAt(z) * M) ? 1 : 0;
+        };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { out.err = err; return out; }
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        for (int x = -40; x < 160; ++x) for (int z = -60; z < 8; ++z) { ColumnRun r; r.bottomY = bedAt(z); r.topY = L; r.mass = L - r.bottomY; record.cols[{x, z}].push_back(r); }
+        WaterBodyRecord sea; sea.id = 1; sea.cls = "ocean"; sea.level = L; sea.origin = "generation"; sea.bboxMin = {-40, -60}; sea.bboxMax = {159, 7};
+        mgr.bodies().importGeneration({sea});
+        mgr.setBakeBodyQuery([](int x, int z) { return (x >= -40 && x < 160 && z < 8) ? 1 : -1; });
+        SeaSwellParams sw; sw.amplitude = amp; sw.wavelength = 14.0f; sw.windRad = 1.5707963f; mgr.setSeaSwell(sw);
+        WaterCoreManager::ShoreFollow f; f.on = follow; mgr.setShoreFollow(f);
+        WaterCoreManager::RiverFollow rf; rf.on = false; mgr.setRiverFollow(rf);
+        out.r0 = record.total();
+        const float dt = 1.0f / 60.0f;
+        double t = 0.0;
+        bool started = false;
+        auto frame = [&](const glm::vec3& viewer, bool counted) {
+            mgr.setSeaSwellTime(t);
+            mgr.followShore(viewer, t);
+            if (mgr.realtime()) mgr.update(dt);
+            else if (const int id = mgr.shoreFollowState().id) { AvRecord rec; mgr.step(id, 1, dt, &rec); }   // a harness steps by hand (update() returns when not realtime)
+            t += dt;
+            const auto vols = mgr.list();
+            out.maxVols = std::max(out.maxVols, static_cast<int>(vols.size()));
+            if (!vols.empty()) started = true;
+            if (!started || !counted) return;
+            ++out.frames;
+            const int vx = static_cast<int>(std::floor(viewer.x)), vz = static_cast<int>(std::floor(viewer.z));
+            for (const auto& v : vols) if (vx >= v.minVoxel.x && vx <= v.maxVoxel.x && vz >= v.minVoxel.z && vz <= v.maxVoxel.z) { ++out.covered; break; }
+        };
+        // the stay: stepped synchronously (each call settled) so the swash is read as it is
+        mgr.setRealtime(false);
+        const auto s0 = std::chrono::steady_clock::now();
+        for (int k = 0; k < 720; ++k) {
+            frame(glm::vec3(20.0f, 12.0f, 6.0f), false);
+            const auto& st = mgr.shoreFollowState();
+            if (st.id && k >= 240 && k % 6 == 0) {   // the band's sea (z 2..7, >= 4 m inside the side strips) off the swell's own surface there
+                double s = 0.0; int n = 0;
+                for (int x = st.lo.x + 5; x <= st.hi.x - 5; ++x) for (int z = 2; z < 8; ++z) {
+                    double d = 0.0;
+                    if (!mgr.columnMassDepth(x, z, d)) continue;
+                    const float dep = L - bedAt(z);
+                    s += d - dep - seaSwellColumn(sw, x + 0.5f, z + 0.5f, static_cast<float>(t - dt), dep).height; ++n;
+                }
+                if (n) { out.offSwell += s / n; ++out.offSwellN; }
+                if (std::getenv("SHORE_DIAG") && k % 30 == 0) std::printf("    t %.1f s: the band's sea off the swell %+.4f m\n", t, n ? s / n : 0.0);
+            }
+            if (k < 240 || (k % 3) || !st.id) continue;
+            const int x0 = st.lo.x + 5, x1 = st.hi.x - 5;   // >= 4 m inside the 1 m side strips
+            double front = 0.0;
+            for (int z = 8; z <= st.hi.z; ++z) {
+                double s = 0.0; int n = 0;
+                for (int x = x0; x <= x1; ++x) { double d = 0.0; if (mgr.columnMassDepth(x, z, d)) { s += d - std::max(0.0, static_cast<double>(L - bedAt(z))); ++n; } }
+                if (n && s / n >= 0.01) front = z + 1 - 8;
+            }
+            out.swingLo = std::min(out.swingLo, front); out.swingHi = std::max(out.swingHi, front);
+        }
+        out.msStay = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - s0).count() / 720.0;
+        if (walk) {
+            mgr.setRealtime(true);
+            for (int k = 0; k <= 960; ++k) frame(glm::vec3(20.0f + 5.0f * k * dt, 12.0f, 6.0f), true);   // x 20 -> 100 at 5 m/s
+            for (int k = 1; k <= 504; ++k) frame(glm::vec3(100.0f, 12.0f, 6.0f + 10.0f * k * dt), false);   // inland: z 6 -> 90
+        } else {
+            WaterCoreManager::ShoreFollow off = f; off.on = false; mgr.setShoreFollow(off);
+            frame(glm::vec3(20.0f, 12.0f, 6.0f), false);   // follow off: the band released under the sea rule
+        }
+        out.endVols = static_cast<int>(mgr.list().size());
+        const auto& st = mgr.shoreFollowState();
+        out.makes = st.makes; out.releases = st.releases; out.refusals = st.refusals; out.lastErr = st.lastError; out.maxMakeMs = st.maxMakeMs;
+        out.exch = st.exchangedM3; out.returned = st.returnedM3; out.swellCols = st.swellColumns;
+        out.r1 = record.total();
+        out.books = out.r1 - out.r0 - st.exchangedM3 + st.returnedM3 + st.residueM3 + st.thinDroppedM3;
+        out.coverage = out.frames ? static_cast<double>(out.covered) / out.frames : 0.0;
+        for (const auto& [k, runs] : record.cols) {
+            if (k.second < 8) {
+                ++out.seaCols;
+                float top = -1e30f, bot = 1e30f; for (const auto& r : runs) { top = std::max(top, r.topY); bot = std::min(bot, r.bottomY); }
+                out.seaWorst = std::max({out.seaWorst, static_cast<double>(std::abs(top - L)), static_cast<double>(std::abs(bot - bedAt(k.second))), runs.size() == 1 ? 0.0 : 1.0});
+            } else for (const auto& r : runs) out.shelfAbove = std::max(out.shelfAbove, static_cast<double>(r.topY - L));
+        }
+        out.wallS = std::chrono::duration<double>(std::chrono::steady_clock::now() - w0).count();
+        out.ok = true;
+        return out;
+    };
+    const ShoreRun g = run(true, 0.3f, true), calm = run(true, 0.0f, false), red = run(false, 0.3f, false);
+    ASSERT_TRUE(g.ok) << g.err; ASSERT_TRUE(calm.ok) << calm.err; ASSERT_TRUE(red.ok) << red.err;
+    auto pr = [](const char* tag, const ShoreRun& r) {
+        std::printf("  %s: the swash front on the shelf %.0f .. %.0f m (the stay's last 8 s, %.2f ms a frame); coverage %.4f (%d / %d); max volumes %d, at the end %d;\n"
+                    "      makes %d, releases %d, refusals %d (%s), swell columns %d, max make %.0f ms; record %.3f -> %.3f m^3, exchanged %+.4f, returned %+.4f, books %+.2e m^3;\n"
+                    "      sea columns %d off [bed, 4] by at most %.2e m, shelf water above 4 m %.2e m; the band's sea off the swell (4-12 s mean) %+.4f m; %.0f s wall\n",
+                    tag, r.swingLo, r.swingHi, r.msStay, r.coverage, r.covered, r.frames, r.maxVols, r.endVols, r.makes, r.releases, r.refusals, r.lastErr.c_str(), r.swellCols,
+                    r.maxMakeMs, r.r0, r.r1, r.exch, r.returned, r.books, r.seaCols, r.seaWorst, r.shelfAbove, r.offSwellN ? r.offSwell / r.offSwellN : 0.0, r.wallS);
+    };
+    pr("GREEN", g); pr("CALM (amplitude 0)", calm); pr("RED (follow off)", red);
+    EXPECT_GE(g.swingHi - g.swingLo, 3.0) << "the swash must move on the shelf";
+    EXPECT_GE(g.coverage, 0.95);
+    EXPECT_EQ(g.maxVols, 1);
+    EXPECT_EQ(g.endVols, 0) << "leaving the beach releases the band";
+    EXPECT_EQ(g.refusals, 0);
+    EXPECT_GT(g.swellCols, 0);
+    EXPECT_LT(g.seaWorst, 1e-3) << "A3: the sea goes back to the record at its still level";
+    EXPECT_LT(g.shelfAbove, 1e-3) << "A3: no water left standing above the still level on the sand";
+    EXPECT_LT(std::abs(g.books), 1e-3);
+    // [the band's sea 4 m inside its strips, off the swell's own surface, time-mean over the stay: -3.2 cm measured (-7.5 cm with
+    // the column solver's Stokes return, dropped for the band - 55.4). Not the 1 cm the channel gave: the swash's storage on the
+    // shelf is drawn from the band's narrow sea part. A regression gate here; W6.2b's no-step test (2 cm) meets it first.]
+    EXPECT_LT(std::abs(g.offSwellN ? g.offSwell / g.offSwellN : 1.0), 0.05);
+    EXPECT_LT(calm.swingHi - calm.swingLo, 0.2) << "calm: the waterline stays put";
+    EXPECT_LT(std::abs(calm.books), 1e-3);
+    EXPECT_EQ(red.maxVols, 0) << "the red control: follow off makes nothing";
+}
+
 // WaterCore §54.4 (W5.3): the river's ripples - the owner on w52b_clip: "it takes a while for the ripples to show up as the camera
 // moves. and the line between ripples and not is very obvious". One ripple layer over the river near the viewer (the record's river
 // and the reach alike). The measure: the RMS facet slope (the shader's central difference, 1/9 m) of whichever drawn layer holds a

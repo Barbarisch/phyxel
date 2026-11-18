@@ -1777,6 +1777,12 @@ bool WaterCoreGpu::setBoundaries(Volume& vol, const std::vector<GpuBoundary>& b,
     const int nx = vol.spec.dims.x, ny = vol.spec.dims.y;
     for (const GpuBoundary& g : b) {
         const int x = g.col % nx, z = g.col / nx;
+        if (g.swellAmp > 0.0f) {   // 55.4: a swell column's level swings - every row it can reach stays stored (the four components' total height)
+            const float reach = 2.5f * g.swellAmp / vol.spec.h + 1.0f;
+            const int y0 = std::clamp(static_cast<int>(std::floor(g.stillRows - reach)), 0, ny - 1), y1 = std::clamp(static_cast<int>(std::ceil(g.stillRows + reach)), 0, ny - 1);
+            for (int y = y0; y <= y1; ++y) vol.boundaryCells.push_back(x + nx * (y + ny * z));
+            continue;
+        }
         const int y = std::clamp(static_cast<int>(std::floor(g.rows - 0.5f)), 0, ny - 1);
         vol.boundaryCells.push_back(x + nx * (y + ny * z));
     }
@@ -3085,12 +3091,15 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         vol.solidRatesPending = false;
     }
     const bool capture = s_stageCapture && ticks == 1 && n == 1;   // 26.10 test hook
+    const double swellT0 = vol.swellTime;   // 55.4: this call's ticks run at swellT0 + t dt; the clock then runs on
+    vol.swellTime = swellT0 + static_cast<double>(ticks) * dt;
     if (capture && !vol.stageCap.buf && !createBuffer(vol.stageCap, kStages * vol.cells * sizeof(float), true, nullptr)) vol.stageCap = Buffer{};
     Buffer capBuf; if (!capture) std::swap(capBuf, vol.stageCap);   // the substep captures only when the buffer is there
     auto capAt = [&](int k) { if (!vol.stageCap.buf) return; barrier(cmd); copy(cmd, vol.f, vol.stageCap, liveCells(vol) * sizeof(float), 0, k * liveCells(vol) * sizeof(float)); barrier(cmd); };
     for (int t = 0; t < ticks; ++t) {
         if (vol.boundaryCount > 0 && !s_boundariesOffForTest) {   // 54.2: the prescribed columns, before anything moves (WaterSolver::step)
             WcPush bp = push; bp.iparam = vol.boundaryCount;
+            bp.param0 = static_cast<float>(swellT0 + static_cast<double>(t) * dt);   // 55.4: the swell columns' clock, tick t of the call
             for (int parity = 0; parity < 2; ++parity) { bp.mode = parity; dispatch(cmd, *vol.pipes[Boundary], bp, static_cast<size_t>(vol.boundaryCount)); }
         }
         copy(cmd, vol.f, vol.fPrev, liveCells(vol) * sizeof(float));
