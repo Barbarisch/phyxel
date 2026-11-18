@@ -1,0 +1,29 @@
+BodySimGpu is a stub
+[  FAILED  ] VoxFoundBodySimGpu.R1FreeFall (270 ms)
+BodySimGpu is a stub
+[  FAILED  ] VoxFoundBodySimGpu.R2FlatDrop (140 ms)
+BodySimGpu is a stub
+[  FAILED  ] VoxFoundBodySimGpu.R3SlabsRestFlat (95 ms)
+BodySimGpu is a stub
+[  FAILED  ] VoxFoundBodySimGpu.R4FrictionSlide (97 ms)
+BodySimGpu is a stub
+[  FAILED  ] VoxFoundBodySimGpu.R5Stack (91 ms)
+BodySimGpu is a stub
+[  FAILED  ] VoxFoundBodySimGpu.R6HeadOn (98 ms)
+BodySimGpu is a stub
+[  FAILED  ] VoxFoundBodySimGpuPile.R7Lintel (94 ms)
+BodySimGpu is a stub
+[  FAILED  ] VoxFoundBodySimGpuPile.R8BrokenWalls (94 ms)
+BodySimGpu is a stub
+[  FAILED  ] VoxFoundBodySimGpuPile.R8bBlastAndDeterminism (94 ms)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 9 tests, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.R1FreeFall
+[  FAILED  ] VoxFoundBodySimGpu.R2FlatDrop
+[  FAILED  ] VoxFoundBodySimGpu.R3SlabsRestFlat
+[  FAILED  ] VoxFoundBodySimGpu.R4FrictionSlide
+[  FAILED  ] VoxFoundBodySimGpu.R5Stack
+[  FAILED  ] VoxFoundBodySimGpu.R6HeadOn
+[  FAILED  ] VoxFoundBodySimGpuPile.R7Lintel
+[  FAILED  ] VoxFoundBodySimGpuPile.R8BrokenWalls
+[  FAILED  ] VoxFoundBodySimGpuPile.R8bBlastAndDeterminism

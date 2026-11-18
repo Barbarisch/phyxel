@@ -26,6 +26,7 @@ set(INTEGRATION_TEST_SOURCES
     VoxFoundFaceBuilderGpuTest.cpp
     VoxFoundLodBuilderGpuTest.cpp
     VoxFoundFractureGpuTest.cpp
+    VoxFoundBodySimGpuTest.cpp
     MatSimParticlesGpuTest.cpp
 )
 

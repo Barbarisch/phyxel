@@ -105,3 +105,40 @@ RUN 2 (voxfound_f52_run2.txt; WoW running + another session's integration tests:
      bench demands 0 after the impact window -- not yet split by window here); the cap dropped 35k candidates in R8.
   CPU reference cost: 0.19 ms / tick (4 bodies) to 1.10 ms mean / 10.9 ms worst (21 bodies, blast).
   Suites: CPU VoxFound* 108/108, GPU VoxFound* 25/25.
+
+F5.2b -- THE GPU PORT (written 2026-11-17 after F5.2a's run 2, BEFORE any F5.2b code)
+WHAT: BodySimGpu (engine/*/core/voxfound/BodySimGpu.*) + shaders/voxfound_bodies.comp, headless (raw-handle init as
+  FractureGpu). It loads the bodies BodySimRef::add built (grids, corners, mass properties) and the world, and runs the
+  same tick, in float: integrate (one thread per body) -> world contacts (per body: its corners into the world, the
+  world's surface corners in its AABB into its grid; each world corner taken once by a canonical-owner rule instead
+  of a set) -> body-body contacts (per body i, every j > i whose AABB overlaps) -> the same cap (deepest per bucket,
+  warm-preferring, farthest-point fill) from a per-worker candidate scratch -> per-body constraint lists (count,
+  prefix, scatter, then each list sorted by key so the sums are order-independent) -> colours (Jones-Plassmann rounds,
+  hashed priorities) -> 8 x {primal per colour, dual} -> hard contact (body-body pushes computed per body, then the
+  world, world last) -> velocities, sleep, wake -> warm start saved in a hashed table (two halves, swapped each tick).
+  Not bit-equal to the double-precision reference (said in F5.2's header, before the work): different arithmetic,
+  colour order and Gauss-Seidel order.
+PREDICTIONS
+  G1 every F5.2a rig (R1-R8b) passes its SAME assertions on the GPU: R1 within float error of the closed form
+     (<= 1e-4 m after 1 s of fall: float positions), R2-R5, R6 at 8 and 32 iterations, R7, R8, R8b.
+  G2 trajectories on the non-chaotic rigs R1, R2, R4: the GPU body within 1 mm of the CPU body at every tick.
+  G3 two GPU runs are bit-equal (R8b, every body, every tick sampled) -- the sorted lists make the sums
+     order-independent.
+  G4 no candidate-scratch overflow, no constraint overflow, 0 bodies left uncoloured, on every rig (counted).
+  G5 device ms per tick on R8b (21 bodies): 0.5-3 ms, dominated by the dispatch count (colours x iterations);
+     reported, not gated (the 100 -> 1,000-body cost is F5.5's exit test).
+  Red first: a BodySimGpu stub whose step() returns false.
+F5.2b RED (voxfound_f52b_red.txt): the stub failed all 9 GPU tests.
+F5.2b RUN 1 (voxfound_f52b_run1.txt), first run, no solver fixes (one test-print fix: colours reported as the max
+  over the run, not the last chunk). The GPU was SHARED: WoW and another session's engine (G:\Github\phyxel\
+  phyxel.exe, 4.7 GB, not mine, left running) were up for the whole run.
+  G1 HELD on every rig: R1 7.6e-5 m vs the closed form (float; gate 1e-4); R2 0.15 mm, asleep by 3 s, no drift;
+     R3 / R3b flat on the right faces; R4 0.238 m; R5 2.05 mm, 5/5 asleep (4 colours); R6 4.67e-2 at 8 iterations,
+     6.6e-3 at 32; R7 5.64 mm; R8 0.92 / 0.62 mm; R8b 7.38 mm, 21/21 asleep, none through the ground.
+  G2 HELD: worst vs the reference R1 0.076 mm, R2 0.324 mm, R4 0.161 mm (gate 1 mm).
+  G3 HELD: two R8b runs bit-equal, 630 of 630 body samples (every body every 30 ticks).
+  G4 HELD: no scratch or constraint overflow, 0 uncoloured, at most 8 colours.
+  G5 MISSED: 8.1-18.8 ms device per tick (R7 4 bodies 10.0, R8 7 bodies 8.1 -- all asleep by 0.7 s -- R8b 21
+     bodies 18.8), against 0.5-3. The floor does not follow the body count: ~310 dispatches + barriers per tick
+     (32 colours x 8 iterations of primal + the rest), on a GPU shared with WoW and another engine. Levers for F5.5:
+     dispatch only the colours used (indirect), fuse passes, skip sleeping bodies in every pass.

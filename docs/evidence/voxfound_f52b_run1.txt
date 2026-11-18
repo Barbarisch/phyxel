@@ -1,0 +1,53 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpu*
+[==========] Running 9 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 6 tests from VoxFoundBodySimGpu
+[ RUN      ] VoxFoundBodySimGpu.R1FreeFall
+[32m[21:37:17.516] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[body gpu] R1 free fall: worst vs closed form 7.556e-05 m, vs reference 7.556e-05 m
+[       OK ] VoxFoundBodySimGpu.R1FreeFall (915 ms)
+[ RUN      ] VoxFoundBodySimGpu.R2FlatDrop
+[32m[21:37:18.275] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[body gpu] R2 flat drop: rest y 0.24985 (penetration 0.15 mm), drift 0.000 mm, late speed 0.0000, asleep by 3 s 1, worst vs reference 0.324 mm
+[       OK ] VoxFoundBodySimGpu.R2FlatDrop (3993 ms)
+[ RUN      ] VoxFoundBodySimGpu.R3SlabsRestFlat
+[32m[21:37:22.282] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[body gpu] R3 slab: vertical axis 1 (0.00 deg off), centre y 0.2499 (half-height 0.2500), asleep 1
+[body gpu] R3b slab: vertical axis 2 (0.03 deg off), centre y 0.1249 (half-height 0.1250), asleep 1
+[       OK ] VoxFoundBodySimGpu.R3SlabsRestFlat (3302 ms)
+[ RUN      ] VoxFoundBodySimGpu.R4FrictionSlide
+[32m[21:37:25.589] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[body gpu] R4 slide: 0.2382 m (Coulomb 0.2548), rise 0.00 mm, tilt 0.00 deg, worst vs reference 0.161 mm
+[       OK ] VoxFoundBodySimGpu.R4FrictionSlide (1804 ms)
+[ RUN      ] VoxFoundBodySimGpu.R5Stack
+[32m[21:37:27.379] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[body gpu] R5 stack of 5: worst move 2.05 mm, 5 / 5 asleep, colours 4
+[       OK ] VoxFoundBodySimGpu.R5Stack (1961 ms)
+[ RUN      ] VoxFoundBodySimGpu.R6HeadOn
+[32m[21:37:29.344] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[body gpu] R6 head-on, 8 iterations: |P| / (m v) 4.67e-02, overlap 0.37 mm, after |v| 0.0522 / 0.0493
+[body gpu] R6 head-on, 32 iterations: |P| / (m v) 6.60e-03, overlap 0.46 mm, after |v| 0.0000 / 0.0000
+[       OK ] VoxFoundBodySimGpu.R6HeadOn (5479 ms)
+[----------] 6 tests from VoxFoundBodySimGpu (17457 ms total)
+
+[----------] 3 tests from VoxFoundBodySimGpuPile
+[ RUN      ] VoxFoundBodySimGpuPile.R7Lintel
+[32m[21:37:34.846] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[body gpu] R7 lintel E/T 30: 4 bodies, 4 asleep at 10 s, max penetration 5.64 mm, max contacts 32, capped 5854, hard-contact fires 160, colours 3, 10.034 ms / tick device
+[       OK ] VoxFoundBodySimGpuPile.R7Lintel (6591 ms)
+[ RUN      ] VoxFoundBodySimGpuPile.R8BrokenWalls
+[32m[21:37:41.431] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[body gpu] R8 stone wall E/T 30: 7 bodies, 7 asleep at 10 s, max penetration 0.92 mm, max contacts 128, capped 12165, hard-contact fires 0, colours 4, 8.137 ms / tick device
+[body gpu] R8 stone wall E/T 80: 21 bodies, 21 asleep at 10 s, max penetration 0.62 mm, max contacts 461, capped 35502, hard-contact fires 0, colours 8, 11.679 ms / tick device
+[       OK ] VoxFoundBodySimGpuPile.R8BrokenWalls (12858 ms)
+[ RUN      ] VoxFoundBodySimGpuPile.R8bBlastAndDeterminism
+[32m[21:37:54.287] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[body gpu] R8b stone wall E/T 80, 8000 N s: 21 bodies, 21 asleep at 15 s, max penetration 7.38 mm, max contacts 366, capped 23256, hard-contact fires 295, colours 8, 18.823 ms / tick device
+[body gpu] G3: 0 of 630 bodies differ between two runs
+[       OK ] VoxFoundBodySimGpuPile.R8bBlastAndDeterminism (35867 ms)
+[----------] 3 tests from VoxFoundBodySimGpuPile (55317 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 2 test suites ran. (72775 ms total)
+[  PASSED  ] 9 tests.

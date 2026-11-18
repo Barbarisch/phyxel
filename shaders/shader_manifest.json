@@ -376,6 +376,11 @@
       "sources": "ee83da1d79ec4b74747e6ff3caae749314709d2d0314ae673a223b83f1472c83",
       "spv_present": true
     },
+    "voxfound_bodies.comp": {
+      "built": true,
+      "sources": "7dd5c602c5d001224bb9ecc79e1f7401a406aa3a8809db293bb6b40d272e5503",
+      "spv_present": true
+    },
     "voxfound_cull.comp": {
       "built": true,
       "sources": "439fc6845e44e75d9bb3fd0ee2bd3eca2ad8267317a10d0d11ace88a51d776c8",

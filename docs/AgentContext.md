@@ -545,8 +545,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       symmetric voxel-on-voxel contacts, 26-neighbour exits, face-aligned samples, persistent capped manifolds,
       soft body-body impact start, hard-contact pass); 11/11 rigs after 7 recorded run-1 fixes; R6 momentum MISSED
       its 1e-6 prediction (4.7 % at 8 iterations). Owed: hard-contact fires per run (plan §9d).
-      NEXT: F5.2b -- the GPU port of BodySimRef (headless raw-handle init like FractureGpu), compared by the same
-      invariants on every rig + trajectories on R1/R2/R4 within 1 mm; write its prediction section first.
+      F5.2b (2026-11-17): BodySimGpu + voxfound_bodies.comp -- every F5.2a rig passes on the GPU (first run),
+      within 0.33 mm of the reference on R1/R2/R4, bit-equal across runs; cost MISSED (8-19 ms / tick: a ~310-dispatch
+      floor; levers in plan §9d, owed to F5.5).
+      NEXT: F5.3 -- drawing bodies with one transform (§6.7 "Drawing": faces built once per body, drawn with the
+      body's transform; the §4.2 face record + a body index); read §4.2 and the F2 face path first, write the
+      prediction before code; it needs a visual test in the engine (FeatureDesignKeys).
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
