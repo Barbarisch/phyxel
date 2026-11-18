@@ -82,24 +82,24 @@ WorldRecipe civRecipe(uint32_t seed, const std::string& era = "medieval") {
 // the plan's amplitude; radiusU 512 = the smallest the 512 u macro grid keeps most of, a rig choice) + one pinned
 // city-tier site at the origin. withHill false = the hill's control. Differs from the editor's first load in one
 // thing: a blank recipe (the engine's biome defaults), not makeRecipe()'s biome snapshot - as civRecipe.
-nlohmann::json cityLabWorldforge() {
-    return {{"enabled", true}, {"sitePins", nlohmann::json::array({{{"x", 0}, {"z", 0}}})}, {"pinTiers", nlohmann::json::array({"city"})}};
+nlohmann::json cityLabWorldforge(int pinX = 0, int pinZ = 0) {
+    return {{"enabled", true}, {"sitePins", nlohmann::json::array({{{"x", pinX}, {"z", pinZ}}})}, {"pinTiers", nlohmann::json::array({"city"})}};
 }
-nlohmann::json cityLabSheet(bool withHill) {
+nlohmann::json cityLabSheet(bool withHill, float hillX = 0.0f, float hillZ = 0.0f) {
     nlohmann::json sheet = {{"macroCellU", 512}, {"continentCells", 16}, {"mesoCellU", 32}, {"mesoTileCells", 256}, {"mesoSteps", 4},
                             {"diffusion", 0.1}, {"talusSlope", 0.7}, {"thermalRate", 0.5}, {"pagerTiles", 64}, {"erosionSteps", 200},
                             {"erosionDt", 250000.0}, {"erosionK", 5.61e-07}, {"erosionM", 0.5}, {"erosionUpliftMax", 0.0005}, {"erosionMaxSlope", 0.577}};
-    if (withHill) sheet["upliftMask"] = nlohmann::json::array({{{"x", 0.0}, {"z", 0.0}, {"radiusU", 512.0}, {"deltaU", 24.0}}});
+    if (withHill) sheet["upliftMask"] = nlohmann::json::array({{{"x", hillX}, {"z", hillZ}, {"radiusU", 512.0}, {"deltaU", 24.0}}});
     return sheet;
 }
-WorldRecipe cityLabRecipe(bool withHill) {
+WorldRecipe cityLabRecipe(bool withHill, int pinX = 0, int pinZ = 0, float hillX = 0.0f, float hillZ = 0.0f) {
     WorldRecipe r;
     r.version = 2;
     r.type = "Perlin";
     r.seed = 7001u;
-    r.sheet = WorldRecipe::sheetFromJson(cityLabSheet(withHill));
+    r.sheet = WorldRecipe::sheetFromJson(cityLabSheet(withHill, hillX, hillZ));
     r.heightSpline = {{0.0f, -40.0f}, {0.3f, 16.0f}, {0.55f, 220.0f}, {0.8f, 380.0f}, {1.0f, 400.0f}};
-    r.worldforge = WorldForgeParams::fromJson(cityLabWorldforge());
+    r.worldforge = WorldForgeParams::fromJson(cityLabWorldforge(pinX, pinZ));
     return r;
 }
 
@@ -2582,4 +2582,121 @@ TEST(SettlementMapLiveSiteTest, CityLabIsSitedAndPlanned) {
     EXPECT_EQ(v.lotDoorOffWay, 0) << "a lot's door is off its way";
     EXPECT_EQ(v.badWay, 0);
     EXPECT_EQ(v.wayInWater, 0) << "a way segment crosses water";
+}
+
+// O35 (a) (pm_chain389.txt): where in the CityLab world is section 16's site - a 160 x 160 rectangle on land with an
+// order-2 creek through it and a gentle relief? A measurement, run by name; nothing asserted.
+TEST(SettlementMapLiveSiteTest, DISABLED_DiagScanCityLabForACreekSite) {
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 7001u);
+    gen.applyRecipe(cityLabRecipe(false));
+    const int R = 2048, step = 2, n = 2 * R / step + 1, win = 160 / step;
+    std::vector<int16_t> sy(static_cast<size_t>(n) * n);
+    std::vector<uint8_t> ord(static_cast<size_t>(n) * n), wetv(static_cast<size_t>(n) * n);
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int j = 0; j < n; ++j)
+        for (int i = 0; i < n; ++i) {
+            const int wx = -R + i * step, wz = -R + j * step;
+            const auto c = gen.sampleSurface(wx, wz);
+            const size_t k = static_cast<size_t>(j) * n + i;
+            sy[k] = static_cast<int16_t>(c.surfaceY);
+            ord[k] = static_cast<uint8_t>(std::clamp(c.riverOrder, 0, 9));
+            wetv[k] = (gen.channelHitAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f).hit ||
+                       gen.waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > gen.naturalGroundAt(wx, wz)) ? 1 : 0;
+        }
+    std::map<int, long> ordAll;
+    for (const uint8_t o : ord) if (o) ++ordAll[o];
+    std::string oa;
+    for (const auto& [o, c] : ordAll) oa += " order " + std::to_string(o) + ": " + std::to_string(c);
+    std::printf("[ O35 ] sampled %d x %d at %d u in %.1f s; channel samples in the box:%s%s", n, n, step, secondsSince(t0), oa.empty() ? " none" : oa.c_str(), "\n");
+    struct Cand { int cx, cz, relief, lo, o1, o2, edges; float wet; int o2Mid; };
+    std::vector<Cand> cands;
+    int rects = 0, land = 0, noRiver = 0, dry = 0, anyO2 = 0, through = 0;
+    std::map<int, int> reliefHist;   // by 8 u
+    for (int cj = 0; cj + win < n; cj += 32 / step)
+        for (int ci = 0; ci + win < n; ci += 32 / step) {
+            ++rects;
+            int lo = INT_MAX, hi = INT_MIN, o1 = 0, o2 = 0, o3 = 0, wetN = 0, edgeMask = 0, o2Mid = 0;
+            for (int j = cj; j < cj + win; ++j)
+                for (int i = ci; i < ci + win; ++i) {
+                    const size_t k = static_cast<size_t>(j) * n + i;
+                    lo = std::min<int>(lo, sy[k]); hi = std::max<int>(hi, sy[k]);
+                    if (wetv[k]) ++wetN;
+                    if (ord[k] == 1) ++o1; else if (ord[k] == 2) ++o2; else if (ord[k] >= 3) ++o3;
+                    if (ord[k] == 2 && i >= ci + win / 4 && i < ci + 3 * win / 4 && j >= cj + win / 4 && j < cj + 3 * win / 4) ++o2Mid;
+                    if (ord[k] == 1 || ord[k] == 2) {
+                        if (i == ci) edgeMask |= 1; if (i == ci + win - 1) edgeMask |= 2;
+                        if (j == cj) edgeMask |= 4; if (j == cj + win - 1) edgeMask |= 8;
+                    }
+                }
+            ++reliefHist[(hi - lo) / 8];
+            const float wet = static_cast<float>(wetN) / static_cast<float>(win * win);
+            if (lo <= 16) continue; ++land;
+            if (o3 > 0) continue; ++noRiver;
+            if (wet >= 0.10f) continue; ++dry;
+            if (o2 == 0) continue; ++anyO2;
+            int edges = 0; for (int b = 0; b < 4; ++b) if (edgeMask & (1 << b)) ++edges;
+            if (edges < 2) continue; ++through;
+            cands.push_back({-R + ci * step + 80, -R + cj * step + 80, hi - lo, lo, o1, o2, edges, wet, o2Mid});
+        }
+    std::string rh;
+    for (const auto& [b, c] : reliefHist) rh += " " + std::to_string(b * 8) + "-" + std::to_string(b * 8 + 7) + ": " + std::to_string(c);
+    std::printf("[ O35 ] %d rectangles of 160 x 160 (centres every 32 u): relief histogram%s%s", rects, rh.c_str(), "\n");
+    std::printf("[ O35 ] on land %d; of those no order >= 3 channel %d; of those wet under 10 %% %d; of those any order-2 sample %d; of those a creek touching two edges %d%s",
+                land, noRiver, dry, anyO2, through, "\n");
+    std::stable_sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) { return a.relief < b.relief; });
+    for (size_t k = 0; k < cands.size() && k < 12; ++k)
+        std::printf("[ O35 ]   candidate centre (%d, %d): relief %d, lowest surface %d, wet %.1f %%, order-1 samples %d, order-2 samples %d, edges touched %d%s", cands[k].cx, cands[k].cz,
+                    cands[k].relief, cands[k].lo, 100.0f * cands[k].wet, cands[k].o1, cands[k].o2, cands[k].edges, "\n");
+    // chain 390: the candidates whose relief is nearest section 16's 24, with the creek in the middle half
+    std::vector<Cand> mid;
+    for (const auto& c : cands) if (c.o2Mid > 0 && c.relief >= 16 && c.relief <= 28) mid.push_back(c);
+    std::stable_sort(mid.begin(), mid.end(), [](const Cand& a, const Cand& b) { return std::abs(a.relief - 24) != std::abs(b.relief - 24) ? std::abs(a.relief - 24) < std::abs(b.relief - 24) : a.o2Mid > b.o2Mid; });
+    std::printf("[ O35 ] candidates with relief 16..28 and order-2 samples in the middle half: %zu%s", mid.size(), "\n");
+    for (size_t k = 0; k < mid.size() && k < 12; ++k)
+        std::printf("[ O35 ]   hill candidate centre (%d, %d): relief %d, lowest surface %d, wet %.1f %%, order-2 samples %d (%d in the middle half), order-1 %d%s", mid[k].cx, mid[k].cz,
+                    mid[k].relief, mid[k].lo, 100.0f * mid[k].wet, mid[k].o2, mid[k].o2Mid, mid[k].o1, "\n");
+}
+
+// O35 (a) (pm_chain389.txt, chain 391): the hill painted ONTO a creek site - does the creek survive, and what relief
+// does a 160 u site see? Three variants at one pin; a measurement, run by name.
+TEST(SettlementMapLiveSiteTest, DISABLED_DiagCityLabHillOnACreek) {
+    struct Variant { const char* key; bool hill; float hx, hz; };
+    const int px = -1200, pz = -1040;
+    for (const Variant v : {Variant{"A no bump", false, 0.0f, 0.0f}, Variant{"B bump at the pin", true, -1200.0f, -1040.0f}, Variant{"C bump 256 u east", true, -944.0f, -1040.0f}}) {
+        LiveSiteRig rig;
+        rig.recipeKey = std::string("citylab-") + v.key; rig.worldSeed = 7001u;
+        rig.recipeFn = [v, px, pz] { return cityLabRecipe(v.hill, px, pz, v.hx, v.hz); };
+        if (!rig.setUp(0, 24)) { std::printf("[ O35 ] %s: rig failed: %s%s", v.key, rig.why.c_str(), "\n"); continue; }
+        const int W = rig.site->width, D = rig.site->depth, ox = rig.site->pos.x - W / 2, oz = rig.site->pos.y - D / 2;
+        WorldGenerator* gen = rig.gen;
+        auto wet = [gen](int wx, int wz) {
+            if (gen->channelHitAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f).hit) return true;
+            return gen->waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > gen->naturalGroundAt(wx, wz);
+        };
+        int lo = INT_MAX, hi = INT_MIN, wetCols = 0;
+        std::map<int, int> byOrder;
+        for (int z = 0; z < D; ++z)
+            for (int x = 0; x < W; ++x) {
+                const auto c = gen->sampleSurface(ox + x, oz + z);
+                lo = std::min(lo, c.surfaceY); hi = std::max(hi, c.surfaceY);
+                if (c.riverOrder > 0) ++byOrder[c.riverOrder];
+                if (wet(ox + x, oz + z)) ++wetCols;
+            }
+        std::string orders;
+        for (const auto& [o, n] : byOrder) orders += " order " + std::to_string(o) + ": " + std::to_string(n);
+        std::printf("[ O35 ] %s: site %s %d x %d at (%d, %d): surface %d..%d (relief %d), %d wet columns of %d, channel columns:%s%s", v.key, rig.site->tier.c_str(), W, D,
+                    rig.site->pos.x, rig.site->pos.y, lo, hi, hi - lo, wetCols, W * D, orders.empty() ? " none" : orders.c_str(), "\n");
+        SettlementBuildService::Deps deps;
+        deps.chunkManager = &rig.cm; deps.templates = &rig.templates; deps.placedObjects = &rig.placed;
+        const auto plan = SettlementBuildService::plan(WorldForgeBuildService::settlementParamsFor(*gen->worldForge(), *rig.site), deps);
+        if (!plan.ok()) { std::printf("[ O35 ] %s: plan REFUSED: %s%s", v.key, plan.error.dump().c_str(), "\n"); continue; }
+        const Core::SettlementMap m = Core::SettlementMap::fromJson(plan.map);
+        const std::function<int(int, int)> h = [gen, ox, oz](int x, int z) { return static_cast<int>(std::floor(gen->naturalGroundAt(ox + x, oz + z))); };
+        const std::function<bool(int, int)> w = [wet, ox, oz](int x, int z) { return wet(ox + x, oz + z); };
+        const MapInvariants::Violations vi = MapInvariants::measure(m, h, 6, w);
+        std::printf("[ O35 ] %s: map %zu lots, %zu ways, wall %s (%zu ring cells, %zu gates, %zu water gaps), market areas %d, note '%s'; no way %d, door off %d, overlaps %d, through a footprint %d, outside %d, bad way %d, in water %d%s",
+                    v.key, m.lots.size(), m.ways.size(), m.wall.present ? "present" : "ABSENT", m.wall.ring.size(), m.wall.gates.size(), m.wall.waterGaps.size(),
+                    static_cast<int>(std::count_if(m.areas.begin(), m.areas.end(), [](const MapArea& a) { return a.landuse == "market"; })), m.marketNote.c_str(),
+                    vi.lotNoWay, vi.lotDoorOffWay, vi.overlaps, vi.wayThroughFootprint, vi.lotOutside, vi.badWay, vi.wayInWater, "\n");
+    }
 }

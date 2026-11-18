@@ -1,0 +1,57 @@
+pm_chain389 - O35 (a): where in the CityLab world is section 16's site? A headless scan, no engine change.
+Written 2026-11-18 10:04, before the test is written. Release.
+
+THE SCAN (a DISABLED_ diagnostic in SettlementMapLiveSiteTest.cpp, run by name): the CityLab recipe WITHOUT the bump
+  and WITHOUT the pin's influence on terrain (the pin changes no terrain); the generator sampled every 2 u over
+  x, z in [-2048, 2048] (the box): surfaceY, riverOrder, the planner's water predicate. Then every 160 x 160
+  rectangle on a 32 u grid of centres: relief, lowest surface, wet share, channel samples by order, and whether
+  order-1/2 channel samples touch two different edges of the rectangle (the creek goes THROUGH it).
+  A candidate = on land (lowest surface above sea level 16), no order >= 3 channel, wet share under 10 %, an order-2
+  channel through it. Printed: how many rectangles pass each test, and the 12 candidates of lowest relief.
+  The 2 u step can miss a channel one column wide between samples; stated. Nothing is asserted (a measurement).
+PREDICTIONS (guesses - I have not seen this world's drainage)
+  - most of the box near the origin is hillside like the origin (relief 25 to 45 per 160 u); the lowland 1000+ u west
+    (where the four scored sites sit at y 18 to 36) is flatter: relief under 12.
+  - order-2 channels exist in the box (a 4 km square of eroded terrain) and at least one candidate passes with a relief
+    under 30. Whether any passes NEAR 24 with the creek through the middle: unsure.
+  - if none passes: the recipe needs changing (a lower minimum channel drainage), which is a decision, not a scan.
+RESULTS (written 2026-11-18 10:04)
+  chain 389 (the scan, 13 s): channel samples in the box - order 1: 8761, order 2: 5774, order 3: 153. 15376
+    rectangles; relief histogram 0-7: 1834, 8-15: 2710, 16-23: 6830, 24-31: 1949, 32-39: 1656, 40-47: 371, 48-55: 26.
+    On land 14080; wet under 10 % 14075; any order-2 sample 613; a creek touching two edges 603 - candidates EXIST
+    (right). The 12 of lowest relief all lie on one creek at x about -1200 (z -940 to -1520): relief 3 to 4, lowest
+    surface 34 to 41, wet about 6 %. "The lowland is flatter, under 12": right there.
+  chain 390 (a second list: relief 16 to 28 with order-2 samples in the middle half): ZERO. "At least one candidate
+    with a relief under 30" was right only in the flat sense; nothing near 24. In this world creeks run on flat
+    ground and hillsides carry no order-2 channel: the natural terrain has no "gentle hill with a creek".
+NEXT, PREDICTIONS WRITTEN BEFORE THE RUN (10:04): paint the hill ONTO a creek site and measure whether the creek
+  survives (the bump is added before erosion, so the drainage is re-derived). A DISABLED_ diagnostic, three variants,
+  pin at (-1200, -1040) (a lowest-relief candidate), each measured as the origin was (relief, water, channels, the
+  city's plan and its invariant counts):
+    A  no bump (the control)          - GUESS: relief 4 to 6, the creek there, the city plans 20+ lots, 0 violations.
+    B  bump at the pin, r 512, 24 u   - GUESS: relief under 10 (a 512 hill is flat across 160 u); the creek MOVES off
+                                        the hilltop - likely no order-2 channel left in the rectangle.
+    C  bump 256 u east of the pin     - GUESS: relief 6 to 14 (the flank), the creek stays at the hill's foot.
+  If none gives relief near 24 with a creek: section 16 cannot be met by this recipe's knobs at city scale (the
+  macro grid is 512 u; a 160 u site sees a bump as a tilt) and it has to be restated - a plan note, not more runs.
+RESULTS (written 2026-11-18 10:07)
+  chain 391 (three variants at the pin (-1200, -1040); one run, Release):
+    A  no bump: surface 34..38 (relief 4 - right), 1479 wet columns of 25600 (5.8 %), order 1: 499, order 2: 992 - the
+       creek is there. The city is REFUSED: "no buildable, connectable lot for the tier's minimum (5 of 20 seated)",
+       buildable fraction 0.94. My "plans 20+ lots" was a MISS. This is the contract's own site ("one creek through
+       the site", "the creek crossing inside town") and the planner cannot plan a city on it: with no bridge inside
+       town (D69 (c), not built) the growth stays on the side its road reaches. WHY only 5 seat there was not
+       examined (where the entries are, how much dry ground the near side has).
+    B  bump at the pin: surface 72..88 (relief 16 - I guessed under 10, a MISS; the 24 u bump raised the ground about
+       44 u after erosion), 0 wet columns, NO channel - the creek is gone (right). The city plans 20 lots, a wall with
+       4 gates, a market, every invariant count 0.
+    C  bump 256 u east: surface 57..69 (relief 12 - right), 158 wet columns, order 1: 163 and NO order-2 channel (I
+       guessed the creek stays: half right - a smaller one does). 20 lots, 3 gates, a market, every count 0.
+  CONCLUSION: no variant has a relief near 24 AND an order-2 creek. Painting the hill removes the creek it is painted
+    on; the natural terrain has creeks only on flat ground. Section 16's CityLab ("a gentle hill + one order-2 creek
+    through the site") is not reachable with this recipe's knobs at city scale. Registered as D71 (PROPOSED, the
+    owner's): which half the city L4 keeps. What does NOT wait for that: a city on a creek site is refused today,
+    and that is D69 (c)'s job whichever site is chosen.
+  ALSO SEEN, not pursued: the origin's hillside (relief 35) seats 40 lots while B and C (relief 16 and 12) seat the
+    minimum 20 - not explained.
+  chain 392: CityLabIsSitedAndPlanned still passes on this exe (the recipe helper gained parameters): 40 lots, 0.

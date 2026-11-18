@@ -802,3 +802,12 @@ the same recipe in `SettlementMapLiveSiteTest`'s `cityLabRecipe`. Nothing was re
 - Closing the whole lot (yard included) re-planned three live sites and put the town's market well against a level
   step (one live test failed) - not taken; registered as O35.
 Audited PASS WITH CONDITIONS (ledger). Open: O35; the pin must move or section 16 be restated; no Debug run.
+
+### 2026-11-18 - O35 (a): where CityLab's specified site is - nowhere in this recipe
+
+Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain389.txt` (chains 389-392, Release, measurements only - two
+DISABLED_ diagnostics in `SettlementMapLiveSiteTest.cpp`, no engine change). The box scanned at 2 u: 603 city-sized
+rectangles have a creek through them, all on flat lowland (the flattest: relief 3 to 4 along one creek at x about
+-1200); none has a relief of 16 to 28 with the creek in its middle. Painting the hill onto a creek site removes the
+creek (bump at the pin: relief 16, no channel; bump beside it: relief 12, an order-1 trickle). On the flat creek site
+the city is REFUSED (5 of 20 lots) - no bridge inside town. D71 raised (which site the city L4 uses); D69 (c) is next.
