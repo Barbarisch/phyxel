@@ -557,6 +557,23 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         const WaterBodyIndex* idx = sg ? sg->waterBodies() : nullptr;
         return idx ? idx->bodyIdAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f) : -1;
     });
+    // 55.4 (W6.2a): which water is the sea - generation's own rule (WorldGenerator: a body whose spill is at or below the sea level IS
+    // the ocean; its spans carry that level): record water standing at the bake's sea level, in a world whose bake has an ocean. Not
+    // the index's body at the column: its 128 m cells call the coast dry where generation's flood put the sea (L4, Coast z 720).
+    waterCore->setSeaQuery(
+        [this](int, int, float& level) -> bool {
+            const WorldGenerator* sg = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+            const HydrologyMap* hm = sg ? sg->hydrology() : nullptr;
+            if (!hm) return false;
+            level = hm->seaLevel(); return true;
+        },
+        [this]() -> bool {
+            const WorldGenerator* sg = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+            const WaterBodyIndex* idx = sg ? sg->waterBodies() : nullptr;
+            if (!idx) return false;
+            for (const auto& b : idx->bodies()) if (b.cls == WaterBodyIndex::Class::Ocean) return true;
+            return false;
+        });
     // Phase E1 (docs/WaterCore.md 19.1): every blast reaches the water. Water at r gets the speed a
     // loose reference piece at r gets from the same blast (DamageSystem's push law: linear falloff to
     // 1.5 x the radius, 0.3 up-bias), clamped per face at 20 m/s inside the solver.
@@ -14521,7 +14538,7 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("radius_m")) f.radiusM = std::clamp(cmd.params.value("radius_m", 24.0f), 8.0f, 48.0f);
         // landward: the box's middle tile this far up the beach from the shore point - 0 puts the waterline in the middle (half the
         // box over the sea), over 12 m leaves the waterline outside the box's seaward tile and the band holds no swash
-        if (cmd.params.contains("landward_m")) f.landwardM = std::clamp(cmd.params.value("landward_m", 8.0f), 0.0f, 12.0f);
+        if (cmd.params.contains("landward_m")) f.landwardM = std::clamp(cmd.params.value("landward_m", 4.0f), 0.0f, 12.0f);
         // margin: under the 8 m a fresh band leaves round its middle tile, or the band just made fails the keep test at the next check
         if (cmd.params.contains("margin_m")) f.marginM = std::clamp(cmd.params.value("margin_m", 6.0f), 2.0f, 7.0f);
         waterCore->setShoreFollow(f);
@@ -14534,7 +14551,8 @@ void Application::registerWaterCommands() {
              {"swell", {{"amplitude", sw.amplitude}, {"wavelength", sw.wavelength}, {"wind", sw.windRad}}},
              {"makes", st.makes}, {"releases", st.releases}, {"refusals", st.refusals}, {"last_error", st.lastError},
              {"last_make_ms", st.lastMakeMs}, {"max_make_ms", st.maxMakeMs}, {"exchanged_m3", st.exchangedM3}, {"returned_m3", st.returnedM3},
-             {"residue_m3", st.residueM3}, {"thin_dropped_m3", st.thinDroppedM3}};
+             {"residue_m3", st.residueM3}, {"thin_dropped_m3", st.thinDroppedM3},
+             {"release_ms", {{"sync", st.releaseSyncMs}, {"sea_rule", st.releaseRuleMs}, {"write_back", st.releaseWriteMs}, {"max", st.maxReleaseMs}}}};
     });
     reg.on("water_av_column", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

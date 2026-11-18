@@ -305,9 +305,9 @@ public:
     /// The follow (followRiver's rules): the nearest shore point within radiusM (nearestShorePoint: a sea column with a dry column
     /// within 4 m, 2 m lattice); kept while the point stays marginM inside the band's box; released past radiusM + kFollowLeaveM.
     /// ON by default (pinned: ShoreFollowIsOnByDefault) - it does nothing in a world with no ocean body. Release = the SEA RULE
-    /// (A3): the band's columns that held sea are written back at EXACTLY the still level, the dry ones at most at it, the rest as
-    /// any patch; the water that takes is counted (returnedM3: + taken back to the sea).
-    struct ShoreFollow { bool on = true; float radiusM = 24.0f, landwardM = 8.0f, marginM = 6.0f, checkS = 0.5f; };
+    /// (A3, see releaseShoreBand): the sea's columns and the swash-wet dry ones at EXACTLY the still level, the rest as any patch;
+    /// the water that takes is counted (returnedM3: + taken back to the sea).
+    struct ShoreFollow { bool on = true; float radiusM = 24.0f, landwardM = 4.0f, marginM = 6.0f, checkS = 0.5f; };   // landward 4 m (L4): the box is tile-aligned, so the waterline lands 4-12 m inside its seaward edge (8 m: 0-8, 1 m of sea at Coast x 174)
     struct ShoreFollowState {
         int id = 0; glm::ivec3 lo{0}, hi{0};
         int makes = 0, releases = 0, refusals = 0, swellColumns = 0;
@@ -316,6 +316,8 @@ public:
         double exchangedM3 = 0.0, residueM3 = 0.0, thinDroppedM3 = 0.0, returnedM3 = 0.0;   ///< the books (released bands, summed)
         double lastCheckS = -1e30, nextTryS = -1e30;
         bool pointFound = false, seaPresent = false; glm::ivec2 point{0};
+        /// L4: the last release's cost, ms - the download (settles the call in flight), the sea rule's pass, the write-back (sleep)
+        double releaseSyncMs = 0.0, releaseRuleMs = 0.0, releaseWriteMs = 0.0, maxReleaseMs = 0.0;
     };
     void setShoreFollow(const ShoreFollow& f) { m_shoreFollow = f; }
     const ShoreFollow& shoreFollow() const { return m_shoreFollow; }
@@ -326,6 +328,13 @@ public:
     void setSeaSwell(const SeaSwellParams& p) { m_seaSwell = p; }
     const SeaSwellParams& seaSwell() const { return m_seaSwell; }
     void setSeaSwellTime(double t) { m_seaSwellTime = t; m_seaSwellTimeSet = true; }
+    /// 55.4 (L4 found): WHICH water is the sea - `at` gives the sea's level for a world column (false: no sea there); record water
+    /// whose top is within 5 cm of it is the sea (the app: generation's rule - water at the bake's sea level is the ocean). The body
+    /// table only learns generation bodies when a write-back credits them (as "lake"), so on a live world it never named the sea.
+    /// `anywhere`: the bake has an ocean body at all (the follow does nothing without one).
+    /// Without a query the table's class "ocean" decides (the tests' FakeRecord rigs).
+    using SeaLevelQuery = std::function<bool(int x, int z, float& level)>;
+    void setSeaQuery(SeaLevelQuery at, std::function<bool()> anywhere) { m_seaAt = std::move(at); m_seaAnywhere = std::move(anywhere); }
     /// 54.4 (W5.3): ONE ripple layer over the RIVER near the viewer - the record's river and any reach over it alike, so the ripples
     /// do not stop at a reach's edge and are not remade at every swap (the owner on w52b_clip: "it takes a while for the ripples to
     /// show up as the camera moves. and the line between ripples and not is very obvious"). Its window follows the viewer (the reach
@@ -1181,6 +1190,7 @@ private:
     ShoreFollowState m_shoreState;
     SeaSwellParams m_seaSwell;
     double m_seaSwellTime = 0.0; bool m_seaSwellTimeSet = false;
+    SeaLevelQuery m_seaAt; std::function<bool()> m_seaAnywhere;
     void releaseShoreBand();
     bool isSeaColumn(int wx, int wz, float top) const;
     // 54.4 (W5.3): the river ripple layer

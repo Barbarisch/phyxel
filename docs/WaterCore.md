@@ -79,7 +79,9 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
    MEASURED (55.3): today's core carries a swell at 1/9 m; on generated (full-cube) shores its swash matches the column solver's
    within 5 %; the owner: "build band now" (the fine-slope run-up shortfall a known limit). W6.2a (the band) BUILT, tests
    green (55.4: the swash swings 0-9 m on the shelf, the band follows 100 %, the sea goes back at its still level, books 1e-5 m^3;
-   OPEN: the band's sea 3.2 cm under the swell). Next: L4 on Coast, the owner's clip, then W6.2b's design check.**
+   L4 on Coast: the sea named by generation's rule, the release rule fixed (the record exact along a 100 m walk), +2.25 ms a frame
+   standing / +9.3 ms walking, each swap one 100-200 ms frame - OPEN; the band's sea 3.2 cm under the swell - OPEN). Next: W6.2b's
+   design check (the swell drawn outside the band), then the owner's one clip for W6.2.**
 5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
@@ -14304,7 +14306,7 @@ READY with amendments A1-A4; built as designed).
   owner's list. "Water constantly flowing": the design already simulates only near the player (the follow reach) and draws the rest
   from the record - written down here as the rule W6 keeps (the sea's swell offshore is appearance, never simulated).
 
-## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2); W6.2 step 0 MEASURED (55.3) - the owner: build the band now; W6.2a the shore band BUILT, tests green, L4 next (55.4)
+## 55. W6 - shores and the open sea (owner's order 2026-11-14, item 4). Status: STEP 0 MEASURED (what draws the sea today); W6.1 BUILT, not signed off (`w61_clip.mp4`, 55.1); W6.1b the old sheet DELETED (55.2); W6.2 step 0 MEASURED (55.3) - the owner: build the band now; W6.2a the shore band BUILT, L4 done (55.4: +2.25 ms standing, +9.3 ms walking, a 100-200 ms frame per swap - OPEN)
 
 **55.0 Step 0 (2026-11-16) - what draws the sea today, measured before W6 is designed** (`tools/water_w6_step0.py`, WaterBench_Coast,
 the shipped game.json, restored world; two engine runs, the old sheet ON (shipped) and OFF (RIG: game.json `water.enabled` false -
@@ -14568,6 +14570,39 @@ W6.2a.** Two parts, built a then b, one owner clip at the end.
     / shore tests all pass (`ASimulatedReachCarriesTheRecordsRiver`, `AReachFollowsTheViewerAlongARiver` unchanged).
   - **Next: L4 on Coast** (the band following the camera along the beach; makes / refusals / make ms; the swash moving; whole frame
     CPU + GPU band on / off ABBA at the shore pose; the swap hitch) - then the owner's clip; then W6.2b's own design check.
+- **L4 on Coast (2026-11-17, Release, the shipped game.json; the world restored from a copy after every run). Three defects found and
+  fixed at their cause, then measured:**
+  1. **The body table never named the sea** (`sea_present` false): the app never imports generation's bodies - a row appears only
+     when a write-back credits one, as "lake". And the bake index's 128 m cells call the COAST dry (Coast z 720: hydrology dry, the
+     record 1 m of sea at 16.0) - generation's flood carries the sea past its cells. Fixed with `setSeaQuery`: the app hands the
+     manager generation's own rule (a body spilling at or below the sea level IS the ocean, its spans carry that level): record water
+     standing at or below the bake's sea level (+5 cm) is the sea. Position-pure; the table rule stays for rigs without a query.
+  2. **The release rule left a drifting record**: the first live walk left sea columns at 15.51-16.05 m (generation wrote 16.00) -
+     "at most L" kept the swash in sand hollows below the sea level as pools, and a column once > 5 cm off the level was "other" to
+     the next band and drifted on. Fixed: sea = water at or below L + 5 cm; at release every sea or swash-wet dry column goes back
+     at EXACTLY L (a dry column the swash never reached stays dry). Test 3 gained a sand pocket below the sea level (dry in the
+     record): after the walk its 10 columns hold record water at 4.000 exactly (the record +5.556 m^3 = the pocket filled from the
+     sea, counted; books -1.4e-5). Live: the record along a 100 m walk path, 2,198 wet columns, **0 off 16.000 before and after**
+     (two walks, 21 swaps).
+  3. **The box's up-beach shift 8 m -> 4 m**: the box is tile-aligned, so the waterline lands 0-8 m inside its seaward edge at 8 m
+     (Coast x 174: 1 m of sea in the band, 891 swell columns); at 4 m it lands 4-12 m inside.
+  - **Cost, whole frame (engine_timing, ABBA at the shore pose x 163 z 668 y 22, standing):** band ON 60.0 fps / 16.65 ms (CPU 16.75,
+    GPU 14.48), OFF 69.4 fps / 14.40 ms (CPU 14.42, GPU 14.34): **+2.25 ms a frame**, CPU-side. The water's own CPU share: not
+    measured (water_stats has no water_cpu_ms on this route).
+  - **Walking (the engine's camera path, 5 m/s, x 120 -> 220 along z 690, the frame recorder, no requests during the pass):** band ON
+    mean 31.0 ms, OFF 21.7 ms - **+9.3 ms a frame while walking**; the `Water` phase 14.7 s vs 6.4 s over the pass. **Each swap is ONE
+    100-200 ms frame** (make 42-76 ms + release up to 126 ms: download 18, sea rule 5, write-back 25 ms on the last one) - a swap
+    every ~9 m at 5 m/s (11-13 swaps per 100 m). The band-OFF pass has its own 60-87 ms runs on this beach (the scene, not the band).
+    **OPEN, logged:** the swap hitch (the river follow, 54.3, has the same shape); fixes to weigh: release and make on different
+    frames, a cheaper make, fewer swaps (a bigger box needs `kMaxBoundaries` raised).
+  - **Stills (eye height, the same pose):** `w62_clip_still_swell.png` - the band's water in waves, running up over the sand;
+    `w62_clip_still_calm.png` (amplitude 0, the band remade) - the band cannot be told from the record: still, the same waterline.
+    The band's edge stands above the flat record sea when the swell is on - **W6.2b's seam** (the swell drawn outside: not built).
+  - **The clip `w62_clip.mp4`** (tools/water_w62_clip.py): the beach at eye height x 130 -> 190 at 5 m/s, then up to 30 m. 47-61 fps
+    over x 130-157, 12-19 over x 162-180 and 5-20 on the climb (the scene's cost there is in the band-off pass too; the swaps are
+    in it). Not shown to the owner yet: the plan's one owner clip comes after W6.2b.
+  - Harness notes: `/api/camera` does not report a camera_path's pose (`/api/camera/path` does); requests during a pass slow the
+    frames on this bench (~5 s a poll round) - measure with the recorder and no polls.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

@@ -1854,7 +1854,7 @@ TEST_F(WaterRecordTilesTest, AReachFollowsTheViewerAlongARiver) {
 namespace {
 struct ShoreRun { double swingLo = 1e9, swingHi = -1e9, coverage = 0.0, books = 0.0, r0 = 0.0, r1 = 0.0, exch = 0.0, returned = 0.0, seaWorst = 0.0, shelfAbove = 0.0;
                   int maxVols = 0, endVols = -1, makes = 0, releases = 0, refusals = 0, swellCols = 0, frames = 0, covered = 0, seaCols = 0;
-                  double maxMakeMs = 0.0, wallS = 0.0, msStay = 0.0, offSwell = 0.0; int offSwellN = 0; std::string err, lastErr; bool ok = false; };
+                  double maxMakeMs = 0.0, wallS = 0.0, msStay = 0.0, offSwell = 0.0, pocketWorst = 0.0; int offSwellN = 0, pocketWet = 0; std::string err, lastErr; bool ok = false; };
 }
 TEST_F(WaterRecordTilesTest, AShoreBandFollowsTheViewerAndTheSwashMoves) {
     if (!isVulkanAvailable()) GTEST_SKIP();
@@ -1866,7 +1866,8 @@ TEST_F(WaterRecordTilesTest, AShoreBandFollowsTheViewerAndTheSwashMoves) {
         auto state = [bedAt](const glm::ivec3& m) -> int {
             constexpr int M = 9;
             if (m.y < 0) return 1;
-            const int z = m.z >= 0 ? m.z / M : -((-m.z + M - 1) / M);
+            const int z = m.z >= 0 ? m.z / M : -((-m.z + M - 1) / M), x = m.x >= 0 ? m.x / M : -((-m.x + M - 1) / M);
+            if (x >= 18 && x <= 22 && z >= 10 && z <= 11) return m.y < static_cast<int>(3.5f * M) ? 1 : 0;   // a sand pocket below the sea level, dry in the record
             return m.y < static_cast<int>(bedAt(z) * M) ? 1 : 0;
         };
         WaterCoreManager mgr(state);
@@ -1947,7 +1948,10 @@ TEST_F(WaterRecordTilesTest, AShoreBandFollowsTheViewerAndTheSwashMoves) {
                 ++out.seaCols;
                 float top = -1e30f, bot = 1e30f; for (const auto& r : runs) { top = std::max(top, r.topY); bot = std::min(bot, r.bottomY); }
                 out.seaWorst = std::max({out.seaWorst, static_cast<double>(std::abs(top - L)), static_cast<double>(std::abs(bot - bedAt(k.second))), runs.size() == 1 ? 0.0 : 1.0});
-            } else for (const auto& r : runs) out.shelfAbove = std::max(out.shelfAbove, static_cast<double>(r.topY - L));
+            } else for (const auto& r : runs) {
+                out.shelfAbove = std::max(out.shelfAbove, static_cast<double>(r.topY - L));
+                if (k.first >= 18 && k.first <= 22 && k.second >= 10 && k.second <= 11) { ++out.pocketWet; out.pocketWorst = std::max(out.pocketWorst, static_cast<double>(std::abs(r.topY - L))); }
+            }
         }
         out.wallS = std::chrono::duration<double>(std::chrono::steady_clock::now() - w0).count();
         out.ok = true;
@@ -1971,6 +1975,9 @@ TEST_F(WaterRecordTilesTest, AShoreBandFollowsTheViewerAndTheSwashMoves) {
     EXPECT_GT(g.swellCols, 0);
     EXPECT_LT(g.seaWorst, 1e-3) << "A3: the sea goes back to the record at its still level";
     EXPECT_LT(g.shelfAbove, 1e-3) << "A3: no water left standing above the still level on the sand";
+    // (L4, Coast: the first release rule left the swash in sand hollows below the sea level as pools at 15.5 m)
+    std::printf("  the sand pocket (bed 3.5 m, dry in the record): %d columns hold record water after the walk, off 4.000 by at most %.2e m\n", g.pocketWet, g.pocketWorst);
+    EXPECT_LT(g.pocketWorst, 1e-3) << "a hollow the swash filled goes back at the sea's level, never a pool below it";
     EXPECT_LT(std::abs(g.books), 1e-3);
     // [the band's sea 4 m inside its strips, off the swell's own surface, time-mean over the stay: -3.2 cm measured (-7.5 cm with
     // the column solver's Stokes return, dropped for the band - 55.4). Not the 1 cm the channel gave: the swash's storage on the

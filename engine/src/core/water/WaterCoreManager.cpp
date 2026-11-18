@@ -1298,6 +1298,12 @@ void WaterCoreManager::followRiver(const glm::vec3& viewer, double nowS) {
 // 55.4 (W6.2a): the record's water at (wx, wz) with surface `top` belongs to the sea - its body (the bake's index, else the av
 // table's box match within 5 cm of `top`) is class "ocean"
 bool WaterCoreManager::isSeaColumn(int wx, int wz, float top) const {
+    if (m_seaAt) {   // at or below the sea's level (+5 cm, bodyAt's tolerance) - generation puts no water below the sea level beside
+        // it (a basin spilling at or below the sea IS the ocean), so water there is the sea's (L4: columns a release had left at
+        // 15.5 m were 'other' to the next band and drifted on); water standing above it is another body (a lake behind the beach)
+        float level = 0.0f;
+        return m_seaAt(wx, wz, level) && top <= level + 0.05f;
+    }
     const int b = bodyAt(wx, wz, top);
     if (b == WaterBodyTable::kNoBody) return false;
     const WaterBodyRecord* r = m_bodies.find(b);
@@ -1378,16 +1384,21 @@ WaterCoreManager::ShoreBandResult WaterCoreManager::makeShoreBand(const glm::vec
 }
 
 // A3 (55.4): the band goes back to the record under the SEA RULE - the sea is infinite and its level is the still level: a column
-// that held sea is written back at EXACTLY it (a trough at release would otherwise leave a dent in the sea, a crest a mound), a
-// column that was dry at most at it (the swash on the sand returns to the sea; water in a hollow below it stays - a pool), any other
-// column as any patch. What that adds or takes is counted (returnedM3: + taken back to the sea).
+// that held sea is written back at EXACTLY it (a trough at release would otherwise leave a dent in the sea, a crest a mound); a
+// column that was dry and holds water now (the swash) at exactly it too - none on sand above it, the sea's level in a hollow below
+// it (the swash reached it: it is open to the sea); a dry column the swash never reached stays dry; any other column as any patch. What that adds or takes is counted (returnedM3: + taken back to the sea).
 void WaterCoreManager::releaseShoreBand() {
     ShoreFollowState& s = m_shoreState;
     if (!s.id) return;
+    using RClock = std::chrono::steady_clock;
+    auto rms = [](RClock::time_point a) { return std::chrono::duration<double, std::milli>(RClock::now() - a).count(); };
+    const auto r0 = RClock::now();
+    s.releaseSyncMs = s.releaseRuleMs = s.releaseWriteMs = 0.0;
     Av* av = nullptr;
     for (auto& a : m_avs) if (a->id == s.id) av = a.get();
     if (av) {
         syncFromGpu(*av, false);   // the call in flight settled first: its exchange is counted
+        s.releaseSyncMs = rms(r0);
         WaterGrid& g = *av->grid;
         const GridSpec sp = g.spec();
         const int per = std::max(1, av->per);
@@ -1400,24 +1411,33 @@ void WaterCoreManager::releaseShoreBand() {
             if (sea == av->shoreSea.end() && !dry) continue;
             const float L = sea != av->shoreSea.end() ? sea->second : (av->shoreSea.empty() ? std::numeric_limits<float>::max() : av->shoreSea.begin()->second);
             const float Lrows = L / sp.h - static_cast<float>(sp.origin.y);
+            if (sea == av->shoreSea.end()) {   // dry when made: still dry -> untouched; wet now -> the swash's water, connected to the sea
+                bool wet = false;
+                for (int y = 0; y < g.ny() && !wet; ++y) wet = g.occ(x, y, z) == Occ::Air && g.f(x, y, z) > 0.0f;
+                if (!wet) continue;
+            }
+            // (L4, Coast: "at most L" left the swash in sand hollows below the sea level as pools at 15.5 m - a step beside the sea)
             for (int y = 0; y < g.ny(); ++y) {
                 if (g.occ(x, y, z) != Occ::Air) continue;
                 const float want = std::clamp(Lrows - static_cast<float>(y), 0.0f, 1.0f);
                 float& f = g.f(x, y, z);
-                const float nf = sea != av->shoreSea.end() ? want : std::min(f, want);
-                taken += static_cast<double>(f - nf) * cellV;
-                f = nf;
+                taken += static_cast<double>(f - want) * cellV;
+                f = want;
             }
         }
         s.returnedM3 += taken;
+        s.releaseRuleMs = rms(r0) - s.releaseSyncMs;
     }
     if (const AvRecord* rec = find(s.id)) {
         s.exchangedM3 += rec->boundaryExchange; s.residueM3 += rec->residueDropped;
+        const auto w0 = RClock::now();
         const WriteBackRecord wb = sleep(s.id, true);
+        s.releaseWriteMs = rms(w0);
         if (!wb.ok) s.lastError = "release: " + wb.error;
         s.thinDroppedM3 += wb.thinDropped;
         ++s.releases;
     }
+    s.maxReleaseMs = std::max(s.maxReleaseMs, rms(r0));
     s.id = 0;
 }
 
@@ -1427,8 +1447,9 @@ void WaterCoreManager::followShore(const glm::vec3& viewer, double nowS) {
     if (!m_shoreFollow.on) { releaseShoreBand(); return; }
     if (nowS - s.lastCheckS < static_cast<double>(m_shoreFollow.checkS)) return;
     s.lastCheckS = nowS;
-    s.seaPresent = false;   // a world with no ocean body: nothing to follow (the default ON costs one scan of the table)
-    for (const auto& b : m_bodies.records()) if (b.cls == "ocean") { s.seaPresent = true; break; }
+    s.seaPresent = false;   // a world with no ocean body: nothing to follow (the default ON costs one scan)
+    if (m_seaAnywhere) s.seaPresent = m_seaAnywhere();
+    else for (const auto& b : m_bodies.records()) if (b.cls == "ocean") { s.seaPresent = true; break; }
     if (!s.seaPresent) { releaseShoreBand(); return; }
     const RecordColumnFn column = [this](int wx, int wz, float& top, float& bottom) {
         ColumnLevels lv;

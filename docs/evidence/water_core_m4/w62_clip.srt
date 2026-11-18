@@ -1,0 +1,114 @@
+1
+00:00:00,000 --> 00:00:01,030
+the shore band: simulated where the sea meets the beach, driven by the swell
+t 0.0 s | 56 fps | band 55 | swaps 0
+
+2
+00:00:01,030 --> 00:00:02,070
+the shore band: simulated where the sea meets the beach, driven by the swell
+t 1.0 s | 55 fps | band 55 | swaps 0
+
+3
+00:00:02,070 --> 00:00:03,130
+the shore band: simulated where the sea meets the beach, driven by the swell
+t 2.1 s | 57 fps | band 55 | swaps 0
+
+4
+00:00:03,130 --> 00:00:04,190
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 3.1 s | 58 fps | band 55 | swaps 0
+
+5
+00:00:04,190 --> 00:00:05,260
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 4.2 s | 57 fps | band 55 | swaps 0
+
+6
+00:00:05,260 --> 00:00:06,350
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 5.3 s | 47 fps | band 56 | swaps 1
+
+7
+00:00:06,350 --> 00:00:07,400
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 6.3 s | 55 fps | band 56 | swaps 1
+
+8
+00:00:07,400 --> 00:00:08,460
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 7.4 s | 49 fps | band 57 | swaps 2
+
+9
+00:00:08,460 --> 00:00:09,540
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 8.5 s | 61 fps | band 58 | swaps 3
+
+10
+00:00:09,540 --> 00:00:10,660
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 9.5 s | 14 fps | band 59 | swaps 4
+
+11
+00:00:10,660 --> 00:00:11,740
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 10.7 s | 15 fps | band 59 | swaps 4
+
+12
+00:00:11,740 --> 00:00:12,840
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 11.7 s | 12 fps | band 60 | swaps 5
+
+13
+00:00:12,840 --> 00:00:13,930
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 12.8 s | 19 fps | band 61 | swaps 6
+
+14
+00:00:13,930 --> 00:00:14,980
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 13.9 s | 54 fps | band 62 | swaps 7
+
+15
+00:00:14,980 --> 00:00:16,070
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 15.0 s | 42 fps | band 62 | swaps 7
+
+16
+00:00:16,070 --> 00:00:17,130
+up to 30 m over the band
+t 16.1 s | 53 fps | band 62 | swaps 7
+
+17
+00:00:17,130 --> 00:00:18,300
+up to 30 m over the band
+t 17.1 s | 5 fps | band 63 | swaps 8
+
+18
+00:00:18,300 --> 00:00:19,380
+up to 30 m over the band
+t 18.3 s | 18 fps | band 63 | swaps 8
+
+19
+00:00:19,380 --> 00:00:20,470
+up to 30 m over the band
+t 19.4 s | 17 fps | band 63 | swaps 8
+
+20
+00:00:20,470 --> 00:00:21,550
+up to 30 m over the band
+t 20.5 s | 17 fps | band 64 | swaps 9
+
+21
+00:00:21,550 --> 00:00:22,650
+up to 30 m over the band
+t 21.6 s | 20 fps | band 64 | swaps 9
+
+22
+00:00:22,650 --> 00:00:23,780
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 22.6 s | 14 fps | band 65 | swaps 10
+
+23
+00:00:23,780 --> 00:00:24,780
+walking the beach at 5 m/s - the band follows (each swap stalls a frame: shown)
+t 23.8 s | 17 fps | band 65 | swaps 10
