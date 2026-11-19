@@ -1,0 +1,54 @@
+pm_chain510.txt - O39 (f): the village's lot and the walled city's nine - the ground, or my question?
+(written 2026-11-19 13:39, BEFORE any run of this chain; HEAD 03ff7bb0)
+
+DIAGNOSTIC (the gate's message only - no behaviour change): for a lot that fails the graph's question the gate also
+  walks the MICRO PROBE (the gate's own walker) from the same cell to the hub and back over the whole site, and says
+  whether the graph holds a surface at the lot's cell and at the hub.
+  READING: probe WALKS + graph fails = the graph (or how I ask it) is stricter than the ground - not a trap for a
+  body, though still a trap for a resident who paths on the graph; probe BLOCKED or one way = the ground itself;
+  "no surface" = my asked cell or the hub is not a place the graph knows.
+  PREDICTION: the village's lot 1 - "no surface at the lot's cell" (a slot between a stoop and a fence; GUESS 60 %);
+  the walled city's nine - the probe WALKS and the graph has surfaces: a one-way riser over 4 micro between cells on
+  something that is not a way (GUESS 50 %), or the hub's cell has no surface (GUESS 30 %).
+RESULTS (written 2026-11-19 13:43)
+  chain 510 (exe 13:39:37; the village and the walled city): for ALL TEN lots - "the micro probe from the same cell to
+    the hub and back: WALKS ...; the graph holds a surface at the lot's cell: yes, at the hub: yes". PREDICTION MISS on
+    the village (the cell IS a surface) and on the hub. So: the GROUND is walkable there and back for a body, both
+    ends are places the graph knows, and the graph still has no path. Not my asked cell, not the hub: the graph is
+    stricter than the ground somewhere on every route. (The "reached 0 / 0" counts are not filled on a walkable
+    route - not a measurement.) A resident, who paths on the graph, cannot reach those houses: a real trap for
+    residents, not for a body.
+  chain 511 (diagnostic, the gate's message): the cells on the straight line hub -> lot, each asked from the hub and
+  toward it - where the answer changes, with the feet there. PREDICTION: UNKNOWN; GUESS a rise over 4 micro between
+  two adjacent cell centres on unpaved ground or a door spur.
+RESULTS (written 2026-11-19 13:48)
+  chain 511 (exe of this chain): the village's lot 1 - the answer changes AT the lot's own cell (-7899, -9938), feet
+    883: "from-hub N to-hub N" with the hub's cell fine: that one cell is an island of the graph (its north and south
+    neighbours stand at 883 too). The walled city's lines cross buildings and alternate many times - not readable.
+  TRIAL (stated before chain 512): door spurs (planDoorSpurs, the map path's) are graded at the ways' 4 micro a cell
+  - they kept 2 micro a column. PREDICTION chain 512 (the village, the walled city, the creek city tests): the
+  village's lot 1 joins (GUESS 50 %); the walled city's nine fewer (GUESS 40 %); the creek city still 0 / 0.
+RESULTS (written 2026-11-19 13:54)
+  chain 512 (the spur trial, exe 13:48:54): 
+    - the VILLAGE: "the residents' graph - 11 lots asked both ways to the hub, 0 cannot be left, 0 cannot be reached"
+      - its isolated lot joined. So that island was the door SPUR's grade. BUT the village test FAILS on the map's
+      approach contract: "lot 3 blacksmith: the map's approach [883,883] does not stand after the doorsteps:
+      [883,884]" (1 differ, 1 not standing) - one cell 1 micro off.
+    - the WALLED CITY: still 25 lots, 0 / 9. PREDICTION MISS; the spur is not its cause. (Its build took 179 s
+      against 94: my probe diagnostic costs about 15 s a failing lot.)
+    - the creek city: 0 / 0, gate passed.
+  DECISION (stated before chain 513): the spur regrade is NOT landed (reverted) - it trades the village's island for
+  a broken approach contract; the two must be graded by one rule (O39 k). The gate's diagnostics stay, the probe
+  limited to the first two failing lots of a build.
+  WHAT IS NOW KNOWN: (1) all ten failing lots are walkable there and back by the micro probe and are surfaces of the
+  graph: traps for a resident, not for a body; (2) the village's is the door spur's old grade (shown by the trial);
+  (3) the walled city's nine are NOT the square's grade and NOT the spurs' - unknown.
+  PREDICTION chains 513 / 514 (unit 251, live 41, the tree = commit 03ff7bb0 + the gate's diagnostics): 0 failed;
+  record lines identical to chains 508 / 509.
+  chain 513 (unit, BUILD EXIT 0 2026-11-19 13:54:48 errors: 0 exe 2026-11-19_13:54:44): RUN EXIT 0 2026-11-19 13:56:56 251 ok, 0 failed
+RESULTS (written 2026-11-19 14:08)
+  chain 513 (unit): RUN EXIT 0 2026-11-19 13:56:56 251 ok, 0 failed. chain 514 (live, RUN514 EXIT 0 14:08:04 exe 13:54:44): 41 ok / 0 failed; record-line
+    differences against chain 509: 0.
+  The tree is commit 03ff7bb0 plus the gate's diagnostic lines (the probe for the first two failing lots, the trace
+  of where the graph's answer changes). No behaviour change. Release only. Not audited (diagnostics and a reverted
+  trial).

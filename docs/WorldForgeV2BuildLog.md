@@ -1000,3 +1000,14 @@ Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain495.txt` (chains 495 to 
 - Costs and open defects: a market on a rolling street has no level spot; in the town one market edge cell has air
   under its paving (O40, ratcheted at that cell) and a house and two yards stand over a step; door spurs keep the
   old grade; the question protects no live build yet. Audited PASS WITH CONDITIONS; responses not re-audited.
+
+### 2026-11-19 - O39 (f): the lots the residents' graph cannot serve - the ground, or the question? (diagnosis)
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain510.txt`. Diagnostics only; no behaviour change.
+- For every one of the ten failing lots (the village's one, the walled city's nine) the gate's micro probe WALKS
+  from the lot to the hub and back, and the graph holds a surface at both ends: the ground serves a body, the graph
+  does not serve a resident.
+- The village's lot is the door SPUR's old grade: with spurs graded at 4 micro a cell (a trial) it joined the graph -
+  and one approach cell then stood 1 micro off the level the map states (the doorsteps' contract). Not landed.
+- The walled city's nine are neither the square's grade nor the spurs': unknown.
+- The gate's message now carries the probe's answer (first two failing lots) and where the graph's answer changes.

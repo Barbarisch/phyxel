@@ -3483,6 +3483,41 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                      << (in ? "can be reached from the main street and NOT left" : "cannot be reached from the main street")
                                      << (out ? "" : (in ? "" : " NOR left")) << "; feet there " << static_cast<int>(std::lround(a.y * 9.0f)) << ", the 3 x 3 round it (north row first):" << ring
                                      << "; the hub (" << navHub.x << "," << navHub.y << ") feet " << static_cast<int>(std::lround(hub.y * 9.0f)));
+                        if (navTrapped + navCut <= 2) {   // (the first two lots only: the probe over a whole site takes seconds a lot)
+                            // O39 (f) (pm_chain510.txt): is it the GROUND or the QUESTION? The micro probe - the walker the gate's own
+                            // routes use - walks the same pair over the whole site: there and back. And does the graph hold
+                            // a surface at all where the lot and the hub are asked?
+                            Core::WalkRoute pr;
+                            pr.label = label + " (probe)";
+                            pr.from = glm::ivec3(cell.x * 9 + 4, static_cast<int>(std::lround(a.y * 9.0f)), cell.y * 9 + 4);
+                            pr.to = glm::ivec3(navHub.x * 9 + 4, static_cast<int>(std::lround(hub.y * 9.0f)), navHub.y * 9 + 4);
+                            pr.goalRadiusMicro = 4;
+                            const int yLo = std::min(pr.from.y, pr.to.y) - 90, yHi = std::max(pr.from.y, pr.to.y) + 90;
+                            const glm::ivec3 plo((navSite.x - 8) * 9, yLo, (navSite.y - 8) * 9), phi((navSite.x + navSite.z + 8) * 9, yHi, (navSite.y + navSite.w + 8) * 9);
+                            const auto prep = Core::checkRoutes(occ, box, {pr}, plo, phi, /*diagnose=*/true);
+                            const bool probeOk = prep.walkable > 0;
+                            const bool oneWay = !prep.routes.empty() && prep.routes[0].oneWay;
+                            LOG_WARN_FMT("Settlement", "walkability:   " << label << " - the micro probe from the same cell to the hub and back: " << (probeOk ? "WALKS" : (oneWay ? "one way only" : "BLOCKED"))
+                                         << " (reached " << (prep.routes.empty() ? 0 : prep.routes[0].reachedFromStart) << " / " << (prep.routes.empty() ? 0 : prep.routes[0].reachedFromGoal)
+                                         << "); the graph holds a surface at the lot's cell: " << (graph.surfaceAt(a).valid() ? "yes" : "NO") << ", at the hub: " << (graph.surfaceAt(hub).valid() ? "yes" : "NO"));
+                            // where the graph's reach stops (chain 511): the cells on the straight line hub -> lot, each asked
+                            // from the hub and toward the hub; the first cell either answer changes at, with the feet there
+                            if (navTrapped + navCut <= 3) {
+                                std::string trace;
+                                const int steps = std::max(std::abs(cell.x - navHub.x), std::abs(cell.y - navHub.y));
+                                char prevIn = '?', prevOut = '?';
+                                for (int t = 0; t <= steps; ++t) {
+                                    const glm::ivec2 c(navHub.x + (cell.x - navHub.x) * t / std::max(1, steps), navHub.y + (cell.y - navHub.y) * t / std::max(1, steps));
+                                    glm::vec3 pt;
+                                    if (!standAt(c, pt)) continue;
+                                    const char ci = graph.findPath(hub, pt, navAgent).found ? 'y' : 'N', co = graph.findPath(pt, hub, navAgent).found ? 'y' : 'N';
+                                    if (ci != prevIn || co != prevOut)
+                                        trace += " (" + std::to_string(c.x) + "," + std::to_string(c.y) + ") feet " + std::to_string(static_cast<int>(std::lround(pt.y * 9.0f))) + " from-hub " + ci + " to-hub " + co + ";";
+                                    prevIn = ci; prevOut = co;
+                                }
+                                LOG_WARN_FMT("Settlement", "walkability:   " << label << " - along the straight line from the hub, where the graph's answer changes:" << trace);
+                            }
+                        }
                         if (navGateBlocks) routesJ.push_back({{"label", label + (in ? ": cannot be left (nav graph)" : ": cannot be reached (nav graph)")}, {"walkable", false}, {"nav_graph", true}});
                     }
                 LOG_INFO_FMT("Settlement", "walkability gate: the residents' graph - " << navAsked << " lots asked both ways to the hub, " << navTrapped

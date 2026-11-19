@@ -395,6 +395,10 @@ PavingPlan planDoorSpurs(const std::vector<DoorAnchor>& doors,
             ++plan.spursPlanned;
             continue;
         }
+        // O39 (f) (pm_chain510.txt, chain 512): a door spur keeps the OLD grade (2 micro a column) for now. At the ways'
+        // grade the village's isolated lot joined the residents' graph - and one approach cell stood 1 micro off the level
+        // the MAP states for it (lot 3: [883, 884] against [883, 883]), which the doorsteps' contract forbids. Not
+        // landed until the spur and the map's approach are graded by one rule.
         const PathPlan spur =
             planTerrainPath(groundMicroAt, {d.x, d.surfaceY, d.z}, {gx, gS, gz}, box);
         if (!spur.ok) {
