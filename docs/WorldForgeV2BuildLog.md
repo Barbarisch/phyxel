@@ -922,3 +922,13 @@ Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain453.txt` (chains 453 to 
 - Open: one lot lost on one plan (undiagnosed); A, B, C not isolated; water just beyond the site's edge is not seen
   by the planner (17 band cells on 3 plans, printed, not asserted); the band check shares its formula with rule C;
   none of these shapes is built. Audited PASS WITH CONDITIONS; responses not re-audited. No Debug run.
+
+### 2026-11-19 - O36 (i): settlement fords as a world switch; CityLab re-pinned to the creek site (D71 a)
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain463.txt`.
+- `WorldForgeParams::settlementFords` (recipe; written to JSON only when true, so no stored recipe or pinned plan
+  hash moves); `settlementParamsFor` passes `"ford": true` to a site's build when the plan carries it.
+- Red (the switch set, the creek city still refused at 5 of 20) then green: both creek city tests now run on the
+  recipe's switch alone, no parameter override. Release unit 212 / 0, live 41 / 0, record lines unchanged.
+- The CityLab project file and its repo copy are re-pinned to (-1200, -1040) with the switch on, no painted hill.
+  Not yet loaded by an engine. Not audited.

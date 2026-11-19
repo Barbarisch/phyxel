@@ -1,0 +1,32 @@
+pm_chain463.txt - O36 (i): a per-world switch for settlement fords, then the city L4 on the creek site (O16, D71 a).
+(written 2026-11-19 09:05, BEFORE any run of this chain; HEAD 0a76db55)
+
+DESIGN (short). The ford rule is a build parameter ("ford": true) that worldforge_build never sets. A world asks
+  for it in its RECIPE: WorldForgeParams::settlementFords (bool, default false), written to the recipe JSON ONLY
+  when true (like "era": an absent key is the default, so no stored recipe and no pinned plan hash moves), read
+  back, part of operator==. WorldForgeBuildService::settlementParamsFor adds "ford": true to a site's build
+  parameters when the plan's params carry it. API: the plan's params echo carries the field. Chunk-independent
+  (a recipe value). Not a default change: every existing world plans as before.
+RED: (unit) WorldForgeRecipeTest.SettlementFordsIsAWorldSwitch - absent by default, round-trips when set, differs
+  from the default. (live) TheCreekCityFordsItsCreek and TheCreekCityIsBuiltAcrossItsFords take their recipe WITH
+  the switch and pass the parameters settlementParamsFor gives UNCHANGED on the ford arm (the control sets "ford":
+  false) - red while settlementParamsFor does not pass the switch on.
+  PREDICTION chain 463 (step 1: the field and its JSON, settlementParamsFor NOT yet changed): the unit test passes;
+  the live plan test FAILS on the ford arm (refused at 5 of 20: the switch does not reach the build).
+  chain 464 (step 2): both green; VersionOnePlanHashesArePinned unchanged.
+RESULTS (written 2026-11-19 09:11)
+  chain 463 (step 1, exe 09:11:28): as predicted - WorldForgeRecipeTest 6 / 6 (the new one passes); the live plan
+    test FAILS: "the recipe's settlementFords does not reach the site's build parameters", the ford arm refused at 5
+    of 20.
+  chain 464 (step 2, exe 09:12:05): 9 ok / 0 failed - WorldForgeRecipeTest 6, VersionOnePlanHashesArePinned, and both
+    creek city tests with NO parameter override: "plan accepted; 20 lots of 20, 8 ways, 4 crossings"; the control
+    ("ford": false) refused at 5 of 20; built: "gate passed, 74 walkable, 0 blocked ... 20 doors of 20", 4 fords
+    walked along their lanes, 4 gate routes needing their gates.
+  PREDICTION chains 465 / 466 (unit 212, live 41): 0 failed; record lines identical to chains 458 / 459.
+  chain 465 (unit, exe 09:12:05): 212 ok / 0 failed; record lines identical to chain 458's.
+RESULTS (written 2026-11-19 09:26)
+  chain 466 (live, exe 09:12:05, exit 0): 41 ok / 0 failed; record lines identical to chain 459's.
+  The CityLab project file (outside the repo, C:\Users\bpete\Documents\PhyxelProjects\CityLab\game.json) and its
+  repo copy docs/evidence/worldforge_v2/citylab_game.json are RE-PINNED: the city at (-1200, -1040), no painted hill,
+  "settlementFords": true. Written by hand (a data file); NOT yet loaded by an engine - the L4 run is the next step.
+  Release only. No Debug run. Not audited (a small switch; the L4 run that uses it will be).

@@ -1,6 +1,6 @@
 {
   "name": "CityLab",
-  "description": "WorldForge v2 plan section 16 'CityLab' AS BUILT 2026-11-18 (O16, docs/evidence/worldforge_v2/m3c_chains/pm_chain380.txt): the WorldSheetLab recipe (Perlin 7001, version-2 sheet with erosion) + one painted hill at the origin (sheet.upliftMask deltaU 24, radiusU 512 - a rig choice) + one pinned city-tier site at the origin (worldforge.sitePins / pinTiers). MEASURED headless, not as specified: the site's relief is 35 u with or without the bump (a hillside, not a gentle hill) and NO creek crosses it; siteCount stays 5, so four scored sites exist 1000+ u west. Residents and the build are not in this file: POST /api/worldforge/build. The same recipe is SettlementMapLiveSiteTest's cityLabRecipe - keep the two in step. Delete worlds/default.db before a recipe change (the stored recipe wins).",
+  "description": "WorldForge v2 plan section 16 'CityLab', AS RULED D71 (a) 2026-11-18 and re-pinned 2026-11-19 (O16 / O36 i, docs/evidence/worldforge_v2/m3c_chains/pm_chain463.txt): the WorldSheetLab recipe (Perlin 7001, version-2 sheet with erosion), NO painted hill, one pinned city-tier site at (-1200, -1040) - the flat creek site (four fordable creek channels cross it; relief 4 u) - and worldforge.settlementFords so the city's ways ford them. The origin hillside of the first version (relief 35 u, no creek) is given up: this recipe has no gentle hill with a creek (pm_chain389.txt). siteCount stays 5. Residents and the build are not in this file: POST /api/worldforge/build. The same recipe is SettlementMapLiveSiteTest's 'citylab-A fords' rig - keep the two in step. Delete worlds/default.db before a recipe change (the stored recipe wins).",
   "version": "1.0",
   "world": {
     "type": "Perlin",
@@ -33,15 +33,7 @@
       "erosionK": 5.61e-07,
       "erosionM": 0.5,
       "erosionUpliftMax": 0.0005,
-      "erosionMaxSlope": 0.577,
-      "upliftMask": [
-        {
-          "x": 0.0,
-          "z": 0.0,
-          "radiusU": 512.0,
-          "deltaU": 24.0
-        }
-      ]
+      "erosionMaxSlope": 0.577
     },
     "heightSpline": [
       {
@@ -66,22 +58,24 @@
       }
     ],
     "worldforge": {
+      "enabled": true,
       "sitePins": [
         {
-          "x": 0,
-          "z": 0
+          "x": -1200,
+          "z": -1040
         }
       ],
       "pinTiers": [
         "city"
-      ]
+      ],
+      "settlementFords": true
     }
   },
   "camera": {
     "position": {
-      "x": 0,
-      "y": 252,
-      "z": 200
+      "x": -1200,
+      "y": 130,
+      "z": -860
     },
     "yaw": -90,
     "pitch": -35
@@ -89,9 +83,9 @@
   "player": {
     "type": "animated",
     "position": {
-      "x": 0,
-      "y": 170,
-      "z": -100
+      "x": -1290,
+      "y": 48,
+      "z": -1033
     }
   },
   "dayNight": {

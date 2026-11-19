@@ -2762,8 +2762,8 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagScanCityLabForACreekSite) {
 TEST(SettlementMapLiveSiteTest, TheCreekCityFordsItsCreek) {
     const int px = -1200, pz = -1040;
     LiveSiteRig rig;
-    rig.recipeKey = "citylab-A no bump"; rig.worldSeed = 7001u;
-    rig.recipeFn = [px, pz] { return cityLabRecipe(false, px, pz, 0.0f, 0.0f); };
+    rig.recipeKey = "citylab-A fords"; rig.worldSeed = 7001u;   // O36 (i): the recipe asks for settlement fords
+    rig.recipeFn = [px, pz] { WorldRecipe r = cityLabRecipe(false, px, pz, 0.0f, 0.0f); r.worldforge.settlementFords = true; return r; };
     ASSERT_TRUE(rig.setUp(0, 24)) << rig.why;
     ASSERT_EQ(rig.site->tier, "city");
     const int W = rig.site->width, D = rig.site->depth, ox = rig.site->pos.x - W / 2, oz = rig.site->pos.y - D / 2;
@@ -2790,7 +2790,9 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityFordsItsCreek) {
     deps.chunkManager = &rig.cm; deps.templates = &rig.templates; deps.placedObjects = &rig.placed;
     for (const bool ford : {true, false}) {
         nlohmann::json params = WorldForgeBuildService::settlementParamsFor(*gen->worldForge(), *rig.site);
-        if (ford) params["ford"] = true;   // opt-in (the audit of O36 a); the control is the default
+        // O36 (i): the ford arm takes the parameters the world's recipe gives, UNCHANGED; the control switches it off
+        if (ford) { EXPECT_TRUE(params.value("ford", false)) << "the recipe's settlementFords does not reach the site's build parameters"; }
+        else params["ford"] = false;
         const auto plan = SettlementBuildService::plan(params, deps);
         const Core::SettlementMap m = plan.map.is_object() ? Core::SettlementMap::fromJson(plan.map) : Core::SettlementMap();
         int lotWet = 0, wayWet = 0, wayWetOutside = 0, crossingCells = 0;
@@ -2909,10 +2911,10 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityFordsItsCreek) {
 TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
     const int px = -1200, pz = -1040;
     LiveSiteRig rig;
-    rig.recipeKey = "citylab-A no bump"; rig.worldSeed = 7001u;
-    rig.recipeFn = [px, pz] { return cityLabRecipe(false, px, pz, 0.0f, 0.0f); };
+    rig.recipeKey = "citylab-A fords"; rig.worldSeed = 7001u;   // O36 (i): the recipe asks for settlement fords
+    rig.recipeFn = [px, pz] { WorldRecipe r = cityLabRecipe(false, px, pz, 0.0f, 0.0f); r.worldforge.settlementFords = true; return r; };
     ASSERT_TRUE(rig.setUp(0, 24)) << rig.why;
-    const auto out = realize(rig, /*legacyLayout=*/false, nlohmann::json{{"ford", true}});
+    const auto out = realize(rig, /*legacyLayout=*/false);   // O36 (i): no override - the recipe's switch alone
     ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
     const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
     Core::SettlementProgramRegistry reg;

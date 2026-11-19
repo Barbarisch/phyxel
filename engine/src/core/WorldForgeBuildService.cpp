@@ -31,6 +31,9 @@ nlohmann::json WorldForgeBuildService::settlementParamsFor(const WorldForgePlan&
         // run), respawned identically on return or reload.
         {"residents", false},
     };
+    // O36 (i) (pm_chain463.txt): the world's recipe asks for settlement fords - the site's build is told. Absent
+    // otherwise: the build's own default (no ford) stands.
+    if (plan.params().settlementFords) params["ford"] = true;
     // M5a: EVERY road arriving at this site, as the planner's entries - the road's end clamped into the
     // site rect, site-local cubes, with its class (the box plan trims the line at the rect edge).
     nlohmann::json entries = nlohmann::json::array();

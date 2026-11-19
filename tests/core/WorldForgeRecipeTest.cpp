@@ -51,6 +51,26 @@ TEST(WorldForgeRecipeTest, RecipeWorldForgeRoundTrip) {
     EXPECT_EQ(back.seed, 42u);
 }
 
+// O36 (i) (pm_chain463.txt): settlement fords are a WORLD switch - absent from the JSON by default (no stored recipe
+// moves), written and read back when set, and part of the parameters' identity.
+TEST(WorldForgeRecipeTest, SettlementFordsIsAWorldSwitch) {
+    WorldForgeParams off;
+    off.enabled = true;
+    EXPECT_FALSE(off.settlementFords);
+    EXPECT_FALSE(off.toJson().contains("settlementFords")) << "the default writes the key: every stored recipe would change";
+    WorldForgeParams on = off;
+    on.settlementFords = true;
+    EXPECT_FALSE(on == off);
+    const nlohmann::json j = on.toJson();
+    ASSERT_TRUE(j.contains("settlementFords"));
+    EXPECT_TRUE(j["settlementFords"].get<bool>());
+    EXPECT_TRUE(WorldForgeParams::fromJson(j).settlementFords);
+    EXPECT_FALSE(WorldForgeParams::fromJson(off.toJson()).settlementFords);
+    WorldRecipe r;
+    r.worldforge = on;
+    EXPECT_TRUE(WorldRecipe::fromJson(r.toJson()).worldforge.settlementFords) << "the switch does not survive the recipe";
+}
+
 // A legacy recipe (no worldforge key) parses to DISABLED, and a disabled recipe writes NO
 // worldforge key — stored recipe JSON for legacy worlds is byte-identical to before.
 TEST(WorldForgeRecipeTest, LegacyRecipeDisabledAndKeyless) {

@@ -46,6 +46,10 @@ struct WorldForgeParams {
     // on the civ path only (the civ world's hamlet 40 x 32 seated 5 / 3 / 2 against its 3-6 band); never
     // serialized, like pinRefine, so no persisted recipe and no version-1 plan hash moves.
     bool derivedSiteRects = false;
+    // O36 (i) (pm_chain463.txt): this world's settlements may FORD a creek inside town (D69 (c1)): the build service
+    // gives the planner the world road's ford rule. A world asks for it in its recipe; written to JSON only when true
+    // (an absent key is the default), so no stored recipe and no pinned plan hash moves.
+    bool settlementFords = false;
     // ── M3b (D23): the history ledger. civEpochs = number of 25-year epochs simulated after the
     // founding (0 = no history: the plan is M3a's bit for bit); civShockEpoch = the epoch of the one
     // population shock (−1 = none); civShockFraction = the share of every population index the
@@ -102,7 +106,7 @@ struct WorldForgeParams {
     bool operator==(const WorldForgeParams& o) const {
         if (civ != o.civ || civDensityScale != o.civDensityScale || pinTiers != o.pinTiers || pinRefine != o.pinRefine || derivedSiteRects != o.derivedSiteRects) return false;
         if (civEpochs != o.civEpochs || civShockEpoch != o.civShockEpoch || civShockFraction != o.civShockFraction || civAbandonShare != o.civAbandonShare) return false;
-        if (routeReuseFraction != o.routeReuseFraction) return false;
+        if (routeReuseFraction != o.routeReuseFraction || settlementFords != o.settlementFords) return false;
         if (era != o.era) return false;
         for (int c = 1; c < 4; ++c) if (gradeCap[c] != o.gradeCap[c]) return false;
         if (bridgeMaxSpanU != o.bridgeMaxSpanU || bridgeSingleSpanU != o.bridgeSingleSpanU || pierSpacingU != o.pierSpacingU || fordMaxDepthU != o.fordMaxDepthU) return false;
@@ -171,6 +175,7 @@ struct WorldForgeParams {
             j["rockCutMaxU"] = rockCutMaxU;
         }
         if (!pinTiers.empty()) j["pinTiers"] = pinTiers;
+        if (settlementFords) j["settlementFords"] = true;   // absent = false: the hashes stay
         if (!sitePins.empty()) {
             nlohmann::json pins = nlohmann::json::array();
             for (const auto& p : sitePins) pins.push_back({{"x", p.x}, {"z", p.y}});
@@ -211,6 +216,7 @@ struct WorldForgeParams {
         p.fordMaxDepthU = j.value("fordMaxDepthU", 0.5f);
         p.wallTierU = j.value("wallTierU", 3.0f);
         p.rockCutMaxU = j.value("rockCutMaxU", 36.0f);
+        p.settlementFords = j.value("settlementFords", false);
         if (j.contains("pinTiers") && j["pinTiers"].is_array())
             for (const auto& t : j["pinTiers"]) p.pinTiers.push_back(t.get<std::string>());
         return p;
