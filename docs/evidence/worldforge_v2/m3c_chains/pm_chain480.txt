@@ -1,0 +1,89 @@
+pm_chain480.txt - O38 (g): the residents of the live creek city.
+(written 2026-11-19 10:32, BEFORE the run; HEAD 49df86da; the Release editor of 10:02:41 - the L4 run 3's)
+
+READ FIRST (code, not a run): WorldForgeBuildService::settlementParamsFor passes "residents": false - the BUILD spawns
+  none, and the ledger's "residents" counts only what the build spawned: 0 BY DESIGN. Residents are the
+  ResidentSpawner's (editor Application: configured and enabled every frame): it plans them from the persisted
+  Home / Work / Tavern Locations the buildings register and spawns each where its ground is resident. So the "about
+  22 res_ NPCs with a ledger of 0" is two different counts, not a contradiction - and they also appear on a REFUSED
+  site because a refused build keeps its buildings and their Locations (nothing is rolled back).
+  THE REAL DOUBT: the one position I kept from run 1 - "res_apothecary_-1173_-1033" at (-31.8, 40.0, -15.0) - is
+  about 1140 u from the cell in its name. The engine has no floating origin that I can find.
+RUN 4 (the same script as the L4 with a resident probe instead of screenshots: /api/npcs at t = 0, 60, 120 s after
+  the build, each resident's distance from the cell in its name, the lowest y; the camera, the player, /api/locations).
+  PREDICTION: UNKNOWN. H1 - the positions are world positions and residents stand FAR from their homes (a defect:
+  spawned or walked somewhere else); H2 - they stand in the city and the run-1 value was something else (a fauna
+  entry, a mis-read). GUESS H2 60 %. If any resident's y falls between the three times, it is falling.
+RESULTS (written 2026-11-19 10:42)
+  run 4 (the editor of 10:02:41, fresh DB; the city BUILT again: "74 walkable, 0 blocked", ledger built, 20
+    buildings): my probe's printing had a quoting fault; the three /api/npcs dumps were saved and read offline.
+    20 "res_" NPCs at t = 0, 60 and 120 s after the build. EVERY ONE stands within a few units of (-30, 39, -32) -
+    1100 to 1190 u in x and 940 to 1084 u in z from the cell in its own name; y 38 to 40 (the city's ground level);
+    16 to 18 of them move a little between dumps; none falls. The engine's log: "Spawned procedural NPC
+    'res_apothecary_-1173_-1033' ... at (-1172.5, 40, -1032.5)" at 10:36:23 (during the build) and, at 10:38:16, "NPC
+    'res_apothecary_-1173_-1033' stands at (-30.06, 39.99, -24.52) with no walkable surface within 3 cells" (21 such
+    lines). /api/camera reports the camera at (-31.75, 50.79, -28.47) although the project file puts it at (-1200,
+    130, -860). H1 HOLDS: the residents are NOT in the city. They spawn at their homes and within two minutes are
+    piled near the world's origin corner, their height unchanged. PREDICTION MISS (I guessed H2).
+  WHAT MOVES THEM IS NOT FOUND. Read and ruled out so far: the nav graph's relocation (3 cells at most); a world
+  bounds clamp (none found by name); a floating origin (the residents' spread is lost, not shifted). Noted: the
+  build runs main-thread units of 3 to 11 SECONDS a frame while the residents already exist; my project file spawns
+  the PLAYER at (-1290, 48, -1033), in terrain not yet streamed at boot (against the standing rule).
+  run 5 (stated before it runs): the same build with a 5-second trace of the camera and the first four residents
+  from the job's start - WHEN they move and whether in one jump. PREDICTION: UNKNOWN; GUESS one jump during a long
+  frame of the build.
+RESULTS (written 2026-11-19 10:49)
+  run 5 (the trace; the city BUILT again): each resident is listed at its home in the sample after it spawns -
+    "tenement(-1144,39,-1036)" - and at exactly (-32, y, -32) in the NEXT sample 7 s later; then it shuffles within
+    a few units of that corner. ONE JUMP to a fixed corner, height kept. The camera reads (-31.8, 50.8, -28.5)
+    throughout.
+  CAUSE FOUND (read, then to be shown by a red test): core/PlayBounds.h (G-169, Ravenmere: "characters can walk off
+  the edge of the map") - every kinematic character is CLAMPED each frame to the play bounds, and the bounds are
+  the scene's authored REGION (world.from/to) when it has one. CityLab's game.json (like CivLab's and
+  WorldSheetLab's) carries from (-1, 0, -1) to (1, 0, 1): a 96 x 96 region at the origin. The city stands 1100 u
+  outside it, so every resident is pulled to the region's corner (-32, -32). The loader gives EVERY scene a region
+  (no from/to = chunk (0, 0, 0)), so a streaming WorldForge world always has this wall. This also explains O19 (a)
+  in part and why residents at a WorldForge site never behaved.
+DESIGN (short): a WORLDFORGE world is free-roam - its settlements stand anywhere in the plan's box, and
+  ResidentSpawner's contract is "residents exist wherever their settlement's chunks exist". So in
+  ChunkManager::effectivePlayBounds the REGION is not a wall when streaming generation is on and the generator's
+  recipe has worldforge enabled; an AUTHORED playBounds still applies; every other world is as before (Ravenmere's
+  fixed scenes keep their wall). Chunk-independent (a recipe value). API: playBoundsSource says which.
+RED: PlayBoundsTest - a streaming world with a region: the region is the wall (control, as today); the same world
+  with worldforge enabled: NO bounds; with an authored stage: the stage. PREDICTION chain 481 (RED): the worldforge
+  arm fails (the region still stands). chain 482 (GREEN). Then L4 run 6: the residents stay in the city (GUESS 75 %).
+  chain 481 (RED, exe 10:49:55): as predicted - "a worldforge world is still walled to its boot region: region
+    (world.from/to)"; the other 13 play-bounds tests pass.
+  chain 482 (GREEN, exe 10:50:24): PlayBoundsTest / HeadlessWorld 14 ok / 0 failed.
+RESULTS (written 2026-11-19 10:57)
+  L4 run 6 (the editor rebuilt 10:50:48 with the free-roam rule; fresh DB; the city BUILT: "74 walkable, 0 blocked
+    over 74 routes (20 front doors of 20 built, 0 skipped)", ledger built, 20 buildings):
+    /api/npcs right after the build: 21 NPCs, 20 "res_" - each 0.7 to 1.6 u from the cell in its own name, all 20
+    inside the site's rectangle, y 37.1 to 38.1. The 5-second trace: 30 resident samples, none outside the site;
+    e.g. "apotheca(-1172,38,-1032) general_(-1190,38,-1034) tenement(-1144,38,-1036) tavern_-(-1190,38,-1088)" (run
+    5: every one at (-32, y, -32)). The camera reads (-1290.0, 40.8, -1029.7) - beside the player's spawn.
+  LIMITS: this is the residents' place AT THE END OF THE BUILD. The dumps at 60 and 120 s did NOT run (my patch to
+  the script failed on its own assertion and the old one ran), and most trace samples during the build read "npcs ?"
+  (the API timed out behind multi-second frames). Whether the residents then follow their day, stay out of walls,
+  or survive a streaming eviction is NOT shown. One run. The player still spawns in terrain not yet streamed.
+  chain 483 (the unit filter + PlayBoundsTest, HeadlessWorld, ResidentSpawnerTest, ResidentPlannerTest; exe 10:50:24): 241 ok / 0 failed; record lines identical to chain 477's.
+  chain 484 (live set, exe 10:50:24, RUN484 EXIT 0 11:10:26 exe 10:50:24): 41 ok / 0 failed; record-line differences against chain 478: 0.
+AUDIT (solution-auditor, 2026-11-19 about 11:14): RAW VERDICT: PASS WITH CONDITIONS. Full text in the ledger.
+  ANSWERED IN THE TEST FILE before chain 485 (stated; the engine is unchanged): a character-level test -
+  HeadlessWorld.ACharacterOnAWorldForgeWorldWalksPastTheRegionsEdge (a walker driven south on a streaming world with
+  the region at the origin and ground beyond it: held at the edge without worldforge - the control - and past it
+  with worldforge); the getter test's lines that compared a point with itself are removed.
+  PREDICTION chain 485: the control held at -32, the worldforge walker past it (GUESS 80 %; the residency hold or the
+  flat test ground may stop it for another reason - then the test says so). To show it can fail it is also run with
+  the engine's rule STASHED (chain 486): the worldforge walker is then held.
+RESULTS (written 2026-11-19 11:13)
+  chain 485 (exe 11:12:40): PlayBoundsTest / HeadlessWorld 15 ok / 0 failed - the control walker held at the
+    region's edge, the worldforge walker past it.
+  chain 486 (the engine's rule STASHED, exe 11:12:57): RED - "on a worldforge world the walker is still held at the
+    region's edge (z -31.75)" and the getter test's "still walled to its boot region".
+  chain 487 (the tree restored, rebuilt): RUN EXIT 0 2026-11-19 11:13:58 15 ok, 0 failed
+  STANDING: the engine is the one of L4 run 6 and of chains 483 (241 / 0) and 484 (live 41 / 0); after them only
+  tests/core/PlayBoundsTest.cpp changed. Release only. The audit's responses are not re-audited.
+  WHAT MAY BE SAID (the auditor's wording): residents are no longer pulled to the region's corner on a worldforge
+  world; 20 of 20 stood at their homes for at least 2.5 minutes after the build (one run, idle, Release). NOT:
+  "residents ON", that they live their day or walk freely. Day schedules, walls and eviction are not shown.

@@ -140,6 +140,28 @@ TEST_F(HeadlessWorld, AuthoredBoundsBeatTheDerivedExtent) {
     EXPECT_FLOAT_EQ(cm.effectivePlayBounds().maxX, 64.0f) << "cleared: back to the chunk extent";
 }
 
+// O38 (g) (pm_chain480.txt): a WORLDFORGE world is free-roam. The live creek city's 20 residents spawned at their homes
+// and were pulled, each within seconds, to (-32, -32) - the corner of the project's world.from/to region at the
+// origin, 1100 u away: the region was the wall although the world's settlements stand all over its plan's box.
+TEST_F(HeadlessWorld, AWorldForgeWorldsRegionIsNotAWall) {
+    chunkAt(0, 0);
+    cm.configureStreamingGeneration(true, Phyxel::WorldGenerator::GenerationType::Flat, 1);
+    cm.setRegionPlayBounds(PlayBounds::make(-32.0f, -32.0f, 64.0f, 64.0f));
+    ASSERT_TRUE(cm.effectivePlayBounds().valid) << "the control: a streaming world WITHOUT worldforge keeps its region as the wall";
+    ASSERT_NE(cm.getStreamingGenerator(), nullptr);
+    Phyxel::WorldForgeParams wf;
+    wf.enabled = true;
+    cm.getStreamingGenerator()->setWorldForgeParams(wf);
+    EXPECT_FALSE(cm.effectivePlayBounds().valid) << "a worldforge world is still walled to its boot region: " << cm.playBoundsSource();
+    cm.setAuthoredPlayBounds(PlayBounds::make(0.0f, 0.0f, 20.0f, 20.0f));
+    ASSERT_TRUE(cm.effectivePlayBounds().valid) << "an authored stage still applies on a worldforge world";
+    EXPECT_FLOAT_EQ(cm.effectivePlayBounds().maxX, 20.0f);
+    cm.clearAuthoredPlayBounds();
+    wf.enabled = false;
+    cm.getStreamingGenerator()->setWorldForgeParams(wf);
+    EXPECT_TRUE(cm.effectivePlayBounds().valid) << "worldforge off again: the region is the wall again";
+}
+
 TEST_F(HeadlessWorld, AStreamingWorldWithoutARegionHasNoBoundsButARegionBeatsStreaming) {
     // Streamed surround is the norm: the world continues past the authored region with terrain
     // nobody can reach, so the REGION is the wall. Without a region (a free-roam streaming
@@ -309,4 +331,26 @@ TEST_F(HeadlessWorld, ACharacterWithBoundsIsHeldAtTheEdgeOnEveryFrame) {
     EXPECT_GE(w.minZ, -32.0f) << "the wall: no frame puts the body centre past the edge";
     EXPECT_LT(w.minZ, -30.5f) << "...and the body did reach the wall (it is not simply stuck)";
     EXPECT_GE(w.ch.getPosition().z, -32.0f);
+}
+
+// The audit of O38 (g): the rule on the CHARACTER's own path (resolveKinematicMovement), not the getter alone. A
+// streaming world with the region at the origin and ground beyond its south edge (so the residency hold is not what
+// stops the walker): WITHOUT worldforge the walker is held at the region's edge; WITH it the walker goes on.
+TEST_F(HeadlessWorld, ACharacterOnAWorldForgeWorldWalksPastTheRegionsEdge) {
+    for (int x = -1; x <= 1; ++x)
+        for (int z = -2; z <= 1; ++z) chunkAt(x, z);   // chunks exist south of the region too (z = -2: -64..-32)
+    cm.configureStreamingGeneration(true, Phyxel::WorldGenerator::GenerationType::Flat, 1);
+    cm.setRegionPlayBounds(PlayBounds::make(-32.0f, -32.0f, 64.0f, 64.0f));
+    {
+        WalkSouth held;   // the CONTROL: no worldforge - the region is the wall
+        ASSERT_TRUE(held.run(&cm));
+        EXPECT_GE(held.minZ, -32.0f) << "the control did not hold the walker at the region's edge: the test below proves nothing";
+        EXPECT_LT(held.minZ, -30.5f) << "the control's walker never reached the edge";
+    }
+    Phyxel::WorldForgeParams wf;
+    wf.enabled = true;
+    cm.getStreamingGenerator()->setWorldForgeParams(wf);
+    WalkSouth free;
+    ASSERT_TRUE(free.run(&cm));
+    EXPECT_LT(free.minZ, -32.0f) << "on a worldforge world the walker is still held at the region's edge (z " << free.minZ << ")";
 }

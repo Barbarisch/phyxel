@@ -1992,3 +1992,32 @@ MY RESPONSE (after the audit; NOT re-audited; test file only - the engine is the
    after the L4's evidence). Its one red -> green is the gate beside a filled ford (chain 471 "1 skipped" -> 472).
    Registered O38 (c).
  - buildings are NOT counted independently in the L4 (the headless build counts 20 doors built of 20). Registered.
+
+=== O38 (g) / O19 (a) the residents of a WorldForge site: the boot region was the wall - solution-auditor read (recorded 2026-11-19 11:13; HEAD 49df86da + the working tree; read-only; detail in m3c_chains/pm_chain480.txt, evidence docs/evidence/worldforge_v2/citylab_l4/ runs 4 to 6) ===
+RAW VERDICT: PASS WITH CONDITIONS (read-only audit; nothing run).
+FINDINGS (the auditor's, condensed):
+ 1. the cause is supported by code and evidence: AnimatedVoxelCharacter.cpp:496-502 clamps every frame to
+    ChunkManager::effectivePlayBounds(); GameDefinitionLoader.cpp:637 sets a region for every scene; before the
+    change the region was returned before the streaming check. Run 5 shows one jump to a fixed corner, y kept; the
+    camera's read at that corner is the same wall on the PLAYER. Only three callers exist: the character clamp (player
+    and every NPC), PatrolBehavior's wander targets (no longer clamped to the region on a worldforge world), and
+    GameApiService's play-bounds report. The loading-screen settle uses regionChunkCoords, untouched.
+ 2. run 6 supported: source 10:50:14, editor 10:50:48, status0 10:51:35; job complete, built, 20 buildings; the trace
+    lists residents at home and the same four stay put 10:54:12 to 10:56:59 - "about 2.5 min, which is stronger than
+    'right after the build'". Weakness: they sit on their cell centres, idle - the run shows "not clamped", not
+    "walks freely or follows a day". The auditor did not re-check "74 walkable / 0 blocked" in the files.
+ 3. counts supported (481 red 13 / 1; 482 green 14 / 0; 483 241 passed; 484 41 passed). The chain header's START
+    hashes are not the files under test; the exe's time is what certifies.
+ 4. the stated limits are honest. (a) Ravenmere-type games keep their wall (worldforge.enabled defaults false); a
+    worldforge game with a fixed stage and no authored playBounds "now silently loses its wall"; a plan line
+    ("effectivePlayBounds is none for streaming worlds") is stale. (b) kinematicResidencyHold applies to every
+    AnimatedVoxelCharacter (feet chunk AND the one below absent): residents far from the focus stand frozen, not
+    fall; not tested for NPCs on a worldforge world. (c) the unit test proves the GETTER; its "kept" lines compared
+    a point with itself; no test drove a character on a worldforge world.
+CONDITIONS: restate the limits in O16; add a character-level test; fix the stale plan line; disclose that a
+ worldforge game with a fixed stage must author playBounds; drop the tautological lines.
+MY RESPONSE (after the audit; test file and docs only; NOT re-audited):
+ - a character-level test is added (ACharacterOnAWorldForgeWorldWalksPastTheRegionsEdge): green with the rule
+   (chain 485), RED with the rule stashed (chain 486: held at z -31.75), with its own control arm (no worldforge:
+   held). The tautological lines are removed.
+ - the plan's O16, O19 and O38 rows carry the limits and the fixed-stage disclosure; the stale line is corrected.

@@ -224,15 +224,25 @@ Core::PlayBounds ChunkManager::derivedWorldExtentXZ() const {
     return b;
 }
 
+// O38 (g) (docs/evidence/worldforge_v2/m3c_chains/pm_chain480.txt): a WORLDFORGE world is free-roam. Its settlements
+// stand anywhere in the plan's box and their residents live "wherever their settlement's chunks exist"
+// (ResidentSpawner); with the boot region as the wall, the live creek city's 20 residents were each pulled to the
+// region's corner 1100 u from home. On a streaming world whose recipe has worldforge enabled the REGION is not a
+// wall; an authored playBounds still is. Every other world is as before.
+static bool worldForgeFreeRoam(bool streaming, const WorldGenerator* gen) {
+    return streaming && gen && gen->worldForgeParams().enabled;
+}
+
 Core::PlayBounds ChunkManager::effectivePlayBounds() const {
     if (m_authoredPlayBounds.valid) return m_authoredPlayBounds;
-    if (m_regionPlayBounds.valid) return m_regionPlayBounds;
+    if (m_regionPlayBounds.valid && !worldForgeFreeRoam(m_streamingGenerationEnabled, m_worldGenerator.get())) return m_regionPlayBounds;
     if (m_streamingGenerationEnabled) return Core::PlayBounds{};
     return derivedWorldExtentXZ();
 }
 
 const char* ChunkManager::playBoundsSource() const {
     if (m_authoredPlayBounds.valid) return "authored";
+    if (m_regionPlayBounds.valid && worldForgeFreeRoam(m_streamingGenerationEnabled, m_worldGenerator.get())) return "none (a worldforge world: its region is not a wall)";
     if (m_regionPlayBounds.valid) return "region (world.from/to)";
     if (m_streamingGenerationEnabled) return "none (streaming world)";
     return derivedWorldExtentXZ().valid ? "derived (chunk extent)" : "none (no chunks)";

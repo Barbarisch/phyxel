@@ -953,3 +953,19 @@ DB, RTX 1000 Ada laptop). Nothing hand-placed.
   every route, not only gates; one run, one seed; screenshots mis-posed and renamed by their in-image camera; the
   run script was killed by the harness for memory and the result read by hand from the surviving engine (9.3 GB).
 - Audited: PASS WITH CONDITIONS for "run 3 built the pinned city, gate included"; FAIL for anything wider.
+
+### 2026-11-19 - O38 (g): the residents of a WorldForge site were clamped to the boot region; a worldforge world is free-roam
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain480.txt`; evidence `docs/evidence/worldforge_v2/citylab_l4/`
+runs 4 to 6 (the engine's generator and `worldforge_build`; nothing hand-placed).
+- Found live: the creek city's 20 residents each spawned at home and, within one 5-second sample, stood at
+  (-32, y, -32) - the corner of the project's `world.from/to` region, 1100 u away. Cause: the play-bounds wall
+  (G-169) clamps every character to the scene's region, and every scene has one.
+- Change: `ChunkManager::effectivePlayBounds` - on a streaming world whose recipe has worldforge enabled the region
+  is not a wall; an authored `playBounds` still is; other worlds are unchanged. A worldforge GAME with a fixed stage
+  must author its bounds.
+- Tests: the getter (red, then green) and a walker on the character's own path (held without worldforge, past the
+  edge with it; red with the rule stashed). Release unit + play-bounds + resident tests 241 / 0, live tests 41 / 0.
+- Live run 6: the city built and 20 of 20 residents stood at their homes for at least 2.5 minutes after the build
+  (one run, idle). NOT shown: their day, walking, walls, eviction. The ledger's "residents" stays 0 by design.
+- Audited PASS WITH CONDITIONS; responses not re-audited. No Debug run.

@@ -1,0 +1,25 @@
+10:44:37 cam (-31.8,50.8,-28.5) residents 0 
+10:44:43 cam (-31.8,50.8,-28.5) npcs ?
+10:44:54 cam (-31.8,50.8,-28.5) npcs ?
+10:45:05 cam (-31.8,50.8,-28.5) npcs ?
+10:45:16 cam (-31.8,50.8,-28.5) npcs ?
+10:45:27 cam (-31.8,50.8,-28.5) npcs ?
+10:45:38 cam (-31.8,50.8,-28.5) npcs ?
+10:45:49 cam (-31.8,50.8,-28.5) residents 1 tenement(-1144,39,-1036)
+10:45:56 cam (-31.8,50.8,-28.5) residents 3 tenement(-32,39,-32) croft_-1(-32,40,-32) hall_hou(-1150,39,-1028)
+10:46:04 cam (-31.8,50.8,-28.5) npcs ?
+10:46:15 cam (-31.8,50.8,-28.5) residents 5 tenement(-32,39,-32) croft_-1(-32,40,-32) hall_hou(-32,39,-32) hall_hou(-32,40,-32)
+10:46:25 cam (-31.8,50.8,-28.5) residents 7 apotheca(-32,40,-32) tenement(-19,39,-18) croft_-1(-32,40,-25) hall_hou(-32,39,-32)
+10:46:32 cam (-31.8,50.8,-28.5) npcs ?
+10:46:43 cam (-31.8,50.8,-28.5) residents 10 apotheca(-32,40,-31) general_(-32,40,-32) tenement(-25,39,-32) croft_-1(-27,40,-32)
+10:46:50 cam (-31.8,50.8,-28.5) residents 12 apotheca(-32,40,-29) general_(-32,40,-23) tenement(-29,39,-32) croft_-1(-30,40,-27)
+10:46:59 cam (-31.8,50.8,-28.5) residents 13 apotheca(-32,40,-29) general_(-32,40,-23) tenement(-29,39,-32) croft_-1(-30,40,-27)
+10:47:07 cam (-31.8,50.8,-28.5) residents 14 apotheca(-32,40,-32) general_(-32,40,-32) tenement(-32,39,-32) tavern_-(-1190,40,-1088)
+10:47:16 cam (-31.8,50.8,-28.5) residents 16 apotheca(-32,40,-28) general_(-28,40,-28) tenement(-28,39,-28) tavern_-(-32,40,-32)
+10:47:22 cam (-31.8,50.8,-28.5) residents 18 apotheca(-32,40,-32) general_(-30,40,-32) tenement(-32,39,-29) tavern_-(-32,40,-24)
+10:47:29 cam (-31.8,50.8,-28.5) residents 19 apotheca(-32,40,-32) general_(-30,40,-32) tenement(-32,39,-29) tavern_-(-32,40,-26)
+10:47:39 cam (-31.8,50.8,-28.5) npcs ?
+10:47:50 cam (-31.8,50.8,-28.5) residents 20 apotheca(-32,40,-18) general_(-31,40,-31) tenement(-32,39,-30) tavern_-(-32,40,-32)
+10:47:56 cam (-31.8,50.8,-28.5) residents 20 apotheca(-32,40,-18) general_(-32,40,-31) tenement(-32,39,-30) tavern_-(-32,40,-31)
+10:48:05 cam (-31.8,50.8,-28.5) residents 20 apotheca(-32,40,-19) general_(-32,40,-30) tenement(-32,39,-30) tavern_-(-32,40,-31)
+10:48:15 cam (-31.8,50.8,-28.5) residents 20 apotheca(-32,40,-26) general_(-32,40,-27) tenement(-32,39,-32) tavern_-(-32,40,-32)

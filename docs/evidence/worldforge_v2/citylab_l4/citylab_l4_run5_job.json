@@ -1,0 +1,1 @@
+{"elapsed_seconds":225.53,"id":1000000,"label":"worldforge: 1 sites","main_thread":true,"message":"complete","progress":1.0,"result":{"plan_hash":"4428193239815730412","sites":[{"buildings":20,"id":0,"lot_failures":0,"residents":0,"status":"built","tier":"city"}],"success":true},"state":"complete","type":"worldforge_build","units_done":58,"units_total":58}
