@@ -262,6 +262,14 @@ void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads, Genera
     for (int i = 0; i < n; ++i) m_worker->th.emplace_back([w, i] { w->run(i); });
 }
 
+void WaterSkin::spansWritten(uint64_t before, uint64_t after, const std::unordered_set<uint64_t>& touched) {
+    // the summaries read from the record (fromGen: the generator's - never stale on the record's revision)
+    for (auto& [key, sm] : m_sum)
+        if (sm.built && !sm.fromGen && sm.spanRev == before && !touched.count(key)) sm.spanRev = after;
+    // the next call scans once (a touched column is found stale there); nothing touched: nothing to find
+    if (touched.empty() && m_scanSpanRev == before) m_scanSpanRev = after;
+}
+
 void WaterSkin::clear() {
     m_sum.clear(); m_fieldMap.clear(); m_out.clear(); m_levelKeys.clear(); m_keyValid = false; m_resSeen = ~0ull; m_scanValid = false; m_lastPending = 0;
     if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->queue.clear(); m_worker->squeue.clear(); m_worker->queuedColumns = 0; m_worker->done.clear(); }

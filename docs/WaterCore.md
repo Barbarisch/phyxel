@@ -59,8 +59,9 @@ step is fixed at its cause and logged (§30.5); anything else found on the way i
   holes (51.7c). Generated worlds: lakes in their basins with no wall of water, rivers level in their channels (51.12-51.14);
   splash droplets cosmetic (51.11).
 
-**Built, not signed off:** the small-body items of §32-§49 (a slept pond still water, no block floats up, shoving off, wake
-after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep after W4 (below). The bake stored per world (51.17).
+**Built, not signed off:** of the small-body items of §32-§49 only wading (A4, §48), scene changes (A2i, §47) and the tall-cell
+floor (A5, §49) - the rest were signed off on 2026-10-30 (46.1; this line said otherwise until §56.1). The bake stored per world
+(51.17 item 3). All in the sign-off sweep's sheet (§56.1).
 
 **The order of work (owner, 2026-11-14; replaces §30.0's 2026-11-01 order):**
 1. **W4 - the world on the new water (§52).** Every reader of water - floating bodies, currents, wading, debris, the camera's
@@ -86,7 +87,10 @@ after reload, wading, the tall-cell floor, scene changes) - one sign-off sweep a
    blend into greater body of water."** W6.2b (the band blends into the sea: the sea drawn with the band's own swell, the ring
    pinned at the call's end) BUILT, not signed off (55.5: the band's edge vs the sea beside it 0.9 cm worst in the rig, was 40 cm;
    no measurable frame cost; the surf zone at the band's side edges 16 cm - OPEN). The owner's one clip for W6.2: `w62b_clip.mp4`.**
-5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each.
+5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each. **§56: the sheet READY
+   (56.1); the two missing clips made (`sweep_a4_wade_side_by_side.mp4`, `sweep_a2i_scenes.mp4`); found and FIXED: the far skin
+   re-read every summary after any write by the core - ~30 s at ~55 fps after each pond slept or removed on a small world (56.3);
+   logged, not water: debris and the grass layer cross a scene change (56.4).**
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
 
 **Standing rules:** no voxel ever floats up as if gravity were off, in any run, control or demo included (owner 2026-10-25; only a
@@ -9085,6 +9089,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | D7 | 2026-10-28 | L4 is designed to pace EVERY wake (near and far), not only a far one (42.3) | L4: "pace a far wake" | 42.2 measured that the wake's timing changes nothing until a body reaches the water, and nothing shows on the water before that either, so a paced wake within the body's deadline needs no distance to be safe; pacing only far wakes would leave the near hitch, the one the player sees, in place | the agent; **the owner's call** (scope): pacing applies to all wakes unless the owner says far only (`wake_pace_near` would then be a knob) | CLOSED 2026-10-29: the owner took the recommendation ("go with your recommendations") - all wakes, and on by default (42.6) |
 | D8 | 2026-11-13 | WorldForge `roadAt` blends overlapping roads' grades at a junction (51.13) | not in the plan: a WorldForge defect | 51.13 changed where lakes are, so the WorldForge plan's roads moved, and two roads meeting near a site flipped the surface between their own grade profiles column by column (92.0 -> 93.7 in 2 m). `RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains` failed. The defect is older than 51.13 (the old layout only missed it), but it blocked shipping the owner's "no wall of water" by default | the agent, under the owner's "keep going". Reported in 51.13 | **good reason** (a blocker, fixed at its cause, not waived). The roads test, WorldForge and RoadField pass 51 / 51; the mountain stress test's steep-step share fell 0.46 % -> 0.35 %. CLOSED |
 | D9 | 2026-11-14 | Why the frame rate swings during and after a splash | not in the plan: the owner's concern on signing off 51.11 / 51.13 (*"i am concerned with the fps fluctuating so much"*) | `cosm511_clip.json`'s own samples: after the splash the fps runs 12-367; dips to ~12 fps recur every ~1.2-3.6 s for 9 s (wide take 5.0 / 8.6 / 9.8 s; close 3.7 / 4.9 / 7.3 / 8.5 s), and 19-48 fps in the first second. Recorded with the screen recorder running and another session's engine live, so how much is the water is NOT known | the owner's concern; scope and order the owner's | MEASURED 2026-11-14 (the D9 entry by 51.17): the recurring ~80 ms dips were the clip's own polling (`water_av_list`'s once-a-second download of the whole lake); the water's own cost is ~0.5 s at each splash. What to fix next: the owner's |
+| D10 | 2026-11-18 | The far skin's re-read rule fixed during the sign-off sweep (56.3) | not in the plan: found filming A4 (a frame rate of ~53 fps for ~30 s after the water was cleared) | a regression of W6.1 (built, not signed off): `far_m` 1,024 -> 4,096 made one write by the core cost ~30 s of 16-19 ms frames on a small world; it would have been in every sweep clip with a splash | §0a: a defect that blocks the current step is fixed at its cause and logged | FIXED (the record tiles' 29 S4 rule given to the skin; `ACoreWriteReReadsOnlyTheColumnsItTouched` red 3,859 / green 1) |
 
 ### 30.6 The plan-check log (newest last)
 
@@ -14722,6 +14727,73 @@ interleaved submission (sharing the barriers) would save at most that ~20 %.
 **What it says:** the cost per awake body is (a) the halo's cells and (b) what each stage does per cell; neither is a launch count,
 and none of the three structural levers tried this week (tall cells 27.22, line sweeps, batching) moves it on today's sizes. The
 small-body limits of 27.20 stand as measured.
+
+## 56. The sign-off sweep (owner's order 2026-11-14, item 5) (2026-11-18). Status: the sheet READY for the owner; two clips made; one regression found and FIXED (the far skin re-read everything after any write), two non-water defects logged
+
+**What the sweep is (§0a item 5):** short clips of every built-not-signed-off item, the owner keeps or rejects each. W6 ended with
+`w62b_clip.mp4` (55.5); this is the next step of the order.
+
+**56.1 The inventory (read from the sections, not from §0a's summary).** §0a said every small-body item of §32-§49 waited for this
+sweep; the sections and the plan table (30.4) record that most were signed off on 2026-10-30 (46.1, the owner: *"ok sounds good.
+lets keep going"*) - §0a's line was stale and is corrected in this commit. What is still not signed off:
+
+| item | what it does | how to judge it | evidence |
+|---|---|---|---|
+| A4 wading (§48) | a character slows by depth (0.91 m/s waist-deep), pushes a 1-5 cm bow wave, leaves a wake, wakes a slept pond before its feet reach it | **clip (new)** | `sweep_a4_wade_side_by_side.mp4` (characters off / on) |
+| A2i world and scene changes (§47) | the water stays with its world: none follows into another scene, none doubles on return, the pond comes back asleep | **clip (new)** + 14 / 14 checks (47) | `sweep_a2i_scenes.mp4` |
+| A5 the tall-cell floor (§49) | water no longer vanishes when a stone stirs a deep pond whose box reaches past its banks | numbers (49.4: nothing to see) | `a5_tall_l4.json`, `a5_live_held.json` |
+| 51.17 item 3 the bake stored per world | the second load bakes in 0.09 s, not ~9 s; 0 levels / spans differ | numbers | `bakestore517_s{1,2}.json` |
+| W4 (§52) | every reader of water reads the new water; the old water deleted | clip | `w4_clip.mp4` |
+| D9 (§53) | the splash stutter, split | **the owner's call** (the cut) | 53.3 |
+| W5.1 / W5.2a / W5.2b / W5.3 (§54) | rivers that flow; a near reach simulated, following the player; one ripple layer over the river | clips | `w5_clip.mp4`, `w52_clip.mp4`, `w52b_clip.mp4`, `w53_clip.mp4`; **the owner's call** on 54.2 (the river's stage) |
+| W6.1 (§55.1) | the sea drawn as far as the land | clip | `w61_clip.mp4` |
+| W6.2a + W6.2b (§55.4, 55.5) | the shore band; it blends into the sea | clip | `w62b_clip.mp4`; **the owner's call** on 45.3 (the drawn swell) |
+
+Not re-clipped: the items signed off on 2026-10-30 (their clips stand: `s32_look_side_by_side.mp4`, `a2g_look_*`, `a2h_look_*`).
+
+**56.2 The two new clips** (`tools/water_sweep_clip.py`; recorded from the window; the water state read only at event boundaries,
+never while frames matter - D9 found that polling `water_av_list` adds ~80 ms frames; only wood dropped; every control back to the
+shipped default; the bench worlds backed up and restored).
+- **`--item wade`** (WaterBench_Small, port 8111): the channel rig (x 66-77, z 14-15, 0.8 m in a core volume, as `water_wade_s7.py`
+  fills it); an NPC patrols its centre line (the same character coupling as the player); a fixed free camera down the channel from
+  its east end, low (from the side at 6 m / 42 deg both takes looked the same - 1-5 cm waves read only at a grazing angle). Two
+  takes, `water_coupling characters` off then on (shipped), side by side. Mass unchanged in both (19.200000 m^3). Looked at: the
+  wader is the same in both stills; the waves are a look call in motion.
+- **`--item scenes`** (WaterBench_Scenes, port 8112): 'pond' asleep -> wood dropped (it wakes, the wood floats) -> to 'dry' with the
+  pond AWAKE -> back to 'pond' -> wood dropped again. Measured at each event: awake 1 volume 24.000004 m^3; in 'dry' 0 volumes, 0
+  slept boxes; back in 'pond' 0 volumes, 1 slept box; woken again 24.000004 m^3 (not doubled). Every number as 47 predicted.
+  A scene load puts the player under the camera (the first take filmed from inside its head): the tool moves the player out of shot.
+
+**56.3 Found by the sweep - the far skin re-read EVERY summary after any write (a regression, FIXED).** While filming A4 the frame
+rate fell from ~670 fps to ~53 fps and stayed there ~30 s after the water was cleared. Measured (`water_av_host_phases`): the
+`feed` phase 14-19 ms of main-thread CPU a frame; inside it the skin (`water_av_skin`): 50,545 summaries pending, 32 rebuilt a
+call, ~17 ms a call, draining to 0 in ~30 s. **Cause (read in code):** `WaterSkin` marks a resident column's summary stale whenever
+the GLOBAL span revision changes (`WaterSkin.cpp`, the stale rule), and while anything is pending it re-scans its whole reach
+every call. On a world with no streaming generator every column within `far_m` counts as resident - and since W6.1 `far_m`
+follows the far terrain (4,096 m here, was 1,024): ~58,000 columns. So ONE write by the core (a pond slept, a volume removed, a
+pond recorded) cost ~30 s at ~55 fps. The record tiles had had the fix since 29 S4 (`writeSpans`: a tile the write did not touch
+stays up to date); the skin never got it. **Fixed:** `WaterCoreManager::writeSpans` gives the skin the same rule per chunk column
+(`WaterSkin::spansWritten`); a revision change by any other writer still re-reads everything. TEST ONLY `s_skinAllStaleForTest`
+(the old rule, the red).
+- `WaterSkinTest.ACoreWriteReReadsOnlyTheColumnsItTouched`: a 4 x 4 m pond recorded beside a 3 km lake - **1 summary re-read, 0
+  pending** after one call; red (the old rule) **3,859 re-read over 121 calls**. The skin, record and shore unit suites pass (26).
+- Live (WaterBench_Small, the same scripts after the build): `feed` 0.015 ms after the volume is removed (was 16-19 ms for ~30 s),
+  nothing pending. A4's cost alternation (`sweep_a4_wade_cost.json`, 8 s windows at the clip's pose, no recorder): one wader
+  characters on 1.65 / 1.72 ms CPU, off 1.79 / 1.83 ms, water and no NPC 1.47 ms, empty 1.34 ms (GPU 1.3-1.5 ms) - no measurable
+  cost; before the fix every window after the first write read ~19 ms CPU / ~5 ms GPU (`wade_cost_run1`, kept in the log only).
+- **Not measured:** the effect on Coast (streaming: only resident columns count there, so the scale is smaller) - the shore band's
+  +9.3 ms walking and its 100-200 ms swap frame (55.4, OPEN) may have shared this cause; re-measured when W6.2's OPEN items are
+  next worked.
+
+**56.4 Found by the sweep, NOT water (logged, left):** (1) GPU debris crosses a scene change - the wood dropped in 'pond' lies on
+the grass in 'dry' and comes back (2 live debris in 'dry'; captioned in the clip). (2) The grass-blade layer of 'dry' is left over
+after the return to 'pond' (the two scenes use the same chunk): it is drawn down in the pond hole as flat green bands - with the
+grass layer off the pond is blue (`sweep_a2i_grass_leftover_fresh_vs_after.png`, `_grass_off.png`); captioned in the clip. Both are
+scene-change defects of other systems (debris, flora), not the water core's; A2i's water numbers are exact.
+
+**56.5 For the owner:** keep or reject each row of 56.1 - the two new clips first (`sweep_a4_wade_side_by_side.mp4`,
+`sweep_a2i_scenes.mp4`), then the W-clips in order; the owner calls still open are D9's cut, 54.2 the river's stage, a farther
+ripple reach, the band past the far terrain (W6.1 item C), and 45.3 the drawn sea swell.
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 

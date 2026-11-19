@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -172,6 +173,10 @@ public:
     /// 51.6: the wet columns in the s x s world square at (wx, wz) (s a power of two, the square aligned to s), from the summaries
     int wetIn(long wx, long wz, long s) const;
     void clear();   ///< drops every summary and field (the generator source stays)
+    /// §56: the core wrote the record (WaterCoreManager::writeSpans; the revision went before -> after): a summary up to date before
+    /// the write and not in a touched chunk column (`touched`: keys (cx << 32) | cz) stays up to date - the record tiles' rule (29 S4).
+    /// Any other revision change (another writer) still re-reads every summary.
+    void spansWritten(uint64_t before, uint64_t after, const std::unordered_set<uint64_t>& touched);
 
 private:
     // per chunk column: the 4 m cells and the 8 / 16 / 32 m aggregates above them (8x8 + 4x4 + 2x2 + 1)

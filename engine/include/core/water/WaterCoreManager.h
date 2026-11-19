@@ -344,6 +344,8 @@ public:
     static inline bool s_seaDrawNoHaloForTest = false;
     /// 55.5 TEST ONLY: the red state - record tiles drop a live volume's columns (their mesher walls the box) and carry no sea depth
     static inline bool s_seaDrawOffForTest = false;
+    /// §56 TEST ONLY: the red state - a write by the core re-reads every far-skin summary in reach (the rule before the sweep)
+    static inline bool s_skinAllStaleForTest = false;
     /// 54.4 (W5.3): ONE ripple layer over the RIVER near the viewer - the record's river and any reach over it alike, so the ripples
     /// do not stop at a reach's edge and are not remade at every swap (the owner on w52b_clip: "it takes a while for the ripples to
     /// show up as the camera moves. and the line between ripples and not is very obvious"). Its window follows the viewer (the reach

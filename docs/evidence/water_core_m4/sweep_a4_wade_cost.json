@@ -1,0 +1,46 @@
+{
+ "empty (no water, no NPC)": [
+  {
+   "cpu_ms": 1.34,
+   "gpu_ms": 1.28,
+   "fps": 745.5,
+   "worst_ms": 3.2
+  }
+ ],
+ "wader, characters off": [
+  {
+   "cpu_ms": 1.79,
+   "gpu_ms": 1.52,
+   "fps": 558.5,
+   "worst_ms": 3.9
+  },
+  {
+   "cpu_ms": 1.83,
+   "gpu_ms": 1.32,
+   "fps": 547.1,
+   "worst_ms": 3.3
+  }
+ ],
+ "wader, characters on": [
+  {
+   "cpu_ms": 1.65,
+   "gpu_ms": 1.51,
+   "fps": 607.5,
+   "worst_ms": 3.8
+  },
+  {
+   "cpu_ms": 1.72,
+   "gpu_ms": 1.52,
+   "fps": 583.0,
+   "worst_ms": 4.1
+  }
+ ],
+ "water, no NPC, characters on": [
+  {
+   "cpu_ms": 1.47,
+   "gpu_ms": 1.5,
+   "fps": 680.1,
+   "worst_ms": 3.4
+  }
+ ]
+}

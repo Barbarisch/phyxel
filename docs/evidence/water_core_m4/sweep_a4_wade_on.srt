@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:16,000
+CHARACTERS ON (shipped) - the wader pushes a bow wave and leaves a wake
+an NPC patrols a 0.8 m deep channel (x 66-77) | 193-711 fps

@@ -717,3 +717,70 @@ TEST(WaterSkinTest, TheSeaIsDrawnAsFarAsTheLand) {
     EXPECT_GT(st.upgrades - upgrades0, 10);
     mgr.setSkinGeneratorSource(nullptr);
 }
+
+// §56 (the sign-off sweep, found filming A4): ONE write by the core - a pond recorded, a volume slept or removed - re-read every
+// far-skin summary in reach: on a world with no streaming generator every column within far_m counts as resident, so ~58,000 summaries
+// at 4 km, 32 a frame, 16-19 ms of main-thread CPU a frame for ~30 s (WaterBench_Small, live). The record tiles had the fix since
+// 29 S4 (a tile the write did not touch stays up to date); the skin now has the same rule, per chunk column.
+// Prediction: a 4 x 4 m pond recorded 200 m off a 3 km lake, all summaries built first - the one chunk column the pond touches is
+// re-read (at least 1, at most 2), nothing left pending after the first call; the red (the old rule, s_skinAllStaleForTest)
+// re-reads every summary the settle built.
+TEST(WaterSkinTest, ACoreWriteReReadsOnlyTheColumnsItTouched) {
+    SkinSettingsGuard guard;
+    WaterCoreManager::s_locality.drawM = 48.0f;
+    WaterCoreManager::s_recordDraw.on = true;
+    WaterCoreManager::s_skin.on = true;
+    WaterCoreManager::s_skin.farM = 1024.0f;
+    struct Out { long summaries = 0, reread = 0; int firstPending = 0, calls = 0; };
+    auto run = [](bool red) {
+        Out o;
+        WaterCoreManager::s_skinAllStaleForTest = red;
+        WaterCoreManager mgr(ground);
+        const int half = 1536;
+        uint64_t rev = 1;
+        std::map<std::pair<int, int>, float> written;   // what the core wrote: column -> its top (0 = cleared)
+        auto wet = [half](int x, int z) { return x >= -half && x < half && z >= -half && z < half; };
+        mgr.setSpanIo(
+            [&](const std::vector<ColumnRuns>& runs, float, float, long* unwritten, long* chunks) {
+                for (const auto& c : runs) written[{c.x, c.z}] = c.runs.empty() ? 0.0f : c.runs.back().topY;
+                ++rev;
+                if (unwritten) *unwritten = 0;
+                if (chunks) *chunks = 1;
+            },
+            [&](const glm::ivec3& lo, const glm::ivec3& hi, std::vector<ColumnRuns>& out) {
+                out.clear();
+                const float yLo = std::max(0.0f, static_cast<float>(lo.y)), yHi = static_cast<float>(hi.y + 1);
+                for (int z = lo.z; z <= hi.z; ++z) for (int x = lo.x; x <= hi.x; ++x) {
+                    float top = wet(x, z) ? 1.0f : 0.0f;
+                    if (const auto it = written.find({x, z}); it != written.end()) top = it->second;
+                    ColumnRun r; r.bottomY = yLo; r.topY = std::min(top, yHi);
+                    if (r.topY <= r.bottomY) continue;
+                    r.mass = static_cast<double>(r.topY - r.bottomY);
+                    ColumnRuns c; c.x = x; c.z = z; c.runs.push_back(r);
+                    out.push_back(std::move(c));
+                }
+            });
+        mgr.setSpanRevisionQuery([&rev] { return rev; });
+        mgr.setViewPoint(glm::vec3(0.0f, 6.0f, static_cast<float>(-half) - 10.0f));
+        settle(mgr);
+        o.summaries = mgr.skinStats().summaries;
+        // the pond: 4 x 4 m on dry land, inside one chunk column (x 64..67, z -1760..-1757)
+        const int pz = -half - 224;
+        mgr.recordLake(glm::ivec3(64, 0, pz), glm::ivec3(67, 0, pz + 3), 0.0f, 1.0f, WaterCoreManager::SleptVolume{});
+        mgr.skinFields();
+        o.reread = mgr.skinStats().summariesBuiltLastCall;
+        o.firstPending = mgr.skinStats().pending;
+        o.calls = 1;
+        while (mgr.skinStats().pending > 0 && o.calls < 4000) { mgr.skinFields(); o.reread += mgr.skinStats().summariesBuiltLastCall; ++o.calls; }
+        WaterCoreManager::s_skinAllStaleForTest = false;
+        return o;
+    };
+    const Out g = run(false), r = run(true);
+    std::printf("[skin 56] green: %ld summaries; the write re-read %ld (first call pending %d, %d calls)\n",
+                g.summaries, g.reread, g.firstPending, g.calls);
+    std::printf("[skin 56] red (every summary stale on a write): re-read %ld over %d calls\n", r.reread, r.calls);
+    EXPECT_GT(r.reread, r.summaries / 2);   // the control measures the defect
+    EXPECT_GE(g.reread, 1);                 // the touched column is read again (it holds the pond now)
+    EXPECT_LE(g.reread, 2);
+    EXPECT_EQ(g.firstPending, 0);
+}

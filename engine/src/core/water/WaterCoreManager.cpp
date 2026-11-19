@@ -2925,6 +2925,14 @@ void WaterCoreManager::writeSpans(const std::vector<ColumnRuns>& runs, float yLo
     for (const ColumnRuns& c : runs) touched.insert({floorDiv(c.x, T), floorDiv(c.z, T)});
     for (auto& [key, t] : m_recordTiles)   // up to date before this write and not touched by it: still up to date
         if (t.spanRev == before && !touched.count(key)) t.spanRev = after;
+    // §56 (the sweep): the far skin's summaries by the same rule, per chunk column. Without it ONE write (a pond slept, a volume
+    // removed) re-read every summary in reach - on a world with no streaming generator every column within far_m is resident:
+    // ~58,000 at 4 km, 32 a frame, 16-19 ms of main-thread CPU a frame for ~30 s after each write (measured on WaterBench_Small)
+    if (s_skinAllStaleForTest) return;
+    std::unordered_set<uint64_t> cols;
+    for (const ColumnRuns& c : runs)
+        cols.insert((static_cast<uint64_t>(static_cast<uint32_t>(floorDiv(c.x, 32))) << 32) | static_cast<uint32_t>(floorDiv(c.z, 32)));
+    m_skin.spansWritten(before, after, cols);
 }
 
 void WaterCoreManager::remarkRecordedTile(int tx, int tz) {
