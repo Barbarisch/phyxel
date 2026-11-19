@@ -190,27 +190,52 @@ std::vector<PathCell> buildLine(glm::ivec3 a, glm::ivec3 b) {
 }  // namespace
 
 PathPlan planTerrainPath(const std::function<int(int, int)>& groundMicroAt,
-                         glm::ivec3 startMicro, glm::ivec3 goalMicro, const AgentBox& box) {
+                         glm::ivec3 startMicro, glm::ivec3 goalMicro, const AgentBox& box, int risePerCell) {
     PathPlan p;
     p.cells = buildLine(startMicro, goalMicro);
     const int N = static_cast<int>(p.cells.size());
     if (N < 2 || !groundMicroAt) { p.reason = "degenerate route"; return p; }
-    const int cap = std::max(1, box.maxStepUpMicro / std::max(1, box.halfWidthMicro));  // grade cap (flushness)
+    // O39: with risePerCell the whole computation runs in NINTHS of a micro (heights x 9, the cap = risePerCell
+    // ninths a column), and a surface is the floor of its ninths - so 9 columns rise at most risePerCell micro.
+    const long scale = risePerCell > 0 ? 9 : 1;
+    const long cap = risePerCell > 0 ? static_cast<long>(risePerCell)
+                                     : std::max(1, box.maxStepUpMicro / std::max(1, box.halfWidthMicro));  // grade cap (flushness)
+    const auto unscale = [scale](long v) { return static_cast<int>(v >= 0 ? v / scale : -((-v + scale - 1) / scale)); };
 
     // Sample terrain along the route; the endpoints ARE the door grades.
-    std::vector<int> terr(N);
-    for (int i = 0; i < N; ++i) terr[i] = groundMicroAt(p.cells[i].x, p.cells[i].z);
-    terr[0] = startMicro.y;
-    terr[N - 1] = goalMicro.y;
+    std::vector<long> terr(N);
+    for (int i = 0; i < N; ++i) terr[i] = static_cast<long>(groundMicroAt(p.cells[i].x, p.cells[i].z)) * scale;
+    terr[0] = static_cast<long>(startMicro.y) * scale;
+    terr[N - 1] = static_cast<long>(goalMicro.y) * scale;
 
     // Reachability TUBE: at cell i the surface must be within `cap` per cell of BOTH pinned endpoints, so
     // lo[i] = max(startY - i*cap, goalY - (N-1-i)*cap), hi[i] = the symmetric upper bound. If the tube is
     // empty anywhere, no slope-limited surface connects the doors over this run (too steep / too short).
-    const long S0 = startMicro.y, SG = goalMicro.y;
+    const long S0 = static_cast<long>(startMicro.y) * scale, SG = static_cast<long>(goalMicro.y) * scale;
     for (int i = 0; i < N; ++i) {
         const long lo = std::max(S0 - static_cast<long>(i) * cap, SG - static_cast<long>(N - 1 - i) * cap);
         const long hi = std::min(S0 + static_cast<long>(i) * cap, SG + static_cast<long>(N - 1 - i) * cap);
-        if (lo > hi) { p.ok = false; p.reason = "terrain too steep to reach a door at grade"; p.cells.clear(); return p; }
+        if (lo > hi) {
+            if (risePerCell > 0) {
+                // O39 (pm_chain495.txt, chain 496): at a way's grade the two pinned ends can be further apart in height
+                // than the leg is long (a short lane from a low yard up to a street) - the leg was then NOT PAVED at all
+                // (two legs on the creek city). A way is a CUT: the slope-limited lower envelope of the ground along the
+                // leg (two sweeps), which leaves the low end at its ground and cuts the high end down to the grade.
+                std::vector<long> e(terr);
+                for (int k = 1; k < N; ++k) e[k] = std::min(e[k], e[k - 1] + cap);
+                for (int k = N - 2; k >= 0; --k) e[k] = std::min(e[k], e[k + 1] + cap);
+                p.maxRiser = 0; p.maxCutMicro = 0;
+                for (int k = 0; k < N; ++k) {
+                    p.cells[k].surfaceY = unscale(e[k]);
+                    if (k > 0) p.maxRiser = std::max(p.maxRiser, std::abs(unscale(e[k]) - unscale(e[k - 1])));
+                    p.maxCutMicro = std::max(p.maxCutMicro, unscale(terr[k]) - unscale(e[k]));
+                }
+                p.ok = true;
+                p.reason = "cut to grade: the ends are further apart in height than the leg allows";
+                return p;
+            }
+            p.ok = false; p.reason = "terrain too steep to reach a door at grade"; p.cells.clear(); return p;
+        }
     }
 
     // Walk the tube greedily toward the terrain: each cell is the terrain height clamped into the tube AND
@@ -225,9 +250,9 @@ PathPlan planTerrainPath(const std::function<int(int, int)>& groundMicroAt,
         long s = clampL(terr[i], lo, hi);
         if (i > 0) s = clampL(s, prev - cap, prev + cap);  // enforce the walkable riser
         s = clampL(s, lo, hi);                              // stay reachable (tube is cap-consistent)
-        p.cells[i].surfaceY = static_cast<int>(s);
-        if (i > 0) p.maxRiser = std::max(p.maxRiser, static_cast<int>(std::labs(s - prev)));
-        p.maxCutMicro = std::max(p.maxCutMicro, static_cast<int>(terr[i] - s));
+        p.cells[i].surfaceY = unscale(s);
+        if (i > 0) p.maxRiser = std::max(p.maxRiser, std::abs(unscale(s) - unscale(prev)));
+        p.maxCutMicro = std::max(p.maxCutMicro, unscale(terr[i]) - unscale(s));
         prev = s;
     }
     p.ok = true;

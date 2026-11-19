@@ -170,8 +170,11 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
             const glm::ivec3 a{ca.x * 9 + 4, groundMicroAt(ca.x * 9 + 4, ca.y * 9 + 4), ca.y * 9 + 4};
             const glm::ivec3 b{cb.x * 9 + 4, groundMicroAt(cb.x * 9 + 4, cb.y * 9 + 4), cb.y * 9 + 4};
             if (a.x == b.x && a.z == b.z) continue;
-            const PathPlan centre = planTerrainPath(groundMicroAt, a, b, box);
-            if (!centre.ok || centre.cells.empty()) continue;   // too steep end to end: surfaced as missing coverage
+            // O39 (pm_chain495.txt): a WAY rises at most the walker graph's riser (box.maxStepUpMicro) per cell
+            const PathPlan centre = planTerrainPath(groundMicroAt, a, b, box, box.maxStepUpMicro);
+            if (!centre.ok || centre.cells.empty()) { ++plan.waysLegsFailed; continue; }   // too steep end to end: surfaced as missing coverage, and COUNTED
+            if (!centre.reason.empty()) ++plan.waysLegsCutToGrade;   // O39: an end was cut down to the way's grade
+            plan.waysDeepestCutMicro = std::max(plan.waysDeepestCutMicro, centre.maxCutMicro);
             // every micro column within r of the leg (a capsule: the segment plus a disc at each node) takes the
             // surface of the centre-line cell it projects onto - LEVEL across the width, graded along it
             const glm::vec2 pa(static_cast<float>(a.x), static_cast<float>(a.z)), pb(static_cast<float>(b.x), static_cast<float>(b.z));
@@ -197,8 +200,11 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
     // slope-limited LOWER envelope over the column set (S'(c) = min over c' of S(c') + cap x dist4(c, c'), the
     // 1-D rule of planTerrainPath in two dimensions; a Dijkstra with the cap per micro step): every 4-neighbour
     // step is at most the cap (<= the step-up), nothing rises, a seam becomes a shallow cut.
+    // O39: in NINTHS of a micro, the cap = box.maxStepUpMicro ninths a column - 9 columns (a cell) rise at most the
+    // walker graph's riser. The surfaces are floored back to micro after the relaxation.
     {
-        const int cap = std::max(1, box.maxStepUpMicro / std::max(1, box.halfWidthMicro));
+        const int cap = std::max(1, box.maxStepUpMicro);
+        for (auto& [k, S] : cols) S *= 9;
         using QE = std::pair<int, long long>;
         std::priority_queue<QE, std::vector<QE>, std::greater<QE>> open;
         for (const auto& [k, S] : cols) open.push({S, k});
@@ -214,6 +220,7 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                 if (S + cap < jt->second) { jt->second = S + cap; open.push({jt->second, jt->first}); }
             }
         }
+        for (auto& [k, S] : cols) S = S >= 0 ? S / 9 : -((-S + 8) / 9);
     }
     // M5e-1: the plazas. A plaza column no way wrote starts at its own ground; it is then held inside the band the
     // ways' columns allow (within `cap` per micro of every way column, measured through the plaza - so the walker
@@ -221,13 +228,16 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
     // plaza. The ways' columns are sources only: none of them moves. (x 9: a plaza is given in cubes; the paver
     // works in micro columns - the grid's own tie, as everywhere in this file.)
     if (!plazas.empty()) {
-        const int cap = std::max(1, box.maxStepUpMicro / std::max(1, box.halfWidthMicro));
+        // O39 (pm_chain495.txt, chain 500): the plaza at the WAYS' grade too - every value below is in NINTHS of a micro and
+        // the cap is box.maxStepUpMicro ninths a column (4 micro a cell); floored back to micro at the end. At 2 micro a
+        // column the square's ramps were one-way to the walker graph (the walled city: 9 houses not reachable from its hub).
+        const int cap = std::max(1, box.maxStepUpMicro);
         static const int NB[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         std::unordered_map<long long, int> pz;
         for (const auto& r : plazas)
             for (int z = r.y * 9; z < (r.y + r.w) * 9; ++z)
                 for (int x = r.x * 9; x < (r.x + r.z) * 9; ++x)
-                    if (!cols.count(colKey(x, z))) pz.emplace(colKey(x, z), groundMicroAt(x, z));
+                    if (!cols.count(colKey(x, z))) pz.emplace(colKey(x, z), groundMicroAt(x, z) * 9);
         // O37 (a) (pm_chain421.txt): the plaza is the WIDENED STREET - a column takes the surface of the nearest column
         // of the WIDEST way beside the plaza (the street the market widens; chain 422: with every way a source a
         // steep cross lane put its own slope on the square) - distance through the plaza, 4-neighbour, a breadth-first
@@ -258,7 +268,7 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                     const auto ww = colWidth.find(w->first);
                     if (ww != colWidth.end() && ww->second == widest) best = std::min(best, w->second);
                 }
-                if (best != INT_MAX && level.emplace(k, best).second) front.push_back(k);
+                if (best != INT_MAX && level.emplace(k, best * 9).second) front.push_back(k);
             }
             while (!front.empty()) {
                 std::vector<long long> next;
@@ -284,7 +294,7 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                 for (const auto& nb : NB) {
                     const auto w = cols.find(colKey(x + nb[0], z + nb[1]));
                     if (w == cols.end()) continue;
-                    const int v = sign * w->second + cap;
+                    const int v = sign * w->second * 9 + cap;
                     auto b = best.find(k);
                     if (b == best.end() || v < b->second) { best[k] = v; open.push({v, k}); }
                 }
@@ -319,7 +329,7 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                 if (S + cap < jt->second) { jt->second = S + cap; open.push({jt->second, jt->first}); }
             }
         }
-        for (const auto& [k, S] : pz) cols.emplace(k, S);
+        for (const auto& [k, S] : pz) cols.emplace(k, S >= 0 ? S / 9 : -((-S + 8) / 9));
         plan.plazaCols = static_cast<long>(pz.size());
     }
     std::vector<PavedColumn> out;

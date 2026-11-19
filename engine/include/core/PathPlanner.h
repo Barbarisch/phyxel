@@ -77,8 +77,13 @@ PathPlan planSwitchback(const std::function<int(int, int)>& groundMicroAt,
 /// for settlement paths over rolling hills — unlike planStraightRamp, which interpolates the endpoints
 /// linearly and dives under intervening terrain. `gradeCap = step-up/halfWidth` (footprint flushness).
 /// Reports the deepest cut (terrain - surface) so the caller can reject would-be tunnels. Deterministic.
+///
+/// O39 (pm_chain495.txt): `risePerCell` > 0 replaces the grade cap by "at most risePerCell micro of rise per 9 micro
+/// columns" (one cube cell) - the walker graph's riser (NavGraph links adjacent CELLS up to stepUpMicro), where the
+/// default cap (step-up / halfWidth = 2 micro a COLUMN) lets a way climb two cubes inside one cell, which the micro
+/// probe walks and the graph does not. 0 = the cap as before.
 PathPlan planTerrainPath(const std::function<int(int, int)>& groundMicroAt,
-                         glm::ivec3 startMicro, glm::ivec3 goalMicro, const AgentBox& box);
+                         glm::ivec3 startMicro, glm::ivec3 goalMicro, const AgentBox& box, int risePerCell = 0);
 
 // --- Settlement path network (3c) -------------------------------------------------------------------
 

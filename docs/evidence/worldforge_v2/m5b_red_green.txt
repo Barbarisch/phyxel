@@ -2021,3 +2021,37 @@ MY RESPONSE (after the audit; test file and docs only; NOT re-audited):
    (chain 485), RED with the rule stashed (chain 486: held at z -31.75), with its own control arm (no worldforge:
    held). The tautological lines are removed.
  - the plan's O16, O19 and O38 rows carry the limits and the fixed-stage disclosure; the stale line is corrected.
+
+=== O39 (a), (b) the gate asks the residents' graph; ways graded at 4 micro a cell - solution-auditor read (recorded 2026-11-19 13:34; HEAD c5f5d95d + the working tree; read-only; detail in m3c_chains/pm_chain495.txt) ===
+RAW VERDICT: PASS WITH CONDITIONS. Claims A and B are supported. C is disclosed honestly. The grade change itself has
+no direct measurement, and the protection is much narrower than "the creek city is walkable" suggests. (Code, diff,
+record and logs only; nothing run.)
+FINDINGS (the auditor's, condensed):
+ 1. red to green REAL: gate-only refuses with 3 lots that cannot be left; with the grade 0 / 0. The measured property
+    is hub <-> the cell two out from each door, not "every house can be left" in general. The O39 test is DISABLED.
+ 2. the ninths arithmetic is SOUND: NavGraph reads each cell's centre column, 4-connected; two centres 9 columns
+    apart differ by at most 36 ninths = 4 micro, exactly its riser; the 2-D relaxation enforces it across leg joins
+    and the plaza's edge; no scaled / unscaled mixing in the plaza block. It holds ONLY between paved columns - not
+    against unpaved ground, yards, the fords' sides, door spurs.
+ 3. the cut-to-grade branch was UNMEASURED: no bound on the cut, its depth and count written to JSON only and never
+    quoted.
+ 4. no unit test of the new code (risePerCell, the cut branch).
+ 5. the gate's question is plausible but not told apart from a fault of its own cell choice; an isolated lot was
+    counted as "cannot be reached" only; a lot with no standing place is skipped silently; how findPath snaps a
+    seat was not checked. A discriminator: also walk the micro probe from the asked cell to the hub.
+ 6. nav_gate is set only by one test: "the creek city in the live engine is therefore NOT protected".
+ 7. the assertion changes are disclosed weakenings: the O40 ratchet was a count, not the cell; houses exempted from
+    the hole test; the plaza test's "rolling" arm no longer asserted - "a rationalisation of a loss".
+ 8. counts as recorded (not re-run). 9. "streets still fully paved" was not measured by this change. 10. small
+    overstatements ("a way is graded so the graph can climb it" is true of paved way columns only).
+CONDITIONS: log and quote the cut counts and the deepest cut; a unit test of the grade and the cut branch; fix the
+ isolated-lot count; state that nav_gate is in no build path; tie the ratchet to the cell and log the rolling loss
+ as an open row; an L4 run before calling anything walkable.
+MY RESPONSE (after the audit; NOT re-audited; unit 251 / 0 and live 41 / 0 re-run on the final exe 13:21:22):
+ - LOGGED per build and quoted (chain 509): 0 to 16 legs cut to grade, 0 unpaved, the deepest cut 10 micro.
+ - UNIT TEST added (PathPlannerTest.AWaysGradeRisesAtMostItsRiserPerCell; the old cap as the control: 9 micro over a
+   cell against 4). Two assertions of my own in it were false and are corrected in the record (a leg that fits its
+   tube ramps down on FILL after a fall; the deepest cut is at the bank's foot).
+ - the isolated lot is counted both ways (the village now reads 1 / 1).
+ - the ratchet is tied to cell (102, 40) against (102, 39).
+ - nav_gate in no build path, the rolling loss, the house exemption, no L4: stated in the plan's O39 / O40 rows.

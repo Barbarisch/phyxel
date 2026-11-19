@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <gtest/gtest.h>
 
 #include <unordered_map>
@@ -261,4 +262,53 @@ TEST(PathPlannerTest, SwitchbackReportsInsufficientLateralRoom) {
     // climb 36 at gradeCap 2 over flightRun 8 needs 3 flights * 5 wide = 15 lateral; budget 8 is too small.
     const PathPlan plan = planSwitchback(ground, glm::ivec3(20, 9, 20), 45, kAgent, 8, /*lateralBudget=*/8);
     EXPECT_FALSE(plan.ok) << "must report when there isn't enough lateral room for switchbacks";
+}
+
+// O39 (pm_chain495.txt; the audit's condition): a WAY's grade - at most `risePerCell` micro of rise per 9 micro columns
+// (one cell), so the walker graph (which links adjacent CELLS up to its 4-micro riser) can climb it; and, when the two
+// ends lie further apart in height than the leg is long, a CUT to that grade instead of a refusal.
+TEST(PathPlannerTest, AWaysGradeRisesAtMostItsRiserPerCell) {
+    const auto worstPerCell = [](const PathPlan& p) {
+        int worst = 0;
+        for (size_t i = 0; i + 9 < p.cells.size(); ++i) worst = std::max(worst, std::abs(p.cells[i + 9].surfaceY - p.cells[i].surfaceY));
+        return worst;
+    };
+    // (1) a one-cube fall in the ground half way along a 90-column leg (the creek city's south street)
+    const auto step = [](int x, int) { return x < 45 ? 343 : 334; };
+    const glm::ivec3 a(0, 343, 4), b(89, 334, 4);
+    const PathPlan steep = planTerrainPath(step, a, b, kAgent);           // the CONTROL: the cap as before (2 micro a column)
+    const PathPlan way = planTerrainPath(step, a, b, kAgent, 4);
+    ASSERT_TRUE(steep.ok); ASSERT_TRUE(way.ok);
+    std::printf("[ O39 ] a one-cube fall: the old cap's worst rise over 9 columns %d micro; the way's grade %d; the way's deepest cut %d%s", worstPerCell(steep), worstPerCell(way), way.maxCutMicro, "\n");
+    EXPECT_GT(worstPerCell(steep), 4) << "the control does not show the defect: the rig measures nothing";
+    EXPECT_LE(worstPerCell(way), 4) << "a way rises more than the walker graph's riser inside one cell";
+    EXPECT_EQ(way.cells.front().surfaceY, 343); EXPECT_EQ(way.cells.back().surfaceY, 334);
+    EXPECT_TRUE(way.reason.empty()) << "a leg long enough for its fall was cut to grade: " << way.reason;
+    // (amended before chain 507, pm_chain495.txt: I asserted "never filled above the ground" and it is false - on the
+    // tube path the ramp comes down AFTER the fall, on fill. That is the planner's existing behaviour at any cap; the
+    // deepest fill is printed, and bounded here by the fall itself.)
+    int deepestFill = 0;
+    for (const auto& c : way.cells) deepestFill = std::max(deepestFill, c.surfaceY - step(c.x, c.z));
+    std::printf("[ O39 ] a one-cube fall: the way's deepest FILL above the ground %d micro%s", deepestFill, "\n");
+    EXPECT_LE(deepestFill, 9) << "the way stands above its ground by more than the fall it ramps";
+    // (2) ends further apart than the leg allows: 18 micro over 18 columns (the grade allows 8) - a CUT, not a refusal
+    const auto bank = [](int x, int) { return x < 9 ? 334 : 352; };
+    const glm::ivec3 lo(0, 334, 4), hi(17, 352, 4);
+    const PathPlan cut = planTerrainPath(bank, lo, hi, kAgent, 4);
+    ASSERT_TRUE(cut.ok) << "a way leg too steep end to end is refused (it was then left unpaved): " << cut.reason;
+    EXPECT_FALSE(cut.reason.empty()) << "the cut to grade is not said";
+    EXPECT_EQ(cut.cells.front().surfaceY, 334) << "the LOW end moved";
+    EXPECT_LE(worstPerCell(cut), 4);
+    for (size_t i = 1; i < cut.cells.size(); ++i) EXPECT_LE(std::abs(cut.cells[i].surfaceY - cut.cells[i - 1].surfaceY), 1) << "a riser inside the cut at column " << i;
+    std::printf("[ O39 ] ends 18 micro apart over 18 columns: high end cut from 352 to %d (deepest cut %d micro), reason '%s'%s", cut.cells.back().surfaceY, cut.maxCutMicro, cut.reason.c_str(), "\n");
+    // (amended before chain 508: the deepest cut is at the bank's FOOT, column 9 - 18 micro - not at the end, 14; I had
+    // asserted they were equal)
+    EXPECT_GE(cut.maxCutMicro, 352 - cut.cells.back().surfaceY);
+    EXPECT_LE(cut.maxCutMicro, 18) << "a cut deeper than the bank is high";
+    EXPECT_GE(cut.maxCutMicro, 18 - 8) << "the high end was not cut down to the grade";
+    // the old cap on the same ends REFUSES (the control for the branch): 18 micro over 17 steps at 2 a column is reachable,
+    // so use ends the old cap cannot reach either: 60 micro over 18 columns
+    const auto cliff = [](int x, int) { return x < 9 ? 334 : 394; };
+    EXPECT_FALSE(planTerrainPath(cliff, glm::ivec3(0, 334, 4), glm::ivec3(17, 394, 4), kAgent).ok) << "the old path does not refuse a cliff: the control is void";
+    EXPECT_TRUE(planTerrainPath(cliff, glm::ivec3(0, 334, 4), glm::ivec3(17, 394, 4), kAgent, 4).ok);
 }

@@ -982,3 +982,21 @@ Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain488.txt`; dumps in `docs
   stayed home live have paths headless: unexplained.
 - The build's walkability gate walks street to door only, with the micro probe; it passed this city 74 / 0.
 - An expected-red test is kept (`DISABLED_O39_EveryHouseOfTheCreekCityCanBeLeft`: 3 trapped). Not audited.
+
+### 2026-11-19 - O39 (a), (b): the gate asks the residents' graph; ways and squares graded at 4 micro a cell
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain495.txt` (chains 495 to 509). No engine run since.
+- Cause (read in the code, then shown): the walker graph links adjacent cells up to a 4-micro rise; the paver graded
+  at 2 micro a micro column - up to two cubes inside one cell - which the gate's micro probe walks and the graph
+  does not. Three houses of the creek city could be walked to and not from.
+- The gate now builds the engine's NavGraph over the site and asks, for every lot's door approach, a path to the
+  hub and back; the answer is logged and recorded (`paths.nav_graph`). It REFUSES only with `"nav_gate": true`: two
+  existing sites fail the question (a village lot, isolated; nine lots of the walled city) and are not understood.
+- Ways, and the square carried from them, rise at most 4 micro a cell (computed in ninths of a micro); a leg whose
+  ends are too far apart in height is cut to grade instead of being left unpaved. Per build: up to 16 legs cut, none
+  unpaved, the deepest cut 10 micro.
+- Creek city (headless): refused with 3 trapped lots by the gate alone; 0 / 0 and gate passed with the grade.
+  Release unit 251 / 0, live tests 41 / 0.
+- Costs and open defects: a market on a rolling street has no level spot; in the town one market edge cell has air
+  under its paving (O40, ratcheted at that cell) and a house and two yards stand over a step; door spurs keep the
+  old grade; the question protects no live build yet. Audited PASS WITH CONDITIONS; responses not re-audited.

@@ -22,6 +22,7 @@
 #include "core/FenceBuilder.h"
 #include "core/SettlementWalkability.h"
 #include "core/TraversalProbe.h"
+#include "core/NavGraph.h"   // O39: the gate also asks the graph the residents path on
 #include "core/FloraSweep.h"
 #include "core/TowerForge.h"
 #include "core/FurnitureCatalog.h"
@@ -478,6 +479,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // generator's natural ground, which carries no creek bed. The applier reads the real ground and fills beneath.
         // World cube cell -> the walkable surface micro the paver is told. Generator sampler only; empty otherwise.
         auto fordFill = std::make_shared<std::map<std::pair<int, int>, int>>();
+        // O39 (pm_chain495.txt): what the gate asks the residents' own graph - each lot's door approach (the cell two out
+        // from the door along its normal, world cubes, with a label) and the hub (the first primary way's middle node).
+        auto navDoors = std::make_shared<std::vector<std::pair<glm::ivec2, std::string>>>();
+        glm::ivec2 navHub(0); bool navHubSet = false;
         int primaryWayId = -1;
         // {"legacy_layout": true}: the layout AS BUILT before M5a for a program tier - the CONTROL of the L4
         // A/B (the same site, seed and terrain through the grid, so a gate refusal can be attributed)
@@ -596,6 +601,13 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             const int lx = cell.first + dx, lz = cell.second + dz;
                             (*fordFill)[{ox + lx, oz + lz}] = (static_cast<int>(std::floor(mapGen->naturalGroundAt(ox + lx, oz + lz))) + 1) * 9;
                         }
+                }
+            for (const auto& l : siteMap.lots)
+                if (l.hasDoor) navDoors->push_back({{ox + l.doorX + l.doorNX * 2, oz + l.doorZ + l.doorNZ * 2}, "lot " + std::to_string(l.id) + " (" + l.typology + ")"});
+            for (const auto& w : siteMap.ways)
+                if (w.highway == "primary" && !w.nodes.empty()) {
+                    if (const Core::MapNode* n = siteMap.node(w.nodes[w.nodes.size() / 2])) { navHub = {ox + n->x, oz + n->z}; navHubSet = true; }
+                    break;
                 }
             const Core::MapProjection proj = Core::projectMap(siteMap);
             layout = proj.layout;
@@ -1591,6 +1603,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                       return it != fordFill->end() ? std::max(g, it->second) : g;
                   });
             Core::PavingPlan pave = Core::planWayPaving(mapRibbons, planGround, abox, tierStreetMat, mapPlazas);
+            pathsJson["way_legs_cut_to_grade"] = pave.waysLegsCutToGrade;
+            pathsJson["ways_deepest_cut_micro"] = pave.waysDeepestCutMicro;
+            LOG_INFO_FMT("Settlement", "ways: graded at 4 micro a cell - " << pave.waysLegsCutToGrade << " leg(s) cut to grade at an end, " << pave.waysLegsFailed
+                         << " not paved, the deepest cut below the ground on a centre line " << pave.waysDeepestCutMicro << " micro");
+            pathsJson["way_legs_failed"] = pave.waysLegsFailed;   // O39: legs too steep for a way's grade are NOT paved - said
+            if (pave.waysLegsFailed > 0) LOG_WARN_FMT("Settlement", "ways: " << pave.waysLegsFailed << " leg(s) too steep for a way's grade (4 micro a cell) are NOT paved");
             if (!fordFill->empty()) {
                 pathsJson["ford_fill_cells"] = fordFill->size();
                 // the record of what the paver was told and what it planned, at each told cell's centre column (a sample: the
@@ -3070,7 +3088,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager) {
             units.push_back({"walkability gate",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt, sharedWallGates, sharedWallTowers, sharedMarket]() {
+                 sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt, sharedWallGates, sharedWallTowers, sharedMarket,
+                 navDoors, navHub, navHubSet, navSite = glm::ivec4(ox, oz, W, D), navGateBlocks = p.value("nav_gate", false)]() {
             if (!chunkManager) return;
             const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
                 return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
@@ -3417,6 +3436,59 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             if (!sharedWallTowers->empty())
                 LOG_INFO_FMT("Settlement", "walkability gate: the wall's towers - " << sharedWallTowers->size() << " built, " << towerRoutes << " routes walked (door, climb), " << towerBlocked
                              << " blocked, " << towerUnplaced << " not walked; reached from the nearest way: " << towerStreetReached << " of " << towerStreetRoutes << " (recorded only)");
+            // O39 (pm_chain495.txt): the routes above are walked by the micro probe, street -> door. A resident paths on the
+            // NavGraph, which steps cell to cell (4 micro up, a fall down) - and a house could be walked TO and not FROM
+            // (the creek city: three houses beyond a one-cube fall in their street; their residents never left). So the
+            // gate asks THAT graph too, both ways, between each lot's door approach and the hub. A lot that cannot be
+            // left, or reached, is recorded and warned - and, with {"nav_gate": true}, a BLOCKED route that refuses the
+            // build. It does NOT refuse by default yet (chain 501): two existing live sites fail the question (a village's
+            // one lot, nine lots of the walled city) and are not understood - O39 (f). Counted apart either way.
+            int navAsked = 0, navTrapped = 0, navCut = 0;
+            if (!navDoors->empty() && navHubSet) {
+                Core::NavGraph graph(
+                    Core::CellFillFunc([chunkManager](const glm::ivec3& c) {
+                        switch (chunkManager->getVoxelTypeAt(c)) {
+                            case VoxelLocation::CUBE:  return Core::CellFill::Solid;
+                            case VoxelLocation::EMPTY: return Core::CellFill::Empty;
+                            default:                   return Core::CellFill::Partial;
+                        }
+                    }),
+                    Core::MicroQueryFunc([chunkManager](const glm::ivec3& m) { return chunkManager->occupiedMicro(m); }));
+                const Core::NavAgentProfile navAgent{};
+                graph.buildRegion(glm::ivec2(navSite.x - 8, navSite.y - 8), glm::ivec2(navSite.x + navSite.z + 8, navSite.y + navSite.w + 8), navAgent);
+                const auto standAt = [&](const glm::ivec2& c, glm::vec3& out) {
+                    const int f = seatFeet(c.x, c.y, (terrainTopAt(c.x, c.y) + 1) * 9);
+                    if (f == INT_MIN) return false;
+                    out = glm::vec3(static_cast<float>(c.x) + 0.5f, static_cast<float>(f) / 9.0f, static_cast<float>(c.y) + 0.5f);
+                    return true;
+                };
+                glm::vec3 hub;
+                if (standAt(navHub, hub))
+                    for (const auto& [cell, label] : *navDoors) {
+                        glm::vec3 a;
+                        if (!standAt(cell, a)) continue;   // no standing place there: the door's own route speaks for it
+                        ++navAsked;
+                        const bool in = graph.findPath(hub, a, navAgent).found, out = graph.findPath(a, hub, navAgent).found;
+                        if (in && out) continue;
+                        if (navGateBlocks) ++blocked;
+                        if (!in) ++navCut;        // (the audit: an isolated lot is counted BOTH ways - it was "cannot be reached" only)
+                        if (!out) ++navTrapped;
+                        // what stands there: the feet at the asked cell and at its 8 neighbours, and the hub's (chain 500)
+                        std::string ring;
+                        for (int dz = 1; dz >= -1; --dz) for (int dx = -1; dx <= 1; ++dx) {
+                            const int f = seatFeet(cell.x + dx, cell.y + dz, (terrainTopAt(cell.x + dx, cell.y + dz) + 1) * 9);
+                            ring += " " + (f == INT_MIN ? std::string("-") : std::to_string(f));
+                        }
+                        LOG_WARN_FMT("Settlement", "walkability: BLOCKED on the residents' graph - " << label << " at (" << cell.x << "," << cell.y << ") "
+                                     << (in ? "can be reached from the main street and NOT left" : "cannot be reached from the main street")
+                                     << (out ? "" : (in ? "" : " NOR left")) << "; feet there " << static_cast<int>(std::lround(a.y * 9.0f)) << ", the 3 x 3 round it (north row first):" << ring
+                                     << "; the hub (" << navHub.x << "," << navHub.y << ") feet " << static_cast<int>(std::lround(hub.y * 9.0f)));
+                        if (navGateBlocks) routesJ.push_back({{"label", label + (in ? ": cannot be left (nav graph)" : ": cannot be reached (nav graph)")}, {"walkable", false}, {"nav_graph", true}});
+                    }
+                LOG_INFO_FMT("Settlement", "walkability gate: the residents' graph - " << navAsked << " lots asked both ways to the hub, " << navTrapped
+                             << " cannot be left, " << navCut << " cannot be reached" << (navGateBlocks ? " (refusing)" : " (recorded only)"));
+                (*pathsJsonP)["nav_graph"] = {{"asked", navAsked}, {"cannot_be_left", navTrapped}, {"cannot_be_reached", navCut}, {"refuses", navGateBlocks}};
+            }
             if (!sharedWallGates->empty())
                 LOG_INFO_FMT("Settlement", "walkability gate: the wall's gates - " << gateRoutes << " walked through, " << gateRoutesBlocked << " blocked");
             if (!sharedWallCrossings->empty())

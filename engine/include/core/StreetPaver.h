@@ -49,6 +49,9 @@ struct PavingPlan {
     long fillCols = 0;                     ///< surface above terrain (causeway fill)
     long cutCols = 0;                      ///< surface below terrain (cut, then cap)
     long plazaCols = 0;                    ///< M5e-1: columns paved as a plaza (not by a way)
+    int  waysLegsFailed = 0;               ///< O39: way legs planTerrainPath refused (too steep end to end at the way's grade) - NOT paved
+    int  waysDeepestCutMicro = 0;          ///< O39 (the audit): the deepest cut below the ground any way leg's centre line makes (micro)
+    int  waysLegsCutToGrade = 0;           ///< O39: way legs whose ends lie further apart in height than the grade allows - paved as a cut to grade
     int  spursPlanned = 0;                 ///< door spurs graded
     int  spursFailed = 0;                  ///< door spurs too steep (surfaced, not silent)
     /// M0 row 2b: one line per failed spur - door (x,z,S0) -> street (x,z,SG), run length,

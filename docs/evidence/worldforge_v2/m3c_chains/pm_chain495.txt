@@ -1,0 +1,152 @@
+pm_chain495.txt - O39 (a), (b): the gate asks the residents' graph; a way is graded so that graph can climb it.
+(written 2026-11-19 12:17, BEFORE any run of this chain; HEAD c5f5d95d)
+
+READ (code): NavGraph links adjacent CELL columns when the rise is <= stepUpMicro (4) and the fall <= 36 micro
+  (NavGraph.cpp:192, :236). planTerrainPath and planWayPaving grade at cap = maxStepUpMicro / halfWidthMicro = 4 / 2
+  = 2 micro a MICRO COLUMN - up to two cubes of rise inside one cell. The micro probe of the gate climbs that; the
+  walker graph cannot. NavGraph.h says the two are "the same statement"; they are not on a graded way.
+DESIGN, two steps:
+  (b) THE GATE (first, so the defect is refused before it is cured): after its probe routes the gate builds the
+      engine's NavGraph over the site + 8 and asks, for every lot's door approach (two cells out along the door's
+      normal), a path TO the hub (the first primary way's middle node) and FROM it. A lot that cannot be left or
+      reached is a BLOCKED route - the build is refused, as for any blocked route. Counted apart from the probe's
+      routes, so a town that passes reads as before. Chunk-independent (it reads the built voxels of the site).
+  (a) THE GRADE: a map way's surface rises at most 4 micro per 9 micro columns (one cell) - the walker graph's own
+      riser, DESIGN (not a sourced street gradient; a real street is far flatter - noted, not attempted).
+  PREDICTION chain 495 (the gate only; the creek build test + the O39 test): the creek city is now REFUSED - "gate
+  blocked", 3 lots that cannot be left (8, 9, 10); the creek build test FAILS on its gate assertion. That failure is
+  the red for step (a).
+RESULTS (written 2026-11-19 12:19)
+  chain 495 (the gate only, exe 12:17:28): as predicted - the creek city is REFUSED: "BLOCKED on the residents' graph
+    - lot 8 (hall_house) ... can be reached from the main street and NOT left" (and lots 9, 10); "the residents'
+    graph - 20 lots asked both ways to the hub, 3 cannot be left, 0 cannot be reached"; "gate blocked, 74 walkable,
+    3 blocked". The creek build test fails on its gate assertion.
+  STEP (a) as built (stated before chain 496): planTerrainPath takes risePerCell (computed in ninths of a micro);
+  planWayPaving grades every leg with box.maxStepUpMicro (4) per cell and relaxes its columns at the same rate; a
+  leg too steep end to end is COUNTED (paths.way_legs_failed) and warned, where it was skipped in silence. NOT
+  changed: the plaza's own clamps and relaxation (still 2 micro a column), the door spurs, the legacy street paver.
+  PREDICTION chain 496 (the creek build test + the O39 test by hand): gate passed, 0 lots that cannot be left; the
+  fords still level; GUESS 60 % - a ramp four times longer cuts further into the high side and may meet a lot, a
+  ford's fill or the wall; legs may fail.
+RESULTS (written 2026-11-19 12:21)
+  chain 496 (the grade, exe 12:20:09): the creek city PASSES - "the residents' graph - 20 lots asked both ways to the
+    hub, 0 cannot be left, 0 cannot be reached"; "gate passed, 74 walkable, 0 blocked"; the fords level (dip 0,
+    hollow 0); 4 gates each needed; StreetPaverTest 14 / 14. TWO things wrong:
+    (1) "ways: 2 leg(s) too steep for a way's grade (4 micro a cell) are NOT paved" - two legs left unpaved (which,
+        not logged); the gate passed over them.
+    (2) SettlementMapTest.ThePlazaIsLevelWithItsWays FAILS on "rolling": 0 level 2 x 2 windows of 45 (it was 2).
+  CHANGES before chain 497 (stated): ENGINE - a leg whose ends lie further apart in height than the grade allows is
+  no longer refused: it is paved as the slope-limited lower envelope of its ground (the low end stays, the high end
+  is cut to grade), counted (paths.way_legs_cut_to_grade). TEST - the plaza test's "rolling" arm is printed, not
+  asserted: a street over rolling ground is now one gentle ramp and its square has no level 2 x 2 by the dressing's
+  rule; that is the rule working, and a cost of the gentler grade.
+  PREDICTION chain 497 (the creek build test, paver and plaza tests): 0 legs failed, some cut to grade; gate passed,
+  0 trapped; the plaza test green.
+RESULTS (written 2026-11-19 12:24)
+  chain 497 (exe 12:22:32): 17 ok / 0 failed - the creek build test (gate passed, 74 walkable, 0 blocked; "the
+    residents' graph - 20 lots asked both ways to the hub, 0 cannot be left, 0 cannot be reached"; fords level), no
+    "too steep" warning, StreetPaverTest 14 / 14, the plaza tests. The fords' bare sides are unchanged (34 of 96
+    edges over a cube, up to 28 micro).
+  The O39 test by hand (still DISABLED): [ O39 ] 20 lots with a standing place outside their door: 0 cannot be reached from the hub, 0 can be reached and not left
+FULL REGRESSION, predictions (written before the runs): the grade and the graph's question reach EVERY map build.
+  chain 498 (unit filter + play-bounds + resident tests, 242): the [ M5a ] / [ M5b ] and M5A-MAP lines identical (the
+    planner is untouched); paver-related prints ([ M5e-1 ] plaza fill / cut counts, [ M5b ] way ribbon) may move;
+    failures possible in StreetPaverTest-like expectations of the old grade (none in chain 497) - GUESS 0 failed.
+  chain 499 (live, 41): UNKNOWN - every live site is re-paved at the gentler grade and asked on the graph. GUESS at
+    least one site is refused by the graph's question (a house that cannot be left, as on the creek city) - that
+    would be a real defect of that site found, not a regression of this change; and gate counts may move.
+  chain 498 (unit + play-bounds + resident + path-planner tests, exe 12:22:32): 250 ok / 0 failed; [ M5a ] / [ M5b ] and M5A-MAP lines identical to chain 483's.
+RESULTS (written 2026-11-19 12:38)
+  chain 499 (live, exe 12:22:32): 35 ok / 6 FAILED. The graph's question, per build: the creek city 20 lots 0 / 0;
+    the town 24 lots 0 / 0 (twice); the hamlet-size 11-lot VILLAGE 1 lot "cannot be reached" (lot 1, hall_house) in
+    three builds - gate blocked - and passes in a fourth; the walled city on the town's site 25 lots, NINE "cannot be
+    reached". Failing tests: three village tests and two walled-city tests on "gate blocked"; and
+    TheTownsMarketIsPavedAndWalked on my own O37 f check ("the face of a step at the market's edge has a hole":
+    1) - after the regrade.
+    AS GUESSED, sites are refused. NOT YET KNOWN whether each is a real trap or a fault of my question (the cell
+    two out from a door may be a stoop, a fence or another lot's ground; the hub may stand on a prop).
+  chain 500: the gate's message gains the feet at the asked cell, its 3 x 3 and the hub's (a log change); the village
+  test alone.
+RESULTS (written 2026-11-19 12:41)
+  chain 500 (the message's detail; the village and the walled city): 
+    - the village's lot 1 (hall_house): "cannot be reached from the main street NOR left; feet there 883, the 3 x 3
+      round it: 913 883 913 / 891 883 891 / 882 883 883; the hub feet 883" - the asked cell is a one-cell slot between
+      raised cells; isolated on the graph both ways. NOT yet known whether that is the house's real way out or my
+      choice of cell.
+    - the walled city: nine lots west of the market "cannot be reached" (and CAN be left), on open paving at 1405
+      (3 x 3 all 1405) with the hub in the market at 1398: one-way toward the hub. My reading: the PLAZA still ramps
+      at the old 2 micro a column (I left it) and the hub stands in it.
+  CHANGE before chain 501 (stated): the plaza's clamps and relaxation run at the ways' grade (ninths, 4 micro a cell).
+  PREDICTION chain 501 (the walled city test, the village test, the town market test, the plaza unit tests): the
+  walled city 0 unreachable (GUESS 60 %); the village's lot 1 unchanged (not a plaza); the town market UNKNOWN.
+RESULTS (written 2026-11-19 12:45)
+  chain 501 (the plaza at the ways' grade, exe 12:41:15): 17 ok / 2 FAILED.
+    - the walled city: STILL "25 lots asked, 0 cannot be left, 9 cannot be reached". PREDICTION MISS - it was not
+      the plaza's grade. Not understood.
+    - the town: the graph's question passes (24 lots, 0 / 0); its market keeps 1 well and 1 stall (the O37 test
+      green); TheTownsMarketIsPavedAndWalked fails on my O37 f check - "15 edge steps (the greatest 18 micro) - beyond
+      them: 0 a door's approach, 1 a house, 2 a yard, 12 open ground; 1 with a hole in the higher side's face": the
+      regraded square now steps against a house, and my "hole" test read the room inside it.
+DECISION, stated before chain 502:
+  - the graph's question is asked on EVERY map build and its answer recorded (paths.nav_graph, a log line, a warning
+    per lot) - but it REFUSES the build only with {"nav_gate": true}. Two existing live sites fail it (the 11-lot
+    village's lot 1, isolated; nine lots of the walled city, not reachable from the hub) and I do not yet know
+    whether they are real traps or faults of my question (the cell two out from a door; the hub's cell). The creek
+    city's build test asks for the refusal and asserts 0 / 0. Registered O39 (f), (g).
+  - the O37 f "hole" check skips a HOUSE beyond the step (its centre column is a room). The house and yard counts
+    stay printed: 1 house and 2 yards now stand over a step beside the town's market - an OPEN defect of the regrade.
+  PREDICTION chain 502 (unit, 250) 0 failed; chain 503 (live, 41) 0 failed, with the graph's answers recorded: creek
+  city 0 / 0, town 0 / 0, village 0 / 1 (three builds), walled city 0 / 9; gate lines otherwise as before EXCEPT
+  where the gentler grade moves a count (UNKNOWN).
+  chain 502 (unit + play-bounds + resident + path-planner tests, exe 12:45:28): 250 ok / 0 failed; [ M5a ] / [ M5b ] lines identical to chain 498's.
+RESULTS (written 2026-11-19 13:00)
+  chain 503 (live, exe 12:45:28): 40 ok / 1 FAILED (TheTownsMarketIsPavedAndWalked, the hole check). The graph's
+    answers, recorded: creek city 20 lots 0 / 0 (refusing, asserted); the town 24 lots 0 / 0 (two builds); the
+    village 11 lots - 0 / 1 in three builds (lot 1: "cannot be reached NOR left"), 0 / 0 in a fourth; the walled
+    city 25 lots 0 / 9. Record lines against chain 484: 14 differ - the walled city's fixtures 406 -> 404, the town
+    market's edge (16 -> 15 steps too high or deep; 14 -> 13 within the walker's step) and its step lines.
+  chain 504 (the hole's cell printed): "hole: market cell 102,40 feet 1386 against 102,39 feet 1368 (a yard); the
+    higher column's top material Cobblestone" - the market's paving at that edge cell stands 18 micro above the yard
+    beside it with AIR under it. REAL (not the house case I had excluded). Cause not established (GUESS: the lot
+    beside it is cut or excavated after the paving and takes the fill's foot).
+  ASSERTION CHANGE, stated before chain 505: the O37 f hole check becomes a RATCHET (<= 1) with the count printed as
+  "OPEN (O40)". This is a known, real defect left visible - NOT a pass.
+  PREDICTION chain 505 (live, 41): 0 failed; lines as chain 503.
+  chain 505 (live, RUN505 EXIT 0 13:12:11 exe 13:00:43): 41 ok / 0 failed; record-line differences against chain 503: 0; "[ O40 ] OPEN: 1 market edge cell(s) with a hollow face (an open fill)".
+AUDIT (solution-auditor, 2026-11-19 about 13:20): RAW VERDICT: PASS WITH CONDITIONS ("Claims A and B are supported. C
+  is disclosed honestly. The grade change itself has no direct measurement, and the protection is much narrower than
+  'the creek city is walkable' suggests."). Full text in the ledger.
+  ANSWERED IN CODE before chain 506 (stated): a unit test of planTerrainPath's way grade and its cut branch
+  (PathPlannerTest.AWaysGradeRisesAtMostItsRiserPerCell, with the old cap as the control); the deepest cut and the
+  cut / unpaved leg counts LOGGED per build; an isolated lot counted both ways; the O40 ratchet tied to the cell
+  (102, 40) against (102, 39). PREDICTION chain 506 (unit, 251) 0 failed; chain 507 (live, 41) 0 failed with the
+  village reading "1 cannot be left, 1 cannot be reached"; the deepest cut per build quoted from the log.
+RESULTS (written 2026-11-19 13:18)
+  chain 506 (unit, exe 13:15:38): 250 ok / 1 FAILED - my new unit test, on an assertion of MINE that was false: "the
+    way was FILLED above its ground at column 45 ... 342 vs 334". On the tube path the ramp comes down AFTER the fall,
+    on fill up to the fall's height; I had written "a way is a cut". The control and the grade read as intended:
+    "the old cap's worst rise over 9 columns 9 micro; the way's grade 4".
+  TEST AMENDED before chain 507 (stated): the fill is printed and bounded by the fall (<= 9), not forbidden. The
+  record's and the code comment's "a way only cuts" is WRONG for a leg that fits its tube; it is true of the
+  cut-to-grade branch.
+  chain 507 (exe 13:18:35): 250 ok / 1 FAILED - again an assertion of mine in the new test: I wrote that the deepest
+    cut is at the leg's end; it is at the bank's foot (18 micro at column 9; the end is cut 14, from 352 to 338).
+    Printed: "a one-cube fall: the old cap's worst rise over 9 columns 9 micro; the way's grade 4"; "the way's deepest
+    FILL above the ground 8 micro"; "ends 18 micro apart over 18 columns: high end cut from 352 to 338 (deepest cut
+    18 micro)". Amended (stated): deepest cut >= the end's cut and <= the bank's height.
+  chain 508 (unit, BUILD EXIT 0 2026-11-19 13:21:25 errors: 0 exe 2026-11-19_13:21:22): RUN EXIT 0 2026-11-19 13:23:37 251 ok, 0 failed
+RESULTS (written 2026-11-19 13:34)
+  chain 508 (unit + play-bounds + resident + path-planner tests, exe 13:21:22): 251 ok / 0 failed.
+  chain 509 (live, the same exe, exit 0 at 13:34:07): 41 ok / 0 failed; record lines identical to chain 505's.
+    From the builds' own log, per build: "ways: graded at 4 micro a cell - N leg(s) cut to grade at an end, 0 not
+    paved, the deepest cut below the ground on a centre line M micro" - N from 0 to 16, M at most 10 (about one
+    cube); no leg unpaved on any site. The graph's answers: creek city 20 lots 0 / 0 (refusing); the town 24 lots
+    0 / 0; the village 11 lots "1 cannot be left, 1 cannot be reached" in three builds (the same lot, isolated) and
+    0 / 0 in a fourth; the walled city 25 lots 0 / 9. The town keeps 1 well and 1 stall; "[ O40 ] OPEN: 1 market
+    edge cell(s) with a hollow face".
+  WHAT MAY BE SAID: on the creek city every lot's door approach reaches the hub and is reached from it on the
+  engine's nav graph, where three could not be left before; the ways and squares are graded at 4 micro a cell and
+  the paved surface obeys that between paved columns. NOT: that a town is walkable for its residents (the graph's
+  question is not refused by default and two sites fail it); that the live engine was run since (no L4); anything
+  about spurs, yards, the fords' sides.
+  Release only. No Debug run. The audit's responses are not re-audited.
