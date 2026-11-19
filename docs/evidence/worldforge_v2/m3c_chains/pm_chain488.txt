@@ -1,0 +1,60 @@
+pm_chain488.txt - O38 (g) continued: the residents of the live creek city OVER TIME (their day).
+(written 2026-11-19 11:39, BEFORE the run; HEAD cedac4b8; the Release editor of 10:50:48 - run 6's)
+
+READ FIRST: ResidentPlanner - a resident WORKS at its own location by day (so standing at home at 9 h, as in run
+  6, is the schedule, not a fault), SOCIALIZES at the settlement's tavern from about 17 h (+- 18 min) to about 20 h,
+  and sleeps at home at night. NPCManager's nav region in run 6 covered the city ([-1504, -1280] .. [-992, -768];
+  233,696 columns) with no "no walkable surface" warning.
+RUN 7 (the L4 script with a day probe instead of screenshots; fresh DB): the build, then /api/npcs every 30 s - 2
+  samples at the build's hour, 12 with the clock set to 17.6 h and paused (the evening), 12 at 21.0 h (night).
+  MEASURES (computed offline from the dumps): per resident its distance from home and from the tavern's cell, its
+  height; how many reach the tavern (within 12 u of the cell in the tavern resident's name - the building is 16 x 7)
+  in the evening and how many are back within 3 u of home at night; anyone outside the site, below y 34 or above y
+  46; the engine's nav warnings.
+PREDICTION: GUESS 55 % that at least 15 of 20 reach the tavern and return. The risks: a jam at the tavern's door,
+  a house door the nav graph does not pass, the ford fill's sides, the gate. Whatever the count is, it is recorded.
+RESULTS (written 2026-11-19 12:01)
+  run 7 (the editor of 10:50:48, fresh DB; the city BUILT: 74 walkable / 0 blocked; nav region [-1504, -1280] ..
+    [-992, -768], 233,696 columns, no nav warning; 26 dumps saved as citylab_l4_run7_npcs_*.json):
+    - at the build's hour (11:16): 20 residents, all within 1.0 u of home, y 37.1 to 38.1, none outside the site.
+    - EVENING (the clock set to 17:36, paused): within 30 s FIVE residents had left home and by 60 s stood within
+      about 4 cells of the tavern at local (90, 32) - croft (-1196, -1074), croft (-1190, -1079), tenement (-1189,
+      -1100), tenement (-1190, -1112) and hall_house (-1222, -1037), which walked 57.5 u. They stayed there for the
+      remaining 5 minutes (the schedule: socialize). FIFTEEN stayed at home: 6 by schedule (apothecary, general
+      store, bakery, butcher, town hall, the two taverns' keepers work until night) and EIGHT houses that should
+      have gone and did not - all 65 u or more from the tavern (the east group across the fourth creek, and the
+      south group), where every one that went lives within 57.5 u.
+    - NIGHT (21:00): 19 of 20 within 3 u of home after 30 s, 20 of 20 after 60 s, and for the remaining 5 minutes.
+    - nobody left the site, nobody's height left 37.1 to 38.1, in any dump.
+    MY ANALYSIS SCRIPT'S ERROR, corrected here: it took the LAST "res_tavern" it met as "the tavern" - there are two
+    taverns - and so printed "1 within 12 u of the tavern"; the five stand at the other one, the planner's (the
+    first by id).
+    PREDICTION MISS: not 15 of 20. Of the 13 who should go to the tavern, 5 do; the 8 who do not are NOT explained
+    (candidates: the engine finds no path for them - a ford, a fill's side, the distance; or the resident
+    clustering). Whether a resident ever enters a building is not measured (positions only).
+  NEXT (stated): a headless measure on the built creek city - the engine's own NavGraph over the site; from every
+  house's door approach, is there a path to the tavern's door approach? PREDICTION: UNKNOWN; if the 8 houses have
+  no path, the defect is in the built streets (and the test is its red); if they do, it is in the residents' logic.
+RESULTS (written 2026-11-19 12:12)
+  chains 489 to 494 (headless, the built creek city; the engine's own NavGraph over the site, as NPCManager builds it
+    less its prop overlay; exe 12:09:49; the ENGINE is unchanged since cedac4b8 - test file only):
+    - "18 lots that are not taverns, 15 with a path from their door to a tavern's door": lots 8, 9 and 10 (hall_house
+      at local door (94, 107), longhouse (93, 128), tenement (96, 147)) have NO PATH to either tavern.
+    - they are the SOUTH group that never left home in run 7. Every lot is reachable FROM the main junction; these
+      three cannot be LEFT ("3 lots can be reached and NOT left, 0 cannot be reached, of 20").
+    - where: way 2 (the south main street). Standing levels across it: 343 for z <= 108 and 334 for z >= 110 - the
+      paved street falls one cube (9 micro) inside the single cell z 109. From lot 8's approach not even the street
+      cell beside it at z 108 is reachable on the graph; from the junction every cell of the street down to z 108 is.
+      Lot 8's own approach reads 336 334 334 334 then 343 on the street.
+    WHAT IS ESTABLISHED: on the engine's nav graph the south street is ONE-WAY at that fall, and three houses lie
+    beyond it. WHAT IS NOT: why the graph will not climb it (my reading, not measured: the paver grades a way at up
+    to 1 micro a micro column - a cube inside one cell - which the micro probe of the build's gate walks both ways,
+    while the walker graph steps cell to cell with a 4-micro riser); and why the EAST group (lots 0 to 4), which
+    HAS paths on this headless graph, did not set out in the live run (the live graph carries props and a larger
+    region; not looked at).
+    THE GATE'S GAP: the build's walkability gate walks street -> door (and door -> room) with the micro probe; it
+    never walks door -> street, nor from one end of the network to the other on the graph the residents use. It
+    passed this city 74 / 0.
+  KEPT: the counts are printed by TheCreekCityIsBuiltAcrossItsFords (recorded, not asserted), and
+  DISABLED_O39_EveryHouseOfTheCreekCityCanBeLeft asserts 0 trapped - RED by hand in chain 494 (3 trapped: lots 8, 9,
+  10). Not audited (measurements; no engine change). Release only.

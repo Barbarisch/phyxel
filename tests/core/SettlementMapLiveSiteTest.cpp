@@ -43,6 +43,7 @@
 #include "core/PlacedObjectManager.h"
 #include "core/RoomProgram.h"
 #include "core/SettlementBuildService.h"
+#include "core/NavGraph.h"            // O38 (g): the engine's walker graph over the built city
 #include "core/SettlementLayout.h"   // planSquareDressing (M5e-1)
 #include "core/SettlementMapPlanner.h"
 #include "core/SettlementProgram.h"
@@ -3101,6 +3102,129 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
     }
     std::printf("[ O36b ] fords: %d crossing cells, %d not topped by %s; %zu crossings, %d not walked bank to bank%s", cells, unpaved, paving.c_str(), sm.crossings.size(), notWalked, chr10().c_str());
     std::printf("[ O36b ] fords: the deepest paved dip below the near bank %d micro; columns with air under the paving %d%s", worstDip, fordHollow, chr10().c_str());
+    {   // O38 (g) (pm_chain488.txt): can a resident WALK from every house to the tavern? The engine's own NavGraph (the
+        // constructor NPCManager uses, without its prop overlay) over the site + 8; from each lot's door approach to the
+        // approach of the first tavern by position-id order (the ResidentPlanner's pick is the first by location id;
+        // here: every tavern is tried and the best is reported). RECORDED first (chain 489), then asserted or not.
+        Core::NavGraph graph(
+            Core::CellFillFunc([&rig](const glm::ivec3& c) {
+                switch (rig.cm.getVoxelTypeAt(c)) {
+                    case VoxelLocation::CUBE:  return Core::CellFill::Solid;
+                    case VoxelLocation::EMPTY: return Core::CellFill::Empty;
+                    default:                   return Core::CellFill::Partial;
+                }
+            }),
+            Core::MicroQueryFunc([&rig](const glm::ivec3& m) { return rig.cm.occupiedMicro(m); }));
+        const Core::NavAgentProfile agent{};
+        graph.buildRegion(glm::ivec2(sm.originX - 8, sm.originZ - 8), glm::ivec2(sm.originX + sm.W + 8, sm.originZ + sm.D + 8), agent);
+        const auto approach = [&](const Core::MapLot& l, glm::vec3& out) {
+            if (!l.hasDoor) return false;
+            for (int k = 2; k >= 1; --k) {
+                const int cx = l.doorX + l.doorNX * k, cz = l.doorZ + l.doorNZ * k, sf = seat(cx, cz);
+                if (sf == INT_MIN) continue;
+                out = glm::vec3(static_cast<float>(sm.originX + cx) + 0.5f, static_cast<float>(sf) / 9.0f, static_cast<float>(sm.originZ + cz) + 0.5f);
+                return true;
+            }
+            return false;
+        };
+        std::vector<const Core::MapLot*> taverns;
+        for (const auto& l : sm.lots) if (l.typology == "tavern") taverns.push_back(&l);
+        int homes = 0, noSeat = 0, reach = 0;
+        for (const auto& l : sm.lots) {
+            if (l.typology == "tavern") continue;
+            ++homes;
+            glm::vec3 from;
+            if (!approach(l, from)) { ++noSeat; std::printf("[ O38g ]   lot %d %s: no standing place outside its door%s", l.id, l.typology.c_str(), chr10().c_str()); continue; }
+            bool any = false; std::string detail;
+            for (const Core::MapLot* t : taverns) {
+                glm::vec3 to;
+                if (!approach(*t, to)) { detail += " tavern lot " + std::to_string(t->id) + ": no seat;"; continue; }
+                const auto res = graph.findPath(from, to, agent);
+                const float dist = std::hypot(from.x - to.x, from.z - to.z);
+                detail += " tavern lot " + std::to_string(t->id) + " (" + std::to_string(static_cast<int>(dist)) + " u): " + (res.found ? "path of " + std::to_string(res.waypoints.size()) + " waypoints" : std::string("NO PATH")) + ";";
+                any = any || res.found;
+            }
+            if (any) ++reach;
+            std::printf("[ O38g ]   lot %d %s at local %d,%d ->%s%s", l.id, l.typology.c_str(), l.footprint.x, l.footprint.z, detail.c_str(), chr10().c_str());
+        }
+        {   // chain 490 diagnostic: which lots reach which (door approach to door approach), as a table of components
+            std::vector<glm::vec3> ap(sm.lots.size()); std::vector<char> has(sm.lots.size(), 0);
+            for (size_t i = 0; i < sm.lots.size(); ++i) has[i] = approach(sm.lots[i], ap[i]) ? 1 : 0;
+            std::vector<int> comp(sm.lots.size(), -1); int nc = 0;
+            for (size_t i = 0; i < sm.lots.size(); ++i) {
+                if (!has[i] || comp[i] >= 0) continue;
+                comp[i] = nc;
+                for (size_t j = i + 1; j < sm.lots.size(); ++j)
+                    if (has[j] && comp[j] < 0 && graph.findPath(ap[i], ap[j], agent).found) comp[j] = nc;
+                ++nc;
+            }
+            for (int c = 0; c < nc; ++c) {
+                std::string row;
+                for (size_t i = 0; i < sm.lots.size(); ++i) if (comp[i] == c) row += " " + std::to_string(sm.lots[i].id) + "(" + std::to_string(static_cast<int>(ap[i].x) - sm.originX) + "," + std::to_string(static_cast<int>(ap[i].z) - sm.originZ) + " way " + std::to_string(sm.lots[i].way) + ")";
+                std::printf("[ O38g ]   walk-connected group %d:%s%s", c, row.c_str(), chr10().c_str());
+            }
+            // chain 492 diagnostic: every lot's way OUT - the standing level at the door cell and along the approach (door +
+            // normal x k, k = 1..8), and whether a path exists approach -> the junction (87, 74) and back
+            {
+                glm::vec3 jn; bool hj2 = false;
+                { const int sf = seat(87, 74); if (sf != INT_MIN) { jn = glm::vec3(sm.originX + 87 + 0.5f, sf / 9.0f, sm.originZ + 74 + 0.5f); hj2 = true; } }
+                for (size_t i = 0; i < sm.lots.size(); ++i) {
+                    const auto& l = sm.lots[i];
+                    if (!l.hasDoor || !has[i] || !hj2) continue;
+                    std::string lv;
+                    for (int k = 0; k <= 8; ++k) { const int sf = seat(l.doorX + l.doorNX * k, l.doorZ + l.doorNZ * k); lv += " " + (sf == INT_MIN ? std::string("-") : std::to_string(sf)); }
+                    const bool outOk = graph.findPath(ap[i], jn, agent).found, inOk = graph.findPath(jn, ap[i], agent).found;
+                    if (!outOk || !inOk)
+                        std::printf("[ O38g ]   lot %d %s door %d,%d normal %d,%d way %d: feet along the approach k 0..8:%s | out to the junction %s, in from it %s%s", l.id, l.typology.c_str(), l.doorX, l.doorZ, l.doorNX, l.doorNZ, l.way,
+                                    lv.c_str(), outOk ? "yes" : "NO", inOk ? "yes" : "NO", chr10().c_str());
+                }
+            }
+            {   // chain 493 diagnostic: the standing level across way 2 (x 84..92) for z 104..132
+                for (int z = 132; z >= 104; z -= 2) {
+                    std::string row;
+                    for (int x = 83; x <= 93; ++x) { const int sf = seat(x, z); row += " " + (sf == INT_MIN ? std::string("  -") : std::to_string(sf)); }
+                    std::printf("[ O38g ]   z %3d feet x 83..93:%s%s", z, row.c_str(), chr10().c_str());
+                }
+            }
+            // chain 491 diagnostic: from lot 8's approach NORTH along way 2's centre line (x 87), a cell at a time - where
+            // does the walk stop being possible, and the same line walked SOUTH from the junction (87, 72)
+            if (sm.lots.size() > 8 && has[8]) {
+                std::string north, south;
+                glm::vec3 junction; bool hj = false;
+                { const int sf = seat(87, 74); if (sf != INT_MIN) { junction = glm::vec3(sm.originX + 87 + 0.5f, sf / 9.0f, sm.originZ + 74 + 0.5f); hj = true; } }
+                for (int z = 108; z >= 74; --z) {
+                    const int sf = seat(87, z);
+                    if (sf == INT_MIN) { north += " " + std::to_string(z) + ":noseat"; south += " " + std::to_string(z) + ":noseat"; continue; }
+                    const glm::vec3 pt(sm.originX + 87 + 0.5f, sf / 9.0f, sm.originZ + z + 0.5f);
+                    north += " " + std::to_string(z) + (graph.findPath(ap[8], pt, agent).found ? ":y" : ":N") + "@" + std::to_string(sf);
+                    if (hj) south += " " + std::to_string(z) + (graph.findPath(junction, pt, agent).found ? ":y" : ":N");
+                }
+                std::printf("[ O38g ]   from lot 8's approach to way 2's centre cells (z:reached@feet):%s%s", north.c_str(), chr10().c_str());
+                std::printf("[ O38g ]   from the junction (87,74) to the same cells:%s%s", south.c_str(), chr10().c_str());
+            }
+            for (const auto& w : sm.ways) {
+                std::string nodes;
+                for (int nid : w.nodes) if (const Core::MapNode* n = sm.node(nid)) nodes += " " + std::to_string(n->x) + "," + std::to_string(n->z);
+                std::printf("[ O38g ]   way %d %s width %.0f:%s%s", w.id, w.highway.c_str(), w.width, nodes.c_str(), chr10().c_str());
+            }
+        }
+        {   // O39 (recorded, not asserted here): lots a walker can reach from the main junction but cannot LEAVE
+            int trapped = 0, cut = 0;
+            glm::vec3 jn; const int jsf = seat(87, 74);
+            if (jsf != INT_MIN) {
+                jn = glm::vec3(sm.originX + 87 + 0.5f, jsf / 9.0f, sm.originZ + 74 + 0.5f);
+                for (const auto& l : sm.lots) {
+                    glm::vec3 a2;
+                    if (!approach(l, a2)) continue;
+                    const bool outOk = graph.findPath(a2, jn, agent).found, inOk = graph.findPath(jn, a2, agent).found;
+                    if (inOk && !outOk) ++trapped; else if (!inOk) ++cut;
+                }
+            }
+            std::printf("[ O39 ] on the nav graph, from each lot's door approach to the main junction (87, 74) and back: %d lots can be reached and NOT left, %d cannot be reached, of %zu lots%s", trapped, cut, sm.lots.size(), chr10().c_str());
+        }
+        std::printf("[ O38g ] the nav graph over the built city (%zu columns, %zu surfaces): %d lots that are not taverns, %d with a path from their door to a tavern's door, %d with no standing place outside their door; %zu taverns%s",
+                    graph.columnCount(), graph.surfaceCount(), homes, reach, noSeat, taverns.size(), chr10().c_str());
+    }
     {   // the audit of the L4 (3): the SIDES of the fill - RECORDED, not asserted (O38). For every cell within 4 of a crossing
         // cell whose top voxel is the paving: the drop to each 4-neighbour that is not paved. A drop over a cube is a
         // cliff beside the way (the gully the fill dams).
@@ -3177,6 +3301,64 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
         EXPECT_EQ(gateNot, 0);
         EXPECT_EQ(gateElsewhere, 0) << "a gate route is walked with its gate walled up: it proves nothing about the gate";
     }
+}
+
+// O39 (pm_chain488.txt): EXPECTED RED, kept runnable. On the built creek city three houses can be walked TO and not
+// FROM on the engine's nav graph (the street falls a cube inside one cell north of them); live, their residents never
+// leave for the tavern. The build's walkability gate walks street -> door only and passes. Run by hand
+// (--gtest_also_run_disabled_tests); enabled when every lot can be left.
+TEST(SettlementMapLiveSiteTest, DISABLED_O39_EveryHouseOfTheCreekCityCanBeLeft) {
+    const int px = -1200, pz = -1040;
+    LiveSiteRig rig;
+    rig.recipeKey = "citylab-A fords"; rig.worldSeed = 7001u;
+    rig.recipeFn = [px, pz] { WorldRecipe r = cityLabRecipe(false, px, pz, 0.0f, 0.0f); r.worldforge.settlementFords = true; return r; };
+    ASSERT_TRUE(rig.setUp(0, 24)) << rig.why;
+    const auto out = realize(rig, /*legacyLayout=*/false);
+    ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+    const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
+    Core::NavGraph graph(
+        Core::CellFillFunc([&rig](const glm::ivec3& c) {
+            switch (rig.cm.getVoxelTypeAt(c)) {
+                case VoxelLocation::CUBE:  return Core::CellFill::Solid;
+                case VoxelLocation::EMPTY: return Core::CellFill::Empty;
+                default:                   return Core::CellFill::Partial;
+            }
+        }),
+        Core::MicroQueryFunc([&rig](const glm::ivec3& m) { return rig.cm.occupiedMicro(m); }));
+    const Core::NavAgentProfile agent{};
+    graph.buildRegion(glm::ivec2(sm.originX - 8, sm.originZ - 8), glm::ivec2(sm.originX + sm.W + 8, sm.originZ + sm.D + 8), agent);
+    const std::function<bool(int, int, int)> occ = [&rig](int x, int y, int z) { return rig.cm.occupiedMicro(glm::ivec3(x, y, z)); };
+    Core::AgentBox box;
+    Core::TraversalProbe probe(occ, box);
+    const int oy = static_cast<int>(rig.site->surfaceY);
+    auto seatAt = [&](int cx, int cz) {
+        const int wx = sm.originX + cx, wz = sm.originZ + cz, top = settlementTopScan(&rig.cm, oy, wx, wz, true);
+        for (int y = (top - 3) * 9; y <= (top + 6) * 9; ++y) if (probe.fits(wx * 9 + 4, y, wz * 9 + 4) && probe.supported(wx * 9 + 4, y, wz * 9 + 4)) return y;
+        return INT_MIN;
+    };
+    // the hub: the first primary way's middle node
+    glm::vec3 hub(0.0f); bool haveHub = false;
+    for (const auto& w : sm.ways) if (w.highway == "primary" && !w.nodes.empty()) {
+        const Core::MapNode* n = sm.node(w.nodes[w.nodes.size() / 2]);
+        if (n) { const int sf = seatAt(n->x, n->z); if (sf != INT_MIN) { hub = glm::vec3(sm.originX + n->x + 0.5f, sf / 9.0f, sm.originZ + n->z + 0.5f); haveHub = true; } }
+        break;
+    }
+    ASSERT_TRUE(haveHub);
+    int lots = 0, trapped = 0, cut = 0;
+    for (const auto& l : sm.lots) {
+        if (!l.hasDoor) continue;
+        const int cx = l.doorX + l.doorNX * 2, cz = l.doorZ + l.doorNZ * 2, sf = seatAt(cx, cz);
+        if (sf == INT_MIN) continue;
+        ++lots;
+        const glm::vec3 a(sm.originX + cx + 0.5f, sf / 9.0f, sm.originZ + cz + 0.5f);
+        const bool outOk = graph.findPath(a, hub, agent).found, inOk = graph.findPath(hub, a, agent).found;
+        if (!inOk) ++cut; else if (!outOk) ++trapped;
+        if (!inOk || !outOk) std::printf("[ O39 ]   lot %d %s (door %d,%d): reached from the hub %s, can leave for the hub %s%s", l.id, l.typology.c_str(), l.doorX, l.doorZ, inOk ? "yes" : "NO", outOk ? "yes" : "NO", chr10().c_str());
+    }
+    std::printf("[ O39 ] %d lots with a standing place outside their door: %d cannot be reached from the hub, %d can be reached and not left%s", lots, cut, trapped, chr10().c_str());
+    EXPECT_GT(lots, 0);
+    EXPECT_EQ(cut, 0);
+    EXPECT_EQ(trapped, 0) << "houses a resident can walk to and not from";
 }
 
 TEST(SettlementMapLiveSiteTest, DISABLED_DiagCityLabHillOnACreek) {

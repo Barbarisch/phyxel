@@ -969,3 +969,16 @@ runs 4 to 6 (the engine's generator and `worldforge_build`; nothing hand-placed)
 - Live run 6: the city built and 20 of 20 residents stood at their homes for at least 2.5 minutes after the build
   (one run, idle). NOT shown: their day, walking, walls, eviction. The ledger's "residents" stays 0 by design.
 - Audited PASS WITH CONDITIONS; responses not re-audited. No Debug run.
+
+### 2026-11-19 - O39: the creek city's residents over a day (live run 7), and three houses that cannot be left
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain488.txt`; dumps in `docs/evidence/worldforge_v2/citylab_l4/`
+(`citylab_l4_run7_npcs_*.json`). Measurements only - no engine change.
+- Live (the engine's generator and `worldforge_build`): 20 residents, never outside the site, heights steady across
+  26 samples in 13 minutes. Evening: 5 of the 13 due at the tavern walked there and stayed; 8 did not set out. Night:
+  all 20 home within 60 s. Shopkeepers stay at their shops by schedule.
+- Headless, on the engine's own nav graph over the built city: 3 houses (the south group) can be reached and not
+  left - the south main street falls one cube inside one cell and the graph does not climb it. The other 5 that
+  stayed home live have paths headless: unexplained.
+- The build's walkability gate walks street to door only, with the micro probe; it passed this city 74 / 0.
+- An expected-red test is kept (`DISABLED_O39_EveryHouseOfTheCreekCityCanBeLeft`: 3 trapped). Not audited.
