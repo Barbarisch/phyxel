@@ -68,6 +68,9 @@ public:
     /// F5.5a2: the body-body narrowphase (pairs + hard contact) one workgroup per pair; false = the serial per-body
     /// passes (F5.2b, the control). Default on.
     void setNarrowParallel(bool on) { m_narrowPar = on; }
+    /// F5.5a3: the body-world test (K_WORLD, HARD_APPLY) one workgroup per awake body; false = one thread per body
+    /// (the control). Default on.
+    void setWorldParallel(bool on) { m_worldPar = on; }
     bool fusedThisStep() const { return m_fused; }
     /// F5.5a: a per-pass device-time profile (timestamps between the pass groups; forces one tick per submit, so it
     /// measures each tick on its own). Reset by setProfile(true).
@@ -114,6 +117,7 @@ private:
     uint32_t m_fusedMaxAwake = 128;
     uint32_t m_lastAwake = 0;
     bool m_narrowPar = true;
+    bool m_worldPar = true;
     bool m_profile = false;
     Profile m_prof;
     VkQueryPool m_profQueries = VK_NULL_HANDLE;

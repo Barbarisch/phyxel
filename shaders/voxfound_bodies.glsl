@@ -8,6 +8,7 @@
 //   13 HARD_APPLY  14 FINISH  15 WARM_CLEAR(next half)  16 WARM_SAVE(next half)  17 FUSED colour (7-9)  18 FUSED primal (10 x colours)
 //   F5.5a2, the narrowphase in parallel: 19 AWAKE_LIST  20 BROAD(arg 0: contact pairs, 1: hard pairs)  21 NARROW
 //   (workgroup per pair)  22 HARD_NARROW (workgroup per pair)  23 HARD_BODY from the stored pair results
+//   F5.5a3: 24 WORLD and 25 HARD_APPLY one workgroup per awake body
 // GPU differences: candidates go to a per-worker scratch (worker = body i; its pairs j > i reuse it); a world surface
 // corner is taken once by a canonical-owner rule (the CPU uses a set); constraint lists are sorted by key so every sum
 // is order-independent (determinism); colours are Jones-Plassmann rounds (hashed priorities) instead of greedy;
@@ -270,6 +271,7 @@ void consider(vec3 n, float pen, vec3 rA, vec3 rB, vec3 point, float mu, uint bu
         if (pen > gDeepPen) { gDeepPen = pen; gDeepN = n; }
         return;
     }
+    if (gMode == 2u) { ++gCount; return; }   // F5.5a3: count only
     if (gCount >= prm[P_SCRATCH]) { atomicAdd(state[S_OVF_SCRATCH], 1u); return; }
     Cand c;
     c.n = vec4(n, pen);
@@ -287,107 +289,124 @@ vec3 dirVec(uint d) {
     return v;
 }
 
+// F5.5a3: the world test as items -- A's corners first (item k < corner count), then the world cells in A's box in the
+// serial loop's order (x, then y, then z) -- so one thread can loop them all and a workgroup can split them in order.
+void worldCorner(uint ai, Body A, mat3 R, uint k) {
+    float wvm = pf(P_WVM);
+    float mVox = pf(P_MARGIN) / wvm;
+    vec4 cr = corners[A.meta.x + k];
+    vec3 w = A.pos.xyz + R * cr.xyz;
+    vec3 prefer = -(R * dirVec(uint(cr.w)));
+    Esc e = escapeAt(true, 0u, w / wvm, mVox, prefer, wvm);
+    {   // F5.5: a fast corner's contact comes from its path (BodySim.cpp: the same rule)
+        vec3 w0 = A.initial.xyz + qrot(A.initialQuat, cr.xyz);
+        vec3 d = w - w0;
+        if (length(d) >= wvm) {
+            Esc sw;
+            sw.status = 0;
+            vec3 u0 = w0 / wvm;
+            if (!worldSolid(ivec3(floor(u0)))) {
+                sw = sweepWorld(u0, w / wvm, wvm);
+            } else {   // resting a hair inside a surface at the tick start: that surface, deepened by the move
+                Esc e0 = escapeAt(true, 0u, u0, mVox, prefer, wvm);
+                if (e0.status == 1 && e0.pen > 0.0 && dot(d, e0.n) < 0.0) {
+                    sw = e0;
+                    sw.pen = e0.pen - dot(d, e0.n);
+                }
+            }
+            if (sw.status == 1) e = sw;
+        }
+    }
+    if (e.status == 2) { if (gMode == 0u) atomicAdd(state[S_DEEP], 1u); return; }
+    if (e.status != 1) return;
+    float mu = 0.5 * (A.fixedProps.y + muOfWorld(e.cell));
+    consider(e.n, e.pen, cr.xyz, w, w, mu, uint(e.dir), keyOf(ai, STATIC, 0u, k, uint(e.dir)));
+}
+// the world's surface corners of one solid cell near A into A's grid; each (lattice point, face) once: its owner cell
+void worldCell(uint ai, Body A, mat3 R, mat3 Rt, ivec3 cell, vec3 lo, vec3 hi) {
+    float wvm = pf(P_WVM), avm = A.fixedProps.z;
+    if (!worldSolid(cell)) return;
+    for (uint d = 0u; d < 6u; ++d) {
+        ivec3 D = ivec3(dirVec(d));
+        if (worldSolid(cell + D)) continue;
+        int a = int(d / 2u);
+        int base = D[a] > 0 ? cell[a] + 1 : cell[a];
+        int u = (a + 1) % 3, ww = (a + 2) % 3;
+        for (int du = 0; du < 2; ++du)
+            for (int dw = 0; dw < 2; ++dw) {
+                ivec3 L;
+                L[a] = base;
+                L[u] = cell[u] + du;
+                L[ww] = cell[ww] + dw;
+                // canonical owner: the first of the (up to 4) cells sharing L on face d that is solid
+                // with face d exposed, in order (u - 1, w - 1), (u - 1, w), (u, w - 1), (u, w)
+                bool mine = false;
+                for (int ou = 1; ou >= 0 && !mine; --ou) {
+                    bool stop = false;
+                    for (int ow = 1; ow >= 0; --ow) {
+                        ivec3 c2 = cell;
+                        c2[u] = L[u] - ou;
+                        c2[ww] = L[ww] - ow;
+                        if (worldSolid(c2) && !worldSolid(c2 + D)) {
+                            mine = c2 == cell;
+                            stop = true;
+                            break;
+                        }
+                    }
+                    if (stop) break;
+                }
+                if (!mine) continue;
+                // inset into the world's solid (BodySim.cpp insetCorner)
+                vec3 sum = vec3(0.0), anyd = vec3(0.0);
+                for (int ex = -1; ex <= 0; ++ex)
+                    for (int ey = -1; ey <= 0; ++ey)
+                        for (int ez = -1; ez <= 0; ++ez) {
+                            if (!worldSolid(L + ivec3(ex, ey, ez))) continue;
+                            vec3 dd = vec3(ex, ey, ez) + 0.5;
+                            sum += dd;
+                            anyd = dd;
+                        }
+                if (dot(sum, sum) < 1e-12) sum = anyd;
+                vec3 w = (vec3(L) + kInsetVox * normalize(sum)) * wvm;
+                if (any(lessThan(w, lo)) || any(greaterThan(w, hi))) continue;
+                vec3 local = Rt * (w - A.pos.xyz);
+                vec3 prefer = Rt * -vec3(D);
+                Esc e = escapeAt(false, ai, local / avm + A.comLocal.xyz, pf(P_MARGIN) / avm, prefer, avm);
+                if (e.status == 2) { if (gMode == 0u) atomicAdd(state[S_DEEP], 1u); continue; }
+                if (e.status != 1) continue;
+                float mu = 0.5 * (A.fixedProps.y + muOfWorld(cell));
+                uint lk = hash32(uint(L.x) * 0x9E3779B1u ^ hash32(uint(L.y) * 0x85EBCA77u ^
+                                                                   hash32(uint(L.z) + 0x27D4EB2Fu)));
+                consider(-(R * e.n), e.pen, local, w, w, mu, 26u + uint(e.dir),
+                         keyOf(ai, STATIC, 1u + d, lk, uint(e.dir)));
+            }
+    }
+}
+// A's box of world cells: returns the cell count (0 below the ground band), with the box's first cell, extent and bounds
+uint worldBox(Body A, out ivec3 cl, out ivec3 nc, out vec3 lo, out vec3 hi) {
+    float wvm = pf(P_WVM);
+    lo = A.lo.xyz - pf(P_MARGIN);
+    hi = A.hi.xyz + pf(P_MARGIN);
+    cl = ivec3(int(floor(lo.x / wvm)) - 1, max(int(floor(lo.y / wvm)) - 1, -1), int(floor(lo.z / wvm)) - 1);
+    ivec3 ch = ivec3(floor(hi / wvm)) + 1;
+    nc = ivec3(0);
+    if (ch.y < -1) return 0u;
+    nc = ch - cl + 1;
+    return uint(nc.x * nc.y * nc.z);
+}
+void worldItem(uint ai, Body A, mat3 R, mat3 Rt, uint q, ivec3 cl, ivec3 nc, vec3 lo, vec3 hi) {
+    if (q < A.meta.y) { worldCorner(ai, A, R, q); return; }
+    int c = int(q - A.meta.y);
+    int x = c / (nc.y * nc.z), y = (c / nc.z) % nc.y, z = c % nc.z;
+    worldCell(ai, A, R, Rt, cl + ivec3(x, y, z), lo, hi);
+}
 void againstWorld(uint ai) {
     Body A = bodies[ai];
     mat3 R = qmat(A.quat), Rt = transpose(R);
-    float wvm = pf(P_WVM), avm = A.fixedProps.z;
-    float mVox = pf(P_MARGIN) / wvm;
-    // A's corners into the world
-    for (uint k = 0u; k < A.meta.y; ++k) {
-        vec4 cr = corners[A.meta.x + k];
-        vec3 w = A.pos.xyz + R * cr.xyz;
-        vec3 prefer = -(R * dirVec(uint(cr.w)));
-        Esc e = escapeAt(true, 0u, w / wvm, mVox, prefer, wvm);
-        {   // F5.5: a fast corner's contact comes from its path (BodySim.cpp: the same rule)
-            vec3 w0 = A.initial.xyz + qrot(A.initialQuat, cr.xyz);
-            vec3 d = w - w0;
-            if (length(d) >= wvm) {
-                Esc sw;
-                sw.status = 0;
-                vec3 u0 = w0 / wvm;
-                if (!worldSolid(ivec3(floor(u0)))) {
-                    sw = sweepWorld(u0, w / wvm, wvm);
-                } else {   // resting a hair inside a surface at the tick start: that surface, deepened by the move
-                    Esc e0 = escapeAt(true, 0u, u0, mVox, prefer, wvm);
-                    if (e0.status == 1 && e0.pen > 0.0 && dot(d, e0.n) < 0.0) {
-                        sw = e0;
-                        sw.pen = e0.pen - dot(d, e0.n);
-                    }
-                }
-                if (sw.status == 1) e = sw;
-            }
-        }
-        if (e.status == 2) { if (gMode == 0u) atomicAdd(state[S_DEEP], 1u); continue; }
-        if (e.status != 1) continue;
-        float mu = 0.5 * (A.fixedProps.y + muOfWorld(e.cell));
-        consider(e.n, e.pen, cr.xyz, w, w, mu, uint(e.dir), keyOf(ai, STATIC, 0u, k, uint(e.dir)));
-    }
-    // the world's surface corners near A into A's grid; each (lattice point, face) once: its canonical owner cell
-    vec3 lo = A.lo.xyz - pf(P_MARGIN), hi = A.hi.xyz + pf(P_MARGIN);
-    ivec3 cl = ivec3(int(floor(lo.x / wvm)) - 1, max(int(floor(lo.y / wvm)) - 1, -1), int(floor(lo.z / wvm)) - 1);
-    ivec3 ch = ivec3(floor(hi / wvm)) + 1;
-    if (ch.y < -1) return;
-    for (int x = cl.x; x <= ch.x; ++x)
-        for (int y = cl.y; y <= ch.y; ++y)
-            for (int z = cl.z; z <= ch.z; ++z) {
-                ivec3 cell = ivec3(x, y, z);
-                if (!worldSolid(cell)) continue;
-                for (uint d = 0u; d < 6u; ++d) {
-                    ivec3 D = ivec3(dirVec(d));
-                    if (worldSolid(cell + D)) continue;
-                    int a = int(d / 2u);
-                    int base = D[a] > 0 ? cell[a] + 1 : cell[a];
-                    int u = (a + 1) % 3, ww = (a + 2) % 3;
-                    for (int du = 0; du < 2; ++du)
-                        for (int dw = 0; dw < 2; ++dw) {
-                            ivec3 L;
-                            L[a] = base;
-                            L[u] = cell[u] + du;
-                            L[ww] = cell[ww] + dw;
-                            // canonical owner: the first of the (up to 4) cells sharing L on face d that is solid
-                            // with face d exposed, in order (u - 1, w - 1), (u - 1, w), (u, w - 1), (u, w)
-                            bool mine = false;
-                            for (int ou = 1; ou >= 0 && !mine; --ou) {
-                                bool stop = false;
-                                for (int ow = 1; ow >= 0; --ow) {
-                                    ivec3 c2 = cell;
-                                    c2[u] = L[u] - ou;
-                                    c2[ww] = L[ww] - ow;
-                                    if (worldSolid(c2) && !worldSolid(c2 + D)) {
-                                        mine = c2 == cell;
-                                        stop = true;
-                                        break;
-                                    }
-                                }
-                                if (stop) break;
-                            }
-                            if (!mine) continue;
-                            // inset into the world's solid (BodySim.cpp insetCorner)
-                            vec3 sum = vec3(0.0), anyd = vec3(0.0);
-                            for (int ex = -1; ex <= 0; ++ex)
-                                for (int ey = -1; ey <= 0; ++ey)
-                                    for (int ez = -1; ez <= 0; ++ez) {
-                                        if (!worldSolid(L + ivec3(ex, ey, ez))) continue;
-                                        vec3 dd = vec3(ex, ey, ez) + 0.5;
-                                        sum += dd;
-                                        anyd = dd;
-                                    }
-                            if (dot(sum, sum) < 1e-12) sum = anyd;
-                            vec3 w = (vec3(L) + kInsetVox * normalize(sum)) * wvm;
-                            if (any(lessThan(w, lo)) || any(greaterThan(w, hi))) continue;
-                            vec3 local = Rt * (w - A.pos.xyz);
-                            vec3 prefer = Rt * -vec3(D);
-                            Esc e = escapeAt(false, ai, local / avm + A.comLocal.xyz, pf(P_MARGIN) / avm, prefer, avm);
-                            if (e.status == 2) { if (gMode == 0u) atomicAdd(state[S_DEEP], 1u); continue; }
-                            if (e.status != 1) continue;
-                            float mu = 0.5 * (A.fixedProps.y + muOfWorld(cell));
-                            uint lk = hash32(uint(L.x) * 0x9E3779B1u ^ hash32(uint(L.y) * 0x85EBCA77u ^
-                                                                               hash32(uint(L.z) + 0x27D4EB2Fu)));
-                            consider(-(R * e.n), e.pen, local, w, w, mu, 26u + uint(e.dir),
-                                     keyOf(ai, STATIC, 1u + d, lk, uint(e.dir)));
-                        }
-                }
-            }
+    ivec3 cl, nc;
+    vec3 lo, hi;
+    uint n = A.meta.y + worldBox(A, cl, nc, lo, hi);
+    for (uint q = 0u; q < n; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
 }
 
 void againstBody(uint ai, uint bi) {
@@ -838,6 +857,85 @@ void narrowHard() {
     }
 }
 
+// ---- F5.5a3: the world test in parallel, one workgroup per awake body ----
+shared Body gwA;
+// pass 24: K_WORLD for the awake bodies: count, scan, write (the serial candidate order), then the cap (coopEmit)
+void worldPar() {
+    uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
+    uint na = state[S_NAWAKE], scr = prm[P_SCRATCH], base = g * scr;
+    for (uint idx = g; idx < na; idx += G) {
+        uint ai = aux[idx];
+        Body A = bodies[ai];
+        mat3 R = qmat(A.quat), Rt = transpose(R);
+        ivec3 cl, nc;
+        vec3 lo, hi;
+        uint L = A.meta.y + worldBox(A, cl, nc, lo, hi);
+        uint per = (L + 63u) / 64u, q0 = min(L, lid * per), q1 = min(L, q0 + per);
+        gMode = 2u; gCount = 0u;
+        for (uint q = q0; q < q1; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
+        gwCnt[lid] = gCount;
+        memoryBarrierShared();
+        barrier();
+        if (lid == 0u) {
+            uint off = 0u;
+            for (uint t2 = 0u; t2 < 64u; ++t2) { gwOff[t2] = off; off += gwCnt[t2]; }
+            gwTotal = off;
+        }
+        memoryBarrierShared();
+        barrier();
+        gMode = 0u; gBase = base; gCount = gwOff[lid];   // consider() writes scratch[base + offset], drops past scr
+        for (uint q = q0; q < q1; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
+        uint cnt = min(gwTotal, scr);
+        memoryBarrierBuffer();
+        barrier();
+        if (cnt > 0u) {
+            if (lid == 0u) atomicAdd(state[S_CAND], cnt);
+            coopEmit(ai, STATIC, base, cnt);
+        }
+        memoryBarrierBuffer();
+        barrier();
+    }
+}
+// pass 25: HARD_APPLY for the awake bodies: the summed body-body push (one thread), then the deepest world point
+// (reduced in serial order, first on ties) at the pushed pose
+void hardApplyPar() {
+    uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
+    uint na = state[S_NAWAKE];
+    for (uint idx = g; idx < na; idx += G) {
+        uint ai = aux[idx];
+        if (lid == 0u) {
+            vec3 push = pushes[ai].xyz;
+            float pl = length(push);
+            if (pl > 0.0) pushOut(ai, push / pl, pl);
+            gwA = bodies[ai];
+        }
+        memoryBarrierShared();
+        barrier();
+        Body A = gwA;
+        mat3 R = qmat(A.quat), Rt = transpose(R);
+        ivec3 cl, nc;
+        vec3 lo, hi;
+        uint L = A.meta.y + worldBox(A, cl, nc, lo, hi);
+        uint per = (L + 63u) / 64u, q0 = min(L, lid * per), q1 = min(L, q0 + per);
+        gMode = 1u; gDeepPen = 0.0; gDeepN = vec3(0.0);
+        for (uint q = q0; q < q1; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
+        gwDeep[lid] = vec4(gDeepN, gDeepPen);
+        memoryBarrierShared();
+        barrier();
+        if (lid == 0u) {
+            vec4 d = vec4(0.0);
+            for (uint t2 = 0u; t2 < 64u; ++t2)
+                if (gwDeep[t2].w > d.w) d = gwDeep[t2];
+            if (d.w > pf(P_HARD)) {
+                pushOut(ai, d.xyz, d.w);
+                atomicAdd(state[S_HARD], 1u);
+            }
+        }
+        memoryBarrierShared();
+        barrier();
+    }
+}
+
 int findHard(uint i, uint j) {
     uint key = pairKey(i, j), cap2 = 2u * MAXP(), h = hash32(key) & (cap2 - 1u);
     for (uint k = 0u; k < cap2; ++k) {
@@ -995,6 +1093,8 @@ void main() {
 #endif
     if (pc.pass == 21u) { narrowPairs(); return; }
     if (pc.pass == 22u) { narrowHard(); return; }
+    if (pc.pass == 24u) { worldPar(); return; }
+    if (pc.pass == 25u) { hardApplyPar(); return; }
     uint t = gl_GlobalInvocationID.x;
     if (t >= pc.n) return;
     float dt = pf(P_DT);

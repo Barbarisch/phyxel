@@ -31,7 +31,8 @@ enum : uint32_t {
     K_INTEGRATE = 0, K_AABB, K_WORLD, K_PAIRS, K_PREFIX, K_SCATTER, K_SORT, K_COLOUR_INIT, K_COLOUR_ROUND,
     K_COLOUR_FINAL, K_PRIMAL, K_DUAL, K_HARD_BODY, K_HARD_APPLY, K_FINISH, K_WARM_CLEAR, K_WARM_SAVE,
     K_FUSED_COLOUR, K_FUSED_PRIMAL,  // F5.5a: 7-9, and 10 for every colour, each in one dispatch (the fused pipeline)
-    K_AWAKE_LIST, K_BROAD, K_NARROW, K_HARD_NARROW, K_HARD_PAIRS   // F5.5a2: the narrowphase in parallel
+    K_AWAKE_LIST, K_BROAD, K_NARROW, K_HARD_NARROW, K_HARD_PAIRS,  // F5.5a2: the narrowphase in parallel
+    K_WORLD_PAR, K_HARD_APPLY_PAR                                   // F5.5a3: the world test in parallel
 };
 constexpr uint32_t kFusedGroup = 1024;
 
@@ -406,8 +407,8 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
     }
     vkCmdFillBuffer(cmd, m_state.buf, S_AWAKE * 4, 4, 0);
     vkCmdFillBuffer(cmd, m_state.buf, S_NCONS * 4, 4, 0);
-    if (m_narrowPar) {   // F5.5a2: this tick's pair counts, the hard-pair hash and the per-body flags
-        vkCmdFillBuffer(cmd, m_state.buf, S_NPAIRS * 4, 3 * 4, 0);
+    if (m_narrowPar || m_worldPar) vkCmdFillBuffer(cmd, m_state.buf, S_NPAIRS * 4, 3 * 4, 0);   // + S_NAWAKE
+    if (m_narrowPar) {   // F5.5a2: the hard-pair hash and the per-body flags
         const VkDeviceSize hashOff = (VkDeviceSize(m_nb) + 4ull * m_maxPairs) * 4;
         vkCmdFillBuffer(cmd, m_aux.buf, hashOff, m_aux.bytes - hashOff, 0);
     }
@@ -418,17 +419,18 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
     stamp();
     run(K_AABB, 0, m_nb);
     stamp();
-    run(K_WORLD, 0, m_nb);
-    stamp();
     const uint32_t groups = std::min<uint32_t>(m_nb, 512);   // persistent workgroups, one scratch region each
-    auto perPair = [&](uint32_t pass) {
+    auto perPair = [&](uint32_t pass) {   // one workgroup per pair / per awake body
         BodyPC pc{pass, 0, parity, 0};
         m_pipe->pushConstants(cmd, &pc, sizeof(pc));
         m_pipe->dispatch(cmd, groups);
         barrier(cmd);
     };
+    if (m_narrowPar || m_worldPar) run(K_AWAKE_LIST, 0, m_nb);
+    if (m_worldPar) perPair(K_WORLD_PAR);   // F5.5a3
+    else run(K_WORLD, 0, m_nb);
+    stamp();
     if (m_narrowPar) {   // F5.5a2
-        run(K_AWAKE_LIST, 0, m_nb);
         run(K_BROAD, 0, m_nb);
         perPair(K_NARROW);
     } else {
@@ -473,7 +475,8 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
         run(K_HARD_BODY, 0, m_nb);
     }
     stamp();
-    run(K_HARD_APPLY, 0, m_nb);
+    if (m_worldPar) perPair(K_HARD_APPLY_PAR);   // F5.5a3
+    else run(K_HARD_APPLY, 0, m_nb);
     stamp();
     run(K_FINISH, 0, m_nb);
     stamp();

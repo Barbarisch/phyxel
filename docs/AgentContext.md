@@ -567,9 +567,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       control); 1,025 bodies 108.7 -> 10.4 ms/tick. Left at 1,025: solve 3.2, world 2.4, hard_apply 2.3 ms.
       Tunnelling fixed: a corner that moved >= 1 voxel takes its contact from its swept path (BodySim.cpp sweep() /
       shader sweepWorld, the same rule); the path wins over escape; a start a hair inside a surface keeps that surface.
-      NEXT: the remaining levers at 1,025 awake bodies -- the world test in parallel (K_WORLD 2.4 + HARD_APPLY 2.3 ms),
-      the solve (3.2 ms) -- each with its prediction BEFORE code; then F5.5b (GPU solver live + per-body cull), F5.5c
-      (bake levers + incremental preview edit), F5.5d (the exit).
+      F5.5a3 done: world test one workgroup per awake body (setWorldParallel(false) = control), bit-equal; 1,025
+      bodies 7.1 ms/tick (blast 0.74). Profile at 1,025: solve 3.68, hard_body 0.71, world 0.70, pairs 0.58, sort 0.24.
+      NEXT: the solve at 1,025 awake bodies (prediction BEFORE code); then F5.5b (GPU solver live + per-body cull),
+      F5.5c (bake levers + incremental preview edit), F5.5d (the exit).
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

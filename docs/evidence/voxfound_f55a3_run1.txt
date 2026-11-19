@@ -1,0 +1,36 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpuNarrow.F55a3*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodySimGpuNarrow
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a3WorldBitEqual
+[22:56:52.864] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[22:57:03.898] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[body gpu] C1 R8b blast: 21 bodies; 0 of 630 samples differ parallel vs serial; candidates 52434 / 52434, capped 32668 / 32668, pairs 3325 / 3325, hard 237 / 237, deep 0 / 0, max contacts 366 / 366
+[body gpu] C3 R8b blast: 0.740 ms / tick parallel, 4.285 serial; awake at the end 0; all-asleep tail 0.1086 ms / tick
+[body gpu] C1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ parallel vs serial; candidates 480519 / 480519, capped 382156 / 382156, pairs 19943 / 19943, hard 54 / 54, deep 2 / 2, max contacts 2970 / 2970
+[body gpu] C3 large wall E/T 250: 2.225 ms / tick parallel, 7.338 serial; awake at the end 0; all-asleep tail 0.1456 ms / tick
+[body gpu] C1 large wall E/T 650: 293 bodies; 0 of 2930 samples differ parallel vs serial; candidates 1404378 / 1404378, capped 1100820 / 1100820, pairs 59294 / 59294, hard 125 / 125, deep 7 / 7, max contacts 8558 / 8558
+[body gpu] C3 large wall E/T 650: 3.491 ms / tick parallel, 9.478 serial; awake at the end 0; all-asleep tail 0.1599 ms / tick
+[body gpu] C1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ parallel vs serial; candidates 4853800 / 4853800, capped 3702709 / 3702709, pairs 238750 / 238750, hard 2243 / 2243, deep 36 / 36, max contacts 30046 / 30046
+[body gpu] C3 large wall E/T 2800: 7.110 ms / tick parallel, 14.383 serial; awake at the end 3; all-asleep tail 1.0506 ms / tick
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(697): error: Expected: (p.ms) <= (7.0), actual: 7.1095675733333339 vs 7
+C3 large wall E/T 2800
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(698): error: Expected: (p.asleepMs) <= (1.0), actual: 1.0505557333333333 vs 1
+C3 mostly-asleep tail
+
+[body gpu]   C3 profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.042/0.042 world 0.697/0.087 pairs 0.578/0.269 prefix+scatter 0.047/0.045 sort 0.244/0.002 solve 3.678/0.415 hard_body 0.713/0.305 hard_apply 0.348/0.044 finish 0.005/0.003 warm 0.007/0.005
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(710): error: Expected: (pr.sumMs[2] / std::max(1, pr.ticks)) <= (0.5), actual: 0.69742986666666784 vs 0.5
+C3 world
+
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a3WorldBitEqual (40303 ms)
+[----------] 1 test from VoxFoundBodySimGpuNarrow (40304 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (40304 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a3WorldBitEqual
+
+ 1 FAILED TEST

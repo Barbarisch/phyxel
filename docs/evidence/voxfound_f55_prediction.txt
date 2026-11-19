@@ -217,3 +217,42 @@ RUN 2 (voxfound_f55t_run1_cpu.txt, _run1_gpu.txt):
      (fast pieces now get contacts): max penetration 5.62 mm (7.38 before), hard fires 237 (295).
   T5 PASS: 1,025 bodies 10.98 ms per tick (10.44 before, +5 %). Stated: the R8b blast went 1.60 -> 2.54 ms (+59 %),
      with 36 % more candidates -- the contacts its fast pieces were missing.
+
+=====================================================================================================================
+F5.5a3 -- THE WORLD TEST IN PARALLEL (written 2026-11-18 BEFORE its code)
+
+WHAT IT BUILDS: the profile's next two passes at 1,025 awake bodies, K_WORLD (2.4 ms mean) and HARD_APPLY's world test
+(2.3 ms), run one thread per body over every corner of the body and every world cell near it. As F5.5a2 did for pairs:
+one 64-thread workgroup per AWAKE body (persistent groups over the awake list, now built before K_WORLD), the body's
+items (its corners, then the world cells in its box, in the serial loop's order) split in contiguous chunks; count,
+scan, write -- the serial candidate order, so the same cap picks the same contacts; HARD_APPLY: the body-body push by
+one thread, then the deepest world point reduced in serial order (first on ties). The serial againstWorld becomes the
+same per-item function in a loop. setWorldParallel(false) keeps the serial passes as the control. Default: parallel.
+
+PREDICTIONS
+  C1 BIT-EQUAL, parallel vs serial world test (narrowphase parallel in both), every 30-tick sample of the R8b blast
+     (900 ticks) and every ladder rung (300 ticks); every counter equal.
+  C2 every VoxFound GPU test passes (39/39 + the new pair).
+  C3 cost at 1,025 bodies, mean device ms per tick (30 per submit): <= 7 ms (10.98 now); profile world <= 0.5,
+     hard_apply <= 0.5; the mostly-asleep tail <= 1.0 ms (1.53 now). The blast <= 2.5 ms (2.54 now).
+  The solve (3.2 ms per-colour at 1,025) stays; it is the next lever if C3 holds.
+
+WHAT WOULD COUNT AS A MISS: C1 not bit-equal; any test failing; any cost above its range.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5a3 RESULTS (2026-11-18; after the runs, the predictions above untouched). GPU shared with another session's engine.
+RED (voxfound_f55a3_red.txt): the parallel world pass stubbed to record nothing -> every sample differs.
+RUN 1 (voxfound_f55a3_run1.txt) and RUN 2 (voxfound_f55a3_run2.txt, every VoxFound GPU test, 40/40, after the guards):
+  C1 BIT-EQUAL on the first run: 0 of 630 / 1,050 / 2,930 / 10,250 samples differ; every counter equal. PASS.
+  C2 every VoxFound GPU test passes (40/40). PASS.
+  C3 cost, mean device ms per tick, parallel vs the serial world test (both with the parallel narrowphase):
+       R8b blast   0.74 vs 4.1-4.3   (<= 2.5 PASS; 2.54 at the tunnelling commit)
+       105 bodies  2.23-2.25 vs 7.3  (5.4 at the tunnelling commit)
+       293         3.49 vs 9.5       (6.8)
+       1,025       7.06-7.11 vs 14.4 (<= 7 MISSED by 0.06-0.11; 10.98 at the tunnelling commit)
+     profile at 1,025 (mean / least-contended): world 0.70 / 0.09 (<= 0.5 MISSED), hard_apply 0.35 / 0.04 (<= 0.5 PASS);
+     the rest: solve 3.68 / 0.42, hard_body 0.71, pairs 0.58, sort 0.24.
+     The mostly-asleep tail (3 of 1,025 awake) 1.05 ms (<= 1.0 MISSED narrowly; 1.53 before).
+     Stated: the serial control got slower (14.4 vs 10.98 ms at 1,025): its world test is now the same per-item function
+     in a loop (the cell index is decoded per item) -- the control's cost, not the default's.
+  The three misses are narrow; printed, guarded at 2x. The largest cost left at 1,025 is the solve (3.7 ms).

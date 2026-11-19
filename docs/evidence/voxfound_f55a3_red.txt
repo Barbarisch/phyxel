@@ -1,0 +1,228 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpuNarrow.F55a3*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodySimGpuNarrow
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a3WorldBitEqual
+[22:54:39.876] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[22:54:39.880] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[body gpu] C1 R8b blast: 21 bodies; 630 of 630 samples differ parallel vs serial; candidates 52434 / 5305, capped 32668 / 992, pairs 3325 / 3741, hard 237 / 7891, deep 0 / 0, max contacts 366 / 290
+[body gpu] C3 R8b blast: 3.022 ms / tick parallel, 2.567 serial; awake at the end 21; all-asleep tail 3.3421 ms / tick
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(581): error: Expected equality of these values:
+  d
+    Which is: 630
+  0u
+    Which is: 0
+C1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(582): error: Expected equality of these values:
+  s.candidates
+    Which is: 52434
+  p.candidates
+    Which is: 5305
+C1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(583): error: Expected equality of these values:
+  s.capped
+    Which is: 32668
+  p.capped
+    Which is: 992
+C1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(584): error: Expected equality of these values:
+  s.pairs
+    Which is: 3325
+  p.pairs
+    Which is: 3741
+C1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(585): error: Expected equality of these values:
+  s.hard
+    Which is: 237
+  p.hard
+    Which is: 7891
+C1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(587): error: Expected equality of these values:
+  s.maxContacts
+    Which is: 366
+  p.maxContacts
+    Which is: 290
+C1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(676): error: Expected: (p.ms) <= (2.5), actual: 3.0216441244444443 vs 2.5
+C3 blast
+
+[body gpu] C1 large wall E/T 250: 105 bodies; 1050 of 1050 samples differ parallel vs serial; candidates 480519 / 758165, capped 382156 / 536034, pairs 19943 / 62535, hard 54 / 8330, deep 2 / 193, max contacts 2970 / 2692
+[body gpu] C3 large wall E/T 250: 14.841 ms / tick parallel, 5.403 serial; awake at the end 105; all-asleep tail 8.1416 ms / tick
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(581): error: Expected equality of these values:
+  d
+    Which is: 1050
+  0u
+    Which is: 0
+C1 large wall E/T 250
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(582): error: Expected equality of these values:
+  s.candidates
+    Which is: 480519
+  p.candidates
+    Which is: 758165
+C1 large wall E/T 250
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(583): error: Expected equality of these values:
+  s.capped
+    Which is: 382156
+  p.capped
+    Which is: 536034
+C1 large wall E/T 250
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(584): error: Expected equality of these values:
+  s.pairs
+    Which is: 19943
+  p.pairs
+    Which is: 62535
+C1 large wall E/T 250
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(585): error: Expected equality of these values:
+  s.hard
+    Which is: 54
+  p.hard
+    Which is: 8330
+C1 large wall E/T 250
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(586): error: Expected equality of these values:
+  s.deep
+    Which is: 2
+  p.deep
+    Which is: 193
+C1 large wall E/T 250
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(587): error: Expected equality of these values:
+  s.maxContacts
+    Which is: 2970
+  p.maxContacts
+    Which is: 2692
+C1 large wall E/T 250
+
+[body gpu] C1 large wall E/T 650: 293 bodies; 2930 of 2930 samples differ parallel vs serial; candidates 1404378 / 1134241, capped 1100820 / 861934, pairs 59294 / 54175, hard 125 / 1045, deep 7 / 0, max contacts 8558 / 7894
+[body gpu] C3 large wall E/T 650: 5.397 ms / tick parallel, 6.831 serial; awake at the end 6; all-asleep tail 1.3361 ms / tick
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(581): error: Expected equality of these values:
+  d
+    Which is: 2930
+  0u
+    Which is: 0
+C1 large wall E/T 650
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(582): error: Expected equality of these values:
+  s.candidates
+    Which is: 1404378
+  p.candidates
+    Which is: 1134241
+C1 large wall E/T 650
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(583): error: Expected equality of these values:
+  s.capped
+    Which is: 1100820
+  p.capped
+    Which is: 861934
+C1 large wall E/T 650
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(584): error: Expected equality of these values:
+  s.pairs
+    Which is: 59294
+  p.pairs
+    Which is: 54175
+C1 large wall E/T 650
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(585): error: Expected equality of these values:
+  s.hard
+    Which is: 125
+  p.hard
+    Which is: 1045
+C1 large wall E/T 650
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(586): error: Expected equality of these values:
+  s.deep
+    Which is: 7
+  p.deep
+    Which is: 0
+C1 large wall E/T 650
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(587): error: Expected equality of these values:
+  s.maxContacts
+    Which is: 8558
+  p.maxContacts
+    Which is: 7894
+C1 large wall E/T 650
+
+[body gpu] C1 large wall E/T 2800: 1025 bodies; 10250 of 10250 samples differ parallel vs serial; candidates 4853800 / 6354693, capped 3702709 / 4688725, pairs 238750 / 402540, hard 2243 / 29538, deep 36 / 2664, max contacts 30046 / 28625
+[body gpu] C3 large wall E/T 2800: 18.359 ms / tick parallel, 10.984 serial; awake at the end 493; all-asleep tail 15.8737 ms / tick
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(581): error: Expected equality of these values:
+  d
+    Which is: 10250
+  0u
+    Which is: 0
+C1 large wall E/T 2800
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(582): error: Expected equality of these values:
+  s.candidates
+    Which is: 4853800
+  p.candidates
+    Which is: 6354693
+C1 large wall E/T 2800
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(583): error: Expected equality of these values:
+  s.capped
+    Which is: 3702709
+  p.capped
+    Which is: 4688725
+C1 large wall E/T 2800
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(584): error: Expected equality of these values:
+  s.pairs
+    Which is: 238750
+  p.pairs
+    Which is: 402540
+C1 large wall E/T 2800
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(585): error: Expected equality of these values:
+  s.hard
+    Which is: 2243
+  p.hard
+    Which is: 29538
+C1 large wall E/T 2800
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(586): error: Expected equality of these values:
+  s.deep
+    Which is: 36
+  p.deep
+    Which is: 2664
+C1 large wall E/T 2800
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(587): error: Expected equality of these values:
+  s.maxContacts
+    Which is: 30046
+  p.maxContacts
+    Which is: 28625
+C1 large wall E/T 2800
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(697): error: Expected: (p.ms) <= (7.0), actual: 18.359319039999999 vs 7
+C3 large wall E/T 2800
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(698): error: Expected: (p.asleepMs) <= (1.0), actual: 15.873712000000001 vs 1
+C3 mostly-asleep tail
+
+[body gpu]   C3 profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.042/0.041 world 0.000/0.000 pairs 0.950/0.601 prefix+scatter 0.046/0.044 sort 0.397/0.177 solve 4.278/2.143 hard_body 1.102/0.929 hard_apply 11.498/7.495 finish 0.004/0.003 warm 0.007/0.005
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(711): error: Expected: (pr.sumMs[8] / std::max(1, pr.ticks)) <= (0.5), actual: 11.49783253333333 vs 0.5
+C3 hard_apply
+
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a3WorldBitEqual (32086 ms)
+[----------] 1 test from VoxFoundBodySimGpuNarrow (32086 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (32086 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a3WorldBitEqual
+
+ 1 FAILED TEST
