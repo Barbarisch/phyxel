@@ -27,6 +27,7 @@ struct BodySimGpuStats {
     uint32_t scratchOverflow = 0;             // candidates that did not fit a worker's scratch (summed)
     uint32_t constraintOverflow = 0;          // constraints past the buffer (summed)
     uint32_t uncoloured = 0;                  // dynamic bodies left without a colour (summed)
+    uint32_t pairOverflow = 0;                // F5.5a2: body pairs past the pair list (summed)
     uint32_t colours = 0;                     // the most colours any tick used
     uint32_t awake = 0;                       // after the last tick
 };
@@ -64,6 +65,9 @@ public:
     /// only: the two paths are bit-equal. setFused(true / false) forces one path.
     void setFused(bool on) { m_fusedMaxAwake = on ? UINT32_MAX : 0u; }
     void setFusedMaxAwake(uint32_t n) { m_fusedMaxAwake = n; }
+    /// F5.5a2: the body-body narrowphase (pairs + hard contact) one workgroup per pair; false = the serial per-body
+    /// passes (F5.2b, the control). Default on.
+    void setNarrowParallel(bool on) { m_narrowPar = on; }
     bool fusedThisStep() const { return m_fused; }
     /// F5.5a: a per-pass device-time profile (timestamps between the pass groups; forces one tick per submit, so it
     /// measures each tick on its own). Reset by setProfile(true).
@@ -109,6 +113,7 @@ private:
     bool m_fused = true;              // the path of the current step() call
     uint32_t m_fusedMaxAwake = 128;
     uint32_t m_lastAwake = 0;
+    bool m_narrowPar = true;
     bool m_profile = false;
     Profile m_prof;
     VkQueryPool m_profQueries = VK_NULL_HANDLE;
@@ -116,6 +121,8 @@ private:
 
     // device buffers (see shaders/voxfound_bodies.comp for the layouts)
     Buffer m_params, m_bodies, m_bodyVox, m_corners, m_world, m_cons, m_scratch, m_state, m_lists, m_warm, m_push;
+    Buffer m_aux, m_hres;                             // F5.5a2: awake list, pair lists, hard-pair hash + results
+    uint32_t m_maxPairs = 0;
     Buffer m_stage;                                   // host-visible: uploads and read-backs
     Buffer m_counters;                                // host-visible: per-tick counters
     uint32_t m_nb = 0, m_maxCons = 0, m_parity = 0, m_iterations = 8, m_tick = 0;

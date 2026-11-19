@@ -6,6 +6,8 @@
 //   0 INTEGRATE  1 AABB  2 WORLD contacts  3 PAIR contacts  4 PREFIX (1 thread)  5 SCATTER  6 SORT lists by key
 //   7 COLOUR_INIT  8 COLOUR_ROUND(arg)  9 COLOUR_FINAL  10 PRIMAL(arg = colour)  11 DUAL  12 HARD_BODY
 //   13 HARD_APPLY  14 FINISH  15 WARM_CLEAR(next half)  16 WARM_SAVE(next half)  17 FUSED colour (7-9)  18 FUSED primal (10 x colours)
+//   F5.5a2, the narrowphase in parallel: 19 AWAKE_LIST  20 BROAD(arg 0: contact pairs, 1: hard pairs)  21 NARROW
+//   (workgroup per pair)  22 HARD_NARROW (workgroup per pair)  23 HARD_BODY from the stored pair results
 // GPU differences: candidates go to a per-worker scratch (worker = body i; its pairs j > i reuse it); a world surface
 // corner is taken once by a canonical-owner rule (the CPU uses a set); constraint lists are sorted by key so every sum
 // is order-independent (determinism); colours are Jones-Plassmann rounds (hashed priorities) instead of greedy;
@@ -76,11 +78,15 @@ layout(std430, binding = 2) readonly buffer BodyVox { uint bodyVox[]; };
 layout(std430, binding = 3) readonly buffer Corners { vec4 corners[]; };
 layout(std430, binding = 4) readonly buffer World { uint worldVox[]; };
 layout(std430, binding = 5) VF_COH buffer Cons { Con cons[]; };
-layout(std430, binding = 6) buffer Scratch { Cand scratch[]; };
+// coherent: F5.5a2's workgroup per pair writes candidates in one thread and caps them in another
+layout(std430, binding = 6) coherent buffer Scratch { Cand scratch[]; };
 layout(std430, binding = 7) VF_COH buffer State { uint state[]; };
 layout(std430, binding = 8) buffer Lists { uint lists[]; };
 layout(std430, binding = 9) buffer WarmT { Warm warm[]; };
 layout(std430, binding = 10) buffer Push { vec4 pushes[]; };
+// F5.5a2: [0, nb) awake list | pairs (a, b) x MAXP | hard pairs x MAXP | hash (key, pair) x 2 MAXP | flags x nb
+layout(std430, binding = 11) buffer Aux { uint aux[]; };
+layout(std430, binding = 12) buffer HardRes { vec4 hres[]; };   // per hard pair: deepest normal, depth
 
 layout(push_constant) uniform PC {
     uint pass;
@@ -94,10 +100,12 @@ const uint P_NB = 0, P_WX = 1, P_WY = 2, P_WZ = 3, P_WVM = 4, P_GROUND = 5, P_DT
            P_ALPHA = 10, P_BETA = 11, P_GAMMA = 12, P_PENMIN = 13, P_PENMAX = 14, P_MARGIN = 15, P_CAP = 16,
            P_REST = 17, P_SLEEPV = 18, P_SLEEPT = 19, P_WAKEV = 20, P_COLD = 21, P_COLDBODY = 22, P_IMPACT = 23,
            P_HARD = 24, P_MAXCONS = 25, P_NMATS = 26, P_GROUNDMU = 27, P_ITERS = 28, P_SCRATCH = 29, P_WARMCAP = 30,
+           P_MAXPAIRS = 31,
            P_MATS = 32;
 // state (BodySimGpu.cpp S_*): 0..15 summed over a step() call, 16.. per tick, per-body arrays from S_BODY
 const uint S_CAND = 0, S_CAPPED = 1, S_DEEP = 2, S_PAIRS = 3, S_HARD = 4, S_OVF_SCRATCH = 5, S_OVF_CONS = 6,
-           S_UNCOL = 7, S_MAXCOL = 8, S_MAXCONS = 9, S_AWAKE = 10, S_TICKCOL = 11, S_NCONS = 16,
+           S_UNCOL = 7, S_MAXCOL = 8, S_MAXCONS = 9, S_AWAKE = 10, S_TICKCOL = 11, S_NPAIRS = 12,
+           S_NHPAIRS = 13, S_NAWAKE = 14, S_OVF_PAIRS = 15, S_NCONS = 16,
            S_BODY = 32;
 const uint STATIC = 0xFFFFFFFFu, UNC = 0xFFFFFFFFu, NOCOL = 0xFFFFFFFEu;
 const float INF = 1e30;
@@ -366,6 +374,76 @@ int findWarm(uvec2 key, uint halfIdx) {
     return -1;
 }
 
+// one kept candidate -> a constraint (F5.5a2: shared by the serial cap and the workgroup cap)
+void emitOne(uint a, uint b, Cand c) {
+    Body A = bodies[a];
+    mat3 RA = qmat(A.quat);
+    float dt = pf(P_DT), dt2 = dt * dt;
+    Con k;
+    vec3 n = c.n.xyz;
+    vec3 t1, t2;
+    tangentBasis(n, t1, t2);
+    vec3 rAW = RA * c.rA.xyz;
+    float jdq = dot(n, A.pos.xyz - A.initial.xyz) + dot(cross(rAW, n), A.cumAng.xyz);
+    vec3 rBW = vec3(0.0);
+    if (b != STATIC) {
+        Body B = bodies[b];
+        rBW = qrot(B.quat, c.rB.xyz);
+        jdq += -dot(n, B.pos.xyz - B.initial.xyz) + dot(cross(rBW, -n), B.cumAng.xyz);
+    }
+    float cInitN = c.n.w + jdq;
+    int wi = findWarm(c.f.xy, pc.parity);
+    float coldPen = pf(P_COLD) * A.fixedProps.x / dt2;
+    if (b != STATIC && bodies[b].meta.z == 0u) {
+        Body B = bodies[b];
+        vec3 vRel = (A.vel.xyz + cross(A.angVel.xyz, rAW)) - (B.vel.xyz + cross(B.angVel.xyz, rBW));
+        if (-dot(vRel, n) > pf(P_IMPACT)) {
+            float mB = B.fixedProps.x;
+            coldPen = pf(P_COLDBODY) * (A.fixedProps.x * mB / (A.fixedProps.x + mB)) / dt2;
+        }
+    }
+    float penMin = pf(P_PENMIN), penMax = pf(P_PENMAX), alpha = pf(P_ALPHA), gamma = pf(P_GAMMA);
+    float lN = 0.0, lT1 = 0.0, lT2 = 0.0, pN, pT1, pT2;
+    uint stick = 0u;
+    vec3 anchorW = vec3(0.0);
+    bool cold = wi < 0;
+    if (cold) {
+        pN = clamp(coldPen, penMin, penMax);
+        pT1 = pN;
+        pT2 = pN;
+    } else {
+        Warm w = warm[wi];
+        lN = w.lam.x * alpha; lT1 = w.lam.y * alpha; lT2 = w.lam.z * alpha;
+        pN = clamp(w.lam.w * gamma, penMin, penMax);
+        pT1 = clamp(w.pen.x * gamma, penMin, penMax);
+        pT2 = clamp(w.pen.y * gamma, penMin, penMax);
+        stick = w.key.w;
+        anchorW = w.anchor.xyz;
+    }
+    float cT1 = 0.0, cT2 = 0.0;
+    vec3 anchor = vec3(0.0);
+    if (b == STATIC) {
+        vec3 ptStart = A.initial.xyz + qrot(A.initialQuat, c.rA.xyz);
+        anchor = (!cold && stick != 0u) ? anchorW : ptStart;
+        cT1 = dot(t1, ptStart - anchor);
+        cT2 = dot(t2, ptStart - anchor);
+    }
+    k.n = vec4(n, c.rA.w);
+    k.t1 = vec4(t1, cInitN);
+    k.t2 = vec4(t2, cT1);
+    k.rA = vec4(c.rA.xyz, cT2);
+    k.rB = vec4(c.rB.xyz, lN);
+    k.lam = vec4(lT1, lT2, pN, pT1);
+    k.misc = vec4(pT2, float(stick), 0.0, 0.0);
+    k.anchor = vec4(anchor, 0.0);
+    k.ids = uvec4(a, b, c.f.x, c.f.y);
+    uint slot = atomicAdd(state[S_NCONS], 1u);
+    if (slot >= prm[P_MAXCONS]) { atomicAdd(state[S_OVF_CONS], 1u); return; }
+    cons[slot] = k;
+    atomicAdd(state[sCount(a)], 1u);
+    if (b != STATIC) atomicAdd(state[sCount(b)], 1u);
+}
+
 // ---- the cap (BodySim.cpp capContacts) + emission, for candidates in scratch [gBase, gBase + gCount) ----
 void emitPair(uint a, uint b) {
     uint cnt = gCount;
@@ -425,75 +503,7 @@ void emitPair(uint a, uint b) {
     }
     atomicAdd(state[S_CAPPED], cnt - nk);
 
-    Body A = bodies[a];
-    mat3 RA = qmat(A.quat);
-    float dt = pf(P_DT), dt2 = dt * dt;
-    for (uint q = 0u; q < nk; ++q) {
-        Cand c = scratch[gBase + keep[q]];
-        Con k;
-        vec3 n = c.n.xyz;
-        vec3 t1, t2;
-        tangentBasis(n, t1, t2);
-        vec3 rAW = RA * c.rA.xyz;
-        float jdq = dot(n, A.pos.xyz - A.initial.xyz) + dot(cross(rAW, n), A.cumAng.xyz);
-        vec3 rBW = vec3(0.0);
-        if (b != STATIC) {
-            Body B = bodies[b];
-            rBW = qrot(B.quat, c.rB.xyz);
-            jdq += -dot(n, B.pos.xyz - B.initial.xyz) + dot(cross(rBW, -n), B.cumAng.xyz);
-        }
-        float cInitN = c.n.w + jdq;
-        int wi = findWarm(c.f.xy, pc.parity);
-        float coldPen = pf(P_COLD) * A.fixedProps.x / dt2;
-        if (b != STATIC && bodies[b].meta.z == 0u) {
-            Body B = bodies[b];
-            vec3 vRel = (A.vel.xyz + cross(A.angVel.xyz, rAW)) - (B.vel.xyz + cross(B.angVel.xyz, rBW));
-            if (-dot(vRel, n) > pf(P_IMPACT)) {
-                float mB = B.fixedProps.x;
-                coldPen = pf(P_COLDBODY) * (A.fixedProps.x * mB / (A.fixedProps.x + mB)) / dt2;
-            }
-        }
-        float penMin = pf(P_PENMIN), penMax = pf(P_PENMAX), alpha = pf(P_ALPHA), gamma = pf(P_GAMMA);
-        float lN = 0.0, lT1 = 0.0, lT2 = 0.0, pN, pT1, pT2;
-        uint stick = 0u;
-        vec3 anchorW = vec3(0.0);
-        bool cold = wi < 0;
-        if (cold) {
-            pN = clamp(coldPen, penMin, penMax);
-            pT1 = pN;
-            pT2 = pN;
-        } else {
-            Warm w = warm[wi];
-            lN = w.lam.x * alpha; lT1 = w.lam.y * alpha; lT2 = w.lam.z * alpha;
-            pN = clamp(w.lam.w * gamma, penMin, penMax);
-            pT1 = clamp(w.pen.x * gamma, penMin, penMax);
-            pT2 = clamp(w.pen.y * gamma, penMin, penMax);
-            stick = w.key.w;
-            anchorW = w.anchor.xyz;
-        }
-        float cT1 = 0.0, cT2 = 0.0;
-        vec3 anchor = vec3(0.0);
-        if (b == STATIC) {
-            vec3 ptStart = A.initial.xyz + qrot(A.initialQuat, c.rA.xyz);
-            anchor = (!cold && stick != 0u) ? anchorW : ptStart;
-            cT1 = dot(t1, ptStart - anchor);
-            cT2 = dot(t2, ptStart - anchor);
-        }
-        k.n = vec4(n, c.rA.w);
-        k.t1 = vec4(t1, cInitN);
-        k.t2 = vec4(t2, cT1);
-        k.rA = vec4(c.rA.xyz, cT2);
-        k.rB = vec4(c.rB.xyz, lN);
-        k.lam = vec4(lT1, lT2, pN, pT1);
-        k.misc = vec4(pT2, float(stick), 0.0, 0.0);
-        k.anchor = vec4(anchor, 0.0);
-        k.ids = uvec4(a, b, c.f.x, c.f.y);
-        uint slot = atomicAdd(state[S_NCONS], 1u);
-        if (slot >= prm[P_MAXCONS]) { atomicAdd(state[S_OVF_CONS], 1u); continue; }
-        cons[slot] = k;
-        atomicAdd(state[sCount(a)], 1u);
-        if (b != STATIC) atomicAdd(state[sCount(b)], 1u);
-    }
+    for (uint q = 0u; q < nk; ++q) emitOne(a, b, scratch[gBase + keep[q]]);
 }
 
 // ---- the constraint value at the current iterate (BodySim.cpp evalC) ----
@@ -555,6 +565,232 @@ void pushOut(uint i, vec3 n, float d) {
 bool aabbOverlap(uint i, uint j, float m) {
     return all(lessThanEqual(bodies[i].lo.xyz, bodies[j].hi.xyz + m)) &&
            all(lessThanEqual(bodies[j].lo.xyz, bodies[i].hi.xyz + m));
+}
+
+// ---- F5.5a2: the narrowphase in parallel ----
+uint MAXP() { return prm[P_MAXPAIRS]; }
+uint auxPairs(uint which) { return NB() + which * 2u * MAXP(); }   // which 0: contact pairs, 1: hard pairs
+uint auxHash() { return NB() + 4u * MAXP(); }                       // 2 MAXP entries (power of two) of (key, pair)
+uint auxFlag() { return NB() + 8u * MAXP(); }                       // per body: in a hard pair deeper than P_HARD
+uint pairKey(uint i, uint j) { return min(i, j) * NB() + max(i, j) + 1u; }
+
+// corner q of the pair's list (side 0: A's corners into B, then side 1: B's into A), exactly as againstBody's loop
+bool pairCorner(uint ai, uint bi, Body A, Body B, mat3 RA, mat3 RB, float mu, uint q, bool countDeep, out Cand c,
+                out vec3 nSide) {
+    uint side = q < A.meta.y ? 0u : 1u;
+    uint k = side == 0u ? q : q - A.meta.y;
+    uint yi = side == 0u ? bi : ai;
+    Body X = side == 0u ? A : B;
+    Body Y = side == 0u ? B : A;
+    mat3 RX = side == 0u ? RA : RB, RY = side == 0u ? RB : RA;
+    mat3 RYt = transpose(RY);
+    float yvm = Y.fixedProps.z;
+    vec4 cr = corners[X.meta.x + k];
+    vec3 w = X.pos.xyz + RX * cr.xyz;
+    vec3 local = RYt * (w - Y.pos.xyz);
+    vec3 prefer = RYt * -(RX * dirVec(uint(cr.w)));
+    Esc e = escapeAt(false, yi, local / yvm + Y.comLocal.xyz, pf(P_MARGIN) / yvm, prefer, yvm);
+    if (e.status == 2) { if (countDeep) atomicAdd(state[S_DEEP], 1u); return false; }
+    if (e.status != 1) return false;
+    vec3 nOut = RY * e.n;
+    nSide = side == 0u ? nOut : -nOut;
+    c.n = vec4(nSide, e.pen);
+    c.rA = vec4(side == 0u ? cr.xyz : local, mu);
+    c.rB = vec4(side == 0u ? local : cr.xyz, 0.0);
+    c.point = vec4(w, 0.0);
+    c.f = uvec4(keyOf(ai, bi, 2u + side * 7u, k, uint(e.dir)), side * 26u + uint(e.dir), 0u);
+    return true;
+}
+
+shared uint gwCnt[64], gwOff[64], gwTotal, gwNk, gwStop, gwKeep[16], gwWIdx[52];
+shared float gwBest[64];
+shared uint gwBestI[64];
+shared vec4 gwDeep[64];
+
+// the cap of emitPair, one workgroup: same winners, same depth order, same spread picks (first index on ties)
+void coopEmit(uint a, uint b, uint base, uint cnt) {
+    uint lid = gl_LocalInvocationID.x;
+    for (uint i = lid; i < cnt; i += 64u) {
+        uvec4 f = scratch[base + i].f;
+        scratch[base + i].f.w = findWarm(f.xy, pc.parity) >= 0 ? 1u : 0u;
+    }
+    memoryBarrierBuffer();
+    barrier();
+    uint cap = prm[P_CAP];
+    if (cnt <= cap) {
+        if (lid == 0u) {
+            for (uint i = 0u; i < cnt; ++i) gwKeep[i] = i;
+            gwNk = cnt;
+        }
+    } else {
+        if (lid < 52u) {   // the best per bucket (depth + warm bonus), first index on ties
+            float best = -INF;
+            uint bi = 0xFFFFFFFFu;
+            for (uint i = 0u; i < cnt; ++i) {
+                Cand c = scratch[base + i];
+                if (c.f.z != lid) continue;
+                float sc = c.n.w + ((c.f.w & 1u) != 0u ? kWarmDepthBonus : 0.0);
+                if (sc > best) { best = sc; bi = i; }
+            }
+            gwWIdx[lid] = bi;
+        }
+        memoryBarrierShared();
+        barrier();
+        if (lid == 0u) {
+            uint win[52];
+            uint nw = 0u;
+            for (int b2 = 0; b2 < 52; ++b2)
+                if (gwWIdx[b2] != 0xFFFFFFFFu) win[nw++] = gwWIdx[b2];
+            for (uint i = 1u; i < nw; ++i) {   // stable sort by depth, deepest first
+                uint v = win[i];
+                float pv = scratch[base + v].n.w;
+                int j = int(i) - 1;
+                while (j >= 0 && scratch[base + win[j]].n.w < pv) { win[j + 1] = win[j]; --j; }
+                win[j + 1] = v;
+            }
+            uint nk = 0u;
+            for (uint i = 0u; i < nw && nk < cap; ++i) {
+                gwKeep[nk++] = win[i];
+                scratch[base + win[i]].f.w |= 2u;
+            }
+            gwNk = nk;
+            gwStop = 0u;
+        }
+        memoryBarrierBuffer();
+        barrier();
+        uint per = (cnt + 63u) / 64u, i0 = min(cnt, lid * per), i1 = min(cnt, i0 + per);
+        while (gwNk < cap && gwStop == 0u) {
+            uint nk = gwNk;
+            float best = -1.0;
+            uint bi = 0xFFFFFFFFu;
+            for (uint i = i0; i < i1; ++i) {
+                Cand c = scratch[base + i];
+                if ((c.f.w & 2u) != 0u) continue;
+                float dmin = INF;
+                for (uint q = 0u; q < nk; ++q) dmin = min(dmin, length(c.point.xyz - scratch[base + gwKeep[q]].point.xyz));
+                float sc = dmin + ((c.f.w & 1u) != 0u ? kWarmSpreadBonus : 0.0);
+                if (sc > best) { best = sc; bi = i; }
+            }
+            gwBest[lid] = best;
+            gwBestI[lid] = bi;
+            memoryBarrierShared();
+            barrier();
+            if (lid == 0u) {
+                float gb = -1.0;
+                uint gi = 0xFFFFFFFFu;
+                for (uint t2 = 0u; t2 < 64u; ++t2)
+                    if (gwBestI[t2] != 0xFFFFFFFFu && gwBest[t2] > gb) { gb = gwBest[t2]; gi = gwBestI[t2]; }
+                if (gi == 0xFFFFFFFFu) gwStop = 1u;
+                else {
+                    gwKeep[nk] = gi;
+                    gwNk = nk + 1u;
+                    scratch[base + gi].f.w |= 2u;
+                }
+            }
+            memoryBarrierBuffer();
+            barrier();
+        }
+    }
+    memoryBarrierShared();
+    barrier();
+    uint nk = gwNk;
+    if (lid == 0u) atomicAdd(state[S_CAPPED], cnt - nk);
+    if (lid < nk) emitOne(a, b, scratch[base + gwKeep[lid]]);
+}
+
+// pass 21: one workgroup per contact pair (persistent groups); scratch region = the group's
+void narrowPairs() {
+    uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
+    uint np = min(state[S_NPAIRS], MAXP());
+    uint base = g * prm[P_SCRATCH];
+    for (uint p = g; p < np; p += G) {
+        uint a = aux[auxPairs(0u) + 2u * p], b = aux[auxPairs(0u) + 2u * p + 1u];
+        Body A = bodies[a], B = bodies[b];
+        mat3 RA = qmat(A.quat), RB = qmat(B.quat);
+        float mu = 0.5 * (A.fixedProps.y + B.fixedProps.y);
+        uint L = A.meta.y + B.meta.y, per = (L + 63u) / 64u, q0 = min(L, lid * per), q1 = min(L, q0 + per);
+        Cand c;
+        vec3 ns;
+        uint n = 0u;
+        for (uint q = q0; q < q1; ++q) n += pairCorner(a, b, A, B, RA, RB, mu, q, true, c, ns) ? 1u : 0u;
+        gwCnt[lid] = n;
+        memoryBarrierShared();
+        barrier();
+        if (lid == 0u) {
+            uint off = 0u;
+            for (uint t2 = 0u; t2 < 64u; ++t2) { gwOff[t2] = off; off += gwCnt[t2]; }
+            gwTotal = off;
+        }
+        memoryBarrierShared();
+        barrier();
+        uint off = gwOff[lid], scr = prm[P_SCRATCH];
+        for (uint q = q0; q < q1; ++q) {
+            if (!pairCorner(a, b, A, B, RA, RB, mu, q, false, c, ns)) continue;
+            if (off < scr) scratch[base + off] = c;
+            ++off;
+        }
+        uint total = gwTotal, cnt = min(total, scr);
+        if (lid == 0u && total > scr) atomicAdd(state[S_OVF_SCRATCH], total - scr);
+        memoryBarrierBuffer();
+        barrier();
+        if (cnt > 0u) {
+            if (lid == 0u) {
+                atomicAdd(state[S_CAND], cnt);
+                if (bodies[b].meta.z != 0u && length(bodies[a].vel.xyz) > pf(P_WAKEV)) state[sWake(b)] = 1u;
+            }
+            coopEmit(a, b, base, cnt);
+        }
+        memoryBarrierBuffer();
+        barrier();
+    }
+}
+
+// pass 22: one workgroup per hard pair: the deepest point (first in the serial order on ties), stored + hashed
+void narrowHard() {
+    uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
+    uint np = min(state[S_NHPAIRS], MAXP());
+    float hc = pf(P_HARD);
+    for (uint p = g; p < np; p += G) {
+        uint a = aux[auxPairs(1u) + 2u * p], b = aux[auxPairs(1u) + 2u * p + 1u];
+        Body A = bodies[a], B = bodies[b];
+        mat3 RA = qmat(A.quat), RB = qmat(B.quat);
+        float mu = 0.5 * (A.fixedProps.y + B.fixedProps.y);
+        uint L = A.meta.y + B.meta.y, per = (L + 63u) / 64u, q0 = min(L, lid * per), q1 = min(L, q0 + per);
+        float best = 0.0;
+        vec3 bn = vec3(0.0);
+        Cand c;
+        vec3 ns;
+        for (uint q = q0; q < q1; ++q)
+            if (pairCorner(a, b, A, B, RA, RB, mu, q, false, c, ns) && c.n.w > best) { best = c.n.w; bn = ns; }
+        gwDeep[lid] = vec4(bn, best);
+        memoryBarrierShared();
+        barrier();
+        if (lid == 0u) {
+            vec4 d = vec4(0.0);
+            for (uint t2 = 0u; t2 < 64u; ++t2)
+                if (gwDeep[t2].w > d.w) d = gwDeep[t2];
+            hres[p] = d;
+            uint key = pairKey(a, b), cap2 = 2u * MAXP(), h = hash32(key) & (cap2 - 1u);
+            for (uint k = 0u; k < cap2; ++k) {
+                uint slot = auxHash() + 2u * ((h + k) & (cap2 - 1u));
+                if (atomicCompSwap(aux[slot], 0u, key) == 0u) { aux[slot + 1u] = p; break; }
+            }
+            if (d.w > hc) { aux[auxFlag() + a] = 1u; aux[auxFlag() + b] = 1u; }
+        }
+        memoryBarrierShared();
+        barrier();
+    }
+}
+
+int findHard(uint i, uint j) {
+    uint key = pairKey(i, j), cap2 = 2u * MAXP(), h = hash32(key) & (cap2 - 1u);
+    for (uint k = 0u; k < cap2; ++k) {
+        uint slot = auxHash() + 2u * ((h + k) & (cap2 - 1u));
+        uint v = aux[slot];
+        if (v == key) return int(aux[slot + 1u]);
+        if (v == 0u) return -1;
+    }
+    return -1;
 }
 
 uint prio(uint i) { return hash32(i * 0x9E3779B9u + 0x7F4A7C15u); }
@@ -701,6 +937,8 @@ void main() {
     if (pc.pass == 17u) { fusedColour(); return; }
     if (pc.pass == 18u) { fusedPrimal(); return; }
 #endif
+    if (pc.pass == 21u) { narrowPairs(); return; }
+    if (pc.pass == 22u) { narrowHard(); return; }
     uint t = gl_GlobalInvocationID.x;
     if (t >= pc.n) return;
     float dt = pf(P_DT);
@@ -812,6 +1050,58 @@ void main() {
     if (pc.pass == 9u) { colourFinal(t); return; }   // COLOUR_FINAL
     if (pc.pass == 10u) { primal(t, pc.arg); return; }   // PRIMAL for colour arg
     if (pc.pass == 11u) { dual(t); return; }   // DUAL
+    if (pc.pass == 19u) {   // AWAKE_LIST (F5.5a2)
+        if (dynamicBody(t)) aux[atomicAdd(state[S_NAWAKE], 1u)] = t;
+        return;
+    }
+    if (pc.pass == 20u) {   // BROAD: awake body a against every j; each unordered pair once, roles as K_PAIRS
+        if (t >= state[S_NAWAKE]) return;
+        uint a = aux[t];
+        float m = pc.arg == 0u ? pf(P_MARGIN) : 0.0;
+        uint ctr = pc.arg == 0u ? S_NPAIRS : S_NHPAIRS;
+        for (uint j = 0u; j < NB(); ++j) {
+            if (j == a || (j < a && dynamicBody(j))) continue;   // a dynamic j < a finds this pair itself
+            if (!aabbOverlap(a, j, m)) continue;
+            if (pc.arg == 0u) atomicAdd(state[S_PAIRS], 1u);
+            uint slot = atomicAdd(state[ctr], 1u);
+            if (slot >= MAXP()) { atomicAdd(state[S_OVF_PAIRS], 1u); continue; }
+            aux[auxPairs(pc.arg) + 2u * slot] = a;
+            aux[auxPairs(pc.arg) + 2u * slot + 1u] = j;
+        }
+        return;
+    }
+    if (pc.pass == 23u) {   // HARD_BODY from the stored pair results: the same sum over j ascending as pass 12
+        uint i = t;
+        if (aux[auxFlag() + i] == 0u) { pushes[i] = vec4(0.0); return; }   // in no pair deeper than P_HARD: no push
+        vec3 push = vec3(0.0);
+        float hc = pf(P_HARD);
+        for (uint j = 0u; j < NB(); ++j) {
+            if (j == i) continue;
+            uint lo = min(i, j), hi = max(i, j);
+            bool dl = dynamicBody(lo), dh = dynamicBody(hi);
+            if (!dl && !dh) continue;
+            if (!aabbOverlap(i, j, 0.0)) continue;
+            uint a = dl ? lo : hi, b = a == lo ? hi : lo;
+            int hp = findHard(i, j);
+            if (hp < 0) {   // the hard pair list overflowed (counted): the serial test
+                gMode = 1u; gDeepPen = 0.0; gDeepN = vec3(0.0);
+                againstBody(a, b);
+            } else {
+                gDeepPen = hres[hp].w;
+                gDeepN = hres[hp].xyz;
+            }
+            if (gDeepPen <= hc) continue;
+            float ia = bodies[a].pos.w, ib = dynamicBody(b) ? bodies[b].pos.w : 0.0;
+            if (i == a) {
+                push += gDeepN * (gDeepPen * ia / (ia + ib));
+                atomicAdd(state[S_HARD], 1u);
+            } else if (ib > 0.0) {
+                push -= gDeepN * (gDeepPen * ib / (ia + ib));
+            }
+        }
+        pushes[i] = vec4(push, 0.0);
+        return;
+    }
     if (pc.pass == 12u) {   // HARD_BODY: this body's share of every body-body push, from the pre-push poses
         uint i = t;
         vec3 push = vec3(0.0);

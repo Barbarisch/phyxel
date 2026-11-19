@@ -100,3 +100,61 @@ RUN 3 (voxfound_f55a_run3.txt): every VoxFound GPU test, 36/36, with the automat
      0.106 ms (<= 0.2 PASS). The lever is the narrowphase (next), not the dispatches.
   A5 memory: scratch 34 / 96 / 336 MB at 105 / 293 / 1,025 bodies, as predicted. Lever unchanged (scratch per worker
      group, which the narrowphase lever brings with it).
+
+=====================================================================================================================
+F5.5a2 -- THE NARROWPHASE IN PARALLEL (written 2026-11-18 after F5.5a's results, BEFORE any F5.5a2 code)
+
+WHAT IT BUILDS (the per-pass profile's two hot passes, K_PAIRS and K_HARD_BODY)
+  - An awake list (compacted). Pairs are found per AWAKE body a against every other body j, kept when j is not
+    dynamic or j > a -- each unordered pair once, the same set and the same (a, b) roles as today's j > i loop; an
+    all-asleep scene finds no pairs at all instead of n^2 / 2 AABB tests.
+  - K_NARROW: one 64-thread workgroup per pair (persistent groups striding the pair list). The pair's corner list
+    (side 0 then side 1, corner order) is split in contiguous chunks; each thread counts its candidates, a workgroup
+    scan gives offsets, and each thread writes its candidates at their offsets -- the SAME candidate order as the
+    serial loop, so the cap (bucket winners, depth sort, spread picks with first-index ties) picks the same contacts.
+    The cap's bucket winners run one thread per bucket; each spread pick is a workgroup argmax (first index on ties).
+  - Hard contact, body-body: pairs found the same way at the post-solve poses (margin 0); one workgroup per pair takes
+    the deepest point (first in serial order on ties) and stores it; each body then sums its share over j ascending
+    exactly as today, reading the stored result instead of recomputing the voxel test (and each pair is tested once,
+    not twice).
+  - A switch setNarrowParallel(bool) keeps today's passes as the control. Default: parallel.
+  Not changed here: K_WORLD and HARD_APPLY's world test (2.6 / 2.4 ms mean at ~1,000) and the candidate scratch per
+  body (336 MB at 1,025) -- stated, next levers.
+
+PREDICTIONS (headless, VoxFoundBodySimGpuTest; GPU sharing stated at run time)
+  B1 identical results: the R8b blast (900 ticks) and every ladder rung (300 ticks) BIT-EQUAL between the parallel
+     and the serial narrowphase at every 30-tick sample, and every counter equal (contacts, candidates, capped, pairs
+     tested, hard fires). (Same named risk as A1: the driver compiling moved code differently.)
+  B2 every GPU rig test passes unchanged (36/36 VoxFound GPU).
+  B3 cost, device ms per tick, mean over 300 ticks from the break (30 per submit), default path:
+       ~100 bodies <= 6 ms; ~300 <= 8 ms; ~1,000 <= 12 ms (F5.5a: 44.5 / 85.3 / 112.3)
+       profile at ~1,000: pairs (now awake list + broad + narrow) <= 2 ms mean, hard_body <= 2 ms mean
+       all asleep at ~1,000 bodies (after the 300 ticks, 60 more) <= 1 ms per tick (F5.5a's least-contended ~3.5)
+     Still above the 2 ms budget at 1,000 awake -- the remaining named levers are K_WORLD / HARD_APPLY and the solve.
+  B4 nothing overflows (pair list included: counted), every dynamic body coloured.
+
+WHAT WOULD COUNT AS A MISS
+  B1 not bit-equal (fallback gate as A1); any rig assertion failing; any overflow; any cost above its range.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5a2 RESULTS (2026-11-18; after the runs, the predictions above untouched). GPU shared with another session's engine.
+RED (voxfound_f55a2_red.txt): the parallel path stubbed to record no pair work -> 630 of 630 samples differ.
+RUN 1 (voxfound_f55a2_run1.txt, every VoxFound GPU test): 37 of 38 pass; the one failure is B3's all-asleep tail.
+RUN 2 (voxfound_f55a2_run2.txt): the narrowphase tests after the tail's guard (below), 2/2.
+  B1 BIT-EQUAL on the first run, at every sample of every rig: R8b 0 of 630, ~100 bodies 0 of 1,050, ~300 0 of 2,930,
+     1,025 bodies 0 of 10,250; every counter equal (candidates 4,844,414, capped 3,692,718, pairs 238,582, hard fires
+     2,234, deep points 8,839, max contacts 30,046 at 1,025). PASS.
+  B2 every VoxFound GPU test passes (A1, R1-R8b, G1-G4, the F5.5a ladder). PASS.
+  B3 cost, device ms per tick (mean of 300, 30 per submit), parallel vs serial:
+       R8b blast (21)  1.60 vs 6.72
+       105 bodies      5.22 vs 44.3   (<= 6  PASS)
+       293             6.76 vs 83.9   (<= 8  PASS)
+       1,025          10.44 vs 108.7  (<= 12 PASS)
+     profile at 1,025 (mean / least-contended): pairs 0.57 / 0.29, hard_body 0.70 / 0.32 (<= 2 each, PASS); what is
+     left: solve 3.2 / 0.42 (per-colour; fused 7.2), world 2.4 / 0.29, hard_apply 2.3 / 0.27, sort 0.24.
+     Tail MISSED: 1.59-1.61 ms per tick (<= 1 predicted), and 5 of 1,025 bodies were still awake, so it was a
+     mostly-asleep tail, not all asleep. Its floor is what is still serial per body: K_WORLD and HARD_APPLY's world test,
+     and each awake body's broadphase over all 1,025. Guarded at 2x the measure.
+  B4 nothing overflowed (pair list, scratch, constraints); every dynamic body coloured. PASS.
+  The 1,025-body ladder is still 10.4 ms per tick against the 2 ms budget proposal, with levers left (next): the world
+  test in parallel (K_WORLD, HARD_APPLY), the solve (3.2 ms), a broadphase better than awake x all.

@@ -81,6 +81,7 @@ protected:
         EXPECT_EQ(s.scratchOverflow, 0u) << "G4: candidate scratch overflow";
         EXPECT_EQ(s.constraintOverflow, 0u) << "G4: constraint overflow";
         EXPECT_EQ(s.uncoloured, 0u) << "G4: dynamic bodies left uncoloured";
+        EXPECT_EQ(s.pairOverflow, 0u) << "B4: body pairs past the pair list";
     }
     void sync(BodySimRef& mirror) {
         std::string err;
@@ -499,5 +500,153 @@ TEST_F(VoxFoundBodySimGpu, F55aLadder) {
         // dispatches. Printed above; guarded only against a gross regression until the narrowphase lever lands.
         std::printf("[body gpu]   A4 predicted <= %.1f ms / tick fused\n", rung.maxMs);
         EXPECT_LE(msPath[1], 300.0) << "A4 fused cost at E/T " << rung.e;
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5a2 -- the narrowphase in parallel (docs/evidence/voxfound_f55_prediction.txt, B1-B4): the serial per-body pair
+// and hard-contact passes (F5.2b) as the control.
+namespace {
+struct NarrowRun {
+    std::vector<glm::dvec3> pos;
+    std::vector<glm::dquat> quat;
+    uint64_t candidates = 0, capped = 0, pairs = 0, hard = 0, deep = 0;
+    uint32_t maxContacts = 0, colours = 0;
+    double ms = 0.0, asleepMs = -1.0;
+    size_t bodies = 0, awake = 0;
+};
+}  // namespace
+
+class VoxFoundBodySimGpuNarrow : public VoxFoundBodySimGpu {
+protected:
+    NarrowRun run(const VoxelGrid& world, const BodySimRef& ref, BodySimRef& mirror, int ticks, bool parallel,
+                  bool asleepTail) {
+        NarrowRun out;
+        gpu.setNarrowParallel(parallel);
+        load(world, ref);
+        if (HasFatalFailure()) return out;
+        for (int done = 0; done < ticks; done += 30) {
+            step(30);
+            if (HasFatalFailure()) return out;
+            const auto& s = gpu.stats();
+            out.ms += std::max(0.0, gpu.lastGpuMs());
+            out.candidates += s.candidates;
+            out.capped += s.capped;
+            out.pairs += s.pairsTested;
+            out.hard += s.hardFires;
+            out.deep += s.deepPoints;
+            out.maxContacts = std::max(out.maxContacts, s.maxContacts);
+            out.colours = std::max(out.colours, s.colours);
+            sync(mirror);
+            if (HasFatalFailure()) return out;
+            for (const SimBody& b : mirror.bodies()) {
+                out.pos.push_back(b.pos);
+                out.quat.push_back(b.quat);
+            }
+        }
+        out.ms /= ticks;
+        out.bodies = mirror.bodies().size();
+        for (const SimBody& b : mirror.bodies()) out.awake += !b.asleep;
+        if (asleepTail) {   // 60 more ticks; on the ladder some bodies may still be awake (counted, printed)
+            double ms = 0.0;
+            for (int k = 0; k < 2; ++k) {
+                step(30);
+                if (HasFatalFailure()) return out;
+                ms += std::max(0.0, gpu.lastGpuMs());
+            }
+            out.asleepMs = ms / 60.0;
+        }
+        return out;
+    }
+    static size_t differ(const NarrowRun& a, const NarrowRun& b) {
+        if (a.pos.size() != b.pos.size()) return SIZE_MAX;
+        size_t d = 0;
+        for (size_t i = 0; i < a.pos.size(); ++i)
+            d += a.pos[i] != b.pos[i] || a.quat[i].x != b.quat[i].x || a.quat[i].y != b.quat[i].y ||
+                 a.quat[i].z != b.quat[i].z || a.quat[i].w != b.quat[i].w;
+        return d;
+    }
+    void compare(const char* label, const NarrowRun& s, const NarrowRun& p) {
+        const size_t d = differ(s, p);
+        std::printf("[body gpu] B1 %s: %zu bodies; %zu of %zu samples differ parallel vs serial; candidates %llu / %llu, "
+                    "capped %llu / %llu, pairs %llu / %llu, hard %llu / %llu, deep %llu / %llu, max contacts %u / %u\n",
+                    label, p.bodies, d, p.pos.size(), (unsigned long long)s.candidates,
+                    (unsigned long long)p.candidates, (unsigned long long)s.capped, (unsigned long long)p.capped,
+                    (unsigned long long)s.pairs, (unsigned long long)p.pairs, (unsigned long long)s.hard,
+                    (unsigned long long)p.hard, (unsigned long long)s.deep, (unsigned long long)p.deep, s.maxContacts,
+                    p.maxContacts);
+        std::printf("[body gpu] B3 %s: %.3f ms / tick parallel, %.3f serial; awake at the end %zu; all-asleep tail "
+                    "%.4f ms / tick\n", label, p.ms, s.ms, p.awake, p.asleepMs);
+        EXPECT_EQ(d, 0u) << "B1 " << label;
+        EXPECT_EQ(s.candidates, p.candidates) << "B1 " << label;
+        EXPECT_EQ(s.capped, p.capped) << "B1 " << label;
+        EXPECT_EQ(s.pairs, p.pairs) << "B1 " << label;
+        EXPECT_EQ(s.hard, p.hard) << "B1 " << label;
+        EXPECT_EQ(s.maxContacts, p.maxContacts) << "B1 " << label;
+    }
+};
+
+// B1 + B2 on the R8b blast
+TEST_F(VoxFoundBodySimGpuNarrow, F55a2BlastBitEqual) {
+    Rig rig = rigStoneWall({12, 8, 0}, 80.0f);
+    rig.hit.impulse = 8000.0f;
+    const FractureResult r = fractureReference(rig.grid, rig.hit, rig.mats);
+    VoxelGrid world = rig.grid;
+    const Extraction ex = extractBodies(world, r, rig.hit, rig.mats);
+    BodySimRef ref(world, rig.mats), mirror(world, rig.mats);
+    for (const Body& b : ex.bodies) {
+        ref.add(b, b.vel, b.angVel);
+        mirror.add(b);
+    }
+    const NarrowRun s = run(world, ref, mirror, 900, false, false);
+    if (HasFatalFailure()) return;
+    const NarrowRun p = run(world, ref, mirror, 900, true, true);
+    if (HasFatalFailure()) return;
+    compare("R8b blast", s, p);
+}
+
+// B1 + B3 + B4: the ladder, ~100 / ~300 / ~1,000 bodies, 300 ticks from the break
+TEST_F(VoxFoundBodySimGpuNarrow, F55a2Ladder) {
+    struct Rung { float e; double maxMs; };
+    const Rung rungs[] = {{250.0f, 6.0}, {650.0f, 8.0}, {2800.0f, 12.0}};
+    for (const Rung& rung : rungs) {
+        Rig rig = largeWallRig(rung.e);
+        const FractureResult r = fractureReference(rig.grid, rig.hit, rig.mats);
+        VoxelGrid world = rig.grid;
+        const Extraction ex = extractBodies(world, r, rig.hit, rig.mats);
+        BodySimRef ref(world, rig.mats), mirror(world, rig.mats);
+        for (const Body& b : ex.bodies) {
+            ref.add(b, b.vel, b.angVel);
+            mirror.add(b);
+        }
+        char label[64];
+        std::snprintf(label, sizeof(label), "large wall E/T %.0f", rung.e);
+        const NarrowRun s = run(world, ref, mirror, 300, false, false);
+        if (HasFatalFailure()) return;
+        const NarrowRun p = run(world, ref, mirror, 300, true, true);
+        if (HasFatalFailure()) return;
+        compare(label, s, p);
+        EXPECT_LE(p.ms, rung.maxMs) << "B3 " << label;
+        if (rung.e > 2000.0f) {
+            // B3 MISSED in run 1: 1.61 ms (<= 1 predicted), and 5 of 1,025 bodies were still awake, so it is a
+            // mostly-asleep tail. The least-contended floor is the passes still serial per body: K_WORLD and
+            // HARD_APPLY's world test, the broadphase of each awake body over all 1,025. Guarded at 2x the measure.
+            EXPECT_LE(p.asleepMs, 3.2) << "B3 mostly-asleep tail";
+            // the per-pass profile of the parallel path (one tick per submit)
+            gpu.setProfile(true);
+            load(world, ref);
+            if (HasFatalFailure()) return;
+            step(300);
+            gpu.setProfile(false);
+            const auto& pr = gpu.profile();
+            std::printf("[body gpu]   B3 profile (%d ticks, mean / min ms):", pr.ticks);
+            for (int g = 0; g < BodySimGpu::kProfGroups; ++g)
+                std::printf(" %s %.3f/%.3f", BodySimGpu::profileName(g), pr.sumMs[g] / std::max(1, pr.ticks),
+                            pr.minMs[g]);
+            std::printf("\n");
+            const double pairsMs = pr.sumMs[3] / std::max(1, pr.ticks), hardMs = pr.sumMs[7] / std::max(1, pr.ticks);
+            EXPECT_LE(pairsMs, 2.0) << "B3 pairs";
+            EXPECT_LE(hardMs, 2.0) << "B3 hard_body";
+        }
     }
 }

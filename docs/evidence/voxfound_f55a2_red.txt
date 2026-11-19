@@ -1,0 +1,62 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpuNarrow.F55a2BlastBitEqual
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodySimGpuNarrow
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a2BlastBitEqual
+[32m[22:28:20.869] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)[0m
+[32m[22:28:20.873] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (11 bindings)[0m
+[body gpu] B1 R8b blast: 21 bodies; 630 of 630 samples differ parallel vs serial; candidates 38589 / 35245, capped 23256 / 25373, pairs 2348 / 0, hard 295 / 50, deep 0 / 0, max contacts 366 / 124
+[body gpu] B3 R8b blast: 1.930 ms / tick parallel, 7.647 serial; awake at the end 0; all-asleep tail 0.2771 ms / tick
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(579): error: Expected equality of these values:
+  d
+    Which is: 630
+  0u
+    Which is: 0
+B1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(580): error: Expected equality of these values:
+  s.candidates
+    Which is: 38589
+  p.candidates
+    Which is: 35245
+B1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(581): error: Expected equality of these values:
+  s.capped
+    Which is: 23256
+  p.capped
+    Which is: 25373
+B1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(582): error: Expected equality of these values:
+  s.pairs
+    Which is: 2348
+  p.pairs
+    Which is: 0
+B1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(583): error: Expected equality of these values:
+  s.hard
+    Which is: 295
+  p.hard
+    Which is: 50
+B1 R8b blast
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(584): error: Expected equality of these values:
+  s.maxContacts
+    Which is: 366
+  p.maxContacts
+    Which is: 124
+B1 R8b blast
+
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a2BlastBitEqual (9056 ms)
+[----------] 1 test from VoxFoundBodySimGpuNarrow (9056 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (9056 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a2BlastBitEqual
+
+ 1 FAILED TEST

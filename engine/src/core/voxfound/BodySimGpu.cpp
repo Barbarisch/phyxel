@@ -19,18 +19,19 @@ static_assert(sizeof(BodyPC) == 16, "voxfound_bodies.comp push constants");
 enum : uint32_t {
     P_NB = 0, P_WX, P_WY, P_WZ, P_WVM, P_GROUND, P_DT, P_GX, P_GY, P_GZ, P_ALPHA, P_BETA, P_GAMMA, P_PENMIN, P_PENMAX,
     P_MARGIN, P_CAP, P_REST, P_SLEEPV, P_SLEEPT, P_WAKEV, P_COLD, P_COLDBODY, P_IMPACT, P_HARD, P_MAXCONS, P_NMATS,
-    P_GROUNDMU, P_ITERS, P_SCRATCH, P_WARMCAP, P_MATS = 32
+    P_GROUNDMU, P_ITERS, P_SCRATCH, P_WARMCAP, P_MAXPAIRS, P_MATS = 32
 };
 // state words (voxfound_bodies.comp S_*)
 enum : uint32_t {
     S_CAND = 0, S_CAPPED, S_DEEP, S_PAIRS, S_HARD, S_OVF_SCRATCH, S_OVF_CONS, S_UNCOL, S_MAXCOL, S_MAXCONS, S_AWAKE,
-    S_NCONS = 16, S_BODY = 32
+    S_TICKCOL = 11, S_NPAIRS = 12, S_NHPAIRS = 13, S_NAWAKE = 14, S_OVF_PAIRS = 15, S_NCONS = 16, S_BODY = 32
 };
 // passes
 enum : uint32_t {
     K_INTEGRATE = 0, K_AABB, K_WORLD, K_PAIRS, K_PREFIX, K_SCATTER, K_SORT, K_COLOUR_INIT, K_COLOUR_ROUND,
     K_COLOUR_FINAL, K_PRIMAL, K_DUAL, K_HARD_BODY, K_HARD_APPLY, K_FINISH, K_WARM_CLEAR, K_WARM_SAVE,
-    K_FUSED_COLOUR, K_FUSED_PRIMAL   // F5.5a: 7-9, and 10 for every colour, each in one dispatch (the fused pipeline)
+    K_FUSED_COLOUR, K_FUSED_PRIMAL,  // F5.5a: 7-9, and 10 for every colour, each in one dispatch (the fused pipeline)
+    K_AWAKE_LIST, K_BROAD, K_NARROW, K_HARD_NARROW, K_HARD_PAIRS   // F5.5a2: the narrowphase in parallel
 };
 constexpr uint32_t kFusedGroup = 1024;
 
@@ -90,14 +91,14 @@ bool BodySimGpu::init(VkDevice device, VkPhysicalDevice physical, VkQueue queue,
             m_timestampMs = double(props.limits.timestampPeriod) * 1e-6;
     }
     m_pipe = std::make_unique<Vulkan::ComputePipeline>();
-    if (!m_pipe->create(device, shaderDir + "/voxfound_bodies.comp.spv", 11, sizeof(BodyPC))) {
+    if (!m_pipe->create(device, shaderDir + "/voxfound_bodies.comp.spv", 13, sizeof(BodyPC))) {
         if (err) *err = "BodySimGpu: cannot create the pipeline from " + shaderDir +
                         "/voxfound_bodies.comp.spv (run build_shaders.bat?)";
         shutdown();
         return false;
     }
     m_pipeFused = std::make_unique<Vulkan::ComputePipeline>();
-    if (!m_pipeFused->create(device, shaderDir + "/voxfound_bodies_fused.comp.spv", 11, sizeof(BodyPC))) {
+    if (!m_pipeFused->create(device, shaderDir + "/voxfound_bodies_fused.comp.spv", 13, sizeof(BodyPC))) {
         if (err) *err = "BodySimGpu: cannot create the pipeline from " + shaderDir +
                         "/voxfound_bodies_fused.comp.spv (run build_shaders.bat?)";
         shutdown();
@@ -123,7 +124,7 @@ void BodySimGpu::shutdown() {
     if (m_device == VK_NULL_HANDLE) return;
     vkDeviceWaitIdle(m_device);
     for (Buffer* b : {&m_params, &m_bodies, &m_bodyVox, &m_corners, &m_world, &m_cons, &m_scratch, &m_state, &m_lists,
-                      &m_warm, &m_push, &m_stage, &m_counters})
+                      &m_warm, &m_push, &m_stage, &m_counters, &m_aux, &m_hres})
         destroyBuffer(*b);
     if (m_pipe) m_pipe->cleanup();
     m_pipe.reset();
@@ -255,7 +256,7 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
     if (bodies.empty()) { if (err) *err = "BodySimGpu: no bodies"; return false; }
     vkDeviceWaitIdle(m_device);
     for (Buffer* b : {&m_params, &m_bodies, &m_bodyVox, &m_corners, &m_world, &m_cons, &m_scratch, &m_state, &m_lists,
-                      &m_warm, &m_push, &m_stage, &m_counters})
+                      &m_warm, &m_push, &m_stage, &m_counters, &m_aux, &m_hres})
         destroyBuffer(*b);
     m_nb = uint32_t(bodies.size());
     m_maxCons = std::max<uint32_t>(4096, m_nb * uint32_t(p.contactCap) * 16);
@@ -289,6 +290,9 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
     prm[P_ITERS] = m_iterations;
     prm[P_SCRATCH] = kScratch;
     prm[P_WARMCAP] = kWarmCap;
+    m_maxPairs = 4096;   // a power of two (the hard-pair hash has 2x as many entries)
+    while (m_maxPairs < m_nb * 32u) m_maxPairs <<= 1;
+    prm[P_MAXPAIRS] = m_maxPairs;
     for (size_t m = 0; m < mats.size(); ++m) prm[P_MATS + m] = fbits(mats[m].friction);
 
     std::vector<GBody> gb(m_nb);
@@ -343,11 +347,13 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
         !createBuffer(m_warm, 2ull * kWarmCap * kWarmBytes, false, err) ||
         !createBuffer(m_push, VkDeviceSize(m_nb) * 16, false, err) ||
         !createBuffer(m_stage, std::max<VkDeviceSize>(bP + bB + bV + bC + bW, bB), true, err) ||
-        !createBuffer(m_counters, 32 * 4, true, err))
+        !createBuffer(m_counters, 32 * 4, true, err) ||
+        !createBuffer(m_aux, (2ull * m_nb + 8ull * m_maxPairs) * 4, false, err) ||
+        !createBuffer(m_hres, VkDeviceSize(m_maxPairs) * 16, false, err))
         return false;
-    Buffer* bind[11] = {&m_params, &m_bodies, &m_bodyVox, &m_corners, &m_world, &m_cons,
-                        &m_scratch, &m_state, &m_lists, &m_warm, &m_push};
-    for (uint32_t k = 0; k < 11; ++k) {
+    Buffer* bind[13] = {&m_params, &m_bodies, &m_bodyVox, &m_corners, &m_world, &m_cons, &m_scratch,
+                        &m_state,  &m_lists,  &m_warm,    &m_push,    &m_aux,   &m_hres};
+    for (uint32_t k = 0; k < 13; ++k) {
         m_pipe->bindBuffer(k, bind[k]->buf, bind[k]->bytes);
         m_pipeFused->bindBuffer(k, bind[k]->buf, bind[k]->bytes);
     }
@@ -400,6 +406,11 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
     }
     vkCmdFillBuffer(cmd, m_state.buf, S_AWAKE * 4, 4, 0);
     vkCmdFillBuffer(cmd, m_state.buf, S_NCONS * 4, 4, 0);
+    if (m_narrowPar) {   // F5.5a2: this tick's pair counts, the hard-pair hash and the per-body flags
+        vkCmdFillBuffer(cmd, m_state.buf, S_NPAIRS * 4, 3 * 4, 0);
+        const VkDeviceSize hashOff = (VkDeviceSize(m_nb) + 4ull * m_maxPairs) * 4;
+        vkCmdFillBuffer(cmd, m_aux.buf, hashOff, m_aux.bytes - hashOff, 0);
+    }
     barrier(cmd);
     stamp();
     m_pipe->bind(cmd);
@@ -409,7 +420,20 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
     stamp();
     run(K_WORLD, 0, m_nb);
     stamp();
-    run(K_PAIRS, 0, m_nb);
+    const uint32_t groups = std::min<uint32_t>(m_nb, 512);   // persistent workgroups, one scratch region each
+    auto perPair = [&](uint32_t pass) {
+        BodyPC pc{pass, 0, parity, 0};
+        m_pipe->pushConstants(cmd, &pc, sizeof(pc));
+        m_pipe->dispatch(cmd, groups);
+        barrier(cmd);
+    };
+    if (m_narrowPar) {   // F5.5a2
+        run(K_AWAKE_LIST, 0, m_nb);
+        run(K_BROAD, 0, m_nb);
+        perPair(K_NARROW);
+    } else {
+        run(K_PAIRS, 0, m_nb);
+    }
     stamp();
     run(K_PREFIX, 0, 1);
     run(K_SCATTER, 0, m_maxCons);
@@ -441,7 +465,13 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
     }
     stamp();
     run(K_AABB, 0, m_nb);
-    run(K_HARD_BODY, 0, m_nb);
+    if (m_narrowPar) {   // F5.5a2: hard pairs at the post-solve poses, one workgroup each, then the per-body sums
+        run(K_BROAD, 1, m_nb);
+        perPair(K_HARD_NARROW);
+        run(K_HARD_PAIRS, 0, m_nb);
+    } else {
+        run(K_HARD_BODY, 0, m_nb);
+    }
     stamp();
     run(K_HARD_APPLY, 0, m_nb);
     stamp();
@@ -506,6 +536,7 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
     m_stats.scratchOverflow = s[S_OVF_SCRATCH];
     m_stats.constraintOverflow = s[S_OVF_CONS];
     m_stats.uncoloured = s[S_UNCOL];
+    m_stats.pairOverflow = s[S_OVF_PAIRS];
     m_stats.colours = s[S_MAXCOL];
     m_stats.awake = s[S_AWAKE];
     m_lastAwake = m_stats.awake;

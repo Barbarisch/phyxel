@@ -1,0 +1,27 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpuNarrow.*
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from VoxFoundBodySimGpuNarrow
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a2BlastBitEqual
+[32m[22:34:07.871] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[22:34:07.874] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[body gpu] B1 R8b blast: 21 bodies; 0 of 630 samples differ parallel vs serial; candidates 38589 / 38589, capped 23256 / 23256, pairs 2348 / 2348, hard 295 / 295, deep 0 / 0, max contacts 366 / 366
+[body gpu] B3 R8b blast: 1.599 ms / tick parallel, 6.717 serial; awake at the end 0; all-asleep tail 0.1096 ms / tick
+[       OK ] VoxFoundBodySimGpuNarrow.F55a2BlastBitEqual (7889 ms)
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a2Ladder
+[32m[22:34:15.624] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[22:34:15.628] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[body gpu] B1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ parallel vs serial; candidates 480768 / 480768, capped 382341 / 382341, pairs 19943 / 19943, hard 54 / 54, deep 6 / 6, max contacts 2970 / 2970
+[body gpu] B3 large wall E/T 250: 5.216 ms / tick parallel, 44.325 serial; awake at the end 0; all-asleep tail 0.1472 ms / tick
+[body gpu] B1 large wall E/T 650: 293 bodies; 0 of 2930 samples differ parallel vs serial; candidates 1405068 / 1405068, capped 1100944 / 1100944, pairs 59259 / 59259, hard 128 / 128, deep 237 / 237, max contacts 8558 / 8558
+[body gpu] B3 large wall E/T 650: 6.758 ms / tick parallel, 83.940 serial; awake at the end 0; all-asleep tail 0.1601 ms / tick
+[body gpu] B1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ parallel vs serial; candidates 4844414 / 4844414, capped 3692718 / 3692718, pairs 238582 / 238582, hard 2234 / 2234, deep 8839 / 8839, max contacts 30046 / 30046
+[body gpu] B3 large wall E/T 2800: 10.444 ms / tick parallel, 108.733 serial; awake at the end 5; all-asleep tail 1.5933 ms / tick
+[body gpu]   B3 profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.043/0.042 world 2.430/0.288 pairs 0.572/0.289 prefix+scatter 0.046/0.044 sort 0.243/0.004 solve 3.203/0.415 hard_body 0.700/0.320 hard_apply 2.279/0.266 finish 0.005/0.003 warm 0.007/0.005
+[       OK ] VoxFoundBodySimGpuNarrow.F55a2Ladder (81782 ms)
+[----------] 2 tests from VoxFoundBodySimGpuNarrow (89671 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (89671 ms total)
+[  PASSED  ] 2 tests.
