@@ -108,6 +108,7 @@
 #include "core/voxfound/RegionEdit.h"
 #include "core/voxfound/BodyDraw.h"       // F5.3 bodies lab
 #include "core/voxfound/BodySim.h"
+#include "core/voxfound/BodySimGpu.h"   // F5.5b: the GPU solver live in the bodies lab
 #include "core/voxfound/BodyRest.h"
 #include "core/voxfound/FractureLab.h"
 #include "core/water/WadeDrag.h"
@@ -314,15 +315,28 @@ private:
         long tick = 0;
         double accum = 0.0, lastStepMs = 0.0;
         bool running = false, asWorld = false;
-        // F5.4 rest / bake-in (D6): the policy runs after every tick when restOn
-        std::vector<uint32_t> faceFirst, faceCount;          // each body's face range (compacted on a bake)
+        // F5.4 rest / bake-in (D6): the policy runs after every tick when restOn (GPU path: after every read)
+        // (each body's face range lives in draw.first / draw.count -- F5.5b's cull reads it; compacted on a bake)
         std::vector<size_t> crumbMat;                       // crumbs per material (the conservation ledger)
         Core::VoxFound::RestParams rest;
         bool restOn = false;
         Core::VoxFound::RestStats restTotal, restLast;
         double lastBakeMs = 0.0, lastRebuildMs = 0.0, lastCompactMs = 0.0;
         size_t bakePasses = 0;
+        // F5.5b: the GPU solver (the shipped path, default) -- sim then only HOLDS the bodies + world for the policy and
+        // the measuring functions; poses come from BodySimGpu one frame behind the solve (stepBegin / stepPoll)
+        std::unique_ptr<Core::VoxFound::BodySimGpu> gpu;
+        bool useGpu = true, gpuLoaded = false;
+        size_t reloads = 0;
+        double lastReloadMs = 0.0, maxReloadMs = 0.0, gpuMsPerTick = 0.0;
+        std::vector<float> simCpuMs;                        // the solver path's CPU ms per frame, last 600 frames (ring)
+        size_t simCpuNext = 0;
+        std::chrono::steady_clock::time_point runStart{};   // wall clock + tick when "run" last turned on
+        long runStartTick = 0;
     } voxFoundBodiesLab;
+    bool voxFoundBodiesGpuLoad(std::string* err);
+    void voxFoundBodiesGpuStep(float dt);
+    void voxFoundBodiesGpuDone(int ticks);
     bool voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err);
     void handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::json& response);
     void stepVoxFoundBodies(float dt);

@@ -2,15 +2,19 @@
 // one transform (prediction: docs/evidence/voxfound_f53_prediction.txt, G1-G5).
 //
 // A §8 lab rig (FractureLab, hand-built shapes -- not generator output) is placed on a drawn floor inside one chunk, the
-// hit breaks it (F4.1 fractureReference), F5.1 extracts the loose pieces, and the CPU REFERENCE solver (F5.2a
-// BodySimRef) moves them at a fixed 60 Hz. RIG DIFFERENCE, stated: the shipped path is the GPU solver; F5.2b's dispatch
-// floor (8-19 ms per tick) makes it unusable live until F5.5. What stays in the world is drawn through today's preview
-// path (FaceBuilderGpu, voxfound_face.vert); the bodies through voxfound_body.vert (one transform each).
+// hit breaks it (F4.1 fractureReference), F5.1 extracts the loose pieces, and a solver moves them at a fixed 60 Hz:
+// F5.5b (docs/evidence/voxfound_f55_prediction.txt): {"solver":"gpu"} (default, the shipped path: BodySimGpu on the
+// async compute queue, one step in flight, poses one frame behind) or {"solver":"cpu"} (F5.2a's BodySimRef, the
+// control). What stays in the world is drawn through today's preview path (FaceBuilderGpu, voxfound_face.vert); the
+// bodies through voxfound_body.vert (one transform each), culled per body ({"cull":bool}, default on).
 //
 // Body: {"rig":"stone_wall"|"brick_wall"|"beam"|"glass"|"lintel", "energy": E/T, "hit":[x,y,z] (rig voxels, stone wall),
 //        "impulse": N s, "at":[X,Y,Z] (world metres of the rig's voxel (0,0,0)), "pad": floor margin m (default 4),
 //        "run": bool}
-//    or  {"run":bool} {"ticks":N} {"shown":bool} {"cast":bool} {"as_world":bool} {"mutate":bool} {"status":true}
+//    + "solver": "gpu" | "cpu" (F5.5b)
+//    or  {"run":bool} {"ticks":N} {"shown":bool} {"cast":bool} {"cull":bool} {"as_world":bool} {"mutate":bool}
+//        {"status":true} ("pen":false skips the CPU max-penetration measure: seconds at ~1,000 bodies, on the
+//        main thread -- F5.5b live sampling)
 //    or  {"clear":true}.
 // F5.4 (docs/evidence/voxfound_f54_prediction.txt L1-L6): {"rest":{"on":bool,"budget":N,"keep_m":M,"rest_ticks":T}}
 //    sets the D6 policy (it runs after every tick while on; the player = the camera); {"bake_now":{...same keys}} runs
@@ -39,8 +43,87 @@ void Application::voxFoundBodiesPublish() {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
     lab.draw.poses.clear();
+    lab.draw.halfM.clear();
     if (lab.sim)
-        for (const SimBody& b : lab.sim->bodies()) lab.draw.poses.push_back(worldPoseOf(b, lab.areaOriginM));
+        for (const SimBody& b : lab.sim->bodies()) {
+            lab.draw.poses.push_back(worldPoseOf(b, lab.areaOriginM));
+            lab.draw.halfM.push_back(bodyHalfM(b));
+        }
+}
+
+// F5.5b: (re)load the GPU solver with the lab's world and bodies (made lazily on the async compute queue)
+bool Application::voxFoundBodiesGpuLoad(std::string* err) {
+    using namespace Core::VoxFound;
+    auto& lab = voxFoundBodiesLab;
+    if (!lab.gpu) {
+        lab.gpu = std::make_unique<BodySimGpu>();
+        const std::string spv = Core::AssetManager::instance().resolveShader("voxfound_bodies.comp.spv");
+        if (!lab.gpu->init(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice(),
+                           vulkanDevice->getAsyncComputeQueue(), vulkanDevice->getAsyncComputeQueueFamily(),
+                           std::filesystem::path(spv).parent_path().string(), err)) {
+            lab.gpu.reset();
+            return false;
+        }
+    }
+    lab.gpuLoaded = false;
+    if (lab.sim->bodies().empty()) return true;   // nothing to move (every body baked)
+    if (!lab.gpu->load(lab.world, lab.mats, lab.sim->bodies(), lab.sim->params(), err)) return false;
+    lab.gpuLoaded = true;
+    return true;
+}
+
+// F5.5b: a GPU step of `ticks` landed in lab.sim's bodies: the rest policy once (the CPU path runs it after every tick),
+// then the poses
+void Application::voxFoundBodiesGpuDone(int ticks) {
+    auto& lab = voxFoundBodiesLab;
+    lab.tick += ticks;
+    if (lab.gpu->lastGpuMs() >= 0.0) lab.gpuMsPerTick = lab.gpu->lastGpuMs() / ticks;
+    std::string err;
+    if (!voxFoundBodiesRest(false, nullptr, &err)) LOG_ERROR("VoxFound", "bodies rest pass: " + err);
+    voxFoundBodiesPublish();
+}
+
+// F5.5b, the live GPU path, once per frame: take the step in flight if it finished, then submit the ticks owed (<= 4,
+// as the CPU path; time beyond 4 ticks is dropped -- slower than real time if the solver cannot keep up)
+void Application::voxFoundBodiesGpuStep(float dt) {
+    auto& lab = voxFoundBodiesLab;
+    if (!lab.gpu) return;
+    const auto t0 = std::chrono::steady_clock::now();
+    std::string err;
+    bool active = lab.running;
+    if (lab.gpu->stepPending()) {
+        active = true;
+        const int n = lab.gpu->pendingTicks();
+        const int r = lab.gpu->stepPoll(&lab.sim->bodies(), false, &err);
+        if (r < 0) {
+            LOG_ERROR("VoxFound", "bodies GPU step: " + err);
+            lab.running = false;
+            return;
+        }
+        if (r == 1) voxFoundBodiesGpuDone(n);
+    }
+    if (lab.running && lab.gpuLoaded) {
+        const double h = lab.sim->params().dt;
+        lab.accum += double(dt);
+        if (!lab.gpu->stepPending()) {
+            const int n = std::min(int(lab.accum / h), 4);
+            if (n > 0) {
+                if (!lab.gpu->stepBegin(n, &err)) {
+                    LOG_ERROR("VoxFound", "bodies GPU stepBegin: " + err);
+                    lab.running = false;
+                    return;
+                }
+                lab.accum -= n * h;
+            }
+        }
+        lab.accum = std::min(lab.accum, 4.0 * h);
+    }
+    if (active) {
+        const float ms = float(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+        if (lab.simCpuMs.size() < 600) lab.simCpuMs.push_back(ms);
+        else lab.simCpuMs[lab.simCpuNext] = ms;
+        lab.simCpuNext = (lab.simCpuNext + 1) % 600;
+    }
 }
 
 // The preview grid: what stays in the world, plus (as_world) the bodies' voxels written back at their rest place.
@@ -104,16 +187,16 @@ bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParam
         if (gone[i]) continue;
         const uint32_t idx = uint32_t(first.size());
         first.push_back(uint32_t(faces.size()));
-        count.push_back(lab.faceCount[i]);
-        for (uint32_t k = lab.faceFirst[i]; k < lab.faceFirst[i] + lab.faceCount[i]; ++k) {
+        count.push_back(lab.draw.count[i]);
+        for (uint32_t k = lab.draw.first[i]; k < lab.draw.first[i] + lab.draw.count[i]; ++k) {
             BodyFace f = lab.draw.faces[k];
             f.body = idx;
             faces.push_back(f);
         }
     }
     lab.draw.faces.swap(faces);
-    lab.faceFirst.swap(first);
-    lab.faceCount.swap(count);
+    lab.draw.first.swap(first);
+    lab.draw.count.swap(count);
     ++lab.draw.facesRevision;
     const auto t2 = std::chrono::steady_clock::now();
     voxFoundBodiesPublish();
@@ -122,12 +205,24 @@ bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParam
     lab.lastBakeMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
     lab.lastCompactMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
     lab.lastRebuildMs = std::chrono::duration<double, std::milli>(t3 - t2).count();
+    if (ok && lab.useGpu) {   // F5.5b: the world grid changed and bodies left -- reload the GPU (warm start dropped)
+        const auto r0 = std::chrono::steady_clock::now();
+        if (!voxFoundBodiesGpuLoad(err)) return false;
+        lab.lastReloadMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - r0).count();
+        lab.maxReloadMs = std::max(lab.maxReloadMs, lab.lastReloadMs);
+        ++lab.reloads;
+    }
     return ok;
 }
 
 void Application::stepVoxFoundBodies(float dt) {
     auto& lab = voxFoundBodiesLab;
-    if (!lab.sim || !lab.running) return;
+    if (!lab.sim) return;
+    if (lab.useGpu) {
+        voxFoundBodiesGpuStep(dt);
+        return;
+    }
+    if (!lab.running) return;
     lab.accum += double(dt);
     const double h = lab.sim->params().dt;
     int n = 0;
@@ -156,6 +251,8 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         return;
     }
     if (p.value("clear", false)) {
+        lab.gpu.reset();   // waits for a step in flight
+        lab.gpuLoaded = false;
         renderCoordinator->setVoxFoundBodies(nullptr);
         renderCoordinator->setVoxFoundPreview(nullptr);
         lab.sim.reset();
@@ -180,6 +277,12 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
     auto vec3 = [](const nlohmann::json& j) { return glm::dvec3(j.at(0).get<double>(), j.at(1).get<double>(), j.at(2).get<double>()); };
     if (p.contains("rig")) {
         const std::string name = p["rig"].get<std::string>();
+        const std::string solver = p.value("solver", std::string("gpu"));
+        if (solver != "gpu" && solver != "cpu") {
+            response = {{"error", "solver must be gpu or cpu"}};
+            return;
+        }
+        if (lab.gpu && lab.gpu->stepPending()) lab.gpu->stepPoll(nullptr, true, nullptr);   // the old rig's step
         const float e = p.value("energy", 80.0f);
         Rig rig;
         if (name == "stone_wall") {
@@ -206,11 +309,14 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         const auto t0 = std::chrono::steady_clock::now();
         // the display + sim grid: the rig on a 2-voxel floor (fixed, its own material id: a copy of Stone drawn as
         // StoneTiles), `pad` metres of floor around it, 2 m of air above
+        // F5.5b: the pad is clamped per axis so the preview's one-build limit (256 voxels a side) holds -- the large
+        // wall (256 wide) gets no pad along x (pieces past its ends fall to the ground plane, below the floor)
         const int pad = int(std::lround(p.value("pad", 4.0) / double(rig.grid.voxelM)));
-        const glm::ivec3 off(pad, 2, pad);
+        const int padX = std::clamp((256 - rig.grid.dim.x) / 2, 0, pad), padZ = std::clamp((256 - rig.grid.dim.z) / 2, 0, pad);
+        const glm::ivec3 off(padX, 2, padZ);
         VoxelGrid g;
         g.voxelM = rig.grid.voxelM;
-        g.resize(rig.grid.dim + glm::ivec3(2 * pad, 2 + 16, 2 * pad));
+        g.resize(rig.grid.dim + glm::ivec3(2 * padX, 2 + 16, 2 * padZ));
         for (int x = 0; x < g.dim.x; ++x)
             for (int z = 0; z < g.dim.z; ++z)
                 for (int y = 0; y < 2; ++y) g.set({x, y, z}, kFloorMat, 0, true);
@@ -241,8 +347,20 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         for (const Body& b : ex.bodies) lab.sim->add(b, b.vel, b.angVel);
         const BodyDrawSet set = buildBodyFaces(lab.sim->bodies());
         lab.draw.faces = set.faces;
-        lab.faceFirst = set.first;
-        lab.faceCount = set.count;
+        lab.draw.first = set.first;
+        lab.draw.count = set.count;
+        lab.useGpu = solver == "gpu";
+        lab.reloads = 0;
+        lab.lastReloadMs = lab.maxReloadMs = lab.gpuMsPerTick = 0.0;
+        lab.simCpuMs.clear();
+        lab.simCpuNext = 0;
+        if (lab.useGpu) {
+            std::string gerr;
+            if (!voxFoundBodiesGpuLoad(&gerr)) {
+                response = {{"error", "BodySimGpu: " + gerr}};
+                return;
+            }
+        }
         lab.crumbMat.assign(mats.size(), 0);
         for (const Crumb& c : ex.crumbs) ++lab.crumbMat[c.mat];
         lab.restTotal = {};
@@ -254,6 +372,8 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         lab.tick = 0;
         lab.accum = 0.0;
         lab.running = p.value("run", false);
+        lab.runStart = std::chrono::steady_clock::now();
+        lab.runStartTick = 0;
         lab.asWorld = false;
         lab.crumbs = ex.crumbs.size();
         lab.rigName = name;
@@ -269,8 +389,9 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         renderCoordinator->setVoxFoundBodies(&lab.draw);
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         response = {{"provenance", "hand-built lab rig FractureLab " + name + " (E/T " + std::to_string(e) +
-                                       ") on a 2-voxel floor; F4.1 fractureReference + F5.1 extractBodies; "
-                                       "motion by the CPU reference solver BodySimRef (rig difference: shipped = GPU)"},
+                                       ") on a 2-voxel floor; F4.1 fractureReference + F5.1 extractBodies; motion by " +
+                                       (lab.useGpu ? std::string("the GPU solver BodySimGpu (the shipped path)")
+                                                   : std::string("the CPU reference solver BodySimRef (the control)"))},
                     {"bodies", ex.bodies.size()}, {"crumbs", ex.crumbs.size()}, {"body_faces", set.faces.size()},
                     {"refused", set.refused}, {"preview_faces", lab.previewFaces},
                     {"grid", {g.dim.x, g.dim.y, g.dim.z}},
@@ -283,7 +404,15 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         response = {{"error", "no rig (send {\"rig\":...} first)"}};
         return;
     }
-    if (p.contains("run")) lab.running = p["run"].get<bool>();
+    if (p.contains("run")) {
+        const bool on = p["run"].get<bool>();
+        if (on && !lab.running) {
+            lab.runStart = std::chrono::steady_clock::now();
+            lab.runStartTick = lab.tick;
+        }
+        lab.running = on;
+    }
+    if (p.contains("cull")) lab.draw.cull = p["cull"].get<bool>();
     if (p.contains("shown")) lab.draw.shown = p["shown"].get<bool>();
     if (p.contains("cast")) lab.draw.castShadows = p["cast"].get<bool>();
     if (p.contains("mutate")) lab.draw.mutate = p["mutate"].get<bool>();
@@ -297,7 +426,29 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         lab.rest = restOf(p["rest"], lab.rest);
         lab.restOn = p["rest"].value("on", true);
     }
-    if (p.contains("ticks")) {
+    if (p.contains("ticks") && lab.useGpu) {   // F5.5b: synchronous GPU ticks (the policy after every tick when on)
+        const int n = p["ticks"].get<int>();
+        std::string err;
+        if (lab.gpu && lab.gpu->stepPending()) {
+            const int k = lab.gpu->pendingTicks();
+            if (lab.gpu->stepPoll(&lab.sim->bodies(), true, &err) == 1) voxFoundBodiesGpuDone(k);
+        }
+        for (int done = 0; done < n && lab.gpuLoaded;) {
+            const int k = lab.restOn ? 1 : n - done;
+            if (!lab.gpu->step(k, &err) || !lab.gpu->read(lab.sim->bodies(), &err)) {
+                response = {{"error", err}};
+                return;
+            }
+            lab.tick += k;
+            done += k;
+            if (lab.gpu->lastGpuMs() >= 0.0) lab.gpuMsPerTick = lab.gpu->lastGpuMs() / k;
+            if (!voxFoundBodiesRest(false, nullptr, &err)) {
+                response = {{"error", err}};
+                return;
+            }
+        }
+        voxFoundBodiesPublish();
+    } else if (p.contains("ticks")) {
         const int n = p["ticks"].get<int>();
         for (int i = 0; i < n; ++i) {
             lab.sim->step();
@@ -339,12 +490,14 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
                 {"running", lab.running}, {"bodies", lab.sim->bodies().size()}, {"awake", awake},
                 {"crumbs", lab.crumbs}, {"shown", lab.draw.shown}, {"cast", lab.draw.castShadows},
                 {"as_world", lab.asWorld}, {"mutate", lab.draw.mutate}, {"body_faces", lab.draw.faces.size()},
-                {"preview_faces", lab.previewFaces}, {"step_ms", lab.lastStepMs},
-                {"max_penetration_mm", lab.sim->currentMaxPenetration() * 1000.0},
+                {"preview_faces", lab.previewFaces}, {"step_ms", lab.lastStepMs}, {"cull", lab.draw.cull},
+                {"max_penetration_mm", p.value("pen", true) ? lab.sim->currentMaxPenetration() * 1000.0 : -1.0},
                 {"render", {{"bodies", st.bodies}, {"faces", st.faces}, {"drawn_faces", st.drawnFaces},
                             {"cast_faces_mid", st.castFaces[0]}, {"cast_faces_near", st.castFaces[1]},
                             {"pose_ms", st.poseMs}, {"face_upload_ms", st.faceUploadMs},
-                            {"face_uploads", st.faceUploads}}},
+                            {"face_uploads", st.faceUploads}, {"culled", st.culled}, {"cull_ms", st.cullMs},
+                            {"draws", st.draws}, {"cast_draws", {st.castDraws[0], st.castDraws[1]}},
+                            {"kept_main", st.keptMain}, {"kept_cast", {st.keptCast[0], st.keptCast[1]}}}},
                 {"centres_m", centres}};
     // F5.4: the conservation ledger (per material: world + bodies + crumbs) and the rest pass's numbers
     nlohmann::json ledger = nlohmann::json::object();
@@ -358,6 +511,28 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
     for (size_t m = 1; m < perMat.size(); ++m) ledger[std::to_string(m)] = perMat[m];
     const RestStats& rt = lab.restTotal;
     response["ledger"] = ledger;
+    if (p.value("pen", true)) response["penetration_report"] = lab.sim->worstPenetrationReport();   // F5.5b
+    // F5.5b: the solver path
+    {
+        std::vector<float> v = lab.simCpuMs;
+        std::sort(v.begin(), v.end());
+        auto q = [&](double f) { return v.empty() ? 0.0 : double(v[std::min(v.size() - 1, size_t(f * double(v.size())))]); };
+        const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - lab.runStart).count();
+        nlohmann::json g = {{"solver", lab.useGpu ? "gpu" : "cpu"}, {"loaded", lab.gpuLoaded},
+                            {"ms_per_tick_device", lab.gpuMsPerTick}, {"reloads", lab.reloads},
+                            {"last_reload_ms", lab.lastReloadMs}, {"max_reload_ms", lab.maxReloadMs},
+                            {"cpu_ms_frames", v.size()}, {"cpu_ms_median", q(0.5)}, {"cpu_ms_p95", q(0.95)},
+                            {"cpu_ms_max", v.empty() ? 0.0 : double(v.back())},
+                            {"ticks_since_run", lab.tick - lab.runStartTick}, {"wall_s_since_run", wall},
+                            {"ticks_per_s", wall > 0.0 ? double(lab.tick - lab.runStartTick) / wall : 0.0}};
+        if (lab.gpu) {
+            const auto& s = lab.gpu->stats();
+            g["stats"] = {{"awake", s.awake}, {"contacts", s.contacts}, {"colours", s.colours},
+                          {"overflow", s.scratchOverflow + s.constraintOverflow + s.pairOverflow},
+                          {"uncoloured", s.uncoloured}, {"fused", lab.gpu->fusedThisStep()}};
+        }
+        response["solver"] = g;
+    }
     response["rest"] = {{"on", lab.restOn}, {"budget", lab.rest.budget}, {"keep_m", lab.rest.keepRadiusM},
                         {"rest_ticks", lab.rest.restTicks}, {"passes", lab.bakePasses},
                         {"baked", rt.baked}, {"rigid", rt.rigid}, {"refused", rt.refused}, {"woken", rt.woken},

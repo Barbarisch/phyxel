@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "core/voxfound/BodySim.h"
+#include "core/voxfound/Mesher.h"
 
 namespace Phyxel::Core::VoxFound {
 
@@ -116,6 +117,29 @@ glm::vec3 bodyNormal(const BodyPose& p, PackedFace f) {
     glm::vec3 n(0.0f);
     n[axis] = ((f.a >> 26) & 1u) ? 1.0f : -1.0f;
     return rotateByQuat(p.q, n);
+}
+
+}  // namespace Phyxel::Core::VoxFound
+
+namespace Phyxel::Core::VoxFound {
+
+// F5.5b per-body cull: the grid box [0, 2 halfM] at the pose -> its centre t + R halfM and its axis-aligned half-extent
+// |R| halfM (R's columns are the rotated axes), grown by a relative 1e-5 + 1 mm against float rounding in the shader.
+glm::vec3 bodyHalfM(const SimBody& b) { return glm::vec3(b.src.grid.dim) * (b.src.grid.voxelM * 0.5f); }
+void bodyBoxRel(const BodyPose& p, glm::vec3 halfM, glm::vec3* lo, glm::vec3* hi) {
+    const glm::vec3 ax = rotateByQuat(p.q, glm::vec3(halfM.x, 0.0f, 0.0f));
+    const glm::vec3 ay = rotateByQuat(p.q, glm::vec3(0.0f, halfM.y, 0.0f));
+    const glm::vec3 az = rotateByQuat(p.q, glm::vec3(0.0f, 0.0f, halfM.z));
+    const glm::vec3 c = glm::vec3(p.t) + ax + ay + az;
+    const glm::vec3 e = glm::abs(ax) + glm::abs(ay) + glm::abs(az);
+    const glm::vec3 g = e + (glm::abs(c) + e) * 1e-5f + glm::vec3(1e-3f);
+    *lo = c - g;
+    *hi = c + g;
+}
+bool bodyKept(const BodyPose& p, glm::vec3 halfM, const glm::vec4 planes[6]) {
+    glm::vec3 lo, hi;
+    bodyBoxRel(p, halfM, &lo, &hi);
+    return boxInFrustum(planes, lo, hi);
 }
 
 }  // namespace Phyxel::Core::VoxFound

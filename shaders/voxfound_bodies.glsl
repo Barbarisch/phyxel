@@ -44,7 +44,7 @@ struct Body {
     vec4 inertialQuat;
     vec4 cumAng;
     vec4 comLocal;      // voxel coords of the centre in the body grid; w: radius (m)
-    vec4 fixedProps;    // mass, friction, vm, 0
+    vec4 fixedProps;    // mass, friction, vm, asleepTicks (F5.5b: an exact float count)
     vec4 I0, I1, I2;    // body-frame inertia rows (kg m^2)
     uvec4 grid;         // voxel offset, dim x, y, z
     uvec4 meta;         // corner offset, corner count, asleep, slow ticks
@@ -1443,13 +1443,16 @@ void main() {
             b.vel.xyz = (b.pos.xyz - b.initial.xyz) / dt;
             b.angVel.xyz = angDisp(b.quat, b.initialQuat) / dt;
         }
-        if (state[sWake(i)] != 0u) { b.meta.z = 0u; b.meta.w = 0u; state[sWake(i)] = 0u; }
+        // asleepTicks (F5.5b, BodySim.cpp's rule): 0 on wake and on the tick a body sleeps, +1 each asleep tick
+        if (state[sWake(i)] != 0u) { b.meta.z = 0u; b.meta.w = 0u; b.fixedProps.w = 0.0; state[sWake(i)] = 0u; }
+        if (b.meta.z != 0u) b.fixedProps.w += 1.0;
         if (b.meta.z == 0u) {
             float sv = pf(P_SLEEPV);
             bool slow = length(b.vel.xyz) < sv && length(b.angVel.xyz) * b.comLocal.w < sv;
             b.meta.w = slow ? b.meta.w + 1u : 0u;
             if (b.meta.w >= prm[P_SLEEPT]) {
                 b.meta.z = 1u;
+                b.fixedProps.w = 0.0;
                 b.vel = vec4(0.0);
                 b.angVel = vec4(0.0);
             }

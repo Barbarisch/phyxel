@@ -1,0 +1,96 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodyDraw.F55b*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodyDraw
+[ RUN      ] VoxFoundBodyDraw.F55bCullIsConservative
+[body draw] C1: 200000 tests, 60316 with a box point inside, 0 kept, 60316 violations; looking away keeps 0 of 2000
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyDrawTest.cpp(350): error: Expected equality of these values:
+  violations
+    Which is: 60316
+  0u
+    Which is: 0
+C1: a body with a point in view was culled
+
+[  FAILED  ] VoxFoundBodyDraw.F55bCullIsConservative (366 ms)
+[----------] 1 test from VoxFoundBodyDraw (366 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (366 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodyDraw.F55bCullIsConservative
+
+ 1 FAILED TEST
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFound*Gpu*F55b*
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from VoxFoundBodySimGpu
+[ RUN      ] VoxFoundBodySimGpu.F55bAsleepTicksFollowTheRule
+[07:38:18.585] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[07:38:18.591] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[07:38:18.594] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] E1 blast: tick 64 body 15 asleepTicks 0, rule 1
+[body gpu] E1 blast: tick 65 body 13 asleepTicks 0, rule 1
+[body gpu] E1 blast: tick 65 body 15 asleepTicks 0, rule 2
+[body gpu] E1 blast: tick 66 body 13 asleepTicks 0, rule 2
+[body gpu] E1 blast: tick 66 body 15 asleepTicks 0, rule 3
+[body gpu] E1 blast: 21 bodies x 600 ticks, 10115 asleep samples, max asleepTicks 0, 10093 mismatches
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(911): error: Expected equality of these values:
+  mismatches
+    Which is: 10093
+  0u
+    Which is: 0
+E1 blast
+
+[body gpu] E1 large wall E/T 250: tick 30 body 0 asleepTicks 0, rule 1
+[body gpu] E1 large wall E/T 250: tick 30 body 1 asleepTicks 0, rule 1
+[body gpu] E1 large wall E/T 250: tick 30 body 2 asleepTicks 0, rule 1
+[body gpu] E1 large wall E/T 250: tick 30 body 3 asleepTicks 0, rule 1
+[body gpu] E1 large wall E/T 250: tick 30 body 4 asleepTicks 0, rule 1
+[body gpu] E1 large wall E/T 250: 105 bodies x 300 ticks, 27632 asleep samples, max asleepTicks 0, 27519 mismatches
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(911): error: Expected equality of these values:
+  mismatches
+    Which is: 27519
+  0u
+    Which is: 0
+E1 large wall E/T 250
+
+[  FAILED  ] VoxFoundBodySimGpu.F55bAsleepTicksFollowTheRule (68210 ms)
+[ RUN      ] VoxFoundBodySimGpu.F55bAsyncEqualsSync
+[07:39:26.437] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[07:39:26.442] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[07:39:26.445] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(953): error: Value of: gpu.stepBegin(n, &err)
+  Actual: false
+Expected: true
+stepBegin: stub
+
+[  FAILED  ] VoxFoundBodySimGpu.F55bAsyncEqualsSync (1041 ms)
+[ RUN      ] VoxFoundBodySimGpu.F55bGpuRestConservesAndReloads
+[07:39:27.428] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[07:39:27.433] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[07:39:27.436] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1006): error: Value of: gpu.stepBegin(4, &err)
+  Actual: false
+Expected: true
+stepBegin: stub
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1006): error: Value of: gpu.stepBegin(4, &err)
+  Actual: false
+Expected: true
+stepBegin: stub
+
+[  FAILED  ] VoxFoundBodySimGpu.F55bGpuRestConservesAndReloads (252 ms)
+[----------] 3 tests from VoxFoundBodySimGpu (69505 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (69505 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 3 tests, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55bAsleepTicksFollowTheRule
+[  FAILED  ] VoxFoundBodySimGpu.F55bAsyncEqualsSync
+[  FAILED  ] VoxFoundBodySimGpu.F55bGpuRestConservesAndReloads
+
+ 3 FAILED TESTS

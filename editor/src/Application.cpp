@@ -3749,6 +3749,7 @@ void Application::cleanup() {
     if (renderCoordinator) renderCoordinator->setVoxFoundPreview(nullptr);
     voxFoundBuilder.reset();   // F2.2: same reason
     voxFoundLodBuilder.reset();   // F2.14e: same reason
+    voxFoundBodiesLab.gpu.reset();   // F5.5b: same reason (waits for a step in flight)
     renderCoordinator.reset();
     voxelInteractionSystem.reset();
     raycastVisualizer.reset();

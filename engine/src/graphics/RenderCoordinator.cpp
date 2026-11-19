@@ -3212,6 +3212,8 @@ void RenderCoordinator::prepareVoxFoundBodies() {
     m_bodyFrameReady = false;
     m_voxFoundBodyStats.bodies = m_voxFoundBodyStats.faces = m_voxFoundBodyStats.drawnFaces = 0;
     m_voxFoundBodyStats.castFaces[0] = m_voxFoundBodyStats.castFaces[1] = 0;
+    m_voxFoundBodyStats.draws = m_voxFoundBodyStats.castDraws[0] = m_voxFoundBodyStats.castDraws[1] = 0;
+    m_voxFoundBodyStats.keptCast[0] = m_voxFoundBodyStats.keptCast[1] = 0;
     const auto* bl = m_voxFoundBodies;
     if (!bl || !bl->shown || bl->faces.empty() || bl->poses.empty() || !vulkanDevice || !camera) return;
     using Core::VoxFound::BodyFace;
@@ -3248,11 +3250,46 @@ void RenderCoordinator::prepareVoxFoundBodies() {
     const auto t0 = std::chrono::steady_clock::now();
     const glm::dvec3 cam(camera->getPosition());
     BodyPose* dst = static_cast<BodyPose*>(m_bodyPoseMapped) + size_t(currentFrame) * m_bodyPoseSlot;
-    for (size_t i = 0; i < bl->poses.size(); ++i) dst[i] = Core::VoxFound::relativePose(bl->poses[i], cam);
+    m_bodyRel.resize(bl->poses.size());
+    for (size_t i = 0; i < bl->poses.size(); ++i) m_bodyRel[i] = Core::VoxFound::relativePose(bl->poses[i], cam);
+    std::memcpy(dst, m_bodyRel.data(), m_bodyRel.size() * sizeof(BodyPose));
     m_voxFoundBodyStats.poseMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     m_voxFoundBodyStats.bodies = uint32_t(bl->poses.size());
     m_voxFoundBodyStats.faces = uint32_t(bl->faces.size());
+    // F5.5b per-body cull (a cost knob): the main view's runs here; the casters' per cascade in castVoxFoundBodies.
+    // Without per-body ranges and sizes matching the poses, nothing is culled (one draw of every face, as F5.3).
+    const size_t n = bl->poses.size();
+    m_bodyCullOk = bl->cull && bl->first.size() == n && bl->count.size() == n && bl->halfM.size() == n;
+    m_voxFoundBodyStats.culled = m_bodyCullOk;
+    m_voxFoundBodyStats.cullMs = 0.0;
+    m_voxFoundBodyStats.keptMain = 0;
+    if (m_bodyCullOk) {
+        const auto c0 = std::chrono::steady_clock::now();
+        glm::vec4 planes[6];
+        const glm::mat4 view = glm::lookAt(glm::vec3(0.0f), camera->getFront(), camera->getUp());   // as the UBO
+        Core::VoxFound::clipPlanesZeroToOne(cachedProjectionMatrix * view, glm::vec3(0.0f), planes);
+        uint32_t faces = 0;
+        m_voxFoundBodyStats.keptMain = bodyRuns(planes, m_bodyMainRuns, &faces);
+        m_voxFoundBodyStats.cullMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - c0).count();
+    }
     m_bodyFrameReady = true;
+}
+
+// F5.5b: the bodies whose grid box at this frame's pose is inside `planes` (camera-relative), as runs of consecutive
+// face ranges (bodies' faces are stored body after body). Returns the bodies kept; *faces = the faces in the runs.
+uint32_t RenderCoordinator::bodyRuns(const glm::vec4 planes[6], std::vector<BodyRun>& runs, uint32_t* faces) const {
+    const auto* bl = m_voxFoundBodies;
+    runs.clear();
+    uint32_t kept = 0, nf = 0;
+    for (size_t i = 0; i < m_bodyRel.size(); ++i) {
+        if (bl->count[i] == 0 || !Core::VoxFound::bodyKept(m_bodyRel[i], bl->halfM[i], planes)) continue;
+        ++kept;
+        nf += bl->count[i];
+        if (!runs.empty() && runs.back().first + runs.back().count == bl->first[i]) runs.back().count += bl->count[i];
+        else runs.push_back({bl->first[i], bl->count[i]});
+    }
+    *faces = nf;
+    return kept;
 }
 
 void RenderCoordinator::renderVoxFoundBodies() {
@@ -3270,9 +3307,20 @@ void RenderCoordinator::renderVoxFoundBodies() {
     vkCmdBindVertexBuffers(cmd, 1, 1, &m_bodyFaceBuffer, &off);
     vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(0.0f),
                                 m_voxFoundBodies->mutate ? 1u : 0u, glm::vec3(0.0f), 0.0f);
+    if (m_bodyCullOk) {   // F5.5b: one draw per run of kept bodies (firstInstance = the run's first face)
+        uint32_t n = 0;
+        for (const BodyRun& r : m_bodyMainRuns) {
+            vkCmdDrawIndexed(cmd, 36u, r.count, 0, 0, r.first);
+            n += r.count;
+        }
+        m_voxFoundBodyStats.drawnFaces = n;
+        m_voxFoundBodyStats.draws = uint32_t(m_bodyMainRuns.size());
+        return;
+    }
     const uint32_t n = uint32_t(m_voxFoundBodies->faces.size());
     vkCmdDrawIndexed(cmd, 36u, n, 0, 0, 0);
     m_voxFoundBodyStats.drawnFaces = n;
+    m_voxFoundBodyStats.draws = 1;
 }
 
 void RenderCoordinator::castVoxFoundBodies(VkCommandBuffer cmd, ShadowMap& map, const glm::mat4& lightSpaceMatrix,
@@ -3297,9 +3345,22 @@ void RenderCoordinator::castVoxFoundBodies(VkCommandBuffer cmd, ShadowMap& map, 
     pc.useChunkDataSsbo = 0u;
     pc.drawIndexBase = uint32_t(size_t(currentFrame) * m_bodyPoseSlot);
     vkCmdPushConstants(cmd, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+    if (m_bodyCullOk) {   // F5.5b: the cascade's light frustum (6 planes, camera-relative like the matrix), no distance term
+        const auto c0 = std::chrono::steady_clock::now();
+        glm::vec4 planes[6];
+        Core::VoxFound::clipPlanesZeroToOne(lightSpaceMatrix, glm::vec3(0.0f), planes);
+        uint32_t faces = 0;
+        m_voxFoundBodyStats.keptCast[slot] = bodyRuns(planes, m_bodyCastRuns, &faces);
+        m_voxFoundBodyStats.cullMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - c0).count();
+        for (const BodyRun& r : m_bodyCastRuns) vkCmdDrawIndexed(cmd, 36u, r.count, 0, 0, r.first);
+        m_voxFoundBodyStats.castFaces[slot] = faces;
+        m_voxFoundBodyStats.castDraws[slot] = uint32_t(m_bodyCastRuns.size());
+        return;
+    }
     const uint32_t n = uint32_t(m_voxFoundBodies->faces.size());
     vkCmdDrawIndexed(cmd, 36u, n, 0, 0, 0);
     m_voxFoundBodyStats.castFaces[slot] = n;
+    m_voxFoundBodyStats.castDraws[slot] = 1;
 }
 
 void RenderCoordinator::renderVoxFoundPreview() {

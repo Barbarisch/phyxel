@@ -1,0 +1,44 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodyDraw.F55b*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodyDraw
+[ RUN      ] VoxFoundBodyDraw.F55bCullIsConservative
+[body draw] C1: 200000 tests, 60316 with a box point inside, 61210 kept, 0 violations; looking away keeps 0 of 2000
+[       OK ] VoxFoundBodyDraw.F55bCullIsConservative (362 ms)
+[----------] 1 test from VoxFoundBodyDraw (362 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (363 ms total)
+[  PASSED  ] 1 test.
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFound*Gpu*F55b*
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from VoxFoundBodySimGpu
+[ RUN      ] VoxFoundBodySimGpu.F55bAsleepTicksFollowTheRule
+[07:41:58.859] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[07:42:09.928] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[07:42:21.465] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] E1 blast: 21 bodies x 600 ticks, 10115 asleep samples, max asleepTicks 536, 0 mismatches
+[body gpu] E1 large wall E/T 250: 105 bodies x 300 ticks, 27632 asleep samples, max asleepTicks 270, 0 mismatches
+[       OK ] VoxFoundBodySimGpu.F55bAsleepTicksFollowTheRule (32648 ms)
+[ RUN      ] VoxFoundBodySimGpu.F55bAsyncEqualsSync
+[07:42:22.857] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[07:42:22.862] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[07:42:22.865] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] E2 blast: 21 bodies, 257 batches, 0 of 5397 samples differ async vs sync, 0 counter sets differ; 0.689 / 0.699 ms per tick device (sync / async); 1761611 polls not ready
+[body gpu] E2 large wall E/T 2800: 1025 bodies, 52 batches, 0 of 53300 samples differ async vs sync, 0 counter sets differ; 6.190 / 6.397 ms per tick device (sync / async); 3086562 polls not ready
+[       OK ] VoxFoundBodySimGpu.F55bAsyncEqualsSync (3637 ms)
+[ RUN      ] VoxFoundBodySimGpu.F55bGpuRestConservesAndReloads
+[07:42:26.499] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[07:42:26.504] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[07:42:26.507] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] E3 blast, budget 8: 28 bodies -> 8 (20 baked) in 225 passes; ledger broken after 0 passes; 0 overwritten; 0 awake at the end; 0 body samples below the floor; 14 reloads, 6.93 ms mean, 7.90 max (world 88 x 34 x 67 = 200464 cells)
+[body gpu] E3 large wall E/T 650, budget 64: 306 bodies -> 64 (242 baked) in 225 passes; ledger broken after 0 passes; 0 overwritten; 0 awake at the end; 0 body samples below the floor; 1 reloads, 16.54 ms mean, 16.54 max (world 320 x 146 x 68 = 3176960 cells)
+[       OK ] VoxFoundBodySimGpu.F55bGpuRestConservesAndReloads (3173 ms)
+[----------] 3 tests from VoxFoundBodySimGpu (39458 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (39458 ms total)
+[  PASSED  ] 3 tests.

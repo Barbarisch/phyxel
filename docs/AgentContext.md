@@ -573,9 +573,16 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       workgroup when <= 128 awake -- the two forms bit-equal; NOT bit-equal to the serial primal, setPrimalParallel
       (false) = control). 1,025 bodies 3.67 ms/tick, blast 0.48. Barrier lesson: the indirect stage only after the
       args pass (on every barrier it doubled the asleep tick).
-      NEXT: F5.5b -- the GPU solver live in the lab (VoxFoundBodiesLab moves bodies with the CPU reference today) +
-      the per-body frustum / light cull (F5.3: 1.19 ms main at 947 bodies); prediction BEFORE code. Then F5.5c (bake
-      levers + incremental preview edit), F5.5d (the exit, live 100 -> 1,000). Owed lever: broadphase (pairs +
+      F5.5b done: the lab runs BodySimGpu by default ({"solver":"gpu"|"cpu"}); stepBegin/stepPoll (one submit, never
+      waited on, bit-equal to step+read); asleepTicks on the GPU (fixedProps.w); a bake reloads the GPU (7-21 ms);
+      per-body cull ({"cull":bool}, 0 px). Live gates: tools/voxfound_f55b_gate.py -- HOLD THE EFFECT CLOCKS
+      (/api/debug/effect_time) and compare the VIEWPORT box (the status bar prints FPS); status {"pen":false} for live
+      sampling (the CPU penetration measure stalls the frame for seconds at ~1,000 bodies). The VoxFoundBodies
+      project is a 43 ms forest before any body -- solver timing in CharacterTestbed (5.2 ms). Lab pad clamped per
+      axis (preview build limit 256). Body pass cost follows covered PIXELS, not faces.
+      NEXT: F5.5c (bake levers: neighbour cell set, per-pass cap; incremental preview edit; incremental GPU edit
+      instead of the reload -- the bake frame is 64-105 ms) with its prediction BEFORE code; then F5.5d (the exit).
+      Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall); broadphase (pairs +
       hard_body are awake x all loops).
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.

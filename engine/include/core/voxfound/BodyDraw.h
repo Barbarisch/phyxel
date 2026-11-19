@@ -79,7 +79,20 @@ struct BodyDrawList {
     bool shown = true;
     bool castShadows = true;
     bool mutate = false;                     // F5.3 gate mutation: a 0.5 degree turn on every body (main pass only)
+    // F5.5b per-body cull (a cost knob: changes what is drawn, never how it looks). Per body, set with the faces:
+    // its face range and its grid box half-size (metres). Without them (sizes differ from poses) nothing is culled.
+    std::vector<uint32_t> first, count;
+    std::vector<glm::vec3> halfM;
+    bool cull = true;
 };
+
+/// F5.5b: body grid box half-size in metres (dim * voxelM / 2); the box spans [0, 2 halfM] in body-grid metres.
+glm::vec3 bodyHalfM(const SimBody& b);
+/// The body's grid box at `p` as an axis-aligned box in p's (camera-relative) frame -- conservative: contains every
+/// face corner bodyCornerRel can produce.
+void bodyBoxRel(const BodyPose& p, glm::vec3 halfM, glm::vec3* lo, glm::vec3* hi);
+/// Kept = that box intersects the clip volume whose planes are `planes` (Mesher.h clipPlanesZeroToOne, same frame).
+bool bodyKept(const BodyPose& p, glm::vec3 halfM, const glm::vec4 planes[6]);
 
 /// CPU mirrors of voxfound_body.vert, in float, in the shader's order of operations.
 glm::ivec3 faceCornerVoxel(PackedFace f, uint32_t corner);          // corner 0-3, body-grid voxels (integers)

@@ -54,8 +54,18 @@ public:
               const BodySimParams& p, std::string* err);
     /// Runs `ticks` ticks (one submit per `ticksPerSubmit`).
     bool step(int ticks, std::string* err, int ticksPerSubmit = 30);
-    /// Copies pose, velocities and sleep state back into `bodies` (same order as load()).
+    /// Copies pose, velocities and sleep state (asleep, slowTicks, asleepTicks) back into `bodies` (same order as load()).
     bool read(std::vector<SimBody>& bodies, std::string* err);
+
+    /// F5.5b, the live path: `ticks` ticks plus the read-back of the bodies and the counters, recorded in ONE submit that
+    /// is not waited on. Bit-equal to step(ticks, err, ticks) + read() (the same recording). One step in flight at most.
+    bool stepBegin(int ticks, std::string* err);
+    /// 1: the step in flight finished -- stats()/lastGpuMs() updated, `bodies` (if not null; the loaded count) receive
+    /// pose, velocities and sleep state; 0: still running (wait = false); -1: nothing in flight or an error.
+    int stepPoll(std::vector<SimBody>* bodies, bool wait, std::string* err);
+    bool stepPending() const { return m_pendingCmd != VK_NULL_HANDLE; }
+    int pendingTicks() const { return m_pendingTicks; }
+    uint32_t bodyCount() const { return m_nb; }
 
     /// F5.5a: the colour rounds in ONE dispatch and each iteration's primal over every colour in ONE dispatch
     /// (voxfound_bodies_fused.comp, one workgroup), 17 solve dispatches per tick instead of ~290 (the per-colour path,
@@ -107,6 +117,11 @@ private:
     void destroyBuffer(Buffer& b);
     uint32_t findMemoryType(uint32_t filter, VkMemoryPropertyFlags props) const;
     bool submit(const std::function<void(VkCommandBuffer)>& record, bool timed, double* ms, std::string* err);
+    void recordCounters(VkCommandBuffer cmd);           // the summed counters -> m_counters (host visible)
+    void recordBodiesToStage(VkCommandBuffer cmd);      // the body records -> m_stage (host visible)
+    void unpackCounters();
+    void unpackBodies(std::vector<SimBody>& bodies) const;
+    void finishPending();                               // waits for a step in flight and drops its read-back
     void recordTick(VkCommandBuffer cmd);
 
     VkDevice m_device = VK_NULL_HANDLE;
@@ -127,6 +142,9 @@ private:
     bool m_worldPar = true;
     bool m_primalPar = true;
     bool m_profile = false;
+    VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
+    int m_pendingTicks = 0;
+    bool m_pendingTimed = false;
     Profile m_prof;
     VkQueryPool m_profQueries = VK_NULL_HANDLE;
     uint32_t m_profStamp = 0;

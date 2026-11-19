@@ -14,6 +14,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,7 @@
 
 #include "core/voxfound/BodySim.h"
 #include "core/voxfound/BodySimGpu.h"
+#include "core/voxfound/BodyRest.h"
 #include "core/voxfound/Bodies.h"
 #include "core/voxfound/FractureLab.h"
 
@@ -817,4 +819,224 @@ TEST_F(VoxFoundBodySimGpu, F55TunnellingFastPiecesStop) {
                     int(s.asleep));
         EXPECT_GE(mirror.lowestCornerY(), c.floorY - 0.01) << c.what << " at " << c.v;
     }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5b (docs/evidence/voxfound_f55_prediction.txt, E1-E3): what the live lab needs from the GPU path -- asleepTicks with
+// the reference's rule, a step that is not waited on (bit-equal to step + read), and the F5.4 rest policy on top
+// (bake, then reload the GPU with the edited world and the survivors).
+namespace {
+struct LabSetup {   // a rig as the live lab builds it: on a 2-voxel fixed floor (material 6), `pad` voxels around
+    VoxelGrid world;
+    std::vector<FractureMaterial> mats;
+    Extraction ex;
+};
+LabSetup labSetup(Rig rig, int pad) {
+    LabSetup s;
+    const glm::ivec3 off(pad, 2, pad);
+    VoxelGrid g;
+    g.voxelM = rig.grid.voxelM;
+    g.resize(rig.grid.dim + glm::ivec3(2 * pad, 2 + 16, 2 * pad));
+    for (int x = 0; x < g.dim.x; ++x)
+        for (int z = 0; z < g.dim.z; ++z)
+            for (int y = 0; y < 2; ++y) g.set({x, y, z}, 6, 0, true);
+    for (size_t i = 0; i < rig.grid.size(); ++i)
+        if (rig.grid.mat[i]) g.set(rig.grid.pos(i) + off, rig.grid.mat[i], rig.grid.part[i], rig.grid.fixed[i] != 0);
+    s.mats = rig.mats;
+    s.mats.resize(7, s.mats[kStone]);
+    s.mats[6] = s.mats[kStone];
+    Hit hit = rig.hit;
+    hit.point += glm::vec3(off);
+    const FractureResult r = fractureReference(g, hit, s.mats);
+    s.world = g;
+    s.ex = extractBodies(s.world, r, hit, s.mats);
+    return s;
+}
+using Ledger = std::map<std::pair<int, int>, size_t>;   // (material, part) -> voxels over world + bodies + crumbs
+Ledger ledgerOf(const VoxelGrid& w, const BodySimRef& sim, const std::vector<Crumb>& crumbs) {
+    Ledger L;
+    for (size_t i = 0; i < w.size(); ++i)
+        if (w.mat[i]) ++L[{w.mat[i], w.part[i]}];
+    for (const SimBody& b : sim.bodies())
+        for (size_t i = 0; i < b.src.grid.size(); ++i)
+            if (b.src.grid.mat[i]) ++L[{b.src.grid.mat[i], b.src.grid.part[i]}];
+    for (const Crumb& c : crumbs) ++L[{c.mat, c.part}];
+    return L;
+}
+bool sameBody(const SimBody& a, const SimBody& b) {
+    return a.pos == b.pos && a.quat.x == b.quat.x && a.quat.y == b.quat.y && a.quat.z == b.quat.z &&
+           a.quat.w == b.quat.w && a.vel == b.vel && a.angVel == b.angVel && a.asleep == b.asleep &&
+           a.slowTicks == b.slowTicks && a.asleepTicks == b.asleepTicks;
+}
+}  // namespace
+
+// E1: asleepTicks follows the reference rule (0 the tick a body sleeps, +1 each asleep tick, 0 when awake), every
+// body every tick
+TEST_F(VoxFoundBodySimGpu, F55bAsleepTicksFollowTheRule) {
+    auto check = [&](Rig rig, float impulse, int ticks, const char* label) {
+        rig.hit.impulse = impulse;
+        const FractureResult r = fractureReference(rig.grid, rig.hit, rig.mats);
+        VoxelGrid world = rig.grid;
+        const Extraction ex = extractBodies(world, r, rig.hit, rig.mats);
+        BodySimRef ref(world, rig.mats), mirror(world, rig.mats);
+        for (const Body& b : ex.bodies) {
+            ref.add(b, b.vel, b.angVel);
+            mirror.add(b);
+        }
+        load(world, ref);
+        if (HasFatalFailure()) return;
+        const size_t n = mirror.bodies().size();
+        std::vector<int> expect(n, 0);
+        std::vector<uint8_t> was(n, 0);
+        size_t mismatches = 0, asleepSamples = 0;
+        int maxTicks = 0;
+        for (int t = 0; t < ticks; ++t) {
+            step(1, 1);
+            sync(mirror);
+            if (HasFatalFailure()) return;
+            for (size_t i = 0; i < n; ++i) {
+                const SimBody& b = mirror.bodies()[i];
+                expect[i] = b.asleep ? (was[i] ? expect[i] + 1 : 0) : 0;
+                if (b.asleepTicks != expect[i] && mismatches++ < 5)
+                    std::printf("[body gpu] E1 %s: tick %d body %zu asleepTicks %d, rule %d\n", label, t, i,
+                                b.asleepTicks, expect[i]);
+                was[i] = b.asleep;
+                asleepSamples += b.asleep;
+                maxTicks = std::max(maxTicks, b.asleepTicks);
+            }
+        }
+        std::printf("[body gpu] E1 %s: %zu bodies x %d ticks, %zu asleep samples, max asleepTicks %d, %zu mismatches\n",
+                    label, n, ticks, asleepSamples, maxTicks, mismatches);
+        EXPECT_GT(asleepSamples, 0u) << label;
+        EXPECT_EQ(mismatches, 0u) << "E1 " << label;
+    };
+    check(rigStoneWall({12, 8, 0}, 80.0f), 8000.0f, 600, "blast");
+    check(largeWallRig(250.0f), 200.0f, 300, "large wall E/T 250");
+}
+
+// E2: stepBegin / stepPoll in irregular batches of 1-4 ticks is bit-equal to step + read at every batch end
+TEST_F(VoxFoundBodySimGpu, F55bAsyncEqualsSync) {
+    auto check = [&](Rig rig, float impulse, int ticks, const char* label) {
+        rig.hit.impulse = impulse;
+        const FractureResult r = fractureReference(rig.grid, rig.hit, rig.mats);
+        VoxelGrid world = rig.grid;
+        const Extraction ex = extractBodies(world, r, rig.hit, rig.mats);
+        BodySimRef ref(world, rig.mats), a(world, rig.mats), b(world, rig.mats);
+        for (const Body& x : ex.bodies) {
+            ref.add(x, x.vel, x.angVel);
+            a.add(x);
+            b.add(x);
+        }
+        static const int kPattern[] = {1, 3, 2, 4, 4, 1, 2, 3, 1, 1, 4, 2};
+        std::vector<std::vector<SimBody>> sa, sb;
+        std::vector<std::vector<uint64_t>> ca, cb;
+        auto counters = [&] {
+            const auto& s = gpu.stats();
+            return std::vector<uint64_t>{s.candidates, s.capped, s.deepPoints, s.pairsTested, s.hardFires,
+                                         s.maxContacts, s.colours, s.awake};
+        };
+        std::string err;
+        double msSync = 0.0, msAsync = 0.0;
+        size_t notReady = 0;
+        for (int pass = 0; pass < 2; ++pass) {
+            load(world, ref);
+            if (HasFatalFailure()) return;
+            BodySimRef& m = pass == 0 ? a : b;
+            for (int done = 0, k = 0; done < ticks; ++k) {
+                const int n = std::min(kPattern[k % 12], ticks - done);
+                if (pass == 0) {
+                    step(n, n);
+                    sync(m);
+                    if (HasFatalFailure()) return;
+                    msSync += std::max(0.0, gpu.lastGpuMs());
+                } else {
+                    ASSERT_TRUE(gpu.stepBegin(n, &err)) << err;
+                    int rr;
+                    while ((rr = gpu.stepPoll(&m.bodies(), false, &err)) == 0) ++notReady;
+                    ASSERT_EQ(rr, 1) << err;
+                    msAsync += std::max(0.0, gpu.lastGpuMs());
+                }
+                (pass == 0 ? sa : sb).push_back(m.bodies());
+                (pass == 0 ? ca : cb).push_back(counters());
+                done += n;
+            }
+        }
+        ASSERT_EQ(sa.size(), sb.size());
+        size_t differ = 0, samples = 0, cdiff = 0;
+        for (size_t s = 0; s < sa.size(); ++s) {
+            for (size_t i = 0; i < sa[s].size(); ++i) {
+                ++samples;
+                differ += !sameBody(sa[s][i], sb[s][i]);
+            }
+            cdiff += ca[s] != cb[s];
+        }
+        std::printf("[body gpu] E2 %s: %zu bodies, %zu batches, %zu of %zu samples differ async vs sync, %zu counter sets "
+                    "differ; %.3f / %.3f ms per tick device (sync / async); %zu polls not ready\n",
+                    label, ex.bodies.size(), sa.size(), differ, samples, cdiff, msSync / ticks, msAsync / ticks,
+                    notReady);
+        EXPECT_EQ(differ, 0u) << "E2 " << label;
+        EXPECT_EQ(cdiff, 0u) << "E2 " << label;
+    };
+    check(rigStoneWall({12, 8, 0}, 80.0f), 8000.0f, 600, "blast");
+    check(largeWallRig(2800.0f), 200.0f, 120, "large wall E/T 2800");
+}
+
+// E3: the GPU path with the F5.4 rest policy after every read and a reload after every bake: conservation exact after
+// every pass, nothing overwritten, every survivor asleep at the end, nothing through the floor; the reload's cost
+TEST_F(VoxFoundBodySimGpu, F55bGpuRestConservesAndReloads) {
+    auto check = [&](Rig rig, float impulse, size_t budget, int ticks, const char* label, double reloadMsMax) {
+        rig.hit.impulse = impulse;
+        LabSetup s = labSetup(rig, 32);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef sim(s.world, s.mats, prm);
+        for (const Body& b : s.ex.bodies) sim.add(b, b.vel, b.angVel);
+        const Ledger L0 = ledgerOf(s.world, sim, s.ex.crumbs);
+        std::string err;
+        ASSERT_TRUE(gpu.load(s.world, s.mats, sim.bodies(), sim.params(), &err)) << err;
+        RestParams rp;
+        rp.budget = budget;
+        rp.keepRadiusM = 0.0;
+        rp.restTicks = 30;
+        size_t baked = 0, overwritten = 0, passes = 0, broken = 0, reloads = 0, through = 0;
+        double reloadMs = 0.0, reloadMax = 0.0;
+        const size_t n0 = sim.bodies().size();
+        const double floorTop = 2 * s.world.voxelM;
+        for (int done = 0; done < ticks && !sim.bodies().empty(); done += 4) {
+            ASSERT_TRUE(gpu.stepBegin(4, &err)) << err;
+            ASSERT_EQ(gpu.stepPoll(&sim.bodies(), true, &err), 1) << err;
+            RestStats st;
+            const std::vector<size_t> b = restPass(sim, s.world, glm::dvec3(0.0), rp, &st);
+            ++passes;
+            baked += st.baked;
+            overwritten += st.overwritten;
+            for (const SimBody& x : sim.bodies()) through += x.pos.y < floorTop - 1.0;
+            if (ledgerOf(s.world, sim, s.ex.crumbs) != L0 && broken++ < 3)
+                std::printf("[body gpu] E3 %s: ledger broken after the pass at tick %d\n", label, done + 4);
+            if (!b.empty() && !sim.bodies().empty()) {
+                const auto t0 = std::chrono::steady_clock::now();
+                ASSERT_TRUE(gpu.load(s.world, s.mats, sim.bodies(), sim.params(), &err)) << err;
+                const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                reloadMs += ms;
+                reloadMax = std::max(reloadMax, ms);
+                ++reloads;
+            }
+        }
+        size_t awake = 0;
+        for (const SimBody& x : sim.bodies()) awake += !x.asleep;
+        std::printf("[body gpu] E3 %s: %zu bodies -> %zu (%zu baked) in %zu passes; ledger broken after %zu passes; "
+                    "%zu overwritten; %zu awake at the end; %zu body samples below the floor; %zu reloads, %.2f ms mean, "
+                    "%.2f max (world %d x %d x %d = %zu cells)\n",
+                    label, n0, sim.bodies().size(), baked, passes, broken, overwritten, awake, through, reloads,
+                    reloads ? reloadMs / reloads : 0.0, reloadMax, s.world.dim.x, s.world.dim.y, s.world.dim.z,
+                    s.world.size());
+        EXPECT_GT(baked, 0u) << label;
+        EXPECT_EQ(broken, 0u) << "E3 " << label << ": conservation";
+        EXPECT_EQ(overwritten, 0u) << "E3 " << label;
+        EXPECT_EQ(awake, 0u) << "E3 " << label << ": survivors still awake";
+        EXPECT_EQ(through, 0u) << "E3 " << label;
+        EXPECT_LE(reloadMax, reloadMsMax) << "E3 " << label << ": reload cost";
+    };
+    check(rigStoneWall({12, 8, 0}, 80.0f), 8000.0f, 8, 900, "blast, budget 8", 20.0);
+    check(largeWallRig(650.0f), 200.0f, 64, 900, "large wall E/T 650, budget 64", 20.0);
 }

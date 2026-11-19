@@ -133,6 +133,7 @@ const char* BodySimGpu::profileName(int g) {
 
 void BodySimGpu::shutdown() {
     if (m_device == VK_NULL_HANDLE) return;
+    finishPending();
     vkDeviceWaitIdle(m_device);
     for (Buffer* b : {&m_params, &m_bodies, &m_bodyVox, &m_corners, &m_world, &m_cons, &m_scratch, &m_state, &m_lists,
                       &m_warm, &m_push, &m_stage, &m_counters, &m_aux, &m_hres})
@@ -271,6 +272,7 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
     if (!initialized()) { if (err) *err = "BodySimGpu: not initialised"; return false; }
     if (p.contactCap > 16) { if (err) *err = "BodySimGpu: contactCap > 16"; return false; }
     if (bodies.empty()) { if (err) *err = "BodySimGpu: no bodies"; return false; }
+    finishPending();
     vkDeviceWaitIdle(m_device);
     for (Buffer* b : {&m_params, &m_bodies, &m_bodyVox, &m_corners, &m_world, &m_cons, &m_scratch, &m_state, &m_lists,
                       &m_warm, &m_push, &m_stage, &m_counters, &m_aux, &m_hres})
@@ -331,7 +333,7 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
         for (const glm::dvec3& c : s.corners) radius = std::max(radius, glm::length(c));
         const glm::dvec3 comLocal = s.src.com - glm::dvec3(s.src.origin);
         set4(g.comLocal, comLocal.x, comLocal.y, comLocal.z, radius);
-        set4(g.fixedProps, s.src.mass, s.friction, s.src.grid.voxelM, 0);
+        set4(g.fixedProps, s.src.mass, s.friction, s.src.grid.voxelM, s.asleepTicks);   // w: F5.5b asleepTicks
         const glm::dmat3& I = s.inertiaBody;   // glm: I[column][row]; symmetric
         set4(g.I0, I[0][0], I[1][0], I[2][0], 0);
         set4(g.I1, I[0][1], I[1][1], I[2][1], 0);
@@ -547,6 +549,7 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
 
 bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
     if (!initialized() || m_nb == 0) { if (err) *err = "BodySimGpu: not loaded"; return false; }
+    finishPending();
     m_lastGpuMs = 0.0;
     m_fused = m_lastAwake <= m_fusedMaxAwake;
     bool first = true;
@@ -558,16 +561,7 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
                     barrier(cmd);
                 }
                 for (int t = 0; t < n; ++t) recordTick(cmd);
-                if (done + n == ticks) {
-                    VkBufferCopy c{0, 0, 32 * 4};
-                    vkCmdCopyBuffer(cmd, m_state.buf, m_counters.buf, 1, &c);
-                    VkMemoryBarrier hb{};
-                    hb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-                    hb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-                    hb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-                    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &hb, 0,
-                                         nullptr, 0, nullptr);
-                }
+                if (done + n == ticks) recordCounters(cmd);
             }, true, &m_lastGpuMs, err))
             return false;
         if (m_profile && m_profQueries) {
@@ -589,6 +583,11 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
         done += n;
     }
     if (m_lastGpuMs < 0.0) m_lastGpuMs = -1.0;
+    unpackCounters();
+    return true;
+}
+
+void BodySimGpu::unpackCounters() {
     const auto* s = static_cast<const uint32_t*>(m_counters.mapped);
     m_stats = {};
     m_stats.contacts = std::min(s[S_NCONS], m_maxCons);
@@ -605,7 +604,6 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
     m_stats.colours = s[S_MAXCOL];
     m_stats.awake = s[S_AWAKE];
     m_lastAwake = m_stats.awake;
-    return true;
 }
 
 bool BodySimGpu::read(std::vector<SimBody>& bodies, std::string* err) {
@@ -613,18 +611,13 @@ bool BodySimGpu::read(std::vector<SimBody>& bodies, std::string* err) {
         if (err) *err = "BodySimGpu: read needs the loaded body count";
         return false;
     }
-    const VkDeviceSize bB = VkDeviceSize(m_nb) * sizeof(GBody);
-    if (!submit([&](VkCommandBuffer cmd) {
-            VkBufferCopy c{0, 0, bB};
-            vkCmdCopyBuffer(cmd, m_bodies.buf, m_stage.buf, 1, &c);
-            VkMemoryBarrier hb{};
-            hb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-            hb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            hb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-            vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &hb, 0, nullptr,
-                                 0, nullptr);
-        }, false, nullptr, err))
-        return false;
+    finishPending();
+    if (!submit([&](VkCommandBuffer cmd) { recordBodiesToStage(cmd); }, false, nullptr, err)) return false;
+    unpackBodies(bodies);
+    return true;
+}
+
+void BodySimGpu::unpackBodies(std::vector<SimBody>& bodies) const {
     const auto* gb = static_cast<const GBody*>(m_stage.mapped);
     for (uint32_t i = 0; i < m_nb; ++i) {
         SimBody& s = bodies[i];
@@ -635,8 +628,112 @@ bool BodySimGpu::read(std::vector<SimBody>& bodies, std::string* err) {
         s.angVel = glm::dvec3(g.angVel[0], g.angVel[1], g.angVel[2]);
         s.asleep = g.meta[2] != 0;
         s.slowTicks = int(g.meta[3]);
+        s.asleepTicks = int(g.fixedProps[3]);   // F5.5b: an exact float count
     }
+}
+
+// F5.5b, the live path -- the same recording as step(ticks, err, ticks) + read(), submitted without waiting.
+void BodySimGpu::recordCounters(VkCommandBuffer cmd) {
+    VkBufferCopy c{0, 0, 32 * 4};
+    vkCmdCopyBuffer(cmd, m_state.buf, m_counters.buf, 1, &c);
+    VkMemoryBarrier hb{};
+    hb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    hb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    hb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &hb, 0, nullptr, 0,
+                         nullptr);
+}
+
+void BodySimGpu::recordBodiesToStage(VkCommandBuffer cmd) {
+    VkBufferCopy c{0, 0, VkDeviceSize(m_nb) * sizeof(GBody)};
+    vkCmdCopyBuffer(cmd, m_bodies.buf, m_stage.buf, 1, &c);
+    VkMemoryBarrier hb{};
+    hb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    hb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    hb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &hb, 0, nullptr, 0,
+                         nullptr);
+}
+
+bool BodySimGpu::stepBegin(int ticks, std::string* err) {
+    if (!initialized() || m_nb == 0) { if (err) *err = "BodySimGpu: not loaded"; return false; }
+    if (m_pendingCmd != VK_NULL_HANDLE) { if (err) *err = "BodySimGpu: a step is already in flight"; return false; }
+    if (ticks < 1) { if (err) *err = "BodySimGpu: stepBegin needs ticks >= 1"; return false; }
+    if (m_profile) { if (err) *err = "BodySimGpu: the profile needs step() (one tick per submit)"; return false; }
+    m_fused = m_lastAwake <= m_fusedMaxAwake;   // as step(): the path from the awake count the last call ended with
+    VkCommandBufferAllocateInfo cai{};
+    cai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cai.commandPool = m_pool;
+    cai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cai.commandBufferCount = 1;
+    VkCommandBuffer cmd = VK_NULL_HANDLE;
+    if (vkAllocateCommandBuffers(m_device, &cai, &cmd) != VK_SUCCESS) {
+        if (err) *err = "BodySimGpu: command buffer allocation failed";
+        return false;
+    }
+    VkCommandBufferBeginInfo bi{};
+    bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &bi);
+    m_pendingTimed = m_queries != VK_NULL_HANDLE;
+    if (m_pendingTimed) {
+        vkCmdResetQueryPool(cmd, m_queries, 0, 2);
+        vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_queries, 0);
+    }
+    vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);   // the summed counters start at 0 for this call (as step())
+    barrier(cmd);
+    for (int t = 0; t < ticks; ++t) recordTick(cmd);
+    recordCounters(cmd);
+    recordBodiesToStage(cmd);
+    if (m_pendingTimed) vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_queries, 1);
+    vkEndCommandBuffer(cmd);
+    VkSubmitInfo si{};
+    si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    si.commandBufferCount = 1;
+    si.pCommandBuffers = &cmd;
+    vkResetFences(m_device, 1, &m_fence);
+    const VkResult sub = vkQueueSubmit(m_queue, 1, &si, m_fence);
+    if (sub != VK_SUCCESS) {
+        vkFreeCommandBuffers(m_device, m_pool, 1, &cmd);
+        if (err) *err = "BodySimGpu: submit " + std::to_string(int(sub));
+        return false;
+    }
+    m_pendingCmd = cmd;
+    m_pendingTicks = ticks;
     return true;
+}
+
+int BodySimGpu::stepPoll(std::vector<SimBody>* bodies, bool wait, std::string* err) {
+    if (m_pendingCmd == VK_NULL_HANDLE) { if (err) *err = "BodySimGpu: no step in flight"; return -1; }
+    const VkResult r =
+        wait ? vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX) : vkGetFenceStatus(m_device, m_fence);
+    if (r == VK_NOT_READY || r == VK_TIMEOUT) return 0;
+    vkFreeCommandBuffers(m_device, m_pool, 1, &m_pendingCmd);
+    m_pendingCmd = VK_NULL_HANDLE;
+    if (r != VK_SUCCESS) {
+        if (err) *err = "BodySimGpu: fence " + std::to_string(int(r));
+        return -1;
+    }
+    m_lastGpuMs = -1.0;
+    if (m_pendingTimed) {
+        uint64_t ts[2] = {0, 0};
+        if (vkGetQueryPoolResults(m_device, m_queries, 0, 2, sizeof(ts), ts, sizeof(uint64_t),
+                                  VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) == VK_SUCCESS)
+            m_lastGpuMs = double(ts[1] - ts[0]) * m_timestampMs;
+    }
+    unpackCounters();
+    if (bodies) {
+        if (bodies->size() != m_nb) {
+            if (err) *err = "BodySimGpu: stepPoll needs the loaded body count";
+            return -1;
+        }
+        unpackBodies(*bodies);
+    }
+    return 1;
+}
+
+void BodySimGpu::finishPending() {
+    if (m_pendingCmd != VK_NULL_HANDLE) stepPoll(nullptr, true, nullptr);
 }
 
 }  // namespace Phyxel::Core::VoxFound

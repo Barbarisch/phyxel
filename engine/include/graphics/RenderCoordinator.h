@@ -628,6 +628,10 @@ public:
     void setVoxFoundBodies(const Core::VoxFound::BodyDrawList* b) { m_voxFoundBodies = b; }
     struct VoxFoundBodyStats {
         uint32_t bodies = 0, faces = 0, drawnFaces = 0, castFaces[2] = {0, 0};
+        uint32_t draws = 0, castDraws[2] = {0, 0};   // F5.5b: draws (runs of consecutive kept bodies), last frame
+        uint32_t keptMain = 0, keptCast[2] = {0, 0}; // F5.5b: bodies kept by the per-body cull
+        bool culled = false;          // F5.5b: the per-body cull ran this frame
+        double cullMs = 0.0;          // F5.5b CPU: the per-body cull + runs, main + both cascades, last frame
         double poseMs = 0.0;          // CPU: poses made camera-relative + written, last frame
         double faceUploadMs = 0.0;    // CPU: the last face upload (once per set of bodies)
         uint64_t faceUploads = 0;
@@ -1584,6 +1588,13 @@ private:
     uint64_t       m_bodyPoseGeneration = 0;    // bumps when the pose buffer is remade
     bool           m_bodyFrameReady = false;    // this frame's poses are written
     VoxFoundBodyStats m_voxFoundBodyStats;
+    // F5.5b per-body cull: this frame's camera-relative poses (a CPU copy; the mapped buffer is write-combined) and the
+    // runs of consecutive kept bodies' faces drawn by the main pass
+    struct BodyRun { uint32_t first = 0, count = 0; };
+    std::vector<Core::VoxFound::BodyPose> m_bodyRel;
+    std::vector<BodyRun> m_bodyMainRuns, m_bodyCastRuns;
+    bool m_bodyCullOk = false;
+    uint32_t bodyRuns(const glm::vec4 planes[6], std::vector<BodyRun>& runs, uint32_t* faces) const;
     void prepareVoxFoundBodies();               // before the shadow pass
     void renderVoxFoundBodies();                // main pass, after the preview
     void castVoxFoundBodies(VkCommandBuffer cmd, ShadowMap& map, const glm::mat4& lightSpaceMatrix, int slot);

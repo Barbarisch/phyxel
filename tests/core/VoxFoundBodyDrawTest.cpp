@@ -12,12 +12,14 @@
 #include <string>
 #include <vector>
 
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 #include "core/voxfound/BodyDraw.h"
 #include "core/voxfound/BodySim.h"
 #include "core/voxfound/Bodies.h"
 #include "core/voxfound/FractureLab.h"
+#include "core/voxfound/Mesher.h"
 
 using namespace Phyxel::Core::VoxFound;
 
@@ -270,4 +272,82 @@ TEST(VoxFoundBodyDraw, D5CostOnALargeWall) {
                     e, ex.bodies.size(), set.faces.size(), set.faces.size() * sizeof(BodyFace),
                     per.empty() ? 0u : per[per.size() / 2], per.empty() ? 0u : per.back(), best, poseBest);
     }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5b C1 (docs/evidence/voxfound_f55_prediction.txt): the per-body cull is conservative. Random body boxes at random
+// camera-relative poses against random camera (perspective) and light (ortho) clip volumes: a body with ANY point of
+// its grid box inside the clip volume (8 corners + 64 random interior points; every face corner lies in the box) must
+// be kept. A camera looking away from every body keeps none.
+namespace {
+bool insideClip(const glm::mat4& m, glm::vec3 p) {
+    const glm::vec4 c = m * glm::vec4(p, 1.0f);
+    return c.w > 0.0f && std::abs(c.x) <= c.w && std::abs(c.y) <= c.w && c.z >= 0.0f && c.z <= c.w;
+}
+}  // namespace
+
+TEST(VoxFoundBodyDraw, F55bCullIsConservative) {
+    std::mt19937 rng(5501);
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    auto unit = [&] {
+        glm::vec3 v;
+        do v = glm::vec3(u(rng), u(rng), u(rng)) * 2.0f - 1.0f; while (glm::length(v) < 0.1f || glm::length(v) > 1.0f);
+        return glm::normalize(v);
+    };
+    struct B { BodyPose p; glm::vec3 half; };
+    std::vector<B> bodies(2000);
+    for (B& b : bodies) {
+        const glm::ivec3 dim(1 + int(u(rng) * 24), 1 + int(u(rng) * 24), 1 + int(u(rng) * 24));
+        const float vm = 0.125f;
+        b.half = glm::vec3(dim) * (vm * 0.5f);
+        const glm::quat q = glm::angleAxis(u(rng) * 6.2831853f, unit());
+        b.p.q = glm::vec4(q.x, q.y, q.z, q.w);
+        b.p.t = glm::vec4((glm::vec3(u(rng), u(rng), u(rng)) * 2.0f - 1.0f) * 60.0f, vm);
+    }
+    std::vector<glm::mat4> clips;
+    for (int k = 0; k < 50; ++k) {   // cameras at the origin (camera-relative), zero-to-one depth
+        const glm::vec3 f = unit(), up = std::abs(f.y) > 0.95f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+        clips.push_back(glm::perspectiveRH_ZO(glm::radians(40.0f + 60.0f * u(rng)), 0.8f + u(rng), 0.1f,
+                                              20.0f + 200.0f * u(rng)) * glm::lookAt(glm::vec3(0.0f), f, up));
+    }
+    for (int k = 0; k < 50; ++k) {   // lights: an ortho box around a point near the camera
+        const glm::vec3 d = unit(), up = std::abs(d.y) > 0.95f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+        const glm::vec3 c = (glm::vec3(u(rng), u(rng), u(rng)) * 2.0f - 1.0f) * 20.0f;
+        const float r = 10.0f + 60.0f * u(rng);
+        clips.push_back(glm::orthoRH_ZO(-r, r, -r, r, 0.0f, 4.0f * r) * glm::lookAt(c - d * (2.0f * r), c, up));
+    }
+    size_t violations = 0, inside = 0, kept = 0, tests = 0;
+    for (const glm::mat4& m : clips) {
+        glm::vec4 planes[6];
+        clipPlanesZeroToOne(m, glm::vec3(0.0f), planes);
+        for (const B& b : bodies) {
+            ++tests;
+            const bool k = bodyKept(b.p, b.half, planes);
+            kept += k;
+            bool any = false;
+            for (int c = 0; c < 8 + 64 && !any; ++c) {
+                const glm::vec3 s = c < 8 ? glm::vec3(float(c & 1), float((c >> 1) & 1), float((c >> 2) & 1))
+                                          : glm::vec3(u(rng), u(rng), u(rng));
+                any = insideClip(m, glm::vec3(b.p.t) + rotateByQuat(b.p.q, s * 2.0f * b.half));
+            }
+            inside += any;
+            violations += any && !k;
+        }
+    }
+    // looking away: the camera looks along +x, every body is behind it
+    const glm::mat4 away = glm::perspectiveRH_ZO(glm::radians(90.0f), 1.5f, 0.1f, 500.0f) *
+                           glm::lookAt(glm::vec3(0.0f), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0));
+    glm::vec4 ap[6];
+    clipPlanesZeroToOne(away, glm::vec3(0.0f), ap);
+    size_t keptAway = 0;
+    for (B b : bodies) {
+        b.p.t.x = -std::abs(b.p.t.x) - 2.0f * glm::length(b.half) - 1.0f;
+        keptAway += bodyKept(b.p, b.half, ap);
+    }
+    std::printf("[body draw] C1: %zu tests, %zu with a box point inside, %zu kept, %zu violations; looking away keeps "
+                "%zu of %zu\n", tests, inside, kept, violations, keptAway, bodies.size());
+    EXPECT_GT(inside, 0u);
+    EXPECT_EQ(violations, 0u) << "C1: a body with a point in view was culled";
+    EXPECT_EQ(keptAway, 0u) << "C1: looking away kept a body";
+    EXPECT_LT(kept, tests) << "C1: the cull kept everything";
 }

@@ -359,3 +359,54 @@ PREDICTIONS
      time <= 0.6 x its cull-off time; CPU cull + run building <= 0.1 ms per frame; the draw count is reported.
 WHAT WOULD COUNT AS A MISS: any mismatch in E1/E2; conservation off by one voxel; a body through the floor; a culled
 body that had a corner in view (C1) or more px than the control (L3); any cost above its range.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5b RESULTS (2026-11-19; after the runs, the predictions above untouched). Release; GPU shared with no other engine
+this time (none running), the desktop as usual.
+RED (voxfound_f55b_red.txt; a first red run from the build folder could not find the shaders -- not counted): the cull
+  stub keeps nothing (60,316 visible boxes culled); asleepTicks always 0 (10,093 + 27,519 mismatches); stepBegin a stub.
+RUN 1 (voxfound_f55b_run1.txt), the headless gates:
+  E1 PASS: 0 mismatches (21 bodies x 600 ticks, 105 x 300); max asleepTicks 536 / 270.
+  E2 PASS: async bit-equal to step + read -- 0 of 5,397 (blast) and 0 of 53,300 (1,025 bodies) samples differ, every
+     counter set equal; 0.69 / 0.70 and 6.19 / 6.40 ms per tick device (sync / async; the 1,025 rung's first 120 ticks,
+     every body awake, batches of 1-4 ticks).
+  E3 PASS: the blast 28 -> 8 bodies (20 baked) and the E/T 650 wall 306 -> 64 (242 baked): the ledger exact after every
+     pass (225 each), 0 overwritten, every survivor asleep, 0 below the floor. Reload 6.9 ms mean / 7.9 max on the
+     blast's 200 k-cell grid, 16.5 ms on the wall's 3.18 M cells (<= 20). Over the 4 ms hitch proposal, as predicted.
+  C1 PASS: 0 violations among 60,316 boxes with a point in view (200,000 tests); looking away keeps 0.
+  Suites: VoxFound GPU 44/44, CPU VoxFound 122/122 (voxfound_f55b_suites.txt).
+LIVE (voxfound_f55b_live.jsonl; tools/voxfound_f55b_gate.py; the lab's hand-built rigs, motion by BodySimGpu):
+  Found first (voxfound_f55b_live_try1.jsonl): (a) the large wall could not run in the lab -- 256 voxels + 4 m of pad
+  is past the preview's one-build limit (256 a side); the lab now clamps the pad per axis (the wall gets none along x).
+  (b) A status call took > 20 s at 979 bodies (the CPU max-penetration measure, on the main thread), so the sim
+  "froze" between samples; {"pen":false} skips it for live sampling. (c) The first rig after the shader rebuild took
+  32 s to set up (once; 33-255 ms after) -- the driver compiling the three new solver shaders.
+  The lab's large wall at E/T 2800 gives 994 bodies (the floor and the pad change the break; the headless rung 1,025).
+  Two worlds: VoxFoundBodies (the lab's project: a dense forest, 43 ms frames with NO bodies -- foliage 13 ms, the mid
+  cascade 17 ms) and CharacterTestbed (flat, 5.2 ms frames) to separate the solver from the scene.
+  L1: PASS -- both rigs fly, pile and sleep in both worlds; 0 bodies below the floor at every sample; the ledger exact
+     at every sample with the policy on (blast 20 baked, 17-18 reloads; wall 930 baked, 26-37 reloads, 0 overwritten);
+     two {"ticks":600} runs bit-equal on both rigs in both worlds; blast 5.9 mm at rest.
+     MISSED: the wall's max penetration at rest 102.43 mm (<= 10) -- one pair of pieces jammed in the crater went to
+     sleep 0.8 voxel deep in each other (the same 102.43 mm in both worlds: the GPU result does not depend on the
+     render). The CPU reference on the same rig: 9-37 mm over the same 240 ticks (chaotic piles; not proof of a GPU-only
+     defect). With the policy on: 12.4 mm (CharacterTestbed) / 9.0 (VoxFoundBodies). Owed: an overlapping pair must not
+     sleep (with F5.2's hard-contact item; its own prediction).
+  L2: CPU per frame for the solver median 0.003-0.004 ms (<= 1.0 PASS); p95 0.26-1.5 ms (the frames that record a
+     4-tick step), max 1.8 ms outside bake frames.
+     Real time: CharacterTestbed 59.5-60.8 ticks per second at every interval (>= 58 PASS). VoxFoundBodies 25-37
+     (MISSED): its 43 ms frame leaves the async step unfinished at the next poll.
+     NOT MEASURED as predicted: "at ~1,025 awake" -- live, the E/T 2800 wall has ~105 of 994 awake by its first sample
+     (most pieces break and sleep in place). Device ms per tick live is elapsed time on a shared GPU, not the solver's
+     work: 4.5 ms per tick with every body asleep in VoxFoundBodies, 0.5-3 in CharacterTestbed, 0.12 headless.
+     The bake frame: up to 63.7 ms (CharacterTestbed) / 105 ms (VoxFoundBodies) of CPU = preview rebuild 22-44 ms +
+     GPU reload <= 18-20.9 ms. Against the 4 ms proposal -- the F5.5c levers.
+  L3: PASS -- the viewport, cull on vs off, effect clocks held: 0 px > 1 level at all three poses (1 / 48 / 0 px at
+     +-1); the control off vs off 0 px. Two gate errors on the way, both mine: run 1 shot 1 s after the camera move
+     with wind running (50-100 k px of moving grass in the control); run 2 compared the whole window, whose only
+     differences (52-108 px) were the status bar's FPS text. The gate now holds the clocks and compares the viewport.
+  L4: drawn faces 35,978 / 6,367 / 3,800 of 57,556 (whole / half / close) in 144 / 44 / 36 draws.
+     MISSED: the body pass's device time 0.511 -> 0.517, 0.368 -> 0.284 (0.77x), 0.977 -> 0.967 ms (<= 0.6x): with
+     89-93 % of the faces gone the cost stays -- it follows the pixels the bodies cover, not the faces. F5.3's "about
+     22 ns per face" was one pose's number, not the model. The casters: every body kept in both cascades at these poses
+     (a 32 m wall lies inside both light volumes) -- no saving. CPU cull 0.099-0.130 ms (<= 0.1 MISSED narrowly).
