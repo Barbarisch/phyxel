@@ -158,3 +158,62 @@ RUN 2 (voxfound_f55a2_run2.txt): the narrowphase tests after the tail's guard (b
   B4 nothing overflowed (pair list, scratch, constraints); every dynamic body coloured. PASS.
   The 1,025-body ladder is still 10.4 ms per tick against the 2 ms budget proposal, with levers left (next): the world
   test in parallel (K_WORLD, HARD_APPLY), the solve (3.2 ms), a broadphase better than awake x all.
+
+=====================================================================================================================
+F5.5 TUNNELLING -- a fast piece through the ground (written 2026-11-18 BEFORE the fix's code)
+
+THE BUG (found by F55aLadder at E/T 2800): the contact rule (F5.2a's escape, shared by the CPU reference and the GPU)
+looks only at a corner's 26 neighbour cells. A corner more than one voxel inside solid has no empty neighbour: "deep",
+counted, NO contact, no hard-contact push. A piece moving faster than ~1 voxel per tick (7.5 m/s at 1/8 m, 60 Hz) can
+put every corner deeper than that into y < 0 in one tick and then falls for ever. The same speed can carry a corner
+clean over a 1-voxel slab (it ends in air below it: no contact at all).
+
+THE FIX (CPU reference and GPU, the same rule): a corner that moved >= 1 voxel this tick (tick-start pose -> current
+pose) and got no contact from the escape gets a SWEPT contact: march its path through the world grid from the tick-
+start position (3D DDA, ties to the lowest axis) and take the first solid cell entered: normal = that face's outward
+normal, depth = how far the current position is past that face's plane, the face's neighbour index as the feature.
+A path that starts inside solid, or enters none, gives nothing (as today). Bodies against bodies are unchanged (pieces
+are thick enough; counted as deep as today). Measuring functions (penetration reports) do not sweep.
+
+PREDICTIONS
+  T1 (CPU reference and GPU): a 1-voxel and a 2x2x2-voxel stone body, 2 m above the ground, thrown straight down at
+     15, 30 and 60 m/s: after 120 ticks every one rests on the ground (lowest corner >= -0.01 m, speed < 0.1 m/s).
+     RED today: at 15 m/s and up they end below -0.5 m. Control: at 5 m/s (< 1 voxel per tick) the same result before
+     and after the fix (the sweep never runs: lowest corner and pose equal to the red run's numbers).
+  T2 (CPU and GPU): a 1-voxel-thick stone slab 1 m above the ground (world grid), a 2x2x2 body 1 m above it thrown down at
+     30 m/s: it rests ON the slab (lowest corner >= 1.125 - 0.01 m). RED today: it ends below the slab.
+  T3 the F5.5a ladder at E/T 2800: 0 bodies through the ground (1 today).
+  T4 no regression: every VoxFound body test passes (CPU VoxFoundBody*, GPU VoxFound*Gpu*); F5.5a's and F5.5a2's
+     bit-equalities still hold (both GPU paths share the rule).
+  T5 cost: the ladder's per-tick cost within 10 % of F5.5a2's (10.4 ms at 1,025): only fast corners sweep.
+
+  CORRECTION (still before code): no body has 1 voxel (pieces under 4 voxels are crumbs, crumbVoxels = 4), so T1's
+     small body is the smallest one, a 1 x 1 x 4 rod lying along z -- the size of the piece that tunnelled.
+WHAT WOULD COUNT AS A MISS
+  any T1/T2 body below its surface; a body through the ground on the ladder; any regression; cost above +10 %.
+
+---------------------------------------------------------------------------------------------------------------------
+TUNNELLING RESULTS (2026-11-18; after the runs, the predictions above untouched)
+RED (voxfound_f55t_red.txt), CPU and GPU alike: every piece thrown at 15 m/s or more fell through the ground (lowest
+  corner -36.7 / -74.6 / -136.8 m after 2 s at 15 / 30 / 60 m/s), and the 2x2x2 at 30 m/s went through the slab AND the
+  ground. Worse than the ladder showed: 2 voxels per tick is enough.
+RUN 1 (the first rule: sweep only when escape found nothing): the ground held everywhere, CPU T2 passed, the GPU slab
+  case went through. My rule was wrong in two ways, found with a per-tick trace (CPU vs GPU, removed after):
+  - the piece started tick 3 resting 1.4 mm inside the slab top, and a sweep that starts inside solid gave nothing;
+  - its top corners ended a hair inside the slab's FAR face, where escape found a shallow contact pushing DOWN (their
+    face says push down); the GPU's float landed on that side, the CPU's double just past it.
+  Fixed: a fast corner's contact comes from its path and wins over the end point's escape; a corner that started a hair
+  inside a surface takes that surface, deepened by its move into it. CPU and GPU, the same rule.
+RUN 2 (voxfound_f55t_run1_cpu.txt, _run1_gpu.txt):
+  T1 PASS, CPU and GPU: every 1x1x4 and 2x2x2 piece at 5-60 m/s rests on the ground (lowest corner -0.0000 to -0.0017 m,
+     at rest / asleep). They bounce a little and tumble sideways (the 1x1x4 rod at 60 m/s ends 1.8 m from where it
+     landed).
+     The "control" MISSED as designed: at 5 m/s from 2 m, gravity makes the impact 7.9 m/s, over a voxel per tick, so
+     the sweep does run (my arithmetic left out gravity). Its pose moved by 3e-5 m against the red run.
+  T2 PASS, CPU and GPU: the 2x2x2 at 30 m/s rests ON the 1-voxel slab (lowest corner 1.1249 m).
+  T3 PASS: 0 bodies through the ground at every ladder rung (1 at 1,025 before); deep points at 1,025 bodies 8,839 -> 36.
+  T4 PASS: CPU VoxFound 121/121 (F5.4's rest tests pass with changed numbers: the blast now bakes 27 bodies, 717
+     out-of-grid refusals); GPU VoxFound 39/39 with A1 and B1 still bit-equal at every sample. The R8b blast changed
+     (fast pieces now get contacts): max penetration 5.62 mm (7.38 before), hard fires 237 (295).
+  T5 PASS: 1,025 bodies 10.98 ms per tick (10.44 before, +5 %). Stated: the R8b blast went 1.60 -> 2.54 ms (+59 %),
+     with 36 % more candidates -- the contacts its fast pieces were missing.

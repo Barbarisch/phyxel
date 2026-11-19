@@ -162,6 +162,47 @@ Escape escape(const GridView& v, glm::dvec3 u, double marginVox, glm::dvec3 pref
     return e;
 }
 
+// F5.5 tunnelling fix: a corner that moved >= 1 voxel this tick and got no contact from escape() (deep: no empty
+// neighbour; or in air past a thin slab) marches its path from the tick-start position a to the current position b
+// (grid voxel coordinates; 3D DDA, ties to the lowest axis) and takes the first solid cell it enters: the normal is that
+// face's outward normal, the depth how far b is past that face's plane, the feature that face's neighbour index. A path
+// that starts inside solid or enters none gives nothing. Found by F5.5's ladder: a fast piece put every corner more than
+// a voxel into y < 0 in one tick, got no contact, and fell for ever.
+Escape sweep(const GridView& v, glm::dvec3 a, glm::dvec3 b) {
+    Escape e;
+    glm::ivec3 c(int(std::floor(a.x)), int(std::floor(a.y)), int(std::floor(a.z)));
+    if (v.solid(c)) return e;
+    const glm::dvec3 d = b - a;
+    int step[3];
+    double tMax[3], tDelta[3];
+    for (int k = 0; k < 3; ++k) {
+        if (d[k] > 0.0) { step[k] = 1; tMax[k] = (double(c[k]) + 1.0 - a[k]) / d[k]; tDelta[k] = 1.0 / d[k]; }
+        else if (d[k] < 0.0) { step[k] = -1; tMax[k] = (a[k] - double(c[k])) / -d[k]; tDelta[k] = 1.0 / -d[k]; }
+        else { step[k] = 0; tMax[k] = kInf; tDelta[k] = kInf; }
+    }
+    for (int it = 0; it < 1024; ++it) {
+        int ax = 0;
+        if (tMax[1] < tMax[ax]) ax = 1;
+        if (tMax[2] < tMax[ax]) ax = 2;
+        if (tMax[ax] > 1.0) return e;   // reached b without entering solid
+        c[ax] += step[ax];
+        if (v.solid(c)) {
+            glm::ivec3 o(0);
+            o[ax] = -step[ax];
+            const double plane = step[ax] > 0 ? double(c[ax]) : double(c[ax]) + 1.0;
+            e.status = 1;
+            e.n = glm::dvec3(o);
+            e.pen = (plane - b[ax]) * double(o[ax]) * v.vm;
+            e.cell = c;
+            for (int k = 0; k < 26; ++k)
+                if (kNbr.o[k] == o) e.dir = k;
+            return e;
+        }
+        tMax[ax] += tDelta[ax];
+    }
+    return e;
+}
+
 // Sample points sit a hair INSIDE their own solid (F5.2a run-1 fix): an exact lattice corner on a flush face is an
 // escape tie between the face normal and a side normal (the side won, and zero-depth side contacts took the cap).
 constexpr double kInsetVox = 1e-3;
@@ -314,6 +355,7 @@ struct Detector {
     const BodySimParams& p;
     BodySimStats* stats;
     double groundMu = 0.8;
+    bool sweepFast = false;   // F5.5: the tick's detection sweeps fast corners (initial pose valid); measuring does not
 
     double muOf(const GridView& v, glm::ivec3 cell) const {
         const uint8_t m = v.mat(cell);
@@ -332,7 +374,29 @@ struct Detector {
         for (size_t k = 0; k < A.corners.size(); ++k) {
             const glm::dvec3 w = fa.pos + fa.R * A.corners[k];
             const glm::dvec3 prefer = -(fa.R * glm::dvec3(kDir[A.cornerDir[k]]));
-            const Escape e = escape(wv, w / vm, mVox, prefer);
+            Escape e = escape(wv, w / vm, mVox, prefer);
+            if (sweepFast) {   // F5.5: a fast corner's contact comes from its path (see sweep())
+                const glm::dvec3 w0 = A.initial + glm::mat3_cast(A.initialQuat) * A.corners[k];
+                const glm::dvec3 d = w - w0;
+                if (glm::length(d) >= vm) {
+                    Escape s;
+                    const glm::dvec3 u0 = w0 / vm;
+                    if (!wv.solid(glm::ivec3(int(std::floor(u0.x)), int(std::floor(u0.y)), int(std::floor(u0.z))))) {
+                        s = sweep(wv, u0, w / vm);
+                    } else {
+                        // it started the tick resting a hair inside a surface (run 1: a piece resting 1.4 mm into a
+                        // 1-voxel slab moved 0.37 m down through it): that surface, deepened by the move into it
+                        const Escape e0 = escape(wv, u0, mVox, prefer);
+                        if (e0.status == 1 && e0.pen > 0.0 && glm::dot(d, e0.n) < 0.0) {
+                            s = e0;
+                            s.pen = e0.pen - glm::dot(d, e0.n);
+                        }
+                    }
+                    // the path wins over the end point's escape (run 1: a corner that crossed a slab and ended a hair
+                    // inside its far face escaped through that face, and pushed the piece on through)
+                    if (s.status == 1) e = s;
+                }
+            }
             if (e.status == 2) { if (stats) ++stats->deepPoints; continue; }
             if (e.status != 1) continue;
             Cand c;
@@ -522,6 +586,7 @@ void BodySimRef::step() {
     // 2. contacts at the predicted iterate
     m_cons.clear();
     Detector det{m_world, m_mats, P, &m_stats};
+    det.sweepFast = true;
     std::vector<char> wake(nb, 0);
     auto emit = [&](size_t a, size_t b, std::vector<Cand>& cands) {
         m_stats.candidates += cands.size();

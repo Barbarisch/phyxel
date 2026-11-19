@@ -565,9 +565,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       ground at 1,025 (solver rule, owed). Ladder test VoxFoundBodySimGpu.F55aLadder (~5 min).
       F5.5a2 done: narrowphase one workgroup per pair, BIT-EQUAL to the serial passes (setNarrowParallel(false) = the
       control); 1,025 bodies 108.7 -> 10.4 ms/tick. Left at 1,025: solve 3.2, world 2.4, hard_apply 2.3 ms.
-      NEXT: the tunnelling fix (a fast small piece deeper than the escape search into y < 0 falls for ever; found by
-      F55aLadder at E/T 2800, body 609) -- prediction BEFORE code; then the world test in parallel (K_WORLD,
-      HARD_APPLY), then F5.5b (GPU solver live + per-body cull), F5.5c (bake levers + incremental preview edit), F5.5d.
+      Tunnelling fixed: a corner that moved >= 1 voxel takes its contact from its swept path (BodySim.cpp sweep() /
+      shader sweepWorld, the same rule); the path wins over escape; a start a hair inside a surface keeps that surface.
+      NEXT: the remaining levers at 1,025 awake bodies -- the world test in parallel (K_WORLD 2.4 + HARD_APPLY 2.3 ms),
+      the solve (3.2 ms) -- each with its prediction BEFORE code; then F5.5b (GPU solver live + per-body cull), F5.5c
+      (bake levers + incremental preview edit), F5.5d (the exit).
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

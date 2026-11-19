@@ -1,0 +1,115 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySim.F55*
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from VoxFoundBodySim
+[ RUN      ] VoxFoundBodySim.F55TunnellingFastPiecesStopAtTheGround
+[body sim] T1 1x1x4 at 5 m/s: lowest corner -0.0002 m, speed 0.0000 m/s, pos (1.812517, 0.062340, 1.999999)
+[body sim] T1 1x1x4 at 15 m/s: lowest corner -36.7072 m, speed 28.7388 m/s, pos (1.812592, -36.644793, 2.000000)
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(414): error: Expected: (r.lowest) >= (-0.01), actual: -36.707247028512434 vs -0.01
+T1 114 at 15
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(415): error: Expected: (r.speed) < (0.1), actual: 28.738828177732294 vs 0.1
+T1 114 at 15
+
+[body sim] T1 1x1x4 at 30 m/s: lowest corner -74.6048 m, speed 47.9898 m/s, pos (1.812248, -74.542080, 2.000000)
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(414): error: Expected: (r.lowest) >= (-0.01), actual: -74.604759609614092 vs -0.01
+T1 114 at 30
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(415): error: Expected: (r.speed) < (0.1), actual: 47.989784421790937 vs 0.1
+T1 114 at 30
+
+[body sim] T1 1x1x4 at 60 m/s: lowest corner -136.8203 m, speed 79.1343 m/s, pos (1.812244, -136.757664, 2.000000)
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(414): error: Expected: (r.lowest) >= (-0.01), actual: -136.82034817017336 vs -0.01
+T1 114 at 60
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(415): error: Expected: (r.speed) < (0.1), actual: 79.134284421189435 vs 0.1
+T1 114 at 60
+
+[body sim] T1 2x2x2 at 5 m/s: lowest corner -0.0000 m, speed 0.0000 m/s, pos (1.874820, 0.124907, 1.874987)
+[body sim] T1 2x2x2 at 15 m/s: lowest corner -36.7084 m, speed 28.7394 m/s, pos (1.875066, -36.583324, 1.875066)
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(414): error: Expected: (r.lowest) >= (-0.01), actual: -36.708384189398451 vs -0.01
+T1 222 at 15
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(415): error: Expected: (r.speed) < (0.1), actual: 28.739375596092714 vs 0.1
+T1 222 at 15
+
+[body sim] T1 2x2x2 at 30 m/s: lowest corner -74.6057 m, speed 47.9904 m/s, pos (1.875028, -74.480721, 1.875028)
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(414): error: Expected: (r.lowest) >= (-0.01), actual: -74.60570312108166 vs -0.01
+T1 222 at 30
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(415): error: Expected: (r.speed) < (0.1), actual: 47.990369636950071 vs 0.1
+T1 222 at 30
+
+[body sim] T1 2x2x2 at 60 m/s: lowest corner -136.8213 m, speed 79.1349 m/s, pos (1.875030, -136.696325, 1.875030)
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(414): error: Expected: (r.lowest) >= (-0.01), actual: -136.82131115943778 vs -0.01
+T1 222 at 60
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(415): error: Expected: (r.speed) < (0.1), actual: 79.134869745169709 vs 0.1
+T1 222 at 60
+
+[  FAILED  ] VoxFoundBodySim.F55TunnellingFastPiecesStopAtTheGround (17 ms)
+[ RUN      ] VoxFoundBodySim.F55TunnellingFastPieceStopsOnAThinSlab
+[body sim] T2 2x2x2 at 30 m/s onto a 1-voxel slab: lowest corner -74.6057 m, speed 47.9904 m/s
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodySimTest.cpp(426): error: Expected: (r.lowest) >= (1.125 - 0.01), actual: -74.60570312108166 vs 1.115
+T2: through the slab
+
+[  FAILED  ] VoxFoundBodySim.F55TunnellingFastPieceStopsOnAThinSlab (2 ms)
+[----------] 2 tests from VoxFoundBodySim (19 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (19 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] VoxFoundBodySim.F55TunnellingFastPiecesStopAtTheGround
+[  FAILED  ] VoxFoundBodySim.F55TunnellingFastPieceStopsOnAThinSlab
+
+ 2 FAILED TESTS
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpu.F55Tunnelling*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodySimGpu
+[ RUN      ] VoxFoundBodySimGpu.F55TunnellingFastPiecesStop
+[22:39:05.320] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[22:39:05.324] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[body gpu] T1 ground 1x1x4 at 5 m/s: lowest corner -0.0002 m, pos (1.812517, 0.062340, 1.999999), asleep 1
+[body gpu] T1 ground 1x1x4 at 15 m/s: lowest corner -36.7074 m, pos (1.812594, -36.644917, 2.000000), asleep 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(682): error: Expected: (mirror.lowestCornerY()) >= (c.floorY - 0.01), actual: -36.707370169696105 vs -0.01
+T1 ground at 15
+
+[body gpu] T1 ground 1x1x4 at 30 m/s: lowest corner -74.6031 m, pos (1.812249, -74.540428, 2.000000), asleep 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(682): error: Expected: (mirror.lowestCornerY()) >= (c.floorY - 0.01), actual: -74.603107954993362 vs -0.01
+T1 ground at 30
+
+[body gpu] T1 ground 1x1x4 at 60 m/s: lowest corner -136.8164 m, pos (1.812245, -136.753693, 2.000000), asleep 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(682): error: Expected: (mirror.lowestCornerY()) >= (c.floorY - 0.01), actual: -136.81637797946382 vs -0.01
+T1 ground at 60
+
+[body gpu] T1 ground 2x2x2 at 5 m/s: lowest corner -0.0001 m, pos (1.875020, 0.124863, 1.875044), asleep 1
+[body gpu] T1 ground 2x2x2 at 15 m/s: lowest corner -36.7086 m, pos (1.875067, -36.583508, 1.875067), asleep 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(682): error: Expected: (mirror.lowestCornerY()) >= (c.floorY - 0.01), actual: -36.708567064701057 vs -0.01
+T1 ground at 15
+
+[body gpu] T1 ground 2x2x2 at 30 m/s: lowest corner -74.6043 m, pos (1.875028, -74.479279, 1.875028), asleep 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(682): error: Expected: (mirror.lowestCornerY()) >= (c.floorY - 0.01), actual: -74.604260344127283 vs -0.01
+T1 ground at 30
+
+[body gpu] T1 ground 2x2x2 at 60 m/s: lowest corner -136.8171 m, pos (1.875028, -136.692108, 1.875028), asleep 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(682): error: Expected: (mirror.lowestCornerY()) >= (c.floorY - 0.01), actual: -136.81709335887086 vs -0.01
+T1 ground at 60
+
+[body gpu] T2 slab 2x2x2 at 30 m/s: lowest corner -74.6043 m, pos (1.875028, -74.479279, 1.875028), asleep 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(682): error: Expected: (mirror.lowestCornerY()) >= (c.floorY - 0.01), actual: -74.604260344127283 vs 1.115
+T2 slab at 30
+
+[  FAILED  ] VoxFoundBodySimGpu.F55TunnellingFastPiecesStop (1010 ms)
+[----------] 1 test from VoxFoundBodySimGpu (1010 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (1010 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55TunnellingFastPiecesStop
+
+ 1 FAILED TEST

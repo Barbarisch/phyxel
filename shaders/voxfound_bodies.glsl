@@ -223,6 +223,43 @@ Esc escapeAt(bool isWorld, uint bi, vec3 u, float marginVox, vec3 prefer, float 
     return e;
 }
 
+// ---- F5.5 tunnelling fix (BodySim.cpp sweep): a fast corner's path from its tick-start position a to b (world voxel
+// coordinates), 3D DDA with ties to the lowest axis; the first solid cell entered gives the contact ----
+Esc sweepWorld(vec3 a, vec3 b, float vm) {
+    Esc e;
+    e.status = 0; e.dir = -1; e.n = vec3(0.0); e.pen = 0.0; e.cell = ivec3(0);
+    ivec3 c = ivec3(floor(a));
+    if (worldSolid(c)) return e;
+    vec3 d = b - a;
+    ivec3 stp = ivec3(0);
+    vec3 tMax = vec3(INF), tDelta = vec3(INF);
+    for (int k = 0; k < 3; ++k) {
+        if (d[k] > 0.0) { stp[k] = 1; tMax[k] = (float(c[k]) + 1.0 - a[k]) / d[k]; tDelta[k] = 1.0 / d[k]; }
+        else if (d[k] < 0.0) { stp[k] = -1; tMax[k] = (a[k] - float(c[k])) / -d[k]; tDelta[k] = 1.0 / -d[k]; }
+    }
+    for (int it = 0; it < 1024; ++it) {
+        int ax = 0;
+        if (tMax[1] < tMax[ax]) ax = 1;
+        if (tMax[2] < tMax[ax]) ax = 2;
+        if (tMax[ax] > 1.0) return e;
+        c[ax] += stp[ax];
+        if (worldSolid(c)) {
+            ivec3 o = ivec3(0);
+            o[ax] = -stp[ax];
+            float plane = stp[ax] > 0 ? float(c[ax]) : float(c[ax]) + 1.0;
+            e.status = 1;
+            e.n = vec3(o);
+            e.pen = (plane - b[ax]) * float(o[ax]) * vm;
+            e.cell = c;
+            int i3 = (o.x + 1) * 9 + (o.y + 1) * 3 + (o.z + 1);
+            e.dir = i3 < 13 ? i3 : i3 - 1;   // escapeAt's neighbour index
+            return e;
+        }
+        tMax[ax] += tDelta[ax];
+    }
+    return e;
+}
+
 // ---- candidate sink: mode 0 = scratch, mode 1 = deepest only ----
 uint gMode = 0u, gBase = 0u, gCount = 0u;
 float gDeepPen = 0.0;
@@ -261,6 +298,25 @@ void againstWorld(uint ai) {
         vec3 w = A.pos.xyz + R * cr.xyz;
         vec3 prefer = -(R * dirVec(uint(cr.w)));
         Esc e = escapeAt(true, 0u, w / wvm, mVox, prefer, wvm);
+        {   // F5.5: a fast corner's contact comes from its path (BodySim.cpp: the same rule)
+            vec3 w0 = A.initial.xyz + qrot(A.initialQuat, cr.xyz);
+            vec3 d = w - w0;
+            if (length(d) >= wvm) {
+                Esc sw;
+                sw.status = 0;
+                vec3 u0 = w0 / wvm;
+                if (!worldSolid(ivec3(floor(u0)))) {
+                    sw = sweepWorld(u0, w / wvm, wvm);
+                } else {   // resting a hair inside a surface at the tick start: that surface, deepened by the move
+                    Esc e0 = escapeAt(true, 0u, u0, mVox, prefer, wvm);
+                    if (e0.status == 1 && e0.pen > 0.0 && dot(d, e0.n) < 0.0) {
+                        sw = e0;
+                        sw.pen = e0.pen - dot(d, e0.n);
+                    }
+                }
+                if (sw.status == 1) e = sw;
+            }
+        }
         if (e.status == 2) { if (gMode == 0u) atomicAdd(state[S_DEEP], 1u); continue; }
         if (e.status != 1) continue;
         float mu = 0.5 * (A.fixedProps.y + muOfWorld(e.cell));

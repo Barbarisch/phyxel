@@ -387,3 +387,41 @@ TEST(VoxFoundBodySim, DISABLED_DiagSlide) {
         }
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5 tunnelling (docs/evidence/voxfound_f55_prediction.txt, T1 / T2): fast pieces against the ground and a thin slab.
+namespace {
+struct Thrown {
+    double lowest = 0.0, speed = 0.0;
+    glm::dvec3 pos{0.0};
+};
+Thrown throwDown(const VoxelGrid& w, glm::ivec3 lo, glm::ivec3 size, double v, int ticks) {
+    BodySimRef sim(w, labMaterials(), simParams());
+    sim.add(boxBody(lo, size), glm::dvec3(0.0, -v, 0.0));
+    for (int t = 0; t < ticks; ++t) sim.step();
+    return {sim.lowestCornerY(), speed(sim.bodies()[0]), sim.bodies()[0].pos};
+}
+}  // namespace
+
+TEST(VoxFoundBodySim, F55TunnellingFastPiecesStopAtTheGround) {
+    const VoxelGrid w = emptyWorld();
+    const glm::ivec3 sizes[] = {{1, 1, 4}, {2, 2, 2}};
+    for (const glm::ivec3& sz : sizes)
+        for (double v : {5.0, 15.0, 30.0, 60.0}) {
+            const Thrown r = throwDown(w, {14, 16, 14}, sz, v, 120);
+            std::printf("[body sim] T1 %dx%dx%d at %.0f m/s: lowest corner %.4f m, speed %.4f m/s, pos (%.6f, %.6f, "
+                        "%.6f)\n", sz.x, sz.y, sz.z, v, r.lowest, r.speed, r.pos.x, r.pos.y, r.pos.z);
+            EXPECT_GE(r.lowest, -0.01) << "T1 " << sz.x << sz.y << sz.z << " at " << v;
+            EXPECT_LT(r.speed, 0.1) << "T1 " << sz.x << sz.y << sz.z << " at " << v;
+        }
+}
+
+TEST(VoxFoundBodySim, F55TunnellingFastPieceStopsOnAThinSlab) {
+    VoxelGrid w = emptyWorld();
+    for (int x = 0; x < 32; ++x)
+        for (int z = 0; z < 32; ++z) w.set({x, 8, z}, kStone);   // 1 voxel thick, its top at 1.125 m
+    const Thrown r = throwDown(w, {14, 16, 14}, {2, 2, 2}, 30.0, 120);
+    std::printf("[body sim] T2 2x2x2 at 30 m/s onto a 1-voxel slab: lowest corner %.4f m, speed %.4f m/s\n", r.lowest,
+                r.speed);
+    EXPECT_GE(r.lowest, 1.125 - 0.01) << "T2: through the slab";
+}

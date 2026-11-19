@@ -485,15 +485,13 @@ TEST_F(VoxFoundBodySimGpu, F55aLadder) {
                             w.pos.x, w.pos.y, w.pos.z, size_t(w.src.voxels), int(w.asleep));
             }
             EXPECT_TRUE(finite) << "A3";
-            // A3 MISSED in run 1 (docs/evidence/voxfound_f55_prediction.txt): at ~1,000 bodies one 4-voxel piece
-            // tunnels into the ground (y < 0 is solid; it gets deeper than the escape search and is never pushed out)
-            // and falls for ever -- on BOTH paths, so it is the solver, not F5.5a. Owed in F5.5 (its own prediction).
-            // Until then: counted, and guarded at the measured count. Colours: 17 / 20 used (<= 16 predicted, MISSED);
-            // guarded below the 32-round cap.
+            // A3 MISSED in F5.5a run 1: at ~1,000 bodies one 4-voxel piece tunnelled into the ground (deeper than the
+            // escape search) and fell for ever. Fixed by F5.5's swept contact (voxfound_f55_prediction.txt, TUNNELLING):
+            // none may go through now. Colours: 17 / 20 used (<= 16 predicted, MISSED); guarded below the 32-round cap.
             size_t through = 0;
             for (const SimBody& b : mirror.bodies()) through += b.pos.y < -0.5;
             std::printf("[body gpu]   bodies through the ground: %zu\n", through);
-            EXPECT_LE(through, rung.e > 2000.0f ? 1u : 0u) << "A3: through the ground (owed: tunnelling)";
+            EXPECT_EQ(through, 0u) << "A3 / T3: through the ground";
             EXPECT_LE(colours, 24u) << "A3";
         }
         // A4 MISSED (run 1-2): the cost is the body-body narrowphase (pairs + hard_body: 40-100 ms of 45-113), not the
@@ -648,5 +646,37 @@ TEST_F(VoxFoundBodySimGpuNarrow, F55a2Ladder) {
             EXPECT_LE(pairsMs, 2.0) << "B3 pairs";
             EXPECT_LE(hardMs, 2.0) << "B3 hard_body";
         }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5 tunnelling on the GPU (voxfound_f55_prediction.txt, T1 / T2): the same rigs as the CPU reference's tests.
+TEST_F(VoxFoundBodySimGpu, F55TunnellingFastPiecesStop) {
+    VoxelGrid slab = emptyWorld();
+    for (int x = 0; x < 32; ++x)
+        for (int z = 0; z < 32; ++z) slab.set({x, 8, z}, kStone);
+    struct Case { const VoxelGrid* w; glm::ivec3 size; double v; double floorY; const char* what; };
+    const VoxelGrid ground = emptyWorld();
+    const Case cases[] = {{&ground, {1, 1, 4}, 5.0, 0.0, "T1 ground"},   {&ground, {1, 1, 4}, 15.0, 0.0, "T1 ground"},
+                          {&ground, {1, 1, 4}, 30.0, 0.0, "T1 ground"},  {&ground, {1, 1, 4}, 60.0, 0.0, "T1 ground"},
+                          {&ground, {2, 2, 2}, 5.0, 0.0, "T1 ground"},   {&ground, {2, 2, 2}, 15.0, 0.0, "T1 ground"},
+                          {&ground, {2, 2, 2}, 30.0, 0.0, "T1 ground"},  {&ground, {2, 2, 2}, 60.0, 0.0, "T1 ground"},
+                          {&slab, {2, 2, 2}, 30.0, 1.125, "T2 slab"}};
+    for (const Case& c : cases) {
+        BodySimRef ref(*c.w, labMats), mirror(*c.w, labMats);
+        const Body b = boxBody({14, 16, 14}, c.size);
+        ref.add(b, glm::dvec3(0.0, -c.v, 0.0));
+        mirror.add(b);
+        load(*c.w, ref);
+        if (HasFatalFailure()) return;
+        step(120);
+        if (HasFatalFailure()) return;
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        const SimBody& s = mirror.bodies()[0];
+        std::printf("[body gpu] %s %dx%dx%d at %.0f m/s: lowest corner %.4f m, pos (%.6f, %.6f, %.6f), asleep %d\n",
+                    c.what, c.size.x, c.size.y, c.size.z, c.v, mirror.lowestCornerY(), s.pos.x, s.pos.y, s.pos.z,
+                    int(s.asleep));
+        EXPECT_GE(mirror.lowestCornerY(), c.floorY - 0.01) << c.what << " at " << c.v;
     }
 }

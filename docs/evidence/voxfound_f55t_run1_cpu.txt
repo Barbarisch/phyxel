@@ -1,0 +1,256 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[bodies] free box: m 325.000 kg, I 8.46354 / 28.77604 / 33.85417 kg m^2, v 0.09231 m/s, |w| 8.55e-02
+[bodies] rigs x sweep: 557 bodies (51237 voxels), 494 crumbs
+[bodies] 300 random hits: 1491 bodies (239168 voxels), 1037 crumbs
+[bodies] 20 hits in a row: 988 of 1152 voxels removed, 31 bodies, 66 crumbs
+[bodies] large wall E/T   150: 59 bodies, 87 crumbs, extraction 0.48 ms (best of 5)
+[bodies] large wall E/T  1000: 468 bodies, 651 crumbs, extraction 2.36 ms (best of 5)
+[bodies] large wall E/T  2500: 947 bodies, 1407 crumbs, extraction 4.54 ms (best of 5)
+[body draw] D1: 1150 bodies, 27766 faces, all exact
+[body draw] D2: 21 bodies, 638 faces built once; body 0 moved 0.97 m over 300 ticks
+[body draw] D3: 1552 corners; worst 0 m (whole-metre camera), 1.06e-07 m (any camera)
+[body draw] D4: 21 bodies turned up to 161.7 deg; worst corner 3.45e-07 m, normal 1.3e-07, |n|-1 8.77e-08
+[body draw] D5 large wall E/T 1000: 468 bodies, 27217 faces (326604 B), faces per body median 43 max 196; build 9.64 ms, poses 0.0117 ms (best of 5)
+[body draw] D5 large wall E/T 2500: 947 bodies, 54493 faces (653916 B), faces per body median 43 max 196; build 19.62 ms, poses 0.0246 ms (best of 5)
+[body rest] R1a: 900 ticks checked, 27 bodies baked (6 rigid), 748 voxels, 717 refused, 14 woken, 0 overwritten; left 1 (awake 0, recent 0, refused 1); 2068 ms
+[body rest] R4: 27 bakes, 22 % rigid; shift mean 0.0375 m (0.30 vx), max 0.1624 m (1.30 vx); woken bodies moved at most 0.0409 m
+[body rest] R4 refused x717:  has its cell outside the world grid
+[body rest] R4 resample bakes: 0 within the 10-deg snap (rigid cells were taken); snap angles: 21 19 14 31 37 22 19 19 36 38 32 19 37 15 55 36 48 53 40 44 32 
+[body rest] R5: world hash 48690e7c79926feb both runs, 27 bakes in the same order
+[body rest] R1b: 916 bodies, 200 ticks all conserved; baked 533 (530 rigid, 0 refused) during, 350 (297 rigid, 0 refused) in the final pass; 33 bodies left; sim 206.2 ms/tick, rest pass 0.177 ms/tick (worst 33.16)
+[body rest] R3 90 deg: rigid, shift mean 0.28 vx max 0.28 vx, snap 0.0 deg
+[body rest] R3 30 deg: resample, shift mean 0.36 vx max 0.58 vx, snap 30.0 deg
+[body rest] R7 extraction poses: 916 bodies, 916 baked (916 rigid, 0 refused), 84182 voxels, 40.80 ms
+[body rest] R7 random rotations: 916 bodies, 914 baked (2 rigid, 2 refused), 83734 voxels, 722.17 ms
+[body rest] R7 idle pass: 0.0024 ms (best of 20)
+[body sim] R1 free fall: worst |y - closed form| 7.516e-14 m
+[body sim] R2 flat drop: rest y 0.24981 m (penetration 0.19 mm), drift 3-8 s 0.000 mm, late speed 0.0000, asleep by 3 s 1
+[body sim] R3 tilted slab (as first written): vertical body axis 1 (0.01 deg off), centre y 0.2499 m (face half-height 0.2500), asleep 1
+[body sim] R3b slab, thin axis 30 deg from vertical: vertical body axis 2 (0.05 deg off), centre y 0.1248 m (face half-height 0.1250), asleep 1
+[body sim] R4 slide: 0.2383 m (Coulomb 0.2548), rise 0.01 mm, final tilt 0.00 deg, speed 0.0000
+[body sim] R5 stack of 5: worst move 2.10 mm, 5 / 5 asleep
+[body sim] R6 head-on, 8 iterations: |P| / (m v) worst 4.67e-02, worst overlap 0.37 mm, after: |v| 0.0522 / 0.0493
+[body sim] R6 head-on, 32 iterations: |P| / (m v) worst 7.20e-03, worst overlap 0.75 mm, after: |v| 0.0000 / 0.0000
+[body sim] R7 lintel E/T 30: 4 bodies, 4 asleep at 10 s (last awake tick 202), max penetration 3.75 mm, deep points 0, capped 4893, max contacts 34, hard-contact fires 273, 0.23 ms / tick mean (worst 1.12)
+[body sim] R8b stone wall E/T 80, 8000 N s: 21 bodies, 21 asleep at 15 s (last awake tick 309), max penetration 7.45 mm, deep points 0, capped 36605, max contacts 366, hard-contact fires 692, 1.74 ms / tick mean (worst 14.47)
+[body sim] R8 stone wall E/T 30: 7 bodies, 7 asleep at 10 s (last awake tick 43), max penetration 2.10 mm, deep points 0, capped 12272, max contacts 130, hard-contact fires 0, 0.25 ms / tick mean (worst 5.09)
+[body sim] R8 stone wall E/T 80: 21 bodies, 21 asleep at 10 s (last awake tick 30), max penetration 0.70 mm, deep points 0, capped 35911, max contacts 464, hard-contact fires 0, 0.75 ms / tick mean (worst 14.84)
+[body sim] T1 1x1x4 at 5 m/s: lowest corner -0.0002 m, speed 0.0000 m/s, pos (1.812520, 0.062310, 1.999993)
+[body sim] T1 1x1x4 at 15 m/s: lowest corner -0.0000 m, speed 0.0000 m/s, pos (1.999320, 0.062408, 2.018143)
+[body sim] T1 1x1x4 at 30 m/s: lowest corner -0.0001 m, speed 0.0000 m/s, pos (3.061693, 0.062394, 2.248678)
+[body sim] T1 1x1x4 at 60 m/s: lowest corner -0.0002 m, speed 0.0000 m/s, pos (3.576118, 0.062300, 2.798387)
+[body sim] T1 2x2x2 at 5 m/s: lowest corner -0.0001 m, speed 0.0000 m/s, pos (1.874947, 0.124884, 1.874932)
+[body sim] T1 2x2x2 at 15 m/s: lowest corner -0.0001 m, speed 0.0000 m/s, pos (1.869916, 0.124856, 1.872675)
+[body sim] T1 2x2x2 at 30 m/s: lowest corner -0.0001 m, speed 0.0000 m/s, pos (1.861624, 0.124873, 1.878531)
+[body sim] T1 2x2x2 at 60 m/s: lowest corner -0.0002 m, speed 0.0000 m/s, pos (1.404858, 0.124835, 1.933738)
+[body sim] T2 2x2x2 at 30 m/s onto a 1-voxel slab: lowest corner 1.1249 m, speed 0.0000 m/s
+[fracture lab] stone wall centre E/T   1.5: 7 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   2.0: 18 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   3.0: 41 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   5.0: 78 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   8.0: 118 cuts, 1 loose pieces, 11 loose voxels
+[fracture lab] stone wall centre E/T  12.0: 185 cuts, 3 loose pieces, 16 loose voxels
+[fracture lab] stone wall centre E/T  20.0: 341 cuts, 7 loose pieces, 33 loose voxels
+[fracture lab] stone wall centre E/T  30.0: 515 cuts, 11 loose pieces, 280 loose voxels
+[fracture lab] stone wall centre E/T  50.0: 712 cuts, 31 loose pieces, 672 loose voxels
+[fracture lab] stone wall centre E/T  80.0: 822 cuts, 43 loose pieces, 744 loose voxels
+[fracture lab] brick wall: 398 cuts, 398 between bricks
+[fracture lab] beam: cuts x 2, y 9, z 5
+[fracture lab] glass: 34 loose shards, 8 of 8 sectors
+[fracture lab] control: damage at the hit voxel 107
+[fracture lab] stress: 300 hits, 29344 cuts, 250 nesting checks, 139 hits where a repeat cut more
+[anchoring] building UNANCHORED before any hit: piece 2, 64 voxels, (49,13,10)-(64,14,11) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 3, 64 voxels, (49,15,12)-(64,16,13) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 4, 64 voxels, (49,17,14)-(64,18,15) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 5, 64 voxels, (49,19,16)-(64,20,17) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 6, 64 voxels, (49,21,18)-(64,22,19) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 7, 64 voxels, (49,23,20)-(64,24,21) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 8, 64 voxels, (49,25,22)-(64,26,23) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 9, 64 voxels, (49,27,24)-(64,28,25) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 10, 64 voxels, (49,29,26)-(64,30,27) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 11, 64 voxels, (49,31,28)-(64,32,29) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 12, 64 voxels, (49,33,30)-(64,34,31) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 13, 464 voxels, (49,38,8)-(64,45,29) Wood:464 
+[anchoring] building 73 x 81 x 56 voxels, 102536 solid; summary 561 components, 15.64 ms
+[anchoring] the same building on today's 1/9 m grid: 134555 solid, 13 unanchored pieces (2000 voxels)
+[anchoring] stone_wall     loose before any hit (excluded unless the cut touches them): 0 voxels
+[anchoring] stone_wall     solid   1152 blocks    6 | hits 100, cutting 78, freeing 43 | nodes median 233 worst 1000 (voxel 1000, comp 4) = 20.2 % / 86.8 % of the solid voxels | ms median 0.025 worst 0.112
+[anchoring] column_lintel  loose before any hit (excluded unless the cut touches them): 0 voxels
+[anchoring] column_lintel  solid    112 blocks    4 | hits 100, cutting 66, freeing 64 | nodes median 79 worst 112 (voxel 112, comp 2) = 70.5 % / 100.0 % of the solid voxels | ms median 0.008 worst 0.016
+[anchoring] building       loose before any hit (excluded unless the cut touches them): 1168 voxels
+[anchoring] building       solid 102536 blocks  519 | hits 200, cutting 148, freeing 96 | nodes median 1055 worst 8558 (voxel 8457, comp 326) = 1.0 % / 8.3 % of the solid voxels | ms median 1.286 worst 3.208
+[fracture lab] stone_centre_e2  voxels   1152 cuts    18 (between parts     0; x    7 y    7 z    4) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.11 ms
+[fracture lab] stone_centre_e5  voxels   1152 cuts    78 (between parts     0; x   25 y   29 z   24) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.16 ms
+[fracture lab] stone_centre_e12 voxels   1152 cuts   185 (between parts     0; x   61 y   71 z   53) bodies   2 (   15 vox) crumbs   1 (   1 vox) anchored  1136 vox  0.28 ms
+[fracture lab] stone_centre_e30 voxels   1152 cuts   515 (between parts     0; x  179 y  196 z  140) bodies   7 (  275 vox) crumbs   4 (   5 vox) anchored   872 vox  0.68 ms
+[fracture lab] stone_centre_e80 voxels   1152 cuts   822 (between parts     0; x  298 y  310 z  214) bodies  21 (  712 vox) crumbs  22 (  32 vox) anchored   408 vox  0.89 ms
+[fracture lab] stone_edge_e5    voxels   1152 cuts    40 (between parts     0; x   16 y   18 z    6) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.20 ms
+[fracture lab] brick_e8         voxels   1024 cuts   398 (between parts   398; x  142 y  256 z    0) bodies  24 (  384 vox) crumbs   0 (   0 vox) anchored   640 vox  0.15 ms
+[fracture lab] brick_e30        voxels   1024 cuts   710 (between parts   688; x  249 y  455 z    6) bodies  59 (  880 vox) crumbs  10 (  16 vox) anchored   128 vox  0.12 ms
+[fracture lab] beam_e8          voxels    128 cuts    16 (between parts     0; x    2 y    9 z    5) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored   128 vox  0.04 ms
+[fracture lab] glass_e20        voxels    576 cuts   185 (between parts     0; x   92 y   93 z    0) bodies  14 (   88 vox) crumbs  20 (  32 vox) anchored   456 vox  0.07 ms
+[fracture lab] column_e30       voxels    112 cuts    40 (between parts     4; x    9 y   23 z    8) bodies   4 (   93 vox) crumbs   7 (   8 vox) anchored    11 vox  0.05 ms
+[fracture lab] chair_e8         voxels   4320 cuts   108 (between parts   108; x    0 y  108 z    0) bodies   6 ( 4320 vox) crumbs   0 (   0 vox) anchored     0 vox  0.61 ms
+[22:43:45.269] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:43:45.621] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 874 bodies
+[22:43:45.621] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2263 maxOrder=5 drainageComplete=1
+[22:43:47.570] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[mesher] perlin s7 (0,0): runs 1713 vs greedy 1893 quads
+[sprigs] slab kept 0.0730, threshold 0.0703
+[22:43:50.838] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:43:50.838] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[mesher] perlin s7 (0,0)                      culled   70327  greedy   1893  per-block   3697  | today proxy (1 m cubes)    53  -> greedy/today 35.7x, per-block/greedy 1.95x
+[22:43:53.809] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:43:54.082] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies
+[22:43:54.082] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1
+[22:43:54.082] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[mesher] perlin s12345 (-1024,768)            culled   66562  greedy    742  per-block   1853  | today proxy (1 m cubes)    16  -> greedy/today 46.4x, per-block/greedy 2.50x
+[22:43:56.507] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:43:56.799] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies
+[22:43:56.799] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1
+[22:43:56.800] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[mesher] mountains s7 (2048,1024)             culled  114554  greedy  43102  per-block  49577  | today proxy (1 m cubes)  1037  -> greedy/today 41.6x, per-block/greedy 1.15x
+[22:44:06.847] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:44:06.848] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[mesher] perlin s7 (0,0) + flora              culled  163297  greedy  16958  per-block  24177  | today proxy (1 m cubes)   811  -> greedy/today 20.9x, per-block/greedy 1.43x
+[22:44:22.192] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:44:22.192] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[mesher] perlin s7 forest (8160,96) + flora   culled  591315  greedy 100946  per-block 128170  | today proxy (1 m cubes)  4209  -> greedy/today 24.0x, per-block/greedy 1.27x
+[mesher] shell 9x7 m, 2 stories, grid 9: 134555 cells, culled 77484, greedy 404
+[mesher] shell 9x7 m, 2 stories, grid 8: 102536 cells, culled 61608, greedy 401
+[mesher] shell greedy 1/8 m vs 1/9 m: 0.99x
+[mesher] chunks invisible (beyond air): whole 11068 unit faces; chunks without neighbours 17752; sprigs 98
+[mesher] chunks invisible (beyond skip): whole 6555 unit faces; chunks without neighbours 6277; sprigs 98
+[22:44:37.953] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[clusters] 1834 faces, clusterBlocks 1 -> 513 clusters
+[clusters] 1834 faces, clusterBlocks 2 -> 266 clusters
+[clusters] 1834 faces, clusterBlocks 4 -> 77 clusters
+[clusters] 1834 faces, clusterBlocks 8 -> 16 clusters
+[clusters] 1834 faces, clusterBlocks 32 -> 1 clusters
+[light planes] 699 inside, 19301 outside, 0 wrong
+[22:44:38.562] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:44:38.562] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[22:44:39.865] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:44:39.865] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[shadow dir] 3600 rays, 3546 hit, 0 differ
+[caster seam] main 1907, seam all 7041, seam depth 1 3131
+[exit faces] 3600 rays, 3566 hit, 0 differ (light test alone: 402)
+[22:44:42.957] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:44:42.958] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[lod] forest (8160,96) level 0 (0.125 m): 42412 faces (1.000x L0), solid volume 1.0000x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 804 GrassSavanna 90 Log 18 LogJungle 182 LogPalm 15
+[lod] forest (8160,96) level 1 (0.250 m): 11164 faces (0.263x L0), solid volume 1.0194x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 774 GrassSavanna 90 Log 17 LogJungle 176 LogPalm 13
+[lod] forest (8160,96) level 2 (0.500 m): 2697 faces (0.064x L0), solid volume 1.0062x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 784 GrassSavanna 90 Log 16 LogJungle 157 LogPalm 10
+[lod] forest (8160,96) level 3 (1.000 m): 702 faces (0.017x L0), solid volume 0.9884x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 792 GrassSavanna 91 Log 12 LogJungle 133 LogPalm 8
+[lod] forest (8160,96) level 4 (2.000 m): 157 faces (0.004x L0), solid volume 0.9293x L0
+[lod]   up-facing m^2: Dirt 8 GrassForest 824 GrassSavanna 72 Log 8 LogJungle 104 LogPalm 4
+[lod]   top vs 1 m: mean 0.493 cells, max 4.750
+[lod] forest (8160,96) level 5 (4.000 m): 41 faces (0.001x L0), solid volume 0.9201x L0
+[lod]   up-facing m^2: GrassForest 864 GrassSavanna 48 Log 16 LogJungle 64
+[lod]   top vs 1 m: mean 0.526 cells, max 1.938
+[lod] forest (8160,96) level 6 (8.000 m): 5 faces (0.000x L0), solid volume 0.6265x L0
+[lod]   up-facing m^2: GrassForest 832 Log 64
+[lod]   top vs 1 m: mean 0.560 cells, max 1.250
+[lod] forest (8160,96) level 7 (16.000 m): 1 faces (0.000x L0), solid volume 1.2529x L0
+[lod]   up-facing m^2: GrassForest 1024
+[lod]   top vs 1 m: mean 0.283 cells, max 0.355
+[incremental] 300 edits: 46265 rows meshed of the 1044900 a full rebuild per edit meshes (4.43 %)
+[facepool] 400 steps: 397 partial, 3 full (4 layouts, 43 moves); dirty faces 23.68 % of the live
+[22:45:03.309] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[f31 rows] 60 x 1 m edits on 256x192x256 terrain: 347647 cells evaluated vs 7840960 whole rows (4.43 %), 1112 faces added
+[f31 connect] 400 edits: 72 changed a blocking bit, 328 did not (flood skipped)
+[f32a store] RegionEdit 5.09 MB for 2 chunks (dense voxels alone 32.00 MB)
+[f31 assemble] sprig spans re-placed 4 times
+[f31 assemble] 36 partial steps: 588.7 KB written per step (the whole image is 1584.8 KB)
+[22:45:15.400] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[f32a readers] 80 edits on 256x192x256: 4812 faces added; store 1.60 MB vs dense 12.00 MB (1717 detailed blocks)
+[f32b pick] 400 rays: 221 hits (91 from inside a solid voxel), 11.4 steps per hit
+[f33 reload] chunk 0: 253673 B blob, 5439 voxels written by the load
+[f35a border] 300 border brushes: 435 chunks re-planned, 255 changed, 53 edits left the neighbour alone
+[f35a plan] 58578 faces; boxes <= 8: mean 276 examined, worst 2997
+[f35b connect] brush-like: 1031 updates, 2 floods, 784 local tests; 132127 B
+[22:47:56.761] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] worst |1/8 m ground top - today's cube top| at column centres: 0.500 m
+[22:47:57.010] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] perlin s7 (0,0): top voxel not the surface material in 0 of 65536 columns
+[22:47:57.766] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] perlin s7 (512,-256): top voxel not the surface material in 0 of 65536 columns
+[22:47:58.569] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] perlin s12345 (-1024,768): top voxel not the surface material in 0 of 65536 columns
+[22:47:59.323] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] mountains s7 (0,0): top voxel not the surface material in 0 of 65536 columns
+[22:48:00.235] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] mountains s7 (2048,1024): top voxel not the surface material in 0 of 65536 columns
+[22:48:01.149] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] perlin s7 (0,0)             20 m tall:  20480 blocks,  1087 detailed (1.06 per block column),   9385 air,  10008 solid; est 0.79 MB vs dense 10.49 MB (13.3x); materials 3
+[22:48:01.401] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] perlin s7 (512,-256)        18 m tall:  18432 blocks,   979 detailed (0.96 per block column),   8143 air,   9310 solid; est 0.71 MB vs dense 9.44 MB (13.3x); materials 3
+[22:48:01.639] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] perlin s12345 (-1024,768)   17 m tall:  17408 blocks,   768 detailed (0.75 per block column),   7740 air,   8900 solid; est 0.58 MB vs dense 8.91 MB (15.3x); materials 3
+[22:48:01.862] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] mountains s7 (0,0)          28 m tall:  28672 blocks,  1491 detailed (1.46 per block column),  11952 air,  15229 solid; est 1.09 MB vs dense 14.68 MB (13.5x); materials 3
+[22:48:02.271] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[storage lab] mountains s7 (2048,1024)    36 m tall:  36864 blocks,  2354 detailed (2.30 per block column),  20350 air,  14160 solid; est 1.65 MB vs dense 18.87 MB (11.4x); materials 4
+[22:48:02.686] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:02.940] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:03.180] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:03.420] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:03.840] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:04.223] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:04.223] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[22:48:04.341] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:04.342] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[storage lab] perlin s7 (0,0)                trees/plants planned 17 (stamped 9, procedural 0, missing 8: bush_flower tree_apple fern shrub_flat )
+              detailed per column bare 1.06 -> with flora 2.08; est 0.91 MB -> 1.51 MB per chunk footprint (35 m tall area)
+              stamped trees 8
+[22:48:04.782] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:04.782] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[storage lab] perlin s7 (512,-256)           trees/plants planned 19 (stamped 12, procedural 0, missing 7: tree_apple shrub_flat )
+              detailed per column bare 0.96 -> with flora 2.32; est 0.83 MB -> 1.64 MB per chunk footprint (33 m tall area)
+              stamped trees 10
+[22:48:05.215] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:05.216] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[storage lab] perlin s12345 (-1024,768)      trees/plants planned 3 (stamped 2, procedural 0, missing 1: fern )
+              detailed per column bare 0.75 -> with flora 0.75; est 0.70 MB -> 0.70 MB per chunk footprint (32 m tall area)
+              stamped trees 2
+[22:48:05.540] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:05.541] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[storage lab] mountains s7 (0,0)             trees/plants planned 17 (stamped 9, procedural 0, missing 8: bush_flower tree_apple fern shrub_flat )
+              detailed per column bare 1.46 -> with flora 2.44; est 1.21 MB -> 1.79 MB per chunk footprint (43 m tall area)
+              stamped trees 8
+[22:48:06.150] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:06.151] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[storage lab] mountains s7 (2048,1024)       trees/plants planned 0 (stamped 0, procedural 0, missing 0: )
+              detailed per column bare 2.30 -> with flora 2.30; est 1.65 MB -> 1.65 MB per chunk footprint (36 m tall area)
+              stamped trees 0
+[22:48:06.589] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:06.590] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[storage lab] perlin s7 forest (3200,96)     trees/plants planned 127 (stamped 105, procedural 0, missing 22: fern )
+              detailed per column bare 1.05 -> with flora 7.21; est 0.95 MB -> 4.59 MB per chunk footprint (41 m tall area)
+              stamped trees 65
+[22:48:08.240] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:08.240] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[storage lab] perlin s7 forest (8160,96)     trees/plants planned 100 (stamped 84, procedural 0, missing 16: fern )
+              detailed per column bare 1.03 -> with flora 6.94; est 0.94 MB -> 4.43 MB per chunk footprint (41 m tall area)
+              stamped trees 59
+[22:48:09.799] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:10.453] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:10.940] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:11.413] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:12.419] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:48:12.420] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json
+[region] ground 22.2..25.6 m -> chunks y 0..1 (8 chunks)
+[region] 8 chunks, 55784346 solid voxels, whole-region flora stamped 142; voxel mismatches 0, border mismatches 0 of 1572864
+[22:48:23.023] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[f33 codec] terrain area 256x256x256: 7305 B (store 0.35 MB, dense 16.00 MB)
+[f33 malformed] 1617 B blob: every truncation refused; 9 of 2000 random corruptions decode to a valid store, the rest refused
+[f34 resample] 119 cells (1697 subcubes, 23369 microcubes): solid volume 94.91 -> 92.59 m^3 (-2.44 %)
+[f34 keep] 299 cells: 758 materials kept, 0 lost
+[==========] 121 tests from 7 test suites ran. (340478 ms total)
+[  PASSED  ] 121 tests.
+
+  YOU HAVE 3 DISABLED TESTS
+

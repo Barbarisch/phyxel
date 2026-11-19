@@ -1,0 +1,35 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpu.F55aLadder
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodySimGpu
+[ RUN      ] VoxFoundBodySimGpu.F55aLadder
+[22:52:13.423] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[22:52:13.427] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[body gpu] A3/A4 large wall E/T 250, per-colour: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.002 m, 5.199 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.039/0.038 world 2.012/0.001 pairs 0.152/0.004 prefix+scatter 0.008/0.007 sort 0.092/0.001 solve 0.971/0.363 hard_body 0.127/0.042 hard_apply 1.811/0.001 finish 0.004/0.003 warm 0.005/0.004 | total 5.225 / 0.467
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 250, fused: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.002 m, 5.393 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.039/0.039 world 2.001/0.001 pairs 0.145/0.004 prefix+scatter 0.008/0.007 sort 0.091/0.001 solve 1.167/0.033 hard_body 0.128/0.042 hard_apply 1.801/0.001 finish 0.004/0.003 warm 0.005/0.004 | total 5.393 / 0.138
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 0.8 ms / tick fused
+[body gpu] A3/A4 large wall E/T 650, per-colour: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.000 m, 6.644 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.042/0.041 world 2.173/0.001 pairs 0.240/0.004 prefix+scatter 0.016/0.014 sort 0.205/0.001 solve 1.795/0.362 hard_body 0.222/0.045 hard_apply 1.945/0.002 finish 0.004/0.003 warm 0.006/0.004 | total 6.652 / 0.481
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 650, fused: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.000 m, 7.807 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.042/0.041 world 2.172/0.002 pairs 0.241/0.005 prefix+scatter 0.016/0.014 sort 0.206/0.002 solve 2.955/0.032 hard_body 0.220/0.046 hard_apply 1.941/0.001 finish 0.004/0.003 warm 0.006/0.004 | total 7.806 / 0.154
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 1.5 ms / tick fused
+[body gpu] A3/A4 large wall E/T 2800, per-colour: 1025 bodies (3 awake at 5 s), colours 20, max contacts 30046, lowest corner -0.005 m, 10.033 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.042/0.041 world 2.758/0.273 pairs 0.575/0.269 prefix+scatter 0.047/0.045 sort 0.241/0.002 solve 3.175/0.401 hard_body 0.706/0.303 hard_apply 2.461/0.250 finish 0.005/0.003 warm 0.007/0.005 | total 10.021 / 1.595
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 2800, fused: 1025 bodies (3 awake at 5 s), colours 20, max contacts 30046, lowest corner -0.005 m, 14.084 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.042/0.041 world 2.763/0.273 pairs 0.577/0.270 prefix+scatter 0.047/0.045 sort 0.242/0.003 solve 7.236/0.083 hard_body 0.711/0.304 hard_apply 2.465/0.250 finish 0.006/0.003 warm 0.008/0.005 | total 14.100 / 1.280
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 3.0 ms / tick fused
+[       OK ] VoxFoundBodySimGpu.F55aLadder (31265 ms)
+[----------] 1 test from VoxFoundBodySimGpu (31265 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (31265 ms total)
+[  PASSED  ] 1 test.
