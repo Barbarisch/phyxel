@@ -932,3 +932,24 @@ Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain463.txt`.
   recipe's switch alone, no parameter override. Release unit 212 / 0, live 41 / 0, record lines unchanged.
 - The CityLab project file and its repo copy are re-pinned to (-1200, -1040) with the switch on, no painted hill.
   Not yet loaded by an engine. Not audited.
+
+### 2026-11-19 - O16 / D71 (a): the city on CityLab's creek site, run live - refused twice, built the third time
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain467.txt`; evidence `docs/evidence/worldforge_v2/citylab_l4/`.
+Produced by the engine's generator and `POST /api/worldforge/build` on the CityLab project (Release editor, fresh
+DB, RTX 1000 Ada laptop). Nothing hand-placed.
+- Runs 1 and 2: the city REFUSED - 73 of 74 routes walked, the wall gate two cells past the second ford blocked. The
+  same route walks in the headless test (unexplained). Cause of the marginal walk: a creek the ford rule admits (its
+  water under 0.5 u) is emitted as a gully 1 to 3 cubes deep, and the paver - which only cuts - ramped the way down
+  into it. The generator's own roads cross a creek on fill.
+- Change: at a recorded crossing the ways unit's planning ground is the generator's natural ground (no creek bed), so
+  the way is paved level across and the applier fills beneath. The gate walk's seat search reaches 46 micro above
+  the found solid (it searched inside the fill). The BLOCKED log line now carries the route's ends and pinch.
+- Run 3: the city BUILT - the job "built", 20 buildings, 0 lot failures; "74 walkable, 0 blocked over 74 routes (20
+  front doors of 20 built)"; 4 gates walked. Release unit 212 / 0, live tests 41 / 0, record lines unchanged.
+- NOT met / open: "residents ON" (ledger 0 residents, the API lists about 22 resident NPCs, on a refused run too);
+  the fill is a causeway with bare sides - 34 of 96 paved edges near a ford drop more than a cube, up to 28 micro
+  (O38) - and it dams the creek's gully (no water view); no character has walked it; the seat search was widened for
+  every route, not only gates; one run, one seed; screenshots mis-posed and renamed by their in-image camera; the
+  run script was killed by the harness for memory and the result read by hand from the surviving engine (9.3 GB).
+- Audited: PASS WITH CONDITIONS for "run 3 built the pinned city, gate included"; FAIL for anything wider.

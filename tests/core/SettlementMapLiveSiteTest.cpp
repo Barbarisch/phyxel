@@ -408,6 +408,8 @@ struct SharedRig {
     SharedRig& operator=(const SharedRig&) = delete;
 };
 
+// a diagnostic hook: called after each unit with its label (pm_chain467.txt, chain 475)
+static std::function<void(const std::string&)> g_afterUnit;
 nlohmann::json realizeOnce(LiveSiteRig& rig, bool legacyLayout, const nlohmann::json& overrides) {
     nlohmann::json params = WorldForgeBuildService::settlementParamsFor(*rig.gen->worldForge(), *rig.site);
     for (auto it = overrides.begin(); it != overrides.end(); ++it) params[it.key()] = it.value();
@@ -444,6 +446,7 @@ nlohmann::json realizeOnce(LiveSiteRig& rig, bool legacyLayout, const nlohmann::
         const auto tu = std::chrono::steady_clock::now();
         u.run();
         std::printf("[ M5a-1 ]   unit %-28s %6.1f s\n", u.label.c_str(), secondsSince(tu));
+        if (g_afterUnit) g_afterUnit(u.label);
     }
     const nlohmann::json walk = plan.walkability ? *plan.walkability : nlohmann::json::object();
     out = SettlementBuildService::gateOutcome(walk, false);
@@ -2832,6 +2835,16 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityFordsItsCreek) {
             if (!onBank) ++lotsBeyond;
         }
         std::printf("[ O36a ]   the entry's bank: %d dry cells of %d reached without crossing water; wall refusal: '%s'%s", bankCells, W * D, m.wall.refusal.c_str(), chr10().c_str());
+        if (ford)   // O16 L4 (pm_chain467.txt) diagnostic: what the generator says of the bed at each ford cell and on its banks
+            for (const auto& c : m.crossings) for (const auto& cell : c.cells)
+                for (const int off : {-3, 0, 3}) {
+                    const int wx = ox + cell.first + off, wz = oz + cell.second;
+                    const auto ch = gen->channelHitAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f);
+                    const auto col = gen->sampleSurface(wx, wz);
+                    std::printf("[ L4d ] ford cell %d,%d %+d: natural ground %.2f, emitted surface %d, channel hit %d order %d depth %.2f fullDepth %.2f halfWidth %.2f carved %d bed profile %.2f (has %d) in basin %d; water level %.2f%s",
+                                cell.first, cell.second, off, gen->naturalGroundAt(wx, wz), col.surfaceY, ch.hit ? 1 : 0, ch.order, ch.depth, ch.fullDepth, ch.halfWidth, ch.carved ? 1 : 0, ch.bedProfile, ch.hasProfile ? 1 : 0,
+                                ch.inBasin ? 1 : 0, gen->waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)), chr10().c_str());
+                }
         const MapInvariants::Violations vi = MapInvariants::measure(m, h, 6, wet);
         std::printf("[ O36a ] %s: plan %s%s; %zu lots of %d, %zu ways, %zu crossings (%d cells); way cells in water %d (%d outside a crossing); lot cells in water %d; lots beyond a ford %d; "
                     "overlaps %d, through a footprint %d, outside %d, no way %d, door off its way %d, bad way %d; wall %s, market note '%s'%s",
@@ -2914,7 +2927,16 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
     rig.recipeKey = "citylab-A fords"; rig.worldSeed = 7001u;   // O36 (i): the recipe asks for settlement fords
     rig.recipeFn = [px, pz] { WorldRecipe r = cityLabRecipe(false, px, pz, 0.0f, 0.0f); r.worldforge.settlementFords = true; return r; };
     ASSERT_TRUE(rig.setUp(0, 24)) << rig.why;
+    {   // chain 475 diagnostic: the top solid micro at the first ford cell's centre (world -1265, -1033) after each unit
+        int last = INT_MIN;
+        g_afterUnit = [&rig, last](const std::string& label) mutable {
+            int t = INT_MIN;
+            for (int y = 400; y >= 280 && t == INT_MIN; --y) if (rig.solidMicro(-1265 * 9 + 4, y, -1033 * 9 + 4)) t = y;
+            if (t != last) { std::printf("[ L4d ] after unit '%s': the ford cell (-1265, -1033) tops at %d%s", label.c_str(), t, chr10().c_str()); last = t; }
+        };
+    }
     const auto out = realize(rig, /*legacyLayout=*/false);   // O36 (i): no override - the recipe's switch alone
+    g_afterUnit = nullptr;
     ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
     const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
     Core::SettlementProgramRegistry reg;
@@ -2929,10 +2951,16 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
     EXPECT_EQ(out.value("blocked", -1), 0);
     ASSERT_GT(sm.crossings.size(), 0u);
     const int oy = static_cast<int>(rig.site->surfaceY);
+    // (amended before chain 476, pm_chain467.txt: the scan started 2 cubes above the CUBE terrain's top and missed a
+    // ford's paving standing 3 cubes above the creek's bed - it read 332 where the cell tops at 342. Now: the top of the
+    // first solid run met going UP from 3 cubes under the cube top - the ground, not a gate's arch above it.)
     auto topAt = [&](int cx, int cz) {
         const int wx = sm.originX + cx, wz = sm.originZ + cz, top = settlementTopScan(&rig.cm, oy, wx, wz, true);
-        for (int y = (top + 2) * 9 + 8; y >= (top - 3) * 9; --y) if (rig.solidMicro(wx * 9 + 4, y, wz * 9 + 4)) return y;
-        return INT_MIN;
+        int y = (top - 3) * 9;
+        while (y <= (top + 12) * 9 && !rig.solidMicro(wx * 9 + 4, y, wz * 9 + 4)) ++y;
+        if (y > (top + 12) * 9) return INT_MIN;
+        while (rig.solidMicro(wx * 9 + 4, y + 1, wz * 9 + 4)) ++y;
+        return y;
     };
     auto matAt = [&](int cx, int cz, int my) {
         if (my == INT_MIN) return std::string("(none)");
@@ -2977,7 +3005,7 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
             }
         }
     }
-    int unpaved = 0, notWalked = 0, cells = 0, controlLeaks = 0;
+    int unpaved = 0, notWalked = 0, cells = 0, controlLeaks = 0, worstDip = 0, fordHollow = 0;
     for (size_t ci = 0; ci < sm.crossings.size(); ++ci) {
         const auto& c = sm.crossings[ci];
         if (c.cells.empty()) continue;
@@ -3006,6 +3034,26 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
             row += " (" + std::to_string(cell.first) + "," + std::to_string(cell.second) + ") " + std::to_string(t) + " " + m;
         }
         const int tb = topAt(before.first, before.second), ta = topAt(after.first, after.second);
+        // O16 L4 (pm_chain467.txt): a ford is PAVED ACROSS - its cells stand within the walker's step of the bank the way
+        // comes from (the live engine refused the city at a ford whose paving dipped 27 micro into the creek's gully),
+        // and nothing is hollow under them (9 columns a cell, 45 micro down)
+        for (const auto& cell : c.cells) {
+            const int t = topAt(cell.first, cell.second);
+            if (t == INT_MIN || tb == INT_MIN) continue;
+            // (amended before chain 472: below the LOWER of the two banks, and the far bank read under a gate's arch -
+            // crossing 2's far bank is a cube lower than its near one; that is the ground's own fall, not a dip)
+            int farTop = ta;
+            { const int fmx = (sm.originX + after.first) * 9 + 4, fmz = (sm.originZ + after.second) * 9 + 4;
+              for (int y = tb - 45; y <= tb + 45; ++y) if (probe.fits(fmx, y, fmz) && probe.supported(fmx, y, fmz)) { farTop = y - 1; break; } }
+            worstDip = std::max(worstDip, std::min(tb, farTop == INT_MIN ? tb : farTop) - t);
+            for (const int j : {1, 4, 7}) for (const int i : {1, 4, 7}) {
+                const int mx = (sm.originX + cell.first) * 9 + i, mz = (sm.originZ + cell.second) * 9 + j;
+                int ty = INT_MIN;
+                for (int y = t + 9; y >= t - 9 && ty == INT_MIN; --y) if (rig.solidMicro(mx, y, mz)) ty = y;
+                if (ty == INT_MIN) { ++fordHollow; continue; }
+                for (int y = ty - 1; y >= ty - 45; --y) if (!rig.solidMicro(mx, y, mz)) { ++fordHollow; break; }
+            }
+        }
         // (amended before chain 452: the far end is seated from BELOW, near the near end's level - under a gate's arch
         // the top-down seat stood on the wall, crossing 1 in chain 451)
         const int sb = seat(before.first, before.second);
@@ -3052,6 +3100,31 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
                     walked ? (controlWalked ? "walked ALONG THE LANE - but so was the CONTROL (the ford walled up)" : "WALKED along the lane; the control (the ford walled up) is blocked") : "NOT WALKED along the lane", chr10().c_str());
     }
     std::printf("[ O36b ] fords: %d crossing cells, %d not topped by %s; %zu crossings, %d not walked bank to bank%s", cells, unpaved, paving.c_str(), sm.crossings.size(), notWalked, chr10().c_str());
+    std::printf("[ O36b ] fords: the deepest paved dip below the near bank %d micro; columns with air under the paving %d%s", worstDip, fordHollow, chr10().c_str());
+    {   // the audit of the L4 (3): the SIDES of the fill - RECORDED, not asserted (O38). For every cell within 4 of a crossing
+        // cell whose top voxel is the paving: the drop to each 4-neighbour that is not paved. A drop over a cube is a
+        // cliff beside the way (the gully the fill dams).
+        std::set<std::pair<int, int>> seen;
+        int edges = 0, cliffs = 0, worstSide = 0;
+        for (const auto& c : sm.crossings) for (const auto& cc : c.cells)
+            for (int dz = -4; dz <= 4; ++dz) for (int dx = -4; dx <= 4; ++dx) {
+                const std::pair<int, int> cell{cc.first + dx, cc.second + dz};
+                if (!seen.insert(cell).second) continue;
+                const int t = topAt(cell.first, cell.second);
+                if (t == INT_MIN || matAt(cell.first, cell.second, t) != paving) continue;
+                for (const auto& d : {std::pair<int, int>{1, 0}, std::pair<int, int>{-1, 0}, std::pair<int, int>{0, 1}, std::pair<int, int>{0, -1}}) {
+                    const int nt = topAt(cell.first + d.first, cell.second + d.second);
+                    if (nt == INT_MIN || matAt(cell.first + d.first, cell.second + d.second, nt) == paving) continue;
+                    ++edges;
+                    const int drop = t - nt;
+                    worstSide = std::max(worstSide, drop);
+                    if (drop > 9) { ++cliffs; if (cliffs <= 6) std::printf("[ O38 ]   paved %d,%d at %d beside unpaved %d,%d at %d: a drop of %d micro%s", cell.first, cell.second, t, cell.first + d.first, cell.second + d.second, nt, drop, chr10().c_str()); }
+                }
+            }
+        std::printf("[ O38 ] the sides of the fords' paving (recorded, not asserted): %d paved-to-unpaved edges within 4 cells of a crossing, %d with a drop over one cube, the greatest %d micro%s", edges, cliffs, worstSide, chr10().c_str());
+    }
+    EXPECT_LE(worstDip, 4) << "a ford's paving dips into the creek by more than the walker's step";
+    EXPECT_EQ(fordHollow, 0) << "a ford's paving is hollow underneath";
     EXPECT_EQ(unpaved, 0) << "a ford's cell is not paved";
     EXPECT_EQ(notWalked, 0) << "a ford is not walked from bank to bank along its lane";
     EXPECT_EQ(controlLeaks, 0) << "a ford's walk passes with the ford walled up: the walk does not go through the ford";
@@ -3094,6 +3167,8 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
             }
             if (!asBuilt) ++gateNot;
             if (plugged) ++gateElsewhere;
+            std::printf("[ O36b ]   route micro (%d,%d,%d) -> (%d,%d,%d)%s", fr[0], fr[1], fr[2], to[0], to[1], to[2], chr10().c_str());   // O16 L4 run 1: to set beside the live engine's
+            if (gx == 51 && gz == 79) printApproachSection(rig.cm, glm::ivec3(fr[0], fr[1], fr[2]), glm::ivec3(to[0], to[1], to[2]));
             std::printf("[ O36b ] %s (gate %d,%d): as built %s; with the wall round the gate walled up %s%s", label.c_str(), gx, gz, asBuilt ? "walked" : "NOT WALKED",
                         plugged ? "STILL WALKED - the route does not need the gate" : "blocked - the route goes through the gate", chr10().c_str());
         }

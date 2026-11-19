@@ -1,0 +1,134 @@
+pm_chain467.txt - O16 / D71 (a): the city L4 on CityLab's creek site (the RELEASE editor, live).
+(written 2026-11-19 09:28, BEFORE the run; HEAD 2647ff5c; the Release editor is being rebuilt from this tree)
+
+WHAT RUNS: the script citylab_l4.sh (session scratchpad; kept beside the evidence) - a fresh worlds/default.db, the
+  Release editor on --project CityLab --port 8600, /api/worldforge/status (the box plan), /api/worldforge/focus on the
+  city, POST /api/worldforge/build {"sites": [city]}, the job polled to its end, the ledger and the engine's own log
+  read back, three screenshots at stated poses (overview, a ford, the market) with render stats. PRODUCED BY: the
+  engine's generator and worldforge_build only - nothing hand-placed.
+  D70 (a): the city as programmed (20 to 48 lots), not 200.
+PREDICTIONS (run 1):
+  - the plan's echo carries settlementFords true; the city is listed at (-1200, -1040), 160 x 160.
+  - the job completes; the ledger says "built": 20 lots of 20 (the headless build on the same recipe: 20 doors of 20,
+    0 lot failures, gate passed 74 walkable / 0 blocked), 4 crossings, the wall present with 4 gates and 3 water gaps.
+    GUESS 65 % - the live engine streams chunks around a focus and the test rig loads its own; a difference there
+    (residency, an unloaded chunk at the site's edge) is the likeliest way this differs.
+  - residents: UNKNOWN (the build spawns none; the ResidentSpawner owns them) - whatever the API reports is recorded.
+  - the ford screenshot shows paving across a creek's dip. What the water system draws there is UNKNOWN (O36 m).
+  - duration: GUESS 5 to 15 minutes for the job on the laptop.
+RESULTS (written 2026-11-19 09:37)
+  L4 run 1 (the Release editor exe 09:28:28, commit 2647ff5c, RTX 1000 Ada laptop; started 09:28:38, the job 237 s):
+    THE CITY IS REFUSED. "site 0 (city) REFUSED: unwalkable: 1 of 74 routes blocked" - the engine's own log:
+    "BLOCKED through the wall's gate @-1229,-1041 (way 0) - the gate does not pass the road: reached 10444/13197";
+    "the wall's gates - 4 walked through, 1 blocked"; "73 walkable, 1 blocked over 74 routes (20 front doors of 20
+    built, 0 skipped)". The same gate - local (51, 79), two cells beyond the second ford - PASSES in the headless
+    test on the same recipe (chain 464). PREDICTION MISS (the 35 % case).
+    What did hold live: the plan (20 lots of 20, 8 ways, 4 crossings at the same cells as the test's), the box plan
+    (the city at (-1200, -1040), 160 x 160, and 4 scored sites), the market paved 256 of 256 cells, 5 market props
+    placed (span 0), the wall stamped (534 ring cells, 4 gates, 7 columns open over water, 4 towers), 20 doors of 20.
+    Also seen: 21 NPCs exist ("res_...") although the site is REFUSED (ledger: residents 0, buildings 0) - noted, not
+    explained. My script read "params echo: settlementFords None" (the status carries no such echo, or under another
+    key) and "wall present None" (my key) - script reading faults, not engine facts.
+    Screenshots (the engine's /api/screenshot at the stated poses; the editor UI is in frame): overview pose
+    (-1200, 146, -850) yaw -90 pitch -35 - a walled town with houses, streets and trees; ford pose (-1232, 50, -1025)
+    yaw -90 pitch -40 - the wall and a paved way beside it, the ford itself NOT clearly in frame (a bad pose).
+  NEXT (stated): the engine's BLOCKED line gains the route's ends and pinch (a log-only change); the headless test
+  prints the same gate's route and its vertical section. Then run 2 and the two are set side by side.
+RESULTS (written 2026-11-19 09:49)
+  L4 run 2 (the editor rebuilt 09:39:31 with the log line; fresh DB): REFUSED again, the same gate. The engine's log:
+    "walked from micro (-11030,343,-9365) to (-11084,328,-9365), pinch (-11046,343,-9365) -> (-11055,334,-9365)".
+    The headless test walks the SAME route (chain 468: "(-11030,343,-9365) -> (-11084,328,-9365)", walked). Its
+    section along the centre line: level at 343 for 19 micro columns, then the paving falls 343 -> 334 -> 325 -> 316
+    in about 22 columns and climbs again - a ford RAMPED 27 micro down into a gully; on the centre line the walker
+    has standable cells only on the ledges. The headless walk gets through beside the centre line; the live one
+    does not. WHY they differ is NOT established (the same recipe, plan and route).
+  chain 469 (diagnostic: the generator at each ford cell): natural ground 37.0 to 37.2, EMITTED surface 35 or 36 at
+    the creek cells (banks 37), channel order 1 or 2, "depth" 0.16 to 0.37, fullDepth 0.18 to 0.44, not carved, bed
+    profile 36.1 to 36.6. So a creek the ford rule calls under 0.5 u deep is emitted as a bed 1 to 2 cubes below its
+    banks (3 cubes of paved dip at crossings 1 and 3). The ford rule reads the WATER's depth, not the gully's.
+DESIGN (written before the red run): the generator's own roads cross such a creek on FILL (WorldGenerator's road
+  grading raises the corridor to its grade on creek columns; "never grade a carved channel" is the river case).
+  The town's ways do the same: at a recorded crossing the ways unit's PLANNING ground reads the bank level - the
+  generator's natural ground, which carries no creek bed - on the water cells within the way's band; the paver then
+  lays the way level across and the applier (which reads the REAL ground) fills beneath it. Generator sampler only.
+  No new number. NOT designed: what the water does at the fill (the creek is dammed by it - O36 m); a culvert.
+  RED: TheCreekCityIsBuiltAcrossItsFords asserts the deepest paved dip at a ford below the near bank <= 4 micro and
+  no air under a ford's paving. PREDICTION chain 470 (RED, service unchanged): dip 27, hollow 0; the test fails.
+  chain 470 (RED, exe 09:50:00): as predicted - "the deepest paved dip below the near bank 27 micro; columns with air
+    under the paving 0"; the test fails on the dip.
+  PREDICTION chain 471 (GREEN, the fill): dip <= 4 (GUESS 0 to 2), hollow 0, the gate passed, the lane walks and
+  their controls as before. RISK: the applier's fill under a ford may leave air (then "hollow" > 0 says so); the
+  gate's arch stands on a way that is now higher at (51, 79).
+RESULTS (written 2026-11-19 09:53)
+  chain 471 (the fill, exe 09:51:36): the test FAILS, differently. "gate unseated, 73 walkable, 0 blocked, 1 skipped";
+    "the deepest paved dip below the near bank 10 micro; columns with air under the paving 0"; the 4 lane walks and
+    their controls hold; 3 gate routes walked. PREDICTION MISS on two counts:
+    (1) the gate at (51, 79): "has no walkable end on one side (an end does not seat)" - its outside end is the ford
+        cell (48, 79), now under 27 micro of fill; the gate's seat search starts at the CUBE terrain's top and looks
+        10 micro up, so it searches inside the fill.
+    (2) the dip of 10 is crossing 2, whose far bank is a cube lower than its near bank - my measure compared a ford
+        cell with the NEAR bank only.
+  CHANGES before chain 472 (stated): ENGINE - the gate's seat search runs up to 46 micro above the found solid (the
+  first standable level from below). TEST - the dip is measured below the LOWER of the two banks.
+  PREDICTION chain 472: dip <= 4, hollow 0, gate passed with 4 gate routes (GUESS 60 %).
+  chain 472 (exe 09:53:42): "gate passed, 74 walkable, 0 blocked, 0 skipped over 20 doors of 20 built", 4 gate routes
+    each needing its gate - but the dip is still 10: ford cells (15, 87), (49, 79), (117, 87) stand at 332 beside 341 /
+    342. The fill reached only the channel's WATER cells; the emitted gully is wider (its flanks are dry cells, low)
+    and the paver's lower envelope cut the way down to them.
+  CHANGE before chain 473 (stated): every cell within the way's band + 2 of a crossing cell is told the natural
+  ground (not the water cells alone). PREDICTION chain 473: dip <= 4; the rest as chain 472.
+RESULTS (written 2026-11-19 10:01)
+  chains 473 to 475 (the wider fill; then two diagnostics): the test kept reading a dip of 10 at (15, 87), (49, 79),
+    (117, 87). The engine's own record (chain 474, "ford fill: cell ... live ground 315, told 342, planned surface
+    342") and a per-unit trace (chain 475: the ford cell (-1265, -1033) "tops at 320" before the ways unit and "at
+    342" after it, and never changes again) show the FORD IS AT BANK LEVEL. THE FAULT WAS MY TEST'S READER: topAt
+    scanned from 2 cubes above the cube terrain's top and missed paving 3 cubes above the bed. Two changes I made on
+    the strength of that wrong reading (the fill over the water cells only -> over every cell near a crossing) were
+    not shown to be needed; the wider one is kept (it is the gully that is filled) and that is stated, not proven.
+  TEST AMENDED before chain 476 (stated): topAt returns the top of the first solid run going UP from under the
+  ground. PREDICTION chain 476: dip <= 4, hollow 0, gate passed 74 / 0, 4 gates, 4 lane walks with controls.
+  chain 476 (exe 10:01:22): both creek city tests pass. Built: "gate passed, 74 walkable, 0 blocked, 0 skipped over 20
+    doors of 20 built"; every ford cell at 342 (its banks' level); "the deepest paved dip below the near bank 0
+    micro; columns with air under the paving 0"; 4 lane walks with their controls blocked; 4 gate routes each
+    needing its gate.
+  PREDICTION L4 run 3 (the editor rebuilt from this tree, fresh DB): the city is BUILT - ledger "built", 20
+  buildings, 74 walkable / 0 blocked. GUESS 70 % (the gate that failed live now stands on level paving; whatever
+  made live differ from the rig on the ramp is unexplained and may bite elsewhere).
+RESULTS (written 2026-11-19 10:12)
+  L4 run 3 (the Release editor rebuilt 10:02:41 from this tree, fresh DB, RTX 1000 Ada laptop): THE CITY IS BUILT.
+    The job: "state complete ... sites: [{buildings 20, id 0, lot_failures 0, residents 0, status built, tier
+    city}]", 270.8 s, 58 units. The ledger: "site 0 city status built buildings 20 lotFailures 0". The engine's log:
+    "walkability gate: the wall's gates - 4 walked through, 0 blocked"; "walkability gate: 74 walkable, 0 blocked
+    over 74 routes (20 front doors of 20 built, 0 skipped)"; "[WORLDFORGE] site 0 (city) BUILT: 20 buildings, 0
+    residents, 0 lot failures"; "ford fill: cell ... live ground 315, told 342, planned surface 342"; the wall 534
+    ring cells, 4 gates, 4 towers; the market 5 props placed (span 0), 3 not placed.
+    PRODUCED BY: the engine's generator and POST /api/worldforge/build on the CityLab project. Nothing hand-placed.
+  PROVENANCE OF THE READ-BACK: the harness KILLED my run script for low memory while it polled the job (about
+    10:08); the ENGINE it had launched kept running (9.3 GB working set) and finished the job by itself. I did not
+    restart anything: I read the job, the status and the log from that same engine by hand, took four screenshots
+    from it, and stopped it. The script's own output ends at the job's start (kept as *_output_script_killed.txt).
+  SCREENSHOTS (the engine's /api/screenshot; the editor UI is in frame). The files did NOT match the poses I asked
+    for (a capture lagged a camera move); each image prints its own camera in its status bar and the files are named
+    by THAT: cam (-1244, 43, -1041) - the way running LEVEL through the wall's gate arch, over where the second
+    ford's gully was (no dip, no water visible); cam (-1232, 45, -1028) - the paved way beside the wall from the
+    south; cam (-1193, 58, -1022) twice - the market with three stalls and paving. No overview from run 3 (run 1's
+    overview shows the walled town). The per-pose render stats are deleted: I cannot say which pose they belong to.
+  NOT SHOWN / OPEN: residents - the ledger says 0 and /api/npcs lists 21 to 23 "res_..." NPCs (run 1 too, on a
+    REFUSED site): unexplained, and "residents ON" of the L4 contract is NOT demonstrated; WHY the live run and
+    the headless test differed on the ramped ford (runs 1 and 2); what the water system does at a filled ford (the
+    fill dams the creek's gully; none was seen in the one gate view); no walk by a character in the engine (the
+    gate's probe only); one run, one seed, the laptop; Release only; a Debug run not attempted; the engine held 9.3
+    GB at the end of the job (O14 / O15, not measured further). Not yet audited at the time of writing.
+  chain 477 (unit, exe 10:01:22): 212 ok / 0 failed; record lines identical to chain 465's.
+  chain 478 (live set, exe 10:01:22, RUN478 EXIT 0 10:26:00 exe 10:01:22): 41 ok / 0 failed; record-line differences against chain 466: 0.
+AUDIT (solution-auditor, 2026-11-19 about 10:27): RAW VERDICT: "PASS WITH CONDITIONS for 'run 3 built the pinned city
+  on the Release editor, gate included'. FAIL for anything wider: 'O16 L4 met', 'walkable ford', 'residents ON'."
+  Full text in the ledger.
+RESULTS (written 2026-11-19 10:29)
+  chain 479 (test only: the sides of the fill, RECORDED; exe 10:28:12; the engine unchanged since the L4's editor):
+    "the sides of the fords' paving: 96 paved-to-unpaved edges within 4 cells of a crossing, 34 with a drop over one
+    cube, the greatest 28 micro" - e.g. "paved 16,84 at 342 beside unpaved 16,83 at 320: a drop of 22 micro". The
+    fill is a causeway with bare 3-cube sides over a gully it dams. An OPEN DEFECT (O38), not asserted.
+  WHAT MAY BE SAID: run 3 built the pinned city on the Release editor and its own walkability gate passed in that
+  process (74 / 0, 4 gates, 20 doors). NOT: that O16's L4 is met (residents are not demonstrated), that a ford is
+  walkable as a place (its sides are cliffs, a character has not walked it), or that water is handled.

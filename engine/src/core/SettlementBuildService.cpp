@@ -470,6 +470,14 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // O35 (c): the market gate's start, crossings and stall fronts for a given dressing. Set at plan time from the
         // dressing planned WITHOUT the ground; the dressing unit plans it again on the live paved surface and calls this.
         std::function<void(const std::vector<Core::SquareProp>&)> marketGateFor;
+        // O16 L4 (pm_chain467.txt): a FORD is paved across on fill. The creek the ford rule admits (its water under the
+        // ford bound) is emitted as a bed one to two cubes below its banks, and the paver, which only ever cuts, ramped
+        // the way down into that gully and up again - 27 micro in two cells, refused by the live gate at a wall's gate
+        // beside a ford. The generator's own roads cross a creek on their grade (fill). So here: on the water cells
+        // within a way's band at a recorded crossing, the ways unit's PLANNING ground is the bank's level - the
+        // generator's natural ground, which carries no creek bed. The applier reads the real ground and fills beneath.
+        // World cube cell -> the walkable surface micro the paver is told. Generator sampler only; empty otherwise.
+        auto fordFill = std::make_shared<std::map<std::pair<int, int>, int>>();
         int primaryWayId = -1;
         // {"legacy_layout": true}: the layout AS BUILT before M5a for a program tier - the CONTROL of the L4
         // A/B (the same site, seed and terrain through the grid, so a gate refusal can be attributed)
@@ -575,6 +583,20 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 res.map = siteMap.toJson();   // the partial map stays on record (L4 run 2: a planner refusal left none)
                 return res;
             }
+            if (mapGen && mapGen->hydrology() && mi.waterAt)
+                for (const auto& cr : siteMap.crossings) {
+                    float width = 1.0f;
+                    for (const auto& w : siteMap.ways) if (w.id == cr.way) width = w.width;
+                    // (chain 472: the gully is wider than the channel's water cells - its flanks are "dry" and low, and the
+                    // paver's lower envelope cut the way down to them: 10 micro still. EVERY cell within the band + 2 of a
+                    // crossing cell is told the natural ground; on a bank that is the ground it already has.)
+                    const int r = std::max(1, static_cast<int>(std::lround(width)) / 2) + 2;
+                    for (const auto& cell : cr.cells)
+                        for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) {
+                            const int lx = cell.first + dx, lz = cell.second + dz;
+                            (*fordFill)[{ox + lx, oz + lz}] = (static_cast<int>(std::floor(mapGen->naturalGroundAt(ox + lx, oz + lz))) + 1) * 9;
+                        }
+                }
             const Core::MapProjection proj = Core::projectMap(siteMap);
             layout = proj.layout;
             msl = proj.msl;
@@ -1557,11 +1579,34 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // unit, so the door spurs, the sweep and the fences' straddle rule read the same shared columns.
             units.push_back({"grading + paving ways",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, tierStreetMat = tierP->street.material, mapRibbons, mapFoot, mapPlazas,
-                 groundMicro, groundTopAt, fl9, emitMicro, abox, pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp]() {
+                 groundMicro, groundTopAt, fl9, emitMicro, abox, pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp, fordFill]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
             auto& pavedCols = *sharedPaved;
-            Core::PavingPlan pave = Core::planWayPaving(mapRibbons, groundMicro, abox, tierStreetMat, mapPlazas);
+            // O16 L4: the paver's ground at a ford is the bank's level (fordFill above); everywhere else the live ground
+            const std::function<int(int, int)> planGround = fordFill->empty() ? std::function<int(int, int)>(groundMicro)
+                : std::function<int(int, int)>([groundMicro, fl9, fordFill](int mx, int mz) {
+                      const int g = groundMicro(mx, mz);
+                      const auto it = fordFill->find({fl9(mx), fl9(mz)});
+                      return it != fordFill->end() ? std::max(g, it->second) : g;
+                  });
+            Core::PavingPlan pave = Core::planWayPaving(mapRibbons, planGround, abox, tierStreetMat, mapPlazas);
+            if (!fordFill->empty()) {
+                pathsJson["ford_fill_cells"] = fordFill->size();
+                // the record of what the paver was told and what it planned, at each told cell's centre column (a sample: the
+                // cells whose told level stands more than a step above the live ground - the gully's own)
+                std::map<std::pair<int, int>, int> planned;
+                for (const auto& c : pave.columns) if (fl9(c.x) * 9 + 4 == c.x && fl9(c.z) * 9 + 4 == c.z) planned[{fl9(c.x), fl9(c.z)}] = c.surface;
+                int shown = 0;
+                for (const auto& [cell, lvl] : *fordFill) {
+                    const int g = groundMicro(cell.first * 9 + 4, cell.second * 9 + 4);
+                    if (lvl - g <= 4 || shown >= 24) continue;
+                    ++shown;
+                    const auto it = planned.find(cell);
+                    LOG_INFO_FMT("Settlement", "ford fill: cell (" << cell.first << "," << cell.second << ") live ground " << g << ", told " << lvl << ", planned surface "
+                                 << (it != planned.end() ? std::to_string(it->second) : std::string("(not paved)")));
+                }
+            }
             // M5b-1 (chain 114): a way's capsule edge can poke into a setback-0 lot's footprint; the forge builds over the
             // stamped micros and those above its floor survive as a spike in the doorway (the town's tavern @13573:
             // columns at 1449 against a floor of 1443). No column inside a lot's footprint is stamped.
@@ -3047,7 +3092,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 const int top = topBelow(cx, cz, hintMicroY + 9);
                 if (top == INT_MIN) return INT_MIN;
                 const int mx = cx * 9 + 4, mz = cz * 9 + 4;
-                for (int y = top + 1; y <= top + 10; ++y)
+                // O16 L4 (pm_chain467.txt, chain 471): the hint is the CUBE terrain's top and a way's fill can stand well
+                // above it (a ford paved across a creek's gully: 27 micro) - the seat was then sought inside the fill
+                // and the route "unseated". The first standable level from the found solid UPWARD, to five cubes.
+                for (int y = top + 1; y <= top + 46; ++y)
                     if (probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) return y;
                 return INT_MIN;
             };
@@ -3247,7 +3295,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << (rr.oneWay ? "(ONE-WAY, a drop) " : "") << rr.label
                                          << (kind == 0 ? " - the gate does not pass the road" : " - the settlement cannot be left by this road")
                                          << ": reached " << rr.reachedFromStart << "/" << rr.reachedFromGoal
-                                         << " (two large counts mean the floods overlap: the block is a step one way, not at the pinch)");
+                                         << " (two large counts mean the floods overlap: the block is a step one way, not at the pinch)"
+                                         // O16 L4 run 1 (pm_chain467.txt): the live log said a gate was blocked and not where
+                                         << "; walked from micro (" << r.from.x << "," << r.from.y << "," << r.from.z << ") to (" << r.to.x << "," << r.to.y << "," << r.to.z
+                                         << "), pinch (" << rr.pinchFrom.x << "," << rr.pinchFrom.y << "," << rr.pinchFrom.z << ") -> (" << rr.pinchTo.x << "," << rr.pinchTo.y << "," << rr.pinchTo.z << ")");
                         }
                         routesJ.push_back(j);
                     }

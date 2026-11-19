@@ -1956,3 +1956,39 @@ MY RESPONSE (after the audit; test file only; NOT re-audited):
    invariant holds on 90 plans (chain 462). Two earlier attempts to show it did not (recorded). My claim that B
    cured the "several" cities is withdrawn: that count fell because I moved the creek. B's non-ford change is stated.
  - the rest is disclosed in the plan's O36 row (n to r).
+
+=== O16 / D71 (a) the city L4 on CityLab's creek site; a ford paved across on fill - solution-auditor read (recorded 2026-11-19 10:29; HEAD 2647ff5c + the working tree; read-only; detail in m3c_chains/pm_chain467.txt, evidence in docs/evidence/worldforge_v2/citylab_l4/) ===
+RAW VERDICT: PASS WITH CONDITIONS for "run 3 built the pinned city on the Release editor, gate included". FAIL for
+anything wider: "O16 L4 met", "walkable ford", "residents ON". (Read-only: nothing built or run.)
+FINDINGS (the auditor's, condensed):
+ 1. claim A holds: run 3's files postdate the editor exe (10:02:41); the gate lines (10:08:55) precede "site 0 (city)
+    BUILT: 20 buildings" (10:09:03) in the same process; the job json says built, 20 buildings, 0 lot failures; runs
+    1 and 2 are REFUSED on the same gate. Run 3's job json was read by hand after the script was killed (disclosed).
+    "The only count of 20 buildings is the ledger's own."
+ 2. the red (27 micro) is trustworthy - corroborated by the section print and by the live refusal; the reader fault
+    of chains 471-475 made the check too STRICT, so no green was faked. The final dip check is only partly a
+    measure: one centre column a cell; no upper bound (a ford raised above its banks passes); a cell whose solid run
+    joins a wall or arch would read the arch (a false green); the fill's EDGES are not sampled.
+ 3. MAIN: the fill's physical consequence is unmeasured and visibly present - paving 27 micro above unpaved ground
+    in the next cell (the engine's own "ford fill" log lines); the ford_from_south image shows the vertical edge.
+    The fill dams the creek's gully; the wall's "7 left open over water" is not re-examined; no water view.
+ 4. non-ford builds unchanged by reading (fordFill empty without crossings). No bounds clamp: cells outside the site
+    or under the wall are told too. Where natural ground is above live ground on a non-creek flank the paver is told
+    a higher level - those lifts are uncounted. "Natural ground equals bank level" is measured on ONE site.
+ 5. seatFeet 10 -> 46 is GLOBAL (door routes too): a formerly unseated route can become a walk from a wrong level
+    (a stall, a fence, a threshold within 46 micro). No record line changed on this rig's sites; no red test of its own.
+ 6. scope: one run, Release, laptop, one seed; a city of 20 lots (D70 a) on the creek site (D71 a). NOT O16's
+    "residents ON" (ledger 0, /api/npcs 21 to 23, on a refused run too - unexplained); no character walk; no water or
+    wall-gap evidence; no run-3 overview; live vs headless on the ramp unexplained, "so the fix is not attributed".
+ 7. small overstatements ("the ford is at bank level" rests on one cell's trace). 8. the file names match the cameras
+    in the images; they show the build, not walkability or water; the Item Equipper panel covers a quarter of a frame.
+CONDITIONS: do not write "ford walkable" or "water handled"; measure the sides of the fill (open item); put the
+ seatFeet widening under a red test or restrict it to gate routes; count buildings independently of the ledger.
+MY RESPONSE (after the audit; NOT re-audited; test file only - the engine is the one of the L4 run and chains 477 / 478):
+ - the wording is restricted as told (the record's "WHAT MAY BE SAID").
+ - the fill's sides are MEASURED in the headless test (chain 479): 34 of 96 paved-to-unpaved edges near a crossing
+   drop more than a cube, the greatest 28 micro. Recorded, not asserted; registered O38.
+ - seatFeet: NOT restricted and NOT separately tested - left as it ran in the L4 (changing it now would put the code
+   after the L4's evidence). Its one red -> green is the gate beside a filled ford (chain 471 "1 skipped" -> 472).
+   Registered O38 (c).
+ - buildings are NOT counted independently in the L4 (the headless build counts 20 doors built of 20). Registered.

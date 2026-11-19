@@ -1,0 +1,91 @@
+START 2026-11-19 10:02:42 exe 2026-11-19_10:02:41 commit 2647ff5c game.json 7e4f913542b809bd
+[32m[10:02:42.899] [INFO] [Vulkan] Selected GPU: NVIDIA RTX 1000 Ada Generation Laptop GPU (discrete, 2 device(s) enumerated)[0m
+params echo: settlementFords None | planHash 4428193239815730412
+  site 0 city at -1200 -1040 160 x 160 surfaceY 36.5
+  site 1 village at -1240 216 80 x 48 surfaceY 22.8
+  site 2 town at -1096 664 140 x 60 surfaceY 18.0
+  site 3 village at -1160 -248 80 x 48 surfaceY 27.7
+  site 4 hamlet at -1272 -632 40 x 32 surfaceY 32.0
+--- the city is site 0 at (-1200, -1040), surfaceY 36; focusing residency
+{"focused":true,"holder":"worldforge_focus","success":true,"surface_y":37,"x":-1200,"z":-1040}
+
+{"job_id":1000000,"plan_hash":"4428193239815730412","sites_queued":1,"success":true}
+job 1000000
+--- job after 264 s
+{"elapsed_seconds":263.853,"id":1000000,"label":"worldforge: 1 sites","main_thread":true,"message":"complete","progress":1.0,"result":{"plan_hash":"4428193239815730412","sites":[{"buildings":20,"id":0,"lot_failures":0,"residents":0,"status":"built","tier":"city"}],"success":true},"state":"complete","type":"worldforge_build","units_done":58,"units_total":58}
+LEDGER: site 0 status built buildings 20 lotFailures 0 residents 0 error 
+   keys ['buildings', 'error', 'id', 'lotFailures', 'residents', 'status', 'tier']
+   MAP: tier city lots 20 of target 20 ways 8 crossings 4 cells 6 wall present None gates 0 water gaps 0 market note the market stands 5 cells along the main street from its middle: water at the middle
+   crossing way 0 cells [[15, 87]]
+   crossing way 0 cells [[48, 79], [49, 79]]
+   crossing way 0 cells [[78, 72]]
+   crossing way 0 cells [[116, 87], [117, 87]]
+--- the engine's own log (citylab_l4_run3_log.txt)
+[10:02:46.549] [INFO] [GameDefinitionLoader] World: worldforge params from game.json (siteCount=5)
+[10:04:44.551] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 1 sites
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1265,-1038) live ground 333, told 342, planned surface (not paved)
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1265,-1037) live ground 324, told 342, planned surface (not paved)
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1265,-1036) live ground 315, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1265,-1035) live ground 315, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1265,-1034) live ground 315, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1265,-1033) live ground 315, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1265,-1032) live ground 315, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1265,-1031) live ground 315, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1265,-1030) live ground 333, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1038) live ground 315, told 342, planned surface (not paved)
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1037) live ground 315, told 342, planned surface (not paved)
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1036) live ground 315, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1035) live ground 333, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1034) live ground 333, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1033) live ground 333, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1032) live ground 324, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1031) live ground 315, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1030) live ground 315, told 342, planned surface 342
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1029) live ground 315, told 342, planned surface (not paved)
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1264,-1028) live ground 324, told 342, planned surface (not paved)
+[10:04:47.941] [INFO] [Settlement] ford fill: cell (-1263,-1038) live ground 315, told 342, planned surface (not paved)
+[10:04:47.942] [INFO] [Settlement] ford fill: cell (-1263,-1037) live ground 333, told 342, planned surface (not paved)
+[10:04:47.942] [INFO] [Settlement] ford fill: cell (-1263,-1036) live ground 333, told 342, planned surface 342
+[10:04:47.942] [INFO] [Settlement] ford fill: cell (-1263,-1030) live ground 333, told 342, planned surface 342
+[10:06:08.887] [INFO] [Settlement] ways: the market 16 x 16 at (-1201,-1056): 256 of 256 cells paved (0 partly), 6561 plaza columns
+[10:08:33.381] [INFO] [Settlement] town wall: 12034 cubes, 0 gates, 0 towers (0 walkable), line cleared 10404, displaced 0
+[10:08:33.381] [INFO] [Settlement] town wall: the MAP's ring - 534 ring cells, 1069 band columns (74 inside a tower's drum, not stamped), 64 of them gate columns over 4 gates, 7 left open over water; towers: 4 built of 10 routed corners, 6 not built
+[10:08:33.381] [INFO] [Settlement] town wall: 0 crossing(s) of the world road
+[10:08:43.909] [WARN] [Settlement] square dressing: 3 props the tier asks for are not placed: no free LEVEL ground in the market (or no room)
+[10:08:43.967] [INFO] [Settlement] square dressing: 5 placed, 0 skipped (0 found no ground), the widest ground span under a prop 0 micro
+[10:08:51.078] [INFO] [Settlement] walkability gate: the market - 0 crossings walked, 0 blocked; stall fronts reached 3 of 3 (recorded only)
+[10:08:55.708] [INFO] [Settlement] walkability gate: the wall's towers - 4 built, 8 routes walked (door, climb), 0 blocked, 0 not walked; reached from the nearest way: 4 of 4 (recorded only)
+[10:08:55.708] [INFO] [Settlement] walkability gate: the wall's gates - 4 walked through, 0 blocked
+[10:08:55.708] [INFO] [Settlement] walkability gate: 74 walkable, 0 blocked over 74 routes (20 front doors of 20 built, 0 skipped)
+[10:09:03.249] [INFO] [WorldForge] [WORLDFORGE] site 0 (city) BUILT: 20 buildings, 0 residents, 0 lot failures
+[10:09:03.265] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 1 sites (58 units)
+--- residents / npcs
+{"count":21,"npcs":[{"behavior":"Scheduled","interactionRadius":3.0,"name":"res_apothecary_-1173_-1033","position":{"x":-31.7596435546875,"y":39.98910140991211,"z":-24.888708114624023},"torch":{"carrying":"","held":"","indoors":false,"policy":"default","resolved":"night"}},{"behavior":"Scheduled","interactionRadius":3.0,"name":"res_general_store_-1190_-1034","position":{"x":-31.741432189941406,"y":39.989105224609375,"z":-30.346271514892578},"torch":{"carrying":"","held":"","indoors":false,"policy":"default","resolved":"night"}},{"behavior":"Scheduled","interactionRadius":3.0,"name":"res_teneme
+entities 22
+shot overview: pose (-1200,146,-850) yaw -90 pitch -35 -> citylab_l4_run3_overview.png
+  stats overview: {"characters":{"build_ms":0.0071,"considered":24,"culled":24,"draw_calls_main":0,"draw_calls_shadow":0,"drawn_main":0,"drawn_shadow":0,"dropped":0,"parts_batched":0},"chunk_update_timing":{"buffer_create":{"avg_ms":9.27643784786642e-07,"count":2156,"last_ms":0.0,"max_ms":0.001},"buffer_realloc":{"av
+shot ford: pose (-1232,45,-1028) yaw -90 pitch -32 -> citylab_l4_run3_ford.png
+  stats ford: {"characters":{"build_ms":0.0968,"considered":22,"culled":22,"draw_calls_main":0,"draw_calls_shadow":0,"drawn_main":0,"drawn_shadow":0,"dropped":0,"parts_batched":0},"chunk_update_timing":{"buffer_create":{"avg_ms":9.27643784786642e-07,"count":2156,"last_ms":0.0,"max_ms":0.001},"buffer_realloc":{"av
+shot ford_gate: pose (-1244,43,-1041) yaw 0 pitch -18 -> citylab_l4_run3_ford_gate.png
+  stats ford_gate: {"characters":{"build_ms":0.0067,"considered":22,"culled":22,"draw_calls_main":0,"draw_calls_shadow":0,"drawn_main":0,"drawn_shadow":0,"dropped":0,"parts_batched":0},"chunk_update_timing":{"buffer_create":{"avg_ms":9.27643784786642e-07,"count":2156,"last_ms":0.0,"max_ms":0.001},"buffer_realloc":{"av
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import json,sys;print(json.load(sys.stdin).get('path',''))
+                          ~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\__init__.py", line 293, in load
+    return loads(fp.read(),
+        cls=cls, object_hook=object_hook,
+        parse_float=parse_float, parse_int=parse_int,
+        parse_constant=parse_constant, object_pairs_hook=object_pairs_hook, **kw)
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+  stats market: 
+--- stopping the engine
+END 2026-11-19 10:12:00

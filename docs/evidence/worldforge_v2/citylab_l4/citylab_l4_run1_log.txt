@@ -1,0 +1,16 @@
+[09:28:43.528] [INFO] [GameDefinitionLoader] World: worldforge params from game.json (siteCount=5)
+[09:30:40.731] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 1 sites
+[09:31:52.626] [INFO] [Settlement] ways: the market 16 x 16 at (-1201,-1056): 256 of 256 cells paved (0 partly), 6561 plaza columns
+[09:34:10.253] [INFO] [Settlement] town wall: 12034 cubes, 0 gates, 0 towers (0 walkable), line cleared 10404, displaced 0
+[09:34:10.253] [INFO] [Settlement] town wall: the MAP's ring - 534 ring cells, 1069 band columns (74 inside a tower's drum, not stamped), 64 of them gate columns over 4 gates, 7 left open over water; towers: 4 built of 10 routed corners, 6 not built
+[09:34:10.254] [INFO] [Settlement] town wall: 0 crossing(s) of the world road
+[09:34:21.967] [WARN] [Settlement] square dressing: 3 props the tier asks for are not placed: no free LEVEL ground in the market (or no room)
+[09:34:22.025] [INFO] [Settlement] square dressing: 5 placed, 0 skipped (0 found no ground), the widest ground span under a prop 0 micro
+[09:34:28.748] [WARN] [Settlement] walkability: BLOCKED through the wall's gate @-1229,-1041 (way 0) - the gate does not pass the road: reached 10444/13197 (two large counts mean the floods overlap: the block is a step one way, not at the pinch)
+[09:34:29.957] [INFO] [Settlement] walkability gate: the market - 0 crossings walked, 0 blocked; stall fronts reached 3 of 3 (recorded only)
+[09:34:34.777] [INFO] [Settlement] walkability gate: the wall's towers - 4 built, 8 routes walked (door, climb), 0 blocked, 0 not walked; reached from the nearest way: 4 of 4 (recorded only)
+[09:34:34.777] [INFO] [Settlement] walkability gate: the wall's gates - 4 walked through, 1 blocked
+[09:34:34.777] [INFO] [Settlement] walkability gate: 73 walkable, 1 blocked over 74 routes (20 front doors of 20 built, 0 skipped)
+[09:34:34.789] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes, 0 front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome
+[09:34:34.927] [WARN] [WorldForge] [WORLDFORGE] site 0 (city) REFUSED: unwalkable: 1 of 74 routes blocked (street->door, door->room, a wall's gates, the road out through a wall), 0 not walked for want of a seat (a front door, a wall gate or a road crossing) (walkability gate) - not checkpointed
+[09:34:34.937] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 1 sites (58 units)
