@@ -414,7 +414,7 @@ public:
     /// tile's cells from the GPU, 1 the runs (+ the jump measurement when on), 2 the span read + write + body credit, 3 the GPU
     /// recorded flags, 4 the record tiles drawn + the field marked. Wake: 0 span read, 1 occupancy refresh + copy, 2 seed + surface
     /// patch, 3 the GPU seed upload, 4 the span clear + body debit, 5 the record tiles drawn.
-    struct TilePhases { double rec[5]{}, recMax[5]{}, wake[6]{}, wakeMax[6]{}; long recN = 0, wakeN = 0; double build[3]{}; };   // build: the last record tile built - span read + owned, occupancy, surface
+    struct TilePhases { double rec[5]{}, recMax[5]{}, wake[6]{}, wakeMax[6]{}; long recN = 0, wakeN = 0; double build[4]{}; };   // build: the last record tile built - span read + owned, occupancy, surface, sea marks + owned (57.7)
     static inline TilePhases s_tilePhases;
     /// §50 W1g measurement: every tile record ('R') and wake - 'M' the awake water's margin reached it, 'L' a droplet landed on it,
     /// 'W' a write (push, placed water, a body) - with the seconds since the tile last recorded (or woke, for 'R'; -1 = never) and

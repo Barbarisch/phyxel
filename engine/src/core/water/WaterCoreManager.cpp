@@ -626,8 +626,11 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     for (auto& a : m_avs) if (a->id == id) av = a.get();
     if (!av) { rec.error = "no such volume"; return rec; }
     if (!m_spanWriter) { rec.error = "no span writer installed (the application owns the chunks)"; return rec; }
+    auto hs = WaterHostProfile::Clock::now();   // 57.7: the sleep frame, by part (a patch's return to the record read 255 ms, untimed)
     refreshOccupancy(*av);
+    WaterHostProfile::lap("sleep.1 occupancy refresh", hs);
     syncFromGpu(*av, false);   // forced: never the rate-limited mirror, or the record is a second old
+    WaterHostProfile::lap("sleep.2 read the GPU grid", hs);
     m_pool.drop(id);   // 51.11: droplets in flight carry no water - nothing to land before the write-back
     if (!isAsleep(*av) && !force) {
         const int q = av->backend == "gpu" ? av->gpuLast.quietTicks : av->last.quietTicks;
@@ -640,8 +643,10 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
         if (av->occCache[av->grid->idx(x, y, z)] == Occ::Unknown) heldCol[static_cast<size_t>((z / av->per) * cw + (x / av->per))] = 1;
     auto held = [&](int vx, int vz) { return heldCol[static_cast<size_t>((vz - av->minVoxel.z) * cw + (vx - av->minVoxel.x))] != 0; };
+    WaterHostProfile::lap("sleep.3 held columns", hs);
     std::vector<ColumnRuns> runs;
     const WriteBackStats st = columnRunsFromGrid(*av->grid, held, runs);
+    WaterHostProfile::lap("sleep.4 runs from the grid", hs);
     // §27 W1b: a recorded tile's columns are already in the record (the volume holds no cells there) - writing the grid's empty
     // columns over them would erase that water
     runs.erase(std::remove_if(runs.begin(), runs.end(), [&](const ColumnRuns& c) { return columnRecorded(*av, c.x, c.z); }), runs.end());
@@ -661,7 +666,9 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
         m_spanReader(av->minVoxel, av->maxVoxel, prior);
         for (const auto& c : prior) { WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) m.mass += static_cast<double>(r.topY - r.bottomY); before.push_back(m); }
     }
+    WaterHostProfile::lap("sleep.5 read the record before", hs);
     writeSpans(runs, yLo, yHi, &unwritten, &chunks);
+    WaterHostProfile::lap("sleep.6 write the spans", hs);
     rec.unwrittenColumns = st.heldColumns + unwritten; rec.chunksTouched = chunks;
     if (unwritten > 0 && !force) {
         // the writer refuses whole columns atomically (a non-resident vertical chunk): nothing of
@@ -677,6 +684,7 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     // leg read a -2.5e-6 drift from mixing the units, 2026-10-08)
     for (const auto& c : runs) { if (c.held || c.runs.empty()) continue; WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) { m.mass += static_cast<double>(r.topY - r.bottomY); m.top = std::max(m.top, r.topY); } written.push_back(m); rec.massStored += m.mass; }
     rec.bodyId = m_bodies.credit(written, before, m_bakeBodyAt);
+    WaterHostProfile::lap("sleep.7 credit the bodies", hs);
     rec.ok = true;
     const glm::ivec3 lo = av->minVoxel, hi = av->maxVoxel;
     // 54.2: a river REACH too - a slept box over a river is a pond to every later touch: its patches had no edges and pulled the
@@ -687,7 +695,9 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
         // (the 40 x 40 m patch showed the bed for ~4 frames, live)
         if (s_patchSleepDrawFirstForTest) { buildRecordTilesNow(lo, hi); destroy(id); return rec; }   // TEST ONLY: the red control
         destroy(id);
+        WaterHostProfile::lap("sleep.8 destroy", hs);
         buildRecordTilesNow(lo, hi);
+        WaterHostProfile::lap("sleep.9 build the record tiles", hs);
         return rec;
     }
     if (const AvRecord* ar = find(id)) {   // 32: remembered - a disturbance inside the box wakes it from the record
@@ -711,6 +721,7 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
             av->gpuVol = nullptr;
         }
         destroy(id);
+        WaterHostProfile::lap("sleep.8 destroy", hs);
         m_keptMem.lastSleepFreeMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tf).count();   // 41.3: the sleep frame's free
         if (handle) {
             for (const KeptEntry& k : m_kept) if (k.lo == lo && k.hi == hi) m_gpu->releaseKept(k.handle);   // the box's older set
@@ -721,6 +732,7 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
         }
     }
     buildRecordTilesNow(lo, hi);   // §27 W1a: the record draws these columns in the frame the volume stops drawing them
+    WaterHostProfile::lap("sleep.9 build the record tiles", hs);
     return rec;
 }
 
@@ -2892,17 +2904,25 @@ void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec
     const float r = std::max(0.0f, s_locality.drawM);   // 40 (L1)
     const auto t0 = std::chrono::steady_clock::now();
     bool changed = false;
+    double part[5] = {0, 0, 0, 0, 0};   // 57.7: the tiles' parts, summed (the sleep frame's buildRecordTilesNow, by part)
     for (int tz = floorDiv(lo.z, T); tz <= floorDiv(hi.z, T); ++tz) for (int tx = floorDiv(lo.x, T); tx <= floorDiv(hi.x, T); ++tx) {
         if (WaterLocality::horizontalDistanceSqToBox(m_view, glm::vec2(static_cast<float>(tx * T), static_cast<float>(tz * T)),
                                                      glm::vec2(static_cast<float>(tx * T + T), static_cast<float>(tz * T + T))) > r * r)
             continue;   // out of range: W2's (the sheet / far tiles)
         RecordTile& t = m_recordTiles[{tx, tz}];
         const bool wasWet = t.wet;
+        s_tilePhases.build[0] = s_tilePhases.build[1] = s_tilePhases.build[2] = s_tilePhases.build[3] = 0.0;
         buildRecordTile(tx, tz, t);
+        for (int k = 0; k < 4; ++k) part[k] += s_tilePhases.build[k];
+        const auto tr = std::chrono::steady_clock::now();
         remarkRecordedTile(tx, tz);   // 29 S1
+        part[4] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tr).count();
         t.spanRev = sr; t.occRev = orv; t.avRev = 0;
         changed |= wasWet || t.wet;
     }
+    WaterHostProfile::add("tilesNow.0 span read + owned", part[0]); WaterHostProfile::add("tilesNow.1 occupancy", part[1]);
+    WaterHostProfile::add("tilesNow.2 surface", part[2]); WaterHostProfile::add("tilesNow.3 sea marks + owned", part[3]);
+    WaterHostProfile::add("tilesNow.4 remark", part[4]);
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     m_recordStats.buildMsMax = std::max(m_recordStats.buildMsMax, ms);
     m_recordStats.buildMsOnSleepLast = ms;
@@ -2995,6 +3015,22 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     std::vector<const Av*> caches;
     for (const auto& av : m_avs)
         if (av->per == per && !av->occDirty && av->occRevision == rev && av->occCache.size() == av->grid->cellCount()) caches.push_back(av.get());
+    // 57.7: the world is asked a 1 m cube at a time (refreshOccupancy's 51.3 path), cell by cell only through a mixed cube. Asked per
+    // micro cell, a tile was ~187,000 calls: the ~36 tiles built at once over a slept 40 x 40 m patch were 180 ms of ONE frame (live,
+    // WaterBench_Creek, sleep.9 of the sleep.* laps) - the 250 ms frame 57.6 found each time a lake's patch goes back to the record
+    const bool byCube = m_cubeState && !s_cubeOccupancyOffForTest;
+    if (byCube) {
+        const int cnx = scratch.nx() / per, cny = scratch.ny() / per, cnz = scratch.nz() / per;   // the scratch starts and ends on cubes
+        for (int cz = 0; cz < cnz; ++cz) for (int cy = 0; cy < cny; ++cy) for (int cx = 0; cx < cnx; ++cx) {
+            const int q = m_cubeState(glm::ivec3(o.x / per + cx, o.y / per + cy, o.z / per + cz));
+            const Occ v = q == 1 ? Occ::Solid : (q == 2 ? Occ::Unknown : Occ::Air);
+            for (int z = cz * per; z < cz * per + per; ++z) for (int y = cy * per; y < cy * per + per; ++y) for (int x = cx * per; x < cx * per + per; ++x) {
+                if (q != 3) { scratch.occ(x, y, z) = v; continue; }
+                const int s = m_state ? m_state(o + glm::ivec3(x, y, z)) : 0;
+                scratch.occ(x, y, z) = s == 1 ? Occ::Solid : (s == 2 ? Occ::Unknown : Occ::Air);
+            }
+        }
+    }
     for (int z = 0; z < scratch.nz(); ++z) for (int x = 0; x < scratch.nx(); ++x) {
         const Av* src = nullptr;
         glm::ivec3 l(0);
@@ -3005,12 +3041,14 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
         for (int y = 0; y < scratch.ny(); ++y) {
             const int ly = o.y + y - (src ? src->grid->spec().origin.y : 0);
             if (src && ly >= 0 && ly < src->grid->ny()) { scratch.occ(x, y, z) = src->occCache[src->grid->idx(l.x, ly, l.z)]; continue; }
+            if (byCube) continue;   // read above
             const int s = m_state ? m_state(o + glm::ivec3(x, y, z)) : 0;   // the cell IS a micro cell at 1/9 m
             scratch.occ(x, y, z) = s == 1 ? Occ::Solid : (s == 2 ? Occ::Unknown : Occ::Air);
         }
     }
     bpart(1);
     recordSurfaceField(scratch, kept, t.field);
+    bpart(2);
     if (!whole.empty()) {
         // 51.4d: a run extracted from the window's floor is a clipped one - its bottom is the recorded run's (the one holding its top)
         std::unordered_map<uint64_t, const ColumnRuns*> byCol;
@@ -3053,7 +3091,7 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
         }
         if (!any) t.field.seaQ.clear();
     } else t.field.seaQ.clear();
-    bpart(2);
+    bpart(3);
     t.field.source = kRecordDrawSourceBit | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
     t.field.version = ++m_recordBuilds;
     t.field.rippleLayer = (m_riverLayer && m_riverSlot >= 0 && m_rstats.on) ? m_riverSlot : -1;   // 54.4: the river ripple layer

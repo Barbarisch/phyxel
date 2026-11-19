@@ -95,8 +95,10 @@ floor (A5, §49) - the rest were signed off on 2026-10-30 (46.1; this line said 
    (30.1: reference games or footage, which parts matter most). §57: track C step 1's realistic play scene BUILT and measured
    (wading a 60 m lake 0.8 m deep with wood thrown in: 205-323 fps, the water ~1.2-2.8 ms CPU and ~1.7-2.2 ms GPU a call); 30.2's
    worst case, the 2 m lake and a visible stone, 150-300 fps for ~10 s and asleep by 20 s (57.6); FOUND: a 255-264 ms frame
-   each time a lake's patch goes back to the record (57.6, logged - the owner's call with D9's cut); two defects logged (57.4).
-   Track C step 1 DONE; step 2 (the fit) next on track C.**
+   each time a lake's patch goes back to the record (57.6); 57.7 split it and fixed its largest part (the record tiles read
+   occupancy per micro cell: 180 -> 50 ms) - the frame is now 116-124 ms, spread over five parts, the next step a spread
+   hand-over (a design step); the wake frame 141-166 ms logged; two defects logged (57.4). Track C step 1 DONE; step 2 (the
+   fit) next on track C.**
 
 **Standing rules:** no voxel ever floats up as if gravity were off, in any run, control or demo included (owner 2026-10-25; only a
 material made to do that could, and none exists); small bodies first; one water model - the pond's - for everything simulated (a second kind of water needs
@@ -14876,10 +14878,44 @@ the stone, CPU 20-31 ms; the 57.2 / 57.4 item 2 effect again.)
   second freeze ~15-20 s later. Likely the same family as the shore band's 100-200 ms swap frame (55.4, OPEN). The whole-lake
   volume's sleep (it stays as a slept volume) has no such frame (worst 13.5 ms).
 
+**57.7 The sleep frame split, and its largest part fixed (2026-11-19; `tools/water_patch_sleep_split.py`, the `sleep.*` and
+`tilesNow.*` laps).** Why now: track C step 2 fits the water into the tiers, and no tier holds while every splash in a lake ends
+in a quarter-second freeze - a defect blocking the current step, fixed at its cause (§0a rule). The rig: 57.6's lake (60 x 60 m,
+2 m deep, in the record), its visible stone, the player off the lake, the camera 8 m up; the sleep path's longest call of each
+part read from the host laps (only the phase timers and engine_timing polled - D9). Two runs each, no other phyxel process.
+
+| part of the frame the patch goes back to the record | before | after the fix |
+|---|---|---|
+| sleep.2 the forced read of the GPU grid | 17.9-18.8 ms | 17.4-18.5 ms |
+| sleep.3 + sleep.4 held columns, runs from the grid | 9.9-10.4 ms | 10.0-10.9 ms |
+| sleep.6 write the spans | 4.3-4.4 ms | 4.3-4.5 ms |
+| sleep.8 destroy (the GPU volume freed) | 22.9-23.0 ms | 22.2-23.2 ms |
+| **sleep.9 build the record tiles (~36 tiles of 8 m, at once)** | **179.7-181.0 ms** | **48.5-54.9 ms** |
+| of it: span read 4.3-4.8, occupancy 11.1-11.8, **surface extraction 29.0-29.2**, sea marks 2.9-3.0 | - | (the final runs) |
+| the sleep path, summed | 235-238 ms | 104-111 ms |
+| **the worst frame that second** | **248-251 ms** | **116-124 ms** |
+
+- **The cause (fixed):** a record tile's scratch grid read its occupancy from the world ONE MICRO CELL AT A TIME (72 x 72 x ~36
+  = ~187,000 calls a wet tile); the volumes' own refresh has asked a 1 m cube once since 51.3. `buildRecordTile` now takes the
+  same cube query (`CubeStateQuery`), cell by cell only through a mixed cube. It speeds every record tile build, not only the
+  sleep's (the budgeted refresh, a wake's tiles). Test: `WaterRecordTileOccupancyTest.ARecordTileAsksTheWorldACubeAtATime` (a
+  40 m lake over a flat bed with nine micro-stepped cubes): the drawn record fields IDENTICAL with the cube path and with every
+  cell asked alone (129,600 columns, 0 differ), and 95 world calls a tile against 34,055 (0.003x; gate <= 0.05x). RED before the
+  fix: 1.000x. Unit water 319 / 319; integration water 96 / 98 (the known two, unchanged).
+- **Still open (measured, not fixed): the sleep frame is ~120 ms.** No part dominates now: the tiles' surface extraction ~29 ms,
+  the destroy ~23 ms, the forced GPU read ~18 ms, the tiles' occupancy ~11 ms, the rest ~25 ms. Each is its own fix; together
+  they point at the hand-over itself - everything in ONE frame. Spreading it (the volume keeps drawing until its tiles are built,
+  a few a frame, as the budgeted refresh does) changes the hand-over that 51.3c pinned hole-free (`APatchSleepsWithoutAHole`),
+  so it is a design step: a /design-check first. Not built.
+- **Also seen, logged: the WAKE frame is 141-166 ms** (0.5-0.6 s after the stone, every run, before and after this fix) - the
+  patch's creation; not split yet.
+- Evidence: `s57_patch_sleep_split_before.json`, `s57_patch_sleep_split_fix1.json` (the fix, no tile laps),
+  `s57_patch_sleep_split.json` (the fix with the tile laps).
+
 **57.5 The tier table (30.3):** this fills the "measured water CPU / GPU" row at moonshot settings (every knob at its shipped
 value): the realistic scene **~1.2-2.8 ms water CPU, ~1.7-2.2 ms water GPU a call, 205-323 fps whole frame**; the worst case
 (57.6) **2-6 ms water CPU, ~3 ms GPU a call, 150-300 fps for ~10 s, plus one 255-264 ms frame when a patch returns to the
-record**. The tier columns stay empty until step 2 (the fit) turns the knobs. **Track C step 1 is done** (both scenes measured).
+record** (116-124 ms since 57.7's fix; a 141-166 ms frame at its wake). The tier columns stay empty until step 2 (the fit) turns the knobs. **Track C step 1 is done** (both scenes measured).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 

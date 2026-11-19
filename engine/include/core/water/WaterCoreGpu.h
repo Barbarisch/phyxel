@@ -163,6 +163,7 @@ struct WaterHostProfile {
         double& mx = maxMs[key]; if (d > mx) mx = d;
         t = now;
     }
+    static void add(const char* key, double d) { ms[key] += d; ++calls[key]; double& mx = maxMs[key]; if (d > mx) mx = d; }   // a measured span
     static void reset() { ms.clear(); calls.clear(); maxMs.clear(); frames = 0; }
 };
 
