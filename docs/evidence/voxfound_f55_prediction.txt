@@ -309,3 +309,53 @@ RUN 4 (voxfound_f55a4_run4.txt): every VoxFound GPU test, 41/41.
   Left at 1,025 (mean): primal 0.81, world 0.81, hard_body 0.80, pairs 0.72, hard_apply 0.39, sort 0.33, colour 0.23.
   Against the 2 ms budget proposal at 1,025 awake: 3.7 ms, over, with levers left (a broadphase better than awake x all:
   pairs + hard_body are both n^2 loops per awake body; the world box's empty cells).
+
+=====================================================================================================================
+F5.5b -- THE GPU SOLVER LIVE IN THE LAB + THE PER-BODY CULL (written 2026-11-19 BEFORE its code)
+
+WHY: the lab (editor/src/VoxFoundBodiesLab.cpp) moves bodies with the CPU reference (BodySimRef, a stated rig
+difference since F5.3); the exit must run the shipped path live. F5.3 drew every body's faces into the main view and
+both cascades, culled by nothing (1.19 ms main at 947 bodies).
+
+WHAT IT BUILDS
+  1. BodySimGpu tracks asleepTicks (F5.4's "recently moved") with the reference's rule (0 the tick a body sleeps, +1 each
+     asleep tick, 0 on wake), stored as an exact float in the body record's spare word; load() and read() carry it.
+  2. BodySimGpu::stepBegin(n) / stepPoll(bodies, wait): n ticks + the body and counter read-back recorded in ONE
+     submit that is not waited on; the poll unpacks when the fence has signalled. step() / read() unchanged.
+  3. The lab: {"solver":"gpu"|"cpu"} with the rig (default gpu = the shipped path; cpu = the F5.3/F5.4 reference, kept as
+     the control). GPU live: each frame, poll the step in flight; if done, the poses go into the lab's body list
+     (the BodySimRef now only HOLDS the bodies + the world for the F5.4 policy and the measuring functions), the rest
+     policy runs once per read (the CPU path: after every tick -- a stated difference: up to 4 ticks later), then the
+     next step is submitted with the ticks owed (<= 4, as today). Poses are one frame behind the solve (stated).
+     A bake (restPass) changes the world grid and removes bodies: the GPU is RELOADED (load(): world, survivors, wake
+     state). Warm start is dropped for every body on a reload (the CPU path keeps it; stated difference). Incremental
+     GPU edits (changed cells only, removal without reload) are F5.5c's bake lever.
+  4. The per-body cull (a cost knob, default on, {"cull":bool}): each body's grid box at its pose -> a camera-relative
+     world AABB; tested against the camera frustum (main) and each cascade's light frustum (casters; the 6 planes, no
+     distance term); the kept bodies' face ranges are drawn as runs of consecutive bodies (one draw per run,
+     firstInstance = the run's first face). BodyDrawList carries each body's face range and box half-size.
+
+PREDICTIONS
+  E1 asleepTicks: stepping one tick at a time, the GPU's asleepTicks equals the reference rule recomputed from the
+     per-tick asleep flags, every body every tick (blast 600 ticks; ~100-body rung 300 ticks): 0 mismatches.
+  E2 async = sync: stepBegin/stepPoll in batches of 1..4 ticks (a fixed irregular pattern) is BIT-EQUAL to step()+read()
+     at every batch end (blast 600 ticks; 1,025 bodies 120 ticks): 0 samples differ, counters summed equal.
+  E3 GPU + rest: the blast and the ~300-body rung on the GPU with the F5.4 policy (budget 8 / 64, keep 0 m, rest 30
+     ticks) after every read, reload after every bake: conservation EXACT after every pass (per material: world +
+     bodies + crumbs), 0 cells overwritten, the run ends with every survivor asleep, 0 through the ground.
+     Reload cost <= 20 ms on the large wall's grid (whole-world upload, ~3.2 M cells); this is OVER the 4 ms hitch
+     proposal -- recorded as the F5.5c lever, not hidden.
+  C1 cull is conservative (CPU, randomised: 2,000 bodies x 50 cameras and 50 light matrices): every body with any
+     face corner inside the clip volume is kept -- 0 violations; a camera looking away from all bodies keeps 0.
+  LIVE (Release, the lab's own rigs; the MCP launch with python312.dll on PATH; GPU shared with another engine)
+  L1 the GPU path runs live: the stone-wall blast (21 bodies) and the large wall at E/T 2800 (~1,025) fly, pile and
+     sleep; 0 bodies through the floor at any sample; max penetration at rest <= 10 mm; conservation exact at every
+     sample with rest on; two live runs of {"ticks":600} on the same rig give bit-equal body centres.
+  L2 live cost at ~1,025 awake: CPU per frame for the solver (poll + unpack + publish + record/submit) median <= 1.0 ms;
+     the sim keeps real time (>= 58 ticks per wall-clock second) while the solver's device time is <= 4 ms per tick.
+  L3 the cull does not change the image: main view, cull on vs off, at 3 poses (whole pile, half the pile out of view,
+     close-up): pixels differing by > 1 level <= the off-vs-off control at the same pose (F5.3's +-1 flicker).
+  L4 cull cost: at the half-out-of-view pose at ~1,000 bodies, drawn faces <= 0.6 x all and the main body pass's device
+     time <= 0.6 x its cull-off time; CPU cull + run building <= 0.1 ms per frame; the draw count is reported.
+WHAT WOULD COUNT AS A MISS: any mismatch in E1/E2; conservation off by one voxel; a body through the floor; a culled
+body that had a corner in view (C1) or more px than the control (L3); any cost above its range.
