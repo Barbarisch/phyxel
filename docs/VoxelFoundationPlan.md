@@ -2539,7 +2539,10 @@ every asleep body bakes (27 of 28: 8 rigid, 1 refused).
   control had 1,445 noisy px.
 - **Cost:** the bake takes 2.9 ms. The whole-area preview rebuild after it takes 72-75 ms, a hitch on every pass that
   bakes. Lever: F2's incremental region edit.
-- **Owner:** `voxfound_f54_near_bodies.png` / `_baked.png`.
+- **Owner (2026-11-18), on `voxfound_f54_near_bodies.png` / `_baked.png`:** "not really much difference between
+  those two images". So the eye check passes even at 6 m. The 40.8 % pixel count overstates the pop: it counts
+  the re-chosen texture tile and centimetre shifts, which do not read as a change. My "plainly visible" was wrong.
+  Not shown by the pair: the moment of the switch in motion.
 
 Next in the F5 row: F5.5, the exit stress, 100 → 1,000 bodies, with the owed levers (per-body cull, bake cost, the
 incremental rebuild, the GPU solver's dispatch floor).

@@ -117,5 +117,8 @@ LIVE (Release, RTX 4090, 1600 x 900; the GPU SHARED with another session's engin
   L4 cost: the bake 2.87 / 2.73 ms (<= 5 PASS), face compaction 0.001 ms; the preview rebuild after it 71.6 / 75.3 ms
      (today's whole-area path, stated) -- a frame hitch per bake pass. Lever: the F2 incremental region edit
      (RegionEdit) instead of rebuilding the area.
-  L5 eye check: voxfound_f54_near_bodies.png vs voxfound_f54_near_baked.png to the owner.
+  L5 eye check: voxfound_f54_near_bodies.png vs voxfound_f54_near_baked.png to the owner. OWNER (2026-11-18):
+     "not really much difference between those two images" -- PASS even at 6 m. My "plainly visible" above was
+     wrong. The pixel metric (L1) counts the re-chosen tile and cm shifts, which do not read as a change; the
+     L1 miss stands as measured, but it is not a visible pop.
   L6 chunks: one area; the bake writes cells by world position; nothing per chunk can show. Stated.
