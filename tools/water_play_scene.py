@@ -20,6 +20,12 @@ Windows (the dry control first - the lake is not yet recorded; then lake windows
                     at 0.8 m: stated, not the same rig)
 Each window reports the player's travel (verifies the walk happened) and the live debris count.
 
+--churn: 30.2's WORST case instead - the 60 x 60 m lake 2 m deep (the 27.24 / 50.3 lake) and a VISIBLE stone at its centre
+(radius 2 m, strength 8: 50.6 - the 0.5 m / strength-4 stone makes no visible wave), the player off the lake, a free camera
+8 m up (water_record_lake_live.py's). Two cases, each with windows 0-8 s, 20-28 s and 44-52 s after the stone:
+  record   the lake in the record (as play has it since 51): the stone wakes a patch round it
+  volume   the whole lake one awake volume (seed spans) - the pre-51 rig of 27.24 / 50.3 / 50.6, for comparison with them
+
     python tools/water_play_scene.py [--url http://127.0.0.1:8114] [--seconds 12] [--out docs/evidence/water_core_m4/s57_play_scene.json]
 """
 import argparse, json, pathlib, sys, time
@@ -120,17 +126,81 @@ def walk_window(api, label, seconds, throw=False):
     return r
 
 
+CHURN_CAM = {"x": X0 + W / 2 + 4, "y": TOP + 8, "z": Z0 + W / 2 + 18, "yaw": -90.0, "pitch": -30.0}
+CHURN_T = (0.0, 20.0, 44.0)
+
+
+def churn_case(api, case, seconds):
+    from water_bench import camera_set
+    api.post("/api/entity/move", {"id": "player", "position": {"x": 2.0, "y": TOP + 1.2, "z": 0.0}})
+    time.sleep(1.0)
+    destroy_all(api)
+    time.sleep(0.5)
+    if api.debug("water_av_list").get("volumes"): raise SystemExit("a volume is still live before the churn case")
+    rl = api.debug("water_av_record_lake", {"x1": X0, "z1": Z0, "x2": X0 + W - 1, "z2": Z0 + W - 1, "bottom": TOP, "top": TOP + 2.0})
+    print(f"[{case}] lake into the record:", rl, flush=True)
+    res = {"case": case, "record_lake": rl, "windows": []}
+    if case == "volume":
+        cr = api.debug("water_av_create", {"x1": X0, "y1": TOP, "z1": Z0, "x2": X0 + W - 1, "y2": TOP + 2, "z2": Z0 + W - 1,
+                                           "cellSize": 1.0 / 9.0, "backend": "gpu", "auto_sleep": False, "seed": "spans"})
+        res["create"] = {k: cr.get(k) for k in ("error", "seeded_mass")}
+        print(f"[{case}] create:", res["create"], flush=True)
+    camera_set(api, CHURN_CAM)
+    time.sleep(8.0)   # rest (the volume settles its seed; the record has nothing to do)
+    res["rest"] = window(api, 6.0, f"churn_{case}_rest")
+    k = api.debug("water_av_impulse", {"x": X0 + W / 2, "y": TOP + 1.9, "z": Z0 + W / 2, "radius": 2.0, "strength": 8.0, "dx": 0.0, "dy": -1.0, "dz": 0.0})
+    t0 = time.time()
+    for t in CHURN_T:
+        while time.time() - t0 < t: time.sleep(0.1)
+        r = window(api, seconds, f"churn_{case}_{int(t)}s")
+        vols = api.debug("water_av_list").get("volumes", [])
+        r["volumes_after"] = [{q: v.get(q) for q in ("id", "box", "is_patch", "asleep", "awake_columns", "frozen_columns", "mass")} for v in vols]
+        r["awake_columns"] = sum(v.get("awake_columns", 0) for v in vols if not v.get("asleep"))
+        r["foreign_gpu_processes"] = foreign()
+        if r["foreign_gpu_processes"]: print("    CONTAMINATED:", r["foreign_gpu_processes"], flush=True)
+        print(f"    awake columns {r['awake_columns']}, volumes {len(vols)}", flush=True)
+        res["windows"].append(r)
+    res["stone"] = k
+    return res
+
+
+def churn_main(api, a):
+    out = {"bench": "WaterBench_Creek", "lake": {"x": [X0, X0 + W - 1], "z": [Z0, Z0 + W - 1], "bottom": TOP, "depth_m": 2.0},
+           "stone": {"radius": 2.0, "strength": 8.0}, "camera": CHURN_CAM, "window_s": a.seconds, "cases": []}
+    try:
+        destroy_all(api)
+        clear_record(api)
+        lay_bed(api)
+        time.sleep(2.0)
+        for case in ("record", "volume", "record", "volume"):
+            out["cases"].append(churn_case(api, case, a.seconds))
+    finally:
+        destroy_all(api)
+        pathlib.Path(a.out).write_text(json.dumps(out, indent=1), encoding="utf-8")
+        print("wrote", a.out)
+    print("\nlabel                       fps     cpu ms   gpu ms   worst ms  water host ms  water gpu ms/call  awake")
+    for c in out["cases"]:
+        for r in [c["rest"]] + c["windows"]:
+            print(f"{r['label']:26s} {r['fps_mean']:7.1f}  {r['cpu_frame_ms_mean']:7.3f}  {r['gpu_frame_ms_median']:7.3f}  {str(r['frame_ms_max']):>8s}"
+                  f"  {r['water_host_cpu_ms_per_frame']:12.3f}  {r['water_gpu_ms_per_call']:16.4f}  {r.get('awake_columns')}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://127.0.0.1:8114")
     ap.add_argument("--seconds", type=float, default=12.0)
+    ap.add_argument("--churn", action="store_true", help="30.2's worst case (the 2 m lake, a visible stone) instead of the walk")
     ap.add_argument("--out", default=str(pathlib.Path(__file__).resolve().parent.parent / "docs" / "evidence" / "water_core_m4" / "s57_play_scene.json"))
     a = ap.parse_args()
+    if a.churn and a.out.endswith("s57_play_scene.json"): a.out = a.out.replace("s57_play_scene.json", "s57_churn.json")
     if foreign(): raise SystemExit(f"other phyxel processes share the GPU: {foreign()} - measure when they are done")
     api = Api(a.url); api.wait_status(300)
     if not ps(api).get("success", True) or "error" in ps(api):
         api.post("/api/entity/spawn", {"type": "animated", "position": {"x": X_START, "y": TOP + 0.2, "z": Z_WALK}, "id": "player"})
     api.debug("water_av_realtime", {"on": True})
+    if a.churn:
+        a.seconds = min(a.seconds, 8.0)
+        return churn_main(api, a)
     coupling = api.debug("water_coupling", {})
     out = {"bench": "WaterBench_Creek", "lake": {"x": [X0, X0 + W - 1], "z": [Z0, Z0 + W - 1], "bottom": TOP, "depth_m": DEPTH},
            "walk": {"start": [X_START, Z_WALK], "yaw": 0, "seconds": a.seconds}, "throw_s": THROW_S, "debris_lifetime_s": LIFE,

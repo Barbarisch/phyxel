@@ -94,7 +94,9 @@ floor (A5, §49) - the rest were signed off on 2026-10-30 (46.1; this line said 
 6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside. **Track B waits on the owner's inputs
    (30.1: reference games or footage, which parts matter most). §57: track C step 1's realistic play scene BUILT and measured
    (wading a 60 m lake 0.8 m deep with wood thrown in: 205-323 fps, the water ~1.2-2.8 ms CPU and ~1.7-2.2 ms GPU a call); 30.2's
-   churning 2 m lake not yet re-measured; two defects logged (57.4).**
+   worst case, the 2 m lake and a visible stone, 150-300 fps for ~10 s and asleep by 20 s (57.6); FOUND: a 255-264 ms frame
+   each time a lake's patch goes back to the record (57.6, logged - the owner's call with D9's cut); two defects logged (57.4).
+   Track C step 1 DONE; step 2 (the fit) next on track C.**
 
 **Standing rules:** no voxel ever floats up as if gravity were off, in any run, control or demo included (owner 2026-10-25; only a
 material made to do that could, and none exists); small bodies first; one water model - the pond's - for everything simulated (a second kind of water needs
@@ -14848,9 +14850,36 @@ fixed: the player is moved off before the lake is written.
    re-read only what it touched; this write touched ~4,600 columns. Only a rig's mass discard does that today; an in-play edit
    that large (a dam break emptying a lake) would.
 
-**57.5 The tier table (30.3):** this fills the "measured water CPU / GPU" row's realistic scene at moonshot settings (every knob
-at its shipped value): **~1.2-2.8 ms water CPU, ~1.7-2.2 ms water GPU a call, 205-323 fps whole frame**. The tier columns stay
-empty until step 2 (the fit) turns the knobs.
+**57.6 The worst case - the 60 x 60 m lake 2 m deep and a VISIBLE stone (2026-11-19; `water_play_scene.py --churn`, `s57_churn.json`).**
+The 27.24 / 50.3 lake (7,200 m^3), the stone of 50.6 that makes a visible ring (radius 2 m, strength 8 - the old 0.5 m / 4 stone
+makes none), a free camera 8 m up, the player off the lake; windows 8 s at 0, 20 and 44 s after the stone; two cases, interleaved
+record / volume / record / volume, no other phyxel process in any window. Prediction (written before): the record case a few ms;
+the whole-lake volume every column awake ~50 s, 20-32 ms of water GPU a call, < 40 fps (50.6's numbers).
+
+| case | at rest | 0-8 s after the stone | 20-28 s | 44-52 s |
+|---|---|---|---|---|
+| **the lake in the record** (play since 51): the stone wakes a 40 x 40 m patch (1,792 m^3) | 342 fps, CPU 2.9 ms | 299 fps; CPU 8.2 ms, GPU 2.8 ms; water 2.0 ms CPU, 3.0 ms GPU a call; worst frame 64 ms | 267 fps; **one frame 255-264 ms** (the patch back to the record); patch gone | 339 fps, water 0.04 ms |
+| **the whole lake one volume** (the pre-51 rig) | 334-338 fps | 150-160 fps; CPU 8.5 ms, GPU 2.6-2.7 ms; water 5.5-6.2 ms CPU, 3.2 ms GPU a call; worst frame 40 ms | 277-288 fps, asleep (0 awake, 4,624 frozen) | 329-333 fps |
+
+(The first record case is not counted: it ran while the far skin re-read the rig's 7,952 m^3 clear - 51 fps at rest, 36 fps after
+the stone, CPU 20-31 ms; the 57.2 / 57.4 item 2 effect again.)
+
+- **The prediction was wrong for today's code, and better:** the visible stone wakes 628 columns (read 8 s after it) and the lake
+  is asleep by 20 s in BOTH cases; 50.6's "every column awake for about a minute" (18-20 fps, 4,624 awake) does not reproduce.
+  Not traced to a commit (the §50.6 fixes onward changed the settle; measured, not argued).
+- **The worst case on today's code is 150-160 fps for ~10 s** (the whole lake as one volume); in play (the record) ~300 fps.
+  Water's share at the peak: 2-6 ms CPU, ~3 ms GPU a call; books 7,200.000 m^3 in, 7,199.99994 m^3 after the sleep.
+- **FOUND, logged (not fixed - not blocking; the owner's call with D9's cut): a 255-264 ms frame when a lake's patch goes back to
+  the record**, every run (2 / 2). It is in the water manager's `update`, outside every timed lap (the GPU step's laps read
+  <= 9 ms that window), in the frame the patch's volume ends: the patch's sleep path (`sleepRested` -> `sleep`: the forced GPU
+  read, the write-back, the destroy, `buildRecordTilesNow`) - not yet split. So every splash in a recorded lake ends in a quarter-
+  second freeze ~15-20 s later. Likely the same family as the shore band's 100-200 ms swap frame (55.4, OPEN). The whole-lake
+  volume's sleep (it stays as a slept volume) has no such frame (worst 13.5 ms).
+
+**57.5 The tier table (30.3):** this fills the "measured water CPU / GPU" row at moonshot settings (every knob at its shipped
+value): the realistic scene **~1.2-2.8 ms water CPU, ~1.7-2.2 ms water GPU a call, 205-323 fps whole frame**; the worst case
+(57.6) **2-6 ms water CPU, ~3 ms GPU a call, 150-300 fps for ~10 s, plus one 255-264 ms frame when a patch returns to the
+record**. The tier columns stay empty until step 2 (the fit) turns the knobs. **Track C step 1 is done** (both scenes measured).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
