@@ -91,7 +91,10 @@ floor (A5, §49) - the rest were signed off on 2026-10-30 (46.1; this line said 
    (56.1); the two missing clips made (`sweep_a4_wade_side_by_side.mp4`, `sweep_a2i_scenes.mp4`); found and FIXED: the far skin
    re-read every summary after any write by the core - ~30 s at ~55 fps after each pond slept or removed on a small world (56.3);
    logged, not water: debris and the grass layer cross a scene change (56.4).**
-6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside.
+6. **Then track B - the moonshot look** (§30.1), with track C (the tier tables) alongside. **Track B waits on the owner's inputs
+   (30.1: reference games or footage, which parts matter most). §57: track C step 1's realistic play scene BUILT and measured
+   (wading a 60 m lake 0.8 m deep with wood thrown in: 205-323 fps, the water ~1.2-2.8 ms CPU and ~1.7-2.2 ms GPU a call); 30.2's
+   churning 2 m lake not yet re-measured; two defects logged (57.4).**
 
 **Standing rules:** no voxel ever floats up as if gravity were off, in any run, control or demo included (owner 2026-10-25; only a
 material made to do that could, and none exists); small bodies first; one water model - the pond's - for everything simulated (a second kind of water needs
@@ -8994,7 +8997,7 @@ signs it off in motion.
 
 As soon as a look exists: the whole frame (`engine_timing` cpuFrameTime, `gpu_timing` gpu_frame_ms, fps) plus the water's CPU
 (`water_av_host_phases`) and GPU share, in two scenes:
-- **the realistic play scene (a new rig, to build):** a camera walking across a lake at wading height while debris is thrown in
+- **the realistic play scene (BUILT and measured 2026-11-18, §57: `tools/water_play_scene.py`, the real wader):** a camera walking across a lake at wading height while debris is thrown in
   (wading itself, E4, is not built - the rig stands in for it, and says so);
 - **the worst case:** the churning 60 x 60 m lake (WaterBench_Creek, after the push).
 
@@ -14794,6 +14797,60 @@ scene-change defects of other systems (debris, flora), not the water core's; A2i
 **56.5 For the owner:** keep or reject each row of 56.1 - the two new clips first (`sweep_a4_wade_side_by_side.mp4`,
 `sweep_a2i_scenes.mp4`), then the W-clips in order; the owner calls still open are D9's cut, 54.2 the river's stage, a farther
 ripple reach, the band past the far terrain (W6.1 item C), and 45.3 the drawn sea swell.
+
+## 57. Track C, step 1 - the realistic play scene, measured (§0a item 6, §30.2) (2026-11-18). Status: the rig BUILT, measured clean; numbers only (nothing to sign off on looks); two defects logged, not fixed
+
+**Why now:** §0a item 6 is track B with track C alongside. Track B starts with the owner's inputs (30.1: reference games or footage,
+which parts matter most) - asked in the report, not guessed. Track C step 1 needs no owner call: 30.2's realistic play scene was
+"a new rig, to build", and wading (A4) now exists, so it is built with the real wader instead of a stand-in.
+
+**57.1 The rig** (`tools/water_play_scene.py`, WaterBench_Creek port 8114, Release). A 60 x 60 m lake 0.8 m deep (wading depth, as
+A4's channel) written straight into the record (`water_av_record_lake`) on a sand bed with a stone kerb (world edits; the bench
+world backed up and restored). The player wades it along +X (the forward key held; the camera follows behind at eye height -
+`s57_play_scene_frame.png`: waist-deep, the wood afloat round them, droplets). Wood: one 1/3 m piece a second thrown ahead of the
+wader (3-4 m/s forward, 2 m/s up, alternately to either side; lifetime 20 s so no window inherits the last one's). Windows are
+`water_a3_cost.py`'s (12 s, the whole frame + the water's parts); the walk verified by the player's travel (13-16 m a window,
+1.0 m/s wading; 50 m dry). Controls at shipped defaults except `water_av_realtime` on (every live water rig). Prediction written
+before the run: wading <= ~1.5 ms CPU, wood <= ~1 ms more, the whole lake awake several ms of water GPU and < 200 fps.
+
+**57.2 The numbers** (two clean runs, `s57_play_scene.json` = the second; ranges over both; RTX 4090):
+
+| window | fps | CPU frame | GPU frame | water CPU / frame | water GPU / call | worst frame |
+|---|---|---|---|---|---|---|
+| wading the lake | 288-323 | 3.4-4.1 ms | 1.85-1.89 ms | 1.13-1.32 ms | 1.59-1.72 ms x 32-40/s | 35-74 ms |
+| wading, wood thrown in | 205-256 | 4.3-5.8 ms | 1.96-2.00 ms | 2.1-2.8 ms | 1.85-2.25 ms x 29-34/s | 28-35 ms |
+| the whole lake one awake volume, a stone at its centre, the player in it | 267 | 4.8 ms | 1.96 ms | 3.0 ms | 2.04 ms x 60/s | 17 ms |
+
+- The wader's patch: one 20 x 40 m box (x 4-23, z 16-55), 600-640 awake columns, 512 m^3; it sleeps once the wader stops.
+- **The water's share while wading: ~1.2 ms CPU and ~1.7 ms of water GPU a call; the thrown wood adds ~1 ms of water CPU (the
+  bodies' raster and exchange).** Inside the prediction.
+- **The worst frames (28-74 ms) are the record's tile surfaces** (`surf.6` 16-18 ms) and the wake's tiles (`mgr.2` up to 39 ms
+  on the walk's first wake) - one frame each, not a rate. Not cut here (the D9 kind; logged with D9's open cut).
+- **The whole lake awake is NOT a worst case:** partial wake keeps 152 columns awake after the stone; the rest of the 7.9 M-cell
+  volume is frozen and costs nothing. 30.2's worst case (the 2 m CHURNING lake) is a different rig - **not measured here.**
+- **The dry control is not a clean baseline:** it runs right after the rig empties the bench's old record (7,952 m^3 discarded),
+  and the far skin re-reads those columns for 30 s or more (`feed` 13 ms a frame in the first dry window, 6 ms in the second; 62 / 286-376
+  fps). So the water's cost is read from its own parts, not from lake minus dry. Not measured: a dry walk on a settled skin.
+
+**57.3 What made the first two runs worthless (the rig now guards it).** Runs 1 and 2 showed wading at 5-30 fps with the main
+thread waiting 0.3-2.4 s on the water's fence, while the water's own GPU work was 1.5-15 ms a call. The GPU was at 100 % from
+another checkout's `phyxel_integration_tests` (`phyxel-matsimb-lab`, another session - left alone). The rig now refuses to start
+while any other phyxel process runs and marks each window that overlapped one (`foreign_gpu_processes`); the two clean runs
+waited for 3 minutes of no other phyxel process. Run 1 also left the player in the lake when it was recorded (a second patch) -
+fixed: the player is moved off before the lake is written.
+
+**57.4 Found, logged, not fixed (§0a: not blocking this step):**
+1. **`water_av_create` does not refuse a box over a LIVE volume.** The rig's first worst-case create seeded 2,777.6 m^3 from the
+   record beside a live 870 m^3 wading patch over the same water - 3,648 m^3 booked for a 2,880 m^3 lake. 27.18 refuses an
+   unseeded create over recorded water; nothing refuses one over a live volume. Debug route only (play wakes patches through the
+   core, which does not overlap them); the rig now ensures no volume is live first.
+2. **A write over thousands of columns keeps the far skin busy for 30 s or more** (13 ms a frame at the start). 56.3's fix makes a write
+   re-read only what it touched; this write touched ~4,600 columns. Only a rig's mass discard does that today; an in-play edit
+   that large (a dam break emptying a lake) would.
+
+**57.5 The tier table (30.3):** this fills the "measured water CPU / GPU" row's realistic scene at moonshot settings (every knob
+at its shipped value): **~1.2-2.8 ms water CPU, ~1.7-2.2 ms water GPU a call, 205-323 fps whole frame**. The tier columns stay
+empty until step 2 (the fit) turns the knobs.
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
