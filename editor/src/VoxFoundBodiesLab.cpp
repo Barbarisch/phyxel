@@ -12,9 +12,14 @@
 //        "run": bool}
 //    or  {"run":bool} {"ticks":N} {"shown":bool} {"cast":bool} {"as_world":bool} {"mutate":bool} {"status":true}
 //    or  {"clear":true}.
+// F5.4 (docs/evidence/voxfound_f54_prediction.txt L1-L6): {"rest":{"on":bool,"budget":N,"keep_m":M,"rest_ticks":T}}
+//    sets the D6 policy (it runs after every tick while on; the player = the camera); {"bake_now":{...same keys}} runs
+//    one pass now with those values. A bake writes the world grid, rebuilds the preview area and compacts the body
+//    faces by copying ranges (no re-meshing). Responses carry "ledger": per material world + bodies + crumbs.
 
 #include "Application.h"
 
+#include <algorithm>
 #include <chrono>
 
 #include "core/AssetManager.h"
@@ -66,6 +71,60 @@ bool Application::voxFoundBodiesRebuildWorld(std::string* err) {
     return true;
 }
 
+// One D6 rest pass (F5.4): bake, then compact the body faces and rebuild the preview area if anything baked.
+bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err) {
+    using namespace Core::VoxFound;
+    auto& lab = voxFoundBodiesLab;
+    if (!lab.sim || (!force && !lab.restOn)) return true;
+    const RestParams& rp = override ? *override : lab.rest;
+    const glm::dvec3 player = camera ? glm::dvec3(camera->getPosition()) - lab.areaOriginM : glm::dvec3(0.0);
+    RestStats st;
+    const size_t n0 = lab.sim->bodies().size();
+    const auto t0 = std::chrono::steady_clock::now();
+    const std::vector<size_t> baked = restPass(*lab.sim, lab.world, player, rp, &st);
+    lab.restLast = st;
+    ++lab.bakePasses;
+    lab.restTotal.baked += st.baked;
+    lab.restTotal.rigid += st.rigid;
+    lab.restTotal.refused += st.refused;
+    lab.restTotal.woken += st.woken;
+    lab.restTotal.overwritten += st.overwritten;
+    lab.restTotal.voxels += st.voxels;
+    lab.restTotal.sumShiftM += st.sumShiftM;
+    lab.restTotal.maxShiftM = std::max(lab.restTotal.maxShiftM, st.maxShiftM);
+    if (baked.empty()) return true;
+    // compact the face array: survivors' ranges copied in order, body index renumbered (faces are not rebuilt)
+    const auto t1 = std::chrono::steady_clock::now();
+    std::vector<uint8_t> gone(n0, 0);
+    for (size_t i : baked) gone[i] = 1;
+    std::vector<BodyFace> faces;
+    std::vector<uint32_t> first, count;
+    faces.reserve(lab.draw.faces.size());
+    for (size_t i = 0; i < n0; ++i) {
+        if (gone[i]) continue;
+        const uint32_t idx = uint32_t(first.size());
+        first.push_back(uint32_t(faces.size()));
+        count.push_back(lab.faceCount[i]);
+        for (uint32_t k = lab.faceFirst[i]; k < lab.faceFirst[i] + lab.faceCount[i]; ++k) {
+            BodyFace f = lab.draw.faces[k];
+            f.body = idx;
+            faces.push_back(f);
+        }
+    }
+    lab.draw.faces.swap(faces);
+    lab.faceFirst.swap(first);
+    lab.faceCount.swap(count);
+    ++lab.draw.facesRevision;
+    const auto t2 = std::chrono::steady_clock::now();
+    voxFoundBodiesPublish();
+    const bool ok = voxFoundBodiesRebuildWorld(err);
+    const auto t3 = std::chrono::steady_clock::now();
+    lab.lastBakeMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    lab.lastCompactMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    lab.lastRebuildMs = std::chrono::duration<double, std::milli>(t3 - t2).count();
+    return ok;
+}
+
 void Application::stepVoxFoundBodies(float dt) {
     auto& lab = voxFoundBodiesLab;
     if (!lab.sim || !lab.running) return;
@@ -78,6 +137,8 @@ void Application::stepVoxFoundBodies(float dt) {
         lab.accum -= h;
         ++lab.tick;
         ++n;
+        std::string err;
+        voxFoundBodiesRest(false, nullptr, &err);
     }
     if (n == 4) lab.accum = 0.0;
     if (n) {
@@ -180,6 +241,14 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         for (const Body& b : ex.bodies) lab.sim->add(b, b.vel, b.angVel);
         const BodyDrawSet set = buildBodyFaces(lab.sim->bodies());
         lab.draw.faces = set.faces;
+        lab.faceFirst = set.first;
+        lab.faceCount = set.count;
+        lab.crumbMat.assign(mats.size(), 0);
+        for (const Crumb& c : ex.crumbs) ++lab.crumbMat[c.mat];
+        lab.restTotal = {};
+        lab.restLast = {};
+        lab.bakePasses = 0;
+        lab.restOn = false;
         ++lab.draw.facesRevision;
         lab.refused = set.refused;
         lab.tick = 0;
@@ -218,13 +287,36 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
     if (p.contains("shown")) lab.draw.shown = p["shown"].get<bool>();
     if (p.contains("cast")) lab.draw.castShadows = p["cast"].get<bool>();
     if (p.contains("mutate")) lab.draw.mutate = p["mutate"].get<bool>();
+    auto restOf = [&](const nlohmann::json& j, RestParams r) {
+        r.budget = j.value("budget", r.budget);
+        r.keepRadiusM = j.value("keep_m", r.keepRadiusM);
+        r.restTicks = j.value("rest_ticks", r.restTicks);
+        return r;
+    };
+    if (p.contains("rest")) {
+        lab.rest = restOf(p["rest"], lab.rest);
+        lab.restOn = p["rest"].value("on", true);
+    }
     if (p.contains("ticks")) {
         const int n = p["ticks"].get<int>();
         for (int i = 0; i < n; ++i) {
             lab.sim->step();
             ++lab.tick;
+            std::string err;
+            if (!voxFoundBodiesRest(false, nullptr, &err)) {
+                response = {{"error", err}};
+                return;
+            }
         }
         voxFoundBodiesPublish();
+    }
+    if (p.contains("bake_now")) {
+        const RestParams r = restOf(p["bake_now"], lab.rest);
+        std::string err;
+        if (!voxFoundBodiesRest(true, &r, &err)) {
+            response = {{"error", err}};
+            return;
+        }
     }
     if (p.contains("as_world")) {
         lab.asWorld = p["as_world"].get<bool>();
@@ -254,6 +346,29 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
                             {"pose_ms", st.poseMs}, {"face_upload_ms", st.faceUploadMs},
                             {"face_uploads", st.faceUploads}}},
                 {"centres_m", centres}};
+    // F5.4: the conservation ledger (per material: world + bodies + crumbs) and the rest pass's numbers
+    nlohmann::json ledger = nlohmann::json::object();
+    std::vector<size_t> perMat(lab.mats.size(), 0);
+    for (uint8_t m : lab.world.mat)
+        if (m) ++perMat[m];
+    for (const SimBody& b : lab.sim->bodies())
+        for (uint8_t m : b.src.grid.mat)
+            if (m) ++perMat[m];
+    for (size_t m = 0; m < perMat.size() && m < lab.crumbMat.size(); ++m) perMat[m] += lab.crumbMat[m];
+    for (size_t m = 1; m < perMat.size(); ++m) ledger[std::to_string(m)] = perMat[m];
+    const RestStats& rt = lab.restTotal;
+    response["ledger"] = ledger;
+    response["rest"] = {{"on", lab.restOn}, {"budget", lab.rest.budget}, {"keep_m", lab.rest.keepRadiusM},
+                        {"rest_ticks", lab.rest.restTicks}, {"passes", lab.bakePasses},
+                        {"baked", rt.baked}, {"rigid", rt.rigid}, {"refused", rt.refused}, {"woken", rt.woken},
+                        {"overwritten", rt.overwritten}, {"voxels", rt.voxels},
+                        {"mean_shift_m", rt.voxels ? rt.sumShiftM / double(rt.voxels) : 0.0},
+                        {"max_shift_m", rt.maxShiftM},
+                        {"last", {{"considered", lab.restLast.considered}, {"over", lab.restLast.over},
+                                  {"baked", lab.restLast.baked}, {"kept_near", lab.restLast.keptNear},
+                                  {"kept_awake", lab.restLast.keptAwake}, {"kept_recent", lab.restLast.keptRecent},
+                                  {"refused", lab.restLast.refused}, {"bake_ms", lab.lastBakeMs},
+                                  {"compact_ms", lab.lastCompactMs}, {"rebuild_ms", lab.lastRebuildMs}}}};
 }
 
 }  // namespace Phyxel

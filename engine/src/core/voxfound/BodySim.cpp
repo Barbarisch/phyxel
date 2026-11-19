@@ -196,6 +196,36 @@ BodySimRef::BodySimRef(const VoxelGrid& world, const std::vector<FractureMateria
 
 bool BodySimRef::implemented() const { return true; }
 
+void BodySimRef::remove(const std::vector<size_t>& indices) {
+    if (indices.empty()) return;
+    const size_t n = m_bodies.size();
+    std::vector<uint8_t> gone(n, 0);
+    for (size_t i : indices)
+        if (i < n) gone[i] = 1;
+    std::vector<size_t> to(n, kStatic);
+    std::vector<SimBody> keep;
+    keep.reserve(n);
+    for (size_t i = 0; i < n; ++i) {
+        if (gone[i]) continue;
+        to[i] = keep.size();
+        keep.push_back(std::move(m_bodies[i]));
+    }
+    m_bodies.swap(keep);
+    // survivors keep their warm start: the constraints are re-keyed with the new indices
+    std::vector<Constraint> cons;
+    for (Constraint k : m_cons) {
+        if (gone[k.a] || (k.b != kStatic && gone[k.b])) continue;
+        k.a = to[k.a];
+        if (k.b != kStatic) k.b = to[k.b];
+        k.key = keyOf(k.a, k.b, k.feature);
+        cons.push_back(k);
+    }
+    m_cons.swap(cons);
+    m_warm.clear();
+    for (const Constraint& k : m_cons)
+        m_warm[k.key] = {k.lambdaN, k.lambdaT1, k.lambdaT2, k.penN, k.penT1, k.penT2, k.anchor, k.stick};
+}
+
 size_t BodySimRef::add(const Body& b, glm::dvec3 vel, glm::dvec3 angVel) {
     SimBody s;
     s.src = b;
@@ -511,6 +541,7 @@ void BodySimRef::step() {
             k.rB = c.rB;
             k.mu = c.mu;
             k.key = keyOf(a, b, c.feature);
+            k.feature = c.feature;
             m_stats.maxPenetration = std::max(m_stats.maxPenetration, c.pen);
             // convert the depth found at the predicted iterate back to tick start: pen0 = pen + J dq
             const glm::dvec3 rAW = fa.R * c.rA;
@@ -766,12 +797,16 @@ void BodySimRef::step() {
         m_warm[k.key] = {k.lambdaN, k.lambdaT1, k.lambdaT2, k.penN, k.penT1, k.penT2, k.anchor, k.stick};
     for (size_t i = 0; i < nb; ++i) {
         SimBody& b = m_bodies[i];
-        if (wake[i]) { b.asleep = false; b.slowTicks = 0; }
-        if (b.asleep) continue;
+        if (wake[i]) { b.asleep = false; b.slowTicks = 0; b.asleepTicks = 0; }
+        if (b.asleep) {
+            ++b.asleepTicks;
+            continue;
+        }
         const bool slow = glm::length(b.vel) < P.sleepSpeed && glm::length(b.angVel) * radius[i] < P.sleepSpeed;
         b.slowTicks = slow ? b.slowTicks + 1 : 0;
         if (b.slowTicks >= P.sleepTicks) {
             b.asleep = true;
+            b.asleepTicks = 0;
             b.vel = glm::dvec3(0.0);
             b.angVel = glm::dvec3(0.0);
         }

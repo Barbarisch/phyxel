@@ -1830,7 +1830,7 @@ Every rig is checked for:
 | | **F2.0 CPU reference mesher, 2026-11-11** (`voxfound/Mesher`, `VoxFoundMesherTest`): culled faces, greedy merged across the whole area, greedy limited to 8-voxel blocks; `coverageErrors` proves a merge covers every exposed face exactly once. Light is not in the merge key yet, so every count is a LOWER bound. **Predictions written before the first run** (bare Perlin 32 x 32 m footprint): culled 70k-200k; greedy 3k-15k; today's 1 m cubes (proxy) 0.5k-3k; greedy / proxy 3-10x; per-block / unbounded 1.5-3x; the building shell at 1/8 m within ±30 % of 1/9 m. Measured: see §9a | | |
 | **F3** | Edits with brushes; codec v3 + converter (§9b) | edit cost per block ≪ today's 2-13 ms chunk rebuild; save/load round-trips exactly. **F3.1 2026-11-16: a 1 m brush 0.53 ms median from request to lists ready (p90 0.75; F2.17's path 7.1 ms), 0.096 ms per block at 4 m, exact; F3.2a: the edit store is the BlockStore, 545.5 → 62.9 MB, exact; F3.2b: brushes 1/2/4/8 + picking over the API, a 1 m brush 0.50 ms, pick 0.006 ms; F3.3: codec v3 + world.db, save / load round-trips exactly (voxels, lists, pixels, bytes), only edited chunks saved; F3.4: PXB2 converter (cubes exact, thirds / ninths by volume, no material dropped from a cell), a saved city drawn through the new store; F3.5 first run: exact under 1,000 edits + 10 reloads, edit cost met inside a chunk but NOT on chunk borders (0.69-0.90 ms); F3.5a: a border edit costs what an interior one does (exact; corner 1.00 -> 0.48 ms uncontended), but a full-block edit was 0.61-0.72 ms of which the connectivity flood was 0.35; F3.5b: incremental connectivity (exact, floods 112/128 -> 0/128 edits), a one-block brush 0.28-0.36 ms median anywhere; F3.5 second run (size and kind independent): exact under 1,000 verified edits + 10 reloads, 0 px, byte-identical re-save, every (size, kind) median ≤ 0.42 ms (a one-block brush 0.26-0.42) — CLOSED 2026-11-16; owed into later rows: the thin-part occupancy rule (converter), the small-leaf look (FC), edit store growth (1.34× over 1,000 edits)** | — |
 | **F4** | Fracture core, CPU reference: bonds, patterns, pieces, anchoring, crumbs. Then the GPU port, equal to the reference. **F4.1 2026-11-17 (§9c): the CPU reference — all 8 §8 rig predictions pass (the edge hit only trivially), equal to the independent checker, deterministic, conserving per material, nested in energy, under 300 random hits; pictures for review. F4.2 (§9c): anchoring through the block graph is exact under 400 random hits; on an engine-generated building the worst search is 8,558 nodes (8.3 % of its voxels), the median 1,055; found that the generator's stair treads and guard are unbonded on both grids (logged). F4.3 (§9c): the GPU port equals the integer reference in every channel — 18/18 rig cases, 600/600 random hits, first run; 1.5-1.8 ms device per break on a 131k-voxel wall at 0-1,981 pieces (21× the CPU at ~1,000; flat, because it covers the whole grid). Exit test met. The owner reviewed the crack pictures 2026-11-17 ("cracks look good"): CLOSED** | the fracture-lab rigs pass their predictions; conservation and determinism exact | the patterns don't read as real cracks to the owner (video review) |
-| **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid. **F5.1 2026-11-17 (§9d): extraction, CPU reference — loose pieces leave the world as bodies (grid, mass, centre, inertia from voxels; the hit's momentum shared) and crumbs; exact conservation voxel for voxel on every rig and 300 random hits and over 20 hits in a row; mass properties equal the closed form and a brute-force sum to 1e-9; momentum conserved; 5.1 ms for 947 bodies + 1,407 crumbs on the large wall. F5.2a (§9d): the CPU reference body solver — the engine's AVBD extended to voxel bodies (full inertia, symmetric voxel-on-voxel contacts, any size); 11/11 rig tests after 7 recorded run-1 fixes; momentum at 8 iterations MISSED its prediction (4.7 % of m v in an impact tick, 0.7 % at 32); a blast's 21 pieces fly, pile and sleep with ≤ 8.5 mm overlap. Owed: hard-contact fires 273-563 per run. F5.2b (§9d): the GPU port (headless) passes every F5.2a rig's assertions on its first run, tracks the reference within 0.33 mm on R1/R2/R4, and two runs are bit-equal; cost MISSED: 8-19 ms per tick, a dispatch floor (~310 per tick), on a GPU shared with WoW and another engine. F5.3 (§9d): bodies drawn with one transform -- faces built once (8 B record + body index), one draw, poses camera-relative per frame, cast into mid + near; at rest the draw equals the preview path (15 of 185,000 px above a ±1 control floor -- the 0-px control MISSED); face build 18.5 ms and 1.19 ms main draw at 947 bodies MISSED (≤ 15 / ≤ 0.3), cost follows faces, no per-body cull yet** | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
+| **F5** | Bodies: extraction, GPU simulation with voxel collision, drawing with one transform, the rest/bake-in hybrid. **F5.1 2026-11-17 (§9d): extraction, CPU reference — loose pieces leave the world as bodies (grid, mass, centre, inertia from voxels; the hit's momentum shared) and crumbs; exact conservation voxel for voxel on every rig and 300 random hits and over 20 hits in a row; mass properties equal the closed form and a brute-force sum to 1e-9; momentum conserved; 5.1 ms for 947 bodies + 1,407 crumbs on the large wall. F5.2a (§9d): the CPU reference body solver — the engine's AVBD extended to voxel bodies (full inertia, symmetric voxel-on-voxel contacts, any size); 11/11 rig tests after 7 recorded run-1 fixes; momentum at 8 iterations MISSED its prediction (4.7 % of m v in an impact tick, 0.7 % at 32); a blast's 21 pieces fly, pile and sleep with ≤ 8.5 mm overlap. Owed: hard-contact fires 273-563 per run. F5.2b (§9d): the GPU port (headless) passes every F5.2a rig's assertions on its first run, tracks the reference within 0.33 mm on R1/R2/R4, and two runs are bit-equal; cost MISSED: 8-19 ms per tick, a dispatch floor (~310 per tick), on a GPU shared with WoW and another engine. F5.3 (§9d): bodies drawn with one transform -- faces built once (8 B record + body index), one draw, poses camera-relative per frame, cast into mid + near; at rest the draw equals the preview path (15 of 185,000 px above a ±1 control floor -- the 0-px control MISSED); face build 18.5 ms and 1.19 ms main draw at 947 bodies MISSED (≤ 15 / ≤ 0.3), cost follows faces, no per-body cull yet. F5.4 (§9d): the rest / bake-in hybrid -- asleep bodies over the budget, outside the keep radius, bake farthest first as a voxel-to-cell bijection (rigid near axis rotations, else resample); conservation EXACT after every tick (blast; 916-body wall) and live; pop near 40.8 % of the box MISSED (2-30), far 0.038 of near; rigid share 33 % MISSED (≥ 80: pieces rest leaning); bake 38 / 677 ms at 916 MISSED (≤ 10 / 40); a whole-area rebuild of 72 ms per bake pass** | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
 | **F7** | Move the consumers over (§7), default switched | full test suite green; L4 live checks | — |
 | **F8** | Scale and stress: a whole town, 100 simultaneous breaks, 1,000 edit/break cycles, crossing chunk borders | invariants hold at every step | — |
@@ -2494,7 +2494,55 @@ Prediction: `voxfound_f53_prediction.txt`. Red: a stub failed all 5 unit tests.
 - **Found:** the MCP engine launch dies silently because this session's PATH lacks the build's `python312.dll` (uv
   CPython 3.12). Launch with it prepended.
 
-Next in the F5 row: F5.4, the rest / bake-in hybrid (D6), with conservation and pop measured.
+### F5.4 Rest and bake-in, the hybrid (2026-11-18)
+
+D6 as written: a body stays a body while it is near the player or recently moved. When the body budget is exceeded,
+bodies asleep long enough and outside the keep radius are baked into the world grid, farthest first
+(`BodyRest`: `chooseBakes`, `planBake`, `applyBake`, `restPass`; `BodySimRef::remove`).
+- **The bake is a bijection, voxel to world cell.** Material, part and damage are carried, and no solid cell is
+  written over. Two paths:
+  - **rigid:** the rotation is within 10 degrees of an axis rotation, so the piece keeps its exact shape, shifted by at
+    most half a voxel per axis;
+  - **resample:** each voxel takes the nearest free cell to its true centre (its own cell first, then a greedy pass
+    within 2 voxels).
+  A voxel with nowhere to go refuses the whole body, which is counted. Bodies touching a baked one wake after the pass
+  and settle on the new cells.
+- **Tier knobs (§6.9):** body budget, keep radius, rest ticks.
+- **Live:** the F5.3 route takes `rest` / `bake_now`. A bake rewrites the preview area and compacts the body faces by
+  copying ranges (faces are still built once per body). Responses carry a per-material ledger.
+
+Prediction: `voxfound_f54_prediction.txt`.
+- **Red:** stubs failed 5 of 6. R1b passed against the stub because nothing baking conserves trivially; my test was
+  weak and gained a "most bodies bake" assertion.
+- **Run 1:** found my own design error. Waking neighbours mid-pass made later candidates ineligible, so one pass baked
+  164 of 916; they now wake after the pass.
+
+**Unit (run 2, 6/6).**
+- **Conservation exact after every tick:** blast, 900 ticks, 24 bakes; large wall, 916 bodies, 200 ticks, then a final
+  pass (879 baked in all, 0 refused, 0 overwritten).
+- **Policy:** exact.
+- **Shape:** a rigid bake is exact. A resample at 30 degrees moves voxels 0.36 voxel on average (at most 0.58).
+- **Shift over the blast:** mean 0.35 voxel (4.4 cm), max 1.24 voxels.
+- **Repeatability:** deterministic, and `remove` leaves a survivor bit-equal.
+- **MISSED, rigid share:** 33 % against ≥ 80 %. Pieces rest leaning in the pile (14-56 degrees), not on a face.
+- **MISSED, bake cost at 916 bodies:** 38 ms rigid (≤ 10) and 677 ms resample at random rotations (≤ 40). The cost is
+  the other-body cell test. Levers for F5.5: a neighbour cell set per plan, a cap on bakes per pass.
+- **Rig limit:** a piece thrown past the bounded lab grid is refused and counted.
+
+**Live (Release; the GPU was shared with another engine for part of the run).** The stone wall blast settles, then
+every asleep body bakes (27 of 28: 8 rigid, 1 refused).
+- **Conservation:** the ledger is equal before and after the bake.
+- **Pop, near (6 m), MISSED:** 40.8 % of the box differs above the ±1 control floor (2-30 % predicted). By eye, leaning
+  pieces become stepped blocks, and the stone tile is re-chosen by the new cell. The live max shift is 22 cm (1.8
+  voxels).
+- **Pop, far (4x along the same ray):** 0.038 of the near pop's pixels. This is why D6 bakes only far pieces. The far
+  control had 1,445 noisy px.
+- **Cost:** the bake takes 2.9 ms. The whole-area preview rebuild after it takes 72-75 ms, a hitch on every pass that
+  bakes. Lever: F2's incremental region edit.
+- **Owner:** `voxfound_f54_near_bodies.png` / `_baked.png`.
+
+Next in the F5 row: F5.5, the exit stress, 100 → 1,000 bodies, with the owed levers (per-body cull, bake cost, the
+incremental rebuild, the GPU solver's dispatch floor).
 
 ## 10. Performance tiers
 

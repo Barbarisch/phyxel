@@ -57,6 +57,7 @@ struct SimBody {
     std::vector<uint8_t> cornerDir;           // the outward normal (kDir index) of the face each corner belongs to
     bool asleep = false;
     int slowTicks = 0;
+    int asleepTicks = 0;                      // ticks asleep since it last slept (F5.4: "recently moved")
     // solver scratch
     glm::dvec3 initial{0.0}, inertial{0.0}, cumAng{0.0};
     glm::dquat initialQuat{1.0, 0.0, 0.0, 0.0}, inertialQuat{1.0, 0.0, 0.0, 0.0};
@@ -80,6 +81,8 @@ public:
     /// Adds a body at its extraction pose (pos = com, identity rotation); returns its index.
     size_t add(const Body& b, glm::dvec3 vel = glm::dvec3(0.0), glm::dvec3 angVel = glm::dvec3(0.0));
     void step();
+    /// Drops bodies (indices ascending, unique). Survivors keep their order and warm start (F5.4 bake-in).
+    void remove(const std::vector<size_t>& indices);
     bool implemented() const;
 
     std::vector<SimBody>& bodies() { return m_bodies; }
@@ -105,6 +108,7 @@ public:
         double mu = 0.5;
         glm::dvec3 anchor{0.0};               // static friction anchor, world
         uint64_t key = 0;
+        uint64_t feature = 0;
         bool stick = false;
     };
     static constexpr size_t kStatic = ~size_t(0);

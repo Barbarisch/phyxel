@@ -1,0 +1,121 @@
+F5.4 -- the rest / bake-in hybrid (plan D6, §6.7 "Rest", F5 row "the rest/bake-in hybrid"; gate: conservation exact,
+the visual pop measured)
+Written 2026-11-18 BEFORE any F5.4 code.
+
+Plan text: "(c) hybrid (decided, D6): keep it as a body while it is near the player or recently moved; bake it into the
+world grid when it is asleep and the body budget is exceeded, farthest first. Gate: conservation exact, and the visual
+pop measured." Risk 5: "baked pieces shift by up to half a voxel".
+
+WHAT F5.4 BUILDS
+  Core (engine/*/core/voxfound/BodyRest.*, CPU; tested in VoxFoundBodyRestTest):
+  - planBake(body, world, other bodies) -> the voxels' new world cells, a BIJECTION body voxel -> cell that was air
+    and is not inside another body. Two paths:
+      rigid: the body's rotation is within 10 degrees of one of the 24 axis rotations -> bake with that rotation;
+        every voxel centre then has the same fractional part, so floor() maps the grid rigidly: the piece's shape is
+        exact (rotated by a multiple of 90 degrees), shifted by at most half a voxel per axis plus the 10-degree
+        snap. Used when every target cell is free.
+      resample: otherwise -- every voxel takes the nearest free cell to its true centre: first its own cell (the
+        cell containing the centre; contested cells go to the nearest voxel), then the voxels left over take free
+        cells within 2 voxels by a global greedy on distance (ties by voxel then cell index). A voxel with no free cell in reach, or a cell
+        outside the world grid, refuses the WHOLE body (it stays a body; counted).
+    Each voxel keeps material, part and damage. fixed = 0.
+  - applyBake writes the cells; BodySimRef::remove(indices) drops baked bodies, keeping every survivor's warm start
+    (the constraint keys are rebuilt with the new indices).
+  - RestPolicy (the D6 hybrid; tier knobs: budget, keep radius, rest ticks): when bodies > budget, the eligible ones
+    (asleep for >= restTicks, farther than keepRadius from the player) bake farthest first, ties by index, until
+    bodies <= budget. Bodies resting on a baked body (AABB within one voxel) are woken so they settle on the new
+    world cells. Everything not baked while over budget is counted by reason (near / awake / recent / refused).
+  - SimBody gains asleepTicks (counted while asleep, reset on wake) -- the "recently moved" clock.
+  Live (editor): the F5.3 route POST /api/debug/voxfound_bodies gains {"rest":{"budget","keep_m","rest_ticks"}},
+    the player = the camera; a bake rewrites the preview area (today's FaceBuilderGpu path) and compacts the body
+    face array by copying ranges (no re-meshing: faces still built once per body). It reports per-material counts
+    of world + bodies + crumbs.
+  Provenance: hand-built lab rigs (FractureLab §8), pieces from F5.1, motion from F5.2a's CPU solver; no generator.
+
+PREDICTIONS (unit, CPU)
+  R1 conservation exact: the multiset of (material, part, damage) over world + bodies + crumbs is identical after
+     EVERY tick of (a) the stone wall blast (8000 N s) on a padded floor, 900 ticks, budget 0, keep radius 0,
+     rest ticks 30 (everything bakes once asleep), and (b) the large wall E/T 2500 (~950 bodies) on a padded floor,
+     200 ticks, budget 256. No baked cell was solid before (0 overwritten). At the end of (a) every body asleep
+     long enough has baked (bodies left = refused + still awake/recent, all counted).
+  R2 the policy: on hand-made scenes (bodies at known distances, asleep/awake/recent): the baked set is exactly the
+     farthest eligible bodies needed to reach the budget; never a body inside the keep radius, awake, or asleep
+     < rest ticks; with nothing eligible nothing bakes and the reasons are counted.
+  R3 shape: a hand-made L-shaped body turned 90 degrees about y and offset by (0.3, 0.0, 0.7) voxels bakes RIGID:
+     cells = the body rotated exactly, max shift <= sqrt(3)/2 voxel. The same body turned 30 degrees about y bakes by
+     RESAMPLE: count exact, max shift <= 1.5 voxels, mean <= 0.6 voxel.
+  R4 pop on the blast (CPU, over every bake in R1a): >= 80 % of bakes rigid (pieces come to rest on a face); per-voxel
+     shift mean <= 0.5 voxel (6.25 cm), max <= 1.5 voxels (18.75 cm). Bodies woken by a bake move <= 1 voxel before
+     sleeping again.
+  R5 determinism: R1a twice -> identical world grids (hash) and identical bake order.
+  R6 remove is clean: two bodies far apart, one falling, the other asleep; removing the sleeper leaves the faller's
+     trajectory bit-equal to a run without removal.
+  R7 cost: planning + applying the bake of all ~950 large-wall bodies at their extraction poses (rigid path) <= 10 ms
+     total; at random rotations (resample path) <= 40 ms; the policy pass with nothing eligible, 950 bodies,
+     <= 0.05 ms.
+
+PREDICTIONS (live, L4, Release; project VoxFoundBodies, the F5.3 rig and camera; GPU sharing stated at run time)
+  L1 the pop, near: the stone wall blast settled (900 ticks), bodies vs baked (budget 0, keep 0), the F5.3 side
+     camera (~6 m): 2-30 % of the box's pixels differ above the +-1 control floor -- the shift is <= 6 cm and the
+     varied stone tile is re-chosen by the voxel's NEW world cell (a baked voxel has no memory of where it broke off;
+     stated as part of the pop).
+  L2 the pop, far: the same, the camera 4x farther along the same ray: <= 1/8 of the near pop's pixel count.
+  L3 conservation live: the route's per-material world + bodies + crumbs counts equal before and after the bake.
+  L4 cost: the stone wall's bake <= 5 ms CPU (plan + apply + face compaction); the preview rebuild after it measured
+     and stated (today's path, not a new cost).
+  L5 eye check: before / after pictures to the owner.
+  L6 chunks: the lab is one area; a bake writes world cells by world position; nothing per chunk can show (stated).
+
+WHAT WOULD COUNT AS A MISS
+  any conservation difference; a baked cell overwriting solid; a near / awake / recent body baked; a rigid bake whose
+  shape differs; any number above outside its stated range.
+
+=====================================================================================================================
+RESULTS (2026-11-18; written after the runs, predictions above untouched)
+
+RED: stub BodyRest.cpp + stub BodySimRef::remove: 5 of 6 tests failed (voxfound_f54_red.txt). R1b PASSED against the
+  stub -- nothing baked conserves trivially; MY TEST WAS WEAK: an assertion that most bodies bake was added before run 1.
+
+RUN 1 (voxfound_f54_run1.txt): conservation exact everywhere; R2 R3 R6 pass. Failures:
+  - R1b / R7: one pass baked only a fraction (164 of 916). MY DESIGN: a bake woke its neighbours at once, which made the
+    later candidates in the same pass ineligible. Fixed after run 1: neighbours wake AFTER the pass (stated design
+    change; the prediction's "bodies resting on a baked body are woken" is unchanged in substance).
+  - R4 rigid share MISSED (below). R7 cost MISSED (below).
+  Diagnostics added (refusal reasons, snap angles); out-of-grid refusals now say so.
+RUN 2 (voxfound_f54_run2.txt): 6/6 (the two missed predictions turned into printed numbers + regression guards, stated
+  in the test).
+  R1a conservation EXACT after all 900 ticks (multiset of material, part, damage); 24 bodies baked, 433 voxels,
+     0 overwritten; left 4 (1 awake, 2 recent, 1 refused). The refused one: a piece thrown past the 4 m pad -- its cell
+     is outside the bounded lab grid (refused again every tick, 728 refusals counted; the engine world is unbounded,
+     the lab grid is not -- a rig limit, stated). PASS.
+  R1b large wall, 916 bodies: conservation EXACT after all 200 ticks; 531 baked during (529 rigid), 348 in the final
+     pass (304 rigid), 0 refused, 0 overwritten; 37 left (awake / recent). Sim 178 ms per tick (CPU reference, 916
+     bodies); rest pass 0.17 ms per tick mean, 31 ms worst. PASS.
+  R2 policy exact (farthest eligible first, ties by index, reasons counted). PASS.
+  R3 rigid at 90 deg: shape exact, shift 0.28 vx (<= 0.87); resample at 30 deg: mean 0.36 vx, max 0.58 vx. PASS.
+  R4 shift mean 0.35 vx (4.4 cm, <= 0.5 PASS), max 1.24 vx (15.6 cm, <= 1.5 PASS); bodies woken by a bake moved at most
+     0.123 m (<= 0.125, PASS by 2 mm). Rigid share 33 % -- MISSED (>= 80 % predicted): the pieces come to rest LEANING
+     in the pile (snap angles 14-56 deg), not on a face. The prediction's physics was wrong.
+  R5 deterministic: same world hash, same bake order. PASS.
+  R6 remove clean: the survivor's trajectory bit-equal over 120 ticks. PASS.
+  R7 cost MISSED: 916 bodies at extraction poses (all rigid) 38 ms (<= 10); at random rotations (resample) 677 ms
+     (<= 40; 914 baked, 2 refused). Idle pass 0.0023 ms (<= 0.05 PASS). The cost is the other-body cell test per
+     candidate (unprofiled). Levers (F5.5): a cell set of the neighbours' voxels per plan, a cap on bakes per pass.
+
+LIVE (Release, RTX 4090, 1600 x 900; the GPU SHARED with another session's engine for part of the run -- FPS 25-27;
+  project VoxFoundBodies, port 8095; effect time frozen, fauna off, tonemap curve 0). Harness tools/voxfound_f54_gate.py;
+  raw records voxfound_f54_live.jsonl; PNGs voxfound_f54_{near,far}_{bodies,baked}.png.
+  The stone wall blast (8000 N s) on the drawn floor, 900 ticks (all 28 asleep), then one pass budget 0 keep 0.
+  L1 the pop, near (F5.3 side camera): 75,394 of 185,000 box px above the +-1 control floor = 40.8 % -- MISSED
+     (2-30 %). Control 0 px above the floor (22,895 px at exactly 1). 27 of 28 bodies baked, 8 rigid; mean shift 5.9 cm,
+     max 22.4 cm (1.8 vx -- above the unit rig's 1.24; the live pile differs). By eye: the leaning pieces become
+     axis-aligned stepped blocks and the stone tile is re-chosen -- the pop is plainly visible at 6 m.
+  L2 the pop, far (4x along the same ray): 4,804 px above the floor in the frame vs 127,595 near = 0.038 (<= 1/8,
+     PASS). Stated: the far control was not clean (1,445 px above the floor, max 147 -- something in the far scene
+     moved; not investigated), so the far pop includes up to that much noise.
+  L3 conservation live: the per-material ledger (world + bodies + crumbs) equal before and after, both runs. PASS.
+  L4 cost: the bake 2.87 / 2.73 ms (<= 5 PASS), face compaction 0.001 ms; the preview rebuild after it 71.6 / 75.3 ms
+     (today's whole-area path, stated) -- a frame hitch per bake pass. Lever: the F2 incremental region edit
+     (RegionEdit) instead of rebuilding the area.
+  L5 eye check: voxfound_f54_near_bodies.png vs voxfound_f54_near_baked.png to the owner.
+  L6 chunks: one area; the bake writes cells by world position; nothing per chunk can show. Stated.

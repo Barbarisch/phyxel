@@ -554,8 +554,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       path (15/185k px above a +-1 control floor); 947 bodies MISSED cost (1.19 ms main, 18.5 ms face build).
       TRAP: launch_engine dies silently (no log) -- python312.dll not on PATH; prepend
       C:\Users\jack\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none to PATH and Start-Process it.
-      NEXT: F5.4 -- the rest / bake-in hybrid (D6, §6.7 "Rest"): asleep bodies over the budget bake back into the world
-      grid farthest first; gates = conservation exact + the visual pop measured; write the prediction before code.
+      F5.4 (2026-11-18): rest / bake-in hybrid (BodyRest: chooseBakes / planBake / applyBake / restPass;
+      BodySimRef::remove keeps warm starts). Conservation exact every tick (unit + live ledger). MISSED: near pop 40.8 %
+      of the box (leaning pieces resample to steps; tile re-chosen), rigid share 33 %, bake 38 / 677 ms at 916 bodies.
+      Live route keys "rest" / "bake_now"; harness tools/voxfound_f54_gate.py --api (run my engine on its own port).
+      NEXT: F5.5 -- the exit stress, 100 -> 1,000 bodies (F5 row "100 -> 1,000 bodies; conservation; pop measured";
+      stop if body cost at 1,000 is over budget with no lever left). Owed levers to try there: per-body frustum/light
+      cull, the bake's neighbour cell set + per-pass cap, incremental preview edit instead of the 72 ms rebuild, the
+      GPU solver's dispatch floor. Write the prediction before code.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

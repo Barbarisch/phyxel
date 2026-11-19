@@ -1,0 +1,101 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodyRest*
+[==========] Running 6 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 6 tests from VoxFoundBodyRest
+[ RUN      ] VoxFoundBodyRest.R1aBlastBakesWithExactConservation
+[body rest] R1a: 900 ticks checked, 0 bodies baked (0 rigid), 0 voxels, 0 refused, 0 woken, 0 overwritten; left 28 (awake 0, recent 28, refused 0); 2614 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(232): error: Expected: (a.total.baked) > (10u), actual: 0 vs 10
+the run baked almost nothing (the test would prove nothing)
+
+[body rest] R4: 0 bakes, 0 % rigid; shift mean 0.0000 m (0.00 vx), max 0.0000 m (0.00 vx); woken bodies moved at most 0.0000 m
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(241): error: Expected: (rigidShare) >= (0.80), actual: 0 vs 0.8
+
+[body rest] R5: world hash 1329906408b142db both runs, 0 bakes in the same order
+[  FAILED  ] VoxFoundBodyRest.R1aBlastBakesWithExactConservation (4927 ms)
+[ RUN      ] VoxFoundBodyRest.R1bLargeWallConservationAtEveryTick
+[body rest] R1b: 916 bodies, 200 ticks all conserved; baked 0 (0 rigid, 0 refused) during, 0 (0 rigid, 0 refused) in the final pass; 916 bodies left; sim 177.8 ms/tick, rest pass 0.000 ms/tick (worst 0.00)
+[       OK ] VoxFoundBodyRest.R1bLargeWallConservationAtEveryTick (36732 ms)
+[ RUN      ] VoxFoundBodyRest.R2PolicyIsFarthestEligibleFirst
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(324): error: Expected equality of these values:
+  order
+    Which is: {}
+  (std::vector<size_t>{5, 4, 3, 2})
+    Which is: { 5, 4, 3, 2 }
+the eligible bodies, farthest first
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(325): error: Expected equality of these values:
+  st.over
+    Which is: 0
+  3u
+    Which is: 3
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(326): error: Expected equality of these values:
+  st.keptAwake
+    Which is: 0
+  1u
+    Which is: 1
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(327): error: Expected equality of these values:
+  st.keptRecent
+    Which is: 0
+  1u
+    Which is: 1
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(328): error: Expected equality of these values:
+  st.keptNear
+    Which is: 0
+  2u
+    Which is: 2
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(339): error: Expected equality of these values:
+  st3.keptNear + st3.keptAwake + st3.keptRecent
+    Which is: 0
+  8u
+    Which is: 8
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(345): error: Expected equality of these values:
+  chooseBakes(bodies, glm::dvec3(0.0), p, &st4)
+    Which is: {}
+  (std::vector<size_t>{5, 3, 4, 2, 1, 0})
+    Which is: { 5, 3, 4, 2, 1, 0 }
+
+[  FAILED  ] VoxFoundBodyRest.R2PolicyIsFarthestEligibleFirst (0 ms)
+[ RUN      ] VoxFoundBodyRest.R3RigidIsExactAndResampleIsBounded
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(365): error: Value of: plan.ok
+  Actual: false
+Expected: true
+Google Test trace:
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(358): turned 90.000000 deg
+
+[  FAILED  ] VoxFoundBodyRest.R3RigidIsExactAndResampleIsBounded (0 ms)
+[ RUN      ] VoxFoundBodyRest.R6RemoveIsClean
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(425): error: Expected equality of these values:
+  sim.bodies().size()
+    Which is: 2
+  1u
+    Which is: 1
+
+[  FAILED  ] VoxFoundBodyRest.R6RemoveIsClean (12 ms)
+[ RUN      ] VoxFoundBodyRest.R7Cost
+[body rest] R7 extraction poses: 916 bodies, 0 baked (0 rigid, 0 refused), 0 voxels, 0.00 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(467): error: Expected: (st.baked) > (s.ex.bodies.size() / 2), actual: 0 vs 458
+
+[body rest] R7 random rotations: 916 bodies, 0 baked (0 rigid, 0 refused), 0 voxels, 0.00 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(467): error: Expected: (st.baked) > (s.ex.bodies.size() / 2), actual: 0 vs 458
+
+[body rest] R7 idle pass: 0.0000 ms (best of 20)
+[  FAILED  ] VoxFoundBodyRest.R7Cost (373 ms)
+[----------] 6 tests from VoxFoundBodyRest (42047 ms total)
+
+[----------] Global test environment tear-down
+[==========] 6 tests from 1 test suite ran. (42047 ms total)
+[  PASSED  ] 1 test.
+[  FAILED  ] 5 tests, listed below:
+[  FAILED  ] VoxFoundBodyRest.R1aBlastBakesWithExactConservation
+[  FAILED  ] VoxFoundBodyRest.R2PolicyIsFarthestEligibleFirst
+[  FAILED  ] VoxFoundBodyRest.R3RigidIsExactAndResampleIsBounded
+[  FAILED  ] VoxFoundBodyRest.R6RemoveIsClean
+[  FAILED  ] VoxFoundBodyRest.R7Cost
+
+ 5 FAILED TESTS

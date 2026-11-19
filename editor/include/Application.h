@@ -108,6 +108,7 @@
 #include "core/voxfound/RegionEdit.h"
 #include "core/voxfound/BodyDraw.h"       // F5.3 bodies lab
 #include "core/voxfound/BodySim.h"
+#include "core/voxfound/BodyRest.h"
 #include "core/voxfound/FractureLab.h"
 #include "core/water/WadeDrag.h"
 #include "core/water/ShoreBand.h"
@@ -313,7 +314,16 @@ private:
         long tick = 0;
         double accum = 0.0, lastStepMs = 0.0;
         bool running = false, asWorld = false;
+        // F5.4 rest / bake-in (D6): the policy runs after every tick when restOn
+        std::vector<uint32_t> faceFirst, faceCount;          // each body's face range (compacted on a bake)
+        std::vector<size_t> crumbMat;                       // crumbs per material (the conservation ledger)
+        Core::VoxFound::RestParams rest;
+        bool restOn = false;
+        Core::VoxFound::RestStats restTotal, restLast;
+        double lastBakeMs = 0.0, lastRebuildMs = 0.0, lastCompactMs = 0.0;
+        size_t bakePasses = 0;
     } voxFoundBodiesLab;
+    bool voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err);
     void handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::json& response);
     void stepVoxFoundBodies(float dt);
     void voxFoundBodiesPublish();

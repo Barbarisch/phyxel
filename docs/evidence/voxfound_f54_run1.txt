@@ -1,0 +1,48 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodyRest*
+[==========] Running 6 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 6 tests from VoxFoundBodyRest
+[ RUN      ] VoxFoundBodyRest.R1aBlastBakesWithExactConservation
+[body rest] R1a: 900 ticks checked, 24 bodies baked (8 rigid), 433 voxels, 728 refused, 25 woken, 0 overwritten; left 4 (awake 1, recent 2, refused 1); 3665 ms
+[body rest] R4: 24 bakes, 33 % rigid; shift mean 0.0440 m (0.35 vx), max 0.1555 m (1.24 vx); woken bodies moved at most 0.1228 m
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(241): error: Expected: (rigidShare) >= (0.80), actual: 0.33333333333333331 vs 0.8
+
+[body rest] R5: world hash c4b95731414270e1 both runs, 24 bakes in the same order
+[  FAILED  ] VoxFoundBodyRest.R1aBlastBakesWithExactConservation (7064 ms)
+[ RUN      ] VoxFoundBodyRest.R1bLargeWallConservationAtEveryTick
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(295): error: Expected: (tot.baked + fin.baked) > (s.ex.bodies.size() / 2), actual: 358 vs 458
+almost nothing baked (the test would prove nothing)
+
+[body rest] R1b: 916 bodies, 200 ticks all conserved; baked 300 (298 rigid, 0 refused) during, 58 (43 rigid, 0 refused) in the final pass; 558 bodies left; sim 399.4 ms/tick, rest pass 0.173 ms/tick (worst 8.57)
+[  FAILED  ] VoxFoundBodyRest.R1bLargeWallConservationAtEveryTick (81100 ms)
+[ RUN      ] VoxFoundBodyRest.R2PolicyIsFarthestEligibleFirst
+[       OK ] VoxFoundBodyRest.R2PolicyIsFarthestEligibleFirst (0 ms)
+[ RUN      ] VoxFoundBodyRest.R3RigidIsExactAndResampleIsBounded
+[body rest] R3 90 deg: rigid, shift mean 0.28 vx max 0.28 vx, snap 0.0 deg
+[body rest] R3 30 deg: resample, shift mean 0.36 vx max 0.58 vx, snap 30.0 deg
+[       OK ] VoxFoundBodyRest.R3RigidIsExactAndResampleIsBounded (0 ms)
+[ RUN      ] VoxFoundBodyRest.R6RemoveIsClean
+[       OK ] VoxFoundBodyRest.R6RemoveIsClean (14 ms)
+[ RUN      ] VoxFoundBodyRest.R7Cost
+[body rest] R7 extraction poses: 916 bodies, 164 baked (164 rigid, 0 refused), 12844 voxels, 9.28 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(469): error: Expected: (st.baked) > (s.ex.bodies.size() / 2), actual: 164 vs 458
+
+[body rest] R7 random rotations: 916 bodies, 155 baked (0 rigid, 0 refused), 12816 voxels, 150.33 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(469): error: Expected: (st.baked) > (s.ex.bodies.size() / 2), actual: 155 vs 458
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(470): error: Expected: (ms) <= (mode == 0 ? 10.0 : 40.0), actual: 150.33320000000001 vs 40
+
+[body rest] R7 idle pass: 0.0024 ms (best of 20)
+[  FAILED  ] VoxFoundBodyRest.R7Cost (523 ms)
+[----------] 6 tests from VoxFoundBodyRest (88702 ms total)
+
+[----------] Global test environment tear-down
+[==========] 6 tests from 1 test suite ran. (88702 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 3 tests, listed below:
+[  FAILED  ] VoxFoundBodyRest.R1aBlastBakesWithExactConservation
+[  FAILED  ] VoxFoundBodyRest.R1bLargeWallConservationAtEveryTick
+[  FAILED  ] VoxFoundBodyRest.R7Cost
+
+ 3 FAILED TESTS

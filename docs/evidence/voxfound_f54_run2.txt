@@ -1,0 +1,33 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodyRest*
+[==========] Running 6 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 6 tests from VoxFoundBodyRest
+[ RUN      ] VoxFoundBodyRest.R1aBlastBakesWithExactConservation
+[body rest] R1a: 900 ticks checked, 24 bodies baked (8 rigid), 433 voxels, 728 refused, 27 woken, 0 overwritten; left 4 (awake 1, recent 2, refused 1); 3776 ms
+[body rest] R4: 24 bakes, 33 % rigid; shift mean 0.0440 m (0.35 vx), max 0.1555 m (1.24 vx); woken bodies moved at most 0.1228 m
+[body rest] R4 refused x728:  has its cell outside the world grid
+[body rest] R4 resample bakes: 0 within the 10-deg snap (rigid cells were taken); snap angles: 26 14 39 38 28 39 34 30 52 56 41 36 50 45 38 47 
+[body rest] R5: world hash 6045f70a15bc70e1 both runs, 24 bakes in the same order
+[       OK ] VoxFoundBodyRest.R1aBlastBakesWithExactConservation (7229 ms)
+[ RUN      ] VoxFoundBodyRest.R1bLargeWallConservationAtEveryTick
+[body rest] R1b: 916 bodies, 200 ticks all conserved; baked 531 (529 rigid, 0 refused) during, 348 (304 rigid, 0 refused) in the final pass; 37 bodies left; sim 177.8 ms/tick, rest pass 0.166 ms/tick (worst 31.20)
+[       OK ] VoxFoundBodyRest.R1bLargeWallConservationAtEveryTick (36728 ms)
+[ RUN      ] VoxFoundBodyRest.R2PolicyIsFarthestEligibleFirst
+[       OK ] VoxFoundBodyRest.R2PolicyIsFarthestEligibleFirst (0 ms)
+[ RUN      ] VoxFoundBodyRest.R3RigidIsExactAndResampleIsBounded
+[body rest] R3 90 deg: rigid, shift mean 0.28 vx max 0.28 vx, snap 0.0 deg
+[body rest] R3 30 deg: resample, shift mean 0.36 vx max 0.58 vx, snap 30.0 deg
+[       OK ] VoxFoundBodyRest.R3RigidIsExactAndResampleIsBounded (0 ms)
+[ RUN      ] VoxFoundBodyRest.R6RemoveIsClean
+[       OK ] VoxFoundBodyRest.R6RemoveIsClean (14 ms)
+[ RUN      ] VoxFoundBodyRest.R7Cost
+[body rest] R7 extraction poses: 916 bodies, 916 baked (916 rigid, 0 refused), 84182 voxels, 37.96 ms
+[body rest] R7 random rotations: 916 bodies, 914 baked (2 rigid, 2 refused), 83734 voxels, 677.37 ms
+[body rest] R7 idle pass: 0.0023 ms (best of 20)
+[       OK ] VoxFoundBodyRest.R7Cost (1078 ms)
+[----------] 6 tests from VoxFoundBodyRest (45051 ms total)
+
+[----------] Global test environment tear-down
+[==========] 6 tests from 1 test suite ran. (45051 ms total)
+[  PASSED  ] 6 tests.
