@@ -256,3 +256,56 @@ RUN 1 (voxfound_f55a3_run1.txt) and RUN 2 (voxfound_f55a3_run2.txt, every VoxFou
      Stated: the serial control got slower (14.4 vs 10.98 ms at 1,025): its world test is now the same per-item function
      in a loop (the cell index is decoded per item) -- the control's cost, not the default's.
   The three misses are narrow; printed, guarded at 2x. The largest cost left at 1,025 is the solve (3.7 ms).
+
+=====================================================================================================================
+F5.5a4 -- THE PRIMAL IN PARALLEL (written 2026-11-18 BEFORE its code; the split profile measured first,
+voxfound_f55a4_profile.txt: at 1,025 bodies the solve is colour 0.16 + PRIMAL 3.48 + dual 0.04 ms per tick)
+
+WHY: each colour's dispatch waits for its slowest body, and a big piece with hundreds of contacts sums them in one
+thread, 8 iterations x its colour.
+WHAT IT BUILDS: after the colour rounds (the fused one-dispatch colouring, bit-equal to the per-colour rounds), a
+counting sort puts each colour's bodies in a list and writes an indirect dispatch per colour (empty colours dispatch no
+groups). Each body's primal runs on one 64-thread workgroup: the threads take its constraints strided, sum partial
+6x6 + 6 terms, a fixed tree reduction adds the partials, one thread adds the inertial terms and solves. The fused path
+is not used with it. setPrimalParallel(false) keeps the serial primal as the control.
+NOT BIT-EQUAL to the serial primal, stated before the run: the sum is reassociated (partials + a tree), so float
+rounding differs and pile trajectories diverge chaotically. The gate is therefore the F5.2 one: determinism and every
+rig's assertions.
+
+PREDICTIONS
+  D1 deterministic: two runs bit-equal (R8b blast 900 ticks; 1,025 bodies 300 ticks).
+  D2 every VoxFound GPU test passes with the parallel primal the default (R1-R8b against the reference and the closed
+     forms, T1/T2, the ladder's invariants, 0 through the ground); B1 and C1 still bit-equal (the narrowphase and world
+     switches, the primal parallel in both runs); A1 compares the serial-primal paths (fused vs per-colour) as before.
+  D3 cost, mean device ms per tick (30 per submit): 1,025 bodies <= 5.0 (7.1 now), profile primal <= 1.0 (3.48);
+     105 bodies <= 2.2 (2.2 now: no worse); blast <= 0.9 (0.74 now with fused; the indirect path pays ~256 dispatches).
+WHAT WOULD COUNT AS A MISS: two runs differing; any rig assertion failing; any cost above its range.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5a4 RESULTS (2026-11-18; after the runs, the predictions above untouched). GPU shared with another session's engine.
+RED (voxfound_f55a4_red.txt): the per-colour primal dispatch stubbed out -> the blast never settles (21 awake at 15 s),
+  108 mm penetration on the ~100-body rung.
+RUN 1 (voxfound_f55a4_run1.txt): workgroup per body, indirect per colour, the fused path turned off with it.
+  Deterministic, invariants hold, 1,025 bodies 7.0 -> 4.5 ms. MY DESIGN ERROR: small scenes got WORSE (blast 0.87 ->
+  1.53 ms, tail 1.05 -> 2.1): 256 indirect dispatches per tick even with 3 bodies awake, and the one-workgroup form
+  could not be used because it would sum differently (a cost knob must not change the outcome).
+  Fix: the body's sum is one function (a 32-thread group, a fixed shared-memory tree) in its own pipeline
+  (voxfound_bodies_primal.comp, 256 threads = 8 bodies), called by BOTH forms -- indirect per colour (many awake) and
+  one workgroup for every colour (<= 128 awake). Subgroup shuffles were tried first: SPIR-V 1.3 needs Vulkan 1.1 and
+  the test harness creates a 1.0 instance -- not taken.
+RUN 2 (voxfound_f55a4_run2.txt; one build error first, its run was the stale red binary and is not counted): D1, E1,
+  D2 pass; costs pass except primal 1.76 ms (<= 1.0 MISSED).
+RUN 3 (voxfound_f55a4_run3.txt): every GPU test but one: A1's all-asleep tick 0.245 ms (<= 0.2). MY ERROR: I had put
+  the indirect-command stage on EVERY barrier. Fix: only the barrier after the arguments' pass carries it.
+RUN 4 (voxfound_f55a4_run4.txt): every VoxFound GPU test, 41/41.
+  D1 PASS: two parallel-primal runs bit-equal on every rig (630 / 1,050 / 10,250 samples). E1 PASS: the one-workgroup
+     and indirect forms bit-equal on every rig. vs the serial primal: worst sample 2.3 / 8.2 / 7.4 m apart (piles are
+     chaotic; stated before the run).
+  D2 PASS: every rig's assertions (R1-R8b, T1/T2, the ladders, 0 through the ground); max penetration 5.7 / 6.8 / 8.5 mm
+     at rest; the blast settles; B1 and C1 still bit-equal (primal parallel in both runs).
+  D3 PASS: device ms per tick -- blast 0.48 (<= 0.9; serial primal 0.74), 105 bodies 1.33 (<= 2.2; 2.25), 1,025 bodies
+     3.67 (<= 5.0; 7.05); profile at 1,025: primal 0.81 / 0.20 least-contended (<= 1.0), colour 0.23, dual 0.05.
+     Tail (10 of 1,025 awake) 1.07 ms; blast all asleep 0.12 ms.
+  Left at 1,025 (mean): primal 0.81, world 0.81, hard_body 0.80, pairs 0.72, hard_apply 0.39, sort 0.33, colour 0.23.
+  Against the 2 ms budget proposal at 1,025 awake: 3.7 ms, over, with levers left (a broadphase better than awake x all:
+  pairs + hard_body are both n^2 loops per awake body; the world box's empty cells).

@@ -9,6 +9,8 @@
 //   F5.5a2, the narrowphase in parallel: 19 AWAKE_LIST  20 BROAD(arg 0: contact pairs, 1: hard pairs)  21 NARROW
 //   (workgroup per pair)  22 HARD_NARROW (workgroup per pair)  23 HARD_BODY from the stored pair results
 //   F5.5a3: 24 WORLD and 25 HARD_APPLY one workgroup per awake body
+//   F5.5a4: 26 COLOUR_COUNT  27 COLOUR_PREFIX  28 COLOUR_SCATTER; in voxfound_bodies_primal.comp (VF_PRIMAL, 256):
+//   29 PRIMAL (indirect per colour, a 32-thread group per body)  30 PRIMAL (every colour, one workgroup)
 // GPU differences: candidates go to a per-worker scratch (worker = body i; its pairs j > i reuse it); a world surface
 // corner is taken once by a canonical-owner rule (the CPU uses a set); constraint lists are sorted by key so every sum
 // is order-independent (determinism); colours are Jones-Plassmann rounds (hashed priorities) instead of greedy;
@@ -21,6 +23,9 @@
 // (colourInit / colourRound / colourFinal / primal / dual below), so the two compute the same numbers.
 #ifdef VF_FUSED
 #define VF_GROUP 1024
+#define VF_COH coherent
+#elif defined(VF_PRIMAL)
+#define VF_GROUP 256
 #define VF_COH coherent
 #else
 #define VF_GROUP 64
@@ -936,6 +941,10 @@ void hardApplyPar() {
     }
 }
 
+// ---- F5.5a4: per-colour body lists (counting sort) and indirect dispatches ----
+// aux after the flags: count[32] | offset[32] | fill[32] | args[32 x 3] | list[nb]
+uint auxCol() { return 2u * NB() + 8u * MAXP(); }
+
 int findHard(uint i, uint j) {
     uint key = pairKey(i, j), cap2 = 2u * MAXP(), h = hash32(key) & (cap2 - 1u);
     for (uint k = 0u; k < cap2; ++k) {
@@ -1024,6 +1033,88 @@ void primal(uint i, uint c) {
     bodies[i].quat = qintegrate(b.quat, dAng);
     bodies[i].cumAng.xyz = b.cumAng.xyz + dAng;
 }
+#ifdef VF_PRIMAL
+// F5.5a4: one body's PRIMAL on a 32-thread group (eight per workgroup): the lanes take its constraints strided and sum
+// partial terms; a fixed tree in shared memory adds the partials; lane 0 adds the inertial terms and solves. Every
+// thread of the workgroup calls it (it has barriers); `has` says whether this group has a body. Both dispatch forms
+// (29 indirect per colour, 30 one workgroup for every colour) call this, so they compute the same numbers.
+// Deterministic, but NOT bit-equal to primal() (the sum is reassociated).
+shared float gpRed[256 * 42];
+void primalVG(uint i, bool has) {
+    uint lid = gl_LocalInvocationID.x, l = lid & 31u;
+    uint r = lid * 42u;
+    if (has) {
+        float lhs[36];
+        float rhs[6];
+        for (int q = 0; q < 36; ++q) lhs[q] = 0.0;
+        for (int q = 0; q < 6; ++q) rhs[q] = 0.0;
+        uint o = state[sOffset(i)], cnt = state[sCount(i)];
+        for (uint p = l; p < cnt; p += 32u) {
+            Con k = cons[lists[o + p]];
+            float Cn, Ct1, Ct2;
+            vec3 rAW, rBW;
+            evalC(k, Cn, Ct1, Ct2, rAW, rBW);
+            float fn = min(k.lam.z * Cn + k.rB.w, 0.0);
+            float ft1 = k.lam.w * Ct1 + k.lam.x, ft2 = k.misc.x * Ct2 + k.lam.y;
+            float bound = abs(fn) * k.n.w, fs = sqrt(ft1 * ft1 + ft2 * ft2);
+            if (fs > bound && fs > 0.0) { ft1 *= bound / fs; ft2 *= bound / fs; }
+            bool isA = k.ids.x == i;
+            float sJ = isA ? 1.0 : -1.0;
+            vec3 arm = isA ? rAW : rBW;
+            vec3 dirs[3] = vec3[3](k.n.xyz, k.t1.xyz, k.t2.xyz);
+            float F[3] = float[3](fn, ft1, ft2);
+            float K[3] = float[3](k.lam.z, k.lam.w, k.misc.x);
+            for (int r = 0; r < 3; ++r) {
+                vec3 jl = dirs[r] * sJ, ja = cross(arm, jl);
+                float J[6] = float[6](jl.x, jl.y, jl.z, ja.x, ja.y, ja.z);
+                for (int pp = 0; pp < 6; ++pp) {
+                    rhs[pp] += J[pp] * F[r];
+                    for (int qq = 0; qq < 6; ++qq) lhs[pp * 6 + qq] += K[r] * J[pp] * J[qq];
+                }
+            }
+        }
+        for (int q = 0; q < 36; ++q) gpRed[r + uint(q)] = lhs[q];
+        for (int q = 0; q < 6; ++q) gpRed[r + 36u + uint(q)] = rhs[q];
+    }
+    memoryBarrierShared();
+    barrier();
+    for (uint off = 16u; off > 0u; off >>= 1u) {
+        if (has && l < off)
+            for (uint q = 0u; q < 42u; ++q) gpRed[r + q] += gpRed[r + off * 42u + q];
+        memoryBarrierShared();
+        barrier();
+    }
+    if (has && l == 0u) {
+        uint r0 = r;
+        Body b = bodies[i];
+        float dt = pf(P_DT);
+        float dt2 = dt * dt;
+        mat3 R = qmat(b.quat);
+        mat3 Ib = mat3(b.I0.xyz, b.I1.xyz, b.I2.xyz);   // symmetric: rows == columns
+        mat3 Iw = R * Ib * transpose(R) / dt2;
+        float mdt2 = b.fixedProps.x / dt2;
+        float lhs[36];
+        float rhs[6];
+        for (int q = 0; q < 36; ++q) lhs[q] = 0.0;
+        for (int a = 0; a < 3; ++a) lhs[a * 6 + a] = mdt2;
+        for (int r = 0; r < 3; ++r)
+            for (int c = 0; c < 3; ++c) lhs[(3 + r) * 6 + 3 + c] = Iw[c][r];
+        vec3 dp = b.pos.xyz - b.inertial.xyz;
+        vec3 da = Iw * angDisp(b.quat, b.inertialQuat);
+        for (int a = 0; a < 3; ++a) { rhs[a] = mdt2 * dp[a]; rhs[3 + a] = da[a]; }
+        for (int q = 0; q < 36; ++q) lhs[q] += gpRed[r0 + uint(q)];
+        for (int q = 0; q < 6; ++q) rhs[q] += gpRed[r0 + 36u + uint(q)];
+        for (int q = 0; q < 6; ++q) rhs[q] = -rhs[q];
+        float d[6];
+        solve6(lhs, rhs, d);
+        vec3 dAng = vec3(d[3], d[4], d[5]);
+        bodies[i].pos.xyz = b.pos.xyz + vec3(d[0], d[1], d[2]);
+        bodies[i].quat = qintegrate(b.quat, dAng);
+        bodies[i].cumAng.xyz = b.cumAng.xyz + dAng;
+    }
+}
+#endif
+
 void dual(uint ci) {
     if (ci >= min(state[S_NCONS], prm[P_MAXCONS])) return;
     Con k = cons[ci];
@@ -1095,6 +1186,28 @@ void main() {
     if (pc.pass == 22u) { narrowHard(); return; }
     if (pc.pass == 24u) { worldPar(); return; }
     if (pc.pass == 25u) { hardApplyPar(); return; }
+#ifdef VF_PRIMAL
+    if (pc.pass == 29u) {   // PRIMAL arg = colour (indirect): workgroup w's 32-thread group g takes body 8 w + g
+        uint k = gl_WorkGroupID.x * 8u + (gl_LocalInvocationID.x >> 5u), n = aux[auxCol() + pc.arg];
+        bool has = k < n;
+        primalVG(has ? aux[auxCol() + 192u + aux[auxCol() + 32u + pc.arg] + k] : 0u, has);
+        return;
+    }
+    if (pc.pass == 30u) {   // PRIMAL, every colour used in order, one workgroup (the form for few awake bodies)
+        uint used = state[S_TICKCOL], g8 = gl_LocalInvocationID.x >> 5u;
+        for (uint c = 0u; c < used; ++c) {
+            uint n = aux[auxCol() + c], o = aux[auxCol() + 32u + c];
+            for (uint b8 = 0u; b8 < n; b8 += 8u) {
+                uint k = b8 + g8;
+                bool has = k < n;
+                primalVG(has ? aux[auxCol() + 192u + o + k] : 0u, has);
+            }
+            memoryBarrierBuffer();
+            barrier();
+        }
+        return;
+    }
+#endif
     uint t = gl_GlobalInvocationID.x;
     if (t >= pc.n) return;
     float dt = pf(P_DT);
@@ -1256,6 +1369,31 @@ void main() {
             }
         }
         pushes[i] = vec4(push, 0.0);
+        return;
+    }
+    if (pc.pass == 26u) {   // COLOUR_COUNT (F5.5a4)
+        uint c = state[sColour(t)];
+        if (c < 32u) atomicAdd(aux[auxCol() + c], 1u);
+        return;
+    }
+    if (pc.pass == 27u) {   // COLOUR_PREFIX (1 thread): offsets and the indirect dispatch per colour
+        uint off = 0u;
+        for (uint c = 0u; c < 32u; ++c) {
+            uint n = aux[auxCol() + c];
+            aux[auxCol() + 32u + c] = off;
+            aux[auxCol() + 64u + c] = 0u;
+            aux[auxCol() + 96u + 3u * c] = (n + 7u) / 8u;   // eight bodies per primal workgroup
+            aux[auxCol() + 97u + 3u * c] = 1u;
+            aux[auxCol() + 98u + 3u * c] = 1u;
+            off += n;
+        }
+        return;
+    }
+    if (pc.pass == 28u) {   // COLOUR_SCATTER
+        uint c = state[sColour(t)];
+        if (c >= 32u) return;
+        uint slot = atomicAdd(aux[auxCol() + 64u + c], 1u);
+        aux[auxCol() + 192u + aux[auxCol() + 32u + c] + slot] = t;
         return;
     }
     if (pc.pass == 12u) {   // HARD_BODY: this body's share of every body-body push, from the pre-push poses

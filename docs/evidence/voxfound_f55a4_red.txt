@@ -1,0 +1,44 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpuNarrow.F55a4*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodySimGpuNarrow
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost
+[23:05:49.236] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:06:01.185] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[body gpu] D1 R8b blast: 21 bodies; 0 of 630 samples differ between two parallel-primal runs; vs the serial primal: worst sample 27.6579 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 R8b blast: 2.142 ms / tick parallel primal, 1.085 serial primal; awake at the end 21; tail 2.0668 ms / tick
+[body gpu] D2 R8b blast: lowest corner -0.0094 m, max penetration 9.38 mm
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(754): error: Expected equality of these values:
+  a.awake
+    Which is: 21
+  0u
+    Which is: 0
+D2 R8b blast: the blast settles
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(755): error: Expected: (a.ms) <= (maxMs), actual: 2.1424899555555559 vs 0.9
+D3 R8b blast
+
+[body gpu] D1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ between two parallel-primal runs; vs the serial primal: worst sample 15.4033 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 250: 2.782 ms / tick parallel primal, 2.338 serial primal; awake at the end 21; tail 1.8334 ms / tick
+[body gpu] D2 large wall E/T 250: lowest corner -0.0081 m, max penetration 108.26 mm
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(753): error: Expected: (pen) <= (0.01), actual: 0.10825941953495466 vs 0.01
+D2 large wall E/T 250: 108.26 mm: body 21 (197 voxels, asleep) vs body 26; n (0.000 1.000 0.000) rA (-0.216 -0.673 0.005) point (15.179 7.867 0.262) bucket 15
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(755): error: Expected: (a.ms) <= (maxMs), actual: 2.7817427199999996 vs 2.2
+D3 large wall E/T 250
+
+[body gpu] D1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ between two parallel-primal runs; vs the serial primal: worst sample 9.4479 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 2800: 2.026 ms / tick parallel primal, 7.012 serial primal; awake at the end 0; tail 1.1403 ms / tick
+[body gpu] D2 large wall E/T 2800: lowest corner 0.1251 m, max penetration 0.00 mm
+[body gpu]   D3 profile (300 ticks, mean / min ms): integrate 0.008/0.007 aabb 0.048/0.044 world 0.637/0.010 pairs 0.282/0.010 prefix+scatter 0.056/0.051 sort 0.121/0.005 colour 0.101/0.024 primal 0.822/0.798 dual 0.060/0.048 hard_body 0.199/0.060 hard_apply 0.306/0.005 finish 0.007/0.007 warm 0.015/0.013
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost (67996 ms)
+[----------] 1 test from VoxFoundBodySimGpuNarrow (67996 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (67996 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost
+
+ 1 FAILED TEST

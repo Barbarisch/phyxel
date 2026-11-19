@@ -71,10 +71,16 @@ public:
     /// F5.5a3: the body-world test (K_WORLD, HARD_APPLY) one workgroup per awake body; false = one thread per body
     /// (the control). Default on.
     void setWorldParallel(bool on) { m_worldPar = on; }
+    /// F5.5a4: each body's primal on a 32-thread group (a fixed shared-memory tree), from per-colour lists: indirect per
+    /// colour when many bodies are awake, one workgroup for every colour when few are (the fused choice above; the two
+    /// forms are bit-equal). Deterministic but NOT bit-equal to the serial primal (the sum is reassociated).
+    /// false = the serial primal (the control). Default on.
+    void setPrimalParallel(bool on) { m_primalPar = on; }
     bool fusedThisStep() const { return m_fused; }
     /// F5.5a: a per-pass device-time profile (timestamps between the pass groups; forces one tick per submit, so it
     /// measures each tick on its own). Reset by setProfile(true).
-    static constexpr int kProfGroups = 11;
+    static constexpr int kProfGroups = 13;
+    static constexpr int kProfMaxStamps = 64;
     static const char* profileName(int g);
     struct Profile {
         double sumMs[kProfGroups] = {};
@@ -113,15 +119,18 @@ private:
     double m_lastGpuMs = -1.0;
     std::unique_ptr<Vulkan::ComputePipeline> m_pipe;
     std::unique_ptr<Vulkan::ComputePipeline> m_pipeFused;   // F5.5a
+    std::unique_ptr<Vulkan::ComputePipeline> m_pipePrimal;  // F5.5a4
     bool m_fused = true;              // the path of the current step() call
     uint32_t m_fusedMaxAwake = 128;
     uint32_t m_lastAwake = 0;
     bool m_narrowPar = true;
     bool m_worldPar = true;
+    bool m_primalPar = true;
     bool m_profile = false;
     Profile m_prof;
     VkQueryPool m_profQueries = VK_NULL_HANDLE;
     uint32_t m_profStamp = 0;
+    std::vector<int> m_profLabels;   // the group each timestamp closes (-1: the first)
 
     // device buffers (see shaders/voxfound_bodies.comp for the layouts)
     Buffer m_params, m_bodies, m_bodyVox, m_corners, m_world, m_cons, m_scratch, m_state, m_lists, m_warm, m_push;

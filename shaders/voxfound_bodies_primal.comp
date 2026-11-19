@@ -1,0 +1,6 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// docs/VoxelFoundationPlan.md F5.5a4 -- the body solver's parallel primal (local size 256: eight 32-thread groups, one
+// body each, a fixed shared-memory tree; passes 29 and 30). The code is in voxfound_bodies.glsl.
+#define VF_PRIMAL 1
+#include "voxfound_bodies.glsl"

@@ -1,0 +1,373 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFound*Gpu*
+[==========] Running 41 tests from 6 test suites.
+[----------] Global test environment set-up.
+[----------] 18 tests from VoxFoundFaceBuilderGpu
+[ RUN      ] VoxFoundFaceBuilderGpu.HandRigsEqualTheReference
+[23:17:32.737] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[       OK ] VoxFoundFaceBuilderGpu.HandRigsEqualTheReference (238 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.RandomContentAtAwkwardSizesEqualsTheReference
+[23:17:32.846] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[       OK ] VoxFoundFaceBuilderGpu.RandomContentAtAwkwardSizesEqualsTheReference (134 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.GeneratedTerrainEqualsTheReference
+[23:17:32.985] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:32.985] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[23:17:33.241] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 874 bodies
+[23:17:33.241] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2263 maxOrder=5 drainageComplete=1
+[facebuilder] perlin s7 (0,0) 256x160x256 voxels: 1713 faces, GPU 0.773 ms
+[23:17:34.854] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[23:17:35.105] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies
+[23:17:35.105] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1
+[facebuilder] perlin s12345 (-1024,768) 256x136x256 voxels: 695 faces, GPU 3.110 ms
+[       OK ] VoxFoundFaceBuilderGpu.GeneratedTerrainEqualsTheReference (3361 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.OverflowRegrowsAndStaysExact
+[23:17:36.360] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[       OK ] VoxFoundFaceBuilderGpu.OverflowRegrowsAndStaysExact (243 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.RefusesGridsThatAreNotOneChunk
+[23:17:36.588] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[       OK ] VoxFoundFaceBuilderGpu.RefusesGridsThatAreNotOneChunk (85 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.CardsAndSprigsEqualTheReference
+[23:17:36.686] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[       OK ] VoxFoundFaceBuilderGpu.CardsAndSprigsEqualTheReference (165 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.ForestWithFloraEqualsTheReference
+[23:17:36.839] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:36.839] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[23:17:36.840] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab\resources\biomes.json
+[facebuilder] forest (8160,96) 84 trees: solid faces 42412 (vs 103316 with leaves as voxels), sprigs 21204, GPU 0.563 ms
+[       OK ] VoxFoundFaceBuilderGpu.ForestWithFloraEqualsTheReference (11459 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.UniformBlockSkipSkipsAndStaysExact
+[23:17:48.313] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[       OK ] VoxFoundFaceBuilderGpu.UniformBlockSkipSkipsAndStaysExact (159 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.UniformBlockSkipTiming
+[23:17:48.468] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:48.468] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[23:17:48.469] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab\resources\biomes.json
+[facebuilder] skip timing perlin s7 (0,0) 256x160x256: off 1.299 ms, on 0.773 ms, 7475656 spans skipped, 1713 records
+[facebuilder] skip timing forest (8160,96) 256x256x256: off 1.218 ms, on 0.537 ms, 11186160 spans skipped, 63616 records
+[       OK ] VoxFoundFaceBuilderGpu.UniformBlockSkipTiming (802 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.ChunksAreInvisible
+[23:17:49.263] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:49.263] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[23:17:49.264] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab\resources\biomes.json
+[facebuilder] chunks invisible, forest 96^3 chunks: 27 chunks, 157950 unit faces, 21204 sprigs
+[facebuilder] chunks invisible, synthetic 24x16x20, beyond air: 18 chunks, 76906 unit faces, 4319 sprigs
+[facebuilder] chunks invisible, synthetic 24x16x20, beyond skip: 18 chunks, 69572 unit faces, 4315 sprigs
+[       OK ] VoxFoundFaceBuilderGpu.ChunksAreInvisible (2469 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.RefusesNeighboursOfTheWrongSize
+[23:17:51.741] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[       OK ] VoxFoundFaceBuilderGpu.RefusesNeighboursOfTheWrongSize (97 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.ClusterCullEqualsTheReference
+[23:17:51.828] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:51.828] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[cluster cull] slot 0: 1377 of 5000 clusters visible, 0 wrong, 0 differ within 1 mm of a plane
+[cluster cull] slot 1: 1945 of 5000 clusters visible, 0 wrong, 0 differ within 1 mm of a plane
+[       OK ] VoxFoundFaceBuilderGpu.ClusterCullEqualsTheReference (94 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.ClusterCullDropsDirectionGroupsLikeTheReference
+[23:17:51.918] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:51.919] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[cluster cull] direction test: 2562 of 6000 clusters dropped, 0 wrong
+[cluster cull] light test: 2784 of 6000 clusters dropped, 0 wrong
+[       OK ] VoxFoundFaceBuilderGpu.ClusterCullDropsDirectionGroupsLikeTheReference (87 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.ClusterCullPicksLevelsLikeTheReference
+[23:17:52.012] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:52.012] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[cluster lod] 1939 of 4000 drawn (per level 205 752 783 199), 0 wrong, 0 within 1e-4 of a switch
+[       OK ] VoxFoundFaceBuilderGpu.ClusterCullPicksLevelsLikeTheReference (92 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.CompactedCommandsDrawTheSameFacesAsPerClusterCommands
+[23:17:52.103] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:52.103] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[compact] 5000 clusters, 859 visible -> 360 + 126 commands (reference 486), 17935 faces
+[       OK ] VoxFoundFaceBuilderGpu.CompactedCommandsDrawTheSameFacesAsPerClusterCommands (97 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.RowsDeltaEqualsTheCpuPlan
+[23:17:52.198] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[rowsDelta] 240 edits over 12 grids: 81656 rows, 34902 faces added, 174 resident hits
+[       OK ] VoxFoundFaceBuilderGpu.RowsDeltaEqualsTheCpuPlan (403 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.PartialUpdateEqualsAFullUpload
+[23:17:52.605] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:52.606] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.610] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.621] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.632] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.642] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.654] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.665] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.675] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.686] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.697] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.708] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.719] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.730] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.741] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.752] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.763] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.774] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.784] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.795] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.806] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.817] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.828] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.839] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.850] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.861] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.872] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.883] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.894] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.905] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.915] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.925] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.936] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.947] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.958] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.969] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.980] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:52.992] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.002] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.014] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.025] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.035] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.046] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.056] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.067] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.078] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.089] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.100] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.111] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.122] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.133] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.144] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[partial] 50 rounds, 7704 slots rewritten in place, 21109 compacted commands compared
+[       OK ] VoxFoundFaceBuilderGpu.PartialUpdateEqualsAFullUpload (638 ms)
+[ RUN      ] VoxFoundFaceBuilderGpu.SeveralUpdatesInOneCommandBuffer
+[23:17:53.245] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)
+[23:17:53.245] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[23:17:53.245] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)
+[       OK ] VoxFoundFaceBuilderGpu.SeveralUpdatesInOneCommandBuffer (104 ms)
+[----------] 18 tests from VoxFoundFaceBuilderGpu (20737 ms total)
+
+[----------] 4 tests from VoxFoundLodBuilderGpu
+[ RUN      ] VoxFoundLodBuilderGpu.RandomContentEqualsTheReference
+[23:17:53.347] [INFO] [ComputePipeline] Created: shaders/voxfound_lod.comp.spv (5 bindings)
+[       OK ] VoxFoundLodBuilderGpu.RandomContentEqualsTheReference (103 ms)
+[ RUN      ] VoxFoundLodBuilderGpu.ThinSurfaceTakesTheNeighbourStep
+[23:17:53.448] [INFO] [ComputePipeline] Created: shaders/voxfound_lod.comp.spv (5 bindings)
+[       OK ] VoxFoundLodBuilderGpu.ThinSurfaceTakesTheNeighbourStep (87 ms)
+[ RUN      ] VoxFoundLodBuilderGpu.EngineForestAreaEqualsTheReference
+[23:17:53.539] [INFO] [ComputePipeline] Created: shaders/voxfound_lod.comp.spv (5 bindings)
+[23:17:53.540] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[23:17:53.540] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab\resources\biomes.json
+[lodbuilder] forest chunk (255,0,3) area 272^3, 87 plants stamped: 2869192 cells compared, GPU 0.193 ms
+[       OK ] VoxFoundLodBuilderGpu.EngineForestAreaEqualsTheReference (1720 ms)
+[ RUN      ] VoxFoundLodBuilderGpu.RefusesWhatItCannotBuild
+[23:17:55.264] [INFO] [ComputePipeline] Created: shaders/voxfound_lod.comp.spv (5 bindings)
+[       OK ] VoxFoundLodBuilderGpu.RefusesWhatItCannotBuild (94 ms)
+[----------] 4 tests from VoxFoundLodBuilderGpu (2006 ms total)
+
+[----------] 3 tests from VoxFoundFractureGpu
+[ RUN      ] VoxFoundFractureGpu.EveryLabRigEqualsTheReference
+[23:17:55.358] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)
+[fracture gpu] stone_wall   E     5.0: 0.075 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    15.0: 0.077 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    20.0: 0.076 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    30.0: 0.077 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    50.0: 0.076 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    80.0: 0.078 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E   120.0: 0.077 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E   200.0: 0.078 ms device, 8 rounds, 2 submits
+[fracture gpu] stone_wall   E   300.0: 0.076 ms device, 6 rounds, 2 submits
+[fracture gpu] stone_wall   E   500.0: 0.076 ms device, 6 rounds, 2 submits
+[fracture gpu] stone_wall   E   800.0: 0.077 ms device, 6 rounds, 2 submits
+[fracture gpu] stone_wall   E    50.0: 0.075 ms device, 7 rounds, 2 submits
+[fracture gpu] brick_wall   E    48.0: 0.077 ms device, 7 rounds, 2 submits
+[fracture gpu] brick_wall   E   180.0: 0.075 ms device, 4 rounds, 2 submits
+[fracture gpu] beam         E    32.0: 0.073 ms device, 6 rounds, 2 submits
+[fracture gpu] glass_pane   E    20.0: 0.048 ms device, 7 rounds, 2 submits
+[fracture gpu] column_lintel E   300.0: 0.073 ms device, 6 rounds, 2 submits
+[fracture gpu] chair        E    32.0: 0.234 ms device, 7 rounds, 2 submits
+[fracture gpu] rigs: 18 / 18 equal in every channel
+[       OK ] VoxFoundFractureGpu.EveryLabRigEqualsTheReference (117 ms)
+[ RUN      ] VoxFoundFractureGpu.RandomHitsAndRepeatedBlowsEqualTheReference
+[23:17:55.481] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)
+[fracture gpu] random: 600 / 600 hits equal in every channel
+[       OK ] VoxFoundFractureGpu.RandomHitsAndRepeatedBlowsEqualTheReference (512 ms)
+[ RUN      ] VoxFoundFractureGpu.CostPerBreakOnALargeWall
+[23:17:55.985] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)
+[fracture gpu] large wall 256 x 128 x 4 = 131072 voxels
+[fracture gpu] large wall E/T      8:    230 cuts,     0 loose pieces (   0 bodies) | GPU 1.716 ms device (9 rounds), 3.59 ms host | CPU reference 14.43 ms
+[fracture gpu] large wall E/T     20:    504 cuts,     7 loose pieces (   5 bodies) | GPU 1.761 ms device (9 rounds), 3.93 ms host | CPU reference 13.35 ms
+[fracture gpu] large wall E/T     50:   1473 cuts,    38 loose pieces (  16 bodies) | GPU 1.712 ms device (9 rounds), 3.48 ms host | CPU reference 14.57 ms
+[fracture gpu] large wall E/T    150:   4421 cuts,   122 loose pieces (  59 bodies) | GPU 1.730 ms device (9 rounds), 3.56 ms host | CPU reference 20.02 ms
+[fracture gpu] large wall E/T    400:  11291 cuts,   369 loose pieces ( 174 bodies) | GPU 1.742 ms device (9 rounds), 3.93 ms host | CPU reference 21.56 ms
+[fracture gpu] large wall E/T   1000:  28002 cuts,   936 loose pieces ( 468 bodies) | GPU 1.687 ms device (10 rounds), 4.04 ms host | CPU reference 33.13 ms
+[fracture gpu] large wall E/T   2500:  52801 cuts,  1981 loose pieces ( 947 bodies) | GPU 1.464 ms device (9 rounds), 3.40 ms host | CPU reference 55.81 ms
+[       OK ] VoxFoundFractureGpu.CostPerBreakOnALargeWall (350 ms)
+[----------] 3 tests from VoxFoundFractureGpu (980 ms total)
+
+[----------] 8 tests from VoxFoundBodySimGpu
+[ RUN      ] VoxFoundBodySimGpu.R1FreeFall
+[23:17:56.341] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:17:56.346] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:17:56.349] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] R1 free fall: worst vs closed form 7.556e-05 m, vs reference 7.556e-05 m
+[       OK ] VoxFoundBodySimGpu.R1FreeFall (161 ms)
+[ RUN      ] VoxFoundBodySimGpu.R2FlatDrop
+[23:17:56.502] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:17:56.509] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:17:56.511] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] R2 flat drop: rest y 0.24985 (penetration 0.15 mm), drift 0.000 mm, late speed 0.0000, asleep by 3 s 1, worst vs reference 0.324 mm
+[       OK ] VoxFoundBodySimGpu.R2FlatDrop (318 ms)
+[ RUN      ] VoxFoundBodySimGpu.R3SlabsRestFlat
+[23:17:56.819] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:17:56.823] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:17:56.826] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] R3 slab: vertical axis 1 (0.00 deg off), centre y 0.2499 (half-height 0.2500), asleep 1
+[body gpu] R3b slab: vertical axis 2 (0.03 deg off), centre y 0.1249 (half-height 0.1250), asleep 1
+[       OK ] VoxFoundBodySimGpu.R3SlabsRestFlat (288 ms)
+[ RUN      ] VoxFoundBodySimGpu.R4FrictionSlide
+[23:17:57.104] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:17:57.109] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:17:57.113] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] R4 slide: 0.2382 m (Coulomb 0.2548), rise 0.00 mm, tilt 0.00 deg, worst vs reference 0.161 mm
+[       OK ] VoxFoundBodySimGpu.R4FrictionSlide (200 ms)
+[ RUN      ] VoxFoundBodySimGpu.R5Stack
+[23:17:57.304] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:17:57.309] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:17:57.312] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] R5 stack of 5: worst move 1.92 mm, 5 / 5 asleep, colours 4
+[       OK ] VoxFoundBodySimGpu.R5Stack (179 ms)
+[ RUN      ] VoxFoundBodySimGpu.R6HeadOn
+[23:17:57.492] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:17:57.497] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:17:57.500] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] R6 head-on, 8 iterations: |P| / (m v) 4.67e-02, overlap 0.37 mm, after |v| 0.0522 / 0.0493
+[body gpu] R6 head-on, 32 iterations: |P| / (m v) 6.60e-03, overlap 0.46 mm, after |v| 0.0000 / 0.0000
+[       OK ] VoxFoundBodySimGpu.R6HeadOn (298 ms)
+[ RUN      ] VoxFoundBodySimGpu.F55aLadder
+[23:17:57.782] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:17:57.785] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:17:57.788] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] A3/A4 large wall E/T 250, per-colour: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.002 m, 2.041 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.040/0.039 world 0.408/0.003 pairs 0.143/0.002 prefix+scatter 0.008/0.007 sort 0.091/0.001 colour 0.066/0.040 primal 0.996/0.318 dual 0.020/0.012 hard_body 0.129/0.043 hard_apply 0.202/0.001 finish 0.004/0.003 warm 0.005/0.004 | total 2.117 / 0.475
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 250, fused: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.002 m, 2.220 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.040/0.039 world 0.405/0.003 pairs 0.142/0.003 prefix+scatter 0.008/0.007 sort 0.090/0.001 colour 0.040/0.003 primal 1.140/0.018 dual 0.028/0.022 hard_body 0.130/0.043 hard_apply 0.202/0.002 finish 0.004/0.003 warm 0.005/0.004 | total 2.238 / 0.150
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 0.8 ms / tick fused
+[body gpu] A3/A4 large wall E/T 650, per-colour: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.000 m, 3.364 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.043/0.042 world 0.392/0.003 pairs 0.244/0.002 prefix+scatter 0.016/0.015 sort 0.210/0.002 colour 0.104/0.040 primal 1.945/0.323 dual 0.030/0.016 hard_body 0.222/0.045 hard_apply 0.194/0.002 finish 0.005/0.003 warm 0.006/0.004 | total 3.416 / 0.500
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 650, fused: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.000 m, 4.309 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.004 aabb 0.043/0.042 world 0.387/0.004 pairs 0.243/0.003 prefix+scatter 0.016/0.015 sort 0.208/0.002 colour 0.094/0.004 primal 2.873/0.020 dual 0.035/0.023 hard_body 0.223/0.046 hard_apply 0.192/0.001 finish 0.005/0.003 warm 0.006/0.004 | total 4.328 / 0.169
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 1.5 ms / tick fused
+[body gpu] A3/A4 large wall E/T 2800, per-colour: 1025 bodies (3 awake at 5 s), colours 20, max contacts 30046, lowest corner -0.005 m, 6.248 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.043/0.042 world 0.662/0.086 pairs 0.581/0.268 prefix+scatter 0.046/0.044 sort 0.249/0.003 colour 0.161/0.042 primal 3.473/0.353 dual 0.040/0.020 hard_body 0.719/0.305 hard_apply 0.330/0.044 finish 0.005/0.004 warm 0.007/0.005 | total 6.318 / 1.220
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 2800, fused: 1025 bodies (3 awake at 5 s), colours 20, max contacts 30046, lowest corner -0.005 m, 9.892 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.042/0.042 world 0.656/0.087 pairs 0.574/0.269 prefix+scatter 0.046/0.044 sort 0.243/0.002 colour 0.188/0.005 primal 7.068/0.066 dual 0.047/0.028 hard_body 0.708/0.305 hard_apply 0.323/0.044 finish 0.005/0.004 warm 0.007/0.005 | total 9.912 / 0.905
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 3.0 ms / tick fused
+[       OK ] VoxFoundBodySimGpu.F55aLadder (18582 ms)
+[ RUN      ] VoxFoundBodySimGpu.F55TunnellingFastPiecesStop
+[23:18:16.379] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:18:16.385] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:18:16.388] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] T1 ground 1x1x4 at 5 m/s: lowest corner -0.0002 m, pos (1.812536, 0.062314, 1.999996), asleep 1
+[body gpu] T1 ground 1x1x4 at 15 m/s: lowest corner -0.0000 m, pos (2.098484, 0.062400, 2.078750), asleep 1
+[body gpu] T1 ground 1x1x4 at 30 m/s: lowest corner -0.0001 m, pos (2.537241, 0.062379, 2.494205), asleep 1
+[body gpu] T1 ground 1x1x4 at 60 m/s: lowest corner -0.0002 m, pos (3.576131, 0.062330, 2.798191), asleep 1
+[body gpu] T1 ground 2x2x2 at 5 m/s: lowest corner -0.0001 m, pos (1.874992, 0.124883, 1.874993), asleep 1
+[body gpu] T1 ground 2x2x2 at 15 m/s: lowest corner -0.0016 m, pos (1.878719, 0.124811, 1.888150), asleep 1
+[body gpu] T1 ground 2x2x2 at 30 m/s: lowest corner -0.0001 m, pos (1.869795, 0.124887, 1.859823), asleep 1
+[body gpu] T1 ground 2x2x2 at 60 m/s: lowest corner -0.0002 m, pos (1.404861, 0.124835, 1.933737), asleep 1
+[body gpu] T2 slab 2x2x2 at 30 m/s: lowest corner 1.1249 m, pos (2.042442, 1.249895, 2.042476), asleep 1
+[       OK ] VoxFoundBodySimGpu.F55TunnellingFastPiecesStop (454 ms)
+[----------] 8 tests from VoxFoundBodySimGpu (20484 ms total)
+
+[----------] 4 tests from VoxFoundBodySimGpuPile
+[ RUN      ] VoxFoundBodySimGpuPile.R7Lintel
+[23:18:16.829] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:18:16.834] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:18:16.837] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] R7 lintel E/T 30: 4 bodies, 4 asleep at 10 s, max penetration 5.44 mm, max contacts 34, capped 4787, hard-contact fires 150, colours 3, 0.309 ms / tick device
+[       OK ] VoxFoundBodySimGpuPile.R7Lintel (350 ms)
+[ RUN      ] VoxFoundBodySimGpuPile.R8BrokenWalls
+[23:18:17.174] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:18:17.180] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:18:17.183] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] R8 stone wall E/T 30: 7 bodies, 7 asleep at 10 s, max penetration 0.92 mm, max contacts 128, capped 12164, hard-contact fires 0, colours 4, 0.314 ms / tick device
+[body gpu] R8 stone wall E/T 80: 21 bodies, 21 asleep at 10 s, max penetration 0.63 mm, max contacts 461, capped 35512, hard-contact fires 0, colours 8, 0.277 ms / tick device
+[       OK ] VoxFoundBodySimGpuPile.R8BrokenWalls (569 ms)
+[ RUN      ] VoxFoundBodySimGpuPile.R8bBlastAndDeterminism
+[23:18:17.740] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:18:17.746] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:18:17.749] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] R8b stone wall E/T 80, 8000 N s: 21 bodies, 21 asleep at 15 s, max penetration 5.70 mm, max contacts 366, capped 25600, hard-contact fires 211, colours 8, 0.487 ms / tick device
+[body gpu] G3: 0 of 630 bodies differ between two runs
+[       OK ] VoxFoundBodySimGpuPile.R8bBlastAndDeterminism (1138 ms)
+[ RUN      ] VoxFoundBodySimGpuPile.F55aFusedEqualsPerColour
+[23:18:18.883] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:18:18.888] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:18:18.891] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] A1 R8b per-colour path: 21 bodies, 21 asleep at 15 s, max penetration 5.62 mm, max contacts 366, capped 32668, hard-contact fires 237, colours 8, 0.867 ms / tick device
+[body gpu] A1 R8b fused path: 21 bodies, 21 asleep at 15 s, max penetration 5.62 mm, max contacts 366, capped 32668, hard-contact fires 237, colours 8, 0.742 ms / tick device
+[body gpu] A1: 0 of 630 samples differ fused vs per-colour (worst 0 m); all asleep 0.1103 ms / tick fused
+[       OK ] VoxFoundBodySimGpuPile.F55aFusedEqualsPerColour (1843 ms)
+[----------] 4 tests from VoxFoundBodySimGpuPile (3901 ms total)
+
+[----------] 4 tests from VoxFoundBodySimGpuNarrow
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a2BlastBitEqual
+[23:18:20.720] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:18:20.725] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:18:20.728] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] B1 R8b blast: 21 bodies; 0 of 630 samples differ parallel vs serial; candidates 41396 / 41396, capped 25600 / 25600, pairs 2333 / 2333, hard 211 / 211, deep 0 / 0, max contacts 366 / 366
+[body gpu] B3 R8b blast: 0.484 ms / tick parallel, 5.622 serial; awake at the end 0; all-asleep tail 0.1191 ms / tick
+[       OK ] VoxFoundBodySimGpuNarrow.F55a2BlastBitEqual (5736 ms)
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a2Ladder
+[23:18:26.461] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:18:26.467] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:18:26.470] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] B1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ parallel vs serial; candidates 497026 / 497026, capped 392246 / 392246, pairs 22340 / 22340, hard 44 / 44, deep 9 / 9, max contacts 2970 / 2970
+[body gpu] B3 large wall E/T 250: 1.298 ms / tick parallel, 42.145 serial; awake at the end 0; all-asleep tail 0.1563 ms / tick
+[body gpu] B1 large wall E/T 650: 293 bodies; 0 of 2930 samples differ parallel vs serial; candidates 1357910 / 1357910, capped 1078125 / 1078125, pairs 52917 / 52917, hard 168 / 168, deep 2 / 2, max contacts 8595 / 8595
+[body gpu] B3 large wall E/T 650: 1.511 ms / tick parallel, 63.048 serial; awake at the end 0; all-asleep tail 0.1705 ms / tick
+[body gpu] B1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ parallel vs serial; candidates 4918887 / 4918887, capped 3734817 / 3734817, pairs 249407 / 249407, hard 2127 / 2127, deep 32 / 32, max contacts 30188 / 30188
+[body gpu] B3 large wall E/T 2800: 3.704 ms / tick parallel, 112.815 serial; awake at the end 10; all-asleep tail 1.0667 ms / tick
+[body gpu]   B3 profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.043/0.042 world 0.554/0.087 pairs 0.603/0.305 prefix+scatter 0.046/0.044 sort 0.291/0.006 colour 0.196/0.022 primal 0.724/0.197 dual 0.048/0.032 hard_body 0.738/0.334 hard_apply 0.272/0.044 finish 0.005/0.004 warm 0.007/0.005
+[       OK ] VoxFoundBodySimGpuNarrow.F55a2Ladder (69445 ms)
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a3WorldBitEqual
+[23:19:35.912] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:19:35.917] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:19:35.920] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] C1 R8b blast: 21 bodies; 0 of 630 samples differ parallel vs serial; candidates 41396 / 41396, capped 25600 / 25600, pairs 2333 / 2333, hard 211 / 211, deep 0 / 0, max contacts 366 / 366
+[body gpu] C3 R8b blast: 0.485 ms / tick parallel, 3.138 serial; awake at the end 0; all-asleep tail 0.1205 ms / tick
+[body gpu] C1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ parallel vs serial; candidates 497026 / 497026, capped 392246 / 392246, pairs 22340 / 22340, hard 44 / 44, deep 9 / 9, max contacts 2970 / 2970
+[body gpu] C3 large wall E/T 250: 1.297 ms / tick parallel, 6.395 serial; awake at the end 0; all-asleep tail 0.1577 ms / tick
+[body gpu] C1 large wall E/T 650: 293 bodies; 0 of 2930 samples differ parallel vs serial; candidates 1357910 / 1357910, capped 1078125 / 1078125, pairs 52917 / 52917, hard 168 / 168, deep 2 / 2, max contacts 8595 / 8595
+[body gpu] C3 large wall E/T 650: 1.508 ms / tick parallel, 6.815 serial; awake at the end 0; all-asleep tail 0.1720 ms / tick
+[body gpu] C1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ parallel vs serial; candidates 4918887 / 4918887, capped 3734817 / 3734817, pairs 249407 / 249407, hard 2127 / 2127, deep 32 / 32, max contacts 30188 / 30188
+[body gpu] C3 large wall E/T 2800: 3.730 ms / tick parallel, 11.698 serial; awake at the end 10; all-asleep tail 1.0682 ms / tick
+[body gpu]   C3 profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.043/0.042 world 0.574/0.087 pairs 0.606/0.305 prefix+scatter 0.047/0.045 sort 0.292/0.005 colour 0.202/0.023 primal 0.726/0.197 dual 0.048/0.031 hard_body 0.735/0.335 hard_apply 0.282/0.044 finish 0.005/0.004 warm 0.007/0.005
+[       OK ] VoxFoundBodySimGpuNarrow.F55a3WorldBitEqual (14942 ms)
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost
+[23:19:50.850] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:19:50.855] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:19:50.858] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] D1 R8b blast: 21 bodies; 0 of 630 samples differ between two parallel-primal runs; vs the serial primal: worst sample 2.2596 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 R8b blast: 0.483 ms / tick parallel primal, 0.740 serial primal; awake at the end 0; tail 0.1191 ms / tick
+[body gpu] E1 R8b blast: 0 of 630 samples differ, one-workgroup form vs indirect form; 0.484 vs 0.492 ms / tick
+[body gpu] D2 R8b blast: lowest corner -0.0018 m, max penetration 5.70 mm
+[body gpu] D1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ between two parallel-primal runs; vs the serial primal: worst sample 8.1985 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 250: 1.327 ms / tick parallel primal, 2.247 serial primal; awake at the end 0; tail 0.1563 ms / tick
+[body gpu] E1 large wall E/T 250: 0 of 1050 samples differ, one-workgroup form vs indirect form; 1.295 vs 1.310 ms / tick
+[body gpu] D2 large wall E/T 250: lowest corner -0.0001 m, max penetration 6.84 mm
+[body gpu] D1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ between two parallel-primal runs; vs the serial primal: worst sample 7.3684 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 2800: 3.668 ms / tick parallel primal, 7.050 serial primal; awake at the end 10; tail 1.0650 ms / tick
+[body gpu] E1 large wall E/T 2800: 0 of 10250 samples differ, one-workgroup form vs indirect form; 4.708 vs 3.534 ms / tick
+[body gpu] D2 large wall E/T 2800: lowest corner -0.0065 m, max penetration 8.50 mm
+[body gpu]   D3 profile (300 ticks, mean / min ms): integrate 0.005/0.003 aabb 0.045/0.042 world 0.810/0.087 pairs 0.721/0.305 prefix+scatter 0.049/0.045 sort 0.328/0.006 colour 0.226/0.022 primal 0.812/0.197 dual 0.054/0.032 hard_body 0.799/0.335 hard_apply 0.386/0.044 finish 0.005/0.004 warm 0.008/0.005
+[       OK ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost (49006 ms)
+[----------] 4 tests from VoxFoundBodySimGpuNarrow (139130 ms total)
+
+[----------] Global test environment tear-down
+[==========] 41 tests from 6 test suites ran. (187240 ms total)
+[  PASSED  ] 41 tests.

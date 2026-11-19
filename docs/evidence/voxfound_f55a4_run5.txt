@@ -1,0 +1,28 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpuNarrow.F55a4*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodySimGpuNarrow
+[ RUN      ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost
+[23:21:37.756] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)
+[23:21:37.761] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)
+[23:21:37.764] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)
+[body gpu] D1 R8b blast: 21 bodies; 0 of 630 samples differ between two parallel-primal runs; vs the serial primal: worst sample 2.2596 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 R8b blast: 0.482 ms / tick parallel primal, 0.758 serial primal; awake at the end 0; tail 0.1169 ms / tick
+[body gpu] E1 R8b blast: 0 of 630 samples differ, one-workgroup form vs indirect form; 0.487 vs 0.490 ms / tick
+[body gpu] D2 R8b blast: lowest corner -0.0018 m, max penetration 5.70 mm
+[body gpu] D1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ between two parallel-primal runs; vs the serial primal: worst sample 8.1985 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 250: 1.296 ms / tick parallel primal, 2.230 serial primal; awake at the end 0; tail 0.1555 ms / tick
+[body gpu] E1 large wall E/T 250: 0 of 1050 samples differ, one-workgroup form vs indirect form; 1.293 vs 1.315 ms / tick
+[body gpu] D2 large wall E/T 250: lowest corner -0.0001 m, max penetration 6.84 mm
+[body gpu] D1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ between two parallel-primal runs; vs the serial primal: worst sample 7.3684 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 2800: 3.716 ms / tick parallel primal, 7.021 serial primal; awake at the end 10; tail 1.0587 ms / tick
+[body gpu] E1 large wall E/T 2800: 0 of 10250 samples differ, one-workgroup form vs indirect form; 4.683 vs 3.538 ms / tick
+[body gpu] D2 large wall E/T 2800: lowest corner -0.0065 m, max penetration 8.50 mm
+[body gpu]   D3 profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.045/0.042 world 0.784/0.087 pairs 0.718/0.305 prefix+scatter 0.048/0.044 sort 0.329/0.006 colour 0.224/0.022 primal 0.808/0.194 dual 0.049/0.029 hard_body 0.795/0.334 hard_apply 0.391/0.045 finish 0.005/0.003 warm 0.008/0.005
+[       OK ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost (48357 ms)
+[----------] 1 test from VoxFoundBodySimGpuNarrow (48357 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (48357 ms total)
+[  PASSED  ] 1 test.

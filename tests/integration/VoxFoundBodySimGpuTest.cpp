@@ -392,6 +392,7 @@ Rig largeWallRig(float e) {   // F5.1 / D5's 256 x 128 x 4 stone wall, base fixe
 
 // A1 + A2 (+ A4's blast and all-asleep rows): the R8b blast on both paths, bit-equal at every sample
 TEST_F(VoxFoundBodySimGpuPile, F55aFusedEqualsPerColour) {
+    gpu.setPrimalParallel(false);   // A1 compares the two serial-primal paths (F5.5a4 note)
     gpu.setFused(false);
     const PileResult a = pile(rigStoneWall({12, 8, 0}, 80.0f), "A1 R8b per-colour path", 900, 8000.0f);
     if (HasFatalFailure()) return;
@@ -432,6 +433,7 @@ TEST_F(VoxFoundBodySimGpu, F55aLadder) {
             mirror.add(b);
         }
         double msPath[2] = {0.0, 0.0};
+        gpu.setPrimalParallel(false);   // the F5.5a comparison: the two serial-primal paths
         for (int fused = 0; fused < 2; ++fused) {
             gpu.setFused(fused != 0);
             load(world, ref);
@@ -646,7 +648,7 @@ TEST_F(VoxFoundBodySimGpuNarrow, F55a2Ladder) {
                 std::printf(" %s %.3f/%.3f", BodySimGpu::profileName(g), pr.sumMs[g] / std::max(1, pr.ticks),
                             pr.minMs[g]);
             std::printf("\n");
-            const double pairsMs = pr.sumMs[3] / std::max(1, pr.ticks), hardMs = pr.sumMs[7] / std::max(1, pr.ticks);
+            const double pairsMs = pr.sumMs[3] / std::max(1, pr.ticks), hardMs = pr.sumMs[9] / std::max(1, pr.ticks);
             EXPECT_LE(pairsMs, 2.0) << "B3 pairs";
             EXPECT_LE(hardMs, 2.0) << "B3 hard_body";
         }
@@ -709,9 +711,80 @@ TEST_F(VoxFoundBodySimGpuNarrow, F55a3WorldBitEqual) {
                             pr.minMs[g]);
             std::printf("\n");
             EXPECT_LE(pr.sumMs[2] / std::max(1, pr.ticks), 1.4) << "C3 world";
-            EXPECT_LE(pr.sumMs[8] / std::max(1, pr.ticks), 0.5) << "C3 hard_apply";
+            EXPECT_LE(pr.sumMs[10] / std::max(1, pr.ticks), 0.5) << "C3 hard_apply";
         }
     }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5a4 -- the primal in parallel (voxfound_f55_prediction.txt, D1-D3): deterministic, NOT bit-equal to the serial
+// primal (stated before the run); every other test is its invariant gate.
+TEST_F(VoxFoundBodySimGpuNarrow, F55a4PrimalDeterministicAndCost) {
+    auto rigRun = [&](Rig rig, float impulse, int ticks, const char* label, double maxMs, bool profile) {
+        if (impulse > 0.0f) rig.hit.impulse = impulse;
+        const FractureResult r = fractureReference(rig.grid, rig.hit, rig.mats);
+        VoxelGrid world = rig.grid;
+        const Extraction ex = extractBodies(world, r, rig.hit, rig.mats);
+        BodySimRef ref(world, rig.mats), mirror(world, rig.mats);
+        for (const Body& b : ex.bodies) {
+            ref.add(b, b.vel, b.angVel);
+            mirror.add(b);
+        }
+        gpu.setPrimalParallel(false);
+        const NarrowRun s = run(world, ref, mirror, ticks, true, false);
+        if (HasFatalFailure()) return;
+        gpu.setPrimalParallel(true);
+        const NarrowRun a = run(world, ref, mirror, ticks, true, true);
+        if (HasFatalFailure()) return;
+        const NarrowRun b = run(world, ref, mirror, ticks, true, false);
+        if (HasFatalFailure()) return;
+        double worst = 0.0;
+        for (size_t i = 0; i < a.pos.size() && i < s.pos.size(); ++i) worst = std::max(worst, glm::length(a.pos[i] - s.pos[i]));
+        std::printf("[body gpu] D1 %s: %zu bodies; %zu of %zu samples differ between two parallel-primal runs; vs the "
+                    "serial primal: worst sample %.4f m apart (reassociated sums, chaotic piles)\n",
+                    label, a.bodies, differ(a, b), a.pos.size(), worst);
+        std::printf("[body gpu] D3 %s: %.3f ms / tick parallel primal, %.3f serial primal; awake at the end %zu; tail "
+                    "%.4f ms / tick\n", label, a.ms, s.ms, a.awake, a.asleepMs);
+        EXPECT_EQ(differ(a, b), 0u) << "D1 " << label;
+        // E1 (run 1 design fix): the two dispatch forms of the parallel primal compute the same numbers
+        gpu.setFused(true);
+        const NarrowRun f = run(world, ref, mirror, ticks, true, false);
+        if (HasFatalFailure()) return;
+        gpu.setFused(false);
+        const NarrowRun x = run(world, ref, mirror, ticks, true, false);
+        if (HasFatalFailure()) return;
+        gpu.setFusedMaxAwake(128);
+        std::printf("[body gpu] E1 %s: %zu of %zu samples differ, one-workgroup form vs indirect form; %.3f vs %.3f ms "
+                    "/ tick\n", label, differ(f, x), f.pos.size(), f.ms, x.ms);
+        EXPECT_EQ(differ(f, x), 0u) << "E1 " << label;
+        EXPECT_EQ(differ(a, f) == 0 || differ(a, x) == 0, true) << "E1: the automatic choice is one of the two forms";
+        const double pen = mirror.currentMaxPenetration();   // the second parallel run's final poses
+        std::printf("[body gpu] D2 %s: lowest corner %.4f m, max penetration %.2f mm\n", label, mirror.lowestCornerY(),
+                    pen * 1000.0);
+        EXPECT_GE(mirror.lowestCornerY(), -0.05) << "D2 " << label;
+        EXPECT_LE(pen, 0.01) << "D2 " << label << ": " << mirror.worstPenetrationReport();
+        if (ticks >= 900) EXPECT_EQ(a.awake, 0u) << "D2 " << label << ": the blast settles";
+        EXPECT_LE(a.ms, maxMs) << "D3 " << label;
+        if (profile) {
+            gpu.setProfile(true);
+            load(world, ref);
+            if (HasFatalFailure()) return;
+            step(300);
+            gpu.setProfile(false);
+            const auto& pr = gpu.profile();
+            std::printf("[body gpu]   D3 profile (%d ticks, mean / min ms):", pr.ticks);
+            for (int g = 0; g < BodySimGpu::kProfGroups; ++g)
+                std::printf(" %s %.3f/%.3f", BodySimGpu::profileName(g), pr.sumMs[g] / std::max(1, pr.ticks),
+                            pr.minMs[g]);
+            std::printf("\n");
+            // D3: run 2 MISSED (1.76 ms) because every barrier carried the indirect stage; run 4, with it only after
+            // the arguments' pass: 0.81 ms. Guarded at 2x the measure.
+            EXPECT_LE(pr.sumMs[7] / std::max(1, pr.ticks), 1.6) << "D3 primal";
+        }
+    };
+    rigRun(rigStoneWall({12, 8, 0}, 80.0f), 8000.0f, 900, "R8b blast", 0.9, false);
+    rigRun(largeWallRig(250.0f), 0.0f, 300, "large wall E/T 250", 2.2, false);
+    rigRun(largeWallRig(2800.0f), 0.0f, 300, "large wall E/T 2800", 5.0, true);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

@@ -569,8 +569,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       shader sweepWorld, the same rule); the path wins over escape; a start a hair inside a surface keeps that surface.
       F5.5a3 done: world test one workgroup per awake body (setWorldParallel(false) = control), bit-equal; 1,025
       bodies 7.1 ms/tick (blast 0.74). Profile at 1,025: solve 3.68, hard_body 0.71, world 0.70, pairs 0.58, sort 0.24.
-      NEXT: the solve at 1,025 awake bodies (prediction BEFORE code); then F5.5b (GPU solver live + per-body cull),
-      F5.5c (bake levers + incremental preview edit), F5.5d (the exit).
+      F5.5a4 done: primal per body on a 32-thread group (voxfound_bodies_primal.comp; indirect per colour, or one
+      workgroup when <= 128 awake -- the two forms bit-equal; NOT bit-equal to the serial primal, setPrimalParallel
+      (false) = control). 1,025 bodies 3.67 ms/tick, blast 0.48. Barrier lesson: the indirect stage only after the
+      args pass (on every barrier it doubled the asleep tick).
+      NEXT: F5.5b -- the GPU solver live in the lab (VoxFoundBodiesLab moves bodies with the CPU reference today) +
+      the per-body frustum / light cull (F5.3: 1.19 ms main at 947 bodies); prediction BEFORE code. Then F5.5c (bake
+      levers + incremental preview edit), F5.5d (the exit, live 100 -> 1,000). Owed lever: broadphase (pairs +
+      hard_body are awake x all loops).
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +
