@@ -29,8 +29,10 @@ enum : uint32_t {
 // passes
 enum : uint32_t {
     K_INTEGRATE = 0, K_AABB, K_WORLD, K_PAIRS, K_PREFIX, K_SCATTER, K_SORT, K_COLOUR_INIT, K_COLOUR_ROUND,
-    K_COLOUR_FINAL, K_PRIMAL, K_DUAL, K_HARD_BODY, K_HARD_APPLY, K_FINISH, K_WARM_CLEAR, K_WARM_SAVE
+    K_COLOUR_FINAL, K_PRIMAL, K_DUAL, K_HARD_BODY, K_HARD_APPLY, K_FINISH, K_WARM_CLEAR, K_WARM_SAVE,
+    K_FUSED_COLOUR, K_FUSED_PRIMAL   // F5.5a: 7-9, and 10 for every colour, each in one dispatch (the fused pipeline)
 };
+constexpr uint32_t kFusedGroup = 1024;
 
 struct GBody {   // voxfound_bodies.comp Body, std430: 18 x 16 bytes
     float pos[4], quat[4], vel[4], angVel[4], initial[4], initialQuat[4], inertial[4], inertialQuat[4], cumAng[4];
@@ -94,7 +96,27 @@ bool BodySimGpu::init(VkDevice device, VkPhysicalDevice physical, VkQueue queue,
         shutdown();
         return false;
     }
+    m_pipeFused = std::make_unique<Vulkan::ComputePipeline>();
+    if (!m_pipeFused->create(device, shaderDir + "/voxfound_bodies_fused.comp.spv", 11, sizeof(BodyPC))) {
+        if (err) *err = "BodySimGpu: cannot create the pipeline from " + shaderDir +
+                        "/voxfound_bodies_fused.comp.spv (run build_shaders.bat?)";
+        shutdown();
+        return false;
+    }
+    if (m_queries) {
+        VkQueryPoolCreateInfo q{};
+        q.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        q.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        q.queryCount = kProfGroups + 1;
+        if (vkCreateQueryPool(device, &q, nullptr, &m_profQueries) != VK_SUCCESS) m_profQueries = VK_NULL_HANDLE;
+    }
     return true;
+}
+
+const char* BodySimGpu::profileName(int g) {
+    static const char* names[kProfGroups] = {"integrate", "aabb", "world", "pairs", "prefix+scatter", "sort", "solve",
+                                             "hard_body", "hard_apply", "finish", "warm"};
+    return g >= 0 && g < kProfGroups ? names[g] : "?";
 }
 
 void BodySimGpu::shutdown() {
@@ -105,6 +127,10 @@ void BodySimGpu::shutdown() {
         destroyBuffer(*b);
     if (m_pipe) m_pipe->cleanup();
     m_pipe.reset();
+    if (m_pipeFused) m_pipeFused->cleanup();
+    m_pipeFused.reset();
+    if (m_profQueries) vkDestroyQueryPool(m_device, m_profQueries, nullptr);
+    m_profQueries = VK_NULL_HANDLE;
     if (m_queries) vkDestroyQueryPool(m_device, m_queries, nullptr);
     if (m_fence) vkDestroyFence(m_device, m_fence, nullptr);
     if (m_pool) vkDestroyCommandPool(m_device, m_pool, nullptr);
@@ -236,6 +262,7 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
     m_iterations = uint32_t(p.iterations);
     m_parity = 0;
     m_tick = 0;
+    m_lastAwake = m_nb;
 
     std::vector<uint32_t> prm(P_MATS + mats.size(), 0);
     prm[P_NB] = m_nb;
@@ -320,8 +347,12 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
         return false;
     Buffer* bind[11] = {&m_params, &m_bodies, &m_bodyVox, &m_corners, &m_world, &m_cons,
                         &m_scratch, &m_state, &m_lists, &m_warm, &m_push};
-    for (uint32_t k = 0; k < 11; ++k) m_pipe->bindBuffer(k, bind[k]->buf, bind[k]->bytes);
+    for (uint32_t k = 0; k < 11; ++k) {
+        m_pipe->bindBuffer(k, bind[k]->buf, bind[k]->bytes);
+        m_pipeFused->bindBuffer(k, bind[k]->buf, bind[k]->bytes);
+    }
     m_pipe->updateDescriptors();
+    m_pipeFused->updateDescriptors();
 
     auto* st = static_cast<uint8_t*>(m_stage.mapped);
     VkDeviceSize off = 0;
@@ -359,39 +390,76 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
         m_pipe->dispatch(cmd, (threads + kGroup - 1) / kGroup);
         barrier(cmd);
     };
+    const bool prof = m_profile && m_profQueries;
+    auto stamp = [&]() {
+        if (prof) vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_profQueries, m_profStamp++);
+    };
+    if (prof) {
+        vkCmdResetQueryPool(cmd, m_profQueries, 0, kProfGroups + 1);
+        m_profStamp = 0;
+    }
     vkCmdFillBuffer(cmd, m_state.buf, S_AWAKE * 4, 4, 0);
     vkCmdFillBuffer(cmd, m_state.buf, S_NCONS * 4, 4, 0);
     barrier(cmd);
+    stamp();
     m_pipe->bind(cmd);
     run(K_INTEGRATE, 0, m_nb);
+    stamp();
     run(K_AABB, 0, m_nb);
+    stamp();
     run(K_WORLD, 0, m_nb);
+    stamp();
     run(K_PAIRS, 0, m_nb);
+    stamp();
     run(K_PREFIX, 0, 1);
     run(K_SCATTER, 0, m_maxCons);
+    stamp();
     run(K_SORT, 0, m_nb);
-    run(K_COLOUR_INIT, 0, m_nb);
-    for (uint32_t r = 0; r < kMaxColours; ++r) run(K_COLOUR_ROUND, r, m_nb);
-    run(K_COLOUR_FINAL, 0, m_nb);
-    for (uint32_t it = 0; it < m_iterations; ++it) {
-        for (uint32_t c = 0; c < kMaxColours; ++c) run(K_PRIMAL, c, m_nb);
-        run(K_DUAL, 0, m_maxCons);
+    stamp();
+    if (m_fused) {   // F5.5a: the colour rounds and every iteration, one workgroup
+        auto one = [&](uint32_t pass) {
+            m_pipeFused->bind(cmd);
+            BodyPC pc{pass, 0, parity, kFusedGroup};
+            m_pipeFused->pushConstants(cmd, &pc, sizeof(pc));
+            m_pipeFused->dispatch(cmd, 1);
+            barrier(cmd);
+            m_pipe->bind(cmd);
+        };
+        one(K_FUSED_COLOUR);
+        for (uint32_t it = 0; it < m_iterations; ++it) {
+            one(K_FUSED_PRIMAL);
+            run(K_DUAL, 0, m_maxCons);
+        }
+    } else {
+        run(K_COLOUR_INIT, 0, m_nb);
+        for (uint32_t r = 0; r < kMaxColours; ++r) run(K_COLOUR_ROUND, r, m_nb);
+        run(K_COLOUR_FINAL, 0, m_nb);
+        for (uint32_t it = 0; it < m_iterations; ++it) {
+            for (uint32_t c = 0; c < kMaxColours; ++c) run(K_PRIMAL, c, m_nb);
+            run(K_DUAL, 0, m_maxCons);
+        }
     }
+    stamp();
     run(K_AABB, 0, m_nb);
     run(K_HARD_BODY, 0, m_nb);
+    stamp();
     run(K_HARD_APPLY, 0, m_nb);
+    stamp();
     run(K_FINISH, 0, m_nb);
+    stamp();
     run(K_WARM_CLEAR, 0, kWarmCap);
     run(K_WARM_SAVE, 0, m_maxCons);
+    stamp();
     ++m_tick;
 }
 
 bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
     if (!initialized() || m_nb == 0) { if (err) *err = "BodySimGpu: not loaded"; return false; }
     m_lastGpuMs = 0.0;
+    m_fused = m_lastAwake <= m_fusedMaxAwake;
     bool first = true;
     for (int done = 0; done < ticks;) {
-        const int n = std::min(std::max(ticksPerSubmit, 1), ticks - done);
+        const int n = m_profile ? 1 : std::min(std::max(ticksPerSubmit, 1), ticks - done);
         if (!submit([&](VkCommandBuffer cmd) {
                 if (first) {   // the summed counters start at 0 for this call
                     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);
@@ -410,6 +478,18 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
                 }
             }, true, &m_lastGpuMs, err))
             return false;
+        if (m_profile && m_profQueries) {
+            uint64_t ts[kProfGroups + 1] = {};
+            if (vkGetQueryPoolResults(m_device, m_profQueries, 0, kProfGroups + 1, sizeof(ts), ts, sizeof(uint64_t),
+                                      VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) == VK_SUCCESS) {
+                for (int g = 0; g < kProfGroups; ++g) {
+                    const double ms = double(ts[g + 1] - ts[g]) * m_timestampMs;
+                    m_prof.sumMs[g] += ms;
+                    m_prof.minMs[g] = m_prof.ticks == 0 ? ms : std::min(m_prof.minMs[g], ms);
+                }
+                ++m_prof.ticks;
+            }
+        }
         first = false;
         done += n;
     }
@@ -428,6 +508,7 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
     m_stats.uncoloured = s[S_UNCOL];
     m_stats.colours = s[S_MAXCOL];
     m_stats.awake = s[S_AWAKE];
+    m_lastAwake = m_stats.awake;
     return true;
 }
 

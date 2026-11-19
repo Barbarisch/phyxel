@@ -558,10 +558,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       BodySimRef::remove keeps warm starts). Conservation exact every tick (unit + live ledger). MISSED: near pop 40.8 %
       of the box (leaning pieces resample to steps; tile re-chosen), rigid share 33 %, bake 38 / 677 ms at 916 bodies.
       Live route keys "rest" / "bake_now"; harness tools/voxfound_f54_gate.py --api (run my engine on its own port).
-      NEXT: F5.5 -- the exit stress, 100 -> 1,000 bodies (F5 row "100 -> 1,000 bodies; conservation; pop measured";
-      stop if body cost at 1,000 is over budget with no lever left). Owed levers to try there: per-body frustum/light
-      cull, the bake's neighbour cell set + per-pass cap, incremental preview edit instead of the 72 ms rebuild, the
-      GPU solver's dispatch floor. Write the prediction before code.
+      F5.5 (exit stress 100 -> 1,000 bodies) IN PROGRESS, prediction docs/evidence/voxfound_f55_prediction.txt (the
+      budget proposal + order a / a2 / tunnelling / b / c / d). F5.5a done (2026-11-18): fused GPU solve, bit-equal,
+      cost choice by awake count; per-pass profile (BodySimGpu::setProfile) shows the cost is K_PAIRS + K_HARD_BODY
+      (serial voxel-corner narrowphase per body), 100 of 109 ms/tick at 1,025 bodies; a piece TUNNELS through the
+      ground at 1,025 (solver rule, owed). Ladder test VoxFoundBodySimGpu.F55aLadder (~5 min).
+      NEXT: F5.5a2 -- the narrowphase in parallel: broadphase pair list once, one workgroup per pair, candidates in
+      the SAME order (count + scan + write) so the cap picks the same contacts (bit-equal target), scratch per worker
+      group; hard_body per pair once. Append its prediction to the F5.5 file BEFORE code. Then the tunnelling fix,
+      then F5.5b (GPU solver live + per-body cull), F5.5c (bake levers + incremental preview edit), F5.5d (the exit).
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

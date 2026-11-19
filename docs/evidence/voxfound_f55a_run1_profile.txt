@@ -1,0 +1,59 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodySimGpu.F55aLadder
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodySimGpu
+[ RUN      ] VoxFoundBodySimGpu.F55aLadder
+[22:04:29.060] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (11 bindings)
+[22:04:29.062] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (11 bindings)
+[body gpu] A3/A4 large wall E/T 250, per-colour: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.000 m, 44.704 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.008/0.007 aabb 0.040/0.039 world 1.944/0.001 pairs 16.878/0.017 prefix+scatter 0.008/0.006 sort 0.103/0.001 solve 1.007/0.341 hard_body 22.798/0.061 hard_apply 1.856/0.001 finish 0.003/0.002 warm 0.005/0.003 | total 44.650 / 0.479
+[body gpu] A3/A4 large wall E/T 250, fused: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.000 m, 44.680 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.008/0.007 aabb 0.040/0.039 world 1.931/0.001 pairs 16.862/0.017 prefix+scatter 0.008/0.007 sort 0.097/0.001 solve 1.104/0.007 hard_body 22.790/0.062 hard_apply 1.825/0.001 finish 0.004/0.002 warm 0.005/0.003 | total 44.674 / 0.148
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(490): error: Expected: (msPath[1]) <= (rung.maxMs), actual: 44.679676586666652 vs 0.8
+A4 fused cost at E/T 250
+
+[body gpu] A3/A4 large wall E/T 650, per-colour: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.002 m, 84.598 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.008/0.007 aabb 0.042/0.041 world 2.160/0.001 pairs 34.550/0.059 prefix+scatter 0.016/0.014 sort 0.228/0.001 solve 1.932/0.342 hard_body 43.582/0.106 hard_apply 2.034/0.001 finish 0.004/0.002 warm 0.005/0.004 | total 84.561 / 0.579
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(488): error: Expected: (colours) <= (16u), actual: 17 vs 16
+A3
+
+[body gpu] A3/A4 large wall E/T 650, fused: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.002 m, 85.478 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.008/0.007 aabb 0.042/0.041 world 2.157/0.002 pairs 34.525/0.060 prefix+scatter 0.016/0.014 sort 0.232/0.002 solve 2.861/0.007 hard_body 43.591/0.107 hard_apply 2.032/0.002 finish 0.004/0.002 warm 0.006/0.004 | total 85.474 / 0.248
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(488): error: Expected: (colours) <= (16u), actual: 17 vs 16
+A3
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(490): error: Expected: (msPath[1]) <= (rung.maxMs), actual: 85.477732799999998 vs 1.5
+A4 fused cost at E/T 650
+
+[body gpu] A3/A4 large wall E/T 2800, per-colour: 1025 bodies (5 awake at 5 s), colours 20, max contacts 30046, lowest corner -93.874 m, 108.976 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.008/0.007 aabb 0.042/0.041 world 2.557/0.298 pairs 42.032/1.286 prefix+scatter 0.047/0.045 sort 0.275/0.004 solve 3.438/0.399 hard_body 58.171/1.501 hard_apply 2.397/0.273 finish 0.004/0.003 warm 0.007/0.004 | total 108.977 / 3.862
+[body gpu]   lowest body 609 at (19.50, -93.69, -3.81) m, 4 voxels, asleep 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(487): error: Expected: (mirror.lowestCornerY()) >= (-0.05), actual: -93.8736967962449 vs -0.05
+A3: through the ground
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(488): error: Expected: (colours) <= (16u), actual: 20 vs 16
+A3
+
+[body gpu] A3/A4 large wall E/T 2800, fused: 1025 bodies (5 awake at 5 s), colours 20, max contacts 30046, lowest corner -93.874 m, 112.694 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.008/0.007 aabb 0.042/0.041 world 2.550/0.298 pairs 42.033/1.287 prefix+scatter 0.047/0.045 sort 0.273/0.004 solve 7.147/0.090 hard_body 58.160/1.502 hard_apply 2.386/0.273 finish 0.004/0.003 warm 0.006/0.004 | total 112.655 / 3.554
+[body gpu]   lowest body 609 at (19.50, -93.69, -3.81) m, 4 voxels, asleep 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(487): error: Expected: (mirror.lowestCornerY()) >= (-0.05), actual: -93.8736967962449 vs -0.05
+A3: through the ground
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(488): error: Expected: (colours) <= (16u), actual: 20 vs 16
+A3
+
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(490): error: Expected: (msPath[1]) <= (rung.maxMs), actual: 112.69353418666668 vs 3
+A4 fused cost at E/T 2800
+
+[  FAILED  ] VoxFoundBodySimGpu.F55aLadder (290432 ms)
+[----------] 1 test from VoxFoundBodySimGpu (290432 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (290432 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55aLadder
+
+ 1 FAILED TEST

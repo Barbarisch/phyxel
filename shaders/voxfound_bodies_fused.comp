@@ -1,0 +1,6 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// docs/VoxelFoundationPlan.md F5.5a -- the body solver's colour rounds and every iteration in ONE dispatch of one
+// workgroup (local size 1024, pass 17). The code is in voxfound_bodies.glsl, shared with voxfound_bodies.comp.
+#define VF_FUSED 1
+#include "voxfound_bodies.glsl"

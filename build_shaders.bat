@@ -293,6 +293,7 @@ echo Compiling voxel-foundation face builder (docs/VoxelFoundationPlan.md F2.1).
 %GLSLANG% -V -Ishaders shaders\voxfound_lod.comp -o shaders\voxfound_lod.comp.spv || goto :shader_error
 %GLSLANG% -V -Ishaders shaders\voxfound_fracture.comp -o shaders\voxfound_fracture.comp.spv || goto :shader_error
 %GLSLANG% -V -Ishaders shaders\voxfound_bodies.comp -o shaders\voxfound_bodies.comp.spv || goto :shader_error
+%GLSLANG% -V -Ishaders shaders\voxfound_bodies_fused.comp -o shaders\voxfound_bodies_fused.comp.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\voxfound_face.vert -o shaders\voxfound_face.vert.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\voxfound_face_mdi.vert -o shaders\voxfound_face_mdi.vert.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\voxfound_foliage.vert -o shaders\voxfound_foliage.vert.spv || goto :shader_error

@@ -56,6 +56,29 @@ public:
     /// Copies pose, velocities and sleep state back into `bodies` (same order as load()).
     bool read(std::vector<SimBody>& bodies, std::string* err);
 
+    /// F5.5a: the colour rounds in ONE dispatch and each iteration's primal over every colour in ONE dispatch
+    /// (voxfound_bodies_fused.comp, one workgroup), 17 solve dispatches per tick instead of ~290 (the per-colour path,
+    /// kept as the control; bit-equal). One workgroup wins while few bodies are awake and loses when many are (run 2:
+    /// 1.2 vs 1.8 ms mean at ~100 bodies, 7.3 vs 3.4 at ~1,000), so the path is chosen per step() call from the awake
+    /// count the previous call ended with: fused while it is <= fusedMaxAwake (default 128). The choice changes cost
+    /// only: the two paths are bit-equal. setFused(true / false) forces one path.
+    void setFused(bool on) { m_fusedMaxAwake = on ? UINT32_MAX : 0u; }
+    void setFusedMaxAwake(uint32_t n) { m_fusedMaxAwake = n; }
+    bool fusedThisStep() const { return m_fused; }
+    /// F5.5a: a per-pass device-time profile (timestamps between the pass groups; forces one tick per submit, so it
+    /// measures each tick on its own). Reset by setProfile(true).
+    static constexpr int kProfGroups = 11;
+    static const char* profileName(int g);
+    struct Profile {
+        double sumMs[kProfGroups] = {};
+        double minMs[kProfGroups] = {};
+        int ticks = 0;
+    };
+    void setProfile(bool on) {
+        m_profile = on;
+        if (on) m_prof = Profile{};
+    }
+    const Profile& profile() const { return m_prof; }
     const BodySimGpuStats& stats() const { return m_stats; }
     double lastGpuMs() const { return m_lastGpuMs; }   // device time of the last step() call (< 0 unavailable)
     bool implemented() const;
@@ -82,6 +105,14 @@ private:
     double m_timestampMs = 0.0;
     double m_lastGpuMs = -1.0;
     std::unique_ptr<Vulkan::ComputePipeline> m_pipe;
+    std::unique_ptr<Vulkan::ComputePipeline> m_pipeFused;   // F5.5a
+    bool m_fused = true;              // the path of the current step() call
+    uint32_t m_fusedMaxAwake = 128;
+    uint32_t m_lastAwake = 0;
+    bool m_profile = false;
+    Profile m_prof;
+    VkQueryPool m_profQueries = VK_NULL_HANDLE;
+    uint32_t m_profStamp = 0;
 
     // device buffers (see shaders/voxfound_bodies.comp for the layouts)
     Buffer m_params, m_bodies, m_bodyVox, m_corners, m_world, m_cons, m_scratch, m_state, m_lists, m_warm, m_push;

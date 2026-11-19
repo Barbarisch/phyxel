@@ -1,0 +1,102 @@
+F5.5 -- the exit stress, 100 -> 1,000 bodies (plan F5 row: exit test "100 -> 1,000 bodies; conservation; pop
+measured"; stop if "body cost at 1,000 above budget with no lever left").
+Written 2026-11-18 BEFORE any F5.5 code.
+
+THE BUDGET (stated here because the F5 row names one and no document fixes it). PerformanceTiers.md: no system owns a
+fixed number; a share is a proposal measured against the whole frame. PROPOSAL for the bodies at 1,000 bodies, at the
+120 tier (8.3 ms whole frame): GPU simulation <= 2 ms per tick with every body awake (one 60 Hz tick per frame at most
+-- the worst frame), draw <= 0.5 ms main + shadow casters, CPU <= 1 ms per frame (poses, rest pass), and a frame that
+bakes <= 4 ms of hitch. Over this with a lever left = keep going; over it with no lever left = stop (the F5 row).
+
+THE ORDER (the owed levers first, each its own commit with its own prediction section below, then the exit):
+  F5.5a the GPU solver's dispatch floor (F5.2b MISSED 8-19 ms per tick: ~310 dispatches + barriers per tick).
+  F5.5b the GPU solver live (the lab today moves bodies with the CPU reference -- RIG DIFFERENCE stated in F5.3) and
+        the per-body frustum / light cull (F5.3 MISSED 1.19 ms main at 947 bodies).
+  F5.5c the bake's levers (F5.4 MISSED 38 / 677 ms at 916): a neighbour cell set per plan, a cap on bakes per pass;
+        the incremental preview edit instead of F5.4's 72 ms whole-area rebuild.
+  F5.5d the exit, live: 100 -> 300 -> 1,000 bodies, conservation after every tick, pop measured, whole frame.
+  The prediction for b, c and d is appended to this file before their code, with a's measured numbers in hand.
+
+=====================================================================================================================
+F5.5a -- THE DISPATCH FLOOR (written before the code)
+
+WHAT IT BUILDS
+  The GPU tick records, per tick: 13 single passes + 32 Jones-Plassmann colour rounds + 8 iterations x (32 primal
+  colours + 1 dual) = 309 dispatches, each followed by a full barrier, whether a colour has bodies or not. F5.2b
+  measured 8.1 ms per tick with 7 bodies all asleep: the floor is the dispatches, not the work.
+  Lever: FUSE. One extra pipeline from the same source (voxfound_bodies_fused.comp, local size 1024) runs the colour
+  rounds AND all iterations of {primal per colour, dual} in ONE dispatch of ONE workgroup, separated by workgroup
+  barriers (barrier() + memoryBarrierBuffer()); threads stride over bodies / constraints when there are more than
+  1024. Colour rounds stop as soon as no body is left uncoloured; the primal loops only over the colours used
+  ("dispatch only the colours used"). Asleep bodies already get no colour (dynamicBody), so the primal skips them
+  ("skip sleepers"). The per-pass code is moved into functions shared by both pipelines, unchanged.
+  Ticks per dispatch: 13 + 1 = 14 dispatches per tick instead of 309. A switch BodySimGpu::setFused(bool) keeps the
+  old path as the control. Default: fused.
+
+PREDICTIONS (headless, Vulkan integration tests, VoxFoundBodySimGpuTest; GPU sharing stated at run time)
+  A1 identical results: on the R8b blast (stone wall E/T 80, 8000 N s, 900 ticks) the fused path's poses are
+     BIT-EQUAL to the per-colour path's at every 30-tick sample (same float operations in the same order; the colour
+     a body takes is the same because a round's read of a neighbour coloured in the same round is already treated
+     as a competitor). RISK named: the driver compiles the moved code in a different module and may contract
+     multiply-adds differently; if A1 fails on that, the fallback gate is: every F5.2b rig assertion still passes,
+     two fused runs bit-equal, and the difference to the per-colour path stated.
+  A2 every existing GPU rig test (R1-R8b, G1-G4) passes with fused as the default, unchanged thresholds.
+  A3 the ladder: the large wall (256 x 128 x 4, base fixed, hit at the centre) at E/T 250 / 650 / 2800 gives about
+     100 / 300 / 1,000 bodies (F5.1 measured 59 at 150, 468 at 1000, 947 at 2500). Each runs 300 ticks from the break
+     (pieces fly and land), on both paths:
+       nothing overflows (scratch, constraints), every dynamic body coloured, no body through the ground, poses
+       finite; colours used <= 16.
+  A4 cost, device time per tick (30 ticks per submit, mean over the 300 ticks), fused path:
+       R8b blast (28 bodies)  <= 0.5 ms     (per-colour path: 8-19 ms in F5.2b)
+       ~100 bodies            <= 0.8 ms
+       ~300 bodies            <= 1.5 ms
+       ~1,000 bodies          <= 3.0 ms     (the budget above is 2 ms: if 2-3, a lever is named, not a stop)
+       all asleep (the R8b pile after 900 ticks, 30 more ticks) <= 0.2 ms
+     and the per-colour path at the same rungs is measured beside it (the control; predicted 8-20 ms throughout,
+     not following the body count).
+  A5 memory: the candidate scratch is 4096 candidates x 80 B per body = 0.33 MB per body = ~330 MB at 1,000 bodies.
+     Stated, not changed in F5.5a (lever named: a scratch per worker group, not per body).
+
+WHAT WOULD COUNT AS A MISS
+  A1 not bit-equal (then the fallback gate); any rig assertion failing; any overflow or uncoloured body; any cost above
+  its range.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5a RESULTS (2026-11-18; written after the runs, the predictions above untouched). GPU shared with another session's
+engine (G:\Github\phyxel, rendering) in every run; RTX 4090, Release.
+
+RED (voxfound_f55a_red.txt): the fused path stubbed to record nothing -> both tests fail (630 of 630 samples differ;
+  costs above range). The red already showed the control path's surprise: the stub (NO solve at all) cost 60-110 ms per
+  tick on the ladder -- the cost is not in the solve.
+RUN 1 (voxfound_f55a_run1.txt, + _run1_profile.txt after a fix to my profile reset): fused = colour rounds + every
+  iteration of {primal, dual} in one workgroup.
+  A1 BIT-EQUAL: 0 of 630 samples differ, and every counter equal (contacts, capped, hard fires, colours). PASS.
+  The per-pass profile (new: BodySimGpu::setProfile, timestamps between pass groups, one tick per submit) says where the
+  time is, mean / least-contended ms per tick:
+     ~100 bodies:  pairs 16.9 / 0.017, hard_body 22.8 / 0.06, world 1.9, hard_apply 1.8, solve 1.0 (per-colour)
+     ~1,000:       pairs 42.0 / 1.29,  hard_body 58.2 / 1.50, world 2.6, hard_apply 2.4, solve 3.4 (per-colour)
+  So F5.2b's diagnosis ("the floor is ~310 dispatches") was WRONG: the dispatches cost ~0.3 ms (the solve's least-
+  contended time, 0.34 per-colour vs 0.03-0.09 fused). The cost is the body-body narrowphase: K_PAIRS and K_HARD_BODY
+  run one thread per body over every other body and test voxel corners serially -- one big piece next to many small
+  ones keeps one thread busy for tens of ms. The ~8 ms "floor" of F5.2b's all-asleep rig is not reproduced: all asleep
+  costs 0.083-0.106 ms per tick now (fused).
+  MY DESIGN ERROR (run 1): the fused DUAL ran 30k constraints x 8 iterations in one workgroup and made the fused solve
+  slower at 1,000 bodies (7.1 vs 3.4 ms). Run 2 keeps the dual as a wide dispatch (17 solve dispatches per tick).
+RUN 2 (voxfound_f55a_run2.txt): still bit-equal. Fused solve mean: 1.2 vs 1.8 ms (~100 bodies), 3.0 vs 1.9 (~300),
+  7.3 vs 3.4 (~1,000): one workgroup cannot carry the busy primal of hundreds of bodies. So the path is a COST choice
+  per step() (bit-equal, outcome unchanged): fused while the previous step ended with <= 128 awake bodies (default),
+  per-colour otherwise.
+RUN 3 (voxfound_f55a_run3.txt): every VoxFound GPU test, 36/36, with the automatic choice the default.
+
+  A2 every F5.2b rig assertion passes (R1-R8b, G1-G4; G3 two runs bit-equal). PASS.
+  A3 ladder: 105 / 293 / 1,025 bodies; nothing overflowed; every dynamic body coloured. MISSED twice:
+     - colours 13 / 17 / 20 (<= 16 predicted);
+     - at 1,025 bodies ONE 4-voxel piece TUNNELS into the ground and falls for ever (lowest corner -93.9 m at 5 s), on
+       BOTH paths -- the solver (shared by F5.2a's reference), not F5.5a: a fast small piece gets deeper into y < 0
+       than the escape search reaches, so it gets no contact and no push. A real bug the stress found. Owed in F5.5
+       with its own prediction; guarded at the measured count meanwhile.
+  A4 cost MISSED everywhere above the blast: fused device ms per tick (30 per submit) 44.5 / 85.3 / 112.3 against
+     <= 0.8 / 1.5 / 3.0; per-colour 44.3 / 84.1 / 108.4. R8b blast 6.7 ms (<= 0.5 MISSED; per-colour 6.8). All asleep
+     0.106 ms (<= 0.2 PASS). The lever is the narrowphase (next), not the dispatches.
+  A5 memory: scratch 34 / 96 / 336 MB at 105 / 293 / 1,025 bodies, as predicted. Lever unchanged (scratch per worker
+     group, which the narrowphase lever brings with it).
