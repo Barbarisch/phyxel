@@ -756,3 +756,41 @@ for pass by pass. A settled body has ~4x the candidates of a falling one and the
 leave a body's work in one workgroup or one thread (world, hard_apply, sort, primal: 77 / 77 / 67 % of the tick) are set by the busiest bodies. The broadphase (pairs + hard_body: 17 / 18 / 28 %) is not the leader at any rung:
 it is not the next lever. Next: split the world group's time (the items vs the cap) before choosing its lever, with its
 own prediction.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5f -- THE WORLD GROUP SPLIT: THE ITEMS VS THE CAP, BEFORE ITS LEVER (written 2026-11-20 BEFORE its code)
+
+WHY: F5.5e put the awake pile's tick in per-body serial work waited for pass by pass; the world group leads at every
+rung (2.75 / 3.68 / 4.73 ms at 110 / 282 / 994 bodies, headless). It is ONE dispatch (K_WORLD_PAR: per awake body,
+one 64-thread workgroup counts its items, scans, writes the candidates, then coopEmit caps them to 8 and emits), so the
+per-pass profile cannot say which part costs. A settled body has ~4x a falling one's candidates and the cap drops 80 %.
+CONDITIONS: World of Warcraft not running at the time of writing; no other engine running.
+
+WHAT IT BUILDS (a measure, no lever):
+  - BodySimGpu::setWorldSplit(bool): with the profile on, before the real world pass, the same pass is dispatched
+    four more times, each stopping after one more stage and timed as its own profile group:
+      w_count  the items in count mode (each corner's escape + sweep, each box cell's surface corners), nothing written;
+      w_write  + the scan and the candidates written to scratch;
+      w_bucket + the warm-start lookup and the 52 bucket winners (with lane 0's sort);
+      w_spread + the spread picks to the cap (nothing emitted).
+    Each stage's cost = its time minus the previous one's; the cap's emit = the real world group minus w_spread.
+    The diagnostic copies write only scratch, which the real pass rewrites before it reads; their counter side effects
+    (deep points, scratch overflow) are suppressed.
+  - in w_count, the per-body maxima into spare counter words: the largest world candidate count of one body, its
+    largest item count, and the number of bodies whose world candidates exceed the cap.
+  - the F55e test prints the split per rung; the lab's {"profile":true} carries it when {"world_split":true}.
+
+RED FIRST (the instrument must not change the simulation): with the suppression turned off, the split run's counters
+  differ from the run without the split (deep points counted twice); with it on, 60 ticks of the woken pile are
+  BIT-EQUAL in every pose and every counter, split on vs off.
+
+PREDICTIONS (headless, the woken pile, 30 profiled ticks; the lab's grid as F5.5e)
+  F1 the instrument: bit-equal as above at every rung; the real world group with the split on is within 15 % of it
+     with the split off (the diagnostic copies may warm the caches -- measured, not assumed).
+  F2 the items (w_count + the write's increment) are 45-70 % of the world group at every rung; the count alone is
+     >= 35 %.
+  F3 the bucket winners (w_bucket's increment) are 20-45 %; the spread picks <= 15 %; the emit <= 10 %.
+  F4 the busiest body: its world candidates >= 5 x the mean world candidates per awake body at every rung, and at
+     least half the awake bodies exceed the cap (8).
+WHAT WOULD COUNT AS A MISS: any split share outside its range; the instrument not bit-equal; the split-on world group
+outside 15 %. No lever here: the next increment takes the largest share's lever with its own prediction.
