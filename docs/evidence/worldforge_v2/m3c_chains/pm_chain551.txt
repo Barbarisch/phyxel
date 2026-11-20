@@ -1,0 +1,55 @@
+pm_chain551.txt - O39 (n): the resident that stands "walking" (L4 run 12).
+(written 2026-11-20 10:57, before any run; HEAD 4b3dbbe0)
+
+WHAT RUN 12 SHOWED: res_hall_house_-1188_-1013 (lot 8: rect [93,102,12,18], footprint [94,103,8,16], door (94,107)
+  facing west, approach cells (93..91, 107) at 334) left its anchor at local (92.5, 107.5) and from the first
+  evening sample to the last night sample stood at local (93.3..93.7, 102.3..102.7), feet 333 (y 37.0), state
+  "walking": it holds a route and is not following it. That place is the north-west corner of its own lot, one
+  cell off its house's corner.
+chain 551 is a DIAGNOSTIC (the creek city's headless build, the gate's kind of NavGraph - WITHOUT the engine's prop
+  overlay): the graph's route from the anchor to the tavern's anchor, and the ground and the graph's surfaces there.
+PREDICTION: the route's first waypoints run north along the house's west wall through (93, 102) (70 %); something
+  stands in or beside that cell that the graph passes and a body does not - GUESS: the lot's fence or the house's
+  corner (a diagonal the path smoothing cuts), 50 %; a step the crest rule of 28950d0f now lets the graph take and
+  the controller does not, 25 %; UNKNOWN otherwise.
+RESULTS (written 2026-11-20 11:00)
+  chain 551 (headless, exe 10:58:08): the graph's route from lot 8's anchor is FOUND (80 waypoints) and does NOT go
+    where the resident went: "(92.5,107.5) (91.5,107.5) (90.5,107.5 y 336) (90.5,106.5) ... (90.5,103.5 y 343)" -
+    west two cells, then north up the door spur at x 90. PREDICTION MISS (I said through (93, 102), 70 %).
+    The ground: the lot is terraced one cube LOW - feet 333 on x 93 for z 102..109 - with a 9-micro face north of
+    z 102 and west of x 93 for z 102..104 (342 beside 333); the only way out on foot is the spur (x 90..92, z
+    105..109). Where the resident stands, (93, 102), is the closed north end of that strip.
+  So a body that goes straight toward the tavern (north) from the anchor ends exactly there; the graph's route does
+  not. Why this resident does not follow the route is NOT known from here (the headless graph has no prop overlay;
+  the behaviour's state was "walking", i.e. it holds a path).
+  NEXT, L4 run 13 (stated before it): the same build; the resident's position and state every 2 s for 80 s of
+  evening; the ENGINE's route (/api/navgraph/path) from its anchor and from where it stands; the engine's columns
+  round the place; the count of "re-planned" log lines. PREDICTION: UNKNOWN which - (a) the engine's route differs
+  from the headless one (a prop on the spur) 35 %, (b) the route is the same and the body is shoved off it by the
+  respawn / a first straight leg 35 %, (c) something else 30 %. The re-planned count: 13 (80 %).
+RESULTS (written 2026-11-20 11:09)
+  run 13 (the editor of 11:00:13 = 4b3dbbe0; built as before: gate 74 / 0, graph 0 / 0; the harness stopped my
+    script for low memory while the build ran; the engine survived, the build completed in it, and I ran the
+    remaining steps by hand about 3 minutes after the build, then stopped the engine; citylab_l4_run13_*):
+    - "re-planned" log lines: 13. As predicted.
+    - the resident was NOT stuck this time: when I looked (game clock about 14 h) it was already 20 u north of its
+      door; with the clock at 17:36 it walked up the street and reported "arrived" 20 s later, 2 u from the tavern.
+    - the ENGINE's route from its anchor: (-1187.5,-1012.5) -> (-1189.5,-1013.5) -> north along x -1189.5 - the
+      same as the headless graph's (west, then up the spur).
+    So run 12's stuck resident did NOT reproduce, and neither of my (a) / (b) was shown. What differs: in run 12
+    the evening was set 60 s after the build; here about 3 minutes after, and the resident had already left its lot.
+  NEXT, run 14 (stated before it): run 12's timing again (the evening 60 s after the build) with the 2-s track of
+  this resident from the build's end. PREDICTION: stuck again at (93.5, 102.5) (50 %); if so, the track shows it
+  going NORTH from the anchor in the first seconds in state "no_route" (the behaviour steers straight at the
+  destination while it has no route) - GUESS 60 % of that half.
+RESULTS (written 2026-11-20 11:19)
+  run 14 (the same editor; run 12's timing - the evening 60 s after the build; the script ran to its end, the engine
+    stopped; citylab_l4_run14_track_out.txt): NOT stuck. PREDICTION MISS on my 50 %. The resident stood at its anchor
+    for the 60 s, then "walking": 6 s hesitating on the spur's ramp (-1189.1..-1189.6, -1014.6..-1014.8, y 37.3 to
+    37.6), then north at about 2.7 u/s, "arrived" by t+36 s, 2 u from the tavern. 13 re-planned lines. The engine's
+    route as in run 13.
+  WHERE THIS STANDS: stuck in 1 engine run of 3 on the same code path (run 12: yes; runs 13, 14: no). In run 12 it
+    stood in the closed north end of its own lot's low strip, 5 cells from its door, a place none of the routes
+    read here pass through, and could not walk the 5 flat cells home at night either. Not reproduced, not
+    explained. The 6-second hesitation on the ramp in run 14 is the only other irregularity seen.
+    Registered as O39 (n): INTERMITTENT, open. Not pursued further now (the plan's next rows are O40 and O38).

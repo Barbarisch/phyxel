@@ -3443,6 +3443,42 @@ TEST(SettlementMapLiveSiteTest, O39_EveryHouseOfTheCreekCityCanBeLeft) {
         if (!inOk || !outOk) std::printf("[ O39 ]   lot %d %s (door %d,%d): reached from the hub %s, can leave for the hub %s%s", l.id, l.typology.c_str(), l.doorX, l.doorZ, inOk ? "yes" : "NO", outOk ? "yes" : "NO", chr10().c_str());
     }
     std::printf("[ O39 ] %d lots with a standing place outside their door: %d cannot be reached from the hub, %d can be reached and not left%s", lots, cut, trapped, chr10().c_str());
+    {   // O39 (n) diagnostic (pm_chain551.txt): L4 run 12's stuck resident - the hall house of lot 8 walked from its anchor
+        // at local (92, 107) to (93.5, 102.5), feet 333, and stood there "walking" all evening. The graph's route from
+        // that anchor to the tavern's anchor at local (90, 32), its first waypoints, and the ground round the place.
+        const int ax = 92, az = 107, tx = 90, tz = 32;
+        const int sa = seatAt(ax, az), stv = seatAt(tx, tz);
+        std::printf("[ O39n ] anchors: lot 8's (92,107) feet %d, the tavern's (90,32) feet %d%s", sa, stv, chr10().c_str());
+        if (sa != INT_MIN && stv != INT_MIN) {
+            const auto pr = graph.findPath(glm::vec3(sm.originX + ax + 0.5f, sa / 9.0f, sm.originZ + az + 0.5f), glm::vec3(sm.originX + tx + 0.5f, stv / 9.0f, sm.originZ + tz + 0.5f), agent);
+            std::string wp;
+            for (size_t i = 0; i < pr.waypoints.size() && i < 16; ++i) {
+                char b[96]; std::snprintf(b, sizeof b, " (%.1f,%.1f y %.0f)", pr.waypoints[i].x - sm.originX, pr.waypoints[i].z - sm.originZ, pr.waypoints[i].y * 9.0f);
+                wp += b;
+            }
+            std::printf("[ O39n ] the graph's route: %s, %d waypoints; the first (local x,z, feet micro):%s%s", pr.found ? "found" : "NOT FOUND", static_cast<int>(pr.waypoints.size()), wp.c_str(), chr10().c_str());
+        }
+        for (int z = 99; z <= 109; ++z) {
+            std::string row;
+            for (int x = 88; x <= 97; ++x) {
+                const int f = seatAt(x, z);
+                int tall = 0;   // the highest solid micro at the cell's centre column within 40 above the feet (a fence, a wall, a prop)
+                if (f != INT_MIN) for (int y = f + 40; y >= f && !tall; --y) if (rig.cm.occupiedMicro(glm::ivec3((sm.originX + x) * 9 + 4, y, (sm.originZ + z) * 9 + 4))) tall = y - f + 1;
+                char b[32]; if (f == INT_MIN) std::snprintf(b, sizeof b, "    -   "); else std::snprintf(b, sizeof b, " %4d%s", f, tall ? ("^" + std::to_string(tall)).c_str() : "   ");
+                row += b;
+            }
+            std::printf("[ O39n ]   z %3d, x 88..97 (feet; ^n = something n micro tall over them):%s%s", z, row.c_str(), chr10().c_str());
+        }
+        for (int z = 100; z <= 104; ++z) {   // every surface the graph holds in the cells round the place
+            std::string row;
+            for (int x = 91; x <= 95; ++x) {
+                std::string cell;
+                for (const auto& sf : graph.columnSurfaces(sm.originX + x, sm.originZ + z)) cell += (cell.empty() ? "" : "/") + std::to_string(sf.floorTopMicro);
+                row += " [" + cell + "]";
+            }
+            std::printf("[ O39n ]   graph surfaces z %d, x 91..95:%s%s", z, row.c_str(), chr10().c_str());
+        }
+    }
     EXPECT_GT(lots, 0);
     EXPECT_EQ(cut, 0);
     EXPECT_EQ(trapped, 0) << "houses a resident can walk to and not from";

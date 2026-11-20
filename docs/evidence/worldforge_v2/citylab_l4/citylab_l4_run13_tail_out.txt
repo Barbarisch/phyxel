@@ -1,0 +1,59 @@
+--- run 13: the stuck resident (lot 8) - its track, the engine's own route, the columns round the place
+before: -1189.44 38.11 -1032.42
+{"daynight":{"ambientStrength":0.7954637408256531,"dayLengthSeconds":1200.0,"day
+t+2s -1189.47 38.11 -1037.98 walking
+t+4s -1189.50 38.11 -1043.55 walking
+t+6s -1188.55 38.11 -1048.03 walking
+t+8s -1189.44 38.11 -1052.66 walking
+t+10s -1189.45 38.11 -1058.26 walking
+t+12s -1189.46 38.11 -1063.69 walking
+t+14s -1189.48 38.11 -1069.30 walking
+t+16s -1189.49 38.11 -1074.84 walking
+t+18s -1189.49 38.11 -1080.17 walking
+t+20s -1189.53 38.11 -1084.58 arrived
+t+22s -1190.26 38.11 -1085.32 arrived
+t+24s -1190.75 38.11 -1085.48 arrived
+t+26s -1190.97 38.11 -1085.60 arrived
+t+28s -1191.32 38.11 -1085.55 arrived
+t+30s -1191.45 38.11 -1085.32 arrived
+t+32s -1191.59 38.11 -1085.34 arrived
+t+34s -1191.54 38.11 -1085.38 arrived
+t+36s -1191.57 38.11 -1085.42 arrived
+t+38s -1191.65 38.11 -1085.44 arrived
+t+40s -1191.60 38.11 -1085.41 arrived
+t+42s -1191.62 38.11 -1085.38 arrived
+t+44s -1191.53 38.11 -1085.32 arrived
+t+46s -1191.47 38.11 -1085.24 arrived
+t+48s -1191.29 38.11 -1085.11 arrived
+t+50s -1191.21 38.11 -1085.15 arrived
+t+52s -1191.21 38.11 -1085.14 arrived
+t+54s -1191.20 38.11 -1085.10 arrived
+t+56s -1191.40 38.11 -1085.22 arrived
+t+58s -1191.41 38.11 -1085.22 path_pending
+t+60s -1191.21 38.11 -1085.15 arrived
+t+62s -1191.21 38.11 -1085.12 arrived
+t+64s -1191.20 38.11 -1085.11 arrived
+t+66s -1191.17 38.11 -1085.12 arrived
+t+68s -1191.24 38.11 -1085.07 path_pending
+t+70s -1191.26 38.11 -1085.08 arrived
+t+72s -1191.33 38.11 -1085.15 arrived
+t+74s -1191.26 38.11 -1085.08 arrived
+t+76s -1191.25 38.11 -1085.07 arrived
+t+78s -1191.26 38.11 -1085.07 arrived
+t+80s -1191.26 38.11 -1085.08 arrived
+route from the anchor: {"found":true,"waypoints":[{"x":-1187.5,"y":37.11111068725586,"z":-1012.5},{"x":-1189.5,"y":37.44444274902344,"z":-1013.5},{"x":-1189.5,"y":38.11111068725586,"z":-1044.5},{"x":-1188.5,"y":38.11111068725586,"z":-1044.5},{"x":-1188.5,"y":38.11111068725586,"z":-1051.5},{"x":-1189.5,"y":38.11111068725586,"z":-1051.5},{"x":-1189.5,"y":38.11111068725586,"z":-1087.5}]}
+route from where it stands (-1191.21 38.11 -1085.11): {"found":true,"waypoints":[{"x":-1191.5,"y":38.11111068725586,"z":-1085.5},{"x":-1190.5,"y":38.11111068725586,"z":-1085.5},{"x":-1190.5,"y":38.11111068725586,"z":-1086.5},{"x":-1189.5,"y":38.11111068725586,"z":-1086.5},{"x":-1189.5,"y":38.11111068725586,"z":-1087.5}]}
+col -1189 -1020: {"cubes":[{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":0},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":1},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":2},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":3},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":4},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":5},{"boxes_micro":[],"obstacle":false,"voxel":"cube
+col -1191 -1021: {"cubes":[{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":0},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":1},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":2},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":3},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":4},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":5},{"boxes_micro":[],"obstacle":false,"voxel":"cube
+col -1188 -1020: {"cubes":[{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":0},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":1},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":2},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":3},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":4},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":5},{"boxes_micro":[],"obstacle":false,"voxel":"cube
+col -1190 -1021: {"cubes":[{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":0},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":1},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":2},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":3},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":4},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":5},{"boxes_micro":[],"obstacle":false,"voxel":"cube
+col -1189 -1021: {"cubes":[{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":0},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":1},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":2},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":3},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":4},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":5},{"boxes_micro":[],"obstacle":false,"voxel":"cube
+col -1187 -1020: {"cubes":[{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":0},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":1},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":2},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":3},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":4},{"boxes_micro":[],"obstacle":false,"voxel":"cube","y":5},{"boxes_micro":[],"obstacle":false,"voxel
+13
+[11:04:38.905] [INFO] [NPCManager] Spawned procedural NPC 'res_hall_house_-1188_-1013' (role='villager') at (-1187.5, 38, -1012.5)
+[11:05:18.291] [INFO] [NPCManager] Removed NPC 'res_hall_house_-1188_-1013'
+[11:05:18.291] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_hall_house_-1188_-1013
+[11:05:18.297] [INFO] [NPCManager] Spawned procedural NPC 'res_hall_house_-1188_-1013' (role='villager') at (-1187.5, 38, -1012.5)
+[11:06:33.549] [INFO] [NPCManager] nav obstacles: 288 boxes over 200 cubes, micro-precise (0 degenerate/oversized boxes skipped)
+--- stopping the engine
+END 2026-11-20 11:09:14

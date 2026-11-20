@@ -1,0 +1,40 @@
+[11:11:58.539] [INFO] [Settlement] ford fill: cell (-1264,-1037) live ground 315, told 342, planned surface (not paved)
+[11:11:58.539] [INFO] [Settlement] ford fill: cell (-1264,-1036) live ground 315, told 342, planned surface 342
+[11:11:58.539] [INFO] [Settlement] ford fill: cell (-1264,-1035) live ground 333, told 342, planned surface 342
+[11:11:58.539] [INFO] [Settlement] ford fill: cell (-1264,-1034) live ground 333, told 342, planned surface 342
+[11:11:58.539] [INFO] [Settlement] ford fill: cell (-1264,-1033) live ground 333, told 342, planned surface 342
+[11:11:58.539] [INFO] [Settlement] ford fill: cell (-1264,-1032) live ground 324, told 342, planned surface 342
+[11:11:58.540] [INFO] [Settlement] ford fill: cell (-1264,-1031) live ground 315, told 342, planned surface 342
+[11:11:58.540] [INFO] [Settlement] ford fill: cell (-1264,-1030) live ground 315, told 342, planned surface 342
+[11:11:58.540] [INFO] [Settlement] ford fill: cell (-1264,-1029) live ground 315, told 342, planned surface (not paved)
+[11:11:58.540] [INFO] [Settlement] ford fill: cell (-1264,-1028) live ground 324, told 342, planned surface (not paved)
+[11:11:58.540] [INFO] [Settlement] ford fill: cell (-1263,-1038) live ground 315, told 342, planned surface (not paved)
+[11:11:58.540] [INFO] [Settlement] ford fill: cell (-1263,-1037) live ground 333, told 342, planned surface (not paved)
+[11:11:58.540] [INFO] [Settlement] ford fill: cell (-1263,-1036) live ground 333, told 342, planned surface 342
+[11:11:58.540] [INFO] [Settlement] ford fill: cell (-1263,-1030) live ground 333, told 342, planned surface 342
+[11:13:09.302] [INFO] [Settlement] ways: the market 16 x 16 at (-1201,-1056): 256 of 256 cells paved (0 partly), 6561 plaza columns
+[11:14:34.596] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_apothecary_-1173_-1033
+[11:14:34.603] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_bakery_-1189_-1024
+[11:14:34.609] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_butcher_-1181_-1051
+[11:14:34.616] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_croft_-1152_-1035
+[11:14:34.622] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_general_store_-1190_-1034
+[11:14:34.629] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_hall_house_-1137_-1035
+[11:14:34.636] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_hall_house_-1151_-1028
+[11:14:34.643] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_hall_house_-1188_-1013
+[11:14:34.649] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_longhouse_-1129_-1028
+[11:14:34.655] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_longhouse_-1189_-992
+[11:14:34.668] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_tenement_-1145_-1036
+[11:14:34.674] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_tenement_-1184_-971
+[11:14:34.680] [INFO] [Resident] resident re-planned (its schedule changed; despawned, spawned again at its door): res_town_hall_-1180_-1054
+[11:15:17.864] [INFO] [Settlement] town wall: 12034 cubes, 0 gates, 0 towers (0 walkable), line cleared 10404, displaced 0
+[11:15:17.864] [INFO] [Settlement] town wall: the MAP's ring - 534 ring cells, 1069 band columns (74 inside a tower's drum, not stamped), 64 of them gate columns over 4 gates, 7 left open over water; towers: 4 built of 10 routed corners, 6 not built
+[11:15:17.864] [INFO] [Settlement] town wall: 0 crossing(s) of the world road
+[11:15:27.624] [WARN] [Settlement] square dressing: 3 props the tier asks for are not placed: no free LEVEL ground in the market (or no room)
+[11:15:27.674] [INFO] [Settlement] square dressing: 5 placed, 0 skipped (0 found no ground), the widest ground span under a prop 0 micro
+[11:15:33.825] [INFO] [Settlement] walkability gate: the market - 0 crossings walked, 0 blocked; stall fronts reached 3 of 3 (recorded only)
+[11:15:37.845] [INFO] [Settlement] walkability gate: the wall's towers - 4 built, 8 routes walked (door, climb), 0 blocked, 0 not walked; reached from the nearest way: 4 of 4 (recorded only)
+[11:15:38.793] [INFO] [Settlement] walkability gate: the residents' graph - 20 lots asked both ways to the hub, 0 cannot be left, 0 cannot be reached (refusing)
+[11:15:38.828] [INFO] [Settlement] walkability gate: the wall's gates - 4 walked through, 0 blocked
+[11:15:38.828] [INFO] [Settlement] walkability gate: 74 walkable, 0 blocked over 74 routes (20 front doors of 20 built, 0 skipped)
+[11:15:47.477] [INFO] [WorldForge] [WORLDFORGE] site 0 (city) BUILT: 20 buildings, 0 residents, 0 lot failures
+[11:15:47.587] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 1 sites (58 units)
