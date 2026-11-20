@@ -410,3 +410,60 @@ LIVE (voxfound_f55b_live.jsonl; tools/voxfound_f55b_gate.py; the lab's hand-buil
      89-93 % of the faces gone the cost stays -- it follows the pixels the bodies cover, not the faces. F5.3's "about
      22 ns per face" was one pose's number, not the model. The casters: every body kept in both cascades at these poses
      (a 32 m wall lies inside both light volumes) -- no saving. CPU cull 0.099-0.130 ms (<= 0.1 MISSED narrowly).
+
+=====================================================================================================================
+F5.5c -- THE BAKE LEVERS: NEIGHBOUR CELL SET, PER-PASS CAP, INCREMENTAL PREVIEW EDIT, INCREMENTAL GPU EDIT
+(written 2026-11-19 BEFORE its code)
+
+WHY: F5.5b measured the live bake frame at 64-105 ms of CPU against the 4 ms hitch proposal: a whole-area preview
+rebuild (22-44 ms, FaceBuilderGpu over the lab grid) + a full GPU reload (7-21 ms: device idle, every buffer re-made,
+the whole world grid uploaded) + the bake itself. F5.4 measured the bake at 916 bodies as 38 ms rigid / 677 ms resample
+(the other-body cell test per candidate). Baseline today (this machine, before any code, Release unit run):
+R7 37.48 ms (916 rigid bakes at extraction poses) / 664.77 ms (914 resample at random rotations); R1b's worst single
+rest pass 31.46 ms (policy budget 256, no cap).
+
+WHAT IT BUILDS
+  1. planBake's neighbour cell set (BakeParams::cellSet, default on; off = F5.4's test, kept as the A/B): the same
+     predicate -- a cell is taken if its centre lies in a solid voxel of another (not skipped) body near the plan --
+     evaluated ONCE per cell, scattered from the near bodies' voxels into a bitmap over the plan's box, instead of
+     once per candidate per near body. Plans must not change.
+  2. A per-pass cap (RestParams::cap; 0 = unlimited, F5.4's behaviour): a pass bakes at most `cap` bodies; the rest of
+     the backlog bakes in later passes. A tier knob (cost only: when, not whether).
+  3. The incremental preview edit: RegionEdit::applyCells (per-voxel materials; F3's exact incremental rebuild) and
+     an area -> region helper: the lab's world grid becomes a RegionEdit of 256^3 chunks at an integer-metre base
+     (area voxel p = region voxel p + o, o = the origin's sub-metre part). After a pass, each baked body's cells are
+     one applyCells (its own box), then one assemble (only the changed spans). A pass baking more than 32 bodies
+     rebuilds fully (incremental cost is per body; stated). Lab knob {"preview":"region"|"area"} with the rig
+     (region default; area = F5.5b's whole-area path, kept as the control). as_world stays a full rebuild.
+  4. The incremental GPU edit: BodySimGpu::edit(cells, removed, survivors): only the changed world cells and the
+     survivors' body records are written (their voxel and corner data stay where they are, offsets carried); params,
+     solver state, warm start and the tick counter set exactly as a fresh load does (warm start dropped, as the reload
+     -- keeping it is a behaviour change, not this lever). No device idle, no buffer re-creation, no world upload.
+
+PREDICTIONS (headless first, red first)
+  H1 exact: every plan with the cell set equals F5.4's (cells, src order, rigid flag, shifts, refusal reason) -- R7's
+     two modes (916 + 914 bakes) and the R1a blast pass by pass: 0 differences.
+  H2 cost: R7 37.5 -> <= 10 ms (extraction poses); 665 -> <= 40 ms (random rotations) -- F5.4's own targets.
+  H3 cap: with cap K every pass bakes <= K; R1b at cap 4: conservation exact after every tick, 0 overwritten, the worst
+     pass <= 2 ms (31.5 uncapped).
+  H4 region edit exact: the lab's large-wall world as a RegionEdit (CPU reference faces: packedRuns); bodies baked at
+     cap 4 pass after pass on the CPU reference solver: after EVERY pass, each chunk's faces = packedRuns of the area
+     grid, the store = the grid -- 0 mismatches. Cost: per baked body median <= 0.5 ms (CPU executor), a whole cap-4
+     pass's edits + assemble <= 3 ms.
+  H5 GPU edit bit-equal: after a bake, edit() then 120 ticks equals load(edited world, survivors) then 120 ticks --
+     every body's position, rotation, velocities, asleep flag and asleepTicks bit-equal at every 10-tick sample,
+     counters equal (the blast; the ~300-body rung; 3 bakes each). edit() <= 1 ms at ~1,000 bodies (reload 16.5 ms on
+     the wall's 3.18 M cells).
+LIVE (Release; CharacterTestbed for timing, as F5.5b; the lab's hand-built large wall at E/T 2800, solver gpu)
+  L1 region preview = area preview: the wall settled, F5.5b's three poses, effect clocks held, the viewport box:
+     pixels > 1 level region vs area <= the area-vs-area control at every pose. The rig's area origin is put on an
+     integer metre for this gate (at y = 20.25: the area path's texture phase follows its origin; stated).
+     Chunks never visible: the region is cut into 256^3 chunks wherever the lab crosses a 32 m plane.
+  L2 the hitch: rest on (budget 64, keep 0, rest 60 ticks, cap 4): the whole rest call (choose + plan + apply + compact
+     + region edits + assemble + GPU edit) max over a 30 s run <= 4 ms (F5.5b: 64-105 ms); the ledger exact at every
+     sample; 0 below the floor; the backlog (~930 bodies) baked within 30 s; after the run, every chunk's incremental
+     faces = a full FaceBuilderGpu build of its store (0 mismatches).
+  L3 the frame: the largest frame interval during that run <= 25 ms (5.2 ms frames in this world; F5.5b's bake frames
+     were 64+ ms of CPU alone).
+WHAT WOULD COUNT AS A MISS: any plan difference (H1); a pass over its cap; a face mismatch at any pass (H4, L2); any
+bit difference in H5; more px than the control (L1); any cost above its range.
