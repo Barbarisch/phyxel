@@ -1,0 +1,16 @@
+[09:25:27.887] [INFO] [Settlement] ways: graded at 4 micro a cell - 2 leg(s) cut to grade at an end, 0 not paved, the deepest cut below the ground on a centre line 9 micro
+[09:25:27.892] [INFO] [Settlement] ways: 616 paved columns inside lot footprints dropped
+[09:26:52.842] [INFO] [Settlement] ways: paved 393561 micros over 203265 columns (196669 level, 4174 fill, 3038 cut honored, 193 cubes removed, 21482 corridor cells band-cleared) for 8 ways / 37 legs, Cobblestone, 84946 ms
+[09:26:52.843] [INFO] [Settlement] ways: the market 16 x 16 at (-1201,-1056): 256 of 256 cells paved (0 partly), 6561 plaza columns
+[09:29:42.697] [INFO] [Settlement] door spurs: 20 planned from 20 realized doors, 0 too steep, 652 micros over 652 columns, 835 ms
+[09:29:50.198] [INFO] [Settlement] town wall: 12034 cubes, 0 gates, 0 towers (0 walkable), line cleared 10404, displaced 0
+[09:29:50.199] [INFO] [Settlement] town wall: the MAP's ring - 534 ring cells, 1069 band columns (74 inside a tower's drum, not stamped), 64 of them gate columns over 4 gates, 7 left open over water; towers: 4 built of 10 routed corners, 6 not built
+[09:29:50.199] [INFO] [Settlement] town wall: 0 crossing(s) of the world road
+[09:30:04.660] [WARN] [Settlement] square dressing: 3 props the tier asks for are not placed: no free LEVEL ground in the market (or no room)
+[09:30:04.718] [INFO] [Settlement] square dressing: 5 placed, 0 skipped (0 found no ground), the widest ground span under a prop 0 micro
+[09:30:12.718] [INFO] [Settlement] walkability gate: the market - 0 crossings walked, 0 blocked; stall fronts reached 3 of 3 (recorded only)
+[09:30:17.436] [INFO] [Settlement] walkability gate: the wall's towers - 4 built, 8 routes walked (door, climb), 0 blocked, 0 not walked; reached from the nearest way: 4 of 4 (recorded only)
+[09:30:18.380] [INFO] [Settlement] walkability gate: the residents' graph - 20 lots asked both ways to the hub, 0 cannot be left, 0 cannot be reached (refusing)
+[09:30:18.413] [INFO] [Settlement] walkability gate: the wall's gates - 4 walked through, 0 blocked
+[09:30:18.413] [INFO] [Settlement] walkability gate: 74 walkable, 0 blocked over 74 routes (20 front doors of 20 built, 0 skipped)
+[09:30:29.835] [INFO] [WorldForge] [WORLDFORGE] site 0 (city) BUILT: 20 buildings, 0 residents, 0 lot failures

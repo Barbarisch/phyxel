@@ -4,6 +4,7 @@
 #include <set>
 #include <string>
 
+#include "ai/Schedule.h"
 #include "core/LocationRegistry.h"
 #include "core/ResidentSpawner.h"
 
@@ -168,4 +169,48 @@ TEST(ResidentSpawnerTest, LocationRegistryRoundTripsForPersistence) {
     EXPECT_EQ(home->type, LocationType::Home);
     EXPECT_FLOAT_EQ(home->position.x, 10.5f);
     EXPECT_FLOAT_EQ(home->position.z, -22.25f);
+}
+
+// O39 (c) (docs/evidence/worldforge_v2/m3c_chains/pm_chain545.txt, L4 run 11): a settlement is built one building at a
+// time, and every building adds its location as it stands. A resident spawned BEFORE its settlement's tavern existed
+// was planned to spend the evening at its own house - and kept that schedule for good (13 of 18 residents of the live
+// creek city: "moverState arrived", "socializes at: ITS OWN HOUSE"). When the plan changes, the resident must too.
+namespace {
+std::string socialPlace(const ResidentPlan& p) {
+    for (const auto& e : p.schedule.getEntries())
+        if (e.activity == Phyxel::AI::ActivityType::Socialize) return e.locationId;
+    return "(none)";
+}
+}  // namespace
+
+TEST(ResidentSpawnerTest, AResidentSpawnedBeforeTheTavernLearnsOfIt) {
+    Harness h;
+    h.registry.addLocation(makeLoc("home_a", LocationType::Home, 10, 10));
+    h.registry.addLocation(makeLoc("smithy_a", LocationType::Work, 20, 10));
+    h.tick();
+    ASSERT_EQ(h.spawner.activeCount(), 2);
+    EXPECT_EQ(socialPlace(h.spawned["res_home_a"]), "home_a") << "no tavern yet: the evening is spent at home";
+    h.registry.addLocation(makeLoc("tavern_a", LocationType::Tavern, 30, 10));   // the tavern is built LATER
+    h.tick();
+    EXPECT_EQ(h.spawner.activeCount(), 3);
+    EXPECT_EQ(h.alive.size(), 3u);
+    EXPECT_EQ(socialPlace(h.spawned["res_home_a"]), "tavern_a") << "a resident spawned before the tavern still spends its evening at home";
+    EXPECT_EQ(socialPlace(h.spawned["res_smithy_a"]), "tavern_a");
+    const int calls = h.spawnCalls;
+    h.tick(); h.tick();
+    EXPECT_EQ(h.spawnCalls, calls) << "steady state must not respawn";
+    // CONTROL: a location that changes nobody's plan (a far settlement's house) respawns nobody
+    h.registry.addLocation(makeLoc("home_far", LocationType::Home, 900, 10));
+    h.tick();
+    EXPECT_EQ(h.spawnCalls, calls + 1) << "a new far house spawns ITS resident and respawns no other";
+    // CONTROLS (the audit): a NEARBY building that changes nobody's evening - a second smithy, and a second tavern
+    // later in id order (the first tavern by id stays everyone's) - spawns its own resident and respawns no other
+    h.registry.addLocation(makeLoc("smithy_b", LocationType::Work, 25, 12));
+    h.tick();
+    EXPECT_EQ(h.spawnCalls, calls + 2) << "a nearby smithy respawned somebody";
+    h.registry.addLocation(makeLoc("tavern_b", LocationType::Tavern, 35, 12));
+    h.tick();
+    EXPECT_EQ(h.spawnCalls, calls + 3) << "a second tavern, later by id, respawned somebody";
+    EXPECT_EQ(socialPlace(h.spawned["res_smithy_b"]), "tavern_a");
+    EXPECT_EQ(h.despawnCalls, 2) << "only the two residents spawned before the first tavern were ever re-planned";
 }

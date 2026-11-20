@@ -1,0 +1,23 @@
+unreadable dumps: ['n11']
+residents 20 | tavern = lot 13 footprint (world) (-1188, -1091, 16, 7) | last evening sample e11, last night sample n10
+res_apothecary_-1173_-1033       lot  5 apothecary  evening: moved   0.0, not in    (first in: sample None),  55.5 from the tavern centre | night:  0.0 from home
+res_bakery_-1189_-1024           lot  6 bakery      evening: moved   0.0, not in    (first in: sample None),  64.6 from the tavern centre | night:  0.0 from home
+res_butcher_-1181_-1051          lot 11 butcher     evening: moved   0.0, not in    (first in: sample None),  37.0 from the tavern centre | night:  0.0 from home
+res_croft_-1152_-1035            lot  1 croft       evening: moved   0.0, not in    (first in: sample None),  60.2 from the tavern centre | night:  0.0 from home
+res_croft_-1190_-1079            lot 15 croft       evening: moved   3.0, not in    (first in: sample 1),  11.1 from the tavern centre | night:  3.0 from home
+res_croft_-1196_-1074            lot 17 croft       evening: moved   2.9, not in    (first in: sample None),  19.0 from the tavern centre | night:  2.9 from home
+res_general_store_-1190_-1034    lot  7 general_store evening: moved   0.0, not in    (first in: sample None),  54.8 from the tavern centre | night:  0.0 from home
+res_hall_house_-1137_-1035       lot  3 hall_house  evening: moved   0.0, not in    (first in: sample None),  68.6 from the tavern centre | night:  0.0 from home
+res_hall_house_-1151_-1028       lot  2 hall_house  evening: moved   0.0, not in    (first in: sample None),  66.9 from the tavern centre | night:  0.0 from home
+res_hall_house_-1188_-1013       lot  8 hall_house  evening: moved   0.0, not in    (first in: sample None),  75.4 from the tavern centre | night:  0.0 from home
+res_hall_house_-1222_-1037       lot 19 hall_house  evening: moved  41.5, not in    (first in: sample None),  24.2 from the tavern centre | night:  2.9 from home
+res_longhouse_-1129_-1028        lot  4 longhouse   evening: moved   0.0, not in    (first in: sample None),  79.1 from the tavern centre | night:  0.0 from home
+res_longhouse_-1189_-992         lot  9 longhouse   evening: moved   0.0, not in    (first in: sample None),  96.4 from the tavern centre | night:  0.0 from home
+res_tavern_-1190_-1088           lot 13 tavern      evening: moved   0.0, not in    (first in: sample None),   9.5 from the tavern centre | night:  0.0 from home
+res_tavern_-1213_-1049           lot 18 tavern      evening: moved   0.0, not in    (first in: sample None),  50.8 from the tavern centre | night:  0.0 from home
+res_tenement_-1145_-1036         lot  0 tenement    evening: moved   0.0, not in    (first in: sample None),  63.0 from the tavern centre | night:  0.0 from home
+res_tenement_-1184_-971          lot 10 tenement    evening: moved   0.0, not in    (first in: sample None), 117.1 from the tavern centre | night:  0.0 from home
+res_tenement_-1189_-1100         lot 14 tenement    evening: moved   2.8, not in    (first in: sample None),  12.7 from the tavern centre | night:  2.8 from home
+res_tenement_-1190_-1112         lot 16 tenement    evening: moved   3.6, not in    (first in: sample None),  22.5 from the tavern centre | night:  2.9 from home
+res_town_hall_-1180_-1054        lot 11 butcher     evening: moved   0.0, not in    (first in: sample None),  35.0 from the tavern centre | night:  0.0 from home
+SUMMARY: in the tavern at the last evening sample: 0 of 19 residents whose house is not that tavern; within 1.5 of home at the last night sample: 15 of 20

@@ -1,0 +1,101 @@
+pm_chain545.txt - O39 (j): the creek city in the ENGINE again, residents over a day (L4 run 8).
+(written 2026-11-20 09:22, BEFORE the run; HEAD 28950d0f)
+
+WHAT RUNS: the Release editor (rebuilt from HEAD), CityLab (the pinned creek city, settlementFords on), a fresh DB,
+  /api/worldforge/build on the city, then /api/npcs every 30 s: 2 samples at the build's hour, 12 at 17.6 h (the
+  evening - every schedule says the tavern), 12 at 21.0 h (night - home). The script is run 7's, unchanged
+  (citylab_l4_day.sh, copied as citylab_l4_run8.sh). Engine-generated; nothing hand-placed.
+RUN 7 (commit c5f5d95d, before the regrade): built, gate 74 / 0; 5 of 13 residents with a house other than the tavern
+  reached the tavern in the evening; all 20 home at night; 3 houses could be walked to and not left; 5 east-group
+  houses stayed home, unexplained.
+PREDICTIONS
+  - the build: BUILT, gate passed (74 walkable / 0 blocked), "the residents' graph - 20 lots asked both ways to the
+    hub, 0 cannot be left, 0 cannot be reached (refusing)" in the engine's log (90 %).
+  - the evening: the 3 houses that could not be left now send their residents - at least 8 of 13 reach the tavern
+    (GUESS 55 %: the ENGINE's nav region and the gate's graph are built differently, and the east group's cause is
+    unknown); the east group still stays home (GUESS 60 %).
+  - the night: all 20 at home (80 %).
+RESULTS (written 2026-11-20 09:45)
+  run 8 (the Release editor of 2026-11-20 09:23:01 = commit 28950d0f's code; fresh DB; engine-generated):
+    - the build: "site 0 (city) BUILT: 20 buildings"; "walkability gate: 74 walkable, 0 blocked over 74 routes (20
+      front doors of 20 built)"; "the residents' graph - 20 lots asked both ways to the hub, 0 cannot be left, 0
+      cannot be reached (refusing)"; 4 gates walked through. As predicted.
+    - the harness stopped my script for low memory during the evening samples; the ENGINE survived; I took the last
+      evening sample and the night samples by hand from it (same calls, same 30 s spacing), then stopped it. The
+      last night dump (n11) is empty (0 bytes). Table: citylab_l4/citylab_l4_run8_day.txt.
+    - EVENING (17:36, paused, 12 samples): the SAME FIVE residents as in run 7 leave home - crofts (-1190,-1079) and
+      (-1196,-1074), tenements (-1189,-1100) and (-1190,-1112), hall_house (-1222,-1037; it walked 41.5 u) - and
+      FIFTEEN do not move at all (0.0 u in every sample), among them the three south houses (lots 8, 9, 10) that the
+      regrade made leavable. PREDICTION MISS (I said at least 8, 55 %): the count is unchanged, 5.
+    - NIGHT (21:00, 11 samples): the five are back within 3.0 u of where they stood; the rest never left.
+    CORRECTION to run 7's record: by the planner (ResidentPlanner.cpp) EVERY resident who is not a tavern keeper
+      socializes in the evening - shopkeepers too - so 18 should go, not 13. 5 of 18 go.
+  READ: the streets were not why the south houses stayed. A resident that does not move AT ALL is not walking a bad
+    route (a failed route escape-steers, ScheduledBehavior.cpp): it is "arrived", has "no_location", or its schedule
+    names another place. The behaviour publishes "moverState" on its blackboard; I never read it.
+  NEXT (run 9, stated before it): the same build, the clock to 17.6 h, 90 s, then /api/npcs and every resident's
+    /api/npc/<name>/blackboard; then stop. PREDICTION: the fifteen that stay show ONE state (GUESS: "no_route" 40 %,
+    "path_pending" 20 %, "arrived" / "no_location" 40 %); UNKNOWN which.
+  run 9 (written 09:54): built as run 8 - and my script read NO state: the names file had carriage returns, every /api/npc/<name>/... call was malformed and came back empty (the empty file deleted). A fault of my script; run 10 is the same with the names stripped. Prediction unchanged.
+  run 10 (written 10:04): the same fault - my one-line fix to the script did not apply (not checked before launching). No state read. The loop is now rewritten and its name handling tried offline on run 10's names file before run 11.
+RESULTS (written 2026-11-20 10:14)
+  run 11 (the same editor; built as run 8; the clock to 17:36, 90 s; table citylab_l4/citylab_l4_run11_states.txt):
+    all twenty residents report moverState "arrived". Their schedules: 13 socialize at "ITS OWN HOUSE", 5 at
+    "tavern_-1190_-1088" (the five that walk), 2 are keepers. PREDICTION: I gave "arrived / no_location" 40 %.
+  CAUSE (read in ResidentSpawner.cpp, to be shown by a unit test): the build adds a location per building as it
+    stands; the spawner re-plans on every registry change and spawns each resident with the plan OF THAT MOMENT;
+    before the first tavern stands the planner sends everyone home for the evening; an already-spawned resident is
+    never re-planned. The 13 are exactly the residents spawned before the tavern (the engine log's spawn order).
+    NOT the streets, not the fords, not distance: my run-7 reading ("8 houses that should have gone and did not -
+    the east and south groups") and the whole O39 (c) "east group" were this. The O39 street work stands on its own
+    measure (3 houses could not be LEFT on the walker graph) but it was never why residents stayed home.
+  DESIGN: the spawner remembers the plan each active resident was spawned with (its schedule's entries); when the
+    re-planned schedule differs, the resident is despawned and spawned again with the new plan (existing hooks).
+  RED: ResidentSpawnerTest.AResidentSpawnedBeforeTheTavernLearnsOfIt (control: a far new house respawns nobody).
+  PREDICTION chain 546 (RED): fails on "a resident spawned before the tavern still spends its evening at home".
+RESULTS (written 2026-11-20 10:15)
+  chain 546 (RED, exe 10:14:58; 15 ok / 1 failed): as predicted - socialPlace(res_home_a) "Which is: home_a",
+    expected "tavern_a" (and the smithy's the same).
+  CHANGE: ResidentSpawner remembers each spawned resident's schedule (planKey); a differing re-plan despawns and
+    respawns it. A resident ADOPTED from a build's own spawn has no known plan and is left alone (stated: such a
+    resident is still never re-planned).
+  PREDICTION chain 547 (ResidentSpawner / ResidentPlanner suites): green, 16 / 0. Then the unit + nav set and the
+    live set unchanged (no live rig spawns residents), and L4 run 12: all 18 non-keepers' schedules name the tavern
+    (90 %); at least 15 of 18 stand within 12 u of the tavern after 5 minutes of evening (GUESS 50 % - nobody has
+    ever tried to walk there from the east and south; a door jam is known from the planner's comments).
+RESULTS (written 2026-11-20 10:51)
+  chain 547 (exe 10:15:39): ResidentSpawner / ResidentPlanner suites 16 ok / 0 failed - the new test green.
+  chain 548 (unit + every *Nav* / *Traversal* / *Npc* / *Resident* / *Schedule* suite, the same exe): 405 ok / 0
+    failed; the 82 record lines identical to chain 508's. chain 549 (live): 42 ok / 0 failed; the 166 record lines
+    identical to chain 509's.
+  L4 run 12 (the Release editor rebuilt 10:30:51 from the working tree = 28950d0f + the spawner change; fresh DB;
+    engine-generated; the script ran to its end, the engine stopped; table citylab_l4/citylab_l4_run12_day.txt):
+    - built: 20 buildings, gate 74 walkable / 0 blocked, the residents' graph 20 lots 0 / 0 (refusing).
+    - schedules read in the evening: 18 residents socialize at "tavern_-1190_-1088", 2 are keepers. (Predicted.)
+    - EVENING (17:36 paused, 12 samples over 6 min): 17 of 18 stand within 12 u of the tavern's anchor at the last
+      sample - 15 of them already by the second sample (60 s); the farthest came 73 u (the longhouse at
+      (-1189,-992)) and 61 u (the tenement at (-1184,-971), a house that could not be LEFT before the regrade).
+      PREDICTION (15 or more, 50 %): met.
+    - ONE does not arrive: res_hall_house_-1188_-1013 (lot 8, a south house) - state "walking", 70 u from the
+      tavern in ALL twelve samples, y 37.0 (the others 38.0 to 38.3). Stuck; not understood.
+    - NIGHT (21:00, 12 samples): 19 of 20 within 3.0 u of where they stood after the build; the stuck one 5.0 u.
+    - nobody's height left 37.0 .. 38.3; no nav warning but the usual region clamp.
+  NOT SHOWN: one run, one site, one seed; positions only - whether anyone ENTERS the tavern is not measured (they
+    gather 0 to 3 u from its outdoor anchor: seventeen bodies in one spot); the respawn moves a resident back to its
+    door when its plan changes (not looked at in play); a resident adopted from a build's own spawn is still never
+    re-planned; the stuck resident; no Debug.
+AUDIT (solution-auditor, read-only, 2026-11-20): PASS WITH CONDITIONS on all three claims (raw in the ledger).
+RESPONSES (written 10:52, before chain 550):
+  - "spawn order not shown": shown now from run 11's engine log (citylab_l4_run11_spawn_order.txt, the engine's own
+    "Spawned procedural NPC" timestamps): the 13 with their own house are the first 13 spawned (10:08:20 to
+    10:10:00), the first tavern's keeper spawns at 10:10:13, and all 5 that name the tavern spawn after it -
+    0 residents contradict "own house iff spawned before the first tavern".
+  - controls added to the unit test: a NEARBY smithy and a second tavern later by id respawn nobody; despawns == 2.
+  - the re-plan line is logged at INFO so a live run counts respawns. Run 12 PREDATES this (its count is unknown).
+  - the second keeper standing 45 u from the first tavern is the second tavern's keeper at work - by the planner.
+  - STATED, not changed: a plan change in play teleports the resident to its door (despawn / spawn) and drops its
+    in-flight state; adopted residents are never re-planned; one stuck resident; one run.
+  PREDICTION chain 550 (resident suites + the unit set): 0 failed.
+RESULTS (written 2026-11-20 10:56)
+  chain 550 (exe 10:53:16): 405 ok / 0 failed (the controls green). The live set (chain 549) and L4 run 12 ran on
+    the code BEFORE the controls and the log-level line (a test and a log line; no behaviour change).

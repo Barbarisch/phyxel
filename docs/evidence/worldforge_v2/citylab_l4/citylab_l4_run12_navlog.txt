@@ -1,0 +1,3 @@
+[10:31:05.324] [INFO] [NPCManager] Built NavGraph (micro mode): 9216 columns, 10975 surfaces in 133 ms on 28 threads
+[10:37:25.015] [WARN] [NPCManager] NavGrid region clamped to [-1504,-1280]..[-992,-768] - loaded chunks span too far (streamed world?); NPCs outside this region have no nav
+[10:37:32.390] [INFO] [NPCManager] Built NavGraph (micro mode): 233696 columns, 290950 surfaces in 6740 ms on 28 threads

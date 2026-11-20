@@ -1,0 +1,26 @@
+the tavern location tavern_-1190_-1088 at {'x': -1189.5, 'y': 39.0, 'z': -1087.5}
+unreadable dumps: []
+res_apothecary_-1173_-1033      socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:   3   1   0   0   0   0   0   0   0   1   1   1 | night:   2.9 from home
+res_bakery_-1189_-1024          socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:   6   1   1   1   1   2   2   2   2   2   2   2 | night:   3.0 from home
+res_butcher_-1181_-1051         socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:   3   3   3   3   3   3   3   3   3   2   2   2 | night:   2.9 from home
+res_croft_-1152_-1035           socializes at tavern     state arrived    y 38.0 | dist to tavern per evening sample:  21   2   1   2   2   2   2   2   2   2   2   2 | night:   3.0 from home
+res_croft_-1190_-1079           socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:   2   2   3   3   3   3   3   3   3   3   3   3 | night:   2.7 from home
+res_croft_-1196_-1074           socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:   3   3   3   3   3   3   3   3   3   3   3   3 | night:   3.0 from home
+res_general_store_-1190_-1034   socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:   2   1   1   2   2   2   2   2   2   2   2   2 | night:   2.9 from home
+res_hall_house_-1137_-1035      socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:  37   2   2   2   2   1   2   2   2   2   2   2 | night:   2.9 from home
+res_hall_house_-1151_-1028      socializes at tavern     state arrived    y 38.3 | dist to tavern per evening sample:  23   3   1   1   1   1   1   1   1   2   2   2 | night:   2.8 from home
+res_hall_house_-1188_-1013      socializes at tavern     state walking    y 37.0 | dist to tavern per evening sample:  70  70  70  70  70  70  70  70  70  70  70  70 | night:   5.0 from home
+res_hall_house_-1222_-1037      socializes at tavern     state arrived    y 38.0 | dist to tavern per evening sample:   9   3   2   2   2   2   2   2   2   2   2   2 | night:   2.9 from home
+res_longhouse_-1129_-1028       socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:  40   3   3   3   3   3   3   3   3   3   3   3 | night:   2.9 from home
+res_longhouse_-1189_-992        socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:  73  16   3   3   3   3   3   3   2   3   3   3 | night:   2.7 from home
+res_tavern_-1190_-1088          socializes at keeper     state arrived    y 38.1 | dist to tavern per evening sample:   0   2   3   3   3   3   3   3   3   3   3   3 | night:   3.0 from home
+res_tavern_-1213_-1049          socializes at keeper     state arrived    y 38.1 | dist to tavern per evening sample:  45  45  45  45  45  45  45  45  45  45  45  45 | night:   0.0 from home
+res_tenement_-1145_-1036        socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:  30   2   2   2   2   3   3   3   3   3   3   3 | night:   2.8 from home
+res_tenement_-1184_-971         socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:  61   3   2   2   2   2   1   1   1   1   1   1 | night:   2.9 from home
+res_tenement_-1189_-1100        socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:   2   2   3   3   3   3   3   3   3   3   3   3 | night:   3.0 from home
+res_tenement_-1190_-1112        socializes at tavern     state arrived    y 38.1 | dist to tavern per evening sample:   3   3   3   3   3   3   3   3   3   3   3   3 | night:   2.9 from home
+res_town_hall_-1180_-1054       socializes at tavern     state arrived    y 38.3 | dist to tavern per evening sample:   3   1   3   3   3   3   3   3   3   3   3   3 | night:   2.9 from home
+2 ('keeper', 'arrived')
+17 ('the tavern', 'arrived')
+1 ('the tavern', 'walking')
+SUMMARY: 18 residents whose schedule names the tavern; within 12 u of it at the last evening sample (e11): 17; within 3 u of home at the last night sample (n11): 19 of 20; heights 37.0 .. 38.3

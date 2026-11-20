@@ -83,6 +83,7 @@ private:
     uint64_t m_planFingerprint = 0;
     std::vector<ResidentPlan> m_plans;                       // per-cluster, deterministic order
     std::unordered_map<std::string, glm::vec3> m_active;     // npc name -> anchor (evict checks)
+    std::unordered_map<std::string, std::string> m_activePlan;   // npc name -> the schedule it was spawned with (planKey); "" = adopted, unknown
     Hooks m_hooks;
 };
 

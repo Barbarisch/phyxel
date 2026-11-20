@@ -2083,3 +2083,22 @@ RESPONSES (2026-11-20 09:21; pm_chain515.txt chains 530-544; NOT re-audited):
   3. a lot with no standing place counts as failing; asked == lots asserted on every build (chain 544: all equal).
      The refusal's red is chain 495 only; no standing test.
   Final: unit + nav 374 / 0 (chain 543), live 42 / 0 (chain 544), Release.
+
+== O39 (c)(j): residents spawned before the tavern never learned of it (ResidentSpawner) ==
+(2026-11-20 10:56; record m3c_chains/pm_chain545.txt; Release; L4 runs 8, 11, 12 on CityLab's creek city)
+RED -> GREEN: unit, chain 546 "socialPlace(res_home_a) Which is: home_a" -> chain 547 16 / 0. Live: run 11 - 13 of
+  18 schedules "ITS OWN HOUSE", 5 residents walk -> run 12 - 18 of 18 name the tavern, 17 within 12 u of it in the
+  evening, 19 of 20 within 3 u of home at night; one resident stuck "walking".
+AUDIT (solution-auditor, read-only, raw):
+  OVERALL: PASS WITH CONDITIONS
+  CLAIM 1 (cause = spawned before tavern existed): CONDITIONS. The symptom is confirmed; the spawn-order story is
+    plausible but not shown by that file (the order is /api/npcs', not spawn timestamps, and not monotone). The unit
+    red shows the mechanism is sufficient, not that it was the only cause on the live city.
+  CLAIM 2 (planKey respawn fix + unit test): CONDITIONS. Red -> green is real; the key is deterministic. Not
+    measured: the live respawn count (no log lines). The control is weak (a far house only). Adopted residents are
+    never re-planned. In play a plan change teleports the resident home and drops its in-flight state.
+  CLAIM 3 (live run 12): PASS WITH CONDITIONS. Recomputed 17 of 18 from the raw dump; the 19 of 20 could not be
+    reproduced without a home field (the day file's column agrees). The stuck resident is an open defect, not noise.
+RESPONSES (not re-audited): spawn timestamps from the engine's log tie all 13 to before the first tavern, 0
+  contradictions (citylab_l4_run11_spawn_order.txt); nearby-smithy and second-tavern controls added (chain 550,
+  405 / 0); re-plans logged at INFO (run 12 predates it). The rest stated as open.

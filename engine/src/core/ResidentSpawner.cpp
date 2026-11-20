@@ -60,6 +60,17 @@ uint64_t ResidentSpawner::registryFingerprint() const {
     return h ^ (static_cast<uint64_t>(m_locations->size()) << 1);
 }
 
+namespace {
+// The schedule a plan carries, as text: which activity, where, between which hours. Two plans with one key send a
+// resident to the same places at the same times.
+std::string planKey(const ResidentPlan& p) {
+    std::string k;
+    for (const auto& e : p.schedule.getEntries())
+        k += std::to_string(static_cast<int>(e.activity)) + "@" + e.locationId + ":" + std::to_string(e.startHour) + "-" + std::to_string(e.endHour) + ";";
+    return k;
+}
+}  // namespace
+
 void ResidentSpawner::rebuildPlansIfDirty() {
     const uint64_t fp = registryFingerprint();
     if (m_plansBuilt && fp == m_planFingerprint) return;
@@ -118,14 +129,30 @@ void ResidentSpawner::update(float dt) {
             ++it;
         }
     }
+    for (auto it = m_activePlan.begin(); it != m_activePlan.end();)
+        it = m_active.count(it->first) ? std::next(it) : m_activePlan.erase(it);
     for (const auto& pl : m_plans) {
         const bool ready = m_hooks.groundReady && m_hooks.groundReady(pl.spawnPos);
+        // O39 (c) (pm_chain545.txt, L4 run 11): a resident keeps the plan it was spawned with. A settlement is built one
+        // building at a time, so a resident spawned before its tavern stood was planned to spend the evening at home -
+        // and did, for good (13 of 18 on the live creek city). When the plan now made for it differs from the one it
+        // was spawned with, it is despawned here and spawned again below with the new one.
+        if (ready && m_hooks.despawn) {
+            const auto ip = m_activePlan.find(pl.name);
+            if (ip != m_activePlan.end() && !ip->second.empty() && ip->second != planKey(pl) && m_active.count(pl.name)) {
+                m_hooks.despawn(pl.name);
+                m_active.erase(pl.name);
+                m_activePlan.erase(ip);
+                LOG_INFO_FMT("Resident", "resident re-planned (its schedule changed; despawned, spawned again at its door): " << pl.name);
+            }
+        }
         const auto it = m_active.find(pl.name);
         if (ready && it == m_active.end()) {
             if (m_hooks.exists && m_hooks.exists(pl.name)) {
                 m_active.emplace(pl.name, pl.spawnPos);   // adopt the build's own spawn
             } else if (m_hooks.spawn(pl)) {
                 m_active.emplace(pl.name, pl.spawnPos);
+                m_activePlan[pl.name] = planKey(pl);
                 LOG_DEBUG_FMT("Resident", "resident spawned: " << pl.name << " (" << pl.role << ")");
             }
         } else if (!ready && it != m_active.end()) {

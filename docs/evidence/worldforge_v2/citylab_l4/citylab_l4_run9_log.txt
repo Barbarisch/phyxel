@@ -1,0 +1,39 @@
+[09:46:08.727] [INFO] [GameDefinitionLoader] World: worldforge params from game.json (siteCount=5)
+[09:48:06.627] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 1 sites
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1265,-1038) live ground 333, told 342, planned surface (not paved)
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1265,-1037) live ground 324, told 342, planned surface (not paved)
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1265,-1036) live ground 315, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1265,-1035) live ground 315, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1265,-1034) live ground 315, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1265,-1033) live ground 315, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1265,-1032) live ground 315, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1265,-1031) live ground 315, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1265,-1030) live ground 333, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1038) live ground 315, told 342, planned surface (not paved)
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1037) live ground 315, told 342, planned surface (not paved)
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1036) live ground 315, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1035) live ground 333, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1034) live ground 333, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1033) live ground 333, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1032) live ground 324, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1031) live ground 315, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1030) live ground 315, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1029) live ground 315, told 342, planned surface (not paved)
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1264,-1028) live ground 324, told 342, planned surface (not paved)
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1263,-1038) live ground 315, told 342, planned surface (not paved)
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1263,-1037) live ground 333, told 342, planned surface (not paved)
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1263,-1036) live ground 333, told 342, planned surface 342
+[09:48:11.272] [INFO] [Settlement] ford fill: cell (-1263,-1030) live ground 333, told 342, planned surface 342
+[09:49:32.093] [INFO] [Settlement] ways: the market 16 x 16 at (-1201,-1056): 256 of 256 cells paved (0 partly), 6561 plaza columns
+[09:52:07.072] [INFO] [Settlement] town wall: 12034 cubes, 0 gates, 0 towers (0 walkable), line cleared 10404, displaced 0
+[09:52:07.076] [INFO] [Settlement] town wall: the MAP's ring - 534 ring cells, 1069 band columns (74 inside a tower's drum, not stamped), 64 of them gate columns over 4 gates, 7 left open over water; towers: 4 built of 10 routed corners, 6 not built
+[09:52:07.076] [INFO] [Settlement] town wall: 0 crossing(s) of the world road
+[09:52:21.564] [WARN] [Settlement] square dressing: 3 props the tier asks for are not placed: no free LEVEL ground in the market (or no room)
+[09:52:21.648] [INFO] [Settlement] square dressing: 5 placed, 0 skipped (0 found no ground), the widest ground span under a prop 0 micro
+[09:52:29.686] [INFO] [Settlement] walkability gate: the market - 0 crossings walked, 0 blocked; stall fronts reached 3 of 3 (recorded only)
+[09:52:34.367] [INFO] [Settlement] walkability gate: the wall's towers - 4 built, 8 routes walked (door, climb), 0 blocked, 0 not walked; reached from the nearest way: 4 of 4 (recorded only)
+[09:52:35.285] [INFO] [Settlement] walkability gate: the residents' graph - 20 lots asked both ways to the hub, 0 cannot be left, 0 cannot be reached (refusing)
+[09:52:35.311] [INFO] [Settlement] walkability gate: the wall's gates - 4 walked through, 0 blocked
+[09:52:35.311] [INFO] [Settlement] walkability gate: 74 walkable, 0 blocked over 74 routes (20 front doors of 20 built, 0 skipped)
+[09:52:45.424] [INFO] [WorldForge] [WORLDFORGE] site 0 (city) BUILT: 20 buildings, 0 residents, 0 lot failures
+[09:52:45.619] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 1 sites (58 units)

@@ -1025,3 +1025,15 @@ FAILED as first stated; responses not re-audited).
   a lot with no standing place fails; recorded: asked, lots, spur risers over the step-up, spurs at the old cap.
 - Release: unit + nav 374 / 0, live 42 / 0; on every live build 0 houses that cannot be left or reached and 0 spur
   risers. No engine run; whole-exe run had 8 failures outside navigation (not checked against the previous commit).
+
+### 2026-11-20 - O39 (c)(j): the creek city's residents go to the tavern (L4) - the spawner re-plans
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain545.txt`, `docs/evidence/worldforge_v2/citylab_l4/` runs 8-12.
+- L4 run 8 (after the street work): the same 5 of 18 residents went out as before it. The streets were not why.
+- Run 11 read each resident's schedule: 13 of 18 named their OWN HOUSE for the evening - the 13 spawned before the
+  first tavern stood (the engine's spawn timestamps). `ResidentSpawner` planned a resident once, at spawn.
+- Fix: the spawner keeps the schedule each resident was spawned with and despawns / respawns it when a re-plan
+  differs (logged). Unit test with controls.
+- L4 run 12: 18 of 18 name the tavern; 17 within 12 u of it in the evening (the farthest walked 73 u); 19 of 20 home
+  at night. One resident (hall_house at (-1188,-1013)) is stuck "walking". Runs 9 and 10 read nothing (my script).
+- Release: unit + nav + resident suites 405 / 0, live 42 / 0. Audited PASS WITH CONDITIONS; responses not re-audited.
