@@ -210,6 +210,15 @@ bool NavGraph::sweepEdge(const NavSurface& from, const NavSurface& to, const Nav
             // door: the interior slab is flush with the outer wall face, and the trailing
             // corners of a box at the low level clip the slab edge (Ravenmere L4).
             ok = boxFits(px, fa, pz, hw, H, cache) || boxFits(px, fb, pz, hw, H, cache);
+            // O39 (f) (docs/evidence/worldforge_v2/m3c_chains/pm_chain515.txt): a CREST between the two centres. Ground
+            // that rises above BOTH cells' levels between them (a hump's apex at the cell boundary) is under the feet
+            // at either level; the controller steps onto it like any riser. So the body may also fit LIFTED above the
+            // higher level - up to ONE step-up above the LOWER one (the audit: bounded from the higher level a walker at
+            // the low cell rose two steps in one go). Anything taller is still a wall.
+            if (!ok) {
+                const int lo = std::min(fa, fb), hi = std::max(fa, fb);
+                for (int feet = hi + 1; feet <= lo + agent.stepUpMicro && !ok; ++feet) ok = boxFits(px, feet, pz, hw, H, cache);
+            }
         } else {
             // A FALL: walk at the high level until unsupported, then the body sweeps the
             // whole span down to the landing — the `to` side must be clear from `fb` up

@@ -481,6 +481,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         auto fordFill = std::make_shared<std::map<std::pair<int, int>, int>>();
         // O39 (pm_chain495.txt): what the gate asks the residents' own graph - each lot's door approach (the cell two out
         // from the door along its normal, world cubes, with a label) and the hub (the first primary way's middle node).
+        // O39 (k): the standing level the MAP states for each cell of a lot's door approach (world cube cell -> world micro)
+        auto approachLevel = std::make_shared<std::map<std::pair<int, int>, int>>();
         auto navDoors = std::make_shared<std::vector<std::pair<glm::ivec2, std::string>>>();
         glm::ivec2 navHub(0); bool navHubSet = false;
         int primaryWayId = -1;
@@ -602,6 +604,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             (*fordFill)[{ox + lx, oz + lz}] = (static_cast<int>(std::floor(mapGen->naturalGroundAt(ox + lx, oz + lz))) + 1) * 9;
                         }
                 }
+            for (const auto& l : siteMap.lots)
+                if (l.hasApproach) for (const auto& ac : l.approach) (*approachLevel)[{ox + ac.x, oz + ac.z}] = ac.level;
             for (const auto& l : siteMap.lots)
                 if (l.hasDoor) navDoors->push_back({{ox + l.doorX + l.doorNX * 2, oz + l.doorZ + l.doorNZ * 2}, "lot " + std::to_string(l.id) + " (" + l.typology + ")"});
             for (const auto& w : siteMap.ways)
@@ -1722,7 +1726,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             postBuildUnits.push_back({"door spurs",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
                  tierStreetMat = tierP->street.material, bFoot, groundMicro, groundTopAt, fl9, emitMicro, abox,
-                 pathsJsonP, sharedPaved, sharedWayPaved, sharedRoadBand, sharedStamp, sharedFrontDoors]() {
+                 pathsJsonP, sharedPaved, sharedWayPaved, sharedRoadBand, sharedStamp, sharedFrontDoors, approachLevel]() {
             if (!chunkManager) return;
             *sharedWayPaved = *sharedPaved;   // M5b-1 (chain 107): the ways' paving before any spur is laid
             // M0 row 2b: the spur starts one cell OUTSIDE THE DOOR (doorApproach - the gate's
@@ -1739,8 +1743,64 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 doors.push_back({mx, mz, fd.thresholdMicro - 1});
             }
             const std::vector<glm::ivec4> streetStamp = *sharedStamp;   // copy: the applier appends
-            const Core::PavingPlan pave = Core::planDoorSpurs(doors, bFoot, streetStamp, groundMicro,
-                                                              abox, tierStreetMat);
+            Core::PavingPlan pave = Core::planDoorSpurs(doors, bFoot, streetStamp, groundMicro,
+                                                        abox, tierStreetMat);
+            // O39 (k) (pm_chain515.txt): ONE rule for the spur and the map's approach - a spur column inside a cell of a
+            // lot's approach takes the level the MAP states for that cell (its surface = the standing level less one).
+            // The spur's own grade (now the ways': 4 micro a cell) differed from it by a micro on one cell of the village.
+            // The map states ONE standing level for each cell of a door's approach (planDoorstepLevels: treads from the
+            // threshold to the way, the way its anchor), so every spur column in such a cell is set to it - the cell is a
+            // tread. (chains 534-540 tried shifting the spur's ramp instead: it left a 6-micro riser at a way on the
+            // village, and limited to one micro it left a town approach 3 micro off the map. The riser measure below reads
+            // what this leaves beside each column.)
+            int spurColsAtMapLevel = 0, spurWorstShift = 0;
+            std::map<std::pair<int, int>, int> spurShiftDone;   // approach cell -> the largest change made in it (the riser print reads it)
+            if (!approachLevel->empty())
+                for (auto& c : pave.columns) {
+                    const std::pair<int, int> cell{fl9(c.x), fl9(c.z)};
+                    const auto it = approachLevel->find(cell);
+                    if (it == approachLevel->end() || c.surface == it->second - 1) continue;
+                    const int sh = (it->second - 1) - c.surface;
+                    c.surface = it->second - 1;
+                    c.cut = c.surface < groundMicro(c.x, c.z);
+                    ++spurColsAtMapLevel;
+                    spurWorstShift = std::max(spurWorstShift, std::abs(sh));
+                    if (std::abs(sh) > std::abs(spurShiftDone[cell])) spurShiftDone[cell] = sh;
+                }
+            (*pathsJsonP)["spur_worst_shift_to_the_maps_level_micro"] = spurWorstShift;
+            (*pathsJsonP)["spur_columns_at_the_maps_level"] = spurColsAtMapLevel;
+            {   // the audit (pm_chain515.txt): does the override - or the old cap - leave a RISER over the step-up between a
+                // spur column and the column beside it (another spur column, or the way's stamped paving)? Measured.
+                std::map<std::pair<int, int>, int> spurAt, wayAt;
+                for (const auto& c : pave.columns) spurAt[{c.x, c.z}] = c.surface;
+                for (const auto& st : streetStamp) wayAt[{st.x, st.z}] = st.w;   // (x, startRow, z, SURFACE) - chain 536: .y is the start row, not the surface
+                int risers = 0, worst = 0;
+                static const int kNX[4] = {1, -1, 0, 0}, kNZ[4] = {0, 0, 1, -1};
+                for (const auto& [k, sf] : spurAt)
+                    for (int d = 0; d < 4; ++d) {
+                        const std::pair<int, int> nk{k.first + kNX[d], k.second + kNZ[d]};
+                        int other = 0;
+                        if (const auto it = spurAt.find(nk); it != spurAt.end()) { if (nk < k) continue; other = it->second; }
+                        else if (const auto iw = wayAt.find(nk); iw != wayAt.end()) other = iw->second;
+                        else continue;
+                        const int dy = std::abs(other - sf);
+                        if (dy > abox.maxStepUpMicro) {
+                            ++risers; worst = std::max(worst, dy);
+                            if (risers <= 8) {   // chain 533: which columns - an approach cell's (the map's level) or not, against a spur or the way
+                                const bool mine = approachLevel->count({fl9(k.first), fl9(k.second)}) > 0, theirs = approachLevel->count({fl9(nk.first), fl9(nk.second)}) > 0;
+                                LOG_WARN_FMT("Settlement", "door spur riser: column (" << k.first << "," << k.second << ") cell (" << fl9(k.first) << "," << fl9(k.second) << ") surface " << sf
+                                             << (mine ? " [map approach]" : " [spur grade]") << " beside (" << nk.first << "," << nk.second << ") cell (" << fl9(nk.first) << "," << fl9(nk.second) << ") surface " << other
+                                             << (spurAt.count(nk) ? (theirs ? " [spur, map approach]" : " [spur, spur grade]") : " [the way]") << ", ground there " << groundMicro(k.first, k.second) << " / " << groundMicro(nk.first, nk.second)
+                                             << "; shift applied to this cell " << (spurShiftDone.count({fl9(k.first), fl9(k.second)}) ? spurShiftDone[{fl9(k.first), fl9(k.second)}] : 0)
+                                             << ", the map's standing level here " << (mine ? approachLevel->at({fl9(k.first), fl9(k.second)}) : -1));
+                            }
+                        }
+                    }
+                (*pathsJsonP)["spur_risers_over_step"] = risers;
+                (*pathsJsonP)["spur_worst_riser_micro"] = worst;
+                if (risers > 0) LOG_WARN_FMT("Settlement", "door spurs: " << risers << " riser(s) over the step-up between spur columns or a spur and the way (worst " << worst << " micro)");
+            }
+            (*pathsJsonP)["spurs_at_the_old_cap"] = pave.spursAtTheOldCap;
             for (const auto& f : pave.spurFailures) LOG_INFO_FMT("Settlement", "door spur too steep: " << f);
             auto& pavedCols = *sharedPaved;
             PavingApply ap;
@@ -3089,7 +3149,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             units.push_back({"walkability gate",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
                  sharedFrontDoors, sharedBuilt, pathsJsonP, walkJsonP, sharedWallCrossings, terrainTopAt, sharedWallGates, sharedWallTowers, sharedMarket,
-                 navDoors, navHub, navHubSet, navSite = glm::ivec4(ox, oz, W, D), navGateBlocks = p.value("nav_gate", false)]() {
+                 navDoors, navHub, navHubSet, navSite = glm::ivec4(ox, oz, W, D), navGateBlocks = p.value("nav_gate", true)]() {
             if (!chunkManager) return;
             const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
                 return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
@@ -3440,10 +3500,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // NavGraph, which steps cell to cell (4 micro up, a fall down) - and a house could be walked TO and not FROM
             // (the creek city: three houses beyond a one-cube fall in their street; their residents never left). So the
             // gate asks THAT graph too, both ways, between each lot's door approach and the hub. A lot that cannot be
-            // left, or reached, is recorded and warned - and, with {"nav_gate": true}, a BLOCKED route that refuses the
-            // build. It does NOT refuse by default yet (chain 501): two existing live sites fail the question (a village's
-            // one lot, nine lots of the walled city) and are not understood - O39 (f). Counted apart either way.
-            int navAsked = 0, navTrapped = 0, navCut = 0;
+            // left, or reached, is recorded and warned - and, unless {"nav_gate": false}, a BLOCKED route that refuses the
+            // build. It REFUSES BY DEFAULT since pm_chain515.txt (the village's island lot was its door spur's grade, the
+            // walled city's nine a crest the walker graph would not step over - both cured). Counted apart either way.
+            int navAsked = 0, navTrapped = 0, navCut = 0, navNoStand = 0;
             if (!navDoors->empty() && navHubSet) {
                 Core::NavGraph graph(
                     Core::CellFillFunc([chunkManager](const glm::ivec3& c) {
@@ -3466,9 +3526,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 if (standAt(navHub, hub))
                     for (const auto& [cell, label] : *navDoors) {
                         glm::vec3 a;
-                        if (!standAt(cell, a)) continue;   // no standing place there: the door's own route speaks for it
+                        // (the audit) a lot with NO standing place at its asked cell is not skipped: it is asked and fails both ways
+                        const bool stands = standAt(cell, a);
+                        if (!stands) { a = glm::vec3(static_cast<float>(cell.x) + 0.5f, 0.0f, static_cast<float>(cell.y) + 0.5f); ++navNoStand; }
                         ++navAsked;
-                        const bool in = graph.findPath(hub, a, navAgent).found, out = graph.findPath(a, hub, navAgent).found;
+                        const bool in = stands && graph.findPath(hub, a, navAgent).found, out = stands && graph.findPath(a, hub, navAgent).found;
                         if (in && out) continue;
                         if (navGateBlocks) ++blocked;
                         if (!in) ++navCut;        // (the audit: an isolated lot is counted BOTH ways - it was "cannot be reached" only)
@@ -3522,7 +3584,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     }
                 LOG_INFO_FMT("Settlement", "walkability gate: the residents' graph - " << navAsked << " lots asked both ways to the hub, " << navTrapped
                              << " cannot be left, " << navCut << " cannot be reached" << (navGateBlocks ? " (refusing)" : " (recorded only)"));
-                (*pathsJsonP)["nav_graph"] = {{"asked", navAsked}, {"cannot_be_left", navTrapped}, {"cannot_be_reached", navCut}, {"refuses", navGateBlocks}};
+                (*pathsJsonP)["nav_graph"] = {{"asked", navAsked}, {"cannot_be_left", navTrapped}, {"cannot_be_reached", navCut}, {"refuses", navGateBlocks},
+                                                  {"lots", static_cast<int>(navDoors->size())}, {"no_standing_place", navNoStand}};
             }
             if (!sharedWallGates->empty())
                 LOG_INFO_FMT("Settlement", "walkability gate: the wall's gates - " << gateRoutes << " walked through, " << gateRoutesBlocked << " blocked");

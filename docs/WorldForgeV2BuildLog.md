@@ -1011,3 +1011,17 @@ Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain510.txt`. Diagnostics on
   and one approach cell then stood 1 micro off the level the map states (the doorsteps' contract). Not landed.
 - The walled city's nine are neither the square's grade nor the spurs': unknown.
 - The gate's message now carries the probe's answer (first two failing lots) and where the graph's answer changes.
+
+### 2026-11-20 - O39 (k)(f): every house on the residents' graph - spurs, a crest, and the refusal by default
+
+Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain515.txt`; audit in the ledger (PASS WITH CONDITIONS, one claim
+FAILED as first stated; responses not re-audited).
+- Door spurs are graded like the ways (4 micro a cell); a spur is never cut to grade (falls back to the old cap,
+  counted); spur columns in a cell of a door's map approach take the level the map states (the cell is a tread).
+- `NavGraph::sweepEdge` (ENGINE-WIDE): a step between two cells may pass over a crest between their centres when the
+  body fits lifted to at most one step-up above the LOWER cell. Tests: the measured street profile, a wall control,
+  five bound cases.
+- The gate's graph question (door approach <-> hub, both ways) refuses by default (`"nav_gate": false` records only);
+  a lot with no standing place fails; recorded: asked, lots, spur risers over the step-up, spurs at the old cap.
+- Release: unit + nav 374 / 0, live 42 / 0; on every live build 0 houses that cannot be left or reached and 0 spur
+  risers. No engine run; whole-exe run had 8 failures outside navigation (not checked against the previous commit).

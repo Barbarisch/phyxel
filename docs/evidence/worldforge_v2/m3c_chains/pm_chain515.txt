@@ -1,0 +1,225 @@
+pm_chain515.txt - O39 (k): one rule for a door's spur and the map's approach.
+(written 2026-11-19 14:09, BEFORE any run of this chain; HEAD 662cadea)
+
+THE RED is chain 512 (pm_chain510.txt): with door spurs graded at the ways' 4 micro a cell the village's island lot
+  joined the residents' graph, and TheFirstVillageBuildsFromItsMapWithEveryDoorMeasured FAILED - "lot 3 blacksmith:
+  the map's approach [883,883] does not stand after the doorsteps: [883,884]".
+READ: two authorities wrote the same cells - the MAP states each approach cell's standing level (planDoorstepLevels,
+  threshold to way; the doorsteps unit imposes it but never touches a PAVED cell), and the door spur paves those
+  cells at its own grade first.
+CHANGE: the spur is graded at the ways' 4 micro a cell, and every spur column inside a cell of a lot's map approach
+  takes the level the map states for that cell. Legacy (no map) spurs: the new grade, no override. No new number.
+PREDICTION chain 515 (the three village tests, the walled city, the creek city): the village test passes with the
+  graph's answer 0 / 0 on every village build (GUESS 65 %: the override may leave a riser between an approach cell
+  and a spur column beside it); the walled city unchanged (0 / 9); the creek city 0 / 0.
+RESULTS (written 2026-11-19 14:14)
+  chain 515 (exe 14:10:08): 5 ok / 0 failed. The village: "approaches: 11 doors handled ..., 0 differ from the map's
+    approach ...; 10 imposed from the map, 0 of them not standing as stated"; the residents' graph 11 lots 0 / 0 on
+    all three village builds (was 1 / 1); 101 spur columns took the map's level on one build. The walled city: still
+    25 lots, 0 / 9. The creek city: 0 / 0.
+  chain 516: a DIAGNOSTIC in the walled city's test - the graph's answers along every way, cell by cell.
+RESULTS (written 2026-11-19 14:26)
+  chains 516 to 519 (diagnostics in the walled city's test): the graph's answer along every way - way 1 (the main
+    street's west arm): "60 not reachable from the hub", first at local (73, 48). The street there: two HUMPS of the
+    ground, 1404 -> 1411 -> 1404 micro over two cells each (x 72..75 and 76..79), within the grade. The graph's own
+    standing levels across them: 1405 1406 1410 1411 1407 1406 1410 1411 1407 1405 - every neighbour within 4. The
+    micro profile at the first: "... 9 9 10 10 | 11 10 10 9 ..." - the apex (1411) is the first column of cell 74,
+    at the BOUNDARY with cell 73, one micro above both cells' levels.
+  CAUSE (read in NavGraph::sweepEdge, to be shown by a unit test): for a step the body must fit at ONE OF THE TWO
+  CELLS' levels at each of the 9 positions between their centres; at a crest between the centres it fits at neither
+  (the apex is under its feet), and the edge is refused - both ways or one way depending on the lateral try.
+  DESIGN: sweepEdge also accepts a position where the body fits LIFTED by up to the step-up above the higher of the
+  two levels - the controller's auto-step over a bump, which the gate's probe already walks. A wall (more than the
+  step-up above both) is still refused. This is the ENGINE's walker graph: it changes paths in every game.
+  RED: NavGraphMicroTest.ACrestBetweenTwoCellCentresIsSteppedOver (the measured profile; control: a 10-micro wall at
+  the boundary). PREDICTION chain 520 (RED): the crest is not crossed at least one way; the control passes.
+RESULTS (written 2026-11-19 14:27)
+  chain 520 (RED, exe 14:26:35, NavGraph suites 27 ok / 1 failed): "the crest rig: standing levels of cells x -1..4:
+    95 96 100 101 97 95" and "a path west over the crest NOT FOUND, east over it NOT FOUND". The control (a wall)
+    passes. As predicted.
+  CHANGE: NavGraph::sweepEdge - on a step, a position where the body fits at neither cell's level is also accepted
+    when it fits lifted by 1..stepUpMicro above the higher level.
+  PREDICTION chain 521 (NavGraph suites + the village, the walled city, the creek city): the crest test green, the
+    other 27 NavGraph tests unchanged; the walled city's graph answer 0 / 0 (GUESS 60 %: its other break, (89, 63)
+    feet 1485 on way 2 and (42,-3) feet 1467, read like wall tops and may be something else); village and creek
+    city 0 / 0.
+RESULTS (written 2026-11-19 14:30)
+  chain 521 (exe 14:27:20): 31 ok / 0 failed. The crest test green ("a path west over the crest found, east over it
+    found"), the other 27 NavGraph tests pass. The residents' graph: village 11 lots 0 / 0, WALLED CITY 25 lots
+    0 / 0 (was 0 / 9), creek city 20 lots 0 / 0. The walled city's way trace: way 1 from 60 unreachable cells to 2,
+    ways 6 and 10 from 12 and 18 to 0. The cells still "N N" - (42,-3) feet 1467 and (89,63) feet 1485 - are my
+    trace's own seat landing on top of a gate arch (5 and 9 cubes above the street), not street cells: not a defect
+    shown, not looked at further.
+  NEXT, STATED BEFORE THE RUN: (1) the graph question REFUSES BY DEFAULT ("nav_gate" defaults true; false = record
+    only); (2) the O39 test (every house of the creek city can be left) is ENABLED; (3) the hard-coded prints of
+    chains 517-519 are removed from the walled city's test, the per-way trace stays.
+  PREDICTION chains 522 (unit set + every *Nav* suite) / 523 (live 42 = 41 + the enabled O39 test): 0 failed.
+    GUESSES: the unit prints identical to chain 508 (no unit rig builds a NavGraph over generated ground - 70 %);
+    live: gate lines identical to chain 509 EXCEPT where a site still has a lot the graph cannot serve - then that
+    test goes red on a refusal (the town, the hamlets and the rolling city have not been asked since the spur and
+    crest changes: 50 % that at least one refuses).
+RESULTS (written 2026-11-19 14:45)
+  chain 522 (unit + nav, exe 14:31:07): 372 ok / 1 FAILED - StreetPaverTest.DoorSpurFromATerracePadIsReportedWith
+    ItsNumbers: a spur that drops 27 micro in 6 columns was no longer refused ("spursFailed 0, expected 1"). NOT
+    PREDICTED. Cause: the per-cell grade's cut-to-grade fallback (made for ways) applied to spurs - it would lower
+    the spur's start below the door's threshold and call it paved. A real fault of this increment, caught by an
+    existing test.
+  chain 523 (live, same exe): 42 ok / 0 failed; the residents' graph on all nine builds 0 cannot be left / 0 cannot
+    be reached, refusing (village x 4: 11 lots; creek city x 2: 20; town x 2: 24; walled city: 25); the gate / lot /
+    market record lines identical to chain 509. (But the exe carried the spur fault above.)
+  FIX, STATED BEFORE THE RUN: a spur is never cut to grade - where the gentle grade does not fit it is planned at the
+    old cap as before, or refused with its numbers; counted (spurs_at_the_old_cap).
+  PREDICTION chains 524 / 525: unit + nav 373 / 0; live 42 / 0, graph answers all 0 / 0 (GUESS 75 %: a spur back at
+    the old cap may bring back an island), record lines identical to chain 509.
+  chains 524 / 525 VOID (written 14:56): the build failed (my header patch did not land - C2039) and the live set ran on the OLD exe (14:31:07). Re-run as 526 / 527 with the same prediction.
+RESULTS (written 2026-11-19 15:15)
+  chain 526 (unit + every *Nav* / *Traversal* / *Npc* suite, exe 14:57:31): 373 ok / 0 failed (the terrace-pad spur
+    test green again). The 82 [ M5a ] / [ M5b ] lines identical to chain 508's; the M5A-MAP plan lines: 0 differ.
+  chain 527 (live, the same exe): 42 ok / 0 failed (41 + the O39 test, now enabled). The residents' graph, REFUSING
+    BY DEFAULT, on all nine builds: village x 4 - 11 lots 0 / 0; creek city x 2 - 20 lots 0 / 0; town x 2 - 24 lots
+    0 / 0; walled city - 25 lots 0 / 0. The 166 gate / lot / market record lines identical to chain 509's.
+  chain 528 (one record line added - "spurs_at_the_old_cap"; exe 15:11:44; StreetPaver + NavGraphMicro suites and
+    four live sites: 36 ok / 0 failed): spurs at the old cap - village 1 of 11, walled city 2 of 25, town 0 of 24,
+    creek city 3 of 20; graph answers 0 / 0 on all four. The full live set was NOT re-run on this last exe.
+  PREDICTION MISS: my 75 % guess that an old-cap spur might bring back an island did not happen on these sites - but
+    SIX spurs do stand at the old cap and nothing here shows WHY they still serve the graph (the map's approach
+    override may be what levels them). An old-cap spur is a known way for a lot to become an island again.
+  WHAT THIS IS: headless, Release, the test rigs' sites. WHAT IT IS NOT: no engine run (L4) since the grade change of
+    03ff7bb0; no resident has walked any of it; the hamlet tier and the rolling city were not asked (no live rig
+    builds them); the NavGraph change is engine-wide and only the suites named were run, not the ~2,300 unit tests;
+    the crest rule is tested on one measured profile and one wall control; no Debug.
+  chain 529 (stated 15:15 before the run): the WHOLE test exe except the live-site suites (the NavGraph change is engine-wide), exe 15:11:44. PREDICTION: no failure that names navigation; failures unrelated to this increment may exist (the whole exe has not been run this session) and will be listed, not explained away.
+RESULTS (written 2026-11-19 15:41)
+  chain 529 (the whole exe less the live-site suites, exe 15:11:44, 25.5 min): 4651 ran, 4624 passed, 19 skipped,
+    8 FAILED: AtlasManagerTest.BuildAtlasFromSourcePNGs, DirtyChunkTrackerTest (2), EarthworkTest.HairpinBankHasNo
+    CliffStepWithItsControl, RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope, WaterCouplingTest.Blast
+    BesideThePondMovesItAndItSettles, TransparentCullingCrossChunk.T16 (a timing bound), FineFaceMerge (1). None is a
+    navigation test and none of their files names NavGraph / the paver / the build service (grep counts all 0) -
+    but whether they failed BEFORE this increment was NOT checked (no run of the whole exe on 662cadea exists).
+    Not explained, not fixed here; listed for the owner.
+AUDIT: PASS WITH CONDITIONS, claim 1 FAIL as stated (raw in the ledger). RESPONSES, STATED BEFORE THE RUN:
+  (1) THE CREST BOUND - the auditor is right: lifting from the HIGHER level lets a walker at the lower cell rise
+      dy + 4. New bound: the lifted level may be at most stepUp above the LOWER of the two levels (so the whole climb
+      from the low side is one step-up). New tests (red first on the current code): levels 100 / 104 with a crest at
+      108 must NOT be crossed; on levels 100 / 101, crests 2, 3 above the higher level are crossed (lo + 4 = 104
+      allows crest tops up to 103 -> feet 104) and a crest 5 above is not.
+  (2) THE SPUR OVERRIDE - measured: after the override, pairs of 4-adjacent columns (spur-spur and spur-street stamp)
+      whose surfaces differ by more than the step-up are counted ("spur_risers_over_step") and every live build
+      asserts 0 in realizeOnce.
+  (3) THE QUESTION - a lot with no standing place at its asked cell is counted as cannot be reached (was skipped);
+      "lots" (doors given) is recorded beside "asked"; realizeOnce asserts asked == lots on every build that records
+      the answer. The refusal's own red is QUOTED, not re-run: chain 495 (pm_chain495.txt) - the creek city REFUSED,
+      "20 lots asked ..., 3 cannot be left", "gate blocked, 74 walkable, 3 blocked". No standing test forces it.
+  (4) the stale comment corrected. The fall branch is NOT given crest handling (stated; a crest on a fall edge
+      stays refused - conservative).
+  PREDICTION chain 530 (NavGraph suites, RED): the 100 / 104 / 108 case is CROSSED on the current code (the new test
+    fails); the lift-2 and lift-3 cases pass, lift 5 passes (not crossed).
+RESULTS (written 2026-11-19 15:43)
+  chain 530 (RED, exe 15:42:21; NavGraph suites 28 ok / 1 failed): as predicted - "cells a step apart (100, 104), a
+    crest 4 above the higher: 8 from the lower ... up crossed, down crossed (wanted not crossed)"; and one I had not
+    listed in the prediction but put in the test: "a crest 4 above the higher (5 from the lower) - up crossed" (wanted
+    not). Lifts 2 and 3 crossed; 5 not crossed.
+  CHANGES as stated in the responses (1) to (4). realizeOnce now asserts on EVERY live build: spur risers over the
+    step-up == 0; asked == lots; no lot without a standing place.
+  PREDICTION chains 531 (unit + nav) / 532 (live 42): 0 failed; graph answers 0 / 0 everywhere with asked == lots
+    (GUESS 70 %: a lot without a standing place may exist somewhere and now refuse its site); spur risers 0 (GUESS
+    60 %: six spurs stand at the old cap, 2 micro a column is 18 a cell - but the measure is column to column, where
+    the old cap is 2; the override's 1-micro mismatch on top of 4 would give 5).
+RESULTS (written 2026-11-19 15:57)
+  chain 531 (unit + nav, exe 15:43:35): 374 ok / 0 failed; the crest-bound test green - "(100, 104), a crest 4 above
+    the higher ... up not crossed, down not crossed", lifts 2 and 3 crossed, 4 above (5 from the lower) and 5 not
+    crossed; the measured-profile test still green. Unit and plan record lines identical to chain 508.
+  chain 532 (live, same exe): 36 ok / 6 FAILED - all six on the NEW riser assertion (the audit's condition 2):
+    village (two of its builds) "0 risers"; the crofts / parcels builds 14 and 27 risers (worst 9 micro); the walled
+    city 10 (worst 13); the legacy city 15 (worst 8, with NO map override: 7 spurs at the old cap, 0 columns at the
+    map's level); the creek city 0. PREDICTION MISS (I gave 60 % for zero). The graph's answers: 0 / 0 on all nine
+    builds, asked == lots, no lot without a standing place. Gate / lot / market lines identical to chain 509.
+  READ: the measure counts ANY two neighbouring paved columns - also columns side by side ACROSS a spur's edge, which
+    no walker's route need cross - and the legacy city shows risers with no override at all, so some of these are
+    not the override's. Not known which are on a walked line. chain 533: a print of the first eight per build.
+RESULTS (written 2026-11-19 16:01)
+  chain 533 (the print): every riser shown is of ONE kind - an approach cell's columns at the map's level against the
+    WAY's paving one column on: "surface 900 [map approach] beside ... surface 891 [the way]" (9 micro; the walled
+    city 1408 against 1395, 13 micro). THE OVERRIDE OF CHAIN 515 IS WRONG: the map states a cell's level at its
+    centre; I set the WHOLE cell to it and so replaced the spur's ramp down to the way with a flat tread and a riser
+    at the way's edge, on the door's own line. A defect I shipped into chains 515-532 and did not measure; the
+    audit's condition 2 found it. (The graph still answered 0 / 0 on these builds - it is not shown how; a resident
+    may be reaching those doors by another side.)
+  FIX, STATED BEFORE THE RUN: a cell's spur columns are SHIFTED by what the cell's centre column is off the map's
+    level (the ramp is kept); recorded with the worst shift.
+  PREDICTION chains 534 (unit + nav) / 535 (live 42): 0 failed; risers over the step-up 0 on the map builds (GUESS
+    70 %); the LEGACY city may still show risers (it has no override: 15 seen, worst 8 - unexplained) and then its
+    test stays red and is looked at; the village's approach contract stands (0 differ); graph 0 / 0 everywhere.
+RESULTS (written 2026-11-19 16:15)
+  chain 534 (unit + nav, exe 16:01:28): 374 ok / 0 failed. chain 535 (live): 36 ok / 6 FAILED, the same six on the
+    riser assertion, now ALSO between "[spur grade]" columns and the way and on the legacy city with no override.
+  MY MEASURE WAS WRONG. The way's stamp is (x, startRow, z, SURFACE); I read .y (the start row) as the surface. Every
+    riser of chains 532, 533 and 535 compared a spur's surface with the way's START ROW. So:
+    - chain 533's conclusion ("the override of chain 515 is wrong: a riser at the way's edge") is WITHDRAWN - it was
+      not shown. What I told the owner on that basis was wrong and is corrected in the next status.
+    - whether the flattening override or the shift leaves a riser is NOT YET MEASURED by anything.
+  The shift (chain 534) is kept as the smaller change to a spur (it keeps the ramp); the measure reads .w.
+  PREDICTION chains 536 (unit + nav) / 537 (live 42): 0 failed; risers over the step-up 0 on every build (GUESS
+    65 %); approach contract 0 differ; graph 0 / 0, asked == lots; record lines identical to chain 509.
+RESULTS (written 2026-11-19 16:32)
+  chain 536 (unit + nav, exe 16:16:15): 374 ok / 0 failed, record lines identical to chain 508.
+  chain 537 (live, the corrected measure): 40 ok / 2 FAILED (two village tests). Risers over the step-up: 0 on the
+    town, both cities, the legacy city and the creek city; 5 (worst 6 micro) on three village builds - all at ONE
+    cell: "surface 876 [map approach] beside ... surface 882 [the way]". The first REAL riser measured. Graph 0 / 0
+    everywhere, asked == lots; approach contract 0 differ; gate / lot / market lines identical to chain 509.
+  chain 538 (print): there "shift applied to this cell -4, the map's standing level here 883" - the cell's centre
+    column stood 4 micro above the map's level and the shift dragged the cell's edge 6 under the way. So a shift of
+    more than the measured 1-micro class is a spur and a map that DISAGREE about a cell; why they disagree by 4
+    there is NOT understood (chain 512, with no override at all, reported only one cell 1 micro off).
+  FIX, STATED BEFORE THE RUN: only a shift of one micro is made; a cell further off is left as the spur planned it
+    and COUNTED (recorded and printed, not asserted).
+  PREDICTION chains 539 / 540: unit + nav 374 / 0; live 42 / 0, risers 0 on every build, approach contract 0 differ
+    (GUESS 60 %: the cell 4 off may now show as "differs"), graph 0 / 0.
+RESULTS (written 2026-11-19 16:46)
+  chain 539 (unit + nav, exe 16:32:33): 374 ok / 0 failed, lines identical. chain 540 (live): 41 ok / 1 FAILED - the
+    TOWN's approach contract: "lot 7 butcher: the map's approach [1405,1405] does not stand after the doorsteps:
+    [1405,1408]" (3 micro off, not shifted under the one-micro limit). Risers over the step-up 0 on all builds;
+    graph 0 / 0, asked == lots. As my 40 % feared, on another site. (My test's print change had not landed either -
+    a patch of mine aborted after writing the engine file; fixed now.)
+  READ: at the gentle grade a spur and the map's approach are two different profiles over the same cells; shifting
+    the spur cannot make both hold. The map's approach is a stair of TREADS (one level a cell, anchored at the way):
+    the rule that makes them one is the first one - every spur column in an approach cell takes the map's level
+    (chain 515), which was withdrawn on a measure that was itself wrong and has never been measured correctly.
+  CHANGE, STATED BEFORE THE RUN: back to chain 515's override (the cell is a tread at the map's level), with the
+    corrected riser measure.
+  PREDICTION chains 541 / 542: unit + nav 374 / 0; live 42 / 0 - approach contract 0 differ on village and town;
+    risers over the step-up 0 (GUESS 60 %: a tread beside a spur column outside the approach, or beside the way,
+    may stand more than 4 off); graph 0 / 0.
+RESULTS (written 2026-11-20 09:00)
+  chain 541 (unit + nav, exe 2026-11-19 16:47:12): 374 ok / 0 failed.
+  chain 542 (live, the same exe) is INCOMPLETE: the harness stopped it for low memory (the laptop had slept; the
+    output's last write is 2026-11-20 08:59). NOT restarted (standing rule). What it had done: 15 tests ok, 0 failed
+    of 42. On the builds it reached - approach contract: village "0 differ ... 0 not standing", town "0 differ ...
+    0 not standing"; risers over the step-up 0 on all seven builds printed (village x 5, town, walled city; up to 256
+    columns set to the map's level); the residents' graph 0 / 0 with asked == lots on village (x 3), town, walled
+    city. NOT reached: the creek city, the legacy city, the market tests and the rest (27 tests).
+  So the tread override (chain 515's) with the corrected measure shows no riser where it ran - but the increment has
+  NO complete live run on its final code, and is not committed.
+  (2026-11-20 09:00) the test's print line corrected (text only: it adds the largest change made). Nothing built or run since chain 542.
+  (2026-11-20 09:06) the owner asked for the live run to be restarted. PREDICTION chains 543 (unit + nav) /
+    544 (live 42), the final code (the tread override, the corrected measure, the print line): 0 failed; risers over
+    the step-up 0 on every build (the creek city and the legacy city not yet seen with this override: GUESS 75 %);
+    approach contract 0 differ; graph 0 / 0, asked == lots; record lines identical to chains 508 / 509.
+RESULTS (written 2026-11-20 09:21)
+  chain 543 (unit + every *Nav* / *Traversal* / *Npc* suite, exe 2026-11-20 09:07:11): 374 ok / 0 failed; the 82
+    [ M5a ] / [ M5b ] lines and the 40 plan lines identical to chain 508's.
+  chain 544 (live, the same exe, complete): 42 ok / 0 failed. As predicted.
+    - risers over the step-up beside door spurs: 0 on all fourteen builds printed (village, town, walled city, creek
+      city, legacy city); columns set to the map's level 45 to 256 a build, the largest change 2 to 8 micro.
+      (The measure is not vacuous: in chain 537 it reported the 6-micro riser the shift left on the village.)
+    - approach contract: village "0 differ ... 0 not standing", town "0 differ ... 0 not standing".
+    - the residents' graph, refusing by default: village x 4 11 / 11 asked, town x 2 24 / 24, walled city 25 / 25,
+      creek city x 2 20 / 20 - 0 cannot be left, 0 cannot be reached, no lot without a standing place.
+    - spurs at the old cap (the gentle grade did not fit): 0 to 3 a map build, 7 on the legacy city.
+    - the 166 gate / lot / market record lines identical to chain 509's.
+  NOT SHOWN: no engine run (L4) since 03ff7bb0 - no resident has walked any of this; the final code (crest bound,
+    tread override, counted no-stand lots) is NOT re-audited - the audit read the first version and its conditions
+    are answered above; no standing test forces the default refusal (chain 495's refusal is the only red); spurs at
+    the old cap can still make an island on another site; the hamlet tier and a rolling city have no live rig; the
+    crest rule is on a fall edge untouched; the whole exe (chain 529, before the audit's fixes) had 8 failures
+    outside navigation, not checked against 662cadea; Release only.

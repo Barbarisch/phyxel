@@ -395,12 +395,19 @@ PavingPlan planDoorSpurs(const std::vector<DoorAnchor>& doors,
             ++plan.spursPlanned;
             continue;
         }
-        // O39 (f) (pm_chain510.txt, chain 512): a door spur keeps the OLD grade (2 micro a column) for now. At the ways'
-        // grade the village's isolated lot joined the residents' graph - and one approach cell stood 1 micro off the level
-        // the MAP states for it (lot 3: [883, 884] against [883, 883]), which the doorsteps' contract forbids. Not
-        // landed until the spur and the map's approach are graded by one rule.
-        const PathPlan spur =
-            planTerrainPath(groundMicroAt, {d.x, d.surfaceY, d.z}, {gx, gS, gz}, box);
+        // O39 (k) (pm_chain515.txt): a door spur at the ways' grade (4 micro a cell). At 2 micro a column a spur was walked
+        // by the gate's probe and not by the residents' graph (the village's island lot). On a MAP lot the cells of the
+        // door's approach then take the level the MAP states for them (the realizer overrides those columns after this
+        // plan - SettlementBuildService, the door spurs unit): one rule for the spur and the approach.
+        PathPlan spur =
+            planTerrainPath(groundMicroAt, {d.x, d.surfaceY, d.z}, {gx, gS, gz}, box, box.maxStepUpMicro);
+        // (chain 522) a spur is never CUT to grade: its start is the door's threshold and its end the street's surface,
+        // and lowering either leaves a riser there. Where the gentle grade does not fit, the spur is planned at the old
+        // cap as before (walked by the gate's probe; steeper than the residents' graph takes) or refused with its numbers.
+        if (spur.ok && spur.reason.rfind("cut to grade", 0) == 0) {
+            spur = planTerrainPath(groundMicroAt, {d.x, d.surfaceY, d.z}, {gx, gS, gz}, box);
+            if (spur.ok) ++plan.spursAtTheOldCap;
+        }
         if (!spur.ok) {
             ++plan.spursFailed;
             plan.spurFailures.push_back(spurFailureLine({d.x, d.surfaceY, d.z}, {gx, gS, gz},

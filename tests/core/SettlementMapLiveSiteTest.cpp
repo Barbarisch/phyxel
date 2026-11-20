@@ -534,6 +534,19 @@ nlohmann::json realizeOnce(LiveSiteRig& rig, bool legacyLayout, const nlohmann::
         }
     }
     for (const auto& f : out["lot_failures"]) std::printf("[ M5a-1 ]   lot failure: %s\n", f.dump().c_str());
+    if (out.contains("paths") && out["paths"].is_object()) {   // the audit of O39 (k)(f) (pm_chain515.txt): on EVERY build that records them
+        const auto& pj = out["paths"];
+        if (pj.contains("spur_risers_over_step")) {
+            std::printf("[ O39k ] spurs: %d at the old cap, %d columns set to the map's level (largest change %d micro), %d risers over the step-up (worst %d micro)\n", pj.value("spurs_at_the_old_cap", -1), pj.value("spur_columns_at_the_maps_level", -1), pj.value("spur_worst_shift_to_the_maps_level_micro", -1), pj.value("spur_risers_over_step", -1), pj.value("spur_worst_riser_micro", -1));
+            EXPECT_EQ(pj.value("spur_risers_over_step", -1), 0) << "a door spur leaves a riser over the step-up beside it";
+        }
+        if (pj.contains("nav_graph")) {
+            const auto& ng = pj["nav_graph"];
+            std::printf("[ O39f ] the residents' graph: %s\n", ng.dump().c_str());
+            EXPECT_EQ(ng.value("asked", -1), ng.value("lots", -2)) << "the graph was not asked about every lot with a door";
+            EXPECT_EQ(ng.value("no_standing_place", -1), 0) << "a lot's asked cell has no standing place";
+        }
+    }
     return out;
 }
 
@@ -1658,6 +1671,61 @@ TEST(SettlementMapLiveSiteTest, TheWalledCityCanBeLeftByItsRoad) {
     nlohmann::json ov; ov["tier"] = "city";
     const auto out = realize(rig, /*legacyLayout=*/false, ov);
     ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+    {   // O39 (f) diagnostic (pm_chain515.txt, chain 516): where the residents' graph stops on this city's STREETS. The
+        // engine's NavGraph over the site; the hub = the first primary way's middle node; every way walked cell by cell,
+        // each cell asked from the hub and toward it; the cells where either answer changes are printed with their feet.
+        const Core::SettlementMap smd = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
+        Core::NavGraph graph(
+            Core::CellFillFunc([&rig](const glm::ivec3& c) {
+                switch (rig.cm.getVoxelTypeAt(c)) {
+                    case VoxelLocation::CUBE:  return Core::CellFill::Solid;
+                    case VoxelLocation::EMPTY: return Core::CellFill::Empty;
+                    default:                   return Core::CellFill::Partial;
+                }
+            }),
+            Core::MicroQueryFunc([&rig](const glm::ivec3& m) { return rig.cm.occupiedMicro(m); }));
+        const Core::NavAgentProfile agent{};
+        graph.buildRegion(glm::ivec2(smd.originX - 8, smd.originZ - 8), glm::ivec2(smd.originX + smd.W + 8, smd.originZ + smd.D + 8), agent);
+        const std::function<bool(int, int, int)> occ = [&rig](int x, int y, int z) { return rig.cm.occupiedMicro(glm::ivec3(x, y, z)); };
+        Core::AgentBox dbox;
+        Core::TraversalProbe dprobe(occ, dbox);
+        const int doy = static_cast<int>(rig.site->surfaceY);
+        auto seatD = [&](int cx, int cz) {
+            const int wx = smd.originX + cx, wz = smd.originZ + cz, top = settlementTopScan(&rig.cm, doy, wx, wz, true);
+            for (int y = (top - 3) * 9; y <= (top + 6) * 9; ++y) if (dprobe.fits(wx * 9 + 4, y, wz * 9 + 4) && dprobe.supported(wx * 9 + 4, y, wz * 9 + 4)) return y;
+            return INT_MIN;
+        };
+        glm::vec3 hub(0.0f); bool haveHub = false; std::pair<int, int> hubCell{0, 0};
+        for (const auto& w : smd.ways) if (w.highway == "primary" && !w.nodes.empty()) {
+            if (const Core::MapNode* n = smd.node(w.nodes[w.nodes.size() / 2])) {
+                const int sf = seatD(n->x, n->z);
+                if (sf != INT_MIN) { hub = glm::vec3(smd.originX + n->x + 0.5f, sf / 9.0f, smd.originZ + n->z + 0.5f); haveHub = true; hubCell = {n->x, n->z}; }
+            }
+            break;
+        }
+        std::printf("[ O39f ] the walled city: hub at local %d,%d %s%s", hubCell.first, hubCell.second, haveHub ? "" : "(NO SEAT)", chr10().c_str());
+        if (haveHub)
+            for (const auto& w : smd.ways) {
+                std::string trace; char pi = '?', po = '?'; int cells = 0, noIn = 0, noOut = 0;
+                std::pair<int, int> at{INT_MIN, 0};
+                std::vector<std::pair<int, int>> line;
+                for (int nid : w.nodes) if (const Core::MapNode* n = smd.node(nid)) {
+                    if (at.first == INT_MIN) { at = {n->x, n->z}; line.push_back(at); continue; }
+                    while (at.first != n->x || at.second != n->z) { at.first += (n->x > at.first) - (n->x < at.first); at.second += (n->z > at.second) - (n->z < at.second); line.push_back(at); }
+                }
+                for (const auto& c : line) {
+                    const int sf = seatD(c.first, c.second);
+                    if (sf == INT_MIN) continue;
+                    ++cells;
+                    const glm::vec3 pt(smd.originX + c.first + 0.5f, sf / 9.0f, smd.originZ + c.second + 0.5f);
+                    const char ci = graph.findPath(hub, pt, agent).found ? 'y' : 'N', co = graph.findPath(pt, hub, agent).found ? 'y' : 'N';
+                    if (ci == 'N') ++noIn; if (co == 'N') ++noOut;
+                    if (ci != pi || co != po) trace += " (" + std::to_string(c.first) + "," + std::to_string(c.second) + ") feet " + std::to_string(sf) + " from-hub " + ci + " to-hub " + co + ";";
+                    pi = ci; po = co;
+                }
+                std::printf("[ O39f ] way %d %s width %.0f, %d cells: %d not reachable from the hub, %d cannot reach it; changes:%s%s", w.id, w.highway.c_str(), w.width, cells, noIn, noOut, trace.c_str(), chr10().c_str());
+            }
+    }
     const nlohmann::json wallRec = out["paths"].value("town_wall", nlohmann::json::object());
     const nlohmann::json walk = out["paths"].value("walkability", nlohmann::json::object());
     int leave = 0, leaveBlocked = 0, leaveHopOnly = 0;
@@ -3326,7 +3394,7 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
 // FROM on the engine's nav graph (the street falls a cube inside one cell north of them); live, their residents never
 // leave for the tavern. The build's walkability gate walks street -> door only and passes. Run by hand
 // (--gtest_also_run_disabled_tests); enabled when every lot can be left.
-TEST(SettlementMapLiveSiteTest, DISABLED_O39_EveryHouseOfTheCreekCityCanBeLeft) {
+TEST(SettlementMapLiveSiteTest, O39_EveryHouseOfTheCreekCityCanBeLeft) {
     const int px = -1200, pz = -1040;
     LiveSiteRig rig;
     rig.recipeKey = "citylab-A fords"; rig.worldSeed = 7001u;

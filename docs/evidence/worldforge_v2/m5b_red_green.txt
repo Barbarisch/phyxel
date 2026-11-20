@@ -2055,3 +2055,31 @@ MY RESPONSE (after the audit; NOT re-audited; unit 251 / 0 and live 41 / 0 re-ru
  - the isolated lot is counted both ways (the village now reads 1 / 1).
  - the ratchet is tied to cell (102, 40) against (102, 39).
  - nav_gate in no build path, the rolling loss, the house exemption, no L4: stated in the plan's O39 / O40 rows.
+
+== O39 (k)(f): spurs at the ways' grade + the walker graph's crest rule + the graph question refusing by default ==
+(2026-11-19 15:17; record: m3c_chains/pm_chain515.txt; tree = 662cadea + uncommitted; Release; headless)
+RED -> GREEN: chain 520 NavGraphMicroTest.ACrestBetweenTwoCellCentresIsSteppedOver "a path west over the crest NOT
+  FOUND, east over it NOT FOUND" -> chain 521 "found ... found". Walled city graph answer 0 / 9 (chain 515) -> 0 / 0
+  (chain 521). Village 1 / 1 (chain 509) -> 0 / 0 (chain 515) with the map's approach contract standing.
+AUDIT (solution-auditor, read-only, raw):
+  VERDICT: PASS WITH CONDITIONS (claim 1 FAIL as stated; 2 and 3 conditional; 4 PASS)
+  CLAIM 1 (crest rule): FAIL as stated, REAL in a narrow form. Red/green is real. The rule is looser than "within
+    step-up": it lifts up to stepUpMicro above max(fa,fb); from the LOWER cell the body then rises up to dy + 4 - a
+    4-micro step plus a 4-micro crest is 8 micro in one go (levels 100 and 104, a crest at 108: accepted, the
+    controller is blocked). The bound should be from the CURRENT side's level. Only lift = 1 is tested; the wall
+    control is 10 micro only; lift 5 untested; the fall branch has no crest handling.
+  CLAIM 2 (spurs, approach override): CONDITIONAL. The override never checks the neighbouring spur or street
+    columns: spur grade 4 plus a 1-micro override can leave a 5-micro riser. Nothing measures it; no red for it.
+  CLAIM 3 (gate 0 / 0, refusing by default): CONDITIONAL. A lot with no standing place is silently skipped; asked ==
+    lots built is pinned only on the creek city; no test shows the refusal refusing; a stale comment says "does NOT
+    refuse by default yet".
+  CLAIM 4 (regression): PASS, within limits (the record-line identity not verified by the auditor).
+RESPONSES (2026-11-20 09:21; pm_chain515.txt chains 530-544; NOT re-audited):
+  1. crest bound from the LOWER cell - red chain 530 ("(100, 104), a crest 4 above the higher ... up crossed"), green
+     chain 531; lifts 2, 3 crossed, 5 from the lower and beyond not.
+  2. spur risers measured on every live build (my first measure misread the way's stamp - chains 532-535 void; the
+     corrected one caught a real 6-micro riser from a SHIFT variant in chain 537); final (tread override): 0 risers
+     on all builds, chain 544.
+  3. a lot with no standing place counts as failing; asked == lots asserted on every build (chain 544: all equal).
+     The refusal's red is chain 495 only; no standing test.
+  Final: unit + nav 374 / 0 (chain 543), live 42 / 0 (chain 544), Release.

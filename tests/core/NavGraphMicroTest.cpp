@@ -1,3 +1,5 @@
+#include <cstdio>
+#include <climits>
 #include <gtest/gtest.h>
 
 #include "core/NavGraph.h"
@@ -660,4 +662,74 @@ TEST(NavGraphMicroTest, BuildIsIdenticalForAnyThreadCount) {
     EXPECT_EQ(ra.size(), rb.size());
     EXPECT_TRUE(ra == rb) << "the reachable sets differ";
     EXPECT_GT(ra.size(), 200u) << "the start cell should open onto a real region, not a pocket";
+}
+
+// O39 (f) (docs/evidence/worldforge_v2/m3c_chains/pm_chain515.txt): a CREST between two cell centres. The walled city's
+// main street runs over a hump of the ground 7 micro tall; every cell's standing level is within the 4-micro riser of
+// its neighbour's, but the hump's apex lies at a cell BOUNDARY, one micro above both cells' levels. sweepEdge fitted the
+// body at the two cells' own levels only and refused the step - nine houses beyond it could not be reached by a
+// resident, where the gate's micro probe (and a character, which auto-steps 4 micro) walks over. The measured profile.
+TEST(NavGraphMicroTest, ACrestBetweenTwoCellCentresIsSteppedOver) {
+    // the surface (top solid micro) per micro column along x, the same for every z: flat, up, the apex at x = 18, down, flat
+    static const int kProfile[36] = {4, 4, 4, 4, 4, 5, 5, 6, 6,   7, 7, 8, 8, 8, 9, 9, 10, 10,   11, 10, 10, 9, 9, 8, 8, 8, 7,   7, 6, 6, 5, 5, 4, 4, 4, 4};
+    const auto surf = [](int mx) { return 90 + (mx < 0 ? 4 : mx >= 36 ? 4 : kProfile[mx]); };
+    NavGraph graph(
+        CellFillFunc([&surf](const glm::ivec3& c) {
+            int lo = INT_MAX, hi = INT_MIN;
+            for (int i = 0; i < 9; ++i) { const int v = surf(c.x * 9 + i); lo = std::min(lo, v); hi = std::max(hi, v); }
+            if (c.y * 9 + 8 <= lo) return CellFill::Solid;
+            if (c.y * 9 > hi) return CellFill::Empty;
+            return CellFill::Partial;
+        }),
+        MicroQueryFunc([&surf](const glm::ivec3& m) { return m.y <= surf(m.x); }));
+    const NavAgentProfile agent{};
+    graph.buildRegion(glm::ivec2(-2, -2), glm::ivec2(6, 2), agent);
+    std::string feet;
+    for (int x = -1; x <= 4; ++x) { const auto& col = graph.columnSurfaces(x, 0); feet += " " + (col.empty() ? std::string("-") : std::to_string(col.back().floorTopMicro)); }
+    std::printf("[ O39f ] the crest rig: standing levels of cells x -1..4:%s%s", feet.c_str(), "\n");
+    const glm::vec3 east(4.5f, 95.0f / 9.0f, 0.5f), west(-0.5f, 95.0f / 9.0f, 0.5f);
+    const bool westward = graph.findPath(east, west, agent).found, eastward = graph.findPath(west, east, agent).found;
+    std::printf("[ O39f ] the crest rig: a path west over the crest %s, east over it %s%s", westward ? "found" : "NOT FOUND", eastward ? "found" : "NOT FOUND", "\n");
+    EXPECT_TRUE(westward) << "a walker cannot cross a crest one micro above two cells that are a step apart";
+    EXPECT_TRUE(eastward);
+    // CONTROL: a WALL at the boundary (9 micro above both) is still not crossed
+    NavGraph walled(
+        CellFillFunc([](const glm::ivec3& c) { return c.y * 9 + 8 <= 94 ? CellFill::Solid : c.y * 9 > 104 ? CellFill::Empty : CellFill::Partial; }),
+        MicroQueryFunc([](const glm::ivec3& m) { return m.y <= 94 || (m.x == 18 && m.y <= 104); }));
+    walled.buildRegion(glm::ivec2(-2, -2), glm::ivec2(6, 2), agent);
+    EXPECT_FALSE(walled.findPath(east, west, agent).found) << "a 10-micro wall at a cell boundary is stepped over: the rule is too loose";
+}
+
+// The audit of O39 (f) (pm_chain515.txt): the lift over a crest is bounded from the LOWER cell - the whole climb a
+// walker makes from the low side (to the crest's top) is one step-up at most. Lifting from the HIGHER level let a
+// walker at 100 rise to 108 between cells at 100 and 104 (two steps in one go: the controller is blocked there).
+TEST(NavGraphMicroTest, ACrestIsClimbedFromTheLowerCellByOneStepAtMost) {
+    struct Case { int hiFeet, crestFeet; bool crossed; const char* what; };
+    const Case cases[] = {
+        {104, 108, false, "cells a step apart (100, 104), a crest 4 above the higher: 8 from the lower - NOT a step"},
+        {101, 103, true,  "cells 100, 101, a crest 2 above the higher (3 from the lower)"},
+        {101, 104, true,  "cells 100, 101, a crest 3 above the higher (4 from the lower: exactly one step-up)"},
+        {101, 105, false, "cells 100, 101, a crest 4 above the higher (5 from the lower)"},
+        {101, 106, false, "cells 100, 101, a crest 5 above the higher"},
+    };
+    for (const Case& c : cases) {
+        // micro columns x < 18: feet 100; x == 18 (the first column of cell 2): the crest; x > 18: feet hiFeet
+        const auto surf = [&c](int mx) { return mx < 18 ? 99 : mx == 18 ? c.crestFeet - 1 : c.hiFeet - 1; };
+        NavGraph graph(
+            CellFillFunc([&surf](const glm::ivec3& cc) {
+                int lo = INT_MAX, hi = INT_MIN;
+                for (int i = 0; i < 9; ++i) { const int v = surf(cc.x * 9 + i); lo = std::min(lo, v); hi = std::max(hi, v); }
+                if (cc.y * 9 + 8 <= lo) return CellFill::Solid;
+                if (cc.y * 9 > hi) return CellFill::Empty;
+                return CellFill::Partial;
+            }),
+            MicroQueryFunc([&surf](const glm::ivec3& m) { return m.y <= surf(m.x); }));
+        const NavAgentProfile agent{};
+        graph.buildRegion(glm::ivec2(-2, -2), glm::ivec2(6, 2), agent);
+        const glm::vec3 low(0.5f, 100.0f / 9.0f, 0.5f), high(3.5f, c.hiFeet / 9.0f, 0.5f);
+        const bool up = graph.findPath(low, high, agent).found, down = graph.findPath(high, low, agent).found;
+        std::printf("[ O39f ] crest: %s - up %s, down %s (wanted %s)%s", c.what, up ? "crossed" : "not crossed", down ? "crossed" : "not crossed", c.crossed ? "crossed" : "not crossed", "\n");
+        EXPECT_EQ(up, c.crossed) << c.what;
+        EXPECT_EQ(down, c.crossed) << c.what;
+    }
 }

@@ -53,6 +53,7 @@ struct PavingPlan {
     int  waysDeepestCutMicro = 0;          ///< O39 (the audit): the deepest cut below the ground any way leg's centre line makes (micro)
     int  waysLegsCutToGrade = 0;           ///< O39: way legs whose ends lie further apart in height than the grade allows - paved as a cut to grade
     int  spursPlanned = 0;                 ///< door spurs graded
+    int  spursAtTheOldCap = 0;             ///< O39 (k): door spurs the 4-micro-a-cell grade did not fit, planned at the old cap (2 micro a column)
     int  spursFailed = 0;                  ///< door spurs too steep (surfaced, not silent)
     /// M0 row 2b: one line per failed spur - door (x,z,S0) -> street (x,z,SG), run length,
     /// drop, grade cap and the planner's reason - so a "too steep" is never a bare count.
