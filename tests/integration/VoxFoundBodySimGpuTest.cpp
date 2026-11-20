@@ -1367,3 +1367,107 @@ TEST_F(VoxFoundBodySimGpu, F55eAwakePileProfile) {
                     smallR.first, msA);
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5f -- the world group split (docs/evidence/voxfound_f55_prediction.txt, F1-F4): diagnostic copies of the world
+// pass stop after each stage and are timed as their own groups. The instrument must not change the simulation: 60
+// profiled ticks of the woken pile are bit-equal (poses, velocities, counters) with the split on vs off; its red is the
+// loud copy (no suppression), whose counters differ.
+TEST_F(VoxFoundBodySimGpu, F55fWorldSplit) {
+    struct Run {
+        std::vector<SimBody> bodies;
+        BodySimGpuStats stats;
+        BodySimGpu::Profile prof;
+    };
+    for (const float e : {250.0f, 650.0f, 2800.0f}) {
+        SCOPED_TRACE(e);
+        LabPile pile = labLargeWall(e);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef mirror(pile.world, pile.mats, prm);
+        for (const Body& b : pile.bodies) mirror.add(b, b.vel, b.angVel);
+        std::string err;
+        ASSERT_TRUE(gpu.load(pile.world, pile.mats, mirror.bodies(), mirror.params(), &err)) << err;
+        int settleTicks = 0;
+        do {
+            step(60);
+            if (HasFatalFailure()) return;
+            settleTicks += 60;
+        } while (gpu.stats().awake > 0 && settleTicks < 6000);
+        ASSERT_EQ(gpu.stats().awake, 0u);
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        std::vector<SimBody> woken = mirror.bodies();
+        for (SimBody& b : woken) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        const size_t nb = woken.size();
+        auto runFor = [&](int ticks, bool split, bool quiet) {
+            Run r;
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
+            gpu.setWorldSplit(split, quiet);
+            gpu.setProfile(true);
+            step(ticks, 1);
+            gpu.setProfile(false);
+            gpu.setWorldSplit(false);
+            r.stats = gpu.stats();
+            r.prof = gpu.profile();
+            r.bodies = woken;
+            EXPECT_TRUE(gpu.read(r.bodies, &werr)) << werr;
+            return r;
+        };
+        auto differ = [](const Run& a, const Run& b) {
+            size_t n = 0;
+            for (size_t i = 0; i < a.bodies.size(); ++i)
+                if (a.bodies[i].pos != b.bodies[i].pos || a.bodies[i].quat != b.bodies[i].quat ||
+                    a.bodies[i].vel != b.bodies[i].vel || a.bodies[i].angVel != b.bodies[i].angVel ||
+                    a.bodies[i].asleep != b.bodies[i].asleep)
+                    ++n;
+            return n;
+        };
+        auto sameCounters = [](const BodySimGpuStats& a, const BodySimGpuStats& b) {
+            return a.contacts == b.contacts && a.candidates == b.candidates && a.capped == b.capped &&
+                   a.deepPoints == b.deepPoints && a.pairsTested == b.pairsTested && a.hardFires == b.hardFires &&
+                   a.scratchOverflow == b.scratchOverflow && a.awake == b.awake;
+        };
+        // F1: the instrument -- bit-equal, and its red
+        const Run off = runFor(60, false, true);
+        const Run on = runFor(60, true, true);
+        const Run loud = runFor(60, true, false);
+        const size_t dOn = differ(off, on), dLoud = differ(off, loud);
+        std::printf("[body gpu] F5.5f E/T %.0f: %zu bodies; split (quiet) vs off over 60 ticks: %zu bodies differ, "
+                    "counters %s (candidates %llu vs %llu); RED the loud split: %zu differ, counters %s (candidates "
+                    "%llu)\n", e, nb, dOn, sameCounters(off.stats, on.stats) ? "equal" : "DIFFER",
+                    (unsigned long long)on.stats.candidates, (unsigned long long)off.stats.candidates, dLoud,
+                    sameCounters(off.stats, loud.stats) ? "equal" : "differ",
+                    (unsigned long long)loud.stats.candidates);
+        EXPECT_EQ(dOn, 0u) << "F1: the split changed the simulation";
+        EXPECT_TRUE(sameCounters(off.stats, on.stats)) << "F1: the split changed a counter";
+        EXPECT_FALSE(sameCounters(off.stats, loud.stats)) << "F1 red: the loud copy must show in the counters";
+        // F2-F4: the split, 30 profiled ticks from the same snapshot (and the world group without it, for F1's 15 %)
+        const Run a = runFor(30, true, true);
+        const Run b = runFor(30, false, true);
+        auto mean = [](const BodySimGpu::Profile& p, int g) { return p.sumMs[g] / std::max(1, p.ticks); };
+        const int G_WORLD = 2, G_HARDA = 10, G_AWAKE = 13, G_COUNT = 14, G_WRITE = 15, G_BUCKET = 16, G_SPREAD = 17;
+        const double world = mean(a.prof, G_WORLD), worldOff = mean(b.prof, G_WORLD);
+        const double awakeList = mean(a.prof, G_AWAKE);
+        const double cnt = mean(a.prof, G_COUNT), wr = mean(a.prof, G_WRITE), bk = mean(a.prof, G_BUCKET),
+                     sp = mean(a.prof, G_SPREAD);
+        const double sCount = cnt, sWrite = wr - cnt, sBucket = bk - wr, sSpread = sp - bk, sEmit = world - sp;
+        const BodySimGpuStats& st = a.stats;   // the last tick's S_DG_* (per tick)
+        std::printf("[body gpu]   F1 world group: split on %.3f (+ awake list %.3f) vs off %.3f ms (%.2f x); hard_apply "
+                    "%.3f\n", world, awakeList, worldOff, (world + awakeList) / std::max(1e-9, worldOff),
+                    mean(a.prof, G_HARDA));
+        std::printf("[body gpu]   F2/F3 copies: w_count %.3f, w_write %.3f, w_bucket %.3f, w_spread %.3f ms -> count %.3f "
+                    "(%.0f %%), write %.3f (%.0f %%), buckets %.3f (%.0f %%), spread %.3f (%.0f %%), emit %.3f (%.0f %%) "
+                    "of the world group %.3f\n", cnt, wr, bk, sp, sCount, 100 * sCount / world, sWrite,
+                    100 * sWrite / world, sBucket, 100 * sBucket / world, sSpread, 100 * sSpread / world, sEmit,
+                    100 * sEmit / world, world);
+        std::printf("[body gpu]   F4 per body (last tick, %u awake): world candidates max %u, mean %.1f (max %.1f x mean); "
+                    "items max %u; over the cap (8): %u bodies (%.0f %%)\n", st.awake, st.dgMaxCand,
+                    double(st.dgSumCand) / std::max(1u, st.awake),
+                    st.dgMaxCand / std::max(1e-9, double(st.dgSumCand) / std::max(1u, st.awake)), st.dgMaxItems,
+                    st.dgOverCap, 100.0 * st.dgOverCap / std::max(1u, st.awake));
+        EXPECT_EQ(a.prof.ticks, 30);
+        EXPECT_GT(st.dgSumCand, 0u) << "the split's counters ran";
+    }
+}

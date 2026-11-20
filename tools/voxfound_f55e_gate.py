@@ -24,11 +24,12 @@ EVID = os.path.join(os.path.dirname(__file__), "..", "docs", "evidence")
 BODIES = "/api/debug/voxfound_bodies"
 AT = [5.0, 20.0, 5.0]
 TAG = ""
+OUT = "voxfound_f55e_live.jsonl"
 
 
 def log(rec):
     rec = dict(rec, world=TAG)
-    with open(os.path.join(EVID, "voxfound_f55e_live.jsonl"), "a") as f:
+    with open(os.path.join(EVID, OUT), "a") as f:
         f.write(json.dumps(rec) + "\n")
     print(json.dumps(rec)[:1500], flush=True)
 
@@ -61,13 +62,13 @@ def rung(a, e):
     thirty = s["solver"]["ms_per_tick_device"]
     awake30 = s["awake"]
     # c) the profile
-    cmd(wake_all=True, profile=True)
+    cmd(wake_all=True, profile=True, world_split=a.split)   # F5.5f: + the world split
     for _ in range(a.ticks):
         s = cmd(ticks=1)
     prof = s["solver"].get("profile")
-    cmd(profile=False)
+    cmd(profile=False, world_split=False)
     t = get("/api/debug/engine_timing")
-    log({"gate": "F5.5e live awake pile", "energy": e, "rig": {k: r.get(k) for k in ("bodies", "crumbs") if k in r},
+    log({"gate": "F5.5f live world split" if a.split else "F5.5e live awake pile", "energy": e, "rig": {k: r.get(k) for k in ("bodies", "crumbs") if k in r},
          "settled": settled, "awake_after_wake": w["awake"], "bodies": w["bodies"],
          "one_per_submit": {"median": one[len(one) // 2], "max": one[-1], "per_tick": per},
          "thirty_per_submit": thirty, "awake_after_30": awake30, "profile": prof,
@@ -82,11 +83,15 @@ def main():
     ap.add_argument("--settle", type=int, default=600)
     ap.add_argument("--ticks", type=int, default=30)
     ap.add_argument("--energies", type=float, nargs="+", default=[250.0, 650.0, 2800.0])
+    ap.add_argument("--split", action="store_true", help="F5.5f: the world split in the profile")
+    ap.add_argument("--out", default="voxfound_f55e_live.jsonl")
     ap.add_argument("--world", default="", help="which project's world the lab runs in (recorded)")
     a = ap.parse_args()
     g53.API = a.api
     global TAG
     TAG = a.world
+    global OUT
+    OUT = a.out
     for e in a.energies:
         rung(a, e)
     return 0

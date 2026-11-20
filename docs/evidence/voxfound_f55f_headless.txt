@@ -1,0 +1,13 @@
+﻿[body gpu] F5.5f E/T 250: 110 bodies; split (quiet) vs off over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597); RED the loud split: 0 differ, counters differ (candidates 692153)
+[body gpu]   F1 world group: split on 2.896 (+ awake list 0.003) vs off 2.883 ms (1.01 x); hard_apply 1.398
+[body gpu]   F2/F3 copies: w_count 1.387, w_write 2.775, w_bucket 2.866, w_spread 2.851 ms -> count 1.387 (48 %), write 1.387 (48 %), buckets 0.091 (3 %), spread -0.015 (-1 %), emit 0.046 (2 %) of the world group 2.896
+[body gpu]   F4 per body (last tick, 110 awake): world candidates max 290, mean 33.1 (max 8.8 x mean); items max 2915; over the cap (8): 33 bodies (30 %)
+[body gpu] F5.5f E/T 650: 282 bodies; split (quiet) vs off over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104); RED the loud split: 0 differ, counters differ (candidates 1655686)
+[body gpu]   F1 world group: split on 3.884 (+ awake list 0.003) vs off 3.847 ms (1.01 x); hard_apply 1.910
+[body gpu]   F2/F3 copies: w_count 1.863, w_write 3.812, w_bucket 3.857, w_spread 3.862 ms -> count 1.863 (48 %), write 1.949 (50 %), buckets 0.045 (1 %), spread 0.005 (0 %), emit 0.022 (1 %) of the world group 3.884
+[body gpu]   F4 per body (last tick, 282 awake): world candidates max 281, mean 22.0 (max 12.7 x mean); items max 2863; over the cap (8): 58 bodies (21 %)
+[body gpu] F5.5f E/T 2800: 994 bodies; split (quiet) vs off over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558); RED the loud split: 0 differ, counters differ (candidates 5319888)
+[body gpu]   F1 world group: split on 5.193 (+ awake list 0.003) vs off 5.042 ms (1.03 x); hard_apply 2.531
+[body gpu]   F2/F3 copies: w_count 2.469, w_write 4.983, w_bucket 5.120, w_spread 5.176 ms -> count 2.469 (48 %), write 2.514 (48 %), buckets 0.138 (3 %), spread 0.056 (1 %), emit 0.016 (0 %) of the world group 5.193
+[body gpu]   F4 per body (last tick, 994 awake): world candidates max 360, mean 10.9 (max 33.0 x mean); items max 3338; over the cap (8): 137 bodies (14 %)
+[       OK ] VoxFoundBodySimGpu.F55fWorldSplit (12517 ms)

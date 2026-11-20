@@ -599,8 +599,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       submit, not the path); a settled pile has 4x a falling one's candidates, 80 % capped; world test leads (4.7 ms
       at 994), broadphase 17-28 % (NOT the next lever); the biggest tenth of bodies alone costs 63-71 % of the tick:
       each pass waits for its busiest bodies (a body's work in one workgroup / one thread).
-      NEXT: F5.5f (the busiest body's work on a settled pile: split the world group's time, items vs cap, BEFORE
-      choosing the lever) with its prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
+      F5.5f done: the world group split (BodySimGpu::setWorldSplit, profile-only diagnostic copies, bit-equal; lab
+      {"world_split":true}; gate --split). The item tests are 96-98 % of the world group, run TWICE per tick (count,
+      then write re-tests every item), the cap <= 5 %; the busiest body ~3,000 items on one 64-thread workgroup;
+      HARD_APPLY tests them a third time. (The uv python on PATH for the engine launch has no numpy: run the gates
+      from Bash.)
+      NEXT: F5.5g (test each world item once per pass -- keep the count's candidates, serial order, bit-equal; then a
+      big body's items over more than one workgroup) with its prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
       the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
       5 ms); region-vs-area edge pixels.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)

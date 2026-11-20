@@ -794,3 +794,33 @@ PREDICTIONS (headless, the woken pile, 30 profiled ticks; the lab's grid as F5.5
      least half the awake bodies exceed the cap (8).
 WHAT WOULD COUNT AS A MISS: any split share outside its range; the instrument not bit-equal; the split-on world group
 outside 15 %. No lever here: the next increment takes the largest share's lever with its own prediction.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5f RESULTS (2026-11-20; after the runs, the predictions above untouched). Release. CONDITIONS: World of Warcraft not
+running; no other engine. Headless run 1 took 47 s (run 2: 12.5 s) -- the GPU was probably shared during it, source not
+found; its shares agree with run 2 within 5 points. Run 2 is the evidence: voxfound_f55f_headless.txt
+(VoxFoundBodySimGpu.F55fWorldSplit). Live: voxfound_f55f_live.jsonl (tools/voxfound_f55e_gate.py --split),
+CharacterTestbed. Suites: VoxFound GPU 47/47 (the shader and BodySimGpu changed); VoxFound CPU 125/125.
+  F1 PASS -- the instrument: 60 profiled ticks of the woken pile with the split on vs off: 0 bodies differ (pose,
+     orientation, velocities, sleep) and every counter equal, at every rung. RED: the loud copy (no suppression) shows
+     in the counters (candidates 692,153 vs 474,597 at 110 bodies; 1,655,686 vs 1,283,104; 5,319,888 vs 4,671,558)
+     with the poses still equal -- the copies touch only scratch, which the real pass rewrites. The world group with
+     the split on vs off: 1.01 / 1.01 / 1.03 x (<= 15 %).
+  F2 MISSED high: the items (the count + the write's increment) are 96 / 98 / 96 % of the world group (45-70 %). The
+     count alone is 48 / 48 / 48 % (>= 35 PASS), and the write's increment 48 / 50 / 48 % -- the write RE-RUNS every
+     item's test to place its candidates, so the world pass tests every item twice.
+  F3 MISSED: the bucket winners 3 / 1 / 3 % (20-45); the spread picks <= 1 % (<= 15 PASS); the emit <= 2 % (<= 10
+     PASS). The cap is not the cost: 80 % of the candidates dropped costs <= 5 % of the world group.
+     Headless ms (run 2): world 2.90 / 3.88 / 5.19; w_count 1.39 / 1.86 / 2.47; w_write 2.78 / 3.81 / 4.98.
+  F4: the busiest body's world candidates 290 / 281 / 360 = 8.8 / 12.7 / 33.0 x the mean (33.1 / 22.0 / 10.9 per awake
+     body; >= 5 PASS); bodies over the cap 30 / 21 / 14 % (>= 50 MISSED). The busiest body's items: 2,915 / 2,863 /
+     3,338 (its corners + its world-box cells) on one 64-thread workgroup, ~46-52 items per thread, each an escape
+     search -- twice. (F5.5e's "~150 candidates per body" was the world and the body pairs together; the world's own
+     share is 11-33 per body.)
+  LIVE agrees: count 50-54 %, the write's increment 49-53 %, the cap within the live noise of zero (-5 to +2 %); the
+     same per-body maxima (294 / 287 / 359 candidates, 2,915 / 2,863 / 3,338 items).
+CONCLUSION: the world group is the item tests, run twice per tick (count, then write), on the busiest body's ~3,000
+items in one workgroup; HARD_APPLY runs the same items a third time at the post-solve pose (1.4 / 1.9 / 2.5 ms). The
+cap is not a lever. Next (each with its own prediction): test each item once per pass -- keep the count pass's
+candidates instead of re-testing them (the serial order kept, so bit-equal) -- then spread a big body's items over more
+than one workgroup.

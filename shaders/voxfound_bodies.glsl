@@ -112,6 +112,7 @@ const uint P_NB = 0, P_WX = 1, P_WY = 2, P_WZ = 3, P_WVM = 4, P_GROUND = 5, P_DT
 const uint S_CAND = 0, S_CAPPED = 1, S_DEEP = 2, S_PAIRS = 3, S_HARD = 4, S_OVF_SCRATCH = 5, S_OVF_CONS = 6,
            S_UNCOL = 7, S_MAXCOL = 8, S_MAXCONS = 9, S_AWAKE = 10, S_TICKCOL = 11, S_NPAIRS = 12,
            S_NHPAIRS = 13, S_NAWAKE = 14, S_OVF_PAIRS = 15, S_NCONS = 16,
+           S_DG_MAXCAND = 17, S_DG_MAXITEMS = 18, S_DG_OVERCAP = 19, S_DG_SUMCAND = 20,   // F5.5f: the split's w_count
            S_BODY = 32;
 const uint STATIC = 0xFFFFFFFFu, UNC = 0xFFFFFFFFu, NOCOL = 0xFFFFFFFEu;
 const float INF = 1e30;
@@ -268,6 +269,7 @@ Esc sweepWorld(vec3 a, vec3 b, float vm) {
 
 // ---- candidate sink: mode 0 = scratch, mode 1 = deepest only ----
 uint gMode = 0u, gBase = 0u, gCount = 0u;
+bool gQuiet = false;   // F5.5f: a diagnostic copy of the world pass -- no counter side effects
 float gDeepPen = 0.0;
 vec3 gDeepN = vec3(0.0);
 
@@ -277,7 +279,7 @@ void consider(vec3 n, float pen, vec3 rA, vec3 rB, vec3 point, float mu, uint bu
         return;
     }
     if (gMode == 2u) { ++gCount; return; }   // F5.5a3: count only
-    if (gCount >= prm[P_SCRATCH]) { atomicAdd(state[S_OVF_SCRATCH], 1u); return; }
+    if (gCount >= prm[P_SCRATCH]) { if (!gQuiet) atomicAdd(state[S_OVF_SCRATCH], 1u); return; }
     Cand c;
     c.n = vec4(n, pen);
     c.rA = vec4(rA, mu);
@@ -322,7 +324,7 @@ void worldCorner(uint ai, Body A, mat3 R, uint k) {
             if (sw.status == 1) e = sw;
         }
     }
-    if (e.status == 2) { if (gMode == 0u) atomicAdd(state[S_DEEP], 1u); return; }
+    if (e.status == 2) { if (gMode == 0u && !gQuiet) atomicAdd(state[S_DEEP], 1u); return; }
     if (e.status != 1) return;
     float mu = 0.5 * (A.fixedProps.y + muOfWorld(e.cell));
     consider(e.n, e.pen, cr.xyz, w, w, mu, uint(e.dir), keyOf(ai, STATIC, 0u, k, uint(e.dir)));
@@ -377,7 +379,7 @@ void worldCell(uint ai, Body A, mat3 R, mat3 Rt, ivec3 cell, vec3 lo, vec3 hi) {
                 vec3 local = Rt * (w - A.pos.xyz);
                 vec3 prefer = Rt * -vec3(D);
                 Esc e = escapeAt(false, ai, local / avm + A.comLocal.xyz, pf(P_MARGIN) / avm, prefer, avm);
-                if (e.status == 2) { if (gMode == 0u) atomicAdd(state[S_DEEP], 1u); continue; }
+                if (e.status == 2) { if (gMode == 0u && !gQuiet) atomicAdd(state[S_DEEP], 1u); continue; }
                 if (e.status != 1) continue;
                 float mu = 0.5 * (A.fixedProps.y + muOfWorld(cell));
                 uint lk = hash32(uint(L.x) * 0x9E3779B1u ^ hash32(uint(L.y) * 0x85EBCA77u ^
@@ -688,7 +690,8 @@ shared uint gwBestI[64];
 shared vec4 gwDeep[64];
 
 // the cap of emitPair, one workgroup: same winners, same depth order, same spread picks (first index on ties)
-void coopEmit(uint a, uint b, uint base, uint cnt) {
+// F5.5f: stop 0 = the whole cap and the emit; 3 = return after the bucket winners; 4 = after the spread picks
+void coopEmit(uint a, uint b, uint base, uint cnt, uint stop) {
     uint lid = gl_LocalInvocationID.x;
     for (uint i = lid; i < cnt; i += 64u) {
         uvec4 f = scratch[base + i].f;
@@ -738,6 +741,7 @@ void coopEmit(uint a, uint b, uint base, uint cnt) {
         }
         memoryBarrierBuffer();
         barrier();
+        if (stop == 3u) return;   // F5.5f (uniform: a push constant)
         uint per = (cnt + 63u) / 64u, i0 = min(cnt, lid * per), i1 = min(cnt, i0 + per);
         while (gwNk < cap && gwStop == 0u) {
             uint nk = gwNk;
@@ -773,6 +777,7 @@ void coopEmit(uint a, uint b, uint base, uint cnt) {
     }
     memoryBarrierShared();
     barrier();
+    if (stop != 0u) return;   // F5.5f: 3 (cnt <= cap: nothing to pick) or 4
     uint nk = gwNk;
     if (lid == 0u) atomicAdd(state[S_CAPPED], cnt - nk);
     if (lid < nk) emitOne(a, b, scratch[base + gwKeep[lid]]);
@@ -818,7 +823,7 @@ void narrowPairs() {
                 atomicAdd(state[S_CAND], cnt);
                 if (bodies[b].meta.z != 0u && length(bodies[a].vel.xyz) > pf(P_WAKEV)) state[sWake(b)] = 1u;
             }
-            coopEmit(a, b, base, cnt);
+            coopEmit(a, b, base, cnt, 0u);
         }
         memoryBarrierBuffer();
         barrier();
@@ -865,9 +870,13 @@ void narrowHard() {
 // ---- F5.5a3: the world test in parallel, one workgroup per awake body ----
 shared Body gwA;
 // pass 24: K_WORLD for the awake bodies: count, scan, write (the serial candidate order), then the cap (coopEmit)
+// F5.5f: pc.arg = where a diagnostic copy stops (0 = the real pass; 1 = the count (+ the per-body maxima), 2 = + the
+// write, 3 = + the bucket winners, 4 = + the spread picks); pc.n bit 0 = quiet (no counter side effects in the copy)
 void worldPar() {
     uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
     uint na = state[S_NAWAKE], scr = prm[P_SCRATCH], base = g * scr;
+    uint stop = pc.arg;
+    gQuiet = stop != 0u && (pc.n & 1u) != 0u;
     for (uint idx = g; idx < na; idx += G) {
         uint ai = aux[idx];
         Body A = bodies[ai];
@@ -885,17 +894,25 @@ void worldPar() {
             uint off = 0u;
             for (uint t2 = 0u; t2 < 64u; ++t2) { gwOff[t2] = off; off += gwCnt[t2]; }
             gwTotal = off;
+            if (stop == 1u) {   // F5.5f: the per-body maxima (this pass's own counter words, zeroed per tick)
+                atomicMax(state[S_DG_MAXCAND], off);
+                atomicMax(state[S_DG_MAXITEMS], L);
+                if (off > prm[P_CAP]) atomicAdd(state[S_DG_OVERCAP], 1u);
+                atomicAdd(state[S_DG_SUMCAND], off);
+            }
         }
         memoryBarrierShared();
         barrier();
+        if (stop == 1u) continue;
         gMode = 0u; gBase = base; gCount = gwOff[lid];   // consider() writes scratch[base + offset], drops past scr
         for (uint q = q0; q < q1; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
         uint cnt = min(gwTotal, scr);
         memoryBarrierBuffer();
         barrier();
+        if (stop == 2u) continue;
         if (cnt > 0u) {
-            if (lid == 0u) atomicAdd(state[S_CAND], cnt);
-            coopEmit(ai, STATIC, base, cnt);
+            if (lid == 0u && (stop == 0u || !gQuiet)) atomicAdd(state[S_CAND], cnt);   // F5.5f: loud = the red
+            coopEmit(ai, STATIC, base, cnt, stop);
         }
         memoryBarrierBuffer();
         barrier();

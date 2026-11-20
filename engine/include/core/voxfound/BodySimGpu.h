@@ -29,6 +29,9 @@ struct BodySimGpuStats {
     uint32_t uncoloured = 0;                  // dynamic bodies left without a colour (summed)
     uint32_t pairOverflow = 0;                // F5.5a2: body pairs past the pair list (summed)
     uint32_t colours = 0;                     // the most colours any tick used
+    // F5.5f (the last tick while the world split runs; stale after it is turned off): the largest world candidate count of one awake body, its largest
+    // world item count, the awake bodies with more world candidates than the cap, and the summed world candidates
+    uint32_t dgMaxCand = 0, dgMaxItems = 0, dgOverCap = 0, dgSumCand = 0;
     uint32_t awake = 0;                       // after the last tick
 };
 
@@ -98,7 +101,14 @@ public:
     bool fusedThisStep() const { return m_fused; }
     /// F5.5a: a per-pass device-time profile (timestamps between the pass groups; forces one tick per submit, so it
     /// measures each tick on its own). Reset by setProfile(true).
-    static constexpr int kProfGroups = 13;
+    static constexpr int kProfGroups = 18;   // F5.5f: + awake_list, w_count, w_write, w_bucket, w_spread (split on)
+    /// F5.5f: with the profile on, the world pass is also dispatched as four diagnostic copies, each stopping after one
+    /// more stage (count, write, bucket winners, spread picks) and timed as its own group; they write only scratch,
+    /// which the real pass rewrites, and (quiet) none of the counters. A measure: costs time, changes no result.
+    void setWorldSplit(bool on, bool quiet = true) {
+        m_worldSplit = on;
+        m_splitQuiet = quiet;
+    }
     static constexpr int kProfMaxStamps = 64;
     static const char* profileName(int g);
     struct Profile {
@@ -151,6 +161,7 @@ private:
     bool m_worldPar = true;
     bool m_primalPar = true;
     bool m_profile = false;
+    bool m_worldSplit = false, m_splitQuiet = true;   // F5.5f
     VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
     int m_pendingTicks = 0;
     bool m_pendingTimed = false;

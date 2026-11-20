@@ -163,7 +163,8 @@ bool BodySimGpu::init(VkDevice device, VkPhysicalDevice physical, VkQueue queue,
 const char* BodySimGpu::profileName(int g) {
     static const char* names[kProfGroups] = {"integrate", "aabb",      "world",      "pairs",  "prefix+scatter",
                                              "sort",      "colour",    "primal",     "dual",   "hard_body",
-                                             "hard_apply", "finish",   "warm"};
+                                             "hard_apply", "finish",   "warm",      "awake_list", "w_count",
+                                             "w_write",    "w_bucket", "w_spread"};
     return g >= 0 && g < kProfGroups ? names[g] : "?";
 }
 
@@ -548,7 +549,8 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
         barrier(cmd);
     };
     const bool prof = m_profile && m_profQueries;
-    enum { G_INT, G_AABB, G_WORLD, G_PAIRS, G_PREFIX, G_SORT, G_COLOUR, G_PRIMAL, G_DUAL, G_HARDB, G_HARDA, G_FIN, G_WARM };
+    enum { G_INT, G_AABB, G_WORLD, G_PAIRS, G_PREFIX, G_SORT, G_COLOUR, G_PRIMAL, G_DUAL, G_HARDB, G_HARDA, G_FIN, G_WARM,
+           G_AWAKE_LIST, G_W_COUNT, G_W_WRITE, G_W_BUCKET, G_W_SPREAD };
     auto stamp = [&](int g) {   // closes the time since the previous stamp into group g
         if (!prof || m_profStamp >= uint32_t(kProfMaxStamps)) return;
         vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_profQueries, m_profStamp++);
@@ -581,6 +583,18 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
         barrier(cmd);
     };
     if (m_narrowPar || m_worldPar) run(K_AWAKE_LIST, 0, m_nb);
+    if (prof && m_worldSplit && m_worldPar) {   // F5.5f: the diagnostic copies, each its own group
+        stamp(G_AWAKE_LIST);
+        vkCmdFillBuffer(cmd, m_state.buf, 17 * 4, 4 * 4, 0);   // S_DG_*: per tick
+        barrier(cmd);
+        for (uint32_t stop = 1; stop <= 4; ++stop) {
+            BodyPC pc{K_WORLD_PAR, stop, parity, m_splitQuiet ? 1u : 0u};
+            m_pipe->pushConstants(cmd, &pc, sizeof(pc));
+            m_pipe->dispatch(cmd, groups);
+            barrier(cmd);
+            stamp(G_W_COUNT + int(stop) - 1);
+        }
+    }
     if (m_worldPar) perPair(K_WORLD_PAR);   // F5.5a3
     else run(K_WORLD, 0, m_nb);
     stamp(G_WORLD);
@@ -734,6 +748,10 @@ void BodySimGpu::unpackCounters() {
     m_stats.pairOverflow = s[S_OVF_PAIRS];
     m_stats.colours = s[S_MAXCOL];
     m_stats.awake = s[S_AWAKE];
+    m_stats.dgMaxCand = s[17];   // F5.5f: S_DG_* (zero unless the world split ran)
+    m_stats.dgMaxItems = s[18];
+    m_stats.dgOverCap = s[19];
+    m_stats.dgSumCand = s[20];
     m_lastAwake = m_stats.awake;
 }
 
