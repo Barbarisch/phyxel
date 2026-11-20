@@ -529,3 +529,65 @@ LIVE (tools/voxfound_f55c_gate.py; voxfound_f55c_live.jsonl; CharacterTestbed; t
      under the WoW load -- F5.5b E3 reload 22.5 ms (<= 20; load() unchanged in behaviour, F5.5b measured 16.5 alone) and
      F5.5a4's cost 2.42 / 6.77 ms per tick (<= 2.2 / 5; F5.5a4 measured 3.7 at 1,025 alone) -- their determinism and
      bit-equality checks all pass; not loosened, to be re-run on a quiet GPU.
+
+=====================================================================================================================
+F5.5d -- THE EXIT, LIVE: 100 -> 300 -> 1,000 BODIES (written 2026-11-19 BEFORE its code)
+
+WHY: the F5 row's exit test is "100 -> 1,000 bodies; conservation; pop measured", with the stop rule "body cost at
+1,000 above budget with no lever left". F5.5a-c built the levers; this runs the shipped path live at three rungs and
+gives each budget line of this file's header a measured number and a verdict: within / over with a named lever left
+(keep going) / over with no lever left (stop).
+CONDITIONS KNOWN BEFORE THE RUN: World of Warcraft is running on this machine again (checked: Wow.exe, pid 44100); I do
+not close the user's apps, so every live time below is on a SHARED GPU, stated with each number. Release build;
+CharacterTestbed (flat, as F5.5b/c); the lab's hand-built large wall (FractureLab, not generator output), F4.1 fracture
++ F5.1 extraction, motion by BodySimGpu; rest policy budget 64, keep 0 m, rest 60 ticks, cap 4 (F5.5c's live settings).
+THE RUNGS: the large wall at E/T 250 / 650 / 2800 (headless 105 / 306 / 1,025 bodies; live the lab's floor changes the
+break: E/T 2800 gave 994). Predicted live counts 80-130 / 250-360 / 950-1,050.
+
+WHAT IT BUILDS (lab only; no engine change is planned)
+  1. {"ledger_every":bool} with the rig: after EVERY rest call (each GPU poll = every 1-4 ticks; the CPU path every
+     tick) the per-material ledger (world + bodies + crumbs) is recomputed and compared with the rig's ledger at setup;
+     status reports checks / mismatches / the first mismatch's tick. Timed separately and NOT counted in the hitch (a
+     3.2 M-cell scan; stated). The ledger only changes in a rest pass, so this is conservation after every tick.
+  2. {"wake_all":true}: every body awake (asleep false, slowTicks and asleepTicks 0), pushed to the GPU through
+     BodySimGpu::edit with no cells and no removals (bit-equal to a load by F5.5c H5; warm start dropped as a load).
+     This is the budget's "every body awake" on a resting pile -- the most contacts, not the flight.
+  3. Solver diagnostics: polls that found the step done / not done, the submit-to-done wall time per step (median,
+     max), and the wall-clock time of the largest frame interval from the run's start (F5.5c's unexplained ~60 s dt).
+  4. Every rest call timed (baking or not): median / p99 of the calls that baked nothing, so "CPU per frame" includes
+     the policy's idle cost (F5.5c timed only baking calls).
+  5. tools/voxfound_f55d_gate.py: the ladder below; JSON lines to docs/evidence/voxfound_f55d_live.jsonl.
+
+PREDICTIONS (live; each rung in a fresh rig; the camera at F5.5b's "whole" pose unless stated)
+  X1 conservation: rest on, ledger_every on, run 60 s per rung: 0 mismatches at every check (>= 500 checks per rung);
+     0 overwritten; 0 bodies below the floor at any 0.5 s sample; refused <= 1 % of baked. The backlog reaches the
+     budget (<= 64 bodies, all but those kept) within 60 s at every rung. The verify after the run: 0 mismatched chunks.
+  X2 simulation, every body awake: the rung settled (rest off, {"ticks":600}), wake_all, then 30 synchronous ticks
+     ({"ticks":1} each; the frame does not render during a request, so the solver competes only with other processes):
+     device ms per tick median 100: 0.3-1.2 / 300: 0.8-2.5 / 1,000: 2.5-6 (headless A4: 3.7 ms at 1,025 awake in
+     flight). Budget 2 ms at 1,000: predicted OVER, lever left (the broadphase, owed since F5.5a; pairs and hard_body
+     loop over awake x all). Awake count at tick 1 after wake_all = bodies (exact).
+  X3 real time during the X1 run: ticks per wall second >= 58 at every rung. F5.5c measured 7-18 under WoW -- if this
+     misses, the poll diagnostics say why (steps not done at the next frame vs frames too slow), not a guess.
+  X4 CPU per frame at the 1,000 rung (from the X1 run): solver poll + publish + submit median <= 0.01 ms, p95 <= 1.5;
+     the idle rest call median <= 0.2 ms (choose over ~1,000 bodies); poses + cull <= 0.25 ms. Sum of medians <= 1 ms
+     (budget 1 ms): PASS predicted.
+  X5 hitch: the baking rest call max <= 4 ms at every rung (F5.5c 1.9 at 994): PASS predicted, <= 2.5.
+  X6 draw: the 1,000 rung settled, rest off, cull on, effect clocks held, 3 alternating pairs of 120 frames
+     (gpu_timing scope medians): body main pass + mid + near casters at the whole pose <= 1.3 ms total (F5.5b: 0.51 +
+     0.26 + 0.31 at 947 cull off). Budget 0.5 ms: predicted OVER at the peak. The same voxels drawn as world
+     ({"as_world":true}, the control) cost the whole frame within +-0.5 ms of the bodies (the cost follows pixels, F5.5b
+     L4). Lever: the hybrid itself -- the peak is a transient; after the backlog (X1's end, <= 64 bodies) the body
+     passes total <= 0.2 ms (PASS). The verdict names both numbers.
+  X7 pop at the 1,000 rung: the settled pile, rest off, effect clocks held; shots before and after one bake_now (cap 0,
+     budget 0, keep 0, rest_ticks 0: every asleep body bakes), at near (6 m from the pile) and far (4x the distance on
+     the same ray), with an A/A control at each: pixels > 1 level above the control near 20-50 % of the box (F5.4's
+     blast: 40.8 %), far <= 0.1 x near (F5.4: 0.038). Ledger equal across the bake. The owner's eye check: a frame
+     sequence across capped passes in motion at the far pose (F5.4's owed "moment of the switch in motion") -- not gated.
+  X8 whole frame: the X1 run's frame intervals vs a control of the same world and pose with the rig cleared (same
+     duration): median delta <= 2 ms at 100 and 300, <= 4 ms at 1,000; p99 <= control p99 + 10 ms. The ~60 s interval
+     (if it recurs) is located in time by diagnostic 3 and reported with and without it.
+THE VERDICT RULE: X2 / X4 / X5 / X6 against the header's budget at the 1,000 rung. Over with a named lever left = F5
+stays open with that lever as the next increment; over with none = stop (the F5 row).
+WHAT WOULD COUNT AS A MISS: any ledger mismatch, overwrite, or body below the floor; a count or cost outside its
+range; more pop than predicted; a frame delta over its bound.
