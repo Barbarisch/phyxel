@@ -1,0 +1,29 @@
+pm_chain552.txt - O40: the hollow under the town's market edge cell (102, 40).
+(written 2026-11-20 11:20, before any run; HEAD c5a4fd18)
+
+WHAT IS KNOWN (chain 549's prints): "hole: market cell 102,40 feet 1386 against 102,39 feet 1368 (a yard); the
+  higher column's top material Cobblestone" - and, from the SAME run, "under the market's paving: 1206 columns
+  scanned 45 micro down, 0 with air in them". Both read the centre column of cell (102, 40). They cannot both be
+  right about one column unless they read different things - so before any fix, a print (chain 552, diagnostic):
+  the cell's nine sampled columns micro by micro, their tops and top materials, and the two seats.
+PREDICTION: one of my two checks is wrong about this cell (70 %) - GUESS: the "hole" check starts one micro too low
+  or reads the seat of something that is not the paving; a real cavity 30 %.
+RESULTS (written 2026-11-20 11:22)
+  chain 552 (exe 11:20:52): the cell's nine columns are SOLID from below to their tops - tops 1380 to 1385 rising
+    across the cell (a graded cell of the square's edge); "column 4,4: microTop 1383 ... ####################....."
+    The body's seat there is 1386 (it stands on the highest columns). My "hole" check scanned the centre column up
+    to the SEAT less two - 1384 - and called the air above the centre column's own top (1383) a hole.
+  O40 IS NOT A DEFECT OF THE WORLD: it was my check. As predicted (70 %). What I recorded and reported as "a REAL,
+  OPEN defect - air under the paving" since chain 495 was wrong.
+  ASSERTION CHANGE, STATED BEFORE THE RUN: the face is scanned up to the column's own top; the ratchet at (102, 40)
+    is removed and the assertion is "no hollow face" (== 0) again.
+  WHAT STAYS TRUE at that edge (not O40): an 18-micro step between the square and a yard (O37 f, k), recorded.
+  PREDICTION chain 553 (the town market test + the creek / walled city market-edge users): green, "hollow face: 0".
+  CAVEAT: with this change the check can no longer see a hollow ABOVE a column's top - by definition; a real cavity
+    under paving is O37 (g)'s scan (9 columns a cell, 45 micro down: 0 of 1206).
+RESULTS (written 2026-11-20 11:24)
+  chain 553 (exe 11:22:22; the two town market tests): 2 ok / 0 failed; "the market's edge steps over the walker's:
+    15 (the greatest 18 micro) ... 0 with a hole in the higher side's face"; "hollow face: 0"; "under the market's
+    paving: 1206 columns scanned 45 micro down, 0 with air in them".
+  NOT SHOWN: the corrected face check has no red of its own (nothing in any live build has an overhang for it to
+    find); the full live set was not re-run (a test-file change only; engine code unchanged since 4b3dbbe0).

@@ -2444,8 +2444,21 @@ TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
                     if (!fp) {   // the face between them: every micro of the HIGHER cell's centre column from the lower standing level up to its own is solid
                         const int hx = so > si ? ox2 : x, hz = so > si ? oz2 : z, lo2 = std::min(si, so), hi2 = std::max(si, so);
                         bool hole = false;
-                        for (int y = lo2; y < hi2 - 1 && !hole; ++y) hole = !rig.solidMicro((sm.originX + hx) * 9 + 4, y, (sm.originZ + hz) * 9 + 4);
+                        // (pm_chain552.txt) up to the column's OWN top, not to the body's standing level: on a graded cell the
+                        // body stands on the cell's highest columns and the centre column's top is lower - air above it is the
+                        // slope, not a hollow (the "hole" of O40 was that: the cell (102, 40) is a ramp, solid to every top)
+                        const int ownTop = microTop((sm.originX + hx) * 9 + 4, (sm.originZ + hz) * 9 + 4);
+                        for (int y = lo2; y <= std::min(ownTop, hi2 - 2) && !hole; ++y) hole = !rig.solidMicro((sm.originX + hx) * 9 + 4, y, (sm.originZ + hz) * 9 + 4);
                         if (hole && !(x == 102 && z == 40 && ox2 == 102 && oz2 == 39)) ++cliffOverhangElsewhere;   // the audit: the ratchet is THIS cell, not a count
+                        if (hole) {   // O40 diagnostic (pm_chain552.txt): the higher cell's columns, micro by micro
+                            for (const int j : {0, 4, 8}) for (const int i : {0, 4, 8}) {
+                                const int mx = (sm.originX + hx) * 9 + i, mz = (sm.originZ + hz) * 9 + j;
+                                std::string prof;
+                                for (int y = lo2 - 4; y <= hi2 + 2; ++y) prof += rig.solidMicro(mx, y, mz) ? '#' : '.';
+                                std::printf("[ O40 ]   cell %d,%d column %d,%d: microTop %d (%s); y %d..%d: %s%s", hx, hz, i, j, microTop(mx, mz), microMaterial(mx, microTop(mx, mz), mz).c_str(), lo2 - 4, hi2 + 2, prof.c_str(), chr10().c_str());
+                            }
+                            std::printf("[ O40 ]   seats: market %d,%d = %d; outside %d,%d = %d; the paving material asked for: %s%s", x, z, si, ox2, oz2, so, paving.c_str(), chr10().c_str());
+                        }
                         if (hole) { ++cliffOverhang; std::printf("[ O37f ]   hole: market cell %d,%d feet %d against %d,%d feet %d (%s); the higher column's top material %s%s", x, z, si, ox2, oz2, so, yard ? "a yard" : approach ? "an approach" : "open ground",
                                                               microMaterial((sm.originX + hx) * 9 + 4, microTop((sm.originX + hx) * 9 + 4, (sm.originZ + hz) * 9 + 4), (sm.originZ + hz) * 9 + 4).c_str(), chr10().c_str()); }
                     }
@@ -2456,13 +2469,11 @@ TEST(SettlementMapLiveSiteTest, TheTownsMarketIsPavedAndWalked) {
         std::printf("[ O37f ] the market's edge steps over the walker's: %d (the greatest %d micro) - beyond them: %d a door's approach, %d a house, %d a yard, %d open ground; %d with a hole in the higher side's face%s",
                     cliffs, cliffWorst, cliffDoor, cliffHouse, cliffYard, cliffOpen, cliffOverhang, chr10().c_str());
         EXPECT_EQ(cliffDoor, 0) << "a door's approach meets the market over a step the walker cannot take";
-        // O40 (pm_chain495.txt, stated before chain 505): since the ways are graded at 4 micro a cell ONE cell of the town's
-        // market edge - (102, 40), paved at 1386 over a yard at 1368 - has air under its paving. A REAL, OPEN defect that
-        // this check found; its cause is not established. The assertion is a RATCHET at that one cell until it is fixed:
-        // it must not grow.
-        std::printf("[ O40 ] OPEN: %d market edge cell(s) with a hollow face (an open fill)%s", cliffOverhang, chr10().c_str());
-        EXPECT_LE(cliffOverhang, 1) << "more than the one known hollow face at the market's edge (O40)";
-        EXPECT_EQ(cliffOverhangElsewhere, 0) << "a hollow face at the market's edge other than the known cell (102, 40) against (102, 39)";
+        // O40 (pm_chain552.txt): the "hollow" at (102, 40) was this check's own error (it scanned to the body's standing
+        // level on a graded cell); the ratchet at that cell is gone and the assertion is plain again: no hollow face.
+        std::printf("[ O40 ] market edge cell(s) with a hollow face (an open fill): %d%s", cliffOverhang, chr10().c_str());
+        EXPECT_EQ(cliffOverhang, 0) << "a hollow face at the market's edge";
+        (void)cliffOverhangElsewhere;
     }
     // O37 (g) (pm_chain430.txt): nothing hollow under the paving - 9 columns a cell, 45 micro (5 cubes) down from the paved top
     {
