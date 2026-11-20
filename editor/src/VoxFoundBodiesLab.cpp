@@ -105,7 +105,16 @@ void Application::voxFoundBodiesGpuStep(float dt) {
             lab.running = false;
             return;
         }
-        if (r == 1) voxFoundBodiesGpuDone(n);
+        if (r == 1) {   // F5.5d X3: how long a step takes from submit to found done, and how often it is not done
+            ++lab.pollsDone;
+            const float ms = float(std::chrono::duration<double, std::milli>(t0 - lab.stepSubmitAt).count());
+            if (lab.stepLatencyMs.size() < 600) lab.stepLatencyMs.push_back(ms);
+            else lab.stepLatencyMs[lab.stepLatencyNext] = ms;
+            lab.stepLatencyNext = (lab.stepLatencyNext + 1) % 600;
+            voxFoundBodiesGpuDone(n);
+        } else {
+            ++lab.pollsWaiting;
+        }
     }
     if (lab.running && lab.gpuLoaded) {
         const double h = lab.sim->params().dt;
@@ -119,6 +128,7 @@ void Application::voxFoundBodiesGpuStep(float dt) {
                     return;
                 }
                 lab.accum -= n * h;
+                lab.stepSubmitAt = std::chrono::steady_clock::now();
             }
         }
         lab.accum = std::min(lab.accum, 4.0 * h);
@@ -226,11 +236,41 @@ bool Application::voxFoundBodiesRebuildWorld(std::string* err) {
     return true;
 }
 
+// F5.4 / F5.5d: the conservation ledger, per material: world + bodies + crumbs
+std::vector<size_t> Application::voxFoundBodiesLedger() const {
+    const auto& lab = voxFoundBodiesLab;
+    std::vector<size_t> perMat(lab.mats.size(), 0);
+    if (!lab.sim) return perMat;
+    for (uint8_t m : lab.world.mat)
+        if (m && m < perMat.size()) ++perMat[m];
+    for (const Core::VoxFound::SimBody& b : lab.sim->bodies())
+        for (uint8_t m : b.src.grid.mat)
+            if (m && m < perMat.size()) ++perMat[m];
+    for (size_t m = 0; m < perMat.size() && m < lab.crumbMat.size(); ++m) perMat[m] += lab.crumbMat[m];
+    return perMat;
+}
+
+bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err) {
+    auto& lab = voxFoundBodiesLab;
+    const bool ok = voxFoundBodiesRestPass(force, override, err);
+    if (lab.sim && lab.ledgerEvery && (force || lab.restOn)) {   // F5.5d X1: after every rest call, timed apart
+        const auto t0 = std::chrono::steady_clock::now();
+        ++lab.ledgerChecks;
+        if (voxFoundBodiesLedger() != lab.ledger0) {
+            ++lab.ledgerBad;
+            if (lab.ledgerFirstBadTick < 0) lab.ledgerFirstBadTick = lab.tick;
+        }
+        lab.ledgerMsMax = std::max(lab.ledgerMsMax,
+                                   std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+    }
+    return ok;
+}
+
 // One D6 rest pass (F5.4): bake, then compact the body faces and update the preview + the GPU solver if anything
 // baked. F5.5c: the preview is edited per baked body (RegionEdit::applyCells, then one assemble) when the pass bakes at
 // most kIncrementalMax bodies (incremental cost is per body; past that, one full build is cheaper); the GPU solver is
 // edited (BodySimGpu::edit: changed cells + survivors) instead of reloaded. lastHitchMs = the whole call.
-bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err) {
+bool Application::voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestParams* override, std::string* err) {
     using namespace Core::VoxFound;
     constexpr size_t kIncrementalMax = 32;
     auto& lab = voxFoundBodiesLab;
@@ -252,7 +292,13 @@ bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParam
     lab.restTotal.voxels += st.voxels;
     lab.restTotal.sumShiftM += st.sumShiftM;
     lab.restTotal.maxShiftM = std::max(lab.restTotal.maxShiftM, st.maxShiftM);
-    if (baked.empty()) return true;
+    if (baked.empty()) {   // F5.5d X4: the policy's cost on a frame that bakes nothing
+        const float ms = float(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+        if (lab.restIdleMs.size() < 3600) lab.restIdleMs.push_back(ms);
+        else lab.restIdleMs[lab.restIdleNext] = ms;
+        lab.restIdleNext = (lab.restIdleNext + 1) % 3600;
+        return true;
+    }
     // compact the face array: survivors' ranges copied in order, body index renumbered (faces are not rebuilt)
     const auto t1 = std::chrono::steady_clock::now();
     std::vector<uint8_t> gone(n0, 0);
@@ -344,6 +390,10 @@ void Application::stepVoxFoundBodies(float dt) {
         if (lab.frameMs.size() < 3600) lab.frameMs.push_back(dt * 1000.0f);
         else lab.frameMs[lab.frameNext] = dt * 1000.0f;
         lab.frameNext = (lab.frameNext + 1) % 3600;
+        if (dt * 1000.0 > lab.frameMaxMs) {   // F5.5d X8: when in the run the largest interval ended
+            lab.frameMaxMs = dt * 1000.0;
+            lab.frameMaxAtS = std::chrono::duration<double>(std::chrono::steady_clock::now() - lab.runStart).count();
+        }
     }
     if (lab.useGpu) {
         voxFoundBodiesGpuStep(dt);
@@ -522,6 +572,18 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         lab.runStartTick = 0;
         lab.asWorld = false;
         lab.crumbs = ex.crumbs.size();
+        lab.ledger0 = voxFoundBodiesLedger();   // F5.5d X1: the rig's ledger, the reference for every later check
+        lab.ledgerEvery = p.value("ledger_every", false);
+        lab.ledgerChecks = lab.ledgerBad = lab.wakeAlls = 0;
+        lab.ledgerFirstBadTick = -1;
+        lab.ledgerMsMax = 0.0;
+        lab.restIdleMs.clear();
+        lab.restIdleNext = 0;
+        lab.pollsDone = lab.pollsWaiting = 0;
+        lab.stepLatencyMs.clear();
+        lab.stepLatencyNext = 0;
+        lab.frameMaxMs = 0.0;
+        lab.frameMaxAtS = -1.0;
         lab.rigName = name;
         lab.draw.shown = true;
         lab.draw.castShadows = true;
@@ -560,6 +622,15 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
             lab.runStartTick = lab.tick;
             lab.frameMs.clear();   // F5.5c: the frame intervals of this run
             lab.frameNext = 0;
+            lab.frameMaxMs = 0.0;   // F5.5d: and the run's diagnostics
+            lab.frameMaxAtS = -1.0;
+            lab.pollsDone = lab.pollsWaiting = 0;
+            lab.stepLatencyMs.clear();
+            lab.stepLatencyNext = 0;
+            lab.restIdleMs.clear();
+            lab.restIdleNext = 0;
+            lab.simCpuMs.clear();
+            lab.simCpuNext = 0;
         }
         lab.running = on;
     }
@@ -591,6 +662,29 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
     if (p.contains("rest")) {
         lab.rest = restOf(p["rest"], lab.rest);
         lab.restOn = p["rest"].value("on", true);
+    }
+    if (p.contains("ledger_every")) lab.ledgerEvery = p["ledger_every"].get<bool>();   // F5.5d X1
+    if (p.contains("ledger_plant") && lab.ledger0.size() > 1) {   // F5.5d: the check's red -- a wrong reference must
+        lab.ledger0[1] = size_t(int64_t(lab.ledger0[1]) + p["ledger_plant"].get<int64_t>());   // count as bad
+    }
+    if (p.value("wake_all", false)) {   // F5.5d X2: every body awake on the pile (the budget's "every body awake")
+        std::string err;
+        if (lab.useGpu && lab.gpu && lab.gpu->stepPending()) {   // finish the step in flight first: the edit follows it
+            const int k = lab.gpu->pendingTicks();
+            if (lab.gpu->stepPoll(&lab.sim->bodies(), true, &err) == 1) voxFoundBodiesGpuDone(k);
+        }
+        for (SimBody& b : lab.sim->bodies()) {
+            b.asleep = false;
+            b.slowTicks = 0;
+            b.asleepTicks = 0;
+        }
+        // GPU: the survivors' records through edit (no cells, no removals) -- bit-equal to a load (F5.5c H5), so the
+        // warm start is dropped as a load drops it (stated)
+        if (lab.useGpu && lab.gpuLoaded && !lab.sim->bodies().empty() && !lab.gpu->edit({}, {}, lab.sim->bodies(), &err)) {
+            response = {{"error", err}};
+            return;
+        }
+        ++lab.wakeAlls;
     }
     if (p.contains("ticks") && lab.useGpu) {   // F5.5b: synchronous GPU ticks (the policy after every tick when on)
         const int n = p["ticks"].get<int>();
@@ -638,12 +732,17 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
     if (p.contains("as_world")) {
         lab.asWorld = p["as_world"].get<bool>();
         lab.draw.shown = !lab.asWorld;
+        lab.draw.castShadows = !lab.asWorld;   // F5.5d: drawn as world, the bodies must not cast as well
         std::string err;
         if (!voxFoundBodiesRebuildWorld(&err)) {
             response = {{"error", err}};
             return;
         }
     }
+    // F5.5d: the CPU penetration measure (seconds at ~1,000 bodies, on the main thread) only when a STATUS asks for it --
+    // before, every command's response ran it: the gate's own {"run":true} stalled one frame 0.7 s at 110 bodies and
+    // ~60 s at 994 (F5.5c's "unexplained ~60 s interval at a run's second frame"). "pen":true forces it.
+    const bool pen = p.value("pen", p.value("status", false));
     const auto st = renderCoordinator->voxFoundBodyStats();
     nlohmann::json centres = nlohmann::json::array();
     size_t awake = 0;
@@ -657,7 +756,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
                 {"crumbs", lab.crumbs}, {"shown", lab.draw.shown}, {"cast", lab.draw.castShadows},
                 {"as_world", lab.asWorld}, {"mutate", lab.draw.mutate}, {"body_faces", lab.draw.faces.size()},
                 {"preview_faces", lab.previewFaces}, {"step_ms", lab.lastStepMs}, {"cull", lab.draw.cull},
-                {"max_penetration_mm", p.value("pen", true) ? lab.sim->currentMaxPenetration() * 1000.0 : -1.0},
+                {"max_penetration_mm", pen ? lab.sim->currentMaxPenetration() * 1000.0 : -1.0},
                 {"render", {{"bodies", st.bodies}, {"faces", st.faces}, {"drawn_faces", st.drawnFaces},
                             {"cast_faces_mid", st.castFaces[0]}, {"cast_faces_near", st.castFaces[1]},
                             {"pose_ms", st.poseMs}, {"face_upload_ms", st.faceUploadMs},
@@ -667,17 +766,30 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
                 {"centres_m", centres}};
     // F5.4: the conservation ledger (per material: world + bodies + crumbs) and the rest pass's numbers
     nlohmann::json ledger = nlohmann::json::object();
-    std::vector<size_t> perMat(lab.mats.size(), 0);
-    for (uint8_t m : lab.world.mat)
-        if (m) ++perMat[m];
-    for (const SimBody& b : lab.sim->bodies())
-        for (uint8_t m : b.src.grid.mat)
-            if (m) ++perMat[m];
-    for (size_t m = 0; m < perMat.size() && m < lab.crumbMat.size(); ++m) perMat[m] += lab.crumbMat[m];
+    const std::vector<size_t> perMat = voxFoundBodiesLedger();
     for (size_t m = 1; m < perMat.size(); ++m) ledger[std::to_string(m)] = perMat[m];
     const RestStats& rt = lab.restTotal;
     response["ledger"] = ledger;
-    if (p.value("pen", true)) response["penetration_report"] = lab.sim->worstPenetrationReport();   // F5.5b
+    {   // F5.5d: the exit's measures
+        auto qv = [](std::vector<float> v, double f) {
+            if (v.empty()) return 0.0;
+            std::sort(v.begin(), v.end());
+            return double(v[std::min(v.size() - 1, size_t(f * double(v.size())))]);
+        };
+        response["exit"] = {{"ledger_every", lab.ledgerEvery}, {"ledger_checks", lab.ledgerChecks},
+                            {"ledger_bad", lab.ledgerBad}, {"ledger_first_bad_tick", lab.ledgerFirstBadTick},
+                            {"ledger_check_ms_max", lab.ledgerMsMax}, {"ledger_now_ok", perMat == lab.ledger0},
+                            {"wake_alls", lab.wakeAlls},
+                            {"rest_idle_n", lab.restIdleMs.size()}, {"rest_idle_median_ms", qv(lab.restIdleMs, 0.5)},
+                            {"rest_idle_p99_ms", qv(lab.restIdleMs, 0.99)}, {"rest_idle_max_ms", qv(lab.restIdleMs, 1.0)},
+                            {"polls_done", lab.pollsDone}, {"polls_waiting", lab.pollsWaiting},
+                            {"step_latency_n", lab.stepLatencyMs.size()},
+                            {"step_latency_median_ms", qv(lab.stepLatencyMs, 0.5)},
+                            {"step_latency_p99_ms", qv(lab.stepLatencyMs, 0.99)},
+                            {"step_latency_max_ms", qv(lab.stepLatencyMs, 1.0)},
+                            {"frame_max_ms", lab.frameMaxMs}, {"frame_max_at_s", lab.frameMaxAtS}};
+    }
+    if (pen) response["penetration_report"] = lab.sim->worstPenetrationReport();   // F5.5b
     // F5.5b: the solver path
     {
         std::vector<float> v = lab.simCpuMs;

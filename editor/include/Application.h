@@ -343,12 +343,27 @@ private:
         std::vector<float> hitchMs;                         // every baking pass's whole rest call (since the rig)
         std::vector<float> frameMs;                         // the frame interval while running (ring of 3,600)
         size_t frameNext = 0;
+        // F5.5d: the exit's measures
+        bool ledgerEvery = false;                           // {"ledger_every":true}: the ledger after every rest call
+        std::vector<size_t> ledger0;                        // per material at the rig's setup (world + bodies + crumbs)
+        size_t ledgerChecks = 0, ledgerBad = 0, wakeAlls = 0;
+        long ledgerFirstBadTick = -1;
+        double ledgerMsMax = 0.0;                           // the check's own cost (not in the hitch)
+        std::vector<float> restIdleMs;                      // rest calls that baked nothing (ring of 3,600)
+        size_t restIdleNext = 0;
+        size_t pollsDone = 0, pollsWaiting = 0;             // live GPU polls that found the step done / still running
+        std::chrono::steady_clock::time_point stepSubmitAt{};
+        std::vector<float> stepLatencyMs;                   // submit -> found done, wall ms (ring of 600)
+        size_t stepLatencyNext = 0;
+        double frameMaxMs = 0.0, frameMaxAtS = -1.0;        // the largest frame interval of the run and when (s)
     } voxFoundBodiesLab;
+    std::vector<size_t> voxFoundBodiesLedger() const;   // F5.4/F5.5d: per material world + bodies + crumbs
     bool voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g, std::string* err);
     bool voxFoundBodiesGpuLoad(std::string* err);
     void voxFoundBodiesGpuStep(float dt);
     void voxFoundBodiesGpuDone(int ticks);
     bool voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err);
+    bool voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestParams* override, std::string* err);
     void handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::json& response);
     void stepVoxFoundBodies(float dt);
     void voxFoundBodiesPublish();

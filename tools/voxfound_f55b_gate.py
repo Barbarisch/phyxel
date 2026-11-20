@@ -99,7 +99,7 @@ def l1(a):
         cs = []
         for k in range(2):
             rig(name, e, imp)
-            st = post(BODIES, {"ticks": 600})
+            st = post(BODIES, {"ticks": 600, "status": True})   # F5.5d: pen only on a status
             cs.append(st["centres_m"])
         differ = sum(1 for p, q in zip(cs[0], cs[1]) if p != q) + abs(len(cs[0]) - len(cs[1]))
         log({"gate": "L1 determinism", "rig_name": name, "bodies": len(cs[0]), "centres_differ": differ,

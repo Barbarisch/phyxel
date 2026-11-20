@@ -114,7 +114,7 @@ def main():
         r = setup(a.rig, a.energy, a.impulse, at, cam)
         last = 0
         for t, name in ((0, "t0"), (15, "t025"), (30, "t05"), (60, "t1"), (180, "t3")):
-            st = post("/api/debug/voxfound_bodies", {"ticks": t - last})
+            st = post("/api/debug/voxfound_bodies", {"ticks": t - last, "status": True})   # F5.5d: pen on a status
             last = t
             save(shot(0.8), f"voxfound_f53_seq_{a.rig}{a.tag}_{name}.png")
             log({"gate": "seq", "rig_name": a.rig, "impulse": a.impulse, "tick": st["tick"], "awake": st["awake"],

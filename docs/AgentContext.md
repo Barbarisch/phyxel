@@ -588,10 +588,16 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       77-113 ms). Gates: tools/voxfound_f55c_gate.py (pixels | hitch [--control]). USE 127.0.0.1, NOT localhost (2 s
       per call here). CHECK FOR OTHER GPU LOAD (World of Warcraft ran through F5.5c's live runs). An unexplained ~60 s
       dt at a run's second frame shows in both paths. Region-vs-area preview differs by single edge pixels.
-      NEXT: F5.5d (the exit: live 100 -> 1,000 bodies, conservation, pop, whole frame) with its prediction BEFORE code.
-      Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall); broadphase (pairs +
-      hard_body are awake x all loops); the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start
-      re-key, 5 ms).
+      F5.5d done: the exit live (tools/voxfound_f55d_gate.py ladder | seq | pop ...). Conservation exact at every
+      rest call ({"ledger_every":true}); CPU per frame and the hitch within budget; OVER with levers left: every body
+      awake 13.5 ms per tick at 994 (7.7 at 110 -- does not follow the count; {"wake_all":true}), draw at the peak
+      1.45-1.75 ms, 45-57 ticks per second at 1,000 (steps found done 36-47 ms after submit, <= 4 ticks each). The
+      "60 s frame" was the lab's CPU penetration measure on every non-status request -- now only on status. gpu_timing
+      is a HISTORY of the last N frames: wait it out after a mode change (absent scopes are not zeros).
+      NEXT: F5.5e (the awake pile's tick: profile it, headless + live, BEFORE any lever; then the broadphase) with its
+      prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
+      the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
+      5 ms); region-vs-area edge pixels.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

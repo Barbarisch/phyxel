@@ -591,3 +591,70 @@ THE VERDICT RULE: X2 / X4 / X5 / X6 against the header's budget at the 1,000 run
 stays open with that lever as the next increment; over with none = stop (the F5 row).
 WHAT WOULD COUNT AS A MISS: any ledger mismatch, overwrite, or body below the floor; a count or cost outside its
 range; more pop than predicted; a frame delta over its bound.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5d RESULTS (2026-11-19; after the runs, the predictions above untouched). Release, CharacterTestbed; World of
+Warcraft running through every run (the GPU shared; stated before the run). Evidence: voxfound_f55d_live.jsonl (record
+order: run 1 = the ladder, lines 1-11; then the 1,000-rung re-run after the pen fix, the owner's sequence, the X6/X7
+re-run with the far pose at 96 m and the gate's window fix). Suites not re-run: no engine or test source changed (the
+lab, editor/, and the gates, tools/, only).
+RED: the ledger check's own red at every rung -- a reference planted 1 voxel off counts as bad (0 -> 1, now_ok false),
+  removing it counts as good again (now_ok true); without it a check that never fails would prove nothing.
+  X1 PASS at every rung (live counts 110 / 282 / 994, inside the predicted ranges):
+     ledger checks after every rest call 1,726 / 1,264 / 1,080 (+ 822 in the 1,000 re-run): 0 mismatches; 0 below the
+     floor at any sample; 0 overwritten; 0 refused (46 / 218 / 930 baked; rigid 46 / 209 / 846); the backlog reached
+     the budget (64) at 3.7 / 11.3 / 30.6 s (re-run 33.0) <= 60; the GPU verify after each run 0 mismatched chunks. The
+     check costs <= 4.2 ms when it runs (not in the hitch; a debug knob).
+  X2 MISSED, every rung (predicted 0.3-1.2 / 0.8-2.5 / 2.5-6 ms): every body awake on the settled pile, 30 synchronous
+     ticks: 7.7 / 9.5 / 13.5 ms per tick median (max 8.2 / 10.3 / 16.3). The same rigs all asleep: 0.20 / 0.26 ms.
+     Contacts 3,117 / 7,997 / 29,364 (28-30 per body). The cost does not follow the body count (110 bodies cost 57 %
+     of 994's): a per-tick floor of several ms once anything is awake, under WoW (the GPU suite measured E2 1.75x
+     slower under WoW in F5.5c). Not explained by these numbers -- the next increment profiles the awake pile's tick
+     (F5.5a's per-pass profile, headless and live) before any lever. The bodies re-sleep fast: 994 awake at tick 1, 8 at
+     tick 30 (110 and 282: 0 at tick 30).
+     Budget 2 ms at 1,000: OVER (13.5); levers left: the profile, then the broadphase (owed since F5.5a).
+  X3: 60.1 / 59.2 ticks per second (PASS at 100 and 300); 1,000: 56.9, re-run 44.9 (>= 58 MISSED). Why (the
+     diagnostics, not a guess): a step is found done 36-47 ms after its submit (median; polls that found it not done
+     2.0-2.8x the polls that found it done) -- about three frames behind the frame's own GPU work on a shared queue --
+     and a step carries at most 4 ticks (the lab's cap, F5.5b), so 4 ticks per ~3-4 frames. Lever left: the ticks per
+     step cap (a cost knob), or a step that does not wait behind the frames.
+  X4 PASS on the medians, MISSED on the p95: solver poll + publish + submit median 0.0031-0.0035 ms; the idle rest call
+     median 0.0008 ms (p99 <= 0.005); poses 0.0014-0.0020 + cull 0.0096-0.0122 ms; the sum of medians 0.016 ms (<= 1
+     PASS). The solver path's p95 2.5-2.8 ms (<= 1.5 MISSED; F5.5b 0.26-1.5): the frames that record a step.
+  X5 PASS: the baking rest call max 1.45 / 1.73 / 1.54 ms (re-run 1.55; median 0.41 / 0.70 / 0.91), all incremental.
+  X6 (clean run, after the gate fix below): at the peak (994 bodies, settled, cull on, whole pose, 120 of 120 frames
+     each): main 0.97-0.99 + mid 0.40-0.41 + near 0.07-0.36 = 1.45-1.75 ms (<= 1.3 MISSED; budget 0.5 OVER at the
+     peak, as predicted). The whole GPU frame with bodies 13.7-14.4 ms vs the same pile baked into the world
+     12.24-12.41 (+1.3 to +2.1 ms) and vs as_world 12.8-13.0 (+-0.5 MISSED). After the backlog (64 bodies): 0.05 /
+     0.05 / 0.01 ms total in run 1 (<= 0.2 PASS); the 1,000 re-run 0.38 (main 0.03 + mid 0.34; MISSED once).
+     Lever: the hybrid itself (the peak lasts until the backlog drains, 31-33 s at cap 4) and the cap per pass.
+     GATE ERROR, mine (run 1): gpu_timing is a HISTORY of the last N frames and a scope absent from a frame is not a
+     0 in its median; run 1 slept 1.5 s after each mode change (~110 frames at 13 ms), so its pairs mixed modes (one
+     "bodies" window read main 0.0; the as_world windows read the bodies' casters). The gate now waits 4 s and reports
+     each scope's frame count. Found with it: as_world hid the bodies but left them casting (cast now follows it).
+  X7 pop at the 1,000 rung (994 baked by one bake_now, 0 refused, the ledger equal across it): near 38.96 % of the box
+     > 1 level (re-run 39.05; control 0 px; 20-50 PASS). Far at 24 m (the prediction's 4x the 6 m near): 19.30 % = 0.50
+     x near (<= 0.1 MISSED): the large wall is 32 m wide and still fills the frame at 24 m -- "4x the near distance"
+     was the blast's scale (F5.4), not this pile's. Follow-up, stated as one: far at 96 m on the same ray (4x the
+     pile's size) 723 px = 0.12 % = 0.003 x near, reproduced exactly in two runs. The 24 m PNGs were overwritten by the
+     96 m run (the numbers are in the jsonl). By eye (voxfound_f55d_pop_near_bodies / _baked): the near view looks at
+     the broken wall face; the bake re-chooses the tile and shifts centimetres -- the F5.4 owner check's class.
+     The owner's sequence: voxfound_f55d_seq_far_00..11.png, the far pose (24 m) every 0.5 s while capped passes bake
+     40 -> 316 bodies -- for the owner's eye, not gated.
+  X8 MISSED as designed -- the control was wrong: with the rig cleared the lab's floor no longer covers the testbed's
+     ground, so the frame shows foliage the run's frame does not (Scene Pass/Foliage 10.0 ms cleared vs 2.7 with the
+     rig; frame 19.5 ms vs 10-14). The same-pixels control is the pile baked into the world (X6): +1.3 to +2.1 ms of
+     GPU frame for 994 bodies at the peak. The runs' frame medians 10.8 / 14.4 / 13.1 ms (re-run 16.7), p99 16.2 / 24.7
+     / 54.6 (re-run 61.4).
+  FOUND AND FIXED -- F5.5c's "unexplained ~60 s interval": every lab request that did not say "pen":false ran the CPU
+     max-penetration measure on the main thread, including the gates' own {"run":true}/{"run":false}: one frame of
+     0.7 s at 110 bodies, 4.9 s at 282, 60.0 s at 994 (run 1: the largest interval 59,998 ms, at 60.00 s after the run
+     started, i.e. the first frame after the run request returned; the gates start their clock after the response, so
+     they never saw it). The measure now runs only on a status request (or "pen":true). Re-run: the largest interval
+     99 ms at 3.74 s. The f53/f55b gates that read the penetration from a command now ask for status.
+VERDICT (the F5 row's stop rule): at 1,000 bodies the simulation with every body awake (13.5 ms vs 2), the draw at the
+peak (1.45-1.75 ms vs 0.5) and real time (45-57 ticks per second) are OVER the proposal; CPU per frame (0.016 ms
+median) and the hitch (1.73 ms max) are within. Each overage has a lever left (the awake-pile profile then the
+broadphase; the hybrid's backlog and cap; the ticks per step), so this is NOT the stop condition: F5 stays open and the
+next increment is the awake pile's tick. Conservation is exact at every rest call at every rung; pop measured near and
+far.
