@@ -1,0 +1,26 @@
+pm_chain554.txt - O39 (l): a standing test that the residents' graph question REFUSES a build.
+(written 2026-11-20 11:26, before any run; HEAD 857f2f19)
+
+WHY: the audit of 28950d0f - the default refusal has no red of its own (only chain 495's refused creek city, on
+  older code). Every live build answers 0 / 0.
+WHAT: a build parameter "nav_gate_also": [[x, z], ...] (settlement-local cubes) - further cells the graph must join
+  to the hub both ways, asked like a door approach. Test O39_AHouseTheResidentsCannotReachRefusesTheBuild: the
+  village three times in its own worlds - as planned (control), with a corner of lot 0's house asked (a wall), and
+  the same with "nav_gate": false.
+PREDICTION chain 554: control "passed", graph 0 / 0; with the cell: gate "blocked", fails_build true, the graph
+  "cannot_be_reached" >= 1, asked == lots == 12 (85 %; the risk: the seat search finds a standing place on the
+  ground beside the wall corner's column and the cell is simply reachable); with nav_gate false: "passed", >= 1
+  recorded.
+RESULTS (written 2026-11-20 11:28)
+  chain 554 (exe 11:26:26; the one test, 122 s for three village builds): as predicted.
+    control: "gate passed, the graph {asked 11, cannot_be_left 0, cannot_be_reached 0, lots 11 ...}".
+    with local cell (41, 22) asked: "gate blocked, blocked 1, fails_build true, the graph {asked 12, cannot_be_left
+      1, cannot_be_reached 1, lots 12, no_standing_place 0, refuses true}".
+    the same with nav_gate false: "gate passed, the graph {asked 12, ... 1, 1 ..., refuses false}".
+  PREDICTION chains 555 (unit + nav + resident set) / 556 (live, now 43 tests): 0 failed; record lines identical.
+RESULTS (written 2026-11-20 11:44)
+  chain 555 (unit + nav + resident set, exe 11:26:26): 406 ok / 0 failed; the 82 record lines identical to 508's.
+  chain 556 (live, the same exe): 43 ok / 0 failed; the 166 record lines identical to chain 509's plus ONE new line
+    - the new test's own "gate: blocked - 34 walkable, 1 blocked ... over 11 doors of 11 built".
+  NOT SHOWN: the refusal on a real unreachable HOUSE (the test asks a wall corner); nothing in the engine (no L4
+    uses the parameter); Release only; not audited (a test and a parameter that adds asked cells).

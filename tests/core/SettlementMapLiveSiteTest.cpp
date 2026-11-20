@@ -540,7 +540,7 @@ nlohmann::json realizeOnce(LiveSiteRig& rig, bool legacyLayout, const nlohmann::
             std::printf("[ O39k ] spurs: %d at the old cap, %d columns set to the map's level (largest change %d micro), %d risers over the step-up (worst %d micro)\n", pj.value("spurs_at_the_old_cap", -1), pj.value("spur_columns_at_the_maps_level", -1), pj.value("spur_worst_shift_to_the_maps_level_micro", -1), pj.value("spur_risers_over_step", -1), pj.value("spur_worst_riser_micro", -1));
             EXPECT_EQ(pj.value("spur_risers_over_step", -1), 0) << "a door spur leaves a riser over the step-up beside it";
         }
-        if (pj.contains("nav_graph")) {
+        if (pj.contains("nav_graph") && !overrides.contains("nav_gate_also")) {
             const auto& ng = pj["nav_graph"];
             std::printf("[ O39f ] the residents' graph: %s\n", ng.dump().c_str());
             EXPECT_EQ(ng.value("asked", -1), ng.value("lots", -2)) << "the graph was not asked about every lot with a door";
@@ -3554,5 +3554,48 @@ TEST(SettlementMapLiveSiteTest, DISABLED_DiagCityLabHillOnACreek) {
                     v.key, m.lots.size(), m.ways.size(), m.wall.present ? "present" : "ABSENT", m.wall.ring.size(), m.wall.gates.size(), m.wall.waterGaps.size(),
                     static_cast<int>(std::count_if(m.areas.begin(), m.areas.end(), [](const MapArea& a) { return a.landuse == "market"; })), m.marketNote.c_str(),
                     vi.lotNoWay, vi.lotDoorOffWay, vi.overlaps, vi.wayThroughFootprint, vi.lotOutside, vi.badWay, vi.wayInWater, "\n");
+    }
+}
+
+// O39 (l) (docs/evidence/worldforge_v2/m3c_chains/pm_chain554.txt): the residents' graph question REFUSES a build. Every
+// live build answers 0 / 0, so nothing showed the refusal refusing since chain 495. The village is built twice in its
+// own worlds: as planned (the control: gate passed), and with one more cell the graph is asked about - a corner of
+// lot 0's house, a wall, where no resident can ever stand on the ground - which must refuse the build.
+TEST(SettlementMapLiveSiteTest, O39_AHouseTheResidentsCannotReachRefusesTheBuild) {
+    int cx = 0, cz = 0;
+    {
+        LiveSiteRig rig;
+        ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
+        const auto out = realize(rig, /*legacyLayout=*/false);
+        ASSERT_FALSE(out.contains("plan_error")) << out["plan_error"].dump();
+        EXPECT_EQ(out.value("gate", std::string()), "passed") << "the control: the village as planned";
+        const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
+        ASSERT_FALSE(sm.lots.empty());
+        cx = sm.lots[0].footprint.x; cz = sm.lots[0].footprint.z;
+        const auto ng = out["paths"].value("nav_graph", nlohmann::json::object());
+        std::printf("[ O39l ] control: gate %s, the graph %s; the cell to be asked: local (%d, %d), a corner of lot 0's house%s", out.value("gate", std::string("?")).c_str(), ng.dump().c_str(), cx, cz, chr10().c_str());
+        EXPECT_EQ(ng.value("cannot_be_reached", -1), 0);
+    }
+    {
+        LiveSiteRig rig;
+        ASSERT_TRUE(rig.setUpTier("village", 24)) << rig.why;
+        nlohmann::json ov; ov["nav_gate_also"] = nlohmann::json::array({nlohmann::json::array({cx, cz})});
+        const auto out = realize(rig, /*legacyLayout=*/false, ov);
+        const auto ng = out.contains("paths") ? out["paths"].value("nav_graph", nlohmann::json::object()) : nlohmann::json::object();
+        std::printf("[ O39l ] with the cell asked: gate %s, blocked %d, fails_build %s, the graph %s%s", out.value("gate", std::string("?")).c_str(), out.value("blocked", -1), out.value("fails_build", false) ? "true" : "false", ng.dump().c_str(), chr10().c_str());
+        EXPECT_EQ(out.value("gate", std::string()), "blocked") << "a cell the residents cannot reach did not refuse the build";
+        EXPECT_TRUE(out.value("fails_build", false));
+        EXPECT_GE(out.value("blocked", 0), 1);
+        EXPECT_EQ(ng.value("asked", -1), ng.value("lots", -2));
+        EXPECT_GE(ng.value("cannot_be_reached", 0), 1);
+        // and with the refusal switched off the same cell is recorded and the gate passes
+        LiveSiteRig rig3;
+        ASSERT_TRUE(rig3.setUpTier("village", 24)) << rig3.why;
+        ov["nav_gate"] = false;
+        const auto out3 = realize(rig3, /*legacyLayout=*/false, ov);
+        const auto ng3 = out3.contains("paths") ? out3["paths"].value("nav_graph", nlohmann::json::object()) : nlohmann::json::object();
+        std::printf("[ O39l ] with the cell asked and nav_gate false: gate %s, the graph %s%s", out3.value("gate", std::string("?")).c_str(), ng3.dump().c_str(), chr10().c_str());
+        EXPECT_EQ(out3.value("gate", std::string()), "passed") << "record-only must not refuse";
+        EXPECT_GE(ng3.value("cannot_be_reached", 0), 1);
     }
 }

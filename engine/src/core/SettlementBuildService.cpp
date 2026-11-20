@@ -608,6 +608,13 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 if (l.hasApproach) for (const auto& ac : l.approach) (*approachLevel)[{ox + ac.x, oz + ac.z}] = ac.level;
             for (const auto& l : siteMap.lots)
                 if (l.hasDoor) navDoors->push_back({{ox + l.doorX + l.doorNX * 2, oz + l.doorZ + l.doorNZ * 2}, "lot " + std::to_string(l.id) + " (" + l.typology + ")"});
+            // {"nav_gate_also": [[x, z], ...]} (settlement-LOCAL cubes): further cells the residents' graph must join to
+            // the hub both ways, asked exactly like a lot's door approach - a place the caller needs residents to reach.
+            // (O39 (l): it is also how a test makes the refusal refuse.)
+            if (p.contains("nav_gate_also") && p["nav_gate_also"].is_array())
+                for (const auto& c : p["nav_gate_also"])
+                    if (c.is_array() && c.size() == 2 && c[0].is_number_integer() && c[1].is_number_integer())
+                        navDoors->push_back({{ox + c[0].get<int>(), oz + c[1].get<int>()}, "asked cell (" + std::to_string(c[0].get<int>()) + "," + std::to_string(c[1].get<int>()) + ")"});
             for (const auto& w : siteMap.ways)
                 if (w.highway == "primary" && !w.nodes.empty()) {
                     if (const Core::MapNode* n = siteMap.node(w.nodes[w.nodes.size() / 2])) { navHub = {ox + n->x, oz + n->z}; navHubSet = true; }
