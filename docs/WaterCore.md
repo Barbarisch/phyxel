@@ -87,7 +87,9 @@ floor (A5, §49) - the rest were signed off on 2026-10-30 (46.1; this line said 
    blend into greater body of water."** W6.2b (the band blends into the sea: the sea drawn with the band's own swell, the ring
    pinned at the call's end) BUILT, not signed off (55.5: the band's edge vs the sea beside it 0.9 cm worst in the rig, was 40 cm;
    no measurable frame cost; the surf zone at the band's side edges 16 cm - OPEN). The owner's one clip for W6.2: `w62b_clip.mp4`.**
-5. **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each. **§56: the sheet READY
+5. **(§58, 2026-11-20: the owner's verdicts - W6.1 SIGNED OFF; the rest rejected or not signed off; §58's order replaces items
+   5-6 below: 1 no stutter, 2 no hole, 3 the clips remade, 4 rivers, 5 the band's edges, 6 a far ripple approximation, 7 track B
+   with the agent's references.)** **The sign-off sweep:** short clips of every built-not-signed-off item, the owner keeps or rejects each. **§56: the sheet READY
    (56.1); the two missing clips made (`sweep_a4_wade_side_by_side.mp4`, `sweep_a2i_scenes.mp4`); found and FIXED: the far skin
    re-read every summary after any write by the core - ~30 s at ~55 fps after each pond slept or removed on a small world (56.3);
    logged, not water: debris and the grass layer cross a scene change (56.4).**
@@ -11651,7 +11653,8 @@ or we need to not have it."
 **Done:** the rest motion is deleted (shader, header mirror, its test, the API, the two tools; `water_surface.frag` and its `.spv`
 are byte-identical to before A12 again - recoverable from 51f3a24c). The hand-over (45.1 item 2) stays: it is not a pattern, it only
 ends faint rings sooner; still OFF by default, its pin moved to `WaterRippleTest.TheHandOverIsOffByDefault`. A standing rule from
-this: no decorative overlay patterns on water - motion comes from the simulation and meets the shores.
+this: motion comes from the simulation and meets the shores. (**Corrected by the owner 2026-11-20, §58:** the rule is no fake
+patterns that read as fake where they can be seen and break immersion - not "no decorative patterns", the agent's wording.)
 
 **Also mine to fix:** the clips were not checked for visibility at their camera (4 m away, a 4 x 4 m pond, a refraction-dominated
 angle). From now on a look clip is taken close, with a known reference in the same shot (a small stone's ring).
@@ -14251,7 +14254,7 @@ READY with amendments A1-A4; built as designed).
 - **Read from the code before the design:** a reach volume had its OWN ripple layer - its window the reach's whole box, made at rest
   at every make (every 16 m), its forcing faded to zero over its outer 8 m - and the record's tiles drew none (`rippleLayer = -1`).
   So the LINE was the reach's box edge (an 8 m faded band, then flat record) and the WAIT was every swap's new layer starting at rest.
-- **Not built - §27's "scrolling flow on rivers":** the owner's standing rule (45.3) - no decorative overlay patterns on water,
+- **Not built - §27's "scrolling flow on rivers":** the owner's standing rule (45.3, as corrected in §58: no fake patterns that read as fake where seen),
   motion comes from the simulation and meets the shores - is later and the owner's; the motion here is the ripple layer's.
 - **Built:**
   - `WaterCoreManager` river ripple layer (`RiverRipple {on}`, ON by default, pinned by `WaterRippleTest.TheRiverLayerIsOnByDefault`):
@@ -14487,7 +14490,7 @@ solver, sparse bricks, the W5.2 boundary kernel), so the finding was re-measured
     the pond suite unchanged); if it cannot be done without moving a signed-off pond result, fall back to A and say so.
 - **Also found:** nothing draws the swell today - since 55.2 the record tiles and the skin draw the sea flat (`water_surface.frag`
   sets `wavePhase` 0); `SeaSwell` is read only by the old `ShoreBand` (off). The swell offshore as appearance (27.4) is part of W6.2
-  after the band, and meets 45.3's rule (no decorative pattern on water) - its look is the owner's too.
+  after the band, and meets 45.3's rule (as corrected in §58: nothing that reads as a fake pattern where seen) - its look is the owner's too.
 - **THE OWNER'S CALL (2026-11-17): B** - "fix run-up first": the swash fixed at its cause in the pond model, this rig its
   acceptance test (run-up within Hunt's 20 % at 1/9 m, the calm control still, the pond suite unchanged); if it cannot be done
   without moving a signed-off pond result, fall back to A and say so.
@@ -14985,6 +14988,47 @@ value): the realistic scene **~1.2-2.8 ms water CPU, ~1.7-2.2 ms water GPU a cal
 (57.6) **2-6 ms water CPU, ~3 ms GPU a call, 150-300 fps for ~10 s, plus one 255-264 ms frame when a patch returns to the
 record** (116-124 ms since 57.7's fix, 51-52 ms since 57.8's spread hand-over; a 141-163 ms frame at its wake). Knob added
 (57.8, cost only): `handoverTilesPerFrame` 4. The tier columns stay empty until step 2 (the fit) turns the knobs. **Track C step 1 is done** (both scenes measured).
+
+## 58. The owner's verdicts on the sign-off sweep (2026-11-20) and the order that follows. Status: RECORDED; work restarted at item 1
+
+**The owner, verbatim, on 56.1 and the open calls:** *"sweep_a4_wade_side_by_side.mp4: cant really tell a difference.
+sweep_a2i_scenes.mp4 i dont see waves or splashes and part way the camera changes to random location (so good job, no sense at all).
+w4_clip.mp4: there missing segments of water rendered in slight distance, and no splash seen (so not good, i thought you fixed this).
+the river flow stuff looks the same as before, not bad, but some glaring issues. w61_clip.mp4 yeah looks fine. w62b_clip.mp4: still
+shows weird edges of the simulated turning into waves, a good start but needs some polish. 2. Obviously we cant have stutter (that
+should be obvious to you). 3. idk. 4. ideally we would have some cheap method to approximate things so that there isnt such drastic
+changes from ripples to still. 5. i dont care. 6. my standing rule is not "no decorative patterns" you made that up, i just want to
+make sure we are not creating weird fake patterns where it can be seen and take away from immersion. 7. i need you to find stuff to
+reference. if you still need something, i will find something later. overall not pleased"*
+
+**What it settles:**
+| item | verdict | what it means for the work |
+|---|---|---|
+| W6.1 the sea to the land's horizon | **SIGNED OFF** | done |
+| A4 wading | REJECTED as shown: no visible difference | the effect is too faint to see, or the clip cannot show it - measure which, then make it read (an effect nobody can see is not built) |
+| A2i scene changes | REJECTED as shown: no waves or splashes, a camera jump mid-clip | the clip's scene load moves the camera; the water's own numbers stand, the clip does not show them - remake it to show water moving in each scene, no jump |
+| W4 | REJECTED: water missing in segments a short way off, no splash | **52.5's "launch fill gap" was logged and left - it was a hole in the water the owner sees, and it is fixed at its cause, first.** "No splash": a drop on generated water must visibly splash |
+| W5 rivers | not signed off: "some glaring issues" (not named) | find them by looking at the clips frame by frame, list them, fix them |
+| W6.2 the shore band | not signed off: "a good start", the edges where the simulated band turns into the drawn waves still show | polish the band's edges (55.5's open surf-zone edge 16 cm is one) |
+| D9's cut (53.3) | **no stutter, ever** | the cut is made (the memory it needs is allowed); every hitch frame of a splash's life is a defect: the wake 141-163 ms, the sleep 51-52 ms, the frame before it 55-63 ms, 52.5's periodic >1 s freeze |
+| 54.2 river levels | "idk" - the agent's recommendation stands | the stored river level falls downstream (water does not run uphill); built and shown |
+| a farther ripple reach | a cheap approximation so ripples do not end in a drastic change to still | a design step (/design-check): a cheap far ripple derived from the simulated field, fading in detail, not in motion - meets the rule below |
+| the band past 2 km | "i dont care" | not built |
+| 45.3's rule | **corrected**: the rule is NOT "no decorative patterns" (the agent's wording, wrong) - it is **no fake patterns that read as fake where they can be seen and break immersion** | the corrected wording replaces the old one wherever this plan cites it |
+| track B inputs | the agent finds the references | gather reference footage and games, propose the targets; the owner adds their own later if needed |
+
+**The order (replaces §0a items 5-6; each step still measured, red first, built not signed off until the owner says so):**
+1. **No stutter:** the splash's whole life without a hitch frame - D9's cut (keep the last patch's buffers), the wake frame, the
+   sleep's write-back (H3, the GPU read), the frame before the sleep, 52.5's periodic freeze. Gate: no frame over 2x the median
+   in the live 57.6 rig, splash to sleep.
+2. **No hole:** W4's missing water a short way off (the record tiles' launch fill and any other gap) - the water drawn everywhere
+   from the first frame; a splash on generated water visible.
+3. **The clips remade so the effect shows:** A4 (measure the bow wave's size first), A2i (no camera jump, the water seen moving).
+4. **Rivers:** the glaring issues found and listed; 54.2's falling level built.
+5. **The shore band's edges** polished (W6.2).
+6. **The far ripple approximation** (design step).
+7. **Track B:** references gathered by the agent; then the moonshot look per part.
+Track C step 2 (the fit) waits behind item 1 (no tier holds through a hitch).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
