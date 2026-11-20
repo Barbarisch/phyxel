@@ -1368,6 +1368,124 @@ TEST_F(WaterRecordTilesTest, APatchSleepsWithoutAHole) {
     EXPECT_GT(red, 0) << "RED CONTROL: the old order's hole went unseen";
 }
 
+// 57.8 - the spread hand-over. 57.7 measured a patch's return to the record at 116-124 ms in ONE frame, ~50 of it the ~36 record
+// tiles over its box built at once. Now the patch retires at its write-back and keeps drawing while its tiles are built 4 a frame,
+// held, all switched with its release in one frame. 51.3c's rig (a 60 m lake 2 m deep in the record, the splash at its centre, the
+// live path), every frame from the splash to 3 s after the return, points every 2 m over the patch's box: how many fields draw
+// each point (0 = a hole, 2+ = drawn twice). Predictions, written before the build: T1 0 holes and 0 doubles in every frame; T2 at
+// most 4 sleep tiles a frame over >= 2 frames (today: all in one); T4 the tiles after the switch identical to tiles built fresh then
+// (the one-frame path's build); T3 a splash into the box while it retires finishes the retire at once, wakes, sleeps again, books
+// exact. Controls: knob 0 (the one-frame return: 0 / 0, and T2's red), HeldOff (doubles), GhostOff (holes), GhostOwns (T4's red).
+enum class HandoverMode { Spread, OneFrame, HeldOff, GhostOff, GhostOwns, SplashWhileRetiring };
+struct HandoverRun { int holes = 0, doubles = 0, checked = 0, maxTiles = 0, retiringFrames = 0, sleeps = 0; long differ = -1;
+                  bool rewoke = false, rewokeFinished = false; double books = 0.0; };
+static HandoverRun runHandover(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, HandoverMode mode) {
+    using M = WaterCoreManager;
+    struct Restore { M::RecordDraw d; float m; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m;
+        M::s_handoverHeldOffForTest = M::s_handoverGhostOffForTest = M::s_handoverGhostOwnsForTest = false; } } restore{M::s_recordDraw, M::s_locality.drawM};
+    M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f;
+    M::s_recordDraw.handoverTilesPerFrame = mode == HandoverMode::OneFrame ? 0 : 4;
+    M::s_handoverHeldOffForTest = mode == HandoverMode::HeldOff;
+    M::s_handoverGhostOffForTest = mode == HandoverMode::GhostOff;
+    M::s_handoverGhostOwnsForTest = mode == HandoverMode::GhostOwns;
+    HandoverRun o;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 60;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    const double placed = record.total();
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", M::s_tallBandDefault}};
+    if (!mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump())) { ADD_FAILURE() << "loadSlept"; return o; }
+    const glm::vec3 c(30.0f, 1.9f, 30.0f);
+    mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, 10.0f));
+    for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }
+    const std::vector<int> ids = mgr.wakeSleptNear(c, 2.0f);
+    if (ids.empty()) { ADD_FAILURE() << "the splash woke nothing"; return o; }
+    glm::ivec3 lo(0), hi(0);
+    if (const AvRecord* r = mgr.find(ids[0])) { lo = r->minVoxel; hi = r->maxVoxel; }
+    mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    std::vector<glm::vec2> pts;
+    for (int z = lo.z; z <= hi.z; z += 2) for (int x = lo.x; x <= hi.x; x += 2) pts.push_back({x + 0.55f, z + 0.55f});
+    const int wantSleeps = mode == HandoverMode::SplashWhileRetiring ? 2 : 1;
+    long tilesBefore = mgr.recordDrawStats().sleepTilesBuilt;
+    bool live = true, wasRetiring = false;
+    int after = -1;
+    for (int k = 0; k < 60 * 90 && after < 180; ++k) {
+        // T3: the splash lands between frames (an API call or a body's impact), into a patch that has been retiring >= 2 frames
+        if (mode == HandoverMode::SplashWhileRetiring && !o.rewoke && mgr.retiringCount() > 0 && o.retiringFrames >= 2) {
+            const std::vector<int> again = mgr.wakeSleptNear(c, 2.0f);
+            mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+            o.rewoke = true; o.rewokeFinished = !again.empty() && mgr.retiringCount() == 0;
+            wasRetiring = false; o.differ = -1;
+        }
+        mgr.update(1.0f / 60.0f);
+        mgr.surfaceFields();
+        const long tb = mgr.recordDrawStats().sleepTilesBuilt;
+        o.maxTiles = std::max(o.maxTiles, static_cast<int>(tb - tilesBefore)); tilesBefore = tb;
+        const bool empty = mgr.list().empty();
+        if (live && empty) ++o.sleeps;
+        live = !empty;
+        if (mgr.retiringCount() > 0) { ++o.retiringFrames; wasRetiring = true; }
+        // T4: at the switch (or, the one-frame return, the frame it slept)
+        if (o.differ < 0 && empty && mgr.retiringCount() == 0 && (wasRetiring || mode == HandoverMode::OneFrame) && o.sleeps >= wantSleeps)
+            o.differ = mgr.recordTilesDifferFromFreshForTest(lo, hi);
+        if (empty && o.sleeps >= wantSleeps && mgr.retiringCount() == 0) ++after;
+        int miss = 0, twice = 0;
+        for (const glm::vec2& p : pts) { const int n = mgr.drawnClaimsAtWorld(p.x, p.y); if (n == 0) ++miss; else if (n > 1) ++twice; }
+        ++o.checked;
+        if (miss > 0) { ++o.holes; if (o.holes <= 2) std::printf("    frame %d: %d of %zu points draw no water (retiring %d)\n", k, miss, pts.size(), mgr.retiringCount()); }
+        if (twice > 0) { ++o.doubles; if (o.doubles <= 2) std::printf("    frame %d: %d of %zu points drawn twice (retiring %d)\n", k, twice, pts.size(), mgr.retiringCount()); }
+    }
+    o.books = record.total() + mgr.totalMass() - placed;
+    for (const auto& r : mgr.list()) mgr.destroy(r.id);
+    return o;
+}
+
+TEST_F(WaterRecordTilesTest, APatchReturnsToTheRecordOverFramesWithoutAHoleOrADouble) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const char* names[] = {"spread (shipped, 4 a frame)", "one-frame return (knob 0)", "CONTROL held off", "CONTROL ghost off", "RED ghost owns"};
+    HandoverRun h[5];
+    for (int m = 0; m < 5; ++m) {
+        h[m] = runHandover(device, physicalDevice, queue, queueFamilyIndex, static_cast<HandoverMode>(m));
+        std::printf("  %-28s holes %d / doubles %d of %d frames | sleep tiles max %d a frame, retiring %d frames | tiles vs fresh: %ld columns differ | books %+.5f m^3 (sleeps %d)\n",
+                    names[m], h[m].holes, h[m].doubles, h[m].checked, h[m].maxTiles, h[m].retiringFrames, h[m].differ, h[m].books, h[m].sleeps);
+    }
+    const HandoverRun& s = h[0];
+    ASSERT_GE(s.sleeps, 1) << "the patch never returned - the rig does not reach the hand-over";
+    EXPECT_EQ(s.holes, 0) << "T1: a frame drew no water somewhere in the patch's box";
+    EXPECT_EQ(s.doubles, 0) << "T1: a frame drew a point twice";
+    EXPECT_LE(s.maxTiles, 4) << "T2: more than one batch of sleep tiles in a frame";
+    EXPECT_GE(s.retiringFrames, 2) << "T2: the hand-over was not spread";
+    EXPECT_EQ(s.differ, 0) << "T4: the spread tiles differ from the one-frame path's build";
+    EXPECT_LT(std::abs(s.books), 1e-3);
+    EXPECT_EQ(h[1].holes, 0) << "CONTROL: the one-frame return is hole-free";
+    EXPECT_EQ(h[1].doubles, 0) << "CONTROL: the one-frame return draws no point twice (the count reads 0 on the known-good path)";
+    EXPECT_GT(h[1].maxTiles, 4) << "T2 RED: the one-frame return builds every tile in one frame";
+    EXPECT_GT(h[2].doubles, 0) << "CONTROL: tiles live as built must draw beside the retiring patch";
+    EXPECT_GT(h[3].holes, 0) << "CONTROL: the patch dropped at its write-back must leave holes";
+    EXPECT_GT(h[4].differ, 0) << "T4 RED: tiles built with the retiring patch as an owner must differ";
+}
+
+TEST_F(WaterRecordTilesTest, ASplashIntoARetiringPatchWakesItAtOnce) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const HandoverRun t = runHandover(device, physicalDevice, queue, queueFamilyIndex, HandoverMode::SplashWhileRetiring);
+    std::printf("  splash while retiring: rewoke %d (retire finished at the wake %d) | sleeps %d | holes %d / doubles %d of %d frames | tiles vs fresh %ld | books %+.5f m^3\n",
+                int(t.rewoke), int(t.rewokeFinished), t.sleeps, t.holes, t.doubles, t.checked, t.differ, t.books);
+    ASSERT_TRUE(t.rewoke) << "the rig never splashed into a retiring patch";
+    EXPECT_TRUE(t.rewokeFinished) << "T3: the wake did not finish the retire first";
+    EXPECT_GE(t.sleeps, 2) << "T3: the second patch never returned";
+    EXPECT_EQ(t.holes, 0); EXPECT_EQ(t.doubles, 0);
+    EXPECT_EQ(t.differ, 0);
+    EXPECT_LT(std::abs(t.books), 1e-3) << "T3: water lost or doubled across the splash into the retiring box";
+}
+
 TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     // the baseline is a lake LARGER than a patch (60 m): past the patch's size the cost may not grow with the lake. (A 30 m lake is

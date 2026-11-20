@@ -96,9 +96,11 @@ floor (A5, §49) - the rest were signed off on 2026-10-30 (46.1; this line said 
    (wading a 60 m lake 0.8 m deep with wood thrown in: 205-323 fps, the water ~1.2-2.8 ms CPU and ~1.7-2.2 ms GPU a call); 30.2's
    worst case, the 2 m lake and a visible stone, 150-300 fps for ~10 s and asleep by 20 s (57.6); FOUND: a 255-264 ms frame
    each time a lake's patch goes back to the record (57.6); 57.7 split it and fixed its largest part (the record tiles read
-   occupancy per micro cell: 180 -> 50 ms) - the frame is now 116-124 ms, spread over five parts, the next step a spread
-   hand-over (a design step); the wake frame 141-166 ms logged; two defects logged (57.4). Track C step 1 DONE; step 2 (the
-   fit) next on track C.**
+   occupancy per micro cell: 180 -> 50 ms) - the frame is now 116-124 ms, spread over five parts; 57.8 BUILT the spread
+   hand-over (/design-check READY): the patch keeps drawing while its record tiles are built 4 a frame and its buffers freed
+   paced - the frame 128-131 -> 51-52 ms (predicted <= 45: missed; the rest is the write-back, the GPU read ~20 ms logged as H3),
+   0 holes / 0 doubles every frame; a ~55-63 ms frame 0.5 s before the sleep and the wake frame 141-163 ms logged, not split;
+   two defects logged (57.4). Track C step 1 DONE; step 2 (the fit) next on track C.**
 
 **Standing rules:** no voxel ever floats up as if gravity were off, in any run, control or demo included (owner 2026-10-25; only a
 material made to do that could, and none exists); small bodies first; one water model - the pond's - for everything simulated (a second kind of water needs
@@ -14912,10 +14914,77 @@ part read from the host laps (only the phase timers and engine_timing polled - D
 - Evidence: `s57_patch_sleep_split_before.json`, `s57_patch_sleep_split_fix1.json` (the fix, no tile laps),
   `s57_patch_sleep_split.json` (the fix with the tile laps).
 
+**57.8 The spread hand-over - a patch goes back to the record over frames, not in one (2026-11-20; a design step, /design-check
+READY).** Why now: 57.7 left the frame a patch returns to the record at 116-124 ms, spread over five parts, all done in ONE frame;
+track C step 2 (the fit) cannot hold a tier through it (a defect blocking the current step, fixed at its cause, §0a rule).
+**Step 0 (measure the destroy first):** the `destroy.*` laps in `destroyVolume` (`s578_destroy_split.json`, live Creek, two runs):
+the 25 ms destroy is **the buffer frees 19.5-19.6 ms**, the device-idle wait 0.05-0.06 ms, ~5 ms elsewhere in `destroy(id)` (the
+box lists rebuilt). So the destroy is paced by freeing a few buffers a frame, not by an async wait.
+
+- **H1 the tiles paced.** At the write-back the patch's Av leaves `m_avs` for `m_retiring`: no step, no reader, no books, no owner
+  - the record holds its water from that frame (bodies and probes read the spans just written: the same water as the frozen
+  grid). It keeps drawing its last surface (its field stays in the drawn fields, its volume in `gpuSurfaceDraws`). Its box's record
+  tiles are built **`handoverTilesPerFrame` (4) a frame**, nearest the camera first, into a HELD map: built, not drawn; the old
+  tiles keep drawing, the budgeted refresh skips a held key, a span write keeps a held tile current by the same rule as a drawn
+  one. When the last is built, in ONE frame: the held tiles become the drawn tiles and the patch's volume is released - 51.3c's
+  rule kept, every point of the box drawn by exactly one drawer in every frame. Anything that makes a volume over the box (a
+  splash, a wake, an edit, `adopt`) finishes the retire first (the one-frame path), so no outcome changes. Realtime only: the
+  hand-stepped path keeps the one-frame return. The far skin counts a retiring box as drawn by a volume (`m_skinBoxes`) - found
+  by the fly-in test below, not by the new tests.
+- **H2 the frees paced.** The released volume's buffers go to the 41.4 release queue (`pumpRelease`, `updateKeptMemory`'s
+  per-frame budget) after the same device-idle wait, instead of all freed in the switch frame.
+- **H3 (not this step, measured, logged): the forced GPU read ~18 ms** (an async read-back of a frozen grid).
+
+**Tests (written first; `WaterRecordTilesTest`, 51.3c's rig: a 60 m lake 2 m deep in the record, the splash at its centre, the
+live path, every frame from the splash to 3 s after the return, a point every 2 m over the patch's box counted by how many
+drawers claim it):**
+
+| run | hole frames | double frames | sleep tiles max a frame | retiring frames | tiles at the switch vs built fresh | books |
+|---|---|---|---|---|---|---|
+| **spread (shipped, 4 a frame)** | **0** | **0** | **4** | **7** | **0 columns differ** | -1e-5 m^3 |
+| control: one-frame return (knob 0) | 0 | 0 | 25 (T2's red) | - | - | exact |
+| control: held off (tiles drawn as built) | - | 6 | - | - | - | - |
+| control: the patch dropped at its write-back | 7 | - | - | - | - | - |
+| red: tiles built with the retiring patch as an owner | 181 | - | - | - | 46,656 differ | - |
+
+`ASplashIntoARetiringPatchWakesItAtOnce`: the splash two frames into the retire finished it at once and woke a new patch, which
+went back to the record again (2 sleeps), 0 holes, 0 doubles, 0 columns differ, books -2e-5 m^3. The full suite found one more:
+`TheFlyInToASplashAndOutHasNoHolesAndTheBooksExact` drew 176 points twice in one frame (the far skin no longer masked the retiring
+box once it left the readers' box list) - fixed (`m_skinBoxes`), now 0 / 0, its red control unchanged (1,004 holes, 407 doubles).
+Unit water 319 / 319; integration water 98 / 100 (the known two).
+
+**Live (L4, the 57.7 rig, WaterBench_Creek, Release, two runs each; `s578_handover_spread.json`, `s578_handover_oneframe.json`).
+Prediction written before the build: the worst frame in the sleep window <= 45 ms, the hand-over ~9-10 frames, no later frame
+over 30 ms; the wake frame untouched (the control).**
+
+| the frame (the worst frame time read every ~0.5 s, ms) | one-frame return (knob 0, the control) | **spread (4 a frame, shipped)** |
+|---|---|---|
+| the frame the patch goes back to the record | 128-131 | **51-52** |
+| the hand-over's frames after it (7 frames, 4 tiles each) | - | 4-22 (the worst read in the 3 s after) |
+| a frame ~0.5 s BEFORE the sleep, in both modes (not the hand-over) | 53-66 | 55-63 |
+| the wake frame (0.5-0.6 s after the stone; untouched, the control) | 156-195 | 149-163 |
+| of the sleep frame: GPU read / held + runs / spans | 18.6-19.0 / 10.2-11.1 / 4.3-4.7 | 19.5-20.5 / 9.9-10.7 / 4.4-5.1 |
+| of the sleep frame: destroy / record tiles | 26.6-26.7 (frees 21.1-21.4) / 53.0-56.2 | 0.02 (retire) / none |
+| a tile batch (4 tiles) / the switch's device-idle wait | - | ~3.4 / 0.6-1.0 (frees 0.01: queued) |
+
+**The prediction missed: 51-52 ms, not <= 45.** The hand-over itself went as designed: the tiles and the destroy are gone from
+the frame (80 ms off it), 7 frames of 4 tiles (predicted 9-10), none over 22 ms. What is left of the sleep frame is the write-back:
+the forced GPU read ~20 ms (H3, logged), the held columns and runs ~10 ms, the spans ~5 ms, ~35 ms in all, and ~15 ms not split
+(the frame's own ~5 ms and something else). **Logged, not split: the ~55-63 ms frame ~0.5 s before the sleep, in both modes**
+(it was in 57.7's runs too, hidden under the 120 ms frame); with the wake frame and H3 it is the next frame to split. Caveats:
+the one-frame runs overlapped another checkout's GPU tests (`foreign_gpu_processes` in the JSON), so the control reads high by
+some amount; `handover_frames_last` is not reset by a knob-0 return (the one-frame JSON's 7 is the spread run's).
+
+**57.5's tier knob added:** `handoverTilesPerFrame` (`water_av_record_draw handover_tiles_per_frame`, 0-64, 0 = the one-frame
+return) - cost only: more a frame = a shorter hand-over and a costlier frame; the water drawn is the same in every frame.
+Whole frame: the spread hand-over's sleep frame 51-52 ms (~19-20 fps for one frame), against 128-131. Not measured here: the GPU
+time of the paced frees, the ~15 ms of the sleep frame not split, the frame before the sleep, the wake frame (its own split).
+
 **57.5 The tier table (30.3):** this fills the "measured water CPU / GPU" row at moonshot settings (every knob at its shipped
 value): the realistic scene **~1.2-2.8 ms water CPU, ~1.7-2.2 ms water GPU a call, 205-323 fps whole frame**; the worst case
 (57.6) **2-6 ms water CPU, ~3 ms GPU a call, 150-300 fps for ~10 s, plus one 255-264 ms frame when a patch returns to the
-record** (116-124 ms since 57.7's fix; a 141-166 ms frame at its wake). The tier columns stay empty until step 2 (the fit) turns the knobs. **Track C step 1 is done** (both scenes measured).
+record** (116-124 ms since 57.7's fix, 51-52 ms since 57.8's spread hand-over; a 141-163 ms frame at its wake). Knob added
+(57.8, cost only): `handoverTilesPerFrame` 4. The tier columns stay empty until step 2 (the fit) turns the knobs. **Track C step 1 is done** (both scenes measured).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 

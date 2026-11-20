@@ -586,7 +586,13 @@ public:
     /// the volumes' own. Rebuilt when the record, the ground or the volumes change; at most kRecordBuildsPerCall a call. Beyond the
     /// radius the span sheet / far tiles draw it (W2). The span sheet leaves these tiles to the pond surface (recordTileBoxes()).
     /// 40 (L1): the radius is WaterLocality::drawM (s_locality) - one value; `on` stays here
-    struct RecordDraw { bool on = true; };
+    /// 57.8 (the spread hand-over): handoverTilesPerFrame = the record tiles a patch's return builds a frame. The patch RETIRES at
+    /// its write-back (out of every reader: the record holds its water from that frame) and keeps drawing its last surface while its
+    /// box's tiles are built, held, this many a frame; the last one built, all go live and the patch is freed in ONE frame (51.3c:
+    /// every point of the box drawn by exactly one drawer, every frame). 0 = the one-frame return (all tiles at once - 57.7's
+    /// 50-55 ms). Cost only: the water, the books and what bodies read are the record from the write-back on at any value.
+    struct RecordDraw { bool on = true; int handoverTilesPerFrame = 4; };
+    static constexpr int kHandoverTilesMax = 64;   ///< clamp: past ~36 (a 40 m patch's tiles) it is one frame again - the knob would do nothing
     static inline RecordDraw s_recordDraw;
     /// §40 (L1): the viewer distances every water system reads - one process-wide setting, like the tiers will be; never saved
     static inline WaterLocality s_locality;
@@ -598,7 +604,8 @@ public:
     /// reads the record itself - the viewer never picks which water a body is in (§30.0b rule 2)
     static constexpr int kRecordDrawSourceBit = 0x40000000;
     static bool isRecordDrawField(const WaterSurfaceField& f) { return f.source >= 0 && (f.source & kRecordDrawSourceBit) != 0; }
-    struct RecordDrawStats { int tiles = 0, wetTiles = 0, builtLastCall = 0, pending = 0; double buildMsLastCall = 0.0, buildMsMax = 0.0, buildMsOnSleepLast = 0.0; };
+    struct RecordDrawStats { int tiles = 0, wetTiles = 0, builtLastCall = 0, pending = 0; double buildMsLastCall = 0.0, buildMsMax = 0.0, buildMsOnSleepLast = 0.0;
+                             int retiring = 0, handoverFramesLast = 0, handoverTilesMaxPerFrame = 0; long sleepTilesBuilt = 0, handovers = 0; };   // 57.8
     const RecordDrawStats& recordDrawStats() const { return m_recordStats; }
     void setSpanRevisionQuery(std::function<uint64_t()> q) { m_spanRevision = std::move(q); }
     /// The wet record tiles drawn by the pond surface (inclusive voxel boxes) and their revision - the span sheet's mask.
@@ -780,6 +787,17 @@ public:
     /// TEST ONLY (51.3c control): a sleeping patch's record draw tiles are built BEFORE it is destroyed (its woken columns still its
     /// own - the tiles built dry there; the order before 51.3c)
     static inline bool s_patchSleepDrawFirstForTest = false;
+    /// TEST ONLY (57.8 controls): HeldOff - a retiring patch's tiles go live as they are built (beside its still-drawn surface: points
+    /// drawn twice); GhostOff - the patch stops drawing at its write-back (its box's tiles not built yet: holes); GhostOwns - the
+    /// tiles are built with the retiring patch still an owner of its columns (built dry: 51.3c's defect, and T4's red)
+    static inline bool s_handoverHeldOffForTest = false, s_handoverGhostOffForTest = false, s_handoverGhostOwnsForTest = false;
+    static inline bool s_handoverFreesAtOnceForTest = false;   ///< TEST/bench (57.8 H2's control): the patch's buffers freed in the switch frame
+    /// 57.8: how many fields draw water at (x, z) - every field, as the renderer meshes each on its own (1 = right, 0 = a hole,
+    /// 2+ = a point drawn twice)
+    int drawnClaimsAtWorld(float x, float z) const;
+    /// 57.8 T4: the live record tiles over [lo, hi] against tiles built fresh now (the one-frame path's build): columns that differ
+    long recordTilesDifferFromFreshForTest(const glm::ivec3& lo, const glm::ivec3& hi);
+    int retiringCount() const { return static_cast<int>(m_retiring.size()); }
     /// 51.3b: the slot count the last patch's pool started with (0 = the default kInitialSlots)
     size_t lastPatchSlots() const { return m_lastPatchSlots; }
     static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
@@ -1228,6 +1246,7 @@ private:
     int m_nextId = 1;
     uint64_t m_avRevision = 0;
     std::vector<std::pair<glm::ivec3, glm::ivec3>> m_boxes;   // mirrors m_avs (16.4)
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> m_skinBoxes;   // 57.8: m_boxes + the retiring patches' (the skin's mask only)
     void refreshBoxes();
     bool m_realtime = false;
     double m_tickAccum = 0.0;   ///< 27.26: frame time not yet stepped (s)
@@ -1278,6 +1297,16 @@ private:
     bool columnRecorded(const Av& av, int wx, int wz) const;   ///< world voxel column (wx, wz) is in a recorded tile of this volume
     uint64_t m_fieldBumps = 0;
     void buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec3& hi);
+    // 57.8: a patch returning to the record over frames - out of m_avs (no reader, no step, no books), still drawn until the switch
+    struct Retiring { std::unique_ptr<Av> av; glm::ivec3 lo{0}, hi{0}; std::vector<std::pair<int, int>> todo;
+                      std::map<std::pair<int, int>, RecordTile> held; int frames = 0; };
+    std::vector<Retiring> m_retiring;
+    void beginRetire(int id, const glm::ivec3& lo, const glm::ivec3& hi);
+    void stepRetiring();
+    void buildRetiringTile(Retiring& r, const std::pair<int, int>& key);
+    void switchRetiring(Retiring& r);
+    void finishRetiringOverlapping(const glm::ivec3& lo, const glm::ivec3& hi);
+    bool retiringHolds(const std::pair<int, int>& key) const;
     std::unordered_map<uint64_t, glm::vec3> m_solidHold;   // 20: body id -> the centre it is rasterized at
     bool m_solidWakeRule = true;
     MotionStats m_motionStats;

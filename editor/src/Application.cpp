@@ -13948,13 +13948,19 @@ void Application::registerWaterCommands() {
         using M = Core::Water::WaterCoreManager;
         if (!waterCore) return noCore(r);
         if (cmd.params.contains("on")) M::s_recordDraw.on = cmd.params.value("on", true);
+        // 57.8: record tiles a patch's return builds a frame. 0 = the one-frame return (all at once); clamped 0..kHandoverTilesMax (past
+        // a 40 m patch's ~36 tiles it is one frame again - the knob would silently do nothing). Cost only, never the water
+        if (cmd.params.contains("handover_tiles_per_frame"))
+            M::s_recordDraw.handoverTilesPerFrame = std::clamp(cmd.params.value("handover_tiles_per_frame", 4), 0, M::kHandoverTilesMax);
         // 40 (L1): an alias of water_locality draw_m - one value. 0..256 m (the record cache's reach)
         if (cmd.params.contains("radius")) M::s_locality.drawM = std::clamp(cmd.params.value("radius", Core::Water::WaterLocality::kDrawMDefault), 0.0f, Core::Water::WaterLocality::kDrawMMax);
         const auto& s = waterCore->recordDrawStats();
         r = {{"on", M::s_recordDraw.on}, {"radius_m", M::s_locality.drawM}, {"tile_m", M::kRecordTile}, {"tiles", s.tiles},
              {"wet_tiles", s.wetTiles}, {"built_last_call", s.builtLastCall}, {"pending", s.pending},
              {"build_ms_last_call", s.buildMsLastCall}, {"build_ms_max", s.buildMsMax}, {"build_ms_on_sleep_last", s.buildMsOnSleepLast},
-             {"revision", waterCore->recordRevision()}};
+             {"revision", waterCore->recordRevision()}, {"handover_tiles_per_frame", M::s_recordDraw.handoverTilesPerFrame},
+             {"retiring", s.retiring}, {"handover_frames_last", s.handoverFramesLast}, {"handover_tiles_max_per_frame", s.handoverTilesMaxPerFrame},
+             {"handovers", s.handovers}, {"sleep_tiles_built", s.sleepTilesBuilt}};
     });
     // 51.4 S3: the far skin - recorded water beyond the record tiles (draw_m) drawn as coarse fields on clipmap rings. Omitted =
     // unchanged. on (default ON - owner 2026-11-11, 51.4g); far_m its reach (m) - by default it FOLLOWS the far terrain's reach

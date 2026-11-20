@@ -699,7 +699,9 @@ public:
     /// dense-laid (the FLIP kernels index the grid directly); every other volume is bricked (26.6).
     Volume* createVolume(const GridSpec& spec, std::string* err, bool particles = false, size_t particleCapacity = 0,
                          const BrickOptions& bricks = BrickOptions{});
-    void destroyVolume(Volume* vol);
+    /// paced (57.8): the buffers are queued for pumpRelease's per-frame budget instead of freed now (after the same device-idle wait,
+    /// so no frame in flight still reads them) - 57.8 step 0 measured the frees at 19.5 ms of a 25 ms destroy, the idle wait 0.06 ms
+    void destroyVolume(Volume* vol, bool paced = false);
     void upload(Volume& vol, const WaterGrid& g);                              ///< f, u, v, w, occ -> GPU (fenced)
     /// L4 (42): upload in two halves, for a wake paced over frames - the host work into staging (max speed, host occupancy,
     /// residency, clear, scatter, tables), then the copies and fills (one submit, waited). upload() is exactly the two in a row;

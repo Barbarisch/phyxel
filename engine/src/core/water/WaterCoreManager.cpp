@@ -60,6 +60,7 @@ std::unique_ptr<WaterCoreManager::Av> WaterCoreManager::buildCpu(const glm::ivec
     // 32: a new volume over a remembered (slept) box replaces it - two volumes would wake over the same record. L4: a paced wake
     // erases when it goes live (adopt's caller), not here - its box stays a slept box while it is built
     if (eraseSlept && !m_createKeepsSlept) eraseSleptOverlapping(lo, hi);   // 51 S2: a patch's parent pond stays slept
+    finishRetiringOverlapping(lo, hi);   // 57.8: a wake reads the record tiles over its box (adoptRecordedTiles) - they must be live
     const glm::ivec3 dims = (hi - lo + glm::ivec3(1)) * per;
     const size_t cells = static_cast<size_t>(dims.x) * dims.y * dims.z;
     if (transport != "eulerian" && transport != "flip") { if (err) *err = "transport must be 'eulerian' or 'flip'"; return nullptr; }
@@ -164,6 +165,7 @@ void WaterCoreManager::applyNewVolumeDefaults(Av& av) {
 }
 
 int WaterCoreManager::adopt(std::unique_ptr<Av> av, bool applyDefaults) {
+    finishRetiringOverlapping(av->minVoxel, av->maxVoxel);   // 57.8: (a paced wake built in frames before a retire began over it)
     Av* raw = av.get();
     m_avs.push_back(std::move(av));
     refreshBoxes();
@@ -496,6 +498,7 @@ WaterCoreManager::KeptMemoryStats WaterCoreManager::keptMemoryStats() const {
 void WaterCoreManager::update(float dt) {
     checkRecordResidency();   // 32.4: before the realtime return - a harness that steps by hand still follows residency
     updateKeptMemory();       // L3 (41): kept memory follows the viewer; the given-up part freed a little each frame
+    stepRetiring();           // 57.8: a returning patch's tiles, a few a frame (a sleep at this frame's end starts next frame)
     if (!m_realtime) return;
     using UClock = std::chrono::steady_clock;
     auto ums = [](UClock::time_point a) { return std::chrono::duration<double, std::milli>(UClock::now() - a).count(); };
@@ -694,6 +697,13 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
         // columns): the tiles were built dry there and marked current, then the destroy staled them and they were rebuilt 4 a frame
         // (the 40 x 40 m patch showed the bed for ~4 frames, live)
         if (s_patchSleepDrawFirstForTest) { buildRecordTilesNow(lo, hi); destroy(id); return rec; }   // TEST ONLY: the red control
+        // 57.8: the spread hand-over - the patch retires (out of every reader now) and keeps drawing while its tiles are built a few a
+        // frame (stepRetiring); a hand-stepped harness (not realtime) and handoverTilesPerFrame 0 take the one-frame return below
+        if (m_realtime && s_recordDraw.on && m_spanReader && s_recordDraw.handoverTilesPerFrame > 0) {
+            beginRetire(id, lo, hi);
+            WaterHostProfile::lap("sleep.8 retire (57.8)", hs);
+            return rec;
+        }
         destroy(id);
         WaterHostProfile::lap("sleep.8 destroy", hs);
         buildRecordTilesNow(lo, hi);
@@ -2826,6 +2836,7 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
         av->field.gpuDrawn = av->gpuVol && m_gpu && m_gpu->surfaceView(*av->gpuVol).ok;   // 29 S1
         m_fields[i] = &av->field;
     }
+    for (const auto& r : m_retiring) if (r.av) m_fields.push_back(&r.av->field);   // 57.8: drawn until the switch (frozen: no read)
     WaterHostProfile::lap("surf.5 rest", hp);
     refreshRecordTiles();   // §27 W1a: the recorded water near the camera, after the volumes (a volume owns its columns first)
     WaterHostProfile::lap("surf.6 record tiles' surfaces", hp);
@@ -2866,6 +2877,7 @@ void WaterCoreManager::refreshRecordTiles() {
     std::vector<std::pair<float, std::pair<int, int>>> stale;
     for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
         if (!inRange(tx, tz)) continue;
+        if (retiringHolds({tx, tz})) continue;   // 57.8: built by the hand-over, held, switched at once with the patch's release
         RecordTile& t = m_recordTiles[{tx, tz}];
         if (t.spanRev == sr && t.occRev == orv && t.avRev != ~0ull) continue;   // 51.3b: avRev ~0 = a box over it came or went (refreshBoxes)
         const float dx = (tx + 0.5f) * T - m_view.x, dz = (tz + 0.5f) * T - m_view.z;
@@ -2911,6 +2923,7 @@ void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec
             continue;   // out of range: W2's (the sheet / far tiles)
         RecordTile& t = m_recordTiles[{tx, tz}];
         const bool wasWet = t.wet;
+        ++m_recordStats.sleepTilesBuilt;   // 57.8 (T2)
         s_tilePhases.build[0] = s_tilePhases.build[1] = s_tilePhases.build[2] = s_tilePhases.build[3] = 0.0;
         buildRecordTile(tx, tz, t);
         for (int k = 0; k < 4; ++k) part[k] += s_tilePhases.build[k];
@@ -2944,6 +2957,8 @@ void WaterCoreManager::writeSpans(const std::vector<ColumnRuns>& runs, float yLo
     auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
     for (const ColumnRuns& c : runs) touched.insert({floorDiv(c.x, T), floorDiv(c.z, T)});
     for (auto& [key, t] : m_recordTiles)   // up to date before this write and not touched by it: still up to date
+        if (t.spanRev == before && !touched.count(key)) t.spanRev = after;
+    for (auto& r : m_retiring) for (auto& [key, t] : r.held)   // 57.8: the held tiles by the same rule
         if (t.spanRev == before && !touched.count(key)) t.spanRev = after;
     // §56 (the sweep): the far skin's summaries by the same rule, per chunk column. Without it ONE write (a pond slept, a volume
     // removed) re-read every summary in reach - on a world with no streaming generator every column within far_m is resident:
@@ -2979,6 +2994,9 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     auto owned = [&](int x, int z) {
         for (const auto& av : m_avs)
             if (x >= av->minVoxel.x && x <= av->maxVoxel.x && z >= av->minVoxel.z && z <= av->maxVoxel.z && !columnRecorded(*av, x, z)) return true;
+        if (s_handoverGhostOwnsForTest)   // TEST ONLY (57.8 T4's red): a retiring patch counted as an owner - built dry under it
+            for (const auto& r : m_retiring)
+                if (r.av && x >= r.lo.x && x <= r.hi.x && z >= r.lo.z && z <= r.hi.z && !columnRecorded(*r.av, x, z)) return true;
         return false;
     };
     float yMin = 1e30f, yMax = -1e30f;
@@ -3774,14 +3792,22 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::skinFields() {
     in.reader = &m_spanReader;
     in.spanRevision = m_spanRevision ? m_spanRevision() : 0;
     in.residentGlobal = m_resGlobal ? m_resGlobal() : 0; in.residentColumn = &m_resColumn;
-    in.volumeBoxes = &m_boxes;
+    // 57.8: a RETIRING patch still draws its box until the switch - the skin leaves it to it, as to a live volume (the readers'
+    // m_boxes do not hold it: bodies read the record). Without it the skin drew the box beside the ghost for the hand-over's frames
+    // (TheFlyInToASplash...: one frame, 176 points drawn twice, the camera 600 m off - no tiles in range, the switch the next frame)
+    m_skinBoxes = m_boxes;
+    for (const auto& r : m_retiring) if (r.av) m_skinBoxes.emplace_back(r.lo, r.hi);
+    in.volumeBoxes = &m_skinBoxes;
     // 51.7: a volume draws its box minus its RECORDED tiles (the record's); the revision follows the recorded tiles too
     uint64_t rv = m_avRevision * 1099511628211ull;
+    for (const auto& r : m_retiring) if (r.av) { rv ^= static_cast<uint64_t>(r.av->id) << 29; rv *= 1099511628211ull; }   // 57.8
     for (const auto& av : m_avs) for (const auto& [tx, tz] : av->recordedTileList) { rv ^= (static_cast<uint64_t>(static_cast<uint32_t>(tx)) << 32) ^ static_cast<uint32_t>(tz) ^ (static_cast<uint64_t>(av->id) << 17); rv *= 1099511628211ull; }
     in.volumeBoxesRevision = rv;
     in.volumeDraws = [this](int x, int z) {
         for (const auto& av : m_avs)
             if (x >= av->minVoxel.x && x <= av->maxVoxel.x && z >= av->minVoxel.z && z <= av->maxVoxel.z && !columnRecorded(*av, x, z)) return true;
+        for (const auto& r : m_retiring)   // 57.8: the ghost, until the switch
+            if (r.av && x >= r.lo.x && x <= r.hi.x && z >= r.lo.z && z <= r.hi.z && !columnRecorded(*r.av, x, z)) return true;
         return false;
     };
     in.look = [this](int x, int z, float top) { return packLook(lookAt(x, z, top)); };
@@ -3804,6 +3830,143 @@ bool WaterCoreManager::drawnAtWorld(float x, float z, float& top, bool& recorded
     const int wx = static_cast<int>(std::floor(x)), wz = static_cast<int>(std::floor(z));
     for (const auto& av : m_avs) if (columnRecorded(*av, wx, wz)) recorded = true;
     return any;
+}
+
+int WaterCoreManager::drawnClaimsAtWorld(float x, float z) const {
+    int n = 0;
+    for (const WaterSurfaceField* fp : m_fields) {
+        const WaterSurfaceField& f = *fp;
+        const int cx = static_cast<int>(std::floor(x / f.h)) - f.origin.x, cz = static_cast<int>(std::floor(z / f.h)) - f.origin.z;
+        if (cx < 0 || cz < 0 || cx >= f.nx || cz >= f.nz) continue;
+        if (std::min(static_cast<int>(f.at(cx, cz).runs + 0.5f), kSurfaceMaxRuns) > 0) ++n;
+    }
+    return n;
+}
+
+// ---- 57.8: the spread hand-over ----
+// 57.7 measured a patch's return to the record at 116-124 ms in ONE frame, ~50 of it the ~36 record tiles over its box built at once.
+// Now the patch RETIRES at its write-back: it leaves m_avs (so no step, no reader, no books, no owner - the record holds its water
+// from this frame, as after the one-frame return) but keeps drawing its last surface; its box's tiles are built a few a frame into a
+// HELD set while the tiles' old versions (the box's columns another drawer's) keep drawing; when the last is built, every held tile
+// goes live and the patch is freed in one frame. Every point of the box has exactly one drawer every frame (51.3c's rule).
+bool WaterCoreManager::retiringHolds(const std::pair<int, int>& key) const {
+    for (const auto& r : m_retiring) if (std::find(r.todo.begin(), r.todo.end(), key) != r.todo.end() || r.held.count(key)) return true;
+    return false;
+}
+
+void WaterCoreManager::beginRetire(int id, const glm::ivec3& lo, const glm::ivec3& hi) {
+    auto it = std::find_if(m_avs.begin(), m_avs.end(), [id](const std::unique_ptr<Av>& a) { return a->id == id; });
+    if (it == m_avs.end()) return;
+    m_pool.drop(id);
+    Retiring r; r.av = std::move(*it); r.lo = lo; r.hi = hi;
+    m_avs.erase(it);
+    r.av->field.rippleLayer = -1; ++r.av->field.version;   // asleep: its ripples were flat (sleepRested); its slot may be reused
+    if (s_handoverGhostOffForTest) {   // TEST ONLY: the patch stops drawing now - the hole the ghost exists to cover
+        if (r.av->gpuVol && m_gpu) m_gpu->destroyVolume(r.av->gpuVol);
+        r.av.reset();
+    }
+    const int T = kRecordTile;
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    const float rr = std::max(0.0f, s_locality.drawM);
+    std::vector<std::pair<float, std::pair<int, int>>> keys;
+    for (int tz = floorDiv(lo.z, T); tz <= floorDiv(hi.z, T); ++tz) for (int tx = floorDiv(lo.x, T); tx <= floorDiv(hi.x, T); ++tx) {
+        if (WaterLocality::horizontalDistanceSqToBox(m_view, glm::vec2(static_cast<float>(tx * T), static_cast<float>(tz * T)),
+                                                     glm::vec2(static_cast<float>(tx * T + T), static_cast<float>(tz * T + T))) > rr * rr)
+            continue;   // out of range: W2's (as buildRecordTilesNow)
+        const float dx = (tx + 0.5f) * T - m_view.x, dz = (tz + 0.5f) * T - m_view.z;
+        keys.push_back({dx * dx + dz * dz, {tx, tz}});
+    }
+    std::sort(keys.begin(), keys.end());
+    for (const auto& k : keys) r.todo.push_back(k.second);
+    m_retiring.push_back(std::move(r));
+    m_fields.clear(); for (const auto& a : m_avs) m_fields.push_back(&a->field);   // as destroy(): no stale pointer (the retiring one is re-added by surfaceFields)
+    for (const auto& q : m_retiring) if (q.av) m_fields.push_back(&q.av->field);
+    refreshBoxes();
+    m_recordStats.retiring = static_cast<int>(m_retiring.size());
+}
+
+void WaterCoreManager::buildRetiringTile(Retiring& r, const std::pair<int, int>& key) {
+    const uint64_t sr = m_spanRevision ? m_spanRevision() : 0, orv = m_revision ? m_revision() : 0;
+    ++m_recordStats.sleepTilesBuilt;
+    if (s_handoverHeldOffForTest) {   // TEST ONLY: live as built - beside the still-drawn patch
+        RecordTile& t = m_recordTiles[key];
+        buildRecordTile(key.first, key.second, t);
+        remarkRecordedTile(key.first, key.second);
+        t.spanRev = sr; t.occRev = orv; t.avRev = 0;
+        return;
+    }
+    RecordTile& t = r.held[key];
+    buildRecordTile(key.first, key.second, t);
+    t.spanRev = sr; t.occRev = orv; t.avRev = 0;
+}
+
+void WaterCoreManager::switchRetiring(Retiring& r) {
+    for (auto& [key, t] : r.held) {
+        m_recordTiles[key] = std::move(t);
+        remarkRecordedTile(key.first, key.second);   // 29 S1
+    }
+    r.held.clear();
+    const int T = kRecordTile;
+    m_recordBoxes.clear(); ++m_recordRevision;
+    for (const auto& [key, t] : m_recordTiles)
+        if (t.wet) m_recordBoxes.push_back({glm::ivec3(key.first * T, -1000000, key.second * T), glm::ivec3(key.first * T + T - 1, 1000000, key.second * T + T - 1)});
+    // H2: its buffers freed a few a frame (pumpRelease, updateKeptMemory's budget) - freed at once they were 19.5 ms of this frame
+    if (r.av && r.av->gpuVol && m_gpu) m_gpu->destroyVolume(r.av->gpuVol, !s_handoverFreesAtOnceForTest);
+    r.av.reset();
+    m_recordStats.handoverFramesLast = r.frames;
+    ++m_recordStats.handovers;
+}
+
+void WaterCoreManager::stepRetiring() {
+    if (m_retiring.empty()) return;
+    const int perFrame = s_recordDraw.handoverTilesPerFrame;
+    int built = 0; bool switched = false;
+    for (auto& r : m_retiring) {
+        ++r.frames;
+        // knob 0 or the record draw off meanwhile: the rest at once (the one-frame return)
+        const bool all = perFrame <= 0 || !s_recordDraw.on || !m_spanReader;
+        while (!r.todo.empty() && (all || built < perFrame)) {
+            const auto key = r.todo.front(); r.todo.erase(r.todo.begin());
+            if (s_recordDraw.on && m_spanReader) buildRetiringTile(r, key);
+            ++built;
+        }
+        if (r.todo.empty()) { switchRetiring(r); switched = true; }
+    }
+    m_retiring.erase(std::remove_if(m_retiring.begin(), m_retiring.end(), [](const Retiring& r) { return r.todo.empty(); }), m_retiring.end());
+    m_recordStats.handoverTilesMaxPerFrame = std::max(m_recordStats.handoverTilesMaxPerFrame, built);
+    m_recordStats.retiring = static_cast<int>(m_retiring.size());
+    if (switched) { m_fields.clear(); for (const auto& a : m_avs) m_fields.push_back(&a->field); for (const auto& q : m_retiring) if (q.av) m_fields.push_back(&q.av->field); }
+}
+
+void WaterCoreManager::finishRetiringOverlapping(const glm::ivec3& lo, const glm::ivec3& hi) {
+    bool any = false;
+    for (auto& r : m_retiring) {
+        if (r.lo.x > hi.x || r.hi.x < lo.x || r.lo.z > hi.z || r.hi.z < lo.z) continue;
+        while (!r.todo.empty()) { const auto key = r.todo.front(); r.todo.erase(r.todo.begin()); if (s_recordDraw.on && m_spanReader) buildRetiringTile(r, key); }
+        switchRetiring(r);
+        any = true;
+    }
+    if (!any) return;
+    m_retiring.erase(std::remove_if(m_retiring.begin(), m_retiring.end(), [](const Retiring& r) { return r.todo.empty(); }), m_retiring.end());
+    m_recordStats.retiring = static_cast<int>(m_retiring.size());
+    m_fields.clear(); for (const auto& a : m_avs) m_fields.push_back(&a->field); for (const auto& q : m_retiring) if (q.av) m_fields.push_back(&q.av->field);
+}
+
+long WaterCoreManager::recordTilesDifferFromFreshForTest(const glm::ivec3& lo, const glm::ivec3& hi) {
+    const int T = kRecordTile;
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    long differ = 0;
+    for (int tz = floorDiv(lo.z, T); tz <= floorDiv(hi.z, T); ++tz) for (int tx = floorDiv(lo.x, T); tx <= floorDiv(hi.x, T); ++tx) {
+        auto it = m_recordTiles.find({tx, tz});
+        if (it == m_recordTiles.end()) continue;
+        RecordTile fresh;
+        buildRecordTile(tx, tz, fresh);
+        const WaterSurfaceField& a = it->second.field; const WaterSurfaceField& b = fresh.field;
+        if (it->second.wet != fresh.wet || a.nx != b.nx || a.nz != b.nz || a.origin != b.origin || a.cols.size() != b.cols.size()) {
+            differ += std::max<long>(1, static_cast<long>(std::max(a.cols.size(), b.cols.size()))); continue; }
+        for (size_t i = 0; i < a.cols.size(); ++i) if (std::memcmp(&a.cols[i], &b.cols[i], sizeof(SurfaceColumn)) != 0) ++differ;
+    }
+    return differ;
 }
 
 double WaterCoreManager::recordedWaterIn(const glm::ivec3& lo, const glm::ivec3& hi) const {
@@ -4130,8 +4293,11 @@ namespace Phyxel::Core::Water {
 std::vector<GpuSurfaceDraw> WaterCoreManager::gpuSurfaceDraws() {
     std::vector<GpuSurfaceDraw> out;
     if (!m_gpu || !WaterCoreGpu::s_gpuSurface) return out;
-    for (auto& up : m_avs) {
-        Av& av = *up;
+    std::vector<Av*> drawn;
+    for (auto& up : m_avs) drawn.push_back(up.get());
+    for (auto& r : m_retiring) if (r.av) drawn.push_back(r.av.get());   // 57.8: a retiring patch draws its last surface until the switch
+    for (Av* ap : drawn) {
+        Av& av = *ap;
         if (!av.gpuVol) continue;
         const WaterCoreGpu::SurfaceView v = m_gpu->surfaceView(*av.gpuVol);
         if (!v.ok) continue;

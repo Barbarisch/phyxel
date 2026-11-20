@@ -418,10 +418,15 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     return raw;
 }
 
-void WaterCoreGpu::destroyVolume(Volume* vol) {
+void WaterCoreGpu::destroyVolume(Volume* vol, bool paced) {
     if (!vol) return;
+    using DClock = std::chrono::steady_clock;   // 57.8 step 0: the destroy split by part (destroy.* host laps)
+    auto dms = [](DClock::time_point a, DClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    const auto d0 = DClock::now();
     settle(*vol);   // 26.16: its call in flight collected (and its command buffer freed)
+    const auto d1 = DClock::now();
     vkDeviceWaitIdle(m_device);
+    const auto d2 = DClock::now();
     for (size_t k = 0; k < vol->pipes.size(); ++k) {   // 39: kept for the next volume (the device is idle: no set is in use)
         auto& p = vol->pipes[k];
         if (!p) continue;
@@ -431,10 +436,15 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
-    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal, &vol->discBuf, &vol->bnd}) destroyBuffer(*b);   // 50.7 / 51 / 54.2 (not in allBuffers: never kept)
-    for (Buffer* b : allBuffers(*vol)) destroyBuffer(*b);
+    const auto d3 = DClock::now();
+    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal, &vol->discBuf, &vol->bnd}) {   // 50.7 / 51 / 54.2 (not in allBuffers: never kept)
+        if (paced && b->buf) { m_releaseQueue.push_back(*b); *b = Buffer{}; } else destroyBuffer(*b); }
+    for (Buffer* b : allBuffers(*vol)) { if (paced && b->buf) { m_releaseQueue.push_back(*b); *b = Buffer{}; } else destroyBuffer(*b); }
+    const auto d4 = DClock::now();
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
+    WaterHostProfile::add("destroy.0 settle", dms(d0, d1)); WaterHostProfile::add("destroy.1 device idle", dms(d1, d2));
+    WaterHostProfile::add("destroy.2 pipes + pools", dms(d2, d3)); WaterHostProfile::add("destroy.3 buffer frees", dms(d3, d4));
 }
 
 int WaterCoreGpu::keepVolume(Volume* vol) {

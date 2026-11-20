@@ -3,7 +3,11 @@
 in the record; the visible stone (2 m / strength 8) at its centre; the player off the lake; then wait for the patch to sleep
 (only the phase timers and engine_timing polled - never water_av_list while it matters, D9) and read each part's longest call.
 
-    python tools/water_patch_sleep_split.py [--url http://127.0.0.1:8114] [--runs 2] [--out ...json]
+    python tools/water_patch_sleep_split.py [--url http://127.0.0.1:8114] [--runs 2] [--handover N] [--out ...json]
+
+57.8: --handover sets water_av_record_draw handover_tiles_per_frame (0 = the one-frame return; omitted = unchanged); the sleep is
+seen by either lap (sleep.9 the one-frame tiles, sleep.8 retire the spread hand-over); the worst frame is reported for the whole run
+(the wake's included) AND for the sleep window (1 s before the sleep is seen to 3 s after - the hand-over's frames), apart.
 """
 import argparse, json, pathlib, sys, time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -11,13 +15,14 @@ from water_bench import Api, camera_set
 import water_play_scene as P
 
 
-def one(api, k):
+def one(api, k, handover=None):
     api.post("/api/entity/move", {"id": "player", "position": {"x": 2.0, "y": P.TOP + 1.2, "z": 0.0}})
     P.destroy_all(api)
     time.sleep(0.5)
     rl = api.debug("water_av_record_lake", {"x1": P.X0, "z1": P.Z0, "x2": P.X0 + P.W - 1, "z2": P.Z0 + P.W - 1, "bottom": P.TOP, "top": P.TOP + 2.0})
     camera_set(api, P.CHURN_CAM)
     time.sleep(4.0)
+    if handover is not None: api.debug("water_av_record_draw", {"handover_tiles_per_frame": handover})
     api.debug("water_av_host_phases", {"reset": True})
     api.get("/api/debug/engine_timing")
     st = api.debug("water_av_impulse", {"x": P.X0 + P.W / 2, "y": P.TOP + 1.9, "z": P.Z0 + P.W / 2, "radius": 2.0, "strength": 8.0, "dx": 0.0, "dy": -1.0, "dz": 0.0})
@@ -26,16 +31,20 @@ def one(api, k):
         et = api.get("/api/debug/engine_timing")
         worst.append((round(time.time() - t0, 1), et.get("frame_ms_max_since_last_read")))
         ph = api.debug("water_av_host_phases", {}).get("phases", {})
-        if slept_at is None and "sleep.9 build the record tiles" in ph: slept_at = round(time.time() - t0, 1)
+        if slept_at is None and ("sleep.9 build the record tiles" in ph or "sleep.8 retire (57.8)" in ph): slept_at = round(time.time() - t0, 1)
         if slept_at is not None and time.time() - t0 > slept_at + 3: break
         time.sleep(0.5)
     ph = api.debug("water_av_host_phases", {})
-    parts = {n: round(v.get("max_ms_per_call", 0.0), 2) for n, v in ph.get("phases", {}).items() if n.startswith(("sleep.", "tilesNow."))}
+    parts = {n: round(v.get("max_ms_per_call", 0.0), 2) for n, v in ph.get("phases", {}).items() if n.startswith(("sleep.", "tilesNow.", "destroy."))}
     big = max(worst, key=lambda r: r[1] or 0)
+    win = [w for w in worst if slept_at is not None and slept_at - 1.0 <= w[0] <= slept_at + 3.0]
+    big_sleep = max(win, key=lambda r: r[1] or 0) if win else None
+    rd = api.debug("water_av_record_draw", {})
     r = {"run": k, "record_lake": rl, "stone": st, "slept_at_s": slept_at, "sleep_parts_ms": dict(sorted(parts.items())),
-         "sleep_total_ms": round(sum(v for n, v in parts.items() if n.startswith("sleep.")), 2), "worst_frame": big, "worst_frame_ms_by_read": worst,
+         "sleep_total_ms": round(sum(v for n, v in parts.items() if n.startswith("sleep.")), 2), "worst_frame": big,
+         "worst_frame_sleep_window": big_sleep, "record_draw": rd, "worst_frame_ms_by_read": worst,
          "foreign_gpu_processes": P.foreign()}
-    print(f"run {k}: slept at {slept_at} s, worst frame {big}, sleep parts {r['sleep_parts_ms']} (sum {r['sleep_total_ms']} ms)", flush=True)
+    print(f"run {k}: slept at {slept_at} s, worst frame {big}, in the sleep window {big_sleep}, hand-over frames {rd.get('handover_frames_last')} max tiles a frame {rd.get('handover_tiles_max_per_frame')}, sleep parts {r['sleep_parts_ms']} (sum {r['sleep_total_ms']} ms)", flush=True)
     return r
 
 
@@ -43,6 +52,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://127.0.0.1:8114")
     ap.add_argument("--runs", type=int, default=2)
+    ap.add_argument("--handover", type=int, default=None)
     ap.add_argument("--out", default=str(pathlib.Path(__file__).resolve().parent.parent / "docs" / "evidence" / "water_core_m4" / "s57_patch_sleep_split.json"))
     a = ap.parse_args()
     if P.foreign(): raise SystemExit(f"other phyxel processes share the GPU: {P.foreign()}")
@@ -54,7 +64,7 @@ def main():
     try:
         P.destroy_all(api); P.clear_record(api); P.lay_bed(api)
         time.sleep(30.0)   # the far skin's re-read of the clear (57.4 item 2) done before the first run
-        for k in range(a.runs): out.append(one(api, k))
+        for k in range(a.runs): out.append(one(api, k, a.handover))
     finally:
         P.destroy_all(api)
         pathlib.Path(a.out).write_text(json.dumps(out, indent=1), encoding="utf-8")
