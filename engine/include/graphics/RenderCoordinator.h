@@ -1581,6 +1581,10 @@ private:
     void*          m_bodyFaceMapped = nullptr;
     size_t         m_bodyFaceCapacity = 0;
     uint64_t       m_bodyFaceRevision = UINT64_MAX;
+    // F5.5c: one face copy per frame in flight (as the poses), each with the revision it holds -- a bake no longer waits
+    // for the device before rewriting the faces (with a bake pass nearly every frame, that wait was most of the frame)
+    uint64_t       m_bodyFaceSlotRevision[8] = {UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+                                                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX};
     VkBuffer       m_bodyPoseBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_bodyPoseMemory = VK_NULL_HANDLE;
     void*          m_bodyPoseMapped = nullptr;

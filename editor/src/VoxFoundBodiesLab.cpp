@@ -16,6 +16,11 @@
 //        {"status":true} ("pen":false skips the CPU max-penetration measure: seconds at ~1,000 bodies, on the
 //        main thread -- F5.5b live sampling)
 //    or  {"clear":true}.
+// F5.5c (voxfound_f55_prediction.txt H1-H5, L1-L3): with the rig {"preview":"region"|"area"} (region default: the
+//    world kept as a RegionEdit on the engine's chunk grid, a bake edits it per body; area = F5.5b's whole-area build)
+//    and {"gpu_edit":bool} (default true: BodySimGpu::edit after a bake; false = the full reload); later
+//    {"preview":...} switches the path on the same bodies, {"gpu_edit":bool}; "rest" takes "cap" (bakes per pass);
+//    status {"verify":true} re-builds every region chunk on the GPU and compares with the incremental faces.
 // F5.4 (docs/evidence/voxfound_f54_prediction.txt L1-L6): {"rest":{"on":bool,"budget":N,"keep_m":M,"rest_ticks":T}}
 //    sets the D6 policy (it runs after every tick while on; the player = the camera); {"bake_now":{...same keys}} runs
 //    one pass now with those values. A bake writes the world grid, rebuilds the preview area and compacts the body
@@ -126,7 +131,70 @@ void Application::voxFoundBodiesGpuStep(float dt) {
     }
 }
 
-// The preview grid: what stays in the world, plus (as_world) the bodies' voxels written back at their rest place.
+// F5.5c: the lab's world as a RegionEdit -- 256^3 chunks on the engine's 32 m chunk grid (lab voxel p is world 1/8 m
+// voxel originVoxel + p), so the chunk cull and the occlusion walk see real chunk coordinates and the texture phase
+// follows world position. A bake then edits it incrementally (voxFoundBodiesRest).
+bool Application::voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g, std::string* err) {
+    using namespace Core::VoxFound;
+    auto& lab = voxFoundBodiesLab;
+    const glm::ivec3 cBase(glm::floor(glm::dvec3(lab.originVoxel) / double(kChunkM * kVoxelsPerM)));
+    const glm::ivec3 off = lab.originVoxel - cBase * (kChunkM * kVoxelsPerM);
+    glm::ivec3 hi;
+    std::vector<RegionChunk> rcs = areaRegionChunks(g, off, &hi);
+    if (rcs.empty()) {
+        if (err) *err = "voxfound_bodies: the lab grid made no region chunks";
+        return false;
+    }
+    voxFoundEdit.clear();
+    voxFoundBuilder->dropResident();
+    voxFoundEdit.begin(cBase, cBase + hi, 4, true, 0u);
+    CardSet see;   // F2.10's sight set: transparent materials (no cards in the lab)
+    for (size_t m = 1; m < sizeof(kLabTextures) / sizeof(kLabTextures[0]); ++m) {
+        const auto* md = Core::MaterialRegistry::instance().getMaterial(kLabTextures[m]);
+        if (md && md->alpha < 0.99f) see.set(uint8_t(m));
+    }
+    voxFoundEdit.setMaterialSets(CardSet{}, see);
+    voxFoundPreview.faceTex.assign(kFaceTexWords, 0u);
+    for (size_t m = 1; m < sizeof(kLabTextures) / sizeof(kLabTextures[0]); ++m)
+        for (int f = 0; f < 6; ++f)
+            voxFoundPreview.faceTex[m * 6 + size_t(f)] = Core::MaterialRegistry::instance().getTextureIndex(kLabTextures[m], f);
+    voxFoundPreview.faces.clear();
+    voxFoundPreview.sprigs.clear();
+    voxFoundPreview.clusters.clear();
+    voxFoundPreview.levels.clear();
+    voxFoundPreview.levelsAlt.clear();
+    voxFoundPreview.chunks.clear();
+    voxFoundPreview.exitReach = 0;
+    voxFoundPreview.lodSprigLevel = 0;
+    voxFoundPreview.lodUseAlt = false;
+    size_t faces = 0;
+    for (RegionChunk& rc : rcs) {
+        rc.chunk += cBase;
+        rc.originVoxel += cBase * (kChunkM * kVoxelsPerM);
+        std::vector<PackedFace> out;
+        if (!voxFoundBuilder->build(rc.grid, Edges(rc.border), out, err)) return false;
+        faces += out.size();
+        voxFoundEdit.addChunk(rc, out);
+        PreviewChunk pc;
+        pc.originMetres = glm::dvec3(rc.chunk * kChunkM);
+        pc.chunk = rc.chunk;
+        voxFoundPreview.chunks.push_back(pc);
+    }
+    voxFoundPreview.anchorMetres = glm::dvec3(cBase * kChunkM);
+    voxFoundPreview.originMetres = voxFoundPreview.anchorMetres;
+    voxFoundPreview.clusterBlocks = 4;
+    voxFoundPreview.shown = true;
+    lab.leafTex.assign(sizeof(kLabTextures) / sizeof(kLabTextures[0]), 0);
+    voxFoundEdit.assemble(voxFoundPreview, lab.leafTex);
+    ++voxFoundPreview.revision;
+    renderCoordinator->setVoxFoundPreview(&voxFoundPreview);
+    lab.previewFaces = faces;
+    lab.regionChunks = rcs.size();
+    return true;
+}
+
+// The preview: what stays in the world, plus (as_world) the bodies' voxels written back at their rest place. A full
+// build -- the region (F5.5c, default) or F5.5b's whole-area path ({"preview":"area"}, the control).
 bool Application::voxFoundBodiesRebuildWorld(std::string* err) {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
@@ -135,8 +203,11 @@ bool Application::voxFoundBodiesRebuildWorld(std::string* err) {
         for (const SimBody& b : lab.sim->bodies())
             for (size_t i = 0; i < b.src.grid.size(); ++i)
                 if (b.src.grid.mat[i]) g.mat[g.idx(b.src.origin + b.src.grid.pos(i))] = b.src.grid.mat[i];
+    ++lab.fullRebuilds;
+    if (lab.regionPreview) return voxFoundBodiesBuildRegion(g, err);
     std::vector<PackedFace> packed;
     if (!voxFoundBuilder->build(g, Outside::Air, packed, err)) return false;
+    voxFoundEdit.clear();
     voxFoundPreview.faceTex.assign(kFaceTexWords, 0u);
     for (size_t m = 1; m < sizeof(kLabTextures) / sizeof(kLabTextures[0]); ++m)
         for (int f = 0; f < 6; ++f)
@@ -146,17 +217,22 @@ bool Application::voxFoundBodiesRebuildWorld(std::string* err) {
     voxFoundPreview.chunks.clear();
     voxFoundPreview.clusters.clear();
     voxFoundPreview.levels.clear();
-    voxFoundEdit.clear();
+    voxFoundPreview.levelsAlt.clear();
     voxFoundPreview.originMetres = lab.areaOriginM;
     ++voxFoundPreview.revision;
     renderCoordinator->setVoxFoundPreview(&voxFoundPreview);
     lab.previewFaces = packed.size();
+    lab.regionChunks = 0;
     return true;
 }
 
-// One D6 rest pass (F5.4): bake, then compact the body faces and rebuild the preview area if anything baked.
+// One D6 rest pass (F5.4): bake, then compact the body faces and update the preview + the GPU solver if anything
+// baked. F5.5c: the preview is edited per baked body (RegionEdit::applyCells, then one assemble) when the pass bakes at
+// most kIncrementalMax bodies (incremental cost is per body; past that, one full build is cheaper); the GPU solver is
+// edited (BodySimGpu::edit: changed cells + survivors) instead of reloaded. lastHitchMs = the whole call.
 bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err) {
     using namespace Core::VoxFound;
+    constexpr size_t kIncrementalMax = 32;
     auto& lab = voxFoundBodiesLab;
     if (!lab.sim || (!force && !lab.restOn)) return true;
     const RestParams& rp = override ? *override : lab.rest;
@@ -164,7 +240,8 @@ bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParam
     RestStats st;
     const size_t n0 = lab.sim->bodies().size();
     const auto t0 = std::chrono::steady_clock::now();
-    const std::vector<size_t> baked = restPass(*lab.sim, lab.world, player, rp, &st);
+    std::vector<BakePlan> plans;
+    const std::vector<size_t> baked = restPass(*lab.sim, lab.world, player, rp, &st, &plans);
     lab.restLast = st;
     ++lab.bakePasses;
     lab.restTotal.baked += st.baked;
@@ -200,24 +277,74 @@ bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParam
     ++lab.draw.facesRevision;
     const auto t2 = std::chrono::steady_clock::now();
     voxFoundBodiesPublish();
-    const bool ok = voxFoundBodiesRebuildWorld(err);
+    // the preview
+    bool ok = true;
+    const bool incremental = lab.regionPreview && !lab.asWorld && !voxFoundEdit.empty() && baked.size() <= kIncrementalMax;
+    if (incremental) {
+        std::vector<size_t> changed;
+        for (const BakePlan& plan : plans) {
+            if (!plan.ok) continue;
+            std::vector<std::pair<glm::ivec3, uint8_t>> cells;
+            cells.reserve(plan.cells.size());
+            for (const BakeCell& c : plan.cells) cells.push_back({lab.originVoxel + c.cell, lab.world.mat[lab.world.idx(c.cell)]});
+            const RegionEdit::Stats es = voxFoundEdit.applyCells(cells);
+            for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
+            for (size_t i : es.changed)
+                if (std::find(changed.begin(), changed.end(), i) == changed.end()) changed.push_back(i);
+        }
+        voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &changed);
+        size_t pf = 0;
+        for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) pf += voxFoundEdit.chunk(i).faces.size();
+        lab.previewFaces = pf;
+        ++lab.incrementalPasses;
+    } else {
+        ok = voxFoundBodiesRebuildWorld(err);
+    }
     const auto t3 = std::chrono::steady_clock::now();
     lab.lastBakeMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
     lab.lastCompactMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
     lab.lastRebuildMs = std::chrono::duration<double, std::milli>(t3 - t2).count();
-    if (ok && lab.useGpu) {   // F5.5b: the world grid changed and bodies left -- reload the GPU (warm start dropped)
+    lab.lastRebuildIncremental = incremental;
+    lab.maxEditMs = std::max(lab.maxEditMs, lab.lastRebuildMs);
+    lab.lastGpuEditMs = 0.0;
+    if (ok && lab.useGpu) {   // F5.5c: the GPU solver edited (changed cells + survivors), not reloaded
         const auto r0 = std::chrono::steady_clock::now();
-        if (!voxFoundBodiesGpuLoad(err)) return false;
-        lab.lastReloadMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - r0).count();
-        lab.maxReloadMs = std::max(lab.maxReloadMs, lab.lastReloadMs);
-        ++lab.reloads;
+        if (lab.sim->bodies().empty()) {
+            lab.gpuLoaded = false;   // nothing left to move
+        } else if (lab.gpuLoaded && lab.gpuEdit) {
+            std::vector<std::pair<uint32_t, uint8_t>> cells;
+            for (const BakePlan& plan : plans)
+                if (plan.ok)
+                    for (const BakeCell& c : plan.cells) {
+                        const uint32_t wi = uint32_t(lab.world.idx(c.cell));
+                        cells.push_back({wi, lab.world.mat[wi]});
+                    }
+            std::vector<size_t> removed = baked;
+            std::sort(removed.begin(), removed.end());
+            if (!lab.gpu->edit(cells, removed, lab.sim->bodies(), err)) return false;
+            ++lab.gpuEdits;
+        } else {
+            if (!voxFoundBodiesGpuLoad(err)) return false;
+            ++lab.reloads;
+        }
+        lab.lastGpuEditMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - r0).count();
+        lab.lastReloadMs = lab.lastGpuEditMs;
+        lab.maxReloadMs = std::max(lab.maxReloadMs, lab.lastGpuEditMs);
     }
+    lab.lastHitchMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    lab.maxHitchMs = std::max(lab.maxHitchMs, lab.lastHitchMs);
+    lab.hitchMs.push_back(float(lab.lastHitchMs));
     return ok;
 }
 
 void Application::stepVoxFoundBodies(float dt) {
     auto& lab = voxFoundBodiesLab;
     if (!lab.sim) return;
+    if (lab.running) {   // F5.5c: the frame interval while running (L3)
+        if (lab.frameMs.size() < 3600) lab.frameMs.push_back(dt * 1000.0f);
+        else lab.frameMs[lab.frameNext] = dt * 1000.0f;
+        lab.frameNext = (lab.frameNext + 1) % 3600;
+    }
     if (lab.useGpu) {
         voxFoundBodiesGpuStep(dt);
         return;
@@ -257,7 +384,11 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         renderCoordinator->setVoxFoundPreview(nullptr);
         lab.sim.reset();
         lab.draw = {};
+        voxFoundEdit.clear();   // F5.5c
         voxFoundPreview.faces.clear();
+        voxFoundPreview.chunks.clear();
+        voxFoundPreview.clusters.clear();
+        voxFoundPreview.levels.clear();
         ++voxFoundPreview.revision;
         response = {{"cleared", true}};
         return;
@@ -341,6 +472,21 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         lab.world = world;
         lab.mats = mats;
         lab.areaOriginM = (p.contains("at") ? vec3(p["at"]) : glm::dvec3(0.0)) - glm::dvec3(off) * double(g.voxelM);
+        // F5.5c: the origin on the 1/8 m voxel grid (the region preview is drawn per world voxel; [5,20,5] is on it)
+        lab.originVoxel = glm::ivec3(glm::round(lab.areaOriginM / double(g.voxelM)));
+        lab.areaOriginM = glm::dvec3(lab.originVoxel) * double(g.voxelM);
+        const std::string preview = p.value("preview", std::string("region"));
+        if (preview != "region" && preview != "area") {
+            response = {{"error", "preview must be region or area"}};
+            return;
+        }
+        lab.regionPreview = preview == "region";
+        lab.gpuEdit = p.value("gpu_edit", true);
+        lab.fullRebuilds = lab.incrementalPasses = lab.gpuEdits = 0;
+        lab.lastHitchMs = lab.maxHitchMs = lab.maxEditMs = lab.lastGpuEditMs = 0.0;
+        lab.hitchMs.clear();
+        lab.frameMs.clear();
+        lab.frameNext = 0;
         BodySimParams prm;
         prm.groundBelow = true;   // below the floor (never reached: the floor is voxels)
         lab.sim = std::make_unique<BodySimRef>(lab.world, lab.mats, prm);
@@ -388,12 +534,15 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         }
         renderCoordinator->setVoxFoundBodies(&lab.draw);
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        lab.fullRebuilds = 0;   // the rig's own build is not a bake
         response = {{"provenance", "hand-built lab rig FractureLab " + name + " (E/T " + std::to_string(e) +
                                        ") on a 2-voxel floor; F4.1 fractureReference + F5.1 extractBodies; motion by " +
                                        (lab.useGpu ? std::string("the GPU solver BodySimGpu (the shipped path)")
                                                    : std::string("the CPU reference solver BodySimRef (the control)"))},
                     {"bodies", ex.bodies.size()}, {"crumbs", ex.crumbs.size()}, {"body_faces", set.faces.size()},
                     {"refused", set.refused}, {"preview_faces", lab.previewFaces},
+                    {"preview", lab.regionPreview ? "region" : "area"}, {"region_chunks", lab.regionChunks},
+                    {"origin_voxel", {lab.originVoxel.x, lab.originVoxel.y, lab.originVoxel.z}},
                     {"grid", {g.dim.x, g.dim.y, g.dim.z}},
                     {"rig_origin_m", {lab.areaOriginM.x + off.x * g.voxelM, lab.areaOriginM.y + off.y * g.voxelM,
                                       lab.areaOriginM.z + off.z * g.voxelM}},
@@ -409,10 +558,26 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         if (on && !lab.running) {
             lab.runStart = std::chrono::steady_clock::now();
             lab.runStartTick = lab.tick;
+            lab.frameMs.clear();   // F5.5c: the frame intervals of this run
+            lab.frameNext = 0;
         }
         lab.running = on;
     }
     if (p.contains("cull")) lab.draw.cull = p["cull"].get<bool>();
+    if (p.contains("gpu_edit")) lab.gpuEdit = p["gpu_edit"].get<bool>();   // F5.5c: false = reload (F5.5b, the control)
+    if (p.contains("preview")) {   // F5.5c: switch the preview path on the same bodies (a full build of lab.world)
+        const std::string pv = p["preview"].get<std::string>();
+        if (pv != "region" && pv != "area") {
+            response = {{"error", "preview must be region or area"}};
+            return;
+        }
+        lab.regionPreview = pv == "region";
+        std::string err;
+        if (!voxFoundBodiesRebuildWorld(&err)) {
+            response = {{"error", err}};
+            return;
+        }
+    }
     if (p.contains("shown")) lab.draw.shown = p["shown"].get<bool>();
     if (p.contains("cast")) lab.draw.castShadows = p["cast"].get<bool>();
     if (p.contains("mutate")) lab.draw.mutate = p["mutate"].get<bool>();
@@ -420,6 +585,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         r.budget = j.value("budget", r.budget);
         r.keepRadiusM = j.value("keep_m", r.keepRadiusM);
         r.restTicks = j.value("rest_ticks", r.restTicks);
+        r.cap = j.value("cap", r.cap);   // F5.5c: bakes per pass (0 = no cap)
         return r;
     };
     if (p.contains("rest")) {
@@ -532,6 +698,52 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
                           {"uncoloured", s.uncoloured}, {"fused", lab.gpu->fusedThisStep()}};
         }
         response["solver"] = g;
+    }
+    // F5.5c: {"verify":true} rebuilds every region chunk from its store with FaceBuilderGpu and compares the faces with
+    // the incrementally kept ones (as a set)
+    if (p.value("verify", false) && !voxFoundEdit.empty()) {
+        size_t bad = 0, checked = 0;
+        std::string verr;
+        for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+            const auto& c = voxFoundEdit.chunk(i);
+            std::vector<PackedFace> out;
+            if (!voxFoundBuilder->build(voxFoundEdit.dense(i), Edges(c.border), out, &verr)) break;
+            std::vector<uint64_t> a, b;
+            for (const PackedFace& f : out) a.push_back(f.key());
+            for (const PackedFace& f : c.faces) b.push_back(f.key());
+            std::sort(a.begin(), a.end());
+            std::sort(b.begin(), b.end());
+            checked += a.size();
+            bad += a != b;
+        }
+        response["verify"] = {{"chunks", voxFoundEdit.chunkCount()}, {"mismatched_chunks", bad},
+                              {"faces_checked", checked}, {"error", verr}};
+    }
+    {
+        std::vector<float> f = lab.frameMs, h = lab.hitchMs;
+        std::sort(f.begin(), f.end());
+        std::sort(h.begin(), h.end());
+        auto q = [](const std::vector<float>& v, double x) {
+            return v.empty() ? 0.0 : double(v[std::min(v.size() - 1, size_t(x * double(v.size())))]);
+        };
+        size_t argmax = 0;   // where the longest interval sits in the run (the ring in order while < 3,600)
+        for (size_t i = 1; i < lab.frameMs.size(); ++i)
+            if (lab.frameMs[i] > lab.frameMs[argmax]) argmax = i;
+        std::vector<float> firstMs(lab.frameMs.begin(), lab.frameMs.begin() + std::min<size_t>(8, lab.frameMs.size()));
+        response["frames"] = {{"n", f.size()}, {"median_ms", q(f, 0.5)}, {"p99_ms", q(f, 0.99)},
+                              {"max_ms", f.empty() ? 0.0 : double(f.back())}, {"max_at", argmax},
+                              {"first_ms", firstMs}};
+        response["bake_levers"] = {{"preview", lab.regionPreview ? "region" : "area"}, {"gpu_edit", lab.gpuEdit},
+                                   {"region_chunks", lab.regionChunks}, {"full_rebuilds", lab.fullRebuilds},
+                                   {"incremental_passes", lab.incrementalPasses}, {"gpu_edits", lab.gpuEdits},
+                                   {"hitch_passes", h.size()}, {"hitch_median_ms", q(h, 0.5)},
+                                   {"hitch_p99_ms", q(h, 0.99)}, {"hitch_max_ms", lab.maxHitchMs},
+                                   {"last_hitch_ms", lab.lastHitchMs}, {"max_preview_edit_ms", lab.maxEditMs},
+                                   {"last_gpu_edit_ms", lab.lastGpuEditMs}, {"cap", lab.rest.cap},
+                                   {"last_incremental", lab.lastRebuildIncremental},
+                                   {"last_parts_ms", {{"choose", lab.restLast.chooseMs}, {"grid", lab.restLast.gridMs},
+                                                      {"plan", lab.restLast.planMs}, {"apply", lab.restLast.applyMs},
+                                                      {"wake", lab.restLast.wakeMs}, {"remove", lab.restLast.removeMs}}}};
     }
     response["rest"] = {{"on", lab.restOn}, {"budget", lab.rest.budget}, {"keep_m", lab.rest.keepRadiusM},
                         {"rest_ticks", lab.rest.restTicks}, {"passes", lab.bakePasses},

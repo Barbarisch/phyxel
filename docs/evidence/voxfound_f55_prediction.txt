@@ -467,3 +467,65 @@ LIVE (Release; CharacterTestbed for timing, as F5.5b; the lab's hand-built large
      were 64+ ms of CPU alone).
 WHAT WOULD COUNT AS A MISS: any plan difference (H1); a pass over its cap; a face mismatch at any pass (H4, L2); any
 bit difference in H5; more px than the control (L1); any cost above its range.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5c RESULTS (2026-11-19; after the runs, the predictions above untouched). Release. CONDITIONS: World of Warcraft was
+running on this machine through every run (found during the live runs; I did not stop it) -- the GPU was shared, so
+every live time is under load; E2's 1,025-body step cost 10.9 ms per tick in this session's suite run vs 6.2 alone.
+RED (voxfound_f55c_red.txt): H2 (37.5 / 669.8 ms), H3 (one pass baked 529, 28.97 ms), H4 (areaRegionChunks a stub),
+  H5 (edit a stub) failed; H1 passed against the red build -- both sides ran F5.4's test (a vacuous pass, stated).
+RUN 1 + the levers measured on the way (voxfound_f55c_run1.txt, voxfound_f55c_h5_run1.txt):
+  H1 PASS: 0 plan differences -- R7's 916 + 914 bakes, and the blast every 10th tick (676 plans), at every step below.
+  H2 MISSED: the cell set alone 37.9 / 231.7 ms (a rigid plan asks each cell once, so the memo cannot help it). A
+     profile, then exact levers: a world-box test before the exact rotated one (40 k instead of 990 k exact tests), a
+     sphere grid per pass for the near bodies and the wake, the resample's claimed cells in the plan's box, and each
+     voxel's U nearest candidates only (U = the voxels still unplaced: at most U - 1 others claim first, so the greedy's
+     pick cannot change). Final: 37.5 -> 19.6 ms (<= 10 MISSED), 665 -> 121 ms (<= 40 MISSED); plans exact throughout.
+  H3: the cap holds -- 140 baked in 35 passes, 0 over 4, conservation exact every tick, 0 overwritten. The worst pass
+     MISSED (<= 2): 5.66 ms, of which 5.37 is BodySimRef::remove re-keying the CPU reference's whole warm-start map; the
+     rest of the pass <= 0.3 ms (choose 0.02, grid 0.12, plan 0.14, apply 0.01, wake 0.01). The GPU path's holder sim
+     has no constraints, so live this cost is absent.
+  H4 PASS (with a changed check schedule): 0 mismatches against packedRuns at passes 1-10, every 25th and the end (19
+     checks + end per mode; each check is a CPU re-mesh of two 256^3 chunks, ~8 s -- "after EVERY pass" would take
+     ~1 h, so it was not run; stated). Per baked body median 0.093 / 0.181 ms (<= 0.5 PASS), per cap-4 pass median
+     0.51 / 0.90, max 1.29 / 2.49 ms (<= 3 PASS). Run 1 of this test stalled after ~50 passes: a pass wakes the bodies
+     touching what it baked, and with no solver here they never slept again -- the test now re-sleeps them (stated).
+  H5 bit-equal PASS: edit then 120 ticks = load then 120 ticks, 0 of 720 / 8,712 / 30,636 samples differ, counters
+     equal (blast; E/T 650; E/T 2800). Cost: run 1 2.52 ms baking 64 bodies (28,372 cells, a copy region per cell) --
+     MISSED (<= 1); regions merged 2.13; each body's radius kept from load 1.09 ms; run 2 (after the live run, below):
+     the edit is staged and recorded by the next command buffer -- 0.35 ms, all CPU, still bit-equal.
+LIVE (tools/voxfound_f55c_gate.py; voxfound_f55c_live.jsonl; CharacterTestbed; the lab's hand-built large wall at E/T
+  2800, 994 bodies, solver gpu; F5.5b's path run as the control right after each run, same engine, same rig, same pose):
+  L1 MISSED: region vs area on the same settled bodies, effect clocks held, the viewport box: 131 / 24 / 20 px > 1 level
+     at whole / half / close (control area vs area 0 / 0 / 0). What they are (voxfound_f55c_pixels_*_mask.png): the
+     tile texture is the same in both (no phase shift); the large ones (up to 176 levels; 26 px > 13 at "whole", 20 of
+     them within 2 px of an edge) are single pixels on the wall's silhouette against the sky and on the wall-floor line;
+     the rest are isolated pixels <= 21 levels. Not a line along a 32 m chunk plane in any mask. The region path cuts
+     the faces at the chunk planes and orders them by cluster, so edge pixels rasterise differently -- the known
+     T-junction / edge class, now shown between the two paths, not hidden.
+  L2 hitch -- three runs, each with its control:
+     run A (edit waited on its fence): the whole rest call median 16.2 / p99 31.9 / max 32.0 ms -- the GPU edit waited
+       ~14 ms behind the frame; the preview edit itself <= 1.19 ms. Control: 66.2 / 113.2 / 113.2.
+     run B (the edit staged, no wait): 0.94 / 1.72 / 1.87 ms (<= 4 PASS); 930 baked in 30 s; control 56.5 / 77.4 / 77.4.
+       But the frame median doubled (51.7 ms vs 23.1 control): the renderer waited for the whole device on every body
+       face change (F5.3's vkDeviceWaitIdle before rewriting the faces) -- with a capped pass nearly every frame, nearly
+       every frame. Fix: one face copy per frame in flight, as the poses (no device wait).
+     run C (both fixes): 1.17 / 1.85 / 1.90 ms (<= 4 PASS); control 73.4 / 81.4 / 81.4. Frame median 28.5 vs control
+       25.3. The backlog MISSED in this run: 596 of 930 baked in 30 s (994 -> 398) -- the sim ran 7.1 ticks per second
+       (control 12.7; GPU shared with WoW), and with the cap the bakes keep waking neighbours that must sleep 60 sim
+       ticks again before they are eligible (the control bakes ~900 in its first 5 s, then nothing). Runs A and B drained
+       all 930 in 30 s (12.9-18.2 ticks per second). The cap trades a backlog that drains over seconds for no hitch.
+     Every run, both paths: the ledger exact at every sample (55-57 samples), 0 bodies below the floor, 0 overwritten;
+     after each F5.5c run {"verify":true}: every region chunk rebuilt on the GPU = the incremental faces, 0 mismatched
+     chunks (4 chunks; 10,119 / 4,225 / 4,733 faces).
+  L3 MISSED: frame p99 99.4 ms (control 79.9), median 28.5 (control 25.3) -- the world's own frame on a shared GPU is
+     25+ ms here (gpu_timing: scene 11-16 ms, foliage 4-5, GI probes 3-4), so a 25 ms bound could not hold for either
+     path. Unexplained, recorded: every run of both paths shows ONE interval of ~60 s at the run's second frame (the
+     engine's own "max frame since last read" saw it too), while the gate's first sample arrived 0.53 s after "run" --
+     it is not a wall-clock stall the gate could see; not chased further (in the control as well).
+  Found on the way: every API call to "localhost" took ~2.05 s on this machine (the IPv6 attempt) -- the gate now uses
+     127.0.0.1 (17 ms). The lab's region setup is 463 ms (four 256^3 chunk builds) vs 33-255 ms for the area path.
+  Suites (voxfound_f55c_suites.txt): CPU VoxFound 125/125. GPU VoxFound 43 of 45: F5.5c H5 passes; two OLDER cost guards fail
+     under the WoW load -- F5.5b E3 reload 22.5 ms (<= 20; load() unchanged in behaviour, F5.5b measured 16.5 alone) and
+     F5.5a4's cost 2.42 / 6.77 ms per tick (<= 2.2 / 5; F5.5a4 measured 3.7 at 1,025 alone) -- their determinism and
+     bit-equality checks all pass; not loosened, to be re-run on a quiet GPU.

@@ -27,6 +27,9 @@ namespace Phyxel::Core::VoxFound {
 struct BakeParams {
     double rigidSnapDeg = 10.0;               // rotation within this of an axis rotation bakes rigid
     int reach = 2;                            // resample: free cells within this many voxels of the true centre
+    // F5.5c: the other-body cell test as a neighbour cell set -- each cell near the plan tested once, scattered from
+    // the near bodies' voxels (the same predicate; plans unchanged). false = F5.4's test per candidate (the A/B).
+    bool cellSet = true;
 };
 
 struct BakeCell {
@@ -59,6 +62,7 @@ struct RestParams {
     size_t budget = 256;                      // bodies kept before baking starts (tier knob)
     double keepRadiusM = 16.0;                // never bake within this of the player (tier knob)
     int restTicks = 60;                       // asleep at least this long ("recently moved" otherwise)
+    size_t cap = 0;                           // F5.5c: at most this many bakes per pass (0 = no cap; tier knob)
     BakeParams bake;
 };
 
@@ -72,6 +76,7 @@ struct RestStats {
     size_t voxels = 0;                        // voxels baked
     double maxShiftM = 0.0, sumShiftM = 0.0;
     double ms = 0.0;
+    double chooseMs = 0.0, gridMs = 0.0, planMs = 0.0, applyMs = 0.0, wakeMs = 0.0, removeMs = 0.0;   // F5.5c: ms's parts
 };
 
 /// The eligible bodies in bake order (farthest from the player first, ties by index); counts the ineligible ones

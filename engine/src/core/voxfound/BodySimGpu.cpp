@@ -4,6 +4,7 @@
 #include "vulkan/ComputePipeline.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 
 namespace Phyxel::Core::VoxFound {
@@ -55,6 +56,41 @@ uint32_t fbits(float f) {
 void set4(float* d, double x, double y, double z, double w) {
     d[0] = float(x); d[1] = float(y); d[2] = float(z); d[3] = float(w);
 }
+// F5.5c: one body's device record (load and edit); its voxels at voxOff in bodyVox, its corners at corOff in corners
+double bodyRadiusOf(const SimBody& s) {   // the farthest corner from the centre of mass (fixed per body)
+    double radius = 0.0;
+    for (const glm::dvec3& c : s.corners) radius = std::max(radius, glm::length(c));
+    return radius;
+}
+GBody gbodyOf(const SimBody& s, uint32_t voxOff, uint32_t corOff, double radius) {
+    GBody g;
+    std::memset(&g, 0, sizeof(g));
+    set4(g.pos, s.pos.x, s.pos.y, s.pos.z, s.invMass);
+    set4(g.quat, s.quat.x, s.quat.y, s.quat.z, s.quat.w);
+    set4(g.vel, s.vel.x, s.vel.y, s.vel.z, 0);
+    set4(g.angVel, s.angVel.x, s.angVel.y, s.angVel.z, 0);
+    set4(g.initial, s.pos.x, s.pos.y, s.pos.z, 0);
+    set4(g.initialQuat, s.quat.x, s.quat.y, s.quat.z, s.quat.w);
+    set4(g.inertial, s.pos.x, s.pos.y, s.pos.z, 0);
+    set4(g.inertialQuat, s.quat.x, s.quat.y, s.quat.z, s.quat.w);
+    const glm::dvec3 comLocal = s.src.com - glm::dvec3(s.src.origin);
+    set4(g.comLocal, comLocal.x, comLocal.y, comLocal.z, radius);
+    set4(g.fixedProps, s.src.mass, s.friction, s.src.grid.voxelM, s.asleepTicks);   // w: F5.5b asleepTicks
+    const glm::dmat3& I = s.inertiaBody;   // glm: I[column][row]; symmetric
+    set4(g.I0, I[0][0], I[1][0], I[2][0], 0);
+    set4(g.I1, I[0][1], I[1][1], I[2][1], 0);
+    set4(g.I2, I[0][2], I[1][2], I[2][2], 0);
+    g.grid[0] = voxOff;
+    g.grid[1] = uint32_t(s.src.grid.dim.x);
+    g.grid[2] = uint32_t(s.src.grid.dim.y);
+    g.grid[3] = uint32_t(s.src.grid.dim.z);
+    g.meta[0] = corOff;
+    g.meta[1] = uint32_t(s.corners.size());
+    g.meta[2] = s.asleep ? 1u : 0u;
+    g.meta[3] = uint32_t(s.slowTicks);
+    return g;
+}
+
 }  // namespace
 
 BodySimGpu::BodySimGpu() = default;
@@ -267,6 +303,116 @@ void barrier(VkCommandBuffer cmd, bool indirect = false) {
 }
 }  // namespace
 
+// F5.5c: after a bake -- the survivors keep their voxel and corner data where it is (offsets carried); their records,
+// the changed world cells and the params are written; state, warm start and push are cleared and the tick counter
+// reset, exactly as load() leaves them. No device idle, no buffer re-made, no world upload.
+bool BodySimGpu::edit(const std::vector<std::pair<uint32_t, uint8_t>>& cells, const std::vector<size_t>& removed,
+                      const std::vector<SimBody>& survivors, std::string* err) {
+    const auto t0 = std::chrono::steady_clock::now();
+    if (!initialized() || m_nb == 0 || m_prm.empty()) {
+        if (err) *err = "BodySimGpu::edit: nothing loaded";
+        return false;
+    }
+    if (survivors.empty()) {
+        if (err) *err = "BodySimGpu::edit: no bodies left (nothing to move)";
+        return false;
+    }
+    if (removed.size() + survivors.size() != m_nb) {
+        if (err)
+            *err = "BodySimGpu::edit: " + std::to_string(removed.size()) + " removed + " +
+                   std::to_string(survivors.size()) + " survivors != " + std::to_string(m_nb) + " loaded";
+        return false;
+    }
+    for (size_t k = 0; k < removed.size(); ++k)
+        if (removed[k] >= m_nb || (k && removed[k] <= removed[k - 1])) {
+            if (err) *err = "BodySimGpu::edit: removed must be ascending indices below the body count";
+            return false;
+        }
+    const uint64_t worldCells = uint64_t(m_prm[P_WX]) * m_prm[P_WY] * m_prm[P_WZ];
+    for (const auto& c : cells)
+        if (c.first >= worldCells) {
+            if (err) *err = "BodySimGpu::edit: a cell outside the world";
+            return false;
+        }
+    finishPending();
+    std::vector<uint32_t> vo, co;
+    std::vector<double> ra;
+    vo.reserve(survivors.size());
+    co.reserve(survivors.size());
+    ra.reserve(survivors.size());
+    for (size_t i = 0, k = 0; i < m_nb; ++i) {
+        if (k < removed.size() && removed[k] == i) {
+            ++k;
+            continue;
+        }
+        vo.push_back(m_voxOff[i]);
+        co.push_back(m_corOff[i]);
+        ra.push_back(m_radius[i]);
+    }
+    m_voxOff.swap(vo);
+    m_corOff.swap(co);
+    m_radius.swap(ra);
+    // the sizes load() derives from the body count (they only shrink: the buffers made for the larger count hold them)
+    m_nb = uint32_t(survivors.size());
+    m_maxCons = std::max<uint32_t>(4096, m_nb * m_prm[P_CAP] * 16);
+    m_maxPairs = 4096;
+    while (m_maxPairs < m_nb * 32u) m_maxPairs <<= 1;
+    m_prm[P_NB] = m_nb;
+    m_prm[P_MAXCONS] = m_maxCons;
+    m_prm[P_MAXPAIRS] = m_maxPairs;
+    m_parity = 0;
+    m_tick = 0;
+    m_lastAwake = m_nb;
+    std::vector<GBody> gb(m_nb);
+    for (uint32_t i = 0; i < m_nb; ++i) gb[i] = gbodyOf(survivors[i], m_voxOff[i], m_corOff[i], m_radius[i]);
+    const VkDeviceSize bP = m_prm.size() * 4, bB = gb.size() * sizeof(GBody), bC = cells.size() * 4;
+    if (m_editOff + bP + bB + bC > m_stage.bytes) {
+        if (err) *err = "BodySimGpu::edit: stage too small for this edit (reload instead)";
+        return false;
+    }
+    auto* st = static_cast<uint8_t*>(m_stage.mapped) + m_editOff;
+    std::memcpy(st, m_prm.data(), size_t(bP));
+    std::memcpy(st + bP, gb.data(), size_t(bB));
+    // the cells in index order, consecutive indices merged into one copy region (run 1: one 4-byte region per cell cost
+    // 2.5 ms for 28,372 cells); a repeated index keeps the last value listed
+    std::vector<std::pair<uint32_t, uint8_t>> sorted(cells);
+    std::stable_sort(sorted.begin(), sorted.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+    std::vector<VkBufferCopy> regions;
+    size_t w = 0;
+    for (size_t k = 0; k < sorted.size(); ++k) {
+        if (k + 1 < sorted.size() && sorted[k + 1].first == sorted[k].first) continue;   // the last of a repeat
+        const uint32_t v = sorted[k].second;
+        std::memcpy(st + bP + bB + w * 4, &v, 4);
+        if (!regions.empty() && regions.back().dstOffset + regions.back().size == VkDeviceSize(sorted[k].first) * 4)
+            regions.back().size += 4;
+        else
+            regions.push_back({m_editOff + bP + bB + w * 4, VkDeviceSize(sorted[k].first) * 4, 4});
+        ++w;
+    }
+    m_lastEditPrepMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    m_editParams = {VkBufferCopy{m_editOff, 0, bP}};
+    m_editBodies = {VkBufferCopy{m_editOff + bP, 0, bB}};
+    m_editWorld.swap(regions);
+    m_editPending = true;
+    m_lastEditMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    return true;
+}
+
+// F5.5c: a staged edit, recorded at the start of the next command buffer (then cleared; edit() waits for the step in
+// flight before it writes the stage again)
+void BodySimGpu::recordEdit(VkCommandBuffer cmd) {
+    if (!m_editPending) return;
+    vkCmdCopyBuffer(cmd, m_stage.buf, m_params.buf, uint32_t(m_editParams.size()), m_editParams.data());
+    vkCmdCopyBuffer(cmd, m_stage.buf, m_bodies.buf, uint32_t(m_editBodies.size()), m_editBodies.data());
+    if (!m_editWorld.empty())
+        vkCmdCopyBuffer(cmd, m_stage.buf, m_world.buf, uint32_t(m_editWorld.size()), m_editWorld.data());
+    vkCmdFillBuffer(cmd, m_state.buf, 0, VK_WHOLE_SIZE, 0);
+    vkCmdFillBuffer(cmd, m_warm.buf, 0, VK_WHOLE_SIZE, 0);
+    vkCmdFillBuffer(cmd, m_push.buf, 0, VK_WHOLE_SIZE, 0);
+    barrier(cmd);
+    m_editPending = false;
+}
+
 bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial>& mats,
                       const std::vector<SimBody>& bodies, const BodySimParams& p, std::string* err) {
     if (!initialized()) { if (err) *err = "BodySimGpu: not initialised"; return false; }
@@ -317,35 +463,16 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
     std::vector<GBody> gb(m_nb);
     std::vector<uint32_t> vox;
     std::vector<float> cor;
-    for (uint32_t i = 0; i < m_nb; ++i) {
+    m_voxOff.assign(m_nb, 0);
+    m_corOff.assign(m_nb, 0);
+    m_radius.clear();
+    for (uint32_t i = 0; i < m_nb; ++i) {   // F5.5c: the record is gbodyOf (shared with edit)
         const SimBody& s = bodies[i];
-        GBody& g = gb[i];
-        std::memset(&g, 0, sizeof(g));
-        set4(g.pos, s.pos.x, s.pos.y, s.pos.z, s.invMass);
-        set4(g.quat, s.quat.x, s.quat.y, s.quat.z, s.quat.w);
-        set4(g.vel, s.vel.x, s.vel.y, s.vel.z, 0);
-        set4(g.angVel, s.angVel.x, s.angVel.y, s.angVel.z, 0);
-        set4(g.initial, s.pos.x, s.pos.y, s.pos.z, 0);
-        set4(g.initialQuat, s.quat.x, s.quat.y, s.quat.z, s.quat.w);
-        set4(g.inertial, s.pos.x, s.pos.y, s.pos.z, 0);
-        set4(g.inertialQuat, s.quat.x, s.quat.y, s.quat.z, s.quat.w);
-        double radius = 0.0;
-        for (const glm::dvec3& c : s.corners) radius = std::max(radius, glm::length(c));
-        const glm::dvec3 comLocal = s.src.com - glm::dvec3(s.src.origin);
-        set4(g.comLocal, comLocal.x, comLocal.y, comLocal.z, radius);
-        set4(g.fixedProps, s.src.mass, s.friction, s.src.grid.voxelM, s.asleepTicks);   // w: F5.5b asleepTicks
-        const glm::dmat3& I = s.inertiaBody;   // glm: I[column][row]; symmetric
-        set4(g.I0, I[0][0], I[1][0], I[2][0], 0);
-        set4(g.I1, I[0][1], I[1][1], I[2][1], 0);
-        set4(g.I2, I[0][2], I[1][2], I[2][2], 0);
-        g.grid[0] = uint32_t(vox.size());
-        g.grid[1] = uint32_t(s.src.grid.dim.x); g.grid[2] = uint32_t(s.src.grid.dim.y);
-        g.grid[3] = uint32_t(s.src.grid.dim.z);
+        m_voxOff[i] = uint32_t(vox.size());
+        m_corOff[i] = uint32_t(cor.size() / 4);
+        m_radius.push_back(bodyRadiusOf(s));
+        gb[i] = gbodyOf(s, m_voxOff[i], m_corOff[i], m_radius.back());
         for (uint8_t m : s.src.grid.mat) vox.push_back(m);
-        g.meta[0] = uint32_t(cor.size() / 4);
-        g.meta[1] = uint32_t(s.corners.size());
-        g.meta[2] = s.asleep ? 1u : 0u;
-        g.meta[3] = uint32_t(s.slowTicks);
         for (size_t k = 0; k < s.corners.size(); ++k) {
             cor.push_back(float(s.corners[k].x));
             cor.push_back(float(s.corners[k].y));
@@ -353,6 +480,9 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
             cor.push_back(float(s.cornerDir[k]));
         }
     }
+    m_prm = prm;
+    m_editPending = false;
+    m_editOff = (VkDeviceSize(m_nb) * sizeof(GBody) + 255) & ~VkDeviceSize(255);
     std::vector<uint32_t> wv(world.mat.begin(), world.mat.end());
 
     const VkDeviceSize bP = prm.size() * 4, bB = gb.size() * sizeof(GBody), bV = std::max<size_t>(vox.size(), 1) * 4,
@@ -557,6 +687,7 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
         const int n = m_profile ? 1 : std::min(std::max(ticksPerSubmit, 1), ticks - done);
         if (!submit([&](VkCommandBuffer cmd) {
                 if (first) {   // the summed counters start at 0 for this call
+                    recordEdit(cmd);   // F5.5c: a staged edit first
                     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);
                     barrier(cmd);
                 }
@@ -612,7 +743,11 @@ bool BodySimGpu::read(std::vector<SimBody>& bodies, std::string* err) {
         return false;
     }
     finishPending();
-    if (!submit([&](VkCommandBuffer cmd) { recordBodiesToStage(cmd); }, false, nullptr, err)) return false;
+    if (!submit([&](VkCommandBuffer cmd) {
+            recordEdit(cmd);   // F5.5c: a staged edit first
+            recordBodiesToStage(cmd);
+        }, false, nullptr, err))
+        return false;
     unpackBodies(bodies);
     return true;
 }
@@ -680,6 +815,7 @@ bool BodySimGpu::stepBegin(int ticks, std::string* err) {
         vkCmdResetQueryPool(cmd, m_queries, 0, 2);
         vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_queries, 0);
     }
+    recordEdit(cmd);   // F5.5c: a staged edit first
     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);   // the summed counters start at 0 for this call (as step())
     barrier(cmd);
     for (int t = 0; t < ticks; ++t) recordTick(cmd);

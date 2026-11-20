@@ -333,7 +333,18 @@ private:
         size_t simCpuNext = 0;
         std::chrono::steady_clock::time_point runStart{};   // wall clock + tick when "run" last turned on
         long runStartTick = 0;
+        // F5.5c: the bake levers -- the preview kept as a RegionEdit and edited per baked body ({"preview":"region"},
+        // default; "area" = F5.5b's whole-area build), the GPU solver edited instead of reloaded ({"gpu_edit":bool})
+        bool regionPreview = true, gpuEdit = true, lastRebuildIncremental = false;
+        glm::ivec3 originVoxel{0};                          // world 1/8 m voxel of grid voxel (0,0,0)
+        std::vector<uint16_t> leafTex;                      // assemble's sprig texture per material (no sprigs here)
+        size_t regionChunks = 0, fullRebuilds = 0, incrementalPasses = 0, gpuEdits = 0;
+        double lastHitchMs = 0.0, maxHitchMs = 0.0, maxEditMs = 0.0, lastGpuEditMs = 0.0;
+        std::vector<float> hitchMs;                         // every baking pass's whole rest call (since the rig)
+        std::vector<float> frameMs;                         // the frame interval while running (ring of 3,600)
+        size_t frameNext = 0;
     } voxFoundBodiesLab;
+    bool voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g, std::string* err);
     bool voxFoundBodiesGpuLoad(std::string* err);
     void voxFoundBodiesGpuStep(float dt);
     void voxFoundBodiesGpuDone(int ticks);

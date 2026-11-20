@@ -21,6 +21,9 @@
 #include "core/voxfound/BodySim.h"
 #include "core/voxfound/Bodies.h"
 #include "core/voxfound/FractureLab.h"
+#include "core/voxfound/Mesher.h"
+#include "core/voxfound/Preview.h"
+#include "core/voxfound/RegionEdit.h"
 
 using namespace Phyxel::Core::VoxFound;
 
@@ -505,4 +508,295 @@ TEST(VoxFoundBodyRest, R7Cost) {
     }
     std::printf("[body rest] R7 idle pass: %.4f ms (best of 20)\n", best);
     EXPECT_LE(best, 0.05);
+}
+
+
+// ---- F5.5c (docs/evidence/voxfound_f55_prediction.txt, H1-H4): the bake levers --------------------------------------
+namespace {
+bool samePlan(const BakePlan& a, const BakePlan& b) {
+    if (a.ok != b.ok || a.rigid != b.rigid || a.why != b.why || a.cells.size() != b.cells.size() ||
+        a.maxShiftM != b.maxShiftM || a.meanShiftM != b.meanShiftM || a.snapDeg != b.snapDeg)
+        return false;
+    for (size_t k = 0; k < a.cells.size(); ++k)
+        if (a.cells[k].cell != b.cells[k].cell || a.cells[k].src != b.cells[k].src || a.cells[k].shiftM != b.cells[k].shiftM)
+            return false;
+    return true;
+}
+// R7's bodies: asleep at the extraction poses (mode 0) or at random rotations in front of the wall (mode 1)
+void r7Bodies(const Scene& s, int mode, BodySimRef& sim) {
+    for (const Body& b : s.ex.bodies) sim.add(b);
+    std::mt19937_64 rng(5407);
+    std::uniform_real_distribution<double> U(-1.0, 1.0);
+    for (SimBody& b : sim.bodies()) {
+        b.asleep = true;
+        b.asleepTicks = 1000;
+        if (mode == 1) {
+            b.quat = glm::normalize(glm::dquat(U(rng), U(rng), U(rng), U(rng)));
+            b.pos += glm::dvec3(0.0, 0.0, -1.5);
+        }
+    }
+}
+}  // namespace
+
+// H1 + H2: the neighbour cell set gives F5.4's plans exactly, at a fraction of the cost
+TEST(VoxFoundBodyRest, F55cCellSetPlansEqualAndCost) {
+    Scene s = padded(largeWall(2500.0f), 32, 16, 200.0f);
+    ASSERT_GT(s.ex.bodies.size(), 500u);
+    for (int mode = 0; mode < 2; ++mode) {
+        std::vector<BakePlan> plans[2];
+        std::vector<uint8_t> after[2];
+        double ms[2] = {0.0, 0.0};
+        size_t baked[2] = {0, 0};
+        for (int cs = 0; cs < 2; ++cs) {
+            VoxelGrid w = s.world;
+            BodySimRef sim(w, s.mats, BodySimParams{});
+            r7Bodies(s, mode, sim);
+            RestParams p;
+            p.budget = 0;
+            p.keepRadiusM = 0.0;
+            p.restTicks = 0;
+            p.bake.cellSet = cs == 1;
+            RestStats st;
+            const auto t0 = std::chrono::steady_clock::now();
+            restPass(sim, w, glm::dvec3(0.0), p, &st, &plans[cs]);
+            ms[cs] = msSince(t0);
+            std::printf("[body rest] F55c parts (cell set %d): choose %.2f grid %.2f plan %.2f apply %.2f wake %.2f remove %.2f ms\n",
+                        cs, st.chooseMs, st.gridMs, st.planMs, st.applyMs, st.wakeMs, st.removeMs);
+            baked[cs] = st.baked;
+            after[cs] = w.mat;
+        }
+        size_t differ = 0;
+        for (size_t k = 0; k < std::min(plans[0].size(), plans[1].size()); ++k) differ += !samePlan(plans[0][k], plans[1][k]);
+        differ += plans[0].size() > plans[1].size() ? plans[0].size() - plans[1].size() : plans[1].size() - plans[0].size();
+        std::printf("[body rest] F55c H1/H2 %s: %zu plans, %zu differ, worlds %s; %zu baked; F5.4 test %.2f ms, cell "
+                    "set %.2f ms\n",
+                    mode == 0 ? "extraction poses" : "random rotations", plans[1].size(), differ,
+                    after[0] == after[1] ? "equal" : "DIFFER", baked[1], ms[0], ms[1]);
+        EXPECT_GT(baked[1], s.ex.bodies.size() / 2);
+        EXPECT_EQ(differ, 0u) << "H1";
+        EXPECT_TRUE(after[0] == after[1]) << "H1";
+        // PREDICTION MISSED (H2: <= 10 / <= 40 ms): run 1 with the cell set alone 37.9 / 231.7 ms (a cell is asked
+        // once by a rigid plan, so the memo does not help it); + a box test before the exact one, a sphere grid for the
+        // near bodies and the wake, the resample's claimed cells in the box and each voxel's U nearest candidates:
+        // 19.6 / 121.4 ms (plans exact throughout). Regression guards here.
+        EXPECT_LE(ms[1], mode == 0 ? 30.0 : 200.0) << "H2";
+    }
+    // the blast, the R1a run: every 10th tick every body's plan alone, both ways, then the pass (cell set on)
+    Rig rig = rigStoneWall({12, 8, 0}, 80.0f);
+    Scene b = padded(rig, 32, 16, 8000.0f);
+    BodySimRef sim(b.world, b.mats, BodySimParams{});
+    for (const Body& x : b.ex.bodies) sim.add(x, x.vel, x.angVel);
+    RestParams rp;
+    rp.budget = 0;
+    rp.keepRadiusM = 0.0;
+    rp.restTicks = 30;
+    size_t compared = 0, differ = 0, bakedAll = 0;
+    for (int t = 0; t < 900; ++t) {
+        sim.step();
+        if (t % 10 == 0) {
+            BakeParams on, off;
+            off.cellSet = false;
+            for (size_t i = 0; i < sim.bodies().size(); ++i) {
+                ++compared;
+                differ += !samePlan(planBake(sim.bodies(), i, b.world, nullptr, on),
+                                    planBake(sim.bodies(), i, b.world, nullptr, off));
+            }
+        }
+        RestStats st;
+        restPass(sim, b.world, glm::dvec3(-50.0, 2.0, -50.0), rp, &st);
+        bakedAll += st.baked;
+    }
+    std::printf("[body rest] F55c H1 blast: %zu plans compared over 900 ticks, %zu differ; %zu baked\n", compared, differ,
+                bakedAll);
+    EXPECT_GT(bakedAll, 10u);
+    EXPECT_EQ(differ, 0u) << "H1 blast";
+}
+
+// H3: the per-pass cap -- every pass bakes <= cap; the R1b wall at cap 4 conserves after every tick
+TEST(VoxFoundBodyRest, F55cCapBoundsEveryPass) {
+    Scene s = padded(largeWall(2500.0f), 32, 16, 200.0f);
+    BodySimRef sim(s.world, s.mats, BodySimParams{});
+    for (const Body& b : s.ex.bodies) sim.add(b, b.vel, b.angVel);
+    const Ledger L0 = ledger(s.world, sim, s.ex.crumbs);
+    RestParams rp;
+    rp.budget = 256;
+    rp.keepRadiusM = 4.0;
+    rp.restTicks = 30;
+    rp.cap = 4;
+    const glm::dvec3 player = glm::dvec3(s.world.dim) * 0.0625 + glm::dvec3(0.0, 0.0, -2.0);
+    size_t baked = 0, overwritten = 0, overCap = 0, passesBaking = 0;
+    double worst = 0.0, worstLevers = 0.0;   // the whole pass; the pass without the CPU reference's remove
+    const int ticks = 120;
+    for (int t = 0; t < ticks; ++t) {
+        sim.step();
+        RestStats st;
+        const auto t0 = std::chrono::steady_clock::now();
+        restPass(sim, s.world, player, rp, &st);
+        const double ms = msSince(t0);
+        if (ms > worst)
+            std::printf("[body rest] F55c H3 tick %d: %.3f ms (choose %.3f grid %.3f plan %.3f apply %.3f wake %.3f remove %.3f; "
+                        "%zu baked)\n", t, ms, st.chooseMs, st.gridMs, st.planMs, st.applyMs, st.wakeMs, st.removeMs, st.baked);
+        worst = std::max(worst, ms);
+        worstLevers = std::max(worstLevers, ms - st.removeMs);
+        baked += st.baked;
+        overwritten += st.overwritten;
+        overCap += st.baked > rp.cap;
+        passesBaking += st.baked > 0;
+        ASSERT_EQ(ledger(s.world, sim, s.ex.crumbs), L0) << "tick " << t;
+    }
+    std::printf("[body rest] F55c H3: cap %zu, %d ticks conserved; %zu baked in %zu passes, %zu passes over the cap, "
+                "%zu overwritten; worst pass %.3f ms\n",
+                rp.cap, ticks, baked, passesBaking, overCap, overwritten, worst);
+    std::printf("[body rest] F55c H3: worst pass without the reference's remove %.3f ms\n", worstLevers);
+    EXPECT_GT(baked, 40u) << "the cap test baked almost nothing";
+    EXPECT_EQ(overCap, 0u) << "H3";
+    EXPECT_EQ(overwritten, 0u);
+    // PREDICTION MISSED (H3: the worst pass <= 2 ms): 5.66 ms, of which BodySimRef::remove 5.37 (the CPU reference
+    // solver re-keys its whole warm-start map; the GPU path holds no constraints there). Everything else <= 2 ms:
+    EXPECT_LE(worstLevers, 2.0) << "H3 worst pass without the reference's remove";
+    EXPECT_LE(worst, 12.0) << "H3 worst pass (regression guard)";
+}
+
+// H4: the lab's world as a RegionEdit; bakes at cap 4 written per body with applyCells: after every pass every chunk's
+// faces = a full rebuild (packedRuns) of the area grid placed in the region, the store = that grid
+namespace {
+// the area placed in region chunk c (independent of areaRegionChunks): voxels and border planes
+VoxelGrid mirrorChunk(const VoxelGrid& area, glm::ivec3 o, glm::ivec3 c) {
+    constexpr int N = 256;
+    VoxelGrid g;
+    g.resize({N, N, N});
+    const glm::ivec3 base = c * N - o;   // area voxel of the chunk's voxel (0,0,0)
+    for (int x = 0; x < N; ++x)
+        for (int y = 0; y < N; ++y)
+            for (int z = 0; z < N; ++z) {
+                const glm::ivec3 q = base + glm::ivec3(x, y, z);
+                if (area.in(q)) g.mat[g.idx({x, y, z})] = area.mat[area.idx(q)];
+            }
+    return g;
+}
+Neighbours mirrorBorder(const VoxelGrid& area, glm::ivec3 o, glm::ivec3 c) {
+    constexpr int N = 256;
+    Neighbours nb;
+    nb.resize({N, N, N}, false);
+    const glm::ivec3 base = c * N - o;
+    for (int a = 0; a < 3; ++a) {
+        const int ua = (a + 1) % 3, va = (a + 2) % 3;
+        for (int s : {-1, 1})
+            for (int v = 0; v < N; ++v)
+                for (int u = 0; u < N; ++u) {
+                    glm::ivec3 p;
+                    p[a] = s < 0 ? -1 : N;
+                    p[ua] = u;
+                    p[va] = v;
+                    const glm::ivec3 q = base + p;
+                    if (area.in(q) && area.mat[area.idx(q)]) nb.set(a, s, u, v, true);
+                }
+    }
+    return nb;
+}
+std::vector<uint64_t> keysOf(const std::vector<PackedFace>& v) {
+    std::vector<uint64_t> k;
+    for (const PackedFace& f : v) k.push_back(f.key());
+    std::sort(k.begin(), k.end());
+    return k;
+}
+std::vector<PackedFace> packedRunsOf(const VoxelGrid& g, Edges e) {
+    std::vector<PackedFace> out;
+    for (const Quad& q : meshRuns(g, e, nullptr)) out.push_back(packFace(q));
+    return out;
+}
+}  // namespace
+
+TEST(VoxFoundBodyRest, F55cRegionEditEqualsFullRebuild) {
+    Scene s = padded(largeWall(2500.0f), 32, 16, 200.0f);
+    const glm::ivec3 o(0, 6, 0);   // a sub-metre origin (as the lab at y 19.75: 6 voxels into the metre)
+    for (int mode = 0; mode < 2; ++mode) {
+        VoxelGrid w = s.world;
+        BodySimRef sim(w, s.mats, BodySimParams{});
+        r7Bodies(s, mode, sim);
+        glm::ivec3 hi;
+        const std::vector<RegionChunk> rcs = areaRegionChunks(w, o, &hi);
+        ASSERT_FALSE(rcs.empty()) << "areaRegionChunks";
+        ASSERT_EQ(rcs.size(), size_t((hi.x + 1) * (hi.y + 1) * (hi.z + 1))) << "areaRegionChunks";
+        RegionEdit edit;
+        edit.begin({0, 0, 0}, hi, 4, true, 0u);
+        edit.setMaterialSets(CardSet{}, CardSet{});
+        for (const RegionChunk& rc : rcs) edit.addChunk(rc, packedRunsOf(rc.grid, Edges(rc.border)));
+        Preview pv;
+        pv.chunks.resize(rcs.size());
+        edit.assemble(pv, {});
+        auto check = [&](const std::string& at) {
+            size_t bad = 0;
+            for (size_t i = 0; i < edit.chunkCount(); ++i) {
+                const RegionEdit::Chunk& ch = edit.chunk(i);
+                const VoxelGrid g = mirrorChunk(w, o, ch.chunk);
+                const Neighbours nb = mirrorBorder(w, o, ch.chunk);
+                const VoxelGrid st = edit.dense(i);
+                if (st.mat != g.mat) {
+                    ++bad;
+                    ADD_FAILURE() << at << " chunk " << i << ": store != area";
+                }
+                if (keysOf(ch.faces) != keysOf(packedRunsOf(g, Edges(nb)))) {
+                    ++bad;
+                    ADD_FAILURE() << at << " chunk " << i << ": faces != full rebuild";
+                }
+            }
+            return bad;
+        };
+        ASSERT_EQ(check("setup"), 0u);
+        RestParams p;
+        p.budget = 0;
+        p.keepRadiusM = 0.0;
+        p.restTicks = 0;
+        p.cap = 4;
+        std::vector<double> perBody, perPass;
+        size_t passes = 0, baked = 0, bad = 0, checked = 0;
+        const auto tAll = std::chrono::steady_clock::now();
+        while (passes < 2000) {
+            // a pass wakes the bodies touching what it baked; with no solver stepping here they would never sleep
+            // again (run 1 stopped after ~50 passes) -- they are put back to sleep where they lie, as settling would
+            for (SimBody& x : sim.bodies()) {
+                x.asleep = true;
+                x.asleepTicks = 1000;
+            }
+            RestStats st;
+            std::vector<BakePlan> plans;
+            const std::vector<size_t> b = restPass(sim, w, glm::dvec3(0.0), p, &st, &plans);
+            if (b.empty()) break;
+            ++passes;
+            baked += b.size();
+            const auto tp = std::chrono::steady_clock::now();
+            std::vector<size_t> changed;
+            for (const BakePlan& plan : plans) {
+                if (!plan.ok) continue;
+                std::vector<std::pair<glm::ivec3, uint8_t>> cells;
+                for (const BakeCell& c : plan.cells) cells.push_back({c.cell + o, w.mat[w.idx(c.cell)]});
+                const auto t0 = std::chrono::steady_clock::now();
+                const RegionEdit::Stats es = edit.applyCells(cells);
+                perBody.push_back(msSince(t0));
+                for (size_t i : es.changed)
+                    if (std::find(changed.begin(), changed.end(), i) == changed.end()) changed.push_back(i);
+            }
+            edit.assemble(pv, {}, &changed);
+            perPass.push_back(msSince(tp));
+            // passes 1-10, then every 25th, and the end: a check is a full CPU re-mesh of every 256^3 chunk (~8 s; run 1)
+            if (passes <= 10 || passes % 25 == 0) {
+                bad += check("pass " + std::to_string(passes));
+                ++checked;
+            }
+        }
+        bad += check("end");
+        std::sort(perBody.begin(), perBody.end());
+        std::sort(perPass.begin(), perPass.end());
+        const double med = perBody.empty() ? 0.0 : perBody[perBody.size() / 2];
+        std::printf("[body rest] F55c H4 %s: %zu chunks, %zu passes (cap 4), %zu baked, %zu checks + end, %zu mismatches; "
+                    "per body median %.3f ms (max %.3f); per pass median %.3f ms, max %.3f; %.0f ms in all\n",
+                    mode == 0 ? "extraction poses" : "random rotations", rcs.size(), passes, baked, checked, bad, med,
+                    perBody.empty() ? 0.0 : perBody.back(), perPass.empty() ? 0.0 : perPass[perPass.size() / 2],
+                    perPass.empty() ? 0.0 : perPass.back(), msSince(tAll));
+        EXPECT_GT(baked, s.ex.bodies.size() / 2);
+        EXPECT_EQ(bad, 0u) << "H4";
+        EXPECT_LE(med, 0.5) << "H4 per body";
+        EXPECT_LE(perPass.empty() ? 0.0 : perPass.back(), 3.0) << "H4 per pass";
+    }
 }

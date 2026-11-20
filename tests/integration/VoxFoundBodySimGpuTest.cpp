@@ -1040,3 +1040,85 @@ TEST_F(VoxFoundBodySimGpu, F55bGpuRestConservesAndReloads) {
     check(rigStoneWall({12, 8, 0}, 80.0f), 8000.0f, 8, 900, "blast, budget 8", 20.0);
     check(largeWallRig(650.0f), 200.0f, 64, 900, "large wall E/T 650, budget 64", 20.0);
 }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5c H5 (docs/evidence/voxfound_f55_prediction.txt): after a bake, edit() (only the changed cells and the survivors'
+// records written) is bit-equal to a fresh load() of the edited world with the survivors -- every body, every 10 ticks
+// for 120 ticks, 3 bakes per rig; the cost of each.
+TEST_F(VoxFoundBodySimGpu, F55cEditEqualsReload) {
+    auto check = [&](Rig rig, float impulse, int settle, size_t perBake, const char* label, double editMsMax) {
+        rig.hit.impulse = impulse;
+        LabSetup s = labSetup(rig, 32);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef sim(s.world, s.mats, prm);
+        for (const Body& b : s.ex.bodies) sim.add(b, b.vel, b.angVel);
+        std::string err;
+        BodySimGpu ref;
+        ASSERT_TRUE(ref.init(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        ASSERT_TRUE(gpu.load(s.world, s.mats, sim.bodies(), sim.params(), &err)) << err;
+        ASSERT_TRUE(gpu.step(settle, &err, 30)) << err;
+        ASSERT_TRUE(gpu.read(sim.bodies(), &err)) << err;
+        const size_t n0 = sim.bodies().size();
+        auto counters = [](const BodySimGpu& g) {
+            const auto& c = g.stats();
+            return std::vector<uint64_t>{c.candidates, c.capped, c.deepPoints, c.pairsTested, c.hardFires,
+                                         c.maxContacts, c.colours, c.awake};
+        };
+        size_t differ = 0, samples = 0, cdiff = 0, bakedAll = 0, cellsAll = 0;
+        double editMax = 0.0, loadMax = 0.0;
+        for (int bake = 0; bake < 3; ++bake) {
+            const size_t n = sim.bodies().size();
+            RestParams rp;
+            rp.budget = n > perBake ? n - perBake : 0;
+            rp.keepRadiusM = 0.0;
+            rp.restTicks = 0;
+            const std::vector<uint8_t> before = s.world.mat;
+            RestStats st;
+            std::vector<size_t> baked = restPass(sim, s.world, glm::dvec3(0.0), rp, &st);
+            ASSERT_FALSE(baked.empty()) << label << ": nothing baked (bake " << bake << ")";
+            ASSERT_FALSE(sim.bodies().empty()) << label;
+            bakedAll += baked.size();
+            std::vector<std::pair<uint32_t, uint8_t>> cells;
+            for (size_t i = 0; i < before.size(); ++i)
+                if (before[i] != s.world.mat[i]) cells.push_back({uint32_t(i), s.world.mat[i]});
+            cellsAll += cells.size();
+            std::sort(baked.begin(), baked.end());
+            auto t0 = std::chrono::steady_clock::now();
+            ASSERT_TRUE(gpu.edit(cells, baked, sim.bodies(), &err)) << label << ": " << err;
+            editMax = std::max(editMax, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+            std::printf("[body gpu] H5 %s bake %d: %zu baked, %zu cells, edit %.3f ms (CPU side %.3f)\n", label, bake,
+                        baked.size(), cells.size(), gpu.lastEditMs(), gpu.lastEditPrepMs());
+            t0 = std::chrono::steady_clock::now();
+            ASSERT_TRUE(ref.load(s.world, s.mats, sim.bodies(), sim.params(), &err)) << err;
+            loadMax = std::max(loadMax, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+            std::vector<SimBody> a = sim.bodies(), b = sim.bodies();
+            for (int k = 0; k < 12; ++k) {
+                ASSERT_TRUE(gpu.step(10, &err, 10)) << err;
+                ASSERT_TRUE(ref.step(10, &err, 10)) << err;
+                ASSERT_TRUE(gpu.read(a, &err)) << err;
+                ASSERT_TRUE(ref.read(b, &err)) << err;
+                for (size_t i = 0; i < a.size(); ++i) {
+                    ++samples;
+                    if (!sameBody(a[i], b[i]) && differ++ < 3)
+                        std::printf("[body gpu] H5 %s: bake %d tick %d body %zu differs\n", label, bake, 10 * (k + 1), i);
+                }
+                cdiff += counters(gpu) != counters(ref);
+            }
+            sim.bodies() = a;
+        }
+        ref.shutdown();
+        std::printf("[body gpu] F55c H5 %s: %zu bodies, 3 bakes (%zu bodies, %zu cells), %zu of %zu samples differ edit "
+                    "vs reload, %zu counter sets differ; edit max %.3f ms, reload max %.3f ms (world %zu cells)\n",
+                    label, n0, bakedAll, cellsAll, differ, samples, cdiff, editMax, loadMax, s.world.size());
+        EXPECT_EQ(differ, 0u) << "H5 " << label;
+        EXPECT_EQ(cdiff, 0u) << "H5 " << label;
+        // PREDICTION MISSED (<= 1 ms at ~1,000 bodies): run 1 2.52 ms baking 64 bodies (28,372 cells, one copy region
+        // per cell); merged regions 2.13; each body's radius kept from load 1.09 ms. Recorded; a regression guard here.
+        EXPECT_LE(editMax, editMsMax) << "H5 " << label << ": edit cost";
+    };
+    check(rigStoneWall({12, 8, 0}, 80.0f), 8000.0f, 600, 4, "blast", 1.0);
+    check(largeWallRig(650.0f), 200.0f, 240, 32, "large wall E/T 650", 1.0);
+    check(largeWallRig(2800.0f), 200.0f, 240, 64, "large wall E/T 2800", 2.0);
+}

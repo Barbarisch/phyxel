@@ -50,6 +50,15 @@ public:
 
     /// The world, the materials and the bodies as BodySimRef::add built them (grids, corners, mass properties, pose,
     /// velocities, sleep state).
+    /// F5.5c: the incremental edit after a bake, instead of load(): the changed world cells (index, material) and the
+    /// survivors (`removed` = the baked bodies' indices before removal, ascending; `survivors` = the bodies after).
+    /// Only those cells and the survivors' records are written; params, state, warm start and the tick counter are
+    /// set exactly as a fresh load() of the edited world with the survivors (bit-equal after it).
+    bool edit(const std::vector<std::pair<uint32_t, uint8_t>>& cells, const std::vector<size_t>& removed,
+              const std::vector<SimBody>& survivors, std::string* err = nullptr);
+    double lastEditMs() const { return m_lastEditMs; }
+    double lastEditPrepMs() const { return m_lastEditPrepMs; }   // F5.5c: of which the CPU side (before the submit)
+    bool editPending() const { return m_editPending; }   // F5.5c: staged, recorded by the next step / stepBegin / read
     bool load(const VoxelGrid& world, const std::vector<FractureMaterial>& mats, const std::vector<SimBody>& bodies,
               const BodySimParams& p, std::string* err);
     /// Runs `ticks` ticks (one submit per `ticksPerSubmit`).
@@ -145,6 +154,18 @@ private:
     VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
     int m_pendingTicks = 0;
     bool m_pendingTimed = false;
+    double m_lastEditMs = -1.0;                    // F5.5c: the last edit()'s wall time
+    double m_lastEditPrepMs = -1.0;
+    std::vector<uint32_t> m_voxOff, m_corOff;      // F5.5c: each current body's voxel / corner offsets (edit keeps them)
+    std::vector<double> m_radius;                  // F5.5c: each current body's bounding radius (from its corners)
+    std::vector<uint32_t> m_prm;                   // F5.5c: the params words as last uploaded
+    // F5.5c run 2: edit() stages its data in the stage buffer past the read-back region and does not submit; the next
+    // command buffer (step / stepBegin / read) records these copies first (same queue, a barrier after): the frame
+    // never waits on it (live, a waited submit cost ~14 ms on a GPU busy with rendering)
+    bool m_editPending = false;
+    std::vector<VkBufferCopy> m_editParams, m_editBodies, m_editWorld;
+    VkDeviceSize m_editOff = 0;                    // where edit data starts in the stage (past nb_loaded x GBody)
+    void recordEdit(VkCommandBuffer cmd);
     Profile m_prof;
     VkQueryPool m_profQueries = VK_NULL_HANDLE;
     uint32_t m_profStamp = 0;

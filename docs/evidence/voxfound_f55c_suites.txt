@@ -1,0 +1,609 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[bodies] free box: m 325.000 kg, I 8.46354 / 28.77604 / 33.85417 kg m^2, v 0.09231 m/s, |w| 8.55e-02
+[bodies] rigs x sweep: 557 bodies (51237 voxels), 494 crumbs
+[bodies] 300 random hits: 1491 bodies (239168 voxels), 1037 crumbs
+[bodies] 20 hits in a row: 988 of 1152 voxels removed, 31 bodies, 66 crumbs
+[bodies] large wall E/T   150: 59 bodies, 87 crumbs, extraction 0.48 ms (best of 5)
+[bodies] large wall E/T  1000: 468 bodies, 651 crumbs, extraction 2.31 ms (best of 5)
+[bodies] large wall E/T  2500: 947 bodies, 1407 crumbs, extraction 4.60 ms (best of 5)
+[body draw] D1: 1150 bodies, 27766 faces, all exact
+[body draw] D2: 21 bodies, 638 faces built once; body 0 moved 0.97 m over 300 ticks
+[body draw] D3: 1552 corners; worst 0 m (whole-metre camera), 1.06e-07 m (any camera)
+[body draw] D4: 21 bodies turned up to 161.7 deg; worst corner 3.45e-07 m, normal 1.3e-07, |n|-1 8.77e-08
+[body draw] D5 large wall E/T 1000: 468 bodies, 27217 faces (326604 B), faces per body median 43 max 196; build 10.12 ms, poses 0.0122 ms (best of 5)
+[body draw] D5 large wall E/T 2500: 947 bodies, 54493 faces (653916 B), faces per body median 43 max 196; build 20.12 ms, poses 0.0247 ms (best of 5)
+[body draw] C1: 200000 tests, 60316 with a box point inside, 61210 kept, 0 violations; looking away keeps 0 of 2000
+[body rest] R1a: 900 ticks checked, 27 bodies baked (6 rigid), 748 voxels, 717 refused, 14 woken, 0 overwritten; left 1 (awake 0, recent 0, refused 1); 2146 ms
+[body rest] R4: 27 bakes, 22 % rigid; shift mean 0.0375 m (0.30 vx), max 0.1624 m (1.30 vx); woken bodies moved at most 0.0409 m
+[body rest] R4 refused x717:  has its cell outside the world grid
+[body rest] R4 resample bakes: 0 within the 10-deg snap (rigid cells were taken); snap angles: 21 19 14 31 37 22 19 19 36 38 32 19 37 15 55 36 48 53 40 44 32 
+[body rest] R5: world hash 48690e7c79926feb both runs, 27 bakes in the same order
+[body rest] R1b: 916 bodies, 200 ticks all conserved; baked 533 (530 rigid, 0 refused) during, 350 (297 rigid, 0 refused) in the final pass; 33 bodies left; sim 219.9 ms/tick, rest pass 0.082 ms/tick (worst 14.03)
+[body rest] R3 90 deg: rigid, shift mean 0.28 vx max 0.28 vx, snap 0.0 deg
+[body rest] R3 30 deg: resample, shift mean 0.36 vx max 0.58 vx, snap 30.0 deg
+[body rest] R7 extraction poses: 916 bodies, 916 baked (916 rigid, 0 refused), 84182 voxels, 19.05 ms
+[body rest] R7 random rotations: 916 bodies, 914 baked (2 rigid, 2 refused), 83734 voxels, 121.76 ms
+[body rest] R7 idle pass: 0.0024 ms (best of 20)
+[body rest] F55c parts (cell set 0): choose 0.07 grid 0.13 plan 31.52 apply 1.12 wake 1.22 remove 1.34 ms
+[body rest] F55c parts (cell set 1): choose 0.07 grid 0.13 plan 14.92 apply 1.11 wake 1.16 remove 1.24 ms
+[body rest] F55c H1/H2 extraction poses: 916 plans, 0 differ, worlds equal; 916 baked; F5.4 test 35.40 ms, cell set 18.63 ms
+[body rest] F55c parts (cell set 0): choose 0.05 grid 0.13 plan 643.65 apply 1.28 wake 1.62 remove 1.39 ms
+[body rest] F55c parts (cell set 1): choose 0.05 grid 0.13 plan 117.24 apply 1.14 wake 1.51 remove 1.27 ms
+[body rest] F55c H1/H2 random rotations: 916 plans, 0 differ, worlds equal; 914 baked; F5.4 test 648.14 ms, cell set 121.36 ms
+[body rest] F55c H1 blast: 676 plans compared over 900 ticks, 0 differ; 27 baked
+[body rest] F55c H3 tick 0: 0.009 ms (choose 0.008 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 3: 0.010 ms (choose 0.008 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 8: 0.010 ms (choose 0.009 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 9: 0.010 ms (choose 0.009 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 13: 0.012 ms (choose 0.011 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 21: 0.014 ms (choose 0.013 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 59: 1.178 ms (choose 0.058 grid 0.140 plan 0.073 apply 0.009 wake 0.006 remove 0.889; 4 baked)
+[body rest] F55c H3 tick 64: 1.523 ms (choose 0.047 grid 0.130 plan 0.084 apply 0.008 wake 0.006 remove 1.244; 4 baked)
+[body rest] F55c H3 tick 71: 1.566 ms (choose 0.036 grid 0.115 plan 0.109 apply 0.009 wake 0.007 remove 1.288; 4 baked)
+[body rest] F55c H3 tick 72: 1.931 ms (choose 0.034 grid 0.121 plan 0.082 apply 0.006 wake 0.006 remove 1.678; 4 baked)
+[body rest] F55c H3 tick 73: 2.183 ms (choose 0.044 grid 0.130 plan 0.163 apply 0.015 wake 0.007 remove 1.817; 4 baked)
+[body rest] F55c H3 tick 77: 2.475 ms (choose 0.027 grid 0.112 plan 0.092 apply 0.009 wake 0.006 remove 2.222; 4 baked)
+[body rest] F55c H3 tick 79: 2.685 ms (choose 0.027 grid 0.119 plan 0.113 apply 0.008 wake 0.008 remove 2.405; 4 baked)
+[body rest] F55c H3 tick 81: 2.747 ms (choose 0.026 grid 0.106 plan 0.069 apply 0.006 wake 0.006 remove 2.528; 4 baked)
+[body rest] F55c H3 tick 82: 3.076 ms (choose 0.021 grid 0.102 plan 0.130 apply 0.012 wake 0.007 remove 2.799; 4 baked)
+[body rest] F55c H3 tick 83: 3.529 ms (choose 0.021 grid 0.107 plan 0.075 apply 0.007 wake 0.006 remove 3.305; 4 baked)
+[body rest] F55c H3 tick 86: 3.767 ms (choose 0.021 grid 0.112 plan 0.124 apply 0.010 wake 0.006 remove 3.488; 4 baked)
+[body rest] F55c H3 tick 88: 3.860 ms (choose 0.015 grid 0.103 plan 0.121 apply 0.009 wake 0.010 remove 3.596; 4 baked)
+[body rest] F55c H3 tick 89: 4.337 ms (choose 0.018 grid 0.109 plan 0.079 apply 0.006 wake 0.008 remove 4.112; 4 baked)
+[body rest] F55c H3 tick 90: 4.448 ms (choose 0.013 grid 0.117 plan 0.158 apply 0.011 wake 0.010 remove 4.133; 4 baked)
+[body rest] F55c H3 tick 91: 4.455 ms (choose 0.011 grid 0.101 plan 0.107 apply 0.006 wake 0.011 remove 4.215; 4 baked)
+[body rest] F55c H3: cap 4, 120 ticks conserved; 140 baked in 35 passes, 0 passes over the cap, 0 overwritten; worst pass 4.455 ms
+[body rest] F55c H3: worst pass without the reference's remove 0.365 ms
+[body rest] F55c H4 extraction poses: 2 chunks, 229 passes (cap 4), 916 baked, 19 checks + end, 0 mismatches; per body median 0.093 ms (max 0.458); per pass median 0.519 ms, max 1.178; 170226 ms in all
+[body rest] F55c H4 random rotations: 2 chunks, 229 passes (cap 4), 914 baked, 19 checks + end, 0 mismatches; per body median 0.185 ms (max 1.147); per pass median 0.954 ms, max 2.901; 170796 ms in all
+[body sim] R1 free fall: worst |y - closed form| 7.516e-14 m
+[body sim] R2 flat drop: rest y 0.24981 m (penetration 0.19 mm), drift 3-8 s 0.000 mm, late speed 0.0000, asleep by 3 s 1
+[body sim] R3 tilted slab (as first written): vertical body axis 1 (0.01 deg off), centre y 0.2499 m (face half-height 0.2500), asleep 1
+[body sim] R3b slab, thin axis 30 deg from vertical: vertical body axis 2 (0.05 deg off), centre y 0.1248 m (face half-height 0.1250), asleep 1
+[body sim] R4 slide: 0.2383 m (Coulomb 0.2548), rise 0.01 mm, final tilt 0.00 deg, speed 0.0000
+[body sim] R5 stack of 5: worst move 2.10 mm, 5 / 5 asleep
+[body sim] R6 head-on, 8 iterations: |P| / (m v) worst 4.67e-02, worst overlap 0.37 mm, after: |v| 0.0522 / 0.0493
+[body sim] R6 head-on, 32 iterations: |P| / (m v) worst 7.20e-03, worst overlap 0.75 mm, after: |v| 0.0000 / 0.0000
+[body sim] R7 lintel E/T 30: 4 bodies, 4 asleep at 10 s (last awake tick 202), max penetration 3.75 mm, deep points 0, capped 4893, max contacts 34, hard-contact fires 273, 0.24 ms / tick mean (worst 1.42)
+[body sim] R8b stone wall E/T 80, 8000 N s: 21 bodies, 21 asleep at 15 s (last awake tick 309), max penetration 7.45 mm, deep points 0, capped 36605, max contacts 366, hard-contact fires 692, 1.85 ms / tick mean (worst 15.72)
+[body sim] R8 stone wall E/T 30: 7 bodies, 7 asleep at 10 s (last awake tick 43), max penetration 2.10 mm, deep points 0, capped 12272, max contacts 130, hard-contact fires 0, 0.24 ms / tick mean (worst 4.65)
+[body sim] R8 stone wall E/T 80: 21 bodies, 21 asleep at 10 s (last awake tick 30), max penetration 0.70 mm, deep points 0, capped 35911, max contacts 464, hard-contact fires 0, 0.80 ms / tick mean (worst 15.59)
+[body sim] T1 1x1x4 at 5 m/s: lowest corner -0.0002 m, speed 0.0000 m/s, pos (1.812520, 0.062310, 1.999993)
+[body sim] T1 1x1x4 at 15 m/s: lowest corner -0.0000 m, speed 0.0000 m/s, pos (1.999320, 0.062408, 2.018143)
+[body sim] T1 1x1x4 at 30 m/s: lowest corner -0.0001 m, speed 0.0000 m/s, pos (3.061693, 0.062394, 2.248678)
+[body sim] T1 1x1x4 at 60 m/s: lowest corner -0.0002 m, speed 0.0000 m/s, pos (3.576118, 0.062300, 2.798387)
+[body sim] T1 2x2x2 at 5 m/s: lowest corner -0.0001 m, speed 0.0000 m/s, pos (1.874947, 0.124884, 1.874932)
+[body sim] T1 2x2x2 at 15 m/s: lowest corner -0.0001 m, speed 0.0000 m/s, pos (1.869916, 0.124856, 1.872675)
+[body sim] T1 2x2x2 at 30 m/s: lowest corner -0.0001 m, speed 0.0000 m/s, pos (1.861624, 0.124873, 1.878531)
+[body sim] T1 2x2x2 at 60 m/s: lowest corner -0.0002 m, speed 0.0000 m/s, pos (1.404858, 0.124835, 1.933738)
+[body sim] T2 2x2x2 at 30 m/s onto a 1-voxel slab: lowest corner 1.1249 m, speed 0.0000 m/s
+[fracture lab] stone wall centre E/T   1.5: 7 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   2.0: 18 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   3.0: 41 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   5.0: 78 cuts, 0 loose pieces, 0 loose voxels
+[fracture lab] stone wall centre E/T   8.0: 118 cuts, 1 loose pieces, 11 loose voxels
+[fracture lab] stone wall centre E/T  12.0: 185 cuts, 3 loose pieces, 16 loose voxels
+[fracture lab] stone wall centre E/T  20.0: 341 cuts, 7 loose pieces, 33 loose voxels
+[fracture lab] stone wall centre E/T  30.0: 515 cuts, 11 loose pieces, 280 loose voxels
+[fracture lab] stone wall centre E/T  50.0: 712 cuts, 31 loose pieces, 672 loose voxels
+[fracture lab] stone wall centre E/T  80.0: 822 cuts, 43 loose pieces, 744 loose voxels
+[fracture lab] brick wall: 398 cuts, 398 between bricks
+[fracture lab] beam: cuts x 2, y 9, z 5
+[fracture lab] glass: 34 loose shards, 8 of 8 sectors
+[fracture lab] control: damage at the hit voxel 107
+[fracture lab] stress: 300 hits, 29344 cuts, 250 nesting checks, 139 hits where a repeat cut more
+[anchoring] building UNANCHORED before any hit: piece 2, 64 voxels, (49,13,10)-(64,14,11) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 3, 64 voxels, (49,15,12)-(64,16,13) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 4, 64 voxels, (49,17,14)-(64,18,15) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 5, 64 voxels, (49,19,16)-(64,20,17) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 6, 64 voxels, (49,21,18)-(64,22,19) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 7, 64 voxels, (49,23,20)-(64,24,21) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 8, 64 voxels, (49,25,22)-(64,26,23) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 9, 64 voxels, (49,27,24)-(64,28,25) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 10, 64 voxels, (49,29,26)-(64,30,27) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 11, 64 voxels, (49,31,28)-(64,32,29) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 12, 64 voxels, (49,33,30)-(64,34,31) Wood:64 
+[anchoring] building UNANCHORED before any hit: piece 13, 464 voxels, (49,38,8)-(64,45,29) Wood:464 
+[anchoring] building 73 x 81 x 56 voxels, 102536 solid; summary 561 components, 14.33 ms
+[anchoring] the same building on today's 1/9 m grid: 134555 solid, 13 unanchored pieces (2000 voxels)
+[anchoring] stone_wall     loose before any hit (excluded unless the cut touches them): 0 voxels
+[anchoring] stone_wall     solid   1152 blocks    6 | hits 100, cutting 78, freeing 43 | nodes median 233 worst 1000 (voxel 1000, comp 4) = 20.2 % / 86.8 % of the solid voxels | ms median 0.026 worst 0.110
+[anchoring] column_lintel  loose before any hit (excluded unless the cut touches them): 0 voxels
+[anchoring] column_lintel  solid    112 blocks    4 | hits 100, cutting 66, freeing 64 | nodes median 79 worst 112 (voxel 112, comp 2) = 70.5 % / 100.0 % of the solid voxels | ms median 0.008 worst 0.014
+[anchoring] building       loose before any hit (excluded unless the cut touches them): 1168 voxels
+[anchoring] building       solid 102536 blocks  519 | hits 200, cutting 148, freeing 96 | nodes median 1055 worst 8558 (voxel 8457, comp 326) = 1.0 % / 8.3 % of the solid voxels | ms median 1.472 worst 3.341
+[fracture lab] stone_centre_e2  voxels   1152 cuts    18 (between parts     0; x    7 y    7 z    4) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.12 ms
+[fracture lab] stone_centre_e5  voxels   1152 cuts    78 (between parts     0; x   25 y   29 z   24) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.17 ms
+[fracture lab] stone_centre_e12 voxels   1152 cuts   185 (between parts     0; x   61 y   71 z   53) bodies   2 (   15 vox) crumbs   1 (   1 vox) anchored  1136 vox  0.28 ms
+[fracture lab] stone_centre_e30 voxels   1152 cuts   515 (between parts     0; x  179 y  196 z  140) bodies   7 (  275 vox) crumbs   4 (   5 vox) anchored   872 vox  0.52 ms
+[fracture lab] stone_centre_e80 voxels   1152 cuts   822 (between parts     0; x  298 y  310 z  214) bodies  21 (  712 vox) crumbs  22 (  32 vox) anchored   408 vox  0.69 ms
+[fracture lab] stone_edge_e5    voxels   1152 cuts    40 (between parts     0; x   16 y   18 z    6) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored  1152 vox  0.15 ms
+[fracture lab] brick_e8         voxels   1024 cuts   398 (between parts   398; x  142 y  256 z    0) bodies  24 (  384 vox) crumbs   0 (   0 vox) anchored   640 vox  0.12 ms
+[fracture lab] brick_e30        voxels   1024 cuts   710 (between parts   688; x  249 y  455 z    6) bodies  59 (  880 vox) crumbs  10 (  16 vox) anchored   128 vox  0.13 ms
+[fracture lab] beam_e8          voxels    128 cuts    16 (between parts     0; x    2 y    9 z    5) bodies   0 (    0 vox) crumbs   0 (   0 vox) anchored   128 vox  0.04 ms
+[fracture lab] glass_e20        voxels    576 cuts   185 (between parts     0; x   92 y   93 z    0) bodies  14 (   88 vox) crumbs  20 (  32 vox) anchored   456 vox  0.07 ms
+[fracture lab] column_e30       voxels    112 cuts    40 (between parts     4; x    9 y   23 z    8) bodies   4 (   93 vox) crumbs   7 (   8 vox) anchored    11 vox  0.05 ms
+[fracture lab] chair_e8         voxels   4320 cuts   108 (between parts   108; x    0 y  108 z    0) bodies   6 ( 4320 vox) crumbs   0 (   0 vox) anchored     0 vox  0.62 ms
+[32m[20:32:12.936] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:32:13.231] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 874 bodies[0m
+[32m[20:32:13.231] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2263 maxOrder=5 drainageComplete=1[0m
+[32m[20:32:16.774] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[mesher] perlin s7 (0,0): runs 1713 vs greedy 1893 quads
+[sprigs] slab kept 0.0730, threshold 0.0703
+[32m[20:32:23.002] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:32:23.002] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] perlin s7 (0,0)                      culled   70327  greedy   1893  per-block   3697  | today proxy (1 m cubes)    53  -> greedy/today 35.7x, per-block/greedy 1.95x
+[32m[20:32:29.173] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:32:29.469] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[20:32:29.469] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+[32m[20:32:29.469] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] perlin s12345 (-1024,768)            culled   66562  greedy    742  per-block   1853  | today proxy (1 m cubes)    16  -> greedy/today 46.4x, per-block/greedy 2.50x
+[32m[20:32:34.501] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:32:34.787] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[20:32:34.787] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[32m[20:32:34.788] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] mountains s7 (2048,1024)             culled  114554  greedy  43102  per-block  49577  | today proxy (1 m cubes)  1037  -> greedy/today 41.6x, per-block/greedy 1.15x
+[32m[20:32:45.818] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:32:45.819] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] perlin s7 (0,0) + flora              culled  163297  greedy  16958  per-block  24177  | today proxy (1 m cubes)   811  -> greedy/today 20.9x, per-block/greedy 1.43x
+[32m[20:33:02.786] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:33:02.787] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[mesher] perlin s7 forest (8160,96) + flora   culled  591315  greedy 100946  per-block 128170  | today proxy (1 m cubes)  4209  -> greedy/today 24.0x, per-block/greedy 1.27x
+[mesher] shell 9x7 m, 2 stories, grid 9: 134555 cells, culled 77484, greedy 404
+[mesher] shell 9x7 m, 2 stories, grid 8: 102536 cells, culled 61608, greedy 401
+[mesher] shell greedy 1/8 m vs 1/9 m: 0.99x
+[mesher] chunks invisible (beyond air): whole 11068 unit faces; chunks without neighbours 17752; sprigs 98
+[mesher] chunks invisible (beyond skip): whole 6555 unit faces; chunks without neighbours 6277; sprigs 98
+[32m[20:33:20.185] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[clusters] 1834 faces, clusterBlocks 1 -> 513 clusters
+[clusters] 1834 faces, clusterBlocks 2 -> 266 clusters
+[clusters] 1834 faces, clusterBlocks 4 -> 77 clusters
+[clusters] 1834 faces, clusterBlocks 8 -> 16 clusters
+[clusters] 1834 faces, clusterBlocks 32 -> 1 clusters
+[light planes] 699 inside, 19301 outside, 0 wrong
+[32m[20:33:20.806] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:33:20.807] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[32m[20:33:22.205] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:33:22.206] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[shadow dir] 3600 rays, 3546 hit, 0 differ
+[caster seam] main 1907, seam all 7041, seam depth 1 3131
+[exit faces] 3600 rays, 3566 hit, 0 differ (light test alone: 402)
+[32m[20:33:25.473] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:33:25.473] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[lod] forest (8160,96) level 0 (0.125 m): 42412 faces (1.000x L0), solid volume 1.0000x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 804 GrassSavanna 90 Log 18 LogJungle 182 LogPalm 15
+[lod] forest (8160,96) level 1 (0.250 m): 11164 faces (0.263x L0), solid volume 1.0194x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 774 GrassSavanna 90 Log 17 LogJungle 176 LogPalm 13
+[lod] forest (8160,96) level 2 (0.500 m): 2697 faces (0.064x L0), solid volume 1.0062x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 784 GrassSavanna 90 Log 16 LogJungle 157 LogPalm 10
+[lod] forest (8160,96) level 3 (1.000 m): 702 faces (0.017x L0), solid volume 0.9884x L0
+[lod]   up-facing m^2: Dirt 10 GrassForest 792 GrassSavanna 91 Log 12 LogJungle 133 LogPalm 8
+[lod] forest (8160,96) level 4 (2.000 m): 157 faces (0.004x L0), solid volume 0.9293x L0
+[lod]   up-facing m^2: Dirt 8 GrassForest 824 GrassSavanna 72 Log 8 LogJungle 104 LogPalm 4
+[lod]   top vs 1 m: mean 0.493 cells, max 4.750
+[lod] forest (8160,96) level 5 (4.000 m): 41 faces (0.001x L0), solid volume 0.9201x L0
+[lod]   up-facing m^2: GrassForest 864 GrassSavanna 48 Log 16 LogJungle 64
+[lod]   top vs 1 m: mean 0.526 cells, max 1.938
+[lod] forest (8160,96) level 6 (8.000 m): 5 faces (0.000x L0), solid volume 0.6265x L0
+[lod]   up-facing m^2: GrassForest 832 Log 64
+[lod]   top vs 1 m: mean 0.560 cells, max 1.250
+[lod] forest (8160,96) level 7 (16.000 m): 1 faces (0.000x L0), solid volume 1.2529x L0
+[lod]   up-facing m^2: GrassForest 1024
+[lod]   top vs 1 m: mean 0.283 cells, max 0.355
+[incremental] 300 edits: 46265 rows meshed of the 1044900 a full rebuild per edit meshes (4.43 %)
+[facepool] 400 steps: 397 partial, 3 full (4 layouts, 43 moves); dirty faces 23.68 % of the live
+[32m[20:33:47.636] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[f31 rows] 60 x 1 m edits on 256x192x256 terrain: 347647 cells evaluated vs 7840960 whole rows (4.43 %), 1112 faces added
+[f31 connect] 400 edits: 72 changed a blocking bit, 328 did not (flood skipped)
+[f32a store] RegionEdit 5.09 MB for 2 chunks (dense voxels alone 32.00 MB)
+[f31 assemble] sprig spans re-placed 4 times
+[f31 assemble] 36 partial steps: 588.7 KB written per step (the whole image is 1584.8 KB)
+[32m[20:34:04.339] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[f32a readers] 80 edits on 256x192x256: 4812 faces added; store 1.60 MB vs dense 12.00 MB (1717 detailed blocks)
+[f32b pick] 400 rays: 221 hits (91 from inside a solid voxel), 11.4 steps per hit
+[f33 reload] chunk 0: 253673 B blob, 5439 voxels written by the load
+[f35a border] 300 border brushes: 435 chunks re-planned, 255 changed, 53 edits left the neighbour alone
+[f35a plan] 58578 faces; boxes <= 8: mean 276 examined, worst 2997
+[f35b connect] brush-like: 1031 updates, 2 floods, 784 local tests; 132127 B
+[32m[20:37:09.858] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] worst |1/8 m ground top - today's cube top| at column centres: 0.500 m
+[32m[20:37:10.141] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s7 (0,0): top voxel not the surface material in 0 of 65536 columns
+[32m[20:37:10.985] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s7 (512,-256): top voxel not the surface material in 0 of 65536 columns
+[32m[20:37:11.792] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s12345 (-1024,768): top voxel not the surface material in 0 of 65536 columns
+[32m[20:37:12.579] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] mountains s7 (0,0): top voxel not the surface material in 0 of 65536 columns
+[32m[20:37:13.563] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] mountains s7 (2048,1024): top voxel not the surface material in 0 of 65536 columns
+[32m[20:37:14.540] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s7 (0,0)             20 m tall:  20480 blocks,  1087 detailed (1.06 per block column),   9385 air,  10008 solid; est 0.79 MB vs dense 10.49 MB (13.3x); materials 3
+[32m[20:37:14.810] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s7 (512,-256)        18 m tall:  18432 blocks,   979 detailed (0.96 per block column),   8143 air,   9310 solid; est 0.71 MB vs dense 9.44 MB (13.3x); materials 3
+[32m[20:37:15.069] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] perlin s12345 (-1024,768)   17 m tall:  17408 blocks,   768 detailed (0.75 per block column),   7740 air,   8900 solid; est 0.58 MB vs dense 8.91 MB (15.3x); materials 3
+[32m[20:37:15.311] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] mountains s7 (0,0)          28 m tall:  28672 blocks,  1491 detailed (1.46 per block column),  11952 air,  15229 solid; est 1.09 MB vs dense 14.68 MB (13.5x); materials 3
+[32m[20:37:15.727] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[storage lab] mountains s7 (2048,1024)    36 m tall:  36864 blocks,  2354 detailed (2.30 per block column),  20350 air,  14160 solid; est 1.65 MB vs dense 18.87 MB (11.4x); materials 4
+[32m[20:37:16.135] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:16.401] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:16.654] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:16.889] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:17.310] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:17.742] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:17.743] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[32m[20:37:17.875] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:17.875] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s7 (0,0)                trees/plants planned 17 (stamped 9, procedural 0, missing 8: bush_flower tree_apple fern shrub_flat )
+              detailed per column bare 1.06 -> with flora 2.08; est 0.91 MB -> 1.51 MB per chunk footprint (35 m tall area)
+              stamped trees 8
+[32m[20:37:18.352] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:18.353] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s7 (512,-256)           trees/plants planned 19 (stamped 12, procedural 0, missing 7: tree_apple shrub_flat )
+              detailed per column bare 0.96 -> with flora 2.32; est 0.83 MB -> 1.64 MB per chunk footprint (33 m tall area)
+              stamped trees 10
+[32m[20:37:18.827] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:18.827] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s12345 (-1024,768)      trees/plants planned 3 (stamped 2, procedural 0, missing 1: fern )
+              detailed per column bare 0.75 -> with flora 0.75; est 0.70 MB -> 0.70 MB per chunk footprint (32 m tall area)
+              stamped trees 2
+[32m[20:37:19.191] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:19.192] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] mountains s7 (0,0)             trees/plants planned 17 (stamped 9, procedural 0, missing 8: bush_flower tree_apple fern shrub_flat )
+              detailed per column bare 1.46 -> with flora 2.44; est 1.21 MB -> 1.79 MB per chunk footprint (43 m tall area)
+              stamped trees 8
+[32m[20:37:19.812] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:19.812] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] mountains s7 (2048,1024)       trees/plants planned 0 (stamped 0, procedural 0, missing 0: )
+              detailed per column bare 2.30 -> with flora 2.30; est 1.65 MB -> 1.65 MB per chunk footprint (36 m tall area)
+              stamped trees 0
+[32m[20:37:20.277] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:20.277] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s7 forest (3200,96)     trees/plants planned 127 (stamped 105, procedural 0, missing 22: fern )
+              detailed per column bare 1.05 -> with flora 7.21; est 0.95 MB -> 4.59 MB per chunk footprint (41 m tall area)
+              stamped trees 65
+[32m[20:37:22.054] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:22.055] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[storage lab] perlin s7 forest (8160,96)     trees/plants planned 100 (stamped 84, procedural 0, missing 16: fern )
+              detailed per column bare 1.03 -> with flora 6.94; est 0.94 MB -> 4.43 MB per chunk footprint (41 m tall area)
+              stamped trees 59
+[32m[20:37:23.725] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:24.416] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:24.941] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:25.454] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:26.489] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:26.490] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab/resources/biomes.json[0m
+[region] ground 22.2..25.6 m -> chunks y 0..1 (8 chunks)
+[region] 8 chunks, 55784346 solid voxels, whole-region flora stamped 142; voxel mismatches 0, border mismatches 0 of 1572864
+[32m[20:37:37.497] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[f33 codec] terrain area 256x256x256: 7305 B (store 0.35 MB, dense 16.00 MB)
+[f33 malformed] 1617 B blob: every truncation refused; 9 of 2000 random corruptions decode to a valid store, the rest refused
+[f34 resample] 119 cells (1697 subcubes, 23369 microcubes): solid volume 94.91 -> 92.59 m^3 (-2.44 %)
+[f34 keep] 299 cells: 758 materials kept, 0 lost
+[==========] 125 tests from 7 test suites ran. (829528 ms total)
+[  PASSED  ] 125 tests.
+
+  YOU HAVE 3 DISABLED TESTS
+
+=== GPU
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[20:37:41.581] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:37:41.731] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:37:41.893] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:37:41.893] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:42.162] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 874 bodies[0m
+[32m[20:37:42.162] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2263 maxOrder=5 drainageComplete=1[0m
+[facebuilder] perlin s7 (0,0) 256x160x256 voxels: 1713 faces, GPU 0.741 ms
+[32m[20:37:44.801] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:45.100] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[20:37:45.100] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+[facebuilder] perlin s12345 (-1024,768) 256x136x256 voxels: 695 faces, GPU 0.853 ms
+[32m[20:37:47.506] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:37:47.766] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:37:47.882] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:37:48.093] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:37:48.093] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:37:48.094] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab\resources\biomes.json[0m
+[facebuilder] forest (8160,96) 84 trees: solid faces 42412 (vs 103316 with leaves as voxels), sprigs 21204, GPU 0.495 ms
+[32m[20:38:01.744] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:01.929] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:01.930] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:38:01.931] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab\resources\biomes.json[0m
+[facebuilder] skip timing perlin s7 (0,0) 256x160x256: off 1.226 ms, on 0.706 ms, 7475656 spans skipped, 1713 records
+[facebuilder] skip timing forest (8160,96) 256x256x256: off 1.149 ms, on 0.502 ms, 11186160 spans skipped, 63616 records
+[32m[20:38:02.845] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:02.845] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:38:02.846] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab\resources\biomes.json[0m
+[facebuilder] chunks invisible, forest 96^3 chunks: 27 chunks, 157950 unit faces, 21204 sprigs
+[facebuilder] chunks invisible, synthetic 24x16x20, beyond air: 18 chunks, 76906 unit faces, 4319 sprigs
+[facebuilder] chunks invisible, synthetic 24x16x20, beyond skip: 18 chunks, 69572 unit faces, 4315 sprigs
+[32m[20:38:05.517] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:05.634] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:05.634] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[cluster cull] slot 0: 1377 of 5000 clusters visible, 0 wrong, 0 differ within 1 mm of a plane
+[cluster cull] slot 1: 1945 of 5000 clusters visible, 0 wrong, 0 differ within 1 mm of a plane
+[32m[20:38:05.764] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:05.765] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[cluster cull] direction test: 2562 of 6000 clusters dropped, 0 wrong
+[cluster cull] light test: 2784 of 6000 clusters dropped, 0 wrong
+[32m[20:38:05.889] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:05.890] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[cluster lod] 1939 of 4000 drawn (per level 205 752 783 199), 0 wrong, 0 within 1e-4 of a switch
+[32m[20:38:06.024] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:06.025] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[compact] 5000 clusters, 859 visible -> 360 + 126 commands (reference 486), 17935 faces
+[32m[20:38:06.164] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[rowsDelta] 240 edits over 12 grids: 81656 rows, 34902 faces added, 174 resident hits
+[32m[20:38:06.722] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:06.722] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.730] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.751] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.772] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.793] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.813] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.831] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.851] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.870] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.889] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.909] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.930] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.951] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.971] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:06.992] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.013] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.031] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.051] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.071] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.086] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.108] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.128] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.150] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.168] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.186] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.209] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.228] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.250] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.270] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.291] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.311] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.333] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.354] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.375] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.395] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.416] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.435] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.452] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.470] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.493] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.514] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.532] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.553] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.572] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.589] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.608] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.629] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.648] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.665] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.686] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.706] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[partial] 50 rounds, 7704 slots rewritten in place, 21109 compacted commands compared
+[32m[20:38:07.842] [INFO] [ComputePipeline] Created: shaders/voxfound_faces.comp.spv (6 bindings)[0m
+[32m[20:38:07.843] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:07.843] [INFO] [ComputePipeline] Created: shaders/voxfound_cull.comp.spv (9 bindings)[0m
+[32m[20:38:08.000] [INFO] [ComputePipeline] Created: shaders/voxfound_lod.comp.spv (5 bindings)[0m
+[32m[20:38:08.142] [INFO] [ComputePipeline] Created: shaders/voxfound_lod.comp.spv (5 bindings)[0m
+[32m[20:38:08.267] [INFO] [ComputePipeline] Created: shaders/voxfound_lod.comp.spv (5 bindings)[0m
+[32m[20:38:08.267] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:38:08.268] [INFO] [WorldGenerator] Loaded 8 biomes from G:\Github\phyxel-matsimb-lab\resources\biomes.json[0m
+[lodbuilder] forest chunk (255,0,3) area 272^3, 87 plants stamped: 2869192 cells compared, GPU 0.178 ms
+[32m[20:38:10.141] [INFO] [ComputePipeline] Created: shaders/voxfound_lod.comp.spv (5 bindings)[0m
+[32m[20:38:10.262] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)[0m
+[fracture gpu] stone_wall   E     5.0: 0.070 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    15.0: 0.072 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    20.0: 0.070 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    30.0: 0.073 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    50.0: 0.072 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E    80.0: 0.071 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E   120.0: 0.072 ms device, 7 rounds, 2 submits
+[fracture gpu] stone_wall   E   200.0: 0.073 ms device, 8 rounds, 2 submits
+[fracture gpu] stone_wall   E   300.0: 0.072 ms device, 6 rounds, 2 submits
+[fracture gpu] stone_wall   E   500.0: 0.073 ms device, 6 rounds, 2 submits
+[fracture gpu] stone_wall   E   800.0: 0.072 ms device, 6 rounds, 2 submits
+[fracture gpu] stone_wall   E    50.0: 0.071 ms device, 7 rounds, 2 submits
+[fracture gpu] brick_wall   E    48.0: 0.071 ms device, 7 rounds, 2 submits
+[fracture gpu] brick_wall   E   180.0: 0.071 ms device, 4 rounds, 2 submits
+[fracture gpu] beam         E    32.0: 0.069 ms device, 6 rounds, 2 submits
+[fracture gpu] glass_pane   E    20.0: 0.046 ms device, 7 rounds, 2 submits
+[fracture gpu] column_lintel E   300.0: 0.069 ms device, 6 rounds, 2 submits
+[fracture gpu] chair        E    32.0: 0.237 ms device, 7 rounds, 2 submits
+[fracture gpu] rigs: 18 / 18 equal in every channel
+[32m[20:38:10.418] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)[0m
+[fracture gpu] random: 600 / 600 hits equal in every channel
+[32m[20:38:11.310] [INFO] [ComputePipeline] Created: shaders/voxfound_fracture.comp.spv (6 bindings)[0m
+[fracture gpu] large wall 256 x 128 x 4 = 131072 voxels
+[fracture gpu] large wall E/T      8:    230 cuts,     0 loose pieces (   0 bodies) | GPU 1.825 ms device (10 rounds), 4.46 ms host | CPU reference 14.65 ms
+[fracture gpu] large wall E/T     20:    504 cuts,     7 loose pieces (   5 bodies) | GPU 1.769 ms device (9 rounds), 4.40 ms host | CPU reference 17.26 ms
+[fracture gpu] large wall E/T     50:   1473 cuts,    38 loose pieces (  16 bodies) | GPU 1.793 ms device (9 rounds), 4.38 ms host | CPU reference 16.20 ms
+[fracture gpu] large wall E/T    150:   4421 cuts,   122 loose pieces (  59 bodies) | GPU 1.849 ms device (9 rounds), 6.00 ms host | CPU reference 17.30 ms
+[fracture gpu] large wall E/T    400:  11291 cuts,   369 loose pieces ( 174 bodies) | GPU 1.992 ms device (9 rounds), 4.97 ms host | CPU reference 26.19 ms
+[fracture gpu] large wall E/T   1000:  28002 cuts,   936 loose pieces ( 468 bodies) | GPU 1.983 ms device (9 rounds), 4.72 ms host | CPU reference 37.56 ms
+[fracture gpu] large wall E/T   2500:  52801 cuts,  1981 loose pieces ( 947 bodies) | GPU 1.566 ms device (9 rounds), 3.92 ms host | CPU reference 58.73 ms
+[32m[20:38:11.748] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:11.754] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:11.757] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] R1 free fall: worst vs closed form 7.556e-05 m, vs reference 7.556e-05 m
+[32m[20:38:11.970] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:11.975] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:11.978] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] R2 flat drop: rest y 0.24985 (penetration 0.15 mm), drift 0.000 mm, late speed 0.0000, asleep by 3 s 1, worst vs reference 0.324 mm
+[32m[20:38:12.534] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:12.540] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:12.543] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] R3 slab: vertical axis 1 (0.00 deg off), centre y 0.2499 (half-height 0.2500), asleep 1
+[body gpu] R3b slab: vertical axis 2 (0.03 deg off), centre y 0.1249 (half-height 0.1250), asleep 1
+[32m[20:38:12.973] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:12.978] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:12.982] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] R4 slide: 0.2382 m (Coulomb 0.2548), rise 0.00 mm, tilt 0.00 deg, worst vs reference 0.161 mm
+[32m[20:38:13.311] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:13.318] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:13.321] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] R5 stack of 5: worst move 1.92 mm, 5 / 5 asleep, colours 4
+[32m[20:38:13.611] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:13.618] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:13.621] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] R6 head-on, 8 iterations: |P| / (m v) 4.67e-02, overlap 0.37 mm, after |v| 0.0522 / 0.0493
+[body gpu] R6 head-on, 32 iterations: |P| / (m v) 6.60e-03, overlap 0.46 mm, after |v| 0.0000 / 0.0000
+[32m[20:38:14.131] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:14.136] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:14.139] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] A3/A4 large wall E/T 250, per-colour: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.002 m, 4.030 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.055/0.039 world 0.689/0.003 pairs 0.243/0.002 prefix+scatter 0.011/0.007 sort 0.215/0.001 colour 0.099/0.040 primal 2.110/0.319 dual 0.050/0.013 hard_body 0.216/0.043 hard_apply 0.368/0.001 finish 0.005/0.003 warm 0.006/0.004 | total 4.071 / 0.479
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 250, fused: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.002 m, 4.249 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.050/0.039 world 0.676/0.003 pairs 0.261/0.002 prefix+scatter 0.010/0.007 sort 0.205/0.002 colour 0.080/0.002 primal 2.165/0.017 dual 0.032/0.021 hard_body 0.296/0.043 hard_apply 0.342/0.001 finish 0.005/0.004 warm 0.006/0.004 | total 4.130 / 0.147
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 0.8 ms / tick fused
+[body gpu] A3/A4 large wall E/T 650, per-colour: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.000 m, 6.702 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.057/0.042 world 0.620/0.003 pairs 0.504/0.003 prefix+scatter 0.039/0.015 sort 0.558/0.001 colour 0.146/0.041 primal 3.681/0.322 dual 0.052/0.015 hard_body 0.437/0.046 hard_apply 0.365/0.002 finish 0.006/0.003 warm 0.008/0.004 | total 6.478 / 0.500
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 650, fused: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.000 m, 8.299 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.055/0.042 world 0.608/0.003 pairs 0.423/0.003 prefix+scatter 0.017/0.015 sort 0.431/0.001 colour 0.166/0.003 primal 5.522/0.018 dual 0.042/0.023 hard_body 0.591/0.046 hard_apply 0.370/0.001 finish 0.005/0.003 warm 0.009/0.004 | total 8.244 / 0.166
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 1.5 ms / tick fused
+[body gpu] A3/A4 large wall E/T 2800, per-colour: 1025 bodies (3 awake at 5 s), colours 20, max contacts 30046, lowest corner -0.005 m, 12.075 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.005/0.003 aabb 0.067/0.041 world 1.092/0.089 pairs 1.171/0.271 prefix+scatter 0.050/0.045 sort 0.464/0.002 colour 0.264/0.043 primal 6.943/0.363 dual 0.062/0.022 hard_body 1.330/0.307 hard_apply 0.648/0.046 finish 0.016/0.004 warm 0.008/0.005 | total 12.119 / 1.240
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 2800, fused: 1025 bodies (3 awake at 5 s), colours 20, max contacts 30046, lowest corner -0.005 m, 18.198 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.065/0.041 world 1.172/0.088 pairs 1.133/0.278 prefix+scatter 0.082/0.045 sort 0.421/0.003 colour 0.318/0.005 primal 12.575/0.066 dual 0.071/0.028 hard_body 1.465/0.308 hard_apply 0.493/0.047 finish 0.005/0.004 warm 0.009/0.005 | total 17.815 / 0.919
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 3.0 ms / tick fused
+[32m[20:38:48.706] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:48.712] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:48.716] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] T1 ground 1x1x4 at 5 m/s: lowest corner -0.0002 m, pos (1.812536, 0.062314, 1.999996), asleep 1
+[body gpu] T1 ground 1x1x4 at 15 m/s: lowest corner -0.0000 m, pos (2.098484, 0.062400, 2.078750), asleep 1
+[body gpu] T1 ground 1x1x4 at 30 m/s: lowest corner -0.0001 m, pos (2.537241, 0.062379, 2.494205), asleep 1
+[body gpu] T1 ground 1x1x4 at 60 m/s: lowest corner -0.0002 m, pos (3.576131, 0.062330, 2.798191), asleep 1
+[body gpu] T1 ground 2x2x2 at 5 m/s: lowest corner -0.0001 m, pos (1.874992, 0.124883, 1.874993), asleep 1
+[body gpu] T1 ground 2x2x2 at 15 m/s: lowest corner -0.0016 m, pos (1.878719, 0.124811, 1.888150), asleep 1
+[body gpu] T1 ground 2x2x2 at 30 m/s: lowest corner -0.0001 m, pos (1.869795, 0.124887, 1.859823), asleep 1
+[body gpu] T1 ground 2x2x2 at 60 m/s: lowest corner -0.0002 m, pos (1.404861, 0.124835, 1.933737), asleep 1
+[body gpu] T2 slab 2x2x2 at 30 m/s: lowest corner 1.1249 m, pos (2.042442, 1.249895, 2.042476), asleep 1
+[32m[20:38:49.394] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:49.400] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:49.403] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] E1 blast: 21 bodies x 600 ticks, 10115 asleep samples, max asleepTicks 536, 0 mismatches
+[body gpu] E1 large wall E/T 250: 105 bodies x 300 ticks, 27632 asleep samples, max asleepTicks 270, 0 mismatches
+[32m[20:38:51.559] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:51.564] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:51.568] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] E2 blast: 21 bodies, 257 batches, 0 of 5397 samples differ async vs sync, 0 counter sets differ; 1.232 / 1.170 ms per tick device (sync / async); 2920351 polls not ready
+[body gpu] E2 large wall E/T 2800: 1025 bodies, 52 batches, 0 of 53300 samples differ async vs sync, 0 counter sets differ; 10.602 / 10.319 ms per tick device (sync / async); 4595426 polls not ready
+[32m[20:38:57.442] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:38:57.448] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:38:57.452] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] E3 blast, budget 8: 28 bodies -> 8 (20 baked) in 225 passes; ledger broken after 0 passes; 0 overwritten; 0 awake at the end; 0 body samples below the floor; 14 reloads, 10.02 ms mean, 13.34 max (world 88 x 34 x 67 = 200464 cells)
+[body gpu] E3 large wall E/T 650, budget 64: 306 bodies -> 64 (242 baked) in 225 passes; ledger broken after 0 passes; 0 overwritten; 0 awake at the end; 0 body samples below the floor; 1 reloads, 22.46 ms mean, 22.46 max (world 320 x 146 x 68 = 3176960 cells)
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1038): error: Expected: (reloadMax) <= (reloadMsMax), actual: 22.4618 vs 20
+E3 large wall E/T 650, budget 64: reload cost
+
+[  FAILED  ] VoxFoundBodySimGpu.F55bGpuRestConservesAndReloads (5346 ms)
+[32m[20:39:02.777] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:02.783] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:02.787] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[32m[20:39:02.794] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:02.795] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:02.795] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] H5 blast bake 0: 4 baked, 205 cells, edit 0.009 ms (CPU side 0.008)
+[body gpu] H5 blast bake 1: 4 baked, 50 cells, edit 0.007 ms (CPU side 0.006)
+[body gpu] H5 blast bake 2: 4 baked, 43 cells, edit 0.008 ms (CPU side 0.007)
+[body gpu] F55c H5 blast: 28 bodies, 3 bakes (12 bodies, 298 cells), 0 of 720 samples differ edit vs reload, 0 counter sets differ; edit max 0.010 ms, reload max 9.227 ms (world 200464 cells)
+[32m[20:39:08.435] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:08.435] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:08.436] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] H5 large wall E/T 650 bake 0: 32 baked, 3989 cells, edit 0.100 ms (CPU side 0.100)
+[body gpu] H5 large wall E/T 650 bake 1: 32 baked, 4194 cells, edit 0.136 ms (CPU side 0.136)
+[body gpu] H5 large wall E/T 650 bake 2: 32 baked, 2914 cells, edit 0.059 ms (CPU side 0.059)
+[body gpu] F55c H5 large wall E/T 650: 306 bodies, 3 bakes (96 bodies, 11097 cells), 0 of 8712 samples differ edit vs reload, 0 counter sets differ; edit max 0.141 ms, reload max 24.478 ms (world 3176960 cells)
+[32m[20:39:12.722] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:12.722] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:12.723] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] H5 large wall E/T 2800 bake 0: 64 baked, 9610 cells, edit 0.275 ms (CPU side 0.274)
+[body gpu] H5 large wall E/T 2800 bake 1: 64 baked, 9534 cells, edit 0.353 ms (CPU side 0.352)
+[body gpu] H5 large wall E/T 2800 bake 2: 64 baked, 9228 cells, edit 0.318 ms (CPU side 0.318)
+[body gpu] F55c H5 large wall E/T 2800: 979 bodies, 3 bakes (192 bodies, 28372 cells), 0 of 30636 samples differ edit vs reload, 0 counter sets differ; edit max 0.360 ms, reload max 44.972 ms (world 3176960 cells)
+[32m[20:39:25.454] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:25.460] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:25.464] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] R7 lintel E/T 30: 4 bodies, 4 asleep at 10 s, max penetration 5.44 mm, max contacts 34, capped 4787, hard-contact fires 150, colours 3, 0.565 ms / tick device
+[32m[20:39:26.018] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:26.024] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:26.027] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] R8 stone wall E/T 30: 7 bodies, 7 asleep at 10 s, max penetration 0.92 mm, max contacts 128, capped 12164, hard-contact fires 0, colours 4, 0.532 ms / tick device
+[body gpu] R8 stone wall E/T 80: 21 bodies, 21 asleep at 10 s, max penetration 0.63 mm, max contacts 461, capped 35512, hard-contact fires 0, colours 8, 0.480 ms / tick device
+[32m[20:39:26.964] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:26.972] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:26.976] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] R8b stone wall E/T 80, 8000 N s: 21 bodies, 21 asleep at 15 s, max penetration 5.70 mm, max contacts 366, capped 25600, hard-contact fires 211, colours 8, 0.857 ms / tick device
+[body gpu] G3: 0 of 630 bodies differ between two runs
+[32m[20:39:28.895] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:28.900] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:28.903] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] A1 R8b per-colour path: 21 bodies, 21 asleep at 15 s, max penetration 5.62 mm, max contacts 366, capped 32668, hard-contact fires 237, colours 8, 1.553 ms / tick device
+[body gpu] A1 R8b fused path: 21 bodies, 21 asleep at 15 s, max penetration 5.62 mm, max contacts 366, capped 32668, hard-contact fires 237, colours 8, 1.325 ms / tick device
+[body gpu] A1: 0 of 630 samples differ fused vs per-colour (worst 0 m); all asleep 0.1644 ms / tick fused
+[32m[20:39:32.019] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:32.025] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:32.031] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] B1 R8b blast: 21 bodies; 0 of 630 samples differ parallel vs serial; candidates 41396 / 41396, capped 25600 / 25600, pairs 2333 / 2333, hard 211 / 211, deep 0 / 0, max contacts 366 / 366
+[body gpu] B3 R8b blast: 0.851 ms / tick parallel, 9.254 serial; awake at the end 0; all-asleep tail 0.2051 ms / tick
+[32m[20:39:41.506] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:39:41.513] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:39:41.516] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] B1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ parallel vs serial; candidates 497026 / 497026, capped 392246 / 392246, pairs 22340 / 22340, hard 44 / 44, deep 9 / 9, max contacts 2970 / 2970
+[body gpu] B3 large wall E/T 250: 2.327 ms / tick parallel, 51.200 serial; awake at the end 0; all-asleep tail 0.2751 ms / tick
+[body gpu] B1 large wall E/T 650: 293 bodies; 0 of 2930 samples differ parallel vs serial; candidates 1357910 / 1357910, capped 1078125 / 1078125, pairs 52917 / 52917, hard 168 / 168, deep 2 / 2, max contacts 8595 / 8595
+[body gpu] B3 large wall E/T 650: 2.795 ms / tick parallel, 72.969 serial; awake at the end 0; all-asleep tail 0.3120 ms / tick
+[body gpu] B1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ parallel vs serial; candidates 4918887 / 4918887, capped 3734817 / 3734817, pairs 249407 / 249407, hard 2127 / 2127, deep 32 / 32, max contacts 30188 / 30188
+[body gpu] B3 large wall E/T 2800: 6.980 ms / tick parallel, 139.188 serial; awake at the end 10; all-asleep tail 1.9945 ms / tick
+[body gpu]   B3 profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.069/0.041 world 0.867/0.088 pairs 1.210/0.308 prefix+scatter 0.053/0.046 sort 0.750/0.006 colour 0.317/0.022 primal 1.380/0.202 dual 0.085/0.032 hard_body 1.461/0.339 hard_apply 0.493/0.045 finish 0.006/0.004 warm 0.008/0.005
+[32m[20:41:07.592] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:41:07.599] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:41:07.603] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] C1 R8b blast: 21 bodies; 0 of 630 samples differ parallel vs serial; candidates 41396 / 41396, capped 25600 / 25600, pairs 2333 / 2333, hard 211 / 211, deep 0 / 0, max contacts 366 / 366
+[body gpu] C3 R8b blast: 0.877 ms / tick parallel, 5.584 serial; awake at the end 0; all-asleep tail 0.1434 ms / tick
+[body gpu] C1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ parallel vs serial; candidates 497026 / 497026, capped 392246 / 392246, pairs 22340 / 22340, hard 44 / 44, deep 9 / 9, max contacts 2970 / 2970
+[body gpu] C3 large wall E/T 250: 2.412 ms / tick parallel, 9.940 serial; awake at the end 0; all-asleep tail 0.2855 ms / tick
+[body gpu] C1 large wall E/T 650: 293 bodies; 0 of 2930 samples differ parallel vs serial; candidates 1357910 / 1357910, capped 1078125 / 1078125, pairs 52917 / 52917, hard 168 / 168, deep 2 / 2, max contacts 8595 / 8595
+[body gpu] C3 large wall E/T 650: 2.825 ms / tick parallel, 10.632 serial; awake at the end 0; all-asleep tail 0.3096 ms / tick
+[body gpu] C1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ parallel vs serial; candidates 4918887 / 4918887, capped 3734817 / 3734817, pairs 249407 / 249407, hard 2127 / 2127, deep 32 / 32, max contacts 30188 / 30188
+[body gpu] C3 large wall E/T 2800: 6.872 ms / tick parallel, 18.886 serial; awake at the end 10; all-asleep tail 1.9037 ms / tick
+[body gpu]   C3 profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.067/0.041 world 0.896/0.088 pairs 1.197/0.309 prefix+scatter 0.051/0.046 sort 0.488/0.006 colour 0.319/0.023 primal 1.431/0.200 dual 0.139/0.032 hard_body 1.431/0.338 hard_apply 0.477/0.044 finish 0.007/0.004 warm 0.009/0.005
+[32m[20:41:32.488] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[20:41:32.494] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[20:41:32.497] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[body gpu] D1 R8b blast: 21 bodies; 0 of 630 samples differ between two parallel-primal runs; vs the serial primal: worst sample 2.2596 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 R8b blast: 0.873 ms / tick parallel primal, 1.354 serial primal; awake at the end 0; tail 0.2441 ms / tick
+[body gpu] E1 R8b blast: 0 of 630 samples differ, one-workgroup form vs indirect form; 0.925 vs 0.903 ms / tick
+[body gpu] D2 R8b blast: lowest corner -0.0018 m, max penetration 5.70 mm
+[body gpu] D1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ between two parallel-primal runs; vs the serial primal: worst sample 8.1985 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 250: 2.416 ms / tick parallel primal, 4.154 serial primal; awake at the end 0; tail 0.3613 ms / tick
+[body gpu] E1 large wall E/T 250: 0 of 1050 samples differ, one-workgroup form vs indirect form; 2.365 vs 2.297 ms / tick
+[body gpu] D2 large wall E/T 250: lowest corner -0.0001 m, max penetration 6.84 mm
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(769): error: Expected: (a.ms) <= (maxMs), actual: 2.4163747199999999 vs 2.2
+D3 large wall E/T 250
+
+[body gpu] D1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ between two parallel-primal runs; vs the serial primal: worst sample 7.3684 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 2800: 6.771 ms / tick parallel primal, 13.086 serial primal; awake at the end 10; tail 2.0307 ms / tick
+[body gpu] E1 large wall E/T 2800: 0 of 10250 samples differ, one-workgroup form vs indirect form; 8.694 vs 6.614 ms / tick
+[body gpu] D2 large wall E/T 2800: lowest corner -0.0065 m, max penetration 8.50 mm
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(769): error: Expected: (a.ms) <= (maxMs), actual: 6.77067424 vs 5
+D3 large wall E/T 2800
+
+[body gpu]   D3 profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.072/0.041 world 0.961/0.088 pairs 1.125/0.308 prefix+scatter 0.052/0.045 sort 0.623/0.006 colour 0.367/0.022 primal 1.440/0.202 dual 0.139/0.031 hard_body 1.446/0.339 hard_apply 0.527/0.045 finish 0.007/0.004 warm 0.009/0.005
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost (67257 ms)
+[==========] 45 tests from 6 test suites ran. (298285 ms total)
+[  PASSED  ] 43 tests.

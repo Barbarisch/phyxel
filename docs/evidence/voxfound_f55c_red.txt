@@ -1,0 +1,90 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodyRest.F55c*
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from VoxFoundBodyRest
+[ RUN      ] VoxFoundBodyRest.F55cCellSetPlansEqualAndCost
+[body rest] F55c H1/H2 extraction poses: 916 plans, 0 differ, worlds equal; 916 baked; F5.4 test 35.29 ms, cell set 35.54 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(576): error: Expected: (ms[1]) <= (mode == 0 ? 10.0 : 40.0), actual: 35.5421 vs 10
+H2
+
+[body rest] F55c H1/H2 random rotations: 916 plans, 0 differ, worlds equal; 914 baked; F5.4 test 672.89 ms, cell set 669.82 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(576): error: Expected: (ms[1]) <= (mode == 0 ? 10.0 : 40.0), actual: 669.81759999999997 vs 40
+H2
+
+[body rest] F55c H1 blast: 676 plans compared over 900 ticks, 0 differ; 27 baked
+[  FAILED  ] VoxFoundBodyRest.F55cCellSetPlansEqualAndCost (3514 ms)
+[ RUN      ] VoxFoundBodyRest.F55cCapBoundsEveryPass
+[body rest] F55c H3: cap 4, 120 ticks conserved; 529 baked in 1 passes, 1 passes over the cap, 0 overwritten; worst pass 28.973 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(640): error: Expected equality of these values:
+  overCap
+    Which is: 1
+  0u
+    Which is: 0
+H3
+
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(642): error: Expected: (worst) <= (2.0), actual: 28.973 vs 2
+H3 worst pass
+
+[  FAILED  ] VoxFoundBodyRest.F55cCapBoundsEveryPass (36685 ms)
+[ RUN      ] VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(704): error: Value of: rcs.empty()
+  Actual: true
+Expected: false
+areaRegionChunks
+
+[  FAILED  ] VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild (197 ms)
+[----------] 3 tests from VoxFoundBodyRest (40397 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (40398 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 3 tests, listed below:
+[  FAILED  ] VoxFoundBodyRest.F55cCellSetPlansEqualAndCost
+[  FAILED  ] VoxFoundBodyRest.F55cCapBoundsEveryPass
+[  FAILED  ] VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild
+
+ 3 FAILED TESTS
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = *F55cEdit*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from VoxFoundBodySimGpu
+[ RUN      ] VoxFoundBodySimGpu.F55cEditEqualsReload
+[32m[19:07:27.496] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[19:07:27.502] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[19:07:27.504] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+[32m[19:07:27.512] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[19:07:27.512] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[19:07:27.513] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1089): error: Value of: gpu.edit(cells, baked, sim.bodies(), &err)
+  Actual: false
+Expected: true
+blast: BodySimGpu::edit: not built yet (F5.5c red stub)
+
+[32m[19:07:28.936] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[19:07:28.936] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[19:07:28.936] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1089): error: Value of: gpu.edit(cells, baked, sim.bodies(), &err)
+  Actual: false
+Expected: true
+large wall E/T 650: BodySimGpu::edit: not built yet (F5.5c red stub)
+
+[32m[19:07:29.671] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies.comp.spv (13 bindings)[0m
+[32m[19:07:29.672] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_fused.comp.spv (13 bindings)[0m
+[32m[19:07:29.672] [INFO] [ComputePipeline] Created: shaders/voxfound_bodies_primal.comp.spv (13 bindings)[0m
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1089): error: Value of: gpu.edit(cells, baked, sim.bodies(), &err)
+  Actual: false
+Expected: true
+large wall E/T 2800: BodySimGpu::edit: not built yet (F5.5c red stub)
+
+[  FAILED  ] VoxFoundBodySimGpu.F55cEditEqualsReload (4266 ms)
+[----------] 1 test from VoxFoundBodySimGpu (4266 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (4266 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55cEditEqualsReload
+
+ 1 FAILED TEST

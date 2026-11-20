@@ -88,6 +88,10 @@ public:
     /// F3.2b: a BOX edit (every voxel in [lo, hi]); blocks it covers entirely are written whole (BlockStore::fillBlock).
     Stats applyBox(glm::ivec3 lo, glm::ivec3 hi, uint8_t material, FaceBuilderGpu* gpu = nullptr,
                    std::string* err = nullptr);
+    /// F5.5c: sets each listed voxel (world 1/8 m, clipped to the region) to its own material and rebuilds
+    /// incrementally over the cells' box (the bodies lab's bake: one call per baked body).
+    Stats applyCells(const std::vector<std::pair<glm::ivec3, uint8_t>>& cells, FaceBuilderGpu* gpu = nullptr,
+                     std::string* err = nullptr);
     /// F3.2b: the brush of size s (1, 2, 4, 8 voxels) whose cell holds world voxel `at` (brushCell). A size outside
     /// {1, 2, 4, 8} is refused: false and `err`.
     bool brush(glm::ivec3 at, int size, uint8_t material, Stats& st, FaceBuilderGpu* gpu = nullptr,
@@ -125,7 +129,8 @@ private:
     /// source (F3.3, loadChunk): the voxels of chunk sourceChunk come from this store instead of `material`.
     Stats applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std::function<bool(glm::ivec3)>* inside, uint8_t material,
                     FaceBuilderGpu* gpu, std::string* err, const BlockStore* source = nullptr,
-                    size_t sourceChunk = SIZE_MAX);
+                    size_t sourceChunk = SIZE_MAX,
+                    const std::function<uint8_t(glm::ivec3)>* materialAt = nullptr);   // F5.5c: per voxel
     std::vector<Chunk> m_chunks;
     glm::ivec3 m_lo{0}, m_hi{-1};
     int m_clusterBlocks = 4;
@@ -168,5 +173,10 @@ public:
 private:
     CardSet m_cards, m_seeThrough;
 };
+
+/// F5.5c: an area grid (any dims, materials as they are) as region chunks of 256^3: area voxel p is region voxel
+/// p + offset (offset >= 0). Chunks [0, *chunkHi]; chunk c's originVoxel = c * 256; every voxel outside the area is
+/// air and so is every border plane outside the region; inner border planes come from the neighbour chunk.
+std::vector<RegionChunk> areaRegionChunks(const VoxelGrid& area, glm::ivec3 offset, glm::ivec3* chunkHi);
 
 }  // namespace Phyxel::Core::VoxFound

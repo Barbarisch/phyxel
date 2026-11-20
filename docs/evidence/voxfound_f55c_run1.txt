@@ -1,0 +1,59 @@
+Running main() from G:\Github\phyxel-matsimb-lab\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = VoxFoundBodyRest.F55c*
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from VoxFoundBodyRest
+[ RUN      ] VoxFoundBodyRest.F55cCellSetPlansEqualAndCost
+[body rest] F55c parts (cell set 0): choose 0.07 grid 0.15 plan 31.66 apply 1.14 wake 1.22 remove 1.59 ms
+[body rest] F55c parts (cell set 1): choose 0.07 grid 0.14 plan 15.64 apply 1.14 wake 1.18 remove 1.39 ms
+[body rest] F55c H1/H2 extraction poses: 916 plans, 0 differ, worlds equal; 916 baked; F5.4 test 35.89 ms, cell set 19.63 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(578): error: Expected: (ms[1]) <= (mode == 0 ? 10.0 : 40.0), actual: 19.6274 vs 10
+H2
+
+[body rest] F55c parts (cell set 0): choose 0.05 grid 0.13 plan 640.86 apply 1.36 wake 1.67 remove 1.67 ms
+[body rest] F55c parts (cell set 1): choose 0.05 grid 0.13 plan 117.20 apply 1.14 wake 1.54 remove 1.36 ms
+[body rest] F55c H1/H2 random rotations: 916 plans, 0 differ, worlds equal; 914 baked; F5.4 test 645.75 ms, cell set 121.44 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(578): error: Expected: (ms[1]) <= (mode == 0 ? 10.0 : 40.0), actual: 121.4374 vs 40
+H2
+
+[body rest] F55c H1 blast: 676 plans compared over 900 ticks, 0 differ; 27 baked
+[  FAILED  ] VoxFoundBodyRest.F55cCellSetPlansEqualAndCost (2945 ms)
+[ RUN      ] VoxFoundBodyRest.F55cCapBoundsEveryPass
+[body rest] F55c H3 tick 0: 0.008 ms (choose 0.008 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 1: 0.009 ms (choose 0.008 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 2: 0.015 ms (choose 0.014 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 12: 0.022 ms (choose 0.021 grid 0.000 plan 0.000 apply 0.000 wake 0.000 remove 0.000; 0 baked)
+[body rest] F55c H3 tick 59: 1.476 ms (choose 0.081 grid 0.162 plan 0.093 apply 0.009 wake 0.008 remove 1.119; 4 baked)
+[body rest] F55c H3 tick 60: 1.634 ms (choose 0.065 grid 0.141 plan 0.136 apply 0.013 wake 0.008 remove 1.264; 4 baked)
+[body rest] F55c H3 tick 62: 1.790 ms (choose 0.056 grid 0.155 plan 0.084 apply 0.009 wake 0.007 remove 1.473; 4 baked)
+[body rest] F55c H3 tick 63: 1.813 ms (choose 0.059 grid 0.143 plan 0.053 apply 0.006 wake 0.006 remove 1.540; 4 baked)
+[body rest] F55c H3 tick 65: 2.121 ms (choose 0.042 grid 0.119 plan 0.066 apply 0.005 wake 0.005 remove 1.877; 4 baked)
+[body rest] F55c H3 tick 68: 2.454 ms (choose 0.065 grid 0.127 plan 0.105 apply 0.009 wake 0.010 remove 1.714; 4 baked)
+[body rest] F55c H3 tick 72: 2.477 ms (choose 0.036 grid 0.145 plan 0.091 apply 0.007 wake 0.007 remove 2.187; 4 baked)
+[body rest] F55c H3 tick 74: 2.507 ms (choose 0.045 grid 0.158 plan 0.108 apply 0.008 wake 0.008 remove 2.176; 4 baked)
+[body rest] F55c H3 tick 76: 2.691 ms (choose 0.029 grid 0.110 plan 0.055 apply 0.004 wake 0.007 remove 2.219; 4 baked)
+[body rest] F55c H3 tick 77: 2.905 ms (choose 0.037 grid 0.130 plan 0.102 apply 0.010 wake 0.006 remove 2.614; 4 baked)
+[body rest] F55c H3 tick 80: 3.545 ms (choose 0.024 grid 0.101 plan 0.087 apply 0.007 wake 0.007 remove 3.314; 4 baked)
+[body rest] F55c H3 tick 82: 3.675 ms (choose 0.023 grid 0.102 plan 0.145 apply 0.010 wake 0.007 remove 3.382; 4 baked)
+[body rest] F55c H3 tick 83: 4.137 ms (choose 0.021 grid 0.119 plan 0.076 apply 0.007 wake 0.009 remove 3.899; 4 baked)
+[body rest] F55c H3 tick 84: 4.333 ms (choose 0.026 grid 0.121 plan 0.158 apply 0.014 wake 0.012 remove 3.995; 4 baked)
+[body rest] F55c H3 tick 86: 5.662 ms (choose 0.019 grid 0.105 plan 0.142 apply 0.013 wake 0.008 remove 5.370; 4 baked)
+[body rest] F55c H3: cap 4, 120 ticks conserved; 140 baked in 35 passes, 0 passes over the cap, 0 overwritten; worst pass 5.662 ms
+G:\Github\phyxel-matsimb-lab\tests\core\VoxFoundBodyRestTest.cpp(648): error: Expected: (worst) <= (2.0), actual: 5.6617 vs 2
+H3 worst pass
+
+[  FAILED  ] VoxFoundBodyRest.F55cCapBoundsEveryPass (65861 ms)
+[ RUN      ] VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild
+[body rest] F55c H4 extraction poses: 2 chunks, 229 passes (cap 4), 916 baked, 19 checks + end, 0 mismatches; per body median 0.093 ms (max 0.498); per pass median 0.507 ms, max 1.287; 166171 ms in all
+[body rest] F55c H4 random rotations: 2 chunks, 229 passes (cap 4), 914 baked, 19 checks + end, 0 mismatches; per body median 0.181 ms (max 1.079); per pass median 0.898 ms, max 2.489; 163858 ms in all
+[       OK ] VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild (362349 ms)
+[----------] 3 tests from VoxFoundBodyRest (431156 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (431156 ms total)
+[  PASSED  ] 1 test.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] VoxFoundBodyRest.F55cCellSetPlansEqualAndCost
+[  FAILED  ] VoxFoundBodyRest.F55cCapBoundsEveryPass
+
+ 2 FAILED TESTS

@@ -580,10 +580,18 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       sampling (the CPU penetration measure stalls the frame for seconds at ~1,000 bodies). The VoxFoundBodies
       project is a 43 ms forest before any body -- solver timing in CharacterTestbed (5.2 ms). Lab pad clamped per
       axis (preview build limit 256). Body pass cost follows covered PIXELS, not faces.
-      NEXT: F5.5c (bake levers: neighbour cell set, per-pass cap; incremental preview edit; incremental GPU edit
-      instead of the reload -- the bake frame is 64-105 ms) with its prediction BEFORE code; then F5.5d (the exit).
+      F5.5c done: the bake levers. planBake's cell test asked once per cell (BakeParams::cellSet; exact), a sphere
+      grid per pass, RestParams::cap; the lab world is a RegionEdit on the engine's 32 m chunk grid
+      (areaRegionChunks; RegionEdit::applyCells per baked body; {"preview":"region"|"area"}); BodySimGpu::edit
+      (staged, recorded by the next command buffer, bit-equal to load; {"gpu_edit":bool}); the renderer keeps one body
+      face copy per frame in flight (no vkDeviceWaitIdle per bake). Live: the whole rest call <= 1.9 ms (F5.5b path
+      77-113 ms). Gates: tools/voxfound_f55c_gate.py (pixels | hitch [--control]). USE 127.0.0.1, NOT localhost (2 s
+      per call here). CHECK FOR OTHER GPU LOAD (World of Warcraft ran through F5.5c's live runs). An unexplained ~60 s
+      dt at a run's second frame shows in both paths. Region-vs-area preview differs by single edge pixels.
+      NEXT: F5.5d (the exit: live 100 -> 1,000 bodies, conservation, pop, whole frame) with its prediction BEFORE code.
       Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall); broadphase (pairs +
-      hard_body are awake x all loops).
+      hard_body are awake x all loops); the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start
+      re-key, 5 ms).
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
       Content: the 3 missing 1/8 m plant templates (fern, shrub_flat, tree_apple); spruce size.
     - **Matter representation review rev 2 (2026-11-10)**, `docs/MatterRepresentationReview.md`: four read-only audits +

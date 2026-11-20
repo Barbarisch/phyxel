@@ -263,6 +263,7 @@ void BodySimRef::remove(const std::vector<size_t>& indices) {
     }
     m_cons.swap(cons);
     m_warm.clear();
+    m_warm.reserve(m_cons.size());   // F5.5c: one allocation, not a rehash per growth (the rest pass's remove)
     for (const Constraint& k : m_cons)
         m_warm[k.key] = {k.lambdaN, k.lambdaT1, k.lambdaT2, k.penN, k.penT1, k.penT2, k.anchor, k.stick};
 }

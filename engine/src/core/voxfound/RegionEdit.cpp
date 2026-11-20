@@ -85,6 +85,83 @@ RegionEdit::Stats RegionEdit::apply(glm::ivec3 lo, glm::ivec3 hi, const std::fun
     return applyImpl(lo, hi, &inside, material, gpu, err);
 }
 
+RegionEdit::Stats RegionEdit::applyCells(const std::vector<std::pair<glm::ivec3, uint8_t>>& cells, FaceBuilderGpu* gpu,
+                                         std::string* err) {
+    if (cells.empty()) return {};
+    // the cells' box, and each cell's material looked up by a sorted key (x, y, z biased and packed)
+    glm::ivec3 lo(std::numeric_limits<int>::max()), hi(std::numeric_limits<int>::min());
+    std::vector<std::pair<uint64_t, uint8_t>> keyed;
+    keyed.reserve(cells.size());
+    static constexpr int kBias = 1 << 20;   // world voxels in [-2^20, 2^20) (+-131 km); keys of 21 bits per axis
+    auto key = [](glm::ivec3 p) {
+        const glm::uvec3 u(p + kBias);
+        return (uint64_t(u.x) << 42) | (uint64_t(u.y) << 21) | uint64_t(u.z);
+    };
+    for (const auto& [p, m] : cells) {
+        if (glm::any(glm::lessThan(p, glm::ivec3(-kBias))) || glm::any(glm::greaterThanEqual(p, glm::ivec3(kBias))))
+            continue;   // beyond any region the engine builds
+        lo = glm::min(lo, p);
+        hi = glm::max(hi, p);
+        keyed.push_back({key(p), m});
+    }
+    if (keyed.empty()) return {};
+    std::sort(keyed.begin(), keyed.end());   // a repeated cell takes its largest material (a bake never lists a cell twice)
+    auto find = [&](glm::ivec3 p) -> int {
+        const uint64_t k = key(p);
+        auto it = std::lower_bound(keyed.begin(), keyed.end(), std::make_pair(k, uint8_t(0)));
+        if (it == keyed.end() || it->first != k) return -1;
+        while (it + 1 != keyed.end() && (it + 1)->first == k) ++it;
+        return it->second;
+    };
+    const std::function<bool(glm::ivec3)> inside = [&](glm::ivec3 p) { return find(p) >= 0; };
+    const std::function<uint8_t(glm::ivec3)> materialAt = [&](glm::ivec3 p) { return uint8_t(find(p)); };
+    return applyImpl(lo, hi, &inside, 0, gpu, err, nullptr, SIZE_MAX, &materialAt);
+}
+
+std::vector<RegionChunk> areaRegionChunks(const VoxelGrid& area, glm::ivec3 offset, glm::ivec3* chunkHi) {
+    std::vector<RegionChunk> out;
+    if (chunkHi) *chunkHi = glm::ivec3(-1);
+    if (area.dim.x <= 0 || area.dim.y <= 0 || area.dim.z <= 0 || offset.x < 0 || offset.y < 0 || offset.z < 0) return out;
+    const glm::ivec3 hi = (area.dim + offset - 1) / kN;
+    if (chunkHi) *chunkHi = hi;
+    auto solidAt = [&](glm::ivec3 r) {   // region voxel r
+        const glm::ivec3 q = r - offset;
+        return area.in(q) && area.mat[area.idx(q)] != 0;
+    };
+    for (int cx = 0; cx <= hi.x; ++cx)   // x-major, as forEachRegionChunk
+        for (int cy = 0; cy <= hi.y; ++cy)
+            for (int cz = 0; cz <= hi.z; ++cz) {
+                RegionChunk rc;
+                rc.chunk = {cx, cy, cz};
+                rc.originVoxel = rc.chunk * kN;
+                rc.grid.voxelM = area.voxelM;
+                rc.grid.resize({kN, kN, kN});
+                const glm::ivec3 base = rc.originVoxel - offset;   // area voxel of the chunk's (0,0,0)
+                const glm::ivec3 a0 = glm::max(base, glm::ivec3(0)), a1 = glm::min(base + kN, area.dim) - 1;
+                for (int x = a0.x; x <= a1.x; ++x)
+                    for (int y = a0.y; y <= a1.y; ++y)
+                        for (int z = a0.z; z <= a1.z; ++z) {
+                            const uint8_t m = area.mat[area.idx({x, y, z})];
+                            if (m) rc.grid.mat[rc.grid.idx(glm::ivec3(x, y, z) - base)] = m;
+                        }
+                rc.border.resize({kN, kN, kN}, false);
+                for (int a = 0; a < 3; ++a) {
+                    const int ua = (a + 1) % 3, va = (a + 2) % 3;
+                    for (int s : {-1, 1})
+                        for (int v = 0; v < kN; ++v)
+                            for (int u = 0; u < kN; ++u) {
+                                glm::ivec3 p;
+                                p[a] = s < 0 ? -1 : kN;
+                                p[ua] = u;
+                                p[va] = v;
+                                if (solidAt(rc.originVoxel + p)) rc.border.set(a, s, u, v, true);
+                            }
+                }
+                out.push_back(std::move(rc));
+            }
+    return out;
+}
+
 RegionEdit::Stats RegionEdit::applyBox(glm::ivec3 lo, glm::ivec3 hi, uint8_t material, FaceBuilderGpu* gpu,
                                        std::string* err) {
     return applyImpl(lo, hi, nullptr, material, gpu, err);
@@ -240,7 +317,8 @@ RegionEdit::PickHit RegionEdit::pick(glm::dvec3 o, glm::dvec3 dir, double maxT) 
 
 RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std::function<bool(glm::ivec3)>* inside,
                                         uint8_t material, FaceBuilderGpu* gpu, std::string* err,
-                                        const BlockStore* source, size_t sourceChunk) {
+                                        const BlockStore* source, size_t sourceChunk,
+                                        const std::function<uint8_t(glm::ivec3)>* materialAt) {
     Stats st;
     lo = glm::max(lo, m_lo * kN);
     hi = glm::min(hi, (m_hi + 1) * kN - 1);
@@ -274,7 +352,7 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
                     uint8_t srcUniform = 0;   // F3.3: a load writes the saved block; uniform = one entry
                     const bool fromSource = source && i == sourceChunk;
                     if (source && !fromSource) continue;
-                    if (!inside && sLo == bl && sHi == bl + 7 &&
+                    if (!inside && !materialAt && sLo == bl && sHi == bl + 7 &&
                         (!fromSource || source->uniformBlock({bx, by, bz}, srcUniform))) {
                         const int n = c.store.fillBlock({bx, by, bz}, fromSource ? srcUniform : material);
                         if (n) {
@@ -290,7 +368,9 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
                             for (int z = sLo.z; z <= sHi.z; ++z) {
                                 const glm::ivec3 p(x, y, z);
                                 if (inside && !(*inside)(c.originVoxel + p)) continue;
-                                const uint8_t want = fromSource ? source->at(p) : material;
+                                const uint8_t want = fromSource ? source->at(p)
+                                                     : materialAt ? (*materialAt)(c.originVoxel + p)
+                                                                  : material;
                                 if (c.store.at(p) == want) continue;
                                 c.store.set(p, want);
                                 ++st.voxelsChanged;

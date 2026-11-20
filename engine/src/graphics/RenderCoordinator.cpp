@@ -3202,6 +3202,7 @@ void RenderCoordinator::releaseVoxFoundBodies() {
     }
     m_bodyFaceCapacity = 0;
     m_bodyFaceRevision = UINT64_MAX;
+    for (uint64_t& r : m_bodyFaceSlotRevision) r = UINT64_MAX;
     m_bodyPoseSlot = 0;
     ++m_bodyPoseGeneration;
 }
@@ -3225,8 +3226,8 @@ void RenderCoordinator::prepareVoxFoundBodies() {
         while (fc < bl->faces.size()) fc *= 2;
         while (pc < bl->poses.size()) pc *= 2;
         releaseVoxFoundBodies();
-        vulkanDevice->createBuffer(VkDeviceSize(fc) * sizeof(BodyFace), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, hv,
-                                   m_bodyFaceBuffer, m_bodyFaceMemory);
+        vulkanDevice->createBuffer(VkDeviceSize(fc) * sizeof(BodyFace) * MAX_FRAMES_IN_FLIGHT,
+                                   VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, hv, m_bodyFaceBuffer, m_bodyFaceMemory);
         vulkanDevice->createBuffer(VkDeviceSize(pc) * sizeof(BodyPose) * MAX_FRAMES_IN_FLIGHT,
                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, hv, m_bodyPoseBuffer, m_bodyPoseMemory);
         if (m_bodyFaceBuffer == VK_NULL_HANDLE || m_bodyPoseBuffer == VK_NULL_HANDLE ||
@@ -3238,10 +3239,14 @@ void RenderCoordinator::prepareVoxFoundBodies() {
         m_bodyFaceCapacity = fc;
         m_bodyPoseSlot = pc;
     }
-    if (m_bodyFaceRevision != bl->facesRevision) {
+    static_assert(MAX_FRAMES_IN_FLIGHT <= 8, "m_bodyFaceSlotRevision holds 8 slots");
+    if (m_bodyFaceSlotRevision[currentFrame] != bl->facesRevision) {
+        // F5.5c: this frame's own copy (its last reader, the frame MAX_FRAMES_IN_FLIGHT ago, has finished: the same
+        // guarantee the pose slot relies on) -- no device wait
         const auto t0 = std::chrono::steady_clock::now();
-        if (m_bodyFaceRevision != UINT64_MAX) vkDeviceWaitIdle(dev);   // a frame in flight may read the old faces
-        std::memcpy(m_bodyFaceMapped, bl->faces.data(), bl->faces.size() * sizeof(BodyFace));
+        std::memcpy(static_cast<BodyFace*>(m_bodyFaceMapped) + size_t(currentFrame) * m_bodyFaceCapacity,
+                    bl->faces.data(), bl->faces.size() * sizeof(BodyFace));
+        m_bodyFaceSlotRevision[currentFrame] = bl->facesRevision;
         m_bodyFaceRevision = bl->facesRevision;
         m_voxFoundBodyStats.faceUploadMs =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -3303,8 +3308,8 @@ void RenderCoordinator::renderVoxFoundBodies() {
     // set 1: the preview's texture table + this frame's pose slot
     renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer, m_bodyPoseBuffer, false,
                                         VkDeviceSize(currentFrame) * m_bodyPoseSlot * sizeof(Core::VoxFound::BodyPose));
-    const VkDeviceSize off = 0;
-    vkCmdBindVertexBuffers(cmd, 1, 1, &m_bodyFaceBuffer, &off);
+    const VkDeviceSize off = VkDeviceSize(currentFrame) * m_bodyFaceCapacity * sizeof(Core::VoxFound::BodyFace);
+    vkCmdBindVertexBuffers(cmd, 1, 1, &m_bodyFaceBuffer, &off);   // F5.5c: this frame's face copy
     vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), glm::vec3(0.0f),
                                 m_voxFoundBodies->mutate ? 1u : 0u, glm::vec3(0.0f), 0.0f);
     if (m_bodyCullOk) {   // F5.5b: one draw per run of kept bodies (firstInstance = the run's first face)
@@ -3337,8 +3342,8 @@ void RenderCoordinator::castVoxFoundBodies(VkCommandBuffer cmd, ShadowMap& map, 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, map.getPipelineLayout(), 0, 1, &set, 0, nullptr);
     vulkanDevice->bindVertexBuffers(currentFrame);
     vulkanDevice->bindIndexBuffer(currentFrame);
-    const VkDeviceSize off = 0;
-    vkCmdBindVertexBuffers(cmd, 1, 1, &m_bodyFaceBuffer, &off);
+    const VkDeviceSize off = VkDeviceSize(currentFrame) * m_bodyFaceCapacity * sizeof(Core::VoxFound::BodyFace);
+    vkCmdBindVertexBuffers(cmd, 1, 1, &m_bodyFaceBuffer, &off);   // F5.5c: this frame's face copy
     struct { glm::mat4 lightSpaceMatrix; glm::vec3 chunkBaseOffset; uint32_t useChunkDataSsbo; uint32_t drawIndexBase; } pc;
     pc.lightSpaceMatrix = lightSpaceMatrix;
     pc.chunkBaseOffset = glm::vec3(0.0f);
