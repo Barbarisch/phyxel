@@ -658,3 +658,55 @@ median) and the hitch (1.73 ms max) are within. Each overage has a lever left (t
 broadphase; the hybrid's backlog and cap; the ticks per step), so this is NOT the stop condition: F5 stays open and the
 next increment is the awake pile's tick. Conservation is exact at every rest call at every rung; pop measured near and
 far.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5e -- THE AWAKE PILE'S TICK: PROFILE IT, HEADLESS AND LIVE, BEFORE ANY LEVER (written 2026-11-20 BEFORE its code)
+
+WHY: F5.5d X2 measured every body awake on the settled pile at 7.7 / 9.5 / 13.5 ms per tick (110 / 282 / 994 bodies,
+contacts 3.1k / 8.0k / 29.4k, colours 14 / 14 / 19), while F5.5a4's headless ladder (300 ticks from the break, 30 ticks
+per submit) costs 1.33 ms at 105 bodies and 3.67 at 1,025. 110 bodies cost 57 % of 994's. Those numbers do not say why.
+This increment measures; it pulls no lever.
+CONDITIONS (stated before the run): World of Warcraft is NOT running now; another session's engine (G:\Github\phyxel)
+is running and shares the GPU -- not mine, not stopped.
+
+THE CANDIDATES, each with the measure that separates it:
+  H1 the pile itself: a settled pile has every body in contact (28-30 contacts per body) and big pieces whose world
+     boxes and corner lists are large, so a one-workgroup-per-body / per-pair pass waits for the biggest one.
+     Measure: the headless woken pile (same rig, settled, woken through edit() as the lab does) at 30 ticks per submit.
+  H2 one tick per submit: the lab's synchronous ticks submit and wait one tick at a time (rest on), and the device time
+     of a lone tick may carry the submit's start-up and a GPU that clocks down between submits.
+     Measure: the same headless woken pile at 1 tick per submit vs 30.
+  H3 the shared GPU live: the frames (and other processes) share the queue / the device.
+     Measure: the live per-pass profile vs the headless one, group by group.
+  H4 the path choice: the first step after edit() is the fused one-workgroup path whatever the awake count.
+     Measure: the woken pile with the path forced each way.
+
+WHAT IT BUILDS:
+  - a headless test (VoxFoundBodySimGpu F55eAwakePile): the lab's large wall at E/T 250 / 650 / 2800, fractured,
+    extracted, loaded, stepped until every body sleeps, then every body woken through edit() (the lab's wake_all);
+    30 ticks timed at 30 per submit and at 1 per submit, then 30 ticks with the per-pass profile; both paths forced;
+    printed with the pile's shape: awake bodies, contacts, pairs, the summed and the largest corners per body, the
+    summed and the largest world-box cells per body;
+  - the lab: {"profile":true|false} (the per-pass profile on the synchronous ticks, reset when turned on) and a
+    "profile" block in the status (mean / min ms per group, ticks);
+  - the gate: tools/voxfound_f55e_gate.py -- settle, wake, 30 profiled ticks, per rung.
+
+RED FIRST (the wake must reach the GPU, or the profile measures a sleeping pile): the bodies' asleep flags cleared on
+  the CPU WITHOUT edit() leave the GPU's pile asleep (awake 0 after the next tick, cost ~0.1-0.3 ms); with edit() every
+  body is awake after the tick.
+
+PREDICTIONS
+  E1 H1 holds: the headless woken pile at 30 per submit costs >= 0.6 x the live X2 numbers: >= 4.6 / 5.7 / 8.1 ms per
+     tick (110 / 282 / 994), i.e. the cost is the pile, not the live GPU. Bodies awake after the wake = the count.
+  E2 H2 small: 1 tick per submit costs <= 1.3 x the 30-per-submit tick at every rung.
+  E3 the profile's leader: at 110 and 282 bodies the world test (world + hard_apply) is >= 50 % of the tick; at 994
+     bodies pairs + hard_body is the largest group pair. The groups' sum is within 20 % of the unprofiled tick.
+  E4 H4 small: the woken pile's mean tick with the path forced fused vs per-colour differs by <= 10 % at 282 and 994
+     (only the first tick after the wake takes the fused path on its own).
+  E5 H3 small: live per-group / headless per-group within 0.7-1.5 for every group above 0.2 ms, at every rung.
+  E6 the leader follows the pile's shape, not the body count: across the three rungs the leading group's time tracks
+     its own work measure (the summed world-box cells for the world test, the summed pair corners for the pairs)
+     within a factor 1.5, while the body count changes 9x.
+WHAT WOULD COUNT AS A MISS: E1 below its floor (then the live GPU is the cost, and H3's measure leads); any ratio or
+share outside its range. Each miss recorded as a number. No lever in this increment: the next one is chosen from the
+profile (the broadphase is owed since F5.5a, but only if the profile names the pairs).
