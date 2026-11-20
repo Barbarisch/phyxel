@@ -24,3 +24,8 @@ RESULTS (written 2026-11-20 11:44)
     - the new test's own "gate: blocked - 34 walkable, 1 blocked ... over 11 doors of 11 built".
   NOT SHOWN: the refusal on a real unreachable HOUSE (the test asks a wall corner); nothing in the engine (no L4
     uses the parameter); Release only; not audited (a test and a parameter that adds asked cells).
+MEASURED FROM RUN 12's LAST EVENING DUMP (2026-11-20 11:45; no new run; O39 (o)):
+  of the 18 residents within 12 u of the tavern's anchor (17 guests and the keeper), 2 stand inside the tavern's
+  footprint (x -1188..-1172, z -1091..-1084); the other 16 stand OUTSIDE its west wall, x -1192.4 to -1188, in a
+  4 x 6 u patch round the anchor - which is the door's approach, outdoors by the Location's own definition. So
+  "socializes at the tavern" is, today, a crowd at the tavern's door; a resident's goal is never inside a building.
