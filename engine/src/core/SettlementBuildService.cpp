@@ -105,8 +105,9 @@ static SettlementBuildService::DoorApproach settlementDoorApproach(
 // cut cubes removed, corridor band-cleared resolution-complete, [startRow..surface] micros
 // placed in one bulk call, grass under paving converted to Dirt, the stamp recorded for the
 // late sweep. Appends to pavedCols / roadBand / stamp.
+struct PavingSide { int x, z, ground; std::string mat; };   // D73: a non-paved micro column of a cell holding a paved one
 struct PavingApply {
-    long placedMicros = 0, grassConverted = 0, cutCubes = 0;
+    long placedMicros = 0, grassConverted = 0, cutCubes = 0, cutSideRestored = 0, sideOverGround = 0;
     int  bandCleared = 0;
     double stampMs = 0.0;
 };
@@ -116,7 +117,7 @@ static PavingApply applyPavingPlan(ChunkManager* chunkManager, const Core::Pavin
                                    const Fl9& fl9, const Emit& emitMicro,
                                    std::set<std::pair<int, int>>& pavedCols,
                                    std::vector<glm::ivec3>& roadBand, std::vector<glm::ivec4>& stamp,
-                                   const std::string& paveMat) {
+                                   const std::string& paveMat, std::vector<PavingSide>* sidesOut = nullptr) {
     const auto t0 = std::chrono::steady_clock::now();
     // Pass A (read): stamp-start row per column against the ORIGINAL terrain.
     std::vector<int> startRow(pave.columns.size());
@@ -156,6 +157,36 @@ static PavingApply applyPavingPlan(ChunkManager* chunkManager, const Core::Pavin
                 roadBand.push_back(glm::ivec3(cbx, y, cbz));
         }
     }
+    // D73 (pm_chain567.txt, chains 572 / 573): the band clear and the cut below remove whole CUBES of every cell that
+    // holds a paved column, and only the way's own columns are paved back - the cell's other columns stayed a cube or
+    // two low, a pit beside the way's rim (18 micro beside a ford's ramp). Read HERE, before either, the ground of
+    // every column of such a cell that is not a paved column, and the top cube's material; after the clear and the
+    // cut those columns are put back to the ground they had.
+    std::vector<PavingSide> sideCols;
+    long sideOverGround = 0;   // (the audit of D73) restored higher than the cube terrain with no earlier record: something stood there
+    {
+        std::map<std::pair<int, int>, int> earlier;   // a height this build recorded for the column in an earlier pass
+        if (sidesOut) for (const auto& e : *sidesOut) earlier.emplace(std::make_pair(e.x, e.z), e.ground);
+        std::set<std::pair<int, int>> paved;
+        for (const auto& c : pave.columns) paved.insert({c.x, c.z});
+        for (const auto& [cbx, cbz] : clearedCols) {
+            std::string mat = "Dirt";
+            if (const auto* cu = chunkManager->getCubeAt(glm::ivec3(cbx, groundTopAt(cbx, cbz), cbz))) mat = cu->getMaterialName();
+            for (int dz = 0; dz < 9; ++dz) for (int dx = 0; dx < 9; ++dx) {
+                const int mx = cbx * 9 + dx, mz = cbz * 9 + dz;
+                if (paved.count({mx, mz})) continue;
+                // per micro column: the cube terrain's top, then any micro standing on it (a side an earlier pass put back)
+                // the column's ground: the cube terrain's top, or the height THIS BUILD recorded for it in an earlier pass (a
+                // side it put back) - never what merely stands on it (chain 581: 13 columns of the creek city were rebuilt
+                // as ground up to the top of a trunk's base or litter).
+                const int cubeG = groundMicro(mx, mz);
+                const auto e = earlier.find({mx, mz});
+                const int g = e != earlier.end() ? std::max(cubeG, e->second) : cubeG;
+                if (g > cubeG && e == earlier.end()) ++sideOverGround;   // cannot happen now; the record says so
+                sideCols.push_back({mx, mz, g, mat});
+            }
+        }
+    }
     int bandCleared = 0;
     for (auto& [ch, cells] : bandByChunk) {
         bandCleared += ch->clearCellsBulk(cells);
@@ -168,6 +199,18 @@ static PavingApply applyPavingPlan(ChunkManager* chunkManager, const Core::Pavin
             cuts.push_back({std::get<0>(t), std::get<1>(t), std::get<2>(t)});
         Core::StructureGenerator::removeVoxels(chunkManager, cuts);
     }
+    long cutSideRestored = 0;
+    if (!sideCols.empty()) {
+        Core::StructureResult sideBatch;
+        for (const auto& sc : sideCols) {
+            const int now = groundMicro(sc.x, sc.z);
+            if (now >= sc.ground) continue;
+            ++cutSideRestored;
+            for (int my = now; my < sc.ground; ++my) emitMicro(sideBatch, sc.x, my, sc.z, sc.mat);
+        }
+        if (!sideBatch.voxels.empty()) Core::StructureGenerator::place(chunkManager, sideBatch);
+    }
+    if (sidesOut) sidesOut->insert(sidesOut->end(), sideCols.begin(), sideCols.end());   // the late sweep puts them back again
     // Pass C (read, post-removal, pre-stamp): a removed cube may sit under a NEIGHBOUR
     // column's paving (same cube column, different micro surface) — extend that column's
     // stamp down to the new ground so no paving edge floats over a void.
@@ -222,6 +265,8 @@ static PavingApply applyPavingPlan(ChunkManager* chunkManager, const Core::Pavin
     r.placedMicros = placedMicros;
     r.grassConverted = grassConverted;
     r.cutCubes = static_cast<long>(cutCubes.size());
+    r.cutSideRestored = cutSideRestored;
+    r.sideOverGround = sideOverGround;
     r.bandCleared = bandCleared;
     r.stampMs = stampMs;
     return r;
@@ -471,14 +516,13 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // O35 (c): the market gate's start, crossings and stall fronts for a given dressing. Set at plan time from the
         // dressing planned WITHOUT the ground; the dressing unit plans it again on the live paved surface and calls this.
         std::function<void(const std::vector<Core::SquareProp>&)> marketGateFor;
-        // O16 L4 (pm_chain467.txt): a FORD is paved across on fill. The creek the ford rule admits (its water under the
-        // ford bound) is emitted as a bed one to two cubes below its banks, and the paver, which only ever cuts, ramped
-        // the way down into that gully and up again - 27 micro in two cells, refused by the live gate at a wall's gate
-        // beside a ford. The generator's own roads cross a creek on their grade (fill). So here: on the water cells
-        // within a way's band at a recorded crossing, the ways unit's PLANNING ground is the bank's level - the
-        // generator's natural ground, which carries no creek bed. The applier reads the real ground and fills beneath.
-        // World cube cell -> the walkable surface micro the paver is told. Generator sampler only; empty otherwise.
-        auto fordFill = std::make_shared<std::map<std::pair<int, int>, int>>();
+        // D73 (a) (pm_chain567.txt; before it O16 L4, pm_chain467.txt, a ford paved across on FILL): a ford is cut to grade
+        // down to the creek's bed and up again. The WORLD cube cells where a way fords: a recorded crossing's cells and
+        // the cells within half the way's width of them. The ways unit hands them to the paver.
+        auto fordCells = std::make_shared<std::vector<glm::ivec2>>();
+        auto gullySite = std::make_shared<glm::ivec4>(0, 0, 0, 0);                      // ox, oz, W, D of a fording build
+        auto gullyNatural = std::make_shared<std::function<int(int, int)>>();           // world cell -> the natural ground's cube
+        auto gullyCreek = std::make_shared<std::function<bool(int, int)>>();            // world cell -> the ford rule's fordable creek
         // O39 (pm_chain495.txt): what the gate asks the residents' own graph - each lot's door approach (the cell two out
         // from the door along its normal, world cubes, with a label) and the hub (the first primary way's middle node).
         // O39 (k): the standing level the MAP states for each cell of a lot's door approach (world cube cell -> world micro)
@@ -594,16 +638,19 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 for (const auto& cr : siteMap.crossings) {
                     float width = 1.0f;
                     for (const auto& w : siteMap.ways) if (w.id == cr.way) width = w.width;
-                    // (chain 472: the gully is wider than the channel's water cells - its flanks are "dry" and low, and the
-                    // paver's lower envelope cut the way down to them: 10 micro still. EVERY cell within the band + 2 of a
-                    // crossing cell is told the natural ground; on a bank that is the ground it already has.)
-                    const int r = std::max(1, static_cast<int>(std::lround(width)) / 2) + 2;
+                    const int r = std::max(1, static_cast<int>(std::lround(width)) / 2);
                     for (const auto& cell : cr.cells)
-                        for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx) {
-                            const int lx = cell.first + dx, lz = cell.second + dz;
-                            (*fordFill)[{ox + lx, oz + lz}] = (static_cast<int>(std::floor(mapGen->naturalGroundAt(ox + lx, oz + lz))) + 1) * 9;
-                        }
+                        for (int dz = -r; dz <= r; ++dz) for (int dx = -r; dx <= r; ++dx)
+                            fordCells->push_back({ox + cell.first + dx, oz + cell.second + dz});
                 }
+            // (chains 572 / 573) and the GULLY as emitted, wet or dry: a way's band can lie over it away from a recorded
+            // crossing (the creek city: the end of a street beside another reach - filled out over the gully's flank).
+            // The ways unit reads it where the live ground is: a site cell whose ground stands below the natural ground.
+            if (mapGen && mapGen->hydrology() && mi.fordAt) {
+                *gullySite = glm::ivec4(ox, oz, W, D);
+                *gullyNatural = [mapGen](int wx, int wz) { return static_cast<int>(std::floor(mapGen->naturalGroundAt(wx, wz))); };
+                *gullyCreek = [fordAt = mi.fordAt, ox, oz](int wx, int wz) { return fordAt(wx - ox, wz - oz); };
+            }
             for (const auto& l : siteMap.lots)
                 if (l.hasApproach) for (const auto& ac : l.approach) (*approachLevel)[{ox + ac.x, oz + ac.z}] = ac.level;
             for (const auto& l : siteMap.lots)
@@ -938,6 +985,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // Per-micro-column pavement stamp ({x, startRow, z, surface}, micro coords) so the
         // sweep can re-stamp the paving it clears along with the debris.
         auto sharedStamp = std::make_shared<std::vector<glm::ivec4>>();
+        auto sharedSides = std::make_shared<std::vector<PavingSide>>();   // D73: the cut sides beside every paved cell
 
         // PARCEL CLEARING (walkability-by-construction; USER find: trees overlapped
         // buildings): flora generates at worldgen and nothing ever cleared the plots —
@@ -1602,39 +1650,64 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // unit, so the door spurs, the sweep and the fences' straddle rule read the same shared columns.
             units.push_back({"grading + paving ways",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, tierStreetMat = tierP->street.material, mapRibbons, mapFoot, mapPlazas,
-                 groundMicro, groundTopAt, fl9, emitMicro, abox, pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp, fordFill]() {
+                 groundMicro, groundTopAt, fl9, emitMicro, abox, pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp, sharedSides, fordCells, gullySite, gullyNatural, gullyCreek]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
             auto& pavedCols = *sharedPaved;
-            // O16 L4: the paver's ground at a ford is the bank's level (fordFill above); everywhere else the live ground
-            const std::function<int(int, int)> planGround = fordFill->empty() ? std::function<int(int, int)>(groundMicro)
-                : std::function<int(int, int)>([groundMicro, fl9, fordFill](int mx, int mz) {
-                      const int g = groundMicro(mx, mz);
-                      const auto it = fordFill->find({fl9(mx), fl9(mz)});
-                      return it != fordFill->end() ? std::max(g, it->second) : g;
-                  });
-            Core::PavingPlan pave = Core::planWayPaving(mapRibbons, planGround, abox, tierStreetMat, mapPlazas);
+            if (*gullyNatural && *gullyCreek) {
+                // round the WAYS themselves (each leg's box + half the width + 1): a way's end disc reaches past the site's
+                // edge. (the audit of D73) A LOW cell alone is not a gully - an arriving road's cut or a terrace is low too:
+                // a ford cell is a low cell CONNECTED, through low cells near the ways (8-neighbour), to a cell the ford
+                // rule calls a fordable creek.
+                std::set<std::pair<int, int>> low, seen, taken;
+                std::vector<std::pair<int, int>> front;
+                for (const auto& rb : mapRibbons)
+                    for (size_t k = 0; k + 1 < rb.cells.size(); ++k) {
+                        const int m = rb.widthCubes / 2 + 1;
+                        const int x0 = std::min(rb.cells[k].x, rb.cells[k + 1].x) - m, x1 = std::max(rb.cells[k].x, rb.cells[k + 1].x) + m;
+                        const int z0 = std::min(rb.cells[k].y, rb.cells[k + 1].y) - m, z1 = std::max(rb.cells[k].y, rb.cells[k + 1].y) + m;
+                        for (int wz = z0; wz <= z1; ++wz) for (int wx = x0; wx <= x1; ++wx) {
+                            if (!seen.insert({wx, wz}).second) continue;
+                            if (groundTopAt(wx, wz) >= (*gullyNatural)(wx, wz)) continue;
+                            low.insert({wx, wz});
+                            if ((*gullyCreek)(wx, wz) && taken.insert({wx, wz}).second) front.push_back({wx, wz});
+                        }
+                    }
+                while (!front.empty()) {
+                    const auto c = front.back(); front.pop_back();
+                    for (int dz = -1; dz <= 1; ++dz) for (int dx = -1; dx <= 1; ++dx) {
+                        const std::pair<int, int> n{c.first + dx, c.second + dz};
+                        if (low.count(n) && taken.insert(n).second) front.push_back(n);
+                    }
+                }
+                for (const auto& c : taken) fordCells->push_back({c.first, c.second});
+                pathsJson["low_cells_near_the_ways"] = low.size();
+            }
+            Core::PavingPlan pave = Core::planWayPaving(mapRibbons, groundMicro, abox, tierStreetMat, mapPlazas, *fordCells);
             pathsJson["way_legs_cut_to_grade"] = pave.waysLegsCutToGrade;
             pathsJson["ways_deepest_cut_micro"] = pave.waysDeepestCutMicro;
             LOG_INFO_FMT("Settlement", "ways: graded at 4 micro a cell - " << pave.waysLegsCutToGrade << " leg(s) cut to grade at an end, " << pave.waysLegsFailed
                          << " not paved, the deepest cut below the ground on a centre line " << pave.waysDeepestCutMicro << " micro");
             pathsJson["way_legs_failed"] = pave.waysLegsFailed;   // O39: legs too steep for a way's grade are NOT paved - said
             if (pave.waysLegsFailed > 0) LOG_WARN_FMT("Settlement", "ways: " << pave.waysLegsFailed << " leg(s) too steep for a way's grade (4 micro a cell) are NOT paved");
-            if (!fordFill->empty()) {
-                pathsJson["ford_fill_cells"] = fordFill->size();
-                // the record of what the paver was told and what it planned, at each told cell's centre column (a sample: the
-                // cells whose told level stands more than a step above the live ground - the gully's own)
-                std::map<std::pair<int, int>, int> planned;
-                for (const auto& c : pave.columns) if (fl9(c.x) * 9 + 4 == c.x && fl9(c.z) * 9 + 4 == c.z) planned[{fl9(c.x), fl9(c.z)}] = c.surface;
-                int shown = 0;
-                for (const auto& [cell, lvl] : *fordFill) {
-                    const int g = groundMicro(cell.first * 9 + 4, cell.second * 9 + 4);
-                    if (lvl - g <= 4 || shown >= 24) continue;
-                    ++shown;
-                    const auto it = planned.find(cell);
-                    LOG_INFO_FMT("Settlement", "ford fill: cell (" << cell.first << "," << cell.second << ") live ground " << g << ", told " << lvl << ", planned surface "
-                                 << (it != planned.end() ? std::to_string(it->second) : std::string("(not paved)")));
+            if (!fordCells->empty()) {
+                std::set<std::pair<int, int>> fc;
+                for (const auto& c : *fordCells) fc.insert({c.x, c.y});
+                long above = 0; int deepest = 0, highestFill = 0, hfx = 0, hfz = 0;
+                for (const auto& c : pave.columns) {
+                    const int g = groundMicro(c.x, c.z);
+                    deepest = std::max(deepest, g - c.surface);
+                    if (c.surface - g > highestFill) { highestFill = c.surface - g; hfx = c.x; hfz = c.z; }
+                    if (fc.count({fl9(c.x), fl9(c.z)}) && c.surface > g) ++above;
                 }
+                pathsJson["ford_cells"] = fc.size();
+                pathsJson["ford_pinned_columns"] = pave.fordPinnedCols;
+                pathsJson["ford_columns_above_the_bed"] = above;
+                pathsJson["ford_deepest_cut_micro"] = deepest;
+                pathsJson["ways_highest_fill_micro"] = highestFill;   // over ALL way columns of a build that fords
+                pathsJson["ways_highest_fill_at"] = {hfx, hfz};
+                LOG_INFO_FMT("Settlement", "fords: " << fc.size() << " cells, " << pave.fordPinnedCols << " way columns laid on the bed, " << above
+                             << " above it; the ways' deepest cut below the ground " << deepest << " micro");
             }
             // M5b-1 (chain 114): a way's capsule edge can poke into a setback-0 lot's footprint; the forge builds over the
             // stamped micros and those above its floor survive as a spike in the doorway (the town's tavern @13573:
@@ -1653,7 +1726,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             PavingApply ap;
             if (!pave.columns.empty())
                 ap = applyPavingPlan(chunkManager, pave, groundMicro, groundTopAt, fl9, emitMicro,
-                                     pavedCols, *sharedRoadBand, *sharedStamp, tierStreetMat);
+                                     pavedCols, *sharedRoadBand, *sharedStamp, tierStreetMat, sharedSides.get());
             long legs = 0;
             for (const auto& r : mapRibbons) legs += static_cast<long>(r.cells.size()) - 1;
             LOG_INFO_FMT("Settlement", "ways: paved " << ap.placedMicros << " micros over " << pave.columns.size()
@@ -1661,13 +1734,19 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          << " cut honored, " << ap.cutCubes << " cubes removed, " << ap.bandCleared
                          << " corridor cells band-cleared) for " << mapRibbons.size() << " ways / " << legs << " legs, "
                          << tierStreetMat << ", " << static_cast<long>(ap.stampMs) << " ms");
+            // (D73, chain 568: this assignment REPLACED the record - the keys written above it in this unit, the legs cut to
+            // grade or not paved and the ford's, never reached the build's output. They are kept now.)
+            const nlohmann::json writtenAbove = pathsJson;
             pathsJson = {{"ways", static_cast<long>(mapRibbons.size())}, {"legs", legs},
                          {"paved_columns", static_cast<long>(pave.columns.size())},
                          {"paved_microcubes", ap.placedMicros},
                          {"level_cols", pave.levelCols}, {"fill_cols", pave.fillCols},
                          {"cut_cols_honored", pave.cutCols}, {"cut_cubes_removed", ap.cutCubes},
-                         {"grass_converted", ap.grassConverted},
+                         {"grass_converted", ap.grassConverted}, {"cut_side_columns_restored", ap.cutSideRestored}, {"side_columns_restored_over_the_ground", ap.sideOverGround},
                          {"material", tierStreetMat}, {"stamp_ms", static_cast<long>(ap.stampMs)}};
+            if (writtenAbove.is_object())
+                for (auto it = writtenAbove.begin(); it != writtenAbove.end(); ++it)
+                    if (!pathsJson.contains(it.key())) pathsJson[it.key()] = it.value();
             // M5e-1: the market's record, counted from the columns that were STAMPED (after the footprint filter)
             for (const auto& pl : mapPlazas) {
                 std::map<std::pair<int, int>, int> perCell;
@@ -1692,7 +1771,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             units.push_back({"grading + paving streets",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, tierStreetMat = tierP->street.material, streets = layout.streets,
                  bFoot, ox, oz, groundMicro, groundTopAt, isFloraMat, fl9, emitMicro, abox,
-                 pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp]() {
+                 pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp, sharedSides]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
             auto& pavedCols = *sharedPaved;
@@ -1703,7 +1782,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             const Core::PavingPlan pave = Core::planStreetPaving(
                 streets, glm::ivec2(ox, oz), doors, bFoot, groundMicro, abox, paveMat);
             const PavingApply ap = applyPavingPlan(chunkManager, pave, groundMicro, groundTopAt, fl9, emitMicro,
-                                                   pavedCols, *sharedRoadBand, *sharedStamp, paveMat);
+                                                   pavedCols, *sharedRoadBand, *sharedStamp, paveMat, sharedSides.get());
             const long placedMicros = ap.placedMicros;
             const long grassConverted = ap.grassConverted;
             const long stampMs = static_cast<long>(ap.stampMs);
@@ -1733,7 +1812,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             postBuildUnits.push_back({"door spurs",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
                  tierStreetMat = tierP->street.material, bFoot, groundMicro, groundTopAt, fl9, emitMicro, abox,
-                 pathsJsonP, sharedPaved, sharedWayPaved, sharedRoadBand, sharedStamp, sharedFrontDoors, approachLevel]() {
+                 pathsJsonP, sharedPaved, sharedWayPaved, sharedRoadBand, sharedStamp, sharedSides, sharedFrontDoors, approachLevel]() {
             if (!chunkManager) return;
             *sharedWayPaved = *sharedPaved;   // M5b-1 (chain 107): the ways' paving before any spur is laid
             // M0 row 2b: the spur starts one cell OUTSIDE THE DOOR (doorApproach - the gate's
@@ -1816,7 +1895,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             PavingApply ap;
             if (!pave.columns.empty())
                 ap = applyPavingPlan(chunkManager, pave, groundMicro, groundTopAt, fl9, emitMicro,
-                                     pavedCols, *sharedRoadBand, *sharedStamp, tierStreetMat);
+                                     pavedCols, *sharedRoadBand, *sharedStamp, tierStreetMat, sharedSides.get());
             LOG_INFO_FMT("Settlement", "door spurs: " << pave.spursPlanned << " planned from "
                          << doors.size() << " realized doors, " << pave.spursFailed << " too steep, "
                          << ap.placedMicros << " micros over " << pave.columns.size() << " columns, "
@@ -2183,7 +2262,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // recorded by the street unit so the road the nav rebuild sees is the road
         // NPCs actually get.
         units.push_back({"street sweep",
-            [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, sharedRoadBand, sharedStamp, emitMicro, bFoot, sharedPropBoxes,
+            [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, sharedRoadBand, sharedStamp, sharedSides, groundMicro, pathsJsonP, emitMicro, bFoot, sharedPropBoxes,
              sweepMat = (programMode && tierP ? tierP->street.material
                                              : std::string("Gravel"))]() {
             if (!chunkManager || sharedRoadBand->empty()) return;
@@ -2193,6 +2272,33 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // O9: nor a cube inside a prop this build placed before the sweep (the well on the way's verge, the yard
             // props). The selection is Core::planStreetSweep (SettlementBuildServiceTest.SweepNeverErasesPlacedObjectCells).
             const Core::SweepPlan sweepPlan = Core::planStreetSweep(*sharedRoadBand, bFoot, *sharedPropBoxes);
+            // D73 (pm_chain567.txt, chains 575 / 578): the sweep clears whole cells beside a cut way too - the cutting's SIDE.
+            // What stands there JUST BEFORE the sweep is kept: for each side column of a cell it clears (not a column
+            // paved by now - the spurs' too), the solid run standing up from the bottom of the swept band, capped at the
+            // ground the column had before the ways (debris lying on the ground is still swept). Put back after the re-stamp.
+            struct SideKeep { int x, z, from, to; const std::string* mat; };
+            std::vector<SideKeep> sideKeeps;
+            if (!sharedSides->empty()) {
+                const auto f9 = [](int v) { return v >= 0 ? v / 9 : -((-v + 8) / 9); };
+                std::map<std::pair<int, int>, std::pair<int, int>> band;   // swept cell -> its lowest and highest swept cube
+                for (const auto& wp : sweepPlan.cells) {
+                    auto it = band.find({wp.x, wp.z});
+                    if (it == band.end()) band[{wp.x, wp.z}] = {wp.y, wp.y};
+                    else { it->second.first = std::min(it->second.first, wp.y); it->second.second = std::max(it->second.second, wp.y); }
+                }
+                std::set<std::pair<int, int>> pavedNow, done;
+                for (const auto& st : *sharedStamp) pavedNow.insert({st.x, st.z});
+                for (const auto& sc : *sharedSides) {
+                    const auto it = band.find({f9(sc.x), f9(sc.z)});
+                    if (it == band.end() || pavedNow.count({sc.x, sc.z}) || !done.insert({sc.x, sc.z}).second) continue;
+                    const int y0 = it->second.first * 9;
+                    if (!chunkManager->occupiedMicro(glm::ivec3(sc.x, y0 - 1, sc.z))) continue;   // nothing stands up from below the band
+                    const int cap = std::min(sc.ground - 1, (it->second.second + 1) * 9 - 1);
+                    int top = y0 - 1;
+                    while (top + 1 <= cap && chunkManager->occupiedMicro(glm::ivec3(sc.x, top + 1, sc.z))) ++top;
+                    if (top >= y0) sideKeeps.push_back({sc.x, sc.z, y0, top, &sc.mat});
+                }
+            }
             std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
             const int keptForBuildings = sweepPlan.keptForBuildings;
             for (const auto& wp : sweepPlan.cells) {
@@ -2214,7 +2320,15 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         emitMicro(re, s.x, my, s.z, sweepMat);
                 restamped = Core::StructureGenerator::place(chunkManager, re).placed;
             }
-            LOG_INFO_FMT("Settlement", "street sweep: " << swept << " cells cleared over "
+            long sidesRestored = static_cast<long>(sideKeeps.size());
+            if (!sideKeeps.empty()) {
+                Core::StructureResult sideBatch;
+                for (const auto& k : sideKeeps)
+                    for (int my = k.from; my <= k.to; ++my) emitMicro(sideBatch, k.x, my, k.z, *k.mat);
+                Core::StructureGenerator::place(chunkManager, sideBatch);
+            }
+            (*pathsJsonP)["sweep_side_columns_restored"] = sidesRestored;
+            LOG_INFO_FMT("Settlement", "street sweep: " << sidesRestored << " cut-side columns put back; " << swept << " cells cleared over "
                          << sharedRoadBand->size() << " band cells (" << keptForBuildings << " inside a building's footprint kept, "
                          << sweepPlan.keptForObjects << " inside one of " << sharedPropBoxes->size() << " placed props' boxes kept), "
                          << restamped << " paving micros re-stamped");

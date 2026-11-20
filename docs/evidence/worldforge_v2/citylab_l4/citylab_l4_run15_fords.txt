@@ -1,0 +1,18 @@
+ford cell -1265 -1033: surfaces feetY [35.111]
+  ford -> tavern: found True waypoints 20
+  tavern -> ford: found True waypoints 19
+ford cell -1232 -1041: surfaces feetY [35.111]
+  ford -> tavern: found True waypoints 16
+  tavern -> ford: found True waypoints 15
+ford cell -1231 -1041: surfaces feetY [35.111]
+  ford -> tavern: found True waypoints 17
+  tavern -> ford: found True waypoints 15
+ford cell -1202 -1048: surfaces feetY [36.444]
+  ford -> tavern: found True waypoints 12
+  tavern -> ford: found True waypoints 7
+ford cell -1164 -1033: surfaces feetY [35.111]
+  ford -> tavern: found True waypoints 8
+  tavern -> ford: found True waypoints 8
+ford cell -1163 -1033: surfaces feetY [35.111]
+  ford -> tavern: found True waypoints 7
+  tavern -> ford: found True waypoints 8

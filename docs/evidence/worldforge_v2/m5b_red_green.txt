@@ -2139,3 +2139,49 @@ RESPONSES (not re-audited): (a) (b) (c) taken into the record's wording; (d) the
   audited planner (chain 562: door B's column 168, threshold 171), then the planner: two passes, a dogleg refused
   near another door, on or beside another spur's column at another level, or with any column in a footprint
   (chains 563 / 564 - results in pm_chain557.txt); (e) read from chain 564's log (same file).
+
+================================================================================
+2026-11-20 15:46 - D73 (a): a town's ford is a true ford, cut to grade, no causeway (pm_chain567.txt)
+RED: chain 567 (unit: 486 gully columns above the ground, 25 micro; live creek city: 34 side edges dropping over a
+cube, the greatest 28). GREEN: chains 579 / 580 - unit 409 / 0, live 43 / 0 (exe 15:21:29).
+AUDIT (solution-auditor, read-only, on the tree at chain 580, BEFORE the L4 run) - raw:
+  VERDICT: PASS WITH CONDITIONS. No fabricated check found. The headline numbers match the raw files. The code is
+  sound for the one rig it was run on. Several phrases in the claim overreach what is measured, and two of the new
+  "record" assertions cannot fail on the built world.
+  Timestamps: exe 15:21:29 postdates every source edit; chains 579 / 580 ran on it.
+  1. The worstDip <= 4 removal is legitimate (it asserted the causeway; stated before the run), but nothing bounds the
+     ford's depth now. The real red is the built-world sides measure (34 edges / 28 micro on the old code, 0 now).
+     ford_columns_above_the_bed == 0 is plan-level and TAUTOLOGICAL (the pin sets the column to the same groundMicro
+     the record compares against; the envelope only lowers). The unit test with its control arm is the real proof.
+     ways_highest_fill_micro <= 9 is real but plan-level. No assert compares built paving to the unpaved bed beside it.
+  2. "Greatest 9 micro" sits exactly at the test's threshold and is not located; with "highest fill 9" - "nothing is
+     filled" is FALSE: 2195 fill columns up to 9 micro. The 74-micro rise cannot be a cutting side (the deepest cut is
+     27): almost certainly the gate and wall; unread. Rim walls of 16 micro beside the ramps are the cutting's sides.
+  3. The side restore is not complete beyond the rigs tried. applyPavingPlan reads a side column's ground as the cube
+     top plus up to 27 micro of ANYTHING occupied on it and re-emits Dirt / the top material to that height - a prop,
+     a trunk base, flora litter in a cell beside a way becomes a solid column, and the sweep then keeps it (its cap
+     includes that height). A code-read inference, no red test. Possibly the lost fixture (326 -> 325, 404 -> 403).
+  4. fordCells are broader than creeks: live cube top below floor(naturalGroundAt) round every way leg also matches
+     an arriving road's cut, terraces cut before the ways unit, a carved bank. 375 ford cells / 17929 pinned columns
+     from 6 crossing cells. Mitigation: only when the build asks for fords.
+  5. The paving lies below the bed (315-317 against 320-323, about 7 cells along the creek) where the creek is about
+     2 micro deep: a depression deeper than the stream; pooling plausible; water never observed. The walker steps it.
+  6. Counts supported. "Each ford cell to and from the junction" is overstated: only each crossing's first cell (4 of
+     6), and the junction cell is hard-coded.
+  7. The claim must not say: L4; "nothing is filled"; anything about water; "no pits"; that the side restore is safe
+     engine-wide; and the lost fixture is unexplained.
+  CONDITIONS: (a) reword; (b) locate the 9-micro edge and the 74-micro rise; (c) a built-world assertion that the
+  paving is not above the unpaved bed flanking each ford, with a depth bound; (d) a red test for the side restore
+  (a prop or trunk beside a cut way); (e) explain or bound the lost fixture; (f) walk all ford cells; (g) L4,
+  including the water.
+RESPONSES: in pm_chain567.txt after the L4 run (the engine was running when the audit came back; no source edit
+  until it stopped).
+RESPONSES (not re-audited; pm_chain567.txt): (a) wording taken; (d) a counter showed the audit's reading RED on the
+  creek city (chain 581: 13 side columns rebuilt over something standing on the ground) and the fix reads 0 (a side
+  column's ground is the cube terrain or this build's own earlier record); (4) ford cells are low cells connected to
+  a fordable creek cell (375 -> 354); (c) built world, before against after: 266 paved cells within 3 of a crossing
+  cell, 0 higher than before the ways (my first two versions of this check were wrong and are recorded as such);
+  (f) all 6 crossing cells walked; (b) the 9-micro drop is the gully's edge at (79,68) / (78,68), the 74-micro rise
+  is the wall beside the gate; (e) the creek city's lost fixture is a market stall, the walled city's is unread;
+  (g) L4 run 15 - on the code BEFORE these fixes; the runtime holds no water in these creeks.
+  Final: chains 585 / 586, unit 409 / 0, live 43 / 0 (exe 16:09:58).

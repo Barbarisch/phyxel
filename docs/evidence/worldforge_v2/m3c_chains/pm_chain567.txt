@@ -1,0 +1,383 @@
+pm_chain567 - D73 (a): a town's ford is a TRUE FORD - cut to grade down into the gully and up again, no fill.
+Ruled by the owner 2026-11-20 ("go with your recommendation. keep going. follow the plan"); O38 (a) (b) (e) under it.
+Written 2026-11-20 14:39, before any edit. Release. Headless L2 (a synthetic rig), then L3 on the creek city (live
+rig), then the CityLab L4 (the Release editor).
+
+WHAT STANDS TODAY (pm_chain467.txt): at a recorded crossing the ways unit is TOLD the bank's level on every cell within
+  the way's band + 2 (fordFill), so the paver lays the way level across and the applier fills the gully under it: a
+  causeway. Measured on the creek city: 34 of 96 paved-to-unpaved edges within 4 cells of a crossing drop more than
+  a cube (the greatest 28 micro); it dams the gully.
+
+DESIGN CHECK (the five keys, for this change)
+  1 voxel look: the way is micro paving on cut ground, as every way is; nothing new.
+  2 chunks: the surface is a function of the map (crossing cells), the ground at a world column and the ways' grade -
+    no chunk quantity; the creek city's build is the same in the headless rig and the engine by the same record
+    lines (that equality is what L4 re-checks; runs 1 and 2 differed on the old ramp and nobody found why - O38 f).
+  3 pipeline stage: settlement realization, the ways unit, before lots' spurs; consumes the map's crossings and the
+    live ground; what it can break downstream - the wall's gate beside a ford (it stands on a ramp now), a lot whose
+    door approach meets the way inside a ramp (the map states the approach's level from the ground), the market if
+    a square lies within a ramp, the gate's seat search (widened to 46 micro for the fill - O38 c, left as is here).
+  4 API: build record `paths` gains ford_pinned_columns, ford_columns_above_the_bed (must read 0), ford_deepest_cut_micro,
+    ford_longest_ramp_columns; ford_fill_cells goes. No parameter; "ford": true as before.
+  5 test plan: below. Layers: L2 unit rig, L3 the creek city (the gate, the residents' graph, the lane walk with its
+    walled-up control), L4 CityLab.
+THE RULE (no new sized number): in planWayPaving every way column inside a FORD CELL (a recorded crossing's cells and
+  the cells within half the way's width of them) takes the LIVE GROUND at that column - the bed - before the paver's
+  own 2-D lower envelope runs (4 ninths a column). The envelope then cuts the approaches down to the bed at the ways'
+  grade: a gully g micro deep gives a ramp of g x 9 / 4 columns a side (27 micro -> 61 columns, about 7 cells).
+  Nothing is raised, so nothing is filled at a ford and the bed is not dammed. fordFill and the told ground go.
+  Resolution note: the rule is "ground at the column" and the paver's grade; nothing assumes 1/9.
+  WorldForge makes the SHAPE only: the water runtime is not touched or read.
+
+TESTS
+  unit: StreetPaverTest.AWayFordsAGullyOnItsBedWithNoFill - a level plain at 153, a gully 27 micro deep and 2 cells
+    wide (cubes x 10..11) across a way of width 3 from x cube 1 to 20.
+      ford arm (the gully's cells given as ford cells): every way column in the gully == the ground there (0 above
+        it); worst step between 4-adjacent way columns <= 1; the way is back at 153 no nearer than 61 columns from
+        the gully and is at 153 by 63; fillCols == 0.
+      control (no ford cells - what the paver does by itself): columns above the gully's ground > 0 (printed with the
+        greatest height: GUESS about 19 - the leg descends 4 ninths a column over 18 columns and comes back up).
+  live: TheCreekCityIsBuiltAcrossItsFords -
+ASSERTION CHANGES, STATED BEFORE ANY RUN:
+    - REMOVED: "worstDip <= 4" (a ford's paving within the walker's step of the lower bank). That assertion WAS the
+      causeway; a true ford dips by the gully's depth. The dip stays printed.
+    - NEW, asserted: the sides measure of O38 (a), recorded since chain 479 - paved-to-unpaved edges within 4 cells of a
+      crossing with a DROP over one cube == 0 (today 34).
+    - NEW, asserted: the build record's ford_pinned_columns > 0 and ford_columns_above_the_bed == 0.
+    - NEW, asserted: on the residents' graph (the test's own NavGraph over the built city) every crossing's first
+      cell is reached FROM the main junction (87, 74) and the junction from it (a ford is a place a resident can
+      stand in and leave). Cells with no standing place are counted and asserted 0.
+    - kept: paved, not hollow, walked bank to bank along the lane with the walled-up control, the gate passed 0
+      blocked, the residents' graph 20 asked / 0 / 0, the wall-gate walks.
+PREDICTIONS
+  chain 567 (RED: the new parameter exists and is ignored; the tests as above):
+    unit - the ford arm fails: columns above the gully's ground > 0 (the control's number), fill > 0.
+    live (the creek city test alone) - fails on the sides (34 cliffs) and on ford_pinned_columns (absent -> -1 / 0).
+      The graph reach of the ford cells: GUESS passes today (the causeway is level).
+  chain 568 (the rule): unit green.
+  chain 569 (live, the creek city test alone, then the 43): GUESSES, weak -
+    60 %: the city builds, gate passed, cliffs 0, above the bed 0, deepest cut 27 or 28, ramps about 61 columns.
+    The ways I expect it to fail, most likely first: (1) a lot within 7 cells of a ford along its way - its door
+    approach is at the map's (bank) level and the way beside it is now up to 27 micro lower: a riser, a refused
+    house on the residents' graph, or a failed spur; (2) the wall's gate at local (51, 79), two cells past the second
+    ford, stands on a ramp - the arch or the gate walk; (3) the lane walk's "before" / "after" cells are 2 cells out
+    and now on the ramp - my test's seat reader may misread them; (4) the gate's widened seat search (O38 c).
+    The other live builds have no ford: their record lines must be identical to chain 566's.
+RESULTS (written 2026-11-20 14:44)
+  chain 567 (RED; the parameter ignored; exe 14:42:03): 16 ok / 2 failed, the two new reds.
+    unit: "ford arm: 5194 columns, 486 in the gully, 486 of them above its ground (the greatest 25 micro), 486 fill
+      columns, 0 pinned ... 60 columns before the gully 153" - as predicted; my guess of the height (19) was off: 25.
+    live (the creek city alone, 51 s): "34 with a drop over one cube, the greatest 28 micro"; the record's ford fields
+      absent (-1); the fords reached from the junction and left for it on the residents' graph, 4 of 4 (as guessed -
+      the causeway is level); gate passed 74 / 0; the 4 lane walks with their controls. As predicted.
+    Also printed, new: "the greatest RISE beside the paving 53 micro" - not a cutting (there is none yet): I take it
+      for the wall beside the way at the gate (StoneBricks at 395 against paving at 342). NOT CHECKED. The rise
+      measure therefore cannot be asserted as "a cutting's side" without leaving ring cells out.
+  CHANGE TO THE RECORD FIELDS, stated before the run: ford_longest_ramp_columns is dropped (the unit rig measures the
+    ramp); ford_deepest_cut_micro is the deepest cut below the live ground over ALL way columns of a build that has
+    a ford (the paver does not know which cut belongs to which ford).
+RESULTS (written 2026-11-20 14:47)
+  chain 568 (the rule; exe 14:44:07): 17 ok / 1 failed.
+    unit GREEN, to the number: "ford arm: ... 486 in the gully, 0 of them above its ground, 0 fill columns, 486 pinned;
+      worst step between adjacent columns 1; 60 columns before the gully 152, 62 before 153"; the control still 486
+      above (25 micro).
+    live, the creek city: BUILT - "gate passed, 74 walkable, 0 blocked, 0 skipped over 20 doors of 20 built";
+      the residents' graph 20 asked / 0 / 0; every ford cell on the bed (315 to 326 against banks at 342);
+      4 crossings walked bank to bank along the lane with the walled-up control blocked; each ford reached from the
+      junction and left for it; 18 of 18 homes with a path to a tavern; spurs 0 at the old cap.
+      BETTER THAN MY 60 % GUESS: none of the four failures I expected showed.
+    STILL RED, two things:
+      (1) the record's ford fields read -1: NOT the ford code - the ways unit REPLACES the paths record after writing
+          keys into it (an assignment, line 1648), so way_legs_cut_to_grade, way_legs_failed and
+          ways_deepest_cut_micro have never reached a build's output since they were added (O39), and nor did
+          ford_fill_cells. A defect of mine from earlier chains, found now. Fixed next: the keys are kept.
+      (2) the sides: 34 -> 4 edges with a drop over one cube, the greatest 28 -> 13 micro - "paved 11,91 at 335 beside
+          unpaved 12,91 at 323" and three like it, each about 4 cells from a crossing. I do not know yet whether the
+          way is on FILL there (the gully's flank is wider than the crossing's cells) or the drop is the gully's
+          own side beside a way that is cut. DIAGNOSTIC next (stated): the ways' highest fill over the live ground
+          and where, into the record. No assertion changes. Chain 569: the same two tests.
+    Also: "the greatest RISE beside the paving 74 micro" (53 before) - still unread; the wall at the gate.
+RESULTS (written 2026-11-20 14:54)
+  chains 569 to 571 (the record's keys kept; two prints; exe 14:50:16): the creek city builds the same each time
+    (gate passed 74 / 0). The record now reads: "ford_pinned_columns 17010, ford_columns_above_the_bed 0,
+    ford_deepest_cut_micro 27, the ways' highest fill 27 micro". Two things found by the prints:
+    (A) THE 4 SIDE DROPS ARE NOT FILL. The tops round crossing 0 show a clean cut - 342 339 335 331 327 323 319 317 315
+        down and the same up, 4 micro a cell - and beside its rim UNPAVED cells standing at 323 or 332 where the
+        ground is 341: PITS. The paving applier removes whole CUBES of a cell any of whose columns is cut and paves
+        only the way's own columns back; the cell's other columns stay a cube or two low. It has always done so (a
+        9-micro pit beside any cut way's rim, on every build); with a 27-micro cut the pit is 18 deep.
+    (B) the 27 micro of fill is at local (90, 160): the END of way 2 at the site's south edge, whose end disc overlaps
+        another reach of the creek (x 88..91, z 153..167) - the way's rim is filled out over the gully. Not a
+        recorded crossing (the centre line does not cross), so no ford cell. A band over a fordable creek away from
+        a crossing: the synthetic map test asserts there is none; this site has one.
+  CHANGES, STATED BEFORE THE RUN:
+    (A) the applier: in a cell where it removes cubes for a cut, every column that is NOT a paved column is put back
+        to the ground it had (micro voxels of the removed top cube's material, from the new ground up). ENGINE-WIDE
+        for ways and spurs: a cut's side becomes a wall at the way's rim instead of a pit beside it. Record:
+        cut_side_columns_restored.
+    (B) ford cells = every cell of the site the ford rule calls a fordable creek (as well as the crossings' bands):
+        a way column over one lies on the bed wherever it is.
+    TEST: asserted new - the build record's ways_highest_fill_micro <= 9 on the creek city (a way may still fill a
+        hollow of a cube; 27 is a causeway). The two diagnostic prints stay.
+  PREDICTION chain 572 (the creek city alone): sides - 0 edges with a drop over one cube; highest fill <= 9;
+    gate passed (GUESS 60 %: way 2's end beside the wall's south gate now slants into the creek; the restored cut
+    sides change what the gate's probe and the spurs see at every cut way). Then the full sets: record lines on
+    OTHER builds MAY MOVE (every cut way's rim changes) - gate walkable counts, spur columns.
+RESULTS (written 2026-11-20 14:58)
+  chain 572 (exe 14:53:09): the creek city builds (gate passed 74 / 0, graph 20 / 0 / 0, fords walked and reached) and
+    BOTH my changes missed:
+    (A) sides 4 -> 3, "cut_side_columns_restored 213". The pits are not from the cut pass: the applier's BAND CLEAR
+        wipes every cube of a cell from the first paved column's cube up (for flora litter over the road), in any
+        cell holding one paved column - and it ran before my read of the ground. Wrong pass, wrong order.
+    (B) the fill at (90, 160) is unchanged (27): that cell is not a fordable-creek cell by the ford rule - it is the
+        gully's dry flank (chain 472 had said it: the emitted gully is wider than the channel's water cells).
+  CHANGES, STATED BEFORE THE RUN:
+    (A) the side columns are read BEFORE the band clear, for every cell holding a paved column (not only cut cells),
+        and put back after the clear and the cut.
+    (B) ford cells = every site cell whose LIVE ground stands below the generator's natural ground (its cube top
+        under floor(naturalGroundAt), the height the map itself plans on) - the gully as emitted, wet or dry -
+        instead of "fordAt". Generator sampler only. Read in the ways unit, where the live ground is.
+  PREDICTION chain 573: as for 572 - 0 sides over a cube, highest fill <= 9, gate passed (60 %).
+RESULTS (written 2026-11-20 15:03)
+  chains 573 / 574 (exe 14:55:42, 14:57:27): the city builds as before; both changes missed AGAIN, for reasons a
+    per-unit trace now shows ("[ L4d ] after unit ..."):
+    (A) "after unit 'street sweep': the cell (-1268, -1029) tops at 323" (341 until then) and "(-1235, -1037) tops at
+        323" (332 until then). The pits are dug by the LATE STREET SWEEP, not by the paver: it clears whole cells
+        over three cube layers above every cell that holds a paved column and re-stamps only the paving. Beside a
+        cut way the cell's other columns ARE the cutting's side. (My restoration in the applier did put 1153 columns
+        back - the sweep took them out again.) It reads the ground per CELL (the cube terrain's top), not per column
+        - my "ground at the column" in the notes above is the cell's cube top; stated here.
+    (B) "(-1190, -960) tops at 311 ... after 'grading + paving ways' 326": local (90, 160) is OUTSIDE the site
+        rectangle (D = 160) - a way's end disc reaches past the site's edge, and I scanned the rectangle.
+    Also seen: the first ford cell goes 320 -> 315 at the ways unit - the paving lies up to 5 micro BELOW the bed
+        there (the lower envelope against a neighbouring bed column at 315). A cut into the bed, not a fill.
+  CHANGES, STATED BEFORE THE RUN:
+    (A) the applier hands the side columns it read (every non-paved column of a cell holding a paved one, with the
+        ground it had and the top cube's material) to the sweep; after the sweep's re-stamp, in every cell the
+        sweep cleared, a side column standing lower than it did is put back. Engine-wide for ways, streets, spurs.
+        Record: sweep_side_columns_restored.
+    (B) the gully cells are looked for round the WAYS themselves (each leg's box + half the width + 1), not over
+        the site rectangle.
+  PREDICTION chain 575 (the creek city alone): 0 sides over a cube; highest fill <= 9; gate passed. GUESS 55 % - the
+    restored sides are new solid beside every cut way and the gate's probe and the residents' graph have never
+    seen them; way 2's end now slants into the gully beside the south gate.
+RESULTS (written 2026-11-20 15:02)
+  chain 575 (the sweep puts the sides back; gully cells round the ways; exe 15:00:32): the creek city test PASSES.
+    "gate passed, 74 walkable, 0 blocked, 0 skipped over 20 doors of 20 built"; the residents' graph 20 asked, 0 / 0;
+    "the sides of the fords' paving: 90 paved-to-unpaved edges within 4 cells of a crossing, 0 with a drop over one
+    cube, the greatest 9 micro"; the record: "ford_pinned_columns 17929, ford_columns_above_the_bed 0,
+    ford_deepest_cut_micro 27, the ways' highest fill 9 micro" (at local (43, 84) - AT my bound of 9, not under it);
+    "cut_side_columns_restored 1452, sweep_side_columns_restored 1452"; 4 crossings walked bank to bank with the
+    walled-up control blocked; each ford reached from the junction and left for it; 18 of 18 homes to a tavern.
+    The trace: no pit after the sweep; (-1190, -960) 311 -> 306 (the way's end on the bed, 5 below it).
+  NEXT chains 576 (unit) / 577 (live, 43): PREDICTION - unit 409 / 0 with the 82 prints identical (no unit rig realizes
+    a way through the applier... GUESS); live: record lines on other builds MAY MOVE (cut sides restored beside
+    every cut way and spur, on every build) - walkable counts could go either way; every gate that passed must
+    still pass and the residents' graph must still read 0 / 0, or the side restoration is wrong somewhere.
+RESULTS (written 2026-11-20 15:22)
+  chains 576 / 577 (exe 15:00:32): unit set 408 ok / 1 failed, live 39 ok / 4 FAILED. The unit prints identical; the
+    new unit test green. THE SIDE RESTORATION BREAKS THE VILLAGE: its gate goes "passed - 34 walkable, 0 blocked" ->
+    "blocked - 33 walkable, 1 to 4 blocked" on six builds, and the residents' graph reads 1 house that cannot be left
+    and 1 or 2 that cannot be reached. Failed: TheFirstVillageBuildsFromItsMapWithEveryDoorMeasured,
+    TheVillageFencesAndTerracesItsParcelsNotItsTofts, TheVillageClearsAndFencesItsCrofts,
+    O39_AHouseTheResidentsCannotReachRefusesTheBuild. The creek city (74 / 0), the town (75 / 0) and the walled city
+    (94 / 0) still pass; one fixture fewer on the creek city and the walled city (326 -> 325, 404 -> 403); the town's
+    market edge moves (13 -> 11 pairs within the step).
+    This is the outcome my prediction named as "the side restoration is wrong somewhere". CAUSE (read from the
+    code, not yet shown by a run): the sweep puts every side column back to the ground it had BEFORE THE WAYS - but
+    between the ways unit and the sweep the door spurs and the doorstep approaches cut some of those very columns
+    (a spur leaving the way crosses the way's rim cells). The restoration walls them up.
+  CHANGE, STATED BEFORE THE RUN: the sweep keeps what stood JUST BEFORE IT, not what stood before the ways - for each
+    side column of a cell it clears, the solid run standing up from the bottom of the swept band (read per micro
+    column), capped at the ground the column had before the ways (so debris lying on the ground is still swept);
+    after the re-stamp exactly that run is put back. Columns that are paved at sweep time (the spurs' too) are not
+    side columns. The applier's own reading of a side column's ground becomes per micro column as well (a spur's
+    applier pass was reading restored sides as absent).
+  PREDICTION chains 578 / 579: unit 409 / 0; live 43 / 0; the village back to 34 / 0 with its graph 0 / 0. Record
+    lines may still differ from chain 566's where a cut's side is now solid (fixture counts, the market's edge).
+  chain 578 (the sweep keeps what stood just before it; exe 15:21:29; two tests): the village "gate: passed - 34
+    walkable, 0 blocked", graph 11 asked / 0 / 0; the creek city passes as in chain 575 (74 / 0, 0 sides over a cube,
+    highest fill 9; "cut_side_columns_restored 1465, sweep_side_columns_restored 1271"). As predicted for these two.
+RESULTS (written 2026-11-20 15:42)
+  chains 579 / 580 (one build, exe 15:21:29): unit set 409 ok / 0 failed, the 82 M5a / M5b prints identical to chain
+    555's; live 43 ok / 0 failed. As predicted.
+    Every gate that passed passes; the residents' graph 0 / 0 on every map build (11 x 5, 20 x 2, 24 x 2, 25);
+    the "[ O39k ]" spur lines identical to chain 566's.
+    Record lines that MOVED against chain 566 (167 distinct lines compared from the raw outputs):
+      - the creek city "326 fixtures placed" -> 325 and the walled city 404 -> 403: ONE FIXTURE FEWER on each. Which
+        fixture and why is NOT READ (a cut's side is solid now where a pit was; a prop that stood in a pit?).
+      - the town's market edge (recorded only): "13 within the walker's step, 15 a step too high or deep" -> 11 and 17;
+        two 17-micro edge steps are gone and a 6 and an 8 appear.
+      Nothing else moved; the legacy control as in 566 (43 / 10).
+  WHAT THIS IS: L2 on one synthetic gully (unit) and L3 on ONE site and seed (the creek city, headless): the gate's
+    probe, the residents' graph (the houses, and each ford to and from the junction), the lane walk with its
+    walled-up control, the sides measure, the build's own record.
+  NOT MEASURED / OPEN:
+    - L4: nothing run in the engine yet (next). What the WATER does at a ford has still never been looked at; the
+      paving lies up to 5 micro below the bed in places (a cut into the bed).
+    - the ramps are cuttings up to 27 micro deep along a street: their sides are walls now. Nobody has seen one;
+      a door within 7 cells of a ford along its street fronts a sunken street (none failed the gate here).
+    - the lost fixture on two builds; the market edge's two new steps.
+    - the sweep-keep rule is engine-wide (every way, street and spur on every build) and has one test site per tier;
+      the legacy street path runs it too.
+    - O38 (c) (the gate's seat search widened to 46 micro for the fill) is no longer needed by a fill and was NOT
+      narrowed back; (d) is moot (the bank's level is no longer told to anything); (e) the ford rule still reads
+      the water's depth - a gully deeper than a way can ramp into within its length is not refused by anything;
+      (f) L4 vs headless on a ramp: to be seen in the L4 run.
+    - a creek along a street, a diagonal crossing, a ford at the site's entry: one geometry family only.
+    - Debug: not run.
+L4 RUN 15 (written 2026-11-20 15:43, BEFORE the run): the CityLab creek city on the Release editor, a fresh DB, the
+  script citylab_l4_run15.sh (session scratchpad): /api/worldforge/focus + build on the pinned city, the ledger and
+  the engine's log read back; for each crossing's first cell the residents' graph column and a route to the
+  tavern's anchor and back (/api/navgraph/path); two screenshots at a ford (down on it; along the street through
+  it); then 17.6 h and 12 dumps of /api/npcs 30 s apart. PRODUCED BY: the engine's generator and worldforge_build.
+  PREDICTIONS:
+    - the city is BUILT: 20 buildings, "74 walkable, 0 blocked", the wall's 4 gates walked. GUESS 65 % - runs 1 and 2
+      REFUSED a ramped ford at the gate beside the second crossing and nobody found why the engine and the rig
+      differed (O38 f); that ramp was 27 micro in two cells, this one is 4 a cell.
+    - the log says "fords: N cells, ... way columns laid on the bed, 0 above it; the ways' deepest cut below the
+      ground 27 micro" (the headless rig: 17929 columns) and "street sweep: ... cut-side columns put back".
+    - a route exists from each ford cell to the tavern and back (4 of 4 each way).
+    - the evening: 16 to 18 of 18 residents within 12 u of the tavern by the last sample (run 12: 17). A fall here
+      would mean the sunken street cut someone off.
+    - the screenshots: a paved dip through a creek with cut sides. What the WATER draws there is UNKNOWN - this is
+      the first look; I will describe what the image shows and nothing more.
+RESULTS (written 2026-11-20 16:01) - L4 RUN 15 (the Release editor exe 15:43:43 built from this tree, fresh DB, RTX 1000
+  Ada laptop; started 15:43:57; evidence docs/evidence/worldforge_v2/citylab_l4/citylab_l4_run15_*)
+  PRODUCED BY: the engine's generator and POST /api/worldforge/build on the CityLab project. Nothing hand-placed.
+  PROVENANCE: the harness KILLED my run script for low memory while it polled the job (the third time this has
+    happened on this laptop). The ENGINE kept running and finished the job. I did not restart anything: I read the
+    job, the ledger and the log from that engine by hand, asked it the routes, took the screenshots and sampled the
+    residents. The engine process then ENDED BY ITSELF at about 15:58:35 (its last log line; sample 5 at 15:58:22
+    answered, sample 6 at 15:59:15 did not). No error line in its log, no Application Error event for phyxel.exe;
+    Windows' error reporting holds LiveKernelEvent 141 / 193 entries stamped 15:44:39. CAUSE NOT ESTABLISHED. I
+    did not stop it; it held 10.7 GB at 15:50.
+  THE CITY IS BUILT: the job "state complete ... buildings 20, lot_failures 0, status built", 292 s, 58 units; the
+    ledger "status built buildings 20 lotFailures 0". The engine's log: "fords: 370 cells, 17929 way columns laid on
+    the bed, 0 above it; the ways' deepest cut below the ground 27 micro"; "street sweep: 1472 cut-side columns put
+    back"; "walkability gate: the residents' graph - 20 lots asked both ways to the hub, 0 cannot be left, 0 cannot
+    be reached (refusing)"; "the wall's gates - 4 walked through, 0 blocked"; "74 walkable, 0 blocked over 74 routes
+    (20 front doors of 20 built, 0 skipped)"; "[WORLDFORGE] site 0 (city) BUILT". As predicted (my 65 %).
+    Against the headless rig: the same gate line and the same 17929 columns; 370 ford cells here, 375 there (the
+    audit's count from r580) - a difference of 5 cells NOT explained.
+  FORDS ON THE ENGINE'S OWN GRAPH: each of the 6 crossing cells has one standing surface (feet 35.111, one at 36.444)
+    and a route to the tavern's anchor and back - 6 of 6 each way (citylab_l4_run15_fords.txt). My first two
+    attempts read "not found" from MY mistakes (the site's x, z is its centre, not its origin; a negative cell's
+    centre is x + 0.5): stated, the files overwritten with the right query.
+  RESIDENTS (17.6 h, paused clock): 20 residents, 19 within 12 u of the tavern's anchor in each of the 4 samples
+    that answered (15:55:00 to 15:58:22); the one elsewhere is the other tavern's keeper, who stays by design.
+    13 "re-planned" lines. Better than run 12 (17 of 18) - one run each; the stuck resident did not show.
+  SCREENSHOTS (the engine's /api/screenshot; each status bar shows the pose asked): ford_along, camera
+    (-1279, 42, -1033) yaw 0 pitch -15 - the paved street stepping DOWN into a dip and up again toward the wall,
+    cut sides either side, the wall beyond; no water surface visible. ford_down, camera (-1265, 56, -1017) yaw -90
+    pitch -50 - a tree covers the left half; stepped paving to the right; no water visible. The editor UI is in
+    frame and one panel covers part of the view. These are my descriptions; the owner's eyes decide the look.
+  THE WATER, first look (citylab_l4_run15_water.txt): /api/debug/water_table_level at the 6 ford cells and beside the
+    first ford: "wet": false, "level": 0.0 everywhere (river_channel true at 4 of them, order 1 or 2);
+    water_stats: surface_cells 0, total_mass 9.77. THE RUNTIME DRAWS NO WATER IN THESE CREEKS - they are order 1
+    and 2 channels, dry gullies to the water system as it stands. So a ford here is a dry dip; pooling in the
+    paved hollow could not be observed because there is nothing to pool. (My water_probe calls were made without
+    a y and answered "outside the sim region" - not evidence of anything.)
+  THE LOST FIXTURE, creek city (read from the two logs): the MARKET - "square dressing: 5 placed" -> "4 placed",
+    "3 props ... not placed: no free LEVEL ground" -> 4; one market stall fewer, the statue moved, "the widest
+    ground span under a prop 0 micro" -> 3. The square takes its level from the street beside it, and that street
+    now ramps toward a ford: less level ground. A cost of the true ford, measured. The walled city's lost fixture
+    (404 -> 403; it has no ford): NOT found in the dressing or yard-prop lines; unread.
+AUDIT (solution-auditor, 2026-11-20, read-only, before the L4): PASS WITH CONDITIONS (raw text in the ledger).
+RESPONSE, STATED BEFORE THE RUNS (written 2026-11-20 16:02):
+  (a) wording: "no way column stands on more than a cube of fill and no paved side drops more than a cube", never
+      "nothing is filled"; nothing about water beyond the L4's reading above.
+  (d) FIRST, a red for the audit's reading of the side restore: a counter only - side columns the applier restores
+      HIGHER than the cube terrain's top with no earlier record of the column (something stood there: a trunk's
+      base, litter, a prop) - "side_columns_restored_over_the_ground". PREDICTION chain 581 (the creek city alone,
+      the logic unchanged): > 0 if the audit is right on this site (GUESS: yes, a forest site, tens to hundreds).
+      THEN the fix: a side column's ground is the cube terrain's top, or the height this build itself recorded for
+      it in an earlier pass - never what merely stands on it. The counter must read 0.
+  (4) the gully rule narrowed: a ford cell is a low cell (live cube top under the natural ground) CONNECTED, through
+      low cells near the ways (8-neighbour), to a cell the ford rule calls a fordable creek. An arriving road's cut
+      or a terrace with no creek in it is no longer a ford cell.
+  (c) a built-world assertion in the creek city test: at every crossing cell the paving's top is not above the
+      LOWEST unpaved top within the way's half width + 2 cells of it (the bed beside the ford), and not more than
+      a cube (9 micro) below it - the bed's own step from cell to cell is a cube, which the paving must cut to stay
+      walkable; deeper is a pit. REASONED bound, stated as such.
+  (f) every crossing cell (6), not each crossing's first, to and from the junction.
+  (b) the greatest drop and the greatest rise print their cells and materials.
+  (e) the creek city's lost fixture is the market stall (above); the walled city's stays unread.
+  PREDICTION chain 582 (all of it; the creek city + the village alone): green; ford cells fewer than 375;
+    record otherwise as chain 580. Then the full sets (583 / 584): 409 / 0, 43 / 0.
+RESULTS
+  chain 581 (the counter, logic unchanged; exe 16:02:47): RED - "side_columns_restored_over_the_ground 13" on the creek
+    city's ways pass (and ford_cells 375). The audit's reading is right; my guess of the size (tens to hundreds) was
+    high. 13 columns beside the streets were rebuilt as ground up to the top of something that stood on it.
+  chain 582 (the fixes + the stronger checks; exe 16:04:56; the creek city and the village): the village passes (34 / 0,
+    graph 0 / 0). The creek city builds as before (74 / 0, graph 20 / 0 / 0, 325 fixtures) and FAILS MY NEW CHECK:
+    "crossing cell 78,72 paved at 326; the lowest unpaved top near it 320 at 78,67: the paving is 6 micro ABOVE it"
+    and 1 to 3 micro above at four more cells (5 below at the first).
+    What held: "side_columns_restored_over_the_ground 0" (13 before - the fix); "ford_cells 354" (375 before - the
+    flood dropped 21 low cells with no creek in them; pinned columns 17929 -> 17605); all 6 crossing cells reached
+    from the junction and left for it; the greatest drop located: "paved 79,68 at 332 beside 78,68 at 323 Grass"
+    (9 micro: the gully's own edge beside the ramp, 4 cells off crossing 2); the greatest rise: "paved 52,76 at 321
+    beside 52,75 at 395 StoneBricks" - the WALL beside the gate, as supposed, not a cutting.
+  MY CHECK WAS WRONG, STATED BEFORE THE NEXT RUN: "the lowest unpaved top within 5 cells" is the bed DOWNSTREAM - a
+    creek's bed falls along its length (320 at (78,67) is five cells down the gully from a ford paved at 326), so
+    paving above it is not a dam. A dam is paving above the bed on its UPSTREAM side. The test does not know the
+    flow's direction, so: the BED near a ford = the unpaved cells within the half width + 2 whose top is within a
+    cube of the lowest; asserted - the paving is not above the HIGHEST of them (the upstream bed), and not more
+    than a cube below the LOWEST. This cannot see a dam of less than the bed's own fall across those cells (said
+    here); a causeway at the bank's level (342 against beds of 314 to 329) fails it.
+  PREDICTION chain 583: the creek city passes; per cell the print shows paving between or under the bed's range.
+  chain 583 (the amended bed check; exe 16:07:32): 5 of 6 crossing cells read under the bed's highest; ONE fails -
+    "crossing cell 78,72 paved at 326; the unpaved bed near it 320 to 323 (5 cells): the paving is 3 micro ABOVE its
+    highest". 326 cannot be that cell's pinned ground (a cell's cube top is a multiple of 9: 324 or 333): I READ it
+    as a cell whose own ground stood at 333 before the ways (the emitted bed is cube-coarse and steps sideways there)
+    and was cut 7 micro by the envelope - a cut, not a fill. NOT SHOWN by anything yet; my check has no reading of
+    the ground BEFORE the build, so it cannot tell a cut cell from a dam. Twice wrong on this check.
+  CHANGE, STATED BEFORE THE RUN: the test takes its own reading BEFORE the ways unit (the per-unit hook, after
+    'restoring ground under flora'): the ground's top at every cell within 3 of the six crossing cells (hard-coded
+    world cells; a crossing cell with no reading fails the test). ASSERTED, built world, before against after: no
+    PAVED cell among them stands higher than it did before the ways + 1 micro (the paving's own cap). The "bed
+    near it" lines stay printed, not asserted, except the pit bound (not more than a cube below the lowest).
+  PREDICTION chain 584: passes; (78, 72) read 332 or 341 before the ways (GUESS) and 326 after.
+  chain 584 (before against after; exe 16:09:58): the creek city test PASSES. "(78,72) ... stood at 332 before the ways
+    unit" and is paved at 326 - a cut of 6, as I had read it (my guess: 332 or 341). The six crossing cells stood at
+    320 / 323 / 320 / 332 / 323 / 320 and are paved at 315 / 317 / 315 / 326 / 317 / 315. "before against after: 266
+    paved cells within 3 of a crossing cell compared, 0 stand higher than before the ways". This is the built-world
+    measure the audit asked for. It was NOT run against the causeway code; by chain 567's own print the causeway
+    stood at 342 on these cells, which read 320 to 332 before the ways - it would count them.
+  NEXT chains 585 (unit) / 586 (live 43), one build: PREDICTION 409 / 0 and 43 / 0; live record lines as chain 580's
+    (the creek city 325 fixtures, the walled city 403, the town's market edge as moved) - the side-ground fix may
+    move a line where something stood beside a street (13 columns on the creek city).
+RESULTS (written 2026-11-20 16:31)
+  chains 585 / 586 (the final code; one build, exe 16:09:58): unit set 409 ok / 0 failed, the 82 M5a / M5b prints
+    identical to chain 555's; live 43 ok / 0 failed, every record line identical to chain 580's (so against chain
+    566: the creek city 326 -> 325 fixtures, the walled city 404 -> 403, the town's market edge moved; nothing else).
+    The creek city: "0 with a drop over one cube, the greatest 9 micro"; "side_columns_restored_over_the_ground 0,
+    ford_cells 354"; "before against after: 266 paved cells within 3 of a crossing cell compared, 0 stand higher
+    than before the ways"; the residents' graph 0 / 0 on every map build.
+  FINAL STATE AND ITS LIMITS
+    - L2: one synthetic gully with its no-ford control (unit). L3: ONE site and seed, headless (the creek city):
+      the gate 74 / 0, the residents' graph (20 houses; 6 of 6 crossing cells to and from the junction), the lane
+      walk with its walled-up control, no paved side dropping over a cube, no paved cell at a ford higher than
+      before the ways, no way column on more than 9 micro of fill (plan-level).
+    - L4: run 15 built the city in the Release editor (74 / 0, 6 of 6 ford cells routed, 19 of 20 residents at the
+      tavern) - ON THE CODE BEFORE THE AUDIT'S FIXES (editor exe 15:43:43; the side-ground fix and the narrowed gully
+      rule came after). The final code has NOT been run in the engine. I did not start a second engine run: the
+      harness killed run 15's script for memory and the engine later ended by itself for a reason I did not find;
+      a re-run is the owner's call.
+    - what a ford IS here: a dry paved dip. The water runtime holds no water in these order-1 and order-2 creeks
+      (run 15's readings), so nothing about water at a ford is shown, and the paving lies up to 5 micro below the
+      lowest bed beside it and up to 8 below the bed's highest (a hollow if a creek ever runs).
+    - "no fill" is not the claim: way columns stand on up to 9 micro of fill (plan-level bound asserted on the creek
+      city); a 9-micro edge remains at "paved 79,68 at 332 beside 78,68 at 323 Grass" (the gully's own edge).
+    - costs measured: the creek city's market loses a stall (the square slopes with the street toward a ford); the
+      walled city loses one fixture (unread); the town's market edge moves (recorded only).
+    - the cutting's sides are walls up to 27 micro beside the ramps; a house fronting a ramp was not refused here,
+      and nothing plans lots away from a ramp.
+    - engine-wide and thinly tested: the sweep keeps cut sides on every build (one site per tier); the legacy street
+      path runs it; no rig places a prop or trunk beside a cut street and measures it (the counter read 13 -> 0 on
+      one site).
+    - not narrowed back: the gate's seat search (O38 c). Not built: a refusal for a gully too deep to ramp into
+      within the way (O38 e). Not explained: O38 (f) - moot for THIS ramp (the engine and the rig agree on run 15's
+      code), the old difference never found. 370 ford cells in the engine against 375 in the rig on run 15's code:
+      not explained, and not re-measured on the final code (354 in the rig).
+    - the audit's responses were NOT re-audited. No Debug run.

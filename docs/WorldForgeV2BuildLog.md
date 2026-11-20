@@ -1062,3 +1062,34 @@ Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain557.txt` (chains 557 to 
   spur from a dogleg; nothing was looked at in the engine; neighbours' yards and fences are not checked; the one
   spur left (the walled city) is explained only by its refusal counts; no Debug run; the audit's responses were not
   re-audited.
+
+### 2026-11-20 - D73 (a): a town's ford is a true ford - cut to grade, no causeway
+
+Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain567.txt` (chains 567 to 586, L4 run 15); audit raw in the ledger.
+
+- **Before:** at a recorded crossing the ways unit was told the bank's level, so the paver laid the way level across
+  and filled the gully under it: a causeway (creek city: 34 paved edges dropping more than a cube, the greatest 28).
+- **Built:** `planWayPaving` takes ford cells; every way column inside one takes the ground there before the paver's
+  2-D lower envelope, which then cuts the approaches at the ways' grade. The build service finds ford cells as a
+  crossing's cells plus the low ground (live cube top under the natural ground) connected to a fordable creek near
+  the ways. The told-high ground (`fordFill`) is gone.
+- **Found on the way and fixed:**
+  - the ways unit replaced its own record keys (legs cut to grade, legs not paved - never in a build's output);
+  - the paver's band clear and the late street sweep removed whole cubes beside every cut way and left pits; the
+    side columns are now kept (`PavingSide`, `SideKeep`) - engine-wide. A first version walled up the village's
+    door spurs (4 live reds); the sweep now keeps only what stood just before it;
+  - (audit) the side restore rebuilt 13 columns over things standing on the ground; a side column's ground is now
+    the cube terrain or this build's own earlier record.
+- **Tests:** `StreetPaverTest.AWayFordsAGullyOnItsBedWithNoFill` (with a no-ford control);
+  `SettlementMapLiveSiteTest.TheCreekCityIsBuiltAcrossItsFords` - "dip <= 4" removed (it asserted the causeway;
+  stated before the run); new: no paved side dropping over a cube, no paved cell at a ford higher than before the
+  ways (read by the test before and after), every crossing cell reached and left on the residents' graph, the
+  ways' highest fill <= 9 micro.
+- **Measured (Release, exe 16:09:58):** unit 409 ok / 0 failed, live 43 ok / 0 failed. Creek city: gate 74 / 0,
+  residents' graph 20 / 0 / 0, sides 34 -> 0, 266 paved cells at the fords none raised, deepest cut 27 micro.
+- **L4 run 15 (Release editor, CityLab; on the code before the audit's fixes):** built, 74 / 0, 6 of 6 ford cells
+  routed to the tavern and back, 19 of 20 residents at the tavern. The water runtime holds no water in these
+  creeks: a ford is a dry paved dip. The run's script was killed for memory; the engine later ended by itself.
+- **Costs and open items:** the creek city's market loses a stall (the square slopes toward a ford); one fixture
+  lost on the walled city (unread); no rule keeps a square or a lot off a ramp; a gully too deep to ramp into is
+  not refused; water at a ford unobserved; the final code not run in the engine; no Debug run.

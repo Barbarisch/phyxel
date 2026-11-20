@@ -154,7 +154,8 @@ PavingPlan planStreetPaving(const std::vector<Rect>& streets, glm::ivec2 originC
 PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                          const std::function<int(int, int)>& groundMicroAt,
                          const AgentBox& box, const std::string& material,
-                         const std::vector<glm::ivec4>& plazas) {
+                         const std::vector<glm::ivec4>& plazas,
+                         const std::vector<glm::ivec2>& fordCells) {
     PavingPlan plan;
     plan.material = material;
     if (!groundMicroAt) return plan;
@@ -192,6 +193,19 @@ PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                     const int i = std::clamp(static_cast<int>(std::lround(t * static_cast<float>(last))), 0, last);
                     if (cols.emplace(colKey(x, z), centre.cells[static_cast<size_t>(i)].surfaceY).second) colWidth[colKey(x, z)] = w.widthCubes;
                 }
+        }
+    }
+    // D73 (a) (pm_chain567.txt): a TRUE FORD. Every way column inside a ford cell takes the ground at that column - the
+    // creek's bed - and the lower envelope below then cuts the approaches down to it at the ways' grade. Nothing is
+    // raised, so nothing is filled at a ford and the bed is not dammed. (x 9 / floor: a ford cell is a cube cell.)
+    if (!fordCells.empty()) {
+        std::unordered_map<long long, char> fc;
+        for (const auto& c : fordCells) fc[colKey(c.x, c.y)] = 1;
+        for (auto& [k, S] : cols) {
+            const int x = static_cast<int>(k >> 32), z = static_cast<int>(static_cast<int32_t>(k & 0xffffffffLL));
+            if (!fc.count(colKey(fl9(x), fl9(z)))) continue;
+            S = groundMicroAt(x, z);
+            ++plan.fordPinnedCols;
         }
     }
     // chain 89 (M5b-1): at a BEND two legs' capsules overlap and the first writer's surface meets the other leg's

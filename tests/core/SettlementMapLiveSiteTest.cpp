@@ -3018,12 +3018,30 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
     rig.recipeKey = "citylab-A fords"; rig.worldSeed = 7001u;   // O36 (i): the recipe asks for settlement fords
     rig.recipeFn = [px, pz] { WorldRecipe r = cityLabRecipe(false, px, pz, 0.0f, 0.0f); r.worldforge.settlementFords = true; return r; };
     ASSERT_TRUE(rig.setUp(0, 24)) << rig.why;
+    std::map<std::pair<int, int>, int> groundBeforeTheWays;   // D73: world cell -> the ground's top before the ways unit
     {   // chain 475 diagnostic: the top solid micro at the first ford cell's centre (world -1265, -1033) after each unit
-        int last = INT_MIN;
-        g_afterUnit = [&rig, last](const std::string& label) mutable {
-            int t = INT_MIN;
-            for (int y = 400; y >= 280 && t == INT_MIN; --y) if (rig.solidMicro(-1265 * 9 + 4, y, -1033 * 9 + 4)) t = y;
-            if (t != last) { std::printf("[ L4d ] after unit '%s': the ford cell (-1265, -1033) tops at %d%s", label.c_str(), t, chr10().c_str()); last = t; }
+        // (D73, chain 574: and three cells more - a pit beside a ford's ramp (-1268, -1029), another (-1235, -1037), and
+        // the end of way 2 over the gully's flank (-1190, -960))
+        std::vector<std::pair<int, int>> cells = {{-1265, -1033}, {-1268, -1029}, {-1235, -1037}, {-1190, -960}};
+        std::vector<int> last(cells.size(), INT_MIN);
+        g_afterUnit = [&rig, cells, last, &groundBeforeTheWays](const std::string& label) mutable {
+            // (D73, chain 584) the ground BEFORE the ways unit at every cell within 3 of the six crossing cells: the top
+            // of the first solid run met going up from under the ground
+            if (label == "restoring ground under flora")
+                for (const auto& fc : std::vector<std::pair<int, int>>{{-1265, -1033}, {-1232, -1041}, {-1231, -1041}, {-1202, -1048}, {-1164, -1033}, {-1163, -1033}})
+                    for (int dz = -3; dz <= 3; ++dz) for (int dx = -3; dx <= 3; ++dx) {
+                        const int wx = fc.first + dx, wz = fc.second + dz;
+                        int y = 250;
+                        while (y <= 420 && !rig.solidMicro(wx * 9 + 4, y, wz * 9 + 4)) ++y;
+                        if (y > 420) continue;
+                        while (rig.solidMicro(wx * 9 + 4, y + 1, wz * 9 + 4)) ++y;
+                        groundBeforeTheWays[{wx, wz}] = y;
+                    }
+            for (size_t i = 0; i < cells.size(); ++i) {
+                int t = INT_MIN;
+                for (int y = 400; y >= 280 && t == INT_MIN; --y) if (rig.solidMicro(cells[i].first * 9 + 4, y, cells[i].second * 9 + 4)) t = y;
+                if (t != last[i]) { std::printf("[ L4d ] after unit '%s': the cell (%d, %d) tops at %d%s", label.c_str(), cells[i].first, cells[i].second, t, chr10().c_str()); last[i] = t; }
+            }
         };
     }
     // O36 (i): the fords by the recipe's switch alone. O39: this build ASKS the gate to refuse on the residents' graph.
@@ -3106,6 +3124,7 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
         }
     }
     int unpaved = 0, notWalked = 0, cells = 0, controlLeaks = 0, worstDip = 0, fordHollow = 0;
+    int fordCliffs = -1, fordNoStand = 0, fordNotReached = 0, fordNotLeft = 0, fordAboveBedBeside = 0, fordDeepestBelowBed = 0, fordNoBedBeside = 0, fordBandCellsCompared = 0;
     for (size_t ci = 0; ci < sm.crossings.size(); ++ci) {
         const auto& c = sm.crossings[ci];
         if (c.cells.empty()) continue;
@@ -3307,6 +3326,21 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
                 std::printf("[ O38g ]   way %d %s width %.0f:%s%s", w.id, w.highway.c_str(), w.width, nodes.c_str(), chr10().c_str());
             }
         }
+        {   // D73 (a): a ford is a place a resident can stand in and leave - each crossing's first cell, to and from the junction
+            glm::vec3 jn; const int jsf = seat(87, 74);
+            for (size_t ci = 0; ci < sm.crossings.size(); ++ci) {
+              for (const auto& cell : sm.crossings[ci].cells) {   // (the audit) EVERY crossing cell, not each crossing's first
+                const int sf = seat(cell.first, cell.second);
+                if (sf == INT_MIN || jsf == INT_MIN) { ++fordNoStand; std::printf("[ D73 ] crossing %zu cell %d,%d: no standing place%s", ci, cell.first, cell.second, chr10().c_str()); continue; }
+                jn = glm::vec3(sm.originX + 87 + 0.5f, jsf / 9.0f, sm.originZ + 74 + 0.5f);
+                const glm::vec3 at(static_cast<float>(sm.originX + cell.first) + 0.5f, static_cast<float>(sf) / 9.0f, static_cast<float>(sm.originZ + cell.second) + 0.5f);
+                const bool in = graph.findPath(jn, at, agent).found, outOk = graph.findPath(at, jn, agent).found;
+                if (!in) ++fordNotReached;
+                if (!outOk) ++fordNotLeft;
+                std::printf("[ D73 ] crossing %zu cell %d,%d feet %d (the junction's %d): from the junction %s, back to it %s%s", ci, cell.first, cell.second, sf, jsf, in ? "yes" : "NO", outOk ? "yes" : "NO", chr10().c_str());
+              }
+            }
+        }
         {   // O39 (recorded, not asserted here): lots a walker can reach from the main junction but cannot LEAVE
             int trapped = 0, cut = 0;
             glm::vec3 jn; const int jsf = seat(87, 74);
@@ -3328,7 +3362,8 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
         // cell whose top voxel is the paving: the drop to each 4-neighbour that is not paved. A drop over a cube is a
         // cliff beside the way (the gully the fill dams).
         std::set<std::pair<int, int>> seen;
-        int edges = 0, cliffs = 0, worstSide = 0;
+        int edges = 0, cliffs = 0, worstSide = 0, worstRise = 0;
+        std::string worstSideAt, worstRiseAt;
         for (const auto& c : sm.crossings) for (const auto& cc : c.cells)
             for (int dz = -4; dz <= 4; ++dz) for (int dx = -4; dx <= 4; ++dx) {
                 const std::pair<int, int> cell{cc.first + dx, cc.second + dz};
@@ -3340,13 +3375,107 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
                     if (nt == INT_MIN || matAt(cell.first + d.first, cell.second + d.second, nt) == paving) continue;
                     ++edges;
                     const int drop = t - nt;
-                    worstSide = std::max(worstSide, drop);
+                    if (drop > worstSide) { worstSide = drop; worstSideAt = "paved " + std::to_string(cell.first) + "," + std::to_string(cell.second) + " at " + std::to_string(t) + " beside " + std::to_string(cell.first + d.first) + "," + std::to_string(cell.second + d.second) + " at " + std::to_string(nt) + " " + matAt(cell.first + d.first, cell.second + d.second, nt); }
+                    if (-drop > worstRise) { worstRise = -drop; worstRiseAt = "paved " + std::to_string(cell.first) + "," + std::to_string(cell.second) + " at " + std::to_string(t) + " beside " + std::to_string(cell.first + d.first) + "," + std::to_string(cell.second + d.second) + " at " + std::to_string(nt) + " " + matAt(cell.first + d.first, cell.second + d.second, nt); }
                     if (drop > 9) { ++cliffs; if (cliffs <= 6) std::printf("[ O38 ]   paved %d,%d at %d beside unpaved %d,%d at %d: a drop of %d micro%s", cell.first, cell.second, t, cell.first + d.first, cell.second + d.second, nt, drop, chr10().c_str()); }
                 }
             }
-        std::printf("[ O38 ] the sides of the fords' paving (recorded, not asserted): %d paved-to-unpaved edges within 4 cells of a crossing, %d with a drop over one cube, the greatest %d micro%s", edges, cliffs, worstSide, chr10().c_str());
+        std::printf("[ O38 ] the sides of the fords' paving: %d paved-to-unpaved edges within 4 cells of a crossing, %d with a drop over one cube, the greatest %d micro; the greatest RISE beside the paving (a cutting's side) %d micro%s", edges, cliffs, worstSide, worstRise, chr10().c_str());
+        fordCliffs = cliffs;
+        std::printf("[ O38 ]   the greatest drop: %s; the greatest rise: %s%s", worstSideAt.c_str(), worstRiseAt.c_str(), chr10().c_str());
+        {   // (the audit of D73, condition c) BUILT WORLD: the paving at every crossing cell against the lowest unpaved top
+            // within the way's half width + 2 cells of it - the bed beside the ford. Not above it (a dam); not more than a
+            // cube below it (the bed's own step from cell to cell is a cube, which the paving cuts to stay walkable;
+            // deeper is a pit - a REASONED bound).
+            for (const auto& c : sm.crossings) {
+                int half = 1;
+                for (const auto& w : sm.ways) if (w.id == c.way) half = std::max(1, static_cast<int>(std::lround(w.width)) / 2);
+                for (const auto& cc : c.cells) {
+                    const int t = topAt(cc.first, cc.second);
+                    // (amended before chain 583, pm_chain567.txt: the lowest unpaved top is the bed DOWNSTREAM - a bed falls
+                    // along its length. The BED near the ford = the unpaved tops within a cube of the lowest; the paving
+                    // is not above the HIGHEST of them, the upstream bed, and not more than a cube below the lowest.)
+                    std::vector<int> tops;
+                    for (int dz = -(half + 2); dz <= half + 2; ++dz) for (int dx = -(half + 2); dx <= half + 2; ++dx) {
+                        const int nt = topAt(cc.first + dx, cc.second + dz);
+                        if (nt == INT_MIN || matAt(cc.first + dx, cc.second + dz, nt) == paving) continue;
+                        tops.push_back(nt);
+                    }
+                    if (t == INT_MIN || tops.empty()) { ++fordNoBedBeside; continue; }
+                    const int lowest = *std::min_element(tops.begin(), tops.end());
+                    int highestBed = lowest, bedCells = 0;
+                    for (const int v : tops) if (v <= lowest + 9) { highestBed = std::max(highestBed, v); ++bedCells; }
+                    std::printf("[ D73 ] crossing cell %d,%d paved at %d; the unpaved bed near it %d to %d (%d cells): the paving is %d micro %s its highest, %d micro %s its lowest%s", cc.first, cc.second, t, lowest, highestBed, bedCells,
+                                std::abs(t - highestBed), t > highestBed ? "ABOVE" : "under", std::abs(t - lowest), t > lowest ? "above" : "below", chr10().c_str());
+                    fordDeepestBelowBed = std::max(fordDeepestBelowBed, lowest - t);
+                    // BEFORE against AFTER (amended before chain 584): no paved cell within 3 of a crossing cell stands
+                    // higher than it did before the ways unit + 1 micro (the paving's cap)
+                    const auto own = groundBeforeTheWays.find({sm.originX + cc.first, sm.originZ + cc.second});
+                    if (own == groundBeforeTheWays.end()) { ++fordNoBedBeside; continue; }
+                    std::printf("[ D73 ]   that cell stood at %d before the ways unit%s", own->second, chr10().c_str());
+                    for (int dz = -3; dz <= 3; ++dz) for (int dx = -3; dx <= 3; ++dx) {
+                        const auto b = groundBeforeTheWays.find({sm.originX + cc.first + dx, sm.originZ + cc.second + dz});
+                        const int at = topAt(cc.first + dx, cc.second + dz);
+                        if (b == groundBeforeTheWays.end() || at == INT_MIN || matAt(cc.first + dx, cc.second + dz, at) != paving) continue;
+                        ++fordBandCellsCompared;
+                        if (at > b->second + 1) { ++fordAboveBedBeside; std::printf("[ D73 ]   RAISED: paved %d,%d at %d, %d before the ways%s", cc.first + dx, cc.second + dz, at, b->second, chr10().c_str()); }
+                    }
+                }
+            }
+        }
+        {   // D73 diagnostic (chain 570): the built tops round crossing 0, cells x 4..22, z 95..76 - "P" paved, "." not;
+            // and each way's nodes are printed above ("[ O38g ] way ...")
+            for (int z = 95; z >= 76; --z) {
+                std::string row;
+                for (int x = 4; x <= 22; ++x) {
+                    const int t = topAt(x, z);
+                    char buf[16];
+                    if (t == INT_MIN) std::snprintf(buf, sizeof buf, "   ? ");
+                    else std::snprintf(buf, sizeof buf, " %d%c", t, matAt(x, z, t) == paving ? 'P' : '.');
+                    row += buf;
+                }
+                std::printf("[ D73 ]   z %3d x 4..22:%s%s", z, row.c_str(), chr10().c_str());
+            }
+        }
     }
-    EXPECT_LE(worstDip, 4) << "a ford's paving dips into the creek by more than the walker's step";
+    // D73 (a) (pm_chain567.txt, stated before the run): "worstDip <= 4" is REMOVED - it asserted the causeway; a true ford
+    // dips by the gully's depth (printed above). In its place: no bare side, nothing above the bed, a place to stand.
+    EXPECT_EQ(fordCliffs, 0) << "a ford's paving has a side that drops more than a cube: a causeway";
+    {
+        const nlohmann::json pj = out.value("paths", nlohmann::json::object());
+        std::printf("[ D73 ] the build's record: ford_pinned_columns %ld, ford_columns_above_the_bed %ld, ford_deepest_cut_micro %d, the ways' highest fill %d micro at micro column %s, ford_fill_cells %ld%s",
+                    pj.value("ford_pinned_columns", -1L), pj.value("ford_columns_above_the_bed", -1L), pj.value("ford_deepest_cut_micro", -1), pj.value("ways_highest_fill_micro", -1), pj.value("ways_highest_fill_at", nlohmann::json::array()).dump().c_str(), pj.value("ford_fill_cells", -1L), chr10().c_str());
+        {   // D73 diagnostic (chain 571): the built tops round the ways' highest fill
+            const auto at = pj.value("ways_highest_fill_at", std::vector<int>{});
+            if (at.size() == 2) {
+                const int fx = floorDivN(at[0], 9) - sm.originX, fz = floorDivN(at[1], 9) - sm.originZ;
+                std::printf("[ D73 ] the ways' highest fill is at local cell %d,%d (origin %d,%d)%s", fx, fz, sm.originX, sm.originZ, chr10().c_str());
+                for (int z = fz + 7; z >= fz - 7; --z) {
+                    std::string row;
+                    for (int x = fx - 8; x <= fx + 8; ++x) {
+                        const int t = topAt(x, z);
+                        char buf[16];
+                        if (t == INT_MIN) std::snprintf(buf, sizeof buf, "   ? ");
+                        else std::snprintf(buf, sizeof buf, " %d%c", t, matAt(x, z, t) == paving ? 'P' : '.');
+                        row += buf;
+                    }
+                    std::printf("[ D73 ]   z %3d x %d..%d:%s%s", z, fx - 8, fx + 8, row.c_str(), chr10().c_str());
+                }
+            }
+        }
+        EXPECT_GT(pj.value("ford_pinned_columns", -1L), 0L);
+        EXPECT_EQ(pj.value("ford_columns_above_the_bed", -1L), 0L);
+        std::printf("[ D73 ] cut_side_columns_restored %ld, sweep_side_columns_restored %ld, side_columns_restored_over_the_ground %ld, ford_cells %ld%s", pj.value("cut_side_columns_restored", -1L), pj.value("sweep_side_columns_restored", -1L), pj.value("side_columns_restored_over_the_ground", -1L), pj.value("ford_cells", -1L), chr10().c_str());
+        EXPECT_LE(pj.value("ways_highest_fill_micro", 999), 9) << "a way of a fording build stands on more than a cube of fill: a causeway";
+    }
+    std::printf("[ D73 ] before against after: %d paved cells within 3 of a crossing cell compared, %d stand higher than before the ways%s", fordBandCellsCompared, fordAboveBedBeside, chr10().c_str());
+    EXPECT_GT(fordBandCellsCompared, 0);
+    EXPECT_EQ(fordAboveBedBeside, 0) << "a paved cell at a ford stands higher than the ground it had before the ways: fill";
+    EXPECT_LE(fordDeepestBelowBed, 9) << "a ford's paving lies more than a cube below the bed beside it: a pit";
+    EXPECT_EQ(fordNoBedBeside, 0) << "a crossing cell with no unpaved ground near it: the measure read nothing";
+    EXPECT_EQ(fordNoStand, 0) << "a ford cell has no standing place";
+    EXPECT_EQ(fordNotReached, 0) << "a ford cannot be reached from the main junction on the residents' graph";
+    EXPECT_EQ(fordNotLeft, 0) << "a ford cannot be left for the main junction on the residents' graph";
     EXPECT_EQ(fordHollow, 0) << "a ford's paving is hollow underneath";
     EXPECT_EQ(unpaved, 0) << "a ford's cell is not paved";
     EXPECT_EQ(notWalked, 0) << "a ford is not walked from bank to bank along its lane";

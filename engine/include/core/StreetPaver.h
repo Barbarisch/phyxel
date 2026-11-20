@@ -57,6 +57,7 @@ struct PavingPlan {
     int  spursByALongerRun = 0;        ///< O39 (g2): of the spurs the grade did not fit at the nearest street column, those joined by a dogleg (a graded run along the frontage, a level piece across) at the ways' grade
     int  spurLongestRunColumns = 0;        ///< O39 (g2): the longest such run, micro columns (Manhattan)
     std::vector<std::string> spursAtTheOldCapNotes;   ///< O39 (g2): one line a spur left at the old cap - the door, the street, why no dogleg fitted
+    long fordPinnedCols = 0;               ///< D73 (a): way columns inside a ford cell, set to the ground there
     int  spursFailed = 0;                 ///< door spurs too steep (surfaced, not silent)
     /// M0 row 2b: one line per failed spur - door (x,z,S0) -> street (x,z,SG), run length,
     /// drop, grade cap and the planner's reason - so a "too steep" is never a bare count.
@@ -90,13 +91,17 @@ struct WayRibbon {
     std::vector<glm::ivec2> cells;   ///< the way's node cells in order (world cubes; >= 2)
     int widthCubes = 1;              ///< the paved width (cubes; the program's street / lane width)
 };
+/// D73 (a) (pm_chain567.txt): `fordCells` are WORLD CUBE cells where a way fords a creek - every way column inside one
+/// takes the ground at that column (the bed) before the slope-limited lower envelope runs, so the approaches are CUT
+/// down to the bed at the ways' grade and nothing is filled.
 /// M5e-1: `plazas` are open paved places (x, z, w, d in WORLD CUBES - the market). Every micro column of a plaza
 /// no way wrote is paved too: at its own ground, held within the walker's step of the ways' surfaces beside it
 /// (the ways' columns are NOT changed - the map states their levels), then slope-limited across the plaza.
 PavingPlan planWayPaving(const std::vector<WayRibbon>& ways,
                          const std::function<int(int, int)>& groundMicroAt,
                          const AgentBox& box, const std::string& material,
-                         const std::vector<glm::ivec4>& plazas = {});
+                         const std::vector<glm::ivec4>& plazas = {},
+                         const std::vector<glm::ivec2>& fordCells = {});
 
 /// M0 (docs/WorldForgeV2Plan.md §5 M0, "site prep reordered"): door spurs ONLY, planned AFTER
 /// the buildings exist so each spur runs from the REALIZED door (the recorded front-door

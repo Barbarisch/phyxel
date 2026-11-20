@@ -502,6 +502,58 @@ TEST(StreetPaverTest, DoorstepsStoopTheWholeDescentToTheStreet) {
 // within one step (4 micro) of the way's standing level. Live cases: the croft whose way stood at 878 against a
 // threshold of 869 (pad 95) -> pad 96, threshold 878; the hall house whose way was cut to 892 against 903 (pad 98 ->
 // 896); a way at 1363 -> pad 150, threshold 1364.
+// ── D73 (a) (pm_chain567.txt): a way FORDS a gully on its bed - cut to grade down and up again, no fill ─────────
+// A level plain at 153, a gully 27 micro deep and 2 cells wide (cubes x 10..11) across a way of width 3. RED (the
+// paver as it stood, and the control arm for ever): the leg dips a little and the gully is FILLED under it.
+TEST(StreetPaverTest, AWayFordsAGullyOnItsBedWithNoFill) {
+    auto gully = [](int mx, int mz) {
+        (void)mz;
+        const int cx = mx >= 0 ? mx / 9 : -((-mx + 8) / 9);
+        return (cx == 10 || cx == 11) ? (13 + 1) * 9 : (16 + 1) * 9;
+    };
+    const std::vector<WayRibbon> way = {WayRibbon{{{1, 10}, {20, 10}}, 3}};
+    const std::vector<glm::ivec2> ford = {{10, 9}, {10, 10}, {10, 11}, {11, 9}, {11, 10}, {11, 11}};
+    const AgentBox box;
+    struct M { int inGully = 0, above = 0, worstAbove = 0, worstAdjacent = 0, at60 = 0, at62 = 0; long fill = 0, pinned = 0; };
+    const auto measure = [&](const PavingPlan& p) {
+        M m;
+        std::unordered_map<long long, int> s;
+        for (const auto& c : p.columns) s[key(c.x, c.z)] = c.surface;
+        for (const auto& c : p.columns) {
+            const int cx = c.x / 9;
+            if (cx == 10 || cx == 11) {
+                ++m.inGully;
+                if (c.surface > gully(c.x, c.z)) { ++m.above; m.worstAbove = std::max(m.worstAbove, c.surface - gully(c.x, c.z)); }
+            }
+            for (const auto& d : {std::pair{1, 0}, std::pair{0, 1}}) {
+                auto it = s.find(key(c.x + d.first, c.z + d.second));
+                if (it != s.end()) m.worstAdjacent = std::max(m.worstAdjacent, std::abs(it->second - c.surface));
+            }
+        }
+        const int zc = 10 * 9 + 4;
+        m.at60 = s.count(key(90 - 60, zc)) ? s[key(90 - 60, zc)] : -1;
+        m.at62 = s.count(key(90 - 62, zc)) ? s[key(90 - 62, zc)] : -1;
+        m.fill = p.fillCols; m.pinned = p.fordPinnedCols;
+        return m;
+    };
+    const auto forded = planWayPaving(way, gully, box, "Gravel", {}, ford);
+    const auto plain = planWayPaving(way, gully, box, "Gravel");
+    const M f = measure(forded), c = measure(plain);
+    std::printf("[ D73 ] ford arm: %zu columns, %d in the gully, %d of them above its ground (the greatest %d micro), %ld fill columns, %ld pinned; worst step between adjacent columns %d; the centre line 60 columns before the gully %d, 62 before %d\n",
+                forded.columns.size(), f.inGully, f.above, f.worstAbove, f.fill, f.pinned, f.worstAdjacent, f.at60, f.at62);
+    std::printf("[ D73 ] control (no ford cells): %zu columns, %d in the gully, %d of them above its ground (the greatest %d micro), %ld fill columns; worst step between adjacent columns %d\n",
+                plain.columns.size(), c.inGully, c.above, c.worstAbove, c.fill, c.worstAdjacent);
+    ASSERT_TRUE(forded.ok);
+    EXPECT_GT(f.inGully, 0);
+    EXPECT_EQ(f.above, 0) << "a ford is not filled: its paving lies on the bed";
+    EXPECT_EQ(f.fill, 0L);
+    EXPECT_GT(f.pinned, 0L);
+    EXPECT_LE(f.worstAdjacent, 1) << "the approaches are cut at the ways' grade";
+    EXPECT_LT(f.at60, 153) << "27 micro at 4 a cell is 61 columns of ramp";
+    EXPECT_EQ(f.at62, 153);
+    EXPECT_GT(c.above, 0) << "the control: without ford cells the paver fills the gully, or the measure reads nothing";
+}
+
 TEST(StreetPaverTest, PadCubeForStreetPutsTheThresholdAtOrAboveTheWay) {
     // chain 105: a way ABOVE the threshold by more than one puts the walker's head into the lintel (the carve is 18,
     // the agent 17) - the threshold stands at or above the way less one, and within a cell of stoop plus a sill (+7)

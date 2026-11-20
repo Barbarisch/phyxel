@@ -1,0 +1,13 @@
+water_probe at (-1265, -1033): {"detail":"outside the sim region; region origin/dims included","dims":{"x":64,"y":32,"z":64},"in_region":false,"origin":{"x":-1311,"y":26,"z":-1065},"x":-1265,"y":0,"z":-1033}
+  water_table_level: {"level":0.0,"river_channel":true,"river_order":1,"table_bound":true,"wet":false,"x":-1265.0,"z":-1033.0}
+water_probe at (-1265, -1029): {"detail":"outside the sim region; region origin/dims included","dims":{"x":64,"y":32,"z":64},"in_region":false,"origin":{"x":-1311,"y":26,"z":-1065},"x":-1265,"y":0,"z":-1029}
+  water_table_level: {"level":0.0,"river_channel":false,"river_order":1,"table_bound":true,"wet":false,"x":-1265.0,"z":-1029.0}
+water_probe at (-1265, -1037): {"detail":"outside the sim region; region origin/dims included","dims":{"x":64,"y":32,"z":64},"in_region":false,"origin":{"x":-1311,"y":26,"z":-1065},"x":-1265,"y":0,"z":-1037}
+  water_table_level: {"level":0.0,"river_channel":false,"river_order":1,"table_bound":true,"wet":false,"x":-1265.0,"z":-1037.0}
+water_probe at (-1232, -1041): {"detail":"outside the sim region; region origin/dims included","dims":{"x":64,"y":32,"z":64},"in_region":false,"origin":{"x":-1311,"y":26,"z":-1065},"x":-1232,"y":0,"z":-1041}
+  water_table_level: {"level":0.0,"river_channel":true,"river_order":2,"table_bound":true,"wet":false,"x":-1232.0,"z":-1041.0}
+water_probe at (-1202, -1048): {"detail":"outside the sim region; region origin/dims included","dims":{"x":64,"y":32,"z":64},"in_region":false,"origin":{"x":-1311,"y":26,"z":-1065},"x":-1202,"y":0,"z":-1048}
+  water_table_level: {"level":0.0,"river_channel":false,"river_order":1,"table_bound":true,"wet":false,"x":-1202.0,"z":-1048.0}
+water_probe at (-1164, -1033): {"detail":"outside the sim region; region origin/dims included","dims":{"x":64,"y":32,"z":64},"in_region":false,"origin":{"x":-1311,"y":26,"z":-1065},"x":-1164,"y":0,"z":-1033}
+  water_table_level: {"level":0.0,"river_channel":true,"river_order":2,"table_bound":true,"wet":false,"x":-1164.0,"z":-1033.0}
+water_stats: {"camera_depth_below":0.0,"camera_submergence":0.0,"dims":{"x":64,"y":32,"z":64},"edge_outflow":true,"origin":{"x":-1311,"y":26,"z":-1065},"outflow_bank":0.0,"overrides":92,"plane_enabled":false,"render_sea_level":16.0,"surface_cells":0,"total_mass":9.771903038024902,"water_table":true}
