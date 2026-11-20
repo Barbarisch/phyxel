@@ -710,3 +710,49 @@ PREDICTIONS
 WHAT WOULD COUNT AS A MISS: E1 below its floor (then the live GPU is the cost, and H3's measure leads); any ratio or
 share outside its range. Each miss recorded as a number. No lever in this increment: the next one is chosen from the
 profile (the broadphase is owed since F5.5a, but only if the profile names the pairs).
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5e RESULTS (2026-11-20; after the runs, the predictions above untouched). Release. CONDITIONS: World of Warcraft not
+running. Headless run 1 shared the GPU with another session's engine (G:\Github\phyxel); it exited before run 2. Run 2
+hit a contention burst on its first two rungs (246 ms per tick, max 855 ms, minimums equal to run 1's; the source not
+identified) and is discarded; runs 3 and 4 were clean, and run 4 (with the E6 follow-up) is the evidence:
+voxfound_f55e_headless.txt (VoxFoundBodySimGpu.F55eAwakePileProfile). Live: voxfound_f55e_live.jsonl
+(tools/voxfound_f55e_gate.py), CharacterTestbed, no other engine, present mode IMMEDIATE, frames 5.8-6.1 ms GPU.
+The headless rig is the lab's grid built the lab's way (256 x 146 x 68: the 2-voxel floor of voxels, 32 voxels of pad
+in z, 16 of air; impulse 200 N s), settled until every body sleeps, then woken through edit() from one snapshot per
+condition. Suites not re-run: no engine source changed (a new test, the lab and a gate only).
+RED: the asleep flags cleared on the CPU without edit() leave the GPU's pile asleep (awake 0 after the tick; 0.155 /
+  0.160 / 0.204 ms, the asleep tick); with edit() every body is awake after the tick (110 / 282 / 994).
+  E1 PASS -- the cost is the pile: headless 30 per submit 8.41 / 10.29 / 14.97 ms per tick = 1.09 / 1.08 / 1.11 x
+     F5.5d's live X2 (7.7 / 9.5 / 13.5; >= 0.6 x). Live today without WoW: 7.9 / 9.8 / 14.1 (median, one per submit)
+     -- F5.5d's numbers were not WoW's. The same grid FALLING (ticks 1-120 from the break) costs 2.40 / 3.79 / 6.19 ms.
+     The settled pile makes 4x the contact candidates of the fall: 15.8k / 42.8k / 155.7k per tick (144-157 per body,
+     the same at every rung), of which 80-81 % are dropped by the cap (12.7k / 34.8k / 126.3k); contacts 3.1k / 8.0k /
+     29.4k.
+  E2 PASS: one tick per submit / 30 per submit 0.99 / 0.97 / 1.01 headless, 1.01 / 1.01 / 1.04 live (<= 1.3).
+  E3 the profile (headless run 4, mean ms per tick, 30 ticks): 
+       110: world 2.75, primal 1.52, hard_apply 1.40, pairs 0.96, sort 0.83, hard_body 0.50, colour 0.39 (sum 8.44);
+       282: world 3.68, hard_apply 1.88, primal 1.47, pairs 1.18, sort 0.87, hard_body 0.67, colour 0.40 (sum 10.27);
+       994: world 4.73, pairs 2.66, hard_apply 2.42, primal 2.06, hard_body 1.65, sort 1.10, colour 0.67 (sum 15.49).
+     The world test (world + hard_apply) is 49.1 % at 110 (>= 50 MISSED narrowly), 54.2 % at 282 (PASS), and at 994
+     it still leads (7.14 ms) over pairs + hard_body (4.31: MISSED -- the pairs do not lead at any rung). The groups'
+     sum is 1.00 / 1.00 / 1.03 x the unprofiled tick (within 20 % PASS).
+  E4 MISSED: the path forced fused vs per-colour +19 % at 282 (12.18 vs 10.24) and +59 % at 994 (24.10 vs 15.15)
+     (<= 10 %). H4 is still not the cost: edit() sets the last awake count to every body, so the automatic choice is
+     per-colour from the first tick (E1 equals the forced per-colour within 1 %); one workgroup simply loses with many
+     awake (F5.5a run 2's finding). At 110 the automatic fused 8.36 vs per-colour 8.19.
+  E5 PASS: live / headless per group 0.81-1.14 for every group above 0.2 ms at every rung (0.7-1.5). The live tick has
+     no share of its own: the frame (5.8-6.1 ms GPU) does not inflate the step's passes.
+  E6 MISSED as written: from 110 to 994 bodies the world group grows 1.7x (2.75 -> 4.73) while the summed world-box
+     cells grow 10.9x and the candidates 9.8x -- it follows no summed measure. The per-body maxima are flat (corners
+     867 / 815 / 906, world-box cells 1,014 / 1,014 / 1,176). FOLLOW-UP, stated as one after the profile: only the
+     tenth of the bodies with the most corners awake (11 / 29 / 100 bodies, 25 / 23 / 24 % of the corners) costs
+     6.01 / 6.50 / 10.41 ms = 71 / 63 / 70 % of every body awake; only the other nine tenths awake 7.72 / 9.97 / 12.62
+     ms. The costs do not add: each pass waits for its busiest bodies (the per-body serial work -- the world items and
+     the cap in one workgroup, the constraint sort in one thread, the primal on 32 threads, the hard world point), not
+     for the total, so 11 bodies cost 71 % of 110.
+CONCLUSION (what the next lever must address): the awake pile's tick is per-body serial work on a settled pile, waited
+for pass by pass. A settled body has ~4x the candidates of a falling one and the cap drops 80 % of them; the passes that
+leave a body's work in one workgroup or one thread (world, hard_apply, sort, primal: 77 / 77 / 67 % of the tick) are set by the busiest bodies. The broadphase (pairs + hard_body: 17 / 18 / 28 %) is not the leader at any rung:
+it is not the next lever. Next: split the world group's time (the items vs the cap) before choosing its lever, with its
+own prediction.

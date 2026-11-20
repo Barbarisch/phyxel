@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""docs/VoxelFoundationPlan.md F5.5e -- the awake pile's tick, live (prediction: docs/evidence/voxfound_f55_prediction.txt,
+F5.5e E1-E6; the headless half is VoxFoundBodySimGpu.F55eAwakePileProfile).
+
+Drives POST /api/debug/voxfound_bodies on a running Release editor. Rigs are FractureLab's hand-built large wall (not
+generator output) at E/T 250 / 650 / 2800, broken by F4.1 fractureReference, extracted by F5.1, moved by BodySimGpu.
+Per rung: settle (rest off), then every body woken through BodySimGpu::edit ({"wake_all":true}) and
+  a) 30 synchronous ticks, one per request (one per submit: F5.5d X2's measure);
+  b) woken again, one request of 30 ticks (30 per submit);
+  c) woken again, the per-pass profile on, 30 synchronous ticks, the status's profile block.
+Writes JSON lines to docs/evidence/voxfound_f55e_live.jsonl.
+"""
+import argparse
+import json
+import os
+import sys
+import urllib.request
+
+sys.path.insert(0, os.path.dirname(__file__))
+import voxfound_f53_gate as g53  # noqa: E402
+from voxfound_f53_gate import post  # noqa: E402
+
+EVID = os.path.join(os.path.dirname(__file__), "..", "docs", "evidence")
+BODIES = "/api/debug/voxfound_bodies"
+AT = [5.0, 20.0, 5.0]
+TAG = ""
+
+
+def log(rec):
+    rec = dict(rec, world=TAG)
+    with open(os.path.join(EVID, "voxfound_f55e_live.jsonl"), "a") as f:
+        f.write(json.dumps(rec) + "\n")
+    print(json.dumps(rec)[:1500], flush=True)
+
+
+def get(path):
+    with urllib.request.urlopen(g53.API + path, timeout=120) as r:
+        return json.loads(r.read())
+
+
+def cmd(**kw):
+    return post(BODIES, dict({"status": True, "pen": False}, **kw))
+
+
+def rung(a, e):
+    r = post(BODIES, {"rig": "large_wall", "energy": e, "impulse": 200.0, "at": AT, "solver": "gpu",
+                      "preview": "region", "gpu_edit": True})
+    st = cmd(ticks=a.settle)
+    settled = {"tick": st["tick"], "bodies": st["bodies"], "awake": st["awake"]}
+    # a) one tick per request
+    w = cmd(wake_all=True)
+    per = []
+    for _ in range(a.ticks):
+        s = cmd(ticks=1)
+        per.append({"awake": s["awake"], "ms": s["solver"]["ms_per_tick_device"],
+                    "contacts": s["solver"]["stats"]["contacts"], "candidates": s["solver"]["stats"]["candidates"]})
+    one = sorted(p["ms"] for p in per)
+    # b) 30 ticks in one request (rest off: one submit)
+    cmd(wake_all=True)
+    s = cmd(ticks=a.ticks)
+    thirty = s["solver"]["ms_per_tick_device"]
+    awake30 = s["awake"]
+    # c) the profile
+    cmd(wake_all=True, profile=True)
+    for _ in range(a.ticks):
+        s = cmd(ticks=1)
+    prof = s["solver"].get("profile")
+    cmd(profile=False)
+    t = get("/api/debug/engine_timing")
+    log({"gate": "F5.5e live awake pile", "energy": e, "rig": {k: r.get(k) for k in ("bodies", "crumbs") if k in r},
+         "settled": settled, "awake_after_wake": w["awake"], "bodies": w["bodies"],
+         "one_per_submit": {"median": one[len(one) // 2], "max": one[-1], "per_tick": per},
+         "thirty_per_submit": thirty, "awake_after_30": awake30, "profile": prof,
+         "stats": s["solver"]["stats"],
+         "engine": {"gpu_frame_ms": t.get("gpu_frame_ms"), "cpu_frame_ms": t.get("cpuFrameTime"),
+                    "present_mode": t.get("present_mode")}})
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--api", default="http://127.0.0.1:8090")   # "localhost" costs ~2 s per call here (F5.5c)
+    ap.add_argument("--settle", type=int, default=600)
+    ap.add_argument("--ticks", type=int, default=30)
+    ap.add_argument("--energies", type=float, nargs="+", default=[250.0, 650.0, 2800.0])
+    ap.add_argument("--world", default="", help="which project's world the lab runs in (recorded)")
+    a = ap.parse_args()
+    g53.API = a.api
+    global TAG
+    TAG = a.world
+    for e in a.energies:
+        rung(a, e)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -21,6 +21,8 @@
 //    and {"gpu_edit":bool} (default true: BodySimGpu::edit after a bake; false = the full reload); later
 //    {"preview":...} switches the path on the same bodies, {"gpu_edit":bool}; "rest" takes "cap" (bakes per pass);
 //    status {"verify":true} re-builds every region chunk on the GPU and compares with the incremental faces.
+// F5.5e: {"profile":bool} -- BodySimGpu's per-pass device profile on the synchronous {"ticks":N} (one tick per
+//    submit while on; reset when turned on); the status carries "profile" (mean / min ms per group, ticks).
 // F5.4 (docs/evidence/voxfound_f54_prediction.txt L1-L6): {"rest":{"on":bool,"budget":N,"keep_m":M,"rest_ticks":T}}
 //    sets the D6 policy (it runs after every tick while on; the player = the camera); {"bake_now":{...same keys}} runs
 //    one pass now with those values. A bake writes the world grid, rebuilds the preview area and compacts the body
@@ -686,6 +688,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         }
         ++lab.wakeAlls;
     }
+    if (p.contains("profile") && lab.gpu) lab.gpu->setProfile(p["profile"].get<bool>());   // F5.5e
     if (p.contains("ticks") && lab.useGpu) {   // F5.5b: synchronous GPU ticks (the policy after every tick when on)
         const int n = p["ticks"].get<int>();
         std::string err;
@@ -807,7 +810,18 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
             const auto& s = lab.gpu->stats();
             g["stats"] = {{"awake", s.awake}, {"contacts", s.contacts}, {"colours", s.colours},
                           {"overflow", s.scratchOverflow + s.constraintOverflow + s.pairOverflow},
-                          {"uncoloured", s.uncoloured}, {"fused", lab.gpu->fusedThisStep()}};
+                          {"uncoloured", s.uncoloured}, {"fused", lab.gpu->fusedThisStep()},
+                          {"candidates", s.candidates}, {"capped", s.capped}, {"pairs_tested", s.pairsTested},
+                          {"hard_fires", s.hardFires}};
+            const auto& pr = lab.gpu->profile();   // F5.5e
+            if (pr.ticks > 0) {
+                nlohmann::json groups = nlohmann::json::object(), mins = nlohmann::json::object();
+                for (int k = 0; k < BodySimGpu::kProfGroups; ++k) {
+                    groups[BodySimGpu::profileName(k)] = pr.sumMs[k] / pr.ticks;
+                    mins[BodySimGpu::profileName(k)] = pr.minMs[k];
+                }
+                g["profile"] = {{"ticks", pr.ticks}, {"mean_ms", groups}, {"min_ms", mins}};
+            }
         }
         response["solver"] = g;
     }

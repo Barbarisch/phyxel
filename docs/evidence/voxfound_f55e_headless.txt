@@ -1,0 +1,22 @@
+﻿[body gpu] F5.5e E/T 250 falling (ticks 1-120): awake at 120 0, candidates 3913 capped 3137 pairs 136 per tick; profile sum 2.396: world 0.746 pairs 0.266 sort 0.232 colour 0.108 primal 0.433 hard_body 0.151 hard_apply 0.371
+[body gpu] F5.5e large wall E/T 250 (the lab's grid 256x146x68): 110 bodies, settled in 180 ticks; asleep 0.155 ms/tick; red (CPU-only wake) awake 0, 0.155 ms
+[body gpu]   shape: corners 31115 (max 867 per body), world-box cells 28143 (max 1014), pairs 770 (GPU pairs tested 543 per tick), pair corners 411288 (max 1687)
+[body gpu]   E1 30/submit 8.412 ms/tick (awake after 30 110, contacts 3089, colours 14); woken tick 1 awake 110; E2 1/submit median 8.349 max 9.520; E4 fused 8.357 vs per-colour 8.186
+[body gpu]   woken pile per tick: candidates 15820, capped 12727, hard fires 0.0
+[body gpu]   E3 profile (30 ticks, mean/min ms, sum 8.435): integrate 0.004/0.003 aabb 0.038/0.037 world 2.746/2.639 pairs 0.955/0.795 prefix+scatter 0.011/0.010 sort 0.833/0.743 colour 0.388/0.365 primal 1.520/1.429 dual 0.031/0.029 hard_body 0.503/0.401 hard_apply 1.395/1.298 finish 0.005/0.004 warm 0.006/0.005
+[body gpu]   E6 the biggest tenth awake (11 bodies, 7829 corners, awake after 30 11): 6.005 ms/tick; the other 99 awake (23286 corners, awake after 30 99): 7.719 ms/tick; all awake 8.412
+[body gpu] F5.5e E/T 650 falling (ticks 1-120): awake at 120 15, candidates 11107 capped 8796 pairs 435 per tick; profile sum 3.794: world 1.044 pairs 0.472 sort 0.367 colour 0.182 primal 0.729 hard_body 0.368 hard_apply 0.515
+[body gpu] F5.5e large wall E/T 650 (the lab's grid 256x146x68): 282 bodies, settled in 420 ticks; asleep 0.160 ms/tick; red (CPU-only wake) awake 0, 0.160 ms
+[body gpu]   shape: corners 87205 (max 815 per body), world-box cells 84674 (max 1014), pairs 1845 (GPU pairs tested 1343 per tick), pair corners 1093415 (max 1584)
+[body gpu]   E1 30/submit 10.291 ms/tick (awake after 30 282, contacts 8007, colours 14); woken tick 1 awake 282; E2 1/submit median 9.980 max 11.315; E4 fused 12.182 vs per-colour 10.237
+[body gpu]   woken pile per tick: candidates 42770, capped 34763, hard fires 0.0
+[body gpu]   E3 profile (30 ticks, mean/min ms, sum 10.266): integrate 0.004/0.004 aabb 0.036/0.036 world 3.681/3.529 pairs 1.181/1.009 prefix+scatter 0.019/0.018 sort 0.871/0.760 colour 0.401/0.396 primal 1.465/1.378 dual 0.044/0.042 hard_body 0.671/0.554 hard_apply 1.880/1.746 finish 0.005/0.004 warm 0.008/0.006
+[body gpu]   E6 the biggest tenth awake (29 bodies, 20397 corners, awake after 30 29): 6.504 ms/tick; the other 253 awake (66808 corners, awake after 30 253): 9.974 ms/tick; all awake 10.291
+[body gpu] F5.5e E/T 2800 falling (ticks 1-120): awake at 120 108, candidates 39513 capped 31020 pairs 1731 per tick; profile sum 6.191: world 1.276 pairs 0.954 sort 0.583 colour 0.342 primal 1.170 dual 0.057 hard_body 1.054 hard_apply 0.650
+[body gpu] F5.5e large wall E/T 2800 (the lab's grid 256x146x68): 994 bodies, settled in 360 ticks; asleep 0.204 ms/tick; red (CPU-only wake) awake 0, 0.204 ms
+[body gpu]   shape: corners 313392 (max 906 per body), world-box cells 305358 (max 1176), pairs 6757 (GPU pairs tested 4985 per tick), pair corners 4182115 (max 1742)
+[body gpu]   E1 30/submit 14.966 ms/tick (awake after 30 994, contacts 29360, colours 19); woken tick 1 awake 994; E2 1/submit median 15.088 max 17.555; E4 fused 24.101 vs per-colour 15.147
+[body gpu]   woken pile per tick: candidates 155675, capped 126314, hard fires 0.2
+[body gpu]   E3 profile (30 ticks, mean/min ms, sum 15.486): integrate 0.005/0.003 aabb 0.042/0.039 world 4.725/3.965 pairs 2.655/2.258 prefix+scatter 0.050/0.049 sort 1.100/0.940 colour 0.667/0.623 primal 2.055/1.881 dual 0.099/0.096 hard_body 1.653/1.276 hard_apply 2.415/1.955 finish 0.005/0.004 warm 0.015/0.013
+[body gpu]   E6 the biggest tenth awake (100 bodies, 74494 corners, awake after 30 100): 10.408 ms/tick; the other 894 awake (238898 corners, awake after 30 894): 12.615 ms/tick; all awake 14.966
+[       OK ] VoxFoundBodySimGpu.F55eAwakePileProfile (10343 ms)

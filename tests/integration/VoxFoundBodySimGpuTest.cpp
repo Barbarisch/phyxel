@@ -1122,3 +1122,248 @@ TEST_F(VoxFoundBodySimGpu, F55cEditEqualsReload) {
     check(largeWallRig(650.0f), 200.0f, 240, 32, "large wall E/T 650", 1.0);
     check(largeWallRig(2800.0f), 200.0f, 240, 64, "large wall E/T 2800", 2.0);
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5e -- the awake pile's tick, profiled before any lever (docs/evidence/voxfound_f55_prediction.txt, E1-E6). The
+// lab's large wall exactly as the lab builds it (VoxFoundBodiesLab.cpp: a 2-voxel floor of voxels, 32 voxels of pad in
+// z, 16 of air above, impulse 200 N s), settled, then every body woken through edit() (the lab's wake_all). Each
+// condition starts from the same settled snapshot (edit() is bit-equal to a load, F5.5c H5). A measure, not a lever.
+namespace {
+constexpr uint8_t kLabFloorMat = 6;   // VoxFoundBodiesLab.cpp kFloorMat: a copy of Stone
+
+struct LabPile {
+    VoxelGrid world;
+    std::vector<FractureMaterial> mats;
+    std::vector<Body> bodies;
+};
+
+LabPile labLargeWall(float e) {
+    Rig rig = largeWallRig(e);
+    const int padX = 0, padZ = 32;   // the lab's clamp for a 256 x 128 x 4 rig with the default 4 m pad
+    const glm::ivec3 off(padX, 2, padZ);
+    VoxelGrid g;
+    g.voxelM = rig.grid.voxelM;
+    g.resize(rig.grid.dim + glm::ivec3(2 * padX, 2 + 16, 2 * padZ));
+    for (int x = 0; x < g.dim.x; ++x)
+        for (int z = 0; z < g.dim.z; ++z)
+            for (int y = 0; y < 2; ++y) g.set({x, y, z}, kLabFloorMat, 0, true);
+    for (size_t i = 0; i < rig.grid.size(); ++i) {
+        if (!rig.grid.mat[i]) continue;
+        g.set(rig.grid.pos(i) + off, rig.grid.mat[i], rig.grid.part[i], rig.grid.fixed[i] != 0);
+    }
+    LabPile out;
+    out.mats = rig.mats;
+    out.mats.resize(kLabFloorMat + 1, out.mats[kStone]);
+    out.mats[kLabFloorMat] = out.mats[kStone];
+    Hit hit = rig.hit;
+    hit.point += glm::vec3(off);
+    hit.impulse = 200.0f;
+    const FractureResult r = fractureReference(g, hit, out.mats);
+    out.world = g;
+    out.bodies = extractBodies(out.world, r, hit, out.mats).bodies;
+    return out;
+}
+
+// the pile's shape: the work the world test and the pairs walk (CPU, from the poses; approximate -- voxel AABBs of the
+// posed corners, pairs by AABB overlap dilated one voxel)
+struct PileShape {
+    size_t bodies = 0, corners = 0, maxCorners = 0, pairs = 0;
+    uint64_t boxCells = 0, maxBoxCells = 0, pairCorners = 0, maxPairCorners = 0;
+};
+
+PileShape pileShape(const std::vector<SimBody>& bs, double voxelM) {
+    PileShape s;
+    s.bodies = bs.size();
+    std::vector<glm::ivec3> lo(bs.size()), hi(bs.size());
+    for (size_t i = 0; i < bs.size(); ++i) {
+        const SimBody& b = bs[i];
+        glm::dvec3 a(1e30), c(-1e30);
+        for (const glm::dvec3& k : b.corners) {
+            const glm::dvec3 w = b.pos + b.quat * k;
+            a = glm::min(a, w);
+            c = glm::max(c, w);
+        }
+        lo[i] = glm::ivec3(glm::floor(a / voxelM));
+        hi[i] = glm::ivec3(glm::floor(c / voxelM));
+        const glm::ivec3 d = hi[i] - lo[i] + 1;
+        const uint64_t cells = uint64_t(d.x) * uint64_t(d.y) * uint64_t(d.z);
+        s.corners += b.corners.size();
+        s.maxCorners = std::max(s.maxCorners, b.corners.size());
+        s.boxCells += cells;
+        s.maxBoxCells = std::max(s.maxBoxCells, cells);
+    }
+    for (size_t i = 0; i < bs.size(); ++i)
+        for (size_t j = i + 1; j < bs.size(); ++j) {
+            if (glm::any(glm::greaterThan(lo[i] - 1, hi[j])) || glm::any(glm::greaterThan(lo[j] - 1, hi[i]))) continue;
+            ++s.pairs;
+            const uint64_t pc = bs[i].corners.size() + bs[j].corners.size();
+            s.pairCorners += pc;
+            s.maxPairCorners = std::max(s.maxPairCorners, pc);
+        }
+    return s;
+}
+
+double medianOf(std::vector<double> v) {
+    if (v.empty()) return -1.0;
+    std::sort(v.begin(), v.end());
+    return v[v.size() / 2];
+}
+}  // namespace
+
+TEST_F(VoxFoundBodySimGpu, F55eAwakePileProfile) {
+    for (const float e : {250.0f, 650.0f, 2800.0f}) {
+        SCOPED_TRACE(e);
+        LabPile pile = labLargeWall(e);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef mirror(pile.world, pile.mats, prm);
+        for (const Body& b : pile.bodies) mirror.add(b, b.vel, b.angVel);
+        std::string err;
+        ASSERT_TRUE(gpu.load(pile.world, pile.mats, mirror.bodies(), mirror.params(), &err)) << err;
+        // the falling phase on the same grid, profiled (the first 120 ticks from the break: F5.5a4's ladder's regime)
+        gpu.setProfile(true);
+        step(120, 1);
+        gpu.setProfile(false);
+        if (HasFatalFailure()) return;
+        {
+            const auto& fp = gpu.profile();
+            const auto& fs = gpu.stats();
+            double sum = 0.0;
+            for (int g = 0; g < BodySimGpu::kProfGroups; ++g) sum += fp.sumMs[g] / std::max(1, fp.ticks);
+            std::printf("[body gpu] F5.5e E/T %.0f falling (ticks 1-120): awake at 120 %u, candidates %.0f capped %.0f "
+                        "pairs %.0f per tick; profile sum %.3f:", e, fs.awake, double(fs.candidates) / 120.0,
+                        double(fs.capped) / 120.0, double(fs.pairsTested) / 120.0, sum);
+            for (int g = 0; g < BodySimGpu::kProfGroups; ++g)
+                if (fp.sumMs[g] / std::max(1, fp.ticks) >= 0.05)
+                    std::printf(" %s %.3f", BodySimGpu::profileName(g), fp.sumMs[g] / std::max(1, fp.ticks));
+            std::printf("\n");
+        }
+        // settle: until every body sleeps (cap 6,000 ticks = 100 s)
+        int settleTicks = 120;
+        do {
+            step(60);
+            if (HasFatalFailure()) return;
+            settleTicks += 60;
+        } while (gpu.stats().awake > 0 && settleTicks < 6000);
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        const size_t nb = mirror.bodies().size();
+        ASSERT_EQ(gpu.stats().awake, 0u) << "the pile did not settle in " << settleTicks << " ticks";
+        const std::vector<SimBody> settled = mirror.bodies();
+
+        // asleep cost (one tick per submit, as the lab's wake measure)
+        std::vector<double> sleepMs;
+        for (int k = 0; k < 10; ++k) {
+            step(1, 1);
+            sleepMs.push_back(gpu.lastGpuMs());
+        }
+
+        // RED: the flags cleared on the CPU only -- the GPU never hears of it: still asleep after the tick
+        for (SimBody& b : mirror.bodies()) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        step(1, 1);
+        const uint32_t redAwake = gpu.stats().awake;
+        const double redMs = gpu.lastGpuMs();
+        EXPECT_EQ(redAwake, 0u) << "red: a CPU-only wake must not reach the GPU";
+
+        std::vector<SimBody> woken = settled;
+        for (SimBody& b : woken) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        const PileShape sh = pileShape(woken, pile.world.voxelM);
+        auto wake = [&]() {
+            std::string werr;
+            ASSERT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
+        };
+
+        // A: 30 ticks, 30 per submit
+        wake();
+        if (HasFatalFailure()) return;
+        step(30, 30);
+        const double msA = gpu.lastGpuMs() / 30.0;
+        const uint32_t awakeA = gpu.stats().awake;
+        const uint32_t contactsA = gpu.stats().contacts, coloursA = gpu.stats().colours;
+        const uint64_t pairsA = gpu.stats().pairsTested / 30;
+        const double candA = double(gpu.stats().candidates) / 30.0, cappedA = double(gpu.stats().capped) / 30.0;
+        const double hardA = double(gpu.stats().hardFires) / 30.0;
+        // the wake reached the GPU: every body awake after the first tick
+        wake();
+        if (HasFatalFailure()) return;
+        step(1, 1);
+        const uint32_t awake1 = gpu.stats().awake;
+        EXPECT_EQ(awake1, uint32_t(nb)) << "green: the wake through edit() reaches every body";
+        // B: 30 ticks, 1 per submit (the lab's synchronous ticks)
+        wake();
+        if (HasFatalFailure()) return;
+        std::vector<double> msB;
+        for (int k = 0; k < 30; ++k) {
+            step(1, 1);
+            msB.push_back(gpu.lastGpuMs());
+        }
+        // D: the path forced each way (30 per submit)
+        gpu.setFused(true);
+        wake();
+        if (HasFatalFailure()) return;
+        step(30, 30);
+        const double msFused = gpu.lastGpuMs() / 30.0;
+        gpu.setFused(false);
+        wake();
+        if (HasFatalFailure()) return;
+        step(30, 30);
+        const double msPerColour = gpu.lastGpuMs() / 30.0;
+        gpu.setFusedMaxAwake(128);
+        // C: the per-pass profile (one tick per submit)
+        wake();
+        if (HasFatalFailure()) return;
+        gpu.setProfile(true);
+        step(30, 1);
+        gpu.setProfile(false);
+        const auto& pr = gpu.profile();
+        double profSum = 0.0;
+        for (int g = 0; g < BodySimGpu::kProfGroups; ++g) profSum += pr.sumMs[g] / std::max(1, pr.ticks);
+
+        std::printf("[body gpu] F5.5e large wall E/T %.0f (the lab's grid %dx%dx%d): %zu bodies, settled in %d ticks; "
+                    "asleep %.3f ms/tick; red (CPU-only wake) awake %u, %.3f ms\n",
+                    e, pile.world.dim.x, pile.world.dim.y, pile.world.dim.z, nb, settleTicks, medianOf(sleepMs),
+                    redAwake, redMs);
+        std::printf("[body gpu]   shape: corners %zu (max %zu per body), world-box cells %llu (max %llu), pairs %zu "
+                    "(GPU pairs tested %llu per tick), pair corners %llu (max %llu)\n",
+                    sh.corners, sh.maxCorners, (unsigned long long)sh.boxCells, (unsigned long long)sh.maxBoxCells,
+                    sh.pairs, (unsigned long long)pairsA, (unsigned long long)sh.pairCorners,
+                    (unsigned long long)sh.maxPairCorners);
+        std::printf("[body gpu]   E1 30/submit %.3f ms/tick (awake after 30 %u, contacts %u, colours %u); woken tick 1 "
+                    "awake %u; E2 1/submit median %.3f max %.3f; E4 fused %.3f vs per-colour %.3f\n",
+                    msA, awakeA, contactsA, coloursA, awake1, medianOf(msB),
+                    *std::max_element(msB.begin(), msB.end()), msFused, msPerColour);
+        std::printf("[body gpu]   woken pile per tick: candidates %.0f, capped %.0f, hard fires %.1f\n", candA, cappedA,
+                    hardA);
+        std::printf("[body gpu]   E3 profile (%d ticks, mean/min ms, sum %.3f):", pr.ticks, profSum);
+        for (int g = 0; g < BodySimGpu::kProfGroups; ++g)
+            std::printf(" %s %.3f/%.3f", BodySimGpu::profileName(g), pr.sumMs[g] / std::max(1, pr.ticks), pr.minMs[g]);
+        std::printf("\n");
+        EXPECT_EQ(pr.ticks, 30);
+
+        // E6 follow-up (stated as one, after the profile): does each pass wait for its busiest body? Wake only the
+        // tenth with the most corners, then only the other nine tenths (30 per submit, from the same snapshot)
+        std::vector<size_t> order(nb);
+        for (size_t i = 0; i < nb; ++i) order[i] = i;
+        std::stable_sort(order.begin(), order.end(), [&](size_t x, size_t y) {
+            return settled[x].corners.size() > settled[y].corners.size();
+        });
+        const size_t tenth = (nb + 9) / 10;
+        auto subset = [&](bool big) {
+            std::vector<SimBody> s = settled;   // asleep as settled
+            for (size_t k = 0; k < nb; ++k)
+                if ((k < tenth) == big) s[order[k]].asleep = false, s[order[k]].slowTicks = 0, s[order[k]].asleepTicks = 0;
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, s, &werr)) << werr;
+            step(30, 30);
+            return std::make_pair(gpu.lastGpuMs() / 30.0, gpu.stats().awake);
+        };
+        const auto bigR = subset(true);
+        const auto smallR = subset(false);
+        size_t bigCorners = 0;
+        for (size_t k = 0; k < tenth; ++k) bigCorners += settled[order[k]].corners.size();
+        std::printf("[body gpu]   E6 the biggest tenth awake (%zu bodies, %zu corners, awake after 30 %u): %.3f ms/tick; "
+                    "the other %zu awake (%zu corners, awake after 30 %u): %.3f ms/tick; all awake %.3f\n",
+                    tenth, bigCorners, bigR.second, bigR.first, nb - tenth, sh.corners - bigCorners, smallR.second,
+                    smallR.first, msA);
+    }
+}

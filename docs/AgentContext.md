@@ -594,8 +594,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       1.45-1.75 ms, 45-57 ticks per second at 1,000 (steps found done 36-47 ms after submit, <= 4 ticks each). The
       "60 s frame" was the lab's CPU penetration measure on every non-status request -- now only on status. gpu_timing
       is a HISTORY of the last N frames: wait it out after a mode change (absent scopes are not zeros).
-      NEXT: F5.5e (the awake pile's tick: profile it, headless + live, BEFORE any lever; then the broadphase) with its
-      prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
+      F5.5e done: the awake pile's tick profiled (F55eAwakePileProfile headless on the lab's grid; the lab's
+      {"profile":bool}; tools/voxfound_f55e_gate.py). The pile is the cost (headless = live; not WoW, not one tick per
+      submit, not the path); a settled pile has 4x a falling one's candidates, 80 % capped; world test leads (4.7 ms
+      at 994), broadphase 17-28 % (NOT the next lever); the biggest tenth of bodies alone costs 63-71 % of the tick:
+      each pass waits for its busiest bodies (a body's work in one workgroup / one thread).
+      NEXT: F5.5f (the busiest body's work on a settled pile: split the world group's time, items vs cap, BEFORE
+      choosing the lever) with its prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
       the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
       5 ms); region-vs-area edge pixels.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
