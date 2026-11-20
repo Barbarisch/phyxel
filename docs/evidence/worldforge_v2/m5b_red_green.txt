@@ -2102,3 +2102,40 @@ AUDIT (solution-auditor, read-only, raw):
 RESPONSES (not re-audited): spawn timestamps from the engine's log tie all 13 to before the first tavern, 0
   contradictions (citylab_l4_run11_spawn_order.txt); nearby-smithy and second-tavern controls added (chain 550,
   405 / 0); re-plans logged at INFO (run 12 predates it). The rest stated as open.
+
+================================================================================
+2026-11-20 13:44 - O39 (g2): a door spur the ways' grade does not fit is joined by a dogleg (pm_chain557.txt)
+RED: chain 557 (first version of the test, planner unchanged) "at the old cap 1 ... adjacent 2, nine apart 18".
+A first design (a straight run to a further street column) FAILED its own test in chain 558 and was removed.
+GREEN: chain 560 unit 407 / 0; chain 561 live 43 / 0.
+AUDIT (solution-auditor, read-only, on the tree at chain 561) - raw:
+  VERDICT: PASS WITH CONDITIONS. The dogleg is real and the new unit test can fail. The headline number is
+  misstated, and the live evidence does not support the walkability half of the claim.
+  1. Live count is wrong: it is 23, not 20 (r556: 8 builds at 1, 2 at 3, 1 at 2, legacy 7; after: one build at 1).
+     Legacy reading supported: "14 planned from 17, 3 too steep" -> "17 planned from 17, 0 too steep, 10 by a longer
+     run"; legacy spur columns 635 -> 1865. "Longest 14 columns" is identical on all 14 non-legacy doglegs - probably
+     the same lot geometry repeated; the independent sample is much smaller than 14.
+  2. "The residents' graph reaching every house" is not evidence for this change: r556 already shows 0 / 0, the gate
+     lines on map builds are identical, spur_risers_over_step is 0 before and after and cannot see a grade
+     violation with adjacent steps of 4 or less. The only live discriminator is the counter of the branch taken.
+  3. joined, worstAdjacent and worstBesideStreet are meaningful and can fail (the footprint arm 0 / 360 vs 360 / 0;
+     the stub control prints the old cap's 2 and 18). Weakness: the rig sets .y and .w both to 153, so a .y/.w
+     mixup would not be caught by the test; production reads .w. nineApart is printed, not asserted.
+  4. Red-before-green is partial for the final test: the red run was the first-design test; the final test was never
+     run against the old planner (the stub arm is indirect evidence). Evidence does postdate the code (exe 13:21:29).
+  5. The older test's "bad" arm still tests failure but on a contrived stub; the original M0 regression is now
+     rescued by the dogleg; its "ok" arm does not distinguish which route was taken.
+  6. Dogleg logic. A (likely defect, unmeasured): `mine` is never checked against `cols`; first writer wins; leg 1
+     runs along the frontage through neighbours' door cells at another height; the old-cap path has the same flaw.
+     B: "LEVEL" leg 2 is planTerrainPath (cosmetic; no cut / fill depth limit on either leg). C: footprints checked
+     on centre-line cells only; band and corner square inside a footprint are dropped silently. D: acrossIsZ false
+     untested; cd < 1 skipped; spursPlanned not double counted; leg 2's footprint check untested.
+  7. Likely defects among "not measured": the overlap (6A); the trench along a front and a neighbour's yard; a
+     sloping or curved street; search cost (legacy city spur time about 135 -> 260 ms); the one old-cap spur unread.
+  CONDITIONS: (a) say 23 -> 1; (b) drop the graph as support, say "no regression"; (c) state L2 on one rig + a
+  counter on live builds, no L3 discriminator; (d) a two-door unit test or label the overlap open; (e) read the
+  remaining old-cap lot.
+RESPONSES (not re-audited): (a) (b) (c) taken into the record's wording; (d) the two-door test added and RED on the
+  audited planner (chain 562: door B's column 168, threshold 171), then the planner: two passes, a dogleg refused
+  near another door, on or beside another spur's column at another level, or with any column in a footprint
+  (chains 563 / 564 - results in pm_chain557.txt); (e) read from chain 564's log (same file).

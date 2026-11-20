@@ -1808,6 +1808,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 if (risers > 0) LOG_WARN_FMT("Settlement", "door spurs: " << risers << " riser(s) over the step-up between spur columns or a spur and the way (worst " << worst << " micro)");
             }
             (*pathsJsonP)["spurs_at_the_old_cap"] = pave.spursAtTheOldCap;
+            (*pathsJsonP)["spurs_by_a_longer_run"] = pave.spursByALongerRun;
+            (*pathsJsonP)["spur_longest_run_columns"] = pave.spurLongestRunColumns;
+            (*pathsJsonP)["spurs_at_the_old_cap_notes"] = pave.spursAtTheOldCapNotes;
             for (const auto& f : pave.spurFailures) LOG_INFO_FMT("Settlement", "door spur too steep: " << f);
             auto& pavedCols = *sharedPaved;
             PavingApply ap;

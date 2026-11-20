@@ -537,7 +537,8 @@ nlohmann::json realizeOnce(LiveSiteRig& rig, bool legacyLayout, const nlohmann::
     if (out.contains("paths") && out["paths"].is_object()) {   // the audit of O39 (k)(f) (pm_chain515.txt): on EVERY build that records them
         const auto& pj = out["paths"];
         if (pj.contains("spur_risers_over_step")) {
-            std::printf("[ O39k ] spurs: %d at the old cap, %d columns set to the map's level (largest change %d micro), %d risers over the step-up (worst %d micro)\n", pj.value("spurs_at_the_old_cap", -1), pj.value("spur_columns_at_the_maps_level", -1), pj.value("spur_worst_shift_to_the_maps_level_micro", -1), pj.value("spur_risers_over_step", -1), pj.value("spur_worst_riser_micro", -1));
+            std::printf("[ O39k ] spurs: %d at the old cap, %d by a longer run (longest %d columns), %d columns set to the map's level (largest change %d micro), %d risers over the step-up (worst %d micro)\n", pj.value("spurs_at_the_old_cap", -1), pj.value("spurs_by_a_longer_run", -1), pj.value("spur_longest_run_columns", -1), pj.value("spur_columns_at_the_maps_level", -1), pj.value("spur_worst_shift_to_the_maps_level_micro", -1), pj.value("spur_risers_over_step", -1), pj.value("spur_worst_riser_micro", -1));
+            if (pj.contains("spurs_at_the_old_cap_notes")) for (const auto& n : pj["spurs_at_the_old_cap_notes"]) std::printf("[ O39g2 ] at the old cap: %s\n", n.get<std::string>().c_str());
             EXPECT_EQ(pj.value("spur_risers_over_step", -1), 0) << "a door spur leaves a riser over the step-up beside it";
         }
         if (pj.contains("nav_graph") && !overrides.contains("nav_gate_also")) {

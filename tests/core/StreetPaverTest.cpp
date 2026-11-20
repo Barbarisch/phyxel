@@ -185,7 +185,12 @@ TEST(StreetPaverTest, DoorSpurFromATerracePadIsReportedWithItsNumbers) {
     EXPECT_FALSE(ok.columns.empty());
     EXPECT_TRUE(ok.spurFailures.empty());
     const DoorAnchor marker{5 * 9 + 4, 7 * 9 + 4, pad(5 * 9 + 4, 7 * 9 + 4)};
-    const auto bad = planDoorSpurs({marker}, {}, stamped, pad, AgentBox{}, "Gravel");
+    // O39 (g2) (pm_chain557.txt, stated before the run): on the long street a column 61 away now fits the gentle grade,
+    // so this arm keeps its meaning on a street STUB (x 40..58) where no column fits and the old cap does not either.
+    std::vector<glm::ivec4> stub;
+    for (int x = 40; x <= 58; ++x)
+        for (int z = 8 * 9; z < 13 * 9; ++z) stub.push_back({x, 153, z, 153});
+    const auto bad = planDoorSpurs({marker}, {}, stub, pad, AgentBox{}, "Gravel");
     EXPECT_EQ(bad.spursPlanned, 0);
     EXPECT_EQ(bad.spursFailed, 1);
     ASSERT_EQ(bad.spurFailures.size(), 1u) << "a failed spur is reported, not just counted";
@@ -194,6 +199,154 @@ TEST(StreetPaverTest, DoorSpurFromATerracePadIsReportedWithItsNumbers) {
     EXPECT_NE(why.find("drop 27"), std::string::npos) << why;   // 180 -> 153
     EXPECT_NE(why.find("6 cells"), std::string::npos) << why;   // micro z 67 -> 72
     EXPECT_NE(why.find("cap 2"), std::string::npos) << why;
+}
+
+// ── O39 (g2) (pm_chain557.txt): a spur the ways' grade does not fit at the NEAREST street column ──────────────
+// The terrace rig above: the pad 27 micro over a level street, the door 14 columns off its edge. At 4 micro a cell the
+// run needs 27 x 9 / 4 = 61 columns. RED (the planner as it stood): the spur is planned at the old cap (2 micro a
+// column - 18 a cell, which the residents' graph does not take).
+namespace {
+struct SpurMeasure {
+    int worstAdjacent = 0;     // between 4-adjacent spur columns
+    int worstNineApart = 0;    // between spur columns 9 apart on a row or a column (cell centre to cell centre)
+    int worstBesideStreet = 0; // a spur column beside a street column
+    bool joined = false;       // the door's column floods over 4-adjacent spur columns to a column beside the street
+    int insideFootprint = 0;
+};
+SpurMeasure measureSpur(const PavingPlan& p, const std::vector<glm::ivec4>& street, const DoorAnchor& door,
+                        const std::vector<glm::ivec4>& footprints = {}) {
+    SpurMeasure m;
+    std::unordered_map<long long, int> s, st;
+    for (const auto& c : p.columns) s[key(c.x, c.z)] = c.surface;
+    for (const auto& c : street) st[key(c.x, c.z)] = c.w;
+    const std::pair<int, int> n4[4] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    for (const auto& c : p.columns) {
+        for (const auto& d : n4) {
+            auto a = s.find(key(c.x + d.first, c.z + d.second));
+            if (a != s.end()) m.worstAdjacent = std::max(m.worstAdjacent, std::abs(a->second - c.surface));
+            auto b = s.find(key(c.x + 9 * d.first, c.z + 9 * d.second));
+            if (b != s.end()) m.worstNineApart = std::max(m.worstNineApart, std::abs(b->second - c.surface));
+            auto w = st.find(key(c.x + d.first, c.z + d.second));
+            if (w != st.end()) m.worstBesideStreet = std::max(m.worstBesideStreet, std::abs(w->second - c.surface));
+        }
+        const int cbx = c.x / 9, cbz = c.z / 9;
+        for (const auto& f : footprints)
+            if (cbx >= f.x && cbx <= f.x + f.z - 1 && cbz >= f.y && cbz <= f.y + f.w - 1) ++m.insideFootprint;
+    }
+    std::vector<std::pair<int, int>> stack{{door.x, door.z}};
+    std::unordered_map<long long, char> seen;
+    seen[key(door.x, door.z)] = 1;
+    while (!stack.empty() && !m.joined) {
+        const auto [x, z] = stack.back();
+        stack.pop_back();
+        for (const auto& d : n4) {
+            const long long k = key(x + d.first, z + d.second);
+            if (st.count(k)) { m.joined = true; break; }
+            if (s.count(k) && !seen[k]) { seen[k] = 1; stack.push_back({x + d.first, z + d.second}); }
+        }
+    }
+    return m;
+}
+}  // namespace
+
+TEST(StreetPaverTest, ADoorSpurTooSteepForTheNearestColumnJoinsAFurtherOne) {
+    auto pad = [](int mx, int mz) {
+        (void)mx;
+        const int cz = mz >= 0 ? mz / 9 : -((-mz + 8) / 9);
+        return cz <= 7 ? (19 + 1) * 9 : (16 + 1) * 9;
+    };
+    std::vector<glm::ivec4> street, stub;
+    for (int x = 0; x < 20 * 9; ++x)
+        for (int z = 8 * 9; z < 13 * 9; ++z) street.push_back({x, 153, z, 153});
+    for (int x = 85; x <= 103; ++x)
+        for (int z = 8 * 9; z < 13 * 9; ++z) stub.push_back({x, 153, z, 153});
+    const DoorAnchor door{10 * 9 + 4, 6 * 9 + 4, pad(10 * 9 + 4, 6 * 9 + 4)};   // the street lies alongside in both directions
+    const AgentBox box;
+
+    const auto far = planDoorSpurs({door}, {}, street, pad, box, "Gravel");
+    const auto mf = measureSpur(far, street, door);
+    std::printf("[ O39g2 ] long street: planned %d, failed %d, at the old cap %d, by a longer run %d (longest run %d columns), %zu columns; worst step between adjacent spur columns %d, nine apart %d, beside the street %d, joined %d\n",
+                far.spursPlanned, far.spursFailed, far.spursAtTheOldCap, far.spursByALongerRun, far.spurLongestRunColumns,
+                far.columns.size(), mf.worstAdjacent, mf.worstNineApart, mf.worstBesideStreet, mf.joined ? 1 : 0);
+    EXPECT_EQ(far.spursPlanned, 1);
+    EXPECT_EQ(far.spursFailed, 0);
+    EXPECT_EQ(far.spursAtTheOldCap, 0) << "a ramp of 61 columns along the frontage fits the ways' grade";
+    EXPECT_EQ(far.spursByALongerRun, 1);
+    EXPECT_LE(mf.worstAdjacent, 1) << "4 micro a cell is at most 1 micro between adjacent columns (the old cap gives 2)";
+    EXPECT_LE(mf.worstBesideStreet, box.maxStepUpMicro) << "a spur column beside the street meets it within the step-up";
+    EXPECT_TRUE(mf.joined) << "the spur is one piece from the door to the street";
+
+    // control: no street column far enough -> the old cap, counted (the fallback is kept).
+    const auto near = planDoorSpurs({door}, {}, stub, pad, box, "Gravel");
+    const auto mn = measureSpur(near, stub, door);
+    std::printf("[ O39g2 ] street stub: planned %d, failed %d, at the old cap %d, by a longer run %d; worst step between adjacent spur columns %d, nine apart %d, joined %d\n",
+                near.spursPlanned, near.spursFailed, near.spursAtTheOldCap, near.spursByALongerRun,
+                mn.worstAdjacent, mn.worstNineApart, mn.joined ? 1 : 0);
+    EXPECT_EQ(near.spursPlanned, 1);
+    EXPECT_EQ(near.spursAtTheOldCap, 1);
+    EXPECT_EQ(near.spursByALongerRun, 0);
+    EXPECT_EQ(mn.worstAdjacent, 2) << "the control must show the old cap's step, or the measure reads nothing";
+
+    // footprint arm: a building on the run towards -x (the direction tried first) - the spur goes the other way,
+    // stays one piece and has no column inside the footprint.
+    const std::vector<glm::ivec4> fps = {{6, 5, 3, 3}};   // cubes x 6..8, z 5..7
+    const auto round = planDoorSpurs({door}, fps, street, pad, box, "Gravel");
+    const auto mr = measureSpur(round, street, door, fps);
+    std::printf("[ O39g2 ] a building on the run: planned %d, at the old cap %d, by a longer run %d (longest run %d columns); worst adjacent %d, beside the street %d, joined %d, columns inside the footprint %d\n",
+                round.spursPlanned, round.spursAtTheOldCap, round.spursByALongerRun, round.spurLongestRunColumns,
+                mr.worstAdjacent, mr.worstBesideStreet, mr.joined ? 1 : 0, mr.insideFootprint);
+    EXPECT_EQ(round.spursByALongerRun, 1);
+    EXPECT_EQ(mr.insideFootprint, 0);
+    int westOfTheDoor = 0, eastOfTheDoor = 0;
+    for (const auto& c : round.columns) { if (c.x < door.x - 2) ++westOfTheDoor; if (c.x > door.x + 2) ++eastOfTheDoor; }
+    int farWest = 0, farEast = 0;
+    for (const auto& c : far.columns) { if (c.x < door.x - 2) ++farWest; if (c.x > door.x + 2) ++farEast; }
+    std::printf("[ O39g2 ] spur columns west / east of the door: open %d / %d, with the building %d / %d\n", farWest, farEast, westOfTheDoor, eastOfTheDoor);
+    EXPECT_GT(farWest, 0) << "the control: with no building the run goes towards -x";
+    EXPECT_EQ(westOfTheDoor, 0) << "the building is on the -x run";
+    EXPECT_GT(eastOfTheDoor, 0);
+    EXPECT_TRUE(mr.joined) << "a spur that crossed a footprint loses its columns there";
+    EXPECT_LE(mr.worstAdjacent, 1);
+}
+
+// O39 (g2), the audit's finding 6A (pm_chain557.txt): two doors on one frontage - B lies on the run A's dogleg tries
+// first. RED (the planner as audited): B's door column carries A's ramp, not B's threshold.
+TEST(StreetPaverTest, ADoglegNeverRunsThroughANeighboursDoor) {
+    auto pad = [](int mx, int mz) {
+        (void)mx;
+        const int cz = mz >= 0 ? mz / 9 : -((-mz + 8) / 9);
+        return cz <= 7 ? (19 + 1) * 9 : (16 + 1) * 9;
+    };
+    std::vector<glm::ivec4> street;
+    for (int x = 0; x < 20 * 9; ++x)
+        for (int z = 8 * 9; z < 13 * 9; ++z) street.push_back({x, 153, z, 153});
+    const DoorAnchor a{10 * 9 + 4, 6 * 9 + 4, 180}, b{7 * 9 + 4, 6 * 9 + 4, 171};
+    const AgentBox box;
+    const auto plan = planDoorSpurs({a, b}, {}, street, pad, box, "Gravel");
+    std::unordered_map<long long, int> s;
+    for (const auto& c : plan.columns) s[key(c.x, c.z)] = c.surface;
+    const int atA = s.count(key(a.x, a.z)) ? s[key(a.x, a.z)] : -1, atB = s.count(key(b.x, b.z)) ? s[key(b.x, b.z)] : -1;
+    int worstAdjacent = 0, worstNearA = 0, worstNearB = 0;
+    for (const auto& c : plan.columns) {
+        for (const auto& d : {std::pair{1, 0}, std::pair{0, 1}}) {
+            auto it = s.find(key(c.x + d.first, c.z + d.second));
+            if (it != s.end()) worstAdjacent = std::max(worstAdjacent, std::abs(it->second - c.surface));
+        }
+        const int r = box.halfWidthMicro + 1;
+        if (std::abs(c.x - a.x) <= r && std::abs(c.z - a.z) <= r) worstNearA = std::max(worstNearA, std::abs(c.surface - a.surfaceY));
+        if (std::abs(c.x - b.x) <= r && std::abs(c.z - b.z) <= r) worstNearB = std::max(worstNearB, std::abs(c.surface - b.surfaceY));
+    }
+    std::printf("[ O39g2 ] two doors on one frontage: planned %d, failed %d, at the old cap %d, by a longer run %d; the column at door A %d (threshold %d), at door B %d (threshold %d); worst step between adjacent spur columns %d; worst difference from the threshold beside door A %d, beside door B %d\n",
+                plan.spursPlanned, plan.spursFailed, plan.spursAtTheOldCap, plan.spursByALongerRun, atA, a.surfaceY, atB, b.surfaceY,
+                worstAdjacent, worstNearA, worstNearB);
+    EXPECT_EQ(plan.spursPlanned, 2);
+    EXPECT_EQ(plan.spursAtTheOldCap, 0);
+    EXPECT_EQ(plan.spursByALongerRun, 2);
+    EXPECT_EQ(atA, a.surfaceY);
+    EXPECT_EQ(atB, b.surfaceY) << "another door's run was written over this door's threshold";
+    EXPECT_LE(worstAdjacent, 1);
+    EXPECT_LE(worstNearA, box.maxStepUpMicro);
+    EXPECT_LE(worstNearB, box.maxStepUpMicro);
 }
 
 TEST(StreetPaverTest, DoorSpursMeetTheStampedStreetAndNeverRepaveIt) {

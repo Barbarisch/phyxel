@@ -54,7 +54,10 @@ struct PavingPlan {
     int  waysLegsCutToGrade = 0;           ///< O39: way legs whose ends lie further apart in height than the grade allows - paved as a cut to grade
     int  spursPlanned = 0;                 ///< door spurs graded
     int  spursAtTheOldCap = 0;             ///< O39 (k): door spurs the 4-micro-a-cell grade did not fit, planned at the old cap (2 micro a column)
-    int  spursFailed = 0;                  ///< door spurs too steep (surfaced, not silent)
+    int  spursByALongerRun = 0;        ///< O39 (g2): of the spurs the grade did not fit at the nearest street column, those joined by a dogleg (a graded run along the frontage, a level piece across) at the ways' grade
+    int  spurLongestRunColumns = 0;        ///< O39 (g2): the longest such run, micro columns (Manhattan)
+    std::vector<std::string> spursAtTheOldCapNotes;   ///< O39 (g2): one line a spur left at the old cap - the door, the street, why no dogleg fitted
+    int  spursFailed = 0;                 ///< door spurs too steep (surfaced, not silent)
     /// M0 row 2b: one line per failed spur - door (x,z,S0) -> street (x,z,SG), run length,
     /// drop, grade cap and the planner's reason - so a "too steep" is never a bare count.
     std::vector<std::string> spurFailures;

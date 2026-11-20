@@ -1037,3 +1037,28 @@ Detail: `docs/evidence/worldforge_v2/m3c_chains/pm_chain545.txt`, `docs/evidence
 - L4 run 12: 18 of 18 name the tavern; 17 within 12 u of it in the evening (the farthest walked 73 u); 19 of 20 home
   at night. One resident (hall_house at (-1188,-1013)) is stuck "walking". Runs 9 and 10 read nothing (my script).
 - Release: unit + nav + resident suites 405 / 0, live 42 / 0. Audited PASS WITH CONDITIONS; responses not re-audited.
+
+### 2026-11-20 - O39 (g2): a door spur too steep for the nearest street column is joined by a dogleg
+
+Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain557.txt` (chains 557 to 566); audit raw in the ledger.
+
+- **Before:** where the ways' grade (4 micro a cell) did not fit between a door's threshold and the nearest street
+  column, the spur was planned at the old cap (2 micro a column), which the residents' graph does not take.
+  23 such spurs over the 16 live builds (chain 556).
+- **First design, removed:** a straight run to a further street column. It failed its own test (chain 558): the run
+  lay along the street up to 6 micro above it, and on a short street it crossed to the far side.
+- **Built:** `planDoorSpurs` (`StreetPaver.cpp`) plans the spurs the grade fits first, then for the rest a dogleg -
+  leg 1 along the frontage at the ways' grade, leg 2 level across to the street. A dogleg is refused with any column
+  in a footprint, within the half width + 1 of another door, on or beside another spur at another level, or beside
+  the street above the step. The old cap is the counted fallback; the build record carries
+  `spurs_by_a_longer_run`, `spur_longest_run_columns`, `spurs_at_the_old_cap_notes`.
+- **Tests:** `StreetPaverTest.ADoorSpurTooSteepForTheNearestColumnJoinsAFurtherOne` (red chain 557; a stub control
+  that still falls back; a footprint arm) and `ADoglegNeverRunsThroughANeighboursDoor` (the audit's finding; red
+  chain 562 - door B's column 168 against its threshold 171). The older terrace test's failing arm moved to a
+  street stub (stated before the run).
+- **Measured (Release, exe 14:04:44):** unit set 408 ok / 0 failed, live set 43 ok / 0 failed. Old-cap spurs 23 -> 1.
+  Record lines identical to chain 556's except the legacy control's gate (42 walkable / 11 blocked -> 43 / 10).
+- **Not shown:** the residents' graph and the gate read the same before and after, so nothing at L3 tells an old-cap
+  spur from a dogleg; nothing was looked at in the engine; neighbours' yards and fences are not checked; the one
+  spur left (the walled city) is explained only by its refusal counts; no Debug run; the audit's responses were not
+  re-audited.

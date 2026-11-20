@@ -1,0 +1,180 @@
+pm_chain557 - O39 (g2): a door spur the gentle grade does not fit goes to a FURTHER street column, not the old cap.
+Headless L2 first, then the live set (L3 on every realized build). Written 2026-11-20 13:10, before any edit. Release.
+
+WHAT IS OPEN (the plan's O39 row): planDoorSpurs joins a door to the NEAREST street column. Where the door's
+  threshold and that column are further apart in height than the run allows at the ways' grade (4 micro a cell =
+  4 ninths a column), the spur is planned at the old cap (2 micro a COLUMN = 18 micro a cell). The residents' graph
+  takes 4 micro between cell centres, so such a spur is walked by the gate's probe and can be refused by the graph:
+  "can still make an island". Chain 556 (live): 0 at the old cap on 4 builds, 1 on 8, 2 on 1, 3 on 2, 7 on the
+  legacy city (the grid control). Today the graph question passes on all of them (0 houses refused) - the ground
+  beside the spur carries the walker. So this is a risk on another site, not a failure seen.
+
+DESIGN (no new sized number; the rule is the tube condition already in planTerrainPath):
+  only in the branch that today falls to the old cap: among the street columns FURTHER than the nearest, those where
+  |street surface - threshold| x 9 <= Manhattan distance x 4 can be joined at the ways' grade. Take the nearest of
+  them (ties: z, then x) whose straight run has no cell inside a building footprint (the paver drops columns there,
+  which would break the spur). None -> the old cap as today, still counted. Nothing changes for a door whose nearest
+  column already fits, so every build with 0 at the old cap must print the same record lines.
+  New record fields: spurs_to_a_further_column, spur_longest_run_columns.
+  Resolution note: the rule is in micro columns and ninths through the existing planner; nothing here assumes 1/9.
+
+THE TEST (StreetPaverTest.ADoorSpurTooSteepForTheNearestColumnJoinsAFurtherOne): the existing terrace rig - pad 27 micro
+  above a level street, door 14 columns off its edge. Needs 27 x 9 / 4 = 61 columns.
+    asserts: spursPlanned 1, spursFailed 0, spursAtTheOldCap 0, spursToAFurtherColumn 1; the worst step between
+      4-adjacent spur columns <= 1 micro (the old cap gives 2); a spur column beside the street meets it within the
+      step-up. PRINTED, not asserted: the worst difference between spur columns 9 apart on a row (cell centre to
+      cell centre: the band's width makes the bound loose - reasoned at most 6, the old cap 18).
+    control arm: the same door with a street stub too short for any fitting column (x 40..58) -> spursAtTheOldCap 1,
+      spursToAFurtherColumn 0 (the fallback is kept and counted).
+    footprint arm: a footprint laid across the run to the nearest fitting column -> the spur goes to another column
+      and no spur column is inside the footprint... asserted: no path cell lost (planned columns form one piece
+      from the door to the street: flood over 4-adjacent spur columns reaches a column beside the street).
+ASSERTION CHANGE, STATED BEFORE ANY RUN: StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers - its "bad"
+  arm (the marker 5 columns off a street 180 columns long) will no longer fail: a column 61 away fits. The arm keeps
+  its meaning (a spur that cannot be planned says why, with its numbers) on a street STUB (x 40..58) where no column
+  fits and the old cap does not either; the four strings asserted stay the same (too steep, drop 27, 6 cells, cap 2).
+
+PREDICTIONS
+  chain 557 (the test + the new counter field, planner unchanged): RED - spursAtTheOldCap 1, spursToAFurtherColumn 0,
+    worst adjacent step 2. The control arm passes.
+  chain 558 (the planner): green. Unit set 407 ok / 0 failed (406 + 1); the M5a / M5b unit prints identical.
+  chain 559 (live, 43): GUESSES - builds with 0 at the old cap identical; on the others the count falls to 0 or stays
+    (a fitting column with a clear run need not exist); gate lines MAY move on those builds (more spur columns).
+    THE RISK I EXPECT: a longer spur runs ALONG the street it could not meet, so "spur_risers_over_step" (spur column
+    beside a way column) may go non-zero on some build - that assertion stands on every build and would be a real
+    red, to be answered by the rule (a candidate is refused if its run passes beside the way above the step), not
+    by the assertion. Second risk: a run through a neighbour's yard - not measured by anything today; printed as
+    the longest run.
+RESULTS (written 2026-11-20 13:19)
+  chain 557 (test + field, planner unchanged; exe 13:12:21): RED as predicted - "long street: planned 1, failed 0, at
+    the old cap 1, to a further column 0 ... worst step between adjacent spur columns 2, nine apart 18". 14 ok / 1 failed
+    in the suite; the changed "bad" arm of the terrace test passes on the stub.
+  chain 558 (the further-column rule; exe 13:13:24): 406 ok / 1 FAILED - the new test, and the design is WRONG, three ways:
+    - "beside the street 6": the run to a column 61 away comes in at a shallow angle and lies ALONG the street it could
+      not meet, up to 6 micro above it (the risk I named; it showed in the unit rig already).
+    - "worst step between adjacent spur columns 2" on a correct 4-ninths run: MY ASSERTION was wrong for a diagonal
+      run - the band is stamped across the run, so two adjacent band columns can belong to centre cells 2 apart.
+    - the control did not fall back: on the stub the "further column" was on the street's FAR side (the run crosses
+      the street). Not predicted.
+DESIGN CHANGE, STATED BEFORE THE NEXT RUN (the further-column rule is REMOVED, not left beside the new one):
+  a DOGLEG - what a builder cuts for a door on a terrace beside a street: a ramp ALONG the frontage, then a level
+  piece across to the street.
+    leg 1 from the door, parallel to the street (the axis across the door -> nearest-column direction), t columns,
+      graded at the ways' grade from the threshold down / up to the street's surface where leg 2 meets it;
+    leg 2 from the corner straight to the street column nearest the corner, LEVEL at that column's surface (so
+      nothing of it stands above or below the street it runs up to).
+    t is the least for which leg 1 fits the grade (|threshold - that street surface| x 9 <= t x 4), both directions
+      tried at each t (lower coordinate first); refused where a cell of either leg is inside a footprint, a cell of
+      leg 1 is a street column, the corner is further from the street than the door was (+ the half width + 1 - the
+      slack the planner's own "already at the street" test uses), or a spur column beside a street column differs
+      from it by more than the step-up. Search bound (REASONED, a bound on a search, not a size): t up to twice the
+      needed run + twice the door's distance. None -> the old cap, counted, as today.
+    Fields renamed: spursByALongerRun / spur_by_a_longer_run, spurLongestRunColumns (leg 1 + leg 2).
+ASSERTION CHANGES in the new test, stated before the run:
+    - the door moves to x cube 10 (micro 94) so the street lies alongside in both directions; the footprint arm's
+      building moves to cubes x 12..14, z 5..7 (on the +x leg) and the arm asserts the spur went the other way.
+    - "worst adjacent <= 1" stays (the legs are axis-aligned now, so the assertion is right for them).
+    - the counter asserted is the renamed one.
+  PREDICTION chain 559: the new test green - long street: by a longer run 1, run 61 + 14 = 75 columns, adjacent 1,
+    beside the street 0, nine apart 4; stub: old cap 1 (the corner is off the stub's end: 61 > 9 + slack);
+    footprint arm: by a longer run 1, 0 columns inside. Unit 407 / 0, M5a / M5b prints identical to chain 555's.
+  CORRECTION TO THE ARM AS STATED, before the run (13:20): the footprint arm's building is at cubes x 6..8 (the -x
+    leg, the direction tried first), not 12..14; the arm asserts 0 spur columns west of the door with the building
+    and more than 0 without it (the control), more than 0 east of it. The stub is x 85..103 (round the moved door).
+  chain 559: VOID - the build failed (a newline inside a string of mine in the test); nothing ran. Re-run as chain 560, same prediction.
+RESULTS (written 2026-11-20 13:27)
+  chain 560 (the dogleg; exe 13:21:29): 407 ok / 0 failed, as predicted to the number - "long street: planned 1,
+    failed 0, at the old cap 0, by a longer run 1 (longest run 75 columns), 375 columns; worst step between adjacent
+    spur columns 1, nine apart 4, beside the street 0, joined 1"; stub: old cap 1, adjacent 2, nine apart 18;
+    building on the run: by a longer run 1, 0 columns inside, "west / east of the door: open 360 / 0, with the
+    building 0 / 360". The 82 M5a / M5b prints identical to chain 555's.
+  NEXT chain 561 (live, 43, the same exe): the guesses as written above for the live set (stated for chain 559 there).
+    Added guess: the legacy city's 7 fall, by how many I cannot say.
+RESULTS (written 2026-11-20 13:40)
+  chain 561 (live, the same exe 13:21:29): 43 ok / 0 failed.
+    spurs at the old cap, per build (chain 556 -> chain 561), from the "[ O39k ]" lines:
+      4 builds 0 -> 0 (0 by a longer run; their lines otherwise identical)
+      8 builds 1 -> 0 (1 by a longer run, longest 14 columns)
+      2 builds 3 -> 0 (3 by a longer run, longest 14)
+      1 build  2 -> 1 (1 by a longer run, longest 14)  - ONE spur still at the old cap (which lot, and why no dogleg
+                                                         fitted, NOT read)
+      the legacy city 7 -> 0 (10 by a longer run, longest 59) - 10, not 7: three spurs that FAILED before are planned
+        now (GUESS from the counts; its gate line moved 42 walkable / 11 blocked -> 43 / 10; it is the grid control
+        and stays blocked).
+    "risers over the step-up" 0 (worst 0) on every build - the risk I named did not show.
+    the residents' graph: asked == lots, 0 cannot be left, 0 cannot be reached on every map build (11, 20, 24, 25 lots).
+    the record lines (167 distinct, counted from the two raw outputs): identical except the legacy control's two
+      lines above. The M5A-MAP lines identical.
+  MISSES against the prediction: "gate lines MAY move on those builds" - none moved on a map build; the legacy city's
+    count went UP in spurs planned, which I did not foresee.
+  WHAT THIS IS: L2 on one synthetic rig (a level street, a 27-micro terrace, one footprint) + L3 on the standing live
+    builds through the assertions that were already there (risers, the residents' graph, the gate).
+  NOT MEASURED: nothing looked at in the engine (L4) - a dogleg cuts a trench along a house's front and nobody has
+    seen one; whether a dogleg crosses a NEIGHBOUR's yard, garden or fence (only footprints are checked); the one
+    spur still at the old cap; a sloping or curved street beside the door (the unit rig's street is level and
+    straight; the live builds exercise it but nothing asserts on it); a dogleg where the across direction is x
+    (the rig's is z); search cost on a big city (one full scan of the street columns per step of t - not timed);
+    Debug.
+AUDIT (solution-auditor, 2026-11-20, read-only): PASS WITH CONDITIONS (raw text in the ledger). What it corrected:
+  - MY COUNT WAS WRONG: the old-cap spurs before were 23 over 12 builds (8 x 1 + 1 x 2 + 2 x 3 + the legacy 7), not
+    20 - and in a status line to the owner I wrote 26 over 16 builds, also wrong. After: 1.
+  - "the residents' graph reaches every house" is NOT evidence for this change: it read 0 / 0 before as well, and so
+    did the gate and the riser count. The only live discriminator is the counter of the branch taken. There is no
+    L3 measurement that an old-cap spur fails where a dogleg passes.
+  - all 14 live doglegs on map builds are "longest 14 columns" - probably the same few lots repeated across the
+    shared builds; the independent sample is small.
+  - the FINAL test (door moved, arms changed) was never run against the old planner; the red of chain 557 is the
+    first version's. Its stub arm shows the old numbers on the same measure - indirect.
+  - LIKELY DEFECT (6A): a dogleg's columns are merged first-writer into the spur set without a look at other doors'
+    spurs - leg 1 runs along the frontage at the doors' own distance from the street, so it passes through a
+    neighbour's door cell at another height. (The old-cap path has the same flaw.)
+  - the band and the corner square are not checked against footprints (only the centre line); "level" leg 2 is
+    planTerrainPath between equal ends (it is level: the tube is flat) - the comment stands; the x-across case and
+    leg 2's footprint check are untested; search cost: the legacy city's spur time about 135 -> 260 ms.
+RESPONSE, STATED BEFORE THE RUN (written 2026-11-20 13:43):
+  - a new test, StreetPaverTest.ADoglegNeverRunsThroughANeighboursDoor: the terrace rig, door A (94, 58) threshold
+    180 and door B (67, 58) threshold 171 on the same frontage (B lies on A's first-tried run). Asserts: the column
+    at each door keeps that door's threshold; old cap 0, by a longer run 2; worst step between adjacent spur columns
+    <= 1; no column of the plan within the half width + 1 of the OTHER door differs from that door's threshold by
+    more than the step-up. PREDICTION chain 562 (planner as audited): RED - B's door column carries A's ramp
+    (about 180 - 27 x 4 / 9 = 168, not 171).
+  - then the rule: spurs the grade fits are planned first, the doglegs after them (a second pass, so a dogleg sees
+    every ordinary spur); a dogleg is refused if a column of it lies within the half width + 1 of another door, if
+    it lands on an existing spur column at another surface, or if it stands beside one more than the step-up away;
+    the band and the corner square count for the footprint check (a column of it inside a footprint refuses it).
+    PREDICTION chain 563: green (A goes east, B west); unit 408 / 0. Live (564): the old-cap count may RISE again on
+    some builds (doglegs refused by the new rules) - that is the honest number; the one spur left at the old cap
+    is read from that run's log.
+  - not done here: the x-across arm, an L3 discriminator. Stay open in the row.
+RESULTS
+  chain 562 (the two-door test, the planner as audited; exe 13:43:49): RED as predicted to the number - "the column at
+    door A 180 (threshold 180), at door B 168 (threshold 171) ... beside door B 5". 15 ok / 1 failed in the suite.
+  chain 563 (two passes + the dogleg's refusals; exe 13:44:56): 408 ok / 0 failed, as predicted - "two doors on one
+    frontage: planned 2, failed 0, at the old cap 0, by a longer run 2; the column at door A 180 (threshold 180), at
+    door B 171 (threshold 171); worst step between adjacent spur columns 1; ... beside door A 2, beside door B 2".
+    The other arms print as in chain 560; the 82 M5a / M5b prints identical to chain 555's.
+  chain 564 (live, the same exe): 43 ok / 0 failed. Every "[ O39k ]" line identical to chain 561's - MY GUESS that the
+    old-cap count might rise was wrong (no live dogleg met another door or spur). Record lines: identical to chain
+    556's except the legacy control (42 / 11 -> 43 / 10), as in 561. Old cap over all builds: 23 -> 1.
+    The one left is on SettlementMapLiveSiteTest.TheWalledCityCanBeLeftByItsRoad; no record named the lot or why.
+  NEXT, stated before the run (14:05): a note per old-cap spur (the door, the street, how many dogleg candidates each
+    refusal turned down) into the build record and the live print. A diagnostic only; chains 565 (unit) / 566
+    (live) re-run everything on that exe. PREDICTION: 408 / 0, 43 / 0, all lines as in 563 / 564, plus one
+    "[ O39g2 ] at the old cap" line on the walled city. GUESS at its cause: the corner falls off the street (a lane
+    end) or a footprint.
+RESULTS (written 2026-11-20 14:23)
+  chains 565 / 566 (the note added; one build, exe 14:04:44): unit 408 ok / 0 failed, the "[ O39g2 ]" unit lines and the
+    82 M5a / M5b prints identical to chain 563's; live 43 ok / 0 failed, every "[ O39k ]" line and every record line
+    identical to chain 564's. As predicted.
+    The one spur left (the walled city): "door (121702,-89546) threshold 1370, the street 1359 at 23 columns; doglegs
+      refused: 90 corner off the street, 30 too short for the grade, 72 line through a footprint or along the street,
+      0 a column in a footprint, 0 near another door, 0 on or beside another spur, 0 beside the street above the
+      step". An 11-micro rise over 23 columns (the grade needs 25). My guess (corner off the street, or a footprint)
+      named both causes; which footprint, and whether the 72 are the footprint or the street, NOT read.
+  FINAL STATE: old-cap spurs over the 16 live builds 23 -> 1; unit 408 / 0; live 43 / 0 (Release; no Debug run).
+  STILL OPEN (to the plan's row): the walled city's one spur; no L3 measure that tells an old-cap spur from a
+    dogleg (the graph and the gate read the same before and after); nothing seen in the engine; neighbours' yards,
+    gardens and fences are not checked (footprints and doors only); the x-across case and leg 2's footprint check
+    have no test; the unit rig's street stores the same number in both height fields; search cost (the legacy
+    city's spur planning about doubled, 135 -> 260 ms by the audit's reading); the old-cap fallback itself still
+    writes over other spurs first-writer.

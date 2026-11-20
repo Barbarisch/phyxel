@@ -379,7 +379,26 @@ PavingPlan planDoorSpurs(const std::vector<DoorAnchor>& doors,
     for (const auto& c : streetColumns) street.emplace(colKey(c.x, c.z), c.w);   // (x, startRow, z, surface)
 
     std::unordered_map<long long, int> cols;   // spur columns only
-    for (const auto& d : doors) {
+    const auto stampSpur = [&](const PathPlan& sp) {
+        const auto& cs = sp.cells;
+        for (size_t i = 0; i < cs.size(); ++i) {
+            bool tX = false, tZ = false;
+            if (i + 1 < cs.size()) { tX |= cs[i + 1].x != cs[i].x; tZ |= cs[i + 1].z != cs[i].z; }
+            if (i > 0)             { tX |= cs[i].x != cs[i - 1].x; tZ |= cs[i].z != cs[i - 1].z; }
+            if (!tX && !tZ) tX = true;
+            for (int o = -box.halfWidthMicro; o <= box.halfWidthMicro; ++o) {
+                const int cx = cs[i].x + (tZ ? o : 0), cz = cs[i].z + (tX ? o : 0);
+                if (street.count(colKey(cx, cz))) continue;   // first writer wins: the street
+                cols.emplace(colKey(cx, cz), cs[i].surfaceY);
+            }
+        }
+    };
+    // O39 (g2), the audit's 6A: the spurs the ways' grade fits are planned FIRST; the ones it does not fit come after
+    // them (pass 2), so a dogleg sees every ordinary spur.
+    struct Deferred { size_t door; long bestDist; int gx, gz, gS; };
+    std::vector<Deferred> deferred;
+    for (size_t di = 0; di < doors.size(); ++di) {
+        const DoorAnchor& d = doors[di];
         // nearest street column, Manhattan (the street is a dense set of columns, so the nearest
         // column IS the nearest point of the paving)
         long bestDist = -1;
@@ -404,9 +423,119 @@ PavingPlan planDoorSpurs(const std::vector<DoorAnchor>& doors,
         // (chain 522) a spur is never CUT to grade: its start is the door's threshold and its end the street's surface,
         // and lowering either leaves a riser there. Where the gentle grade does not fit, the spur is planned at the old
         // cap as before (walked by the gate's probe; steeper than the residents' graph takes) or refused with its numbers.
-        if (spur.ok && spur.reason.rfind("cut to grade", 0) == 0) {
+        if (spur.ok && spur.reason.rfind("cut to grade", 0) == 0) { deferred.push_back({di, bestDist, gx, gz, gS}); continue; }
+        if (!spur.ok) {
+            ++plan.spursFailed;
+            plan.spurFailures.push_back(spurFailureLine({d.x, d.surfaceY, d.z}, {gx, gS, gz},
+                                                        bestDist, box, spur.reason));
+            continue;
+        }
+        ++plan.spursPlanned;
+        stampSpur(spur);
+    }
+    for (const auto& df : deferred) {
+        const DoorAnchor& d = doors[df.door];
+        const long bestDist = df.bestDist;
+        const int gx = df.gx, gz = df.gz, gS = df.gS;
+        PathPlan spur;
+        {
+            // O39 (g2) (pm_chain557.txt): before the old cap, a DOGLEG - a ramp ALONG the frontage at the ways' grade
+            // (leg 1, parallel to the street), then a LEVEL piece across to the street at its surface (leg 2). A straight
+            // run to a further street column was tried first (chain 558) and lay along the street above it.
+            bool further = false;
+            int rjOff = 0, rjGrade = 0, rjLine = 0, rjFoot = 0, rjDoor = 0, rjSpur = 0, rjStreet = 0;   // why a dogleg was refused
+            {
+                const long rise = box.maxStepUpMicro;
+                const bool acrossIsZ = std::abs(gz - d.z) >= std::abs(gx - d.x);   // the door -> street direction
+                const long need = (static_cast<long>(std::abs(gS - d.surfaceY)) * 9 + rise - 1) / rise;
+                const long tMax = 2 * need + 2 * bestDist;   // REASONED: a bound on the search, not a size
+                const long reach = bestDist + box.halfWidthMicro + 1;   // the corner is no further off the street than the door
+                for (long t = 1; t <= tMax && !further; ++t) {
+                    for (int sgn = -1; sgn <= 1 && !further; sgn += 2) {
+                        const int cx = d.x + (acrossIsZ ? sgn * static_cast<int>(t) : 0);
+                        const int cz = d.z + (acrossIsZ ? 0 : sgn * static_cast<int>(t));
+                        long cd = -1; int sx = 0, sz = 0, sS = 0;
+                        for (const auto& c : streetColumns) {
+                            const long dist = std::abs(c.x - cx) + std::abs(c.z - cz);
+                            if (cd < 0 || dist < cd) { cd = dist; sx = c.x; sz = c.z; sS = c.w; }
+                        }
+                        if (cd < 1 || cd > reach) { ++rjOff; continue; }
+                        if (static_cast<long>(std::abs(sS - d.surfaceY)) * 9 > t * rise) { ++rjGrade; continue; }
+                        PathPlan l1 = planTerrainPath(groundMicroAt, {d.x, d.surfaceY, d.z}, {cx, sS, cz}, box, box.maxStepUpMicro);
+                        if (!l1.ok || l1.reason.rfind("cut to grade", 0) == 0) continue;
+                        PathPlan l2 = planTerrainPath(groundMicroAt, {cx, sS, cz}, {sx, sS, sz}, box, box.maxStepUpMicro);
+                        if (!l2.ok || l2.reason.rfind("cut to grade", 0) == 0) continue;
+                        bool bad = false;
+                        for (const auto& pc : l1.cells)
+                            if (insideFootprintInterior(pc.x, pc.z) || street.count(colKey(pc.x, pc.z))) { bad = true; break; }
+                        for (const auto& pc : l2.cells)
+                            if (!bad && insideFootprintInterior(pc.x, pc.z)) { bad = true; break; }
+                        if (bad) { ++rjLine; continue; }
+                        // the columns this dogleg would pave (the band across each leg, a full square at the corner)
+                        std::unordered_map<long long, int> mine;
+                        const auto band = [&](const std::vector<PathCell>& cells) {
+                            for (size_t i = 0; i < cells.size(); ++i) {
+                                bool tX = false, tZ = false;
+                                if (i + 1 < cells.size()) { tX |= cells[i + 1].x != cells[i].x; tZ |= cells[i + 1].z != cells[i].z; }
+                                if (i > 0)                { tX |= cells[i].x != cells[i - 1].x; tZ |= cells[i].z != cells[i - 1].z; }
+                                if (!tX && !tZ) tX = true;
+                                for (int o = -box.halfWidthMicro; o <= box.halfWidthMicro; ++o) {
+                                    const int bx = cells[i].x + (tZ ? o : 0), bz = cells[i].z + (tX ? o : 0);
+                                    if (street.count(colKey(bx, bz))) continue;
+                                    mine.emplace(colKey(bx, bz), cells[i].surfaceY);
+                                }
+                            }
+                        };
+                        band(l1.cells);
+                        for (int ox = -box.halfWidthMicro; ox <= box.halfWidthMicro; ++ox)
+                            for (int oz = -box.halfWidthMicro; oz <= box.halfWidthMicro; ++oz)
+                                if (!street.count(colKey(cx + ox, cz + oz))) mine.emplace(colKey(cx + ox, cz + oz), static_cast<int>(sS));
+                        band(l2.cells);
+                        for (const auto& [k, S] : mine) {
+                            const int x = static_cast<int>(k >> 32);
+                            const int z = static_cast<int>(static_cast<int32_t>(k & 0xffffffffLL));
+                            // refused: a column of it (the band and the corner square count) inside a footprint; within
+                            // the half width + 1 of ANOTHER door; on an existing spur column at another surface; beside
+                            // a street or spur column more than the step-up away.
+                            if (insideFootprintInterior(x, z)) { bad = true; ++rjFoot; break; }
+                            const int r = box.halfWidthMicro + 1;
+                            for (size_t oi = 0; oi < doors.size() && !bad; ++oi) {
+                                if (oi == df.door || (doors[oi].x == d.x && doors[oi].z == d.z)) continue;
+                                if (std::abs(x - doors[oi].x) <= r && std::abs(z - doors[oi].z) <= r) bad = true;
+                            }
+                            if (bad) { ++rjDoor; break; }
+                            const auto own = cols.find(k);
+                            if (own != cols.end() && own->second != S) { bad = true; ++rjSpur; break; }
+                            const int n4[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+                            for (const auto& n : n4) {
+                                const auto it = street.find(colKey(x + n[0], z + n[1]));
+                                if (it != street.end() && std::abs(it->second - S) > box.maxStepUpMicro) { bad = true; ++rjStreet; break; }
+                                const auto ic = cols.find(colKey(x + n[0], z + n[1]));
+                                if (ic != cols.end() && std::abs(ic->second - S) > box.maxStepUpMicro) { bad = true; ++rjSpur; break; }
+                            }
+                            if (bad) break;
+                        }
+                        if (bad) continue;
+                        for (const auto& [k, S] : mine) cols.emplace(k, S);
+                        further = true;
+                        ++plan.spursByALongerRun;
+                        ++plan.spursPlanned;
+                        plan.spurLongestRunColumns = std::max(plan.spurLongestRunColumns, static_cast<int>(t + cd));
+                    }
+                }
+            }
+            if (further) continue;
             spur = planTerrainPath(groundMicroAt, {d.x, d.surfaceY, d.z}, {gx, gS, gz}, box);
-            if (spur.ok) ++plan.spursAtTheOldCap;
+            if (spur.ok) {
+                ++plan.spursAtTheOldCap;
+                plan.spursAtTheOldCapNotes.push_back(
+                    "door (" + std::to_string(d.x) + "," + std::to_string(d.z) + ") threshold " + std::to_string(d.surfaceY) +
+                    ", the street " + std::to_string(gS) + " at " + std::to_string(bestDist) + " columns; doglegs refused: " +
+                    std::to_string(rjOff) + " corner off the street, " + std::to_string(rjGrade) + " too short for the grade, " +
+                    std::to_string(rjLine) + " line through a footprint or along the street, " + std::to_string(rjFoot) +
+                    " a column in a footprint, " + std::to_string(rjDoor) + " near another door, " + std::to_string(rjSpur) +
+                    " on or beside another spur, " + std::to_string(rjStreet) + " beside the street above the step");
+            }
         }
         if (!spur.ok) {
             ++plan.spursFailed;
@@ -415,18 +544,7 @@ PavingPlan planDoorSpurs(const std::vector<DoorAnchor>& doors,
             continue;
         }
         ++plan.spursPlanned;
-        const auto& cs = spur.cells;
-        for (size_t i = 0; i < cs.size(); ++i) {
-            bool tX = false, tZ = false;
-            if (i + 1 < cs.size()) { tX |= cs[i + 1].x != cs[i].x; tZ |= cs[i + 1].z != cs[i].z; }
-            if (i > 0)             { tX |= cs[i].x != cs[i - 1].x; tZ |= cs[i].z != cs[i - 1].z; }
-            if (!tX && !tZ) tX = true;
-            for (int o = -box.halfWidthMicro; o <= box.halfWidthMicro; ++o) {
-                const int cx = cs[i].x + (tZ ? o : 0), cz = cs[i].z + (tX ? o : 0);
-                if (street.count(colKey(cx, cz))) continue;   // first writer wins: the street
-                cols.emplace(colKey(cx, cz), cs[i].surfaceY);
-            }
-        }
+        stampSpur(spur);
     }
 
     std::vector<PavedColumn> out;
