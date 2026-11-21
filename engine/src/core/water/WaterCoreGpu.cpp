@@ -87,7 +87,10 @@ bool WaterCoreGpu::createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible,
             b = kb[best]; kb.erase(kb.begin() + static_cast<long>(best));
             b.bytes = want;   // every binding, fill and copy sees the size asked, as on a new buffer of that size
             // cleared as a new one is: host memory zeroed here (as below), device memory by createVolume's zero fill
-            if (b.mapped) std::memset(b.mapped, 0, static_cast<size_t>(b.bytes)); else m_adoptedDevice.push_back(&b);
+            // 58 item 1: the part pumpKeptClear has not cleared yet, only
+            if (b.mapped) { if (b.zeroed < b.bytes) std::memset(static_cast<char*>(b.mapped) + b.zeroed, 0, static_cast<size_t>(b.bytes - b.zeroed)); }
+            else m_adoptedDevice.push_back(&b);
+            b.zeroed = 0;
             ++m_keptStats.buffersAdopted;
             return true;
         }
@@ -463,9 +466,10 @@ int WaterCoreGpu::keepVolume(Volume* vol) {
     if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
-    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal, &vol->discBuf}) destroyBuffer(*b);   // 50.7 / 51: rebuilt on demand, never kept
+    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal, &vol->discBuf}) {   // 50.7 / 51: rebuilt on demand, never kept
+        if (b->buf) { m_releaseQueue.push_back(*b); *b = Buffer{}; } }   // 58 item 1: queued for pumpRelease (the device is idle above)
     KeptSet set; set.slots = vol->capacity;
-    for (Buffer* b : allBuffers(*vol)) if (b->buf) { set.bufs.push_back(*b); *b = Buffer{}; }
+    for (Buffer* b : allBuffers(*vol)) if (b->buf) { b->zeroed = 0; set.bufs.push_back(*b); *b = Buffer{}; }   // 58: stale until cleared
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
     const int h = m_nextKept++;
@@ -508,6 +512,23 @@ size_t WaterCoreGpu::pumpRelease(double budgetMs) {
     m_keptStats.freed += static_cast<long>(n);
     m_keptStats.lastFreeMs = std::chrono::duration<double, std::milli>(RClock::now() - t0).count();
     m_keptStats.maxFreeMs = std::max(m_keptStats.maxFreeMs, m_keptStats.lastFreeMs);
+    return n;
+}
+
+size_t WaterCoreGpu::pumpKeptClear(double budgetMs) {
+    using ZClock = std::chrono::steady_clock;
+    const auto t0 = ZClock::now();
+    const VkDeviceSize kSlice = 8u << 20;
+    size_t n = 0;
+    for (auto& [h, set] : m_kept) for (Buffer& b : set.bufs) {
+        if (!b.mapped) continue;
+        while (b.zeroed < b.made) {
+            const VkDeviceSize len = std::min(kSlice, b.made - b.zeroed);
+            std::memset(static_cast<char*>(b.mapped) + b.zeroed, 0, static_cast<size_t>(len));
+            b.zeroed += len; n += static_cast<size_t>(len);
+            if (std::chrono::duration<double, std::milli>(ZClock::now() - t0).count() >= budgetMs) return n;
+        }
+    }
     return n;
 }
 

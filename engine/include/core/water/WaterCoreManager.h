@@ -751,8 +751,18 @@ public:
     /// L3 (41): kept memory - ponds whose GPU buffers wait for their next wake (by box), and what happened to them
     struct KeptMemoryStats { size_t ponds = 0; unsigned long long heldBytes = 0, releasingBytes = 0; long kept = 0, hits = 0, misses = 0,
                              releasedFar = 0, releasedCap = 0, releasedOrphan = 0, releasedOom = 0, buffersAdopted = 0, buffersAllocated = 0;
-                             bool lastWakeHit = false; double lastSleepFreeMs = 0.0, maxPumpMs = 0.0; };
+                             bool lastWakeHit = false; double lastSleepFreeMs = 0.0, maxPumpMs = 0.0;
+                             // 58 item 1 (D9's cut): the patch spare - held now, kept / adopted / given back (far from any slept box, OOM, reset)
+                             bool patchSpareHeld = false; unsigned long long patchSpareBytes = 0; long patchSpareKept = 0, patchSpareAdopted = 0,
+                             patchSpareReleased = 0; bool lastPatchAdopted = false; };
     KeptMemoryStats keptMemoryStats() const;
+    /// 58 item 1 (D9's cut; the owner 2026-11-20: "obviously we cant have stutter"): ONE patch's GPU buffers kept, still allocated,
+    /// when it goes back to the record, for the next patch anywhere (a create takes each kept buffer big enough for what it asks;
+    /// the rest it allocates) - the create's buffers were 16.3-16.6 ms of the splash frame (53.2). ~390 MB of device memory held
+    /// OUTSIDE memoryCapMb (the owner allowed the memory, 53.3); given back when no slept box is within memoryM of the viewer, on
+    /// out-of-memory, and at a world reset. Cost only: a patch on kept buffers is the same volume (the create zero-fills them).
+    struct PatchSpare { bool on = true; };
+    static inline PatchSpare s_patchSpare;
     /// L3 (41): how long a frame may spend freeing given-up kept buffers (ms); 41.4 item 3
     static constexpr double kKeptFreeMsPerFrame = 1.0;
     /// L3 (41): the release rule run now (also run by update) - orphans, beyond memoryM, over the cap; then the paced free
@@ -1004,7 +1014,8 @@ public:
     /// 26.30 step 3: the last update()'s CPU by part (ms): occupancy refresh, the volumes' steps, droplets, ripples
     struct UpdateCpu { double occupancy = 0, step = 0, droplets = 0, ripples = 0, sleep = 0;
                        double stepCall = 0, births = 0;                                  // of step: the GPU call, the births read
-                       double rCollect = 0, rMask = 0, rLayer = 0, rSubmit = 0; };       // of ripples: collect, the mask, the layer's step, submit
+                       double rCollect = 0, rMask = 0, rLayer = 0, rSubmit = 0;          // of ripples: collect, the mask, the layer's step, submit
+                       double residency = 0, kept = 0, retiring = 0; };                  // 58: the three calls before the realtime return
     const UpdateCpu& updateCpu() const { return m_updateCpu; }
 
     static constexpr size_t kMaxCellsPerVolume = 2'000'000;   ///< CPU reference ceiling (§15.4)
@@ -1133,6 +1144,8 @@ private:
     bool m_createLeavesUploadToStep = false;   ///< 39.7: set by wakeSlept around its create (the seed follows)
     struct KeptEntry { glm::ivec3 lo{0}, hi{0}; int handle = 0; };   ///< L3 (41): a slept box's kept GPU set (WaterCoreGpu handle)
     std::vector<KeptEntry> m_kept;
+    int m_patchSpare = 0;       ///< 58 item 1: the kept patch set's handle (0 = none)
+    void releasePatchSpare();
     int m_adoptForCreate = 0;   ///< L3 (41): set by wakeSlept around its create: the kept set the new volume takes its buffers from
     size_t m_slotsForCreate = 0;   ///< L3 (41): ... and the slot count to start at (the set's); 51.3b: a patch's estimate
     size_t m_lastPatchSlots = 0;   ///< 51.3b: the slot count the last patch started with (0 = the default)

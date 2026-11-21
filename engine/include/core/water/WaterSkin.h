@@ -84,6 +84,12 @@ public:
         int sampledHeld = 0;          ///< W6.1: summaries held that are sampled (not yet replaced by the generator's)
         long upgrades = 0;            ///< W6.1: sampled summaries replaced by the generator's
         double msLastCall = 0.0, msMax = 0.0;
+        int fieldsExaminedLastCall = 0;   ///< 58 item 1: field tiles walked - the work, changed or not
+        long cellsAggregatedLastCall = 0; ///< 58 item 1: cells aggregated (a cell copied from its field unchanged is not counted)
+        double msScan = 0.0, msRead = 0.0, msBuild = 0.0, msFields = 0.0;   ///< 58 item 1: the last call by part (up to the summary loop; the record reads; the summaries; the fields)
+        int scannedLastCall = 0;          ///< 58 item 1: chunk columns the summary scan walked
+        long countWalkedLastCall = 0;     ///< 58 item 1: summaries walked to recount genHeld / sampledHeld
+        long writeWalkedLast = 0;         ///< 58 item 1: summaries the last spansWritten walked
     };
     using Reader = std::function<void(const glm::ivec3&, const glm::ivec3&, std::vector<ColumnRuns>&)>;
     struct Inputs {
@@ -188,6 +194,7 @@ private:
         bool requested = false;   // step 2: queued on the generator worker (the generator's summary)
         bool sampled = false;     // W6.1: built from the sampled source (fromGen is true too)
         bool requestedS = false;  // W6.1: a sampled job queued
+        bool reread = false;      // 58 item 1: its chunks came or went - read again (was spanRev = ~0)
         std::vector<int> storedCy;            // 51.4f: its stored (edited) chunks' y - their water replaces the generator's there
         std::vector<ColumnRuns> storedRuns;   // 51.4f: their water, held until the generator's arrives
         uint64_t version = 0;
@@ -223,6 +230,20 @@ private:
     };
     std::vector<LevelKey> m_levelKeys;
     long m_maskTiles[4] = {0, -1, 0, -1};   // level 0's tiles under the record mask (x0, x1, z0, z1)
+    // 58 item 1: the volumes' revision and boxes seen last call - a change walks only the fields meeting the old or the new boxes
+    uint64_t m_volRev = 0; bool m_volRevValid = false;
+    // 58 item 1: the chunk columns whose summary changed since the last field pass (a write's or a source's summary): only the cells
+    // over them are walked. m_sumAllEpoch bumps when every summary may have changed (a new generator source) - a whole walk
+    std::vector<uint64_t> m_sumChanged; uint64_t m_sumAllEpoch = 0;
+    // 58 item 1: chunk columns a core write touched while the scan was valid - re-read without a whole scan of the reach
+    std::vector<uint64_t> m_writeStale;
+    // 58 item 1: a record summary is up to date when built at or after m_bulkRev (the last revision change no spansWritten
+    // reported) and its column was not written after it (m_touchedAt: chunk column -> the write's revision). spansWritten walked
+    // every summary to advance its revision instead - ~70k entries at 4 km, ~4.7 ms of every tile a live patch recorded
+    uint64_t m_bulkRev = 0;
+    std::unordered_map<uint64_t, uint64_t> m_touchedAt;
+    bool upToDate(uint64_t key, const Summary& sm) const;
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> m_volBoxesPrev;
     // the summary scan's inputs (it runs only when one moved, or work is pending)
     bool m_scanValid = false; long m_scanCx = 0, m_scanCz = 0; uint64_t m_scanSpanRev = 0, m_scanResGen = 0, m_resGen = 0; float m_scanReach = 0.0f; int m_lastPending = 0;
     Stats m_stats;

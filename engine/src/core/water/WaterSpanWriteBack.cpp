@@ -105,4 +105,77 @@ void spansToColumnRuns(const std::vector<WorldSpan>& spans, float yLo, float yHi
     }
 }
 
+namespace {
+bool localLess(const Chunk::WaterSpanLocal& a, const Chunk::WaterSpanLocal& b) {
+    const uint32_t ka = (uint32_t(a.x) << 8) | a.z, kb = (uint32_t(b.x) << 8) | b.z;
+    return ka != kb ? ka < kb : a.bottom < b.bottom;
+}
+bool sameLists(const std::vector<Chunk::WaterSpanLocal>& a, const std::vector<Chunk::WaterSpanLocal>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i)
+        if (a[i].x != b[i].x || a[i].z != b[i].z || a[i].bottom != b[i].bottom || a[i].top != b[i].top) return false;
+    return true;
+}
+}  // namespace
+
+void writeRunsIntoChunkColumn(const std::map<int, const std::vector<Chunk::WaterSpanLocal>*>& have, int cx, int cz,
+                              const std::vector<const ColumnRuns*>& cols, float yLo, float yHi,
+                              std::map<int, std::vector<Chunk::WaterSpanLocal>>& out, ChunkColumnWriteStats* stats) {
+    // 58 item 1: one pass over the chunk column's spans sorts out the written columns' (the rest are copied untouched); each
+    // written column is assembled, merged and clipped on its own spans. Before: the whole chunk column assembled, each written
+    // column merged against ALL of it (columns x spans: 88,725 visits for one 8 m tile in WaterSpanWriteBackTest), all re-clipped
+    out.clear();
+    ChunkColumnWriteStats st;
+    if (have.empty()) { if (stats) *stats = st; return; }
+    std::vector<int> colIdx(32 * 32, -1);
+    for (size_t i = 0; i < cols.size(); ++i) {
+        const int lx = cols[i]->x - cx * 32, lz = cols[i]->z - cz * 32;
+        if (lx >= 0 && lx < 32 && lz >= 0 && lz < 32 && colIdx[lx * 32 + lz] < 0) colIdx[lx * 32 + lz] = static_cast<int>(i);
+    }
+    std::vector<std::vector<WorldSpan>> colSpans(cols.size());
+    for (const auto& [cy, spans] : have) {
+        if (!spans) continue;
+        const float base = static_cast<float>(cy) * 32.0f;
+        for (const auto& sp : *spans) {
+            ++st.spansVisited;
+            const int k = colIdx[sp.x * 32 + sp.z];
+            if (k < 0) continue;
+            WorldSpan w; w.x = cx * 32 + sp.x; w.z = cz * 32 + sp.z; w.bottomY = base + sp.bottom; w.topY = base + sp.top;   // assembleColumnSpans' own
+            colSpans[static_cast<size_t>(k)].push_back(w);
+        }
+    }
+    std::map<int, std::vector<Chunk::WaterSpanLocal>> fresh;
+    for (size_t i = 0; i < cols.size(); ++i) {
+        std::vector<WorldSpan>& cs = colSpans[i];
+        st.spansVisited += static_cast<long>(cs.size());
+        std::sort(cs.begin(), cs.end(), spanLess);
+        std::vector<WorldSpan> joined;   // assembleColumnSpans' join: clips meeting exactly at a chunk border are one run
+        for (const auto& w : cs) {
+            if (!joined.empty()) {
+                WorldSpan& p = joined.back();
+                if (std::abs(p.topY - w.bottomY) < 1e-5f && std::fmod(w.bottomY, 32.0f) == 0.0f) { p.topY = w.topY; continue; }
+            }
+            joined.push_back(w);
+        }
+        for (const WorldSpan& m : mergeColumnRuns(joined, cols[i]->x, cols[i]->z, yLo, yHi, cols[i]->runs)) {
+            const int cyA = static_cast<int>(std::floor(m.bottomY / 32.0f)), cyB = static_cast<int>(std::floor((m.topY - 1e-4f) / 32.0f));
+            for (int cy = cyA; cy <= cyB; ++cy) {
+                Chunk::WaterSpanLocal l;
+                if (have.count(cy) && clipSpanToChunk(m, cy, l)) fresh[cy].push_back(l);   // not resident: it keeps what it had
+            }
+        }
+    }
+    for (const auto& [cy, spans] : have) {
+        if (!spans) continue;
+        std::vector<Chunk::WaterSpanLocal> list;
+        list.reserve(spans->size() + 8);
+        for (const auto& sp : *spans) if (colIdx[sp.x * 32 + sp.z] < 0) list.push_back(sp);
+        if (const auto f = fresh.find(cy); f != fresh.end()) list.insert(list.end(), f->second.begin(), f->second.end());
+        std::sort(list.begin(), list.end(), localLess);
+        if (!sameLists(*spans, list)) out[cy] = std::move(list);
+    }
+    st.chunksChanged = static_cast<int>(out.size());
+    if (stats) *stats = st;
+}
+
 }  // namespace Phyxel::Core::Water

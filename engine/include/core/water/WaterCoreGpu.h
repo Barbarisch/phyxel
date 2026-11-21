@@ -186,6 +186,7 @@ public:
         void*          mapped = nullptr;   // staging only
         VkDeviceSize   made = 0;           ///< L3 (41): the VkBuffer's own size (>= bytes when a kept buffer was adopted)
         VkDeviceSize   held = 0;           ///< L3 (41): the device memory it holds (the driver's size for `made`)
+        VkDeviceSize   zeroed = 0;         ///< 58 item 1: a KEPT host buffer's bytes [0, zeroed) already cleared by pumpKeptClear
     };
     struct Volume {
         GridSpec spec;
@@ -690,6 +691,9 @@ public:
     /// L3 (41): free queued buffers for up to `budgetMs` (at least one buffer when any is queued). `budgetMs` < 0 frees them all.
     /// Returns the buffers freed.
     size_t pumpRelease(double budgetMs);
+    /// 58 item 1: clear the kept sets' host buffers for up to `budgetMs` (8 MB slices), so an adopting create clears only what is left
+    /// (a patch's ~170 MB staging cleared at adoption was 8.6 ms of the splash frame). Returns the bytes cleared.
+    size_t pumpKeptClear(double budgetMs);
     struct KeptStats { size_t sets = 0, queuedBuffers = 0; unsigned long long heldBytes = 0, queuedBytes = 0; long kept = 0, adopted = 0,
                        buffersAdopted = 0, buffersAllocated = 0, released = 0, freed = 0; double lastFreeMs = 0.0, maxFreeMs = 0.0; };
     KeptStats keptStats() const;

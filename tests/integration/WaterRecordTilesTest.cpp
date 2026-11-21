@@ -1486,6 +1486,92 @@ TEST_F(WaterRecordTilesTest, ASplashIntoARetiringPatchWakesItAtOnce) {
     EXPECT_LT(std::abs(t.books), 1e-3) << "T3: water lost or doubled across the splash into the retiring box";
 }
 
+// 58 item 1 - D9's cut: the patch spare. The owner (2026-11-20): "obviously we cant have stutter". 53.2 measured the splash frame's
+// patch create at 53-60 ms, 16.3-16.6 of it the GPU buffers allocated. Now a patch's buffers are kept when it goes back to the record
+// and the next patch takes them. 57.8's rig (a 60 m lake 2 m deep in the record, the live path): splash, back to the record, splash
+// again at the same point, back again. Predictions, written before the build: S1 the second create allocates <= 4 buffers (today all
+// ~60: the red, the spare off) and its buffers part <= 2 ms; S2 the record after both returns the same as with the spare off, column
+// by column, within the noise floor of two spare-off runs (the control) + 1e-4 m; S3 books exact; S4 the spare given back when the
+// viewer leaves (no slept box within memoryM): held 0 after.
+struct SpareRun { long allocFirst = -1, allocSecond = -1, adopted = 0, kept = 0, released = 0; double buffersMsSecond = -1.0, books = 0.0;
+                  int sleeps = 0; bool heldAfterLeave = true; std::map<std::pair<int, int>, double> cols; };
+static SpareRun runSpare(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool spareOn) {
+    using M = WaterCoreManager;
+    struct Restore { M::RecordDraw d; float m; bool sp; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_patchSpare.on = sp; } }
+        restore{M::s_recordDraw, M::s_locality.drawM, M::s_patchSpare.on};
+    M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_patchSpare.on = spareOn;
+    SpareRun o;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 60;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    const double placed = record.total();
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", M::s_tallBandDefault}};
+    if (!mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump())) { ADD_FAILURE() << "loadSlept"; return o; }
+    const glm::vec3 c(30.0f, 1.9f, 30.0f);
+    mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, 10.0f));
+    for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }
+    for (int splash = 0; splash < 2; ++splash) {
+        const long a0 = mgr.keptMemoryStats().buffersAllocated;
+        const std::vector<int> ids = mgr.wakeSleptNear(c, 2.0f);
+        if (ids.empty()) { ADD_FAILURE() << "splash " << splash << " woke nothing"; return o; }
+        (splash == 0 ? o.allocFirst : o.allocSecond) = mgr.keptMemoryStats().buffersAllocated - a0;
+        if (splash == 1) o.buffersMsSecond = mgr.sleptWakeStats().gpuBuffersMs;
+        mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        bool live = true; int after = -1;
+        for (int k = 0; k < 60 * 90 && after < 60; ++k) {
+            mgr.update(1.0f / 60.0f); mgr.surfaceFields();
+            const bool empty = mgr.list().empty();
+            if (live && empty) ++o.sleeps;
+            live = !empty;
+            if (empty && mgr.retiringCount() == 0 && o.sleeps > splash) ++after;
+        }
+    }
+    const auto km = mgr.keptMemoryStats();
+    o.adopted = km.patchSpareAdopted; o.kept = km.patchSpareKept;
+    o.books = record.total() + mgr.totalMass() - placed;
+    for (const auto& [k, v] : record.cols) { double m = 0.0; for (const auto& r : v) m += static_cast<double>(r.topY - r.bottomY); o.cols[k] = m; }
+    mgr.setViewPoint(glm::vec3(5000.0f, 10.0f, 5000.0f));   // S4: the viewer leaves
+    for (int k = 0; k < 5; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }
+    o.heldAfterLeave = mgr.keptMemoryStats().patchSpareHeld;
+    o.released = mgr.keptMemoryStats().patchSpareReleased;
+    return o;
+}
+
+TEST_F(WaterRecordTilesTest, ASecondPatchTakesTheFirstPatchsBuffers) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const SpareRun on = runSpare(device, physicalDevice, queue, queueFamilyIndex, true);
+    const SpareRun off = runSpare(device, physicalDevice, queue, queueFamilyIndex, false);
+    const SpareRun off2 = runSpare(device, physicalDevice, queue, queueFamilyIndex, false);
+    auto maxDiff = [](const SpareRun& a, const SpareRun& b) {
+        double d = 0.0;
+        for (const auto& [k, m] : a.cols) { auto it = b.cols.find(k); d = std::max(d, std::abs(m - (it == b.cols.end() ? 0.0 : it->second))); }
+        for (const auto& [k, m] : b.cols) if (!a.cols.count(k)) d = std::max(d, std::abs(m));
+        return d;
+    };
+    const double floor = maxDiff(off, off2), d = maxDiff(on, off);
+    for (const SpareRun* r : {&on, &off, &off2})
+        std::printf("  spare %-3s buffers allocated: first patch %ld, second %ld (its buffers %.2f ms) | spare kept %ld adopted %ld released %ld, held after leaving %d | sleeps %d | books %+.6f m^3\n",
+                    r == &on ? "on" : "off", r->allocFirst, r->allocSecond, r->buffersMsSecond, r->kept, r->adopted, r->released, int(r->heldAfterLeave), r->sleeps, r->books);
+    std::printf("  the record, column by column: on vs off %.6f m (the control, off vs off: %.6f m)\n", d, floor);
+    ASSERT_GE(on.sleeps, 2) << "the rig never reached the second return";
+    EXPECT_EQ(on.adopted, 1) << "S1: the second patch did not take the spare";
+    EXPECT_LE(on.allocSecond, 4) << "S1: the second patch allocated its buffers";
+    EXPECT_LE(on.buffersMsSecond, 2.0) << "S1: the second create's buffers part";
+    EXPECT_GT(off.allocSecond, 20) << "S1 RED: with the spare off the second patch allocates every buffer";
+    EXPECT_EQ(off.adopted, 0);
+    EXPECT_LE(d, floor + 1e-4) << "S2: the record differs with the spare";
+    EXPECT_LT(std::abs(on.books), 1e-3) << "S3";
+    EXPECT_FALSE(on.heldAfterLeave) << "S4: the spare stayed held with no slept box near the viewer";
+}
+
 TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     // the baseline is a lake LARGER than a patch (60 m): past the patch's size the cost may not grow with the lake. (A 30 m lake is

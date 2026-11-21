@@ -1,0 +1,1564 @@
+[
+ {
+  "run": 0,
+  "record_lake": {
+   "box": [
+    4,
+    16,
+    2,
+    63,
+    18,
+    61
+   ],
+   "m3": 7200.0,
+   "slept_boxes": 1,
+   "success": true,
+   "unwritten_columns": 0
+  },
+  "stone": {
+   "strength": 8.0,
+   "success": true,
+   "woken": [
+    3
+   ]
+  },
+  "slept_at_s": 26.8,
+  "sleep_parts_ms": {},
+  "sleep_total_ms": 0,
+  "worst_frame": [
+   0.4,
+   169.22849416732788
+  ],
+  "worst_frame_sleep_window": [
+   26.8,
+   66.17049872875214
+  ],
+  "record_draw": {
+   "build_ms_last_call": 0.0043,
+   "build_ms_max": 63.571,
+   "build_ms_on_sleep_last": 2.9512,
+   "built_last_call": 0,
+   "handover_frames_last": 7,
+   "handover_tiles_max_per_frame": 4,
+   "handover_tiles_per_frame": 4,
+   "handovers": 1,
+   "on": true,
+   "pending": 0,
+   "radius_m": 48.0,
+   "retiring": 0,
+   "revision": 82,
+   "sleep_tiles_built": 152,
+   "tile_m": 8,
+   "tiles": 137,
+   "wet_tiles": 109
+  },
+  "worst_frame_ms_by_read": [
+   [
+    0.4,
+    169.22849416732788
+   ],
+   [
+    0.9,
+    65.03310054540634
+   ],
+   [
+    1.5,
+    18.08680035173893
+   ],
+   [
+    2.0,
+    7.842600345611572
+   ],
+   [
+    2.5,
+    7.845600135624409
+   ],
+   [
+    3.1,
+    9.004100225865841
+   ],
+   [
+    3.6,
+    7.807599846273661
+   ],
+   [
+    4.2,
+    7.970999926328659
+   ],
+   [
+    4.7,
+    7.672599982470274
+   ],
+   [
+    5.3,
+    7.452100049704313
+   ],
+   [
+    5.8,
+    7.447599899023771
+   ],
+   [
+    6.3,
+    9.334700182080269
+   ],
+   [
+    6.9,
+    8.436400443315506
+   ],
+   [
+    7.4,
+    7.6795001514256
+   ],
+   [
+    7.9,
+    7.411099970340729
+   ],
+   [
+    8.4,
+    14.78859968483448
+   ],
+   [
+    8.9,
+    9.103599935770035
+   ],
+   [
+    9.5,
+    8.976999670267105
+   ],
+   [
+    10.0,
+    8.81229992955923
+   ],
+   [
+    10.6,
+    8.535600267350674
+   ],
+   [
+    11.1,
+    19.298499450087547
+   ],
+   [
+    11.6,
+    6.595099810510874
+   ],
+   [
+    12.2,
+    6.272200029343367
+   ],
+   [
+    12.7,
+    6.306000053882599
+   ],
+   [
+    13.3,
+    6.340700201690197
+   ],
+   [
+    13.8,
+    6.555499974638224
+   ],
+   [
+    14.4,
+    6.4338999800384045
+   ],
+   [
+    14.9,
+    6.350699812173843
+   ],
+   [
+    15.4,
+    6.387699861079454
+   ],
+   [
+    16.0,
+    6.2362998723983765
+   ],
+   [
+    16.5,
+    6.061399821192026
+   ],
+   [
+    17.1,
+    5.746500100940466
+   ],
+   [
+    17.6,
+    5.375300068408251
+   ],
+   [
+    18.2,
+    60.59550121426582
+   ],
+   [
+    18.7,
+    54.68109995126724
+   ],
+   [
+    19.3,
+    4.032100085169077
+   ],
+   [
+    19.8,
+    4.304700065404177
+   ],
+   [
+    20.3,
+    4.069100134074688
+   ],
+   [
+    20.9,
+    4.080300219357014
+   ],
+   [
+    21.4,
+    4.153300076723099
+   ],
+   [
+    22.0,
+    62.125299125909805
+   ],
+   [
+    22.5,
+    53.21570113301277
+   ],
+   [
+    23.0,
+    4.46499977260828
+   ],
+   [
+    23.6,
+    4.724300000816584
+   ],
+   [
+    24.1,
+    4.599300213158131
+   ],
+   [
+    24.7,
+    4.616999998688698
+   ],
+   [
+    25.2,
+    4.549299832433462
+   ],
+   [
+    25.7,
+    55.61060085892677
+   ],
+   [
+    26.3,
+    5.963900126516819
+   ],
+   [
+    26.8,
+    66.17049872875214
+   ],
+   [
+    27.3,
+    22.110700607299805
+   ],
+   [
+    27.9,
+    3.8415000308305025
+   ],
+   [
+    28.4,
+    3.7434000987559557
+   ],
+   [
+    28.9,
+    3.8987998850643635
+   ],
+   [
+    29.5,
+    4.078200086951256
+   ],
+   [
+    30.0,
+    14.804099686443806
+   ]
+  ],
+  "foreign_gpu_processes": [],
+  "wake": {
+   "last_wake_ms": 0.0,
+   "max_wake_ms": 0.0,
+   "last_wake_split_ms": {
+    "alloc": 12.2555,
+    "cells": 3499200,
+    "gpu_buffers": 18.1425,
+    "gpu_create_upload": 47.8736,
+    "gpu_create_volume": 34.9359,
+    "gpu_fill": 0.8374,
+    "gpu_occ_copy": 0.1659,
+    "gpu_pipeline_count": 24,
+    "gpu_pipelines": 15.8839,
+    "gpu_pipelines_reused": 0,
+    "gpu_upload": 12.7715,
+    "occupancy": 7.688,
+    "occupancy_threads": 8,
+    "seed": 4.1722,
+    "seed_occupancy": 1.9621,
+    "solids": 0.0,
+    "span_read": 0.6287
+   },
+   "last_patch_split_ms": {
+    "adopt": 7.5758,
+    "create": 67.829,
+    "size": 0.6197,
+    "wake_tile": 12.3475
+   },
+   "last_upload_split_ms": {
+    "bricks": 0,
+    "clear": 2.6372,
+    "host": 4.8975,
+    "residency": 4.5965,
+    "residency_split": {
+     "apply": 0.1359,
+     "ground": 0.9021,
+     "grow": 0.024,
+     "need": 3.5345
+    },
+    "scatter": 0.0002,
+    "settle": 0.0001,
+    "submit": 0.508,
+    "tables": 0.0126
+   },
+   "last_grow_split_ms": {
+    "alloc": 0.0,
+    "bytes_after": 0,
+    "copy": 0.0,
+    "free": 0.0,
+    "grows": 0,
+    "rebind": 0.0,
+    "tables": 0.0
+   }
+  },
+  "windows": [
+   {
+    "t": 0.4,
+    "frame_ms_max": 169.22849416732788,
+    "parts": {
+     "gpu.07 partition + tables": 3.1,
+     "gpu.08 record the commands": 10.4,
+     "mgr.2 record / wake tiles": 25.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 16.48,
+     "motion.1 takeMotion scan": 3.73,
+     "ripples.1 surfaceFields (= surf.*)": 1.05,
+     "ripples.2 masks + layers": 15.56,
+     "surf.1 read the GPU surface": 1.3,
+     "surf.4 mark recorded columns": 1.02,
+     "up.0 max speed": 1.91,
+     "up.1 host occupancy + solid tops": 2.98
+    }
+   },
+   {
+    "t": 0.9,
+    "frame_ms_max": 65.03310054540634,
+    "parts": {
+     "collect.1 fence wait": 6.59,
+     "gpu.01 settle (collect the call before)": 6.8,
+     "gpu.04 residency: which bricks": 1.72,
+     "gpu.05 residency: apply": 1.44,
+     "gpu.07 partition + tables": 1.24,
+     "gpu.08 record the commands": 1.11,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 10.42
+    }
+   },
+   {
+    "t": 1.5,
+    "frame_ms_max": 18.08680035173893,
+    "parts": {
+     "collect.1 fence wait": 6.85,
+     "gpu.01 settle (collect the call before)": 7.1,
+     "gpu.04 residency: which bricks": 1.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 10.01,
+     "surf.1 read the GPU surface": 1.12
+    }
+   },
+   {
+    "t": 2.0,
+    "frame_ms_max": 7.842600345611572,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.43,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.56
+    }
+   },
+   {
+    "t": 2.5,
+    "frame_ms_max": 7.845600135624409,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.07,
+     "gpu.04 residency: which bricks": 1.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.24
+    }
+   },
+   {
+    "t": 3.1,
+    "frame_ms_max": 9.004100225865841,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.06,
+     "gpu.04 residency: which bricks": 1.37,
+     "gpu.05 residency: apply": 1.29,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.9
+    }
+   },
+   {
+    "t": 3.6,
+    "frame_ms_max": 7.807599846273661,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.63
+    }
+   },
+   {
+    "t": 4.2,
+    "frame_ms_max": 7.970999926328659,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.17,
+     "gpu.04 residency: which bricks": 1.31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.2
+    }
+   },
+   {
+    "t": 4.7,
+    "frame_ms_max": 7.672599982470274,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.27,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.4,
+     "ripples.1 surfaceFields (= surf.*)": 1.11,
+     "surf.1 read the GPU surface": 1.08
+    }
+   },
+   {
+    "t": 5.3,
+    "frame_ms_max": 7.452100049704313,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.09,
+     "gpu.04 residency: which bricks": 1.26,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.06
+    }
+   },
+   {
+    "t": 5.8,
+    "frame_ms_max": 7.447599899023771,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.54,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.63
+    }
+   },
+   {
+    "t": 6.3,
+    "frame_ms_max": 9.334700182080269,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.14,
+     "gpu.04 residency: which bricks": 1.41,
+     "mgr.3 tall cells": 1.06,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.26
+    }
+   },
+   {
+    "t": 6.9,
+    "frame_ms_max": 8.436400443315506,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.41
+    }
+   },
+   {
+    "t": 7.4,
+    "frame_ms_max": 7.6795001514256,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.13,
+     "gpu.04 residency: which bricks": 1.48,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.14
+    }
+   },
+   {
+    "t": 7.9,
+    "frame_ms_max": 7.411099970340729,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.26,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.37
+    }
+   },
+   {
+    "t": 8.4,
+    "frame_ms_max": 14.78859968483448,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.05,
+     "gpu.04 residency: which bricks": 1.43,
+     "gpu.09 submit": 5.73,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 8.04,
+     "ripples.1 surfaceFields (= surf.*)": 1.11,
+     "surf.1 read the GPU surface": 1.08
+    }
+   },
+   {
+    "t": 8.9,
+    "frame_ms_max": 9.103599935770035,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.25,
+     "mgr.3 tall cells": 1.19,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.39,
+     "ripples.1 surfaceFields (= surf.*)": 1.06,
+     "surf.1 read the GPU surface": 1.03
+    }
+   },
+   {
+    "t": 9.5,
+    "frame_ms_max": 8.976999670267105,
+    "parts": {
+     "collect.3 stats + record + sleep": 1.09,
+     "gpu.01 settle (collect the call before)": 1.28,
+     "gpu.04 residency: which bricks": 1.9,
+     "mgr.3 tall cells": 1.12,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.4,
+     "ripples.1 surfaceFields (= surf.*)": 1.16,
+     "surf.1 read the GPU surface": 1.13
+    }
+   },
+   {
+    "t": 10.0,
+    "frame_ms_max": 8.81229992955923,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.42,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.48
+    }
+   },
+   {
+    "t": 10.6,
+    "frame_ms_max": 8.535600267350674,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.14,
+     "gpu.04 residency: which bricks": 1.25,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.29,
+     "ripples.1 surfaceFields (= surf.*)": 1.15,
+     "surf.1 read the GPU surface": 1.13
+    }
+   },
+   {
+    "t": 11.1,
+    "frame_ms_max": 19.298499450087547,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.27,
+     "gpu.06 compact": 4.95,
+     "gpu.07 partition + tables": 5.26,
+     "mgr.3 tall cells": 3.31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 12.46
+    }
+   },
+   {
+    "t": 11.6,
+    "frame_ms_max": 6.595099810510874,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.24,
+     "ripples.1 surfaceFields (= surf.*)": 1.15,
+     "surf.1 read the GPU surface": 1.13
+    }
+   },
+   {
+    "t": 12.2,
+    "frame_ms_max": 6.272200029343367,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.26
+    }
+   },
+   {
+    "t": 12.7,
+    "frame_ms_max": 6.306000053882599,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.17
+    }
+   },
+   {
+    "t": 13.3,
+    "frame_ms_max": 6.340700201690197,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.3
+    }
+   },
+   {
+    "t": 13.8,
+    "frame_ms_max": 6.555499974638224,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.12
+    }
+   },
+   {
+    "t": 14.4,
+    "frame_ms_max": 6.4338999800384045,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.35
+    }
+   },
+   {
+    "t": 14.9,
+    "frame_ms_max": 6.350699812173843,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.11
+    }
+   },
+   {
+    "t": 15.4,
+    "frame_ms_max": 6.387699861079454,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.48
+    }
+   },
+   {
+    "t": 16.0,
+    "frame_ms_max": 6.2362998723983765,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.09
+    }
+   },
+   {
+    "t": 16.5,
+    "frame_ms_max": 6.061399821192026,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.24
+    }
+   },
+   {
+    "t": 17.1,
+    "frame_ms_max": 5.746500100940466,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.99
+    }
+   },
+   {
+    "t": 17.6,
+    "frame_ms_max": 5.375300068408251,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.87
+    }
+   },
+   {
+    "t": 18.2,
+    "frame_ms_max": 60.59550121426582,
+    "parts": {
+     "mgr.2 record / wake tiles": 25.42,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.01,
+     "motion.1 takeMotion scan": 3.13,
+     "ripples.2 masks + layers": 3.04,
+     "tilesNow.2 surface": 1.36
+    }
+   },
+   {
+    "t": 18.7,
+    "frame_ms_max": 54.68109995126724,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.34,
+     "motion.1 takeMotion scan": 3.25,
+     "ripples.2 masks + layers": 2.88,
+     "tilesNow.2 surface": 1.42
+    }
+   },
+   {
+    "t": 19.3,
+    "frame_ms_max": 4.032100085169077,
+    "parts": {}
+   },
+   {
+    "t": 19.8,
+    "frame_ms_max": 4.304700065404177,
+    "parts": {}
+   },
+   {
+    "t": 20.3,
+    "frame_ms_max": 4.069100134074688,
+    "parts": {}
+   },
+   {
+    "t": 20.9,
+    "frame_ms_max": 4.080300219357014,
+    "parts": {}
+   },
+   {
+    "t": 21.4,
+    "frame_ms_max": 4.153300076723099,
+    "parts": {}
+   },
+   {
+    "t": 22.0,
+    "frame_ms_max": 62.125299125909805,
+    "parts": {
+     "motion.1 takeMotion scan": 3.68,
+     "ripples.2 masks + layers": 4.15,
+     "tilesNow.2 surface": 1.56
+    }
+   },
+   {
+    "t": 22.5,
+    "frame_ms_max": 53.21570113301277,
+    "parts": {
+     "motion.1 takeMotion scan": 3.39,
+     "ripples.2 masks + layers": 4.21,
+     "tilesNow.2 surface": 1.36
+    }
+   },
+   {
+    "t": 23.0,
+    "frame_ms_max": 4.46499977260828,
+    "parts": {}
+   },
+   {
+    "t": 23.6,
+    "frame_ms_max": 4.724300000816584,
+    "parts": {}
+   },
+   {
+    "t": 24.1,
+    "frame_ms_max": 4.599300213158131,
+    "parts": {}
+   },
+   {
+    "t": 24.7,
+    "frame_ms_max": 4.616999998688698,
+    "parts": {}
+   },
+   {
+    "t": 25.2,
+    "frame_ms_max": 4.549299832433462,
+    "parts": {}
+   },
+   {
+    "t": 25.7,
+    "frame_ms_max": 55.61060085892677,
+    "parts": {
+     "motion.1 takeMotion scan": 3.69,
+     "ripples.2 masks + layers": 3.91,
+     "tilesNow.2 surface": 1.62
+    }
+   },
+   {
+    "t": 26.3,
+    "frame_ms_max": 5.963900126516819,
+    "parts": {}
+   },
+   {
+    "t": 26.8,
+    "frame_ms_max": 66.17049872875214,
+    "parts": {
+     "motion.1 takeMotion scan": 3.41,
+     "ripples.2 masks + layers": 6.19,
+     "sleep.2 read the GPU grid": 18.43,
+     "sleep.3 held columns": 3.22,
+     "sleep.4 runs from the grid": 6.9,
+     "sleep.6 write the spans": 4.41,
+     "tilesNow.2 surface": 1.35
+    }
+   },
+   {
+    "t": 27.3,
+    "frame_ms_max": 22.110700607299805,
+    "parts": {}
+   },
+   {
+    "t": 27.9,
+    "frame_ms_max": 3.8415000308305025,
+    "parts": {}
+   },
+   {
+    "t": 28.4,
+    "frame_ms_max": 3.7434000987559557,
+    "parts": {}
+   },
+   {
+    "t": 28.9,
+    "frame_ms_max": 3.8987998850643635,
+    "parts": {}
+   },
+   {
+    "t": 29.5,
+    "frame_ms_max": 4.078200086951256,
+    "parts": {}
+   },
+   {
+    "t": 30.0,
+    "frame_ms_max": 14.804099686443806,
+    "parts": {}
+   }
+  ]
+ },
+ {
+  "run": 1,
+  "record_lake": {
+   "box": [
+    4,
+    16,
+    2,
+    63,
+    18,
+    61
+   ],
+   "m3": 7200.0,
+   "slept_boxes": 1,
+   "success": true,
+   "unwritten_columns": 0
+  },
+  "stone": {
+   "strength": 8.0,
+   "success": true,
+   "woken": [
+    4
+   ]
+  },
+  "slept_at_s": 26.4,
+  "sleep_parts_ms": {},
+  "sleep_total_ms": 0,
+  "worst_frame": [
+   0.4,
+   157.00839459896088
+  ],
+  "worst_frame_sleep_window": [
+   26.4,
+   57.844698429107666
+  ],
+  "record_draw": {
+   "build_ms_last_call": 0.0038,
+   "build_ms_max": 128.0075,
+   "build_ms_on_sleep_last": 3.0748,
+   "built_last_call": 0,
+   "handover_frames_last": 7,
+   "handover_tiles_max_per_frame": 4,
+   "handover_tiles_per_frame": 4,
+   "handovers": 2,
+   "on": true,
+   "pending": 0,
+   "radius_m": 48.0,
+   "retiring": 0,
+   "revision": 112,
+   "sleep_tiles_built": 268,
+   "tile_m": 8,
+   "tiles": 137,
+   "wet_tiles": 109
+  },
+  "worst_frame_ms_by_read": [
+   [
+    0.4,
+    157.00839459896088
+   ],
+   [
+    1.0,
+    81.31320029497147
+   ],
+   [
+    1.5,
+    23.00970070064068
+   ],
+   [
+    2.1,
+    8.859099820256233
+   ],
+   [
+    2.6,
+    8.644700050354004
+   ],
+   [
+    3.1,
+    9.688500314950943
+   ],
+   [
+    3.7,
+    21.15730009973049
+   ],
+   [
+    4.2,
+    27.614299207925797
+   ],
+   [
+    4.7,
+    27.70560048520565
+   ],
+   [
+    5.3,
+    26.241200044751167
+   ],
+   [
+    5.9,
+    28.76639924943447
+   ],
+   [
+    6.4,
+    21.47510088980198
+   ],
+   [
+    7.0,
+    21.579600870609283
+   ],
+   [
+    7.5,
+    22.53510057926178
+   ],
+   [
+    8.1,
+    36.73020005226135
+   ],
+   [
+    8.6,
+    9.111599996685982
+   ],
+   [
+    9.2,
+    10.42530033737421
+   ],
+   [
+    9.7,
+    7.737100124359131
+   ],
+   [
+    10.2,
+    8.09940043836832
+   ],
+   [
+    10.8,
+    8.168799802660942
+   ],
+   [
+    11.4,
+    20.238099619746208
+   ],
+   [
+    11.9,
+    7.92820006608963
+   ],
+   [
+    12.4,
+    6.8246000446379185
+   ],
+   [
+    13.0,
+    8.170600049197674
+   ],
+   [
+    13.5,
+    7.142399903386831
+   ],
+   [
+    14.1,
+    7.285499945282936
+   ],
+   [
+    14.6,
+    6.77690003067255
+   ],
+   [
+    15.2,
+    7.233600132167339
+   ],
+   [
+    15.7,
+    6.794400047510862
+   ],
+   [
+    16.3,
+    6.294500082731247
+   ],
+   [
+    16.8,
+    6.493300199508667
+   ],
+   [
+    17.3,
+    5.858399905264378
+   ],
+   [
+    17.9,
+    5.881600081920624
+   ],
+   [
+    18.4,
+    68.58579814434052
+   ],
+   [
+    18.9,
+    4.655200056731701
+   ],
+   [
+    19.5,
+    47.94489964842796
+   ],
+   [
+    20.0,
+    5.171199794858694
+   ],
+   [
+    20.5,
+    6.979799829423428
+   ],
+   [
+    21.0,
+    6.451699882745743
+   ],
+   [
+    21.6,
+    49.95650053024292
+   ],
+   [
+    22.1,
+    5.193899851292372
+   ],
+   [
+    22.7,
+    51.527298986911774
+   ],
+   [
+    23.2,
+    7.259800098836422
+   ],
+   [
+    23.8,
+    7.073500193655491
+   ],
+   [
+    24.3,
+    4.833899904042482
+   ],
+   [
+    24.8,
+    7.025000173598528
+   ],
+   [
+    25.4,
+    6.975499913096428
+   ],
+   [
+    25.9,
+    50.235699862241745
+   ],
+   [
+    26.4,
+    57.844698429107666
+   ],
+   [
+    27.0,
+    4.803599789738655
+   ],
+   [
+    27.5,
+    5.97799988463521
+   ],
+   [
+    28.0,
+    5.775100085884333
+   ],
+   [
+    28.6,
+    6.008999887853861
+   ],
+   [
+    29.1,
+    4.523400217294693
+   ],
+   [
+    29.6,
+    12.714000418782234
+   ]
+  ],
+  "foreign_gpu_processes": [
+   "G:\\Github\\phyxel-matsimb-lab\\build\\tests\\integration\\Release\\phyxel_integration_tests.exe"
+  ],
+  "wake": {
+   "last_wake_ms": 0.0,
+   "max_wake_ms": 0.0,
+   "last_wake_split_ms": {
+    "alloc": 13.3953,
+    "cells": 3499200,
+    "gpu_buffers": 18.0194,
+    "gpu_create_upload": 33.321,
+    "gpu_create_volume": 20.7867,
+    "gpu_fill": 0.5322,
+    "gpu_occ_copy": 0.3795,
+    "gpu_pipeline_count": 24,
+    "gpu_pipelines": 2.1684,
+    "gpu_pipelines_reused": 24,
+    "gpu_upload": 12.1544,
+    "occupancy": 7.48,
+    "occupancy_threads": 8,
+    "seed": 4.1722,
+    "seed_occupancy": 1.9621,
+    "solids": 0.0001,
+    "span_read": 0.6287
+   },
+   "last_patch_split_ms": {
+    "adopt": 7.7125,
+    "create": 54.2029,
+    "size": 0.6058,
+    "wake_tile": 13.0792
+   },
+   "last_upload_split_ms": {
+    "bricks": 0,
+    "clear": 2.7232,
+    "host": 4.9795,
+    "residency": 3.9033,
+    "residency_split": {
+     "apply": 0.1359,
+     "ground": 0.8341,
+     "grow": 0.0224,
+     "need": 2.9109
+    },
+    "scatter": 0.0002,
+    "settle": 0.0,
+    "submit": 0.4378,
+    "tables": 0.019
+   },
+   "last_grow_split_ms": {
+    "alloc": 0.0,
+    "bytes_after": 0,
+    "copy": 0.0,
+    "free": 0.0,
+    "grows": 0,
+    "rebind": 0.0,
+    "tables": 0.0
+   }
+  },
+  "windows": [
+   {
+    "t": 0.4,
+    "frame_ms_max": 157.00839459896088,
+    "parts": {
+     "gpu.07 partition + tables": 2.83,
+     "gpu.08 record the commands": 9.5,
+     "mgr.2 record / wake tiles": 27.68,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 15.77,
+     "motion.1 takeMotion scan": 3.95,
+     "ripples.2 masks + layers": 7.47,
+     "surf.1 read the GPU surface": 2.06,
+     "up.0 max speed": 1.84,
+     "up.1 host occupancy + solid tops": 3.14
+    }
+   },
+   {
+    "t": 1.0,
+    "frame_ms_max": 81.31320029497147,
+    "parts": {
+     "collect.1 fence wait": 11.53,
+     "gpu.01 settle (collect the call before)": 11.79,
+     "gpu.04 residency: which bricks": 3.12,
+     "gpu.05 residency: apply": 1.87,
+     "gpu.08 record the commands": 1.64,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 15.21
+    }
+   },
+   {
+    "t": 1.5,
+    "frame_ms_max": 23.00970070064068,
+    "parts": {
+     "collect.1 fence wait": 13.26,
+     "gpu.01 settle (collect the call before)": 13.54,
+     "gpu.04 residency: which bricks": 3.16,
+     "gpu.05 residency: apply": 1.53,
+     "gpu.08 record the commands": 1.46,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 16.51,
+     "ripples.2 masks + layers": 1.04,
+     "surf.1 read the GPU surface": 1.45
+    }
+   },
+   {
+    "t": 2.1,
+    "frame_ms_max": 8.859099820256233,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.58,
+     "ripples.2 masks + layers": 1.01,
+     "surf.1 read the GPU surface": 1.18
+    }
+   },
+   {
+    "t": 2.6,
+    "frame_ms_max": 8.644700050354004,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.35,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.63
+    }
+   },
+   {
+    "t": 3.1,
+    "frame_ms_max": 9.688500314950943,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.12,
+     "gpu.04 residency: which bricks": 1.28,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.34,
+     "ripples.2 masks + layers": 1.02
+    }
+   },
+   {
+    "t": 3.7,
+    "frame_ms_max": 21.15730009973049,
+    "parts": {
+     "collect.1 fence wait": 13.82,
+     "gpu.01 settle (collect the call before)": 14.01,
+     "gpu.04 residency: which bricks": 1.55,
+     "mgr.3 tall cells": 1.06,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 16.15
+    }
+   },
+   {
+    "t": 4.2,
+    "frame_ms_max": 27.614299207925797,
+    "parts": {
+     "collect.1 fence wait": 18.97,
+     "collect.3 stats + record + sleep": 1.0,
+     "gpu.01 settle (collect the call before)": 19.18,
+     "gpu.04 residency: which bricks": 1.44,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 21.34
+    }
+   },
+   {
+    "t": 4.7,
+    "frame_ms_max": 27.70560048520565,
+    "parts": {
+     "collect.1 fence wait": 19.31,
+     "gpu.01 settle (collect the call before)": 19.51,
+     "gpu.04 residency: which bricks": 1.53,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 21.61
+    }
+   },
+   {
+    "t": 5.3,
+    "frame_ms_max": 26.241200044751167,
+    "parts": {
+     "collect.1 fence wait": 14.18,
+     "collect.3 stats + record + sleep": 1.0,
+     "gpu.01 settle (collect the call before)": 14.64,
+     "gpu.04 residency: which bricks": 1.47,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 16.95
+    }
+   },
+   {
+    "t": 5.9,
+    "frame_ms_max": 28.76639924943447,
+    "parts": {
+     "collect.1 fence wait": 20.11,
+     "gpu.01 settle (collect the call before)": 20.31,
+     "gpu.04 residency: which bricks": 1.49,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 22.62
+    }
+   },
+   {
+    "t": 6.4,
+    "frame_ms_max": 21.47510088980198,
+    "parts": {
+     "collect.1 fence wait": 12.83,
+     "gpu.01 settle (collect the call before)": 13.04,
+     "gpu.04 residency: which bricks": 1.44,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 15.2
+    }
+   },
+   {
+    "t": 7.0,
+    "frame_ms_max": 21.579600870609283,
+    "parts": {
+     "collect.1 fence wait": 12.52,
+     "gpu.01 settle (collect the call before)": 12.74,
+     "gpu.04 residency: which bricks": 1.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 15.02
+    }
+   },
+   {
+    "t": 7.5,
+    "frame_ms_max": 22.53510057926178,
+    "parts": {
+     "collect.1 fence wait": 14.59,
+     "gpu.01 settle (collect the call before)": 14.8,
+     "gpu.04 residency: which bricks": 1.32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 16.98,
+     "ripples.1 surfaceFields (= surf.*)": 1.03
+    }
+   },
+   {
+    "t": 8.1,
+    "frame_ms_max": 36.73020005226135,
+    "parts": {
+     "collect.1 fence wait": 13.31,
+     "gpu.01 settle (collect the call before)": 13.51,
+     "gpu.04 residency: which bricks": 1.36,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 15.65,
+     "ripples.1 surfaceFields (= surf.*)": 1.01
+    }
+   },
+   {
+    "t": 8.6,
+    "frame_ms_max": 9.111599996685982,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.12,
+     "gpu.04 residency: which bricks": 1.27,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.37
+    }
+   },
+   {
+    "t": 9.2,
+    "frame_ms_max": 10.42530033737421,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.11,
+     "gpu.04 residency: which bricks": 1.47,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.27
+    }
+   },
+   {
+    "t": 9.7,
+    "frame_ms_max": 7.737100124359131,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.66
+    }
+   },
+   {
+    "t": 10.2,
+    "frame_ms_max": 8.09940043836832,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.15,
+     "gpu.04 residency: which bricks": 1.45,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.35
+    }
+   },
+   {
+    "t": 10.8,
+    "frame_ms_max": 8.168799802660942,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.26,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.55
+    }
+   },
+   {
+    "t": 11.4,
+    "frame_ms_max": 20.238099619746208,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.15,
+     "gpu.04 residency: which bricks": 1.24,
+     "gpu.06 compact": 5.31,
+     "gpu.07 partition + tables": 5.15,
+     "mgr.3 tall cells": 3.63,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 12.82
+    }
+   },
+   {
+    "t": 11.9,
+    "frame_ms_max": 7.92820006608963,
+    "parts": {
+     "gpu.08 record the commands": 2.35,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 4.03,
+     "ripples.1 surfaceFields (= surf.*)": 1.01
+    }
+   },
+   {
+    "t": 12.4,
+    "frame_ms_max": 6.8246000446379185,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.41
+    }
+   },
+   {
+    "t": 13.0,
+    "frame_ms_max": 8.170600049197674,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.89
+    }
+   },
+   {
+    "t": 13.5,
+    "frame_ms_max": 7.142399903386831,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.06
+    }
+   },
+   {
+    "t": 14.1,
+    "frame_ms_max": 7.285499945282936,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.34
+    }
+   },
+   {
+    "t": 14.6,
+    "frame_ms_max": 6.77690003067255,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.56
+    }
+   },
+   {
+    "t": 15.2,
+    "frame_ms_max": 7.233600132167339,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.39
+    }
+   },
+   {
+    "t": 15.7,
+    "frame_ms_max": 6.794400047510862,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.41
+    }
+   },
+   {
+    "t": 16.3,
+    "frame_ms_max": 6.294500082731247,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.34
+    }
+   },
+   {
+    "t": 16.8,
+    "frame_ms_max": 6.493300199508667,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.37
+    }
+   },
+   {
+    "t": 17.3,
+    "frame_ms_max": 5.858399905264378,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.14
+    }
+   },
+   {
+    "t": 17.9,
+    "frame_ms_max": 5.881600081920624,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.94
+    }
+   },
+   {
+    "t": 18.4,
+    "frame_ms_max": 68.58579814434052,
+    "parts": {
+     "gpu.08 record the commands": 1.03,
+     "mgr.2 record / wake tiles": 29.13,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.29,
+     "motion.1 takeMotion scan": 3.67,
+     "ripples.2 masks + layers": 4.59,
+     "tilesNow.2 surface": 1.57
+    }
+   },
+   {
+    "t": 18.9,
+    "frame_ms_max": 4.655200056731701,
+    "parts": {}
+   },
+   {
+    "t": 19.5,
+    "frame_ms_max": 47.94489964842796,
+    "parts": {
+     "motion.1 takeMotion scan": 3.49,
+     "ripples.2 masks + layers": 4.06,
+     "tilesNow.2 surface": 1.31
+    }
+   },
+   {
+    "t": 20.0,
+    "frame_ms_max": 5.171199794858694,
+    "parts": {}
+   },
+   {
+    "t": 20.5,
+    "frame_ms_max": 6.979799829423428,
+    "parts": {}
+   },
+   {
+    "t": 21.0,
+    "frame_ms_max": 6.451699882745743,
+    "parts": {}
+   },
+   {
+    "t": 21.6,
+    "frame_ms_max": 49.95650053024292,
+    "parts": {
+     "motion.1 takeMotion scan": 3.24,
+     "ripples.2 masks + layers": 3.85,
+     "tilesNow.2 surface": 1.61
+    }
+   },
+   {
+    "t": 22.1,
+    "frame_ms_max": 5.193899851292372,
+    "parts": {}
+   },
+   {
+    "t": 22.7,
+    "frame_ms_max": 51.527298986911774,
+    "parts": {
+     "motion.1 takeMotion scan": 3.4,
+     "ripples.2 masks + layers": 3.74,
+     "tilesNow.2 surface": 1.38
+    }
+   },
+   {
+    "t": 23.2,
+    "frame_ms_max": 7.259800098836422,
+    "parts": {}
+   },
+   {
+    "t": 23.8,
+    "frame_ms_max": 7.073500193655491,
+    "parts": {}
+   },
+   {
+    "t": 24.3,
+    "frame_ms_max": 4.833899904042482,
+    "parts": {}
+   },
+   {
+    "t": 24.8,
+    "frame_ms_max": 7.025000173598528,
+    "parts": {}
+   },
+   {
+    "t": 25.4,
+    "frame_ms_max": 6.975499913096428,
+    "parts": {}
+   },
+   {
+    "t": 25.9,
+    "frame_ms_max": 50.235699862241745,
+    "parts": {
+     "motion.1 takeMotion scan": 3.49,
+     "ripples.2 masks + layers": 3.94,
+     "tilesNow.2 surface": 1.49
+    }
+   },
+   {
+    "t": 26.4,
+    "frame_ms_max": 57.844698429107666,
+    "parts": {
+     "destroy.1 device idle": 3.73,
+     "ripples.2 masks + layers": 6.1,
+     "sleep.2 read the GPU grid": 21.19,
+     "sleep.3 held columns": 3.22,
+     "sleep.4 runs from the grid": 6.75,
+     "sleep.6 write the spans": 4.3
+    }
+   },
+   {
+    "t": 27.0,
+    "frame_ms_max": 4.803599789738655,
+    "parts": {}
+   },
+   {
+    "t": 27.5,
+    "frame_ms_max": 5.97799988463521,
+    "parts": {}
+   },
+   {
+    "t": 28.0,
+    "frame_ms_max": 5.775100085884333,
+    "parts": {}
+   },
+   {
+    "t": 28.6,
+    "frame_ms_max": 6.008999887853861,
+    "parts": {}
+   },
+   {
+    "t": 29.1,
+    "frame_ms_max": 4.523400217294693,
+    "parts": {}
+   },
+   {
+    "t": 29.6,
+    "frame_ms_max": 12.714000418782234,
+    "parts": {}
+   }
+  ]
+ }
+]

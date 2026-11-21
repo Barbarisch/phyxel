@@ -252,7 +252,7 @@ void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads, Genera
     }
     // the old source's summaries go (another world's generator must never answer); the record's stay
     for (auto it = m_sum.begin(); it != m_sum.end();) { if (it->second.fromGen) it = m_sum.erase(it); else { it->second.requested = false; it->second.requestedS = false; ++it; } }
-    ++m_sumVersion; m_scanValid = false; ++m_genEpoch;
+    ++m_sumVersion; ++m_sumAllEpoch; m_scanValid = false; ++m_genEpoch;
     if (!factory) return;
     m_worker = std::make_unique<Worker>();
     const int n = std::clamp(threads, 1, 8);
@@ -264,14 +264,28 @@ void WaterSkin::setGeneratorSource(GeneratorFactory factory, int threads, Genera
 
 void WaterSkin::spansWritten(uint64_t before, uint64_t after, const std::unordered_set<uint64_t>& touched) {
     // the summaries read from the record (fromGen: the generator's - never stale on the record's revision)
-    for (auto& [key, sm] : m_sum)
-        if (sm.built && !sm.fromGen && sm.spanRev == before && !touched.count(key)) sm.spanRev = after;
-    // the next call scans once (a touched column is found stale there); nothing touched: nothing to find
-    if (touched.empty() && m_scanSpanRev == before) m_scanSpanRev = after;
+    // 58 item 1: nothing walked - the touched columns are written after their summaries (upToDate); an untouched summary needs no
+    // change (it is up to date while built at or after m_bulkRev). A broken chain (another writer between) is found by update's
+    // revision test: everything older goes stale there, as before
+    m_stats.writeWalkedLast = 0;
+    if (m_scanSpanRev == before) for (uint64_t k : touched) m_touchedAt[k] = after;
+    // 58 item 1: the scan stays valid - only the touched columns are stale, queued for the next call (was: one whole scan of the
+    // reach, ~70k chunk columns at 4 km - 12-18 ms of every tile a live patch recorded)
+    if (m_scanSpanRev == before) {
+        m_scanSpanRev = after;
+        m_writeStale.insert(m_writeStale.end(), touched.begin(), touched.end());
+    }
+}
+
+bool WaterSkin::upToDate(uint64_t key, const Summary& sm) const {
+    if (!sm.built || sm.fromGen || sm.reread || sm.spanRev == ~0ull || sm.spanRev < m_bulkRev) return false;
+    const auto t = m_touchedAt.find(key);
+    return t == m_touchedAt.end() || t->second <= sm.spanRev;
 }
 
 void WaterSkin::clear() {
     m_sum.clear(); m_fieldMap.clear(); m_out.clear(); m_levelKeys.clear(); m_keyValid = false; m_resSeen = ~0ull; m_scanValid = false; m_lastPending = 0;
+    m_writeStale.clear(); m_touchedAt.clear(); m_bulkRev = 0;
     if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_worker->queue.clear(); m_worker->squeue.clear(); m_worker->queuedColumns = 0; m_worker->done.clear(); }
     if (m_gc && !m_gc->verifyKeys.empty()) m_gc->verifyRequeue = true;   // 51.16: the verification's jobs went with the queue
 }
@@ -300,7 +314,7 @@ void WaterSkin::buildSummary(int ccx, int ccz, Summary& s, const std::vector<Col
     }
     bool changed = !s.built;
     for (int k = 0; k < 85 && !changed; ++k) changed = !(cells[k] == s.cells[k]);
-    if (changed) { std::copy(std::begin(cells), std::end(cells), std::begin(s.cells)); s.version = ++m_sumVersion; }
+    if (changed) { std::copy(std::begin(cells), std::end(cells), std::begin(s.cells)); s.version = ++m_sumVersion; m_sumChanged.push_back(columnKey(ccx, ccz)); }
     s.built = true;
 }
 
@@ -367,7 +381,10 @@ bool WaterSkin::aggregateCell(int /*level*/, int sizeM, long gx, long gz, SkinCe
 
 void WaterSkin::update(const Settings& s, const Inputs& in) {
     const auto t0 = std::chrono::steady_clock::now();
-    m_stats.summariesBuiltLastCall = 0; m_stats.fieldsRebuiltLastCall = 0; m_stats.pending = 0;
+    m_stats.summariesBuiltLastCall = 0; m_stats.fieldsRebuiltLastCall = 0; m_stats.fieldsExaminedLastCall = 0; m_stats.cellsAggregatedLastCall = 0; m_stats.pending = 0;
+    m_stats.msScan = m_stats.msRead = m_stats.msBuild = m_stats.msFields = 0.0; m_stats.scannedLastCall = 0; m_stats.countWalkedLastCall = 0;
+    using SkClock = std::chrono::steady_clock;
+    auto skMs = [](SkClock::time_point a) { return std::chrono::duration<double, std::milli>(SkClock::now() - a).count(); };
     if (!s.on || !in.reader || !*in.reader) {
         if (!m_out.empty() || !m_sum.empty() || !m_fieldMap.empty()) clear();
         m_stats.levels = m_stats.fields = m_stats.wetCells = m_stats.summaries = m_stats.ringCells = 0;
@@ -429,7 +446,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                 if (resident(cx, cz)) { m_scanValid = false; continue; }
                 if (sm.built && sm.fromGen && !sm.sampled) continue;            // the generator's came first: it stays
                 buildSummary(cx, cz, sm, runs);
-                sm.fromGen = true; sm.sampled = true; sm.spanRev = in.spanRevision; sm.res = 0;
+                sm.fromGen = true; sm.sampled = true; sm.spanRev = in.spanRevision; sm.res = 0; sm.reread = false;
                 ++m_stats.sampledBuilt;
                 continue;
             }
@@ -478,7 +495,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
             }
             if (sm.built && sm.sampled) ++m_stats.upgrades;
             buildSummary(cx, cz, sm, runs);
-            sm.fromGen = true; sm.sampled = false; sm.spanRev = in.spanRevision; sm.res = 0;
+            sm.fromGen = true; sm.sampled = false; sm.spanRev = in.spanRevision; sm.res = 0; sm.reread = false;
             ++m_stats.genBuilt;
             // 51.16: written to the cache - a column with stored chunks never (its summary is not the generator's alone)
             if (m_gc && sm.storedCy.empty() && m_gcStats.state != GcLoading && m_gcStats.state != GcVerifying && !m_gc->entries.count(key)) {
@@ -495,7 +512,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         for (auto& [key, sm] : m_sum) {
             const int cx = static_cast<int>(static_cast<int32_t>(key >> 32)), cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
             const uint64_t r = (*in.residentColumn)(cx, cz);
-            if (sm.built ? r != sm.res : r != 0) { sm.spanRev = ~0ull; moved = true; }   // its chunks came or went: re-read
+            if (sm.built ? r != sm.res : r != 0) { sm.reread = true; moved = true; }   // its chunks came or went: re-read
         }
         if (moved) ++m_resGen;
     }
@@ -504,6 +521,12 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     const float reach = farM + static_cast<float>(sMax) * 1.5f + 32.0f;
     const long vcx = floorDivL(static_cast<long>(std::floor(in.view.x)), 32), vcz = floorDivL(static_cast<long>(std::floor(in.view.z)), 32);
     const glm::vec3 vc(static_cast<float>(vcx) * 32.0f + 16.0f, in.view.y, static_cast<float>(vcz) * 32.0f + 16.0f);
+    // 58 item 1: a revision change no spansWritten reported - every record summary built before it is stale (a revision that went
+    // back - a new chunk store - marks them all, once)
+    if (in.spanRevision != m_scanSpanRev) {
+        if (in.spanRevision < m_scanSpanRev) { for (auto& [k, sm] : m_sum) sm.reread = true; m_touchedAt.clear(); }
+        m_bulkRev = in.spanRevision;
+    }
     const bool scan = !(m_scanValid && m_scanCx == vcx && m_scanCz == vcz && m_scanSpanRev == in.spanRevision && m_scanReach == reach
                         && m_scanResGen == m_resGen && m_lastPending == 0);
     m_scanValid = true; m_scanCx = vcx; m_scanCz = vcz; m_scanSpanRev = in.spanRevision; m_scanReach = reach; m_scanResGen = m_resGen;
@@ -521,6 +544,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         const glm::vec2 lo(static_cast<float>(cx * 32), static_cast<float>(cz * 32)), hi = lo + glm::vec2(32.0f);
         const float d2 = WaterLocality::horizontalDistanceSqToBox(vc, lo, hi);
         if (d2 > reach * reach) continue;
+        ++m_stats.scannedLastCall;
         const uint64_t key = columnKey(static_cast<int>(cx), static_cast<int>(cz));
         const auto it = m_sum.find(key);
         if (!resident(static_cast<int>(cx), static_cast<int>(cz))) {
@@ -552,9 +576,9 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
                         Summary& sm = m_sum[key];
                         std::copy(ce->second.begin(), ce->second.end(), std::begin(sm.cells));
                         if (sm.built && sm.sampled) ++m_stats.upgrades;
-                        sm.built = true; sm.fromGen = true; sm.sampled = false; sm.requested = false; sm.spanRev = in.spanRevision; sm.res = 0;
+                        sm.built = true; sm.fromGen = true; sm.sampled = false; sm.requested = false; sm.spanRev = in.spanRevision; sm.res = 0; sm.reread = false;
                         sm.storedCy.clear(); sm.storedRuns.clear();
-                        sm.version = ++m_sumVersion;
+                        sm.version = ++m_sumVersion; m_sumChanged.push_back(key);
                         ++m_gcStats.hits;
                         continue;
                     }
@@ -564,25 +588,41 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
             }
             continue;
         }
-        if (it == m_sum.end() || !it->second.built || it->second.fromGen || it->second.spanRev != in.spanRevision) stale.push_back({d2, key});
+        if (it == m_sum.end() || !upToDate(key, it->second)) stale.push_back({d2, key});
     }
+    // 58 item 1: a core write's touched columns, when no scan ran (a scan found them itself) - the scan's own rule for a resident column
+    if (!scan) for (uint64_t key : m_writeStale) {
+        const int cx = static_cast<int>(static_cast<int32_t>(key >> 32)), cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
+        const glm::vec2 lo(static_cast<float>(cx) * 32.0f, static_cast<float>(cz) * 32.0f);
+        const float d2 = WaterLocality::horizontalDistanceSqToBox(vc, lo, lo + glm::vec2(32.0f));
+        if (d2 > reach * reach || !resident(cx, cz)) continue;
+        const auto it = m_sum.find(key);
+        if (it == m_sum.end() || !upToDate(key, it->second)) stale.push_back({d2, key});
+    }
+    m_writeStale.clear();
     // forget what is well out of reach (bounded memory)
     const float keep = reach + 64.0f;
     if (scan) for (auto it = m_sum.begin(); it != m_sum.end();) {
         const int cx = static_cast<int>(static_cast<int32_t>(it->first >> 32)), cz = static_cast<int>(static_cast<int32_t>(it->first & 0xffffffffull));
         const glm::vec2 lo(static_cast<float>(cx) * 32.0f, static_cast<float>(cz) * 32.0f);
-        if (WaterLocality::horizontalDistanceSqToBox(vc, lo, lo + glm::vec2(32.0f)) > keep * keep) it = m_sum.erase(it); else ++it;   // no cell a level draws reads it: nothing to rebuild
+        if (WaterLocality::horizontalDistanceSqToBox(vc, lo, lo + glm::vec2(32.0f)) > keep * keep) { m_touchedAt.erase(it->first); it = m_sum.erase(it); } else ++it;   // no cell a level draws reads it: nothing to rebuild
     }
     std::sort(stale.begin(), stale.end());
+    m_stats.msScan = skMs(t0);
     const int budget = std::max(1, s.summariesPerCall);
     for (const auto& [d2, key] : stale) {
         if (m_stats.summariesBuiltLastCall >= budget) { ++m_stats.pending; continue; }
         Summary& sm = m_sum[key];
         const int cx = static_cast<int>(static_cast<int32_t>(key >> 32)), cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffull));
         std::vector<ColumnRuns> runs;
+        auto tr = SkClock::now();
         (*in.reader)(glm::ivec3(cx * 32, kYLo, cz * 32), glm::ivec3(cx * 32 + 31, kYHi, cz * 32 + 31), runs);
+        m_stats.msRead += skMs(tr); tr = SkClock::now();
         buildSummary(cx, cz, sm, runs);
-        sm.spanRev = in.spanRevision; sm.fromGen = false; sm.sampled = false; sm.requested = false;
+        m_stats.msBuild += skMs(tr);
+        if (sm.fromGen) { --m_stats.genHeld; if (sm.sampled) --m_stats.sampledHeld; }   // 58 item 1: the counts kept without a walk
+        sm.spanRev = in.spanRevision; sm.fromGen = false; sm.sampled = false; sm.requested = false; sm.reread = false;
+        m_touchedAt.erase(key);
         sm.res = (in.residentColumn && *in.residentColumn) ? (*in.residentColumn)(cx, cz) : 0;
         ++m_stats.summariesBuiltLastCall; ++m_stats.summariesBuilt;
     }
@@ -622,14 +662,42 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
     m_stats.genPending = 0;
     if (m_worker) { std::lock_guard<std::mutex> lk(m_worker->mu); m_stats.genPending = static_cast<int>(m_worker->queuedColumns) + m_worker->inFlight; }
     // counted only on a call that changed the summaries: a walk over thousands of 2.4 KB entries is ~0.2 ms of cache misses (live, 51.4c)
-    if (scan || m_stats.summariesBuiltLastCall > 0 || genDrained > 0) { m_stats.genHeld = m_stats.sampledHeld = 0; for (const auto& [key, sm] : m_sum) { if (sm.fromGen) ++m_stats.genHeld; if (sm.fromGen && sm.sampled) ++m_stats.sampledHeld; } }
+    // 58 item 1: not after a record read (the stale loop keeps the counts) - at 4 km the walk is ~70k entries, ~4 ms of every call
+    // that re-read a written column (live, 58)
+    if (scan || genDrained > 0) { m_stats.genHeld = m_stats.sampledHeld = 0; for (const auto& [key, sm] : m_sum) { ++m_stats.countWalkedLastCall; if (sm.fromGen) ++m_stats.genHeld; if (sm.fromGen && sm.sampled) ++m_stats.sampledHeld; } }
 
+    const auto tFields = SkClock::now();
     // the fields: a level is rebuilt only when what it reads moved - its snapped square, the summaries, the volumes, the settings,
     // and for level 0 the set of record tiles in range (a still camera over a still record rebuilds nothing; a moving one rebuilds
     // a level only when it crosses that level's snap step or, level 0, a record tile enters or leaves the radius)
-    Key key{glm::vec3(0.0f), drawM, farM, base, n, in.recordTilesOn, m_sumVersion, in.volumeBoxesRevision};
+    // 58 item 1: the volumes' revision is NOT in the global key. A volume's boxes and recorded tiles change only what is drawn inside
+    // the boxes (meetsVolume / volumeDraws below ask nothing else), so a change walks only the fields meeting the old or the new
+    // boxes. In the key it re-aggregated every field of every level each time a live patch recorded a quiet tile: 19-26 ms of the
+    // main thread, a hitch every 0.5-2 s of a splash's late life (58, live)
+    // ... and (58) nor is the summaries' version: a changed summary changes only the cells over its chunk column (m_sumChanged)
+    Key key{glm::vec3(0.0f), drawM, farM, base, n, in.recordTilesOn, m_sumAllEpoch, 0ull};
     const bool globalSame = m_keyValid && key == m_key && static_cast<int>(m_levelKeys.size()) == levels;
     m_key = key; m_keyValid = true;
+    const bool boxesMoved = globalSame && m_volRevValid && in.volumeBoxesRevision != m_volRev;
+    const bool volMoved = boxesMoved || (globalSame && !m_sumChanged.empty());   // something moved inside the dirty rectangle only
+    long vbx0 = LONG_MAX, vbx1 = LONG_MIN, vbz0 = LONG_MAX, vbz1 = LONG_MIN;   // world voxels, inclusive: the old boxes and the new, the changed summaries' columns
+    if (globalSame) for (uint64_t ck : m_sumChanged) {
+        const long cx = static_cast<int32_t>(ck >> 32), cz = static_cast<int32_t>(ck & 0xffffffffull);
+        vbx0 = std::min(vbx0, cx * 32); vbx1 = std::max(vbx1, cx * 32 + 31); vbz0 = std::min(vbz0, cz * 32); vbz1 = std::max(vbz1, cz * 32 + 31);
+    }
+    m_sumChanged.clear();
+    if (boxesMoved) {
+        auto grow = [&](const std::vector<std::pair<glm::ivec3, glm::ivec3>>& bs) {
+            for (const auto& b : bs) {
+                vbx0 = std::min<long>(vbx0, b.first.x); vbx1 = std::max<long>(vbx1, b.second.x);
+                vbz0 = std::min<long>(vbz0, b.first.z); vbz1 = std::max<long>(vbz1, b.second.z);
+            }
+        };
+        grow(m_volBoxesPrev);
+        if (in.volumeBoxes) grow(*in.volumeBoxes);
+    }
+    m_volRev = in.volumeBoxesRevision; m_volRevValid = true;
+    if (in.volumeBoxes) m_volBoxesPrev = *in.volumeBoxes; else m_volBoxesPrev.clear();
     m_levelKeys.resize(static_cast<size_t>(levels));
     const float rt = static_cast<float>(in.recordTileM);
     auto tileInRange = [&](long tx, long tz) {   // refreshRecordTiles' own test
@@ -682,10 +750,13 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         prevX0 = gx0; prevZ0 = gz0;
         LevelKey lk{gx0, gz0, hx0, hz0, k == 0 ? maskHash : 0ull, true};
         const LevelKey old = m_levelKeys[static_cast<size_t>(k)];
-        if (globalSame && old == lk) continue;
-        // only the record mask moved (level 0, the square where it was): the tiles under the old and the new mask's boxes
-        const bool maskOnly = globalSame && k == 0 && old.valid && old.gx0 == gx0 && old.gz0 == gz0 && old.hx0 == hx0 && old.hz0 == hz0;
+        if (globalSame && old == lk && !volMoved) continue;
+        // the square where it was: only what moved is walked - (level 0) the tiles under the old and the new record mask, (58) the
+        // tiles meeting the old and the new volume boxes. Otherwise the whole level
+        const bool squareSame = globalSame && old.valid && old.gx0 == gx0 && old.gz0 == gz0 && old.hx0 == hx0 && old.hz0 == hz0;
+        const bool maskOnly = squareSame && k == 0 && old.mask != lk.mask;
         long mtx0 = LONG_MIN, mtx1 = LONG_MAX, mtz0 = LONG_MIN, mtz1 = LONG_MAX;
+        if (squareSame) { mtx0 = LONG_MAX; mtx1 = LONG_MIN; mtz0 = LONG_MAX; mtz1 = LONG_MIN; }   // empty, then grown
         if (k == 0) {
             long bx0 = LONG_MAX, bx1 = LONG_MIN, bz0 = LONG_MAX, bz1 = LONG_MIN;
             for (const auto& [tz, tx] : mask) { bz0 = std::min(bz0, tz); bz1 = std::max(bz1, tz); bx0 = std::min(bx0, tx); bx1 = std::max(bx1, tx); }
@@ -693,10 +764,14 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
             const long nb0x = bx0 <= bx1 ? floorDivL(bx0 * in.recordTileM, per) : LONG_MAX, nb1x = bx0 <= bx1 ? floorDivL(bx1 * in.recordTileM + in.recordTileM - 1, per) : LONG_MIN;
             const long nb0z = bz0 <= bz1 ? floorDivL(bz0 * in.recordTileM, per) : LONG_MAX, nb1z = bz0 <= bz1 ? floorDivL(bz1 * in.recordTileM + in.recordTileM - 1, per) : LONG_MIN;
             if (maskOnly) {
-                mtx0 = std::min(nb0x, m_maskTiles[0]); mtx1 = std::max(nb1x, m_maskTiles[1]);
-                mtz0 = std::min(nb0z, m_maskTiles[2]); mtz1 = std::max(nb1z, m_maskTiles[3]);
+                mtx0 = std::min({mtx0, nb0x, m_maskTiles[0]}); mtx1 = std::max({mtx1, nb1x, m_maskTiles[1]});
+                mtz0 = std::min({mtz0, nb0z, m_maskTiles[2]}); mtz1 = std::max({mtz1, nb1z, m_maskTiles[3]});
             }
             m_maskTiles[0] = nb0x; m_maskTiles[1] = nb1x; m_maskTiles[2] = nb0z; m_maskTiles[3] = nb1z;
+        }
+        if (squareSame && volMoved && vbx0 <= vbx1) {   // 58 item 1: this level's field tiles holding a cell that meets a box
+            mtx0 = std::min(mtx0, floorDivL(floorDivL(vbx0, sz), kSurfaceTileCols)); mtx1 = std::max(mtx1, floorDivL(floorDivL(vbx1, sz), kSurfaceTileCols));
+            mtz0 = std::min(mtz0, floorDivL(floorDivL(vbz0, sz), kSurfaceTileCols)); mtz1 = std::max(mtz1, floorDivL(floorDivL(vbz1, sz), kSurfaceTileCols));
         }
         m_levelKeys[static_cast<size_t>(k)] = lk;
         anyLevel = true;
@@ -712,12 +787,32 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         for (long tz = tz0; tz <= tz1; ++tz) for (long tx = tx0; tx <= tx1; ++tx) {
             if (tx < mtx0 || tx > mtx1 || tz < mtz0 || tz > mtz1) continue;   // maskOnly: the mask never reached this tile
             const auto fk = std::make_tuple(k, static_cast<int>(tx), static_cast<int>(tz));
+            ++m_stats.fieldsExaminedLastCall;
             std::vector<SurfaceColumn> cols(static_cast<size_t>(kSurfaceTileCols) * kSurfaceTileCols);
             bool wetAny = false; bool lookSet = false; WaterLookPacked look{};
+            // 58 item 1: walked only because the volumes changed (the square, the summaries, the mask as they were) - its cells that
+            // meet no box (old or new) are what they were: copied, not aggregated
+            const WaterSurfaceField* was = nullptr;
+            if (squareSame && volMoved && !maskOnly) {
+                auto it = m_fieldMap.find(fk);
+                if (it != m_fieldMap.end() && it->second.field.version != 0 && it->second.field.cols.size() == cols.size()) was = &it->second.field;
+            }
             for (int j = 0; j < kSurfaceTileCols; ++j) for (int i = 0; i < kSurfaceTileCols; ++i) {
                 const long gx = tx * kSurfaceTileCols + i, gz = tz * kSurfaceTileCols + j;
                 SurfaceColumn& c = cols[static_cast<size_t>(i) + static_cast<size_t>(kSurfaceTileCols) * j];
+                if (was && (gx * sz + sz - 1 < vbx0 || gx * sz > vbx1 || gz * sz + sz - 1 < vbz0 || gz * sz > vbz1)) {
+                    c = was->cols[static_cast<size_t>(i) + static_cast<size_t>(kSurfaceTileCols) * j];
+                    if (c.runs > 0.5f) {   // drawn and wet: as the aggregate path counts it (and the look: the first such cell's)
+                        wetAny = true;
+                        if (!lookSet && in.look) {
+                            look = in.look(static_cast<int>(std::floor((static_cast<float>(gx) + 0.5f) * szf)), static_cast<int>(std::floor((static_cast<float>(gz) + 0.5f) * szf)), c.top[0]);
+                            lookSet = true;
+                        }
+                    }
+                    continue;
+                }
                 SkinCell a;
+                ++m_stats.cellsAggregatedLastCall;
                 const bool known = aggregate(k, sz, gx, gz, a);
                 // wet: at least half the wet columns' rectangle is wet (the red control: half the cell's area)
                 const long rect = a.wet > 0 ? static_cast<long>(a.x1 - a.x0 + 1) * (a.z1 - a.z0 + 1) : 0;
@@ -789,6 +884,7 @@ void WaterSkin::update(const Settings& s, const Inputs& in) {
         }
         m_stats.fields = static_cast<int>(m_out.size());
     }
+    m_stats.msFields = skMs(tFields);
     m_stats.msLastCall = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     m_stats.msMax = std::max(m_stats.msMax, m_stats.msLastCall);
 }

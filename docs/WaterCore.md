@@ -15030,6 +15030,53 @@ reference. if you still need something, i will find something later. overall not
 7. **Track B:** references gathered by the agent; then the moonshot look per part.
 Track C step 2 (the fit) waits behind item 1 (no tier holds through a hitch).
 
+### 58.1 Item 1, first cuts (2026-11-20/21). Status: BUILT, not signed off; the gate NOT met yet
+
+**Rig:** the 57.6 live rig (WaterBench_Creek, port 8114, Release, the 60 m lake recorded, one stone at its middle, the patch spare
+on, hand-over 4 tiles a frame), `tools/water_patch_sleep_split.py --windows --handover 4 --spare 1 --runs 2`: every 0.5 s the
+window's worst frame (`engine_timing`), each host phase's longest call, and the worst frame's water block split by part. New in
+the tool this step: the record / wake tile phases from the splash on (`tile_phases`); new host phases `record.2a-2c`, `record.4a-4c`,
+`spans.1-2`; new `app_water_cpu_ms_worst_frame` fields (`feed_skin`, `skin_*`, `in_update`). Evidence: `docs/evidence/water_core_m4/s58_*.json`.
+
+**What the late-life hitches were.** After the wake, a frame of 45-65 ms every 0.5-2 s for ~25 s: a tile the live patch had
+recorded (`recordTilesStep`, 2 tiles a call, ~13-19 ms each) and, in the same frame, the far skin rebuilding (19-27 ms). Split
+live, part by part; each cause fixed where it was, each with a red test first:
+
+| # | cause (measured live) | fix | test (red -> green) | live after |
+|---|---|---|---|---|
+| 1 | the skin's global key held the volumes' revision and the summaries' version: one recorded tile re-aggregated every field of every level | both out of the key; a dirty rectangle (the old and new boxes, the changed summaries' columns) bounds the fields walked; cells outside it copied | `WaterSkinTest.AVolumesRecordedTileRebuildsOnlyTheFieldsItMeets` S1 33,696 -> 344 cells, S5 33,696 -> 86; S2 0 fields differ from a fresh skin | `feed_skin` 20-27 -> 10-14 ms |
+| 2 | a write with touched columns sent the skin into a whole scan of the reach (7.3-10 ms of the 10-14) | the scan stays valid; only the touched columns are queued (`m_writeStale`) | S6: columns scanned by a write 14,809 -> 0 | `feed_skin` -> 4.4-4.9 ms |
+| 3 | a rebuilt summary recounted the generator's summaries by walking all of them (~70k x 2.4 KB at 4 km) | counted only when a scan ran or generator work landed; the stale loop keeps the counts | S7: summaries walked 14,809 -> 0; the counts equal a fresh skin's | `feed_skin` -> 0.30-0.41 ms |
+| 4 | a tile record's span write 4.6-5.6 ms, the chunk writer under 1 ms of it: `spansWritten` walked every summary to advance its revision | a summary is up to date when built at or after the last unreported revision change and its column not written since (`m_touchedAt`); nothing walked | S8: summaries walked by a write 14,809 -> 0; S2/S5 unchanged | record `spans` 4.6-5.2 -> 0.12 ms; a tile wake's `span_clear` 4.4-5.3 -> 0.07 ms |
+| 5 | (found on the way, NOT the live cost - the record's 4.7 ms stayed until #4) the chunk writer merged each written column against the whole chunk column's spans | `writeRunsIntoChunkColumn` (pure, in `WaterSpanWriteBack`): one pass, written columns only, only changed chunks written | `WaterSpanWriteBackTest.ATileWriteTouchesOnlyItsColumnsAndWritesWhatTheOldPathWrote`: 88,725 -> 2,538 spans visited, identical to the old path | under 1 ms before and after (no live change) |
+
+Also from the earlier part of this step (uncommitted until now): D9's cut, the patch spare - the last patch's buffers are kept,
+a second splash's buffer creation 18 -> 0.02 ms; the pre-update calls (`residency`, `kept`, `retiring`) timed in `UpdateCpu`.
+
+**Whole frame, live (2 runs each, frame_ms_max per 0.5 s window, the engine's own timer):**
+| | before 58.1 | after #1-#4 |
+|---|---|---|
+| the wake frame | 129-166 ms | 94-150 ms (not worked on yet) |
+| late-life hitch frames (18-27 s) | 45-65 ms | 20-31 ms |
+| the sleep window's worst frame | 38-42 ms | 32-33 ms |
+| the water's CPU in the worst late frame | 40-45 ms | 14-27 ms |
+
+**What is left in a late hitch (per recorded tile, live):** the GPU read 1.8 ms typical / 7.2 ms worst (submit 0.17 + host 1.6;
+the worst a queue wait), the tile's draw 2.5-4.1 ms (`record.4a tiles built` ~2.8), the GPU flags 0.7-0.9, the runs 0.4 - two
+tiles a call. A tile WAKE: the upload 5.2-6.7 ms, the seed 1.0-4.5 ms. Every late frame also pays the ripple layers 3-4.5 ms and
+`takeMotion` 3.1 ms. The sleep frame: the GPU read of the grid 17-19 ms (H3), held columns 3.2, runs 6.5-7.3.
+
+**Not measured:** the GPU's own time per frame in these windows; the median frame of this run (the gate is 2x the median,
+~3.4 ms in the 57.6 rig - 57.6's trace, not re-run here); any scene but this one.
+
+**Tests:** water unit 321 / 321; water integration 99 / 101 - the two known failures (`GpuFlipBulkParityAndRunup` run-up 1.19 h0
+against 1.22, `WaterTallCellTest.ShortWave...` 3 m +11.4 % against 10 %), the same numbers as before this step. The e2e test
+discovery fails after the build (MSB3073); `phyxel.exe` links - unrelated, logged.
+
+**Next (item 1 continues):** the record tile's GPU read made asynchronous and the tile's draw spread over frames (one tile's
+host work a frame); the wake frame (create 33 ms, adopt 8, wake tile 13); the five frames after the wake (~70 ms each); the sleep
+frame's GPU read (H3); `retiring` 9 ms; then the trace re-run against the 2x-median gate.
+
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
 **Was: "0a. Where things stand, and what is next (2026-10-14)"**

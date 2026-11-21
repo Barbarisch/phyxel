@@ -511,20 +511,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                     if (have.count(cy)) continue;
                     if (Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz))) have[cy] = &ch->getWaterSpans();
                 }
-                std::vector<WorldSpan> world = assembleColumnSpans(have, cx, cz);
-                std::vector<WorldSpan> result;
-                std::set<std::pair<int, int>> written;
-                for (const ColumnRuns* c : cols) written.insert({c->x, c->z});
-                for (const auto& w : world) if (!written.count({w.x, w.z})) result.push_back(w);
-                for (const ColumnRuns* c : cols) { auto m = mergeColumnRuns(world, c->x, c->z, yLo, yHi, c->runs); result.insert(result.end(), m.begin(), m.end()); }
-                // clip back into the resident chunks of this column (only those; others keep their clips)
-                int cyMin = INT_MAX, cyMax = INT_MIN;
-                for (auto& [cy, l] : have) { cyMin = std::min(cyMin, cy); cyMax = std::max(cyMax, cy); }
+                // 58 item 1: the written columns only, and only the chunks whose list changed (WaterSpanWriteBackTest pins it against
+                // the path before: the whole chunk column assembled, merged per written column and re-clipped - 4.7-5.6 ms a tile)
                 std::map<int, std::vector<Chunk::WaterSpanLocal>> clips;
-                clipSpansToChunks(result, cx, cz, cyMin, cyMax, clips);
+                writeRunsIntoChunkColumn(have, cx, cz, cols, yLo, yHi, clips);
                 for (auto& [cy, list] : clips) {
                     Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
-                    if (!ch) continue;   // a span clip aimed at a non-resident chunk outside the box range: it keeps what it had (assembled from nothing, so nothing changes there)
+                    if (!ch) continue;
                     ch->setWaterSpans(std::move(list));
                     ch->setDirty(true);
                     ++touched;
@@ -4109,9 +4102,14 @@ void Application::update(float deltaTime) {
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
                 {   // Phase F: the surface mesh feed - the volumes' fields, then the recorded water near the camera (§27 W1a), so asked
                     // for even with no volume live
+                    auto tf = WClock::now();   // 58 item 1: feed by part
                     const auto& sf = waterCore->surfaceFields();
+                    m_waterCpu.feedSurf = wms(tf); tf = WClock::now();
                     // 51.4 S3: then the far skin (the renderer's only - no body reads it); off, it is empty and nothing is copied
                     const auto& skin = waterCore->skinFields();
+                    m_waterCpu.feedSkin = wms(tf);
+                    { const auto& ks = waterCore->skinStats(); m_waterCpu.skinSummaries = ks.summariesBuiltLastCall; m_waterCpu.skinCells = ks.cellsAggregatedLastCall; m_waterCpu.skinFieldsWalked = ks.fieldsExaminedLastCall;
+                      m_waterCpu.skinScan = ks.msScan; m_waterCpu.skinRead = ks.msRead; m_waterCpu.skinBuild = ks.msBuild; m_waterCpu.skinFields = ks.msFields; }
                     if (skin.empty()) renderCoordinator->setWaterCoreSurfaceFields(sf.empty() ? nullptr : &sf);
                     else {
                         m_surfaceFieldsWithSkin.assign(sf.begin(), sf.end());
@@ -4122,7 +4120,7 @@ void Application::update(float deltaTime) {
                     renderCoordinator->setWaterCoreGpuSurfaces(m_gpuSurfaceDraws.empty() ? nullptr : &m_gpuSurfaceDraws);
                 }
                 renderCoordinator->setWaterCoreDroplets(&waterCore->dropletDrawList());   // 21: the droplet crown
-                m_rippleLayers = waterCore->rippleLayers();   // 22
+                { const auto tr = WClock::now(); m_rippleLayers = waterCore->rippleLayers(); m_waterCpu.feedRipples = wms(tr); }   // 22
                 renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
                 renderCoordinator->setWaterCoreRippleFade(waterCore->rippleFade());   // L2 (43.2): the ripples' fade by distance
                 if (!m_watchPoints.empty() && m_watchRows.size() < 20000) {   // water_av_watch: every frame
@@ -4145,6 +4143,7 @@ void Application::update(float deltaTime) {
                 }
             }
             m_waterCpu.feed = wms(wtFeed);
+            const auto tShore = WClock::now();   // 58 item 1
             // Phase G: the shore band follows the camera along the shore and is stepped every frame at the
             // sheet's clock; its box joins the volumes' in the span-grid mask (D3) and its surface is meshed (F1)
             if (m_shoreOn && shoreBand && camera) {
@@ -4185,6 +4184,7 @@ void Application::update(float deltaTime) {
                 renderCoordinator->setWaterShoreField(m_shoreOn && shoreBand && shoreBand->active() ? &shoreBand->field() : nullptr);
                 renderCoordinator->setWaterFineField(m_shoreOn && m_fineOn && fineBand && fineBand->active() ? &fineBand->field() : nullptr);   // G4
             }
+            m_waterCpu.shore = wms(tShore);
             // E2 (docs/WaterCore.md 19.6): sleeping debris over MOVING water wakes - a floater frozen while
             // the water swings under it hangs in air or sinks into the water (measured: 40 cm swings, 0 woke)
             m_waterCpu.motion = 0.0;
@@ -4211,7 +4211,7 @@ void Application::update(float deltaTime) {
                 m_waterCpu.exchange = wms(te);
             }
             m_waterCpu.total = wms(wt0);
-            if (m_waterCpu.total > m_waterCpuAtMax.total) m_waterCpuAtMax = m_waterCpu;   // 39.3 item 6
+            if (m_waterCpu.total > m_waterCpuAtMax.total) { m_waterCpuAtMax = m_waterCpu; m_waterUpdateAtMax = waterCore->updateCpu(); }   // 39.3 item 6; 58
             for (const auto& rec : waterCore->drainAutoSleepRecords()) {
                 if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}; film {} columns, {} m^3 joined (max {} m), {} m^3 dropped", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId, rec.filmColumns, rec.filmJoined, rec.filmJoinMaxM, rec.thinDropped);
                 if (rec.ok) m_lastAutoSleep = rec;
@@ -13941,8 +13941,14 @@ void Application::registerWaterCommands() {
         if (tl) r["tiler_last"] = {{"ms", tl->ms}, {"build_ms", tl->buildMs}, {"rebuilt", tl->rebuilt}};
         {   const auto& m = m_waterCpuAtMax;   // 39.3 item 6: the longest water block since the reset, by part
             r["app_water_cpu_ms_worst_frame"] = {{"total", m.total}, {"update", m.update}, {"feed", m.feed}, {"motion", m.motion}, {"bodies", m.bodies},
-                                                 {"solids", m.solids}, {"pressure", m.pressure}, {"exchange", m.exchange}}; }
-        if (cmd.params.value("reset", false)) { P::reset(); m_waterCpuAtMax = WaterCpuMs{}; }
+                                                 {"solids", m.solids}, {"pressure", m.pressure}, {"exchange", m.exchange},
+                                                 {"feed_surface_fields", m.feedSurf}, {"feed_skin", m.feedSkin}, {"feed_ripple_layers", m.feedRipples}, {"shore", m.shore},
+                                                 {"skin_summaries", m.skinSummaries}, {"skin_cells", m.skinCells}, {"skin_fields_walked", m.skinFieldsWalked},
+                                                 {"skin_scan_ms", m.skinScan}, {"skin_read_ms", m.skinRead}, {"skin_build_ms", m.skinBuild}, {"skin_fields_ms", m.skinFields}};   // 58
+            const auto& u = m_waterUpdateAtMax;
+            r["app_water_cpu_ms_worst_frame"]["in_update"] = {{"residency", u.residency}, {"kept", u.kept}, {"retiring", u.retiring}, {"occupancy", u.occupancy},
+                {"step", u.step}, {"step_call", u.stepCall}, {"births", u.births}, {"droplets", u.droplets}, {"ripples", u.ripples}, {"sleep", u.sleep}}; }
+        if (cmd.params.value("reset", false)) { P::reset(); m_waterCpuAtMax = WaterCpuMs{}; m_waterUpdateAtMax = {}; }
     });
     reg.on("water_av_record_draw", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         using M = Core::Water::WaterCoreManager;
@@ -14055,6 +14061,9 @@ void Application::registerWaterCommands() {
         }
         if (cmd.params.contains("test_keep_memory_off") && cmd.params["test_keep_memory_off"].is_boolean())   // 41 TEST: the control
             loc.testKeepMemoryOff = cmd.params["test_keep_memory_off"].get<bool>();
+        // 58 item 1 (D9's cut): patch_spare - one patch's buffers kept for the next patch (~390 MB, outside memory_cap_mb). Cost only
+        if (cmd.params.contains("patch_spare") && cmd.params["patch_spare"].is_boolean())
+            Core::Water::WaterCoreManager::s_patchSpare.on = cmd.params["patch_spare"].get<bool>();
         // L2 (43): ripple_reach (on / off; off = exactly before L2), ripple_m (m, 0..24: beyond 24 the derived window would pass the
         // renderer's 512-cell atlas, so a point the fade shows could go unsimulated - WaterLocality::kRippleMMax) and ripple_fade_m
         // (m, 0..ripple_m: full detail to ripple_m - fade). With the reach on the window side is derived (ripple_window_cells unused)
@@ -14078,6 +14087,7 @@ void Application::registerWaterCommands() {
              {"ripple_window_cells_used", !loc.rippleReach},
              {"memory_m", loc.memoryM}, {"memory_m_default", L::kMemoryMDefault}, {"memory_cap_mb", loc.memoryCapMb},
              {"memory_cap_mb_default", L::kMemoryCapMbDefault}, {"test_keep_memory_off", loc.testKeepMemoryOff},
+             {"patch_spare", Core::Water::WaterCoreManager::s_patchSpare.on},
              {"test_viewer_on", loc.testViewerOn}, {"test_viewer", {loc.testViewer.x, loc.testViewer.y, loc.testViewer.z}},
              {"viewer", {v.x, v.y, v.z}}, {"test_far_record_dry", Core::Water::WaterCoreManager::s_testFarRecordDry}};
         if (!waterCore) r["note"] = "no water core: the settings are held for when one exists";
@@ -14940,7 +14950,9 @@ void Application::registerWaterCommands() {
                                   {"hits", km.hits}, {"misses", km.misses}, {"last_wake_hit", km.lastWakeHit}, {"released_far", km.releasedFar},
                                   {"released_cap", km.releasedCap}, {"released_orphan", km.releasedOrphan}, {"released_oom", km.releasedOom},
                                   {"buffers_adopted", km.buffersAdopted}, {"buffers_allocated", km.buffersAllocated},
-                                  {"last_sleep_free_ms", km.lastSleepFreeMs}, {"max_pump_ms", km.maxPumpMs}}; }
+                                  {"last_sleep_free_ms", km.lastSleepFreeMs}, {"max_pump_ms", km.maxPumpMs},
+                                  {"patch_spare", {{"held", km.patchSpareHeld}, {"bytes", km.patchSpareBytes}, {"kept", km.patchSpareKept},   // 58 item 1
+                                                   {"adopted", km.patchSpareAdopted}, {"released", km.patchSpareReleased}, {"last_patch_adopted", km.lastPatchAdopted}}}}; }
                  const auto& ls = waterCore->sleptLoadStats();           // 35 (A2c): what the last world load restored
                  s["restored"] = ls.restored; s["restore_skipped"] = ls.skipped; s["restore_error"] = ls.error;
                  const auto& rc = waterCore->recordCacheStats();   // 32.4 (A2b): the record cache following residency

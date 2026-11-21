@@ -1,0 +1,4970 @@
+[
+ {
+  "run": 0,
+  "record_lake": {
+   "box": [
+    4,
+    16,
+    2,
+    63,
+    18,
+    61
+   ],
+   "m3": 7200.0,
+   "slept_boxes": 1,
+   "success": true,
+   "unwritten_columns": 0
+  },
+  "stone": {
+   "strength": 8.0,
+   "success": true,
+   "woken": [
+    21
+   ]
+  },
+  "slept_at_s": null,
+  "sleep_parts_ms": {},
+  "sleep_total_ms": 0,
+  "worst_frame": [
+   0.3,
+   155.27990460395813
+  ],
+  "worst_frame_sleep_window": null,
+  "record_draw": {
+   "build_ms_last_call": 0.0039,
+   "build_ms_max": 140.7314,
+   "build_ms_on_sleep_last": 2.9699,
+   "built_last_call": 0,
+   "handover_frames_last": 7,
+   "handover_tiles_max_per_frame": 4,
+   "handover_tiles_per_frame": 4,
+   "handovers": 11,
+   "on": true,
+   "pending": 0,
+   "radius_m": 48.0,
+   "retiring": 0,
+   "revision": 622,
+   "sleep_tiles_built": 1944,
+   "tile_m": 8,
+   "tiles": 137,
+   "wet_tiles": 109
+  },
+  "worst_frame_ms_by_read": [
+   [
+    0.3,
+    155.27990460395813
+   ],
+   [
+    1.0,
+    69.29349899291992
+   ],
+   [
+    1.6,
+    15.94419963657856
+   ],
+   [
+    2.1,
+    8.368199691176414
+   ],
+   [
+    2.7,
+    8.280700072646141
+   ],
+   [
+    3.2,
+    9.789000265300274
+   ],
+   [
+    3.7,
+    9.521099738776684
+   ],
+   [
+    4.3,
+    8.061099797487259
+   ],
+   [
+    4.8,
+    8.71879979968071
+   ],
+   [
+    5.4,
+    10.031900368630886
+   ],
+   [
+    5.9,
+    7.455199956893921
+   ],
+   [
+    6.5,
+    8.1026004627347
+   ],
+   [
+    7.0,
+    8.106700144708157
+   ],
+   [
+    7.6,
+    8.233100175857544
+   ],
+   [
+    8.2,
+    8.293800055980682
+   ],
+   [
+    8.7,
+    7.908799685537815
+   ],
+   [
+    9.2,
+    7.73700000718236
+   ],
+   [
+    9.8,
+    9.748700074851513
+   ],
+   [
+    10.3,
+    8.32779984921217
+   ],
+   [
+    10.9,
+    7.879599928855896
+   ],
+   [
+    11.5,
+    20.289700478315353
+   ],
+   [
+    12.0,
+    6.739700213074684
+   ],
+   [
+    12.6,
+    8.0917002633214
+   ],
+   [
+    13.1,
+    7.344599813222885
+   ],
+   [
+    13.7,
+    7.168999873101711
+   ],
+   [
+    14.2,
+    7.446699775755405
+   ],
+   [
+    14.8,
+    6.759299896657467
+   ],
+   [
+    15.3,
+    6.330899894237518
+   ],
+   [
+    15.9,
+    6.597899831831455
+   ],
+   [
+    16.4,
+    6.020700093358755
+   ],
+   [
+    17.0,
+    5.810599774122238
+   ],
+   [
+    17.5,
+    6.250299979001284
+   ],
+   [
+    18.1,
+    6.102500017732382
+   ],
+   [
+    18.6,
+    60.611698776483536
+   ],
+   [
+    19.1,
+    4.879700019955635
+   ],
+   [
+    19.7,
+    4.161899909377098
+   ],
+   [
+    20.2,
+    51.1183999478817
+   ],
+   [
+    20.8,
+    62.281299382448196
+   ],
+   [
+    21.3,
+    6.0860998928546906
+   ],
+   [
+    21.9,
+    5.205899942666292
+   ],
+   [
+    22.4,
+    9.071700274944305
+   ],
+   [
+    22.9,
+    5.363199859857559
+   ],
+   [
+    23.5,
+    4.734199959784746
+   ],
+   [
+    24.0,
+    5.796399898827076
+   ],
+   [
+    24.6,
+    5.152599886059761
+   ],
+   [
+    25.1,
+    6.038600113242865
+   ],
+   [
+    25.7,
+    4.871599841862917
+   ],
+   [
+    26.2,
+    62.72370368242264
+   ],
+   [
+    26.8,
+    46.87419906258583
+   ],
+   [
+    27.4,
+    5.324500147253275
+   ],
+   [
+    27.9,
+    3.882399993017316
+   ],
+   [
+    28.4,
+    4.470400046557188
+   ],
+   [
+    29.0,
+    9.955800138413906
+   ],
+   [
+    29.5,
+    7.439599838107824
+   ],
+   [
+    30.1,
+    4.47099981829524
+   ],
+   [
+    30.6,
+    3.9110002107918262
+   ],
+   [
+    31.1,
+    4.197400063276291
+   ],
+   [
+    31.7,
+    3.7668999284505844
+   ],
+   [
+    32.3,
+    4.637599922716618
+   ],
+   [
+    32.8,
+    4.41240007057786
+   ],
+   [
+    33.4,
+    4.935299977660179
+   ],
+   [
+    33.9,
+    4.963099956512451
+   ],
+   [
+    34.5,
+    4.295499995350838
+   ],
+   [
+    35.0,
+    4.3970998376607895
+   ],
+   [
+    35.5,
+    3.889499930664897
+   ],
+   [
+    36.1,
+    4.340100102126598
+   ],
+   [
+    36.6,
+    3.793400013819337
+   ],
+   [
+    37.2,
+    4.483699798583984
+   ],
+   [
+    37.7,
+    4.023300018161535
+   ],
+   [
+    38.3,
+    4.221799783408642
+   ],
+   [
+    38.9,
+    3.988000098615885
+   ],
+   [
+    39.4,
+    4.933100193738937
+   ],
+   [
+    40.0,
+    5.033799912780523
+   ],
+   [
+    40.5,
+    3.9897002279758453
+   ],
+   [
+    41.1,
+    4.931500181555748
+   ],
+   [
+    41.6,
+    3.6941999569535255
+   ],
+   [
+    42.2,
+    4.6720001846551895
+   ],
+   [
+    42.7,
+    5.36759989336133
+   ],
+   [
+    43.2,
+    3.8886999245733023
+   ],
+   [
+    43.8,
+    4.281899891793728
+   ],
+   [
+    44.3,
+    4.193500149995089
+   ],
+   [
+    44.9,
+    4.007999785244465
+   ]
+  ],
+  "foreign_gpu_processes": [],
+  "wake": {
+   "last_wake_ms": 0.0,
+   "max_wake_ms": 0.0,
+   "last_wake_split_ms": {
+    "alloc": 12.4521,
+    "cells": 3499200,
+    "gpu_buffers": 17.1916,
+    "gpu_create_upload": 32.6207,
+    "gpu_create_volume": 19.92,
+    "gpu_fill": 0.547,
+    "gpu_occ_copy": 0.1906,
+    "gpu_pipeline_count": 24,
+    "gpu_pipelines": 2.1036,
+    "gpu_pipelines_reused": 24,
+    "gpu_upload": 12.5099,
+    "occupancy": 7.6415,
+    "occupancy_threads": 8,
+    "seed": 4.2048,
+    "seed_occupancy": 1.6837,
+    "solids": 0.0001,
+    "span_read": 0.6595
+   },
+   "last_patch_split_ms": {
+    "adopt": 7.6897,
+    "create": 52.721,
+    "size": 0.5938,
+    "wake_tile": 12.1771
+   },
+   "last_upload_split_ms": {
+    "bricks": 0,
+    "clear": 2.6556,
+    "host": 5.2542,
+    "residency": 4.0477,
+    "residency_split": {
+     "apply": 0.1363,
+     "ground": 0.8452,
+     "grow": 0.0274,
+     "need": 3.0388
+    },
+    "scatter": 0.0001,
+    "settle": 0.0001,
+    "submit": 0.4607,
+    "tables": 0.0137
+   },
+   "last_grow_split_ms": {
+    "alloc": 0.0,
+    "bytes_after": 0,
+    "copy": 0.0,
+    "free": 0.0,
+    "grows": 0,
+    "rebind": 0.0,
+    "tables": 0.0
+   }
+  },
+  "windows": [
+   {
+    "t": 0.3,
+    "frame_ms_max": 155.27990460395813,
+    "parts": {
+     "gpu.07 partition + tables": 3.04,
+     "gpu.08 record the commands": 9.91,
+     "mgr.2 record / wake tiles": 27.18,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 16.12,
+     "motion.1 takeMotion scan": 4.41,
+     "ripples.2 masks + layers": 7.0,
+     "surf.1 read the GPU surface": 1.18,
+     "up.0 max speed": 1.85,
+     "up.1 host occupancy + solid tops": 3.4
+    },
+    "totals_ms": {
+     "collect.1 fence wait": 7.1,
+     "gpu.01 settle (collect the call before)": 7.9,
+     "gpu.07 partition + tables": 11.2,
+     "gpu.08 record the commands": 19.3,
+     "mgr.2 record / wake tiles": 129.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 52.3,
+     "motion.1 takeMotion scan": 20.1,
+     "ripples.2 masks + layers": 25.8,
+     "surf.1 read the GPU surface": 7.4
+    },
+    "calls": {
+     "collect.1 fence wait": 7,
+     "gpu.01 settle (collect the call before)": 8,
+     "gpu.07 partition + tables": 8,
+     "gpu.08 record the commands": 8,
+     "mgr.2 record / wake tiles": 8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 8,
+     "motion.1 takeMotion scan": 9,
+     "ripples.2 masks + layers": 19,
+     "surf.1 read the GPU surface": 7
+    },
+    "frames": 19,
+    "worst_water_block": {
+     "bodies": 0.0093,
+     "exchange": 0.0002,
+     "feed": 23.639,
+     "motion": 3.1716,
+     "pressure": 0.0015,
+     "solids": 0.0008,
+     "total": 65.3446,
+     "update": 38.5164
+    }
+   },
+   {
+    "t": 1.0,
+    "frame_ms_max": 69.29349899291992,
+    "parts": {
+     "collect.1 fence wait": 5.57,
+     "gpu.01 settle (collect the call before)": 5.8,
+     "gpu.04 residency: which bricks": 1.61,
+     "gpu.05 residency: apply": 1.42,
+     "gpu.08 record the commands": 1.25,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 9.24
+    },
+    "totals_ms": {
+     "collect.1 fence wait": 16.7,
+     "collect.2 lists + copies": 6.9,
+     "gpu.01 settle (collect the call before)": 24.1,
+     "gpu.04 residency: which bricks": 44.0,
+     "gpu.05 residency: apply": 14.5,
+     "gpu.08 record the commands": 23.2,
+     "gpu.09 submit": 5.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 119.0,
+     "ripples.2 masks + layers": 27.5,
+     "surf.1 read the GPU surface": 21.6
+    },
+    "calls": {
+     "collect.1 fence wait": 34,
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.08 record the commands": 34,
+     "gpu.09 submit": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.2 masks + layers": 105,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 105,
+    "worst_water_block": {
+     "bodies": 0.0097,
+     "exchange": 0.0001,
+     "feed": 0.0411,
+     "motion": 0.0033,
+     "pressure": 0.0015,
+     "solids": 0.0012,
+     "total": 10.8321,
+     "update": 10.7701
+    }
+   },
+   {
+    "t": 1.6,
+    "frame_ms_max": 15.94419963657856,
+    "parts": {
+     "collect.1 fence wait": 1.27,
+     "gpu.01 settle (collect the call before)": 1.49,
+     "gpu.04 residency: which bricks": 1.54,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 4.55
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.2,
+     "gpu.01 settle (collect the call before)": 9.1,
+     "gpu.04 residency: which bricks": 40.8,
+     "gpu.05 residency: apply": 11.6,
+     "gpu.08 record the commands": 15.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 87.7,
+     "ripples.2 masks + layers": 28.0,
+     "surf.1 read the GPU surface": 20.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.2 masks + layers": 107,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 107,
+    "worst_water_block": {
+     "bodies": 0.0063,
+     "exchange": 0.0001,
+     "feed": 0.0283,
+     "motion": 0.0026,
+     "pressure": 0.0009,
+     "solids": 0.0004,
+     "total": 5.808,
+     "update": 5.7652
+    }
+   },
+   {
+    "t": 2.1,
+    "frame_ms_max": 8.368199691176414,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.12,
+     "gpu.04 residency: which bricks": 1.61,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.21
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.7,
+     "gpu.01 settle (collect the call before)": 7.3,
+     "gpu.04 residency: which bricks": 40.1,
+     "gpu.05 residency: apply": 11.1,
+     "gpu.08 record the commands": 9.0,
+     "mgr.3 tall cells": 7.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 77.4,
+     "ripples.2 masks + layers": 26.5,
+     "surf.1 read the GPU surface": 20.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.2 masks + layers": 124,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 124,
+    "worst_water_block": {
+     "bodies": 0.0097,
+     "exchange": 0.0001,
+     "feed": 0.0297,
+     "motion": 0.0035,
+     "pressure": 0.0016,
+     "solids": 0.0009,
+     "total": 5.1985,
+     "update": 5.1455
+    }
+   },
+   {
+    "t": 2.7,
+    "frame_ms_max": 8.280700072646141,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.39,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.6
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.7,
+     "gpu.01 settle (collect the call before)": 6.4,
+     "gpu.04 residency: which bricks": 37.3,
+     "gpu.05 residency: apply": 11.1,
+     "gpu.08 record the commands": 11.0,
+     "mgr.3 tall cells": 19.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.1,
+     "ripples.2 masks + layers": 25.0,
+     "surf.1 read the GPU surface": 18.5
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.2 masks + layers": 110,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 110,
+    "worst_water_block": {
+     "bodies": 0.005,
+     "exchange": 0.0001,
+     "feed": 0.035,
+     "motion": 0.0031,
+     "pressure": 0.0014,
+     "solids": 0.0006,
+     "total": 4.6933,
+     "update": 4.6433
+    }
+   },
+   {
+    "t": 3.2,
+    "frame_ms_max": 9.789000265300274,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.1,
+     "gpu.04 residency: which bricks": 1.48,
+     "gpu.05 residency: apply": 1.53,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 4.26,
+     "surf.1 read the GPU surface": 1.19
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 7.5,
+     "gpu.04 residency: which bricks": 39.1,
+     "gpu.05 residency: apply": 13.9,
+     "gpu.08 record the commands": 9.4,
+     "mgr.3 tall cells": 20.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 79.2,
+     "ripples.2 masks + layers": 25.5,
+     "surf.1 read the GPU surface": 20.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 108,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 108,
+    "worst_water_block": {
+     "bodies": 0.0067,
+     "exchange": 0.0001,
+     "feed": 0.0309,
+     "motion": 0.0025,
+     "pressure": 0.0017,
+     "solids": 0.0008,
+     "total": 6.0959,
+     "update": 6.0471
+    }
+   },
+   {
+    "t": 3.7,
+    "frame_ms_max": 9.521099738776684,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.48,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.97,
+     "surf.1 read the GPU surface": 1.18
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 6.6,
+     "gpu.04 residency: which bricks": 38.0,
+     "gpu.05 residency: apply": 12.0,
+     "gpu.08 record the commands": 7.4,
+     "mgr.3 tall cells": 21.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 72.8,
+     "ripples.2 masks + layers": 25.2,
+     "surf.1 read the GPU surface": 20.3
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.2 masks + layers": 106,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 106,
+    "worst_water_block": {
+     "bodies": 0.0089,
+     "exchange": 0.0001,
+     "feed": 0.0438,
+     "motion": 0.0041,
+     "pressure": 0.0015,
+     "solids": 0.0009,
+     "total": 5.7048,
+     "update": 5.6388
+    }
+   },
+   {
+    "t": 4.3,
+    "frame_ms_max": 8.061099797487259,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.21,
+     "gpu.04 residency: which bricks": 1.45,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.26,
+     "surf.1 read the GPU surface": 1.19
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 7.5,
+     "gpu.04 residency: which bricks": 39.2,
+     "gpu.05 residency: apply": 11.3,
+     "gpu.08 record the commands": 7.5,
+     "mgr.3 tall cells": 21.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 74.0,
+     "ripples.2 masks + layers": 21.3,
+     "surf.1 read the GPU surface": 19.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 120,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 120,
+    "worst_water_block": {
+     "bodies": 0.0081,
+     "exchange": 0.0001,
+     "feed": 0.0273,
+     "motion": 0.0031,
+     "pressure": 0.0019,
+     "solids": 0.0009,
+     "total": 4.9057,
+     "update": 4.8601
+    }
+   },
+   {
+    "t": 4.8,
+    "frame_ms_max": 8.71879979968071,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.48,
+     "ripples.1 surfaceFields (= surf.*)": 1.15,
+     "surf.1 read the GPU surface": 1.12
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.5,
+     "gpu.01 settle (collect the call before)": 7.4,
+     "gpu.04 residency: which bricks": 40.2,
+     "gpu.05 residency: apply": 11.0,
+     "gpu.08 record the commands": 7.9,
+     "mgr.3 tall cells": 24.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.2,
+     "ripples.1 surfaceFields (= surf.*)": 21.4,
+     "ripples.2 masks + layers": 22.0,
+     "surf.1 read the GPU surface": 18.9
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 130,
+     "ripples.2 masks + layers": 130,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 130,
+    "worst_water_block": {
+     "bodies": 0.0107,
+     "exchange": 0.0005,
+     "feed": 0.0385,
+     "motion": 0.0051,
+     "pressure": 0.0014,
+     "solids": 0.0012,
+     "total": 4.8585,
+     "update": 4.7947
+    }
+   },
+   {
+    "t": 5.4,
+    "frame_ms_max": 10.031900368630886,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.15,
+     "gpu.04 residency: which bricks": 1.4,
+     "mgr.3 tall cells": 1.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.4,
+     "ripples.1 surfaceFields (= surf.*)": 1.24,
+     "surf.1 read the GPU surface": 1.22
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.3,
+     "gpu.01 settle (collect the call before)": 8.1,
+     "gpu.04 residency: which bricks": 38.2,
+     "gpu.05 residency: apply": 10.3,
+     "gpu.08 record the commands": 7.5,
+     "mgr.3 tall cells": 23.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 72.5,
+     "ripples.1 surfaceFields (= surf.*)": 21.2,
+     "ripples.2 masks + layers": 21.3,
+     "surf.1 read the GPU surface": 19.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 115,
+     "ripples.2 masks + layers": 115,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 115,
+    "worst_water_block": {
+     "bodies": 0.0088,
+     "exchange": 0.0001,
+     "feed": 0.0294,
+     "motion": 0.003,
+     "pressure": 0.0027,
+     "solids": 0.0008,
+     "total": 5.3452,
+     "update": 5.2961
+    }
+   },
+   {
+    "t": 5.9,
+    "frame_ms_max": 7.455199956893921,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.41,
+     "ripples.1 surfaceFields (= surf.*)": 1.19,
+     "surf.1 read the GPU surface": 1.17
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.7,
+     "gpu.01 settle (collect the call before)": 7.5,
+     "gpu.04 residency: which bricks": 40.2,
+     "gpu.05 residency: apply": 10.8,
+     "gpu.08 record the commands": 8.0,
+     "mgr.3 tall cells": 23.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.4,
+     "ripples.1 surfaceFields (= surf.*)": 22.1,
+     "ripples.2 masks + layers": 22.4,
+     "surf.1 read the GPU surface": 19.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 134,
+     "ripples.2 masks + layers": 134,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0093,
+     "exchange": 0.0001,
+     "feed": 0.0266,
+     "motion": 0.0028,
+     "pressure": 0.0014,
+     "solids": 0.0008,
+     "total": 4.7177,
+     "update": 4.6716
+    }
+   },
+   {
+    "t": 6.5,
+    "frame_ms_max": 8.1026004627347,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.18,
+     "gpu.04 residency: which bricks": 1.27,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.27
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.5,
+     "gpu.01 settle (collect the call before)": 8.3,
+     "gpu.04 residency: which bricks": 40.0,
+     "gpu.05 residency: apply": 10.9,
+     "gpu.08 record the commands": 8.3,
+     "mgr.3 tall cells": 22.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 76.6,
+     "ripples.1 surfaceFields (= surf.*)": 22.9,
+     "ripples.2 masks + layers": 23.5,
+     "surf.1 read the GPU surface": 20.5
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 120,
+     "ripples.2 masks + layers": 120,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 120,
+    "worst_water_block": {
+     "bodies": 0.0054,
+     "exchange": 0.0001,
+     "feed": 0.0284,
+     "motion": 0.0032,
+     "pressure": 0.001,
+     "solids": 0.001,
+     "total": 5.313,
+     "update": 5.2696
+    }
+   },
+   {
+    "t": 7.0,
+    "frame_ms_max": 8.106700144708157,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.26,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.52
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.1,
+     "gpu.01 settle (collect the call before)": 6.8,
+     "gpu.04 residency: which bricks": 36.9,
+     "gpu.05 residency: apply": 10.2,
+     "gpu.08 record the commands": 7.6,
+     "mgr.3 tall cells": 20.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 70.4,
+     "ripples.1 surfaceFields (= surf.*)": 21.9,
+     "ripples.2 masks + layers": 22.8,
+     "surf.1 read the GPU surface": 19.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 121,
+     "ripples.2 masks + layers": 121,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 121,
+    "worst_water_block": {
+     "bodies": 0.0078,
+     "exchange": 0.0001,
+     "feed": 0.0333,
+     "motion": 0.0041,
+     "pressure": 0.001,
+     "solids": 0.0008,
+     "total": 4.5074,
+     "update": 4.454
+    }
+   },
+   {
+    "t": 7.6,
+    "frame_ms_max": 8.233100175857544,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.13,
+     "gpu.04 residency: which bricks": 1.39,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.23
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.1,
+     "gpu.01 settle (collect the call before)": 7.7,
+     "gpu.04 residency: which bricks": 40.8,
+     "gpu.05 residency: apply": 11.2,
+     "gpu.08 record the commands": 8.4,
+     "mgr.3 tall cells": 22.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 77.9,
+     "ripples.1 surfaceFields (= surf.*)": 24.8,
+     "ripples.2 masks + layers": 26.1,
+     "surf.1 read the GPU surface": 22.3
+    },
+    "calls": {
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.08 record the commands": 34,
+     "mgr.3 tall cells": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.1 surfaceFields (= surf.*)": 125,
+     "ripples.2 masks + layers": 125,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 125,
+    "worst_water_block": {
+     "bodies": 0.0065,
+     "exchange": 0.0001,
+     "feed": 0.0286,
+     "motion": 0.0033,
+     "pressure": 0.0011,
+     "solids": 0.0006,
+     "total": 4.8661,
+     "update": 4.8206
+    }
+   },
+   {
+    "t": 8.2,
+    "frame_ms_max": 8.293800055980682,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.13,
+     "gpu.04 residency: which bricks": 1.39,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.1
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.6,
+     "gpu.01 settle (collect the call before)": 7.2,
+     "gpu.04 residency: which bricks": 38.1,
+     "gpu.05 residency: apply": 10.3,
+     "gpu.08 record the commands": 7.6,
+     "mgr.3 tall cells": 20.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 71.9,
+     "ripples.1 surfaceFields (= surf.*)": 22.2,
+     "ripples.2 masks + layers": 23.6,
+     "surf.1 read the GPU surface": 19.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 126,
+     "ripples.2 masks + layers": 126,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 126,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.0001,
+     "feed": 0.0276,
+     "motion": 0.0031,
+     "pressure": 0.0016,
+     "solids": 0.0007,
+     "total": 4.7149,
+     "update": 4.6706
+    }
+   },
+   {
+    "t": 8.7,
+    "frame_ms_max": 7.908799685537815,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.27,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.36,
+     "ripples.1 surfaceFields (= surf.*)": 1.17,
+     "surf.1 read the GPU surface": 1.15
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.5,
+     "gpu.01 settle (collect the call before)": 6.1,
+     "gpu.04 residency: which bricks": 36.9,
+     "gpu.05 residency: apply": 10.1,
+     "gpu.08 record the commands": 7.5,
+     "mgr.3 tall cells": 20.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 69.2,
+     "ripples.1 surfaceFields (= surf.*)": 21.8,
+     "ripples.2 masks + layers": 22.3,
+     "surf.1 read the GPU surface": 19.4
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 125,
+     "ripples.2 masks + layers": 125,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 125,
+    "worst_water_block": {
+     "bodies": 0.008,
+     "exchange": 0.0001,
+     "feed": 0.0406,
+     "motion": 0.0035,
+     "pressure": 0.0014,
+     "solids": 0.0006,
+     "total": 4.8349,
+     "update": 4.7751
+    }
+   },
+   {
+    "t": 9.2,
+    "frame_ms_max": 7.73700000718236,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.12,
+     "gpu.04 residency: which bricks": 1.24,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.17
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.6,
+     "gpu.01 settle (collect the call before)": 7.2,
+     "gpu.04 residency: which bricks": 38.3,
+     "gpu.05 residency: apply": 10.5,
+     "gpu.08 record the commands": 7.6,
+     "mgr.3 tall cells": 20.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 72.2,
+     "ripples.1 surfaceFields (= surf.*)": 20.5,
+     "ripples.2 masks + layers": 23.0,
+     "surf.1 read the GPU surface": 18.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 127,
+     "ripples.2 masks + layers": 127,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 127,
+    "worst_water_block": {
+     "bodies": 0.0063,
+     "exchange": 0.0001,
+     "feed": 0.0299,
+     "motion": 0.0035,
+     "pressure": 0.0019,
+     "solids": 0.0006,
+     "total": 4.8932,
+     "update": 4.8452
+    }
+   },
+   {
+    "t": 9.8,
+    "frame_ms_max": 9.748700074851513,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.43,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.62,
+     "ripples.1 surfaceFields (= surf.*)": 1.13,
+     "surf.1 read the GPU surface": 1.11
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.0,
+     "gpu.01 settle (collect the call before)": 6.8,
+     "gpu.04 residency: which bricks": 40.0,
+     "gpu.05 residency: apply": 11.0,
+     "gpu.08 record the commands": 8.0,
+     "mgr.3 tall cells": 22.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 74.8,
+     "ripples.1 surfaceFields (= surf.*)": 21.6,
+     "ripples.2 masks + layers": 24.3,
+     "surf.1 read the GPU surface": 19.2
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 123,
+     "ripples.2 masks + layers": 123,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 123,
+    "worst_water_block": {
+     "bodies": 0.0094,
+     "exchange": 0.0001,
+     "feed": 0.0448,
+     "motion": 0.0042,
+     "pressure": 0.0015,
+     "solids": 0.001,
+     "total": 4.9109,
+     "update": 4.8402
+    }
+   },
+   {
+    "t": 10.3,
+    "frame_ms_max": 8.32779984921217,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.07,
+     "gpu.04 residency: which bricks": 1.28,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.09,
+     "ripples.1 surfaceFields (= surf.*)": 1.18,
+     "surf.1 read the GPU surface": 1.15
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.7,
+     "gpu.01 settle (collect the call before)": 7.3,
+     "gpu.04 residency: which bricks": 38.7,
+     "gpu.05 residency: apply": 11.1,
+     "gpu.08 record the commands": 7.6,
+     "mgr.3 tall cells": 21.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 73.3,
+     "ripples.1 surfaceFields (= surf.*)": 22.6,
+     "ripples.2 masks + layers": 21.8,
+     "surf.1 read the GPU surface": 20.3
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 125,
+     "ripples.2 masks + layers": 125,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 125,
+    "worst_water_block": {
+     "bodies": 0.0102,
+     "exchange": 0.0001,
+     "feed": 0.0346,
+     "motion": 0.0037,
+     "pressure": 0.0021,
+     "solids": 0.0009,
+     "total": 4.8406,
+     "update": 4.784
+    }
+   },
+   {
+    "t": 10.9,
+    "frame_ms_max": 7.879599928855896,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.39,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.48,
+     "ripples.1 surfaceFields (= surf.*)": 1.15,
+     "surf.1 read the GPU surface": 1.12
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.8,
+     "gpu.01 settle (collect the call before)": 6.5,
+     "gpu.04 residency: which bricks": 40.0,
+     "gpu.05 residency: apply": 11.2,
+     "gpu.08 record the commands": 7.8,
+     "mgr.3 tall cells": 22.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 74.1,
+     "ripples.1 surfaceFields (= surf.*)": 20.9,
+     "ripples.2 masks + layers": 21.4,
+     "surf.1 read the GPU surface": 18.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 130,
+     "ripples.2 masks + layers": 130,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 130,
+    "worst_water_block": {
+     "bodies": 0.0109,
+     "exchange": 0.0001,
+     "feed": 0.03,
+     "motion": 0.0022,
+     "pressure": 0.0018,
+     "solids": 0.0011,
+     "total": 4.4734,
+     "update": 4.4207
+    }
+   },
+   {
+    "t": 11.5,
+    "frame_ms_max": 20.289700478315353,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.08,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.33
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.1,
+     "gpu.01 settle (collect the call before)": 6.9,
+     "gpu.04 residency: which bricks": 22.4,
+     "gpu.05 residency: apply": 14.7,
+     "gpu.08 record the commands": 9.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 61.3,
+     "ripples.1 surfaceFields (= surf.*)": 21.5,
+     "ripples.2 masks + layers": 22.2,
+     "surf.1 read the GPU surface": 19.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 136,
+     "ripples.2 masks + layers": 136,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 136,
+    "worst_water_block": {
+     "bodies": 0.0081,
+     "exchange": 0.0003,
+     "feed": 0.0413,
+     "motion": 0.0027,
+     "pressure": 0.0018,
+     "solids": 0.0008,
+     "total": 3.4944,
+     "update": 3.4329
+    }
+   },
+   {
+    "t": 12.0,
+    "frame_ms_max": 6.739700213074684,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.01
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.2,
+     "gpu.01 settle (collect the call before)": 6.7,
+     "gpu.04 residency: which bricks": 21.3,
+     "gpu.05 residency: apply": 14.2,
+     "gpu.08 record the commands": 9.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 59.4,
+     "ripples.1 surfaceFields (= surf.*)": 21.6,
+     "ripples.2 masks + layers": 22.7,
+     "surf.1 read the GPU surface": 19.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 134,
+     "ripples.2 masks + layers": 134,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0072,
+     "exchange": 0.0002,
+     "feed": 0.031,
+     "motion": 0.0019,
+     "pressure": 0.0013,
+     "solids": 0.0008,
+     "total": 3.2305,
+     "update": 3.1831
+    }
+   },
+   {
+    "t": 12.6,
+    "frame_ms_max": 8.0917002633214,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.14
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.4,
+     "gpu.01 settle (collect the call before)": 7.6,
+     "gpu.04 residency: which bricks": 23.7,
+     "gpu.05 residency: apply": 15.6,
+     "gpu.08 record the commands": 10.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 66.3,
+     "ripples.1 surfaceFields (= surf.*)": 24.7,
+     "ripples.2 masks + layers": 24.6,
+     "surf.1 read the GPU surface": 22.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.08 record the commands": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.1 surfaceFields (= surf.*)": 141,
+     "ripples.2 masks + layers": 141,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0082,
+     "exchange": 0.0006,
+     "feed": 0.0299,
+     "motion": 0.0017,
+     "pressure": 0.0015,
+     "solids": 0.0015,
+     "total": 4.24,
+     "update": 4.192
+    }
+   },
+   {
+    "t": 13.1,
+    "frame_ms_max": 7.344599813222885,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.44
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.0,
+     "gpu.01 settle (collect the call before)": 6.5,
+     "gpu.04 residency: which bricks": 22.5,
+     "gpu.05 residency: apply": 15.2,
+     "gpu.08 record the commands": 10.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 63.4,
+     "ripples.1 surfaceFields (= surf.*)": 24.4,
+     "ripples.2 masks + layers": 25.2,
+     "surf.1 read the GPU surface": 21.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 141,
+     "ripples.2 masks + layers": 141,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0094,
+     "exchange": 0.0001,
+     "feed": 0.0337,
+     "motion": 0.0021,
+     "pressure": 0.0015,
+     "solids": 0.0009,
+     "total": 3.6137,
+     "update": 3.5595
+    }
+   },
+   {
+    "t": 13.7,
+    "frame_ms_max": 7.168999873101711,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.25
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.5,
+     "gpu.01 settle (collect the call before)": 6.3,
+     "gpu.04 residency: which bricks": 21.5,
+     "gpu.05 residency: apply": 14.8,
+     "gpu.08 record the commands": 9.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 61.5,
+     "ripples.1 surfaceFields (= surf.*)": 22.5,
+     "ripples.2 masks + layers": 24.5,
+     "surf.1 read the GPU surface": 20.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 141,
+     "ripples.2 masks + layers": 141,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.0001,
+     "feed": 0.0326,
+     "motion": 0.0024,
+     "pressure": 0.0018,
+     "solids": 0.0007,
+     "total": 3.5806,
+     "update": 3.5316
+    }
+   },
+   {
+    "t": 14.2,
+    "frame_ms_max": 7.446699775755405,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.2
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.6,
+     "gpu.01 settle (collect the call before)": 6.4,
+     "gpu.04 residency: which bricks": 23.3,
+     "gpu.05 residency: apply": 15.4,
+     "gpu.08 record the commands": 9.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 65.4,
+     "ripples.1 surfaceFields (= surf.*)": 22.4,
+     "ripples.2 masks + layers": 24.9,
+     "surf.1 read the GPU surface": 19.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.08 record the commands": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.1 surfaceFields (= surf.*)": 143,
+     "ripples.2 masks + layers": 143,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 143,
+    "worst_water_block": {
+     "bodies": 0.006,
+     "exchange": 0.0001,
+     "feed": 0.0342,
+     "motion": 0.002,
+     "pressure": 0.0017,
+     "solids": 0.001,
+     "total": 3.3352,
+     "update": 3.2858
+    }
+   },
+   {
+    "t": 14.8,
+    "frame_ms_max": 6.759299896657467,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.18
+    },
+    "totals_ms": {
+     "gpu.01 settle (collect the call before)": 5.2,
+     "gpu.04 residency: which bricks": 20.8,
+     "gpu.05 residency: apply": 14.4,
+     "gpu.07 partition + tables": 5.1,
+     "gpu.08 record the commands": 8.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 59.6,
+     "ripples.1 surfaceFields (= surf.*)": 18.8,
+     "ripples.2 masks + layers": 23.0,
+     "surf.1 read the GPU surface": 16.4
+    },
+    "calls": {
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.07 partition + tables": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 140,
+     "ripples.2 masks + layers": 140,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 140,
+    "worst_water_block": {
+     "bodies": 0.0069,
+     "exchange": 0.0001,
+     "feed": 0.035,
+     "motion": 0.003,
+     "pressure": 0.0023,
+     "solids": 0.0012,
+     "total": 3.5403,
+     "update": 3.4861
+    }
+   },
+   {
+    "t": 15.3,
+    "frame_ms_max": 6.330899894237518,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.19
+    },
+    "totals_ms": {
+     "gpu.01 settle (collect the call before)": 5.0,
+     "gpu.04 residency: which bricks": 19.6,
+     "gpu.05 residency: apply": 14.7,
+     "gpu.08 record the commands": 9.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 58.0,
+     "ripples.1 surfaceFields (= surf.*)": 15.6,
+     "ripples.2 masks + layers": 23.5,
+     "surf.1 read the GPU surface": 13.2
+    },
+    "calls": {
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 137,
+     "ripples.2 masks + layers": 137,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 137,
+    "worst_water_block": {
+     "bodies": 0.0074,
+     "exchange": 0.0006,
+     "feed": 0.036,
+     "motion": 0.0018,
+     "pressure": 0.0015,
+     "solids": 0.0006,
+     "total": 3.3276,
+     "update": 3.2747
+    }
+   },
+   {
+    "t": 15.9,
+    "frame_ms_max": 6.597899831831455,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.32
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 19.8,
+     "gpu.05 residency: apply": 15.1,
+     "gpu.07 partition + tables": 6.7,
+     "gpu.08 record the commands": 9.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 60.8,
+     "ripples.1 surfaceFields (= surf.*)": 14.0,
+     "ripples.2 masks + layers": 24.0,
+     "surf.1 read the GPU surface": 11.5
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.07 partition + tables": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 146,
+     "ripples.2 masks + layers": 146,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 146,
+    "worst_water_block": {
+     "bodies": 0.0104,
+     "exchange": 0.0001,
+     "feed": 0.0262,
+     "motion": 0.0019,
+     "pressure": 0.002,
+     "solids": 0.0013,
+     "total": 3.297,
+     "update": 3.2496
+    }
+   },
+   {
+    "t": 16.4,
+    "frame_ms_max": 6.020700093358755,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.09
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 16.9,
+     "gpu.05 residency: apply": 14.5,
+     "gpu.08 record the commands": 9.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 54.4,
+     "ripples.1 surfaceFields (= surf.*)": 9.9,
+     "ripples.2 masks + layers": 23.8,
+     "surf.1 read the GPU surface": 7.5
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 144,
+     "ripples.2 masks + layers": 144,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 144,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.0001,
+     "feed": 0.0291,
+     "motion": 0.0017,
+     "pressure": 0.0018,
+     "solids": 0.0006,
+     "total": 2.9615,
+     "update": 2.838
+    }
+   },
+   {
+    "t": 17.0,
+    "frame_ms_max": 5.810599774122238,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.1
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 14.0,
+     "gpu.05 residency: apply": 14.3,
+     "gpu.08 record the commands": 10.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 52.6,
+     "ripples.1 surfaceFields (= surf.*)": 6.6,
+     "ripples.2 masks + layers": 25.0
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 143,
+     "ripples.2 masks + layers": 143
+    },
+    "frames": 143,
+    "worst_water_block": {
+     "bodies": 0.0071,
+     "exchange": 0.0002,
+     "feed": 0.031,
+     "motion": 0.0019,
+     "pressure": 0.0013,
+     "solids": 0.0011,
+     "total": 3.2073,
+     "update": 2.8282
+    }
+   },
+   {
+    "t": 17.5,
+    "frame_ms_max": 6.250299979001284,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.89
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 12.6,
+     "gpu.05 residency: apply": 14.9,
+     "gpu.08 record the commands": 9.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 48.5,
+     "ripples.2 masks + layers": 25.4
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 145
+    },
+    "frames": 145,
+    "worst_water_block": {
+     "bodies": 0.0099,
+     "exchange": 0.0001,
+     "feed": 0.0341,
+     "motion": 0.0016,
+     "pressure": 0.0016,
+     "solids": 0.0011,
+     "total": 2.6453,
+     "update": 2.5902
+    }
+   },
+   {
+    "t": 18.1,
+    "frame_ms_max": 6.102500017732382,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.64
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 12.1,
+     "gpu.05 residency: apply": 14.8,
+     "gpu.08 record the commands": 9.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 46.5,
+     "ripples.2 masks + layers": 25.5
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 148
+    },
+    "frames": 148,
+    "worst_water_block": {
+     "bodies": 0.0065,
+     "exchange": 0.0001,
+     "feed": 0.0352,
+     "motion": 0.0022,
+     "pressure": 0.0013,
+     "solids": 0.0007,
+     "total": 2.4387,
+     "update": 2.3888
+    }
+   },
+   {
+    "t": 18.6,
+    "frame_ms_max": 60.611698776483536,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.51,
+     "motion.1 takeMotion scan": 3.63,
+     "ripples.2 masks + layers": 4.16,
+     "tilesNow.2 surface": 1.43
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 10.0,
+     "ripples.2 masks + layers": 21.5,
+     "tilesNow.2 surface": 8.3
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 94,
+     "ripples.2 masks + layers": 94,
+     "tilesNow.2 surface": 6
+    },
+    "frames": 94,
+    "worst_water_block": {
+     "bodies": 0.0094,
+     "exchange": 0.0005,
+     "feed": 22.8424,
+     "motion": 3.1254,
+     "pressure": 0.0017,
+     "solids": 0.0008,
+     "total": 55.1113,
+     "update": 29.1257
+    }
+   },
+   {
+    "t": 19.1,
+    "frame_ms_max": 4.879700019955635,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 12.2
+    },
+    "calls": {
+     "ripples.2 masks + layers": 152
+    },
+    "frames": 152,
+    "worst_water_block": {
+     "bodies": 0.0101,
+     "exchange": 0.0001,
+     "feed": 0.0254,
+     "motion": 0.0019,
+     "pressure": 0.0019,
+     "solids": 0.0011,
+     "total": 0.3845,
+     "update": 0.3392
+    }
+   },
+   {
+    "t": 19.7,
+    "frame_ms_max": 4.161899909377098,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.3
+    },
+    "calls": {
+     "ripples.2 masks + layers": 154
+    },
+    "frames": 154,
+    "worst_water_block": {
+     "bodies": 0.0117,
+     "exchange": 0.0001,
+     "feed": 0.0227,
+     "motion": 0.0019,
+     "pressure": 0.002,
+     "solids": 0.0012,
+     "total": 0.3438,
+     "update": 0.2978
+    }
+   },
+   {
+    "t": 20.2,
+    "frame_ms_max": 51.1183999478817,
+    "parts": {
+     "motion.1 takeMotion scan": 3.5,
+     "ripples.2 masks + layers": 3.89,
+     "tilesNow.2 surface": 1.46
+    },
+    "totals_ms": {
+     "ripples.2 masks + layers": 15.8
+    },
+    "calls": {
+     "ripples.2 masks + layers": 141
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0058,
+     "exchange": 0.0006,
+     "feed": 24.4287,
+     "motion": 3.5061,
+     "pressure": 0.0017,
+     "solids": 0.0007,
+     "total": 47.3998,
+     "update": 19.4505
+    }
+   },
+   {
+    "t": 20.8,
+    "frame_ms_max": 62.281299382448196,
+    "parts": {
+     "motion.1 takeMotion scan": 3.53,
+     "ripples.2 masks + layers": 3.61,
+     "tilesNow.2 surface": 1.67
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 7.1,
+     "ripples.2 masks + layers": 18.8
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 112,
+     "ripples.2 masks + layers": 112
+    },
+    "frames": 112,
+    "worst_water_block": {
+     "bodies": 0.0081,
+     "exchange": 0.0006,
+     "feed": 22.5877,
+     "motion": 3.5316,
+     "pressure": 0.0015,
+     "solids": 0.0006,
+     "total": 57.8803,
+     "update": 31.7448
+    }
+   },
+   {
+    "t": 21.3,
+    "frame_ms_max": 6.0860998928546906,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 12.3
+    },
+    "calls": {
+     "ripples.2 masks + layers": 127
+    },
+    "frames": 127,
+    "worst_water_block": {
+     "bodies": 0.0087,
+     "exchange": 0.0001,
+     "feed": 0.028,
+     "motion": 0.002,
+     "pressure": 0.0019,
+     "solids": 0.0013,
+     "total": 0.3793,
+     "update": 0.3323
+    }
+   },
+   {
+    "t": 21.9,
+    "frame_ms_max": 5.205899942666292,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 13.7
+    },
+    "calls": {
+     "ripples.2 masks + layers": 132
+    },
+    "frames": 132,
+    "worst_water_block": {
+     "bodies": 0.0087,
+     "exchange": 0.0001,
+     "feed": 0.0239,
+     "motion": 0.0016,
+     "pressure": 0.0023,
+     "solids": 0.0008,
+     "total": 0.4296,
+     "update": 0.2802
+    }
+   },
+   {
+    "t": 22.4,
+    "frame_ms_max": 9.071700274944305,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 13.6
+    },
+    "calls": {
+     "ripples.2 masks + layers": 126
+    },
+    "frames": 126,
+    "worst_water_block": {
+     "bodies": 0.0068,
+     "exchange": 0.0001,
+     "feed": 0.0252,
+     "motion": 0.0016,
+     "pressure": 0.0015,
+     "solids": 0.0007,
+     "total": 0.5097,
+     "update": 0.4692
+    }
+   },
+   {
+    "t": 22.9,
+    "frame_ms_max": 5.363199859857559,
+    "parts": {
+     "ripples.2 masks + layers": 1.07
+    },
+    "totals_ms": {
+     "ripples.2 masks + layers": 13.1
+    },
+    "calls": {
+     "ripples.2 masks + layers": 131
+    },
+    "frames": 131,
+    "worst_water_block": {
+     "bodies": 0.0101,
+     "exchange": 0.0002,
+     "feed": 0.0381,
+     "motion": 0.0019,
+     "pressure": 0.0017,
+     "solids": 0.0011,
+     "total": 1.2918,
+     "update": 1.2321
+    }
+   },
+   {
+    "t": 23.5,
+    "frame_ms_max": 4.734199959784746,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.5
+    },
+    "calls": {
+     "ripples.2 masks + layers": 137
+    },
+    "frames": 137,
+    "worst_water_block": {
+     "bodies": 0.0117,
+     "exchange": 0.0006,
+     "feed": 0.026,
+     "motion": 0.002,
+     "pressure": 0.0015,
+     "solids": 0.0017,
+     "total": 0.3952,
+     "update": 0.3453
+    }
+   },
+   {
+    "t": 24.0,
+    "frame_ms_max": 5.796399898827076,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.7
+    },
+    "calls": {
+     "ripples.2 masks + layers": 138
+    },
+    "frames": 138,
+    "worst_water_block": {
+     "bodies": 0.0102,
+     "exchange": 0.0001,
+     "feed": 0.0237,
+     "motion": 0.0022,
+     "pressure": 0.0017,
+     "solids": 0.0014,
+     "total": 0.3573,
+     "update": 0.3124
+    }
+   },
+   {
+    "t": 24.6,
+    "frame_ms_max": 5.152599886059761,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.8
+    },
+    "calls": {
+     "ripples.2 masks + layers": 133
+    },
+    "frames": 133,
+    "worst_water_block": {
+     "bodies": 0.0097,
+     "exchange": 0.0,
+     "feed": 0.0306,
+     "motion": 0.002,
+     "pressure": 0.0023,
+     "solids": 0.0008,
+     "total": 0.4768,
+     "update": 0.4263
+    }
+   },
+   {
+    "t": 25.1,
+    "frame_ms_max": 6.038600113242865,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 13.4
+    },
+    "calls": {
+     "ripples.2 masks + layers": 137
+    },
+    "frames": 137,
+    "worst_water_block": {
+     "bodies": 0.0065,
+     "exchange": 0.0001,
+     "feed": 0.0207,
+     "motion": 0.0016,
+     "pressure": 0.002,
+     "solids": 0.0007,
+     "total": 0.423,
+     "update": 0.0438
+    }
+   },
+   {
+    "t": 25.7,
+    "frame_ms_max": 4.871599841862917,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 12.7
+    },
+    "calls": {
+     "ripples.2 masks + layers": 134
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0102,
+     "exchange": 0.0001,
+     "feed": 0.0255,
+     "motion": 0.0024,
+     "pressure": 0.0016,
+     "solids": 0.0009,
+     "total": 0.4226,
+     "update": 0.3771
+    }
+   },
+   {
+    "t": 26.2,
+    "frame_ms_max": 62.72370368242264,
+    "parts": {
+     "motion.1 takeMotion scan": 3.9,
+     "ripples.2 masks + layers": 3.42,
+     "tilesNow.2 surface": 1.57
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 7.5,
+     "ripples.2 masks + layers": 17.1,
+     "tilesNow.2 surface": 5.7
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 105,
+     "ripples.2 masks + layers": 105,
+     "tilesNow.2 surface": 4
+    },
+    "frames": 105,
+    "worst_water_block": {
+     "bodies": 0.0096,
+     "exchange": 0.0006,
+     "feed": 23.9752,
+     "motion": 3.5275,
+     "pressure": 0.0022,
+     "solids": 0.0009,
+     "total": 58.0816,
+     "update": 30.5573
+    }
+   },
+   {
+    "t": 26.8,
+    "frame_ms_max": 46.87419906258583,
+    "parts": {
+     "ripples.2 masks + layers": 6.99
+    },
+    "totals_ms": {
+     "ripples.2 masks + layers": 7.4
+    },
+    "calls": {
+     "ripples.2 masks + layers": 133
+    },
+    "frames": 133,
+    "worst_water_block": {
+     "bodies": 0.0059,
+     "exchange": 0.0012,
+     "feed": 10.9375,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0006,
+     "total": 19.0617,
+     "update": 8.1117
+    }
+   },
+   {
+    "t": 27.4,
+    "frame_ms_max": 5.324500147253275,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 158,
+    "worst_water_block": {
+     "bodies": 0.0089,
+     "exchange": 0.0001,
+     "feed": 0.0219,
+     "motion": 0.0,
+     "pressure": 0.001,
+     "solids": 0.0008,
+     "total": 0.1999,
+     "update": 0.0296
+    }
+   },
+   {
+    "t": 27.9,
+    "frame_ms_max": 3.882399993017316,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 178,
+    "worst_water_block": {
+     "bodies": 0.0079,
+     "exchange": 0.0001,
+     "feed": 0.0219,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.001,
+     "total": 0.1693,
+     "update": 0.0258
+    }
+   },
+   {
+    "t": 28.4,
+    "frame_ms_max": 4.470400046557188,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 175,
+    "worst_water_block": {
+     "bodies": 0.0082,
+     "exchange": 0.0002,
+     "feed": 0.0195,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0009,
+     "total": 0.7779,
+     "update": 0.0258
+    }
+   },
+   {
+    "t": 29.0,
+    "frame_ms_max": 9.955800138413906,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 174,
+    "worst_water_block": {
+     "bodies": 0.0072,
+     "exchange": 0.0,
+     "feed": 0.0202,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0006,
+     "total": 0.1652,
+     "update": 0.0247
+    }
+   },
+   {
+    "t": 29.5,
+    "frame_ms_max": 7.439599838107824,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 172,
+    "worst_water_block": {
+     "bodies": 0.0096,
+     "exchange": 0.0002,
+     "feed": 0.0256,
+     "motion": 0.0,
+     "pressure": 0.0014,
+     "solids": 0.0017,
+     "total": 0.2455,
+     "update": 0.0365
+    }
+   },
+   {
+    "t": 30.1,
+    "frame_ms_max": 4.47099981829524,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 171,
+    "worst_water_block": {
+     "bodies": 0.0068,
+     "exchange": 0.0,
+     "feed": 0.0194,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0006,
+     "total": 0.1764,
+     "update": 0.0221
+    }
+   },
+   {
+    "t": 30.6,
+    "frame_ms_max": 3.9110002107918262,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 177,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.0001,
+     "feed": 0.018,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0011,
+     "total": 0.7396,
+     "update": 0.0225
+    }
+   },
+   {
+    "t": 31.1,
+    "frame_ms_max": 4.197400063276291,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 177,
+    "worst_water_block": {
+     "bodies": 0.0055,
+     "exchange": 0.0,
+     "feed": 0.0184,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0006,
+     "total": 0.1511,
+     "update": 0.0205
+    }
+   },
+   {
+    "t": 31.7,
+    "frame_ms_max": 3.7668999284505844,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 183,
+    "worst_water_block": {
+     "bodies": 0.007,
+     "exchange": 0.0001,
+     "feed": 0.0202,
+     "motion": 0.0,
+     "pressure": 0.001,
+     "solids": 0.0007,
+     "total": 0.1653,
+     "update": 0.0235
+    }
+   },
+   {
+    "t": 32.3,
+    "frame_ms_max": 4.637599922716618,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 176,
+    "worst_water_block": {
+     "bodies": 0.0081,
+     "exchange": 0.0002,
+     "feed": 0.0221,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0007,
+     "total": 0.1652,
+     "update": 0.0283
+    }
+   },
+   {
+    "t": 32.8,
+    "frame_ms_max": 4.41240007057786,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 169,
+    "worst_water_block": {
+     "bodies": 0.0085,
+     "exchange": 0.0,
+     "feed": 0.0216,
+     "motion": 0.0,
+     "pressure": 0.001,
+     "solids": 0.0007,
+     "total": 0.6918,
+     "update": 0.0476
+    }
+   },
+   {
+    "t": 33.4,
+    "frame_ms_max": 4.935299977660179,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 170,
+    "worst_water_block": {
+     "bodies": 0.0068,
+     "exchange": 0.0001,
+     "feed": 0.0188,
+     "motion": 0.0,
+     "pressure": 0.0013,
+     "solids": 0.0006,
+     "total": 0.1593,
+     "update": 0.025
+    }
+   },
+   {
+    "t": 33.9,
+    "frame_ms_max": 4.963099956512451,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 177,
+    "worst_water_block": {
+     "bodies": 0.0071,
+     "exchange": 0.0001,
+     "feed": 0.0198,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0008,
+     "total": 0.1603,
+     "update": 0.0247
+    }
+   },
+   {
+    "t": 34.5,
+    "frame_ms_max": 4.295499995350838,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 167,
+    "worst_water_block": {
+     "bodies": 0.0082,
+     "exchange": 0.0001,
+     "feed": 0.0242,
+     "motion": 0.0,
+     "pressure": 0.0009,
+     "solids": 0.0007,
+     "total": 0.7929,
+     "update": 0.0581
+    }
+   },
+   {
+    "t": 35.0,
+    "frame_ms_max": 4.3970998376607895,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 174,
+    "worst_water_block": {
+     "bodies": 0.0063,
+     "exchange": 0.0,
+     "feed": 0.0178,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0006,
+     "total": 0.1496,
+     "update": 0.0215
+    }
+   },
+   {
+    "t": 35.5,
+    "frame_ms_max": 3.889499930664897,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 178,
+    "worst_water_block": {
+     "bodies": 0.0109,
+     "exchange": 0.0001,
+     "feed": 0.0687,
+     "motion": 0.0,
+     "pressure": 0.0012,
+     "solids": 0.0007,
+     "total": 0.1998,
+     "update": 0.1103
+    }
+   },
+   {
+    "t": 36.1,
+    "frame_ms_max": 4.340100102126598,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 175,
+    "worst_water_block": {
+     "bodies": 0.006,
+     "exchange": 0.0001,
+     "feed": 0.0194,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0005,
+     "total": 0.1507,
+     "update": 0.0212
+    }
+   },
+   {
+    "t": 36.6,
+    "frame_ms_max": 3.793400013819337,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 177,
+    "worst_water_block": {
+     "bodies": 0.0051,
+     "exchange": 0.0,
+     "feed": 0.019,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0006,
+     "total": 0.7052,
+     "update": 0.0211
+    }
+   },
+   {
+    "t": 37.2,
+    "frame_ms_max": 4.483699798583984,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 177,
+    "worst_water_block": {
+     "bodies": 0.0036,
+     "exchange": 0.0001,
+     "feed": 0.0195,
+     "motion": 0.0,
+     "pressure": 0.0011,
+     "solids": 0.0005,
+     "total": 0.1481,
+     "update": 0.0209
+    }
+   },
+   {
+    "t": 37.7,
+    "frame_ms_max": 4.023300018161535,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 175,
+    "worst_water_block": {
+     "bodies": 0.01,
+     "exchange": 0.0,
+     "feed": 0.0208,
+     "motion": 0.0,
+     "pressure": 0.0012,
+     "solids": 0.0008,
+     "total": 0.1992,
+     "update": 0.027
+    }
+   },
+   {
+    "t": 38.3,
+    "frame_ms_max": 4.221799783408642,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 183,
+    "worst_water_block": {
+     "bodies": 0.0064,
+     "exchange": 0.0001,
+     "feed": 0.0179,
+     "motion": 0.0,
+     "pressure": 0.0006,
+     "solids": 0.0005,
+     "total": 0.1486,
+     "update": 0.021
+    }
+   },
+   {
+    "t": 38.9,
+    "frame_ms_max": 3.988000098615885,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 174,
+    "worst_water_block": {
+     "bodies": 0.0064,
+     "exchange": 0.0001,
+     "feed": 0.0187,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0013,
+     "total": 0.7463,
+     "update": 0.0247
+    }
+   },
+   {
+    "t": 39.4,
+    "frame_ms_max": 4.933100193738937,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 176,
+    "worst_water_block": {
+     "bodies": 0.0069,
+     "exchange": 0.0,
+     "feed": 0.0192,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0007,
+     "total": 0.1531,
+     "update": 0.0217
+    }
+   },
+   {
+    "t": 40.0,
+    "frame_ms_max": 5.033799912780523,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 171,
+    "worst_water_block": {
+     "bodies": 0.0034,
+     "exchange": 0.0001,
+     "feed": 0.0169,
+     "motion": 0.0,
+     "pressure": 0.0006,
+     "solids": 0.0003,
+     "total": 0.1369,
+     "update": 0.0171
+    }
+   },
+   {
+    "t": 40.5,
+    "frame_ms_max": 3.9897002279758453,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 176,
+    "worst_water_block": {
+     "bodies": 0.0039,
+     "exchange": 0.0,
+     "feed": 0.0198,
+     "motion": 0.0,
+     "pressure": 0.0006,
+     "solids": 0.0005,
+     "total": 0.7071,
+     "update": 0.021
+    }
+   },
+   {
+    "t": 41.1,
+    "frame_ms_max": 4.931500181555748,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 167,
+    "worst_water_block": {
+     "bodies": 0.0043,
+     "exchange": 0.0001,
+     "feed": 0.0175,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0007,
+     "total": 0.1448,
+     "update": 0.0188
+    }
+   },
+   {
+    "t": 41.6,
+    "frame_ms_max": 3.6941999569535255,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 175,
+    "worst_water_block": {
+     "bodies": 0.007,
+     "exchange": 0.0001,
+     "feed": 0.0184,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0007,
+     "total": 0.1652,
+     "update": 0.0222
+    }
+   },
+   {
+    "t": 42.2,
+    "frame_ms_max": 4.6720001846551895,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 168,
+    "worst_water_block": {
+     "bodies": 0.0076,
+     "exchange": 0.0001,
+     "feed": 0.0198,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0006,
+     "total": 0.1572,
+     "update": 0.0223
+    }
+   },
+   {
+    "t": 42.7,
+    "frame_ms_max": 5.36759989336133,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 161,
+    "worst_water_block": {
+     "bodies": 0.0089,
+     "exchange": 0.0001,
+     "feed": 0.0211,
+     "motion": 0.0,
+     "pressure": 0.0009,
+     "solids": 0.0008,
+     "total": 0.7979,
+     "update": 0.0499
+    }
+   },
+   {
+    "t": 43.2,
+    "frame_ms_max": 3.8886999245733023,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 176,
+    "worst_water_block": {
+     "bodies": 0.0061,
+     "exchange": 0.0,
+     "feed": 0.0177,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0007,
+     "total": 0.1475,
+     "update": 0.0204
+    }
+   },
+   {
+    "t": 43.8,
+    "frame_ms_max": 4.281899891793728,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 178,
+    "worst_water_block": {
+     "bodies": 0.0045,
+     "exchange": 0.0001,
+     "feed": 0.018,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0011,
+     "total": 0.1522,
+     "update": 0.0207
+    }
+   },
+   {
+    "t": 44.3,
+    "frame_ms_max": 4.193500149995089,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 180,
+    "worst_water_block": {
+     "bodies": 0.0077,
+     "exchange": 0.0,
+     "feed": 0.0194,
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "solids": 0.0006,
+     "total": 0.1576,
+     "update": 0.0226
+    }
+   },
+   {
+    "t": 44.9,
+    "frame_ms_max": 4.007999785244465,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 174,
+    "worst_water_block": {
+     "bodies": 0.0043,
+     "exchange": 0.0001,
+     "feed": 0.0186,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.001,
+     "total": 0.6939,
+     "update": 0.0177
+    }
+   }
+  ]
+ },
+ {
+  "run": 1,
+  "record_lake": {
+   "box": [
+    4,
+    16,
+    2,
+    63,
+    18,
+    61
+   ],
+   "m3": 7200.0,
+   "slept_boxes": 1,
+   "success": true,
+   "unwritten_columns": 0
+  },
+  "stone": {
+   "strength": 8.0,
+   "success": true,
+   "woken": [
+    22
+   ]
+  },
+  "slept_at_s": 25.9,
+  "sleep_parts_ms": {},
+  "sleep_total_ms": 0,
+  "worst_frame": [
+   0.3,
+   132.7219009399414
+  ],
+  "worst_frame_sleep_window": [
+   25.9,
+   60.53030118346214
+  ],
+  "record_draw": {
+   "build_ms_last_call": 0.0041,
+   "build_ms_max": 140.7314,
+   "build_ms_on_sleep_last": 2.924,
+   "built_last_call": 0,
+   "handover_frames_last": 7,
+   "handover_tiles_max_per_frame": 4,
+   "handover_tiles_per_frame": 4,
+   "handovers": 12,
+   "on": true,
+   "pending": 0,
+   "radius_m": 48.0,
+   "retiring": 0,
+   "revision": 652,
+   "sleep_tiles_built": 2060,
+   "tile_m": 8,
+   "tiles": 137,
+   "wet_tiles": 109
+  },
+  "worst_frame_ms_by_read": [
+   [
+    0.3,
+    132.7219009399414
+   ],
+   [
+    0.9,
+    64.39340114593506
+   ],
+   [
+    1.5,
+    28.94119918346405
+   ],
+   [
+    2.1,
+    7.035300135612488
+   ],
+   [
+    2.6,
+    9.019600227475166
+   ],
+   [
+    3.2,
+    9.084300138056278
+   ],
+   [
+    3.7,
+    10.13640034943819
+   ],
+   [
+    4.3,
+    10.27469988912344
+   ],
+   [
+    4.9,
+    7.600400131195784
+   ],
+   [
+    5.4,
+    7.647200021892786
+   ],
+   [
+    6.0,
+    7.919199764728546
+   ],
+   [
+    6.5,
+    8.655499666929245
+   ],
+   [
+    7.1,
+    7.841899991035461
+   ],
+   [
+    7.7,
+    8.497100323438644
+   ],
+   [
+    8.2,
+    8.160100318491459
+   ],
+   [
+    8.8,
+    7.582299876958132
+   ],
+   [
+    9.3,
+    8.429200388491154
+   ],
+   [
+    9.9,
+    7.6767997816205025
+   ],
+   [
+    10.4,
+    8.097399957478046
+   ],
+   [
+    11.0,
+    20.188400521874428
+   ],
+   [
+    11.5,
+    6.901300046592951
+   ],
+   [
+    12.1,
+    6.94679981097579
+   ],
+   [
+    12.6,
+    6.3229999504983425
+   ],
+   [
+    13.2,
+    6.706899963319302
+   ],
+   [
+    13.7,
+    6.5725999884307384
+   ],
+   [
+    14.2,
+    6.811799947172403
+   ],
+   [
+    14.8,
+    7.166400086134672
+   ],
+   [
+    15.3,
+    6.655400153249502
+   ],
+   [
+    15.9,
+    6.239499896764755
+   ],
+   [
+    16.4,
+    6.380499806255102
+   ],
+   [
+    17.0,
+    5.956099834293127
+   ],
+   [
+    17.6,
+    5.931000225245953
+   ],
+   [
+    18.1,
+    65.24579972028732
+   ],
+   [
+    18.6,
+    49.73379895091057
+   ],
+   [
+    19.2,
+    4.2571998201310635
+   ],
+   [
+    19.7,
+    4.953000228852034
+   ],
+   [
+    20.3,
+    53.61729860305786
+   ],
+   [
+    20.9,
+    52.0360991358757
+   ],
+   [
+    21.4,
+    5.138400010764599
+   ],
+   [
+    22.0,
+    6.529400125145912
+   ],
+   [
+    22.6,
+    53.6855012178421
+   ],
+   [
+    23.1,
+    5.44039998203516
+   ],
+   [
+    23.6,
+    5.1333000883460045
+   ],
+   [
+    24.2,
+    58.63209813833237
+   ],
+   [
+    24.8,
+    48.41519892215729
+   ],
+   [
+    25.3,
+    6.330600008368492
+   ],
+   [
+    25.9,
+    60.53030118346214
+   ],
+   [
+    26.5,
+    4.796899855136871
+   ],
+   [
+    27.0,
+    4.11920016631484
+   ],
+   [
+    27.6,
+    4.315400030463934
+   ],
+   [
+    28.1,
+    3.835699986666441
+   ],
+   [
+    28.7,
+    5.859000142663717
+   ],
+   [
+    29.2,
+    4.08930005505681
+   ]
+  ],
+  "foreign_gpu_processes": [],
+  "wake": {
+   "last_wake_ms": 0.0,
+   "max_wake_ms": 0.0,
+   "last_wake_split_ms": {
+    "alloc": 12.0947,
+    "cells": 3499200,
+    "gpu_buffers": 0.0081,
+    "gpu_create_upload": 13.1537,
+    "gpu_create_volume": 0.9244,
+    "gpu_fill": 0.6156,
+    "gpu_occ_copy": 0.2638,
+    "gpu_pipeline_count": 24,
+    "gpu_pipelines": 0.2386,
+    "gpu_pipelines_reused": 24,
+    "gpu_upload": 11.9653,
+    "occupancy": 7.745,
+    "occupancy_threads": 8,
+    "seed": 4.2048,
+    "seed_occupancy": 1.6837,
+    "solids": 0.0001,
+    "span_read": 0.6595
+   },
+   "last_patch_split_ms": {
+    "adopt": 7.2103,
+    "create": 33.0007,
+    "size": 0.5978,
+    "wake_tile": 12.3941
+   },
+   "last_upload_split_ms": {
+    "bricks": 0,
+    "clear": 2.8129,
+    "host": 4.4519,
+    "residency": 4.1894,
+    "residency_split": {
+     "apply": 0.1379,
+     "ground": 0.99,
+     "grow": 0.0222,
+     "need": 3.0393
+    },
+    "scatter": 0.0001,
+    "settle": 0.0,
+    "submit": 0.4339,
+    "tables": 0.0127
+   },
+   "last_grow_split_ms": {
+    "alloc": 0.0,
+    "bytes_after": 0,
+    "copy": 0.0,
+    "free": 0.0,
+    "grows": 0,
+    "rebind": 0.0,
+    "tables": 0.0
+   }
+  },
+  "windows": [
+   {
+    "t": 0.3,
+    "frame_ms_max": 132.7219009399414,
+    "parts": {
+     "gpu.07 partition + tables": 2.92,
+     "gpu.08 record the commands": 9.8,
+     "mgr.2 record / wake tiles": 25.81,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 16.04,
+     "motion.1 takeMotion scan": 3.91,
+     "ripples.2 masks + layers": 6.86,
+     "surf.1 read the GPU surface": 1.17,
+     "up.0 max speed": 1.66,
+     "up.1 host occupancy + solid tops": 2.79
+    },
+    "totals_ms": {
+     "gpu.07 partition + tables": 9.8,
+     "gpu.08 record the commands": 18.5,
+     "mgr.2 record / wake tiles": 126.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 41.1,
+     "motion.1 takeMotion scan": 20.4,
+     "ripples.2 masks + layers": 24.6,
+     "surf.1 read the GPU surface": 6.1
+    },
+    "calls": {
+     "gpu.07 partition + tables": 7,
+     "gpu.08 record the commands": 7,
+     "mgr.2 record / wake tiles": 7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 7,
+     "motion.1 takeMotion scan": 8,
+     "ripples.2 masks + layers": 13,
+     "surf.1 read the GPU surface": 6
+    },
+    "frames": 13,
+    "worst_water_block": {
+     "bodies": 0.0091,
+     "exchange": 0.0002,
+     "feed": 22.8099,
+     "motion": 3.3551,
+     "pressure": 0.0016,
+     "solids": 0.0009,
+     "total": 64.5709,
+     "update": 38.3879
+    }
+   },
+   {
+    "t": 0.9,
+    "frame_ms_max": 64.39340114593506,
+    "parts": {
+     "collect.1 fence wait": 14.18,
+     "gpu.01 settle (collect the call before)": 14.39,
+     "gpu.04 residency: which bricks": 3.06,
+     "gpu.05 residency: apply": 1.58,
+     "gpu.08 record the commands": 1.52,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 17.73
+    },
+    "totals_ms": {
+     "collect.1 fence wait": 45.8,
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 52.2,
+     "gpu.04 residency: which bricks": 45.2,
+     "gpu.05 residency: apply": 14.8,
+     "gpu.08 record the commands": 19.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 142.0,
+     "ripples.2 masks + layers": 26.7,
+     "surf.1 read the GPU surface": 21.9
+    },
+    "calls": {
+     "collect.1 fence wait": 34,
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.08 record the commands": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.2 masks + layers": 96,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 96,
+    "worst_water_block": {
+     "bodies": 0.0046,
+     "exchange": 0.0001,
+     "feed": 0.0375,
+     "motion": 0.0034,
+     "pressure": 0.001,
+     "solids": 0.0005,
+     "total": 19.3234,
+     "update": 19.272
+    }
+   },
+   {
+    "t": 1.5,
+    "frame_ms_max": 28.94119918346405,
+    "parts": {
+     "collect.1 fence wait": 19.29,
+     "gpu.01 settle (collect the call before)": 19.53,
+     "gpu.04 residency: which bricks": 2.98,
+     "gpu.05 residency: apply": 1.42,
+     "gpu.08 record the commands": 1.71,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 22.8,
+     "surf.1 read the GPU surface": 1.34
+    },
+    "totals_ms": {
+     "collect.1 fence wait": 51.0,
+     "collect.2 lists + copies": 6.3,
+     "gpu.01 settle (collect the call before)": 58.7,
+     "gpu.04 residency: which bricks": 44.7,
+     "gpu.05 residency: apply": 13.0,
+     "gpu.08 record the commands": 13.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 139.2,
+     "ripples.2 masks + layers": 26.0,
+     "surf.1 read the GPU surface": 21.7
+    },
+    "calls": {
+     "collect.1 fence wait": 33,
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.2 masks + layers": 91,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 91,
+    "worst_water_block": {
+     "bodies": 0.0213,
+     "exchange": 0.0002,
+     "feed": 0.035,
+     "motion": 0.0038,
+     "pressure": 0.0014,
+     "solids": 0.001,
+     "total": 24.4367,
+     "update": 24.3678
+    }
+   },
+   {
+    "t": 2.1,
+    "frame_ms_max": 7.035300135612488,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.39,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.45
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.3,
+     "gpu.01 settle (collect the call before)": 5.8,
+     "gpu.04 residency: which bricks": 37.9,
+     "gpu.05 residency: apply": 10.7,
+     "gpu.08 record the commands": 7.3,
+     "mgr.3 tall cells": 5.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 70.0,
+     "ripples.2 masks + layers": 25.0,
+     "surf.1 read the GPU surface": 18.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.2 masks + layers": 123,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 123,
+    "worst_water_block": {
+     "bodies": 0.0048,
+     "exchange": 0.0001,
+     "feed": 0.0343,
+     "motion": 0.0028,
+     "pressure": 0.001,
+     "solids": 0.0006,
+     "total": 4.0345,
+     "update": 3.9867
+    }
+   },
+   {
+    "t": 2.6,
+    "frame_ms_max": 9.019600227475166,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.28,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.61,
+     "surf.1 read the GPU surface": 1.2
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.2,
+     "gpu.01 settle (collect the call before)": 7.0,
+     "gpu.04 residency: which bricks": 41.1,
+     "gpu.05 residency: apply": 12.3,
+     "gpu.08 record the commands": 11.6,
+     "mgr.3 tall cells": 22.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 82.0,
+     "ripples.2 masks + layers": 25.9,
+     "surf.1 read the GPU surface": 21.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.08 record the commands": 34,
+     "mgr.3 tall cells": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.2 masks + layers": 117,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 117,
+    "worst_water_block": {
+     "bodies": 0.0101,
+     "exchange": 0.0001,
+     "feed": 0.031,
+     "motion": 0.0028,
+     "pressure": 0.0021,
+     "solids": 0.0009,
+     "total": 5.3644,
+     "update": 5.3105
+    }
+   },
+   {
+    "t": 3.2,
+    "frame_ms_max": 9.084300138056278,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.15,
+     "gpu.04 residency: which bricks": 1.42,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.34,
+     "surf.1 read the GPU surface": 1.19
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.2,
+     "gpu.01 settle (collect the call before)": 7.9,
+     "gpu.04 residency: which bricks": 39.2,
+     "gpu.05 residency: apply": 12.9,
+     "gpu.08 record the commands": 9.3,
+     "mgr.3 tall cells": 21.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 79.0,
+     "ripples.2 masks + layers": 25.6,
+     "surf.1 read the GPU surface": 20.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 110,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 110,
+    "worst_water_block": {
+     "bodies": 0.0067,
+     "exchange": 0.0003,
+     "feed": 0.0352,
+     "motion": 0.0035,
+     "pressure": 0.0012,
+     "solids": 0.0012,
+     "total": 5.3464,
+     "update": 5.2936
+    }
+   },
+   {
+    "t": 3.7,
+    "frame_ms_max": 10.13640034943819,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.66,
+     "mgr.3 tall cells": 1.16,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.96,
+     "surf.1 read the GPU surface": 1.38
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.6,
+     "gpu.01 settle (collect the call before)": 7.5,
+     "gpu.04 residency: which bricks": 38.8,
+     "gpu.05 residency: apply": 12.1,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 25.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.2,
+     "ripples.2 masks + layers": 26.8,
+     "surf.1 read the GPU surface": 25.2
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.2 masks + layers": 94,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 94,
+    "worst_water_block": {
+     "bodies": 0.0069,
+     "exchange": 0.0001,
+     "feed": 0.046,
+     "motion": 0.0034,
+     "pressure": 0.0011,
+     "solids": 0.0008,
+     "total": 5.8888,
+     "update": 5.8267
+    }
+   },
+   {
+    "t": 4.3,
+    "frame_ms_max": 10.27469988912344,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.17,
+     "gpu.04 residency: which bricks": 1.45,
+     "mgr.3 tall cells": 1.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.3,
+     "surf.1 read the GPU surface": 1.41
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.9,
+     "gpu.01 settle (collect the call before)": 8.7,
+     "gpu.04 residency: which bricks": 40.7,
+     "gpu.05 residency: apply": 11.4,
+     "gpu.08 record the commands": 8.0,
+     "mgr.3 tall cells": 26.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 78.3,
+     "ripples.2 masks + layers": 26.4,
+     "surf.1 read the GPU surface": 22.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 97,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 97,
+    "worst_water_block": {
+     "bodies": 0.0113,
+     "exchange": 0.0004,
+     "feed": 0.051,
+     "motion": 0.0086,
+     "pressure": 0.0015,
+     "solids": 0.001,
+     "total": 5.9867,
+     "update": 5.9064
+    }
+   },
+   {
+    "t": 4.9,
+    "frame_ms_max": 7.600400131195784,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.44,
+     "surf.1 read the GPU surface": 1.17
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.7,
+     "gpu.01 settle (collect the call before)": 7.5,
+     "gpu.04 residency: which bricks": 39.8,
+     "gpu.05 residency: apply": 10.8,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 24.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 74.4,
+     "ripples.2 masks + layers": 22.3,
+     "surf.1 read the GPU surface": 19.4
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 130,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 130,
+    "worst_water_block": {
+     "bodies": 0.0082,
+     "exchange": 0.0001,
+     "feed": 0.0294,
+     "motion": 0.0033,
+     "pressure": 0.0013,
+     "solids": 0.0014,
+     "total": 4.7229,
+     "update": 4.6733
+    }
+   },
+   {
+    "t": 5.4,
+    "frame_ms_max": 7.647200021892786,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.16,
+     "gpu.04 residency: which bricks": 1.33,
+     "mgr.3 tall cells": 1.05,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.27
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 7.2,
+     "gpu.01 settle (collect the call before)": 9.1,
+     "gpu.04 residency: which bricks": 41.8,
+     "gpu.05 residency: apply": 11.2,
+     "gpu.08 record the commands": 8.5,
+     "mgr.3 tall cells": 26.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 80.1,
+     "ripples.1 surfaceFields (= surf.*)": 22.9,
+     "ripples.2 masks + layers": 23.9,
+     "surf.1 read the GPU surface": 21.2
+    },
+    "calls": {
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.08 record the commands": 34,
+     "mgr.3 tall cells": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.1 surfaceFields (= surf.*)": 129,
+     "ripples.2 masks + layers": 129,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 129,
+    "worst_water_block": {
+     "bodies": 0.0069,
+     "exchange": 0.0002,
+     "feed": 0.0256,
+     "motion": 0.0037,
+     "pressure": 0.001,
+     "solids": 0.0005,
+     "total": 5.0253,
+     "update": 4.9833
+    }
+   },
+   {
+    "t": 6.0,
+    "frame_ms_max": 7.919199764728546,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.33,
+     "mgr.3 tall cells": 1.07,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.5
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 7.4,
+     "gpu.01 settle (collect the call before)": 8.2,
+     "gpu.04 residency: which bricks": 40.4,
+     "gpu.05 residency: apply": 11.2,
+     "gpu.08 record the commands": 8.3,
+     "mgr.3 tall cells": 24.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 77.5,
+     "ripples.1 surfaceFields (= surf.*)": 24.6,
+     "ripples.2 masks + layers": 26.6,
+     "surf.1 read the GPU surface": 22.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 121,
+     "ripples.2 masks + layers": 121,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 121,
+    "worst_water_block": {
+     "bodies": 0.0064,
+     "exchange": 0.0001,
+     "feed": 0.0347,
+     "motion": 0.0037,
+     "pressure": 0.001,
+     "solids": 0.0005,
+     "total": 4.8994,
+     "update": 4.8483
+    }
+   },
+   {
+    "t": 6.5,
+    "frame_ms_max": 8.655499666929245,
+    "parts": {
+     "collect.3 stats + record + sleep": 1.19,
+     "gpu.01 settle (collect the call before)": 1.52,
+     "gpu.04 residency: which bricks": 1.66,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 4.23
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.3,
+     "gpu.01 settle (collect the call before)": 8.3,
+     "gpu.04 residency: which bricks": 39.9,
+     "gpu.05 residency: apply": 10.6,
+     "gpu.08 record the commands": 8.1,
+     "mgr.3 tall cells": 21.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 76.5,
+     "ripples.1 surfaceFields (= surf.*)": 24.2,
+     "ripples.2 masks + layers": 25.3,
+     "surf.1 read the GPU surface": 21.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 118,
+     "ripples.2 masks + layers": 118,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 118,
+    "worst_water_block": {
+     "bodies": 0.0068,
+     "exchange": 0.0001,
+     "feed": 0.0304,
+     "motion": 0.0032,
+     "pressure": 0.0011,
+     "solids": 0.0007,
+     "total": 5.9494,
+     "update": 5.9028
+    }
+   },
+   {
+    "t": 7.1,
+    "frame_ms_max": 7.841899991035461,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.26,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.35,
+     "ripples.1 surfaceFields (= surf.*)": 1.4,
+     "surf.1 read the GPU surface": 1.36
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 6.6,
+     "gpu.04 residency: which bricks": 38.3,
+     "gpu.05 residency: apply": 10.4,
+     "gpu.08 record the commands": 7.8,
+     "mgr.3 tall cells": 20.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 72.0,
+     "ripples.1 surfaceFields (= surf.*)": 23.8,
+     "ripples.2 masks + layers": 24.1,
+     "surf.1 read the GPU surface": 21.4
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 127,
+     "ripples.2 masks + layers": 127,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 127,
+    "worst_water_block": {
+     "bodies": 0.0078,
+     "exchange": 0.0005,
+     "feed": 0.0303,
+     "motion": 0.0031,
+     "pressure": 0.0012,
+     "solids": 0.0008,
+     "total": 4.9788,
+     "update": 4.9293
+    }
+   },
+   {
+    "t": 7.7,
+    "frame_ms_max": 8.497100323438644,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.25,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.35
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 6.6,
+     "gpu.04 residency: which bricks": 39.5,
+     "gpu.05 residency: apply": 10.7,
+     "gpu.08 record the commands": 7.9,
+     "mgr.3 tall cells": 21.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 73.8,
+     "ripples.1 surfaceFields (= surf.*)": 22.9,
+     "ripples.2 masks + layers": 25.4,
+     "surf.1 read the GPU surface": 20.3
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 134,
+     "ripples.2 masks + layers": 134,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0071,
+     "exchange": 0.0001,
+     "feed": 0.0335,
+     "motion": 0.0037,
+     "pressure": 0.0016,
+     "solids": 0.001,
+     "total": 4.4742,
+     "update": 4.4226
+    }
+   },
+   {
+    "t": 8.2,
+    "frame_ms_max": 8.160100318491459,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.09,
+     "gpu.04 residency: which bricks": 1.29,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.06
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.0,
+     "gpu.01 settle (collect the call before)": 7.6,
+     "gpu.04 residency: which bricks": 39.6,
+     "gpu.05 residency: apply": 10.7,
+     "gpu.08 record the commands": 7.8,
+     "mgr.3 tall cells": 20.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 74.4,
+     "ripples.1 surfaceFields (= surf.*)": 20.7,
+     "ripples.2 masks + layers": 23.4,
+     "surf.1 read the GPU surface": 18.3
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 133,
+     "ripples.2 masks + layers": 133,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 133,
+    "worst_water_block": {
+     "bodies": 0.0061,
+     "exchange": 0.0003,
+     "feed": 0.0323,
+     "motion": 0.0036,
+     "pressure": 0.0016,
+     "solids": 0.0007,
+     "total": 4.6122,
+     "update": 4.5636
+    }
+   },
+   {
+    "t": 8.8,
+    "frame_ms_max": 7.582299876958132,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.25,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.38
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.7,
+     "gpu.01 settle (collect the call before)": 6.5,
+     "gpu.04 residency: which bricks": 38.2,
+     "gpu.05 residency: apply": 10.4,
+     "gpu.08 record the commands": 7.6,
+     "mgr.3 tall cells": 20.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 71.1,
+     "ripples.1 surfaceFields (= surf.*)": 19.9,
+     "ripples.2 masks + layers": 21.7,
+     "surf.1 read the GPU surface": 17.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 128,
+     "ripples.2 masks + layers": 128,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 128,
+    "worst_water_block": {
+     "bodies": 0.0082,
+     "exchange": 0.0001,
+     "feed": 0.0368,
+     "motion": 0.0038,
+     "pressure": 0.0011,
+     "solids": 0.0009,
+     "total": 4.4812,
+     "update": 4.3405
+    }
+   },
+   {
+    "t": 9.3,
+    "frame_ms_max": 8.429200388491154,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.13,
+     "gpu.04 residency: which bricks": 1.25,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.14,
+     "ripples.1 surfaceFields (= surf.*)": 1.18,
+     "surf.1 read the GPU surface": 1.16
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.4,
+     "gpu.01 settle (collect the call before)": 7.0,
+     "gpu.04 residency: which bricks": 36.0,
+     "gpu.05 residency: apply": 9.7,
+     "gpu.08 record the commands": 7.1,
+     "mgr.3 tall cells": 20.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 67.9,
+     "ripples.1 surfaceFields (= surf.*)": 19.9,
+     "ripples.2 masks + layers": 20.8,
+     "surf.1 read the GPU surface": 17.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 30,
+     "gpu.01 settle (collect the call before)": 30,
+     "gpu.04 residency: which bricks": 30,
+     "gpu.05 residency: apply": 30,
+     "gpu.08 record the commands": 30,
+     "mgr.3 tall cells": 30,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 30,
+     "ripples.1 surfaceFields (= surf.*)": 120,
+     "ripples.2 masks + layers": 120,
+     "surf.1 read the GPU surface": 30
+    },
+    "frames": 120,
+    "worst_water_block": {
+     "bodies": 0.0072,
+     "exchange": 0.0001,
+     "feed": 0.0333,
+     "motion": 0.0038,
+     "pressure": 0.0013,
+     "solids": 0.0006,
+     "total": 5.1522,
+     "update": 5.0994
+    }
+   },
+   {
+    "t": 9.9,
+    "frame_ms_max": 7.6767997816205025,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.26,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.39
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.8,
+     "gpu.01 settle (collect the call before)": 6.6,
+     "gpu.04 residency: which bricks": 37.5,
+     "gpu.05 residency: apply": 10.3,
+     "gpu.08 record the commands": 7.5,
+     "mgr.3 tall cells": 22.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 70.2,
+     "ripples.1 surfaceFields (= surf.*)": 19.8,
+     "ripples.2 masks + layers": 21.0,
+     "surf.1 read the GPU surface": 17.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 123,
+     "ripples.2 masks + layers": 123,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 123,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.0004,
+     "feed": 0.0392,
+     "motion": 0.0043,
+     "pressure": 0.0017,
+     "solids": 0.0007,
+     "total": 4.6431,
+     "update": 4.5854
+    }
+   },
+   {
+    "t": 10.4,
+    "frame_ms_max": 8.097399957478046,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.12,
+     "gpu.04 residency: which bricks": 1.42,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.13,
+     "ripples.1 surfaceFields (= surf.*)": 1.14,
+     "surf.1 read the GPU surface": 1.12
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.1,
+     "gpu.01 settle (collect the call before)": 7.8,
+     "gpu.04 residency: which bricks": 39.1,
+     "gpu.05 residency: apply": 11.0,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 22.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 74.3,
+     "ripples.1 surfaceFields (= surf.*)": 20.5,
+     "ripples.2 masks + layers": 21.2,
+     "surf.1 read the GPU surface": 18.2
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 125,
+     "ripples.2 masks + layers": 125,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 125,
+    "worst_water_block": {
+     "bodies": 0.0062,
+     "exchange": 0.0001,
+     "feed": 0.0293,
+     "motion": 0.0034,
+     "pressure": 0.0012,
+     "solids": 0.0006,
+     "total": 4.8681,
+     "update": 4.8233
+    }
+   },
+   {
+    "t": 11.0,
+    "frame_ms_max": 20.188400521874428,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.34,
+     "gpu.06 compact": 4.82,
+     "gpu.07 partition + tables": 5.04,
+     "mgr.3 tall cells": 3.77,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 12.16,
+     "ripples.1 surfaceFields (= surf.*)": 1.08,
+     "surf.1 read the GPU surface": 1.06
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.9,
+     "gpu.01 settle (collect the call before)": 7.5,
+     "gpu.04 residency: which bricks": 36.8,
+     "gpu.05 residency: apply": 12.7,
+     "gpu.07 partition + tables": 7.6,
+     "gpu.08 record the commands": 8.9,
+     "mgr.3 tall cells": 21.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 84.7,
+     "ripples.1 surfaceFields (= surf.*)": 23.3,
+     "ripples.2 masks + layers": 23.3,
+     "surf.1 read the GPU surface": 20.9
+    },
+    "calls": {
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.07 partition + tables": 34,
+     "gpu.08 record the commands": 34,
+     "mgr.3 tall cells": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.1 surfaceFields (= surf.*)": 125,
+     "ripples.2 masks + layers": 125,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 125,
+    "worst_water_block": {
+     "bodies": 0.0082,
+     "exchange": 0.0002,
+     "feed": 0.0335,
+     "motion": 0.0024,
+     "pressure": 0.0013,
+     "solids": 0.0008,
+     "total": 17.1854,
+     "update": 17.1337
+    }
+   },
+   {
+    "t": 11.5,
+    "frame_ms_max": 6.901300046592951,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.38
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.2,
+     "gpu.01 settle (collect the call before)": 7.0,
+     "gpu.04 residency: which bricks": 22.0,
+     "gpu.05 residency: apply": 14.7,
+     "gpu.08 record the commands": 9.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 61.7,
+     "ripples.1 surfaceFields (= surf.*)": 22.9,
+     "ripples.2 masks + layers": 24.2,
+     "surf.1 read the GPU surface": 20.3
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 135,
+     "ripples.2 masks + layers": 135,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 135,
+    "worst_water_block": {
+     "bodies": 0.0098,
+     "exchange": 0.0001,
+     "feed": 0.0382,
+     "motion": 0.0025,
+     "pressure": 0.0024,
+     "solids": 0.0008,
+     "total": 3.6226,
+     "update": 3.5608
+    }
+   },
+   {
+    "t": 12.1,
+    "frame_ms_max": 6.94679981097579,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.16
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.8,
+     "gpu.01 settle (collect the call before)": 6.1,
+     "gpu.04 residency: which bricks": 20.7,
+     "gpu.05 residency: apply": 14.1,
+     "gpu.08 record the commands": 10.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 59.6,
+     "ripples.1 surfaceFields (= surf.*)": 22.4,
+     "ripples.2 masks + layers": 23.0,
+     "surf.1 read the GPU surface": 20.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 134,
+     "ripples.2 masks + layers": 134,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0076,
+     "exchange": 0.0001,
+     "feed": 0.0334,
+     "motion": 0.0024,
+     "pressure": 0.0012,
+     "solids": 0.0009,
+     "total": 3.4904,
+     "update": 3.4407
+    }
+   },
+   {
+    "t": 12.6,
+    "frame_ms_max": 6.3229999504983425,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.25
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.3,
+     "gpu.01 settle (collect the call before)": 6.1,
+     "gpu.04 residency: which bricks": 21.7,
+     "gpu.05 residency: apply": 14.5,
+     "gpu.08 record the commands": 9.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 59.6,
+     "ripples.1 surfaceFields (= surf.*)": 22.3,
+     "ripples.2 masks + layers": 23.7,
+     "surf.1 read the GPU surface": 19.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 139,
+     "ripples.2 masks + layers": 139,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 139,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.0002,
+     "feed": 0.0356,
+     "motion": 0.0018,
+     "pressure": 0.0012,
+     "solids": 0.0007,
+     "total": 3.5323,
+     "update": 3.4817
+    }
+   },
+   {
+    "t": 13.2,
+    "frame_ms_max": 6.706899963319302,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.11
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.2,
+     "gpu.01 settle (collect the call before)": 5.6,
+     "gpu.04 residency: which bricks": 21.6,
+     "gpu.05 residency: apply": 14.3,
+     "gpu.08 record the commands": 9.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 58.8,
+     "ripples.1 surfaceFields (= surf.*)": 21.5,
+     "ripples.2 masks + layers": 23.3,
+     "surf.1 read the GPU surface": 19.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 139,
+     "ripples.2 masks + layers": 139,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 139,
+    "worst_water_block": {
+     "bodies": 0.0083,
+     "exchange": 0.0001,
+     "feed": 0.04,
+     "motion": 0.0028,
+     "pressure": 0.0013,
+     "solids": 0.0009,
+     "total": 3.4983,
+     "update": 3.4406
+    }
+   },
+   {
+    "t": 13.7,
+    "frame_ms_max": 6.5725999884307384,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.48,
+     "ripples.1 surfaceFields (= surf.*)": 1.36,
+     "surf.1 read the GPU surface": 1.33
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.2,
+     "gpu.01 settle (collect the call before)": 6.1,
+     "gpu.04 residency: which bricks": 21.6,
+     "gpu.05 residency: apply": 14.6,
+     "gpu.08 record the commands": 9.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 61.2,
+     "ripples.1 surfaceFields (= surf.*)": 21.6,
+     "ripples.2 masks + layers": 23.7,
+     "surf.1 read the GPU surface": 19.2
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 137,
+     "ripples.2 masks + layers": 137,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 137,
+    "worst_water_block": {
+     "bodies": 0.004,
+     "exchange": 0.0002,
+     "feed": 0.0371,
+     "motion": 0.0018,
+     "pressure": 0.0014,
+     "solids": 0.0004,
+     "total": 3.9801,
+     "update": 3.9323
+    }
+   },
+   {
+    "t": 14.2,
+    "frame_ms_max": 6.811799947172403,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.5,
+     "ripples.1 surfaceFields (= surf.*)": 1.07,
+     "surf.1 read the GPU surface": 1.05
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.3,
+     "gpu.01 settle (collect the call before)": 6.1,
+     "gpu.04 residency: which bricks": 21.9,
+     "gpu.05 residency: apply": 14.7,
+     "gpu.08 record the commands": 10.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 63.4,
+     "ripples.1 surfaceFields (= surf.*)": 21.0,
+     "ripples.2 masks + layers": 24.8,
+     "surf.1 read the GPU surface": 18.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 131,
+     "ripples.2 masks + layers": 131,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 131,
+    "worst_water_block": {
+     "bodies": 0.0155,
+     "exchange": 0.0001,
+     "feed": 0.0454,
+     "motion": 0.0022,
+     "pressure": 0.0011,
+     "solids": 0.0004,
+     "total": 4.0122,
+     "update": 3.9432
+    }
+   },
+   {
+    "t": 14.8,
+    "frame_ms_max": 7.166400086134672,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.14
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.1,
+     "gpu.01 settle (collect the call before)": 5.5,
+     "gpu.04 residency: which bricks": 22.1,
+     "gpu.05 residency: apply": 14.9,
+     "gpu.07 partition + tables": 5.4,
+     "gpu.08 record the commands": 9.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 62.9,
+     "ripples.1 surfaceFields (= surf.*)": 18.5,
+     "ripples.2 masks + layers": 22.8,
+     "surf.1 read the GPU surface": 16.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.07 partition + tables": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 140,
+     "ripples.2 masks + layers": 140,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 140,
+    "worst_water_block": {
+     "bodies": 0.0088,
+     "exchange": 0.0003,
+     "feed": 0.0422,
+     "motion": 0.0033,
+     "pressure": 0.0012,
+     "solids": 0.0007,
+     "total": 3.3393,
+     "update": 3.2758
+    }
+   },
+   {
+    "t": 15.3,
+    "frame_ms_max": 6.655400153249502,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.18
+    },
+    "totals_ms": {
+     "gpu.01 settle (collect the call before)": 5.6,
+     "gpu.04 residency: which bricks": 21.5,
+     "gpu.05 residency: apply": 15.0,
+     "gpu.08 record the commands": 9.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 61.9,
+     "ripples.1 surfaceFields (= surf.*)": 17.1,
+     "ripples.2 masks + layers": 23.0,
+     "surf.1 read the GPU surface": 14.6
+    },
+    "calls": {
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 144,
+     "ripples.2 masks + layers": 144,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 144,
+    "worst_water_block": {
+     "bodies": 0.0069,
+     "exchange": 0.0001,
+     "feed": 0.0297,
+     "motion": 0.0016,
+     "pressure": 0.0014,
+     "solids": 0.0012,
+     "total": 3.5141,
+     "update": 3.1346
+    }
+   },
+   {
+    "t": 15.9,
+    "frame_ms_max": 6.239499896764755,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.52
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 18.8,
+     "gpu.05 residency: apply": 14.3,
+     "gpu.07 partition + tables": 6.9,
+     "gpu.08 record the commands": 8.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 58.3,
+     "ripples.1 surfaceFields (= surf.*)": 13.7,
+     "ripples.2 masks + layers": 22.1,
+     "surf.1 read the GPU surface": 11.3
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.07 partition + tables": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 138,
+     "ripples.2 masks + layers": 138,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 138,
+    "worst_water_block": {
+     "bodies": 0.0084,
+     "exchange": 0.0002,
+     "feed": 0.0332,
+     "motion": 0.0017,
+     "pressure": 0.0016,
+     "solids": 0.001,
+     "total": 3.6354,
+     "update": 3.5832
+    }
+   },
+   {
+    "t": 16.4,
+    "frame_ms_max": 6.380499806255102,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.3
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 18.4,
+     "gpu.05 residency: apply": 14.8,
+     "gpu.07 partition + tables": 6.9,
+     "gpu.08 record the commands": 9.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 60.5,
+     "ripples.1 surfaceFields (= surf.*)": 12.3,
+     "ripples.2 masks + layers": 25.4,
+     "surf.1 read the GPU surface": 9.7
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.07 partition + tables": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 138,
+     "ripples.2 masks + layers": 138,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 138,
+    "worst_water_block": {
+     "bodies": 0.0087,
+     "exchange": 0.0002,
+     "feed": 0.033,
+     "motion": 0.0021,
+     "pressure": 0.0014,
+     "solids": 0.0008,
+     "total": 3.1926,
+     "update": 3.1398
+    }
+   },
+   {
+    "t": 17.0,
+    "frame_ms_max": 5.956099834293127,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.19
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 16.4,
+     "gpu.05 residency: apply": 15.4,
+     "gpu.07 partition + tables": 5.8,
+     "gpu.08 record the commands": 9.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 56.9,
+     "ripples.1 surfaceFields (= surf.*)": 8.9,
+     "ripples.2 masks + layers": 24.5,
+     "surf.1 read the GPU surface": 6.2
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.07 partition + tables": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 149,
+     "ripples.2 masks + layers": 149,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 149,
+    "worst_water_block": {
+     "bodies": 0.0064,
+     "exchange": 0.0002,
+     "feed": 0.0297,
+     "motion": 0.0017,
+     "pressure": 0.0014,
+     "solids": 0.0008,
+     "total": 3.0381,
+     "update": 2.9937
+    }
+   },
+   {
+    "t": 17.6,
+    "frame_ms_max": 5.931000225245953,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.11
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 14.2,
+     "gpu.05 residency: apply": 15.2,
+     "gpu.08 record the commands": 9.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 52.4,
+     "ripples.1 surfaceFields (= surf.*)": 6.5,
+     "ripples.2 masks + layers": 25.8
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 151,
+     "ripples.2 masks + layers": 151
+    },
+    "frames": 151,
+    "worst_water_block": {
+     "bodies": 0.0085,
+     "exchange": 0.0006,
+     "feed": 0.0348,
+     "motion": 0.0022,
+     "pressure": 0.0019,
+     "solids": 0.0011,
+     "total": 3.0365,
+     "update": 2.9832
+    }
+   },
+   {
+    "t": 18.1,
+    "frame_ms_max": 65.24579972028732,
+    "parts": {
+     "mgr.2 record / wake tiles": 27.46,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.06,
+     "motion.1 takeMotion scan": 3.42,
+     "ripples.2 masks + layers": 4.42,
+     "tilesNow.2 surface": 1.39
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 10.8,
+     "gpu.05 residency: apply": 12.8,
+     "gpu.08 record the commands": 9.2,
+     "mgr.2 record / wake tiles": 28.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 42.4,
+     "ripples.2 masks + layers": 28.3
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 28,
+     "gpu.05 residency: apply": 28,
+     "gpu.08 record the commands": 28,
+     "mgr.2 record / wake tiles": 28,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 28,
+     "ripples.2 masks + layers": 123
+    },
+    "frames": 123,
+    "worst_water_block": {
+     "bodies": 0.0252,
+     "exchange": 0.0005,
+     "feed": 22.4819,
+     "motion": 3.4272,
+     "pressure": 0.002,
+     "solids": 0.0008,
+     "total": 60.0572,
+     "update": 34.1142
+    }
+   },
+   {
+    "t": 18.6,
+    "frame_ms_max": 49.73379895091057,
+    "parts": {
+     "motion.1 takeMotion scan": 3.19,
+     "ripples.2 masks + layers": 4.39,
+     "tilesNow.2 surface": 1.46
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 6.4,
+     "ripples.2 masks + layers": 19.9
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 131,
+     "ripples.2 masks + layers": 131
+    },
+    "frames": 131,
+    "worst_water_block": {
+     "bodies": 0.0065,
+     "exchange": 0.0006,
+     "feed": 23.8115,
+     "motion": 3.1956,
+     "pressure": 0.0015,
+     "solids": 0.0007,
+     "total": 46.415,
+     "update": 19.3928
+    }
+   },
+   {
+    "t": 19.2,
+    "frame_ms_max": 4.2571998201310635,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 12.6
+    },
+    "calls": {
+     "ripples.2 masks + layers": 156
+    },
+    "frames": 156,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.0,
+     "feed": 0.0256,
+     "motion": 0.0021,
+     "pressure": 0.002,
+     "solids": 0.0006,
+     "total": 0.3701,
+     "update": 0.3285
+    }
+   },
+   {
+    "t": 19.7,
+    "frame_ms_max": 4.953000228852034,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 13.8
+    },
+    "calls": {
+     "ripples.2 masks + layers": 151
+    },
+    "frames": 151,
+    "worst_water_block": {
+     "bodies": 0.0117,
+     "exchange": 0.0001,
+     "feed": 0.0533,
+     "motion": 0.0031,
+     "pressure": 0.0021,
+     "solids": 0.0026,
+     "total": 0.4834,
+     "update": 0.4016
+    }
+   },
+   {
+    "t": 20.3,
+    "frame_ms_max": 53.61729860305786,
+    "parts": {
+     "motion.1 takeMotion scan": 3.49,
+     "ripples.2 masks + layers": 5.06,
+     "tilesNow.2 surface": 1.47
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 7.0,
+     "ripples.2 masks + layers": 24.6
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 141,
+     "ripples.2 masks + layers": 141
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0068,
+     "exchange": 0.0006,
+     "feed": 26.2933,
+     "motion": 3.4958,
+     "pressure": 0.0016,
+     "solids": 0.0006,
+     "total": 50.0067,
+     "update": 20.2017
+    }
+   },
+   {
+    "t": 20.9,
+    "frame_ms_max": 52.0360991358757,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 12.6
+    },
+    "calls": {
+     "ripples.2 masks + layers": 144
+    },
+    "frames": 144,
+    "worst_water_block": {
+     "bodies": 0.0081,
+     "exchange": 0.0001,
+     "feed": 0.027,
+     "motion": 0.002,
+     "pressure": 0.0014,
+     "solids": 0.0008,
+     "total": 0.4548,
+     "update": 0.3193
+    }
+   },
+   {
+    "t": 21.4,
+    "frame_ms_max": 5.138400010764599,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 13.3
+    },
+    "calls": {
+     "ripples.2 masks + layers": 140
+    },
+    "frames": 140,
+    "worst_water_block": {
+     "bodies": 0.0127,
+     "exchange": 0.0001,
+     "feed": 0.0296,
+     "motion": 0.002,
+     "pressure": 0.0021,
+     "solids": 0.0014,
+     "total": 0.5219,
+     "update": 0.4637
+    }
+   },
+   {
+    "t": 22.0,
+    "frame_ms_max": 6.529400125145912,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 15.7
+    },
+    "calls": {
+     "ripples.2 masks + layers": 133
+    },
+    "frames": 133,
+    "worst_water_block": {
+     "bodies": 0.0107,
+     "exchange": 0.0001,
+     "feed": 0.0421,
+     "motion": 0.0026,
+     "pressure": 0.0021,
+     "solids": 0.0013,
+     "total": 0.5146,
+     "update": 0.4483
+    }
+   },
+   {
+    "t": 22.6,
+    "frame_ms_max": 53.6855012178421,
+    "parts": {
+     "motion.1 takeMotion scan": 3.32,
+     "ripples.2 masks + layers": 4.27,
+     "tilesNow.2 surface": 1.36
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 6.6,
+     "ripples.2 masks + layers": 20.0
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 113,
+     "ripples.2 masks + layers": 113
+    },
+    "frames": 113,
+    "worst_water_block": {
+     "bodies": 0.0063,
+     "exchange": 0.0005,
+     "feed": 25.2594,
+     "motion": 3.1903,
+     "pressure": 0.0017,
+     "solids": 0.0006,
+     "total": 49.8391,
+     "update": 21.3746
+    }
+   },
+   {
+    "t": 23.1,
+    "frame_ms_max": 5.44039998203516,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.9
+    },
+    "calls": {
+     "ripples.2 masks + layers": 129
+    },
+    "frames": 129,
+    "worst_water_block": {
+     "bodies": 0.0075,
+     "exchange": 0.0,
+     "feed": 0.0237,
+     "motion": 0.002,
+     "pressure": 0.0014,
+     "solids": 0.0007,
+     "total": 0.3754,
+     "update": 0.2383
+    }
+   },
+   {
+    "t": 23.6,
+    "frame_ms_max": 5.1333000883460045,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 12.5
+    },
+    "calls": {
+     "ripples.2 masks + layers": 131
+    },
+    "frames": 131,
+    "worst_water_block": {
+     "bodies": 0.0105,
+     "exchange": 0.0001,
+     "feed": 0.0274,
+     "motion": 0.0017,
+     "pressure": 0.0021,
+     "solids": 0.001,
+     "total": 0.518,
+     "update": 0.4681
+    }
+   },
+   {
+    "t": 24.2,
+    "frame_ms_max": 58.63209813833237,
+    "parts": {
+     "motion.1 takeMotion scan": 3.33,
+     "ripples.2 masks + layers": 2.94,
+     "tilesNow.2 surface": 1.42
+    },
+    "totals_ms": {
+     "ripples.2 masks + layers": 16.8
+    },
+    "calls": {
+     "ripples.2 masks + layers": 131
+    },
+    "frames": 131,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.001,
+     "feed": 20.6595,
+     "motion": 3.3348,
+     "pressure": 0.0011,
+     "solids": 0.0007,
+     "total": 54.0857,
+     "update": 30.077
+    }
+   },
+   {
+    "t": 24.8,
+    "frame_ms_max": 48.41519892215729,
+    "parts": {
+     "motion.1 takeMotion scan": 3.49,
+     "ripples.2 masks + layers": 3.63,
+     "tilesNow.2 surface": 1.32
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 7.0,
+     "ripples.2 masks + layers": 17.2
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 111,
+     "ripples.2 masks + layers": 111
+    },
+    "frames": 111,
+    "worst_water_block": {
+     "bodies": 0.0073,
+     "exchange": 0.0004,
+     "feed": 21.4012,
+     "motion": 3.3893,
+     "pressure": 0.0014,
+     "solids": 0.0007,
+     "total": 44.5716,
+     "update": 19.7656
+    }
+   },
+   {
+    "t": 25.3,
+    "frame_ms_max": 6.330600008368492,
+    "parts": {
+     "motion.1 takeMotion scan": 3.54,
+     "ripples.2 masks + layers": 2.97,
+     "tilesNow.2 surface": 1.4
+    },
+    "totals_ms": {
+     "ripples.2 masks + layers": 14.2
+    },
+    "calls": {
+     "ripples.2 masks + layers": 122
+    },
+    "frames": 122,
+    "worst_water_block": {
+     "bodies": 0.0067,
+     "exchange": 0.0006,
+     "feed": 21.1322,
+     "motion": 3.5466,
+     "pressure": 0.0012,
+     "solids": 0.0007,
+     "total": 56.2795,
+     "update": 31.5865
+    }
+   },
+   {
+    "t": 25.9,
+    "frame_ms_max": 60.53030118346214,
+    "parts": {
+     "ripples.2 masks + layers": 6.66,
+     "sleep.2 read the GPU grid": 19.44,
+     "sleep.3 held columns": 3.3,
+     "sleep.4 runs from the grid": 6.72,
+     "sleep.6 write the spans": 4.33
+    },
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.2,
+     "sleep.2 read the GPU grid": 19.4,
+     "sleep.4 runs from the grid": 6.7
+    },
+    "calls": {
+     "ripples.2 masks + layers": 115,
+     "sleep.2 read the GPU grid": 1,
+     "sleep.4 runs from the grid": 1
+    },
+    "frames": 115,
+    "worst_water_block": {
+     "bodies": 0.0059,
+     "exchange": 0.0012,
+     "feed": 9.8781,
+     "motion": 0.0,
+     "pressure": 0.0013,
+     "solids": 0.0006,
+     "total": 44.4018,
+     "update": 34.5101
+    }
+   },
+   {
+    "t": 26.5,
+    "frame_ms_max": 4.796899855136871,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 169,
+    "worst_water_block": {
+     "bodies": 0.0067,
+     "exchange": 0.0,
+     "feed": 0.0187,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0008,
+     "total": 0.1536,
+     "update": 0.0219
+    }
+   },
+   {
+    "t": 27.0,
+    "frame_ms_max": 4.11920016631484,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 171,
+    "worst_water_block": {
+     "bodies": 0.0053,
+     "exchange": 0.0,
+     "feed": 0.0181,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0006,
+     "total": 0.162,
+     "update": 0.0201
+    }
+   },
+   {
+    "t": 27.6,
+    "frame_ms_max": 4.315400030463934,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 175,
+    "worst_water_block": {
+     "bodies": 0.0046,
+     "exchange": 0.0001,
+     "feed": 0.0183,
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "solids": 0.0006,
+     "total": 0.1485,
+     "update": 0.0199
+    }
+   },
+   {
+    "t": 28.1,
+    "frame_ms_max": 3.835699986666441,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 179,
+    "worst_water_block": {
+     "bodies": 0.0028,
+     "exchange": 0.0,
+     "feed": 0.0189,
+     "motion": 0.0,
+     "pressure": 0.0006,
+     "solids": 0.0004,
+     "total": 0.5018,
+     "update": 0.0179
+    }
+   },
+   {
+    "t": 28.7,
+    "frame_ms_max": 5.859000142663717,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 175,
+    "worst_water_block": {
+     "bodies": 0.0028,
+     "exchange": 0.0001,
+     "feed": 0.0171,
+     "motion": 0.0,
+     "pressure": 0.001,
+     "solids": 0.0004,
+     "total": 0.1195,
+     "update": 0.0161
+    }
+   },
+   {
+    "t": 29.2,
+    "frame_ms_max": 4.08930005505681,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 178,
+    "worst_water_block": {
+     "bodies": 0.003,
+     "exchange": 0.0001,
+     "feed": 0.0172,
+     "motion": 0.0,
+     "pressure": 0.0005,
+     "solids": 0.0005,
+     "total": 0.1435,
+     "update": 0.0177
+    }
+   }
+  ]
+ }
+]

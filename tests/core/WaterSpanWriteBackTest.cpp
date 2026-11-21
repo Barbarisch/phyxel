@@ -3,7 +3,10 @@
 #include "core/water/WaterSpanWriteBack.h"
 
 #include <cmath>
+#include <algorithm>
+#include <cstdio>
 #include <map>
+#include <set>
 #include <vector>
 
 // WaterCore Phase D slice D1 (docs/WaterCore.md 16.2): the pure clip/assemble/merge half of the
@@ -115,6 +118,78 @@ TEST(WaterCoreSeamTest, WriteBackIdenticalAcrossChunkSeams) {
         for (const auto& w : world) if (w.x == c.x && w.z == c.z) { ++found; EXPECT_FLOAT_EQ(w.bottomY, c.runs[0].bottomY); EXPECT_FLOAT_EQ(w.topY, c.runs[0].topY) << "column " << c.x; }
         EXPECT_EQ(found, 1) << "column " << c.x << "," << c.z;
     }
+}
+
+// 58 item 1 (no stutter): the record's span writer cost 4.7-5.6 ms per 8 m tile live (and the same in every tile wake): each
+// written column was merged against the WHOLE chunk column's assembled spans (cols x spans) and all of it re-clipped. The writer is
+// now writeRunsIntoChunkColumn; this pins (a) it writes exactly what the old path wrote and (b) its work is linear in the chunk
+// column's spans - RED before the rewrite (the old path visits ~65x them for a 64-column tile).
+namespace {
+using Locals = std::vector<Chunk::WaterSpanLocal>;
+// the old path, kept as the reference
+std::map<int, Locals> referenceWrite(const std::map<int, const Locals*>& have, int cx, int cz, const std::vector<const ColumnRuns*>& cols, float yLo, float yHi) {
+    std::vector<WorldSpan> world = assembleColumnSpans(have, cx, cz), result;
+    std::set<std::pair<int, int>> written;
+    for (const ColumnRuns* c : cols) written.insert({c->x, c->z});
+    for (const auto& w : world) if (!written.count({w.x, w.z})) result.push_back(w);
+    for (const ColumnRuns* c : cols) { auto m = mergeColumnRuns(world, c->x, c->z, yLo, yHi, c->runs); result.insert(result.end(), m.begin(), m.end()); }
+    std::map<int, Locals> clips;
+    clipSpansToChunks(result, cx, cz, have.begin()->first, have.rbegin()->first, clips);
+    return clips;
+}
+}  // namespace
+
+TEST(WaterSpanWriteBackTest, ATileWriteTouchesOnlyItsColumnsAndWritesWhatTheOldPathWrote) {
+    const int cx = 2, cz = -1;
+    // a lake over the whole chunk column: every column wet from 40.1 to 75.37 (crosses cy 1 / 2); every 3rd column a second,
+    // perched run 90.2-93.4 (cy 2); cy 0 and 3 resident and dry
+    std::map<int, Locals> store;
+    for (int cy = 0; cy <= 3; ++cy) store[cy];
+    std::vector<WorldSpan> lake;
+    for (int x = 0; x < 32; ++x) for (int z = 0; z < 32; ++z) {
+        WorldSpan w; w.x = cx * 32 + x; w.z = cz * 32 + z; w.bottomY = 40.1f; w.topY = 75.37f; lake.push_back(w);
+        if ((x + z) % 3 == 0) { w.bottomY = 90.2f; w.topY = 93.4f; lake.push_back(w); }
+    }
+    { std::map<int, Locals> c; clipSpansToChunks(lake, cx, cz, 0, 3, c); for (auto& [cy, l] : c) store[cy] = l; }
+    long total = 0; for (const auto& [cy, l] : store) total += static_cast<long>(l.size());
+    // the write: one 8 m tile (local x, z 8..15), the band [38, 80) - new levels, two columns drained, one column with two runs
+    const float yLo = 38.0f, yHi = 80.0f;
+    std::vector<ColumnRuns> runs;
+    for (int x = 8; x < 16; ++x) for (int z = 8; z < 16; ++z) {
+        ColumnRuns c; c.x = cx * 32 + x; c.z = cz * 32 + z;
+        if (!(x == 9 && (z == 9 || z == 10))) c.runs.push_back(run(40.1f, 74.0f + 0.1f * static_cast<float>(x - 8)));
+        if (x == 12 && z == 12) c.runs.push_back(run(76.0f, 78.5f));
+        runs.push_back(c);
+    }
+    std::vector<const ColumnRuns*> cols; for (const auto& c : runs) cols.push_back(&c);
+    long writtenSpans = 0;
+    for (const auto& [cy, l] : store) for (const auto& sp : l) if (sp.x >= 8 && sp.x < 16 && sp.z >= 8 && sp.z < 16) ++writtenSpans;
+    std::map<int, const Locals*> have; for (auto& [cy, l] : store) have[cy] = &l;
+    const std::map<int, Locals> ref = referenceWrite(have, cx, cz, cols, yLo, yHi);
+    std::map<int, Locals> out; ChunkColumnWriteStats st;
+    writeRunsIntoChunkColumn(have, cx, cz, cols, yLo, yHi, out, &st);
+    // the store after the write (unchanged chunks keep their list) against the reference's lists
+    int differ = 0, changedRef = 0; float worst = 0.0f;
+    for (const auto& [cy, l] : store) {
+        const Locals& got = out.count(cy) ? out.at(cy) : l;
+        const Locals& want = ref.count(cy) ? ref.at(cy) : l;
+        bool chg = want.size() != l.size();
+        for (size_t i = 0; !chg && i < l.size(); ++i) chg = std::abs(want[i].top - l[i].top) > 1e-4f || std::abs(want[i].bottom - l[i].bottom) > 1e-4f || want[i].x != l[i].x || want[i].z != l[i].z;
+        changedRef += chg ? 1 : 0;
+        if (got.size() != want.size()) { ++differ; continue; }
+        for (size_t i = 0; i < got.size(); ++i) {
+            if (got[i].x != want[i].x || got[i].z != want[i].z) { ++differ; break; }
+            worst = std::max({worst, std::abs(got[i].bottom - want[i].bottom), std::abs(got[i].top - want[i].top)});
+        }
+    }
+    std::printf("[spans] chunk column: %ld spans, the tile's %ld; written: %ld spans visited, %d chunks changed (the reference changed %d); "
+                "%d chunks differ from the old path, worst %.6f m\n", total, writtenSpans, st.spansVisited, st.chunksChanged, changedRef, differ, worst);
+    EXPECT_EQ(differ, 0);
+    EXPECT_LE(worst, 1e-4f);
+    EXPECT_EQ(st.chunksChanged, changedRef) << "only the chunks whose list changed are written";
+    EXPECT_GT(changedRef, 0) << "the control: the write changes something";
+    // the cost: one pass over the chunk column's spans plus the tile's own a few times - not the tile's columns times all of them
+    EXPECT_LE(st.spansVisited, total + 8 * writtenSpans) << "the writer's work grew with columns x spans";
 }
 
 }  // namespace

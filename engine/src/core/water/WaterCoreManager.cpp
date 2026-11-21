@@ -135,6 +135,8 @@ bool WaterCoreManager::buildGpu(Av& avr, std::string* err) {
         BrickOptions bo{transport != "flip", 0, false, brickHeight, groundBricks};   // 26.17: the brick height (refused with the reason unless 2 / 4 / 8)
         bo.adoptKept = m_adoptForCreate; bo.initialSlots = m_slotsForCreate;   // L3 (41): a wake on kept memory (0 = none)
         av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, bo);
+        if (!av->gpuVol && m_patchSpare) { releasePatchSpare(); m_gpu->pumpRelease(-1.0); ++m_keptMem.releasedOom;   // 58: the spare first
+            av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, bo); }
         if (!av->gpuVol && !m_kept.empty()) {   // 41.4 item 7: out of device memory - give every kept set back and try once more
             m_keptMem.releasedOom += static_cast<long>(m_kept.size());
             for (const KeptEntry& k : m_kept) m_gpu->releaseKept(k.handle);
@@ -463,6 +465,15 @@ void WaterCoreManager::updateKeptMemory(double freeBudgetMs) {
     }
     if (!m_gpu) return;
     const WaterLocality& L = s_locality;
+    if (m_patchSpare) {   // 58 item 1: the spare waits only while a patch could be made near the viewer
+        bool near = s_patchSpare.on && L.memoryM > 0.0f && !L.testKeepMemoryOff;
+        if (near) {
+            near = false;
+            for (const SleptVolume& sv : m_slept)
+                if (sv.partialWake && WaterLocality::horizontalDistanceToBox(m_view, glm::vec2(sv.lo.x, sv.lo.z), glm::vec2(sv.hi.x + 1, sv.hi.z + 1)) <= L.memoryM) { near = true; break; }
+        }
+        if (!near) releasePatchSpare();
+    }
     // orphans: a kept set whose box no longer sleeps (re-slept, loaded over, forgotten) - nothing will ever adopt it
     for (size_t i = m_kept.size(); i-- > 0;) {
         bool slept = false;
@@ -483,11 +494,20 @@ void WaterCoreManager::updateKeptMemory(double freeBudgetMs) {
         }
     }
     if (freeBudgetMs != 0.0) { m_gpu->pumpRelease(freeBudgetMs); m_keptMem.maxPumpMs = std::max(m_keptMem.maxPumpMs, m_gpu->keptStats().lastFreeMs); }
+    if (freeBudgetMs != 0.0) m_gpu->pumpKeptClear(kKeptFreeMsPerFrame);   // 58 item 1: kept host memory cleared ahead of its adoption
+}
+
+void WaterCoreManager::releasePatchSpare() {
+    if (!m_patchSpare) return;
+    if (m_gpu) m_gpu->releaseKept(m_patchSpare);   // queued: pumpRelease frees it a few buffers a frame
+    m_patchSpare = 0; ++m_keptMem.patchSpareReleased;
 }
 
 WaterCoreManager::KeptMemoryStats WaterCoreManager::keptMemoryStats() const {
     KeptMemoryStats s = m_keptMem;
     s.ponds = m_kept.size();
+    s.patchSpareHeld = m_patchSpare != 0;
+    s.patchSpareBytes = m_patchSpare && m_gpu ? m_gpu->keptHeldBytes(m_patchSpare) : 0;
     if (m_gpu) {
         const auto g = m_gpu->keptStats();
         s.heldBytes = g.heldBytes; s.releasingBytes = g.queuedBytes; s.buffersAdopted = g.buffersAdopted; s.buffersAllocated = g.buffersAllocated;
@@ -496,13 +516,14 @@ WaterCoreManager::KeptMemoryStats WaterCoreManager::keptMemoryStats() const {
 }
 
 void WaterCoreManager::update(float dt) {
-    checkRecordResidency();   // 32.4: before the realtime return - a harness that steps by hand still follows residency
-    updateKeptMemory();       // L3 (41): kept memory follows the viewer; the given-up part freed a little each frame
-    stepRetiring();           // 57.8: a returning patch's tiles, a few a frame (a sleep at this frame's end starts next frame)
-    if (!m_realtime) return;
     using UClock = std::chrono::steady_clock;
     auto ums = [](UClock::time_point a) { return std::chrono::duration<double, std::milli>(UClock::now() - a).count(); };
-    m_updateCpu = UpdateCpu{};
+    UpdateCpu pre;   // 58 item 1: the three calls before the realtime return, timed (a hitch's update was outside every lap)
+    { const auto t = UClock::now(); checkRecordResidency(); pre.residency = ums(t); }   // 32.4: before the realtime return - a harness that steps by hand still follows residency
+    { const auto t = UClock::now(); updateKeptMemory(); pre.kept = ums(t); }            // L3 (41): kept memory follows the viewer; the given-up part freed a little each frame
+    { const auto t = UClock::now(); stepRetiring(); pre.retiring = ums(t); }            // 57.8: a returning patch's tiles, a few a frame (a sleep at this frame's end starts next frame)
+    if (!m_realtime) return;
+    m_updateCpu = pre;
     ++WaterHostProfile::frames;   // 27.28
     int ticks = 1; float tickDt = dt;   // 27.26: the fixed water tick
     if (s_fixedTickS > 0.0f) {
@@ -1807,7 +1828,16 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
     m_lastPatchSlots = slots;
     m_sleptWake.patchSizeMs = lapMs();
     m_createKeepsSlept = true; m_slotsForCreate = slots;
+    // 58 item 1 (D9's cut): the last patch's buffers, kept at its return, taken here (each buffer that fits; the rest allocated)
+    m_keptMem.lastPatchAdopted = false;
+    if (m_patchSpare && s_patchSpare.on && m_gpu) {
+        m_adoptForCreate = m_patchSpare; m_patchSpare = 0;
+        m_keptMem.lastPatchAdopted = true; ++m_keptMem.patchSpareAdopted;
+        if (m_slotsForCreate) m_slotsForCreate = std::max(m_slotsForCreate, m_gpu->keptSlots(m_adoptForCreate));   // the kept pool fits whole
+    }
     const int id = create(lo, hi, sv.cellSize, sv.transport.empty() ? "eulerian" : sv.transport, &err, sv.backend.empty() ? "auto" : sv.backend, sv.sweeps);
+    if (m_adoptForCreate && m_gpu) m_gpu->releaseKept(m_adoptForCreate);   // not taken (a refusal): given up (no-op if taken)
+    m_adoptForCreate = 0;
     m_createKeepsSlept = false; m_slotsForCreate = 0;
     m_sleptWake.patchCreateMs = lapMs();
     if (!id) { ++m_sleptWake.refused; m_sleptWake.lastError = err; return 0; }
@@ -2185,6 +2215,10 @@ WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
     if (s_resetWorldOffForTest) return out;
     for (WakeJob& j : m_jobs) { endWakeJob(j); ++out.jobs; }   // half-built volumes and the kept sets they took
     m_jobs.clear();
+    // 58 (found reading 57.8's code): a patch handing back to the record belongs to the world being left - its held tiles are
+    // dropped (never switched into the next world's record) and its volume freed, paced
+    for (Retiring& r : m_retiring) { if (r.av && r.av->gpuVol && m_gpu) m_gpu->destroyVolume(r.av->gpuVol, true); if (r.av) r.av->gpuVol = nullptr; ++out.volumes; }
+    m_retiring.clear(); m_recordStats.retiring = 0;
     std::vector<int> ids;
     for (const auto& a : m_avs) ids.push_back(a->id);
     for (int id : ids) {
@@ -2193,6 +2227,7 @@ WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
     m_pool.clear();
     m_dropletDraw.clear(); m_particleDraw.clear();
     if (m_gpu) for (const KeptEntry& k : m_kept) m_gpu->releaseKept(k.handle);
+    releasePatchSpare();   // 58 item 1
     out.kept = static_cast<int>(m_kept.size());
     m_kept.clear();
     out.slept = static_cast<int>(m_slept.size());
@@ -2432,9 +2467,13 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     const glm::ivec3 vLo(std::max(av.minVoxel.x, tx * kTileVoxels), av.minVoxel.y, std::max(av.minVoxel.z, tz * kTileVoxels));
     const glm::ivec3 vHi(std::min(av.maxVoxel.x, tx * kTileVoxels + kTileVoxels - 1), av.maxVoxel.y, std::min(av.maxVoxel.z, tz * kTileVoxels + kTileVoxels - 1));
     std::vector<ColumnRuns> prior;
+    auto hpMs = [](std::chrono::steady_clock::time_point a) { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - a).count(); };   // 58
+    auto tp = std::chrono::steady_clock::now();
     m_spanReader(vLo, vHi, prior);
+    WaterHostProfile::add("record.2a prior spans read", hpMs(tp)); tp = std::chrono::steady_clock::now();
     long unwritten = 0, chunks = 0;
     writeSpans(runs, yLo, yHi, &unwritten, &chunks);
+    WaterHostProfile::add("record.2b spans written", hpMs(tp)); tp = std::chrono::steady_clock::now();
     if (unwritten > 0) {   // a non-resident chunk: put back what was there, keep the tile in cells
         long u2 = 0, c2 = 0; writeSpans(prior, yLo, yHi, &u2, &c2);
         return false;
@@ -2444,6 +2483,7 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     double stored = 0.0;
     for (const auto& c : runs) { if (c.runs.empty()) continue; WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) { m.mass += static_cast<double>(r.topY - r.bottomY); m.top = std::max(m.top, r.topY); } written.push_back(m); stored += m.mass; }
     m_bodies.credit(written, before, m_bakeBodyAt);
+    WaterHostProfile::add("record.2c bodies credited", hpMs(tp));
     lap(P.rec, P.recMax, 2);
     m_gpu->setColumnsRecorded(vol, bLo, bHi);
     lap(P.rec, P.recMax, 3);
@@ -2455,7 +2495,8 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     // the volume stops drawing the tile's columns: the record draws them (built here, this frame) - 27.16: marked the record's
     // (runs -1), never cleared to dry - dry, the live water beside the tile walled them off until the volume's next step (a dark
     // line swept across the pond as its tiles recorded; a pond asleep as a whole never steps again)
-    buildRecordTilesNow(vLo, vHi);
+    { const auto td = std::chrono::steady_clock::now(); buildRecordTilesNow(vLo, vHi); WaterHostProfile::add("record.4a tiles built", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - td).count()); }   // 58
+    const auto tMark = std::chrono::steady_clock::now();
     if (s_handoverRevertForTest & 1) {   // TEST ONLY: the 27.16 red control - cleared to dry
         const glm::ivec3 o = g.spec().origin - av.grid->spec().origin;
         for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) {
@@ -2463,7 +2504,13 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
             if (fx >= 0 && fz >= 0 && fx < av.field.nx && fz < av.field.nz && av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz)
                 av.field.cols[static_cast<size_t>(fx) + static_cast<size_t>(av.field.nx) * fz] = SurfaceColumn{};
         }
-    } else if (av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz) { markRecordedColumns(av, tx, tz); queueTileSurface(av, tx, tz); }   // 29 S1
+    } else if (av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz) {   // 29 S1
+        markRecordedColumns(av, tx, tz);
+        const auto tq = std::chrono::steady_clock::now();
+        WaterHostProfile::add("record.4b mark columns", std::chrono::duration<double, std::milli>(tq - tMark).count());   // 58
+        queueTileSurface(av, tx, tz);
+        WaterHostProfile::add("record.4c queue surface", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tq).count());
+    }
     av.field.version = (1ull << 62) + (++m_fieldBumps);
     lap(P.rec, P.recMax, 4); ++P.recN;
     av.lastRecordMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -2948,7 +2995,9 @@ void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec
 
 void WaterCoreManager::writeSpans(const std::vector<ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunks) {
     const uint64_t before = m_spanRevision ? m_spanRevision() : 0;
+    const auto tw = std::chrono::steady_clock::now();
     m_spanWriter(runs, yLo, yHi, unwritten, chunks);
+    WaterHostProfile::add("spans.1 the chunk writer", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tw).count());   // 58
     ++m_riverSpanWrites;   // 54.4: the river layer's record part reads again
     const uint64_t after = m_spanRevision ? m_spanRevision() : 0;
     if (!m_spanRevision || after == before || s_recordTilesAllStaleForTest) return;
@@ -2967,7 +3016,9 @@ void WaterCoreManager::writeSpans(const std::vector<ColumnRuns>& runs, float yLo
     std::unordered_set<uint64_t> cols;
     for (const ColumnRuns& c : runs)
         cols.insert((static_cast<uint64_t>(static_cast<uint32_t>(floorDiv(c.x, 32))) << 32) | static_cast<uint32_t>(floorDiv(c.z, 32)));
+    const auto tk = std::chrono::steady_clock::now();
     m_skin.spansWritten(before, after, cols);
+    WaterHostProfile::add("spans.2 the skin told", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tk).count());   // 58
 }
 
 void WaterCoreManager::remarkRecordedTile(int tx, int tz) {
@@ -3911,7 +3962,15 @@ void WaterCoreManager::switchRetiring(Retiring& r) {
     for (const auto& [key, t] : m_recordTiles)
         if (t.wet) m_recordBoxes.push_back({glm::ivec3(key.first * T, -1000000, key.second * T), glm::ivec3(key.first * T + T - 1, 1000000, key.second * T + T - 1)});
     // H2: its buffers freed a few a frame (pumpRelease, updateKeptMemory's budget) - freed at once they were 19.5 ms of this frame
-    if (r.av && r.av->gpuVol && m_gpu) m_gpu->destroyVolume(r.av->gpuVol, !s_handoverFreesAtOnceForTest);
+    if (r.av && r.av->gpuVol && m_gpu) {
+        // 58 item 1 (D9's cut): a patch's buffers kept for the next patch (the older spare given back, paced)
+        int h = 0;
+        if (r.av->isPatch && s_patchSpare.on && !s_handoverFreesAtOnceForTest && !s_locality.testKeepMemoryOff && s_locality.memoryM > 0.0f) {
+            h = m_gpu->keepVolume(r.av->gpuVol);   // 0 = not keepable: destroyed as by destroyVolume
+            if (h) { releasePatchSpare(); m_patchSpare = h; ++m_keptMem.patchSpareKept; }
+        } else m_gpu->destroyVolume(r.av->gpuVol, !s_handoverFreesAtOnceForTest);
+        r.av->gpuVol = nullptr;
+    }
     r.av.reset();
     m_recordStats.handoverFramesLast = r.frames;
     ++m_recordStats.handovers;

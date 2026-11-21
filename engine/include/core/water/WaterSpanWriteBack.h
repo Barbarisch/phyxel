@@ -49,4 +49,18 @@ void clipSpansToChunks(const std::vector<WorldSpan>& spans, int cx, int cz, int 
 /// for seedGridFromRuns. Mass of a run = depth (1 m^2 columns).
 void spansToColumnRuns(const std::vector<WorldSpan>& spans, float yLo, float yHi, std::vector<ColumnRuns>& out);
 
+/// 58 item 1: the span writer's work, counted (a cost bound a test can hold) - the spans read, merged and clipped.
+struct ChunkColumnWriteStats {
+    long spansVisited = 0;    ///< existing spans looked at (assembled, filtered, merged against)
+    int chunksChanged = 0;    ///< vertical chunks whose list `out` holds
+};
+
+/// The record's write into ONE chunk column (cx, cz): `have` = cy -> the resident chunks' spans (the box's range and those around
+/// it), `cols` = the written columns' runs (world Y, inside [yLo, yHi)). Each written column's spans inside [yLo, yHi) are replaced
+/// by its runs, the parts outside kept (mergeColumnRuns); every other column is left as it is. `out` receives the new list of every
+/// chunk in `have` whose list changed (sorted to the storage contract). The live span writer (Application) is this function.
+void writeRunsIntoChunkColumn(const std::map<int, const std::vector<Chunk::WaterSpanLocal>*>& have, int cx, int cz,
+                              const std::vector<const ColumnRuns*>& cols, float yLo, float yHi,
+                              std::map<int, std::vector<Chunk::WaterSpanLocal>>& out, ChunkColumnWriteStats* stats = nullptr);
+
 }  // namespace Phyxel::Core::Water

@@ -24,6 +24,8 @@
 #include <cstdio>
 #include <functional>
 #include <map>
+#include <set>
+#include <cstring>
 #include <atomic>
 #include <mutex>
 #include <thread>
@@ -783,4 +785,137 @@ TEST(WaterSkinTest, ACoreWriteReReadsOnlyTheColumnsItTouched) {
     EXPECT_GE(g.reread, 1);                 // the touched column is read again (it holds the pond now)
     EXPECT_LE(g.reread, 2);
     EXPECT_EQ(g.firstPending, 0);
+}
+
+// 58 item 1 (the owner, 2026-11-20: "obviously we cant have stutter"). Live (58, the 57.6 lake rig): every late-life hitch of a
+// splash (45-65 ms, one every 0.5-2 s as the patch's tiles go quiet) held 19-26 ms of skinFields - a live volume's recorded tile
+// changes the skin's volume revision, and that revision was part of the GLOBAL key: every level's every field re-aggregated. A
+// volume's boxes and its recorded tiles change only what is drawn inside the boxes, so only the fields meeting the old or the new
+// boxes need to be walked. Predictions, written before the fix: (S1) one recorded tile inside a 60 m box aggregates <= 1000 cells
+// (the cells meeting the box: 16 x 16 at 4 m, fewer above); RED today: every cell of every level (26 fields x 1296 = ~34k; a
+// first count, field tiles walked, was red only 26 vs 20 - the cells are the work); (S2) the
+// fields after each change equal a fresh skin's given the same inputs, cell for cell (the incremental walk misses nothing); (S3)
+// the control: the change is SEEN - the recorded tile's centre is drawn by the skin after it and not before; (S4) the box removed
+// (the volume gone) - S1's bound and S2 again. (S5, added after the live run: the fix above left feed_skin at 20-27 ms - a tile's
+// record WRITES the record, its chunk column's summary changes, and the summaries' version was in the global key too) a write of
+// one 8 m tile (dried), told through spansWritten as the manager does: S1's bound, S2's equality, and the control (dry after).
+namespace {
+struct VolSkinRig {
+    WaterSkin::Settings set;
+    WaterSkin::Reader reader = [this](const glm::ivec3& lo, const glm::ivec3& hi, std::vector<ColumnRuns>& out) {
+        out.clear();
+        for (int z = lo.z; z <= hi.z; ++z) for (int x = lo.x; x <= hi.x; ++x) {
+            if (x < -2048 || x >= 2048 || z < -2048 || z >= 2048) continue;
+            if (dried && x >= 96 && x < 104 && z >= 96 && z < 104) continue;   // S5: the written tile
+            ColumnRun r; r.bottomY = 0.0f; r.topY = 1.0f; r.mass = 1.0;
+            ColumnRuns c; c.x = x; c.z = z; c.runs.push_back(r); out.push_back(std::move(c));
+        }
+    };
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> boxes{{glm::ivec3(-30, 0, -30), glm::ivec3(29, 3, 29)}};
+    std::set<std::pair<int, int>> recorded;   // (tx, tz) 8 m tiles the volume left to the record
+    bool dried = false; uint64_t spanRev = 1;
+    uint64_t rev = 1;
+    WaterSkin::Inputs inputs() {
+        WaterSkin::Inputs in;
+        in.view = glm::vec3(0.0f, 6.0f, -80.0f); in.drawM = 48.0f; in.recordTilesOn = false; in.recordTileM = 8;
+        in.reader = &reader; in.spanRevision = spanRev;
+        in.volumeBoxes = &boxes; in.volumeBoxesRevision = rev;
+        in.volumeDraws = [this](int x, int z) {
+            for (const auto& b : boxes)
+                if (x >= b.first.x && x <= b.second.x && z >= b.first.z && z <= b.second.z) {
+                    const int tx = x >= 0 ? x / 8 : -((-x + 7) / 8), tz = z >= 0 ? z / 8 : -((-z + 7) / 8);
+                    return recorded.count({tx, tz}) == 0;
+                }
+            return false;
+        };
+        return in;
+    }
+    void settle(WaterSkin& sk) {
+        for (int i = 0; i < 4000; ++i) { sk.update(set, inputs()); if (sk.stats().pending == 0 && i > 2) return; }
+        ADD_FAILURE() << "skin never settled";
+    }
+};
+// every wet field's columns, by (origin, cell size)
+std::map<std::tuple<int, int, float>, std::vector<SurfaceColumn>> skinCols(const WaterSkin& sk) {
+    std::map<std::tuple<int, int, float>, std::vector<SurfaceColumn>> m;
+    for (const WaterSurfaceField* f : sk.fields()) m[{f->origin.x, f->origin.z, f->h}] = f->cols;
+    return m;
+}
+long skinDiff(const WaterSkin& a, const WaterSkin& b) {
+    const auto ma = skinCols(a), mb = skinCols(b);
+    long d = static_cast<long>(ma.size() > mb.size() ? ma.size() - mb.size() : mb.size() - ma.size());
+    for (const auto& [k, ca] : ma) {
+        auto it = mb.find(k);
+        if (it == mb.end() || it->second.size() != ca.size()) { ++d; continue; }
+        if (std::memcmp(ca.data(), it->second.data(), ca.size() * sizeof(SurfaceColumn)) != 0) ++d;
+    }
+    return d;
+}
+}  // namespace
+
+TEST(WaterSkinTest, AVolumesRecordedTileRebuildsOnlyTheFieldsItMeets) {
+    VolSkinRig rig;
+    rig.set.farM = 2048.0f;   // toward the live reach (the far terrain's; 2048 keeps three settles in seconds)
+    WaterSkin sk;
+    rig.settle(sk);
+    const int fieldsAll = sk.stats().fields;
+    float top = 0.0f;
+    const bool drawnBefore = sk.drawnAt(4.0f, 4.0f, top);   // the tile (0, 0)'s centre: the volume's
+    // S1: one tile recorded
+    rig.recorded.insert({0, 0}); ++rig.rev;
+    sk.update(rig.set, rig.inputs());
+    const long walkedTile = sk.stats().cellsAggregatedLastCall;
+    const double msTile = sk.stats().msLastCall;
+    const bool drawnAfter = sk.drawnAt(4.0f, 4.0f, top);
+    WaterSkin fresh1; rig.settle(fresh1);
+    const long diffTile = skinDiff(sk, fresh1);
+    // S4: the volume gone
+    rig.boxes.clear(); rig.recorded.clear(); ++rig.rev;
+    sk.update(rig.set, rig.inputs());
+    const long walkedGone = sk.stats().cellsAggregatedLastCall;
+    WaterSkin fresh2; rig.settle(fresh2);
+    const long diffGone = skinDiff(sk, fresh2);
+    std::printf("[skin] %d fields, %d levels; a recorded tile: %ld cells aggregated (%.2f ms), %ld fields differ from a fresh skin; "
+                "the volume gone: %ld aggregated, %ld differ; the tile's centre drawn by the skin before %d after %d\n",
+                fieldsAll, sk.stats().levels, walkedTile, msTile, diffTile, walkedGone, diffGone, int(drawnBefore), int(drawnAfter));
+    EXPECT_FALSE(drawnBefore) << "S3: the control - the volume's own column";
+    EXPECT_TRUE(drawnAfter) << "S3: the recorded tile is the skin's after the change";
+    const long bound = 1000;
+    EXPECT_LE(walkedTile, bound) << "S1";
+    EXPECT_EQ(diffTile, 0) << "S2";
+    EXPECT_LE(walkedGone, bound) << "S4";
+    EXPECT_EQ(diffGone, 0) << "S4 / S2";
+    // S5: the record written - one tile (chunk column (3, 3)) dried
+    const bool wetBefore = sk.drawnAt(100.0f, 100.0f, top);
+    rig.dried = true; ++rig.spanRev;
+    sk.spansWritten(rig.spanRev - 1, rig.spanRev, {(static_cast<uint64_t>(3u) << 32) | 3u});
+    // S8 (the live split after S7: a tile record's span write still 4.7 ms with the chunk writer under 1 ms - spansWritten walked
+    // every summary, ~70k entries of 2.4 KB at 4 km, to advance its revision): a write walks none; RED today: all of them
+    const long writeWalked = sk.stats().writeWalkedLast;
+    std::printf("[skin] a written tile: spansWritten walked %ld summaries\n", writeWalked);
+    EXPECT_EQ(writeWalked, 0) << "S8: a write walked every summary";
+    // S6 (from the live split after S5: the skin still 12-18 ms with 1-2 summaries - a write with touched columns sent the next call
+    // into a whole scan of the reach, ~70k chunk columns at 4 km): the write's calls scan 0 chunk columns; RED today: the reach's
+    long walkedWrite = 0, scannedWrite = 0, countWrite = 0; double msWrite = 0.0;
+    for (int i = 0; i < 8; ++i) {   // the summary's re-read, then the fields (counted over the calls it takes)
+        sk.update(rig.set, rig.inputs());
+        walkedWrite += sk.stats().cellsAggregatedLastCall; msWrite = std::max(msWrite, sk.stats().msLastCall);
+        scannedWrite += sk.stats().scannedLastCall; countWrite += sk.stats().countWalkedLastCall;
+    }
+    const bool wetAfter = sk.drawnAt(100.0f, 100.0f, top);
+    WaterSkin fresh3; rig.settle(fresh3);
+    const long diffWrite = skinDiff(sk, fresh3);
+    std::printf("[skin] a written tile: %ld cells aggregated, %ld chunk columns scanned (worst call %.2f ms), %ld fields differ; drawn there before %d after %d\n",
+                walkedWrite, scannedWrite, msWrite, diffWrite, int(wetBefore), int(wetAfter));
+    EXPECT_TRUE(wetBefore); EXPECT_FALSE(wetAfter) << "S5: the control - the write is seen";
+    EXPECT_LE(walkedWrite, bound) << "S5";
+    EXPECT_EQ(diffWrite, 0) << "S5 / S2";
+    EXPECT_EQ(scannedWrite, 0) << "S6: a write scanned the reach";
+    // S7 (the live split after S6: the skin still 4.4-4.9 ms with 0.4 ms in its timed parts - a rebuilt summary recounted the
+    // generator's summaries by walking every one, ~70k entries of 2.4 KB at 4 km): the write's calls walk none; RED today
+    std::printf("[skin] a written tile: %ld summaries walked to count; held generator %d sampled %d, a fresh skin %d / %d\n",
+                countWrite, sk.stats().genHeld, sk.stats().sampledHeld, fresh3.stats().genHeld, fresh3.stats().sampledHeld);
+    EXPECT_EQ(countWrite, 0) << "S7: a write walked every summary to count";
+    EXPECT_EQ(sk.stats().genHeld, fresh3.stats().genHeld) << "S7: the generator count";
+    EXPECT_EQ(sk.stats().sampledHeld, fresh3.stats().sampledHeld) << "S7: the sampled count";
 }
