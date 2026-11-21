@@ -824,3 +824,41 @@ items in one workgroup; HARD_APPLY runs the same items a third time at the post-
 cap is not a lever. Next (each with its own prediction): test each item once per pass -- keep the count pass's
 candidates instead of re-testing them (the serial order kept, so bit-equal) -- then spread a big body's items over more
 than one workgroup.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5g -- EACH WORLD ITEM TESTED ONCE PER PASS (written 2026-11-20 BEFORE its code)
+
+WHY: F5.5f split the world group: the item tests are 96-98 % of it and the pass runs them TWICE (count, then the write
+re-runs every item's test to place its candidates at their serial offset). The cap is <= 5 %. The busiest body's
+~3,000 items sit on one 64-thread workgroup, ~50 escape searches per thread, twice. Headless world group 2.90 / 3.88 /
+5.19 ms at 110 / 282 / 994 bodies; count 1.39 / 1.86 / 2.47 ms; tick 8.4 / 10.3 / 15.0 ms (F5.5e).
+CONDITIONS at the time of writing: World of Warcraft not running; ANOTHER session's engine (G:\Github\phyxel) IS
+running on the same GPU -- not mine, not stopped; recorded with every run.
+
+WHAT IT BUILDS (the lever; the serial order kept, so bit-equal):
+  - the world pass tests each item once: each thread's candidates go, in its own serial order, to a per-thread staging
+    slice (kStage = 16 candidates, a region past the bodies' scratch); after the scan each thread copies its staged
+    candidates to scratch[base + its offset] -- the same slots, the same order, the same drops past P_SCRATCH (and the
+    same scratch-overflow count) as the write pass. A thread with more than kStage candidates falls back to the old
+    re-test for its own items only (deep points counted once); the fallback threads are counted (a new counter word).
+  - BodySimGpu::setWorldOnce(bool) (default ON once green; OFF = the F5.5f two-test path, kept for the A/B); lab
+    {"world_once":bool}; the f55e gate's --once on|off. The F5.5f split runs in both modes (once: w_count = the tests
+    + staging, w_write = + the copy).
+  - a test-only scramble (the staged copy in reversed thread order) to prove the equality test sees the order.
+
+RED FIRST: the test (VoxFoundBodySimGpu.F55gWorldOnce) asserts the world group drops >= 30 % with once on, and is run
+  against a stub setWorldOnce that changes nothing: RED (ratio ~1.0). And the scramble: bodies differ (RED for the
+  order), so the equality check below can see a wrong order.
+
+PREDICTIONS (headless, the woken pile, 30 profiled ticks, the lab's grid as F5.5e/f)
+  G1 bit-equal: 60 ticks once on vs off, 0 bodies differ (pose, orientation, velocities, sleep), every counter equal,
+     at every rung. The scramble: > 0 bodies differ at every rung.
+  G2 the world group drops 35-50 % at every rung (to about the count's share + <= 10 points).
+  G3 the awake pile's tick drops 10-20 % at every rung (the world group's saving, nothing else moves > 5 %).
+  G4 the fallback threads (> kStage candidates) <= 1 % of the (awake body, thread) slots per tick; with the split on,
+     the write's increment (now the copy) <= 10 % of the world group.
+  G5 live (CharacterTestbed, the f55e gate): the world group drops 30-50 % at every rung; the device ms per tick
+     (one tick per submit) drops >= 8 %.
+WHAT WOULD COUNT AS A MISS: not bit-equal; any drop outside its range; fallback > 1 %. HARD_APPLY's third test of the
+same items and the busiest body on one workgroup stay: the next increment spreads a big body's items over more than
+one workgroup, with its own prediction.
