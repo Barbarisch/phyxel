@@ -1186,3 +1186,29 @@ CONCLUSION: the pairs group is the corners tested twice -- count and write about
 world pass's items were before F5.5g. The cap and the emit are small (4-6 %), and BROAD is the next at scale (19-20 % at
 994, its loop awake x bodies). Next: F5.5l, each pair corner tested once (F5.5g's staging, bit-equal), with its own
 prediction; the write's 37-46 % is the most it can take.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5l PREDICTION (2026-11-21; written BEFORE the code). Each pair corner tested once -- the lever F5.5k pointed at.
+THE CONTROL (run first, the F5.5k build, 13:41:07-13:41:38; no phyxel.exe and no Wow.exe before or after): F5.5e's E1
+5.50 / 6.06 / 9.91 ms per tick (30 per submit); F5.5k's split: the pairs group 0.903 / 1.156 / 2.567 ms unsplit, the
+write stage 0.389 / 0.466 / 0.995 ms (41 / 41 / 37 % of the group), the count 0.434 / 0.489 / 0.958; F5.5g's G2 once
+1.460 / 2.053 / 2.553 ms (the world group, untouched here).
+THE LEVER: BodySimGpu::setPairsOnce (default on; needs the parallel narrowphase). NARROW's count loop stages each
+thread's candidates as it tests them (F5.5g's per-thread stage, STAGE = 48 Cands past the bodies' scratch: the world
+pass is done with it), then after the prefix each thread copies its staged candidates to its serial offset -- the same
+slots, the same order, the same drops past kScratch, the same S_OVF_SCRATCH. A thread with more than STAGE re-tests its
+own corners (counted: a new pairRedo, S_PREDO = state word 23). Each corner yields at most one candidate and a thread
+has ceil(L / 64) corners (L <= 1,742 on these piles: <= 28), so pairRedo is 0 here. The deep-point count stays in the
+one test. One pairCorner call site per loop, as now (F5.5j's compile rule). Test-only scramble: the copy reversed
+within the pair (F5.5g's red).
+  L1 (the control): after the change, F5.5g's G2 once (an untouched pass) within 15 % of 1.46 / 2.05 / 2.55 ms; the
+     uncached driver compile <= 90 s (F5.5k 60.6 s).
+  L2 (bit-equal): a new test, F55lPairsOnce, the woken pile: once vs twice over 60 ticks, 0 bodies differ and every
+     counter equal at every rung; pairRedo 0. RED (a) the scramble: > 0 bodies differ at every rung; (b) a stub knob
+     first (the flag set, the two-test pass still run): the L3 guard fails.
+  L3 the pairs group, once vs twice (woken pile, profiled, one tick per submit): -30 to -45 % at every rung (the write's
+     37-41 %; F5.5g's world group fell -49 to -51 % against a 48-50 % write). Guard in the test: <= 0.80 x.
+  L4 the tick (30 per submit, woken pile): -4 to -12 % at every rung.
+  L5 live (F5.5e's gate, CharacterTestbed, --pairs-once on|off, order B A A B): the pairs group -30 to -45 %, the awake
+     tick -4 to -12 %, every rung; the settle tick and awake-after-wake counts the same on vs off.
+  L6 the VoxFound GPU suite on a quiet GPU: 52 / 52 (51 + the new test).
