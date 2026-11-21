@@ -733,3 +733,47 @@ TEST(NavGraphMicroTest, ACrestIsClimbedFromTheLowerCellByOneStepAtMost) {
         EXPECT_EQ(down, c.crossed) << c.what;
     }
 }
+
+// O39 (m) (docs/evidence/worldforge_v2/m3c_chains/pm_chain600.txt): a crest - or a lip - on a FALL edge. The near cell
+// stands at 110, the far cell at 100 (a fall of 10, over the 4-micro step-up, within the fall limit); the ground
+// differs in ONE micro column at the boundary.
+// CHAIN 600 FOUND MORE THAN A CREST: in micro mode the graph takes NO drop over the step-up at all - not even a plain
+// cliff. The body's footprint (half width 2) at the far cell's first columns still overlaps the near cell's ground,
+// and the fall sweep wants the whole span from the landing up clear. So a resident never steps off a ledge higher
+// than 4 micro. Whether that is wanted is the owner's decision (D74, OPEN); nothing in the engine was changed. This
+// test PINS today's behaviour ("down" is never crossed); `wanted` is what rule (b) of D74 would give.
+TEST(NavGraphMicroTest, ADropOverTheStepIsNeverTakenInMicroMode) {
+    struct Case { int col, colFeet, farFeet; bool down; const char* what; };
+    const Case cases[] = {
+        {18, 100, 100, true,  "a plain cliff at the boundary (the control)"},
+        {18, 110, 100, true,  "a lip: the near level runs one column into the far cell"},
+        {18, 112, 100, true,  "a crest 2 above the near level, in the far cell's first column"},
+        {18, 114, 100, true,  "a crest 4 above the near level (exactly one step-up)"},
+        {18, 115, 100, false, "a crest 5 above the near level (over one step-up)"},
+        {17, 112, 100, true,  "a crest 2 above the near level, in the near cell's last column"},
+        {18, 125, 100, false, "a wall 15 above the near level"},
+        {18, 112, 73,  false, "a crest 2 above the near level over a far cell 37 below it (39 from the crest)"},
+    };
+    const NavAgentProfile agent{};
+    std::printf("[ O39m ] the agent: step-up %d micro, fall limit %d micro\n", agent.stepUpMicro, agent.maxFallMicro());
+    for (const Case& c : cases) {
+        // top solid micro per column: x < 18 the near cell (feet 110), x >= 18 the far cell; one column overridden
+        const auto surf = [&c](int mx) { return mx == c.col ? c.colFeet - 1 : (mx < 18 ? 109 : c.farFeet - 1); };
+        NavGraph graph(
+            CellFillFunc([&surf](const glm::ivec3& cc) {
+                int lo = INT_MAX, hi = INT_MIN;
+                for (int i = 0; i < 9; ++i) { const int v = surf(cc.x * 9 + i); lo = std::min(lo, v); hi = std::max(hi, v); }
+                if (cc.y * 9 + 8 <= lo) return CellFill::Solid;
+                if (cc.y * 9 > hi) return CellFill::Empty;
+                return CellFill::Partial;
+            }),
+            MicroQueryFunc([&surf](const glm::ivec3& m) { return m.y <= surf(m.x); }));
+        graph.buildRegion(glm::ivec2(-2, -2), glm::ivec2(6, 2), agent);
+        const glm::vec3 high(0.5f, 110.0f / 9.0f, 0.5f), low(3.5f, c.farFeet / 9.0f, 0.5f);
+        const bool down = graph.findPath(high, low, agent).found, up = graph.findPath(low, high, agent).found;
+        std::printf("[ O39m ] %s: down %s (D74 b would say %s), up %s\n", c.what, down ? "crossed" : "not crossed", c.down ? "crossed" : "not crossed", up ? "crossed" : "not crossed");
+        (void)c.down;   // D74 (b) would make this the expectation
+        EXPECT_FALSE(down) << c.what << ": a drop over the step-up was taken - D74 has been ruled, or the graph changed";
+        EXPECT_FALSE(up) << c.what << ": climbed a fall";
+    }
+}

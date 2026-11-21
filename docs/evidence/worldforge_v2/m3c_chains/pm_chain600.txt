@@ -1,0 +1,51 @@
+pm_chain600 - O39 (m): a crest on a FALL edge.
+Written 2026-11-21 18:13, before any edit. Release. Headless L2 (NavGraphMicroTest), then the full sets.
+ENGINE-WIDE: NavGraph::sweepEdge is every NPC's graph.
+
+WHAT IS OPEN: O39 (f) let a walker step over a crest between two cells that are a STEP apart. Where the far cell is a
+  FALL below (more than the step-up, within the fall limit) the old rule still stands: on the near cell's columns
+  the body must fit exactly at the near level, and on the far cell's columns the whole span from the landing up to
+  the near level + the body must be clear. A hump one micro high at the cell boundary - or the near cell's ground
+  running one column into the far cell - refuses the edge. A character walks off such a lip.
+THE RULE: a fall edge is walked in two phases along its 9 columns - STANDING, then FALLING, never back.
+  standing: the body fits at some level from the near cell's level up to ONE step-up above it (the lowest such level;
+    the lift is remembered) - on the near cell's columns, and on the far cell's columns while the ground there is
+    still at or above the near level (a lip or a crest).
+  falling: from the first far-cell column where the body fits at the landing level, the span from the landing up to
+    the highest level stood on + the body must be clear, on that column and every one after it.
+  bounds: the lift is at most the step-up above the NEAR (higher) cell; the drop from the highest level stood on to
+    the landing is at most the fall limit. An intermediate ledge BELOW the near level inside the far cell is still
+    refused (said here; a staircase within one cell is not this change).
+  No new number: the step-up and the fall limit are the agent's own.
+THE TEST (NavGraphMicroTest.ACrestOnAFallEdgeIsWalkedOff): the near cell at feet 110, the far cell at 100 (a fall of
+  10), the profile differing only in ONE micro column at the boundary. Each case asks DOWN (wanted as listed) and UP
+  (never: 10 is over the step-up).
+    cliff (control)            column 18 at 100              down: yes (today too)
+    lip                        column 18 at 110              down: yes   (RED today)
+    crest 2 in the far cell    column 18 at 112              down: yes   (RED today)
+    crest 4 in the far cell    column 18 at 114              down: yes   (RED today)
+    crest 5 in the far cell    column 18 at 115              down: NO    (over one step-up)
+    crest 2 in the near cell   column 17 at 112              down: yes   (RED today)
+    wall                       column 18 at 125              down: NO
+    deep: far cell at 110 - 37 = 73, crest 2                 down: NO    (GUESS the fall limit is 36: 39 from the crest)
+PREDICTIONS
+  chain 600 (the test, engine unchanged): RED on the four "RED today" cases; the controls as listed.
+  chain 601 (the rule): green. The existing NavGraph tests unchanged (the step branch is not touched).
+  chains 602 / 603: unit 413 / 0; live 44 / 0. GUESS: live record lines identical - more edges can only add reach,
+    and every map build already reads 0 / 0; a gate's walkable count is the probe's, not the graph's. If a line
+    moves it is a graph-dependent one (the residents' graph, the O38g prints) and I will say which.
+RESULTS (written 2026-11-21 18:14)
+  chain 600 (the test, engine unchanged; exe 18:13:46): RED - and my CONTROL is red too: "a plain cliff at the boundary
+    (the control): down not crossed". All eight cases read "down not crossed, up not crossed"; the agent prints
+    "step-up 4 micro, fall limit 36 micro".
+  WHY (read from sweepEdge and boxFits, not shown by a further run): on the far cell's first columns the body's
+    footprint (half width 2) still covers two columns of the NEAR cell, whose ground stands above the landing; the
+    fall branch wants the box clear from the landing up to the near level + the body. So in micro mode NO drop over
+    the step-up is ever linked. No micro-mode test of a fall existed; the cube-mode tests (NavGraphTest) take falls.
+  WHAT I DID NOT DO: I did not write the rule. Making falls work is not "a crest": it adds one-way edges at every
+    ledge of 5 to 36 micro for every NPC in every world. That is a behaviour decision - raised as D74 (OPEN) in the
+    plan with a recommendation (keep it: NPCs never drop over a step), not a ruling.
+  THE TEST IS KEPT AS A PIN of today's behaviour (renamed ADropOverTheStepIsNeverTakenInMicroMode: down never
+    crossed, 8 cases; the column of what D74 (b) would give stays printed). Stated before its run.
+  PREDICTION chain 601: the pin passes; the Nav suites otherwise unchanged.
+  chain 601 (exe 18:14:54, the navigation suites): 56 ok / 0 failed; the pin passes. Test-only change; the engine is untouched, so the full sets were not re-run for it.
