@@ -31,23 +31,34 @@ def trace_run(api, k):
     camera_set(api, P.CHURN_CAM)
     time.sleep(4.0)
     api.debug("water_av_host_phases", {"reset": True})
-    f_pre = api.post("/api/debug/frame_trace", {"timing": True, "since": 0}).get("next", 0)
-    time.sleep(2.0)   # the baseline: 2 s of the settled lake
-    f0 = api.post("/api/debug/frame_trace", {"timing": True, "since": 1 << 62}).get("next", 0)
+    # 58.3: the engine's trace ring holds 8,192 frames - a 30 s life at ~270 fps overflows it (the first run with --trace lost the
+    # baseline: "median before None", "0 frames over 2x" beside a 33 ms max). Read in chunks (since = the last next) every second
+    cols, rows = [], []
+    nxt = api.post("/api/debug/frame_trace", {"timing": True, "since": 1 << 62}).get("next", 0)
+    f_pre = nxt
+    def pull():
+        nonlocal nxt, cols
+        tr = api.post("/api/debug/frame_trace", {"timing": True, "since": nxt})
+        cols = tr.get("columns", cols)
+        got = [dict(zip(cols, r)) for r in tr.get("frames", [])]
+        if got and got[0]["f"] > nxt: print(f"   WARNING: trace frames {nxt}..{got[0]['f'] - 1} lost (ring overflow)", flush=True)
+        rows.extend(got)
+        nxt = tr.get("next", nxt)
+    for _ in range(2): time.sleep(1.0); pull()   # the baseline: 2 s of the settled lake
+    f0 = nxt
     st = api.debug("water_av_impulse", {"x": P.X0 + P.W / 2, "y": P.TOP + 1.9, "z": P.Z0 + P.W / 2, "radius": 2.0, "strength": 8.0, "dx": 0.0, "dy": -1.0, "dz": 0.0})
     t0, slept_at = time.time(), None
     while time.time() - t0 < 45:
-        time.sleep(5.0)
+        time.sleep(1.0); pull()
         ph = api.debug("water_av_host_phases", {}).get("phases", {})
         if slept_at is None and ("sleep.9 build the record tiles" in ph or "sleep.8 retire (57.8)" in ph): slept_at = round(time.time() - t0, 1)
         if slept_at is not None:
-            time.sleep(3.0); break
-    tr = api.post("/api/debug/frame_trace", {"timing": True, "since": f_pre})
-    cols = tr.get("columns", [])
-    rows = [dict(zip(cols, r)) for r in tr.get("frames", [])]
+            for _ in range(3): time.sleep(1.0); pull()
+            break
     base = sorted(r["dt_ms"] for r in rows if f_pre <= r["f"] < f0)
     life = [r for r in rows if r["f"] >= f0]
     med = base[len(base) // 2] if base else None
+    if med is None: print("   ERROR: no baseline frames - the gate cannot be judged on this run", flush=True)
     lmed = sorted(r["dt_ms"] for r in life)[len(life) // 2] if life else None
     hitches = [{**{c: round(v, 2) if isinstance(v, float) else v for c, v in r.items()}, "i": r["f"] - f0} for r in life if med and r["dt_ms"] > 2.0 * med]
     r = {"run": k, "record_lake": rl, "stone": st, "slept_at_s": slept_at, "frames_before": len(base), "median_before_ms": med,

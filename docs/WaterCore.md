@@ -15228,6 +15228,26 @@ previous call's fence (GPU time; no host cut touches it). Median 3.4 ms, max 22.
   seen in a clip.
 - Left in a tile wake (~6 ms): the seed's host part 2.7 (nearest-wet walk 0.6, residency 0.6, scatter 0.9, fills 0.4), its
   submit-and-wait 0.9, the occupancy copy into the tile grid 0.9, the seed surface 1.1. (b) not touched.
+**Live, the gate re-run (2026-11-21, Creek 57.6 rig, the staged wake ON, the scatter fix in; `s58_trace_after_scatter.json`,
+`s58_windows_after_scatter.json`).** Found first: `tools/water_patch_sleep_split.py --trace` lost frames - the engine's trace ring
+holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run printed "median before None", "0 frames over 2x" beside a
+33 ms max); it now reads the ring every second and warns on a gap (none in the second run).
+- **The gate (no frame over 2x the 2 s baseline's median): NOT met.** Baseline median 2.88 / 2.90 ms (gate 5.8). Life median 3.47 /
+  3.43, p99 7.8 / 8.1, max 37.4 / 35.0 ms. Over 5.8 ms: 822 / 899 frames; over 10: 48 / 44; over 15: 30 / 27; over 20: 23 / 21.
+- **The gate as written counts every water tick frame at this frame rate.** It is my wording of the owner's "obviously we cant have
+  stutter". The water ticks at 60 Hz while the bench draws ~270 fps, so about every fourth frame holds a water step (~6 ms, 166
+  fps), past 2x a 2.9 ms median - most of the 822-899. Kept as written and reported; worked in order of size: the frames over 15 ms
+  first (no reading calls those anything but a hitch).
+- **What the frames over 15 ms are** (half-second windows, the worst call of each phase):
+  1. **The first live frames (t 0.3 s), 30-34 ms:** tile wakes 12 ms + the GPU step 12.5 (recording its commands 5.9) + the ripple
+     layers 6-10; run 0 also `create.0 grid` 11.9 and the staged GPU stage 30.1 ms (the session's FIRST patch: no spare yet - its
+     buffers allocated; run 1, the spare warm: worst stage 4.4 ms) - design-check item 5 (pre-warm).
+  2. **The GPU the limit (t ~1.5 s), 16-21 ms:** the host waits 7-12 ms on the previous call's fence.
+  3. **Tiles going back to the record (t 18-27 s, about one a second), 19-31 ms:** `mgr.2` ~11 ms a call - a tile record's GPU
+     read 2.7 (max 7.7) and its draw tiles 3.5 (`record.4a` + `tilesNow.2`) - with the ripple layers 3-4 and `takeMotion` 3-4 on
+     the same frames. 14 records and 14 wakes in the run.
+  4. **The sleep (t ~27 s), 30-32 ms:** `sleep.2` the GPU grid read 19 ms (H3), `sleep.4` runs from the grid 7-8, held columns 3.5.
+  5. ~30 ms frames with the water's host block at 1.3-3.4 ms (the trace): not attributed - the trace has no water GPU column.
 - Not done: the cheap ripple on the record while it builds (the alternative); pre-warming the spare (item 5); the first live frame
   (item 2, (a) partly, (b)); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
   the water's, logged here only).
