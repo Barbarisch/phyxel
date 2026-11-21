@@ -1386,104 +1386,6 @@ void primalVG(uint i, bool has, uint stop, bool loud) {
         bodies[i].cumAng.xyz = b.cumAng.xyz + dAng;
     }
 }
-// F5.5n: the lean form (pc.n bit 4) -- each lane sums the 21 upper-triangle terms + 6 rhs (27 of the 42), one barrier,
-// then lane q < 27 adds column q over its group's 32 lanes in lane order (one step, not the 5-level tree); lane 0 mirrors
-// the triangle. Deterministic; NOT bit-equal to the tree form. The split's stops (F5.5m) work here too.
-void primalLean(uint i, bool has, uint stop, bool loud) {
-    uint lid = gl_LocalInvocationID.x, l = lid & 31u;
-    uint base = (lid & ~31u) * 42u, r = lid * 42u;
-    if (has) {
-        float u[27];
-        for (int q = 0; q < 27; ++q) u[q] = 0.0;
-        uint o = state[sOffset(i)], cnt = state[sCount(i)];
-        for (uint p = l; p < cnt; p += 32u) {
-            Con k = cons[lists[o + p]];
-            float Cn, Ct1, Ct2;
-            vec3 rAW, rBW;
-            evalC(k, Cn, Ct1, Ct2, rAW, rBW);
-            float fn = min(k.lam.z * Cn + k.rB.w, 0.0);
-            float ft1 = k.lam.w * Ct1 + k.lam.x, ft2 = k.misc.x * Ct2 + k.lam.y;
-            float bound = abs(fn) * k.n.w, fs = sqrt(ft1 * ft1 + ft2 * ft2);
-            if (fs > bound && fs > 0.0) { ft1 *= bound / fs; ft2 *= bound / fs; }
-            bool isA = k.ids.x == i;
-            float sJ = isA ? 1.0 : -1.0;
-            vec3 arm = isA ? rAW : rBW;
-            vec3 dirs[3] = vec3[3](k.n.xyz, k.t1.xyz, k.t2.xyz);
-            float F[3] = float[3](fn, ft1, ft2);
-            float K[3] = float[3](k.lam.z, k.lam.w, k.misc.x);
-            for (int rr = 0; rr < 3; ++rr) {
-                vec3 jl = dirs[rr] * sJ, ja = cross(arm, jl);
-                float J[6] = float[6](jl.x, jl.y, jl.z, ja.x, ja.y, ja.z);
-                for (int pp = 0; pp < 6; ++pp) {
-                    u[21 + pp] += J[pp] * F[rr];
-                    float kj = K[rr] * J[pp];
-                    for (int qq = pp; qq < 6; ++qq) u[pp * 6 - (pp * (pp - 1)) / 2 + qq - pp] += kj * J[qq];   // the triangle's index, constant once unrolled
-                }
-            }
-        }
-        for (int q = 0; q < 27; ++q) gpRed[r + uint(q)] = u[q];
-        if (stop == 2u) {
-            float g = 0.0;
-            for (int q = 0; q < 27; ++q) g += u[q];
-            if (isnan(g)) atomicAdd(state[S_PQNAN], 1u);
-        }
-    }
-    if (stop == 2u) return;
-    memoryBarrierShared();
-    barrier();
-    if (has && l < 27u) {   // column l over the 32 lanes, in lane order; only this lane touches column l
-        float s = 0.0;
-        for (uint k = 0u; k < 32u; ++k) s += gpRed[base + k * 42u + l];
-        gpRed[base + l] = s;
-    }
-    memoryBarrierShared();
-    barrier();
-    if (stop == 3u) {
-        if (has && l == 0u) {
-            float g = 0.0;
-            for (uint q = 0u; q < 27u; ++q) g += gpRed[base + q];
-            if (isnan(g)) atomicAdd(state[S_PQNAN], 1u);
-        }
-        return;
-    }
-    if (has && l == 0u) {
-        Body b = bodies[i];
-        float dt = pf(P_DT);
-        float dt2 = dt * dt;
-        mat3 R = qmat(b.quat);
-        mat3 Ib = mat3(b.I0.xyz, b.I1.xyz, b.I2.xyz);   // symmetric: rows == columns
-        mat3 Iw = R * Ib * transpose(R) / dt2;
-        float mdt2 = b.fixedProps.x / dt2;
-        float lhs[36];
-        float rhs[6];
-        for (int q = 0; q < 36; ++q) lhs[q] = 0.0;
-        for (int a = 0; a < 3; ++a) lhs[a * 6 + a] = mdt2;
-        for (int rr = 0; rr < 3; ++rr)
-            for (int c = 0; c < 3; ++c) lhs[(3 + rr) * 6 + 3 + c] = Iw[c][rr];
-        vec3 dp = b.pos.xyz - b.inertial.xyz;
-        vec3 da = Iw * angDisp(b.quat, b.inertialQuat);
-        for (int a = 0; a < 3; ++a) { rhs[a] = mdt2 * dp[a]; rhs[3 + a] = da[a]; }
-        uint t = 0u;
-        for (int pp = 0; pp < 6; ++pp)
-            for (int qq = pp; qq < 6; ++qq) {
-                float v = gpRed[base + t++];
-                lhs[pp * 6 + qq] += v;
-                if (qq != pp) lhs[qq * 6 + pp] += v;
-            }
-        for (int q = 0; q < 6; ++q) rhs[q] += gpRed[base + 21u + uint(q)];
-        for (int q = 0; q < 6; ++q) rhs[q] = -rhs[q];
-        float d[6];
-        solve6(lhs, rhs, d);
-        vec3 dAng = vec3(d[3], d[4], d[5]);
-        if (stop == 4u && !loud) {
-            if (isnan(d[0] + d[1] + d[2] + d[3] + d[4] + d[5])) atomicAdd(state[S_PQNAN], 1u);
-            return;
-        }
-        bodies[i].pos.xyz = b.pos.xyz + vec3(d[0], d[1], d[2]);
-        bodies[i].quat = qintegrate(b.quat, dAng);
-        bodies[i].cumAng.xyz = b.cumAng.xyz + dAng;
-    }
-}
 #endif
 
 void dual(uint ci) {
@@ -1567,14 +1469,12 @@ void main() {
 #ifdef VF_PRIMAL
     // F5.5m: pc.n bits 0-2 = the split's stop (0 = the real pass; 1 = return at once), bit 3 = loud
     uint qStop = pc.n & 7u;
-    bool qLoud = (pc.n & 8u) != 0u, qLean = (pc.n & 16u) != 0u;   // F5.5n: bit 4 = the lean form
+    bool qLoud = (pc.n & 8u) != 0u;
     if ((pc.pass == 29u || pc.pass == 30u) && qStop == 1u) return;
     if (pc.pass == 29u) {   // PRIMAL arg = colour (indirect): workgroup w's 32-thread group g takes body 8 w + g
         uint k = gl_WorkGroupID.x * 8u + (gl_LocalInvocationID.x >> 5u), n = aux[auxCol() + pc.arg];
         bool has = k < n;
-        uint bi = has ? aux[auxCol() + 192u + aux[auxCol() + 32u + pc.arg] + k] : 0u;
-        if (qLean) primalLean(bi, has, qStop, qLoud);
-        else primalVG(bi, has, qStop, qLoud);
+        primalVG(has ? aux[auxCol() + 192u + aux[auxCol() + 32u + pc.arg] + k] : 0u, has, qStop, qLoud);
         return;
     }
     if (pc.pass == 30u) {   // PRIMAL, every colour used in order, one workgroup (the form for few awake bodies)
@@ -1584,9 +1484,7 @@ void main() {
             for (uint b8 = 0u; b8 < n; b8 += 8u) {
                 uint k = b8 + g8;
                 bool has = k < n;
-                uint bi = has ? aux[auxCol() + 192u + o + k] : 0u;
-                if (qLean) primalLean(bi, has, qStop, qLoud);
-                else primalVG(bi, has, qStop, qLoud);
+                primalVG(has ? aux[auxCol() + 192u + o + k] : 0u, has, qStop, qLoud);
             }
             memoryBarrierBuffer();
             barrier();
