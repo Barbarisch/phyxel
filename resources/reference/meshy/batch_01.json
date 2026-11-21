@@ -1,0 +1,403 @@
+{
+  "_comment": [
+    "Batch 01 of reference generations for tools/meshy_import.py - image-to-3D from curated",
+    "Wikimedia Commons photographs. Curation record: resources/reference/meshy/batch_01_curation.md",
+    "List without spending:  python tools/meshy_import.py --batch resources/reference/meshy/batch_01.json --dry-run",
+    "Every entry is ONE paid generation (image-to-3D, textured, ai_model latest = 30 credits).",
+    "SIZES: read each entry's size_basis. 'SOURCED' = a page-read dimension of that building from the",
+    "era dossier (docs/evidence/worldforge_v2/era_reference/<era>.md, row id given). 'NOMINAL' = no",
+    "sourced overall dimension for that building: the value is a type figure or a placeholder, good for",
+    "proportions only, and must never be typed into engine data as a dimension.",
+    "All entries are kind 'building' (reference stamps, do-not-place), including four pieces of street",
+    "furniture (well-head, market cross, street fountain, torii)."
+  ],
+  "defaults": {
+    "kind": "building",
+    "tier": "micro",
+    "also_tier": [
+      "subcube"
+    ],
+    "ai_model": "latest",
+    "preview": true
+  },
+  "entries": [
+    {
+      "era": "medieval",
+      "name": "cottage_stang_end_a",
+      "size": 12.2,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/cottage_stang_end_cc-by-sa-2.0_jo-and-steve-turner.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T), a different building; chosen because the photo shows one long single range, not a cot under 9.1 m (D21).",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Stang_End_Cruck_Cottage,_Ryedale_Folk_Museum,_Main_Street,_Hutton-le-Hole_-_geograph.org.uk_-_7731848.jpg | Author: Jo and Steve Turner | Licence: CC BY-SA 2.0 | Typology: croft / cottage | What: Stang End, a cruck-framed thatched long cottage from Danby; standing fabric largely post-medieval (dossier note), medieval cruck form | Status: re-erected (Ryedale Folk Museum) | Image: saved 1600x1093 px from a 2068x1413 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T), a different building; chosen because the photo shows one long single range, not a cot under 9.1 m (D21)."
+    },
+    {
+      "era": "medieval",
+      "name": "longhouse_cilewent_a",
+      "size": 12.2,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/longhouse_cilewent_cc-by-sa-2.0_dave-snowden.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T); the dossier's sourced range for the type is 12.2 m (D20) to 'nearly 19 m' (D23).",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Cilewent_farmhouse,_St_Fagans.jpg | Author: Dave Snowden | Licence: CC BY-SA 2.0 | Typology: longhouse | What: Cilewent farmhouse, a Welsh stone longhouse; rebuilt 1734 on a 15th-c. cruck house (dossier, unverified) | Status: re-erected (St Fagans) | Image: saved 1600x1060 px from a 4877x3230 px original. Caveats: low hedge bed in front of the lower wall. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T); the dossier's sourced range for the type is 12.2 m (D20) to 'nearly 19 m' (D23)."
+    },
+    {
+      "era": "medieval",
+      "name": "longhouse_hendre_r_ywydd_uchaf_a",
+      "size": 19.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/longhouse_hendre_r_ywydd_uchaf_cc-by-sa-4.0_sionk.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 19.0 m is the upper end of the dossier's longhouse range ('nearly 19 metres', Hound Tor, medieval.md D23, PR-T), a different building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Hendre%27r-ywydd_Uchaf_Farmhouse_(1).jpg | Author: Sionk | Licence: CC BY-SA 4.0 | Typology: longhouse (cruck hall-house with byre) | What: Hendre'r-ywydd Uchaf, a cruck-framed hall-house with byre under one roof, 1508 (dossier, unverified) | Status: re-erected (St Fagans) | Image: saved 1280x853 px from a 1500x1000 px original. Caveats: vegetable beds in the foreground and one shrub at the right corner. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 19.0 m is the upper end of the dossier's longhouse range ('nearly 19 metres', Hound Tor, medieval.md D23, PR-T), a different building."
+    },
+    {
+      "era": "medieval",
+      "name": "inn_george_norton_st_philip_a",
+      "size": 21.3,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/inn_george_norton_st_philip_cc-by-sa-3.0_rodhullandemu.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. The dossier has NO SOURCE for any inn dimension (medieval.md 1b tavern/inn). 21.3 m is the Stratford Guild Hall range length (D11, PR-P), a different building of a comparable jettied class, used only to give the stamp a plausible scale.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:NortonStPhilipTheGeorge.jpg | Author: Rodhullandemu | Licence: CC BY-SA 3.0 | Typology: tavern / inn | What: The George Inn, Norton St Philip: stone ground storey, two jettied timber storeys, 14th-15th c. (dossier, unverified) | Status: in situ | Image: saved 1600x1045 px from a 3452x2254 px original. Caveats: inn sign bracket on the front; 1997 scan, slightly soft. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. The dossier has NO SOURCE for any inn dimension (medieval.md 1b tavern/inn). 21.3 m is the Stratford Guild Hall range length (D11, PR-P), a different building of a comparable jettied class, used only to give the stamp a plausible scale."
+    },
+    {
+      "era": "medieval",
+      "name": "smithy_llawr_y_glyn_a",
+      "size": 9.6,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/smithy_llawr_y_glyn_cc-by-2.0_kacka-a-ondra.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 9.6 m is the internal length of the excavated Godmanchester smithy (medieval.md D48, PR-P for Franklin quoting Webster & Cherry), a different building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Gefail_Llawr-y-glyn_(2008).jpg | Author: Kacka a Ondra | Licence: CC BY 2.0 | Typology: blacksmith | What: Smithy (gefail) from Llawr-y-glyn, stone with a slate roof; 18th c. - OUT OF PERIOD, form only (dossier) | Status: re-erected (St Fagans) | Image: saved 1440x1071 px from a 3872x2592 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.1,0,1,1). Caveats: cropped at the left to remove a visitor; an old winch stands in front. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 9.6 m is the internal length of the excavated Godmanchester smithy (medieval.md D48, PR-P for Franklin quoting Webster & Cherry), a different building."
+    },
+    {
+      "era": "medieval",
+      "name": "market_hall_titchfield_a",
+      "size": 7.3,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/market_hall_titchfield_cc-by-sa-2.0_peter-shimmon.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 7.3 m = two bays at the dossier's upper York bay length of 3.66 m (medieval.md D1, PR-P); the bay count (2) is read off the photograph. Not a measurement of this building. The only sourced town-hall length (D11, 21.3 m) is a five-bay guildhall and visibly a larger building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Titchfield_Market_Hall_(1)_-_geograph.org.uk_-_3120451.jpg | Author: Peter Shimmon | Licence: CC BY-SA 2.0 | Typology: town_hall (market hall over an open arcade) | What: Market hall from Titchfield: council chamber over an open timber arcade; built 1620 - OUT OF PERIOD, the cleanest free-standing example of the form (dossier) | Status: re-erected (Weald & Downland) | Image: saved 1088x829 px from a 1800x1166 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.15,0,1,1). Caveats: cropped at the left to remove two distant visitors; 1975 slide, grainy. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 7.3 m = two bays at the dossier's upper York bay length of 3.66 m (medieval.md D1, PR-P); the bay count (2) is read off the photograph. Not a measurement of this building. The only sourced town-hall length (D11, 21.3 m) is a five-bay guildhall and visibly a larger building."
+    },
+    {
+      "era": "medieval",
+      "name": "guildhall_lavenham_a",
+      "size": 21.3,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/guildhall_lavenham_cc-by-sa-2.0_marathon.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 21.3 m is the Stratford Guild Hall range length (medieval.md D11, PR-P), a different building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Lavenham_Guildhall_-_geograph.org.uk_-_4134571.jpg | Author: Marathon | Licence: CC BY-SA 2.0 | Typology: town_hall / guildhall | What: Guildhall of Corpus Christi, Lavenham, close-studded and jettied, c.1530 (dossier, unverified) | Status: in situ | Image: saved 1600x1200 px from a 4000x3000 px original. Caveats: corner view; the lower ranges continue to the left edge of the frame. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 21.3 m is the Stratford Guild Hall range length (medieval.md D11, PR-P), a different building."
+    },
+    {
+      "era": "medieval",
+      "name": "tower_cow_tower_norwich_a",
+      "size": 14.6,
+      "size_axis": "y",
+      "image": "resources/reference/meshy/medieval/source_images/tower_cow_tower_norwich_cc-by-sa-4.0_diego-delso.jpg",
+      "size_basis": "SOURCED for this building: '14.6 metres (48 ft) high', 11.2 m across (medieval.md D46, PR-T: Wikipedia citing Saunders 1985 / Ayers 1988). Applied to the height.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Torre_Cow,_Norwich,_Inglaterra,_2022-11-19,_DD_48.jpg | Author: Diego Delso | Licence: CC BY-SA 4.0 | Typology: wall tower / blockhouse | What: Cow Tower, Norwich, free-standing brick-faced artillery tower, 1398-99 | Status: in situ (roofless) | Image: saved 1067x1600 px from a 5048x7572 px original. Caveats: bare branches overlap the upper left of the tower. | SIZE BASIS: SOURCED for this building: '14.6 metres (48 ft) high', 11.2 m across (medieval.md D46, PR-T: Wikipedia citing Saunders 1985 / Ayers 1988). Applied to the height."
+    },
+    {
+      "era": "medieval",
+      "name": "well_head_winkhurst_a",
+      "size": 2.4,
+      "size_axis": "y",
+      "image": "resources/reference/meshy/medieval/source_images/well_head_winkhurst_cc-by-sa-2.0_paul-gillett.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 2.4 m high chosen by eye. The dossier has NO SOURCE for a well-head (medieval.md 1b, market square). Do not read any dimension off this stamp.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Well_near_Winkhurst_Kitchen_-_geograph.org.uk_-_2566021.jpg | Author: Paul Gillett | Licence: CC BY-SA 2.0 | Typology: market well | What: Well-head beside the Winkhurst kitchen: stone drum, timber frame, windlass and small roof. Museum display, date and evidence unknown - NOT evidence for a medieval well (dossier) | Status: museum display (Weald & Downland) | Image: saved 960x1281 px from a 1199x1600 px original. Caveats: street furniture rather than a building; kind 'prop' may suit it better. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 2.4 m high chosen by eye. The dossier has NO SOURCE for a well-head (medieval.md 1b, market square). Do not read any dimension off this stamp."
+    },
+    {
+      "era": "medieval",
+      "name": "rental_row_abbey_cottages_tewkesbury_a",
+      "size": 39.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/rental_row_abbey_cottages_tewkesbury_cc-by-sa-2.0_jo-and-steve-turner.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 39.0 m is the deed length of Lady Row, York (medieval.md D2, PR-P), the measured building of this class - a different building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Abbey_Lawn_Cottages,_41-48_Church_Street,_Tewkesbury_-_geograph.org.uk_-_3962999.jpg | Author: Jo and Steve Turner | Licence: CC BY-SA 2.0 | Typology: tenement / rental row | What: Abbey Lawn Cottages, 41-48 Church Street, Tewkesbury: 15th-c. jettied rental row with shop fronts, restored (dossier, unverified) | Status: in situ, restored | Image: saved 1600x1063 px from a 2048x1360 px original. Caveats: oblique view; the nearest bay is cut by the right edge; hanging flower baskets. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 39.0 m is the deed length of Lady Row, York (medieval.md D2, PR-P), the measured building of this class - a different building."
+    },
+    {
+      "era": "medieval",
+      "name": "gatehouse_micklegate_bar_york_a",
+      "size": 16.0,
+      "size_axis": "y",
+      "image": "resources/reference/meshy/medieval/source_images/gatehouse_micklegate_bar_york_cc-by-3.0_ianpudsey.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 16 m is an image-derived estimate (roughly +/-20 %): the photograph scaled so the gate passage is 3.35 m wide, the middle of the sourced range for the four main Bars ('passages 10 ft to 12 ft. wide' = 3.0-3.7 m, medieval.md D36, PR-P). The dossier has NO SOURCE for a Bar's height or plan. Check the passage width on the model and rescale.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Micklegate_Bar,_York,_UK_-_panoramio_(103).jpg | Author: ianpudsey | Licence: CC BY 3.0 | Typology: gatehouse | What: Micklegate Bar, York, outer face: one of the four main Bars (12th-14th c.; date not in the dossier) | Status: in situ | Image: saved 1200x1600 px from a 2448x3264 px original. Caveats: city wall stubs on both sides; tiny vehicles visible through the arch. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 16 m is an image-derived estimate (roughly +/-20 %): the photograph scaled so the gate passage is 3.35 m wide, the middle of the sourced range for the four main Bars ('passages 10 ft to 12 ft. wide' = 3.0-3.7 m, medieval.md D36, PR-P). The dossier has NO SOURCE for a Bar's height or plan. Check the passage width on the model and rescale."
+    },
+    {
+      "era": "medieval",
+      "name": "barn_great_coxwell_a",
+      "size": 28.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/barn_great_coxwell_cc-by-sa-3.0_ballista-en.wikipedia.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 28.0 m is the internal length of a manorial barn at Wharram Percy (medieval.md D26, PR-P), a different building; the dossier's sourced barn range is 24-28 m x 7-7.5 m.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Great_Coxwell_Tithe_Barn_c.jpg | Author: Ballista (en.wikipedia) | Licence: CC BY-SA 3.0 | Typology: barn | What: Great Coxwell Barn, stone monastic barn with stone-slate roof (13th c.; date not in the dossier) | Status: in situ | Image: saved 1600x932 px from a 2437x1419 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 28.0 m is the internal length of a manorial barn at Wharram Percy (medieval.md D26, PR-P), a different building; the dossier's sourced barn range is 24-28 m x 7-7.5 m."
+    },
+    {
+      "era": "medieval",
+      "name": "market_cross_malmesbury_a",
+      "size": 15.2,
+      "size_axis": "y",
+      "image": "resources/reference/meshy/medieval/source_images/market_cross_malmesbury_cc0_poliphilo.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 15.2 m is the height of the Chichester Cross ('standing 50 feet tall', medieval.md D52, PR-T), a different building of the same class.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Malmesbury_Market_Cross,_June_2026.jpg | Author: Poliphilo | Licence: CC0 | Typology: market cross | What: Malmesbury Market Cross, octagonal vaulted shelter, c.1490 (dossier, unverified) | Status: in situ | Image: saved 972x1600 px from a 3816x5088 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.09,0,0.9,1). Caveats: cropped both sides to remove a pedestrian and parked cars; cars are still visible through the arches and a flower planter stands in front. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 15.2 m is the height of the Chichester Cross ('standing 50 feet tall', medieval.md D52, PR-T), a different building of the same class."
+    },
+    {
+      "era": "medieval",
+      "name": "manor_hall_stokesay_a",
+      "size": 46.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/manor_hall_stokesay_cc-by-sa-4.0_defacto.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 46 m is the long dimension of the Stokesay court ('150 feet (46 m) by 125 feet (38 m)', medieval.md D47, PR-T), used as a stand-in for the length of the west range shown; it is not a measured range length. After import the hall block should read about 16.6 x 9.4 m (D47).",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Stokesay_Castle_from_the_west.jpg | Author: DeFacto | Licence: CC BY-SA 4.0 | Typology: manor_hall | What: Stokesay Castle from the west: great hall (1280s), solar block and south tower in one range | Status: in situ | Image: saved 1600x1007 px from a 4265x2683 px original. Caveats: a clipped hedge runs across the foot of the range; a thin pole stands in front of the hall. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 46 m is the long dimension of the Stokesay court ('150 feet (46 m) by 125 feet (38 m)', medieval.md D47, PR-T), used as a stand-in for the length of the west range shown; it is not a measured range length. After import the hall block should read about 16.6 x 9.4 m (D47)."
+    },
+    {
+      "era": "medieval",
+      "name": "peasant_house_cosmeston_a",
+      "size": 12.2,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/medieval/source_images/peasant_house_cosmeston_cc-by-sa-4.0_nilfanion.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T), a different building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Cosmeston_Medieval_Village_(4707).jpg | Author: Nilfanion | Licence: CC BY-SA 4.0 | Typology: croft / peasant house | What: Stone-walled thatched building at Cosmeston Medieval Village (14th-c. village); which building it is was not established from the file page | Status: MODERN RECONSTRUCTION on excavated footings - everything above the wall base is conjecture | Image: saved 1600x1063 px from a 4288x2848 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T), a different building."
+    },
+    {
+      "era": "roman",
+      "name": "insula_ostia_a",
+      "size": 24.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/insula_ostia_cc-by-sa-2.0_dennis-g.-jarvis.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 24 m is the long side of the Caupona del Pavone block ('c. 16 x 24 m', roman.md I1, PR), a different Ostian building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Insula_in_Ostia.jpg | Author: Dennis G. Jarvis | Licence: CC BY-SA 2.0 | Typology: insula | What: Brick-faced insula block at Ostia with shop openings and mezzanine windows, standing to the first floor (2nd c. AD by type); the file page calls it only 'Ostian insula' - building not identified | Status: in situ ruin (upper storeys lost) | Image: saved 1600x1063 px from a 4288x2848 px original. Caveats: the block continues past the left edge; no roof, so the stamp is a ruin's massing. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 24 m is the long side of the Caupona del Pavone block ('c. 16 x 24 m', roman.md I1, PR), a different Ostian building."
+    },
+    {
+      "era": "roman",
+      "name": "horreum_epagathiana_front_a",
+      "size": 16.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/horreum_epagathiana_front_cc-by-3.0_sailko.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 16 m is the street front of the Caupona del Pavone ('16 metres of street front', roman.md I1, PR), a different building. The dossier has no dimension for this warehouse (H5: 'no dimensions on the page').",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Ostia,_horrea_epagathiana_01.JPG | Author: Sailko | Licence: CC BY 3.0 | Typology: horreum (street front) / taberna row | What: Horrea Epagathiana et Epaphroditiana, Ostia: street front with the pedimented brick portal and flanking shop openings (roman.md H5; date not in the dossier) | Status: in situ ruin | Image: saved 1600x1089 px from a 5184x3530 px original. Caveats: front range only, not the whole warehouse. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 16 m is the street front of the Caupona del Pavone ('16 metres of street front', roman.md I1, PR), a different building. The dossier has no dimension for this warehouse (H5: 'no dimensions on the page')."
+    },
+    {
+      "era": "roman",
+      "name": "horreum_saalburg_a",
+      "size": 24.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/horreum_saalburg_cc-by-sa-2.0_carole-raddato.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER. The dossier has NO SOURCE for a provincial granary's size (roman.md H6). 24 m is borrowed from I1 (an Ostian block) purely as a scale placeholder.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:The_reconstructed_horreum_(grain_store_-_granary)_now_houses_the_museum,_Saalburg_Roman_Fort,_Limes_Germanicus,_Germania_(Germany)_(7957251526).jpg | Author: Carole Raddato | Licence: CC BY-SA 2.0 | Typology: horreum (provincial granary) | What: Granary (horreum) of the Saalburg fort, twin gabled stone halls with timber porches | Status: MODERN RECONSTRUCTION (c.1900 rebuild, now the museum) | Image: saved 1600x1200 px from a 4288x3216 px original. Caveats: clipped hedges and a creeper at the porch; right-hand hall cut by the frame edge. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER. The dossier has NO SOURCE for a provincial granary's size (roman.md H6). 24 m is borrowed from I1 (an Ostian block) purely as a scale placeholder."
+    },
+    {
+      "era": "roman",
+      "name": "house_lucius_carnuntum_a",
+      "size": 12.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/house_lucius_carnuntum_cc-by-2.5_matthiaskabel.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12 m is the upper end of the strip-building frontage range (6-12 m, roman.md 1.4, from m5f_strip_building_grounding.txt), a different building class used as the nearest sourced type.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Carnuntum_Haus_des_Lucius_01.jpg | Author: MatthiasKabel | Licence: CC BY 2.5 | Typology: domus (small provincial town house) | What: 'Haus des Lucius', civil town of Carnuntum: single-storey stone house with a tiled roof | Status: MODERN RECONSTRUCTION, full scale, on excavated footings | Image: saved 1600x1067 px from a 4378x2918 px original. Caveats: two potted cypresses flank the door. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12 m is the upper end of the strip-building frontage range (6-12 m, roman.md 1.4, from m5f_strip_building_grounding.txt), a different building class used as the nearest sourced type."
+    },
+    {
+      "era": "roman",
+      "name": "domus_model_besancon_a",
+      "size": 46.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/domus_model_besancon_cc-by-sa-3.0_arnaud-25.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 46 m is the greatest length of the House of the Silver Wedding, Pompeii ('not far from 150 feet', roman.md D5, PR), a different house.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Mus%C3%A9e_BeauxArts_Besan%C3%A7on_071.jpg | Author: Arnaud 25 | Licence: CC BY-SA 3.0 | Typology: domus | What: Museum model of a Gallo-Roman domus of Besancon with porticoed court and pedimented entrance | Status: MODERN RECONSTRUCTION - a scale model (maquette), Musee des Beaux-Arts et d'Archeologie de Besancon | Image: saved 1280x739 px from a 1600x1200 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0,0.12,1,0.89). Caveats: indoor museum lighting; the model's grey base slab and part of the black plinth are in frame. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 46 m is the greatest length of the House of the Silver Wedding, Pompeii ('not far from 150 feet', roman.md D5, PR), a different house."
+    },
+    {
+      "era": "roman",
+      "name": "craftsmen_houses_xanten_a",
+      "size": 28.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/craftsmen_houses_xanten_cc-by-sa-4.0_steffen-schmitz.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 28 m is inside the strip-building length range of 18-38 m (roman.md 1.4, from m5f_strip_building_grounding.txt); no dimension of the Xanten houses is in the dossier.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Xanten,_Arch%C3%A4ologischer_Park,_Handwerkerh%C3%A4user,_2018-08_CN-04.jpg | Author: Steffen Schmitz | Licence: CC BY-SA 4.0 | Typology: strip building (row of craftsmen's houses) | What: Craftsmen's houses (Handwerkerhaeuser), Colonia Ulpia Traiana: white-rendered houses with tiled roofs, red dado and an upper balcony | Status: MODERN RECONSTRUCTION, full scale (LVR-Archaeologischer Park Xanten) | Image: saved 1408x755 px from a 4431x2090 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.04,0,0.92,1). Caveats: cropped at the right to remove a small shelter. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 28 m is inside the strip-building length range of 18-38 m (roman.md 1.4, from m5f_strip_building_grounding.txt); no dimension of the Xanten houses is in the dossier."
+    },
+    {
+      "era": "roman",
+      "name": "town_house_oelhaendler_carnuntum_a",
+      "size": 18.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/town_house_oelhaendler_carnuntum_cc-by-sa-4.0_barnos.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 18 m is the lower end of the strip-building length range (18-38 m, roman.md 1.4); no dimension of this house is in the dossier.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Haus_des_%C3%96lh%C3%A4ndlers_Westseite.jpg | Author: Barnos | Licence: CC BY-SA 4.0 | Typology: strip building / town house | What: 'Haus des Oelhaendlers' (oil merchant's house), civil town of Carnuntum, west side | Status: MODERN RECONSTRUCTION, full scale, on excavated footings | Image: saved 911x522 px from a 5184x3888 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0,0.22,0.57,0.655). Caveats: cropped to the left-hand building; the crop is about 900 px wide. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 18 m is the lower end of the strip-building length range (18-38 m, roman.md 1.4); no dimension of this house is in the dossier."
+    },
+    {
+      "era": "roman",
+      "name": "temple_tawern_a",
+      "size": 10.5,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/temple_tawern_cc0_romaine.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 10.5 m is the plan length of the Tempietto repubblicano, Ostia (6.35 x about 10.5 m, roman.md P1, PR + calc), a different building and a different temple type (podium temple).",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Tawern-Romeinse_tempel_(18).jpg | Author: Romaine | Licence: CC0 | Typology: small temple (Romano-Celtic, with ambulatory) | What: Gallo-Roman temple with a surrounding portico, temple precinct of Tawern | Status: MODERN RECONSTRUCTION, full scale | Image: saved 1600x1200 px from a 4000x3000 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 10.5 m is the plan length of the Tempietto repubblicano, Ostia (6.35 x about 10.5 m, roman.md P1, PR + calc), a different building and a different temple type (podium temple)."
+    },
+    {
+      "era": "roman",
+      "name": "temple_vienne_a",
+      "size": 26.4,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/temple_vienne_cc-by-sa-3.0_otourly.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 26.4 m is the length of the Maison Carree, Nimes (26.42 x 13.54 m, roman.md P7, PR-2), a different temple of the same hexastyle class.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Temple_d%27Auguste_et_de_Livie_(Vienne)_01.JPG | Author: Otourly | Licence: CC BY-SA 3.0 | Typology: small temple (podium temple) | What: Temple of Augustus and Livia, Vienne: hexastyle podium temple (early 1st c. AD; date not in the dossier) | Status: in situ, heavily restored | Image: saved 1200x1067 px from a 4272x2848 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.07,0,0.82,1). Caveats: cropped both sides to remove a van and a signboard; town houses behind. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 26.4 m is the length of the Maison Carree, Nimes (26.42 x 13.54 m, roman.md P7, PR-2), a different temple of the same hexastyle class."
+    },
+    {
+      "era": "roman",
+      "name": "fort_gate_arbeia_a",
+      "size": 20.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/fort_gate_arbeia_cc-by-sa-4.0_chris-mckenna-thryduulf.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 20 m is composed from other sites: two gate towers at 4.4-5.85 m a side (Ostia, roman.md W6) plus two carriageways at 3.7-4.0 m (W5 Pompeii, W2 Silchester). The frame also includes short lengths of curtain wall, so the gate itself will read smaller than 20 m.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Arbeia_Roman_Fort_reconstructed_gateway.jpg | Author: Chris McKenna (Thryduulf) | Licence: CC BY-SA 4.0 | Typology: town / fort gate | What: West gate of Arbeia fort, South Shields: twin-portal gate between two towers | Status: MODERN RECONSTRUCTION, full scale | Image: saved 960x720 px from a 1280x960 px original. Caveats: 960 px rendition (original is 1280 px). | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 20 m is composed from other sites: two gate towers at 4.4-5.85 m a side (Ostia, roman.md W6) plus two carriageways at 3.7-4.0 m (W5 Pompeii, W2 Silchester). The frame also includes short lengths of curtain wall, so the gate itself will read smaller than 20 m."
+    },
+    {
+      "era": "roman",
+      "name": "street_fountain_pompeii_a",
+      "size": 2.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/roman/source_images/street_fountain_pompeii_public-domain_gary-todd.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 2.0 m chosen by eye. The dossier has NO SOURCE for a fountain basin's size (roman.md S14). Do not read any dimension off this stamp.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Pompeii,_Ancient_Roman_Fountain_at_the_junction_of_Via_Stabiana_and_Via_dell%27Abbondanza_(48441020961).jpg | Author: Gary Todd | Licence: Public domain | Typology: fountain | What: Public street fountain at the junction of Via Stabiana and Via dell'Abbondanza, Pompeii: basalt slab basin with a spout block (form as roman.md S10) | Status: in situ | Image: saved 1520x982 px from a 6000x4000 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0,0.08,0.95,1). Caveats: cropped at the top and right to remove visitors' legs; street furniture - kind 'prop' may suit it better. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 2.0 m chosen by eye. The dossier has NO SOURCE for a fountain basin's size (roman.md S14). Do not read any dimension off this stamp."
+    },
+    {
+      "era": "adobe",
+      "name": "pueblo_taos_north_house_a",
+      "size": 12.0,
+      "size_axis": "y",
+      "image": "resources/reference/meshy/adobe/source_images/pueblo_taos_north_house_cc-by-sa-3.0_aaron-zhu.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12.0 m = 5 storeys ('1-5 (Taos)', adobe.md 2 row 1, NPS, PR) x 2.4 m (walls 'from 7 to 8 feet high', Hopi/Zuni survey, row 1, Mindeleff 1891, PR-OCR). Composed, not measured.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Hlaauma_(North_House),_Taos_Pueblo,_NM_-_panoramio.jpg | Author: Aaron Zhu | Licence: CC BY-SA 3.0 | Typology: pueblo room block | What: Hlaauma (North House), Taos Pueblo: terraced multi-storey adobe room block | Status: in situ, inhabited; replastered every year | Image: saved 1600x1200 px from a 3264x2448 px original. Caveats: a notice board hangs on the wall; ladders and drying racks are part of the building. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12.0 m = 5 storeys ('1-5 (Taos)', adobe.md 2 row 1, NPS, PR) x 2.4 m (walls 'from 7 to 8 feet high', Hopi/Zuni survey, row 1, Mindeleff 1891, PR-OCR). Composed, not measured."
+    },
+    {
+      "era": "adobe",
+      "name": "church_ranchos_de_taos_a",
+      "size": 37.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/adobe/source_images/church_ranchos_de_taos_cc-by-sa-3.0_travis-k.-witt-liveon001.jpg",
+      "size_basis": "SOURCED for this building: 'approximately 120 feet (37 m) in length' (adobe.md 2 row 3b, PR-T: Wikipedia). The view is of the front and one flank; the buttressed apse is hidden, so the far end is Meshy's guess.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:San_Francisco_de_Asis_Mission_Church.JPG | Author: Travis K. Witt (Liveon001) | Licence: CC BY-SA 3.0 | Typology: mission church | What: San Francisco de Asis, Ranchos de Taos (late 18th c.; date not in the dossier): twin-towered adobe church with massive buttresses | Status: in situ | Image: saved 1600x1062 px from a 3179x2110 px original. Caveats: a white statue stands by the door and a shrub in the forecourt; low adobe wall in front. | SIZE BASIS: SOURCED for this building: 'approximately 120 feet (37 m) in length' (adobe.md 2 row 3b, PR-T: Wikipedia). The view is of the front and one flank; the buttressed apse is hidden, so the far end is Meshy's guess."
+    },
+    {
+      "era": "adobe",
+      "name": "church_las_trampas_a",
+      "size": 30.5,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/adobe/source_images/church_las_trampas_cc-by-sa-4.0_justjoshfunk111.jpg",
+      "size_basis": "SOURCED for this building: nave '100 x 52 ft outside' = 30.5 x 15.8 m, walls 34 ft = 10.4 m (adobe.md 2 row 3a: HABS written data, PR, and Wikipedia, PR-T). Only the facade and one flank are in view, so the depth is Meshy's guess: check the facade reads about 15.8 m wide and rescale.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:San_Jos%C3%A9_de_Gracia_Church.jpg | Author: Justjoshfunk111 | Licence: CC BY-SA 4.0 | Typology: mission church | What: San Jose de Gracia, Las Trampas, 1760s: twin-towered adobe church with a timber balcony | Status: in situ | Image: saved 1200x1600 px from a 1537x2049 px original. | SIZE BASIS: SOURCED for this building: nave '100 x 52 ft outside' = 30.5 x 15.8 m, walls 34 ft = 10.4 m (adobe.md 2 row 3a: HABS written data, PR, and Wikipedia, PR-T). Only the facade and one flank are in view, so the depth is Meshy's guess: check the facade reads about 15.8 m wide and rescale."
+    },
+    {
+      "era": "adobe",
+      "name": "chapel_san_miguel_santa_fe_a",
+      "size": 10.7,
+      "size_axis": "y",
+      "image": "resources/reference/meshy/adobe/source_images/chapel_san_miguel_santa_fe_cc-by-sa-3.0_pretzelpaws-en.wikipedia.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 10.7 m is the dossier's general upper limit for adobe church height ('approximately 35 feet', adobe.md 2 row 3c, NPS Preservation Brief 5, PR), not a measurement of this tower.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Santa_Fe_San_miguel_chapel.jpg | Author: Pretzelpaws (en.wikipedia) | Licence: CC BY-SA 3.0 | Typology: mission church (chapel) | What: San Miguel chapel, Santa Fe: single tower, stone buttresses (walls c.1610 per the file page; HABS record nm0053 in the dossier) | Status: in situ, much rebuilt | Image: saved 1600x1200 px from a 2048x1536 px original. Caveats: planters on the low wall in front, a handrail at the left, a later house at the right. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 10.7 m is the dossier's general upper limit for adobe church height ('approximately 35 feet', adobe.md 2 row 3c, NPS Preservation Brief 5, PR), not a measurement of this tower."
+    },
+    {
+      "era": "norse",
+      "name": "hall_fyrkat_a",
+      "size": 28.5,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/norse/source_images/hall_fyrkat_cc0_szilas.jpg",
+      "size_basis": "SOURCED for the house type this rebuild copies: Fyrkat houses 28.5 m long, 5 m wide at the ends and 7.5 m in the middle (norse.md 2 row 3, PR-T: Wikipedia). The figures are of the excavated houses; the dossier does not give the rebuild's own dimensions.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Viking_house_of_Fyrkat_2015-07-29-2.jpg | Author: Szilas | Licence: CC0 | Typology: Trelleborg-type house | What: Bow-sided hall with shingled roof and raking outer posts at Fyrkat | Status: MODERN RECONSTRUCTION, full scale | Image: saved 1600x976 px from a 4583x2795 px original. | SIZE BASIS: SOURCED for the house type this rebuild copies: Fyrkat houses 28.5 m long, 5 m wide at the ends and 7.5 m in the middle (norse.md 2 row 3, PR-T: Wikipedia). The figures are of the excavated houses; the dossier does not give the rebuild's own dimensions."
+    },
+    {
+      "era": "norse",
+      "name": "town_house_hedeby_a",
+      "size": 10.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/norse/source_images/town_house_hedeby_cc-by-sa-4.0_siegbert-brey.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 10 m is the upper end of the Birka town-house length (4-5 m wide, about 6-10 m long, derived; norse.md 2 row 4, MacLeod 1998, PR). The dossier has no dimension for Hedeby houses (row 4b: NS).",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Haus_des_Kammmachers_Haithabu.jpg | Author: Siegbert Brey | Licence: CC BY-SA 4.0 | Typology: town house | What: 'House of the comb-maker', Hedeby (Haithabu): wattle-and-daub walls, reed thatch, raking props | Status: MODERN RECONSTRUCTION, full scale | Image: saved 1456x1200 px from a 3648x2736 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0,0,0.91,1). Caveats: cropped at the right to remove a grazing cow; plank walkway in front. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 10 m is the upper end of the Birka town-house length (4-5 m wide, about 6-10 m long, derived; norse.md 2 row 4, MacLeod 1998, PR). The dossier has no dimension for Hedeby houses (row 4b: NS)."
+    },
+    {
+      "era": "norse",
+      "name": "farmhouse_ribe_a",
+      "size": 15.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/norse/source_images/farmhouse_ribe_cc0_sintakso.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 15 m is the lower end of the general longhouse range ('15 to 75 meters long', norse.md 2 row 1, Hurstwic, PR). Which Ribe building this is was not established.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Ribe_VikingeCenter_house.jpg | Author: Sintakso | Licence: CC0 | Typology: farm longhouse | What: Thatched timber-framed house with raking outer posts, Ribe VikingeCenter | Status: MODERN RECONSTRUCTION, full scale | Image: saved 1600x1200 px from a 4032x3024 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 15 m is the lower end of the general longhouse range ('15 to 75 meters long', norse.md 2 row 1, Hurstwic, PR). Which Ribe building this is was not established."
+    },
+    {
+      "era": "norse",
+      "name": "smithy_lofotr_a",
+      "size": 4.5,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/norse/source_images/smithy_lofotr_cc-by-sa-2.0_geir-are-johansen.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 4.5 m is the long side of the excavated smithy at Ribe ('a good 3.5 x 4.5 m', norse.md 2 row 6, PR), a different building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Lofotr_-_Viking_smithy_front_view.jpg | Author: Geir Are Johansen | Licence: CC BY-SA 2.0 | Typology: smithy | What: Smithy at the Lofotr museum: plank front, turf roof, built into a bank | Status: MODERN RECONSTRUCTION | Image: saved 960x720 px from a 1024x768 px original. Caveats: frontal view; the sides are buried in the bank, so the depth is Meshy's guess; 960 px rendition. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 4.5 m is the long side of the excavated smithy at Ribe ('a good 3.5 x 4.5 m', norse.md 2 row 6, PR), a different building."
+    },
+    {
+      "era": "norse",
+      "name": "stave_church_borgund_a",
+      "size": 16.5,
+      "size_axis": "y",
+      "image": "resources/reference/meshy/norse/source_images/stave_church_borgund_cc0_kenswe72.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 16.5 m is an image-derived estimate of the height to the top of the turret, scaled from the one sourced height, 'nave c. 11 m floor to ridge' (norse.md 2 row 8, kringom.no, PR). The dossier has no overall height or exterior footprint.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Borgund_stave_church_(17162).jpg | Author: KenSwe72 | Licence: CC0 | Typology: stave church | What: Borgund stave church, 12th c.: tiered shingle roofs, pentice and turret | Status: in situ ORIGINAL | Image: saved 960x1280 px from a 1200x1600 px original. Caveats: taken from above; the lowest corner of the pentice touches the frame edge; 960 px rendition. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 16.5 m is an image-derived estimate of the height to the top of the turret, scaled from the one sourced height, 'nave c. 11 m floor to ridge' (norse.md 2 row 8, kringom.no, PR). The dossier has no overall height or exterior footprint."
+    },
+    {
+      "era": "norse",
+      "name": "turf_longhouse_stong_a",
+      "size": 15.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/norse/source_images/turf_longhouse_stong_cc-by-sa-3.0_thomas-ormston.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 15 m is the lower end of the general longhouse range (norse.md 2 row 1, PR); the nearest sourced turf house is Eiriksstadir at 14 m (row 1c, PR-T). No Stong dimension is in the dossier.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:St%C3%B6ng_Viking_Longhouse.jpg | Author: Thomas Ormston | Licence: CC BY-SA 3.0 | Typology: turf longhouse | What: Thjodveldisbaerinn, the rebuild of the Stong farm: turf walls on a stone footing, turf roof | Status: MODERN RECONSTRUCTION, full scale | Image: saved 1600x1071 px from a 3872x2592 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 15 m is the lower end of the general longhouse range (norse.md 2 row 1, PR); the nearest sourced turf house is Eiriksstadir at 14 m (row 1c, PR-T). No Stong dimension is in the dossier."
+    },
+    {
+      "era": "edo",
+      "name": "gassho_emukai_house_a",
+      "size": 21.1,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/edo/source_images/gassho_emukai_house_cc0_takunawan.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 21.1 m is the length of the former Odo house, Shirakawa (21.1 x 12.3 m, edo.md 3 row 4, Bunka DB 200029, PR), a different building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Japanese_traditional_architecture_Gassh%C5%8D-zukuri.jpg | Author: Takunawan | Licence: CC0 | Typology: gassho-zukuri farmhouse | What: Emukai house, gassho-zukuri farmhouse from Kamitaira-Hosojima, Toyama, early 18th c. (file page) | Status: relocated original (Nihon Minka-en, Kawasaki) | Image: saved 1600x1200 px from a 2048x1536 px original. Caveats: a branch overlaps the right edge of the roof. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 21.1 m is the length of the former Odo house, Shirakawa (21.1 x 12.3 m, edo.md 3 row 4, Bunka DB 200029, PR), a different building."
+    },
+    {
+      "era": "edo",
+      "name": "minka_kitamura_house_a",
+      "size": 20.1,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/edo/source_images/minka_kitamura_house_cc-by-sa-4.0_kakidai.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 20.1 m is the length of the Yokoyama house (20.1 x 7.6 m, edo.md 3 row 3, Bunka DB 192860, PR), a different building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Kawasaki_Nihon_Minkaen_03.jpg | Author: Kakidai | Licence: CC BY-SA 4.0 | Typology: minka (thatched farmhouse) | What: Kitamura house from Hadano, Kanagawa, 1687 (file page), Important Cultural Property | Status: relocated original (Nihon Minka-en, Kawasaki) | Image: saved 1600x1212 px from a 2500x1893 px original. Caveats: a small bench stands at the corner. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 20.1 m is the length of the Yokoyama house (20.1 x 7.6 m, edo.md 3 row 3, Bunka DB 192860, PR), a different building."
+    },
+    {
+      "era": "edo",
+      "name": "minka_sakuda_house_a",
+      "size": 22.8,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/edo/source_images/minka_sakuda_house_cc-by-sa-4.0_kakidai.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 22.8 m is the length of the Nakamura house, Shiga (22.8 x 7.7 m, edo.md 3 row 3, Bunka DB 400458, PR), a different building.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Kawasaki_Nihon_Minkaen_01.jpg | Author: Kakidai | Licence: CC BY-SA 4.0 | Typology: minka (thatched farmhouse, two ridges) | What: Sakuda house from Kujukuri, Chiba (file page), Important Cultural Property: main house and earth-floored wing under separate thatched roofs | Status: relocated original (Nihon Minka-en, Kawasaki) | Image: saved 1600x1004 px from a 2500x1569 px original. Caveats: low sun, tree shadows on the yard. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 22.8 m is the length of the Nakamura house, Shiga (22.8 x 7.7 m, edo.md 3 row 3, Bunka DB 400458, PR), a different building."
+    },
+    {
+      "era": "edo",
+      "name": "waki_honjin_ota_a",
+      "size": 17.9,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/edo/source_images/waki_honjin_ota_cc-by-sa-4.0_asturio-cantabrio.jpg",
+      "size_basis": "SOURCED for this building: living part 14.3 x 17.9 m, 2 storeys (edo.md 3 row 6, Bunka DB 199989, PR). The dossier row does not say which figure is the frontage; 17.9 m is applied to the longest axis. Frontal view, so the depth is Meshy's guess.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Old_Ota_Wakihonjin_Hayashi_House_ac_(1).jpg | Author: Asturio Cantabrio | Licence: CC BY-SA 4.0 | Typology: hatago / honjin (inn) | What: Former Ota waki-honjin (Hayashi house), Minokamo, 1769/1773: two-storey machiya-form inn with udatsu fire walls, Important Cultural Property | Status: in situ original | Image: saved 1600x926 px from a 5857x3894 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0,0.13,1,1). Caveats: cropped at the top to remove overhead wires; a low picket fence runs along the front. | SIZE BASIS: SOURCED for this building: living part 14.3 x 17.9 m, 2 storeys (edo.md 3 row 6, Bunka DB 199989, PR). The dossier row does not say which figure is the frontage; 17.9 m is applied to the longest axis. Frontal view, so the depth is Meshy's guess."
+    },
+    {
+      "era": "edo",
+      "name": "nagayamon_kaibara_a",
+      "size": 20.0,
+      "size_axis": "longest",
+      "image": "resources/reference/meshy/edo/source_images/nagayamon_kaibara_cc-by-sa-3.0_663highland.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 20 m chosen by eye. The dossier has NO SOURCE for any gate dimension (edo.md 3 row 8: 'gate leaf and post sizes NS'). Do not read any dimension off this stamp.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Odake_nagayamon01_2816.jpg | Author: 663highland | Licence: CC BY-SA 3.0 | Typology: gate (nagayamon) | What: Nagayamon of the Oda residence at the Kaibara jin'ya, built 1714 (file page and dossier) | Status: in situ original | Image: saved 1600x900 px from a 2816x1584 px original. Caveats: two notice boards and low shrubs in front of the left half. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 20 m chosen by eye. The dossier has NO SOURCE for any gate dimension (edo.md 3 row 8: 'gate leaf and post sizes NS'). Do not read any dimension off this stamp."
+    },
+    {
+      "era": "edo",
+      "name": "torii_iki_shrine_a",
+      "size": 4.0,
+      "size_axis": "y",
+      "image": "resources/reference/meshy/edo/source_images/torii_iki_shrine_cc-by-sa-4.0_soramimi.jpg",
+      "size_basis": "NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 4.0 m chosen by eye. The dossier's only torii figure is one large example, 9 m tall (edo.md 3 row 9, PR-T); 'typical village torii size: NS'.",
+      "note": "Source: https://commons.wikimedia.org/wiki/File:Torii_of_Iki_Shrine_and_Iki_Pine_Grove.JPG | Author: Soramimi | Licence: CC BY-SA 4.0 | Typology: torii | What: Timber torii with shimenawa on the beach approach to Iki Shrine, Fukuoka; date not established - may be modern | Status: in situ | Image: saved 1600x1200 px from a 3264x2448 px original. Caveats: stone bollards around the posts; street furniture - kind 'prop' may suit it better. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 4.0 m chosen by eye. The dossier's only torii figure is one large example, 9 m tall (edo.md 3 row 9, PR-T); 'typical village torii size: NS'."
+    }
+  ]
+}
