@@ -571,12 +571,14 @@ void WaterCoreManager::update(float dt) {
         const auto t = UClock::now();
         if (av->backend == "gpu") {
             if (av->gpuVol && m_gpu) m_gpu->setDroplets(*av->gpuVol, m_dstats.on);
-            if (!av->gpuLast.asleep || (av->gpuVol && !av->gpuVol->asleep)) {
+            // 58.3: a volume with tile wakes queued steps (its wakes run in stepGpu, right before the call that carries their seed) - in
+            // the asleep branch a tile was woken with no call after it: drawn by nobody until something woke the volume
+            if (!av->gpuLast.asleep || (av->gpuVol && !av->gpuVol->asleep) || !av->pendingTileWakes.empty()) {
                 { const auto tc = UClock::now(); stepGpu(*av, ticks, tickDt); m_updateCpu.stepCall += ums(tc); }
                 ++av->stepCount;
                 { const auto tb = UClock::now(); collectBirths(*av, ticks * tickDt); m_updateCpu.births += ums(tb); }
             } else {
-                recordTilesStep(*av, dt);   // §27 W1b: an asleep body steps nothing, but its frozen tiles still count toward the record
+                recordTilesStep(*av, dt, false);   // §27 W1b: an asleep body steps nothing, but its frozen tiles still count toward the record (58.3: its wakes wait for a step)
                 if (av->tallBand > 0.0f && std::isnan(av->tallRestY)) captureTallRest(*av);   // 27.22: the rest level, read while it sleeps
             }
         }
@@ -2188,32 +2190,37 @@ bool WaterCoreManager::runPatchStage(PatchJob& j) {
         patchSettle(*av, j.sv, j.centre);
         break;
     }
-    default: {   // live: the disturbance's own tile, then every tile the held pushes reach (wakeRecordedNear's rule), ONE A STAGE (a
-        // tile is ~5 ms: the pushes' four at once were 30 ms of one frame, the first build); then the pushes, into cells
+    default: {   // live: the disturbance's own tile, then every tile the held pushes reach (wakeRecordedNear's rule), then the pushes
+        // into cells. The tiles are woken by the patch's own pace (pendingTileWakes, ONE A CALL - a tile is ~5-7 ms), in stepGpu right
+        // before the GPU call that carries their seed: woken here, in a frame with no water tick (live ~130 fps: every other frame) or
+        // while the patch was asleep, a tile was drawn by NOBODY until the next call - the record had let it go and the patch's GPU mesh
+        // did not have it yet (the owner, 2026-11-21: "squares of non rendered water")
         Av* av = nullptr;
         for (auto& a : m_avs) if (a->id == j.id) av = a.get();
         if (!av) { ++m_patchPaced.cancelled; return false; }
         auto fd = [](int v, int b) { return v >= 0 ? v / b : -((-v + b - 1) / b); };
+        auto recorded = [&](const std::pair<int, int>& t) { return std::find(av->recordedTileList.begin(), av->recordedTileList.end(), t) != av->recordedTileList.end(); };
         if (!j.listed) {
             j.listed = true;
             j.toWake.push_back({fd(static_cast<int>(std::floor(j.centre.x)), kRecordTile), fd(static_cast<int>(std::floor(j.centre.z)), kRecordTile)});
+            if (!recorded(j.toWake.front())) { destroy(j.id); ++m_sleptWake.wokenEmpty; ++m_patchPaced.empty; return false; }   // no tile there: dry ground
             for (const PatchHeld& h : j.held) {
                 const float r = h.radius + s_writeWakeReachM;
                 for (int tz = fd(static_cast<int>(std::floor(h.at.z - r)), kRecordTile); tz <= fd(static_cast<int>(std::floor(h.at.z + r)), kRecordTile); ++tz)
                     for (int tx = fd(static_cast<int>(std::floor(h.at.x - r)), kRecordTile); tx <= fd(static_cast<int>(std::floor(h.at.x + r)), kRecordTile); ++tx)
                         if (std::find(j.toWake.begin(), j.toWake.end(), std::make_pair(tx, tz)) == j.toWake.end()) j.toWake.push_back({tx, tz});
             }
+            for (const auto& t : j.toWake)
+                if (recorded(t) && std::find(av->pendingTileWakes.begin(), av->pendingTileWakes.end(), t) == av->pendingTileWakes.end()) av->pendingTileWakes.push_back(t);
+            av->tileWakeCap = 1;
+            av->gpuLast.asleep = false; av->solver->wake();   // the stepping branch: the tiles wake right before a call
+            if (av->gpuVol && m_gpu) m_gpu->noteDisturbance(*av->gpuVol, j.centre);
         }
-        if (!j.toWake.empty()) {
-            const std::pair<int, int> t = j.toWake.front();
-            j.toWake.erase(j.toWake.begin());
-            const bool recorded = std::find(av->recordedTileList.begin(), av->recordedTileList.end(), t) != av->recordedTileList.end();
-            const bool woke = recorded && wakeTile(*av, t.first, t.second, j.first ? 'M' : 'W');
-            if (woke) ++m_patchPaced.tilesWoken;
-            if (j.first && recorded && !woke) { destroy(j.id); ++m_sleptWake.wokenEmpty; ++m_patchPaced.empty; return false; }   // dry ground at the pond's edge
-            j.first = false;
-            return true;   // the same stage: the next tile next (this frame while the budget lasts)
-        }
+        j.waiting = false;
+        for (const auto& t : j.toWake) if (recorded(t)) { j.waiting = true; break; }
+        if (j.waiting) { av->gpuLast.asleep = false; return true; }   // the same stage; the pump moves on (nothing to do until a call)
+        av->tileWakeCap = 0;
+        m_patchPaced.tilesWoken += static_cast<long>(j.toWake.size());
         ++m_sleptWake.woken; ++m_patchesWoken; ++m_patchPaced.live;
         if (j.forced) ++m_patchPaced.forced;
         for (const PatchHeld& h : j.held) {
@@ -2245,9 +2252,11 @@ void WaterCoreManager::pumpPatchJobs(int mode) {
         while (alive && (due || !ranOne || std::chrono::duration<double, std::milli>(JClock::now() - t0).count() < s_wakeBudgetMs)) {
             const auto ts = JClock::now();
             const int stage = j.stage;
+            j.waiting = false;
             alive = runPatchStage(j);
             const double ms = std::chrono::duration<double, std::milli>(JClock::now() - ts).count();
             j.ms += ms; ++m_patchPaced.stages; ranOne = true;
+            if (alive && j.waiting) break;   // waiting on the patch's own calls (its tile wakes): no more this frame
             if (ms > m_patchPaced.maxStageMs) { m_patchPaced.maxStageMs = ms; m_patchPaced.maxStage = stage; }
             m_patchPaced.stageMaxMs[std::min(stage, 6)] = std::max(m_patchPaced.stageMaxMs[std::min(stage, 6)], ms);
         }
@@ -2510,14 +2519,19 @@ bool WaterCoreManager::columnRecorded(const Av& av, int wx, int wz) const {
     return std::find(av.recordedTileList.begin(), av.recordedTileList.end(), t) != av.recordedTileList.end();
 }
 
-void WaterCoreManager::recordTilesStep(Av& av, float seconds) {
+void WaterCoreManager::recordTilesStep(Av& av, float seconds, bool stepFollows) {
     if (!av.gpuVol || !m_gpu || !av.gpuVol->bricked || !av.gpuVol->sparse) return;
     auto& vol = *av.gpuVol;
     const glm::ivec3 so = av.grid->spec().origin;
     const int offX = (so.x - vol.o.x) / 8, offZ = (so.z - vol.o.z) / 8;
     // 1. wakes first (a recorded tile the awake margin or a wake box reached) - even with recording off, nothing stays stranded
     const std::vector<int> wakes = m_gpu->takeRecordedWakes(vol);
-    if (!wakes.empty() || !av.pendingTileWakes.empty()) {
+    if (!stepFollows) {   // 58.3: no call after this one - a tile woken here is drawn by nobody until one runs; queued, the volume steps next tick
+        for (int c : wakes) {
+            const std::pair<int, int> t{floorDivI(c % vol.bn.x + offX, kTileBricks), floorDivI(c / vol.bn.x + offZ, kTileBricks)};
+            if (std::find(av.pendingTileWakes.begin(), av.pendingTileWakes.end(), t) == av.pendingTileWakes.end()) av.pendingTileWakes.push_back(t);
+        }
+    } else if (!wakes.empty() || !av.pendingTileWakes.empty()) {
         std::set<std::pair<int, int>> tiles(av.pendingTileWakes.begin(), av.pendingTileWakes.end());   // + the wakes 51.3's pace held back
         const std::set<std::pair<int, int>> deferredTiles = tiles;   // §50 W1g measurement: the cause ('L' deferred, 'M' the margin)
         for (int c : wakes) tiles.insert({floorDivI(c % vol.bn.x + offX, kTileBricks), floorDivI(c / vol.bn.x + offZ, kTileBricks)});
@@ -2538,7 +2552,8 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds) {
         av.pendingTileWakes.clear();
         int woke = 0;
         for (const auto& [d2, t] : order) {
-            if (woke >= std::max(1, s_tileWakesPerCall)) { av.pendingTileWakes.push_back(t); continue; }
+            const int cap = av.tileWakeCap > 0 ? std::min(av.tileWakeCap, std::max(1, s_tileWakesPerCall)) : std::max(1, s_tileWakesPerCall);
+            if (woke >= cap) { av.pendingTileWakes.push_back(t); continue; }
             if (wakeTile(av, t.first, t.second, deferredTiles.count(t) ? 'L' : 'M')) ++woke;
         }
     }
@@ -4116,6 +4131,16 @@ bool WaterCoreManager::drawnAtWorld(float x, float z, float& top, bool& recorded
     const int wx = static_cast<int>(std::floor(x)), wz = static_cast<int>(std::floor(z));
     for (const auto& av : m_avs) if (columnRecorded(*av, wx, wz)) recorded = true;
     return any;
+}
+
+int WaterCoreManager::seedsUndrawn() const {
+    int n = 0;
+    for (const auto& av : m_avs) {
+        if (!av->gpuVol || !m_gpu || !av->field.gpuDrawn) continue;
+        const uint64_t sent = m_gpu->callsSubmitted(*av->gpuVol);
+        for (const auto& sp : av->seedPatches) if (sent <= sp.afterCall) ++n;
+    }
+    return n;
 }
 
 int WaterCoreManager::drawnClaimsAtWorld(float x, float z) const {

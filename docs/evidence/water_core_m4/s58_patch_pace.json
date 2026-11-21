@@ -27,7 +27,7 @@
      4
     ]
    },
-   "worst_frame_ms_push_window": 66.61129742860794,
+   "worst_frame_ms_push_window": 65.35640358924866,
    "patch_paced": {
     "applied": 0,
     "building": 0,
@@ -45,7 +45,7 @@
     "stages": 0,
     "started": 0
    },
-   "back_in_record_s": 21.1
+   "back_in_record_s": 22.0
   },
   {
    "mode": "staged",
@@ -54,7 +54,7 @@
     "success": true,
     "woken": []
    },
-   "worst_frame_ms_push_window": 36.57950088381767,
+   "worst_frame_ms_push_window": 34.02290120720863,
    "patch_paced": {
     "applied": 1,
     "building": 0,
@@ -62,12 +62,12 @@
     "empty": 0,
     "forced": 0,
     "held": 1,
-    "last_frames": 10,
-    "last_job_ms": 39.9829,
+    "last_frames": 9,
+    "last_job_ms": 15.5116,
     "live": 1,
-    "max_frame_ms": 6.1332,
-    "max_stage": 6,
-    "max_stage_ms": 6.1327,
+    "max_frame_ms": 6.1355,
+    "max_stage": 5,
+    "max_stage_ms": 4.2985,
     "refused": 0,
     "stages": 14,
     "started": 1
@@ -89,6 +89,6 @@
   "success": true,
   "unwritten_columns": 0
  },
- "warmup_back_s": 29.8,
+ "warmup_back_s": 30.7,
  "patch_pace_restored": false
 }

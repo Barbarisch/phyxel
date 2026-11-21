@@ -2945,12 +2945,17 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         for (size_t i = 0; i < vol.discCentres.size(); ++i) { d[4 + 4 * i] = vol.discCentres[i].x; d[5 + 4 * i] = vol.discCentres[i].y; d[6 + 4 * i] = 0.0f; d[7 + 4 * i] = 0.0f; }
         vol.discDirty = false;
     }
-    if (vol.asleep || ticks <= 0) {
+    // 58.3: an asleep volume with host surface writes queued (a woken tile's seed, adopt's rows) still submits a call - no tick, no
+    // water moved (the momentum stays queued, as an asleep volume left it), only the surface and its mesh rebuilt: the renderer draws
+    // the device mesh, and without a call a woken tile was drawn by nobody - the record had let it go (the owner saw the squares)
+    const bool surfaceOnly = vol.asleep && ticks > 0 && (!vol.surfPending.empty() || !vol.surfRows.empty()) && !s_surfaceOnlyOffForTest;
+    if ((vol.asleep && !surfaceOnly) || ticks <= 0) {
         flushSolidUpload(vol);   // 44.2: nothing recorded this call - the bodies' box goes up on its own, as before the fold
         st.asleep = vol.asleep; st.quietTicks = vol.quietTicks;
         if (vol.bricked) { st.bricks = vol.storedCount; st.groundBricks = vol.groundCount; }
         return st;
     }
+    if (surfaceOnly) { ticks = 0; ++vol.surfaceOnlyCalls; }   // 58.3: nothing steps (the tick loop below runs zero times)
     WcPush push; push.nx = vol.spec.dims.x; push.ny = vol.spec.dims.y; push.nz = vol.spec.dims.z;
     push.h = vol.spec.h; push.thr = params.liquidThreshold; push.gravity = params.gravity; push.filmHold = params.filmHoldDepth / vol.spec.h; push.thetaMin = static_cast<float>(params.thetaMin);
     push.setSurfaceGhost(WaterSolver::s_surfaceGhost);   // 26.9: one switch for both backends
@@ -3146,7 +3151,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     }
     st.stepSlots = vol.stepSlots; st.partitionMoves = vol.lastPartitionMoves;
     fillPushBricks(vol, push);
-    if (!vol.pendingMomentum.empty()) {
+    if (!vol.pendingMomentum.empty() && !surfaceOnly) {   // 58.3: a surface-only call leaves it queued, as the asleep return did
         // 26.26: the debris exchange - before the first substep (where the CPU path's change landed), one workgroup per record, in
         // order (each dispatch ends with a barrier: deterministic). The call before has settled, so the host buffer is free.
         const size_t n = vol.pendingMomentum.size() / 8;
@@ -3192,7 +3197,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         capAt(8);
         stamp(cmd, vol, TsSweepBirths);
     }
-    if (vol.boundaryCount > 0 && vol.swellBoundaries && !s_boundariesOffForTest && !s_swellEndPinOffForTest) {
+    if (vol.boundaryCount > 0 && vol.swellBoundaries && !s_boundariesOffForTest && !s_swellEndPinOffForTest && !surfaceOnly) {
         // 55.5 (W6.2b): the swell columns' level pinned at the call's END time (level only): the surface drawn from this state is the
         // swell the sea beside the band is drawn with (a tick's inflow had raised the ring a mean 5 cm over it)
         WcPush bp = push; bp.iparam = vol.boundaryCount;

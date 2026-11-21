@@ -819,6 +819,10 @@ public:
     /// 57.8: how many fields draw water at (x, z) - every field, as the renderer meshes each on its own (1 = right, 0 = a hole,
     /// 2+ = a point drawn twice)
     int drawnClaimsAtWorld(float x, float z) const;
+    /// 58.3 (the owner: "squares of non rendered water"): woken tiles drawn by NOBODY this frame - a seed on a field the renderer draws
+    /// from the GPU mesh (gpuDrawn) that no submitted call has carried yet (the record stopped drawing the tile at its wake). Counted
+    /// after update + surfaceFields, as the renderer would draw. The claims count above cannot see it (the host field holds the seed)
+    int seedsUndrawn() const;
     /// 57.8 T4: the live record tiles over [lo, hi] against tiles built fresh now (the one-frame path's build): columns that differ
     long recordTilesDifferFromFreshForTest(const glm::ivec3& lo, const glm::ivec3& hi);
     int retiringCount() const { return static_cast<int>(m_retiring.size()); }
@@ -1076,6 +1080,7 @@ private:
         double recordedM3 = 0.0;
         std::vector<std::pair<int, int>> recordedTileList;   ///< tile (x, z) indices in the record now
         std::vector<std::pair<int, int>> pendingTileWakes;   ///< tiles whose wake 51.3's pace held back - woken at a later call (51.11: landings no longer wake tiles)
+        int tileWakeCap = 0;   ///< 58.3: > 0 - at most this many tile wakes a call (a staged patch's tiles: one a call); 0 = s_tileWakesPerCall
         std::map<std::pair<int, int>, double> tileChangedAt;   ///< §50 W1g measurement: when each tile last recorded or woke (steady s)
         std::map<std::pair<int, int>, float> tileFrozenSeconds;   ///< s each tile has had every stored column frozen (counted here: a
                                                              ///< body whose columns all froze is asleep and runs no call to count them)
@@ -1228,7 +1233,7 @@ private:
     struct PatchHeld { int kind = 0; glm::vec3 at{0.0f}, dir{0.0f}; float radius = 0.0f, speed = 0.0f, upBias = 0.0f; };   ///< 0 impulse, 1 radial
     struct PatchJob { glm::ivec3 parentLo{0}, parentHi{0}, lo{0}, hi{0}; SleptVolume sv; glm::vec3 centre{0.0f}; size_t slots = 0;
                       std::unique_ptr<Av> av; int id = 0, stage = 0, frames = 0; uint64_t dueTick = ~0ull; float top = 0.0f; double ms = 0.0;
-                      bool forced = false, listed = false, first = true; int occRow = 0; std::vector<PatchHeld> held; std::vector<std::pair<int, int>> toWake; };
+                      bool forced = false, listed = false, first = true, waiting = false; int occRow = 0; std::vector<PatchHeld> held; std::vector<std::pair<int, int>> toWake; };
     std::vector<PatchJob> m_patchJobs;
     PatchPaceStats m_patchPaced;
     void pumpPatchJobs(int mode = 0);   ///< 0 a frame's pump, 1 every job to live now, 2 due jobs only
@@ -1314,7 +1319,7 @@ private:
     void refreshRecordTiles();
     void buildRecordTile(int tx, int tz, RecordTile& t);
     // §27 W1b: the tile life cycle of a GPU volume (after each step): wakes first, then tiles frozen long enough are recorded
-    void recordTilesStep(Av& av, float seconds);
+    void recordTilesStep(Av& av, float seconds, bool stepFollows = true);   ///< 58.3 stepFollows false: wakes queued, not done (no call would carry them)
     bool recordTile(Av& av, int tx, int tz);
     /// 27.22: decide the floor and the heights before a call (WaterCoreManager.cpp, updateTall)
     void updateTall(Av& av);

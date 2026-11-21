@@ -1596,12 +1596,14 @@ TEST_F(WaterRecordTilesTest, ASecondPatchTakesTheFirstPatchsBuffers) {
 // frame from the splash for 60 frames (the record draws until the patch is live); P5 books exact; P6 the record after the return the
 // same as the immediate run's, column by column, within the noise floor of two immediate runs + 1e-4 m.
 // The code was written before this test; its red is the immediate run of the same test.
-struct PacedPatchRun { double wakeCallMs = 0.0, maxFrameMs = 0.0, maxStageMs = 0.0, books = 0.0; int maxStage = -1, frames = 0, pushFrame = 0, holes = 0, doubles = 0, sleeps = 0;
+struct PacedPatchRun { double wakeCallMs = 0.0, maxUpdateMs = 0.0, maxFrameMs = 0.0, maxStageMs = 0.0, books = 0.0; int maxStage = -1, frames = 0, pushFrame = 0, undrawn = 0, holes = 0, doubles = 0, sleeps = 0;
                        long held = 0, applied = 0, live = 0; std::map<std::pair<int, int>, double> cols; };
-static PacedPatchRun runPacedPatch(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool paced) {
+static PacedPatchRun runPacedPatch(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool paced, float frameS = 1.0f / 60.0f, bool surfaceOnlyOff = false) {
     using M = WaterCoreManager;
-    struct Restore { M::RecordDraw d; float m; bool sp, pp; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_patchSpare.on = sp; M::s_patchPace = pp; } }
+    struct Restore { M::RecordDraw d; float m; bool sp, pp; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_patchSpare.on = sp; M::s_patchPace = pp;
+                                                                          WaterCoreGpu::s_surfaceOnlyOffForTest = false; } }
         restore{M::s_recordDraw, M::s_locality.drawM, M::s_patchSpare.on, M::s_patchPace};
+    WaterCoreGpu::s_surfaceOnlyOffForTest = surfaceOnlyOff;
     M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_patchSpare.on = true; M::s_patchPace = false;
     PacedPatchRun o;
     WaterCoreManager mgr([](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; });
@@ -1634,7 +1636,11 @@ static PacedPatchRun runPacedPatch(VkDevice device, VkPhysicalDevice pd, VkQueue
         if (measured) o.wakeCallMs = callMs;
         bool live = false, wasLive = false; int after = -1;
         for (int k = 0; k < 60 * 90 && after < 60; ++k) {
-            mgr.update(1.0f / 60.0f); mgr.surfaceFields();
+            const bool m = measured && k < 120;
+            const auto tu = std::chrono::steady_clock::now();
+            mgr.update(m ? frameS : 1.0f / 60.0f); mgr.surfaceFields();
+            if (m) o.maxUpdateMs = std::max(o.maxUpdateMs, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tu).count());
+            if (m && mgr.seedsUndrawn() > 0) { ++o.undrawn; if (o.undrawn <= 2) std::printf("    frame %d: %d woken tile(s) drawn by nobody\n", k, mgr.seedsUndrawn()); }
             const bool any = !mgr.list().empty();
             if (any && !live) { live = true; if (measured) o.frames = k + 1; }
             if (wasLive && !any) ++o.sleeps;
@@ -1665,6 +1671,13 @@ TEST_F(WaterRecordTilesTest, APatchBuiltOverFramesKeepsEachFrameShort) {
     const PacedPatchRun im = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, false);
     const PacedPatchRun im2 = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, false);
     const PacedPatchRun st = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, true);
+    // P7 (58.3, the owner saw it in the clip: "squares of non rendered water"): at 120 fps (every other frame no water tick, as live at
+    // ~130 fps) no frame may leave a woken tile drawn by nobody. Written before the fix; RED expected on the first staged build
+    const PacedPatchRun st120 = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, true, 1.0f / 120.0f);
+    const PacedPatchRun im120 = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, false, 1.0f / 120.0f);
+    // P7's RED CONTROL: the asleep volume's surface-only call off (the pre-fix behaviour) - the metric must see the undrawn tiles
+    const PacedPatchRun red120 = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, true, 1.0f / 120.0f, true);
+    std::printf("  at 120 fps: frames with a woken tile drawn by nobody - staged %d, immediate %d (the first 120 frames after the push)\n", st120.undrawn, im120.undrawn);
     auto maxDiff = [](const PacedPatchRun& a, const PacedPatchRun& b) {
         double d = 0.0;
         for (const auto& [k, m] : a.cols) { auto it = b.cols.find(k); d = std::max(d, std::abs(m - (it == b.cols.end() ? 0.0 : it->second))); }
@@ -1686,6 +1699,17 @@ TEST_F(WaterRecordTilesTest, APatchBuiltOverFramesKeepsEachFrameShort) {
     EXPECT_EQ(im.holes, 0); EXPECT_EQ(im.doubles, 0);
     EXPECT_LT(std::abs(st.books), 1e-3) << "P5";
     EXPECT_LE(d, floor + 1e-4) << "P6: the record differs when the patch is staged";
+    EXPECT_EQ(st120.undrawn, 0) << "P7: a woken tile drawn by nobody (the squares the owner saw)";
+    // P8: the whole update + surface call per frame while it builds and after (the tile wakes run in the patch's step now, outside the
+    // pump P1 times). Written first as <= 15 ms: it MISSED in both paths (staged 23-26, immediate 24 ms) - the frames after a splash
+    // hold the patch's first live steps (58.3's design-check item 2), not the build. So: staged no worse than immediate + 2 ms
+    std::printf("  the worst update + surfaceFields, 120 frames after the push: staged %.2f ms (120 fps %.2f), immediate %.2f ms (120 fps %.2f)\n",
+                st.maxUpdateMs, st120.maxUpdateMs, im.maxUpdateMs, im120.maxUpdateMs);
+    EXPECT_LE(st.maxUpdateMs, im.maxUpdateMs + 2.0) << "P8"; EXPECT_LE(st120.maxUpdateMs, im120.maxUpdateMs + 2.0) << "P8 at 120 fps";
+    EXPECT_EQ(st.undrawn, 0) << "P7 at 60 fps";
+    EXPECT_EQ(im120.undrawn, 0) << "P7: the shipped path at 120 fps";
+    std::printf("  P7 RED CONTROL (no surface-only call): frames with a woken tile drawn by nobody %d\n", red120.undrawn);
+    EXPECT_GT(red120.undrawn, 0) << "P7 RED: the metric must see the squares with the fix off";
 }
 
 TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {

@@ -374,6 +374,7 @@ public:
             bool speedLane = false;      ///< 27.23 W1e: read the max speed from out[0].w
         } pend;
         uint64_t callsSubmitted = 0;                     ///< 27.15: calls submitted so far
+        long surfaceOnlyCalls = 0;                       ///< 58.3: calls an asleep volume submitted only to carry host surface writes
         uint64_t surfCallId = 0;                         ///< 27.15: the call whose surface hostSurf holds (0 = none yet)
         GpuStepStats lastStats; bool haveLast = false;   ///< the last collected call's stats (ASYNC returns them)
         std::vector<char> hostSurf;                      ///< the collected call's packed surface lists (one-run, multi-run records)
@@ -572,6 +573,8 @@ public:
     static inline long s_partialSurfaceReads = 0;
     /// TEST ONLY (the red control): a partial read resets every column it did not cover, as the whole read does - frozen ones too.
     static inline bool s_partialSurfaceResetAllForTest = false;
+    /// 58.3 TEST ONLY (the red control): an asleep volume submits no call for queued host surface writes (the pre-58.3 behaviour)
+    static inline bool s_surfaceOnlyOffForTest = false;
     /// 26.31: wake the brick columns touching grid cells [lo, hi] (the margin grows round them next call) / every column.
     /// Every wake stays capped by 51 S1's disturbance disc (cost; 51.11 removed 51.10's landing exemption - droplets carry no water).
     void wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi);

@@ -15162,6 +15162,29 @@ settled in the build, 2 and 5 still open). `water_coupling {patch_pace: true}`; 
 - **Clip for the owner:** `s58_patch_pace_side_by_side_view.mp4` (left at once, right staged, the viewport only; the two takes are
   not frame-synced - each push lands ~2 s into its take). Look at it: the owner's call is whether the 10-frame wait reads.
 - Tests: water unit 322 / 322; integration water 100 / 102 (the known two).
+- **The owner on that clip (2026-11-21), verbatim: "in the clip, on the right side i see a brief moment where there are obvious
+  'squares of non rendered water'. it looks bad. its quick, but bad".** Measured: two captured frames (~66 ms) where 8 m tiles round
+  the push showed the sand bed (2,617-4,461 sand-coloured px against <= 39 in every other frame). Cause, found with a wake trace
+  (two guesses before it were each partly wrong): a woken tile is drawn by the patch's GPU mesh, which only has it once a GPU call
+  has carried the seed; the record lets the tile go at the wake. A tile seeded at rest leaves the patch with no awake column - the
+  step froze everything and RETURNED WITHOUT SUBMITTING (`WaterCoreGpu::step`'s asleep return), so the tile was drawn by nobody
+  until the held push woke the volume. Shipped never showed it: there the push lands in the same frame and wakes the volume.
+  **Fixes, at the cause:** (1) `WaterCoreGpu::step` - an asleep volume with host surface writes queued submits a surface-only call
+  (no tick, no water moved, momentum left queued, no swell pin; `vol.surfaceOnlyCalls`; TEST ONLY `s_surfaceOnlyOffForTest`); (2) tile
+  wakes run only where a call follows - a volume with wakes queued takes the stepping branch, and the asleep branch queues the GPU's
+  margin wakes instead of doing them (`recordTilesStep(..., stepFollows)`); (3) the staged patch's tiles go through the patch's own
+  pace (`pendingTileWakes`, one a call - `Av::tileWakeCap`), the held pushes applied once they are in cells.
+  **Test** (P7 in `APatchBuiltOverFramesKeepsEachFrameShort`, written before the fix: `WaterCoreManager::seedsUndrawn()` - a seed on
+  a GPU-drawn field no submitted call has carried - every frame, 60 and 120 fps): RED first - staged 4 frames at 60 fps, 5-8 at 120;
+  after: **staged 0 / 0, immediate 0 / 0; the red control (surface-only call off) 8**. P8 (the whole update per frame, staged no
+  worse than immediate + 2 ms: 24.4 vs 24.9 ms) - first written as <= 15 ms, which MISSED in both paths (the frames after a splash
+  hold the patch's first live steps, item 2). The claims count (P4) could not see it: the host field held the seed.
+  **Live, re-recorded** (`s58_patch_pace_side_by_side_view.mp4`): every frame of both takes scanned - at most 37 / 39 sand-coloured
+  px (the splash's spray column, looked at); the push waited 9 frames; the worst frame round the push 65.4 (at once) vs 34.0 ms
+  (staged). Water unit 322 / 322, integration 100 / 102 (the known two).
+  **Open (logged, not tested):** a write into a LIVE awake patch's recorded tile (`wakeRecordedNear`, at the API call) in a frame with
+  no water tick may leave that tile undrawn for one frame (the record lets it go; the next tick's call carries it) - P7's metric on
+  a second push into a live patch at 120 fps would show it.
 - Not done: the cheap ripple on the record while it builds (the alternative); pre-warming the spare (item 5); the first live frame
   (item 2); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
   the water's, logged here only).
