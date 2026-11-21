@@ -23,3 +23,26 @@ the ratio. The GPU port takes FULL and the solid mask from the core, so it shoul
   E8: the GPU steps a 1/8 m box bit-equal to the CPU (the parity test's dam break and U-tube, on the 8 lattice).
 RED: a stub knob -- lattice 8 accepted but ignored (FULL and the occupancy stay on 9): E1 fails, E3's 1/2 refused.
 Not in F6.1: the fill channel in the world (F6.2), crumbs (F6.3), particles (F6.4), anything live (F6.5).
+
+F6.1 RESULTS (2026-11-21; the prediction above untouched). Release. Evidence voxfound_f6_headless.txt.
+  CONTROL (before any code): MatSim CPU 33 / 33 (6 diagnostics disabled), GPU parity 10 / 10.
+  RED as predicted: the stub (the lattice accepted, ignored) -- all 7 new tests fail.
+  E0 PASS: the old lattice untouched -- the 33 CPU tests and the 10 GPU parity tests pass unchanged.
+  E1 PASS: 1 / 2 / 4 / 8 cells/m = 131,072 / 16,384 / 2,048 / 256 units; 3 and 9 refused on 8, 2 on 9, lattice 7
+     refused; a box past the grid refused (unknown occupancy).
+  E2 PASS: the ledger exact every tick, water / sand / snow / gravel, at 1 / 2 / 4 / 8 cells/m (6.6 s).
+  E3 PASS: 1 -> 2 -> 4 -> 8 -> 4 -> 2 -> 1 exact (a pillar + a 1/8 m shelf; water); half a 1 m cell splits into the four
+     full lower 1/2 m children.
+  E4 PASS: two runs bit-identical, a different seed differs; dense = sleep every tick over 800 (1.33 M evaluations
+     skipped).
+  E5 PASS: a one-voxel diagonal wall: 0 units through at every size, water and sand (all 8 cases filled their near
+     side; first run printed nothing and ran 49 ms, so the counts were added and checked: 0.79-1.23 M units each).
+  E6 PASS: sand at 1/8 m rests at a median drop 0.676 (tan 34 deg = 0.675).
+  E7 PASS: the U-tube levels at 1/2, 1/4, 1/8 m within 5 mm (1.995-2.005 vs 2.000), at rest by tick 741 / 2,736 /
+     8,618.
+  E8 PASS: the GPU bit-equal to the CPU on the 8 lattice: the lab scene (dam, ledge, a one-voxel diagonal, a divider) at
+     1/2, 1/4 (1,500 ticks) and 1/8 m (900), and a U-tube at 1/2 (900) and 1/4 (3,000) -- cells, marks, head field,
+     stats, ledger. The GPU needed no change. (The other session's integration tests ran during the GPU run:
+     correctness only, no timing claimed.)
+CONCLUSION: MatSim runs on the world's 1/8 m lattice with occupancy from a VoxFound grid, every invariant held, CPU and
+GPU. Next F6.2: the fill channel in the world.

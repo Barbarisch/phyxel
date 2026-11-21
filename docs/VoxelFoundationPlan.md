@@ -2999,7 +2999,13 @@ code and its red, but no lever ladders: a scaling problem is taken when it bites
 - **F6.5, live.** The lab in the engine: a wall breaks, rubble piles, water pours and pools against the pile, seen and
   measured (L4). Exit: MatSim's tests pass on world voxels; the live scene runs.
 
-**F6.1 (2026-11-21).** Prediction: `voxfound_f6_prediction.txt`.
+**F6.1, MatSim on the 1/8 m lattice (2026-11-21).** `MatSim::Config::lattice` = 9 (the default: the old lab,
+unchanged) or 8 (cells of 1, 1/2, 1/4, 1/8 m; FULL 131,072 / 16,384 / 2,048 / 256 -- nesting by 8). Occupancy from a
+VoxFound grid through `VoxFound::matSimOccupancy` (outside the grid = unknown = refused). On 1/8 m-voxel worlds: the
+ledger exact every tick at every size and material, the remap 1-2-4-8-4-2-1 exact and bottom-up, determinism, sleep =
+dense, a one-voxel diagonal wall watertight, sand at repose (0.676 vs 0.675), a U-tube level within 5 mm, and the GPU
+bit-equal to the CPU with no GPU change. The old lattice's 33 CPU + 10 GPU tests pass unchanged. Red: a stub, all 7 fail.
+Evidence `voxfound_f6_prediction.txt`, `voxfound_f6_headless.txt`.
 
 ## 10. Performance tiers
 

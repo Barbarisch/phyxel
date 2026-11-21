@@ -44,16 +44,23 @@ bool isMobile(uint8_t m) {
 
 } // namespace
 
-uint32_t fullUnits(int cpm) {
-    switch (cpm) {
-        case 9: return 256u;
-        case 3: return 256u * 27u;
-        case 1: return 256u * 729u;
-        default: return 0u;
-    }
+uint32_t fullUnits(int cpm, int lattice) {
+    if (!validCellsPerM(cpm, lattice)) return 0u;
+    const uint32_t k = uint32_t(lattice / cpm);
+    return 256u * k * k * k;
 }
 
-bool validCellsPerM(int cpm) { return cpm == 1 || cpm == 3 || cpm == 9; }
+bool validLattice(int lattice) { return lattice == 9 || lattice == 8; }
+
+bool validCellsPerM(int cpm, int lattice) {
+    if (lattice == 9) return cpm == 1 || cpm == 3 || cpm == 9;
+    if (lattice == 8) return cpm == 1 || cpm == 2 || cpm == 4 || cpm == 8;
+    return false;
+}
+
+namespace {
+std::string sizesOf(int lattice) { return lattice == 8 ? "1, 2, 4 or 8" : "1, 3 or 9"; }
+} // namespace
 
 const std::array<MaterialDef, 256>& materialTable() {
     static const std::array<MaterialDef, 256> table = [] {
@@ -167,8 +174,8 @@ void MatSimCore::resetPressure() {
 
 // ---------------------------------------------------------------------------------------------
 
-bool MatSimCore::solidCell(const MicroSolidFn& fn, int wx, int wy, int wz, int cpm, bool& unknown) const {
-    const int k = 9 / cpm;
+bool MatSimCore::solidCell(const MicroSolidFn& fn, int wx, int wy, int wz, int k, bool& unknown) const {
+    // F6.1: k = finest cells per cell (lattice / cells per metre)
     bool solid = false;
     unknown = false;
     for (int my = wy * k; my < wy * k + k; ++my)
@@ -185,19 +192,20 @@ bool MatSimCore::create(IVec3 o, IVec3 sz, int cpm, const MicroSolidFn& solid, s
                         Config cfg) {
     bumpGen();
     auto refuse = [&](const std::string& r) { if (reason) *reason = r; return false; };
-    if (!validCellsPerM(cpm)) return refuse("cells_per_m must be 1, 3 or 9");
+    if (!validLattice(cfg.lattice)) return refuse("lattice must be 9 or 8");
+    if (!validCellsPerM(cpm, cfg.lattice)) return refuse("cells_per_m must be " + sizesOf(cfg.lattice));
     if (sz.x <= 0 || sz.y <= 0 || sz.z <= 0) return refuse("box size must be positive on every axis");
     const uint64_t n = uint64_t(sz.x) * uint64_t(sz.y) * uint64_t(sz.z);
     if (n > kMaxCells) return refuse("box has " + std::to_string(n) + " cells; the limit is 16,777,216");
-    // Micro coordinates are cell x 9 and blocks reach one cell past the box: keep every one in int.
-    const long long kLim = (0x7fffffffLL / 9) - 16;
+    // Finest coordinates are cell x lattice and blocks reach one cell past the box: keep every one in int.
+    const long long kLim = (0x7fffffffLL / 9) - 16;   // the 9 lattice's bound holds for 8 too
     for (long long v : {(long long)o.x, (long long)o.y, (long long)o.z,
                         (long long)o.x + sz.x, (long long)o.y + sz.y, (long long)o.z + sz.z})
         if (v < -kLim || v > kLim) return refuse("box coordinates out of range (|cell| <= " + std::to_string(kLim) + ")");
     if (!solid) return refuse("no occupancy source");
     // Audit R1: the Torricelli cap's 32-bit product (K x isqrt(head)) stays in range for 30-960 Hz.
     if (cfg.tickHz < 30 || cfg.tickHz > 960) return refuse("tickHz must be within 30-960");
-    if (uint64_t(sz.y + 1) * fullUnits(cpm) >= kHeadMask)
+    if (uint64_t(sz.y + 1) * fullUnits(cpm, cfg.lattice) >= kHeadMask)
         return refuse("box is " + std::to_string(sz.y) + " cells tall; the pressure head field needs "
                       "(height + 1) x FULL < 2^30");
 
@@ -206,7 +214,7 @@ bool MatSimCore::create(IVec3 o, IVec3 sz, int cpm, const MicroSolidFn& solid, s
         for (int z = 0; z < sz.z; ++z)
             for (int x = 0; x < sz.x; ++x) {
                 bool unk = false;
-                const bool s = solidCell(solid, o.x + x, o.y + y, o.z + z, cpm, unk);
+                const bool s = solidCell(solid, o.x + x, o.y + y, o.z + z, cfg.lattice / cpm, unk);
                 if (unk) return refuse("box contains unknown occupancy at world cell " +
                                        worldStr(o.x + x, o.y + y, o.z + z));
                 if (s) cells[size_t(x) + size_t(sz.x) * (size_t(z) + size_t(sz.z) * size_t(y))] = makeCell(kSolid, 0);
@@ -216,7 +224,7 @@ bool MatSimCore::create(IVec3 o, IVec3 sz, int cpm, const MicroSolidFn& solid, s
     created_ = true;
     cfg_ = cfg;
     cpm_ = cpm;
-    full_ = fullUnits(cpm);
+    full_ = fullUnits(cpm, cfg.lattice);
     origin_ = o;
     size_ = sz;
     cur_ = std::move(cells);
@@ -230,7 +238,10 @@ bool MatSimCore::create(IVec3 o, IVec3 sz, int cpm, const MicroSolidFn& solid, s
 bool MatSimCore::createMetres(double minX, double minY, double minZ, double sizeX, double sizeY,
                               double sizeZ, int cpm, const MicroSolidFn& solid, std::string* reason,
                               Config cfg) {
-    if (!validCellsPerM(cpm)) { if (reason) *reason = "cells_per_m must be 1, 3 or 9"; return false; }
+    if (!validCellsPerM(cpm, cfg.lattice)) {
+        if (reason) *reason = "cells_per_m must be " + sizesOf(cfg.lattice);
+        return false;
+    }
     const double v[6] = {minX, minY, minZ, sizeX, sizeY, sizeZ};
     int c[6];
     for (int i = 0; i < 6; ++i) {
@@ -357,7 +368,7 @@ void MatSimCore::resolidify(const MicroSolidFn& fn) {
         for (int z = 0; z < size_.z; ++z)
             for (int x = 0; x < size_.x; ++x) {
                 bool unk = false;
-                const bool s = solidCell(fn, origin_.x + x, origin_.y + y, origin_.z + z, cpm_, unk);
+                const bool s = solidCell(fn, origin_.x + x, origin_.y + y, origin_.z + z, cfg_.lattice / cpm_, unk);
                 if (unk) ++unknownCells_;
                 const size_t i = index(x, y, z);
                 Cell& c = cur_[i];
@@ -381,7 +392,7 @@ bool MatSimCore::setCellSize(int ncpm, const MicroSolidFn& fn, std::string* reas
     bumpGen();
     auto refuse = [&](const std::string& r) { if (reason) *reason = r; return false; };
     if (!created_) return refuse("no box");
-    if (!validCellsPerM(ncpm)) return refuse("cells_per_m must be 1, 3 or 9");
+    if (!validCellsPerM(ncpm, cfg_.lattice)) return refuse("cells_per_m must be " + sizesOf(cfg_.lattice));
     if (!fn) return refuse("no occupancy source");
     if (ncpm == cpm_) { if (reason) reason->clear(); return true; }
 
@@ -397,10 +408,10 @@ bool MatSimCore::setCellSize(int ncpm, const MicroSolidFn& fn, std::string* reas
     }
     const uint64_t n = uint64_t(nsz[0]) * uint64_t(nsz[1]) * uint64_t(nsz[2]);
     if (n > kMaxCells) return refuse("the switch would make " + std::to_string(n) + " cells; the limit is 16,777,216");
-    if (uint64_t(nsz[1] + 1) * fullUnits(ncpm) >= kHeadMask)
+    if (uint64_t(nsz[1] + 1) * fullUnits(ncpm, cfg_.lattice) >= kHeadMask)
         return refuse("the switch would make the box too tall for the pressure head field");
 
-    const uint32_t nfull = fullUnits(ncpm);
+    const uint32_t nfull = fullUnits(ncpm, cfg_.lattice);
     auto nidx = [&](int x, int y, int z) {
         return size_t(x) + size_t(nsz[0]) * (size_t(z) + size_t(nsz[2]) * size_t(y));
     };
@@ -410,7 +421,7 @@ bool MatSimCore::setCellSize(int ncpm, const MicroSolidFn& fn, std::string* reas
         for (int z = 0; z < nsz[2]; ++z)
             for (int x = 0; x < nsz[0]; ++x) {
                 bool unk = false;
-                if (solidCell(fn, nlo[0] + x, nlo[1] + y, nlo[2] + z, ncpm, unk)) {
+                if (solidCell(fn, nlo[0] + x, nlo[1] + y, nlo[2] + z, cfg_.lattice / ncpm, unk)) {
                     if (unk) return refuse("unknown occupancy at new world cell " +
                                            worldStr(nlo[0] + x, nlo[1] + y, nlo[2] + z));
                     cells[nidx(x, y, z)] = makeCell(kSolid, 0);

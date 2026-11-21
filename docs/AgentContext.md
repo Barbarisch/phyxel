@@ -642,7 +642,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       solve 11-24 %, the 32-slot dispatch floor <= 10 % (MISSED my >= 40 %).
       F5.5n (a lean primal) REJECTED: slower +5-23 %, reverted. F5 CLOSED 2026-11-21 BY THE OWNER'S DECISION (broad
       strokes first; scaling issues as they bite): ~8.1-8.8 ms per tick at ~1,000 awake vs the 2 ms proposal, MISSED.
-      NEXT: F6 (MatSim on the world grid; plan section 5) in broad strokes, each step with its prediction BEFORE code.
+      F6.1 done: MatSim's Config::lattice 8 (1, 1/2, 1/4, 1/8 m; FULL nests by 8), occupancy from a VoxelGrid
+      (VoxFound::matSimOccupancy); every invariant + GPU parity on 1/8 m; the 1/9 lattice unchanged (default).
+      NEXT: F6.2 (the fill channel in the world: liquid/powder live in world voxels, MatSim steps the awake blocks),
+      prediction BEFORE code. Broad strokes (plan 9e).
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

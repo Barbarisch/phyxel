@@ -438,3 +438,62 @@ TEST_F(MatSimGpuParity, TimingAwakeVsAsleep) {
         if (msAwake >= 0 && msAsleep >= 0 && cpm > 1) EXPECT_LT(msAsleep, msAwake);
     }
 }
+
+// docs/VoxelFoundationPlan.md F6.1 E8 (docs/evidence/voxfound_f6_prediction.txt): the GPU on the world's 1/8 m lattice,
+// occupancy from a VoxFound VoxelGrid -- the lab scene at 1/2, 1/4, 1/8 m and a U-tube, bit-equal to the CPU.
+#include "core/voxfound/MatSimWorld.h"
+#include "core/voxfound/VoxelGrid.h"
+
+namespace {
+Phyxel::Core::VoxFound::VoxelGrid labGrid8() {   // the lab world in 1/8 m voxels: 9 x 4 x 9 m
+    Phyxel::Core::VoxFound::VoxelGrid g;
+    g.resize({72, 32, 72});
+    for (int x = 0; x < 72; ++x)
+        for (int y = 0; y < 32; ++y)
+            for (int z = 0; z < 72; ++z) {
+                const bool dam = x >= 16 && x < 19 && y < 24 && z < 32;
+                const bool ledge = x >= 24 && x < 40 && y >= 16 && y < 19 && z >= 8 && z < 24;
+                const bool diag = z >= 40 && z < 64 && x == z - 32 && y < 24;   // one voxel thick, edge-joined
+                const bool divider = x >= 48 && x < 51 && y >= 8;
+                if (dam || ledge || diag || divider) g.set({x, y, z}, 1);
+            }
+    return g;
+}
+}  // namespace
+
+TEST_F(MatSimGpuParity, WorldLatticeEighths) {
+    const Phyxel::Core::VoxFound::VoxelGrid g = labGrid8();
+    Config c8;
+    c8.lattice = 8;
+    for (int cpm : {2, 4, 8}) {
+        MatSimCore cpu;
+        std::string why;
+        ASSERT_TRUE(cpu.create({0, 0, 0}, {9 * cpm, 4 * cpm, 9 * cpm}, cpm, Phyxel::Core::VoxFound::matSimOccupancy(g),
+                               &why, c8)) << why;
+        cpu.fillBox(Mat::Water, {0, 0, 0}, {2 * cpm, 3 * cpm, 4 * cpm}, 1.0);
+        cpu.fillBox(Mat::Sand, {3 * cpm, 2 * cpm + 1, cpm}, {2 * cpm, cpm, 2 * cpm}, 1.0);
+        cpu.fillBox(Mat::Gravel, {cpm, 2 * cpm, 6 * cpm}, {2 * cpm, 2 * cpm, cpm}, 1.0);
+        cpu.fillBox(Mat::Water, {7 * cpm, 0, 0}, {cpm, 4 * cpm, 9 * cpm}, 0.75);
+        const int ticks = cpm == 8 ? 900 : 1500;
+        EXPECT_EQ(runParity(cpu, ticks, 64, 97), "") << "lattice 8, cells_per_m " << cpm;
+        std::printf("[MatSimGpuParity] lattice 8, cpm %d: %d ticks identical (cells, marks, head field, stats, ledger)\n",
+                    cpm, ticks);
+    }
+    // a U-tube on the 8 lattice (the head field through levelling)
+    Phyxel::Core::VoxFound::VoxelGrid u;
+    u.resize({40, 48, 8});
+    for (int x = 16; x < 24; ++x)
+        for (int y = 8; y < 48; ++y)
+            for (int z = 0; z < 8; ++z) u.set({x, y, z}, 1);
+    for (int cpm : {2, 4}) {
+        MatSimCore cpu;
+        std::string why;
+        ASSERT_TRUE(cpu.create({0, 0, 0}, {5 * cpm, 6 * cpm, cpm}, cpm, Phyxel::Core::VoxFound::matSimOccupancy(u), &why,
+                               c8)) << why;
+        cpu.fillBox(Mat::Water, {0, 0, 0}, {5 * cpm, cpm, cpm}, 1.0);
+        cpu.fillBox(Mat::Water, {0, cpm, 0}, {2 * cpm, 4 * cpm, cpm}, 1.0);
+        const int ticks = cpm == 4 ? 3000 : 900;
+        EXPECT_EQ(runParity(cpu, ticks, 64, 113), "") << "U-tube, lattice 8, cells_per_m " << cpm;
+        std::printf("[MatSimGpuParity] U-tube lattice 8, cpm %d: %d ticks identical\n", cpm, ticks);
+    }
+}

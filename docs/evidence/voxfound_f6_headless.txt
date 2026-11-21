@@ -1,0 +1,76 @@
+F6 headless evidence (docs/evidence/voxfound_f6_prediction.txt). Release: build/tests/Release/phyxel_tests.exe (CPU) and build/tests/integration/Release/phyxel_integration_tests.exe (GPU). Worlds: hand-built VoxFound VoxelGrids (1/8 m voxels) in the tests, read through matSimOccupancy.
+== F6.1 CONTROL (17:25:37-17:30:24, before any code): CPU MatSim* (not particles), GPU MatSimGpuParity* ==
+[  PASSED  ] 33 tests.
+[MatSimGpuParity] cpm 1: 1500 ticks identical (cells, marks, stats, ledger)
+[MatSimGpuParity] cpm 3: 1500 ticks identical (cells, marks, stats, ledger)
+[MatSimGpuParity] cpm 9: 900 ticks identical (cells, marks, stats, ledger)
+[MatSimGpuParity] 16 x 2 x 16 m basin asleep on the GPU at tick 1449 (24.15 s)
+[MatSimGpuParity] U-tube cpm 1: 400 ticks identical incl. the head field
+[MatSimGpuParity] U-tube cpm 3: 1300 ticks identical incl. the head field
+[MatSimGpuParity] U-tube cpm 9: 5200 ticks identical incl. the head field
+[  PASSED  ] 10 tests.
+== F6.1 RED (the stub: lattice ignored) ==
+[  FAILED  ] MatSimLattice8.FullUnitsNestByEight (0 ms)
+[  FAILED  ] MatSimLattice8.LedgerExactDamBreakEverySize (13 ms)
+[  FAILED  ] MatSimLattice8.RemapRoundTripExactAndBottomUp (0 ms)
+[MatSimLattice8] two runs bit-identical; dense == sleep over 800 ticks, 0 evaluations skipped
+[  FAILED  ] MatSimLattice8.DeterministicAndSleepEqualsDense (0 ms)
+[  FAILED  ] MatSimLattice8.DiagonalVoxelWallIsWatertight (0 ms)
+[  FAILED  ] MatSimLattice8.SandPileStandsAtRepose (0 ms)
+[  FAILED  ] MatSimLattice8.UTubeArmsLevel (0 ms)
+[  PASSED  ] 0 tests.
+== F6.1 GREEN, the new tests (17:33:44-17:34:14) ==
+[       OK ] MatSimLattice8.FullUnitsNestByEight (0 ms)
+[       OK ] MatSimLattice8.LedgerExactDamBreakEverySize (6638 ms)
+[MatSimLattice8] remap 1->2->4->8->4->2->1 exact; trapped 0 units
+[       OK ] MatSimLattice8.RemapRoundTripExactAndBottomUp (65 ms)
+[MatSimLattice8] two runs bit-identical; dense == sleep over 800 ticks, 1332920 evaluations skipped
+[       OK ] MatSimLattice8.DeterministicAndSleepEqualsDense (2707 ms)
+[       OK ] MatSimLattice8.DiagonalVoxelWallIsWatertight (49 ms)
+[MatSimLattice8] sand at 1/8 m: rest at tick 75, peak 4.68 cells, run 7, median drop 0.676 (want 0.675)
+[       OK ] MatSimLattice8.SandPileStandsAtRepose (59 ms)
+[MatSimLattice8] U-tube 2|2 m at 1/2 m: left 2.005 m, right 1.995 m (level 2.000), rest at tick 741
+[MatSimLattice8] U-tube 2|2 m at 1/4 m: left 1.998 m, right 2.002 m (level 2.000), rest at tick 2736
+[MatSimLattice8] U-tube 2|2 m at 1/8 m: left 1.999 m, right 2.001 m (level 2.000), rest at tick 8618
+[       OK ] MatSimLattice8.UTubeArmsLevel (20539 ms)
+[  PASSED  ] 7 tests.
+== F6.1 the old + new CPU tests (17:35:29-17:40:03) and the GPU parity incl. E8 (17:40:04-17:42:00; the other session's tests running: correctness only) ==
+[MatSimLattice8] remap 1->2->4->8->4->2->1 exact; trapped 0 units
+[MatSimLattice8] two runs bit-identical; dense == sleep over 800 ticks, 1332920 evaluations skipped
+[MatSimLattice8] diagonal voxel wall at 1/1 m, material 1: 786432 units on the near side, 0 through
+[MatSimLattice8] diagonal voxel wall at 1/1 m, material 2: 786432 units on the near side, 0 through
+[MatSimLattice8] diagonal voxel wall at 1/2 m, material 1: 983040 units on the near side, 0 through
+[MatSimLattice8] diagonal voxel wall at 1/2 m, material 2: 983040 units on the near side, 0 through
+[MatSimLattice8] diagonal voxel wall at 1/4 m, material 1: 1081344 units on the near side, 0 through
+[MatSimLattice8] diagonal voxel wall at 1/4 m, material 2: 1081344 units on the near side, 0 through
+[MatSimLattice8] diagonal voxel wall at 1/8 m, material 1: 1228800 units on the near side, 0 through
+[MatSimLattice8] diagonal voxel wall at 1/8 m, material 2: 1228800 units on the near side, 0 through
+[MatSimLattice8] sand at 1/8 m: rest at tick 75, peak 4.68 cells, run 7, median drop 0.676 (want 0.675)
+[MatSimLattice8] U-tube 2|2 m at 1/2 m: left 2.005 m, right 1.995 m (level 2.000), rest at tick 741
+[MatSimLattice8] U-tube 2|2 m at 1/4 m: left 1.998 m, right 2.002 m (level 2.000), rest at tick 2736
+[MatSimLattice8] U-tube 2|2 m at 1/8 m: left 1.999 m, right 2.001 m (level 2.000), rest at tick 8618
+[  PASSED  ] 40 tests.
+[MatSimGpuParity] cpm 1: 1500 ticks identical (cells, marks, stats, ledger)
+[MatSimGpuParity] cpm 3: 1500 ticks identical (cells, marks, stats, ledger)
+[MatSimGpuParity] cpm 9: 900 ticks identical (cells, marks, stats, ledger)
+[       OK ] MatSimGpuParity.GpuEqualsCpuAfterNTicks (27951 ms)
+[       OK ] MatSimGpuParity.ControlShiftedRunDiffers (519 ms)
+[MatSimGpuParity] 16 x 2 x 16 m basin asleep on the GPU at tick 1449 (24.15 s)
+[       OK ] MatSimGpuParity.SleepIsExactAndSkipsOnGpu (5154 ms)
+[       OK ] MatSimGpuParity.EditsBetweenRunsStayExact (9123 ms)
+[       OK ] MatSimGpuParity.StressRandomScenes (3081 ms)
+[       OK ] MatSimGpuParity.DegenerateBoxes (365 ms)
+[MatSimGpuParity] U-tube cpm 1: 400 ticks identical incl. the head field
+[MatSimGpuParity] U-tube cpm 3: 1300 ticks identical incl. the head field
+[MatSimGpuParity] U-tube cpm 9: 5200 ticks identical incl. the head field
+[       OK ] MatSimGpuParity.PressureUTubeAndPressureOff (17778 ms)
+[       OK ] MatSimGpuParity.LabBoxAtNinthMetre (24796 ms)
+[       OK ] MatSimGpuParity.LabRealtimeViewTracksDevice (634 ms)
+[       OK ] MatSimGpuParity.TimingAwakeVsAsleep (483 ms)
+[MatSimGpuParity] lattice 8, cpm 2: 1500 ticks identical (cells, marks, head field, stats, ledger)
+[MatSimGpuParity] lattice 8, cpm 4: 1500 ticks identical (cells, marks, head field, stats, ledger)
+[MatSimGpuParity] lattice 8, cpm 8: 900 ticks identical (cells, marks, head field, stats, ledger)
+[MatSimGpuParity] U-tube lattice 8, cpm 2: 900 ticks identical
+[MatSimGpuParity] U-tube lattice 8, cpm 4: 3000 ticks identical
+[       OK ] MatSimGpuParity.WorldLatticeEighths (26091 ms)
+[  PASSED  ] 11 tests.

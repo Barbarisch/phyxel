@@ -42,9 +42,12 @@ inline Cell makeCell(uint8_t material, uint32_t fill) {
     return (static_cast<uint32_t>(material) << 24) | (fill & kFillMask);
 }
 
-/// Units in a full cell at this resolution: 256 * (9 / cells_per_m)^3. 0 for an invalid size.
-uint32_t fullUnits(int cellsPerM);
-bool validCellsPerM(int cellsPerM);
+/// Units in a full cell at this resolution: 256 * (lattice / cells_per_m)^3. 0 for an invalid size.
+/// VoxelFoundationPlan F6.1: the lattice is 9 (cells of 1, 1/3, 1/9 m: the old lab, the default) or 8 (1, 1/2, 1/4,
+/// 1/8 m: the world's voxels); the finest cell holds 256 units on either.
+uint32_t fullUnits(int cellsPerM, int lattice = 9);
+bool validCellsPerM(int cellsPerM, int lattice = 9);
+bool validLattice(int lattice);
 
 enum class Phase : uint8_t { Empty, Liquid, Powder, Solid };
 
@@ -70,7 +73,7 @@ constexpr uint8_t Snow = 3;
 constexpr uint8_t Gravel = 4;
 } // namespace Mat
 
-/// Occupancy at MICRO (1/9 m) world coordinates.
+/// Occupancy at the lattice's finest cell, in world coordinates (1/9 m on lattice 9, 1/8 m world voxels on 8).
 enum class Occ : uint8_t { Empty, Solid, Unknown };
 using MicroSolidFn = std::function<Occ(int mx, int my, int mz)>;
 
@@ -114,6 +117,9 @@ struct Config {
     /// 6l: under `sleep`, rebuild the head field only in bricks whose inputs changed since the last pass (exact; off =
     /// the whole box every tick, the A/B control).
     bool pressureIncremental = true;
+    /// F6.1: 9 (cells per metre 1, 3, 9) or 8 (1, 2, 4, 8: the world's 1/8 m voxels). The occupancy function is read
+    /// at 1/lattice m. Kept by setCellSize.
+    int lattice = 9;
     /// Ticks per second the box is stepped at; only the orifice flow cap (Torricelli) uses it.
     uint32_t tickHz = 60;
     /// §6j: the thin-film floor, a fraction of a full cell (0 = off, the old rules exactly). Liquid
@@ -244,7 +250,7 @@ private:
     std::vector<std::vector<uint32_t>> srcBricks_;        ///< 6l: per brick, the bricks its cells' head pointers name
     std::vector<IVec3> blocked_;                          ///< 6k: cells made solid by blockEmpty()
     void wakeCells(IVec3 lo, IVec3 hi);                   ///< inclusive world-cell range
-    bool solidCell(const MicroSolidFn& fn, int wx, int wy, int wz, int cpm, bool& unknown) const;
+    bool solidCell(const MicroSolidFn& fn, int wx, int wy, int wz, int k, bool& unknown) const;   // k = lattice / cpm
 
     bool created_ = false;
     Config cfg_;
