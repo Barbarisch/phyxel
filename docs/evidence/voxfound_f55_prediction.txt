@@ -973,3 +973,32 @@ CONCLUSION: a big body's world items now spread over up to 16 workgroups, bit-eq
 under a heavily contended GPU the world group falls 2/3-3/4 and the tick by about 2/5. The clean effect is owed: the
 F5.5e profile of the awake pile, re-run on a quiet GPU with F5.5g + F5.5h, picks the next lever (HARD_APPLY's third
 test of the same items is the known candidate).
+
+=====================================================================================================================
+F5.5i PREDICTION (2026-11-21; written BEFORE the experiment and the code). The re-profile on a quiet GPU.
+WHAT TRIGGERED IT (the control, run first as AgentContext says): GPU idle (6 %, P8, 34 C, no throttle reason active),
+no phyxel.exe running anywhere, World of Warcraft not running. F5.5g's test on the F5.5h build (spread pinned off):
+the two-test world group 158.3 / 174.0 / 228.0 ms, once 79.0 / 87.8 / 117.9 ms, the tick 138.9-217.0 ms -- vs 4.3-6.6,
+2.9-3.9 and 17-32 ms in F5.5g's own runs. Same as under "contention" in F5.5h, to a few %. So F5.5h's explanation
+(another session's engine time-slicing the GPU) is NOT supported: the slowdown is deterministic and the GPU is quiet.
+HYPOTHESIS: F5.5h's shader made the WHOLE pipeline slow (every pass shares one voxfound_bodies.comp: the tick outside
+the world group went ~13 -> ~60 ms too). Prime suspect: worldFinish's `Cand t[4]` (4 x 80 B = 320 B per thread held
+live across a barrier) raising the shader's register count / spilling, which every pass pays.
+  I1 (the swap, no code): F5.5g's committed voxfound_bodies.comp.spv (5f021d79) in place of F5.5h's, F5.5g's test
+     (spread pinned off, so only passes the old shader has run): the world group back to within 30 % of F5.5g's
+     2.9-3.9 (once) / 4.3-6.6 ms (twice), the tick within 30 % of 17-32 ms. If it does NOT come back, the cause is
+     outside the shader (host / test / machine) and I2 is not built -- re-diagnose.
+  I2 (the fix): worldFinish moves a chunk 64 items per round, ONE Cand live per thread (read, barrier, write, barrier;
+     a round's writes [dst+b, dst+b+m) never reach an unread item since dst <= src). The scramble reverses each round
+     (m items) instead of the whole chunk. Predicted: F5.5g's test back within 30 % of F5.5g's numbers (as I1); F5.5h's
+     test still bit-equal (0 bodies differ, every counter equal, every rung), the scramble red still moves bodies
+     (> 0 at every rung), 0 fallback.
+  I3 (F5.5h measured clean, its prediction re-checked): the world group spread vs one group -30 to -60 % (H2's band),
+     the tick (30 per submit) -5 to -15 % (H3's band).
+  I4 (the re-profile, F5.5e's test + gate on the quiet GPU): the world group's share of the awake tick falls from
+     F5.5e's measure to <= 1/2 of it; the largest remaining group named (HARD_APPLY's third test of the same items is
+     the known candidate -- predicted the largest single group, >= 25 % of the tick at 994 bodies).
+  I5: the five device-time-guard tests (F55b reload, F55a fused asleep, F55a2Ladder, F55a3 times, F55a4 primal) pass
+     on the quiet GPU with I2 (>= 4 of 5); VoxFound CPU's F55cRegionEditEqualsFullRebuild wall guard passes.
+  Red for I2: the I1 measurement (F5.5h's shader slow, F5.5g's fast) is the red; the I2 bit-equality red is the
+     scramble. Owed regardless: CORRECT F5.5h's record (its "contended" cost numbers measured its own regression).
