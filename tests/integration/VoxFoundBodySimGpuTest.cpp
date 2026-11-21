@@ -1405,10 +1405,12 @@ TEST_F(VoxFoundBodySimGpu, F55fWorldSplit) {
             std::string werr;
             EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
             gpu.setWorldSplit(split, quiet);
+            gpu.setWorldSpread(false);   // F5.5h: the split measures the one-workgroup-per-body pass
             gpu.setProfile(true);
             step(ticks, 1);
             gpu.setProfile(false);
             gpu.setWorldSplit(false);
+            gpu.setWorldSpread(true);
             r.stats = gpu.stats();
             r.prof = gpu.profile();
             r.bodies = woken;
@@ -1508,6 +1510,7 @@ TEST_F(VoxFoundBodySimGpu, F55gWorldOnce) {
             std::string werr;
             EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
             gpu.setWorldOnce(mode != 0, mode == 2);
+            gpu.setWorldSpread(false);   // F5.5h: F5.5g's pass is one workgroup per body
             gpu.setWorldSplit(split, true);
             gpu.setProfile(profile);
             step(ticks, perSubmit);
@@ -1515,6 +1518,7 @@ TEST_F(VoxFoundBodySimGpu, F55gWorldOnce) {
             gpu.setProfile(false);
             gpu.setWorldSplit(false);
             gpu.setWorldOnce(true);
+            gpu.setWorldSpread(true);
             r.stats = gpu.stats();
             r.prof = gpu.profile();
             r.bodies = woken;
@@ -1572,5 +1576,103 @@ TEST_F(VoxFoundBodySimGpu, F55gWorldOnce) {
                     (unsigned long long)slots, 100.0 * sp.stats.worldRedo / std::max<uint64_t>(1, slots), cnt,
                     100 * cnt / world, wr - cnt, 100 * (wr - cnt) / world, world);
         EXPECT_LE(w1, 0.70 * w0) << "G2: the world group must drop >= 30 %";
+    }
+}
+
+// docs/VoxelFoundationPlan.md F5.5h (prediction: docs/evidence/voxfound_f55_prediction.txt H1-H4): a big body's world items
+// over more than one workgroup -- chunks of 256 items, compacted per body in serial order, bit-equal to F5.5g's pass
+TEST_F(VoxFoundBodySimGpu, F55hWorldSpread) {
+    struct Run {
+        std::vector<SimBody> bodies;
+        BodySimGpuStats stats;
+        BodySimGpu::Profile prof;
+        double tickMs = 0.0;
+    };
+    for (const float e : {250.0f, 650.0f, 2800.0f}) {
+        SCOPED_TRACE(e);
+        LabPile pile = labLargeWall(e);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef mirror(pile.world, pile.mats, prm);
+        for (const Body& b : pile.bodies) mirror.add(b, b.vel, b.angVel);
+        std::string err;
+        ASSERT_TRUE(gpu.load(pile.world, pile.mats, mirror.bodies(), mirror.params(), &err)) << err;
+        int settleTicks = 0;
+        do {
+            step(60);
+            if (HasFatalFailure()) return;
+            settleTicks += 60;
+        } while (gpu.stats().awake > 0 && settleTicks < 6000);
+        ASSERT_EQ(gpu.stats().awake, 0u);
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        std::vector<SimBody> woken = mirror.bodies();
+        for (SimBody& b : woken) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        const size_t nb = woken.size();
+        // mode: 0 = F5.5g's pass (one workgroup per body), 1 = spread, 2 = spread + the scramble (test only)
+        auto runFor = [&](int ticks, int mode, bool profile, bool split, int perSubmit) {
+            Run r;
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
+            gpu.setWorldSpread(mode != 0, mode == 2);
+            gpu.setWorldSplit(split, true);
+            gpu.setProfile(profile);
+            step(ticks, perSubmit);
+            r.tickMs = std::max(0.0, gpu.lastGpuMs()) / ticks;
+            gpu.setProfile(false);
+            gpu.setWorldSplit(false);
+            gpu.setWorldSpread(true);
+            r.stats = gpu.stats();
+            r.prof = gpu.profile();
+            r.bodies = woken;
+            EXPECT_TRUE(gpu.read(r.bodies, &werr)) << werr;
+            return r;
+        };
+        auto differ = [](const Run& a, const Run& b) {
+            size_t n = 0;
+            for (size_t i = 0; i < a.bodies.size(); ++i)
+                if (a.bodies[i].pos != b.bodies[i].pos || a.bodies[i].quat != b.bodies[i].quat ||
+                    a.bodies[i].vel != b.bodies[i].vel || a.bodies[i].angVel != b.bodies[i].angVel ||
+                    a.bodies[i].asleep != b.bodies[i].asleep)
+                    ++n;
+            return n;
+        };
+        auto sameCounters = [](const BodySimGpuStats& a, const BodySimGpuStats& b) {
+            return a.contacts == b.contacts && a.candidates == b.candidates && a.capped == b.capped &&
+                   a.deepPoints == b.deepPoints && a.pairsTested == b.pairsTested && a.hardFires == b.hardFires &&
+                   a.scratchOverflow == b.scratchOverflow && a.awake == b.awake;
+        };
+        // G1: bit-equal over 60 ticks, and the scramble's red
+        const Run twice = runFor(60, 0, false, false, 30);   // twice = F5.5g's pass here, once = the spread
+        const Run once = runFor(60, 1, false, false, 30);
+        const Run scr = runFor(60, 2, false, false, 30);
+        const size_t dOnce = differ(twice, once), dScr = differ(twice, scr);
+        std::printf("[body gpu] F5.5h E/T %.0f: %zu bodies; spread vs one group per body over 60 ticks: %zu bodies differ, counters %s "
+                    "(candidates %llu vs %llu, deep %llu vs %llu); fallback bodies %u over 60 ticks; RED the "
+                    "scramble: %zu differ\n", e, nb, dOnce, sameCounters(twice.stats, once.stats) ? "equal" : "DIFFER",
+                    (unsigned long long)once.stats.candidates, (unsigned long long)twice.stats.candidates,
+                    (unsigned long long)once.stats.deepPoints, (unsigned long long)twice.stats.deepPoints,
+                    once.stats.spreadFallback, dScr);
+        EXPECT_EQ(dOnce, 0u) << "H1: the spread changed the simulation";
+        EXPECT_TRUE(sameCounters(twice.stats, once.stats)) << "H1: the spread changed a counter";
+        EXPECT_GT(dScr, 0u) << "H1 red: the scrambled order must show in the bodies";
+        // H2/H3: the world group (profiled, one tick per submit) and the tick (unprofiled, 30 per submit), alternated
+        auto mean = [](const BodySimGpu::Profile& p, int g) { return p.sumMs[g] / std::max(1, p.ticks); };
+        const int G_WORLD = 2;
+        std::vector<double> wOn, wOff, tOn, tOff;
+        for (int rep = 0; rep < 3; ++rep) {
+            wOff.push_back(mean(runFor(30, 0, true, false, 1).prof, G_WORLD));
+            wOn.push_back(mean(runFor(30, 1, true, false, 1).prof, G_WORLD));
+            tOff.push_back(runFor(30, 0, false, false, 30).tickMs);
+            tOn.push_back(runFor(30, 1, false, false, 30).tickMs);
+        }
+        const double w1 = medianOf(wOn), w0 = medianOf(wOff), t1 = medianOf(tOn), t0 = medianOf(tOff);
+        std::printf("[body gpu]   H2 world group: spread %.3f vs one group %.3f ms (%+.0f %%); H3 tick (30 per submit): spread "
+                    "%.3f vs one group %.3f ms (%+.0f %%)\n", w1, w0, 100.0 * (w1 / w0 - 1.0), t1, t0,
+                    100.0 * (t1 / t0 - 1.0));
+        // H4: the fallback bodies per tick (the 60-tick run)
+        std::printf("[body gpu]   H4 fallback bodies %u over 60 ticks of %zu awake (%.3f %% per tick)\n",
+                    once.stats.spreadFallback, nb, 100.0 * once.stats.spreadFallback / (60.0 * std::max<size_t>(1, nb)));
+        EXPECT_LE(w1, 0.75 * w0) << "H2: the world group must drop >= 25 %";
     }
 }

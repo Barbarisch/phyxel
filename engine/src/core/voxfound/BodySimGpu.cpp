@@ -35,7 +35,8 @@ enum : uint32_t {
     K_AWAKE_LIST, K_BROAD, K_NARROW, K_HARD_NARROW, K_HARD_PAIRS,  // F5.5a2: the narrowphase in parallel
     K_WORLD_PAR, K_HARD_APPLY_PAR,                                  // F5.5a3: the world test in parallel
     K_COLOUR_COUNT, K_COLOUR_PREFIX, K_COLOUR_SCATTER, K_PRIMAL_SUB,    // F5.5a4: the primal in parallel
-    K_PRIMAL_ONE   // 29 / 30 run on the primal pipeline (voxfound_bodies_primal.comp)
+    K_PRIMAL_ONE,   // 29 / 30 run on the primal pipeline (voxfound_bodies_primal.comp)
+    K_WORLD_UNITS, K_WORLD_CHUNKS, K_WORLD_FINISH   // F5.5h: 31-33, a big body's world items over many workgroups
 };
 constexpr uint32_t kFusedGroup = 1024;
 
@@ -488,7 +489,8 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
 
     const VkDeviceSize bP = prm.size() * 4, bB = gb.size() * sizeof(GBody), bV = std::max<size_t>(vox.size(), 1) * 4,
                        bC = std::max<size_t>(cor.size(), 4) * 4, bW = std::max<size_t>(wv.size(), 1) * 4;
-    const VkDeviceSize bState = (S_BODY + 5ull * m_nb) * 4;
+    // + F5.5h: each awake slot's first chunk (nb + 1), its fallback flag (nb), each chunk's count (kMaxChunks nb)
+    const VkDeviceSize bState = (S_BODY + (7ull + kMaxChunks) * m_nb + 1) * 4;
     if (!createBuffer(m_params, bP, false, err) || !createBuffer(m_bodies, bB, false, err) ||
         !createBuffer(m_bodyVox, bV, false, err) || !createBuffer(m_corners, bC, false, err) ||
         !createBuffer(m_world, bW, false, err) || !createBuffer(m_cons, m_maxCons * kConBytes, false, err) ||
@@ -597,7 +599,16 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
             stamp(G_W_COUNT + int(stop) - 1);
         }
     }
-    if (m_worldPar) {   // F5.5a3; F5.5g: pc.n bit 1 = each item tested once, bit 2 = the scramble (tests only)
+    if (m_worldPar && m_worldOnce && m_worldSpread) {   // F5.5h: units (one group), chunks, finish (pc.n bit 2 = scramble)
+        const uint32_t n = m_spreadScramble ? 4u : 0u;
+        const uint32_t passes[3] = {K_WORLD_UNITS, K_WORLD_CHUNKS, K_WORLD_FINISH};
+        for (uint32_t k = 0; k < 3; ++k) {
+            BodyPC pc{passes[k], 0, parity, n};
+            m_pipe->pushConstants(cmd, &pc, sizeof(pc));
+            m_pipe->dispatch(cmd, k == 0 ? 1u : groups);
+            barrier(cmd);
+        }
+    } else if (m_worldPar) {   // F5.5a3; F5.5g: pc.n bit 1 = each item tested once, bit 2 = the scramble (tests only)
         BodyPC pc{K_WORLD_PAR, 0, parity, (m_worldOnce ? 2u : 0u) | (m_worldOnce && m_onceScramble ? 4u : 0u)};
         m_pipe->pushConstants(cmd, &pc, sizeof(pc));
         m_pipe->dispatch(cmd, groups);
@@ -710,7 +721,7 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
                 if (first) {   // the summed counters start at 0 for this call
                     recordEdit(cmd);   // F5.5c: a staged edit first
                     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);
-                    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 4, 0);   // F5.5g: S_REDO
+                    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 2 * 4, 0);   // F5.5g: S_REDO, F5.5h: S_SPREAD_FB
                     barrier(cmd);
                 }
                 for (int t = 0; t < n; ++t) recordTick(cmd);
@@ -761,6 +772,7 @@ void BodySimGpu::unpackCounters() {
     m_stats.dgOverCap = s[19];
     m_stats.dgSumCand = s[20];
     m_stats.worldRedo = s[21];   // F5.5g: S_REDO
+    m_stats.spreadFallback = s[22];   // F5.5h: S_SPREAD_FB
     m_lastAwake = m_stats.awake;
 }
 
@@ -844,7 +856,7 @@ bool BodySimGpu::stepBegin(int ticks, std::string* err) {
     }
     recordEdit(cmd);   // F5.5c: a staged edit first
     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);   // the summed counters start at 0 for this call (as step())
-    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 4, 0);   // F5.5g: S_REDO
+    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 2 * 4, 0);   // F5.5g: S_REDO, F5.5h: S_SPREAD_FB
     barrier(cmd);
     for (int t = 0; t < ticks; ++t) recordTick(cmd);
     recordCounters(cmd);

@@ -33,6 +33,7 @@ struct BodySimGpuStats {
     // world item count, the awake bodies with more world candidates than the cap, and the summed world candidates
     uint32_t dgMaxCand = 0, dgMaxItems = 0, dgOverCap = 0, dgSumCand = 0;
     uint32_t worldRedo = 0;   // F5.5g (summed): world-pass threads with more than kStage candidates (re-tested)
+    uint32_t spreadFallback = 0;   // F5.5h (summed): awake bodies whose chunks overflowed (F5.5g's pass instead)
     uint32_t awake = 0;                       // after the last tick
 };
 
@@ -119,6 +120,15 @@ public:
         m_onceScramble = scramble;
     }
     static constexpr uint32_t kStage = 48;   // F5.5g: staged candidates per world-pass thread
+    /// F5.5h: a big body's world items over more than one workgroup -- the items in chunks of kChunkItems (at most
+    /// kMaxChunks per body), one workgroup per chunk, then per body the chunks compacted in serial order and capped.
+    /// Bit-equal to F5.5g's one-workgroup-per-body pass (false, the control). scramble (tests only): the chunks placed
+    /// in reverse order, the red for the equality check. Needs once (F5.5g). Default on.
+    void setWorldSpread(bool on, bool scramble = false) {
+        m_worldSpread = on;
+        m_spreadScramble = scramble;
+    }
+    static constexpr uint32_t kChunkItems = 256, kMaxChunks = 16;   // F5.5h
     static constexpr int kProfMaxStamps = 64;
     static const char* profileName(int g);
     struct Profile {
@@ -173,6 +183,7 @@ private:
     bool m_profile = false;
     bool m_worldSplit = false, m_splitQuiet = true;   // F5.5f
     bool m_worldOnce = true, m_onceScramble = false;   // F5.5g
+    bool m_worldSpread = true, m_spreadScramble = false;   // F5.5h
     VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
     int m_pendingTicks = 0;
     bool m_pendingTimed = false;

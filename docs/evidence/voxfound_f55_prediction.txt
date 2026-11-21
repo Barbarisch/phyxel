@@ -939,3 +939,37 @@ PREDICTIONS (headless, the woken pile, the lab's grid as F5.5e-g; A/B alternated
   H5 live (CharacterTestbed, the f55e gate, ABBA): the world group drops 25-60 % at every rung.
 WHAT WOULD COUNT AS A MISS: not bit-equal; any drop outside its range; fallback > 1 %. HARD_APPLY's third test of the
 items stays (its own increment).
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5h RESULTS (2026-11-20; after the runs, the predictions above untouched). Release. CONDITIONS: World of Warcraft not
+running; another session's engine (G:\Github\phyxel\phyxel.exe, not mine, not stopped; it restarted twice) running.
+The GPU ran ~25-40x slower than an hour earlier: F5.5g's untouched two-test pass took 160-240 ms per world group on
+this build (4.3-6.6 ms in F5.5g's runs); utilization 18 % idle, 99-100 % during the runs. EVERY DEVICE TIME BELOW
+MEASURES THAT STATE -- the ratios are contended ratios, not the clean result. Evidence: voxfound_f55h_red.txt (the
+stub), voxfound_f55h_headless.txt (two runs + the full-suite run + the F5.5g control), voxfound_f55h_live.jsonl
+(tools/voxfound_f55e_gate.py --spread, CharacterTestbed; order B A A B -- see the live note).
+  RED (a stub setWorldSpread): the world group -2 to +0 %, the scramble 0 bodies, at every rung.
+  H1 PASS: 60 ticks spread on vs off: 0 bodies differ, every counter equal (candidates 474,597 / 1,283,104 /
+     4,671,558; deep equal) at every rung, in three runs. The scramble (each chunk's order reversed): 110 / 276 / 954
+     bodies differ. The serial world pass (K_WORLD) vs the spread path: 0 of 1,050 / 2,930 / 10,250 samples differ.
+  H2 MISSED high (contended): the world group -67 / -73 / -75 % and -66 / -71 / -74 % (30-60), e.g. 26.9 vs 79.7 ms
+     at 110 bodies, 30.9 vs 118.5 ms at 994.
+  H3 MISSED high (contended): the tick (30 per submit) -38 / -43 / -42 % and -39 / -42 / -40 % (5-15).
+  H4 PASS: 0 fallback bodies at every rung, headless and live.
+  H5 live (contended): the world group -60 / -69 / -73 % (25-60: in range at 110 only); the tick (one per submit)
+     -31 / -36 / -35 %, 30 per submit -31 / -34 / -36 %. Live note: the first two runs (off, on) failed at the settle
+     request (its response had no "tick"); the same request answered normally afterwards -- cause not found (perhaps
+     the lab not ready just after launch; not shown). The pair was re-run at the end: B A A B.
+  The size of the miss is what a time-sliced GPU would do to one long workgroup -- the busiest body's ~3,000 items
+     on one group wait through every slice; spread over 12 groups they do not. NOT shown: the clean numbers. To
+     re-measure on a quiet GPU.
+  SUITES: VoxFound GPU 44 / 49 pass; the 5 failures are the same five device-time-guard tests as F5.5g's (the lever-off
+     control failed them the same then), every equality in them holds. F5.5f's and F5.5g's tests now pin the spread
+     off (their passes are one workgroup per body) -- found by the control run: with the spread on by default, F5.5g's
+     scramble never ran. VoxFound CPU 124 / 125: VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild fails a WALL-TIME
+     guard ("H4 per pass" 3.36 vs 3.0 ms) -- F5.5g's unexplained CPU failure is likely the same guard (not shown then).
+  Memory: + (2 + 16) words per body of state (72 KB at 994 bodies); the chunks use the bodies' own scratch regions.
+CONCLUSION: a big body's world items now spread over up to 16 workgroups, bit-equal, with no fallback on these piles;
+under a heavily contended GPU the world group falls 2/3-3/4 and the tick by about 2/5. The clean effect is owed: the
+F5.5e profile of the awake pile, re-run on a quiet GPU with F5.5g + F5.5h, picks the next lever (HARD_APPLY's third
+test of the same items is the known candidate).

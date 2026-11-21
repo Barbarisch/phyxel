@@ -1,0 +1,41 @@
+F5.5h headless (VoxFoundBodySimGpu.F55hWorldSpread, Release). CONDITIONS: World of Warcraft not running; another session's engine (G:\Github\phyxel\phyxel.exe, not mine, restarted twice during the session) running. The GPU ran ~25-40x slower than an hour before: F5.5g's untouched two-test pass took 160-240 ms per world group vs 4.3-6.6 ms in F5.5g's runs (control below). Utilization 18 % idle before, 99-100 % during and after. Every device time here measures that state; the ratios are contended ratios.
+
+=== run green1 ===
+[body gpu] F5.5h E/T 250: 110 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 110 differ
+[body gpu]   H2 world group: spread 25.902 vs one group 79.156 ms (-67 %); H3 tick (30 per submit): spread 87.215 vs one group 141.311 ms (-38 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 110 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 650: 282 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 276 differ
+[body gpu]   H2 world group: spread 24.631 vs one group 89.648 ms (-73 %); H3 tick (30 per submit): spread 91.150 vs one group 159.119 ms (-43 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 282 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 2800: 994 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 954 differ
+[body gpu]   H2 world group: spread 30.939 vs one group 125.941 ms (-75 %); H3 tick (30 per submit): spread 128.246 vs one group 222.068 ms (-42 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 994 awake (0.000 % per tick)
+[  PASSED  ] 1 test.
+
+=== run green2 ===
+﻿util before: 18 %
+[body gpu] F5.5h E/T 250: 110 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 110 differ
+[body gpu]   H2 world group: spread 26.897 vs one group 79.720 ms (-66 %); H3 tick (30 per submit): spread 86.422 vs one group 140.804 ms (-39 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 110 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 650: 282 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 276 differ
+[body gpu]   H2 world group: spread 25.483 vs one group 89.286 ms (-71 %); H3 tick (30 per submit): spread 91.267 vs one group 156.401 ms (-42 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 282 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 2800: 994 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 954 differ
+[body gpu]   H2 world group: spread 30.938 vs one group 118.466 ms (-74 %); H3 tick (30 per submit): spread 132.415 vs one group 219.854 ms (-40 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 994 awake (0.000 % per tick)
+[  PASSED  ] 1 test.
+util after: 100 %
+
+=== in the full GPU suite run ===
+[body gpu] F5.5h E/T 250: 110 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 110 differ
+[body gpu]   H2 world group: spread 24.204 vs one group 80.214 ms (-70 %); H3 tick (30 per submit): spread 89.331 vs one group 145.347 ms (-39 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 110 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 650: 282 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 276 differ
+[body gpu]   H2 world group: spread 26.203 vs one group 88.972 ms (-71 %); H3 tick (30 per submit): spread 98.375 vs one group 162.394 ms (-39 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 282 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 2800: 994 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 954 differ
+[body gpu]   H2 world group: spread 31.658 vs one group 116.684 ms (-73 %); H3 tick (30 per submit): spread 137.574 vs one group 230.120 ms (-40 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 994 awake (0.000 % per tick)
+
+=== CONTROL: F5.5g's test on the same build, same hour (spread then on in its baseline; the once-off arm is F5.5f's path, untouched) ===
+G2 world group: once 25.834 vs twice 159.579 ms; 24.294 vs 181.469; 30.620 vs 240.254 (vs 2.89 / 3.32 / 3.87 and 4.33 / 5.35 / 6.59 ms in F5.5g's runs)

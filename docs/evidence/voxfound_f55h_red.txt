@@ -1,0 +1,23 @@
+F5.5h RED (a stub setWorldSpread that changes nothing; VoxFoundBodySimGpu.F55hWorldSpread, Release). Conditions: WoW not running; another session's engine (not mine) running, GPU 99 % before and after.
+[body gpu] F5.5h E/T 250: 110 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 0 differ
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1654): error: Expected: (dScr) > (0u), actual: 0 vs 0
+[body gpu]   H2 world group: spread 2.811 vs one group 2.808 ms (+0 %); H3 tick (30 per submit): spread 16.924 vs one group 16.856 ms (+0 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 110 awake (0.000 % per tick)
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1672): error: Expected: (w1) <= (0.75 * w0), actual: 2.8106464 vs 2.1061199999999998
+H2: the world group must drop >= 25 %
+[body gpu] F5.5h E/T 650: 282 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 0 differ
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1654): error: Expected: (dScr) > (0u), actual: 0 vs 0
+[body gpu]   H2 world group: spread 3.207 vs one group 3.286 ms (-2 %); H3 tick (30 per submit): spread 20.290 vs one group 20.266 ms (+0 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 282 awake (0.000 % per tick)
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1672): error: Expected: (w1) <= (0.75 * w0), actual: 3.2067125333333335 vs 2.4648023999999999
+H2: the world group must drop >= 25 %
+[body gpu] F5.5h E/T 2800: 994 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 0 differ
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1654): error: Expected: (dScr) > (0u), actual: 0 vs 0
+[body gpu]   H2 world group: spread 3.712 vs one group 3.777 ms (-2 %); H3 tick (30 per submit): spread 29.070 vs one group 29.098 ms (-0 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 994 awake (0.000 % per tick)
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1672): error: Expected: (w1) <= (0.75 * w0), actual: 3.7121685333333327 vs 2.8328367999999999
+H2: the world group must drop >= 25 %
+[  FAILED  ] VoxFoundBodySimGpu.F55hWorldSpread (38305 ms)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55hWorldSpread

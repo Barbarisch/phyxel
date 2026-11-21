@@ -610,7 +610,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Measured on a GPU held at 94-100 % by another session's engine: 5 GPU suite device-time guards fail with the
       lever on AND off -- re-run them on a quiet GPU. (PowerShell 5.1 Get-Content/Set-Content mangles UTF-8 and adds a
       BOM: edit files with Python or the Edit tool.)
-      NEXT: F5.5h (spread a big body's world items over more than one workgroup) with its prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
+      F5.5h done: a big body's world items over up to 16 workgroups (BodySimGpu::setWorldSpread, default on; passes
+      31-33 units / chunks / finish; bit-equal, scramble red, 0 fallback). Its cost was NOT measured clean: the GPU ran
+      ~25-40x slow (another session's engine; F5.5g's untouched pass 160-240 vs 4.3-6.6 ms), contended ratios world
+      -60-75 %, tick -31-43 %. F5.5f/g tests pin the spread off. The CPU suite's VoxFoundBodyRest.F55c... failure is a
+      wall-time guard. Before trusting any device time, run F5.5g's test as a control: its two-test world group should
+      be ~4-7 ms.
+      NEXT: F5.5i (re-profile the awake pile on a QUIET GPU with F5.5g + h -- F5.5e's gate + test -- and re-run the
+      device-time guards, BEFORE the next lever; HARD_APPLY's third item test is the known candidate) with its
+      prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
       the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
       5 ms); region-vs-area edge pixels.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)

@@ -27,6 +27,8 @@
 //    w_spread, each its own group; bit-equal) and the per-body maxima in the stats (dg_*).
 //    F5.5g: {"world_once":bool} -- the world pass tests each item once (staged, then copied; default on, bit-equal);
 //    false = the F5.5f two-test pass (the A/B control). The stats carry world_redo (threads past the stage, re-tested).
+//    F5.5h: {"world_spread":bool} -- a big body's world items over more than one workgroup (default on, bit-equal);
+//    false = F5.5g's one workgroup per body. The stats carry spread_fallback (bodies that ran F5.5g's pass instead).
 // F5.4 (docs/evidence/voxfound_f54_prediction.txt L1-L6): {"rest":{"on":bool,"budget":N,"keep_m":M,"rest_ticks":T}}
 //    sets the D6 policy (it runs after every tick while on; the player = the camera); {"bake_now":{...same keys}} runs
 //    one pass now with those values. A bake writes the world grid, rebuilds the preview area and compacts the body
@@ -695,6 +697,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
     if (p.contains("profile") && lab.gpu) lab.gpu->setProfile(p["profile"].get<bool>());   // F5.5e
     if (p.contains("world_split") && lab.gpu) lab.gpu->setWorldSplit(p["world_split"].get<bool>());   // F5.5f
     if (p.contains("world_once") && lab.gpu) lab.gpu->setWorldOnce(p["world_once"].get<bool>());   // F5.5g
+    if (p.contains("world_spread") && lab.gpu) lab.gpu->setWorldSpread(p["world_spread"].get<bool>());   // F5.5h
     if (p.contains("ticks") && lab.useGpu) {   // F5.5b: synchronous GPU ticks (the policy after every tick when on)
         const int n = p["ticks"].get<int>();
         std::string err;
@@ -820,7 +823,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
                           {"candidates", s.candidates}, {"capped", s.capped}, {"pairs_tested", s.pairsTested},
                           {"hard_fires", s.hardFires}, {"dg_max_cand", s.dgMaxCand},
                           {"dg_max_items", s.dgMaxItems}, {"dg_over_cap", s.dgOverCap}, {"dg_sum_cand", s.dgSumCand},
-                          {"world_redo", s.worldRedo}};
+                          {"world_redo", s.worldRedo}, {"spread_fallback", s.spreadFallback}};
             const auto& pr = lab.gpu->profile();   // F5.5e
             if (pr.ticks > 0) {
                 nlohmann::json groups = nlohmann::json::object(), mins = nlohmann::json::object();

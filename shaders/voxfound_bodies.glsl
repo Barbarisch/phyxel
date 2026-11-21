@@ -112,7 +112,7 @@ const uint P_NB = 0, P_WX = 1, P_WY = 2, P_WZ = 3, P_WVM = 4, P_GROUND = 5, P_DT
 const uint S_CAND = 0, S_CAPPED = 1, S_DEEP = 2, S_PAIRS = 3, S_HARD = 4, S_OVF_SCRATCH = 5, S_OVF_CONS = 6,
            S_UNCOL = 7, S_MAXCOL = 8, S_MAXCONS = 9, S_AWAKE = 10, S_TICKCOL = 11, S_NPAIRS = 12,
            S_NHPAIRS = 13, S_NAWAKE = 14, S_OVF_PAIRS = 15, S_NCONS = 16,
-           S_DG_MAXCAND = 17, S_DG_MAXITEMS = 18, S_DG_OVERCAP = 19, S_DG_SUMCAND = 20, S_REDO = 21,   // F5.5f: the split's w_count
+           S_DG_MAXCAND = 17, S_DG_MAXITEMS = 18, S_DG_OVERCAP = 19, S_DG_SUMCAND = 20, S_REDO = 21, S_SPREAD_FB = 22,   // F5.5f: the split's w_count
            S_BODY = 32;
 const uint STATIC = 0xFFFFFFFFu, UNC = 0xFFFFFFFFu, NOCOL = 0xFFFFFFFEu;
 const float INF = 1e30;
@@ -125,6 +125,10 @@ uint sOffset(uint i) { return S_BODY + NB() + i; }
 uint sFill(uint i) { return S_BODY + 2u * NB() + i; }
 uint sColour(uint i) { return S_BODY + 3u * NB() + i; }
 uint sWake(uint i) { return S_BODY + 4u * NB() + i; }
+// F5.5h: the world spread -- each awake slot's first chunk (na + 1 words), its fallback flag, each chunk's count
+uint sUnit(uint i) { return S_BODY + 5u * NB() + i; }
+uint sSpFlag(uint i) { return S_BODY + 6u * NB() + 1u + i; }
+uint sChunkCnt(uint u) { return S_BODY + 7u * NB() + 1u + u; }   // 16 NB words (BodySimGpu::kMaxChunks)
 
 // ---- quaternions (x y z w), as solver_types.glsl ----
 vec3 qrot(vec4 q, vec3 v) {
@@ -273,7 +277,8 @@ bool gQuiet = false;   // F5.5f: a diagnostic copy of the world pass -- no count
 bool gNoDeep = false;  // F5.5g: a fallback re-test (its deep points were counted when staged)
 const uint STAGE = 48u;   // F5.5g: staged candidates per world-pass thread (BodySimGpu::kStage)
 // the deep-point counter: counted once per item -- in the write (mode 0) or the staging (mode 3)
-bool countDeep() { return !gQuiet && ((gMode == 0u && !gNoDeep) || gMode == 3u); }
+bool gDeepDone = false;   // F5.5h: a spread body's fallback (its deep points were counted by its chunks)
+bool countDeep() { return !gQuiet && !gDeepDone && ((gMode == 0u && !gNoDeep) || gMode == 3u); }
 float gDeepPen = 0.0;
 vec3 gDeepN = vec3(0.0);
 
@@ -877,6 +882,7 @@ shared Body gwA;
 // pass 24: K_WORLD for the awake bodies: count, scan, write (the serial candidate order), then the cap (coopEmit)
 // F5.5f: pc.arg = where a diagnostic copy stops (0 = the real pass; 1 = the count (+ the per-body maxima), 2 = + the
 // write, 3 = + the bucket winners, 4 = + the spread picks); pc.n bit 0 = quiet (no counter side effects in the copy)
+void worldBody(uint ai, uint base, uint stBase, uint stop, bool once, bool scramble);
 void worldPar() {
     uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
     uint na = state[S_NAWAKE], scr = prm[P_SCRATCH], base = g * scr;
@@ -885,8 +891,12 @@ void worldPar() {
     // F5.5g: pc.n bit 1 = once (each item tested once: staged, then copied), bit 2 = the scramble (tests only)
     bool once = (pc.n & 2u) != 0u, scramble = (pc.n & 4u) != 0u;
     uint stBase = prm[P_NB] * scr + (g * 64u + lid) * STAGE;   // this thread's stage, past the bodies' scratch
-    for (uint idx = g; idx < na; idx += G) {
-        uint ai = aux[idx];
+    for (uint idx = g; idx < na; idx += G) worldBody(aux[idx], base, stBase, stop, once, scramble);
+}
+// one awake body's world pass on this workgroup (the body of F5.5a3's loop; F5.5h's fallback runs it too)
+void worldBody(uint ai, uint base, uint stBase, uint stop, bool once, bool scramble) {
+    uint lid = gl_LocalInvocationID.x, scr = prm[P_SCRATCH];
+    {
         Body A = bodies[ai];
         mat3 R = qmat(A.quat), Rt = transpose(R);
         ivec3 cl, nc;
@@ -911,7 +921,7 @@ void worldPar() {
         }
         memoryBarrierShared();
         barrier();
-        if (stop == 1u) continue;
+        if (stop == 1u) return;
         uint mine = gwCnt[lid];
         if (once && mine <= STAGE) {   // F5.5g: the staged candidates to the serial offset -- the write's slots + drops
             uint off = gwOff[lid], ovf = 0u;
@@ -931,10 +941,129 @@ void worldPar() {
         uint cnt = min(gwTotal, scr);
         memoryBarrierBuffer();
         barrier();
-        if (stop == 2u) continue;
+        if (stop == 2u) return;
         if (cnt > 0u) {
             if (lid == 0u && (stop == 0u || !gQuiet)) atomicAdd(state[S_CAND], cnt);   // F5.5f: loud = the red
             coopEmit(ai, STATIC, base, cnt, stop);
+        }
+        memoryBarrierBuffer();
+        barrier();
+    }
+}
+
+// ---- F5.5h: a big body's world items over more than one workgroup ----
+const uint CH_ITEMS = 256u, CH_MAX = 16u, CH_SLOT = 256u;   // BodySimGpu::kChunkItems / kMaxChunks; a chunk's slot
+// a body's chunk size and count from its item count L (both passes agree): >= 256 items, at most 16 chunks
+uint chunkSize(uint L) { return max(CH_ITEMS, (L + CH_MAX - 1u) / CH_MAX); }
+uint chunkCount(uint L) { uint cs = chunkSize(L); return (L + cs - 1u) / cs; }
+uint bodyItems(Body A) { ivec3 cl, nc; vec3 lo, hi; return A.meta.y + worldBox(A, cl, nc, lo, hi); }
+// pass 31 (one workgroup): each awake slot's chunk count -> the first chunk of each (a prefix); the flags cleared
+void worldUnits() {
+    uint lid = gl_LocalInvocationID.x, na = state[S_NAWAKE];
+    for (uint idx = lid; idx < na; idx += 64u) {
+        state[sUnit(idx + 1u)] = chunkCount(bodyItems(bodies[aux[idx]]));
+        state[sSpFlag(idx)] = 0u;
+    }
+    memoryBarrierBuffer();
+    barrier();
+    if (lid == 0u) {
+        uint s = 0u;
+        state[sUnit(0u)] = 0u;
+        for (uint idx = 0u; idx < na; ++idx) { s += state[sUnit(idx + 1u)]; state[sUnit(idx + 1u)] = s; }
+    }
+}
+shared uint gwBad;
+// pass 32 (persistent workgroups over the chunks): one chunk's items tested once (staged), written in order to the
+// body's own scratch region (its awake slot) at the chunk's slot; the count stored; a chunk that does not fit (a
+// thread past its stage, or the chunk past its slot) flags its body for the fallback
+void worldChunks() {
+    uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
+    uint na = state[S_NAWAKE], scr = prm[P_SCRATCH], U = state[sUnit(na)];
+    uint stBase = prm[P_NB] * scr + (g * 64u + lid) * STAGE;
+    for (uint u = g; u < U; u += G) {
+        uint lo2 = 0u, hi2 = na;   // the last awake slot whose first chunk <= u
+        while (hi2 - lo2 > 1u) {
+            uint mid = (lo2 + hi2) / 2u;
+            if (state[sUnit(mid)] <= u) lo2 = mid;
+            else hi2 = mid;
+        }
+        uint idx = lo2, k = u - state[sUnit(idx)], ai = aux[idx];
+        Body A = bodies[ai];
+        mat3 R = qmat(A.quat), Rt = transpose(R);
+        ivec3 cl, nc;
+        vec3 lo, hi;
+        uint L = A.meta.y + worldBox(A, cl, nc, lo, hi), cs = chunkSize(L);
+        uint c0 = k * cs, c1 = min(L, c0 + cs), n = c1 - c0;
+        uint per = (n + 63u) / 64u, q0 = min(c1, c0 + lid * per), q1 = min(c1, q0 + per);
+        gMode = 3u; gBase = stBase; gCount = 0u;
+        for (uint q = q0; q < q1; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
+        gwCnt[lid] = gCount;
+        memoryBarrierShared();
+        barrier();
+        if (lid == 0u) {
+            uint off = 0u, bad = 0u;
+            for (uint t2 = 0u; t2 < 64u; ++t2) { gwOff[t2] = off; off += gwCnt[t2]; if (gwCnt[t2] > STAGE) bad = 1u; }
+            gwTotal = off;
+            gwBad = (bad != 0u || off > CH_SLOT) ? 1u : 0u;
+        }
+        memoryBarrierShared();
+        barrier();
+        if (gwBad == 0u) {
+            uint dst = idx * scr + k * CH_SLOT + gwOff[lid];
+            for (uint i = 0u; i < gwCnt[lid]; ++i) scratch[dst + i] = scratch[stBase + i];
+        }
+        if (lid == 0u) {
+            state[sChunkCnt(u)] = gwTotal;
+            if (gwBad != 0u) state[sSpFlag(idx)] = 1u;
+        }
+        memoryBarrierShared();
+        barrier();
+    }
+}
+// pass 33 (persistent workgroups over the awake slots): the chunks moved left in place to the serial layout (each read
+// whole into registers before it is written: its target never reaches a later chunk's slot), then the cap + emit; a
+// flagged body runs F5.5g's whole per-body pass here instead. pc.n bit 2 = the scramble (each chunk's order reversed)
+void worldFinish() {
+    uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
+    uint na = state[S_NAWAKE], scr = prm[P_SCRATCH];
+    bool scramble = (pc.n & 4u) != 0u;
+    uint stBase = prm[P_NB] * scr + (g * 64u + lid) * STAGE;
+    for (uint idx = g; idx < na; idx += G) {
+        uint ai = aux[idx], base = idx * scr, u0 = state[sUnit(idx)], nch = state[sUnit(idx + 1u)] - u0;
+        if (state[sSpFlag(idx)] != 0u) {
+            if (lid == 0u) atomicAdd(state[S_SPREAD_FB], 1u);
+            gDeepDone = true;
+            worldBody(ai, base, stBase, 0u, true, false);
+            gDeepDone = false;
+            continue;
+        }
+        if (lid == 0u) {
+            uint off = 0u;
+            for (uint c = 0u; c < nch; ++c) { gwOff[c] = off; off += state[sChunkCnt(u0 + c)]; }
+            gwTotal = off;
+        }
+        memoryBarrierShared();
+        barrier();
+        for (uint c = scramble ? 0u : 1u; c < nch; ++c) {   // chunk 0 is in place (unless scrambled)
+            uint n = state[sChunkCnt(u0 + c)], src = base + c * CH_SLOT, dst = base + gwOff[c];
+            Cand t[4];
+            for (uint j = 0u; j < 4u; ++j) {
+                uint i = lid + 64u * j;
+                if (i < n) t[j] = scratch[src + i];
+            }
+            memoryBarrierBuffer();
+            barrier();
+            for (uint j = 0u; j < 4u; ++j) {
+                uint i = lid + 64u * j;
+                if (i < n) scratch[dst + (scramble ? n - 1u - i : i)] = t[j];
+            }
+            memoryBarrierBuffer();
+            barrier();
+        }
+        uint cnt = min(gwTotal, scr);
+        if (cnt > 0u) {
+            if (lid == 0u) atomicAdd(state[S_CAND], cnt);
+            coopEmit(ai, STATIC, base, cnt, 0u);
         }
         memoryBarrierBuffer();
         barrier();
@@ -1224,6 +1353,9 @@ void main() {
     if (pc.pass == 21u) { narrowPairs(); return; }
     if (pc.pass == 22u) { narrowHard(); return; }
     if (pc.pass == 24u) { worldPar(); return; }
+    if (pc.pass == 31u) { worldUnits(); return; }    // F5.5h
+    if (pc.pass == 32u) { worldChunks(); return; }
+    if (pc.pass == 33u) { worldFinish(); return; }
     if (pc.pass == 25u) { hardApplyPar(); return; }
 #ifdef VF_PRIMAL
     if (pc.pass == 29u) {   // PRIMAL arg = colour (indirect): workgroup w's 32-thread group g takes body 8 w + g
