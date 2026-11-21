@@ -587,6 +587,13 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // the column holds no standing water. A lot never stands in it. OPT-IN ({"ford": true}; the audit of
                 // O36 a): nothing yet paves or walks a ford (O36 b), so no build plans one unless asked.
                 if (p.value("ford", false)) {
+                    // O38 (h) (pm_chain587.txt): the cells of ramp a ford needs each side - the gully's depth (the natural
+                    // ground's cube top less the live one) over the ways' grade (the walker's step-up a cell; x 9: cubes to micro)
+                    mi.fordRampCellsAt = [mapGen, terrainTopAt, ox, oz](int x, int z) {
+                        const int depth = static_cast<int>(std::floor(mapGen->naturalGroundAt(ox + x, oz + z))) - terrainTopAt(ox + x, oz + z);
+                        const int step = std::max(1, Core::AgentBox{}.maxStepUpMicro);
+                        return depth > 0 ? (depth * 9 + step - 1) / step : 0;
+                    };
                     const float fordMax = mapGen->worldForge() ? mapGen->worldForge()->params().fordMaxDepthU : WorldForgeParams().fordMaxDepthU;
                     mi.fordAt = [mapGen, ox, oz, fordMax](int x, int z) {
                         const int wx = ox + x, wz = oz + z;

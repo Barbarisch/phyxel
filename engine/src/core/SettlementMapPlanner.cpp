@@ -526,16 +526,38 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                 for (int z = r.z; z < r.z1(); ++z) for (int x = r.x; x < r.x1(); ++x) { const int h = g.h[static_cast<size_t>(g.idx(x, z))]; lo = std::min(lo, h); hi = std::max(hi, h); }
                 return hi - lo;
             };
-            int pick = -1, firstDry = -1;
+            // O38 (h) (pm_chain587.txt): and OFF A FORD'S RAMP. D73 cuts the main street down to a creek's bed over
+            // fordRampCellsAt cells each side of a ford, and the square takes its level from that street - a market
+            // beside a ford stood on the slope (the creek city lost a stall). A place is off a ramp when its rect is
+            // further (Chebyshev, rect to cell) from every fordable cell of the main street than that cell's ramp.
+            // Nearest the middle first: dry + level + off a ramp; else dry + level; else the first dry place.
+            std::vector<std::pair<int, int>> fordsOnSpine;   // (cell index, ramp cells)
+            if (anyFord && in.fordRampCellsAt)
+                for (const int c : spine)
+                    if (fordMask[static_cast<size_t>(c)]) { const int rc = in.fordRampCellsAt(c % W, c / W); if (rc > 0) fordsOnSpine.push_back({c, rc}); }
+            const auto onRamp = [&](const Rect& r) {
+                for (const auto& [c, rc] : fordsOnSpine) {
+                    const int cx = c % W, cz = c / W;
+                    const int dx = cx < r.x ? r.x - cx : (cx >= r.x1() ? cx - (r.x1() - 1) : 0);
+                    const int dz = cz < r.z ? r.z - cz : (cz >= r.z1() ? cz - (r.z1() - 1) : 0);
+                    if (std::max(dx, dz) <= rc) return true;
+                }
+                return false;
+            };
+            int pick = -1, firstDry = -1, firstLevel = -1;
             for (int k = 0; k < sn && pick < 0; ++k)
                 for (const int i : {m0 + k, m0 - k}) {
                     if (i < 0 || i >= sn || (k == 0 && i != m0)) continue;
                     const Rect r = rectAt(spine[static_cast<size_t>(i)]);
                     if (wetIn(r) != 0) continue;
                     if (firstDry < 0) firstDry = i;
-                    if (reliefIn(r) <= kMarketRelief) { pick = i; break; }
+                    if (reliefIn(r) > kMarketRelief) continue;
+                    if (firstLevel < 0) firstLevel = i;
+                    if (!onRamp(r)) { pick = i; break; }
                 }
-            if (pick < 0) pick = firstDry;   // no level place: where it always stood (or no dry place at all)
+            bool marketOnARamp = false;
+            if (pick < 0 && firstLevel >= 0) { pick = firstLevel; marketOnARamp = true; }   // level, but every level place is on a ramp
+            if (pick < 0) { pick = firstDry; marketOnARamp = pick >= 0 && onRamp(rectAt(spine[static_cast<size_t>(pick)])); }   // no level place: where it always stood (or no dry place at all)
             if (pick < 0) {
                 map.marketNote = "no dry place for the market along the main street (" + std::to_string(wetIn(rectAt(mid))) + " water cells at its middle)";
             } else {
@@ -547,6 +569,9 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
                                   + " cubes; here " + std::to_string(reliefHere) + ")";
             else if (reliefHere > kMarketRelief)
                 map.marketNote += std::string(map.marketNote.empty() ? "" : "; ") + "the market's ground is not level (relief " + std::to_string(reliefHere) + " cubes) and no dry place along the main street is level";
+            if (marketOnARamp) map.marketNote += std::string(map.marketNote.empty() ? "" : "; ") + "the market stands on a ford's ramp: no dry, level place along the main street is clear of one";
+            else if (!fordsOnSpine.empty() && firstLevel >= 0 && pick != firstLevel)
+                map.marketNote += std::string(map.marketNote.empty() ? "" : "; ") + "the market stands " + std::to_string(std::abs(pick - m0)) + " cells along the main street from its middle: clear of a ford's ramp";
             mid = spine[static_cast<size_t>(pick)];
             marketCx = mid % W; marketCz = mid / W;
             map.marketLane = std::max(0, tier.street.laneWidth);   // D67 PROPOSED: the lane a way keeps clear across the market

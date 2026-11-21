@@ -1,0 +1,80 @@
+M5f-2 - the insula: RESEARCH INPUT, NOT A RULING (grounding-auditor, read-only web pass, 2026-11-21).
+Condensed by the main session from the auditor's report; every value keeps its source and whether the page was
+READ ("page-read": the fetch returned the quoted text) or only a search SNIPPET was seen. Nothing here is in the
+tree as a number. Foot conversions are the auditor's arithmetic (Roman foot 0.296 m, itself not page-read).
+
+WHAT IS BLOCKED (plan D68, the M5f design check): the insula - the multi-storey town-tier building. No Roman
+  typology ships except strip_building. Already GROUNDED in the tree (m5f_strip_building_grounding.txt): frontage
+  6-12 m, strip length 18-38 m, plots about 10 x 40 m, roads 3-6.5 m, plinth walls 0.5-0.7 m (Straumann 2011),
+  portico about 2 m / 3-3.35 m, roof pitch >= 45 degrees, interior door about 2 x 1 m (Mac Mahon 2000), Ostia
+  mezzanine floor at 3.5-4 m.
+  Labelled NO SOURCE in the tree today: timber wall thickness (0.222, the medieval figure by analogy); Roman
+  window size (1 x 1, the medieval rule); strip-building eaves / ridge / ceiling heights (2.5 / 3.0); house-to-
+  house gap (0 / 1, DESIGN); front-room depth (6 m, DESIGN); plot count 5-12 (REASONED); strip-house storeys (1).
+  Not in the tree at all: insula block size, insula building footprint, storey count and height, taberna width
+  and depth, stair width, medianum, courtyard, party-wall thickness, town street and pavement widths.
+
+A. INSULA (CITY BLOCK) SIZE
+  - Pompeii VIII.4: block length 75.72 m; Via dei Teatri 6.11 m; Via Stabiana 7.37 m. pompeiiperspectives.org
+    (regio-viii-insula-4). PAGE-READ.
+  - Pompeii other block lengths 33.52 / 33.83 / 72.71 / 43.85 m (III.1, I.9, VII.1, IX.11). Same site. SNIPPET.
+  - Pompeii IX.3: "length ca. 60 m and width ca. 50 m", 3000-3500 m2. Univ. Helsinki Pompeii project
+    (blogs.helsinki.fi/pompeii-project/?p=18). PAGE-READ.
+  - Timgad: square insulae 20.65 x 20.45 to 21.8 x 21.3 m; rectangular 28.65 x 20.8 and 28.25 x 20.8 m. Carthage
+    block 35.28 x 141.12 m (120 x 480 ft). Silchester Insula IV module 39.83 m. Britannia, "Length-units in Roman
+    Town Planning: the pes monetalis and the pes Drusianus", fn 6, 10, 12, 16 (citing Boeswillwald, Cagnat &
+    Ballu 1905). PAGE-READ (extract and footnotes; no author or year on the page).
+  - Corinth: 1 actus (about 35.5 m) wide, 1-4 long, most often 1 x 2; measured width 35.486 m. Corinth Computer
+    Project. SNIPPET (both URLs failed).
+  READ: no canonical size. About 20 m (Timgad) to 35 x 70 m (actus grids) to Pompeii's irregular 34-76 m. Picking
+  one for a generated town is a DESIGN pick inside a sourced range.
+
+B. STREET AND PAVEMENT WIDTHS (TOWN)
+  - Pompeii streets 6.11 m and 7.37 m (as above). PAGE-READ.
+  - Twelve Tables VII.6: 8 ft straight, 16 ft on a bend (about 2.4 / 4.7 m). Yale Avalon. PAGE-READ; fragmentary,
+    5th-century BC Rome - low as an applied value.
+  - Pompeii streets 2-4 m typical, colonnaded about 14.8 m (AJA review of Poehler 2017, The Traffic Systems of
+    Pompeii). SNIPPET.
+  - Kerb height average 34.5 cm, least 8 cm (Van Roggen 2015 p. 63 via Poehler, AJA 122.4, 2018). SNIPPET.
+  - Passable sidewalk about 1.06-1.71 m (Hartnett, AJA 112.1, 2008). SNIPPET (403).
+  NO SOURCE: any Ostia street width.
+
+C. TABERNA (SHOP)
+  - Ostia: the mezzanine "usually at a height of three-and-a-half to four metres"; shops "almost always large and
+    rectangular". ostia-antica.org shops intro. PAGE-READ. No width or depth.
+  - Pompeii bars, type A.2: average floor area 44 m2 (25 to 78 m2). Ellis, Internet Archaeology 24, 6.1.3.
+    PAGE-READ - floor AREA, bars only.
+  - One shop threshold about 3.7 m with a 0.7 m inset doorway (Oxford ORA thesis, not confirmed). SNIPPET.
+  READ: NO taberna width or depth with a stated source.
+
+D. STOREY AND BUILDING HEIGHT
+  - Augustus: no structure on the public streets "as high as seventy feet" (about 20.7 m). Strabo 5.3.7 (Loeb
+    1923, Thayer). PAGE-READ.
+  - A later limit of about 60 ft (17.75 m), attributed to Trajan - disputed (the plan's D68 already says so).
+    Wikipedia "Insula (building)", secondary. PAGE-READ.
+  - An Ostia building about 17.70 m over four floors "according to Stevens" (BABesch 80, 2005) - two sites attach
+    it to different buildings. SNIPPET; check Stevens directly.
+  - Packer 1971 (via a snippet): doors about 2.00 x 1.00 m, windows 1.50-2.00 m high x 0.90-1.30 m wide. SNIPPET.
+
+E. PARTY AND WALL THICKNESS
+  - Vitruvius 2.8.17: public laws forbid walls on a public way thicker than "one foot and a half" (about 0.44 m);
+    such a wall carries one floor. Thayer. PAGE-READ for the first sentence; the "2-3 bricks for more storeys"
+    detail from a search summary. This VERIFIES the 1.5 pedes the plan's D68 held "from memory".
+  - Standing walls 0.5-0.7 m (Straumann 2011, already read).
+
+F. STAIR, MEDIANUM, COURTYARD, FLATS
+  - "Median apartment 239 m2 (Packer 1971)" via Smarthistory - looks implausible, possibly misattributed. DO NOT USE.
+  - NO SOURCE: stair width, rise, tread; medianum width; courtyard size; balcony projection.
+
+STILL UNSOURCED: the insula BUILDING's footprint (as against the block); taberna width and depth; stair, medianum,
+  courtyard; storey-to-storey height above the ground floor; the storey count of a provincial insula (only maxima);
+  the usual pavement width; Ostia streets; and the tree's standing NO SOURCE items (timber wall, window, strip-house
+  heights, house gap). Packer 1971, Poehler 2017, Hartnett 2008, Stevens 2005, Mau 1899 and Storey 2001 could not
+  be fetched (403, binary PDF, bot wall).
+
+WHAT IT WOULD UNBLOCK (the auditor's proposal; the sub-increment names are its own, the plan defines only M5f-2a / 2b)
+  - a town-tier GRID (blocks, streets, a height cap, the party wall as a magnitude) CAN be sized from sources read
+    here: block range, Pompeii streets 6.11 / 7.37 m, the 0.44 m cap and 0.5-0.7 m walls, 70 ft, the 3.5 m ground
+    storey (Mac Mahon).
+  - the insula BUILDING and the TABERNA cannot be sized: any number would be a DESIGN pick and must be labelled so.
+  - next real steps: get text out of the Poehler and Packer PDFs, read Stevens 2005, open Packer 1971 for footprints.

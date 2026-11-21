@@ -1,0 +1,70 @@
+pm_chain587 - O38 (h): a market does not stand on a ford's ramp.
+Written 2026-11-21 16:57, before any edit. Release. Headless L2 (synthetic plans), then L3 on the creek city.
+
+WHAT IS OPEN (pm_chain567.txt): D73's true ford cuts a ramp each side of a crossing - a gully g micro deep ramps for
+  g / 4 cells. The map's market takes its place along the main street from the NATURAL ground (dry, level) and
+  knows nothing of the ramp; the square takes its level from the street beside it. Measured on the creek city:
+  "square dressing: 5 placed" -> 4, a stall lost, "the widest ground span under a prop 0 micro" -> 3.
+DESIGN (no new sized number):
+  SettlementMapInput gains fordRampCellsAt (LOCAL x, z -> how many cells of ramp a ford at that cell needs; null or 0
+  = none). The build service gives it from the gully's depth and the ways' grade: ceil((natural cube top - live
+  cube top) x 9 / the walker's step-up) - the same grade the paver cuts at. The planner stays in cells.
+  In the market's pick along the main street a place is OFF A RAMP when its rect is further (Chebyshev, rect to
+  cell) from every fordable cell of the main street than that cell's ramp. Order, nearest the middle first:
+  dry + level + off a ramp; else dry + level (as today); else the first dry place (as today). The note says when
+  the market stands on a ramp for want of another place. With no fordRampCellsAt nothing differs.
+  NOT in this increment, said here: LOTS on a ramp (a house fronting a sunken street) - no failure has been seen,
+  and moving lots re-plans every forded town; the crossroads of a semi-organic tier run through the market's cell,
+  so moving the market MOVES THE CROSS STREETS - the creek city will be re-planned by this.
+THE TEST (SettlementMapTest.TheMarketKeepsOffAFordsRamp): flat town 140 x 60 and city 160 x 160, a creek 2 cells wide
+  across the main street 3 cells before its middle, fordable, ramp 7 cells; seeds 1, 7, 23.
+    asserted: a market exists; its rect is more than 7 cells from every crossing cell; the invariant counts 0.
+    control arm (no fordRampCellsAt): printed and asserted that the market IS within 7 cells on at least one plan -
+      else the rig measures nothing.
+ASSERTION CHANGE IN THE LIVE TEST, STATED BEFORE ANY RUN: TheCreekCityIsBuiltAcrossItsFords hard-codes the main junction
+  at local (87, 74) (the audit of D73 said so). It becomes the map's own hub - the middle node of the first primary
+  way, the cell the build service asks the residents' graph about. Other hard-coded cells of that test (the
+  per-unit trace, the crossing cells read before the ways) are diagnostics tied to today's plan; if the plan moves,
+  the "before the ways" reading is re-pinned from the new map's crossings and that is stated before the run.
+PREDICTIONS
+  chain 587 (the input field + the test, planner unchanged): RED - on some plan the market stands within 7 cells of the
+    crossing (GUESS: on all six - the middle is 3 cells from the creek and the first dry place is just clear of it).
+  chain 588 (the planner): green; the control still within 7. Unit set 410 / 0; the 82 prints identical (no existing
+    rig gives fordRampCellsAt).
+  chain 589 (live): the creek city RE-PLANS (the market and with it the cross streets) - GUESS 70 % that it moves at
+    all (its market may already be clear of every ramp by the planner's measure: the lost stall is a slope the
+    square takes from a ramp it is NEAR, not on); if it moves, its gate and graph must still pass and every
+    hard-coded number in its tests is suspect. The other builds have no fords: identical lines.
+  chain 587: VOID - my test did not compile (a lambda capture). Re-run as chain 588 (red), the planner then chain 589, live 590; predictions as written, renumbered.
+RESULTS (written 2026-11-21 17:00)
+  chain 588 (RED; the field + the test, planner unchanged; exe 16:59:04): as predicted, on all six - "market
+    [68,24,12,12], 1 cells from the nearest crossing cell" (town) and "[78,72,16,16], 1 cells" (city), with and
+    without the ramp told; "the control puts the market on the ramp in 6 of 6".
+  chain 589 (the planner + the service's ramp input; exe 16:59:58; the unit test and the creek city):
+    unit GREEN - "market [75,24,12,12], 8 cells from the nearest crossing cell" (town), "[85,72,16,16], 8 cells"
+      (city), every seed; the control on the ramp in 6 of 6. As predicted.
+    the creek city RE-PLANNED, as the 70 % guess said: the market 16 x 16 at (-1201,-1056) -> (-1198,-1056) (3 cells
+      along the street), the cross streets from x 87 to x 90, "20 lots, 8 ways, 44 nodes" -> "20 lots, 5 ways, 31
+      nodes". Its test PASSES: gate 74 walkable / 0 blocked over 20 doors, the residents' graph 0 / 0, the 6
+      crossing cells reached and left, 0 sides over a cube, 294 paved cells at the fords none raised.
+      THE STALL IS BACK: "square dressing: 5 placed ... the widest ground span under a prop 0 micro" (4 placed, 3
+      micro before) - the measured cost of the true ford is undone on this site.
+    (The hub was still the hard-coded (87, 74) in this run - a cell of way 0 either way; changed now as stated.)
+  NEXT chains 590 (unit) / 591 (live 43): PREDICTION unit 410 / 0, the 82 prints identical; live 43 / 0; the creek
+    city's lines move on every build of it (lots re-seated: its "lot" lines, fixtures); the builds without fords
+    identical to chain 586's. RISK: the O39 creek-city tests carry hard-coded cells (lot 8's route print, the walled
+    trace) - diagnostics, but an assertion among them may read the old plan.
+RESULTS (written 2026-11-21 17:24)
+  chains 590 / 591 (one build, exe 17:02:12): unit set 410 ok / 0 failed, the 82 M5a / M5b prints identical to chain
+    555's; live 43 ok / 0 failed.
+    Against chain 586 (167 distinct record lines from the raw outputs): 34 lines differ, ALL the creek city's - its
+    re-seated "lot" lines and its gate line "74 walkable, 0 blocked ... 325 fixtures placed" -> "337 fixtures placed"
+    (the same routes; 12 fixtures more). Every build without a ford: identical. The residents' graph 0 / 0 on every
+    map build; spurs as before (the creek city "380 columns set to the map's level", 295 before - its lots moved).
+    As predicted; the risk I named (a hard-coded cell asserting the old plan) did not show.
+  WHAT THIS IS: L2 on 6 synthetic plans (flat, one creek 3 cells from the middle, a told ramp of 7) with a control;
+    L3 on ONE site (the creek city, headless) through its standing tests.
+  NOT MEASURED / OPEN: nothing in the engine (the creek city's plan CHANGED, so L4 run 15 is now of a city that is no
+    longer the planned one); LOTS on a ramp are not kept off it; a square beside a ramp of a way that is NOT the
+    main street; the rule's fallback (every level place on a ramp -> the market stays, with a note) has no test;
+    the ramp input uses the live ground at plan time (the generator sampler only); not audited at this writing.

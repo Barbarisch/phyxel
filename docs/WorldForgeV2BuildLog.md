@@ -1093,3 +1093,23 @@ Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain567.txt` (chains 567 to 
 - **Costs and open items:** the creek city's market loses a stall (the square slopes toward a ford); one fixture
   lost on the walled city (unread); no rule keeps a square or a lot off a ramp; a gully too deep to ramp into is
   not refused; water at a ford unobserved; the final code not run in the engine; no Debug run.
+
+### 2026-11-21 - O38 (h): the market keeps off a ford's ramp
+
+Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain587.txt` (chains 587 to 591).
+
+- **Why:** D73's true ford ramps the main street down to the creek; the square takes its level from that street, and
+  the creek city's market lost a stall.
+- **Built:** `SettlementMapInput::fordRampCellsAt` (the build service: the gully's depth over the ways' grade, in
+  cells); in the market's pick along the main street a place must also be clear of every ford's ramp, falling back
+  to the old order with a note.
+- **Test:** `SettlementMapTest.TheMarketKeepsOffAFordsRamp` (6 plans + a control; red chain 588: 1 cell from the
+  crossing; green: 8).
+- **Measured (Release, exe 17:02:12):** unit 410 ok / 0 failed, live 43 ok / 0 failed. The creek city re-planned (the
+  market 3 cells along, the cross streets with it); its gate still 74 / 0, 5 market props placed again, fixtures
+  325 -> 337. Builds without fords identical.
+- **Not shown:** nothing in the engine - the creek city's plan is no longer the one L4 run 15 built; lots on a ramp
+  are not handled; not audited at the time of the commit.
+
+Also filed: `docs/evidence/worldforge_v2/m5f_insula_research_2026-11-21.txt` - research input for M5f-2 (a Roman town
+grid can be sized from sources read; the insula building and the taberna cannot yet).

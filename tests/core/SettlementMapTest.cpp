@@ -2936,3 +2936,45 @@ TEST(SettlementMapTest, TheMarketTakesLevelGroundAlongTheMainStreet) {
     EXPECT_EQ(bad, 0);
     EXPECT_LT(refused, plans) << "every plan was refused: the test measured nothing";
 }
+
+// O38 (h) (pm_chain587.txt): a market does not stand on a ford's ramp. A flat street tier, a creek 2 cells wide across
+// the main street 3 cells before its middle, fordable, a ramp of 7 cells each side. RED (the planner as it stood):
+// the market takes the first dry place beside the creek - on the ramp.
+TEST(SettlementMapTest, TheMarketKeepsOffAFordsRamp) {
+    ASSERT_TRUE(rigs().programOk);
+    static constexpr int kRamp = 7;
+    int plans = 0, controlOnRamp = 0;
+    for (const char* tier : {"town", "city"})
+        for (const unsigned seed : {1u, 7u, 23u})
+            for (const bool control : {false, true}) {
+                const int W = std::string(tier) == "city" ? 160 : 140, D = std::string(tier) == "city" ? 160 : 60;
+                const int creekX = W / 2 - 3;
+                const std::function<bool(int, int)> creek = [creekX](int x, int) { return x == creekX || x == creekX - 1; };
+                SettlementMapInput in = inputFor(tier, W, D, flatHeight, creek, seed);
+                ASSERT_NE(in.tier, nullptr);
+                in.fordAt = creek;
+                if (!control) in.fordRampCellsAt = [creek](int x, int z) { return creek(x, z) ? kRamp : 0; };
+                const SettlementMap m = planSettlementMap(in);
+                const std::string what = std::string(tier) + ", seed " + std::to_string(seed) + (control ? ", control (no ramp told)" : "");
+                if (!m.ok()) { std::printf("[ O38h ] %s: REFUSED: %s\n", what.c_str(), m.refusal.c_str()); ADD_FAILURE() << what << ": refused"; continue; }
+                Rect mk{0, 0, 0, 0}; bool has = false;
+                for (const auto& a : m.areas) if (a.landuse == "market") { has = true; mk = a.rect; }
+                int nearest = INT_MAX, crossingCells = 0;
+                for (const auto& c : m.crossings) for (const auto& cc : c.cells) {
+                    ++crossingCells;
+                    const int dx = cc.first < mk.x ? mk.x - cc.first : (cc.first >= mk.x1() ? cc.first - (mk.x1() - 1) : 0);
+                    const int dz = cc.second < mk.z ? mk.z - cc.second : (cc.second >= mk.z1() ? cc.second - (mk.z1() - 1) : 0);
+                    nearest = std::min(nearest, std::max(dx, dz));
+                }
+                const Violations v = measure(m, in.heightAt, in.maxRelief);
+                std::printf("[ O38h ] %s: %zu lots of %d, %zu ways, %d crossing cells; market [%d,%d,%d,%d], %d cells from the nearest crossing cell; note: %s\n",
+                            what.c_str(), m.lots.size(), m.targetLots, m.ways.size(), crossingCells, mk.x, mk.z, mk.w, mk.d, nearest, m.marketNote.c_str());
+                ASSERT_TRUE(has) << what << ": no market";
+                ASSERT_GT(crossingCells, 0) << what << ": nothing forded the creek - the rig measures nothing";
+                EXPECT_EQ(v.overlaps + v.lotOutside + v.lotNoWay + v.lotDoorOffWay + v.badWay, 0) << what;
+                if (control) { if (nearest <= kRamp) ++controlOnRamp; }
+                else { ++plans; EXPECT_GT(nearest, kRamp) << what << ": the market stands on the ford's ramp"; }
+            }
+    std::printf("[ O38h ] %d plans asserted; the control (no ramp told) puts the market on the ramp in %d of 6\n", plans, controlOnRamp);
+    EXPECT_GT(controlOnRamp, 0) << "the control never puts the market on the ramp: the rig measures nothing";
+}

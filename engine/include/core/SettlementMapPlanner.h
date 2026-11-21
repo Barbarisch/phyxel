@@ -52,6 +52,10 @@ struct SettlementMapInput {
     /// a channel that is not carved and shallower than WorldForgeParams::fordMaxDepthU). A WAY may cross such cells
     /// at a step cost; a lot never stands on them. Null = no water is forded (every way keeps out of all water).
     std::function<bool(int, int)> fordAt;
+    /// O38 (h) (pm_chain587.txt): LOCAL (x,z) -> how many CELLS of ramp a ford at that cell needs each side (D73: a
+    /// ford is cut to grade; the build service gives the gully's depth over the ways' grade). Null or 0 = none. The
+    /// market keeps off a ramp where another place is on offer.
+    std::function<int(int, int)> fordRampCellsAt;
     int maxRelief = 6;                            ///< the buildable relief cap over a lot (cubes) - analyzeSite's rule
     AgentBox agent;                               ///< the walk corridor the paths are sized for
     /// M5d-1b (chain 253: the walled city sealed its arriving road): LOCAL (x,z) -> the WORLD road's class there

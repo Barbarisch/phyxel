@@ -3327,12 +3327,17 @@ TEST(SettlementMapLiveSiteTest, TheCreekCityIsBuiltAcrossItsFords) {
             }
         }
         {   // D73 (a): a ford is a place a resident can stand in and leave - each crossing's first cell, to and from the junction
-            glm::vec3 jn; const int jsf = seat(87, 74);
+            // (O38 h, pm_chain587.txt, stated before the run: the junction is the MAP's hub - the middle node of the first
+            // primary way - not the hard-coded cell (87, 74))
+            int hubX = 87, hubZ = 74;
+            for (const auto& w : sm.ways) if (w.highway == "primary" && !w.nodes.empty()) { if (const Core::MapNode* n = sm.node(w.nodes[w.nodes.size() / 2])) { hubX = n->x; hubZ = n->z; } break; }
+            std::printf("[ D73 ] the hub: local %d,%d%s", hubX, hubZ, chr10().c_str());
+            glm::vec3 jn; const int jsf = seat(hubX, hubZ);
             for (size_t ci = 0; ci < sm.crossings.size(); ++ci) {
               for (const auto& cell : sm.crossings[ci].cells) {   // (the audit) EVERY crossing cell, not each crossing's first
                 const int sf = seat(cell.first, cell.second);
                 if (sf == INT_MIN || jsf == INT_MIN) { ++fordNoStand; std::printf("[ D73 ] crossing %zu cell %d,%d: no standing place%s", ci, cell.first, cell.second, chr10().c_str()); continue; }
-                jn = glm::vec3(sm.originX + 87 + 0.5f, jsf / 9.0f, sm.originZ + 74 + 0.5f);
+                jn = glm::vec3(sm.originX + hubX + 0.5f, jsf / 9.0f, sm.originZ + hubZ + 0.5f);
                 const glm::vec3 at(static_cast<float>(sm.originX + cell.first) + 0.5f, static_cast<float>(sf) / 9.0f, static_cast<float>(sm.originZ + cell.second) + 0.5f);
                 const bool in = graph.findPath(jn, at, agent).found, outOk = graph.findPath(at, jn, agent).found;
                 if (!in) ++fordNotReached;
