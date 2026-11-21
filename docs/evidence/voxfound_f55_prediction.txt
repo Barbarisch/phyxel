@@ -1128,3 +1128,37 @@ not provably safe), but no longer on the busiest body's one workgroup: the group
 to -18 %. Live round 2 at 994 now: pairs 2.53-2.60 (26 %), primal 2.0, hard_body 1.5-1.8, world 1.0-1.1, sort 1.0,
 hard_apply 0.9 ms; at 110 / 282 the primal leads (1.5-1.6). Next: the pairs group, split before choosing a lever (as
 F5.5f did for the world group), with its prediction. Lesson: a driver compile is a cost of a shader change -- time it.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5k PREDICTION (2026-11-21; written BEFORE the code). The pairs group split -- a measure, no lever (as F5.5f was for
+the world group).
+THE CONTROL (run first, the F5.5j build, 11:29:51-11:29:58; no phyxel.exe and no Wow.exe before or after): F5.5e's
+test, the woken pile profiled (30 ticks, one per submit): pairs 0.894 / 1.157 / 2.538 ms at 110 / 282 / 994 bodies (17 /
+19 / 26 % of the profile sum; at 994 the largest group, the primal 1.96 next); GPU pairs tested 543 / 1,343 / 4,985 per
+tick; pair corners 411k / 1.09M / 4.18M (max 1,687 / 1,584 / 1,742 per pair).
+WHAT THE GROUP IS (read before writing this): two dispatches. BROAD (pass 20, arg 0): one thread per awake body, its
+AABB against every body j (an O(awake x bodies) loop), each overlapping pair appended to a list. NARROW (pass 21,
+persistent workgroups, one per pair): every corner of both bodies escape-tested TWICE -- once to count each thread's
+candidates (the prefix), once more to write them at the thread's serial offset -- then the cap (coopEmit: the warm
+lookups, the 52 bucket winners, the spread picks) and the emit. The same count-then-re-test shape F5.5f found in the
+world pass and F5.5g removed there.
+THE INSTRUMENT: BodySimGpu::setPairsSplit (off by default; a measure). With the profile on: a stamp after BROAD (its own
+group, p_broad), then three diagnostic copies of NARROW, each stopping after one more stage -- count (p_count), write
+(p_write), the cap up to the emit (p_cap; coopEmit's stop 4) -- each timed as its own group, then the real NARROW (the
+pairs group = NARROW alone while the split is on). The copies process every pair (a stop continues the persistent loop,
+it does not return), write only scratch (which the real pass rewrites before it reads), and (quiet) touch no counter
+and wake no body: the count loop's S_DEEP, S_CAND, S_OVF_SCRATCH and the wake are skipped. Stages: count = p_count,
+write = p_write - p_count, cap = p_cap - p_write, emit = pairs - p_cap. Caveat stated now: the copies warm the caches
+for the stages after them (F5.5f's caveat too).
+  K1 (the instrument): a new test, F55kPairsSplit, the woken pile, 60 profiled ticks split (quiet) vs off: 0 bodies
+     differ and every counter equal at every rung. RED: the loud copy (counters kept) -- the counters differ
+     (deepPoints / candidates). And p_broad + pairs with the split on within 15 % of the pairs group with it off.
+     The driver compile (F5.5j's rule): the uncached pipeline compile of the instrumented shader <= 90 s (control 59 s).
+  K2 BROAD: 2-10 % of the pairs group at 110, 5-20 % at 994 (its loop grows as awake x bodies, the narrowphase as pairs).
+  K3 the corners: count + write 70-90 % of the group at every rung, count and write each 35-50 % (each corner tested
+     twice, as the world pass's items were: 48 / 48-50 % in F5.5f).
+  K4 the cap + the emit: 5-20 % of the group at every rung.
+  K5 live (F5.5e's gate, CharacterTestbed, --pairs-split): the same four shares within 10 points of headless at 994.
+  K6 the VoxFound GPU suite on a quiet GPU: 51 / 51 (50 + the new test).
+If K3 holds, the lever is F5.5g's (each corner tested once: stage the candidates, copy to the serial offset), bit-equal,
+with its own prediction next; if BROAD or the cap leads instead, that is the lever.
