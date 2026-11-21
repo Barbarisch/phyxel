@@ -1,0 +1,64 @@
+F5.5n headless evidence (docs/evidence/voxfound_f55_prediction.txt F5.5n). Release. Rigs: FractureLab's hand-built large wall at E/T 250 / 650 / 2800 (110 / 282 / 994 bodies) + F5.5a4's rigs; F4.1 fracture + F5.1 extraction, moved by BodySimGpu. Every run quiet (watcher: no phyxel.exe / Wow.exe / other checkout's tests).
+== THE DRIVER COMPILE (uncached): R1FreeFall alone 17:15:53, 24.4 s, passed ==
+== RED (17:16:17-17:16:31, the stub: the flag set, F5.5a4's tree run) ==
+[body gpu] F5.5n E/T 250: 110 bodies; lean twice: 0 bodies differ; one workgroup vs indirect (lean): 0 differ; lean vs the control (tree): 0 differ (not bit-equal, stated); contacts 0 vs 0, awake 0 vs 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2196): error: Expected: (dCtl) > (0u), actual: 0 vs 0
+[body gpu]   N3 primal group: lean 1.586 vs tree 1.605 ms (-1 %); N4 tick (30 per submit): lean 5.480 vs tree 5.248 ms (+4 %); the pairs group (untouched) 0.574 vs 0.593 ms
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2215): error: Expected: (p1) <= (0.80 * p0), actual: 1.5857194666666665 vs 1.2841702399999999
+[body gpu] F5.5n E/T 650: 282 bodies; lean twice: 0 bodies differ; one workgroup vs indirect (lean): 0 differ; lean vs the control (tree): 0 differ (not bit-equal, stated); contacts 0 vs 0, awake 0 vs 0
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2196): error: Expected: (dCtl) > (0u), actual: 0 vs 0
+[body gpu]   N3 primal group: lean 1.523 vs tree 1.542 ms (-1 %); N4 tick (30 per submit): lean 5.667 vs tree 5.663 ms (+0 %); the pairs group (untouched) 0.744 vs 0.751 ms
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2215): error: Expected: (p1) <= (0.80 * p0), actual: 1.5230965333333337 vs 1.2336119466666668
+[body gpu] F5.5n E/T 2800: 994 bodies; lean twice: 0 bodies differ; one workgroup vs indirect (lean): 0 differ; lean vs the control (tree): 0 differ (not bit-equal, stated); contacts 22 vs 22, awake 2 vs 2
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2196): error: Expected: (dCtl) > (0u), actual: 0 vs 0
+[body gpu]   N3 primal group: lean 2.080 vs tree 2.114 ms (-2 %); N4 tick (30 per submit): lean 8.958 vs tree 8.982 ms (-0 %); the pairs group (untouched) 1.682 vs 1.671 ms
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2215): error: Expected: (p1) <= (0.80 * p0), actual: 2.0798794666666667 vs 1.6908296533333336
+[  FAILED  ] VoxFoundBodySimGpu.F55nPrimalLean (14144 ms)
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55nPrimalLean
+ 1 FAILED TEST
+== GREEN attempt 1 (17:17:53-17:19:31): F55nPrimalLean + F55a4PrimalDeterministicAndCost ==
+[body gpu] F5.5n E/T 250: 110 bodies; lean twice: 0 bodies differ; one workgroup vs indirect (lean): 0 differ; lean vs the control (tree): 110 differ (not bit-equal, stated); contacts 0 vs 0, awake 0 vs 0
+[body gpu]   N3 primal group: lean 1.794 vs tree 1.572 ms (+14 %); N4 tick (30 per submit): lean 5.439 vs tree 5.211 ms (+4 %); the pairs group (untouched) 0.549 vs 0.554 ms
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2215): error: Expected: (p1) <= (0.80 * p0), actual: 1.7942944000000003 vs 1.2579327999999999
+[body gpu] F5.5n E/T 650: 282 bodies; lean twice: 0 bodies differ; one workgroup vs indirect (lean): 0 differ; lean vs the control (tree): 282 differ (not bit-equal, stated); contacts 0 vs 0, awake 0 vs 0
+[body gpu]   N3 primal group: lean 1.800 vs tree 1.552 ms (+16 %); N4 tick (30 per submit): lean 5.879 vs tree 5.638 ms (+4 %); the pairs group (untouched) 0.722 vs 0.737 ms
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2215): error: Expected: (p1) <= (0.80 * p0), actual: 1.8002069333333333 vs 1.2415172266666668
+[body gpu] F5.5n E/T 2800: 994 bodies; lean twice: 0 bodies differ; one workgroup vs indirect (lean): 0 differ; lean vs the control (tree): 992 differ (not bit-equal, stated); contacts 296 vs 53, awake 13 vs 5
+[body gpu]   N3 primal group: lean 2.568 vs tree 2.086 ms (+23 %); N4 tick (30 per submit): lean 9.302 vs tree 8.848 ms (+5 %); the pairs group (untouched) 1.717 vs 1.648 ms
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2215): error: Expected: (p1) <= (0.80 * p0), actual: 2.5677855999999997 vs 1.6685294933333337
+[  FAILED  ] VoxFoundBodySimGpu.F55nPrimalLean (14661 ms)
+[body gpu] D1 R8b blast: 21 bodies; 0 of 630 samples differ between two parallel-primal runs; vs the serial primal: worst sample 0.8266 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 R8b blast: 0.308 ms / tick parallel primal, 0.446 serial primal; awake at the end 0; tail 0.1341 ms / tick
+[body gpu] E1 R8b blast: 0 of 630 samples differ, one-workgroup form vs indirect form; 0.292 vs 0.298 ms / tick
+[body gpu] D2 R8b blast: lowest corner -0.0033 m, max penetration 6.44 mm
+[body gpu] D1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ between two parallel-primal runs; vs the serial primal: worst sample 8.3914 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 250: 1.039 ms / tick parallel primal, 1.830 serial primal; awake at the end 0; tail 0.1702 ms / tick
+[body gpu] E1 large wall E/T 250: 0 of 1050 samples differ, one-workgroup form vs indirect form; 1.031 vs 1.123 ms / tick
+[body gpu] D2 large wall E/T 250: lowest corner -0.0002 m, max penetration 5.08 mm
+[body gpu] D1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ between two parallel-primal runs; vs the serial primal: worst sample 8.5979 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 2800: 4.409 ms / tick parallel primal, 6.223 serial primal; awake at the end 230; tail 3.2522 ms / tick
+[body gpu] E1 large wall E/T 2800: 0 of 10250 samples differ, one-workgroup form vs indirect form; 6.669 vs 4.386 ms / tick
+[body gpu] D2 large wall E/T 2800: lowest corner -0.0082 m, max penetration 29.81 mm
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(768): error: Expected: (pen) <= (0.01), actual: 0.029812651990297478 vs 0.01
+D2 large wall E/T 2800: 29.81 mm: body 368 (10 voxels, awake) vs body 425; n (-0.756 -0.027 -0.654) rA (-0.088 -0.100 0.125) point (13.868 0.134 -2.084) bucket 4
+[body gpu]   D3 profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.044/0.041 world 0.300/0.026 pairs 0.727/0.348 prefix+scatter 0.050/0.046 sort 0.442/0.116 colour 0.333/0.118 primal 1.437/0.628 dual 0.053/0.040 hard_body 1.087/0.759 hard_apply 0.268/0.023 finish 0.004/0.003 warm 0.010/0.006 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000 p_broad 0.000/0.000 p_count 0.000/0.000 p_write 0.000/0.000 p_cap 0.000/0.000 q_floor 0.000/0.000 q_sum 0.000/0.000 q_red 0.000/0.000 q_solve 0.000/0.000
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost (83486 ms)
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55nPrimalLean
+[  FAILED  ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost
+ 2 FAILED TESTS
+== GREEN attempt 2 (17:20:11-17:20:50): the triangle index made constant (u[t++] -> a formula) ==
+[body gpu] F5.5n E/T 250: 110 bodies; lean twice: 0 bodies differ; one workgroup vs indirect (lean): 0 differ; lean vs the control (tree): 110 differ (not bit-equal, stated); contacts 0 vs 0, awake 0 vs 0
+[body gpu]   N3 primal group: lean 1.759 vs tree 1.668 ms (+5 %); N4 tick (30 per submit): lean 5.557 vs tree 5.194 ms (+7 %); the pairs group (untouched) 0.573 vs 0.619 ms
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2215): error: Expected: (p1) <= (0.80 * p0), actual: 1.7594144000000005 vs 1.3342830933333336
+[body gpu] F5.5n E/T 650: 282 bodies; lean twice: 0 bodies differ; one workgroup vs indirect (lean): 0 differ; lean vs the control (tree): 282 differ (not bit-equal, stated); contacts 0 vs 0, awake 0 vs 0
+[body gpu]   N3 primal group: lean 1.795 vs tree 1.488 ms (+21 %); N4 tick (30 per submit): lean 5.868 vs tree 5.573 ms (+5 %); the pairs group (untouched) 0.717 vs 0.724 ms
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2215): error: Expected: (p1) <= (0.80 * p0), actual: 1.7954911999999998 vs 1.1904307199999999
+[body gpu] F5.5n E/T 2800: 994 bodies; lean twice: 0 bodies differ; one workgroup vs indirect (lean): 0 differ; lean vs the control (tree): 992 differ (not bit-equal, stated); contacts 296 vs 53, awake 13 vs 5
+[body gpu]   N3 primal group: lean 2.468 vs tree 2.057 ms (+20 %); N4 tick (30 per submit): lean 9.180 vs tree 8.736 ms (+5 %); the pairs group (untouched) 1.658 vs 1.623 ms
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(2215): error: Expected: (p1) <= (0.80 * p0), actual: 2.4684437333333333 vs 1.6455731199999999
+[  FAILED  ] VoxFoundBodySimGpu.F55nPrimalLean (39416 ms)
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55nPrimalLean
+ 1 FAILED TEST

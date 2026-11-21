@@ -666,10 +666,11 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
         run(K_COLOUR_SCATTER, 0, m_nb);
         stamp(G_COLOUR);
         const VkDeviceSize args = (2ull * m_nb + 8ull * m_maxPairs + 96ull) * 4;
+        const uint32_t lean = m_primalLean ? 16u : 0u;   // F5.5n: pc.n bit 4
         if (prof && m_primalSplit) {   // F5.5m: one iteration's primal as four copies (pc.n: stop 1-4, bit 3 = loud)
             m_pipePrimal->bind(cmd);
             for (uint32_t stop = 1; stop <= 4; ++stop) {
-                const uint32_t n = stop | (m_primalQuiet ? 0u : 8u);
+                const uint32_t n = stop | (m_primalQuiet ? 0u : 8u) | lean;
                 if (m_fused) {
                     BodyPC pc{K_PRIMAL_ONE, 0, parity, n};
                     m_pipePrimal->pushConstants(cmd, &pc, sizeof(pc));
@@ -690,13 +691,13 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
         for (uint32_t it = 0; it < m_iterations; ++it) {
             m_pipePrimal->bind(cmd);
             if (m_fused) {   // few awake: every colour in one workgroup (the same numbers)
-                BodyPC pc{K_PRIMAL_ONE, 0, parity, 0};
+                BodyPC pc{K_PRIMAL_ONE, 0, parity, lean};
                 m_pipePrimal->pushConstants(cmd, &pc, sizeof(pc));
                 m_pipePrimal->dispatch(cmd, 1);
                 barrier(cmd);
             } else {
                 for (uint32_t c = 0; c < kMaxColours; ++c) {
-                    BodyPC pc{K_PRIMAL_SUB, c, parity, 0};
+                    BodyPC pc{K_PRIMAL_SUB, c, parity, lean};
                     m_pipePrimal->pushConstants(cmd, &pc, sizeof(pc));
                     vkCmdDispatchIndirect(cmd, m_aux.buf, args + 12ull * c);
                     barrier(cmd);

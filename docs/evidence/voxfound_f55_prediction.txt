@@ -1369,3 +1369,19 @@ the control's lower triangle was K*J[q]*J[p], not K*J[p]*J[q]) -- stated before 
   N4: the tick (30 per submit) -4 to -10 %.
   N5: live (the gate, CharacterTestbed): the primal group -20 to -45 %.
 RED: a stub knob (the flag set, F5.5a4's code still run) -- N3's guard fails.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5n RESULTS (2026-11-21; the prediction above untouched). Release; every run quiet. Evidence voxfound_f55n_headless.txt.
+  RED as predicted: the stub -- lean vs the control 0 bodies differ, the primal group -1 / -1 / -2 %.
+  The driver compile (uncached): R1 alone 24.4 s.
+  N1 PASS: lean twice 0 differ; one workgroup vs indirect (lean) 0 differ; lean vs the tree 110 / 282 / 992 differ
+     (stated: not bit-equal).
+  N3 MISSED (the lever is slower): the primal group +14 / +16 / +23 % (attempt 1); with the triangle's index made
+     constant (attempt 2, the F5.5i-style local-array suspicion) +5 / +21 / +20 %. N4 MISSED: the tick +4-7 %.
+  N2 MISSED: F5.5a4's D2 at E/T 2800 -- max penetration 29.81 mm vs <= 10 (the tree: 8.50; body 368, 10 voxels,
+     awake, vs body 425); the other rigs 6.44 / 5.08 mm (tree 5.70 / 6.84). N5 not run (N3 failed headless).
+  Why slower is not established (not dug into, by the owner's time-box): the one-step column sum puts 32 serial shared
+     reads on 27 lanes where the tree spread 42-wide adds over 16-8-4-2-1 lanes; the register footprint is unmeasured.
+CONCLUSION: REJECTED. The code is committed once (this commit) for the record and reverted in the next; the default
+stays F5.5a4's tree. F5 closes here by the owner's decision (see the plan, F5 row): the awake pile at ~1,000 bodies
+costs ~8.1-8.8 ms per tick against the 2 ms proposal -- MISSED, recorded; scaling issues are taken as they bite.

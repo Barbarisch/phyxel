@@ -709,6 +709,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
     if (p.contains("hard_spread") && lab.gpu) lab.gpu->setHardSpread(p["hard_spread"].get<bool>());   // F5.5j
     if (p.contains("pairs_split") && lab.gpu) lab.gpu->setPairsSplit(p["pairs_split"].get<bool>());   // F5.5k
     if (p.contains("primal_split") && lab.gpu) lab.gpu->setPrimalSplit(p["primal_split"].get<bool>());   // F5.5m
+    if (p.contains("primal_lean") && lab.gpu) lab.gpu->setPrimalLean(p["primal_lean"].get<bool>());   // F5.5n
     if (p.contains("pairs_once") && lab.gpu) lab.gpu->setPairsOnce(p["pairs_once"].get<bool>());   // F5.5l
     if (p.contains("ticks") && lab.useGpu) {   // F5.5b: synchronous GPU ticks (the policy after every tick when on)
         const int n = p["ticks"].get<int>();

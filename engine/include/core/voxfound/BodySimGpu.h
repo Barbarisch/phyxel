@@ -132,6 +132,10 @@ public:
         m_primalSplit = on;
         m_primalQuiet = quiet;
     }
+    /// F5.5n: the parallel primal's lean form -- each lane sums the 21 upper-triangle terms of the symmetric 6x6 + the
+    /// 6 rhs terms, and the 32 lanes' partials are added in one step (a column per lane, in lane order) instead of the
+    /// 5-level tree. Deterministic; NOT bit-equal to F5.5a4's tree form (false, the control). Default on.
+    void setPrimalLean(bool on) { m_primalLean = on; }
     /// F5.5g: the world pass tests each item once -- each thread stages its candidates (kStage, past the bodies'
     /// scratch) and copies them to its serial offset after the scan; a thread with more re-tests its own items. Bit-equal
     /// to the two-test pass (false, the F5.5f control). scramble (tests only): the copy in reversed order, the red for
@@ -225,6 +229,7 @@ private:
     bool m_hardSpread = true, m_hardScramble = false;   // F5.5j
     bool m_pairsSplit = false, m_pairsQuiet = true;     // F5.5k
     bool m_primalSplit = false, m_primalQuiet = true;   // F5.5m
+    bool m_primalLean = true;                           // F5.5n
     bool m_pairsOnce = true, m_pairsOnceScramble = false;   // F5.5l
     VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
     int m_pendingTicks = 0;

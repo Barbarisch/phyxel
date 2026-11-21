@@ -2121,3 +2121,97 @@ TEST_F(VoxFoundBodySimGpu, F55mPrimalSplit) {
         EXPECT_GT(v, s) << "the solve copy does more than the sums";
     }
 }
+
+
+// docs/VoxelFoundationPlan.md F5.5n (prediction: docs/evidence/voxfound_f55_prediction.txt N1-N5): the lean primal --
+// symmetric terms, a one-step reduction; deterministic, NOT bit-equal to F5.5a4's tree form (stated before the run)
+TEST_F(VoxFoundBodySimGpu, F55nPrimalLean) {
+    struct Run {
+        std::vector<SimBody> bodies;
+        BodySimGpuStats stats;
+        BodySimGpu::Profile prof;
+        double tickMs = 0.0;
+    };
+    for (const float e : {250.0f, 650.0f, 2800.0f}) {
+        SCOPED_TRACE(e);
+        LabPile pile = labLargeWall(e);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef mirror(pile.world, pile.mats, prm);
+        for (const Body& b : pile.bodies) mirror.add(b, b.vel, b.angVel);
+        std::string err;
+        ASSERT_TRUE(gpu.load(pile.world, pile.mats, mirror.bodies(), mirror.params(), &err)) << err;
+        int settleTicks = 0;
+        do {
+            step(60);
+            if (HasFatalFailure()) return;
+            settleTicks += 60;
+        } while (gpu.stats().awake > 0 && settleTicks < 6000);
+        ASSERT_EQ(gpu.stats().awake, 0u);
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        std::vector<SimBody> woken = mirror.bodies();
+        for (SimBody& b : woken) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        const size_t nb = woken.size();
+        // form: 0 = the default choice, 1 = one workgroup forced, 2 = indirect forced
+        auto runFor = [&](int ticks, bool lean, bool profile, int perSubmit, int form = 0) {
+            Run r;
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
+            gpu.setPrimalLean(lean);
+            if (form == 1) gpu.setFused(true);
+            if (form == 2) gpu.setFused(false);
+            gpu.setProfile(profile);
+            step(ticks, perSubmit);
+            r.tickMs = std::max(0.0, gpu.lastGpuMs()) / ticks;
+            gpu.setProfile(false);
+            gpu.setPrimalLean(true);
+            gpu.setFusedMaxAwake(128);
+            r.stats = gpu.stats();
+            r.prof = gpu.profile();
+            r.bodies = woken;
+            EXPECT_TRUE(gpu.read(r.bodies, &werr)) << werr;
+            return r;
+        };
+        auto differ = [](const Run& a, const Run& b) {
+            size_t n = 0;
+            for (size_t i = 0; i < a.bodies.size(); ++i)
+                if (a.bodies[i].pos != b.bodies[i].pos || a.bodies[i].quat != b.bodies[i].quat ||
+                    a.bodies[i].vel != b.bodies[i].vel || a.bodies[i].angVel != b.bodies[i].angVel ||
+                    a.bodies[i].asleep != b.bodies[i].asleep)
+                    ++n;
+            return n;
+        };
+        // N1: deterministic, the two forms equal, lean differs from the control (expected)
+        const Run l1 = runFor(60, true, false, 30), l2 = runFor(60, true, false, 30);
+        const Run one = runFor(60, true, false, 30, 1), ind = runFor(60, true, false, 30, 2);
+        const Run ctl = runFor(60, false, false, 30);
+        const size_t dRepeat = differ(l1, l2), dForms = differ(one, ind), dCtl = differ(l1, ctl);
+        std::printf("[body gpu] F5.5n E/T %.0f: %zu bodies; lean twice: %zu bodies differ; one workgroup vs indirect (lean): "
+                    "%zu differ; lean vs the control (tree): %zu differ (not bit-equal, stated); contacts %u vs %u, awake "
+                    "%u vs %u\n", e, nb, dRepeat, dForms, dCtl, l1.stats.contacts, ctl.stats.contacts, l1.stats.awake,
+                    ctl.stats.awake);
+        EXPECT_EQ(dRepeat, 0u) << "N1: lean is deterministic";
+        EXPECT_EQ(dForms, 0u) << "N1: the two forms compute the same numbers";
+        EXPECT_GT(dCtl, 0u) << "N1: lean reassociates (a lean that equals the control did not run)";
+        // N3/N4: the primal group (profiled, one tick per submit) and the tick (30 per submit), alternated x 3
+        auto mean = [](const BodySimGpu::Profile& p, int g) { return p.sumMs[g] / std::max(1, p.ticks); };
+        const int G_PRIMAL = 7, G_PAIRS = 3;
+        std::vector<double> pOn, pOff, qOn, qOff, tOn, tOff;
+        for (int rep = 0; rep < 3; ++rep) {
+            const Run a = runFor(30, false, true, 1);
+            const Run b = runFor(30, true, true, 1);
+            pOff.push_back(mean(a.prof, G_PRIMAL));
+            pOn.push_back(mean(b.prof, G_PRIMAL));
+            qOff.push_back(mean(a.prof, G_PAIRS));
+            qOn.push_back(mean(b.prof, G_PAIRS));
+            tOff.push_back(runFor(30, false, false, 30).tickMs);
+            tOn.push_back(runFor(30, true, false, 30).tickMs);
+        }
+        const double p1 = medianOf(pOn), p0 = medianOf(pOff), t1 = medianOf(tOn), t0 = medianOf(tOff);
+        std::printf("[body gpu]   N3 primal group: lean %.3f vs tree %.3f ms (%+.0f %%); N4 tick (30 per submit): lean %.3f "
+                    "vs tree %.3f ms (%+.0f %%); the pairs group (untouched) %.3f vs %.3f ms\n", p1, p0,
+                    100.0 * (p1 / p0 - 1.0), t1, t0, 100.0 * (t1 / t0 - 1.0), medianOf(qOn), medianOf(qOff));
+        EXPECT_LE(p1, 0.80 * p0) << "N3: the primal group must drop >= 20 %";
+    }
+}
