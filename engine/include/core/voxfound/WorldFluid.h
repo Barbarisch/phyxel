@@ -13,10 +13,12 @@
 
 #include <glm/glm.hpp>
 
+#include <memory>
 #include <utility>
 #include <vector>
 
 #include "core/matsim/MatSimCore.h"
+#include "core/matsim/MatSimParticles.h"
 #include "core/voxfound/Bodies.h"
 #include "core/voxfound/VoxelGrid.h"
 
@@ -29,6 +31,11 @@ public:
         int growWithin = 4;   // fill this close to a box face (not the grid's) grows the box
         bool grow = true;     // tests only: false = the box never grows (its faces act as walls; the red)
         MatSim::Config cfg;   // lattice is forced to 8
+        /// F6.4: the hybrid -- each tick MatSim's lab frame over the box: cell water about to move is woken into PBF
+        /// particles, stepped (1/60 s), settled back into cells, then the cells tick. The box also grows for particles.
+        bool hybrid = false;
+        MatSim::ParticleConfig particles;   // hybrid: 0 settleSpeed / wakeHeadCells take the lab's 0.35 m/s / 1 cell
+        bool hybridStub = false;            // tests only: the flag set, the frame not run (the red)
     };
 
     /// Validates grid.fill (empty is fine): its size, fill only in open voxels, units 1..FULL, a liquid or powder
@@ -49,6 +56,12 @@ public:
     MatSim::Ledger ledger() const;
     uint64_t tick() const { return tick_; }
     int grows() const { return grows_; }
+    /// F6.4: particles in flight, cells woken into particles and particles settled back (since attach)
+    size_t particles() const { return parts_ ? parts_->particles().size() : 0; }
+    uint64_t woken() const { return woken_; }
+    uint64_t settled() const { return settled_; }
+    /// F6.4: particles outside the box at the end of any tick (since attach; must stay 0)
+    uint64_t particlesOutside() const { return outside_; }
     bool boxActive() const { return have_; }
     glm::ivec3 boxLo() const { return lo_; }
     glm::ivec3 boxSize() const { return size_; }
@@ -59,6 +72,7 @@ private:
     void regrow(bool writeFirst = true);                    // a bigger box, the pressure state carried over
     void writeBack();
     bool nearOpenFace() const;
+    bool particleBounds(glm::ivec3& lo, glm::ivec3& hi) const;   // F6.4: voxels the particles are in
 
     VoxelGrid* g_ = nullptr;
     Params p_;
@@ -67,6 +81,8 @@ private:
     glm::ivec3 lo_{0}, size_{0};
     uint64_t tick_ = 0;
     int grows_ = 0;
+    std::unique_ptr<MatSim::MatSimParticles> parts_;   // F6.4 (hybrid)
+    uint64_t woken_ = 0, settled_ = 0, outside_ = 0;
 };
 
 /// F6.3: crumbs are powder -- every crumb's voxel in wf's grid (air after F5.1's extraction) gets one full cell of its material's

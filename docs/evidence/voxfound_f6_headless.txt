@@ -171,3 +171,24 @@ P1: right after the crumbs became rubble
 [Rubble] brick E/T 2800: 462 bodies, 1497 crumbs -> 1776 rubble cells; quiet at tick 221; mean height 25.14 -> 3.79 voxels; 0 cells over air; box grew 0 times
 [  PASSED  ] 69 tests.
 [  PASSED  ] 19 tests.
+== F6.4 RED (hybridStub: the frame not run) ==
+[----------] 1 test from WorldFluidHybrid
+[ RUN      ] WorldFluidHybrid.ParticlesWriteBackIntoTheWorld
+[WorldFluidHybrid] woken 0 cells, settled 0 particles, peak 0 in flight, 0 left (last at tick -1); 0 particle-ticks outside the box; box grew 2 times; depth per column 2.96-3.04 voxels (mean 3.00, level 3.00)
+H2: no cell was woken into particles
+H2: no particle settled back
+[  FAILED  ] WorldFluidHybrid.ParticlesWriteBackIntoTheWorld (2190 ms)
+[----------] 1 test from WorldFluidHybrid (2190 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] WorldFluidHybrid.ParticlesWriteBackIntoTheWorld
+== F6.4 GREEN (18:27:15-18:27:40) ==
+[----------] 1 test from WorldFluidHybrid
+[ RUN      ] WorldFluidHybrid.ParticlesWriteBackIntoTheWorld
+[WorldFluidHybrid] woken 1266 cells, settled 1266 particles, peak 1238 in flight, 0 left (last at tick 418); 0 particle-ticks outside the box; box grew 2 times; depth per column 3.00-3.00 voxels (mean 3.00, level 3.00)
+[       OK ] WorldFluidHybrid.ParticlesWriteBackIntoTheWorld (25056 ms)
+[----------] 1 test from WorldFluidHybrid (25056 ms total)
+[  PASSED  ] 1 test.
+== F6.4 regression: WorldFluid* + Rubble* + MatSimLattice8* ==
+[WorldFluidHybrid] woken 1266 cells, settled 1266 particles, peak 1238 in flight, 0 left (last at tick 418); 0 particle-ticks outside the box; box grew 2 times; depth per column 3.00-3.00 voxels (mean 3.00, level 3.00)
+[  PASSED  ] 16 tests.

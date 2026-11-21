@@ -3021,6 +3021,11 @@ each (all or nothing). On hand-built stone and brick walls broken at E/T 650 and
 (wall = solid + bodies + rubble) at every check, the rubble slides from ~25 voxels up to ~3-4 and rests by tick
 121-280, none over air.
 
+**F6.4, the particles write back (2026-11-21, CPU reference).** `WorldFluid::Params::hybrid` runs MatSim's hybrid
+frame (wake, PBF step, settle, cell tick) over the world box; the box grows for particles too and the ledger counts
+them. A water column released in a 6 m channel at 1/8 m: 1,266 cells became particles and all settled back into world
+voxels by 7 s, the ledger exact every tick, none outside the box, the water level at exactly the volume level.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

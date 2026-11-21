@@ -152,3 +152,17 @@ particles' units. Particles are positions in world cells, so a re-made box keeps
 RED: a stub hybrid (the flag set, the frame not run: the cells step alone) -- H2 fails (0 woken).
 RISK, stated: the hybrid was tuned at 1/3 and 1/9 m (settle speed, level test); at 1/8 m H3/H4 may miss -- recorded as
 numbers, not tuned here.
+
+F6.4 RESULTS (2026-11-21; the prediction above untouched). Release, CPU. Evidence voxfound_f6_headless.txt.
+  RED as predicted: the stub (the flag set, the frame not run) -- H2 fails: 0 woken, 0 settled (the cells alone level
+     the channel: 2.96-3.04 voxels).
+  H1 PASS: the world ledger (grid + box + particles) exact after every one of 1,800 ticks.
+  H2 PASS: 1,266 cells woken, 1,266 particles settled, peak 1,238 in flight; the box grew 2 times; 0 particle-ticks
+     outside the box.
+  H3 PASS: 0 particles left; the last one settled at tick 418 (7 s).
+  H4 PASS: every column 3.00 voxels deep (the volume level 3.00).
+  Regression: WorldFluid + Rubble + MatSimLattice8 16 / 16. CPU time: 25 s for the 30 s scene (the CPU reference; the
+     GPU particle path comes live).
+  The stated risk (tuned at 1/3 and 1/9 m) did not show on this scene.
+CONCLUSION: fast-moving water leaves the cells as particles and writes back into the world's voxels, conserved and
+level. Next F6.5: live.

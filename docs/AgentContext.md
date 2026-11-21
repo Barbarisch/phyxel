@@ -647,8 +647,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F6.2 done (CPU): VoxelGrid::fill + VoxFound::WorldFluid (a growing box around the fill, equal to one box over
       the world once the head field is carried over on growth -- MatSim's pressure state persists across ticks).
       F6.3 done (CPU): rubble per world material (MatSim id 64+m), crumbsToPowder; conservation exact, piles rest.
-      NEXT: F6.4 (the particles write back: WorldFluid's hybrid mode, the lab's frame over the world box), prediction
-      BEFORE code. Broad strokes (plan 9e).
+      F6.4 done (CPU): WorldFluid hybrid (wake / PBF / settle / cell tick over the world box); all settle back, level.
+      NEXT: F6.5 (live: a wall breaks in the engine lab, rubble piles, water pours and pools; L4), prediction BEFORE
+      code. Broad strokes (plan 9e).
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

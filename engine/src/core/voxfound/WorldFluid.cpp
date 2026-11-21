@@ -2,6 +2,7 @@
 #include "core/voxfound/WorldFluid.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "core/voxfound/MatSimWorld.h"
 
@@ -44,6 +45,13 @@ bool WorldFluid::attach(VoxelGrid* grid, std::string* err, Params p) {
     have_ = false;
     tick_ = 0;
     grows_ = 0;
+    woken_ = settled_ = outside_ = 0;
+    parts_.reset();
+    if (p_.hybrid) {   // F6.4: the lab's hybrid defaults (MatSimLab: settle_speed 0.35, wake_head_cells 1)
+        if (!(p_.particles.settleSpeed > 0.f)) p_.particles.settleSpeed = 0.35f;
+        if (!(p_.particles.wakeHeadCells > 0.f)) p_.particles.wakeHeadCells = 1.0f;
+        parts_ = std::make_unique<MatSimParticles>(p_.particles);
+    }
     if (err) err->clear();
     return true;
 }
@@ -61,12 +69,27 @@ bool WorldFluid::fillBounds(glm::ivec3& lo, glm::ivec3& hi) const {
     return any;
 }
 
+bool WorldFluid::particleBounds(glm::ivec3& lo, glm::ivec3& hi) const {
+    if (!parts_ || parts_->particles().empty()) return false;
+    bool any = false;
+    for (const Particle& q : parts_->particles()) {
+        const glm::ivec3 v(int(std::floor(q.x)), int(std::floor(q.y)), int(std::floor(q.z)));
+        lo = any ? glm::min(lo, v) : v;
+        hi = any ? glm::max(hi, v) : v;
+        any = true;
+    }
+    return any;
+}
+
 bool WorldFluid::makeBox(bool keepOld) {
-    glm::ivec3 lo, hi;
-    if (!fillBounds(lo, hi)) {
+    glm::ivec3 lo, hi, plo, phi;
+    const bool cells = fillBounds(lo, hi), parts = particleBounds(plo, phi);
+    if (!cells && !parts) {
         have_ = false;
         return false;
     }
+    if (!cells) lo = plo, hi = phi;
+    else if (parts) lo = glm::min(lo, plo), hi = glm::max(hi, phi);
     lo = glm::max(lo - p_.margin, glm::ivec3(0));
     hi = glm::min(hi + p_.margin, g_->dim - 1);
     if (keepOld && have_) {   // a growth never shrinks: the old box stays inside the new one
@@ -123,6 +146,13 @@ bool WorldFluid::nearOpenFace() const {
                     if (cellMaterial(cell) != kSolid && cellFill(cell) != 0) return true;
                 }
     }
+    if (parts_)   // F6.4: a particle this close to an open face grows the box too
+        for (const Particle& q : parts_->particles())
+            for (int axis = 0; axis < 3; ++axis) {
+                const float c = axis == 0 ? q.x : axis == 1 ? q.y : q.z;
+                if (lo_[axis] > 0 && c - float(lo_[axis]) < float(w)) return true;
+                if (hi[axis] < g_->dim[axis] - 1 && float(hi[axis] + 1) - c < float(w)) return true;
+            }
     return false;
 }
 
@@ -139,7 +169,18 @@ StepStats WorldFluid::step(int n) {
             if (!(lo_ == oldLo && size_ == oldSize)) ++grows_;
         }
         if (have_) {
-            const StepStats s = core_.step(1);
+            StepStats s;
+            if (parts_ && !p_.hybridStub) {   // F6.4: MatSimLab::hybridStep's frame
+                woken_ += parts_->wake(core_);
+                parts_->step(core_, 1.0 / 60.0);
+                settled_ += parts_->settle(core_);
+                s = parts_->stepCells(core_);
+                const glm::ivec3 hi = lo_ + size_;
+                for (const Particle& q : parts_->particles())
+                    if (q.x < lo_.x || q.y < lo_.y || q.z < lo_.z || q.x >= hi.x || q.y >= hi.y || q.z >= hi.z) ++outside_;
+            } else {
+                s = core_.step(1);
+            }
             sum.ticks += s.ticks;
             sum.eligibleBlocks += s.eligibleBlocks;
             sum.evaluatedBlocks += s.evaluatedBlocks;
@@ -266,6 +307,8 @@ Ledger WorldFluid::ledger() const {
     Ledger l{};
     if (!g_) return l;
     if (have_) l = core_.ledger();
+    if (parts_)
+        for (const Particle& q : parts_->particles()) l[q.mat] += q.units;   // F6.4: in flight
     const glm::ivec3 hi = lo_ + size_ - 1;
     for (size_t i = 0; i < g_->fill.size(); ++i) {
         const Cell c = g_->fill[i];

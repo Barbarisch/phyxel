@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <string>
 
@@ -231,4 +232,54 @@ TEST(WorldFluidDiag, DamBreakPressureOff) {
     const std::string d = runBoth(g, wf, ref, 2000, 100, l0);
     std::printf("[WorldFluidDiag] pressure off: %d grows; %s\n", wf.grows(), d.empty() ? "equal" : d.c_str());
     EXPECT_EQ(d, "");
+}
+
+// docs/VoxelFoundationPlan.md F6.4 (prediction: docs/evidence/voxfound_f6_prediction.txt H1-H4): the hybrid -- cell
+// water about to move becomes PBF particles, which settle back into the world's cells. A 1.5 x 1.5 x 1 m column released
+// in a 6 x 2 x 1 m channel at 1/8 m, 1,800 ticks (30 s).
+TEST(WorldFluidHybrid, ParticlesWriteBackIntoTheWorld) {
+    for (bool stub : {false}) {
+        VoxelGrid g;
+        g.resize({48, 16, 8});
+        fillBox(g, Mat::Water, {0, 0, 0}, {12, 12, 8});
+        const Ledger l0 = gridLedger(g);
+        WorldFluid wf;
+        WorldFluid::Params p;
+        p.hybrid = true;
+        p.hybridStub = stub;
+        std::string err;
+        ASSERT_TRUE(wf.attach(&g, &err, p)) << err;
+        size_t peak = 0;
+        int lastParticles = -1;
+        for (int t = 1; t <= 1800; ++t) {
+            wf.step(1);
+            ASSERT_EQ(wf.ledger(), l0) << "H1: the world ledger (grid + box + particles) changed at tick " << t;
+            peak = std::max(peak, wf.particles());
+            if (wf.particles() > 0) lastParticles = t;
+        }
+        // H4: per x column, the water depth in voxels (units / 256 over the 8-voxel depth)
+        double lo = 1e9, hi = -1e9, total = 0.0;
+        for (int x = 0; x < 48; ++x) {
+            double units = 0.0;
+            for (int y = 0; y < 16; ++y)
+                for (int z = 0; z < 8; ++z) units += cellFill(g.fill[g.idx({x, y, z})]);
+            const double depth = units / 256.0 / 8.0;
+            lo = std::min(lo, depth);
+            hi = std::max(hi, depth);
+            total += depth;
+        }
+        const double want = 12.0 * 12.0 / 48.0;   // voxels: 1.5 x 1.5 m over 6 m = 0.375 m = 3 voxels
+        std::printf("[WorldFluidHybrid] woken %llu cells, settled %llu particles, peak %zu in flight, %zu left (last at "
+                    "tick %d); %llu particle-ticks outside the box; box grew %d times; depth per column %.2f-%.2f voxels "
+                    "(mean %.2f, level %.2f)\n", (unsigned long long)wf.woken(), (unsigned long long)wf.settled(), peak,
+                    wf.particles(), lastParticles, (unsigned long long)wf.particlesOutside(), wf.grows(), lo, hi,
+                    total / 48.0, want);
+        EXPECT_GT(wf.woken(), 0u) << "H2: no cell was woken into particles";
+        EXPECT_GT(wf.settled(), 0u) << "H2: no particle settled back";
+        EXPECT_GE(wf.grows(), 1) << "H2: the box never grew";
+        EXPECT_EQ(wf.particlesOutside(), 0u) << "H2: a particle left the box";
+        EXPECT_EQ(wf.particles(), 0u) << "H3: particles still in flight at 30 s";
+        EXPECT_LE(hi - lo, 1.0) << "H4: not level";
+        EXPECT_NEAR(total / 48.0, want, 1.0) << "H4: off the volume level";
+    }
 }
