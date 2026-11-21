@@ -140,3 +140,34 @@ F6 headless evidence (docs/evidence/voxfound_f6_prediction.txt). Release: build/
 [----------] 1 test from WorldFluidDiag (3661 ms total)
 [  PASSED  ] 6 tests.
 == F6.2 regression: 138 / 138 pass (17:50:59-18:04:52) ==
+== F6.3 RED (crumbsToPowder writes nothing) ==
+[----------] 2 tests from Rubble
+[ RUN      ] Rubble.CrumbsBecomePilesConservingEveryMaterial
+P1: right after the crumbs became rubble
+[  FAILED  ] Rubble.CrumbsBecomePilesConservingEveryMaterial (12 ms)
+[ RUN      ] Rubble.IdentityAndRefusals
+[  FAILED  ] Rubble.IdentityAndRefusals (0 ms)
+[----------] 2 tests from Rubble (12 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] Rubble.CrumbsBecomePilesConservingEveryMaterial
+[  FAILED  ] Rubble.IdentityAndRefusals
+== F6.3 GREEN (18:06:16-18:06:31) ==
+[----------] 2 tests from Rubble
+[ RUN      ] Rubble.CrumbsBecomePilesConservingEveryMaterial
+[Rubble] stone E/T 650: 230 bodies, 440 crumbs -> 578 rubble cells; quiet at tick 121; mean height 25.36 -> 3.02 voxels; 0 cells over air; box grew 0 times
+[Rubble] stone E/T 2800: 472 bodies, 1423 crumbs -> 1676 rubble cells; quiet at tick 280; mean height 26.12 -> 3.76 voxels; 0 cells over air; box grew 0 times
+[Rubble] brick E/T 650: 214 bodies, 434 crumbs -> 566 rubble cells; quiet at tick 129; mean height 24.81 -> 3.06 voxels; 0 cells over air; box grew 0 times
+[Rubble] brick E/T 2800: 462 bodies, 1497 crumbs -> 1776 rubble cells; quiet at tick 221; mean height 25.14 -> 3.79 voxels; 0 cells over air; box grew 0 times
+[       OK ] Rubble.CrumbsBecomePilesConservingEveryMaterial (14372 ms)
+[ RUN      ] Rubble.IdentityAndRefusals
+[       OK ] Rubble.IdentityAndRefusals (0 ms)
+[----------] 2 tests from Rubble (14373 ms total)
+[  PASSED  ] 2 tests.
+== F6.3 regression: CPU MatSim* + WorldFluid* + Rubble* (18:07:09-18:15:40), GPU MatSimGpuParity* + MatSimParticlesGpu* (to 18:25:12) ==
+[Rubble] stone E/T 650: 230 bodies, 440 crumbs -> 578 rubble cells; quiet at tick 121; mean height 25.36 -> 3.02 voxels; 0 cells over air; box grew 0 times
+[Rubble] stone E/T 2800: 472 bodies, 1423 crumbs -> 1676 rubble cells; quiet at tick 280; mean height 26.12 -> 3.76 voxels; 0 cells over air; box grew 0 times
+[Rubble] brick E/T 650: 214 bodies, 434 crumbs -> 566 rubble cells; quiet at tick 129; mean height 24.81 -> 3.06 voxels; 0 cells over air; box grew 0 times
+[Rubble] brick E/T 2800: 462 bodies, 1497 crumbs -> 1776 rubble cells; quiet at tick 221; mean height 25.14 -> 3.79 voxels; 0 cells over air; box grew 0 times
+[  PASSED  ] 69 tests.
+[  PASSED  ] 19 tests.

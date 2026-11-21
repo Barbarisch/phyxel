@@ -73,6 +73,16 @@ constexpr uint8_t Snow = 3;
 constexpr uint8_t Gravel = 4;
 } // namespace Mat
 
+/// VoxelFoundationPlan F6.3: rubble -- one powder per world material m (1..63), id kRubbleBase + m, so a ledger keeps
+/// which material it came from. All at 45 deg (gravel's grounded angle), one angle for every material (broad strokes).
+constexpr uint8_t kRubbleBase = 64;
+inline uint8_t rubbleOf(uint8_t worldMat) {
+    return worldMat >= 1 && worldMat <= 63 ? static_cast<uint8_t>(kRubbleBase + worldMat) : 0;
+}
+inline uint8_t worldMaterialOfRubble(uint8_t id) {
+    return id > kRubbleBase && id <= kRubbleBase + 63 ? static_cast<uint8_t>(id - kRubbleBase) : 0;
+}
+
 /// Occupancy at the lattice's finest cell, in world coordinates (1/9 m on lattice 9, 1/8 m world voxels on 8).
 enum class Occ : uint8_t { Empty, Solid, Unknown };
 using MicroSolidFn = std::function<Occ(int mx, int my, int mz)>;

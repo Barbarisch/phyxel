@@ -3015,6 +3015,12 @@ the ledger exact; a settled world evaluates nothing. Found on the way: MatSim's 
 ticks, so a re-made box ran differently (equal with pressure off) -- the growth now carries the pointers and head words
 over. Owed: a box holding trapped contents does not grow; the GPU path and the store's codec come with F6.5.
 
+**F6.3, crumbs are powder (2026-11-21, CPU reference).** MatSim gets a rubble powder per world material (id 64 + m,
+45 deg for all -- one angle, broad strokes); `VoxFound::crumbsToPowder` turns F5.1's crumbs into one full rubble cell
+each (all or nothing). On hand-built stone and brick walls broken at E/T 650 and 2800: every material conserved exactly
+(wall = solid + bodies + rubble) at every check, the rubble slides from ~25 voxels up to ~3-4 and rests by tick
+121-280, none over air.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

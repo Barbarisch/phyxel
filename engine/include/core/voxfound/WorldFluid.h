@@ -13,7 +13,11 @@
 
 #include <glm/glm.hpp>
 
+#include <utility>
+#include <vector>
+
 #include "core/matsim/MatSimCore.h"
+#include "core/voxfound/Bodies.h"
 #include "core/voxfound/VoxelGrid.h"
 
 namespace Phyxel::Core::VoxFound {
@@ -38,6 +42,8 @@ public:
     void wallsChanged();
     /// Puts fluid in an open voxel (units 0 = empties it). Refuses a solid voxel, units > FULL, a bad material.
     bool setFill(glm::ivec3 v, uint8_t material, uint32_t units, std::string* err = nullptr);
+    /// F6.3: many fills at once into EMPTY open voxels (one box re-made, the pressure state carried). All or nothing.
+    bool addFill(const std::vector<std::pair<glm::ivec3, MatSim::Cell>>& cells, std::string* err = nullptr);
 
     /// Per-material units in the world: grid.fill outside the box + the box's own ledger (trapped contents included).
     MatSim::Ledger ledger() const;
@@ -50,7 +56,7 @@ public:
 private:
     bool fillBounds(glm::ivec3& lo, glm::ivec3& hi) const;   // inclusive voxel bounds of grid.fill; false = none
     bool makeBox(bool keepOld = false);                     // from grid.fill; false = no fill (no box)
-    void regrow();                                          // a bigger box, the pressure state carried over
+    void regrow(bool writeFirst = true);                    // a bigger box, the pressure state carried over
     void writeBack();
     bool nearOpenFace() const;
 
@@ -62,5 +68,10 @@ private:
     uint64_t tick_ = 0;
     int grows_ = 0;
 };
+
+/// F6.3: crumbs are powder -- every crumb's voxel in wf's grid (air after F5.1's extraction) gets one full cell of its material's
+/// rubble (MatSim::rubbleOf). Refuses (nothing written) a crumb over a solid voxel, an unknown material, or a voxel
+/// that already holds fill.
+bool crumbsToPowder(const std::vector<Crumb>& crumbs, WorldFluid& wf, std::string* err = nullptr);
 
 }  // namespace Phyxel::Core::VoxFound

@@ -159,10 +159,10 @@ StepStats WorldFluid::step(int n) {
 // re-made from the cells alone runs differently (measured, F6.2: equal with the pressure rule off, not with it on).
 // The old box's pointers and head words are carried into the new box by world cell; every block is woken (the next
 // pressure pass is a full one).
-void WorldFluid::regrow() {
+void WorldFluid::regrow(bool writeFirst) {
     const MatSimCore old = core_;
     const glm::ivec3 oLo = lo_, oSize = size_;
-    writeBack();
+    if (writeFirst) writeBack();
     if (!makeBox(true)) return;
     if (!p_.cfg.pressure) return;
     const glm::ivec3 nLo = lo_, nSize = size_;
@@ -223,6 +223,43 @@ bool WorldFluid::setFill(glm::ivec3 v, uint8_t material, uint32_t units, std::st
     }
     if (err) err->clear();
     return true;
+}
+
+bool WorldFluid::addFill(const std::vector<std::pair<glm::ivec3, Cell>>& cells, std::string* err) {
+    auto refuse = [&](const std::string& r) {
+        if (err) *err = r;
+        return false;
+    };
+    if (!g_) return refuse("not attached");
+    const uint32_t full = fullUnits(kCpm, 8);
+    writeBack();   // grid.fill current before it is checked and written
+    for (const auto& [v, c] : cells) {
+        if (!g_->in(v)) return refuse("outside the grid");
+        const size_t i = g_->idx(v);
+        if (g_->mat[i] != 0) return refuse("a solid voxel");
+        if (!g_->fill.empty() && g_->fill[i] != 0) return refuse("a voxel that already holds fill");
+        if (!mobile(cellMaterial(c)) || cellFill(c) == 0 || cellFill(c) > full) return refuse("not a fluid cell");
+    }
+    if (have_ && core_.trappedUnits() != 0) return refuse("the box holds trapped contents and cannot be re-made");
+    if (g_->fill.empty()) g_->fill.assign(g_->size(), 0u);
+    for (const auto& [v, c] : cells) g_->fill[g_->idx(v)] = c;
+    if (have_) regrow(false);   // around the new fill too, the pressure state carried; else step() makes the box
+    if (err) err->clear();
+    return true;
+}
+
+bool crumbsToPowder(const std::vector<Crumb>& crumbs, WorldFluid& wf, std::string* err) {
+    std::vector<std::pair<glm::ivec3, Cell>> cells;
+    cells.reserve(crumbs.size());
+    for (const Crumb& c : crumbs) {
+        const uint8_t r = rubbleOf(c.mat);
+        if (!r) {
+            if (err) *err = "a crumb of an unknown material " + std::to_string(int(c.mat));
+            return false;
+        }
+        cells.push_back({c.pos, makeCell(r, fullUnits(kCpm, 8))});
+    }
+    return wf.addFill(cells, err);
 }
 
 Ledger WorldFluid::ledger() const {

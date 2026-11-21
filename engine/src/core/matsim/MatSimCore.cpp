@@ -72,6 +72,8 @@ const std::array<MaterialDef, 256>& materialTable() {
         t[Mat::Sand] = {"Sand", Phase::Powder, 675};
         t[Mat::Snow] = {"Snow", Phase::Powder, 781};
         t[Mat::Gravel] = {"Gravel", Phase::Powder, 1000};
+        for (int m = 1; m <= 63; ++m)   // F6.3: rubble of world material m, at gravel's 45 deg
+            t[kRubbleBase + m] = {"Rubble " + std::to_string(m), Phase::Powder, 1000};
         t[kSolid] = {"SOLID", Phase::Solid, 0};
         return t;
     }();

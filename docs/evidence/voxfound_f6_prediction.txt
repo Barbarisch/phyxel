@@ -117,3 +117,19 @@ THE CHANGE:
   P5: the refusals: a crumb over a solid voxel, an unknown material (0 or > 63).
 RED: a stub crumbsToPowder (returns true, writes nothing) -- P1 fails (the rubble term is 0).
 Not here: the bodies' motion (F5; counted as voxels), anything live (F6.5).
+
+F6.3 RESULTS (2026-11-21; the prediction above untouched). Release, CPU. Evidence voxfound_f6_headless.txt.
+  RED as predicted: the stub (writes nothing) -- P1 fails right after the conversion; the refusals fail.
+  P1 PASS: per world material, wall + floor voxels x 256 = solid + body voxels x 256 + rubble units, exact after the
+     conversion, every 50 ticks and at the end, on four walls (stone / brick, E/T 650 / 2800).
+  P2 PASS: quiet at tick 121 / 280 / 129 / 221.
+  P3 PASS: the rubble's mean height 25.4 -> 3.0, 26.1 -> 3.8, 24.8 -> 3.1, 25.1 -> 3.8 voxels; 0 cells over air. Crumbs
+     440 / 1,423 / 434 / 1,497 -> rubble cells 578 / 1,676 / 566 / 1,776 (a sliding powder spreads over more cells).
+  P4 / P5 PASS: each rubble id maps back; a crumb over a solid voxel, material 0 or 70, a batch with one bad crumb (all
+     or nothing: nothing written), a voxel already holding fill -- refused.
+  Regression (the material table grew): MatSim CPU + WorldFluid + Rubble 69 / 69, MatSim GPU parity + particles GPU
+     19 / 19 (18:07-18:25).
+  Not measured here: the bodies' motion -- extraction removed their voxels, so crumbs resting on a body fell through
+     where it was (the bodies are F5's, counted in P1 as voxels).
+CONCLUSION: a broken wall's crumbs are rubble in the world: they slide into piles and every material is conserved
+from the wall through the bodies and the piles. Next F6.4: the particles write back.
