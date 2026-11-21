@@ -33,6 +33,7 @@ struct BodySimGpuStats {
     // world item count, the awake bodies with more world candidates than the cap, and the summed world candidates
     uint32_t dgMaxCand = 0, dgMaxItems = 0, dgOverCap = 0, dgSumCand = 0;
     uint32_t worldRedo = 0;   // F5.5g (summed): world-pass threads with more than kStage candidates (re-tested)
+    uint32_t pairRedo = 0;    // F5.5l (summed): NARROW threads with more than kStage candidates (re-tested)
     uint32_t spreadFallback = 0;   // F5.5h (summed): awake bodies whose chunks overflowed (F5.5g's pass instead)
     uint32_t awake = 0;                       // after the last tick
 };
@@ -129,6 +130,14 @@ public:
         m_onceScramble = scramble;
     }
     static constexpr uint32_t kStage = 48;   // F5.5g: staged candidates per world-pass thread
+    /// F5.5l: NARROW tests each pair corner once -- each thread stages its candidates (kStage, F5.5g's region: the world
+    /// pass is done with it) while it counts, then copies them to its serial offset after the prefix; a thread with more
+    /// re-tests its own corners (counted: pairRedo). Bit-equal to the two-test pass (false, the F5.5k control). scramble
+    /// (tests only): the copy in reversed order within the pair, the red for the equality check. Default on.
+    void setPairsOnce(bool on, bool scramble = false) {
+        m_pairsOnce = on;
+        m_pairsOnceScramble = scramble;
+    }
     /// F5.5h: a big body's world items over more than one workgroup -- the items in chunks of kChunkItems (at most
     /// kMaxChunks per body), one workgroup per chunk, then per body the chunks compacted in serial order and capped.
     /// Bit-equal to F5.5g's one-workgroup-per-body pass (false, the control). scramble (tests only): the chunks placed
@@ -204,6 +213,7 @@ private:
     bool m_worldSpread = true, m_spreadScramble = false;   // F5.5h
     bool m_hardSpread = true, m_hardScramble = false;   // F5.5j
     bool m_pairsSplit = false, m_pairsQuiet = true;     // F5.5k
+    bool m_pairsOnce = true, m_pairsOnceScramble = false;   // F5.5l
     VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
     int m_pendingTicks = 0;
     bool m_pendingTimed = false;

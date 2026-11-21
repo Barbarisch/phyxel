@@ -1884,3 +1884,102 @@ TEST_F(VoxFoundBodySimGpu, F55kPairsSplit) {
         EXPECT_GT(cp, cnt) << "the cap copy does more than the count copy";
     }
 }
+
+// docs/VoxelFoundationPlan.md F5.5l (prediction: docs/evidence/voxfound_f55_prediction.txt L1-L6): each pair corner
+// tested once -- NARROW's candidates staged in the count and copied to their serial offset, bit-equal to the two-test pass
+TEST_F(VoxFoundBodySimGpu, F55lPairsOnce) {
+    struct Run {
+        std::vector<SimBody> bodies;
+        BodySimGpuStats stats;
+        BodySimGpu::Profile prof;
+        double tickMs = 0.0;
+    };
+    for (const float e : {250.0f, 650.0f, 2800.0f}) {
+        SCOPED_TRACE(e);
+        LabPile pile = labLargeWall(e);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef mirror(pile.world, pile.mats, prm);
+        for (const Body& b : pile.bodies) mirror.add(b, b.vel, b.angVel);
+        std::string err;
+        ASSERT_TRUE(gpu.load(pile.world, pile.mats, mirror.bodies(), mirror.params(), &err)) << err;
+        int settleTicks = 0;
+        do {
+            step(60);
+            if (HasFatalFailure()) return;
+            settleTicks += 60;
+        } while (gpu.stats().awake > 0 && settleTicks < 6000);
+        ASSERT_EQ(gpu.stats().awake, 0u);
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        std::vector<SimBody> woken = mirror.bodies();
+        for (SimBody& b : woken) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        const size_t nb = woken.size();
+        // mode: 0 = the two-test pass, 1 = once, 2 = once + the scramble (test only)
+        auto runFor = [&](int ticks, int mode, bool profile, int perSubmit) {
+            Run r;
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
+            gpu.setPairsOnce(mode != 0, mode == 2);
+            gpu.setProfile(profile);
+            step(ticks, perSubmit);
+            r.tickMs = std::max(0.0, gpu.lastGpuMs()) / ticks;
+            gpu.setProfile(false);
+            gpu.setPairsOnce(true);
+            r.stats = gpu.stats();
+            r.prof = gpu.profile();
+            r.bodies = woken;
+            EXPECT_TRUE(gpu.read(r.bodies, &werr)) << werr;
+            return r;
+        };
+        auto differ = [](const Run& a, const Run& b) {
+            size_t n = 0;
+            for (size_t i = 0; i < a.bodies.size(); ++i)
+                if (a.bodies[i].pos != b.bodies[i].pos || a.bodies[i].quat != b.bodies[i].quat ||
+                    a.bodies[i].vel != b.bodies[i].vel || a.bodies[i].angVel != b.bodies[i].angVel ||
+                    a.bodies[i].asleep != b.bodies[i].asleep)
+                    ++n;
+            return n;
+        };
+        auto sameCounters = [](const BodySimGpuStats& a, const BodySimGpuStats& b) {
+            return a.contacts == b.contacts && a.candidates == b.candidates && a.capped == b.capped &&
+                   a.deepPoints == b.deepPoints && a.pairsTested == b.pairsTested && a.hardFires == b.hardFires &&
+                   a.scratchOverflow == b.scratchOverflow && a.awake == b.awake;
+        };
+        // L2: bit-equal over 60 ticks, and the scramble's red
+        const Run twice = runFor(60, 0, false, 30);
+        const Run once = runFor(60, 1, false, 30);
+        const Run scr = runFor(60, 2, false, 30);
+        const size_t dOnce = differ(twice, once), dScr = differ(twice, scr);
+        std::printf("[body gpu] F5.5l E/T %.0f: %zu bodies; pairs once vs twice over 60 ticks: %zu bodies differ, counters "
+                    "%s (candidates %llu vs %llu, deep %llu vs %llu, overflow %u vs %u); pair redo threads %u; RED the "
+                    "scramble: %zu differ\n", e, nb, dOnce, sameCounters(twice.stats, once.stats) ? "equal" : "DIFFER",
+                    (unsigned long long)once.stats.candidates, (unsigned long long)twice.stats.candidates,
+                    (unsigned long long)once.stats.deepPoints, (unsigned long long)twice.stats.deepPoints,
+                    once.stats.scratchOverflow, twice.stats.scratchOverflow, once.stats.pairRedo, dScr);
+        EXPECT_EQ(dOnce, 0u) << "L2: once changed the simulation";
+        EXPECT_TRUE(sameCounters(twice.stats, once.stats)) << "L2: once changed a counter";
+        EXPECT_EQ(once.stats.pairRedo, 0u) << "L2: no thread past the stage on these piles";
+        EXPECT_GT(dScr, 0u) << "L2 red: the scrambled order must show in the bodies";
+        // L1/L3/L4: the pairs group and the world group (profiled, one tick per submit) and the tick (30 per submit),
+        // alternated
+        auto mean = [](const BodySimGpu::Profile& p, int g) { return p.sumMs[g] / std::max(1, p.ticks); };
+        const int G_WORLD = 2, G_PAIRS = 3;
+        std::vector<double> pOn, pOff, wOn, wOff, tOn, tOff;
+        for (int rep = 0; rep < 3; ++rep) {
+            const Run a = runFor(30, 0, true, 1);
+            const Run b = runFor(30, 1, true, 1);
+            pOff.push_back(mean(a.prof, G_PAIRS));
+            pOn.push_back(mean(b.prof, G_PAIRS));
+            wOff.push_back(mean(a.prof, G_WORLD));
+            wOn.push_back(mean(b.prof, G_WORLD));
+            tOff.push_back(runFor(30, 0, false, 30).tickMs);
+            tOn.push_back(runFor(30, 1, false, 30).tickMs);
+        }
+        const double p1 = medianOf(pOn), p0 = medianOf(pOff), t1 = medianOf(tOn), t0 = medianOf(tOff);
+        std::printf("[body gpu]   L3 pairs group: once %.3f vs twice %.3f ms (%+.0f %%); L4 tick (30 per submit): once "
+                    "%.3f vs twice %.3f ms (%+.0f %%); the world group (untouched) %.3f vs %.3f ms\n", p1, p0,
+                    100.0 * (p1 / p0 - 1.0), t1, t0, 100.0 * (t1 / t0 - 1.0), medianOf(wOn), medianOf(wOff));
+        EXPECT_LE(p1, 0.80 * p0) << "L3: the pairs group must drop >= 20 %";
+    }
+}

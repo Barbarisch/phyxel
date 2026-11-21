@@ -11,6 +11,7 @@
 //   F5.5a3: 24 WORLD and 25 HARD_APPLY one workgroup per awake body
 //   F5.5h: 31 WORLD_UNITS 32 WORLD_CHUNKS 33 WORLD_FINISH; F5.5j: 34 HARD_UNITS 35 HARD_CHUNKS 36 HARD_FINISH
 //   F5.5k: 21 NARROW with arg = a diagnostic stop (1 count, 2 write, 3 the cap), n bit 0 = quiet (the pairs split)
+//   F5.5l: 21 NARROW n bit 1 = once (each corner tested once: staged, then copied), bit 2 = the scramble (tests only)
 //   F5.5a4: 26 COLOUR_COUNT  27 COLOUR_PREFIX  28 COLOUR_SCATTER; in voxfound_bodies_primal.comp (VF_PRIMAL, 256):
 //   29 PRIMAL (indirect per colour, a 32-thread group per body)  30 PRIMAL (every colour, one workgroup)
 // GPU differences: candidates go to a per-worker scratch (worker = body i; its pairs j > i reuse it); a world surface
@@ -115,6 +116,7 @@ const uint S_CAND = 0, S_CAPPED = 1, S_DEEP = 2, S_PAIRS = 3, S_HARD = 4, S_OVF_
            S_UNCOL = 7, S_MAXCOL = 8, S_MAXCONS = 9, S_AWAKE = 10, S_TICKCOL = 11, S_NPAIRS = 12,
            S_NHPAIRS = 13, S_NAWAKE = 14, S_OVF_PAIRS = 15, S_NCONS = 16,
            S_DG_MAXCAND = 17, S_DG_MAXITEMS = 18, S_DG_OVERCAP = 19, S_DG_SUMCAND = 20, S_REDO = 21, S_SPREAD_FB = 22,   // F5.5f: the split's w_count
+           S_PREDO = 23,   // F5.5l: NARROW threads past the stage (re-tested)
            S_BODY = 32;
 const uint STATIC = 0xFFFFFFFFu, UNC = 0xFFFFFFFFu, NOCOL = 0xFFFFFFFEu;
 const float INF = 1e30;
@@ -797,11 +799,15 @@ void coopEmit(uint a, uint b, uint base, uint cnt, uint stop) {
 
 // pass 21: one workgroup per contact pair (persistent groups); scratch region = the group's.
 // F5.5k: stop 0 = the real pass; a diagnostic copy stops each pair after the count (1), the write (2) or the cap up to the
-// emit (3) and goes on to its next pair; quiet = no counter, no wake (stop and quiet are push constants: uniform)
-void narrowPairs(uint stop, bool quiet) {
+// emit (3) and goes on to its next pair; quiet = no counter, no wake (stop and quiet are push constants: uniform).
+// F5.5l: once = each corner tested once -- the count stages this thread's candidates (F5.5g's per-thread stage, past the
+// bodies' scratch: the world pass is done with it), then copies them to the serial offset (the write's slots and drops);
+// a thread with more than STAGE re-tests its corners (S_PREDO). scramble (tests only): the copy reversed in the pair
+void narrowPairs(uint stop, bool quiet, bool once, bool scramble) {
     uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
     uint np = min(state[S_NPAIRS], MAXP());
     uint base = g * prm[P_SCRATCH];
+    uint stBase = prm[P_NB] * prm[P_SCRATCH] + (g * 64u + lid) * STAGE;   // F5.5l: this thread's stage
     for (uint p = g; p < np; p += G) {
         uint a = aux[auxPairs(0u) + 2u * p], b = aux[auxPairs(0u) + 2u * p + 1u];
         Body A = bodies[a], B = bodies[b];
@@ -811,7 +817,11 @@ void narrowPairs(uint stop, bool quiet) {
         Cand c;
         vec3 ns;
         uint n = 0u;
-        for (uint q = q0; q < q1; ++q) n += pairCorner(a, b, A, B, RA, RB, mu, q, !quiet, c, ns) ? 1u : 0u;
+        for (uint q = q0; q < q1; ++q)
+            if (pairCorner(a, b, A, B, RA, RB, mu, q, !quiet, c, ns)) {
+                if (once && n < STAGE) scratch[stBase + n] = c;   // F5.5l: staged
+                ++n;
+            }
         gwCnt[lid] = n;
         memoryBarrierShared();
         barrier();
@@ -823,11 +833,19 @@ void narrowPairs(uint stop, bool quiet) {
         memoryBarrierShared();
         barrier();
         if (stop == 1u) continue;   // F5.5k: the count copy (the barrier above closes this pair's shared use)
-        uint off = gwOff[lid], scr = prm[P_SCRATCH];
-        for (uint q = q0; q < q1; ++q) {
-            if (!pairCorner(a, b, A, B, RA, RB, mu, q, false, c, ns)) continue;
-            if (off < scr) scratch[base + off] = c;
-            ++off;
+        uint off = gwOff[lid], scr = prm[P_SCRATCH], mine = gwCnt[lid];
+        if (once && mine <= STAGE) {   // F5.5l: the staged candidates to the serial offset -- the write's slots + drops
+            for (uint i = 0u; i < mine; ++i) {
+                uint dst = scramble ? gwTotal - 1u - (off + i) : off + i;
+                if (dst < scr) scratch[base + dst] = scratch[stBase + i];
+            }
+        } else {   // the write: re-test this thread's corners (all threads in the two-test pass; past the stage in once)
+            if (once && !quiet) atomicAdd(state[S_PREDO], 1u);
+            for (uint q = q0; q < q1; ++q) {
+                if (!pairCorner(a, b, A, B, RA, RB, mu, q, false, c, ns)) continue;
+                if (off < scr) scratch[base + off] = c;
+                ++off;
+            }
         }
         uint total = gwTotal, cnt = min(total, scr);
         if (lid == 0u && total > scr && !quiet) atomicAdd(state[S_OVF_SCRATCH], total - scr);
@@ -1415,7 +1433,10 @@ void main() {
     if (pc.pass == 17u) { fusedColour(); return; }
     if (pc.pass == 18u) { fusedPrimal(); return; }
 #endif
-    if (pc.pass == 21u) { narrowPairs(pc.arg, (pc.n & 1u) != 0u); return; }   // F5.5k: arg = stop, n bit 0 = quiet
+    if (pc.pass == 21u) {   // F5.5k: arg = stop, n bit 0 = quiet; F5.5l: bit 1 = once, bit 2 = the scramble
+        narrowPairs(pc.arg, (pc.n & 1u) != 0u, (pc.n & 2u) != 0u, (pc.n & 4u) != 0u);
+        return;
+    }
     if (pc.pass == 22u) { narrowHard(); return; }
     if (pc.pass == 24u) { worldPar(); return; }
     if (pc.pass == 31u) { worldUnits(); return; }    // F5.5h

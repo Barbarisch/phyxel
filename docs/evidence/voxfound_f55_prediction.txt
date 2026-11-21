@@ -1212,3 +1212,30 @@ within the pair (F5.5g's red).
   L5 live (F5.5e's gate, CharacterTestbed, --pairs-once on|off, order B A A B): the pairs group -30 to -45 %, the awake
      tick -4 to -12 %, every rung; the settle tick and awake-after-wake counts the same on vs off.
   L6 the VoxFound GPU suite on a quiet GPU: 52 / 52 (51 + the new test).
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5l RESULTS (2026-11-21; after the runs, the prediction above untouched). Release. World of Warcraft not running in
+any check; no other phyxel.exe in any check (the suites' watchers: 31 and 29 samples, every 10 s). Evidence:
+voxfound_f55l_headless.txt (every run, in order), voxfound_f55l_live.jsonl (F5.5e's gate --pairs-once, CharacterTestbed,
+two rounds B A A B: off, on, on, off).
+  RED (b) as predicted: the stub knob (flag set, the two-test pass still run) -- L3's guard failed at every rung (the
+     pairs group -2 / +1 / -1 %) and the scramble moved 0 bodies.
+  L1 PASS: F5.5g's G2 once (untouched) 1.51 / 1.99 / 2.61 vs 1.46 / 2.05 / 2.55 ms (<= 4 %); the uncached driver
+     compile (R1 alone) 69.3 s (<= 90).
+  L2 PASS: once vs twice over 60 ticks, 0 bodies differ and every counter equal at every rung; pairRedo 0. RED (a) the
+     scramble: 110 / 274 / 946 bodies differ.
+  L3 PASS: the pairs group 0.553 vs 0.977, 0.721 vs 1.215, 1.671 vs 2.679 ms = -43 / -41 / -38 % (-30 to -45). F5.5k's
+     split in the once mode: the copy is 2-3 % of the group (the write was 37-46 %); BROAD now 10 / 17 / 28 %.
+  L4 PASS: the tick (30 per submit) -7 / -9 / -9 % (-4 to -12).
+  L5 PASS live. Round 1: the pairs group 0.987 / 1.264 / 2.613 -> 0.614 / 0.775 / 1.737 ms (-38 / -39 / -34 %); two
+     of its 12 records carried a doubled timed tick with normal profiles (on run 2 at 250: 10.8 ms; off run 2 at 650:
+     9.5 ms), so a second round was run (stated before it ran). Round 2: the pairs group 1.040 / 1.260 / 2.594 -> 0.647 /
+     0.750 / 1.647 ms (-38 / -40 / -37 %); the tick (30 per submit) 5.33 / 5.79 / 9.09 -> 5.01 / 5.36 / 8.26 ms (-6 / -7
+     / -9 %). Settle tick 600 and every body awake after the wake in all 24 records; pair_redo 0.
+  L6 MISSED as first run: the VoxFound GPU suite 51 / 52 -- F55bGpuRestConservesAndReloads's reload guard, 21.27 ms
+     against <= 20 (one reload sample; a load() upload this change does not touch). F5.5k's suite had it at 19.68; alone
+     5 / 5 pass at 16.7-18.2 ms; the full suite re-run (a stated follow-up): 52 / 52, the reload 19.39 ms. The guard runs
+     within ~1 ms of its limit inside the suite -- owed, its own look. VoxFound CPU not re-run (no CPU code changed).
+CONCLUSION: each pair corner is tested once, bit-equal: the pairs group -37 to -43 %, the tick -6 to -9 %. Live now
+(round 2, once on): the primal leads at every rung (1.4-1.8 ms); at 994 the pairs group 1.63-1.67 (BROAD about 0.47 of
+it) and hard_body 1.4-1.5 follow. Next: the primal, split before its lever, with its own prediction.

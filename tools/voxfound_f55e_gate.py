@@ -12,6 +12,7 @@ Writes JSON lines to docs/evidence/voxfound_f55e_live.jsonl.
 F5.5g: --once on|off sets {"world_once"} with every wake (on = each world item tested once; off = the two-test pass).
 F5.5h: --spread on|off sets {"world_spread"} with every wake (on = a big body's items over many workgroups).
 F5.5j: --hard-spread on|off sets {"hard_spread"} with every wake (on = HARD_APPLY's items over many workgroups).
+F5.5l: --pairs-once on|off sets {"pairs_once"} with every wake (on = each pair corner tested once).
 F5.5k: --pairs-split adds {"pairs_split"} to the profile (p_broad / p_count / p_write / p_cap; "pairs" = NARROW alone).
 """
 import argparse
@@ -53,6 +54,8 @@ def once_kw(a):   # F5.5g; F5.5h
         kw["world_spread"] = a.spread == "on"
     if a.hard_spread:   # F5.5j
         kw["hard_spread"] = a.hard_spread == "on"
+    if a.pairs_once:   # F5.5l
+        kw["pairs_once"] = a.pairs_once == "on"
     return kw
 
 
@@ -81,7 +84,7 @@ def rung(a, e):
     prof = s["solver"].get("profile")
     cmd(profile=False, world_split=False, pairs_split=False)
     t = get("/api/debug/engine_timing")
-    gate = "F5.5k live pairs split" if a.pairs_split else "F5.5j live hard spread=" + a.hard_spread if a.hard_spread else "F5.5h live world spread=" + a.spread if a.spread else "F5.5g live world once=" + a.once if a.once else ("F5.5f live world split" if a.split else "F5.5e live awake pile")
+    gate = "F5.5l live pairs once=" + a.pairs_once if a.pairs_once else "F5.5k live pairs split" if a.pairs_split else "F5.5j live hard spread=" + a.hard_spread if a.hard_spread else "F5.5h live world spread=" + a.spread if a.spread else "F5.5g live world once=" + a.once if a.once else ("F5.5f live world split" if a.split else "F5.5e live awake pile")
     log({"gate": gate, "energy": e, "rig": {k: r.get(k) for k in ("bodies", "crumbs") if k in r},
          "settled": settled, "awake_after_wake": w["awake"], "bodies": w["bodies"],
          "one_per_submit": {"median": one[len(one) // 2], "max": one[-1], "per_tick": per},
@@ -102,6 +105,8 @@ def main():
     ap.add_argument("--spread", choices=["on", "off"], default=None, help="F5.5h: a big body's items over many groups")
     ap.add_argument("--hard-spread", choices=["on", "off"], default=None,
                     help="F5.5j: HARD_APPLY's items over many groups")
+    ap.add_argument("--pairs-once", choices=["on", "off"], default=None,
+                    help="F5.5l: each pair corner tested once / twice")
     ap.add_argument("--pairs-split", action="store_true", help="F5.5k: the pairs group split in the profile")
     ap.add_argument("--out", default="voxfound_f55e_live.jsonl")
     ap.add_argument("--world", default="", help="which project's world the lab runs in (recorded)")

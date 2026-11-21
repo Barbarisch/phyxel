@@ -620,17 +620,21 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
     stamp(G_WORLD);
     if (m_narrowPar) {   // F5.5a2
         run(K_BROAD, 0, m_nb);
+        const uint32_t onceBits = m_pairsOnce ? (m_pairsOnceScramble ? 6u : 2u) : 0u;   // F5.5l: pc.n bits 1-2
         if (prof && m_pairsSplit) {   // F5.5k: BROAD its own group, then the diagnostic copies of NARROW, each its own group
             stamp(G_P_BROAD);
             for (uint32_t stop = 1; stop <= 3; ++stop) {
-                BodyPC pc{K_NARROW, stop, parity, m_pairsQuiet ? 1u : 0u};
+                BodyPC pc{K_NARROW, stop, parity, (m_pairsQuiet ? 1u : 0u) | (onceBits & 2u)};
                 m_pipe->pushConstants(cmd, &pc, sizeof(pc));
                 m_pipe->dispatch(cmd, groups);
                 barrier(cmd);
                 stamp(G_P_COUNT + int(stop) - 1);
             }
         }
-        perPair(K_NARROW);
+        BodyPC pc{K_NARROW, 0, parity, onceBits};
+        m_pipe->pushConstants(cmd, &pc, sizeof(pc));
+        m_pipe->dispatch(cmd, groups);
+        barrier(cmd);
     } else {
         run(K_PAIRS, 0, m_nb);
     }
@@ -740,7 +744,7 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
                 if (first) {   // the summed counters start at 0 for this call
                     recordEdit(cmd);   // F5.5c: a staged edit first
                     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);
-                    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 2 * 4, 0);   // F5.5g: S_REDO, F5.5h: S_SPREAD_FB
+                    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 3 * 4, 0);   // F5.5g S_REDO, h S_SPREAD_FB, l S_PREDO
                     barrier(cmd);
                 }
                 for (int t = 0; t < n; ++t) recordTick(cmd);
@@ -792,6 +796,7 @@ void BodySimGpu::unpackCounters() {
     m_stats.dgSumCand = s[20];
     m_stats.worldRedo = s[21];   // F5.5g: S_REDO
     m_stats.spreadFallback = s[22];   // F5.5h: S_SPREAD_FB
+    m_stats.pairRedo = s[23];         // F5.5l: S_PREDO
     m_lastAwake = m_stats.awake;
 }
 
@@ -875,7 +880,7 @@ bool BodySimGpu::stepBegin(int ticks, std::string* err) {
     }
     recordEdit(cmd);   // F5.5c: a staged edit first
     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);   // the summed counters start at 0 for this call (as step())
-    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 2 * 4, 0);   // F5.5g: S_REDO, F5.5h: S_SPREAD_FB
+    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 3 * 4, 0);   // F5.5g S_REDO, h S_SPREAD_FB, l S_PREDO
     barrier(cmd);
     for (int t = 0; t < ticks; ++t) recordTick(cmd);
     recordCounters(cmd);

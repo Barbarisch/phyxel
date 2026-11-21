@@ -630,8 +630,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       test looks hung: one core busy, GPU idle) -- keep one worldItem site per mode and TIME the compile.
       F5.5k done (a measure): setPairsSplit -- NARROW tests every pair corner twice (count, then write: 77-89 % of the
       pairs group, about equal), BROAD 5 / 12 / 19 % (awake x bodies), the cap + emit 4-6 %; bit-equal; suite 51/51.
-      NEXT: F5.5l (each pair corner tested once, F5.5g's staging, bit-equal; the write's 37-46 % is its ceiling) with
-      its prediction BEFORE code; then BROAD if it leads. Owed: the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
+      F5.5l done: setPairsOnce (NARROW stages its candidates in the count, bit-equal): the pairs group -37-43 %, the
+      tick -6-9 %; suite 52/52 on the re-run (first run 51/52: F55bGpuRestConservesAndReloads's one-sample reload
+      guard 21.3 ms vs 20 -- it runs within ~1 ms of its limit inside the suite).
+      NEXT: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
+      hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
+      guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
       the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
       5 ms); region-vs-area edge pixels.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)
