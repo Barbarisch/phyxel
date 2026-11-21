@@ -41,6 +41,13 @@
 //    sets the D6 policy (it runs after every tick while on; the player = the camera); {"bake_now":{...same keys}} runs
 //    one pass now with those values. A bake writes the world grid, rebuilds the preview area and compacts the body
 //    faces by copying ranges (no re-meshing). Responses carry "ledger": per material world + bodies + crumbs.
+// F6.5 (docs/evidence/voxfound_f6_prediction.txt V1-V5): with the rig, {"rubble":bool} (default true) turns the crumbs
+//    into rubble in the lab's world (F6.3) stepped by a WorldFluid (F6.2, CPU, main thread) at 60 Hz while running;
+//    {"pour":{"lo":[x,y,z],"size":[x,y,z]}} fills the empty open lab voxels of that box with water (full cells);
+//    {"fluid_display":bool} (tests: false = the preview is not edited, the red); status {"fluid_check":true} counts the
+//    lab voxels whose drawn material differs from the rule. The rule (world position only): a voxel holding at least
+//    half a cell is drawn as its material -- rubble as its world material, water as Glass (a STAND-IN: no water
+//    material in the lab). The ledger then counts rubble units / 256 instead of the crumbs; water is reported apart.
 
 #include "Application.h"
 
@@ -57,6 +64,16 @@ namespace {
 
 const char* kLabTextures[] = {"", "Stone", "Bricks", "Wood", "Glass", "Wood", "StoneTiles"};   // lab ids -> engine names
 constexpr uint8_t kFloorMat = 6;                                                             // a copy of Stone
+constexpr uint8_t kWaterShownAs = 4;                                                         // F6.5: Glass, a stand-in
+
+// F6.5: the display rule for a voxel's fill (open voxels only)
+uint8_t fluidShown(uint32_t c) {
+    namespace MS = Core::MatSim;
+    if (!c || MS::cellFill(c) * 2 < 256u) return 0;
+    const uint8_t m = MS::cellMaterial(c);
+    if (const uint8_t w = MS::worldMaterialOfRubble(m)) return w;
+    return m == MS::Mat::Water ? kWaterShownAs : 0;
+}
 
 }  // namespace
 
@@ -225,6 +242,11 @@ bool Application::voxFoundBodiesRebuildWorld(std::string* err) {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
     VoxelGrid g = lab.world;
+    if (lab.fluid) {   // F6.5: fill drawn by the rule
+        lab.fluidDrawn.assign(g.size(), 0);
+        for (size_t i = 0; i < g.fill.size(); ++i)
+            if (!g.mat[i] && g.fill[i]) lab.fluidDrawn[i] = fluidShown(g.fill[i]), g.mat[i] = lab.fluidDrawn[i];
+    }
     if (lab.asWorld && lab.sim)
         for (const SimBody& b : lab.sim->bodies())
             for (size_t i = 0; i < b.src.grid.size(); ++i)
@@ -262,6 +284,14 @@ std::vector<size_t> Application::voxFoundBodiesLedger() const {
     for (const Core::VoxFound::SimBody& b : lab.sim->bodies())
         for (uint8_t m : b.src.grid.mat)
             if (m && m < perMat.size()) ++perMat[m];
+    if (lab.fluid) {   // F6.5: the crumbs are rubble now -- units / 256 per world material (a whole number by construction)
+        const Core::MatSim::Ledger l = lab.fluid->ledger();
+        for (int id = 0; id < 256; ++id) {
+            const uint8_t w = Core::MatSim::worldMaterialOfRubble(uint8_t(id));
+            if (w && w < perMat.size()) perMat[w] += size_t(l[id] / 256) + (l[id] % 256 ? 1000000 : 0);   // a remainder shows
+        }
+        return perMat;
+    }
     for (size_t m = 0; m < perMat.size() && m < lab.crumbMat.size(); ++m) perMat[m] += lab.crumbMat[m];
     return perMat;
 }
@@ -362,6 +392,7 @@ bool Application::voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestP
     } else {
         ok = voxFoundBodiesRebuildWorld(err);
     }
+    if (lab.fluid) lab.fluid->wallsChanged();   // F6.5: a bake over fill traps it (MatSim; still in the ledger)
     const auto t3 = std::chrono::steady_clock::now();
     lab.lastBakeMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
     lab.lastCompactMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
@@ -399,9 +430,81 @@ bool Application::voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestP
     return ok;
 }
 
+// F6.5: the display rule into the region preview -- the voxels whose drawn fill material changed (all = the whole
+// world, else the fluid's box), through RegionEdit::applyCells (or a full rebuild on the area path). Returns cells changed.
+size_t Application::voxFoundFluidEdit(bool all) {
+    using namespace Core::VoxFound;
+    auto& lab = voxFoundBodiesLab;
+    if (!lab.fluid || !lab.fluidDisplay) return 0;
+    const VoxelGrid& w = lab.world;
+    if (w.fill.empty()) return 0;
+    if (lab.fluidDrawn.size() != w.size()) lab.fluidDrawn.assign(w.size(), 0);
+    glm::ivec3 lo(0), hi = w.dim - 1;
+    if (!all && lab.fluid->boxActive()) lo = lab.fluid->boxLo(), hi = lo + lab.fluid->boxSize() - 1;
+    std::vector<std::pair<glm::ivec3, uint8_t>> cells;
+    for (int x = lo.x; x <= hi.x; ++x)
+        for (int y = lo.y; y <= hi.y; ++y)
+            for (int z = lo.z; z <= hi.z; ++z) {
+                const size_t i = w.idx({x, y, z});
+                const uint8_t want = w.mat[i] ? 0 : fluidShown(w.fill[i]);
+                if (want == lab.fluidDrawn[i]) continue;
+                lab.fluidDrawn[i] = want;
+                cells.push_back({lab.originVoxel + glm::ivec3(x, y, z), w.mat[i] ? w.mat[i] : want});
+            }
+    if (cells.empty()) return 0;
+    ++lab.fluidEdits;
+    lab.fluidCellsChanged += cells.size();
+    if (!lab.regionPreview || voxFoundEdit.empty() || lab.asWorld) {
+        std::string err;
+        if (!voxFoundBodiesRebuildWorld(&err)) LOG_ERROR("VoxFound", "fluid preview rebuild: " + err);
+        return cells.size();
+    }
+    const RegionEdit::Stats es = voxFoundEdit.applyCells(cells);
+    for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
+    voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &es.changed);
+    return cells.size();
+}
+
+// F6.5: drawn vs the rule over every lab voxel (status {"fluid_check":true})
+size_t Application::voxFoundFluidCheck() const {
+    const auto& lab = voxFoundBodiesLab;
+    const auto& w = lab.world;
+    if (voxFoundEdit.empty() || lab.asWorld) return size_t(-1);
+    size_t bad = 0;
+    for (size_t i = 0; i < w.size(); ++i) {
+        const uint8_t want = w.mat[i] ? w.mat[i] : (w.fill.empty() ? 0 : fluidShown(w.fill[i]));
+        if (voxFoundEdit.voxelAt(lab.originVoxel + w.pos(i)) != want) ++bad;
+    }
+    return bad;
+}
+
+// F6.5: the fluid at 60 Hz on its own accumulator while running (<= 4 ticks a frame), then the display edit
+void Application::voxFoundFluidStep(float dt) {
+    auto& lab = voxFoundBodiesLab;
+    if (!lab.fluid || !lab.running) return;
+    const double h = 1.0 / 60.0;
+    lab.fluidAccum += double(dt);
+    const int n = std::min(int(lab.fluidAccum / h), 4);
+    if (n <= 0) return;
+    lab.fluidAccum = n == 4 ? 0.0 : lab.fluidAccum - n * h;
+    const auto t0 = std::chrono::steady_clock::now();
+    const Core::MatSim::StepStats s = lab.fluid->step(n);
+    const bool quiet = s.lastTickQuiet();
+    if (quiet && lab.fluidPrevQuiet && lab.fluidQuietTick < 0) lab.fluidQuietTick = long(lab.fluid->tick());
+    if (!quiet) lab.fluidQuietTick = -1;
+    lab.fluidPrevQuiet = quiet;
+    voxFoundFluidEdit(false);
+    const float ms = float(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+    if (lab.fluidMs.size() < 3600) lab.fluidMs.push_back(ms);
+    else lab.fluidMs[lab.fluidNext] = ms;
+    lab.fluidNext = (lab.fluidNext + 1) % 3600;
+    lab.fluidMaxMs = std::max(lab.fluidMaxMs, double(ms));
+}
+
 void Application::stepVoxFoundBodies(float dt) {
     auto& lab = voxFoundBodiesLab;
     if (!lab.sim) return;
+    voxFoundFluidStep(dt);   // F6.5
     if (lab.running) {   // F5.5c: the frame interval while running (L3)
         if (lab.frameMs.size() < 3600) lab.frameMs.push_back(dt * 1000.0f);
         else lab.frameMs[lab.frameNext] = dt * 1000.0f;
@@ -448,6 +551,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         lab.gpuLoaded = false;
         renderCoordinator->setVoxFoundBodies(nullptr);
         renderCoordinator->setVoxFoundPreview(nullptr);
+        lab.fluid.reset();   // F6.5 (it points at lab.world)
         lab.sim.reset();
         lab.draw = {};
         voxFoundEdit.clear();   // F5.5c
@@ -535,6 +639,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         VoxelGrid world = g;
         const Extraction ex = extractBodies(world, r, hit, mats);
         lab.sim.reset();   // BodySimRef holds a reference to the world grid: build it on lab.world below
+        lab.fluid.reset();   // F6.5: WorldFluid points at lab.world too
         lab.world = world;
         lab.mats = mats;
         lab.areaOriginM = (p.contains("at") ? vec3(p["at"]) : glm::dvec3(0.0)) - glm::dvec3(off) * double(g.voxelM);
@@ -575,6 +680,22 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         }
         lab.crumbMat.assign(mats.size(), 0);
         for (const Crumb& c : ex.crumbs) ++lab.crumbMat[c.mat];
+        lab.fluidDrawn.clear();
+        lab.fluidMs.clear();
+        lab.fluidNext = lab.fluidEdits = lab.fluidCellsChanged = 0;
+        lab.fluidMaxMs = lab.fluidAccum = 0.0;
+        lab.fluidQuietTick = -1;
+        lab.fluidPrevQuiet = false;
+        lab.fluidDisplay = true;
+        if (p.value("rubble", true)) {   // F6.5: the crumbs become rubble in the world (F6.3)
+            lab.fluid = std::make_unique<WorldFluid>();
+            std::string ferr;
+            if (!lab.fluid->attach(&lab.world, &ferr) || !crumbsToPowder(ex.crumbs, *lab.fluid, &ferr)) {
+                lab.fluid.reset();
+                response = {{"error", "rubble: " + ferr}};
+                return;
+            }
+        }
         lab.restTotal = {};
         lab.restLast = {};
         lab.bakePasses = 0;
@@ -647,6 +768,8 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
             lab.restIdleNext = 0;
             lab.simCpuMs.clear();
             lab.simCpuNext = 0;
+            lab.fluidMs.clear();   // F6.5: the fluid cost of this run
+            lab.fluidNext = 0;
         }
         lab.running = on;
     }
@@ -664,6 +787,37 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
             response = {{"error", err}};
             return;
         }
+    }
+    if (p.contains("fluid_display")) lab.fluidDisplay = p["fluid_display"].get<bool>();   // F6.5: false = the red
+    if (p.contains("pour")) {   // F6.5: water into the empty open lab voxels of a box (full cells)
+        if (!lab.fluid) {
+            lab.fluid = std::make_unique<WorldFluid>();
+            std::string ferr;
+            if (!lab.fluid->attach(&lab.world, &ferr)) {
+                lab.fluid.reset();
+                response = {{"error", "pour: " + ferr}};
+                return;
+            }
+        }
+        const auto& j = p["pour"];
+        const glm::ivec3 lo(j.at("lo").at(0).get<int>(), j.at("lo").at(1).get<int>(), j.at("lo").at(2).get<int>());
+        const glm::ivec3 sz(j.at("size").at(0).get<int>(), j.at("size").at(1).get<int>(), j.at("size").at(2).get<int>());
+        std::vector<std::pair<glm::ivec3, uint32_t>> cells;
+        for (int x = lo.x; x < lo.x + sz.x; ++x)
+            for (int y = lo.y; y < lo.y + sz.y; ++y)
+                for (int z = lo.z; z < lo.z + sz.z; ++z) {
+                    const glm::ivec3 v(x, y, z);
+                    if (!lab.world.in(v) || lab.world.mat[lab.world.idx(v)]) continue;
+                    if (!lab.world.fill.empty() && lab.world.fill[lab.world.idx(v)]) continue;
+                    cells.push_back({v, Core::MatSim::makeCell(Core::MatSim::Mat::Water, 256)});
+                }
+        std::string ferr;
+        if (!lab.fluid->addFill(cells, &ferr)) {
+            response = {{"error", "pour: " + ferr}};
+            return;
+        }
+        lab.fluidQuietTick = -1;
+        voxFoundFluidEdit(true);
     }
     if (p.contains("shown")) lab.draw.shown = p["shown"].get<bool>();
     if (p.contains("cast")) lab.draw.castShadows = p["cast"].get<bool>();
@@ -814,6 +968,27 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
                             {"frame_max_ms", lab.frameMaxMs}, {"frame_max_at_s", lab.frameMaxAtS}};
     }
     if (pen) response["penetration_report"] = lab.sim->worstPenetrationReport();   // F5.5b
+    if (lab.fluid) {   // F6.5
+        std::vector<float> v = lab.fluidMs;
+        std::sort(v.begin(), v.end());
+        auto q = [&](double f) { return v.empty() ? 0.0 : double(v[std::min(v.size() - 1, size_t(f * double(v.size())))]); };
+        const Core::MatSim::Ledger l = lab.fluid->ledger();
+        nlohmann::json rubble = nlohmann::json::object();
+        for (int id = 0; id < 256; ++id)
+            if (l[id] && Core::MatSim::worldMaterialOfRubble(uint8_t(id)))
+                rubble[std::to_string(Core::MatSim::worldMaterialOfRubble(uint8_t(id)))] = l[id];
+        nlohmann::json f = {{"ticks", lab.fluid->tick()}, {"box_active", lab.fluid->boxActive()},
+                            {"box_lo", {lab.fluid->boxLo().x, lab.fluid->boxLo().y, lab.fluid->boxLo().z}},
+                            {"box_size", {lab.fluid->boxSize().x, lab.fluid->boxSize().y, lab.fluid->boxSize().z}},
+                            {"grows", lab.fluid->grows()}, {"quiet_tick", lab.fluidQuietTick},
+                            {"rubble_units", rubble}, {"water_units", l[Core::MatSim::Mat::Water]},
+                            {"display", lab.fluidDisplay}, {"display_edits", lab.fluidEdits},
+                            {"cells_changed", lab.fluidCellsChanged}, {"ms_frames", v.size()}, {"ms_median", q(0.5)},
+                            {"ms_p95", q(0.95)}, {"ms_max", lab.fluidMaxMs},
+                            {"water_shown_as", "Glass (a stand-in)"}};
+        if (p.value("fluid_check", false)) f["check_mismatched_voxels"] = voxFoundFluidCheck();
+        response["fluid"] = f;
+    }
     // F5.5b: the solver path
     {
         std::vector<float> v = lab.simCpuMs;

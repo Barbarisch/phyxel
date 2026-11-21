@@ -193,3 +193,31 @@ and fill do not touch each other (the bodies see only solid voxels; rubble falls
       tuned here.
 RED: the display edit off (a stub: the fill steps but nothing is written to the preview) -- V2's check counts
 mismatches > 0 after the rubble moves.
+
+F6.5 RESULTS (2026-11-21; the prediction above untouched). Release editor, CharacterTestbed as it is; no other phyxel.exe,
+Wow.exe or other checkout's tests in any check. Evidence: voxfound_f65_live.jsonl, voxfound_f65_red.jsonl,
+voxfound_f65_stone_wall*_{0_before,1_rubble_rest,2_pour_rest}.png (tools/voxfound_f65_live.py). Every artifact: a
+hand-built FractureLab rig broken by F4.1 + F5.1, the bodies moved by BodySimGpu, the rubble and water by WorldFluid
+(the CPU reference); water is DRAWN AS GLASS (a stand-in).
+  RED as predicted: {"fluid_display":false} -- after the rubble rests 63 lab voxels are drawn wrong (the region verify,
+     0 mismatched chunks, cannot see it: it checks the faces against the store, not the store against the world).
+  V1 PASS: the ledger exact at every rest call: 1,233 (E/T 80) and 2,257 (E/T 250) checks, 0 bad; the stress 224, 0 bad
+     -- with 26 bodies baked into the world over the run (wallsChanged after each bake).
+  V2 PASS: 0 mismatched voxels (drawn = the rule) at rest and after the pour, both energies; verify 0 mismatched chunks
+     (the rig's region is ONE chunk: crossing chunks is not exercised here -- stated).
+  V3 PASS: the rubble quiet at fluid tick 67 (~3 s wall), both energies; E/T 250 at the downward pose shows the wall
+     face holed where the crumbs left and a stepped band of rubble along its base (E/T 80 at F5.3's pose: a few voxels
+     at the base, barely readable).
+  V4 MISSED: the poured 1 m^3 does not pool -- it spreads over the open 11 x 8 m floor to ~1 cm (the physics is right:
+     the floor is open; my "pools beside the wall" was wrong) and, under half a voxel deep, the display rule draws
+     none of it (no visible change in the screenshots); at rest only ~27 s after the pour (<= 20 predicted). Owed:
+     a contained pour (a basin), and drawing thin water (a film / the engine's water renderer).
+  V5 MISSED: the small rig while the rubble moves: median 2.0, p95 5.6-5.7 ms (<= 4); during the pour's spread median
+     7.8-8.2, p95 43-44, max 57-61 ms; ONCE QUIET median 4.1 ms per frame (< 0.1 predicted: the box is then the whole
+     200 k-voxel grid and every frame scans it for the display rule and ticks MatSim with nothing awake). STRESS
+     (large_wall E/T 650, 451 crumbs, a 112 x 126 x 38 box): median 25, p95 128, max 250 ms per frame; at rest at fluid
+     tick 326 but 9.3 s of wall time -- OVER, as predicted.
+CONCLUSION: the loop runs live -- a wall breaks, its crumbs become rubble in the world and pile at its base, water can
+be poured, every material conserved and drawn exactly by a rule of world position. The scaling issue that bites is the
+fluid's cost on the main thread (the CPU reference, a scan of the whole box per frame, ticking when quiet): that is the
+GPU WorldFluid + skipping quiet boxes, taken when F7 puts fluid in front of a player.

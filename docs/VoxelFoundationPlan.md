@@ -1835,8 +1835,10 @@ and the shared tree are 60-80 % of it, the dispatch floor <= 10 %. F5.5n, a lean
 2026-11-21 by the owner's decision at ~8.1-8.8 ms per tick for ~1,000 awake (2 ms proposal MISSED, recorded); next
 F6** | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
 | **F6** | MatSim on the world grid (liquids, powders, crumbs). **Started 2026-11-21 (§9e), broad strokes: F6.1 the 1/8 m
-lattice, F6.2 the fill channel in the world, F6.3 crumbs as powder, F6.4 particles write back, F6.5 live** | MatSim's
-tests on world voxels | — |
+lattice, F6.2 the fill channel in the world, F6.3 crumbs as powder, F6.4 particles write back, F6.5 live. DONE in broad strokes 2026-11-21: MatSim's invariants on
+1/8 m world voxels (CPU + GPU parity), a growing box equal to one box over the world, rubble conserved per material,
+the hybrid settling back, live in the bodies lab; MISSED the live cost (CPU reference: 4-6 ms small, 25-250 ms on the
+large wall) and water pooling/drawing on an open floor** | MatSim's tests on world voxels | — |
 | **F7** | Move the consumers over (§7), default switched | full test suite green; L4 live checks | — |
 | **F8** | Scale and stress: a whole town, 100 simultaneous breaks, 1,000 edit/break cycles, crossing chunk borders | invariants hold at every step | — |
 
@@ -3025,6 +3027,16 @@ each (all or nothing). On hand-built stone and brick walls broken at E/T 650 and
 frame (wake, PBF step, settle, cell tick) over the world box; the box grows for particles too and the ledger counts
 them. A water column released in a 6 m channel at 1/8 m: 1,266 cells became particles and all settled back into world
 voxels by 7 s, the ledger exact every tick, none outside the box, the water level at exactly the volume level.
+
+**F6.5, live (2026-11-21).** The bodies lab turns a broken rig's crumbs into rubble in its world (`{"rubble":bool}`,
+default on), steps it with WorldFluid at 60 Hz while running, takes `{"pour":...}` (water), and draws fill by a rule of
+world position (at least half a cell = its material; water drawn as Glass, a stand-in) through the region preview's
+incremental edit. Live in CharacterTestbed: the ledger exact at every rest call (bakes over fill included), drawn =
+the rule (0 mismatched voxels; the red, the edit off, 63), the rubble piles at the wall's base and rests in ~3 s.
+**MISSED:** poured water spreads to a ~1 cm film on the open floor that the rule does not draw, resting at ~27 s; cost
+-- 5.7 ms p95 while rubble moves, 4.1 ms per frame once quiet (the whole box scanned + ticked), 25-250 ms on the large
+wall (the CPU reference over 536 k cells). **F6 is done in broad strokes**; the cost is the scaling issue to take when
+it bites (the GPU WorldFluid; skipping quiet boxes), and a contained pour + drawing thin water are owed.
 
 ## 10. Performance tiers
 

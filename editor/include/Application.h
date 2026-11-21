@@ -102,6 +102,7 @@
 #include "core/WaterManager.h"
 #include "core/water/WaterCoreManager.h"
 #include "core/matsim/MatSimLab.h"
+#include "core/voxfound/WorldFluid.h"
 #include "core/voxfound/FaceBuilderGpu.h"
 #include "core/voxfound/LodBuilderGpu.h"
 #include "core/voxfound/Preview.h"
@@ -356,11 +357,24 @@ private:
         std::vector<float> stepLatencyMs;                   // submit -> found done, wall ms (ring of 600)
         size_t stepLatencyNext = 0;
         double frameMaxMs = 0.0, frameMaxAtS = -1.0;        // the largest frame interval of the run and when (s)
+        // F6.5: rubble (the crumbs, F6.3) and poured water in the lab's world (WorldFluid, F6.2, the CPU reference)
+        std::unique_ptr<Core::VoxFound::WorldFluid> fluid;  // attached to `world`
+        bool fluidDisplay = true;                           // false = the red: the fill steps, the preview is not edited
+        double fluidAccum = 0.0;
+        long fluidQuietTick = -1;                           // the first tick (since the run) the fluid was quiet twice
+        bool fluidPrevQuiet = false;
+        std::vector<uint8_t> fluidDrawn;                    // per lab voxel: the material drawn for its fill (0 = none)
+        std::vector<float> fluidMs;                         // fluid step + display edit per frame that ticked (ring)
+        size_t fluidNext = 0, fluidEdits = 0, fluidCellsChanged = 0;
+        double fluidMaxMs = 0.0;
     } voxFoundBodiesLab;
     std::vector<size_t> voxFoundBodiesLedger() const;   // F5.4/F5.5d: per material world + bodies + crumbs
     bool voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g, std::string* err);
     bool voxFoundBodiesGpuLoad(std::string* err);
     void voxFoundBodiesGpuStep(float dt);
+    void voxFoundFluidStep(float dt);                         // F6.5
+    size_t voxFoundFluidEdit(bool all);                       // F6.5: the display rule into the preview; cells changed
+    size_t voxFoundFluidCheck() const;                        // F6.5: drawn vs the rule, mismatching voxels
     void voxFoundBodiesGpuDone(int ticks);
     bool voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err);
     bool voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestParams* override, std::string* err);

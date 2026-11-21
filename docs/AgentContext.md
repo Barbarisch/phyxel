@@ -648,8 +648,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       the world once the head field is carried over on growth -- MatSim's pressure state persists across ticks).
       F6.3 done (CPU): rubble per world material (MatSim id 64+m), crumbsToPowder; conservation exact, piles rest.
       F6.4 done (CPU): WorldFluid hybrid (wake / PBF / settle / cell tick over the world box); all settle back, level.
-      NEXT: F6.5 (live: a wall breaks in the engine lab, rubble piles, water pours and pools; L4), prediction BEFORE
-      code. Broad strokes (plan 9e).
+      F6.5 done (live, bodies lab): rubble + pour, ledger exact, drawn = the rule; MISSED cost (CPU reference on the
+      main thread: 4.1 ms/frame even quiet, 25-250 ms on the large wall) and water on an open floor (a 1 cm film, not
+      drawn). F6 DONE in broad strokes.
+      NEXT: F7 (move the consumers over, plan section 7) in broad strokes -- first a plan of the consumers and their
+      order, with the owner; the fluid cost (GPU WorldFluid, skip quiet boxes) taken when it bites there.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
