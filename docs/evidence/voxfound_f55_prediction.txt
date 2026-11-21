@@ -1348,3 +1348,24 @@ and the 5-level shared tree over 42 floats (a barrier per level) are 60-80 % of 
 Next: F5.5n -- the lever on the sums and the tree (e.g. the symmetric 21 + 6 terms instead of 36 + 6, and a one-barrier
 column reduction instead of the tree), deterministic (not bit-equal: the sum reassociates again, as F5.5a4), with its
 own prediction.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5n PREDICTION -- the primal's sums and tree, lean (2026-11-21, before any code). THE OWNER'S DECISION (2026-11-21):
+F5 closes after this one time-boxed lever, at whatever it costs then, the gap to the 2 ms proposal recorded as a miss;
+the plan moves on to F6-F8 (broad strokes first; scaling issues taken as they bite). The broadphase lever is dropped
+(BROAD ~0.47 ms at 994).
+CONTROL: F5.5m's green and live (this build): the primal group 1.49 / 1.44 / 1.94 ms headless (110 / 282 / 994);
+one iteration sums 35-41 %, tree 29-39 %, solve 19-23 %.
+THE LEVER: BodySimGpu::setPrimalLean (default on; off = F5.5a4's primal, the control). Each lane sums only the 21
+upper-triangle terms of the 6x6 (the matrix is symmetric) + the 6 rhs terms = 27 instead of 42; the 32 partials are
+added in ONE step after one barrier (lane q < 27 adds column q over the 32 lanes in lane order), not the 5-level tree;
+lane 0 mirrors the triangle. Deterministic (fixed order); NOT bit-equal to the control (the sums reassociate again and
+the control's lower triangle was K*J[q]*J[p], not K*J[p]*J[q]) -- stated before the run, as F5.5a4.
+  N1: two lean runs bit-equal; the one-workgroup and indirect forms bit-equal (F5.5a4's E1 check, lean); lean vs the
+      control differ (> 0 bodies: expected, not a defect).
+  N2: every rig's assertions hold: the VoxFound GPU suite green (quiet); F5.5a4's D2 penetration within 1 mm of the
+      control's per rig.
+  N3: the primal group -25 to -45 % at every rung (headless, alternated x 3).
+  N4: the tick (30 per submit) -4 to -10 %.
+  N5: live (the gate, CharacterTestbed): the primal group -20 to -45 %.
+RED: a stub knob (the flag set, F5.5a4's code still run) -- N3's guard fails.
