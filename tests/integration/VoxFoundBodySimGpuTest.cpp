@@ -14,6 +14,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <string>
 #include <vector>
@@ -984,6 +985,11 @@ TEST_F(VoxFoundBodySimGpu, F55bAsyncEqualsSync) {
 // E3: the GPU path with the F5.4 rest policy after every read and a reload after every bake: conservation exact after
 // every pass, nothing overwritten, every survivor asleep at the end, nothing through the floor; the reload's cost
 TEST_F(VoxFoundBodySimGpu, F55bGpuRestConservesAndReloads) {
+    // F5.5l owed Q2 (voxfound_f55_prediction.txt): a test-only A/B hook -- VF_PAIRS_ONCE=0|1; unset = the default (on)
+    if (const char* e = std::getenv("VF_PAIRS_ONCE")) {
+        gpu.setPairsOnce(e[0] != '0');
+        std::printf("[body gpu] E3 VF_PAIRS_ONCE=%s\n", e);
+    }
     auto check = [&](Rig rig, float impulse, size_t budget, int ticks, const char* label, double reloadMsMax) {
         rig.hit.impulse = impulse;
         LabSetup s = labSetup(rig, 32);

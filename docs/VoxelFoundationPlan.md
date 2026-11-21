@@ -2945,6 +2945,9 @@ then again to write, then the cap and the emit).
   A third suite was contended (other tests, then WoW); its quiet part failed the reload guard again (21.0 ms), owed as
   an alternated measure. F5.5k's split test now pins the two-test pass (its `cp > cnt` was thin in the once mode). A
   quiet suite is owed before the next lever.
+- **The owed measures, done:** a quiet suite 52/52 (the reload 18.4 ms). The reload guard A/B (the lever off vs on,
+  alternated, 8 each, alone): median 16.67 vs 16.86 ms, +0.19 -- F5.5l did not move it. Inside the suite the reload
+  reads 1.5-3 ms above alone on either side of the lever; the guard stays as set.
 - **What leads live now:** the primal at every rung (1.4-1.8 ms); at 994 the pairs group 1.6-1.7 (BROAD about 0.5 of
   it) and hard_body 1.4-1.5 follow.
 

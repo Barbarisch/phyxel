@@ -635,8 +635,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       guard 21.3 ms vs 20 -- it runs within ~1 ms of its limit inside the suite).
       RULE: a "quiet" watcher lists phyxel.exe, Wow.exe AND any phyxel_integration_tests.exe outside this checkout
       (another session runs its suite on the same GPU; F5.5k/l's watchers missed it).
-      FIRST: a quiet VoxFound suite (owed from F5.5l: suite 3 was contended) and the reload guard as an alternated
-      measure (HEAD vs HEAD~1; in-suite 19.3-21.3 ms vs <= 20).
+      F5.5l's owed measures done: a quiet suite 52/52; the reload A/B (setPairsOnce off vs on, alone, 8 each)
+      16.67 vs 16.86 ms -- the lever does not move it; inside the suite it reads 1.5-3 ms higher either way (the
+      guard, <= 20, stays; a suite fail is read against this). VF_PAIRS_ONCE=0|1 env hook in that test.
       NEXT: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

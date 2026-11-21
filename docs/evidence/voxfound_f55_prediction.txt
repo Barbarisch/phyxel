@@ -1278,3 +1278,19 @@ F5.5l OWED MEASURES -- PREDICTION (2026-11-21, written before the runs and befor
      at F5.5b) runs at its limit inside the suite -- that is then a decision for the guard's owner test, made with the
      numbers, not by loosening it here. If on is >= 0.5 ms slower: F5.5l moved the reload, and it is looked into
      before F5.5m.
+
+F5.5l OWED MEASURES -- RESULTS (2026-11-21; the prediction above untouched). Release; evidence
+voxfound_f55l_owed.txt. Watcher every 10 s listing phyxel.exe, Wow.exe and any phyxel_integration_tests.exe outside
+this checkout.
+  Q1 first attempt (16:08:26-16:13:47): NOT quiet -- the other session's tests started between 16:09:07 and 16:09:17
+     (28 of 33 samples). 51 / 52: F55bGpuRestConservesAndReloads's reload 20.34 ms (vs <= 20), finishing about 52 s
+     in (~16:09:15-20), i.e. at the overlap's start: undecidable, void. (Its raw log was overwritten by the re-run;
+     the lines were read before that and are quoted here.)
+  Q2 PASS (16:34:16-16:34:57, quiet, 5 samples; after 60 s of quiet): F55bGpuRestConservesAndReloads alone, B A A B
+     x 4. The E/T 650 reload max: off 16.56 16.73 17.26 16.74 16.60 16.61 18.56 16.58 -> median 16.67 ms; on 17.73
+     16.14 16.15 16.61 17.37 16.84 16.87 16.90 -> median 16.86 ms. +0.19 ms (< 0.5 predicted): F5.5l did not move
+     the reload. Every run passed.
+  Q1 PASS (16:35:08-16:39:42, quiet, 28 samples, 0 non-quiet): 52 / 52; the reload 18.43 ms.
+CONCLUSION: the reload guard's in-suite readings (18.4-21.3 ms) sit 1.5-3 ms above its alone readings (16.1-18.6) on
+either side of the lever: the suite's GPU/driver state, not F5.5l. The guard stays as F5.5b set it (one max sample,
+<= 20); a fail inside the suite is read against this A/B, not re-run away. F5.5l is closed; next F5.5m.
