@@ -492,7 +492,9 @@ bool BodySimGpu::load(const VoxelGrid& world, const std::vector<FractureMaterial
     if (!createBuffer(m_params, bP, false, err) || !createBuffer(m_bodies, bB, false, err) ||
         !createBuffer(m_bodyVox, bV, false, err) || !createBuffer(m_corners, bC, false, err) ||
         !createBuffer(m_world, bW, false, err) || !createBuffer(m_cons, m_maxCons * kConBytes, false, err) ||
-        !createBuffer(m_scratch, VkDeviceSize(m_nb) * kScratch * kCandBytes, false, err) ||
+        // + F5.5g: each world-pass thread's stage (persistent groups x 64 threads x kStage), past the bodies' scratch
+        !createBuffer(m_scratch, (VkDeviceSize(m_nb) * kScratch +
+                                  VkDeviceSize(std::min<uint32_t>(m_nb, 512)) * 64u * kStage) * kCandBytes, false, err) ||
         !createBuffer(m_state, bState, false, err) || !createBuffer(m_lists, 2ull * m_maxCons * 4, false, err) ||
         !createBuffer(m_warm, 2ull * kWarmCap * kWarmBytes, false, err) ||
         !createBuffer(m_push, VkDeviceSize(m_nb) * 16, false, err) ||
@@ -588,14 +590,19 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
         vkCmdFillBuffer(cmd, m_state.buf, 17 * 4, 4 * 4, 0);   // S_DG_*: per tick
         barrier(cmd);
         for (uint32_t stop = 1; stop <= 4; ++stop) {
-            BodyPC pc{K_WORLD_PAR, stop, parity, m_splitQuiet ? 1u : 0u};
+            BodyPC pc{K_WORLD_PAR, stop, parity, (m_splitQuiet ? 1u : 0u) | (m_worldOnce ? 2u : 0u)};
             m_pipe->pushConstants(cmd, &pc, sizeof(pc));
             m_pipe->dispatch(cmd, groups);
             barrier(cmd);
             stamp(G_W_COUNT + int(stop) - 1);
         }
     }
-    if (m_worldPar) perPair(K_WORLD_PAR);   // F5.5a3
+    if (m_worldPar) {   // F5.5a3; F5.5g: pc.n bit 1 = each item tested once, bit 2 = the scramble (tests only)
+        BodyPC pc{K_WORLD_PAR, 0, parity, (m_worldOnce ? 2u : 0u) | (m_worldOnce && m_onceScramble ? 4u : 0u)};
+        m_pipe->pushConstants(cmd, &pc, sizeof(pc));
+        m_pipe->dispatch(cmd, groups);
+        barrier(cmd);
+    }
     else run(K_WORLD, 0, m_nb);
     stamp(G_WORLD);
     if (m_narrowPar) {   // F5.5a2
@@ -703,6 +710,7 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
                 if (first) {   // the summed counters start at 0 for this call
                     recordEdit(cmd);   // F5.5c: a staged edit first
                     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);
+                    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 4, 0);   // F5.5g: S_REDO
                     barrier(cmd);
                 }
                 for (int t = 0; t < n; ++t) recordTick(cmd);
@@ -752,6 +760,7 @@ void BodySimGpu::unpackCounters() {
     m_stats.dgMaxItems = s[18];
     m_stats.dgOverCap = s[19];
     m_stats.dgSumCand = s[20];
+    m_stats.worldRedo = s[21];   // F5.5g: S_REDO
     m_lastAwake = m_stats.awake;
 }
 
@@ -835,6 +844,7 @@ bool BodySimGpu::stepBegin(int ticks, std::string* err) {
     }
     recordEdit(cmd);   // F5.5c: a staged edit first
     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);   // the summed counters start at 0 for this call (as step())
+    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 4, 0);   // F5.5g: S_REDO
     barrier(cmd);
     for (int t = 0; t < ticks; ++t) recordTick(cmd);
     recordCounters(cmd);

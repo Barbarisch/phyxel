@@ -1,0 +1,32 @@
+F5.5g headless (VoxFoundBodySimGpu.F55gWorldOnce, Release). CONDITIONS: World of Warcraft not running; ANOTHER session's engine (G:\Github\phyxel\phyxel.exe, not mine) running, GPU utilization 94-100 % sampled before and after -- every device time here is contended (ticks ~2x F5.5e's clean values).
+
+=== run 1: kStage = 16 (the predicted design) ===
+[body gpu] F5.5g E/T 250: 110 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback threads 637 over 60 ticks; RED the scramble: 110 differ
+[body gpu]   G2 world group: once 3.094 vs twice 4.263 ms (-27 %); G3 tick (30 per submit): once 17.252 vs twice 18.064 ms (-4 %)
+[body gpu]   G4 fallback threads 637 of 211200 (body, thread) slots over 30 ticks (0.302 %); split: tests+stage 2.663 (82 %), copy 0.554 (17 %) of the world group 3.250
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1574): error: Expected: (w1) <= (0.70 * w0), actual: 3.0939808000000002 vs 2.9841429333333318
+G2: the world group must drop >= 30 %
+[body gpu] F5.5g E/T 650: 282 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback threads 1240 over 60 ticks; RED the scramble: 276 differ
+[body gpu]   G2 world group: once 3.510 vs twice 5.179 ms (-32 %); G3 tick (30 per submit): once 20.302 vs twice 21.913 ms (-7 %)
+[body gpu]   G4 fallback threads 1240 of 541440 (body, thread) slots over 30 ticks (0.229 %); split: tests+stage 3.219 (96 %), copy 0.103 (3 %) of the world group 3.340
+[body gpu] F5.5g E/T 2800: 994 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback threads 1797 over 60 ticks; RED the scramble: 954 differ
+[body gpu]   G2 world group: once 4.651 vs twice 6.361 ms (-27 %); G3 tick (30 per submit): once 30.160 vs twice 31.916 ms (-6 %)
+[body gpu]   G4 fallback threads 1797 of 1908480 (body, thread) slots over 30 ticks (0.094 %); split: tests+stage 3.839 (86 %), copy 0.627 (14 %) of the world group 4.476
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1574): error: Expected: (w1) <= (0.70 * w0), actual: 4.650601599999999 vs 4.452469653333333
+G2: the world group must drop >= 30 %
+[  FAILED  ] VoxFoundBodySimGpu.F55gWorldOnce (81415 ms)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55gWorldOnce
+
+=== run 2: kStage = 48 (the probe of run 1's miss; the shipped value) ===
+[body gpu] F5.5g E/T 250: 110 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback threads 0 over 60 ticks; RED the scramble: 110 differ
+[body gpu]   G2 world group: once 2.889 vs twice 4.333 ms (-33 %); G3 tick (30 per submit): once 17.224 vs twice 18.786 ms (-8 %)
+[body gpu]   G4 fallback threads 0 of 211200 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 2.759 (103 %), copy -0.078 (-3 %) of the world group 2.681
+[body gpu] F5.5g E/T 650: 282 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback threads 0 over 60 ticks; RED the scramble: 276 differ
+[body gpu]   G2 world group: once 3.320 vs twice 5.353 ms (-38 %); G3 tick (30 per submit): once 20.601 vs twice 22.422 ms (-8 %)
+[body gpu]   G4 fallback threads 0 of 541440 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 3.355 (106 %), copy -0.157 (-5 %) of the world group 3.160
+[body gpu] F5.5g E/T 2800: 994 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback threads 0 over 60 ticks; RED the scramble: 954 differ
+[body gpu]   G2 world group: once 3.871 vs twice 6.592 ms (-41 %); G3 tick (30 per submit): once 29.420 vs twice 31.994 ms (-8 %)
+[body gpu]   G4 fallback threads 0 of 1908480 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 3.643 (100 %), copy -0.106 (-3 %) of the world group 3.632
+[  PASSED  ] 1 test.

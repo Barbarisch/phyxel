@@ -1471,3 +1471,106 @@ TEST_F(VoxFoundBodySimGpu, F55fWorldSplit) {
         EXPECT_GT(st.dgSumCand, 0u) << "the split's counters ran";
     }
 }
+
+// docs/VoxelFoundationPlan.md F5.5g (prediction: docs/evidence/voxfound_f55_prediction.txt G1-G4): each world item tested
+// once per pass -- the staged candidates copied to their serial offset, bit-equal to the two-test pass
+TEST_F(VoxFoundBodySimGpu, F55gWorldOnce) {
+    struct Run {
+        std::vector<SimBody> bodies;
+        BodySimGpuStats stats;
+        BodySimGpu::Profile prof;
+        double tickMs = 0.0;
+    };
+    for (const float e : {250.0f, 650.0f, 2800.0f}) {
+        SCOPED_TRACE(e);
+        LabPile pile = labLargeWall(e);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef mirror(pile.world, pile.mats, prm);
+        for (const Body& b : pile.bodies) mirror.add(b, b.vel, b.angVel);
+        std::string err;
+        ASSERT_TRUE(gpu.load(pile.world, pile.mats, mirror.bodies(), mirror.params(), &err)) << err;
+        int settleTicks = 0;
+        do {
+            step(60);
+            if (HasFatalFailure()) return;
+            settleTicks += 60;
+        } while (gpu.stats().awake > 0 && settleTicks < 6000);
+        ASSERT_EQ(gpu.stats().awake, 0u);
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        std::vector<SimBody> woken = mirror.bodies();
+        for (SimBody& b : woken) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        const size_t nb = woken.size();
+        // mode: 0 = the two-test pass, 1 = once, 2 = once + the scramble (test only)
+        auto runFor = [&](int ticks, int mode, bool profile, bool split, int perSubmit) {
+            Run r;
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
+            gpu.setWorldOnce(mode != 0, mode == 2);
+            gpu.setWorldSplit(split, true);
+            gpu.setProfile(profile);
+            step(ticks, perSubmit);
+            r.tickMs = std::max(0.0, gpu.lastGpuMs()) / ticks;
+            gpu.setProfile(false);
+            gpu.setWorldSplit(false);
+            gpu.setWorldOnce(true);
+            r.stats = gpu.stats();
+            r.prof = gpu.profile();
+            r.bodies = woken;
+            EXPECT_TRUE(gpu.read(r.bodies, &werr)) << werr;
+            return r;
+        };
+        auto differ = [](const Run& a, const Run& b) {
+            size_t n = 0;
+            for (size_t i = 0; i < a.bodies.size(); ++i)
+                if (a.bodies[i].pos != b.bodies[i].pos || a.bodies[i].quat != b.bodies[i].quat ||
+                    a.bodies[i].vel != b.bodies[i].vel || a.bodies[i].angVel != b.bodies[i].angVel ||
+                    a.bodies[i].asleep != b.bodies[i].asleep)
+                    ++n;
+            return n;
+        };
+        auto sameCounters = [](const BodySimGpuStats& a, const BodySimGpuStats& b) {
+            return a.contacts == b.contacts && a.candidates == b.candidates && a.capped == b.capped &&
+                   a.deepPoints == b.deepPoints && a.pairsTested == b.pairsTested && a.hardFires == b.hardFires &&
+                   a.scratchOverflow == b.scratchOverflow && a.awake == b.awake;
+        };
+        // G1: bit-equal over 60 ticks, and the scramble's red
+        const Run twice = runFor(60, 0, false, false, 30);
+        const Run once = runFor(60, 1, false, false, 30);
+        const Run scr = runFor(60, 2, false, false, 30);
+        const size_t dOnce = differ(twice, once), dScr = differ(twice, scr);
+        std::printf("[body gpu] F5.5g E/T %.0f: %zu bodies; once vs twice over 60 ticks: %zu bodies differ, counters %s "
+                    "(candidates %llu vs %llu, deep %llu vs %llu); fallback threads %u over 60 ticks; RED the "
+                    "scramble: %zu differ\n", e, nb, dOnce, sameCounters(twice.stats, once.stats) ? "equal" : "DIFFER",
+                    (unsigned long long)once.stats.candidates, (unsigned long long)twice.stats.candidates,
+                    (unsigned long long)once.stats.deepPoints, (unsigned long long)twice.stats.deepPoints,
+                    once.stats.worldRedo, dScr);
+        EXPECT_EQ(dOnce, 0u) << "G1: once changed the simulation";
+        EXPECT_TRUE(sameCounters(twice.stats, once.stats)) << "G1: once changed a counter";
+        EXPECT_GT(dScr, 0u) << "G1 red: the scrambled order must show in the bodies";
+        // G2/G3: the world group (profiled, one tick per submit) and the tick (unprofiled, 30 per submit), alternated
+        auto mean = [](const BodySimGpu::Profile& p, int g) { return p.sumMs[g] / std::max(1, p.ticks); };
+        const int G_WORLD = 2, G_COUNT = 14, G_WRITE = 15;
+        std::vector<double> wOn, wOff, tOn, tOff;
+        for (int rep = 0; rep < 3; ++rep) {
+            wOff.push_back(mean(runFor(30, 0, true, false, 1).prof, G_WORLD));
+            wOn.push_back(mean(runFor(30, 1, true, false, 1).prof, G_WORLD));
+            tOff.push_back(runFor(30, 0, false, false, 30).tickMs);
+            tOn.push_back(runFor(30, 1, false, false, 30).tickMs);
+        }
+        const double w1 = medianOf(wOn), w0 = medianOf(wOff), t1 = medianOf(tOn), t0 = medianOf(tOff);
+        std::printf("[body gpu]   G2 world group: once %.3f vs twice %.3f ms (%+.0f %%); G3 tick (30 per submit): once "
+                    "%.3f vs twice %.3f ms (%+.0f %%)\n", w1, w0, 100.0 * (w1 / w0 - 1.0), t1, t0,
+                    100.0 * (t1 / t0 - 1.0));
+        // G4: the fallback, and the split in the once mode (w_write's increment = the copy)
+        const Run sp = runFor(30, 1, true, true, 1);
+        const double world = mean(sp.prof, G_WORLD), cnt = mean(sp.prof, G_COUNT), wr = mean(sp.prof, G_WRITE);
+        const uint64_t slots = uint64_t(sp.stats.awake) * 64u * 30u;
+        std::printf("[body gpu]   G4 fallback threads %u of %llu (body, thread) slots over 30 ticks (%.3f %%); split: "
+                    "tests+stage %.3f (%.0f %%), copy %.3f (%.0f %%) of the world group %.3f\n", sp.stats.worldRedo,
+                    (unsigned long long)slots, 100.0 * sp.stats.worldRedo / std::max<uint64_t>(1, slots), cnt,
+                    100 * cnt / world, wr - cnt, 100 * (wr - cnt) / world, world);
+        EXPECT_LE(w1, 0.70 * w0) << "G2: the world group must drop >= 30 %";
+    }
+}

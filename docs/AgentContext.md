@@ -604,8 +604,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       then write re-tests every item), the cap <= 5 %; the busiest body ~3,000 items on one 64-thread workgroup;
       HARD_APPLY tests them a third time. (The uv python on PATH for the engine launch has no numpy: run the gates
       from Bash.)
-      NEXT: F5.5g (test each world item once per pass -- keep the count's candidates, serial order, bit-equal; then a
-      big body's items over more than one workgroup) with its prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
+      F5.5g done: each world item tested once (BodySimGpu::setWorldOnce, default on; kStage 48 staged candidates per
+      thread past the scratch, copied to the serial offset; bit-equal, a scramble red). World group -33-41 % headless,
+      -36-38 % live; the tick only -8 % (MISSED). kStage 16 MISSED: the fallback threads sit on the busiest bodies.
+      Measured on a GPU held at 94-100 % by another session's engine: 5 GPU suite device-time guards fail with the
+      lever on AND off -- re-run them on a quiet GPU. (PowerShell 5.1 Get-Content/Set-Content mangles UTF-8 and adds a
+      BOM: edit files with Python or the Edit tool.)
+      NEXT: F5.5h (spread a big body's world items over more than one workgroup) with its prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
       the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
       5 ms); region-vs-area edge pixels.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)

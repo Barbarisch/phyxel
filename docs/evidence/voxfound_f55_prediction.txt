@@ -862,3 +862,41 @@ PREDICTIONS (headless, the woken pile, 30 profiled ticks, the lab's grid as F5.5
 WHAT WOULD COUNT AS A MISS: not bit-equal; any drop outside its range; fallback > 1 %. HARD_APPLY's third test of the
 same items and the busiest body on one workgroup stay: the next increment spreads a big body's items over more than
 one workgroup, with its own prediction.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5g RESULTS (2026-11-20; after the runs, the predictions above untouched). Release. CONDITIONS: World of Warcraft not
+running; ANOTHER session's engine (G:\Github\phyxel\phyxel.exe, not mine, not stopped) ran throughout with the GPU at
+94-100 % utilization (sampled before, between and after the runs) -- every device time here is contended: the woken
+pile's tick ran ~2x F5.5e's clean values (17-32 vs 8.4-15.0 ms). The A/B pairs alternate (headless: 3 reps, medians;
+live: ABBA). Evidence: voxfound_f55g_red.txt (the stub), voxfound_f55g_headless.txt (VoxFoundBodySimGpu.F55gWorldOnce,
+kStage 16 then 48), voxfound_f55g_live.jsonl (tools/voxfound_f55e_gate.py --once off/on/on/off, CharacterTestbed).
+  RED (a stub setWorldOnce, nothing changed): the world group did not drop (-3 % at 282; +276 % at 110 under the
+     contention) and the scramble changed 0 bodies, at every rung.
+  G1 PASS: 60 ticks once vs twice: 0 bodies differ, every counter equal (candidates 474,597 / 1,283,104 / 4,671,558),
+     at every rung, with kStage 16 and 48. The scramble: 110 / 276 / 954 bodies differ. F55a3WorldBitEqual (the
+     parallel world pass vs the serial K_WORLD) still 0 samples differ with once on.
+  G2 with the predicted kStage = 16: MISSED -- the world group -27 / -32 / -27 % (35-50). The fallback threads were
+     0.30 / 0.23 / 0.09 % of the slots (<= 1 PASS), but they sit on the busiest bodies, which set the pass's time: there
+     the crowded threads re-tested their items, and the copy showed as 14-17 % of the world group at two rungs.
+     PROBE kStage = 48 (the shipped value): 0 fallback threads at every rung; the world group -33 / -38 / -41 %
+     (2.89 vs 4.33, 3.32 vs 5.35, 3.87 vs 6.59 ms) -- in range at 282 and 994, 2 points under at 110. The copy is
+     within noise of zero. Cost: the stage is 64 x 48 candidates x 80 B per persistent group: 27 MB at 110 bodies,
+     126 MB at >= 512 (the bodies' own scratch is 36 MB / 325 MB at 110 / 994).
+  G3 MISSED: the tick (30 per submit, contended) -8 / -8 / -8 % (10-20).
+  G4 PASS with kStage 48 (0 fallback; the copy <= 0 % of the world group); with 16, fallback <= 0.30 % PASS but the
+     copy 14-17 % at two rungs (<= 10 MISSED).
+  G5 live: the world group -36 / -38 / -37 % (30-50 PASS), 0 fallback threads; the device ms per tick (one per submit)
+     -12 / +5 / -0 % (>= 8 MISSED at 282 and 994; 30 per submit -13 / -5 / +0 %), contended.
+  SUITES: VoxFound GPU 43 / 48 pass. The 5 failures are device-time guards only (asleep tails, the primal, pairs,
+     hard_body, hard_apply 0.53 vs 0.5, the reload 29 vs 20 ms); every equality in them holds. CONTROL: the same 5 tests
+     with the lever's default OFF fail the same guards by the same margins (asleep tail 3.81 vs 3.67, primal 3.03 vs
+     3.03, reload 30.1 vs 29.2 ms) -- the contention, not F5.5g. To re-run on a quiet GPU. VoxFound CPU 124 / 125 on the
+     first run: VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild failed (its message not captured -- my error) and
+     passed on the rerun (375 s; a CPU test, untouched by this change); cause not found.
+  My errors: an ANSI read + BOM write of BodySimGpu.h from PowerShell 5.1 (Set-Content -Encoding utf8) during the
+     control -- caught in the diff, the header restored from HEAD and the patch re-applied; the CPU failure's message
+     not kept.
+CONCLUSION: each world item is tested once, bit-equal; the world group falls by about a third to two fifths, but the
+tick by <= 8 % (contended): the world group was about a third of the tick (F5.5e), and the busiest body's ~3,000 items still sit on
+one 64-thread workgroup. HARD_APPLY tests them a third time. Next (its own prediction): spread a big body's items over
+more than one workgroup.

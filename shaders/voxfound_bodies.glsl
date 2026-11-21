@@ -112,7 +112,7 @@ const uint P_NB = 0, P_WX = 1, P_WY = 2, P_WZ = 3, P_WVM = 4, P_GROUND = 5, P_DT
 const uint S_CAND = 0, S_CAPPED = 1, S_DEEP = 2, S_PAIRS = 3, S_HARD = 4, S_OVF_SCRATCH = 5, S_OVF_CONS = 6,
            S_UNCOL = 7, S_MAXCOL = 8, S_MAXCONS = 9, S_AWAKE = 10, S_TICKCOL = 11, S_NPAIRS = 12,
            S_NHPAIRS = 13, S_NAWAKE = 14, S_OVF_PAIRS = 15, S_NCONS = 16,
-           S_DG_MAXCAND = 17, S_DG_MAXITEMS = 18, S_DG_OVERCAP = 19, S_DG_SUMCAND = 20,   // F5.5f: the split's w_count
+           S_DG_MAXCAND = 17, S_DG_MAXITEMS = 18, S_DG_OVERCAP = 19, S_DG_SUMCAND = 20, S_REDO = 21,   // F5.5f: the split's w_count
            S_BODY = 32;
 const uint STATIC = 0xFFFFFFFFu, UNC = 0xFFFFFFFFu, NOCOL = 0xFFFFFFFEu;
 const float INF = 1e30;
@@ -267,9 +267,13 @@ Esc sweepWorld(vec3 a, vec3 b, float vm) {
     return e;
 }
 
-// ---- candidate sink: mode 0 = scratch, mode 1 = deepest only ----
+// ---- candidate sink: mode 0 = scratch, mode 1 = deepest only, 2 = count only, 3 = staged (F5.5g) ----
 uint gMode = 0u, gBase = 0u, gCount = 0u;
 bool gQuiet = false;   // F5.5f: a diagnostic copy of the world pass -- no counter side effects
+bool gNoDeep = false;  // F5.5g: a fallback re-test (its deep points were counted when staged)
+const uint STAGE = 48u;   // F5.5g: staged candidates per world-pass thread (BodySimGpu::kStage)
+// the deep-point counter: counted once per item -- in the write (mode 0) or the staging (mode 3)
+bool countDeep() { return !gQuiet && ((gMode == 0u && !gNoDeep) || gMode == 3u); }
 float gDeepPen = 0.0;
 vec3 gDeepN = vec3(0.0);
 
@@ -279,7 +283,8 @@ void consider(vec3 n, float pen, vec3 rA, vec3 rB, vec3 point, float mu, uint bu
         return;
     }
     if (gMode == 2u) { ++gCount; return; }   // F5.5a3: count only
-    if (gCount >= prm[P_SCRATCH]) { if (!gQuiet) atomicAdd(state[S_OVF_SCRATCH], 1u); return; }
+    if (gMode == 0u && gCount >= prm[P_SCRATCH]) { if (!gQuiet) atomicAdd(state[S_OVF_SCRATCH], 1u); return; }
+    if (gMode == 3u && gCount >= STAGE) { ++gCount; return; }   // F5.5g: past the stage -- this thread re-tests
     Cand c;
     c.n = vec4(n, pen);
     c.rA = vec4(rA, mu);
@@ -324,7 +329,7 @@ void worldCorner(uint ai, Body A, mat3 R, uint k) {
             if (sw.status == 1) e = sw;
         }
     }
-    if (e.status == 2) { if (gMode == 0u && !gQuiet) atomicAdd(state[S_DEEP], 1u); return; }
+    if (e.status == 2) { if (countDeep()) atomicAdd(state[S_DEEP], 1u); return; }
     if (e.status != 1) return;
     float mu = 0.5 * (A.fixedProps.y + muOfWorld(e.cell));
     consider(e.n, e.pen, cr.xyz, w, w, mu, uint(e.dir), keyOf(ai, STATIC, 0u, k, uint(e.dir)));
@@ -379,7 +384,7 @@ void worldCell(uint ai, Body A, mat3 R, mat3 Rt, ivec3 cell, vec3 lo, vec3 hi) {
                 vec3 local = Rt * (w - A.pos.xyz);
                 vec3 prefer = Rt * -vec3(D);
                 Esc e = escapeAt(false, ai, local / avm + A.comLocal.xyz, pf(P_MARGIN) / avm, prefer, avm);
-                if (e.status == 2) { if (gMode == 0u && !gQuiet) atomicAdd(state[S_DEEP], 1u); continue; }
+                if (e.status == 2) { if (countDeep()) atomicAdd(state[S_DEEP], 1u); continue; }
                 if (e.status != 1) continue;
                 float mu = 0.5 * (A.fixedProps.y + muOfWorld(cell));
                 uint lk = hash32(uint(L.x) * 0x9E3779B1u ^ hash32(uint(L.y) * 0x85EBCA77u ^
@@ -877,6 +882,9 @@ void worldPar() {
     uint na = state[S_NAWAKE], scr = prm[P_SCRATCH], base = g * scr;
     uint stop = pc.arg;
     gQuiet = stop != 0u && (pc.n & 1u) != 0u;
+    // F5.5g: pc.n bit 1 = once (each item tested once: staged, then copied), bit 2 = the scramble (tests only)
+    bool once = (pc.n & 2u) != 0u, scramble = (pc.n & 4u) != 0u;
+    uint stBase = prm[P_NB] * scr + (g * 64u + lid) * STAGE;   // this thread's stage, past the bodies' scratch
     for (uint idx = g; idx < na; idx += G) {
         uint ai = aux[idx];
         Body A = bodies[ai];
@@ -885,7 +893,7 @@ void worldPar() {
         vec3 lo, hi;
         uint L = A.meta.y + worldBox(A, cl, nc, lo, hi);
         uint per = (L + 63u) / 64u, q0 = min(L, lid * per), q1 = min(L, q0 + per);
-        gMode = 2u; gCount = 0u;
+        gMode = once ? 3u : 2u; gBase = stBase; gCount = 0u;
         for (uint q = q0; q < q1; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
         gwCnt[lid] = gCount;
         memoryBarrierShared();
@@ -904,8 +912,22 @@ void worldPar() {
         memoryBarrierShared();
         barrier();
         if (stop == 1u) continue;
-        gMode = 0u; gBase = base; gCount = gwOff[lid];   // consider() writes scratch[base + offset], drops past scr
-        for (uint q = q0; q < q1; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
+        uint mine = gwCnt[lid];
+        if (once && mine <= STAGE) {   // F5.5g: the staged candidates to the serial offset -- the write's slots + drops
+            uint off = gwOff[lid], ovf = 0u;
+            for (uint i = 0u; i < mine; ++i) {
+                uint dst = scramble ? gwTotal - 1u - (off + i) : off + i;   // scramble: the body's order reversed
+                if (dst < scr) scratch[base + dst] = scratch[stBase + i];
+                else ++ovf;
+            }
+            if (ovf > 0u && !gQuiet) atomicAdd(state[S_OVF_SCRATCH], ovf);
+        } else {   // the write: re-test this thread's items (all threads in the two-test pass; past the stage in once)
+            if (once && stop == 0u) atomicAdd(state[S_REDO], 1u);
+            gNoDeep = once;
+            gMode = 0u; gBase = base; gCount = gwOff[lid];   // consider() writes scratch[base + offset], drops past scr
+            for (uint q = q0; q < q1; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
+            gNoDeep = false;
+        }
         uint cnt = min(gwTotal, scr);
         memoryBarrierBuffer();
         barrier();

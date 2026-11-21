@@ -9,6 +9,7 @@ Per rung: settle (rest off), then every body woken through BodySimGpu::edit ({"w
   b) woken again, one request of 30 ticks (30 per submit);
   c) woken again, the per-pass profile on, 30 synchronous ticks, the status's profile block.
 Writes JSON lines to docs/evidence/voxfound_f55e_live.jsonl.
+F5.5g: --once on|off sets {"world_once"} with every wake (on = each world item tested once; off = the two-test pass).
 """
 import argparse
 import json
@@ -43,13 +44,17 @@ def cmd(**kw):
     return post(BODIES, dict({"status": True, "pen": False}, **kw))
 
 
+def once_kw(a):   # F5.5g
+    return {"world_once": a.once == "on"} if a.once else {}
+
+
 def rung(a, e):
     r = post(BODIES, {"rig": "large_wall", "energy": e, "impulse": 200.0, "at": AT, "solver": "gpu",
                       "preview": "region", "gpu_edit": True})
     st = cmd(ticks=a.settle)
     settled = {"tick": st["tick"], "bodies": st["bodies"], "awake": st["awake"]}
     # a) one tick per request
-    w = cmd(wake_all=True)
+    w = cmd(wake_all=True, **once_kw(a))
     per = []
     for _ in range(a.ticks):
         s = cmd(ticks=1)
@@ -57,18 +62,19 @@ def rung(a, e):
                     "contacts": s["solver"]["stats"]["contacts"], "candidates": s["solver"]["stats"]["candidates"]})
     one = sorted(p["ms"] for p in per)
     # b) 30 ticks in one request (rest off: one submit)
-    cmd(wake_all=True)
+    cmd(wake_all=True, **once_kw(a))
     s = cmd(ticks=a.ticks)
     thirty = s["solver"]["ms_per_tick_device"]
     awake30 = s["awake"]
     # c) the profile
-    cmd(wake_all=True, profile=True, world_split=a.split)   # F5.5f: + the world split
+    cmd(wake_all=True, profile=True, world_split=a.split, **once_kw(a))   # F5.5f: + the world split
     for _ in range(a.ticks):
         s = cmd(ticks=1)
     prof = s["solver"].get("profile")
     cmd(profile=False, world_split=False)
     t = get("/api/debug/engine_timing")
-    log({"gate": "F5.5f live world split" if a.split else "F5.5e live awake pile", "energy": e, "rig": {k: r.get(k) for k in ("bodies", "crumbs") if k in r},
+    gate = "F5.5g live world once=" + a.once if a.once else ("F5.5f live world split" if a.split else "F5.5e live awake pile")
+    log({"gate": gate, "energy": e, "rig": {k: r.get(k) for k in ("bodies", "crumbs") if k in r},
          "settled": settled, "awake_after_wake": w["awake"], "bodies": w["bodies"],
          "one_per_submit": {"median": one[len(one) // 2], "max": one[-1], "per_tick": per},
          "thirty_per_submit": thirty, "awake_after_30": awake30, "profile": prof,
@@ -84,6 +90,7 @@ def main():
     ap.add_argument("--ticks", type=int, default=30)
     ap.add_argument("--energies", type=float, nargs="+", default=[250.0, 650.0, 2800.0])
     ap.add_argument("--split", action="store_true", help="F5.5f: the world split in the profile")
+    ap.add_argument("--once", choices=["on", "off"], default=None, help="F5.5g: the world pass's items once / twice")
     ap.add_argument("--out", default="voxfound_f55e_live.jsonl")
     ap.add_argument("--world", default="", help="which project's world the lab runs in (recorded)")
     a = ap.parse_args()

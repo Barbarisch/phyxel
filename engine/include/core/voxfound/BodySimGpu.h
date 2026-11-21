@@ -32,6 +32,7 @@ struct BodySimGpuStats {
     // F5.5f (the last tick while the world split runs; stale after it is turned off): the largest world candidate count of one awake body, its largest
     // world item count, the awake bodies with more world candidates than the cap, and the summed world candidates
     uint32_t dgMaxCand = 0, dgMaxItems = 0, dgOverCap = 0, dgSumCand = 0;
+    uint32_t worldRedo = 0;   // F5.5g (summed): world-pass threads with more than kStage candidates (re-tested)
     uint32_t awake = 0;                       // after the last tick
 };
 
@@ -109,6 +110,15 @@ public:
         m_worldSplit = on;
         m_splitQuiet = quiet;
     }
+    /// F5.5g: the world pass tests each item once -- each thread stages its candidates (kStage, past the bodies'
+    /// scratch) and copies them to its serial offset after the scan; a thread with more re-tests its own items. Bit-equal
+    /// to the two-test pass (false, the F5.5f control). scramble (tests only): the copy in reversed order, the red for
+    /// the equality check. Default on.
+    void setWorldOnce(bool on, bool scramble = false) {
+        m_worldOnce = on;
+        m_onceScramble = scramble;
+    }
+    static constexpr uint32_t kStage = 48;   // F5.5g: staged candidates per world-pass thread
     static constexpr int kProfMaxStamps = 64;
     static const char* profileName(int g);
     struct Profile {
@@ -162,6 +172,7 @@ private:
     bool m_primalPar = true;
     bool m_profile = false;
     bool m_worldSplit = false, m_splitQuiet = true;   // F5.5f
+    bool m_worldOnce = true, m_onceScramble = false;   // F5.5g
     VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
     int m_pendingTicks = 0;
     bool m_pendingTimed = false;

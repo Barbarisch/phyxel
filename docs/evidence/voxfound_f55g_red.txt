@@ -1,0 +1,27 @@
+[body gpu] F5.5g E/T 250: 110 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 474597 
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1551): error: Expected: (dScr) > (0u), 
+actual: 0 vs 0
+G1 red: the scrambled order must show in the bodies
+[body gpu]   G2 world group: once 13.970 vs twice 3.718 ms (+276 %); G3 tick (30 per submit): once 85.359 vs twice 
+[body gpu]   G4 fallback threads 0 of 211200 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 47.888 
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1574): error: Expected: (w1) <= (0.70 * w0), 
+actual: 13.970222933333336 vs 2.6022961066666666
+G2: the world group must drop >= 30 %
+[body gpu] F5.5g E/T 650: 282 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1551): error: Expected: (dScr) > (0u), 
+actual: 0 vs 0
+G1 red: the scrambled order must show in the bodies
+[body gpu]   G2 world group: once 67.568 vs twice 69.930 ms (-3 %); G3 tick (30 per submit): once 646.265 vs twice 
+[body gpu]   G4 fallback threads 0 of 541440 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 76.522 
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1574): error: Expected: (w1) <= (0.70 * w0), 
+actual: 67.56814186666665 vs 48.951091093333332
+G2: the world group must drop >= 30 %
+[body gpu] F5.5g E/T 2800: 994 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1551): error: Expected: (dScr) > (0u), 
+actual: 0 vs 0
+G1 red: the scrambled order must show in the bodies
+[body gpu]   G2 world group: once 6.369 vs twice 6.341 ms (+0 %); G3 tick (30 per submit): once 31.323 vs twice 31.558 
+[body gpu]   G4 fallback threads 0 of 1908480 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 3.623 
+G:\Github\phyxel-matsimb-lab\tests\integration\VoxFoundBodySimGpuTest.cpp(1574): error: Expected: (w1) <= (0.70 * w0), 
+actual: 6.3689589333333316 vs 4.4388541866666671
+G2: the world group must drop >= 30 %
