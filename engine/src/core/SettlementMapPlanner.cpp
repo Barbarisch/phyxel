@@ -1555,6 +1555,12 @@ SettlementMap planSettlementMap(const SettlementMapInput& in) {
     map.W = in.W; map.D = in.D;
     if (!in.tier) { map.refusal = "no tier preset"; return map; }
     map.tier = in.tier->name; map.morphology = in.tier->morphology;
+    // O41 (pm_chain602.txt): a morphology nobody knows is REFUSED by name - everything that was not "cluster" used to be
+    // grown as a street tier, so a typo planned a main street and said nothing.
+    if (in.tier->morphology != "cluster" && in.tier->morphology != "main_street" && in.tier->morphology != "semi_organic") {
+        map.refusal = "unknown morphology '" + in.tier->morphology + "' (known: cluster, main_street, semi_organic)";
+        return map;
+    }
     if (in.W <= 0 || in.D <= 0 || !in.heightAt) { map.refusal = "no site (size or height sampler missing)"; return map; }
     if (in.lotCap < 1) { map.refusal = "lot cap below 1"; return map; }
     if (const std::string miss = missingTypology(in); !miss.empty()) { map.refusal = miss; return map; }

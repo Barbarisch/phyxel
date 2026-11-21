@@ -3041,3 +3041,27 @@ TEST(SettlementMapTest, AMarketWithNoPlaceOffARampStaysAndSaysSo) {
         else EXPECT_FALSE(says) << "a clear place was on offer: " << m.marketNote;
     }
 }
+
+// O41 (pm_chain602.txt): a morphology the planner does not know is REFUSED, by name. RED (the planner as it stood):
+// everything that is not "cluster" is grown as a street tier, so a typo plans a main street and says nothing.
+TEST(SettlementMapTest, AnUnknownMorphologyIsRefused) {
+    ASSERT_TRUE(rigs().programOk);
+    const auto dry = [](int, int) { return false; };
+    SettlementMapInput in = inputFor("town", 140, 60, flatHeight, dry);
+    ASSERT_NE(in.tier, nullptr);
+    const SettlementMap control = planSettlementMap(in);
+    SettlementTierPreset typo = *in.tier;
+    typo.morphology = "grdi";
+    in.tier = &typo;
+    const SettlementMap m = planSettlementMap(in);
+    std::printf("[ O41 ] control (%s): %s, %zu lots, %zu ways | morphology 'grdi': %s, %zu lots, %zu ways; refusal: %s\n",
+                control.morphology.c_str(), control.ok() ? "planned" : "REFUSED", control.lots.size(), control.ways.size(),
+                m.ok() ? "PLANNED" : "refused", m.lots.size(), m.ways.size(), m.refusal.c_str());
+    EXPECT_TRUE(control.ok()) << control.refusal;
+    EXPECT_GT(control.lots.size(), 0u);
+    EXPECT_FALSE(m.ok()) << "a morphology nobody knows planned a settlement";
+    EXPECT_EQ(m.lots.size(), 0u);
+    EXPECT_EQ(m.ways.size(), 0u);
+    for (const char* word : {"grdi", "cluster", "main_street", "semi_organic"})
+        EXPECT_NE(m.refusal.find(word), std::string::npos) << "the refusal does not name '" << word << "': " << m.refusal;
+}

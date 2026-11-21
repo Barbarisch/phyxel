@@ -1,0 +1,17 @@
+pm_chain602 - O41: an unknown morphology is refused.
+Written 2026-11-21 18:20, before any edit. Release. Headless L2.
+WHAT IS OPEN: a tier's morphology is a free string; the planner treats everything that is not "cluster" as a street
+  tier, so a typo ("grdi") plans a main street and says nothing.
+THE RULE: planSettlementMap refuses a morphology it does not know, naming it and the known ones (cluster,
+  main_street, semi_organic). No behaviour changes for the three known values.
+THE TEST (SettlementMapTest.AnUnknownMorphologyIsRefused): the medieval town's preset copied with morphology "grdi" on
+  a flat 140 x 60 site - asserted: not ok, the refusal names "grdi" and the three known values, 0 lots, 0 ways.
+  Control: the same preset untouched plans (ok, lots > 0).
+PREDICTIONS
+  chain 602 (the test, planner unchanged): RED - "grdi" plans a town (ok, lots > 0).
+  chain 603 (the rule): green; then the full sets unit 414 / 0, live 44 / 0, every line unchanged.
+RESULTS
+  chain 602 (RED, exe 18:20:34): as predicted - "morphology 'grdi': PLANNED, 22 lots, 2 ways; refusal: " (the control: main_street, 22 lots, 2 ways - the same plan).
+  chain 603 (the rule; exe 18:21:05): unit set 414 ok / 0 failed; "morphology 'grdi': refused, 0 lots, 0 ways; refusal: unknown morphology 'grdi' (known: cluster, main_street, semi_organic)"; the 82 M5a / M5b prints identical to chain 555's. As predicted. Live (chain 604) on the same exe next.
+  chain 604 (live, the same exe 18:21:05): 44 ok / 0 failed; every record line identical to chain 599's.
+  WHAT THIS IS: L2 on one tier with a control. The BUILD SERVICE's own morphology switch (semi_organic or main_street) is unchanged: it cannot be reached with an unknown value now (the planner refuses first on the map path); the legacy non-map path is not covered. Not audited.
