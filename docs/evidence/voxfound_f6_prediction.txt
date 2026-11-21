@@ -96,3 +96,24 @@ F6.2 RESULTS (2026-11-21; the prediction above untouched). Release, CPU. Evidenc
      only); stated in the code.
 CONCLUSION: liquid and powder live in the world's grid; the box around them is invisible (equal to one box over the
 world) once the pressure state is carried. Next F6.3: crumbs are powder.
+
+---------------------------------------------------------------------------------------------------------------------
+F6.3 PREDICTION -- crumbs are powder (2026-11-21, before any code). CPU reference.
+CONTROL: F5.1's extraction leaves crumbs as a list (world voxel, material) outside the world: counted, never simulated.
+THE CHANGE:
+  - MatSim's material table gets a rubble material per world material: id 64 + m for world material m (1..63), a
+    powder at 45 deg (gravel's grounded angle; the same for stone, brick, wood or glass rubble -- broad strokes, one
+    angle for all, stated). MatSim::rubbleOf(m) / worldMaterialOfRubble(id).
+  - VoxFound::crumbsToPowder(crumbs, wf): every crumb's voxel (air after the extraction) gets one full cell
+    (256 units) of its material's rubble, in one batch (WorldFluid::addFill: one box re-made, the tick carried over).
+    A crumb voxel that is not air is refused (no partial write).
+  P1: conservation per world material, exact: the wall + floor voxels before the break = solid voxels left + body voxels +
+      rubble units / 256 -- after the extraction and every 50 ticks (1,200 ticks), on a hand-built 8 x 6 m
+      wall (FractureLab materials) of stone and of brick, E/T 650 and 2800 each.
+  P2: the rubble comes to rest: quiet (nothing moved, no head change) within 1,200 ticks on every rig.
+  P3: the rubble falls: after rest, the rubble's mean height is below its starting mean height (it slid into piles),
+      and no rubble cell rests over an empty cell (MatSim's powder rule; checked on the world grid).
+  P4: identity: each rubble material maps back to its world material (the ledger reads per world material).
+  P5: the refusals: a crumb over a solid voxel, an unknown material (0 or > 63).
+RED: a stub crumbsToPowder (returns true, writes nothing) -- P1 fails (the rubble term is 0).
+Not here: the bodies' motion (F5; counted as voxels), anything live (F6.5).
