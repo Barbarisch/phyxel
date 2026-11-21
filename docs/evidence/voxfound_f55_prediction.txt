@@ -900,3 +900,42 @@ CONCLUSION: each world item is tested once, bit-equal; the world group falls by 
 tick by <= 8 % (contended): the world group was about a third of the tick (F5.5e), and the busiest body's ~3,000 items still sit on
 one 64-thread workgroup. HARD_APPLY tests them a third time. Next (its own prediction): spread a big body's items over
 more than one workgroup.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5h -- A BIG BODY'S WORLD ITEMS OVER MORE THAN ONE WORKGROUP (written 2026-11-20 BEFORE its code)
+
+WHY: F5.5g tests each world item once (bit-equal), and the world group fell 33-41 % -- but the tick only ~8 %: the
+busiest body's ~3,000 items (corners + world-box cells) still sit on ONE 64-thread workgroup, ~47 items per thread, while
+a typical body has a few hundred. Each pass waits for its busiest bodies (F5.5e: the biggest tenth costs 63-71 % of
+the tick). F5.5g's contended world group: 2.89 / 3.32 / 3.87 ms at 110 / 282 / 994 bodies (headless, kStage 48).
+CONDITIONS at the time of writing: World of Warcraft not running; another session's engine (G:\Github\phyxel, not mine,
+not stopped) running, the GPU at 50-72 % -- recorded with every run.
+
+WHAT IT BUILDS (the lever; the serial order kept, so bit-equal):
+  - the world pass as three dispatches (BodySimGpu::setWorldSpread, default ON once green; OFF = F5.5g's one-workgroup-
+    per-body pass, the control):
+      units  (one workgroup): each awake body's item count L -> its chunks, min(16, ceil(L / 256)); a prefix over
+             the awake bodies = each body's first unit (state words past the per-body arrays).
+      chunk  (persistent workgroups over the units): one workgroup tests one chunk's items (<= 4 per thread when
+             L <= 4,096), stages them (F5.5g), scans, and writes the chunk's candidates in order into the body's own
+             scratch region (indexed by its awake slot) at chunk k's slot (256 candidates); the chunk's count stored.
+             A thread past its stage, or a chunk past 256, marks its body for the fallback.
+      finish (one workgroup per awake body): the chunks' offsets in order; each chunk moved left in place (read into
+             registers, barrier, write) to the contiguous serial layout; the cap + emit (coopEmit) as before. A
+             marked body runs F5.5g's whole per-body pass here instead (its deep points not counted twice); counted
+             (a new counter word).
+  - the lab's {"world_spread":bool}; the f55e gate's --spread on|off.
+  - a test-only scramble (the chunks placed in reverse order) to prove the equality check sees the order.
+
+RED FIRST: VoxFoundBodySimGpu.F55hWorldSpread asserts the world group drops >= 25 % with the spread on, run against a
+  stub setWorldSpread that changes nothing: RED. And the scramble changes 0 bodies under the stub (RED for the order).
+
+PREDICTIONS (headless, the woken pile, the lab's grid as F5.5e-g; A/B alternated, 3 reps, medians)
+  H1 bit-equal: 60 ticks spread on vs off: 0 bodies differ, every counter equal, at every rung; the scramble: > 0
+     bodies differ at every rung.
+  H2 the world group (all three dispatches) drops 30-60 % vs F5.5g's pass at every rung.
+  H3 the tick (30 per submit) drops 5-15 % at every rung.
+  H4 the fallback bodies <= 1 % of the awake bodies per tick.
+  H5 live (CharacterTestbed, the f55e gate, ABBA): the world group drops 25-60 % at every rung.
+WHAT WOULD COUNT AS A MISS: not bit-equal; any drop outside its range; fallback > 1 %. HARD_APPLY's third test of the
+items stays (its own increment).
