@@ -1100,6 +1100,8 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     settle(vol);
     s_tileGpuMs.seedSettle = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tq0).count();
     const auto tq1 = std::chrono::steady_clock::now();
+    auto sq = tq1;   // 58.3: the seed's need part, split
+    auto sLap = [&sq](const char* n) { const auto t = std::chrono::steady_clock::now(); WaterHostProfile::add(n, std::chrono::duration<double, std::milli>(t - sq).count()); sq = t; };
     if (vol.colQuiet.size() != nc) vol.colQuiet.assign(nc, 0);
     for (int bz = std::max(0, bLo.y); bz <= std::min(vol.bn.z - 1, bHi.y); ++bz)
         for (int bx = std::max(0, bLo.x); bx <= std::min(vol.bn.x - 1, bHi.x); ++bx) {
@@ -1108,6 +1110,7 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
             vol.colQuiet[c] = 1 << 20;   // at rest (the freeze test's count, far past restTicks)
         }
     vol.anyRecorded = std::find(vol.colRecorded.begin(), vol.colRecorded.end(), 1) != vol.colRecorded.end();
+    sLap("seed.0a flags");
     // 27.22 TC4: with tall cells, a seeded column's water under the floor goes into its tall cell (the bricks there read the ground)
     if ((vol.tallActive || vol.tallPending == 1) && vol.tallH.size() == vol.dColumns && vol.tallY >= 0 && !s_seedSkipsTallCollapseForTest) {
         const glm::ivec3 nn = vol.spec.dims, o2 = cells.spec().origin - vol.spec.origin;
@@ -1126,8 +1129,10 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     // (27.19: a whole-volume dense fill, allocated, zeroed and walked twice, was 9-10 ms of a wake on the 46 x 28 m bench pond)
     const glm::ivec3 n = vol.spec.dims, off = cells.spec().origin - vol.spec.origin;
     auto inVol = [&](const glm::ivec3& c) { return c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < n.x && c.y < n.y && c.z < n.z; };
+    sLap("seed.0b tall collapse");
     std::vector<char> need(vol.mapCount, 0);
     for (size_t m = 0; m < vol.mapCount; ++m) need[m] = vol.map[m] >= kFirstSlot ? 2 : (vol.map[m] == kGround ? 1 : 0);   // the rest stays as it is
+    sLap("seed.0c need init");
     int redSkipBx = -1;   // 51.9 TEST ONLY: s_seedNarrowShortForTest's dropped brick column
     if (!s_seedWholeMapForTest) {   // 51.9: the same rule over the bricks the seed's cells can lie in (the walk of the whole map for
         // one tile was 1.4 ms of a wake, 51.8); markNeed still reaches out over the whole map, and only raises need, so order is free
@@ -1136,15 +1141,26 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
             const glm::ivec3 bLo3 = (cLo + vol.o) / vol.bs(), bHi3 = (cHi + vol.o) / vol.bs(), bn3 = bHi3 - bLo3 + 1;
             if (s_seedNarrowShortForTest) redSkipBx = bHi3.x;
             std::vector<int> rec(static_cast<size_t>(bn3.x) * bn3.y * bn3.z * 7, -1);
-            for (int z = cLo.z - off.z; z <= cHi.z - off.z; ++z) for (int y = cLo.y - off.y; y <= cHi.y - off.y; ++y) for (int x = cLo.x - off.x; x <= cHi.x - off.x; ++x) {
-                if (cells.f(x, y, z) == 0.0f) continue;
-                const glm::ivec3 q = off + glm::ivec3(x, y, z) + vol.o, b = q / vol.bs() - bLo3, l = q % vol.bs();
-                if (q.x / 8 == redSkipBx) continue;
-                int* r = &rec[(static_cast<size_t>(b.x) + static_cast<size_t>(bn3.x) * (b.y + static_cast<size_t>(bn3.y) * b.z)) * 7];
-                if (r[0] < 0) { r[0] = 1; for (int k = 1; k < 7; ++k) r[k] = 7; }
-                const int dd[6] = {l.x, 7 - l.x, l.y, vol.by - 1 - l.y, l.z, 7 - l.z};
-                for (int k = 0; k < 6; ++k) r[1 + k] = std::min(r[1 + k], dd[k]);
+            // 58.3: the y / z brick and offset once a row, x by shifts (the cells are inside the volume: q >= 0) - a divide and a
+            // modulo per axis per wet cell was 3.0-3.4 ms of a live wake
+            for (int z = cLo.z - off.z; z <= cHi.z - off.z; ++z) for (int y = cLo.y - off.y; y <= cHi.y - off.y; ++y) {
+                const int qy = off.y + y + vol.o.y, qz = off.z + z + vol.o.z;
+                const int byr = qy / vol.by - bLo3.y, ly = qy % vol.by, bzr = (qz >> 3) - bLo3.z, lz = qz & 7;
+                const size_t rowBase = static_cast<size_t>(bn3.x) * (byr + static_cast<size_t>(bn3.y) * bzr);
+                const int dy0 = ly, dy1 = vol.by - 1 - ly, dz0 = lz, dz1 = 7 - lz;
+                for (int x = cLo.x - off.x; x <= cHi.x - off.x; ++x) {
+                    if (cells.f(x, y, z) == 0.0f) continue;
+                    const int qx = off.x + x + vol.o.x;
+                    if ((qx >> 3) == redSkipBx) continue;
+                    const int lx = qx & 7;
+                    int* r = &rec[(static_cast<size_t>((qx >> 3) - bLo3.x) + rowBase) * 7];
+                    if (r[0] < 0) { r[0] = 1; for (int k = 1; k < 7; ++k) r[k] = 7; }
+                    r[1] = std::min(r[1], lx); r[2] = std::min(r[2], 7 - lx);
+                    r[3] = std::min(r[3], dy0); r[4] = std::min(r[4], dy1);
+                    r[5] = std::min(r[5], dz0); r[6] = std::min(r[6], dz1);
+                }
             }
+            sLap("seed.0d nearest-wet walk");
             for (int bz = 0; bz < bn3.z; ++bz) for (int by = 0; by < bn3.y; ++by) for (int bx = 0; bx < bn3.x; ++bx) {
                 const int* r = &rec[(static_cast<size_t>(bx) + static_cast<size_t>(bn3.x) * (by + static_cast<size_t>(bn3.y) * bz)) * 7];
                 if (r[0] < 0) continue;
@@ -1172,6 +1188,7 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
             markNeed(vol, need, b, r + 1, kB);
         }
     }
+    sLap("seed.0e markNeed");
     auto tp = std::chrono::steady_clock::now();
     auto part = [&](int k) { const auto n = std::chrono::steady_clock::now(); s_tileGpuMs.seedPart[k] = std::chrono::duration<double, std::milli>(n - tp).count(); tp = n; };
     s_tileGpuMs.seedPart[0] = std::chrono::duration<double, std::milli>(tp - tq1).count();
@@ -1190,19 +1207,31 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     const double h3 = static_cast<double>(vol.spec.h) * vol.spec.h * vol.spec.h;
     if (!s_seedWholeMapForTest) {   // 51.9: one walk - a slot is zeroed whole on its first touch, then written (three walks were 2.7 ms)
         std::vector<char> zeroed;
-        for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) for (int x = 0; x < cells.nx(); ++x) {
+        // 58.3: storageIndex's rule with the y / z part once a row and the slot looked up once a brick (1.8-2.3 ms of a live wake)
+        for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) {
+            const int cy = off.y + y, cz = off.z + z;
+            if (cy < 0 || cz < 0 || cy >= n.y || cz >= n.z) continue;   // !inVol
+            const int qy = cy + vol.o.y, qz = cz + vol.o.z;
+            const bool rowOut = qy < 0 || qz < 0 || qy / vol.by >= vol.bn.y || (qz >> 3) >= vol.bn.z;
+            const size_t rowMap = rowOut ? 0 : static_cast<size_t>(vol.bn.x) * (qy / vol.by + static_cast<size_t>(vol.bn.y) * (qz >> 3));
+            const long inBrick = 8 * (qz & 7) + 64 * (qy & (vol.by - 1));
+            int lastB = -1, lastSlot = 0;
+            for (int x = 0; x < cells.nx(); ++x) {
             const float f = cells.f(x, y, z);
-            const glm::ivec3 c = off + glm::ivec3(x, y, z);
-            if (f == 0.0f || !inVol(c) || (c.x + vol.o.x) / 8 == redSkipBx) continue;
-            const long i = storageIndex(vol, c.x, c.y, c.z);
-            if (i < static_cast<long>(kFirstSlot * vol.bc)) { unplaced += f * h3; continue; }   // a full capacity: counted, never silent
-            const int slot = static_cast<int>(i / static_cast<long>(vol.bc));
+            const int cx = off.x + x;
+            if (f == 0.0f || cx < 0 || cx >= n.x || ((cx + vol.o.x) >> 3) == redSkipBx) continue;
+            const int qx = cx + vol.o.x, bx = qx >> 3;
+            if (!rowOut && qx >= 0 && bx < vol.bn.x && bx != lastB) { lastB = bx; lastSlot = vol.map[static_cast<size_t>(bx) + rowMap]; }
+            if (rowOut || qx < 0 || bx >= vol.bn.x || lastSlot < static_cast<int>(kFirstSlot)) { unplaced += f * h3; continue; }   // a full capacity: counted, never silent
+            const long i = static_cast<long>(lastSlot) * static_cast<long>(vol.bc) + (qx & 7) + inBrick;
+            const int slot = lastSlot;
             if (static_cast<size_t>(slot) >= zeroed.size()) zeroed.resize(static_cast<size_t>(slot) + 1, 0);
             if (!zeroed[static_cast<size_t>(slot)]) {
                 zeroed[static_cast<size_t>(slot)] = 1; touched.push_back(slot);
                 std::memset(sf + static_cast<size_t>(slot) * vol.bc, 0, vol.bc * sizeof(float));
             }
             sf[i] = f;
+            }
         }
     } else {
     for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) for (int x = 0; x < cells.nx(); ++x) {

@@ -15098,6 +15098,38 @@ per frame; the median frame (the gate's reference) in these runs.
 tile 7 (its upload 5.3), adopt 3, the first step ~18 (`gpu.08 record the commands` 6-12, `mgr.2 record / wake tiles` 15 - the
 margin's tile wakes), the ripple layers 7-13, takeMotion 3. The cold first wake also pays the buffers and pipelines once a session.
 
+### 58.3 Item 1: a tile wake's seed walks, and the staged patch wake's design check (2026-11-21). Status: BUILT, not signed off; the gate NOT met
+
+**The staged patch wake: `/design-check` NEEDS WORK (not built).** The design: a patch wake built over frames (L4's `WakeJob`,
+§42, extended to patches: create's CPU part, the GPU volume and upload, adopt, the wake tile's seed, one stage a frame under
+`s_wakeBudgetMs`; the record draws the box until the patch is live; the disturbance held and applied then). Unresolved:
+1. **The owner's call:** an instant push or a blast (no lead time, unlike a falling body) would wait 3-4 frames (50-70 ms at 60 fps)
+   before the water answers, against today's one ~80 ms frozen frame. A cheap answer during the stages (the ripple layer on the
+   record) is the alternative to put beside it. ASKED 2026-11-21, not answered.
+2. The first live frame (~18 ms of step, the ripple layers 7-13, takeMotion 3) is not touched by staging: its own plan.
+3. The rule for a record that changes between stages (a second patch of the same lake) must be written down.
+4. 18 integration call sites take the patch id from `wakeSleptNear` at once: a test switch or a pump, named in the commit.
+5. Pre-warming the spare near recorded lakes (~390 MB GPU + ~90 MB host): measured and its release rule stated.
+
+**Built meanwhile (a fix, no design check): the tile wake's seed.** Measured first (new host phases `seed.0a-0e` inside
+`WaterCoreGpu::seedColumns`; the 58.1 rig, 2 runs, `s58_hitch_windows_seedparts.json`): of the seed's 6.7-7.6 ms host work, the
+nearest-wet walk over the tile's cells (51.9's need rule) was 3.0-3.4 ms and the fill walk 1.8-2.3 ms - a tile is only 72 x 72 x 12
+cells; the cost was a divide and a modulo per axis per wet cell (`q / bs`, `q % bs`, `storageIndex`). The flags, the tall collapse,
+the need array's init and `markNeed` were each under 0.1 ms. That run shared the GPU with another session's test exe (noisy
+totals; the split is clear).
+- **The fix:** both walks take the y / z brick and offset once a row and x by shifts; the fill walk looks up a brick's slot once
+  a brick. Same rule (storageIndex's: out of the map, slot 0 or ground -> counted unplaced).
+- **Test:** `ATileWakeSeedsTheSameDeviceStateAsTheWholeMapWalk` (51.9's parity: the new walks against the untouched whole-map path,
+  f / fPrev / bricks, tall 0 and 0.5 m) passes; its RED (the range one brick short) still differs by 6,912 cells. The test was
+  there before the change; nothing new was needed to see a wrong walk.
+- **Live** (`s58_hitch_windows_seedwalk.json`, 2 runs, no other GPU process): the seed's host work 6.7-7.6 -> **3.0 ms** (the
+  nearest-wet walk 3.0-3.4 -> 0.62, the fill walk 1.8-2.3 -> 0.44); a tile wake's worst upload 8.7-8.9 -> **4.8 ms**. **The worst
+  `mgr.2` call did not move** (14.7-16.9 ms): it holds the record path too (a tile's GPU read up to 6.9 ms, its draw 4.2) - not
+  yet split by which. The wake frame 66-110 ms (run to run; the first run's is the cold one).
+- **Left in a tile wake** (~4.8 ms): the seed's slot uploads 1.3, its submit-and-wait 1.1-1.4, the settle before it 0.7, the seed
+  surface 1.3, occupancy 0.6-0.8. **Not measured:** the GPU's own time per frame; the median frame.
+- Tests: water unit 322 / 322; integration water 99 / 101 (the known two).
+
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
 **Was: "0a. Where things stand, and what is next (2026-10-14)"**

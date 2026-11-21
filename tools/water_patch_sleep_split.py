@@ -86,7 +86,7 @@ def one(api, k, handover=None, windows=False):
             hpr = api.debug("water_av_host_phases", {})
             fr = max(1, hpr.get("frames", 1))
             wins.append({"t": worst[-1][0], "frame_ms_max": worst[-1][1],
-                         "parts": {n: round(v.get("max_ms_per_call", 0.0), 2) for n, v in sorted(ph.items()) if v.get("max_ms_per_call", 0.0) >= 1.0},
+                         "parts": {n: round(v.get("max_ms_per_call", 0.0), 2) for n, v in sorted(ph.items()) if v.get("max_ms_per_call", 0.0) >= 1.0 or n.startswith("seed.")},   # 58.3: the seed's parts, all
                          # 58: each phase's total in the window (many small calls) and the worst water block's split
                          "totals_ms": {n: round(v.get("ms_per_frame", 0.0) * fr, 1) for n, v in sorted(hpr.get("phases", {}).items()) if v.get("ms_per_frame", 0.0) * fr >= 5.0},
                          "calls": {n: round(v.get("calls_per_frame", 0.0) * fr) for n, v in sorted(hpr.get("phases", {}).items()) if v.get("ms_per_frame", 0.0) * fr >= 5.0},

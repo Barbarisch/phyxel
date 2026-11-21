@@ -1,0 +1,7178 @@
+[
+ {
+  "run": 0,
+  "record_lake": {
+   "box": [
+    4,
+    16,
+    2,
+    63,
+    18,
+    61
+   ],
+   "m3": 7200.0,
+   "slept_boxes": 1,
+   "success": true,
+   "unwritten_columns": 0
+  },
+  "stone": {
+   "strength": 8.0,
+   "success": true,
+   "woken": [
+    3
+   ]
+  },
+  "slept_at_s": 26.7,
+  "sleep_parts_ms": {},
+  "sleep_total_ms": 0,
+  "worst_frame": [
+   0.3,
+   129.14249300956726
+  ],
+  "worst_frame_sleep_window": [
+   26.7,
+   34.448400139808655
+  ],
+  "record_draw": {
+   "build_ms_last_call": 0.0039,
+   "build_ms_max": 61.5278,
+   "build_ms_on_sleep_last": 2.9108,
+   "built_last_call": 0,
+   "handover_frames_last": 7,
+   "handover_tiles_max_per_frame": 4,
+   "handover_tiles_per_frame": 4,
+   "handovers": 1,
+   "on": true,
+   "pending": 0,
+   "radius_m": 48.0,
+   "retiring": 0,
+   "revision": 114,
+   "sleep_tiles_built": 152,
+   "tile_m": 8,
+   "tiles": 137,
+   "wet_tiles": 109
+  },
+  "worst_frame_ms_by_read": [
+   [
+    0.3,
+    129.14249300956726
+   ],
+   [
+    0.9,
+    27.581000700592995
+   ],
+   [
+    1.4,
+    15.429499559104443
+   ],
+   [
+    2.0,
+    9.534300304949284
+   ],
+   [
+    2.6,
+    8.36970005184412
+   ],
+   [
+    3.1,
+    7.532500196248293
+   ],
+   [
+    3.7,
+    10.674799792468548
+   ],
+   [
+    4.2,
+    7.794099859893322
+   ],
+   [
+    4.8,
+    7.9691000282764435
+   ],
+   [
+    5.3,
+    8.950499817728996
+   ],
+   [
+    5.8,
+    8.338999934494495
+   ],
+   [
+    6.4,
+    8.133700117468834
+   ],
+   [
+    6.9,
+    7.641199976205826
+   ],
+   [
+    7.5,
+    8.581600151956081
+   ],
+   [
+    8.1,
+    8.09909962117672
+   ],
+   [
+    8.6,
+    8.370700292289257
+   ],
+   [
+    9.2,
+    8.037599734961987
+   ],
+   [
+    9.7,
+    7.799199782311916
+   ],
+   [
+    10.2,
+    8.86209961026907
+   ],
+   [
+    10.8,
+    19.888700917363167
+   ],
+   [
+    11.4,
+    7.347600068897009
+   ],
+   [
+    11.9,
+    7.339200004935265
+   ],
+   [
+    12.5,
+    6.164600141346455
+   ],
+   [
+    13.0,
+    6.708300206810236
+   ],
+   [
+    13.6,
+    7.474299985915422
+   ],
+   [
+    14.1,
+    5.966300144791603
+   ],
+   [
+    14.7,
+    6.224500015377998
+   ],
+   [
+    15.2,
+    6.2950002029538155
+   ],
+   [
+    15.8,
+    7.250799797475338
+   ],
+   [
+    16.3,
+    5.486300215125084
+   ],
+   [
+    16.8,
+    6.2119001522660255
+   ],
+   [
+    17.4,
+    5.911299958825111
+   ],
+   [
+    18.0,
+    32.687898725271225
+   ],
+   [
+    18.5,
+    4.4431001879274845
+   ],
+   [
+    19.1,
+    21.508099511265755
+   ],
+   [
+    19.6,
+    4.766399972140789
+   ],
+   [
+    20.2,
+    4.562899935990572
+   ],
+   [
+    20.7,
+    4.487200174480677
+   ],
+   [
+    21.3,
+    23.069800809025764
+   ],
+   [
+    21.8,
+    4.6628001146018505
+   ],
+   [
+    22.4,
+    4.5587001368403435
+   ],
+   [
+    22.9,
+    4.7876001335680485
+   ],
+   [
+    23.4,
+    4.9991002306342125
+   ],
+   [
+    24.0,
+    4.596599843353033
+   ],
+   [
+    24.5,
+    4.781200084835291
+   ],
+   [
+    25.1,
+    4.832000005990267
+   ],
+   [
+    25.6,
+    4.897399805486202
+   ],
+   [
+    26.2,
+    29.712099581956863
+   ],
+   [
+    26.7,
+    34.448400139808655
+   ],
+   [
+    27.2,
+    3.9916997775435448
+   ],
+   [
+    27.8,
+    4.828200209885836
+   ],
+   [
+    28.3,
+    3.8107000291347504
+   ],
+   [
+    28.9,
+    3.7614000029861927
+   ],
+   [
+    29.4,
+    3.730199998244643
+   ],
+   [
+    30.0,
+    3.68599989451468
+   ]
+  ],
+  "foreign_gpu_processes": [
+   "G:\\Github\\phyxel-matsimb-lab\\build\\editor\\Release\\phyxel.exe"
+  ],
+  "wake": {
+   "last_wake_ms": 0.0,
+   "max_wake_ms": 0.0,
+   "last_wake_split_ms": {
+    "alloc": 11.7592,
+    "cells": 3499200,
+    "gpu_buffers": 18.0698,
+    "gpu_create_upload": 41.8552,
+    "gpu_create_volume": 30.0327,
+    "gpu_fill": 1.0031,
+    "gpu_occ_copy": 0.1709,
+    "gpu_pipeline_count": 24,
+    "gpu_pipelines": 10.8224,
+    "gpu_pipelines_reused": 0,
+    "gpu_upload": 11.6514,
+    "occupancy": 7.4874,
+    "occupancy_threads": 8,
+    "seed": 4.1463,
+    "seed_occupancy": 1.6395,
+    "solids": 0.0,
+    "span_read": 0.7354
+   },
+   "last_patch_split_ms": {
+    "adopt": 3.4632,
+    "create": 61.1087,
+    "size": 0.5904,
+    "wake_tile": 9.7066
+   },
+   "last_upload_split_ms": {
+    "bricks": 0,
+    "clear": 2.1649,
+    "host": 4.8629,
+    "residency": 3.7928,
+    "residency_split": {
+     "apply": 0.1353,
+     "ground": 0.8313,
+     "grow": 0.0224,
+     "need": 2.8038
+    },
+    "scatter": 0.0005,
+    "settle": 0.0,
+    "submit": 0.633,
+    "tables": 0.0245
+   },
+   "last_grow_split_ms": {
+    "alloc": 0.0,
+    "bytes_after": 0,
+    "copy": 0.0,
+    "free": 0.0,
+    "grows": 0,
+    "rebind": 0.0,
+    "tables": 0.0
+   }
+  },
+  "tile_phases": {
+   "gpu_last": {
+    "read_host": 1.7114,
+    "read_settle": 0.0001,
+    "read_submit": 0.2594,
+    "record_build_parts": [
+     0.2291,
+     0.4034,
+     1.1163,
+     0.1151
+    ],
+    "seed_host": 6.5952,
+    "seed_parts": [
+     3.0876,
+     0.561,
+     1.1608,
+     1.7486,
+     0.0372
+    ],
+    "seed_settle": 0.0001,
+    "seed_submit": 0.8892
+   },
+   "record_last": [
+    2.0504,
+    0.5173,
+    0.1472,
+    0.9252,
+    2.9888
+   ],
+   "record_max": [
+    7.5549,
+    0.5289,
+    0.1472,
+    0.9252,
+    3.3449
+   ],
+   "record_names": [
+    "gpu_read",
+    "runs",
+    "spans",
+    "gpu_flags",
+    "draw"
+   ],
+   "records": 14,
+   "seed_max": {
+    "host": 6.7312,
+    "parts": [
+     3.1475,
+     0.5753,
+     1.3099,
+     1.7979,
+     0.0372
+    ],
+    "pool_grows": 0,
+    "seeds": 14,
+    "settle": 1.0191,
+    "submit": 1.3274
+   },
+   "wake_last": [
+    0.035,
+    0.4541,
+    1.0155,
+    7.5596,
+    0.0794,
+    0.0401
+   ],
+   "wake_max": [
+    0.0667,
+    0.7888,
+    1.3036,
+    8.6933,
+    0.0859,
+    0.0488
+   ],
+   "wake_names": [
+    "span_read",
+    "occupancy",
+    "seed_surface",
+    "gpu_upload",
+    "span_clear",
+    "draw"
+   ],
+   "wakes": 14
+  },
+  "windows": [
+   {
+    "t": 0.3,
+    "frame_ms_max": 129.14249300956726,
+    "parts": {
+     "adopt.3a mark": 1.03,
+     "collect.1 fence wait": 1.76,
+     "create.0 grid": 11.27,
+     "gpu.01 settle (collect the call before)": 1.99,
+     "gpu.04 residency: which bricks": 1.43,
+     "gpu.07 partition + tables": 2.75,
+     "gpu.08 record the commands": 6.16,
+     "mgr.2 record / wake tiles": 19.44,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 12.17,
+     "motion.1 takeMotion scan": 3.51,
+     "ripples.2 masks + layers": 7.37,
+     "seed.0a flags": 0.01,
+     "seed.0b tall collapse": 0.0,
+     "seed.0c need init": 0.04,
+     "seed.0d nearest-wet walk": 3.04,
+     "seed.0e markNeed": 0.07,
+     "surf.1 read the GPU surface": 1.53,
+     "up.0 max speed": 1.7,
+     "up.1 host occupancy + solid tops": 3.16
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.3,
+     "create.0 grid": 11.3,
+     "gpu.04 residency: which bricks": 10.9,
+     "gpu.07 partition + tables": 11.2,
+     "gpu.08 record the commands": 19.4,
+     "mgr.2 record / wake tiles": 95.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 59.7,
+     "motion.1 takeMotion scan": 19.8,
+     "ripples.2 masks + layers": 29.8,
+     "seed.0d nearest-wet walk": 41.6,
+     "surf.1 read the GPU surface": 11.2
+    },
+    "calls": {
+     "collect.2 lists + copies": 13,
+     "create.0 grid": 1,
+     "gpu.04 residency: which bricks": 14,
+     "gpu.07 partition + tables": 14,
+     "gpu.08 record the commands": 14,
+     "mgr.2 record / wake tiles": 14,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 14,
+     "motion.1 takeMotion scan": 24,
+     "ripples.2 masks + layers": 35,
+     "seed.0d nearest-wet walk": 14,
+     "surf.1 read the GPU surface": 13
+    },
+    "frames": 35,
+    "worst_water_block": {
+     "bodies": 0.0081,
+     "exchange": 0.0003,
+     "feed": 0.385,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.3585,
+     "feed_surface_fields": 0.023,
+     "in_update": {
+      "births": 0.0011,
+      "droplets": 1.7004,
+      "kept": 0.0009,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 7.5236,
+      "sleep": 0.0123,
+      "step": 22.4874,
+      "step_call": 22.4861
+     },
+     "motion": 3.3996,
+     "pressure": 0.0013,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0165,
+     "skin_cells": 302,
+     "skin_fields_ms": 0.1508,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.1649,
+     "skin_scan_ms": 0.0026,
+     "skin_summaries": 2,
+     "solids": 0.0011,
+     "total": 35.5266,
+     "update": 31.7265
+    }
+   },
+   {
+    "t": 0.9,
+    "frame_ms_max": 27.581000700592995,
+    "parts": {
+     "collect.1 fence wait": 17.29,
+     "gpu.01 settle (collect the call before)": 17.54,
+     "gpu.04 residency: which bricks": 3.58,
+     "gpu.05 residency: apply": 1.79,
+     "gpu.08 record the commands": 2.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 21.38
+    },
+    "totals_ms": {
+     "collect.1 fence wait": 43.9,
+     "collect.2 lists + copies": 6.7,
+     "gpu.01 settle (collect the call before)": 51.1,
+     "gpu.04 residency: which bricks": 44.5,
+     "gpu.05 residency: apply": 12.8,
+     "gpu.08 record the commands": 26.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 147.0,
+     "ripples.2 masks + layers": 24.8,
+     "surf.1 read the GPU surface": 21.6
+    },
+    "calls": {
+     "collect.1 fence wait": 32,
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 92,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 92,
+    "worst_water_block": {
+     "bodies": 0.0084,
+     "exchange": 0.0,
+     "feed": 0.0324,
+     "feed_ripple_layers": 0.0008,
+     "feed_skin": 0.0149,
+     "feed_surface_fields": 0.013,
+     "in_update": {
+      "births": 0.0064,
+      "droplets": 0.7924,
+      "kept": 0.0008,
+      "occupancy": 0.0006,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.619,
+      "sleep": 0.0002,
+      "step": 21.3923,
+      "step_call": 21.3857
+     },
+     "motion": 0.0027,
+     "pressure": 0.0016,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0081,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 22.8586,
+     "update": 22.8074
+    }
+   },
+   {
+    "t": 1.4,
+    "frame_ms_max": 15.429499559104443,
+    "parts": {
+     "collect.1 fence wait": 3.74,
+     "gpu.01 settle (collect the call before)": 3.95,
+     "gpu.04 residency: which bricks": 1.66,
+     "gpu.08 record the commands": 1.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 7.28
+    },
+    "totals_ms": {
+     "collect.1 fence wait": 6.7,
+     "collect.2 lists + copies": 6.3,
+     "gpu.01 settle (collect the call before)": 14.5,
+     "gpu.04 residency: which bricks": 43.7,
+     "gpu.05 residency: apply": 10.4,
+     "gpu.08 record the commands": 15.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 93.3,
+     "ripples.2 masks + layers": 25.5,
+     "surf.1 read the GPU surface": 21.9
+    },
+    "calls": {
+     "collect.1 fence wait": 33,
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.2 masks + layers": 99,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 99,
+    "worst_water_block": {
+     "bodies": 0.0082,
+     "exchange": 0.0001,
+     "feed": 0.0387,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0169,
+     "feed_surface_fields": 0.0172,
+     "in_update": {
+      "births": 0.0286,
+      "droplets": 0.7015,
+      "kept": 0.0011,
+      "occupancy": 0.0007,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 0.6858,
+      "sleep": 0.0004,
+      "step": 7.3136,
+      "step_call": 7.2847
+     },
+     "motion": 0.0033,
+     "pressure": 0.0018,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0032,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 8.7627,
+     "update": 8.7047
+    }
+   },
+   {
+    "t": 2.0,
+    "frame_ms_max": 9.534300304949284,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.36,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.62,
+     "surf.1 read the GPU surface": 1.23
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.2,
+     "gpu.01 settle (collect the call before)": 6.9,
+     "gpu.04 residency: which bricks": 42.2,
+     "gpu.05 residency: apply": 9.8,
+     "gpu.08 record the commands": 7.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.7,
+     "ripples.2 masks + layers": 25.9,
+     "surf.1 read the GPU surface": 23.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.2 masks + layers": 131,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 131,
+    "worst_water_block": {
+     "bodies": 0.0097,
+     "exchange": 0.0003,
+     "feed": 0.0414,
+     "feed_ripple_layers": 0.0006,
+     "feed_skin": 0.0194,
+     "feed_surface_fields": 0.0167,
+     "in_update": {
+      "births": 0.0016,
+      "droplets": 1.2973,
+      "kept": 0.0011,
+      "occupancy": 0.0008,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 0.8847,
+      "sleep": 0.0003,
+      "step": 2.6345,
+      "step_call": 2.6326
+     },
+     "motion": 0.0039,
+     "pressure": 0.0025,
+     "shore": 0.0003,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0086,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0039,
+     "skin_summaries": 0,
+     "solids": 0.0013,
+     "total": 4.8847,
+     "update": 4.8206
+    }
+   },
+   {
+    "t": 2.6,
+    "frame_ms_max": 8.36970005184412,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.88,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.39
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.6,
+     "gpu.01 settle (collect the call before)": 6.3,
+     "gpu.04 residency: which bricks": 41.2,
+     "gpu.05 residency: apply": 10.0,
+     "gpu.08 record the commands": 12.0,
+     "mgr.3 tall cells": 19.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 78.5,
+     "ripples.2 masks + layers": 24.8,
+     "surf.1 read the GPU surface": 22.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 113,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 113,
+    "worst_water_block": {
+     "bodies": 0.009,
+     "exchange": 0.0001,
+     "feed": 0.0268,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0137,
+     "feed_surface_fields": 0.0096,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.8048,
+      "kept": 0.0011,
+      "occupancy": 0.0007,
+      "residency": 0.0006,
+      "retiring": 0.0003,
+      "ripples": 0.4489,
+      "sleep": 0.0003,
+      "step": 4.2407,
+      "step_call": 4.2394
+     },
+     "motion": 0.0036,
+     "pressure": 0.0014,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.007,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 5.5449,
+     "update": 5.4983
+    }
+   },
+   {
+    "t": 3.1,
+    "frame_ms_max": 7.532500196248293,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.11,
+     "gpu.04 residency: which bricks": 1.39,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.21
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.4,
+     "gpu.01 settle (collect the call before)": 7.0,
+     "gpu.04 residency: which bricks": 40.8,
+     "gpu.05 residency: apply": 11.2,
+     "gpu.08 record the commands": 8.1,
+     "mgr.3 tall cells": 19.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.9,
+     "ripples.2 masks + layers": 24.0,
+     "surf.1 read the GPU surface": 21.2
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 125,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 125,
+    "worst_water_block": {
+     "bodies": 0.0045,
+     "exchange": 0.0001,
+     "feed": 0.0279,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0142,
+     "feed_surface_fields": 0.0103,
+     "in_update": {
+      "births": 0.0014,
+      "droplets": 0.7129,
+      "kept": 0.0006,
+      "occupancy": 0.0008,
+      "residency": 0.0003,
+      "retiring": 0.0001,
+      "ripples": 0.5713,
+      "sleep": 0.0002,
+      "step": 3.771,
+      "step_call": 3.7695
+     },
+     "motion": 0.0037,
+     "pressure": 0.0009,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0072,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0022,
+     "skin_summaries": 0,
+     "solids": 0.0004,
+     "total": 5.099,
+     "update": 5.0579
+    }
+   },
+   {
+    "t": 3.7,
+    "frame_ms_max": 10.674799792468548,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.56,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.79,
+     "surf.1 read the GPU surface": 1.05
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.0,
+     "gpu.01 settle (collect the call before)": 6.8,
+     "gpu.04 residency: which bricks": 42.9,
+     "gpu.05 residency: apply": 11.1,
+     "gpu.08 record the commands": 7.9,
+     "mgr.3 tall cells": 20.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 78.1,
+     "ripples.2 masks + layers": 26.3,
+     "surf.1 read the GPU surface": 24.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.2 masks + layers": 109,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 109,
+    "worst_water_block": {
+     "bodies": 0.0086,
+     "exchange": 0.0001,
+     "feed": 0.0365,
+     "feed_ripple_layers": 0.0007,
+     "feed_skin": 0.0171,
+     "feed_surface_fields": 0.0144,
+     "in_update": {
+      "births": 0.0017,
+      "droplets": 1.0954,
+      "kept": 0.0011,
+      "occupancy": 0.0013,
+      "residency": 0.0005,
+      "retiring": 0.0003,
+      "ripples": 0.7707,
+      "sleep": 0.0003,
+      "step": 3.3685,
+      "step_call": 3.3656
+     },
+     "motion": 0.0048,
+     "pressure": 0.0024,
+     "shore": 0.0003,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0024,
+     "skin_summaries": 0,
+     "solids": 0.0009,
+     "total": 5.2971,
+     "update": 5.2392
+    }
+   },
+   {
+    "t": 4.2,
+    "frame_ms_max": 7.794099859893322,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.14,
+     "gpu.04 residency: which bricks": 1.46,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.19
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.2,
+     "gpu.01 settle (collect the call before)": 6.7,
+     "gpu.04 residency: which bricks": 39.7,
+     "gpu.05 residency: apply": 9.6,
+     "gpu.08 record the commands": 7.1,
+     "mgr.3 tall cells": 18.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 71.2,
+     "ripples.2 masks + layers": 22.0,
+     "surf.1 read the GPU surface": 19.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.2 masks + layers": 122,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 122,
+    "worst_water_block": {
+     "bodies": 0.0062,
+     "exchange": 0.0002,
+     "feed": 0.0345,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0165,
+     "feed_surface_fields": 0.0137,
+     "in_update": {
+      "births": 0.0008,
+      "droplets": 0.5669,
+      "kept": 0.0009,
+      "occupancy": 0.0005,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.5707,
+      "sleep": 0.0007,
+      "step": 3.7776,
+      "step_call": 3.7766
+     },
+     "motion": 0.0041,
+     "pressure": 0.0012,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0081,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0022,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 4.9703,
+     "update": 4.9189
+    }
+   },
+   {
+    "t": 4.8,
+    "frame_ms_max": 7.9691000282764435,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.6
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.8,
+     "gpu.01 settle (collect the call before)": 6.5,
+     "gpu.04 residency: which bricks": 41.5,
+     "gpu.05 residency: apply": 9.4,
+     "gpu.08 record the commands": 7.4,
+     "mgr.3 tall cells": 20.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 73.2,
+     "ripples.1 surfaceFields (= surf.*)": 16.0,
+     "ripples.2 masks + layers": 21.8,
+     "surf.1 read the GPU surface": 20.3
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 124,
+     "ripples.2 masks + layers": 124,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 124,
+    "worst_water_block": {
+     "bodies": 0.0089,
+     "exchange": 0.0001,
+     "feed": 0.027,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0144,
+     "feed_surface_fields": 0.0086,
+     "in_update": {
+      "births": 0.0016,
+      "droplets": 0.8488,
+      "kept": 0.0013,
+      "occupancy": 0.0007,
+      "residency": 0.0007,
+      "retiring": 0.0002,
+      "ripples": 0.4711,
+      "sleep": 0.0002,
+      "step": 3.3063,
+      "step_call": 3.3045
+     },
+     "motion": 0.0033,
+     "pressure": 0.0017,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0076,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0018,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 4.6776,
+     "update": 4.6301
+    }
+   },
+   {
+    "t": 5.3,
+    "frame_ms_max": 8.950499817728996,
+    "parts": {
+     "collect.3 stats + record + sleep": 1.01,
+     "gpu.01 settle (collect the call before)": 1.19,
+     "gpu.04 residency: which bricks": 1.41,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.25
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.8,
+     "gpu.01 settle (collect the call before)": 7.5,
+     "gpu.04 residency: which bricks": 39.0,
+     "gpu.05 residency: apply": 9.0,
+     "gpu.08 record the commands": 7.1,
+     "mgr.3 tall cells": 19.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 70.8,
+     "ripples.1 surfaceFields (= surf.*)": 21.3,
+     "ripples.2 masks + layers": 20.9,
+     "surf.1 read the GPU surface": 19.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 30,
+     "gpu.01 settle (collect the call before)": 30,
+     "gpu.04 residency: which bricks": 30,
+     "gpu.05 residency: apply": 30,
+     "gpu.08 record the commands": 30,
+     "mgr.3 tall cells": 30,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 30,
+     "ripples.1 surfaceFields (= surf.*)": 109,
+     "ripples.2 masks + layers": 109,
+     "surf.1 read the GPU surface": 30
+    },
+    "frames": 109,
+    "worst_water_block": {
+     "bodies": 0.0091,
+     "exchange": 0.0,
+     "feed": 0.0317,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0156,
+     "feed_surface_fields": 0.0121,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0002,
+      "kept": 0.0008,
+      "occupancy": 0.0007,
+      "residency": 0.0004,
+      "retiring": 0.0002,
+      "ripples": 1.2277,
+      "sleep": 0.0004,
+      "step": 3.8395,
+      "step_call": 3.8379
+     },
+     "motion": 0.0038,
+     "pressure": 0.0018,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0081,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0019,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 5.1245,
+     "update": 5.0707
+    }
+   },
+   {
+    "t": 5.8,
+    "frame_ms_max": 8.338999934494495,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.61,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.67,
+     "ripples.1 surfaceFields (= surf.*)": 1.04,
+     "surf.1 read the GPU surface": 1.01
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.5,
+     "gpu.01 settle (collect the call before)": 7.3,
+     "gpu.04 residency: which bricks": 43.0,
+     "gpu.05 residency: apply": 9.8,
+     "gpu.08 record the commands": 7.8,
+     "mgr.3 tall cells": 23.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 76.9,
+     "ripples.1 surfaceFields (= surf.*)": 24.4,
+     "ripples.2 masks + layers": 22.5,
+     "surf.1 read the GPU surface": 21.9
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 120,
+     "ripples.2 masks + layers": 120,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 120,
+    "worst_water_block": {
+     "bodies": 0.0124,
+     "exchange": 0.0001,
+     "feed": 0.0325,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0154,
+     "feed_surface_fields": 0.0135,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0002,
+      "kept": 0.0011,
+      "occupancy": 0.001,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 1.3541,
+      "sleep": 0.0002,
+      "step": 3.527,
+      "step_call": 3.5255
+     },
+     "motion": 0.0045,
+     "pressure": 0.0018,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0079,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0025,
+     "skin_summaries": 0,
+     "solids": 0.0037,
+     "total": 4.9475,
+     "update": 4.8868
+    }
+   },
+   {
+    "t": 6.4,
+    "frame_ms_max": 8.133700117468834,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.15,
+     "gpu.04 residency: which bricks": 1.34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.18
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 7.6,
+     "gpu.04 residency: which bricks": 40.9,
+     "gpu.05 residency: apply": 9.4,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 21.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 74.0,
+     "ripples.1 surfaceFields (= surf.*)": 22.0,
+     "ripples.2 masks + layers": 20.8,
+     "surf.1 read the GPU surface": 19.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 122,
+     "ripples.2 masks + layers": 122,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 122,
+    "worst_water_block": {
+     "bodies": 0.0114,
+     "exchange": 0.0001,
+     "feed": 0.0302,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0142,
+     "feed_surface_fields": 0.0121,
+     "in_update": {
+      "births": 0.0015,
+      "droplets": 0.0001,
+      "kept": 0.0011,
+      "occupancy": 0.0007,
+      "residency": 0.0004,
+      "retiring": 0.0003,
+      "ripples": 0.9631,
+      "sleep": 0.0003,
+      "step": 3.8785,
+      "step_call": 3.8767
+     },
+     "motion": 0.0031,
+     "pressure": 0.0021,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0078,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0022,
+     "skin_summaries": 0,
+     "solids": 0.0015,
+     "total": 4.8995,
+     "update": 4.8452
+    }
+   },
+   {
+    "t": 6.9,
+    "frame_ms_max": 7.641199976205826,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.44
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.8,
+     "gpu.01 settle (collect the call before)": 7.7,
+     "gpu.04 residency: which bricks": 44.4,
+     "gpu.05 residency: apply": 10.1,
+     "gpu.08 record the commands": 8.5,
+     "mgr.3 tall cells": 24.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 79.9,
+     "ripples.1 surfaceFields (= surf.*)": 25.1,
+     "ripples.2 masks + layers": 23.1,
+     "surf.1 read the GPU surface": 22.4
+    },
+    "calls": {
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.08 record the commands": 34,
+     "mgr.3 tall cells": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.1 surfaceFields (= surf.*)": 134,
+     "ripples.2 masks + layers": 134,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.008,
+     "exchange": 0.0006,
+     "feed": 0.0362,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0151,
+     "feed_surface_fields": 0.0161,
+     "in_update": {
+      "births": 0.0012,
+      "droplets": 0.0003,
+      "kept": 0.0012,
+      "occupancy": 0.0007,
+      "residency": 0.0006,
+      "retiring": 0.0003,
+      "ripples": 1.4424,
+      "sleep": 0.0004,
+      "step": 3.2352,
+      "step_call": 3.2338
+     },
+     "motion": 0.0037,
+     "pressure": 0.0014,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0074,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0021,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 4.7393,
+     "update": 4.6823
+    }
+   },
+   {
+    "t": 7.5,
+    "frame_ms_max": 8.581600151956081,
+    "parts": {
+     "collect.3 stats + record + sleep": 1.01,
+     "gpu.01 settle (collect the call before)": 1.18,
+     "gpu.04 residency: which bricks": 1.46,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.49,
+     "ripples.1 surfaceFields (= surf.*)": 1.07,
+     "surf.1 read the GPU surface": 1.05
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.3,
+     "gpu.01 settle (collect the call before)": 8.1,
+     "gpu.04 residency: which bricks": 40.8,
+     "gpu.05 residency: apply": 9.3,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 22.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 74.5,
+     "ripples.1 surfaceFields (= surf.*)": 23.4,
+     "ripples.2 masks + layers": 21.3,
+     "surf.1 read the GPU surface": 21.3
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 105,
+     "ripples.2 masks + layers": 105,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 105,
+    "worst_water_block": {
+     "bodies": 0.0037,
+     "exchange": 0.0001,
+     "feed": 0.0277,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.014,
+     "feed_surface_fields": 0.0103,
+     "in_update": {
+      "births": 0.0009,
+      "droplets": 0.0008,
+      "kept": 0.0004,
+      "occupancy": 0.0006,
+      "residency": 0.0003,
+      "retiring": 0.0001,
+      "ripples": 0.9912,
+      "sleep": 0.0002,
+      "step": 4.1924,
+      "step_call": 4.1912
+     },
+     "motion": 0.0035,
+     "pressure": 0.0011,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0069,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0017,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 5.2284,
+     "update": 5.1868
+    }
+   },
+   {
+    "t": 8.1,
+    "frame_ms_max": 8.09909962117672,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.45,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.5
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.3,
+     "gpu.01 settle (collect the call before)": 7.0,
+     "gpu.04 residency: which bricks": 43.4,
+     "gpu.05 residency: apply": 9.9,
+     "gpu.08 record the commands": 8.4,
+     "mgr.3 tall cells": 22.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 78.2,
+     "ripples.1 surfaceFields (= surf.*)": 25.2,
+     "ripples.2 masks + layers": 22.5,
+     "surf.1 read the GPU surface": 22.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 124,
+     "ripples.2 masks + layers": 124,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 124,
+    "worst_water_block": {
+     "bodies": 0.0105,
+     "exchange": 0.0001,
+     "feed": 0.0299,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0149,
+     "feed_surface_fields": 0.0105,
+     "in_update": {
+      "births": 0.0011,
+      "droplets": 0.0002,
+      "kept": 0.0013,
+      "occupancy": 0.0008,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 1.1908,
+      "sleep": 0.0003,
+      "step": 3.3148,
+      "step_call": 3.3135
+     },
+     "motion": 0.0031,
+     "pressure": 0.002,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0081,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0018,
+     "skin_summaries": 0,
+     "solids": 0.0009,
+     "total": 4.5621,
+     "update": 4.5098
+    }
+   },
+   {
+    "t": 8.6,
+    "frame_ms_max": 8.370700292289257,
+    "parts": {
+     "collect.3 stats + record + sleep": 1.02,
+     "gpu.01 settle (collect the call before)": 1.26,
+     "gpu.04 residency: which bricks": 1.43,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.46,
+     "ripples.1 surfaceFields (= surf.*)": 1.16,
+     "surf.1 read the GPU surface": 1.13
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.3,
+     "gpu.01 settle (collect the call before)": 8.0,
+     "gpu.04 residency: which bricks": 43.0,
+     "gpu.05 residency: apply": 9.8,
+     "gpu.08 record the commands": 8.4,
+     "mgr.3 tall cells": 23.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 78.6,
+     "ripples.1 surfaceFields (= surf.*)": 26.6,
+     "ripples.2 masks + layers": 24.7,
+     "surf.1 read the GPU surface": 24.3
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 109,
+     "ripples.2 masks + layers": 109,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 109,
+    "worst_water_block": {
+     "bodies": 0.0073,
+     "exchange": 0.0001,
+     "feed": 0.0288,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0142,
+     "feed_surface_fields": 0.0112,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0002,
+      "kept": 0.0007,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 1.1206,
+      "sleep": 0.0002,
+      "step": 4.0859,
+      "step_call": 4.0845
+     },
+     "motion": 0.003,
+     "pressure": 0.0019,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0076,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0017,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 5.2553,
+     "update": 5.2097
+    }
+   },
+   {
+    "t": 9.2,
+    "frame_ms_max": 8.037599734961987,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.13,
+     "gpu.04 residency: which bricks": 1.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.21
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.5,
+     "gpu.01 settle (collect the call before)": 7.0,
+     "gpu.04 residency: which bricks": 40.9,
+     "gpu.05 residency: apply": 9.2,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 19.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 73.7,
+     "ripples.1 surfaceFields (= surf.*)": 24.2,
+     "ripples.2 masks + layers": 22.5,
+     "surf.1 read the GPU surface": 21.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 128,
+     "ripples.2 masks + layers": 128,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 128,
+    "worst_water_block": {
+     "bodies": 0.0039,
+     "exchange": 0.0,
+     "feed": 0.0398,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0163,
+     "feed_surface_fields": 0.0189,
+     "in_update": {
+      "births": 0.0011,
+      "droplets": 0.0002,
+      "kept": 0.0006,
+      "occupancy": 0.0003,
+      "residency": 0.0004,
+      "retiring": 0.0001,
+      "ripples": 1.409,
+      "sleep": 0.0004,
+      "step": 3.8411,
+      "step_call": 3.8398
+     },
+     "motion": 0.0047,
+     "pressure": 0.0009,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0029,
+     "skin_summaries": 0,
+     "solids": 0.0004,
+     "total": 5.3068,
+     "update": 5.253
+    }
+   },
+   {
+    "t": 9.7,
+    "frame_ms_max": 7.799199782311916,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.54,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.57
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.4,
+     "gpu.01 settle (collect the call before)": 6.1,
+     "gpu.04 residency: which bricks": 41.0,
+     "gpu.05 residency: apply": 9.3,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 19.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 72.7,
+     "ripples.1 surfaceFields (= surf.*)": 23.9,
+     "ripples.2 masks + layers": 23.0,
+     "surf.1 read the GPU surface": 21.5
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 124,
+     "ripples.2 masks + layers": 124,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 124,
+    "worst_water_block": {
+     "bodies": 0.0038,
+     "exchange": 0.0002,
+     "feed": 0.0404,
+     "feed_ripple_layers": 0.0009,
+     "feed_skin": 0.0178,
+     "feed_surface_fields": 0.0172,
+     "in_update": {
+      "births": 0.0012,
+      "droplets": 0.0003,
+      "kept": 0.0003,
+      "occupancy": 0.0003,
+      "residency": 0.0003,
+      "retiring": 0.0001,
+      "ripples": 1.5673,
+      "sleep": 0.0007,
+      "step": 2.9559,
+      "step_call": 2.9543
+     },
+     "motion": 0.0046,
+     "pressure": 0.0007,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0079,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0039,
+     "skin_summaries": 0,
+     "solids": 0.0004,
+     "total": 4.579,
+     "update": 4.526
+    }
+   },
+   {
+    "t": 10.2,
+    "frame_ms_max": 8.86209961026907,
+    "parts": {
+     "collect.3 stats + record + sleep": 1.02,
+     "gpu.01 settle (collect the call before)": 1.19,
+     "gpu.04 residency: which bricks": 1.76,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.26
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.6,
+     "gpu.01 settle (collect the call before)": 7.3,
+     "gpu.04 residency: which bricks": 42.6,
+     "gpu.05 residency: apply": 10.1,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 20.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 76.7,
+     "ripples.1 surfaceFields (= surf.*)": 22.9,
+     "ripples.2 masks + layers": 22.0,
+     "surf.1 read the GPU surface": 20.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 127,
+     "ripples.2 masks + layers": 127,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 127,
+    "worst_water_block": {
+     "bodies": 0.0036,
+     "exchange": 0.0002,
+     "feed": 0.0301,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0149,
+     "feed_surface_fields": 0.0113,
+     "in_update": {
+      "births": 0.0012,
+      "droplets": 0.0003,
+      "kept": 0.0004,
+      "occupancy": 0.0008,
+      "residency": 0.0003,
+      "retiring": 0.0,
+      "ripples": 1.2495,
+      "sleep": 0.0003,
+      "step": 3.9046,
+      "step_call": 3.9032
+     },
+     "motion": 0.0016,
+     "pressure": 0.0006,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0076,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0018,
+     "skin_summaries": 0,
+     "solids": 0.0004,
+     "total": 5.1975,
+     "update": 5.1572
+    }
+   },
+   {
+    "t": 10.8,
+    "frame_ms_max": 19.888700917363167,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.41,
+     "gpu.06 compact": 5.17,
+     "gpu.07 partition + tables": 5.34,
+     "mgr.3 tall cells": 3.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 12.77
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 6.4,
+     "gpu.04 residency: which bricks": 39.3,
+     "gpu.05 residency: apply": 10.9,
+     "gpu.06 compact": 5.2,
+     "gpu.07 partition + tables": 7.8,
+     "gpu.08 record the commands": 8.0,
+     "mgr.3 tall cells": 20.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 83.5,
+     "ripples.1 surfaceFields (= surf.*)": 22.7,
+     "ripples.2 masks + layers": 22.1,
+     "surf.1 read the GPU surface": 20.4
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.06 compact": 33,
+     "gpu.07 partition + tables": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 123,
+     "ripples.2 masks + layers": 123,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 123,
+    "worst_water_block": {
+     "bodies": 0.0059,
+     "exchange": 0.0002,
+     "feed": 0.0293,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0144,
+     "feed_surface_fields": 0.012,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0003,
+      "kept": 0.0008,
+      "occupancy": 0.0005,
+      "residency": 0.0004,
+      "retiring": 0.0008,
+      "ripples": 1.0229,
+      "sleep": 0.0003,
+      "step": 16.1823,
+      "step_call": 16.1811
+     },
+     "motion": 0.0014,
+     "pressure": 0.0011,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0075,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0018,
+     "skin_summaries": 0,
+     "solids": 0.0005,
+     "total": 17.2509,
+     "update": 17.2089
+    }
+   },
+   {
+    "t": 11.4,
+    "frame_ms_max": 7.347600068897009,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.18
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.4,
+     "gpu.01 settle (collect the call before)": 6.2,
+     "gpu.04 residency: which bricks": 21.3,
+     "gpu.05 residency: apply": 13.4,
+     "gpu.08 record the commands": 9.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 57.3,
+     "ripples.1 surfaceFields (= surf.*)": 21.6,
+     "ripples.2 masks + layers": 21.3,
+     "surf.1 read the GPU surface": 19.2
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 132,
+     "ripples.2 masks + layers": 132,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 132,
+    "worst_water_block": {
+     "bodies": 0.0071,
+     "exchange": 0.0002,
+     "feed": 0.028,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0131,
+     "feed_surface_fields": 0.0113,
+     "in_update": {
+      "births": 0.0009,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0003,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 1.09,
+      "sleep": 0.0003,
+      "step": 2.1601,
+      "step_call": 2.1589
+     },
+     "motion": 0.0018,
+     "pressure": 0.0013,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0073,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 3.2976,
+     "update": 3.2533
+    }
+   },
+   {
+    "t": 11.9,
+    "frame_ms_max": 7.339200004935265,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.03
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.6,
+     "gpu.01 settle (collect the call before)": 6.0,
+     "gpu.04 residency: which bricks": 20.9,
+     "gpu.05 residency: apply": 13.1,
+     "gpu.08 record the commands": 8.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 56.2,
+     "ripples.1 surfaceFields (= surf.*)": 21.2,
+     "ripples.2 masks + layers": 20.7,
+     "surf.1 read the GPU surface": 18.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 140,
+     "ripples.2 masks + layers": 140,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 140,
+    "worst_water_block": {
+     "bodies": 0.0058,
+     "exchange": 0.0004,
+     "feed": 0.0362,
+     "feed_ripple_layers": 0.0006,
+     "feed_skin": 0.0171,
+     "feed_surface_fields": 0.0152,
+     "in_update": {
+      "births": 0.0009,
+      "droplets": 0.0002,
+      "kept": 0.0007,
+      "occupancy": 0.0004,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 1.0893,
+      "sleep": 0.0005,
+      "step": 2.0408,
+      "step_call": 2.0396
+     },
+     "motion": 0.0015,
+     "pressure": 0.0017,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0089,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0035,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 3.1838,
+     "update": 3.1335
+    }
+   },
+   {
+    "t": 12.5,
+    "frame_ms_max": 6.164600141346455,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.13
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.1,
+     "gpu.01 settle (collect the call before)": 6.9,
+     "gpu.04 residency: which bricks": 22.0,
+     "gpu.05 residency: apply": 14.0,
+     "gpu.08 record the commands": 9.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 60.8,
+     "ripples.1 surfaceFields (= surf.*)": 22.6,
+     "ripples.2 masks + layers": 21.7,
+     "surf.1 read the GPU surface": 20.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 142,
+     "ripples.2 masks + layers": 142,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 142,
+    "worst_water_block": {
+     "bodies": 0.0089,
+     "exchange": 0.0002,
+     "feed": 0.0278,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0135,
+     "feed_surface_fields": 0.0111,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0002,
+      "kept": 0.001,
+      "occupancy": 0.0007,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 1.2044,
+      "sleep": 0.0004,
+      "step": 2.0914,
+      "step_call": 2.0902
+     },
+     "motion": 0.002,
+     "pressure": 0.0017,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.007,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 3.3461,
+     "update": 3.3003
+    }
+   },
+   {
+    "t": 13.0,
+    "frame_ms_max": 6.708300206810236,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.01
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.0,
+     "gpu.01 settle (collect the call before)": 6.5,
+     "gpu.04 residency: which bricks": 21.6,
+     "gpu.05 residency: apply": 13.7,
+     "gpu.08 record the commands": 9.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 59.9,
+     "ripples.1 surfaceFields (= surf.*)": 23.2,
+     "ripples.2 masks + layers": 21.9,
+     "surf.1 read the GPU surface": 20.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 140,
+     "ripples.2 masks + layers": 140,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 140,
+    "worst_water_block": {
+     "bodies": 0.0076,
+     "exchange": 0.0002,
+     "feed": 0.0333,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0157,
+     "feed_surface_fields": 0.0125,
+     "in_update": {
+      "births": 0.0005,
+      "droplets": 0.0001,
+      "kept": 0.0011,
+      "occupancy": 0.0004,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 1.3678,
+      "sleep": 0.0003,
+      "step": 2.0255,
+      "step_call": 2.0249
+     },
+     "motion": 0.0017,
+     "pressure": 0.0019,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0076,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0024,
+     "skin_summaries": 0,
+     "solids": 0.0014,
+     "total": 3.4469,
+     "update": 3.3969
+    }
+   },
+   {
+    "t": 13.6,
+    "frame_ms_max": 7.474299985915422,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.33
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.0,
+     "gpu.01 settle (collect the call before)": 6.8,
+     "gpu.04 residency: which bricks": 22.0,
+     "gpu.05 residency: apply": 13.9,
+     "gpu.08 record the commands": 9.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 62.6,
+     "ripples.1 surfaceFields (= surf.*)": 24.7,
+     "ripples.2 masks + layers": 22.6,
+     "surf.1 read the GPU surface": 22.1
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 137,
+     "ripples.2 masks + layers": 137,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 137,
+    "worst_water_block": {
+     "bodies": 0.0048,
+     "exchange": 0.0006,
+     "feed": 0.0324,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.015,
+     "feed_surface_fields": 0.0137,
+     "in_update": {
+      "births": 0.0008,
+      "droplets": 0.0001,
+      "kept": 0.0005,
+      "occupancy": 0.0006,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 1.123,
+      "sleep": 0.0003,
+      "step": 2.344,
+      "step_call": 2.3428
+     },
+     "motion": 0.0024,
+     "pressure": 0.0008,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0073,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0024,
+     "skin_summaries": 0,
+     "solids": 0.0005,
+     "total": 3.5145,
+     "update": 3.4696
+    }
+   },
+   {
+    "t": 14.1,
+    "frame_ms_max": 5.966300144791603,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.19
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.5,
+     "gpu.01 settle (collect the call before)": 5.9,
+     "gpu.04 residency: which bricks": 21.0,
+     "gpu.05 residency: apply": 13.4,
+     "gpu.08 record the commands": 9.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 60.4,
+     "ripples.1 surfaceFields (= surf.*)": 23.4,
+     "ripples.2 masks + layers": 22.1,
+     "surf.1 read the GPU surface": 20.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 146,
+     "ripples.2 masks + layers": 146,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 146,
+    "worst_water_block": {
+     "bodies": 0.0058,
+     "exchange": 0.0003,
+     "feed": 0.0316,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0155,
+     "feed_surface_fields": 0.0117,
+     "in_update": {
+      "births": 0.0015,
+      "droplets": 0.0003,
+      "kept": 0.001,
+      "occupancy": 0.0007,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 1.0906,
+      "sleep": 0.0003,
+      "step": 2.2081,
+      "step_call": 2.2064
+     },
+     "motion": 0.0016,
+     "pressure": 0.0013,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0018,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 3.3493,
+     "update": 3.3024
+    }
+   },
+   {
+    "t": 14.7,
+    "frame_ms_max": 6.224500015377998,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.22
+    },
+    "totals_ms": {
+     "gpu.01 settle (collect the call before)": 5.4,
+     "gpu.04 residency: which bricks": 20.3,
+     "gpu.05 residency: apply": 13.4,
+     "gpu.08 record the commands": 9.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 58.1,
+     "ripples.1 surfaceFields (= surf.*)": 20.1,
+     "ripples.2 masks + layers": 22.6,
+     "surf.1 read the GPU surface": 17.5
+    },
+    "calls": {
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 141,
+     "ripples.2 masks + layers": 141,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0051,
+     "exchange": 0.0002,
+     "feed": 0.0345,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0165,
+     "feed_surface_fields": 0.0133,
+     "in_update": {
+      "births": 0.0009,
+      "droplets": 0.0002,
+      "kept": 0.0005,
+      "occupancy": 0.0007,
+      "residency": 0.0004,
+      "retiring": 0.0001,
+      "ripples": 1.1201,
+      "sleep": 0.0003,
+      "step": 2.2294,
+      "step_call": 2.2282
+     },
+     "motion": 0.0025,
+     "pressure": 0.001,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0019,
+     "skin_summaries": 0,
+     "solids": 0.0005,
+     "total": 3.4002,
+     "update": 3.3523
+    }
+   },
+   {
+    "t": 15.2,
+    "frame_ms_max": 6.2950002029538155,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.15
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 19.1,
+     "gpu.05 residency: apply": 13.2,
+     "gpu.08 record the commands": 9.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 56.0,
+     "ripples.1 surfaceFields (= surf.*)": 16.9,
+     "ripples.2 masks + layers": 22.9,
+     "surf.1 read the GPU surface": 14.3
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 143,
+     "ripples.2 masks + layers": 143,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 143,
+    "worst_water_block": {
+     "bodies": 0.0094,
+     "exchange": 0.0003,
+     "feed": 0.0329,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0153,
+     "feed_surface_fields": 0.0136,
+     "in_update": {
+      "births": 0.0016,
+      "droplets": 0.0003,
+      "kept": 0.0009,
+      "occupancy": 0.0006,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.9954,
+      "sleep": 0.0002,
+      "step": 2.1793,
+      "step_call": 2.1774
+     },
+     "motion": 0.0016,
+     "pressure": 0.0015,
+     "shore": 0.0003,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0083,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0018,
+     "skin_summaries": 0,
+     "solids": 0.0013,
+     "total": 3.2312,
+     "update": 3.1786
+    }
+   },
+   {
+    "t": 15.8,
+    "frame_ms_max": 7.250799797475338,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.15
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 17.5,
+     "gpu.05 residency: apply": 13.5,
+     "gpu.07 partition + tables": 6.0,
+     "gpu.08 record the commands": 9.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 55.0,
+     "ripples.1 surfaceFields (= surf.*)": 12.9,
+     "ripples.2 masks + layers": 23.0,
+     "surf.1 read the GPU surface": 10.5
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.07 partition + tables": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 133,
+     "ripples.2 masks + layers": 133,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 133,
+    "worst_water_block": {
+     "bodies": 0.0069,
+     "exchange": 0.0003,
+     "feed": 0.0326,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0164,
+     "feed_surface_fields": 0.0128,
+     "in_update": {
+      "births": 0.0012,
+      "droplets": 0.0002,
+      "kept": 0.0013,
+      "occupancy": 0.0005,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 1.1067,
+      "sleep": 0.0004,
+      "step": 2.171,
+      "step_call": 2.1694
+     },
+     "motion": 0.003,
+     "pressure": 0.0015,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0083,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0026,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 3.3308,
+     "update": 3.2817
+    }
+   },
+   {
+    "t": 16.3,
+    "frame_ms_max": 5.486300215125084,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.9
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 15.8,
+     "gpu.05 residency: apply": 13.0,
+     "gpu.08 record the commands": 8.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 50.9,
+     "ripples.1 surfaceFields (= surf.*)": 9.5,
+     "ripples.2 masks + layers": 22.0,
+     "surf.1 read the GPU surface": 7.0
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 147,
+     "ripples.2 masks + layers": 147,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 147,
+    "worst_water_block": {
+     "bodies": 0.0055,
+     "exchange": 0.0004,
+     "feed": 0.0295,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0133,
+     "feed_surface_fields": 0.0133,
+     "in_update": {
+      "births": 0.0008,
+      "droplets": 0.0003,
+      "kept": 0.001,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 0.8516,
+      "sleep": 0.0005,
+      "step": 1.923,
+      "step_call": 1.922
+     },
+     "motion": 0.0021,
+     "pressure": 0.0011,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0068,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0004,
+     "total": 2.8207,
+     "update": 2.7781
+    }
+   },
+   {
+    "t": 16.8,
+    "frame_ms_max": 6.2119001522660255,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.92
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 13.6,
+     "gpu.05 residency: apply": 13.8,
+     "gpu.08 record the commands": 9.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 48.9,
+     "ripples.1 surfaceFields (= surf.*)": 6.1,
+     "ripples.2 masks + layers": 22.9
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 154,
+     "ripples.2 masks + layers": 154
+    },
+    "frames": 154,
+    "worst_water_block": {
+     "bodies": 0.0072,
+     "exchange": 0.0002,
+     "feed": 0.0317,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0143,
+     "feed_surface_fields": 0.014,
+     "in_update": {
+      "births": 0.0012,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0005,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.7436,
+      "sleep": 0.0003,
+      "step": 1.8831,
+      "step_call": 1.8817
+     },
+     "motion": 0.0022,
+     "pressure": 0.0015,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0074,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0017,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 2.6788,
+     "update": 2.6301
+    }
+   },
+   {
+    "t": 17.4,
+    "frame_ms_max": 5.911299958825111,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.78
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 12.1,
+     "gpu.05 residency: apply": 13.3,
+     "gpu.08 record the commands": 9.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 43.8,
+     "ripples.2 masks + layers": 22.6
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 142
+    },
+    "frames": 142,
+    "worst_water_block": {
+     "bodies": 0.0061,
+     "exchange": 0.0001,
+     "feed": 0.0269,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0133,
+     "feed_surface_fields": 0.01,
+     "in_update": {
+      "births": 0.0005,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0006,
+      "ripples": 0.506,
+      "sleep": 0.0002,
+      "step": 1.8098,
+      "step_call": 1.809
+     },
+     "motion": 0.0015,
+     "pressure": 0.0018,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0078,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 2.3604,
+     "update": 2.3194
+    }
+   },
+   {
+    "t": 18.0,
+    "frame_ms_max": 32.687898725271225,
+    "parts": {
+     "gpu.08 record the commands": 1.02,
+     "mgr.2 record / wake tiles": 17.82,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.08,
+     "motion.1 takeMotion scan": 3.22,
+     "record.4a tiles built": 3.28,
+     "ripples.2 masks + layers": 4.28,
+     "tilesNow.2 surface": 1.45
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 5.7,
+     "gpu.05 residency: apply": 6.3,
+     "gpu.08 record the commands": 5.0,
+     "mgr.2 record / wake tiles": 18.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 22.0,
+     "motion.1 takeMotion scan": 9.5,
+     "record.4a tiles built": 18.0,
+     "ripples.2 masks + layers": 28.0,
+     "tilesNow.2 surface": 8.3
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 15,
+     "gpu.05 residency: apply": 15,
+     "gpu.08 record the commands": 15,
+     "mgr.2 record / wake tiles": 16,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 16,
+     "motion.1 takeMotion scan": 129,
+     "record.4a tiles built": 6,
+     "ripples.2 masks + layers": 129,
+     "tilesNow.2 surface": 6
+    },
+    "frames": 129,
+    "worst_water_block": {
+     "bodies": 0.0085,
+     "exchange": 0.001,
+     "feed": 0.4345,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.4078,
+     "feed_surface_fields": 0.0226,
+     "in_update": {
+      "births": 0.0007,
+      "droplets": 0.0003,
+      "kept": 0.0011,
+      "occupancy": 0.0006,
+      "residency": 0.0004,
+      "retiring": 0.0002,
+      "ripples": 4.5007,
+      "sleep": 0.0006,
+      "step": 19.9039,
+      "step_call": 19.903
+     },
+     "motion": 3.2285,
+     "pressure": 0.0014,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0167,
+     "skin_cells": 302,
+     "skin_fields_ms": 0.1594,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.20279999999999998,
+     "skin_scan_ms": 0.0041,
+     "skin_summaries": 2,
+     "solids": 0.0008,
+     "total": 28.0891,
+     "update": 24.4086
+    }
+   },
+   {
+    "t": 18.5,
+    "frame_ms_max": 4.4431001879274845,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.2
+    },
+    "calls": {
+     "ripples.2 masks + layers": 149
+    },
+    "frames": 149,
+    "worst_water_block": {
+     "bodies": 0.0075,
+     "exchange": 0.0001,
+     "feed": 0.0252,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0121,
+     "feed_surface_fields": 0.0105,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0013,
+      "occupancy": 0.0004,
+      "residency": 0.0006,
+      "retiring": 0.0001,
+      "ripples": 0.2659,
+      "sleep": 0.0002,
+      "step": 0.0159,
+      "step_call": 0.0
+     },
+     "motion": 0.0015,
+     "pressure": 0.0019,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0075,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0015,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 0.3251,
+     "update": 0.2852
+    }
+   },
+   {
+    "t": 19.1,
+    "frame_ms_max": 21.508099511265755,
+    "parts": {
+     "motion.1 takeMotion scan": 3.16,
+     "record.4a tiles built": 2.66,
+     "ripples.2 masks + layers": 3.82,
+     "tilesNow.2 surface": 1.22
+    },
+    "totals_ms": {
+     "ripples.2 masks + layers": 14.8
+    },
+    "calls": {
+     "ripples.2 masks + layers": 143
+    },
+    "frames": 143,
+    "worst_water_block": {
+     "bodies": 0.0061,
+     "exchange": 0.0008,
+     "feed": 0.3134,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.2863,
+     "feed_surface_fields": 0.0226,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0008,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 3.9072,
+      "sleep": 0.0004,
+      "step": 10.9347,
+      "step_call": 0.0
+     },
+     "motion": 3.1673,
+     "pressure": 0.0016,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0105,
+     "skin_cells": 267,
+     "skin_fields_ms": 0.1449,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.1119,
+     "skin_scan_ms": 0.0029,
+     "skin_summaries": 1,
+     "solids": 0.0006,
+     "total": 18.3398,
+     "update": 14.8453
+    }
+   },
+   {
+    "t": 19.6,
+    "frame_ms_max": 4.766399972140789,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.1
+    },
+    "calls": {
+     "ripples.2 masks + layers": 148
+    },
+    "frames": 148,
+    "worst_water_block": {
+     "bodies": 0.0088,
+     "exchange": 0.0002,
+     "feed": 0.0371,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0155,
+     "feed_surface_fields": 0.0177,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0015,
+      "occupancy": 0.0,
+      "residency": 0.0004,
+      "retiring": 0.0002,
+      "ripples": 0.3235,
+      "sleep": 0.0008,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0026,
+     "pressure": 0.0018,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0082,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0029,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 0.3832,
+     "update": 0.3275
+    }
+   },
+   {
+    "t": 20.2,
+    "frame_ms_max": 4.562899935990572,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.9
+    },
+    "calls": {
+     "ripples.2 masks + layers": 146
+    },
+    "frames": 146,
+    "worst_water_block": {
+     "bodies": 0.008,
+     "exchange": 0.0002,
+     "feed": 0.0355,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0138,
+     "feed_surface_fields": 0.0176,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0008,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.2904,
+      "sleep": 0.0005,
+      "step": 0.0143,
+      "step_call": 0.0
+     },
+     "motion": 0.0024,
+     "pressure": 0.002,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0075,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.002,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 0.3621,
+     "update": 0.3084
+    }
+   },
+   {
+    "t": 20.7,
+    "frame_ms_max": 4.487200174480677,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.2
+    },
+    "calls": {
+     "ripples.2 masks + layers": 151
+    },
+    "frames": 151,
+    "worst_water_block": {
+     "bodies": 0.0097,
+     "exchange": 0.0,
+     "feed": 0.0265,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0127,
+     "feed_surface_fields": 0.0105,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0005,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.0007,
+      "retiring": 0.0007,
+      "ripples": 0.3499,
+      "sleep": 0.0004,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0017,
+     "pressure": 0.0025,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.008,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 0.3988,
+     "update": 0.3534
+    }
+   },
+   {
+    "t": 21.3,
+    "frame_ms_max": 23.069800809025764,
+    "parts": {
+     "motion.1 takeMotion scan": 3.36,
+     "record.4a tiles built": 3.15,
+     "ripples.2 masks + layers": 3.75,
+     "tilesNow.2 surface": 1.57
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 10.1,
+     "record.4a tiles built": 9.4,
+     "ripples.2 masks + layers": 23.6
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 125,
+     "record.4a tiles built": 3,
+     "ripples.2 masks + layers": 125
+    },
+    "frames": 125,
+    "worst_water_block": {
+     "bodies": 0.0035,
+     "exchange": 0.0004,
+     "feed": 0.3006,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.2775,
+     "feed_surface_fields": 0.0198,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0004,
+      "kept": 0.0005,
+      "occupancy": 0.0008,
+      "residency": 0.0004,
+      "retiring": 0.0001,
+      "ripples": 3.8018,
+      "sleep": 0.0002,
+      "step": 12.3291,
+      "step_call": 0.0
+     },
+     "motion": 3.3638,
+     "pressure": 0.0007,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0127,
+     "skin_cells": 228,
+     "skin_fields_ms": 0.1395,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.1056,
+     "skin_scan_ms": 0.0021,
+     "skin_summaries": 1,
+     "solids": 0.0004,
+     "total": 19.8072,
+     "update": 16.1342
+    }
+   },
+   {
+    "t": 21.8,
+    "frame_ms_max": 4.6628001146018505,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 9.4
+    },
+    "calls": {
+     "ripples.2 masks + layers": 137
+    },
+    "frames": 137,
+    "worst_water_block": {
+     "bodies": 0.0105,
+     "exchange": 0.0001,
+     "feed": 0.0278,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0135,
+     "feed_surface_fields": 0.0114,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0013,
+      "occupancy": 0.0,
+      "residency": 0.0007,
+      "retiring": 0.0003,
+      "ripples": 0.2499,
+      "sleep": 0.0003,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0022,
+     "pressure": 0.0017,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0084,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 0.3005,
+     "update": 0.2532
+    }
+   },
+   {
+    "t": 22.4,
+    "frame_ms_max": 4.5587001368403435,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 9.2
+    },
+    "calls": {
+     "ripples.2 masks + layers": 140
+    },
+    "frames": 140,
+    "worst_water_block": {
+     "bodies": 0.0094,
+     "exchange": 0.0,
+     "feed": 0.0257,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0125,
+     "feed_surface_fields": 0.0091,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0006,
+      "kept": 0.0012,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.2627,
+      "sleep": 0.0003,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0018,
+     "pressure": 0.0017,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0012,
+     "skin_summaries": 0,
+     "solids": 0.0009,
+     "total": 0.3113,
+     "update": 0.2662
+    }
+   },
+   {
+    "t": 22.9,
+    "frame_ms_max": 4.7876001335680485,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 9.4
+    },
+    "calls": {
+     "ripples.2 masks + layers": 134
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0093,
+     "exchange": 0.0,
+     "feed": 0.0297,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0136,
+     "feed_surface_fields": 0.0129,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0013,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 0.3412,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0023,
+     "pressure": 0.0018,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0083,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0015,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 0.3941,
+     "update": 0.3444
+    }
+   },
+   {
+    "t": 23.4,
+    "frame_ms_max": 4.9991002306342125,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.2
+    },
+    "calls": {
+     "ripples.2 masks + layers": 141
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0076,
+     "exchange": 0.0001,
+     "feed": 0.0221,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0111,
+     "feed_surface_fields": 0.0082,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0007,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 0.0303,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0019,
+     "pressure": 0.0014,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0067,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0013,
+     "skin_summaries": 0,
+     "solids": 0.0011,
+     "total": 0.4171,
+     "update": 0.0336
+    }
+   },
+   {
+    "t": 24.0,
+    "frame_ms_max": 4.596599843353033,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.4
+    },
+    "calls": {
+     "ripples.2 masks + layers": 137
+    },
+    "frames": 137,
+    "worst_water_block": {
+     "bodies": 0.0103,
+     "exchange": 0.0002,
+     "feed": 0.0302,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0129,
+     "feed_surface_fields": 0.0141,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0004,
+      "kept": 0.0011,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 0.3021,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0016,
+     "pressure": 0.0014,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.002,
+     "skin_summaries": 0,
+     "solids": 0.0014,
+     "total": 0.3566,
+     "update": 0.3052
+    }
+   },
+   {
+    "t": 24.5,
+    "frame_ms_max": 4.781200084835291,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.7
+    },
+    "calls": {
+     "ripples.2 masks + layers": 139
+    },
+    "frames": 139,
+    "worst_water_block": {
+     "bodies": 0.0087,
+     "exchange": 0.0,
+     "feed": 0.0272,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0128,
+     "feed_surface_fields": 0.0113,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.001,
+      "retiring": 0.0002,
+      "ripples": 0.3788,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0016,
+     "pressure": 0.0016,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0075,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 0.4258,
+     "update": 0.3818
+    }
+   },
+   {
+    "t": 25.1,
+    "frame_ms_max": 4.832000005990267,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 12.2
+    },
+    "calls": {
+     "ripples.2 masks + layers": 141
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0087,
+     "exchange": 0.0001,
+     "feed": 0.0333,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0134,
+     "feed_surface_fields": 0.0151,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0013,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 0.3312,
+      "sleep": 0.0008,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0021,
+     "pressure": 0.0021,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0081,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0013,
+     "total": 0.3887,
+     "update": 0.335
+    }
+   },
+   {
+    "t": 25.6,
+    "frame_ms_max": 4.897399805486202,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.8
+    },
+    "calls": {
+     "ripples.2 masks + layers": 144
+    },
+    "frames": 144,
+    "worst_water_block": {
+     "bodies": 0.008,
+     "exchange": 0.0002,
+     "feed": 0.0262,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0124,
+     "feed_surface_fields": 0.0112,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.2931,
+      "sleep": 0.0003,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0038,
+     "pressure": 0.0018,
+     "shore": 0.0211,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0073,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0012,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 0.6964,
+     "update": 0.2957
+    }
+   },
+   {
+    "t": 26.2,
+    "frame_ms_max": 29.712099581956863,
+    "parts": {
+     "motion.1 takeMotion scan": 3.71,
+     "record.4a tiles built": 3.28,
+     "ripples.2 masks + layers": 3.56,
+     "tilesNow.2 surface": 1.47
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 10.6,
+     "record.4a tiles built": 12.3,
+     "ripples.2 masks + layers": 22.1,
+     "tilesNow.2 surface": 5.6
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 123,
+     "record.4a tiles built": 4,
+     "ripples.2 masks + layers": 123,
+     "tilesNow.2 surface": 4
+    },
+    "frames": 123,
+    "worst_water_block": {
+     "bodies": 0.0038,
+     "exchange": 0.0006,
+     "feed": 0.424,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.4013,
+     "feed_surface_fields": 0.0188,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0007,
+      "occupancy": 0.0003,
+      "residency": 0.0004,
+      "retiring": 0.0001,
+      "ripples": 3.0768,
+      "sleep": 0.0003,
+      "step": 18.4088,
+      "step_call": 0.0
+     },
+     "motion": 3.3932,
+     "pressure": 0.0008,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0207,
+     "skin_cells": 258,
+     "skin_fields_ms": 0.1488,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.19840000000000002,
+     "skin_scan_ms": 0.0033,
+     "skin_summaries": 2,
+     "solids": 0.0004,
+     "total": 25.3143,
+     "update": 21.4886
+    }
+   },
+   {
+    "t": 26.7,
+    "frame_ms_max": 34.448400139808655,
+    "parts": {
+     "ripples.2 masks + layers": 7.08,
+     "sleep.2 read the GPU grid": 20.08,
+     "sleep.3 held columns": 3.23,
+     "sleep.4 runs from the grid": 7.77
+    },
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.3,
+     "sleep.2 read the GPU grid": 20.1,
+     "sleep.4 runs from the grid": 7.8
+    },
+    "calls": {
+     "ripples.2 masks + layers": 124,
+     "sleep.2 read the GPU grid": 1,
+     "sleep.4 runs from the grid": 1
+    },
+    "frames": 124,
+    "worst_water_block": {
+     "bodies": 0.0038,
+     "exchange": 0.0002,
+     "feed": 0.1402,
+     "feed_ripple_layers": 0.001,
+     "feed_skin": 0.1204,
+     "feed_surface_fields": 0.0158,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0001,
+      "kept": 0.0006,
+      "occupancy": 0.0004,
+      "residency": 0.0004,
+      "retiring": 0.0001,
+      "ripples": 0.1114,
+      "sleep": 31.6556,
+      "step": 0.0014,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 140,
+     "skin_fields_ms": 0.1163,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0009,
+     "skin_summaries": 0,
+     "solids": 0.0003,
+     "total": 31.9191,
+     "update": 31.7708
+    }
+   },
+   {
+    "t": 27.2,
+    "frame_ms_max": 3.9916997775435448,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 167,
+    "worst_water_block": {
+     "bodies": 0.0047,
+     "exchange": 0.0,
+     "feed": 0.0206,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0114,
+     "feed_surface_fields": 0.0073,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0016,
+      "occupancy": 0.0,
+      "residency": 0.0004,
+      "retiring": 0.0002,
+      "ripples": 0.0181,
+      "sleep": 0.0001,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0009,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0073,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 0.1487,
+     "update": 0.0211
+    }
+   },
+   {
+    "t": 27.8,
+    "frame_ms_max": 4.828200209885836,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 171,
+    "worst_water_block": {
+     "bodies": 0.0049,
+     "exchange": 0.0,
+     "feed": 0.0185,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0097,
+     "feed_surface_fields": 0.0077,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0001,
+      "kept": 0.0011,
+      "occupancy": 0.0,
+      "residency": 0.0004,
+      "retiring": 0.0001,
+      "ripples": 0.0184,
+      "sleep": 0.0001,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0068,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0006,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 0.1462,
+     "update": 0.0209
+    }
+   },
+   {
+    "t": 28.3,
+    "frame_ms_max": 3.8107000291347504,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 176,
+    "worst_water_block": {
+     "bodies": 0.0052,
+     "exchange": 0.0001,
+     "feed": 0.0225,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0116,
+     "feed_surface_fields": 0.0096,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0017,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0001,
+      "ripples": 0.0214,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0009,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0079,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0007,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 0.1637,
+     "update": 0.0245
+    }
+   },
+   {
+    "t": 28.9,
+    "frame_ms_max": 3.7614000029861927,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 175,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.0,
+     "feed": 0.0194,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0104,
+     "feed_surface_fields": 0.0078,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0001,
+      "kept": 0.0012,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0001,
+      "ripples": 0.0184,
+      "sleep": 0.0001,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.001,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0068,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0009,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 0.1438,
+     "update": 0.0211
+    }
+   },
+   {
+    "t": 29.4,
+    "frame_ms_max": 3.730199998244643,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 168,
+    "worst_water_block": {
+     "bodies": 0.0047,
+     "exchange": 0.0007,
+     "feed": 0.0212,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0113,
+     "feed_surface_fields": 0.0087,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0021,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.0221,
+      "sleep": 0.0003,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0072,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0007,
+     "skin_summaries": 0,
+     "solids": 0.0012,
+     "total": 0.1648,
+     "update": 0.0259
+    }
+   },
+   {
+    "t": 30.0,
+    "frame_ms_max": 3.68599989451468,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 177,
+    "worst_water_block": {
+     "bodies": 0.0034,
+     "exchange": 0.0,
+     "feed": 0.0185,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0098,
+     "feed_surface_fields": 0.0079,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0001,
+      "kept": 0.001,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 0.0177,
+      "sleep": 0.0001,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "shore": 0.0,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0066,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0006,
+     "skin_summaries": 0,
+     "solids": 0.0004,
+     "total": 0.1453,
+     "update": 0.0198
+    }
+   }
+  ]
+ },
+ {
+  "run": 1,
+  "record_lake": {
+   "box": [
+    4,
+    16,
+    2,
+    63,
+    18,
+    61
+   ],
+   "m3": 7200.0,
+   "slept_boxes": 1,
+   "success": true,
+   "unwritten_columns": 0
+  },
+  "stone": {
+   "strength": 8.0,
+   "success": true,
+   "woken": [
+    4
+   ]
+  },
+  "slept_at_s": 26.7,
+  "sleep_parts_ms": {},
+  "sleep_total_ms": 0,
+  "worst_frame": [
+   0.3,
+   78.74149829149246
+  ],
+  "worst_frame_sleep_window": [
+   26.7,
+   33.994998782873154
+  ],
+  "record_draw": {
+   "build_ms_last_call": 0.0041,
+   "build_ms_max": 114.7461,
+   "build_ms_on_sleep_last": 4.2816,
+   "built_last_call": 0,
+   "handover_frames_last": 7,
+   "handover_tiles_max_per_frame": 4,
+   "handover_tiles_per_frame": 4,
+   "handovers": 2,
+   "on": true,
+   "pending": 0,
+   "radius_m": 48.0,
+   "retiring": 0,
+   "revision": 144,
+   "sleep_tiles_built": 268,
+   "tile_m": 8,
+   "tiles": 137,
+   "wet_tiles": 109
+  },
+  "worst_frame_ms_by_read": [
+   [
+    0.3,
+    78.74149829149246
+   ],
+   [
+    0.9,
+    18.701300024986267
+   ],
+   [
+    1.4,
+    12.593500316143036
+   ],
+   [
+    2.0,
+    6.934899836778641
+   ],
+   [
+    2.5,
+    8.769500069320202
+   ],
+   [
+    3.1,
+    9.560699574649334
+   ],
+   [
+    3.6,
+    7.7621000818908215
+   ],
+   [
+    4.2,
+    8.152499794960022
+   ],
+   [
+    4.8,
+    8.320200257003307
+   ],
+   [
+    5.3,
+    7.953000254929066
+   ],
+   [
+    5.9,
+    7.738099899142981
+   ],
+   [
+    6.4,
+    7.720199879258871
+   ],
+   [
+    7.0,
+    8.97189974784851
+   ],
+   [
+    7.5,
+    7.633000146597624
+   ],
+   [
+    8.1,
+    7.875099778175354
+   ],
+   [
+    8.6,
+    8.685699664056301
+   ],
+   [
+    9.2,
+    7.72069999948144
+   ],
+   [
+    9.8,
+    7.883800193667412
+   ],
+   [
+    10.3,
+    7.865400053560734
+   ],
+   [
+    10.8,
+    20.14699950814247
+   ],
+   [
+    11.4,
+    5.9752999804914
+   ],
+   [
+    12.0,
+    6.7206998355686665
+   ],
+   [
+    12.5,
+    6.682199891656637
+   ],
+   [
+    13.0,
+    7.4351998046040535
+   ],
+   [
+    13.6,
+    6.507299840450287
+   ],
+   [
+    14.1,
+    6.612999830394983
+   ],
+   [
+    14.7,
+    7.506900001317263
+   ],
+   [
+    15.3,
+    6.428900174796581
+   ],
+   [
+    15.8,
+    6.335900165140629
+   ],
+   [
+    16.4,
+    6.888700183480978
+   ],
+   [
+    16.9,
+    6.5958998166024685
+   ],
+   [
+    17.5,
+    5.685300100594759
+   ],
+   [
+    18.0,
+    5.525399930775166
+   ],
+   [
+    18.5,
+    28.351200744509697
+   ],
+   [
+    19.0,
+    4.327499773353338
+   ],
+   [
+    19.6,
+    21.028699353337288
+   ],
+   [
+    20.2,
+    4.362700041383505
+   ],
+   [
+    20.7,
+    28.859300538897514
+   ],
+   [
+    21.2,
+    4.790300037711859
+   ],
+   [
+    21.8,
+    4.58399998024106
+   ],
+   [
+    22.3,
+    4.786300007253885
+   ],
+   [
+    22.8,
+    5.0836000591516495
+   ],
+   [
+    23.4,
+    4.786300007253885
+   ],
+   [
+    24.0,
+    4.989699926227331
+   ],
+   [
+    24.5,
+    4.514799918979406
+   ],
+   [
+    25.0,
+    5.158999934792519
+   ],
+   [
+    25.6,
+    4.52579976990819
+   ],
+   [
+    26.1,
+    4.524900112301111
+   ],
+   [
+    26.7,
+    33.994998782873154
+   ],
+   [
+    27.3,
+    12.508399784564972
+   ],
+   [
+    27.8,
+    4.321400076150894
+   ],
+   [
+    28.4,
+    3.944199997931719
+   ],
+   [
+    28.9,
+    4.513199906796217
+   ],
+   [
+    29.5,
+    3.952499944716692
+   ],
+   [
+    30.0,
+    4.168299958109856
+   ]
+  ],
+  "foreign_gpu_processes": [
+   "G:\\Github\\phyxel-matsimb-lab\\build\\editor\\Release\\phyxel.exe"
+  ],
+  "wake": {
+   "last_wake_ms": 0.0,
+   "max_wake_ms": 0.0,
+   "last_wake_split_ms": {
+    "alloc": 0.4202,
+    "cells": 3499200,
+    "gpu_buffers": 0.0274,
+    "gpu_create_upload": 12.115,
+    "gpu_create_volume": 0.8901,
+    "gpu_fill": 0.5757,
+    "gpu_occ_copy": 0.2545,
+    "gpu_pipeline_count": 24,
+    "gpu_pipelines": 0.2196,
+    "gpu_pipelines_reused": 24,
+    "gpu_upload": 10.9699,
+    "occupancy": 7.4092,
+    "occupancy_threads": 8,
+    "seed": 4.1463,
+    "seed_occupancy": 1.6395,
+    "solids": 0.0001,
+    "span_read": 0.7354
+   },
+   "last_patch_split_ms": {
+    "adopt": 3.4069,
+    "create": 19.9526,
+    "size": 0.6141,
+    "wake_tile": 9.0758
+   },
+   "last_upload_split_ms": {
+    "bricks": 0,
+    "clear": 2.1152,
+    "host": 4.5219,
+    "residency": 3.8997,
+    "residency_split": {
+     "apply": 0.1359,
+     "ground": 0.8521,
+     "grow": 0.0228,
+     "need": 2.8889
+    },
+    "scatter": 0.0004,
+    "settle": 0.0,
+    "submit": 0.3684,
+    "tables": 0.0149
+   },
+   "last_grow_split_ms": {
+    "alloc": 0.0,
+    "bytes_after": 0,
+    "copy": 0.0,
+    "free": 0.0,
+    "grows": 0,
+    "rebind": 0.0,
+    "tables": 0.0
+   }
+  },
+  "tile_phases": {
+   "gpu_last": {
+    "read_host": 1.6078,
+    "read_settle": 0.0,
+    "read_submit": 0.269,
+    "record_build_parts": [
+     0.236,
+     0.3958,
+     1.0362,
+     0.1064
+    ],
+    "seed_host": 6.7001,
+    "seed_parts": [
+     3.1724,
+     0.5582,
+     1.2078,
+     1.7272,
+     0.0344
+    ],
+    "seed_settle": 0.0001,
+    "seed_submit": 0.976
+   },
+   "record_last": [
+    1.9623,
+    0.4512,
+    0.1177,
+    0.6712,
+    4.3851
+   ],
+   "record_max": [
+    7.6701,
+    0.5095,
+    0.1397,
+    0.8149,
+    4.3851
+   ],
+   "record_names": [
+    "gpu_read",
+    "runs",
+    "spans",
+    "gpu_flags",
+    "draw"
+   ],
+   "records": 14,
+   "seed_max": {
+    "host": 7.6444,
+    "parts": [
+     3.4495,
+     0.581,
+     1.2939,
+     2.2743,
+     0.0815
+    ],
+    "pool_grows": 0,
+    "seeds": 14,
+    "settle": 0.8309,
+    "submit": 1.4127
+   },
+   "wake_last": [
+    0.0355,
+    0.5152,
+    1.0195,
+    7.7571,
+    0.0715,
+    0.0391
+   ],
+   "wake_max": [
+    0.0635,
+    0.5761,
+    1.38,
+    8.8866,
+    0.0959,
+    0.0509
+   ],
+   "wake_names": [
+    "span_read",
+    "occupancy",
+    "seed_surface",
+    "gpu_upload",
+    "span_clear",
+    "draw"
+   ],
+   "wakes": 14
+  },
+  "windows": [
+   {
+    "t": 0.3,
+    "frame_ms_max": 78.74149829149246,
+    "parts": {
+     "adopt.3a mark": 1.15,
+     "collect.1 fence wait": 3.84,
+     "gpu.01 settle (collect the call before)": 4.04,
+     "gpu.04 residency: which bricks": 1.6,
+     "gpu.07 partition + tables": 2.88,
+     "gpu.08 record the commands": 6.29,
+     "mgr.2 record / wake tiles": 20.62,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 12.56,
+     "motion.1 takeMotion scan": 3.71,
+     "ripples.1 surfaceFields (= surf.*)": 1.16,
+     "ripples.2 masks + layers": 6.81,
+     "seed.0a flags": 0.0,
+     "seed.0b tall collapse": 0.0,
+     "seed.0c need init": 0.03,
+     "seed.0d nearest-wet walk": 3.35,
+     "seed.0e markNeed": 0.07,
+     "surf.1 read the GPU surface": 1.32,
+     "surf.4 mark recorded columns": 1.13,
+     "up.0 max speed": 1.57,
+     "up.1 host occupancy + solid tops": 2.95
+    },
+    "totals_ms": {
+     "collect.1 fence wait": 7.1,
+     "collect.2 lists + copies": 5.2,
+     "gpu.01 settle (collect the call before)": 9.8,
+     "gpu.04 residency: which bricks": 14.4,
+     "gpu.05 residency: apply": 5.7,
+     "gpu.07 partition + tables": 11.9,
+     "gpu.08 record the commands": 16.7,
+     "mgr.2 record / wake tiles": 97.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 67.8,
+     "motion.1 takeMotion scan": 19.7,
+     "ripples.2 masks + layers": 29.0,
+     "seed.0d nearest-wet walk": 42.1,
+     "surf.1 read the GPU surface": 12.6,
+     "surf.4 mark recorded columns": 5.2
+    },
+    "calls": {
+     "collect.1 fence wait": 15,
+     "collect.2 lists + copies": 15,
+     "gpu.01 settle (collect the call before)": 16,
+     "gpu.04 residency: which bricks": 16,
+     "gpu.05 residency: apply": 16,
+     "gpu.07 partition + tables": 16,
+     "gpu.08 record the commands": 16,
+     "mgr.2 record / wake tiles": 16,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 16,
+     "motion.1 takeMotion scan": 32,
+     "ripples.2 masks + layers": 43,
+     "seed.0d nearest-wet walk": 14,
+     "surf.1 read the GPU surface": 15,
+     "surf.4 mark recorded columns": 17
+    },
+    "frames": 43,
+    "worst_water_block": {
+     "bodies": 0.0102,
+     "exchange": 0.0003,
+     "feed": 0.3793,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.3528,
+     "feed_surface_fields": 0.0234,
+     "in_update": {
+      "births": 0.0008,
+      "droplets": 1.5859,
+      "kept": 0.0008,
+      "occupancy": 0.0006,
+      "residency": 0.0005,
+      "retiring": 0.0007,
+      "ripples": 6.9559,
+      "sleep": 0.0004,
+      "step": 22.0578,
+      "step_call": 22.0568
+     },
+     "motion": 3.1882,
+     "pressure": 0.0021,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0172,
+     "skin_cells": 258,
+     "skin_fields_ms": 0.1409,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.1672,
+     "skin_scan_ms": 0.0028,
+     "skin_summaries": 2,
+     "solids": 0.0009,
+     "total": 34.1908,
+     "update": 30.6043
+    }
+   },
+   {
+    "t": 0.9,
+    "frame_ms_max": 18.701300024986267,
+    "parts": {
+     "collect.1 fence wait": 9.99,
+     "gpu.01 settle (collect the call before)": 10.2,
+     "gpu.04 residency: which bricks": 1.55,
+     "gpu.05 residency: apply": 1.56,
+     "gpu.08 record the commands": 1.01,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 13.09,
+     "surf.1 read the GPU surface": 1.06
+    },
+    "totals_ms": {
+     "collect.1 fence wait": 37.0,
+     "collect.2 lists + copies": 6.1,
+     "gpu.01 settle (collect the call before)": 43.7,
+     "gpu.04 residency: which bricks": 44.3,
+     "gpu.05 residency: apply": 12.7,
+     "gpu.08 record the commands": 16.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 127.0,
+     "ripples.2 masks + layers": 22.1,
+     "surf.1 read the GPU surface": 20.8
+    },
+    "calls": {
+     "collect.1 fence wait": 32,
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 94,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 94,
+    "worst_water_block": {
+     "bodies": 0.0115,
+     "exchange": 0.0001,
+     "feed": 0.032,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0156,
+     "feed_surface_fields": 0.0134,
+     "in_update": {
+      "births": 0.0253,
+      "droplets": 0.6029,
+      "kept": 0.0011,
+      "occupancy": 0.0008,
+      "residency": 0.0004,
+      "retiring": 0.0003,
+      "ripples": 0.5374,
+      "sleep": 0.0003,
+      "step": 13.1275,
+      "step_call": 13.1019
+     },
+     "motion": 0.0027,
+     "pressure": 0.0023,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0078,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.002,
+     "skin_summaries": 0,
+     "solids": 0.0009,
+     "total": 14.3259,
+     "update": 14.272
+    }
+   },
+   {
+    "t": 1.4,
+    "frame_ms_max": 12.593500316143036,
+    "parts": {
+     "collect.1 fence wait": 3.14,
+     "gpu.01 settle (collect the call before)": 3.34,
+     "gpu.04 residency: which bricks": 1.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 5.71
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.7,
+     "gpu.01 settle (collect the call before)": 12.1,
+     "gpu.04 residency: which bricks": 41.6,
+     "gpu.05 residency: apply": 10.0,
+     "gpu.08 record the commands": 10.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 82.7,
+     "ripples.2 masks + layers": 23.5,
+     "surf.1 read the GPU surface": 19.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 106,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 106,
+    "worst_water_block": {
+     "bodies": 0.0079,
+     "exchange": 0.0001,
+     "feed": 0.0284,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0158,
+     "feed_surface_fields": 0.0089,
+     "in_update": {
+      "births": 0.018,
+      "droplets": 0.666,
+      "kept": 0.0011,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 0.401,
+      "sleep": 0.0004,
+      "step": 5.7351,
+      "step_call": 5.7169
+     },
+     "motion": 0.0038,
+     "pressure": 0.0018,
+     "shore": 0.0003,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0083,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0022,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 6.8527,
+     "update": 6.8056
+    }
+   },
+   {
+    "t": 2.0,
+    "frame_ms_max": 6.934899836778641,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.39,
+     "surf.1 read the GPU surface": 1.07
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.4,
+     "gpu.01 settle (collect the call before)": 6.0,
+     "gpu.04 residency: which bricks": 40.6,
+     "gpu.05 residency: apply": 9.6,
+     "gpu.08 record the commands": 7.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 71.9,
+     "ripples.2 masks + layers": 24.2,
+     "surf.1 read the GPU surface": 21.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 130,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 130,
+    "worst_water_block": {
+     "bodies": 0.0074,
+     "exchange": 0.0001,
+     "feed": 0.0355,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0156,
+     "feed_surface_fields": 0.0153,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.6475,
+      "kept": 0.0009,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.5546,
+      "sleep": 0.0004,
+      "step": 2.9128,
+      "step_call": 2.9116
+     },
+     "motion": 0.0041,
+     "pressure": 0.0019,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0021,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 4.1725,
+     "update": 4.1183
+    }
+   },
+   {
+    "t": 2.5,
+    "frame_ms_max": 8.769500069320202,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.16,
+     "gpu.04 residency: which bricks": 1.32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.27
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.5,
+     "gpu.01 settle (collect the call before)": 7.2,
+     "gpu.04 residency: which bricks": 40.2,
+     "gpu.05 residency: apply": 10.4,
+     "gpu.08 record the commands": 11.2,
+     "mgr.3 tall cells": 19.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 78.3,
+     "ripples.2 masks + layers": 22.3,
+     "surf.1 read the GPU surface": 19.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 114,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 114,
+    "worst_water_block": {
+     "bodies": 0.0053,
+     "exchange": 0.0001,
+     "feed": 0.027,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0146,
+     "feed_surface_fields": 0.0081,
+     "in_update": {
+      "births": 0.0009,
+      "droplets": 0.6188,
+      "kept": 0.0008,
+      "occupancy": 0.0004,
+      "residency": 0.0004,
+      "retiring": 0.0001,
+      "ripples": 0.3992,
+      "sleep": 0.0003,
+      "step": 3.8578,
+      "step_call": 3.8561
+     },
+     "motion": 0.0033,
+     "pressure": 0.0017,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0021,
+     "skin_summaries": 0,
+     "solids": 0.0005,
+     "total": 4.9199,
+     "update": 4.8785
+    }
+   },
+   {
+    "t": 3.1,
+    "frame_ms_max": 9.560699574649334,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.15,
+     "gpu.04 residency: which bricks": 1.61,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.3,
+     "surf.1 read the GPU surface": 1.29
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.6,
+     "gpu.01 settle (collect the call before)": 7.2,
+     "gpu.04 residency: which bricks": 39.5,
+     "gpu.05 residency: apply": 11.4,
+     "gpu.08 record the commands": 8.9,
+     "mgr.3 tall cells": 19.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 76.0,
+     "ripples.2 masks + layers": 23.2,
+     "surf.1 read the GPU surface": 21.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.2 masks + layers": 111,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 111,
+    "worst_water_block": {
+     "bodies": 0.0109,
+     "exchange": 0.0001,
+     "feed": 0.0356,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0172,
+     "feed_surface_fields": 0.0142,
+     "in_update": {
+      "births": 0.0016,
+      "droplets": 0.9284,
+      "kept": 0.0018,
+      "occupancy": 0.0008,
+      "residency": 0.0005,
+      "retiring": 0.0003,
+      "ripples": 0.6257,
+      "sleep": 0.0002,
+      "step": 3.7616,
+      "step_call": 3.7596
+     },
+     "motion": 0.0034,
+     "pressure": 0.0021,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.009,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0021,
+     "skin_summaries": 0,
+     "solids": 0.0009,
+     "total": 5.3815,
+     "update": 5.3204
+    }
+   },
+   {
+    "t": 3.6,
+    "frame_ms_max": 7.7621000818908215,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.43
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 6.6,
+     "gpu.04 residency: which bricks": 41.9,
+     "gpu.05 residency: apply": 10.9,
+     "gpu.08 record the commands": 7.6,
+     "mgr.3 tall cells": 19.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.9,
+     "ripples.2 masks + layers": 21.3,
+     "surf.1 read the GPU surface": 19.5
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.2 masks + layers": 129,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 129,
+    "worst_water_block": {
+     "bodies": 0.0084,
+     "exchange": 0.0001,
+     "feed": 0.0303,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0169,
+     "feed_surface_fields": 0.0094,
+     "in_update": {
+      "births": 0.0013,
+      "droplets": 0.9262,
+      "kept": 0.0014,
+      "occupancy": 0.0006,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.3643,
+      "sleep": 0.0002,
+      "step": 2.9947,
+      "step_call": 2.9931
+     },
+     "motion": 0.0041,
+     "pressure": 0.0014,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0093,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0017,
+     "skin_summaries": 0,
+     "solids": 0.0021,
+     "total": 4.3427,
+     "update": 4.2901
+    }
+   },
+   {
+    "t": 4.2,
+    "frame_ms_max": 8.152499794960022,
+    "parts": {
+     "collect.3 stats + record + sleep": 1.01,
+     "gpu.01 settle (collect the call before)": 1.19,
+     "gpu.04 residency: which bricks": 1.31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.23,
+     "ripples.1 surfaceFields (= surf.*)": 1.19,
+     "surf.1 read the GPU surface": 1.17
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.7,
+     "gpu.01 settle (collect the call before)": 7.4,
+     "gpu.04 residency: which bricks": 41.9,
+     "gpu.05 residency: apply": 9.9,
+     "gpu.08 record the commands": 7.5,
+     "mgr.3 tall cells": 20.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.5,
+     "ripples.1 surfaceFields (= surf.*)": 15.7,
+     "ripples.2 masks + layers": 20.3,
+     "surf.1 read the GPU surface": 18.9
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 134,
+     "ripples.2 masks + layers": 134,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0068,
+     "exchange": 0.0001,
+     "feed": 0.0374,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0159,
+     "feed_surface_fields": 0.0169,
+     "in_update": {
+      "births": 0.0011,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0004,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 1.7571,
+      "sleep": 0.0003,
+      "step": 3.0797,
+      "step_call": 3.0784
+     },
+     "motion": 0.0029,
+     "pressure": 0.0013,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0082,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0021,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 4.8953,
+     "update": 4.8402
+    }
+   },
+   {
+    "t": 4.8,
+    "frame_ms_max": 8.320200257003307,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.61,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.65,
+     "ripples.1 surfaceFields (= surf.*)": 1.23,
+     "surf.1 read the GPU surface": 1.2
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 6.6,
+     "gpu.04 residency: which bricks": 43.0,
+     "gpu.05 residency: apply": 9.8,
+     "gpu.08 record the commands": 7.8,
+     "mgr.3 tall cells": 20.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 76.2,
+     "ripples.1 surfaceFields (= surf.*)": 23.0,
+     "ripples.2 masks + layers": 20.4,
+     "surf.1 read the GPU surface": 20.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 119,
+     "ripples.2 masks + layers": 119,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 119,
+    "worst_water_block": {
+     "bodies": 0.0086,
+     "exchange": 0.0002,
+     "feed": 0.0373,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0168,
+     "feed_surface_fields": 0.0159,
+     "in_update": {
+      "births": 0.0011,
+      "droplets": 0.0003,
+      "kept": 0.0009,
+      "occupancy": 0.0005,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 1.7027,
+      "sleep": 0.0011,
+      "step": 3.2377,
+      "step_call": 3.2363
+     },
+     "motion": 0.0031,
+     "pressure": 0.0014,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0088,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0023,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 5.0024,
+     "update": 4.9446
+    }
+   },
+   {
+    "t": 5.3,
+    "frame_ms_max": 7.953000254929066,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.16,
+     "gpu.04 residency: which bricks": 1.37,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.22,
+     "ripples.1 surfaceFields (= surf.*)": 1.21,
+     "surf.1 read the GPU surface": 1.18
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.7,
+     "gpu.01 settle (collect the call before)": 7.4,
+     "gpu.04 residency: which bricks": 40.8,
+     "gpu.05 residency: apply": 9.3,
+     "gpu.08 record the commands": 7.4,
+     "mgr.3 tall cells": 21.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 73.3,
+     "ripples.1 surfaceFields (= surf.*)": 21.0,
+     "ripples.2 masks + layers": 18.5,
+     "surf.1 read the GPU surface": 18.6
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 132,
+     "ripples.2 masks + layers": 132,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 132,
+    "worst_water_block": {
+     "bodies": 0.0073,
+     "exchange": 0.0001,
+     "feed": 0.0247,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0127,
+     "feed_surface_fields": 0.0089,
+     "in_update": {
+      "births": 0.0007,
+      "droplets": 0.0001,
+      "kept": 0.001,
+      "occupancy": 0.0005,
+      "residency": 0.0004,
+      "retiring": 0.0002,
+      "ripples": 0.8138,
+      "sleep": 0.0003,
+      "step": 3.875,
+      "step_call": 3.8739
+     },
+     "motion": 0.0035,
+     "pressure": 0.0012,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0068,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0005,
+     "total": 4.7336,
+     "update": 4.692
+    }
+   },
+   {
+    "t": 5.9,
+    "frame_ms_max": 7.738099899142981,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.44,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.47
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 6.6,
+     "gpu.04 residency: which bricks": 40.1,
+     "gpu.05 residency: apply": 9.1,
+     "gpu.08 record the commands": 7.3,
+     "mgr.3 tall cells": 21.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 71.4,
+     "ripples.1 surfaceFields (= surf.*)": 20.3,
+     "ripples.2 masks + layers": 18.9,
+     "surf.1 read the GPU surface": 17.9
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 129,
+     "ripples.2 masks + layers": 129,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 129,
+    "worst_water_block": {
+     "bodies": 0.0085,
+     "exchange": 0.0001,
+     "feed": 0.0346,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0157,
+     "feed_surface_fields": 0.0153,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0002,
+      "kept": 0.0012,
+      "occupancy": 0.0013,
+      "residency": 0.0005,
+      "retiring": 0.0003,
+      "ripples": 1.1448,
+      "sleep": 0.0005,
+      "step": 3.1746,
+      "step_call": 3.1728
+     },
+     "motion": 0.0041,
+     "pressure": 0.0016,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0078,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0029,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 4.3791,
+     "update": 4.3246
+    }
+   },
+   {
+    "t": 6.4,
+    "frame_ms_max": 7.720199879258871,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.19,
+     "gpu.04 residency: which bricks": 1.33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.27
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.1,
+     "gpu.01 settle (collect the call before)": 7.8,
+     "gpu.04 residency: which bricks": 40.6,
+     "gpu.05 residency: apply": 9.3,
+     "gpu.08 record the commands": 7.5,
+     "mgr.3 tall cells": 22.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 73.3,
+     "ripples.1 surfaceFields (= surf.*)": 21.2,
+     "ripples.2 masks + layers": 18.9,
+     "surf.1 read the GPU surface": 18.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 132,
+     "ripples.2 masks + layers": 132,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 132,
+    "worst_water_block": {
+     "bodies": 0.0078,
+     "exchange": 0.0001,
+     "feed": 0.03,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0151,
+     "feed_surface_fields": 0.0109,
+     "in_update": {
+      "births": 0.0014,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0004,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 0.98,
+      "sleep": 0.0002,
+      "step": 3.9903,
+      "step_call": 3.9886
+     },
+     "motion": 0.0041,
+     "pressure": 0.0013,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0073,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0028,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 5.0236,
+     "update": 4.9736
+    }
+   },
+   {
+    "t": 7.0,
+    "frame_ms_max": 8.97189974784851,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.43,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.55,
+     "ripples.1 surfaceFields (= surf.*)": 1.16,
+     "surf.1 read the GPU surface": 1.14
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.2,
+     "gpu.01 settle (collect the call before)": 7.0,
+     "gpu.04 residency: which bricks": 41.0,
+     "gpu.05 residency: apply": 9.4,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 21.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 73.7,
+     "ripples.1 surfaceFields (= surf.*)": 23.3,
+     "ripples.2 masks + layers": 20.0,
+     "surf.1 read the GPU surface": 20.9
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 123,
+     "ripples.2 masks + layers": 123,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 123,
+    "worst_water_block": {
+     "bodies": 0.0087,
+     "exchange": 0.0004,
+     "feed": 0.0398,
+     "feed_ripple_layers": 0.0007,
+     "feed_skin": 0.0168,
+     "feed_surface_fields": 0.0179,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0002,
+      "kept": 0.001,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 1.7587,
+      "sleep": 0.0006,
+      "step": 3.1915,
+      "step_call": 3.1902
+     },
+     "motion": 0.0034,
+     "pressure": 0.0015,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0084,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0018,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 5.0147,
+     "update": 4.9544
+    }
+   },
+   {
+    "t": 7.5,
+    "frame_ms_max": 7.633000146597624,
+    "parts": {
+     "collect.3 stats + record + sleep": 1.02,
+     "gpu.01 settle (collect the call before)": 1.19,
+     "gpu.04 residency: which bricks": 1.32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.29
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.1,
+     "gpu.01 settle (collect the call before)": 7.8,
+     "gpu.04 residency: which bricks": 41.7,
+     "gpu.05 residency: apply": 9.6,
+     "gpu.08 record the commands": 7.9,
+     "mgr.3 tall cells": 21.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.8,
+     "ripples.1 surfaceFields (= surf.*)": 22.6,
+     "ripples.2 masks + layers": 20.8,
+     "surf.1 read the GPU surface": 20.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 133,
+     "ripples.2 masks + layers": 133,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 133,
+    "worst_water_block": {
+     "bodies": 0.0049,
+     "exchange": 0.0001,
+     "feed": 0.0294,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0153,
+     "feed_surface_fields": 0.0108,
+     "in_update": {
+      "births": 0.0017,
+      "droplets": 0.0002,
+      "kept": 0.0012,
+      "occupancy": 0.0004,
+      "residency": 0.0003,
+      "retiring": 0.0001,
+      "ripples": 1.0082,
+      "sleep": 0.0003,
+      "step": 3.9482,
+      "step_call": 3.9464
+     },
+     "motion": 0.0026,
+     "pressure": 0.0012,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0086,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0005,
+     "total": 5.0015,
+     "update": 4.9597
+    }
+   },
+   {
+    "t": 8.1,
+    "frame_ms_max": 7.875099778175354,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.43,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.49
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 7.6,
+     "gpu.04 residency: which bricks": 40.7,
+     "gpu.05 residency: apply": 9.3,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 20.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 73.9,
+     "ripples.1 surfaceFields (= surf.*)": 22.3,
+     "ripples.2 masks + layers": 20.5,
+     "surf.1 read the GPU surface": 19.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 131,
+     "ripples.2 masks + layers": 131,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 131,
+    "worst_water_block": {
+     "bodies": 0.0074,
+     "exchange": 0.0001,
+     "feed": 0.03,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0151,
+     "feed_surface_fields": 0.0108,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0002,
+      "kept": 0.0012,
+      "occupancy": 0.0012,
+      "residency": 0.0005,
+      "retiring": 0.0003,
+      "ripples": 1.0536,
+      "sleep": 0.0003,
+      "step": 4.033,
+      "step_call": 4.0318
+     },
+     "motion": 0.0039,
+     "pressure": 0.0016,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0076,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0022,
+     "skin_summaries": 0,
+     "solids": 0.0009,
+     "total": 5.1393,
+     "update": 5.0912
+    }
+   },
+   {
+    "t": 8.6,
+    "frame_ms_max": 8.685699664056301,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.48,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.51,
+     "ripples.1 surfaceFields (= surf.*)": 1.09,
+     "surf.1 read the GPU surface": 1.06
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.6,
+     "gpu.01 settle (collect the call before)": 6.3,
+     "gpu.04 residency: which bricks": 40.7,
+     "gpu.05 residency: apply": 9.3,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 20.2,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 72.7,
+     "ripples.1 surfaceFields (= surf.*)": 22.2,
+     "ripples.2 masks + layers": 20.7,
+     "surf.1 read the GPU surface": 19.9
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 117,
+     "ripples.2 masks + layers": 117,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 117,
+    "worst_water_block": {
+     "bodies": 0.0078,
+     "exchange": 0.0001,
+     "feed": 0.0349,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0161,
+     "feed_surface_fields": 0.0144,
+     "in_update": {
+      "births": 0.0016,
+      "droplets": 0.0006,
+      "kept": 0.0009,
+      "occupancy": 0.001,
+      "residency": 0.0006,
+      "retiring": 0.0003,
+      "ripples": 1.5566,
+      "sleep": 0.0002,
+      "step": 3.1435,
+      "step_call": 3.1417
+     },
+     "motion": 0.0029,
+     "pressure": 0.002,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0085,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0017,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 4.7588,
+     "update": 4.7049
+    }
+   },
+   {
+    "t": 9.2,
+    "frame_ms_max": 7.72069999948144,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.1,
+     "gpu.04 residency: which bricks": 1.35,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.14,
+     "ripples.1 surfaceFields (= surf.*)": 1.27,
+     "surf.1 read the GPU surface": 1.24
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 7.6,
+     "gpu.04 residency: which bricks": 41.8,
+     "gpu.05 residency: apply": 9.7,
+     "gpu.08 record the commands": 7.9,
+     "mgr.3 tall cells": 21.0,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 76.1,
+     "ripples.1 surfaceFields (= surf.*)": 24.2,
+     "ripples.2 masks + layers": 22.0,
+     "surf.1 read the GPU surface": 21.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 127,
+     "ripples.2 masks + layers": 127,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 127,
+    "worst_water_block": {
+     "bodies": 0.0045,
+     "exchange": 0.0002,
+     "feed": 0.0369,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0165,
+     "feed_surface_fields": 0.0161,
+     "in_update": {
+      "births": 0.0007,
+      "droplets": 0.0002,
+      "kept": 0.001,
+      "occupancy": 0.0004,
+      "residency": 0.0004,
+      "retiring": 0.0002,
+      "ripples": 0.9776,
+      "sleep": 0.0004,
+      "step": 3.7838,
+      "step_call": 3.7827
+     },
+     "motion": 0.0039,
+     "pressure": 0.0009,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0084,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0023,
+     "skin_summaries": 0,
+     "solids": 0.0004,
+     "total": 4.8155,
+     "update": 4.7646
+    }
+   },
+   {
+    "t": 9.8,
+    "frame_ms_max": 7.883800193667412,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.39,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.46,
+     "ripples.1 surfaceFields (= surf.*)": 1.11,
+     "surf.1 read the GPU surface": 1.09
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.7,
+     "gpu.01 settle (collect the call before)": 6.4,
+     "gpu.04 residency: which bricks": 40.5,
+     "gpu.05 residency: apply": 9.6,
+     "gpu.08 record the commands": 7.6,
+     "mgr.3 tall cells": 20.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 72.8,
+     "ripples.1 surfaceFields (= surf.*)": 22.2,
+     "ripples.2 masks + layers": 20.6,
+     "surf.1 read the GPU surface": 19.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.3 tall cells": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 122,
+     "ripples.2 masks + layers": 122,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 122,
+    "worst_water_block": {
+     "bodies": 0.0079,
+     "exchange": 0.0002,
+     "feed": 0.0277,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0147,
+     "feed_surface_fields": 0.0094,
+     "in_update": {
+      "births": 0.0012,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 1.4418,
+      "sleep": 0.0002,
+      "step": 3.0706,
+      "step_call": 3.0692
+     },
+     "motion": 0.0029,
+     "pressure": 0.0019,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0076,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 4.5609,
+     "update": 4.5157
+    }
+   },
+   {
+    "t": 10.3,
+    "frame_ms_max": 7.865400053560734,
+    "parts": {
+     "gpu.01 settle (collect the call before)": 1.06,
+     "gpu.04 residency: which bricks": 1.44,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 3.14,
+     "ripples.1 surfaceFields (= surf.*)": 1.26,
+     "surf.1 read the GPU surface": 1.23
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.7,
+     "gpu.01 settle (collect the call before)": 7.3,
+     "gpu.04 residency: which bricks": 42.0,
+     "gpu.05 residency: apply": 10.0,
+     "gpu.08 record the commands": 7.7,
+     "mgr.3 tall cells": 21.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 75.8,
+     "ripples.1 surfaceFields (= surf.*)": 22.3,
+     "ripples.2 masks + layers": 20.7,
+     "surf.1 read the GPU surface": 19.8
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.3 tall cells": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 127,
+     "ripples.2 masks + layers": 127,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 127,
+    "worst_water_block": {
+     "bodies": 0.0072,
+     "exchange": 0.0002,
+     "feed": 0.0391,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0171,
+     "feed_surface_fields": 0.0177,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0002,
+      "kept": 0.001,
+      "occupancy": 0.0005,
+      "residency": 0.0011,
+      "retiring": 0.0002,
+      "ripples": 1.7593,
+      "sleep": 0.0002,
+      "step": 2.9777,
+      "step_call": 2.9765
+     },
+     "motion": 0.0019,
+     "pressure": 0.0015,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0093,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0019,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 4.7961,
+     "update": 4.7414
+    }
+   },
+   {
+    "t": 10.8,
+    "frame_ms_max": 20.14699950814247,
+    "parts": {
+     "gpu.04 residency: which bricks": 1.35,
+     "gpu.06 compact": 5.32,
+     "gpu.07 partition + tables": 5.28,
+     "mgr.3 tall cells": 3.49,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 13.03,
+     "ripples.1 surfaceFields (= surf.*)": 1.09,
+     "surf.1 read the GPU surface": 1.07
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.5,
+     "gpu.01 settle (collect the call before)": 5.9,
+     "gpu.04 residency: which bricks": 35.7,
+     "gpu.05 residency: apply": 10.3,
+     "gpu.06 compact": 5.4,
+     "gpu.07 partition + tables": 7.5,
+     "gpu.08 record the commands": 7.9,
+     "mgr.3 tall cells": 18.8,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 78.5,
+     "ripples.1 surfaceFields (= surf.*)": 22.0,
+     "ripples.2 masks + layers": 19.5,
+     "surf.1 read the GPU surface": 19.7
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.06 compact": 31,
+     "gpu.07 partition + tables": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.3 tall cells": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 120,
+     "ripples.2 masks + layers": 120,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 120,
+    "worst_water_block": {
+     "bodies": 0.0084,
+     "exchange": 0.0002,
+     "feed": 0.0294,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0153,
+     "feed_surface_fields": 0.0097,
+     "in_update": {
+      "births": 0.0015,
+      "droplets": 0.0003,
+      "kept": 0.0008,
+      "occupancy": 0.0005,
+      "residency": 0.0006,
+      "retiring": 0.0003,
+      "ripples": 0.9442,
+      "sleep": 0.0002,
+      "step": 16.5344,
+      "step_call": 16.5326
+     },
+     "motion": 0.0015,
+     "pressure": 0.0014,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 17.5301,
+     "update": 17.4822
+    }
+   },
+   {
+    "t": 11.4,
+    "frame_ms_max": 5.9752999804914,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.19
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.6,
+     "gpu.01 settle (collect the call before)": 6.4,
+     "gpu.04 residency: which bricks": 22.1,
+     "gpu.05 residency: apply": 13.8,
+     "gpu.08 record the commands": 9.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 59.3,
+     "ripples.1 surfaceFields (= surf.*)": 21.0,
+     "ripples.2 masks + layers": 19.9,
+     "surf.1 read the GPU surface": 18.4
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 145,
+     "ripples.2 masks + layers": 145,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 145,
+    "worst_water_block": {
+     "bodies": 0.0066,
+     "exchange": 0.0001,
+     "feed": 0.0283,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0146,
+     "feed_surface_fields": 0.009,
+     "in_update": {
+      "births": 0.0007,
+      "droplets": 0.0002,
+      "kept": 0.0011,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 0.8453,
+      "sleep": 0.0003,
+      "step": 2.1996,
+      "step_call": 2.1988
+     },
+     "motion": 0.0016,
+     "pressure": 0.0014,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0079,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 3.0907,
+     "update": 3.0481
+    }
+   },
+   {
+    "t": 12.0,
+    "frame_ms_max": 6.7206998355686665,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.17
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.1,
+     "gpu.01 settle (collect the call before)": 6.6,
+     "gpu.04 residency: which bricks": 22.5,
+     "gpu.05 residency: apply": 14.1,
+     "gpu.08 record the commands": 9.6,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 60.7,
+     "ripples.1 surfaceFields (= surf.*)": 22.1,
+     "ripples.2 masks + layers": 20.1,
+     "surf.1 read the GPU surface": 19.5
+    },
+    "calls": {
+     "collect.2 lists + copies": 33,
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 142,
+     "ripples.2 masks + layers": 142,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 142,
+    "worst_water_block": {
+     "bodies": 0.0087,
+     "exchange": 0.0002,
+     "feed": 0.0311,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0152,
+     "feed_surface_fields": 0.0121,
+     "in_update": {
+      "births": 0.0013,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0005,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 1.3421,
+      "sleep": 0.0002,
+      "step": 1.9544,
+      "step_call": 1.9528
+     },
+     "motion": 0.0014,
+     "pressure": 0.0015,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0083,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0017,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 3.3489,
+     "update": 3.2997
+    }
+   },
+   {
+    "t": 12.5,
+    "frame_ms_max": 6.682199891656637,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.21
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.9,
+     "gpu.01 settle (collect the call before)": 6.8,
+     "gpu.04 residency: which bricks": 21.4,
+     "gpu.05 residency: apply": 13.4,
+     "gpu.08 record the commands": 9.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 59.2,
+     "ripples.1 surfaceFields (= surf.*)": 21.5,
+     "ripples.2 masks + layers": 20.4,
+     "surf.1 read the GPU surface": 18.9
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 138,
+     "ripples.2 masks + layers": 138,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 138,
+    "worst_water_block": {
+     "bodies": 0.0086,
+     "exchange": 0.0002,
+     "feed": 0.0282,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0136,
+     "feed_surface_fields": 0.0106,
+     "in_update": {
+      "births": 0.0009,
+      "droplets": 0.0002,
+      "kept": 0.0014,
+      "occupancy": 0.0005,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.9947,
+      "sleep": 0.0006,
+      "step": 2.2315,
+      "step_call": 2.2302
+     },
+     "motion": 0.0019,
+     "pressure": 0.0015,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.007,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 3.2757,
+     "update": 3.2303
+    }
+   },
+   {
+    "t": 13.0,
+    "frame_ms_max": 7.4351998046040535,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.09
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 6.0,
+     "gpu.01 settle (collect the call before)": 6.5,
+     "gpu.04 residency: which bricks": 21.6,
+     "gpu.05 residency: apply": 13.5,
+     "gpu.08 record the commands": 9.5,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 60.1,
+     "ripples.1 surfaceFields (= surf.*)": 23.0,
+     "ripples.2 masks + layers": 21.4,
+     "surf.1 read the GPU surface": 20.5
+    },
+    "calls": {
+     "collect.2 lists + copies": 32,
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 132,
+     "ripples.2 masks + layers": 132,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 132,
+    "worst_water_block": {
+     "bodies": 0.0076,
+     "exchange": 0.0002,
+     "feed": 0.0335,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0142,
+     "feed_surface_fields": 0.0149,
+     "in_update": {
+      "births": 0.0015,
+      "droplets": 0.0012,
+      "kept": 0.0008,
+      "occupancy": 0.0005,
+      "residency": 0.0006,
+      "retiring": 0.0003,
+      "ripples": 1.3908,
+      "sleep": 0.0003,
+      "step": 1.9141,
+      "step_call": 1.9124
+     },
+     "motion": 0.0016,
+     "pressure": 0.0015,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0075,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0019,
+     "skin_summaries": 0,
+     "solids": 0.0012,
+     "total": 3.3604,
+     "update": 3.3095
+    }
+   },
+   {
+    "t": 13.6,
+    "frame_ms_max": 6.507299840450287,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.27,
+     "ripples.1 surfaceFields (= surf.*)": 1.08,
+     "surf.1 read the GPU surface": 1.05
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.3,
+     "gpu.01 settle (collect the call before)": 6.1,
+     "gpu.04 residency: which bricks": 20.7,
+     "gpu.05 residency: apply": 12.9,
+     "gpu.08 record the commands": 8.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 58.0,
+     "ripples.1 surfaceFields (= surf.*)": 22.6,
+     "ripples.2 masks + layers": 20.8,
+     "surf.1 read the GPU surface": 20.0
+    },
+    "calls": {
+     "collect.2 lists + copies": 31,
+     "gpu.01 settle (collect the call before)": 31,
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.1 surfaceFields (= surf.*)": 136,
+     "ripples.2 masks + layers": 136,
+     "surf.1 read the GPU surface": 31
+    },
+    "frames": 136,
+    "worst_water_block": {
+     "bodies": 0.0045,
+     "exchange": 0.0001,
+     "feed": 0.0326,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0139,
+     "feed_surface_fields": 0.0146,
+     "in_update": {
+      "births": 0.0007,
+      "droplets": 0.0003,
+      "kept": 0.0007,
+      "occupancy": 0.0009,
+      "residency": 0.0004,
+      "retiring": 0.0,
+      "ripples": 1.5323,
+      "sleep": 0.0003,
+      "step": 1.8369,
+      "step_call": 1.836
+     },
+     "motion": 0.0017,
+     "pressure": 0.001,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0074,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.002,
+     "skin_summaries": 0,
+     "solids": 0.0004,
+     "total": 3.4164,
+     "update": 3.373
+    }
+   },
+   {
+    "t": 14.1,
+    "frame_ms_max": 6.612999830394983,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.07
+    },
+    "totals_ms": {
+     "collect.2 lists + copies": 5.5,
+     "gpu.01 settle (collect the call before)": 6.3,
+     "gpu.04 residency: which bricks": 22.5,
+     "gpu.05 residency: apply": 14.2,
+     "gpu.08 record the commands": 9.7,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 63.0,
+     "ripples.1 surfaceFields (= surf.*)": 23.2,
+     "ripples.2 masks + layers": 23.0,
+     "surf.1 read the GPU surface": 20.5
+    },
+    "calls": {
+     "collect.2 lists + copies": 34,
+     "gpu.01 settle (collect the call before)": 34,
+     "gpu.04 residency: which bricks": 34,
+     "gpu.05 residency: apply": 34,
+     "gpu.08 record the commands": 34,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 34,
+     "ripples.1 surfaceFields (= surf.*)": 148,
+     "ripples.2 masks + layers": 148,
+     "surf.1 read the GPU surface": 34
+    },
+    "frames": 148,
+    "worst_water_block": {
+     "bodies": 0.0057,
+     "exchange": 0.0002,
+     "feed": 0.0345,
+     "feed_ripple_layers": 0.0007,
+     "feed_skin": 0.0157,
+     "feed_surface_fields": 0.0142,
+     "in_update": {
+      "births": 0.001,
+      "droplets": 0.0004,
+      "kept": 0.0008,
+      "occupancy": 0.0004,
+      "residency": 0.001,
+      "retiring": 0.0001,
+      "ripples": 1.1407,
+      "sleep": 0.0002,
+      "step": 2.3069,
+      "step_call": 2.3058
+     },
+     "motion": 0.0017,
+     "pressure": 0.0013,
+     "shore": 0.0003,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0075,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0025,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 3.5,
+     "update": 3.4512
+    }
+   },
+   {
+    "t": 14.7,
+    "frame_ms_max": 7.506900001317263,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.3
+    },
+    "totals_ms": {
+     "gpu.01 settle (collect the call before)": 5.3,
+     "gpu.04 residency: which bricks": 21.5,
+     "gpu.05 residency: apply": 14.0,
+     "gpu.07 partition + tables": 5.1,
+     "gpu.08 record the commands": 9.4,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 60.9,
+     "ripples.1 surfaceFields (= surf.*)": 19.3,
+     "ripples.2 masks + layers": 22.6,
+     "surf.1 read the GPU surface": 16.8
+    },
+    "calls": {
+     "gpu.01 settle (collect the call before)": 33,
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.07 partition + tables": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 134,
+     "ripples.2 masks + layers": 134,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0063,
+     "exchange": 0.0001,
+     "feed": 0.0376,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0172,
+     "feed_surface_fields": 0.016,
+     "in_update": {
+      "births": 0.0008,
+      "droplets": 0.0002,
+      "kept": 0.0007,
+      "occupancy": 0.0004,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 1.1261,
+      "sleep": 0.0002,
+      "step": 2.3214,
+      "step_call": 2.3204
+     },
+     "motion": 0.0021,
+     "pressure": 0.0013,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0088,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0018,
+     "skin_summaries": 0,
+     "solids": 0.0011,
+     "total": 3.503,
+     "update": 3.4504
+    }
+   },
+   {
+    "t": 15.3,
+    "frame_ms_max": 6.428900174796581,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.11
+    },
+    "totals_ms": {
+     "gpu.01 settle (collect the call before)": 5.1,
+     "gpu.04 residency: which bricks": 19.5,
+     "gpu.05 residency: apply": 13.2,
+     "gpu.08 record the commands": 8.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 55.6,
+     "ripples.1 surfaceFields (= surf.*)": 17.0,
+     "ripples.2 masks + layers": 21.7,
+     "surf.1 read the GPU surface": 14.5
+    },
+    "calls": {
+     "gpu.01 settle (collect the call before)": 32,
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 144,
+     "ripples.2 masks + layers": 144,
+     "surf.1 read the GPU surface": 32
+    },
+    "frames": 144,
+    "worst_water_block": {
+     "bodies": 0.0036,
+     "exchange": 0.0002,
+     "feed": 0.0274,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0139,
+     "feed_surface_fields": 0.0101,
+     "in_update": {
+      "births": 0.0007,
+      "droplets": 0.0003,
+      "kept": 0.0003,
+      "occupancy": 0.0002,
+      "residency": 0.0003,
+      "retiring": 0.0001,
+      "ripples": 1.3512,
+      "sleep": 0.0002,
+      "step": 1.7634,
+      "step_call": 1.7625
+     },
+     "motion": 0.0018,
+     "pressure": 0.001,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0004,
+     "total": 3.1536,
+     "update": 3.1167
+    }
+   },
+   {
+    "t": 15.8,
+    "frame_ms_max": 6.335900165140629,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.52
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 19.1,
+     "gpu.05 residency: apply": 13.8,
+     "gpu.07 partition + tables": 6.3,
+     "gpu.08 record the commands": 9.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 58.0,
+     "ripples.1 surfaceFields (= surf.*)": 14.3,
+     "ripples.2 masks + layers": 21.9,
+     "surf.1 read the GPU surface": 11.7
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.07 partition + tables": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 150,
+     "ripples.2 masks + layers": 150,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 150,
+    "worst_water_block": {
+     "bodies": 0.006,
+     "exchange": 0.0006,
+     "feed": 0.0343,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0147,
+     "feed_surface_fields": 0.0159,
+     "in_update": {
+      "births": 0.0016,
+      "droplets": 0.0003,
+      "kept": 0.0008,
+      "occupancy": 0.0004,
+      "residency": 0.0004,
+      "retiring": 0.0002,
+      "ripples": 0.928,
+      "sleep": 0.0002,
+      "step": 2.5379,
+      "step_call": 2.536
+     },
+     "motion": 0.0016,
+     "pressure": 0.0017,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0074,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0024,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 3.5183,
+     "update": 3.4691
+    }
+   },
+   {
+    "t": 16.4,
+    "frame_ms_max": 6.888700183480978,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.79
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 18.3,
+     "gpu.05 residency: apply": 13.7,
+     "gpu.07 partition + tables": 6.2,
+     "gpu.08 record the commands": 9.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 57.1,
+     "ripples.1 surfaceFields (= surf.*)": 12.1,
+     "ripples.2 masks + layers": 22.1,
+     "surf.1 read the GPU surface": 9.5
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 33,
+     "gpu.05 residency: apply": 33,
+     "gpu.07 partition + tables": 33,
+     "gpu.08 record the commands": 33,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 33,
+     "ripples.1 surfaceFields (= surf.*)": 150,
+     "ripples.2 masks + layers": 150,
+     "surf.1 read the GPU surface": 33
+    },
+    "frames": 150,
+    "worst_water_block": {
+     "bodies": 0.0087,
+     "exchange": 0.0002,
+     "feed": 0.0297,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0154,
+     "feed_surface_fields": 0.0105,
+     "in_update": {
+      "births": 0.0009,
+      "droplets": 0.0007,
+      "kept": 0.0009,
+      "occupancy": 0.0005,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.797,
+      "sleep": 0.0002,
+      "step": 2.8101,
+      "step_call": 2.8091
+     },
+     "motion": 0.0017,
+     "pressure": 0.0014,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0074,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0018,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 3.6589,
+     "update": 3.611
+    }
+   },
+   {
+    "t": 16.9,
+    "frame_ms_max": 6.5958998166024685,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 2.17
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 14.5,
+     "gpu.05 residency: apply": 13.7,
+     "gpu.07 partition + tables": 6.0,
+     "gpu.08 record the commands": 9.3,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 51.8,
+     "ripples.1 surfaceFields (= surf.*)": 7.5,
+     "ripples.2 masks + layers": 23.3
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.07 partition + tables": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.1 surfaceFields (= surf.*)": 132,
+     "ripples.2 masks + layers": 132
+    },
+    "frames": 132,
+    "worst_water_block": {
+     "bodies": 0.0056,
+     "exchange": 0.0002,
+     "feed": 0.0395,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0169,
+     "feed_surface_fields": 0.0179,
+     "in_update": {
+      "births": 0.0012,
+      "droplets": 0.0002,
+      "kept": 0.0007,
+      "occupancy": 0.0004,
+      "residency": 0.0004,
+      "retiring": 0.0001,
+      "ripples": 0.8728,
+      "sleep": 0.0004,
+      "step": 2.0619,
+      "step_call": 2.0605
+     },
+     "motion": 0.0023,
+     "pressure": 0.0019,
+     "shore": 0.0003,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0091,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0024,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 2.9921,
+     "update": 2.9384
+    }
+   },
+   {
+    "t": 17.5,
+    "frame_ms_max": 5.685300100594759,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.79
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 12.1,
+     "gpu.05 residency: apply": 13.2,
+     "gpu.08 record the commands": 9.1,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 44.2,
+     "ripples.2 masks + layers": 22.7
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 32,
+     "gpu.05 residency: apply": 32,
+     "gpu.08 record the commands": 32,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 32,
+     "ripples.2 masks + layers": 153
+    },
+    "frames": 153,
+    "worst_water_block": {
+     "bodies": 0.0093,
+     "exchange": 0.0001,
+     "feed": 0.0295,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0142,
+     "feed_surface_fields": 0.0117,
+     "in_update": {
+      "births": 0.0008,
+      "droplets": 0.0002,
+      "kept": 0.0011,
+      "occupancy": 0.0007,
+      "residency": 0.0004,
+      "retiring": 0.0003,
+      "ripples": 0.5518,
+      "sleep": 0.0005,
+      "step": 1.8237,
+      "step_call": 1.8228
+     },
+     "motion": 0.0014,
+     "pressure": 0.0014,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0078,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0017,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 2.4292,
+     "update": 2.3801
+    }
+   },
+   {
+    "t": 18.0,
+    "frame_ms_max": 5.525399930775166,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.57
+    },
+    "totals_ms": {
+     "gpu.04 residency: which bricks": 11.7,
+     "gpu.05 residency: apply": 13.0,
+     "gpu.08 record the commands": 8.9,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 42.6,
+     "ripples.2 masks + layers": 21.7
+    },
+    "calls": {
+     "gpu.04 residency: which bricks": 31,
+     "gpu.05 residency: apply": 31,
+     "gpu.08 record the commands": 31,
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 31,
+     "ripples.2 masks + layers": 147
+    },
+    "frames": 147,
+    "worst_water_block": {
+     "bodies": 0.0074,
+     "exchange": 0.0001,
+     "feed": 0.0297,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0145,
+     "feed_surface_fields": 0.0122,
+     "in_update": {
+      "births": 0.0005,
+      "droplets": 0.0001,
+      "kept": 0.0008,
+      "occupancy": 0.0007,
+      "residency": 0.0009,
+      "retiring": 0.0002,
+      "ripples": 0.544,
+      "sleep": 0.0002,
+      "step": 1.6056,
+      "step_call": 1.6049
+     },
+     "motion": 0.0017,
+     "pressure": 0.0015,
+     "shore": 0.0007,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0086,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0019,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 2.1994,
+     "update": 2.154
+    }
+   },
+   {
+    "t": 18.5,
+    "frame_ms_max": 28.351200744509697,
+    "parts": {
+     "mgr.4 the GPU step (= gpu.* + collect.*)": 1.4,
+     "motion.1 takeMotion scan": 3.12,
+     "record.4a tiles built": 3.39,
+     "ripples.2 masks + layers": 3.97,
+     "tilesNow.2 surface": 1.52
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 6.3,
+     "record.4a tiles built": 13.2,
+     "ripples.2 masks + layers": 16.4,
+     "tilesNow.2 surface": 5.8
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 134,
+     "record.4a tiles built": 4,
+     "ripples.2 masks + layers": 134,
+     "tilesNow.2 surface": 4
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.018,
+     "exchange": 0.0007,
+     "feed": 0.4121,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.3881,
+     "feed_surface_fields": 0.0203,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0009,
+      "occupancy": 0.0005,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 2.7268,
+      "sleep": 0.0008,
+      "step": 17.9449,
+      "step_call": 0.0
+     },
+     "motion": 3.1135,
+     "pressure": 0.0019,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0169,
+     "skin_cells": 302,
+     "skin_fields_ms": 0.1547,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.1887,
+     "skin_scan_ms": 0.0031,
+     "skin_summaries": 2,
+     "solids": 0.0008,
+     "total": 24.2275,
+     "update": 20.6759
+    }
+   },
+   {
+    "t": 19.0,
+    "frame_ms_max": 4.327499773353338,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 9.3
+    },
+    "calls": {
+     "ripples.2 masks + layers": 155
+    },
+    "frames": 155,
+    "worst_water_block": {
+     "bodies": 0.0093,
+     "exchange": 0.0001,
+     "feed": 0.0247,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.012,
+     "feed_surface_fields": 0.0095,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0014,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0003,
+      "ripples": 0.2473,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0017,
+     "pressure": 0.0012,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0079,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0012,
+     "skin_summaries": 0,
+     "solids": 0.0009,
+     "total": 0.2925,
+     "update": 0.2504
+    }
+   },
+   {
+    "t": 19.6,
+    "frame_ms_max": 21.028699353337288,
+    "parts": {
+     "motion.1 takeMotion scan": 3.21,
+     "record.4a tiles built": 3.04,
+     "ripples.2 masks + layers": 2.87,
+     "tilesNow.2 surface": 1.42
+    },
+    "totals_ms": {
+     "ripples.2 masks + layers": 14.4
+    },
+    "calls": {
+     "ripples.2 masks + layers": 154
+    },
+    "frames": 154,
+    "worst_water_block": {
+     "bodies": 0.0062,
+     "exchange": 0.0011,
+     "feed": 0.3069,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.283,
+     "feed_surface_fields": 0.0192,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0008,
+      "occupancy": 0.0007,
+      "residency": 0.0004,
+      "retiring": 0.0001,
+      "ripples": 2.8918,
+      "sleep": 0.0004,
+      "step": 11.3627,
+      "step_call": 0.0
+     },
+     "motion": 3.2096,
+     "pressure": 0.0011,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0093,
+     "skin_cells": 228,
+     "skin_fields_ms": 0.1477,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.1069,
+     "skin_scan_ms": 0.0036,
+     "skin_summaries": 1,
+     "solids": 0.0006,
+     "total": 17.788,
+     "update": 14.2579
+    }
+   },
+   {
+    "t": 20.2,
+    "frame_ms_max": 4.362700041383505,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.1
+    },
+    "calls": {
+     "ripples.2 masks + layers": 159
+    },
+    "frames": 159,
+    "worst_water_block": {
+     "bodies": 0.0085,
+     "exchange": 0.0001,
+     "feed": 0.0253,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0122,
+     "feed_surface_fields": 0.01,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0015,
+      "occupancy": 0.0,
+      "residency": 0.0004,
+      "retiring": 0.0003,
+      "ripples": 0.2441,
+      "sleep": 0.0003,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0021,
+     "pressure": 0.0017,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0072,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0017,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 0.2895,
+     "update": 0.2474
+    }
+   },
+   {
+    "t": 20.7,
+    "frame_ms_max": 28.859300538897514,
+    "parts": {
+     "motion.1 takeMotion scan": 3.48,
+     "record.4a tiles built": 3.41,
+     "ripples.2 masks + layers": 4.25,
+     "tilesNow.2 surface": 1.56
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 13.3,
+     "record.4a tiles built": 15.3,
+     "ripples.2 masks + layers": 25.7,
+     "tilesNow.2 surface": 7.1
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 125,
+     "record.4a tiles built": 5,
+     "ripples.2 masks + layers": 125,
+     "tilesNow.2 surface": 5
+    },
+    "frames": 125,
+    "worst_water_block": {
+     "bodies": 0.0048,
+     "exchange": 0.0013,
+     "feed": 0.4437,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.4181,
+     "feed_surface_fields": 0.0212,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0006,
+      "occupancy": 0.0006,
+      "residency": 0.0003,
+      "retiring": 0.0001,
+      "ripples": 3.2489,
+      "sleep": 0.0003,
+      "step": 17.0656,
+      "step_call": 0.0
+     },
+     "motion": 3.4823,
+     "pressure": 0.0009,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0208,
+     "skin_cells": 302,
+     "skin_fields_ms": 0.1513,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.21250000000000002,
+     "skin_scan_ms": 0.0041,
+     "skin_summaries": 2,
+     "solids": 0.0005,
+     "total": 24.2546,
+     "update": 20.3176
+    }
+   },
+   {
+    "t": 21.2,
+    "frame_ms_max": 4.790300037711859,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.0
+    },
+    "calls": {
+     "ripples.2 masks + layers": 133
+    },
+    "frames": 133,
+    "worst_water_block": {
+     "bodies": 0.0086,
+     "exchange": 0.0,
+     "feed": 0.0259,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0132,
+     "feed_surface_fields": 0.0101,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.0004,
+      "retiring": 0.0003,
+      "ripples": 0.2623,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0021,
+     "pressure": 0.0014,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0076,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0019,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 0.4075,
+     "update": 0.2648
+    }
+   },
+   {
+    "t": 21.8,
+    "frame_ms_max": 4.58399998024106,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.8
+    },
+    "calls": {
+     "ripples.2 masks + layers": 141
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0107,
+     "exchange": 0.0001,
+     "feed": 0.0286,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0129,
+     "feed_surface_fields": 0.011,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.2811,
+      "sleep": 0.0003,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0016,
+     "pressure": 0.0014,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0082,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0013,
+     "skin_summaries": 0,
+     "solids": 0.0009,
+     "total": 0.3329,
+     "update": 0.2837
+    }
+   },
+   {
+    "t": 22.3,
+    "frame_ms_max": 4.786300007253885,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.2
+    },
+    "calls": {
+     "ripples.2 masks + layers": 134
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0107,
+     "exchange": 0.0001,
+     "feed": 0.0264,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0132,
+     "feed_surface_fields": 0.01,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.001,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0003,
+      "ripples": 0.3081,
+      "sleep": 0.0004,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0017,
+     "pressure": 0.0016,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0072,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 0.3587,
+     "update": 0.3113
+    }
+   },
+   {
+    "t": 22.8,
+    "frame_ms_max": 5.0836000591516495,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.4
+    },
+    "calls": {
+     "ripples.2 masks + layers": 139
+    },
+    "frames": 139,
+    "worst_water_block": {
+     "bodies": 0.0073,
+     "exchange": 0.0,
+     "feed": 0.0258,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0125,
+     "feed_surface_fields": 0.0108,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0014,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 0.2416,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0016,
+     "pressure": 0.0015,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0073,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 0.6291,
+     "update": 0.2448
+    }
+   },
+   {
+    "t": 23.4,
+    "frame_ms_max": 4.786300007253885,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 11.2
+    },
+    "calls": {
+     "ripples.2 masks + layers": 145
+    },
+    "frames": 145,
+    "worst_water_block": {
+     "bodies": 0.01,
+     "exchange": 0.0,
+     "feed": 0.0319,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0159,
+     "feed_surface_fields": 0.011,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.0004,
+      "retiring": 0.0003,
+      "ripples": 0.3833,
+      "sleep": 0.0003,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0024,
+     "pressure": 0.0018,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0087,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0028,
+     "skin_summaries": 0,
+     "solids": 0.0009,
+     "total": 0.4387,
+     "update": 0.386
+    }
+   },
+   {
+    "t": 24.0,
+    "frame_ms_max": 4.989699926227331,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 12.1
+    },
+    "calls": {
+     "ripples.2 masks + layers": 141
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.011,
+     "exchange": 0.0001,
+     "feed": 0.0277,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0144,
+     "feed_surface_fields": 0.0099,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0004,
+      "kept": 0.0025,
+      "occupancy": 0.0,
+      "residency": 0.0009,
+      "retiring": 0.0005,
+      "ripples": 0.3341,
+      "sleep": 0.0003,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0019,
+     "pressure": 0.0024,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0084,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0017,
+     "skin_summaries": 0,
+     "solids": 0.001,
+     "total": 0.3891,
+     "update": 0.3396
+    }
+   },
+   {
+    "t": 24.5,
+    "frame_ms_max": 4.514799918979406,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.0
+    },
+    "calls": {
+     "ripples.2 masks + layers": 134
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0087,
+     "exchange": 0.0001,
+     "feed": 0.0255,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0124,
+     "feed_surface_fields": 0.0104,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0013,
+      "occupancy": 0.0,
+      "residency": 0.0004,
+      "retiring": 0.0002,
+      "ripples": 0.3133,
+      "sleep": 0.0003,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0017,
+     "pressure": 0.0017,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0077,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0013,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 0.3584,
+     "update": 0.3161
+    }
+   },
+   {
+    "t": 25.0,
+    "frame_ms_max": 5.158999934792519,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.3
+    },
+    "calls": {
+     "ripples.2 masks + layers": 134
+    },
+    "frames": 134,
+    "worst_water_block": {
+     "bodies": 0.0055,
+     "exchange": 0.0001,
+     "feed": 0.0238,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0115,
+     "feed_surface_fields": 0.0099,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 0.2072,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0015,
+     "pressure": 0.0013,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0075,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.001,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 0.5663,
+     "update": 0.2096
+    }
+   },
+   {
+    "t": 25.6,
+    "frame_ms_max": 4.52579976990819,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.1
+    },
+    "calls": {
+     "ripples.2 masks + layers": 136
+    },
+    "frames": 136,
+    "worst_water_block": {
+     "bodies": 0.0099,
+     "exchange": 0.0001,
+     "feed": 0.028,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0132,
+     "feed_surface_fields": 0.0119,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0013,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 0.3196,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0017,
+     "pressure": 0.0017,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0084,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0011,
+     "skin_summaries": 0,
+     "solids": 0.001,
+     "total": 0.3704,
+     "update": 0.3229
+    }
+   },
+   {
+    "t": 26.1,
+    "frame_ms_max": 4.524900112301111,
+    "parts": {},
+    "totals_ms": {
+     "ripples.2 masks + layers": 10.3
+    },
+    "calls": {
+     "ripples.2 masks + layers": 141
+    },
+    "frames": 141,
+    "worst_water_block": {
+     "bodies": 0.0109,
+     "exchange": 0.0001,
+     "feed": 0.0226,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0109,
+     "feed_surface_fields": 0.009,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0002,
+      "ripples": 0.2884,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0014,
+     "pressure": 0.0016,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0068,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0011,
+     "skin_summaries": 0,
+     "solids": 0.001,
+     "total": 0.3349,
+     "update": 0.2911
+    }
+   },
+   {
+    "t": 26.7,
+    "frame_ms_max": 33.994998782873154,
+    "parts": {
+     "motion.1 takeMotion scan": 3.43,
+     "record.4a tiles built": 4.29,
+     "ripples.2 masks + layers": 6.94,
+     "sleep.2 read the GPU grid": 19.24,
+     "sleep.3 held columns": 3.41,
+     "sleep.4 runs from the grid": 7.63,
+     "tilesNow.2 surface": 1.33,
+     "tilesNow.4 remark": 1.77
+    },
+    "totals_ms": {
+     "motion.1 takeMotion scan": 6.8,
+     "record.4a tiles built": 12.9,
+     "ripples.2 masks + layers": 23.4,
+     "sleep.2 read the GPU grid": 19.2,
+     "sleep.4 runs from the grid": 7.6,
+     "tilesNow.2 surface": 5.1
+    },
+    "calls": {
+     "motion.1 takeMotion scan": 98,
+     "record.4a tiles built": 4,
+     "ripples.2 masks + layers": 107,
+     "sleep.2 read the GPU grid": 1,
+     "sleep.4 runs from the grid": 1,
+     "tilesNow.2 surface": 4
+    },
+    "frames": 107,
+    "worst_water_block": {
+     "bodies": 0.0071,
+     "exchange": 0.0002,
+     "feed": 0.1578,
+     "feed_ripple_layers": 0.0007,
+     "feed_skin": 0.1383,
+     "feed_surface_fields": 0.0163,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0009,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0001,
+      "ripples": 0.1729,
+      "sleep": 30.8184,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0019,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 140,
+     "skin_fields_ms": 0.1329,
+     "skin_fields_walked": 6,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0011,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 31.166,
+     "update": 30.9938
+    }
+   },
+   {
+    "t": 27.3,
+    "frame_ms_max": 12.508399784564972,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 179,
+    "worst_water_block": {
+     "bodies": 0.0071,
+     "exchange": 0.0002,
+     "feed": 0.0272,
+     "feed_ripple_layers": 0.0007,
+     "feed_skin": 0.0164,
+     "feed_surface_fields": 0.0081,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 2.2188,
+      "occupancy": 0.0,
+      "residency": 0.0004,
+      "retiring": 0.0004,
+      "ripples": 0.0493,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0009,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0088,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.002,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 2.3116,
+     "update": 2.2718
+    }
+   },
+   {
+    "t": 27.8,
+    "frame_ms_max": 4.321400076150894,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 172,
+    "worst_water_block": {
+     "bodies": 0.0057,
+     "exchange": 0.0001,
+     "feed": 0.0201,
+     "feed_ripple_layers": 0.0002,
+     "feed_skin": 0.0113,
+     "feed_surface_fields": 0.0076,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0021,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0002,
+      "ripples": 0.0194,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0008,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0072,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0014,
+     "skin_summaries": 0,
+     "solids": 0.0007,
+     "total": 0.1529,
+     "update": 0.0229
+    }
+   },
+   {
+    "t": 28.4,
+    "frame_ms_max": 3.944199997931719,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 180,
+    "worst_water_block": {
+     "bodies": 0.007,
+     "exchange": 0.0001,
+     "feed": 0.0211,
+     "feed_ripple_layers": 0.0009,
+     "feed_skin": 0.0115,
+     "feed_surface_fields": 0.0076,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0014,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0008,
+      "ripples": 0.0194,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0007,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0069,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0011,
+     "skin_summaries": 0,
+     "solids": 0.0006,
+     "total": 0.1592,
+     "update": 0.0228
+    }
+   },
+   {
+    "t": 28.9,
+    "frame_ms_max": 4.513199906796217,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 167,
+    "worst_water_block": {
+     "bodies": 0.0069,
+     "exchange": 0.0001,
+     "feed": 0.0209,
+     "feed_ripple_layers": 0.0005,
+     "feed_skin": 0.0109,
+     "feed_surface_fields": 0.0083,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0015,
+      "occupancy": 0.0,
+      "residency": 0.0006,
+      "retiring": 0.0003,
+      "ripples": 0.023,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0009,
+     "shore": 0.0002,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0072,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.001,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 0.6301,
+     "update": 0.0261
+    }
+   },
+   {
+    "t": 29.5,
+    "frame_ms_max": 3.952499944716692,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 169,
+    "worst_water_block": {
+     "bodies": 0.0083,
+     "exchange": 0.0001,
+     "feed": 0.0216,
+     "feed_ripple_layers": 0.0003,
+     "feed_skin": 0.0118,
+     "feed_surface_fields": 0.0078,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0003,
+      "kept": 0.0029,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0003,
+      "ripples": 0.0234,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0009,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0067,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0016,
+     "skin_summaries": 0,
+     "solids": 0.0008,
+     "total": 0.1858,
+     "update": 0.0282
+    }
+   },
+   {
+    "t": 30.0,
+    "frame_ms_max": 4.168299958109856,
+    "parts": {},
+    "totals_ms": {},
+    "calls": {},
+    "frames": 163,
+    "worst_water_block": {
+     "bodies": 0.0053,
+     "exchange": 0.0001,
+     "feed": 0.0204,
+     "feed_ripple_layers": 0.0004,
+     "feed_skin": 0.0113,
+     "feed_surface_fields": 0.0076,
+     "in_update": {
+      "births": 0.0,
+      "droplets": 0.0002,
+      "kept": 0.0015,
+      "occupancy": 0.0,
+      "residency": 0.0005,
+      "retiring": 0.0008,
+      "ripples": 0.0206,
+      "sleep": 0.0002,
+      "step": 0.0,
+      "step_call": 0.0
+     },
+     "motion": 0.0,
+     "pressure": 0.0009,
+     "shore": 0.0001,
+     "skin_build_ms": 0.0,
+     "skin_cells": 0,
+     "skin_fields_ms": 0.0066,
+     "skin_fields_walked": 0,
+     "skin_read_ms": 0.0,
+     "skin_scan_ms": 0.0008,
+     "skin_summaries": 0,
+     "solids": 0.0011,
+     "total": 0.1828,
+     "update": 0.0242
+    }
+   }
+  ]
+ }
+]
