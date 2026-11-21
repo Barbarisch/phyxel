@@ -293,11 +293,23 @@ void planGrowth(const SettlementMapInput& in, const BuildabilityMap& site, Settl
     // to a way at kFordStepCost. With no fordAt, hardDist is waterDist and nothing differs.
     std::vector<uint8_t> fordMask(N, 0), hardMask = waterMask;
     bool anyFord = false;
+    int rampDoesNotFit = 0;
     if (anyWater && in.fordAt)
         for (int z = 0; z < D; ++z) for (int x = 0; x < W; ++x) {
             const size_t i = static_cast<size_t>(g.idx(x, z));
-            if (waterMask[i] && in.fordAt(x, z)) { fordMask[i] = 1; hardMask[i] = 0; anyFord = true; }
+            if (!waterMask[i] || !in.fordAt(x, z)) continue;
+            // O38 (e) (pm_chain592.txt): a ford is cut to grade (D73) and ramps fordRampCellsAt cells each side. Where
+            // that ramp is longer than the ground to the nearest site edge it cannot fit - the way would meet the
+            // ground outside the site below it. Such a cell is not forded: it stays hard water. Sufficient, not
+            // necessary (a way ending inside the site short of its ramp is not caught).
+            if (in.fordRampCellsAt) {
+                const int edge = std::min(std::min(x, W - 1 - x), std::min(z, D - 1 - z));
+                if (in.fordRampCellsAt(x, z) > edge) { ++rampDoesNotFit; continue; }
+            }
+            fordMask[i] = 1; hardMask[i] = 0; anyFord = true;
         }
+    if (rampDoesNotFit > 0)
+        map.fordNote = std::to_string(rampDoesNotFit) + " cells of fordable creek are not forded: the ramp a ford needs there is longer than the ground to the site's edge";
     std::vector<float> hardDist, fordDist;
     if (anyFord) { chamfer(W, D, hardMask, hardDist); chamfer(W, D, fordMask, fordDist); }
     const std::vector<float>& clearDist = anyFord ? hardDist : waterDist;

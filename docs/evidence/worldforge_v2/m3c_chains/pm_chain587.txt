@@ -54,7 +54,7 @@ RESULTS (written 2026-11-21 17:00)
     city's lines move on every build of it (lots re-seated: its "lot" lines, fixtures); the builds without fords
     identical to chain 586's. RISK: the O39 creek-city tests carry hard-coded cells (lot 8's route print, the walled
     trace) - diagnostics, but an assertion among them may read the old plan.
-RESULTS (written 2026-11-21 17:24)
+RESULTS (written 2026-11-21 17:21)
   chains 590 / 591 (one build, exe 17:02:12): unit set 410 ok / 0 failed, the 82 M5a / M5b prints identical to chain
     555's; live 43 ok / 0 failed.
     Against chain 586 (167 distinct record lines from the raw outputs): 34 lines differ, ALL the creek city's - its

@@ -1113,3 +1113,16 @@ Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain587.txt` (chains 587 to 
 
 Also filed: `docs/evidence/worldforge_v2/m5f_insula_research_2026-11-21.txt` - research input for M5f-2 (a Roman town
 grid can be sized from sources read; the insula building and the taberna cannot yet).
+
+### 2026-11-21 - O38 (e): a ford whose ramp does not fit is not forded
+
+Record: `docs/evidence/worldforge_v2/m3c_chains/pm_chain592.txt` (chains 592 to 595).
+
+- **Built:** at the planner's ford mask a fordable cell whose ramp (`fordRampCellsAt`) is longer than its distance to
+  the nearest site edge stays hard water; `SettlementMap::fordNote` (`ford_note`) counts them.
+- **Test:** `SettlementMapTest.AFordWhoseRampDoesNotFitIsNotForded` (four arms with a control; red chain 592). One
+  of my assertions was wrong (a creek reaching the edge always has such cells) and was amended before the next run.
+- **Measured (Release, exe 17:27:05):** unit 411 ok / 0 failed, live 43 ok / 0 failed, every live line unchanged.
+- **Not shown:** no live site exercises it; a way ending inside the site short of its ramp is not caught; not audited.
+- The audit of O38 (h) (PASS WITH CONDITIONS) is in the ledger; a built-world measure of the market's paving and a
+  fallback test are owed.

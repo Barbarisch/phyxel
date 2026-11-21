@@ -56,6 +56,7 @@ nlohmann::json SettlementMap::toJson() const {
     j["bake_ms"] = bakeMs;
     j["refusal"] = refusal;
     if (!marketNote.empty()) j["market_note"] = marketNote;
+    if (!fordNote.empty()) j["ford_note"] = fordNote;
     if (marketLane > 0) j["market_lane"] = marketLane;
     if (!crossings.empty()) {   // D69 (c1)
         nlohmann::json cs = nlohmann::json::array();
@@ -169,6 +170,7 @@ SettlementMap SettlementMap::fromJson(const nlohmann::json& j) {
     m.bakeMs = j.value("bake_ms", 0.0f);
     m.refusal = j.value("refusal", std::string());
     m.marketNote = j.value("market_note", std::string());
+    m.fordNote = j.value("ford_note", std::string());
     m.marketLane = j.value("market_lane", 0);
     if (j.contains("crossings") && j["crossings"].is_array())
         for (const auto& cj : j["crossings"]) {

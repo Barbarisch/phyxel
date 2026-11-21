@@ -2978,3 +2978,39 @@ TEST(SettlementMapTest, TheMarketKeepsOffAFordsRamp) {
     std::printf("[ O38h ] %d plans asserted; the control (no ramp told) puts the market on the ramp in %d of 6\n", plans, controlOnRamp);
     EXPECT_GT(controlOnRamp, 0) << "the control never puts the market on the ramp: the rig measures nothing";
 }
+
+// O38 (e) (pm_chain592.txt): a ford whose ramp does not fit before the site's edge is not forded. RED (the planner as
+// it stood): a creek 4 cells in from the entry is forded whatever ramp it needs.
+TEST(SettlementMapTest, AFordWhoseRampDoesNotFitIsNotForded) {
+    ASSERT_TRUE(rigs().programOk);
+    struct Arm { const char* name; int creekX; int ramp; bool forded; };   // ramp < 0 = no ramp told (the control)
+    for (const Arm arm : {Arm{"creek 4 in, ramp 7", 4, 7, false}, Arm{"creek 4 in, ramp 2", 4, 2, true}, Arm{"creek 4 in, control (no ramp told)", 4, -1, true},
+                          Arm{"creek mid-site, ramp 7", 50, 7, true}}) {
+        const int creekX = arm.creekX, ramp = arm.ramp;
+        const std::function<bool(int, int)> creek = [creekX](int x, int) { return x == creekX || x == creekX + 1; };
+        SettlementMapInput in = inputFor("village", 104, 64, flatHeight, creek);
+        ASSERT_NE(in.tier, nullptr);
+        in.fordAt = creek;
+        if (ramp >= 0) in.fordRampCellsAt = [creek, ramp](int x, int z) { return creek(x, z) ? ramp : 0; };
+        const SettlementMap m = planSettlementMap(in);
+        int crossingCells = 0, lotsEast = 0;
+        for (const auto& c : m.crossings) crossingCells += static_cast<int>(c.cells.size());
+        for (const auto& l : m.lots) if (l.rect.x > creekX + 1) ++lotsEast;
+        std::printf("[ O38e ] %s: %s%zu lots of %d (%d beyond the creek), %zu ways, %d crossing cells; ford note: %s\n", arm.name,
+                    m.ok() ? "" : ("REFUSED (" + m.refusal + ") ").c_str(), m.lots.size(), m.targetLots, lotsEast, m.ways.size(), crossingCells, m.fordNote.c_str());
+        if (arm.forded) {
+            EXPECT_TRUE(m.ok()) << arm.name << ": " << m.refusal;
+            EXPECT_GT(crossingCells, 0) << arm.name << ": nothing forded a creek whose ramp fits";
+            EXPECT_GT(lotsEast, 0) << arm.name;
+            // (amended before chain 594, pm_chain592.txt: a creek that reaches the site's edge ALWAYS has cells nearer the
+            // edge than a ramp of 1 or more - my "no note" for ramp 2 was wrong. The note's count is asserted instead:
+            // the creek is 2 cells wide, so 2 x (the rows nearer the north or south edge than the ramp) = 4 x ramp cells.)
+            if (arm.ramp < 0) EXPECT_TRUE(m.fordNote.empty()) << arm.name << ": " << m.fordNote;
+            else EXPECT_EQ(m.fordNote.rfind(std::to_string(4 * arm.ramp) + " cells", 0), 0u) << arm.name << ": " << m.fordNote;
+        } else {
+            EXPECT_EQ(crossingCells, 0) << arm.name << ": forded although the ramp does not fit before the site's edge";
+            EXPECT_EQ(lotsEast, 0) << arm.name;
+            EXPECT_EQ(m.fordNote.rfind("128 cells", 0), 0u) << arm.name << ": every cell of the creek (2 x 64) is nearer the west edge than its ramp: " << m.fordNote;
+        }
+    }
+}

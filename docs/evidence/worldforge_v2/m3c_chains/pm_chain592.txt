@@ -1,0 +1,52 @@
+pm_chain592 - O38 (e): a ford whose ramp does not fit is not forded.
+Written 2026-11-21 17:24, before any edit. Release. Headless L2, then the live set (L3).
+
+WHAT IS OPEN: the ford rule reads the WATER's depth; D73's true ford ramps g / 4 cells each side for a gully g micro
+  deep. Nothing asks whether the ramp fits: a crossing nearer the site's edge than its ramp is cut short there, and
+  the town's way meets the ground outside the site below it.
+DESIGN (no new number): at the planner's ford mask, a fordable cell whose ramp (fordRampCellsAt, O38 h) is LONGER than
+  the cell's distance to the nearest site edge is not fordable - it stays hard water, with the clearance every
+  other water gets. Sufficient, not necessary (a way that ends inside the site short of its ramp is not caught;
+  said here). The map says how many cells were turned down (ford_note). With no fordRampCellsAt nothing differs.
+  This also bounds a DEEP gully by geometry: a ramp longer than half the site cannot fit anywhere.
+THE TEST (SettlementMapTest.AFordWhoseRampDoesNotFitIsNotForded): a flat village 104 x 64, the road arriving at the
+  west edge, a creek 2 cells wide across the whole site at x 4..5 (4 cells in from the entry).
+    arm "ramp 7"  - fordRampCellsAt 7 on the creek: asserted 0 crossings, 0 lots east of the creek, a ford note.
+    arm "ramp 2"  - asserted forded: crossings > 0, lots east > 0, no ford note.
+    control (no ramp told) - forded, as today.
+  And a creek at x 50..51 (mid-site) with ramp 7: forded (the ramp fits where the way crosses; the creek's cells
+  within 7 of the north and south edges are turned down and the note counts them).
+PREDICTIONS
+  chain 592 (the test + the note field; planner unchanged): RED on arm "ramp 7" - crossings > 0.
+  chain 593 (the planner): green. GUESS: arm "ramp 7" is REFUSED (nothing buildable on the road's side of a creek 4
+    cells in) - the test accepts a refusal there and asserts only that nothing forded.
+  chains 594 / 595 (unit, live): unit 411 / 0, the 82 prints identical. Live: the creek city has creek cells at the
+    site's edges that become hard water - GUESS 50 % that it re-plans (a way's end beside the south creek, the
+    entry near crossing 0 at x 15 with a ramp of 7: 15 >= 7, so that crossing stays); if a way can no longer reach
+    an edge the city could be REFUSED - that would be a real finding about this rule, not a test to bend.
+RESULTS (written 2026-11-21 17:25)
+  chain 592 (RED; the test + the note field, planner unchanged; exe 17:23:57): as predicted - "creek 4 in, ramp 7: 13
+    lots of 13 (13 beyond the creek), 3 ways, 2 crossing cells; ford note: " (forded, no note). The mid-site arm
+    also fails for the missing note. The "ramp 2" and control arms read the same and pass.
+  chain 593 (the planner; exe 17:24:34; the two planner tests and the creek city): the rule works and ONE OF MY
+    ASSERTIONS WAS WRONG. "creek 4 in, ramp 7: REFUSED (no buildable, connectable lot for the tier's minimum (0 of 6
+    seated)) ... 0 crossing cells; ford note: 128 cells of fordable creek are not forded" (the refusal I guessed);
+    "ramp 2: 13 lots of 13 (13 beyond the creek) ... 2 crossing cells; ford note: 8 cells" - forded, as it should be,
+    but I had asserted NO note there: a creek that reaches the site's edge always has cells nearer the edge than
+    its ramp. The control: forded, no note. Mid-site ramp 7: forded, "28 cells".
+    The creek city: built, gate 74 / 0, "20 lots, 5 ways, 31 nodes" - NOT re-planned (my 50 % guess: it did not move).
+  ASSERTION CHANGE, STATED BEFORE THE NEXT RUN: the note's COUNT is asserted, derived from the rig (a creek 2 cells
+    wide: 4 x ramp cells where it runs edge to edge mid-site or 4 in with ramp 2 -> 8, 28; all 128 for ramp 7 at
+    4 in); "no note" only on the control.
+  ALSO (the audit of O38 h, PASS WITH CONDITIONS, raw in the ledger): the unit count is re-run with this change, not
+    carried.
+RESULTS (written 2026-11-21 17:46)
+  chains 594 / 595 (one build, exe 17:27:05): unit set 411 ok / 0 failed, the 82 M5a / M5b prints identical to chain
+    555's; the new test green on the amended counts ("128 cells" refused arm; "8 cells" and "28 cells" forded arms;
+    no note on the control). Live 43 ok / 0 failed; every record line identical to chain 591's (the creek city did
+    not re-plan: its fordable cells near the site's edges were not on any way's line).
+  WHAT THIS IS: L2 on four synthetic arms with a control; L3 only as "no live build changed".
+  NOT MEASURED / OPEN: no live site has a ford within its ramp of the edge, so the rule has never turned down a real
+    crossing; the rule is sufficient, not necessary (a way ending INSIDE the site short of its ramp is not caught);
+    the refused arm is refused by the old "no connectable lot" path - the ford note is the only place that says
+    why; nothing in the engine; not audited.

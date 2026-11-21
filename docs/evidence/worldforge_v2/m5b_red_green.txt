@@ -2185,3 +2185,29 @@ RESPONSES (not re-audited; pm_chain567.txt): (a) wording taken; (d) a counter sh
   is the wall beside the gate; (e) the creek city's lost fixture is a market stall, the walled city's is unread;
   (g) L4 run 15 - on the code BEFORE these fixes; the runtime holds no water in these creeks.
   Final: chains 585 / 586, unit 409 / 0, live 43 / 0 (exe 16:09:58).
+
+================================================================================
+2026-11-21 17:30 - O38 (h): the market keeps off a ford's ramp (pm_chain587.txt), commit 9721538a
+AUDIT (solution-auditor, read-only, after the commit) - raw, condensed only in layout:
+  VERDICT: PASS WITH CONDITIONS. The numbers I could recompute hold. The claim overreaches in two places: what the
+  unit test proves, and what "keeps off the ramp" guarantees about paving.
+  1. The unit test can fail for the right reason and the red is real (r588: 6 of 6 at 1 cell; r590: 8 cells). But
+     "8 cells" is ramp + 1 BY CONSTRUCTION - the test asserts the rule's own Chebyshev measure on a rig where the
+     ramp is told, not measured. It proves the plumbing and the control, nothing about real ramps or paving.
+  2. Levelness is NOT guaranteed and no built-world levelness measure exists: the rule ignores ramps on cross
+     streets or other ways beside the square; the only built-world evidence is the prop count and span on one
+     site (4 placed / 3 micro -> 5 placed / 0 micro) - "likelier", a prop proxy, n = 1.
+  3. Fallbacks: no wrong note, no misuse of -1; null input = the old behaviour. Untested: every level place on a
+     ramp; no level place but a dry one on a ramp.
+  4. Service arithmetic sound (cubes, step 4, ceil(depth x 9 / step)); asked only on fordable main-street cells;
+     relies on the paver cutting at exactly the step-up; a bed already carved reads depth 0.
+  5. Evidence postdates the code (exe 17:02:12; r590 17:07, r591 17:21). The hub assertion changed in the same
+     commit that changed the plan (disclosed).
+  6. "34 lines differ, all the creek city's" holds; other builds identical in content; gate 74 / 0 confirmed.
+  7. Must not say: "guarantees level paving"; "8 cells" as a result; "fixed on the creek city" from the stall count;
+     anything about L4, fallback correctness, cross-street ramps or lots.
+  CONDITIONS: a built-world measure of the market's paved surface before and after; a test for the fallback; reword;
+  re-run the counts after the O38 (e) edits.
+RESPONSES: wording taken (the rule keeps the market's rect clear of the main street's told ramps; the stall count is
+  one site's proxy). The counts are re-run with O38 (e) (chains 594 on). OWED, not done: the built-world measure of
+  the square's paving and the fallback test - recorded in the plan's O38 row.
