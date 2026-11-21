@@ -378,17 +378,17 @@
     },
     "voxfound_bodies.comp": {
       "built": true,
-      "sources": "c226908419a1e939ee8f9d01418d25bbb94137c00be155fd2a811cb0330b3ac4",
+      "sources": "454f7d837596821f7b7b163fffec5b1b100c67e87ca798be956ed61159cb986b",
       "spv_present": true
     },
     "voxfound_bodies_fused.comp": {
       "built": true,
-      "sources": "f6d8a076269c0d9f612d0c9e519e4d9f226450dafc7b036f8a046ae3f0268599",
+      "sources": "2d5bebd436a0bf9dd1dba5d951fdd58c219b625e97d9c02ac3409d1d3809986e",
       "spv_present": true
     },
     "voxfound_bodies_primal.comp": {
       "built": true,
-      "sources": "184d66d5c00a798bbc43bfa61554b0e2d59672b2d52b67ed4db9956a14bacff9",
+      "sources": "84f61ff5c512d70a1d8e31808eb61fdd010de851d678b4e909ead687812fd52a",
       "spv_present": true
     },
     "voxfound_body.vert": {

@@ -166,7 +166,8 @@ const char* BodySimGpu::profileName(int g) {
     static const char* names[kProfGroups] = {"integrate", "aabb",      "world",      "pairs",  "prefix+scatter",
                                              "sort",      "colour",    "primal",     "dual",   "hard_body",
                                              "hard_apply", "finish",   "warm",      "awake_list", "w_count",
-                                             "w_write",    "w_bucket", "w_spread"};
+                                             "w_write",    "w_bucket", "w_spread", "p_broad",  "p_count",
+                                             "p_write",    "p_cap"};
     return g >= 0 && g < kProfGroups ? names[g] : "?";
 }
 
@@ -555,7 +556,7 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
     };
     const bool prof = m_profile && m_profQueries;
     enum { G_INT, G_AABB, G_WORLD, G_PAIRS, G_PREFIX, G_SORT, G_COLOUR, G_PRIMAL, G_DUAL, G_HARDB, G_HARDA, G_FIN, G_WARM,
-           G_AWAKE_LIST, G_W_COUNT, G_W_WRITE, G_W_BUCKET, G_W_SPREAD };
+           G_AWAKE_LIST, G_W_COUNT, G_W_WRITE, G_W_BUCKET, G_W_SPREAD, G_P_BROAD, G_P_COUNT, G_P_WRITE, G_P_CAP };
     auto stamp = [&](int g) {   // closes the time since the previous stamp into group g
         if (!prof || m_profStamp >= uint32_t(kProfMaxStamps)) return;
         vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_profQueries, m_profStamp++);
@@ -619,6 +620,16 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
     stamp(G_WORLD);
     if (m_narrowPar) {   // F5.5a2
         run(K_BROAD, 0, m_nb);
+        if (prof && m_pairsSplit) {   // F5.5k: BROAD its own group, then the diagnostic copies of NARROW, each its own group
+            stamp(G_P_BROAD);
+            for (uint32_t stop = 1; stop <= 3; ++stop) {
+                BodyPC pc{K_NARROW, stop, parity, m_pairsQuiet ? 1u : 0u};
+                m_pipe->pushConstants(cmd, &pc, sizeof(pc));
+                m_pipe->dispatch(cmd, groups);
+                barrier(cmd);
+                stamp(G_P_COUNT + int(stop) - 1);
+            }
+        }
         perPair(K_NARROW);
     } else {
         run(K_PAIRS, 0, m_nb);

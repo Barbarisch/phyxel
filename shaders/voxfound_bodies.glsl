@@ -10,6 +10,7 @@
 //   (workgroup per pair)  22 HARD_NARROW (workgroup per pair)  23 HARD_BODY from the stored pair results
 //   F5.5a3: 24 WORLD and 25 HARD_APPLY one workgroup per awake body
 //   F5.5h: 31 WORLD_UNITS 32 WORLD_CHUNKS 33 WORLD_FINISH; F5.5j: 34 HARD_UNITS 35 HARD_CHUNKS 36 HARD_FINISH
+//   F5.5k: 21 NARROW with arg = a diagnostic stop (1 count, 2 write, 3 the cap), n bit 0 = quiet (the pairs split)
 //   F5.5a4: 26 COLOUR_COUNT  27 COLOUR_PREFIX  28 COLOUR_SCATTER; in voxfound_bodies_primal.comp (VF_PRIMAL, 256):
 //   29 PRIMAL (indirect per colour, a 32-thread group per body)  30 PRIMAL (every colour, one workgroup)
 // GPU differences: candidates go to a per-worker scratch (worker = body i; its pairs j > i reuse it); a world surface
@@ -794,8 +795,10 @@ void coopEmit(uint a, uint b, uint base, uint cnt, uint stop) {
     if (lid < nk) emitOne(a, b, scratch[base + gwKeep[lid]]);
 }
 
-// pass 21: one workgroup per contact pair (persistent groups); scratch region = the group's
-void narrowPairs() {
+// pass 21: one workgroup per contact pair (persistent groups); scratch region = the group's.
+// F5.5k: stop 0 = the real pass; a diagnostic copy stops each pair after the count (1), the write (2) or the cap up to the
+// emit (3) and goes on to its next pair; quiet = no counter, no wake (stop and quiet are push constants: uniform)
+void narrowPairs(uint stop, bool quiet) {
     uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
     uint np = min(state[S_NPAIRS], MAXP());
     uint base = g * prm[P_SCRATCH];
@@ -808,7 +811,7 @@ void narrowPairs() {
         Cand c;
         vec3 ns;
         uint n = 0u;
-        for (uint q = q0; q < q1; ++q) n += pairCorner(a, b, A, B, RA, RB, mu, q, true, c, ns) ? 1u : 0u;
+        for (uint q = q0; q < q1; ++q) n += pairCorner(a, b, A, B, RA, RB, mu, q, !quiet, c, ns) ? 1u : 0u;
         gwCnt[lid] = n;
         memoryBarrierShared();
         barrier();
@@ -819,6 +822,7 @@ void narrowPairs() {
         }
         memoryBarrierShared();
         barrier();
+        if (stop == 1u) continue;   // F5.5k: the count copy (the barrier above closes this pair's shared use)
         uint off = gwOff[lid], scr = prm[P_SCRATCH];
         for (uint q = q0; q < q1; ++q) {
             if (!pairCorner(a, b, A, B, RA, RB, mu, q, false, c, ns)) continue;
@@ -826,15 +830,16 @@ void narrowPairs() {
             ++off;
         }
         uint total = gwTotal, cnt = min(total, scr);
-        if (lid == 0u && total > scr) atomicAdd(state[S_OVF_SCRATCH], total - scr);
+        if (lid == 0u && total > scr && !quiet) atomicAdd(state[S_OVF_SCRATCH], total - scr);
         memoryBarrierBuffer();
         barrier();
+        if (stop == 2u) continue;   // F5.5k: the write copy
         if (cnt > 0u) {
-            if (lid == 0u) {
+            if (lid == 0u && !quiet) {
                 atomicAdd(state[S_CAND], cnt);
                 if (bodies[b].meta.z != 0u && length(bodies[a].vel.xyz) > pf(P_WAKEV)) state[sWake(b)] = 1u;
             }
-            coopEmit(a, b, base, cnt, 0u);
+            coopEmit(a, b, base, cnt, stop == 3u ? 4u : 0u);   // F5.5k: the cap copy stops before the emit
         }
         memoryBarrierBuffer();
         barrier();
@@ -1410,7 +1415,7 @@ void main() {
     if (pc.pass == 17u) { fusedColour(); return; }
     if (pc.pass == 18u) { fusedPrimal(); return; }
 #endif
-    if (pc.pass == 21u) { narrowPairs(); return; }
+    if (pc.pass == 21u) { narrowPairs(pc.arg, (pc.n & 1u) != 0u); return; }   // F5.5k: arg = stop, n bit 0 = quiet
     if (pc.pass == 22u) { narrowHard(); return; }
     if (pc.pass == 24u) { worldPar(); return; }
     if (pc.pass == 31u) { worldUnits(); return; }    // F5.5h

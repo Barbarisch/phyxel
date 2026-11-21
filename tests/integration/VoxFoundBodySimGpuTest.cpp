@@ -1783,3 +1783,104 @@ TEST_F(VoxFoundBodySimGpu, F55jHardSpread) {
         EXPECT_LE(h1, 0.75 * h0) << "J3: the hard_apply group must drop >= 25 %";
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F5.5k -- the pairs group split (docs/evidence/voxfound_f55_prediction.txt, K1-K4): a stamp after BROAD, then quiet
+// diagnostic copies of NARROW stop after the count, the write and the cap, each timed as its own group. The instrument
+// must not change the simulation (60 profiled ticks bit-equal, split on vs off); its red is the loud copy, whose
+// counters differ.
+TEST_F(VoxFoundBodySimGpu, F55kPairsSplit) {
+    struct Run {
+        std::vector<SimBody> bodies;
+        BodySimGpuStats stats;
+        BodySimGpu::Profile prof;
+    };
+    for (const float e : {250.0f, 650.0f, 2800.0f}) {
+        SCOPED_TRACE(e);
+        LabPile pile = labLargeWall(e);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef mirror(pile.world, pile.mats, prm);
+        for (const Body& b : pile.bodies) mirror.add(b, b.vel, b.angVel);
+        std::string err;
+        ASSERT_TRUE(gpu.load(pile.world, pile.mats, mirror.bodies(), mirror.params(), &err)) << err;
+        int settleTicks = 0;
+        do {
+            step(60);
+            if (HasFatalFailure()) return;
+            settleTicks += 60;
+        } while (gpu.stats().awake > 0 && settleTicks < 6000);
+        ASSERT_EQ(gpu.stats().awake, 0u);
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        std::vector<SimBody> woken = mirror.bodies();
+        for (SimBody& b : woken) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        const size_t nb = woken.size();
+        auto runFor = [&](int ticks, bool split, bool quiet) {
+            Run r;
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
+            gpu.setPairsSplit(split, quiet);
+            gpu.setProfile(true);
+            step(ticks, 1);
+            gpu.setProfile(false);
+            gpu.setPairsSplit(false);
+            r.stats = gpu.stats();
+            r.prof = gpu.profile();
+            r.bodies = woken;
+            EXPECT_TRUE(gpu.read(r.bodies, &werr)) << werr;
+            return r;
+        };
+        auto differ = [](const Run& a, const Run& b) {
+            size_t n = 0;
+            for (size_t i = 0; i < a.bodies.size(); ++i)
+                if (a.bodies[i].pos != b.bodies[i].pos || a.bodies[i].quat != b.bodies[i].quat ||
+                    a.bodies[i].vel != b.bodies[i].vel || a.bodies[i].angVel != b.bodies[i].angVel ||
+                    a.bodies[i].asleep != b.bodies[i].asleep)
+                    ++n;
+            return n;
+        };
+        auto sameCounters = [](const BodySimGpuStats& a, const BodySimGpuStats& b) {
+            return a.contacts == b.contacts && a.candidates == b.candidates && a.capped == b.capped &&
+                   a.deepPoints == b.deepPoints && a.pairsTested == b.pairsTested && a.hardFires == b.hardFires &&
+                   a.scratchOverflow == b.scratchOverflow && a.awake == b.awake;
+        };
+        // K1: the instrument -- bit-equal, and its red
+        const Run off = runFor(60, false, true);
+        const Run on = runFor(60, true, true);
+        const Run loud = runFor(60, true, false);
+        const size_t dOn = differ(off, on), dLoud = differ(off, loud);
+        std::printf("[body gpu] F5.5k E/T %.0f: %zu bodies; pairs split (quiet) vs off over 60 ticks: %zu bodies differ, "
+                    "counters %s (candidates %llu vs %llu, deep %llu vs %llu); RED the loud split: %zu differ, counters "
+                    "%s (candidates %llu, deep %llu)\n", e, nb, dOn, sameCounters(off.stats, on.stats) ? "equal" : "DIFFER",
+                    (unsigned long long)on.stats.candidates, (unsigned long long)off.stats.candidates,
+                    (unsigned long long)on.stats.deepPoints, (unsigned long long)off.stats.deepPoints, dLoud,
+                    sameCounters(off.stats, loud.stats) ? "equal" : "differ",
+                    (unsigned long long)loud.stats.candidates, (unsigned long long)loud.stats.deepPoints);
+        EXPECT_EQ(dOn, 0u) << "K1: the split changed the simulation";
+        EXPECT_TRUE(sameCounters(off.stats, on.stats)) << "K1: the split changed a counter";
+        EXPECT_FALSE(sameCounters(off.stats, loud.stats)) << "K1 red: the loud copy must show in the counters";
+        // K1-K4: the split, 30 profiled ticks from the same snapshot (and the pairs group without it, for K1's 15 %)
+        const Run a = runFor(30, true, true);
+        const Run b = runFor(30, false, true);
+        auto mean = [](const BodySimGpu::Profile& p, int g) { return p.sumMs[g] / std::max(1, p.ticks); };
+        const int G_PAIRS = 3, G_BROAD = 18, G_COUNT = 19, G_WRITE = 20, G_CAP = 21;
+        const double narrow = mean(a.prof, G_PAIRS), broad = mean(a.prof, G_BROAD), pairsOff = mean(b.prof, G_PAIRS);
+        const double cnt = mean(a.prof, G_COUNT), wr = mean(a.prof, G_WRITE), cp = mean(a.prof, G_CAP);
+        const double group = broad + narrow, sWrite = wr - cnt, sCap = cp - wr, sEmit = narrow - cp;
+        double sum = 0.0;
+        for (int g = 0; g < BodySimGpu::kProfGroups; ++g) sum += mean(b.prof, g);
+        std::printf("[body gpu]   K1 pairs group: split on broad %.3f + narrow %.3f = %.3f vs off %.3f ms (%.2f x; %.0f %% "
+                    "of the unsplit profile sum %.3f); pairs tested %llu per tick\n", broad, narrow, group, pairsOff,
+                    group / std::max(1e-9, pairsOff), 100.0 * pairsOff / std::max(1e-9, sum), sum,
+                    (unsigned long long)(a.stats.pairsTested / 30));
+        std::printf("[body gpu]   K2-K4 copies: p_count %.3f, p_write %.3f, p_cap %.3f ms -> broad %.3f (%.0f %%), count "
+                    "%.3f (%.0f %%), write %.3f (%.0f %%), cap %.3f (%.0f %%), emit %.3f (%.0f %%) of the group %.3f\n",
+                    cnt, wr, cp, broad, 100 * broad / group, cnt, 100 * cnt / group, sWrite, 100 * sWrite / group, sCap,
+                    100 * sCap / group, sEmit, 100 * sEmit / group, group);
+        EXPECT_EQ(a.prof.ticks, 30);
+        EXPECT_GT(broad, 0.0) << "the broad stamp ran";
+        EXPECT_GT(cnt, 0.0) << "the count copy ran";
+        EXPECT_GT(cp, cnt) << "the cap copy does more than the count copy";
+    }
+}

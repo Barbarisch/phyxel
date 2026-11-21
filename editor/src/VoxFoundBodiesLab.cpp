@@ -31,6 +31,8 @@
 //    false = F5.5g's one workgroup per body. The stats carry spread_fallback (bodies that ran F5.5g's pass instead).
 //    F5.5j: {"hard_spread":bool} -- HARD_APPLY's world items over more than one workgroup (default on, bit-equal);
 //    false = F5.5a3's one workgroup per body.
+//    F5.5k: {"pairs_split":bool} adds the pairs group's split to the profile (p_broad, then NARROW's diagnostic copies
+//    p_count / p_write / p_cap, each its own group; "pairs" is then NARROW alone; bit-equal).
 // F5.4 (docs/evidence/voxfound_f54_prediction.txt L1-L6): {"rest":{"on":bool,"budget":N,"keep_m":M,"rest_ticks":T}}
 //    sets the D6 policy (it runs after every tick while on; the player = the camera); {"bake_now":{...same keys}} runs
 //    one pass now with those values. A bake writes the world grid, rebuilds the preview area and compacts the body
@@ -701,6 +703,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
     if (p.contains("world_once") && lab.gpu) lab.gpu->setWorldOnce(p["world_once"].get<bool>());   // F5.5g
     if (p.contains("world_spread") && lab.gpu) lab.gpu->setWorldSpread(p["world_spread"].get<bool>());   // F5.5h
     if (p.contains("hard_spread") && lab.gpu) lab.gpu->setHardSpread(p["hard_spread"].get<bool>());   // F5.5j
+    if (p.contains("pairs_split") && lab.gpu) lab.gpu->setPairsSplit(p["pairs_split"].get<bool>());   // F5.5k
     if (p.contains("ticks") && lab.useGpu) {   // F5.5b: synchronous GPU ticks (the policy after every tick when on)
         const int n = p["ticks"].get<int>();
         std::string err;

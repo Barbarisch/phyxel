@@ -1162,3 +1162,27 @@ for the stages after them (F5.5f's caveat too).
   K6 the VoxFound GPU suite on a quiet GPU: 51 / 51 (50 + the new test).
 If K3 holds, the lever is F5.5g's (each corner tested once: stage the candidates, copy to the serial offset), bit-equal,
 with its own prediction next; if BROAD or the cap leads instead, that is the lever.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5k RESULTS (2026-11-21; after the runs, the prediction above untouched). Release. World of Warcraft not running in
+any check; no other phyxel.exe in any check (the suite's watcher: 28 samples, every 10 s). Evidence:
+voxfound_f55k_headless.txt (every run, in order), voxfound_f55k_live.jsonl (F5.5e's gate --pairs-split, CharacterTestbed).
+  RED as predicted: a stub knob (the flags set, nothing dispatched) -- the loud split's counters equal (K1's red
+     failed) and every copy group 0.000 ms. The woken pile counts 0 deep points, so the red shows in the candidates
+     (loud 840,416 / 2,379,917 / 9,018,951 vs 474,597 / 1,283,104 / 4,671,558 over 60 ticks).
+  K1 PASS: split (quiet) vs off over 60 ticks, 0 bodies differ and every counter equal at every rung; broad + narrow
+     with the split on 0.900 / 1.148 / 2.507 vs 0.905 / 1.159 / 2.535 ms off (0.99 x). The driver compile (uncached, R1
+     alone): 60.6 s (<= 90: PASS). The untouched groups (F5.5e's profile after the change) match the control: pairs
+     0.910 / 1.188 / 2.534 vs 0.894 / 1.157 / 2.538 ms.
+  K2 BROAD: 5 / 12 / 19 % of the group (0.048 / 0.133 / 0.468 ms) -- PASS at 110 (2-10) and 994 (5-20).
+  K3 the corners: count 43 / 41 / 38 %, write 46 / 44 / 39 %, together 89 / 85 / 77 % -- PASS (each 35-50, together 70-90).
+  K4 the cap + the emit: 6 / 4 / 4 % (cap 0.027 / 0.046 / 0.171 ms; the emit by difference 0.029 / -0.002 / -0.062:
+     inside the noise, the copies warm the caches) -- PASS at 110, MISSED low at 282 and 994 (5-20).
+  K5 PASS live (994): broad 20, count 36, write 37, cap + emit 6 % (headless 19 / 38 / 39 / 5); 110: 5 / 46 / 41 / 8;
+     282: 12 / 47 / 38 / 4. The group 17 / 19 / 27 % of the live profile sum; the engine's frame 5.4-6.5 ms.
+  K6 PASS: the VoxFound GPU suite 51 / 51 on a quiet GPU (the 50 + F55kPairsSplit). VoxFound CPU not re-run (no CPU
+     code changed).
+CONCLUSION: the pairs group is the corners tested twice -- count and write about equal, 77-89 % between them -- as the
+world pass's items were before F5.5g. The cap and the emit are small (4-6 %), and BROAD is the next at scale (19-20 % at
+994, its loop awake x bodies). Next: F5.5l, each pair corner tested once (F5.5g's staging, bit-equal), with its own
+prediction; the write's 37-46 % is the most it can take.

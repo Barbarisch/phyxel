@@ -628,8 +628,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       RULES: the tests load shaders/ from the repo root (NOT build/shaders); a new shader costs a DRIVER compile of
       ~1 min uncached, and a fourth inlined worldItem / a run-time gMode at the world chunk loop made it > 5-10 min (the
       test looks hung: one core busy, GPU idle) -- keep one worldItem site per mode and TIME the compile.
-      NEXT: F5.5k (the pairs group split -- 26 % of the live tick at 994, leads there; the primal leads at 110/282) as a
-      measure before its lever, with its prediction BEFORE code. Owed: the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
+      F5.5k done (a measure): setPairsSplit -- NARROW tests every pair corner twice (count, then write: 77-89 % of the
+      pairs group, about equal), BROAD 5 / 12 / 19 % (awake x bodies), the cap + emit 4-6 %; bit-equal; suite 51/51.
+      NEXT: F5.5l (each pair corner tested once, F5.5g's staging, bit-equal; the write's 37-46 % is its ceiling) with
+      its prediction BEFORE code; then BROAD if it leads. Owed: the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
       the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
       5 ms); region-vs-area edge pixels.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)

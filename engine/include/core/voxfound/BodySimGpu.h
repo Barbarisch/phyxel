@@ -103,13 +103,22 @@ public:
     bool fusedThisStep() const { return m_fused; }
     /// F5.5a: a per-pass device-time profile (timestamps between the pass groups; forces one tick per submit, so it
     /// measures each tick on its own). Reset by setProfile(true).
-    static constexpr int kProfGroups = 18;   // F5.5f: + awake_list, w_count, w_write, w_bucket, w_spread (split on)
+    static constexpr int kProfGroups = 22;   // F5.5f: + awake_list, w_count, w_write, w_bucket, w_spread (split on);
+                                             // F5.5k: + p_broad, p_count, p_write, p_cap (the pairs split on)
     /// F5.5f: with the profile on, the world pass is also dispatched as four diagnostic copies, each stopping after one
     /// more stage (count, write, bucket winners, spread picks) and timed as its own group; they write only scratch,
     /// which the real pass rewrites, and (quiet) none of the counters. A measure: costs time, changes no result.
     void setWorldSplit(bool on, bool quiet = true) {
         m_worldSplit = on;
         m_splitQuiet = quiet;
+    }
+    /// F5.5k: with the profile on, BROAD gets its own group (p_broad; the pairs group is then NARROW alone) and NARROW
+    /// is also dispatched as three diagnostic copies, each stopping after one more stage (count, write, the cap up to the
+    /// emit) and timed as its own group; they process every pair, write only scratch (which the real pass rewrites), and
+    /// (quiet) touch no counter and wake no body. A measure: costs time, changes no result.
+    void setPairsSplit(bool on, bool quiet = true) {
+        m_pairsSplit = on;
+        m_pairsQuiet = quiet;
     }
     /// F5.5g: the world pass tests each item once -- each thread stages its candidates (kStage, past the bodies'
     /// scratch) and copies them to its serial offset after the scan; a thread with more re-tests its own items. Bit-equal
@@ -194,6 +203,7 @@ private:
     bool m_worldOnce = true, m_onceScramble = false;   // F5.5g
     bool m_worldSpread = true, m_spreadScramble = false;   // F5.5h
     bool m_hardSpread = true, m_hardScramble = false;   // F5.5j
+    bool m_pairsSplit = false, m_pairsQuiet = true;     // F5.5k
     VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
     int m_pendingTicks = 0;
     bool m_pendingTimed = false;
