@@ -1002,3 +1002,13 @@ live across a barrier) raising the shader's register count / spilling, which eve
      on the quiet GPU with I2 (>= 4 of 5); VoxFound CPU's F55cRegionEditEqualsFullRebuild wall guard passes.
   Red for I2: the I1 measurement (F5.5h's shader slow, F5.5g's fast) is the red; the I2 bit-equality red is the
      scramble. Owed regardless: CORRECT F5.5h's record (its "contended" cost numbers measured its own regression).
+
+F5.5i ADDENDUM PREDICTION (2026-11-21, written after I1-I3 and the suite, BEFORE the bisect below). The suite's F5.5e
+test on the I2 build: E1 14.81 / 16.93 / 25.05 ms per tick vs F5.5e's own 8.41 / 10.29 / 14.97 -- every group grew
+(primal 4.60 vs 1.52, sort 1.89 vs 0.83, hard_apply 2.34 vs 1.40, pairs 1.83 vs 0.96 at 110), so a SECOND regression,
+older than F5.5h, sits under F5.5g's and F5.5h's measurements too.
+  I6 (the bisect, no code): each increment's three committed shaders (7dd7f1f3 F5.5e, 79f6d9cf F5.5f, 5f021d79 F5.5g,
+     and the I2 build's) on the I2 host, F5.5e's test temporarily pinned spread off from load (reverted after).
+     Predicted: F5.5e's shaders give E1 within 15 % of 8.41 / 10.29 / 14.97 (the regression is in a shader, not the
+     host or the machine); the step that loses it is F5.5f or F5.5g (both grew the shared pipeline: the split's copies,
+     the per-thread stage), and the fix is again in what every pass pays.
