@@ -1020,9 +1020,11 @@ void worldChunks() {
         barrier();
     }
 }
-// pass 33 (persistent workgroups over the awake slots): the chunks moved left in place to the serial layout (each read
-// whole into registers before it is written: its target never reaches a later chunk's slot), then the cap + emit; a
-// flagged body runs F5.5g's whole per-body pass here instead. pc.n bit 2 = the scramble (each chunk's order reversed)
+// pass 33 (persistent workgroups over the awake slots): the chunks moved left in place to the serial layout, then the
+// cap + emit; a flagged body runs F5.5g's whole per-body pass here instead. F5.5i: a chunk moves 64 items per round,
+// ONE Cand live per thread (read, barrier, write, barrier) -- F5.5h's Cand t[4] (320 B per thread across a barrier)
+// slowed EVERY pass of this shared pipeline 25-40x. A round's writes [dst+b, dst+b+m) never reach an unread item:
+// dst <= src. pc.n bit 2 = the scramble (each round's m items reversed; tests only)
 void worldFinish() {
     uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
     uint na = state[S_NAWAKE], scr = prm[P_SCRATCH];
@@ -1046,19 +1048,16 @@ void worldFinish() {
         barrier();
         for (uint c = scramble ? 0u : 1u; c < nch; ++c) {   // chunk 0 is in place (unless scrambled)
             uint n = state[sChunkCnt(u0 + c)], src = base + c * CH_SLOT, dst = base + gwOff[c];
-            Cand t[4];
-            for (uint j = 0u; j < 4u; ++j) {
-                uint i = lid + 64u * j;
-                if (i < n) t[j] = scratch[src + i];
+            for (uint b = 0u; b < n; b += 64u) {
+                uint m = min(64u, n - b), i = b + lid;
+                Cand t;
+                if (lid < m) t = scratch[src + i];
+                memoryBarrierBuffer();
+                barrier();
+                if (lid < m) scratch[dst + (scramble ? b + m - 1u - lid : i)] = t;
+                memoryBarrierBuffer();
+                barrier();
             }
-            memoryBarrierBuffer();
-            barrier();
-            for (uint j = 0u; j < 4u; ++j) {
-                uint i = lid + 64u * j;
-                if (i < n) scratch[dst + (scramble ? n - 1u - i : i)] = t[j];
-            }
-            memoryBarrierBuffer();
-            barrier();
         }
         uint cnt = min(gwTotal, scr);
         if (cnt > 0u) {

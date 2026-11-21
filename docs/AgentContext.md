@@ -616,9 +616,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       -60-75 %, tick -31-43 %. F5.5f/g tests pin the spread off. The CPU suite's VoxFoundBodyRest.F55c... failure is a
       wall-time guard. Before trusting any device time, run F5.5g's test as a control: its two-test world group should
       be ~4-7 ms.
-      NEXT: F5.5i (re-profile the awake pile on a QUIET GPU with F5.5g + h -- F5.5e's gate + test -- and re-run the
-      device-time guards, BEFORE the next lever; HARD_APPLY's third item test is the known candidate) with its
-      prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
+      F5.5i done: F5.5h's "contention" was WRONG -- its shader's worldFinish `Cand t[4]` slowed EVERY pass of the
+      shared pipeline 25-40x (fixed: one Cand per thread per 64-item round, bit-equal). Clean: quiet suite 49/49 (the
+      five device-time guards pass again); world group 1.0-1.4 ms (<1/10 of the awake tick); live awake tick 6.0 / 7.1
+      / 10.8 ms vs F5.5e's 7.9 / 9.8 / 14.1. RULES: a shader change is measured first on an UNTOUCHED pass (F5.5g's
+      test is the control); before any device timing check `Get-Process phyxel` for OTHER engines AND keep checking
+      during the run (one started mid-session at 07:18 and was missed); the editor links python 3.12 -- put
+      %APPDATA%\uv\python\cpython-3.12.13-windows-x86_64-none first on PATH or it hangs at startup with no port.
+      NEXT: F5.5j (HARD_APPLY's world items not tested a third time -- 21-26 % of the live awake tick, leads or second
+      at every rung; pairs lead at 994) with its prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
       the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
       5 ms); region-vs-area edge pixels.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)

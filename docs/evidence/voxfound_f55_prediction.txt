@@ -1012,3 +1012,48 @@ older than F5.5h, sits under F5.5g's and F5.5h's measurements too.
      Predicted: F5.5e's shaders give E1 within 15 % of 8.41 / 10.29 / 14.97 (the regression is in a shader, not the
      host or the machine); the step that loses it is F5.5f or F5.5g (both grew the shared pipeline: the split's copies,
      the per-thread stage), and the fix is again in what every pass pays.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5i RESULTS (2026-11-21; after the runs, the predictions above untouched). Release. World of Warcraft not running in
+any check. Evidence: voxfound_f55i_headless.txt (every run, in order, with its conditions), voxfound_f55i_live.jsonl
+(tools/voxfound_f55e_gate.py --spread, CharacterTestbed, order B A A B: off, on, on, off).
+CONDITIONS: the control ran on an idle GPU with no engine anywhere. Another session's engine (G:\Github\phyxel, not
+mine, not stopped) STARTED at 07:18:58 -- after the control, found only later -- and ran until ~07:37: I1, I2, the first
+suite and the I6 bisect shared the GPU with it (~77 % of the 3D engine). The QUIET suite (a watcher every 10 s: no
+engine, no WoW) and the live gate (my engine only at its start and end) ran after it exited.
+  CORRECTION OF F5.5h: its "contended GPU" explanation was WRONG. F5.5h's own shader made the WHOLE shared pipeline
+     25-40x slow: worldFinish's `Cand t[4]` (4 x 80 B per thread, live across a barrier) -- every pass pays the
+     pipeline's register budget. The proof is the cross: on an IDLE GPU the F5.5h shader ran F5.5g's untouched pass at
+     79.0 / 87.8 / 117.9 ms (once); with another engine on the GPU F5.5g's committed shaders ran it at 2.58 / 3.05 /
+     3.61 ms. F5.5h's H2/H3/H5 "contended ratios" measured its own regression, and its live 80-205 ms per tick too.
+  I1 PASS: F5.5g's committed shaders on the F5.5h host: once 2.58 / 3.05 / 3.61, twice 4.05 / 4.97 / 6.07 ms, the tick
+     15.6-29.3 ms (within 30 % of F5.5g's numbers). The first attempt swapped only voxfound_bodies.comp (the fused and
+     primal pipelines share the code) and the settle ran the spread (passes the old shader lacks): awake 3, failed.
+  I2 PASS: one Cand per thread per 64-item round (the scramble now reverses each round). F5.5g's test once 2.59 / 3.16 /
+     3.75 ms (back); F5.5h's test 0 bodies differ, every counter equal at every rung, the scramble 110 / 276 / 954, 0
+     fallback; the same again in the quiet suite.
+  I3 (quiet suite): H2 the world group spread vs one group -45 / -51 / -65 % (30-60: PASS, PASS, MISSED high at 994);
+     H3 the tick (30 per submit) -9 / -10 / -14 % (5-15 PASS). G (once vs twice, same run): world -45 / -43 / -43 %,
+     tick -13 / -18 / -13 %. LIVE (median, one per submit, mean of the two runs each): the tick spread on 6.04 / 7.06 /
+     10.78 vs off 6.83 / 8.34 / 14.08 ms (-12 / -15 / -23 %; the off runs at 994 were 12.35 and 15.81); the world group
+     0.67 / 0.65 / 0.90 vs 1.48 / 2.01 / 2.54 ms; 0 fallback bodies in every run.
+  I4 HALF: the world group's share of the awake tick fell from F5.5e's 33 / 36 / 31 % (2.75 / 3.68 / 4.73 ms) to 12 /
+     12 / 9 % headless (1.04 / 1.28 / 1.39 ms) and 10 / 9 / 8 % live (<= 1/2: PASS). The headless E1 tick did NOT fall
+     against F5.5e's recorded one (9.19 / 12.28 / 16.42 vs 8.41 / 10.29 / 14.97) -- its means run well above its minima
+     this run (world 1.04 mean / 0.61 min; other groups' minima equal F5.5e's: primal 1.44 vs 1.43, sort 0.73 vs 0.74),
+     so the cross-day headless comparison is noise-bound; LIVE, F5.5e's own gate: 6.04 / 7.06 / 10.78 vs F5.5e's
+     7.9 / 9.8 / 14.1 ms = -24 / -28 / -24 %. HARD_APPLY the largest single group at 994, >= 25 %: MISSED -- live at
+     994 pairs 2.52 (23 %) > hard_apply 2.27 (21 %) > primal 1.79 (16 %) > hard_body 1.44 (13 %); hard_apply leads at
+     282 (1.91, 26 %) and is second at 110 (1.34, 21 %; primal 1.40). Headless at 994 by mean primal 3.37 > pairs
+     3.26 > hard_apply 2.89.
+  I5 PASS: the quiet suite 49 / 49 -- the five device-time guards pass (their failures since F5.5g were the other
+     engine's). VoxFound CPU not re-run (no CPU code changed).
+  I6 VOID: the bisect (F5.5e / F5.5f / F5.5g / I2 shaders on F5.5e's test: 17.1 / 17.0 / 15.5 / 15.5 ms at 110, all
+     alike) ran while the other engine shared the GPU -- it shows the shaders agree, not a second regression; the quiet
+     suite then put E1 near F5.5e's. The addendum's "second, older regression" is NOT supported.
+CONCLUSION: F5.5g + F5.5h with the I2 fix take the world group from about a third of the awake tick to under a tenth;
+live the awake tick is -24 to -28 % against F5.5e's. What is left is four groups of similar size: HARD_APPLY (21-26 %:
+the third test of the same world items), pairs (16-23 %), primal (16-22 %), hard_body (7-13 %). HARD_APPLY is the only
+one that leads or is second at every rung, and it re-tests items the world pass already tested -- the next lever
+(F5.5j), with its prediction. Lesson: every pass shares one pipeline's register budget, so a new pass's locals are paid
+by all of them -- a shader change is measured on an UNTOUCHED pass (the control) before its own.
