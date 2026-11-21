@@ -1057,3 +1057,37 @@ the third test of the same world items), pairs (16-23 %), primal (16-22 %), hard
 one that leads or is second at every rung, and it re-tests items the world pass already tested -- the next lever
 (F5.5j), with its prediction. Lesson: every pass shares one pipeline's register budget, so a new pass's locals are paid
 by all of them -- a shader change is measured on an UNTOUCHED pass (the control) before its own.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5j PREDICTION (2026-11-21; written BEFORE the code). HARD_APPLY's world items, the lever made precise.
+THE CONTROL (run first, the F5.5i build, 09:45-09:46; no phyxel.exe and no Wow.exe before or after): F5.5e's test E1
+6.16 / 7.13 / 11.19 ms per tick, hard_apply 1.37 / 1.91 / 2.44 ms (22 / 26 / 22 % of the profile sum; pairs 2.49 at
+994 is the only larger group); F5.5g's G2 once 1.48 / 2.02 / 2.61 ms; F5.5h's H2 spread 0.59 / 0.69 / 0.90 ms. The
+woken pile fires HARD_APPLY's world push 0.0 / 0.0 / 0.2 times per tick: the pass runs every item of every awake body
+to find nothing.
+WHAT "NOT TESTED A THIRD TIME" CAN MEAN, BIT-EQUAL: HARD_APPLY tests at the post-solve, body-pushed pose, not the world
+pass's pose, so the world pass's results cannot be reused. A cull by a motion bound (skip items that cannot reach
+P_HARD) is not provably safe: the escape searches (a preferred direction, a margin) and the fast-corner sweep are not
+1-Lipschitz in the pose, and a wrong cull is silent. So F5.5j does NOT remove the third test; it takes it off the
+busiest body's single workgroup, F5.5h's way. (A safe cull stays open, with its own proof first.)
+THE LEVER: BodySimGpu::setHardSpread (default on; needs the parallel world path). Three dispatches replace pass 25:
+  34 (one workgroup): per awake slot, the summed body-body push applied (pushOut, as pass 25's thread 0), then its
+     chunk count at the pushed pose (chunkSize / chunkCount, F5.5h's rule) into a prefix (sUnit, reused: the world
+     pass is done with it);
+  35 (persistent workgroups over the chunks): one chunk's items, each thread its deepest (strict >), the chunk's
+     deepest by thread order (strict >) into scratch[slot * kScratch + chunk] (scratch is dead after the emits);
+  36 (one thread per awake slot): the chunks reduced in order (strict >); deeper than P_HARD -> pushOut + S_HARD.
+  First on ties in serial item order at every level = pass 25's rule, so bit-equal. No overflow, so no fallback.
+  Test-only scramble: pass 36 reads chunk 0 only.
+  J1 (the control, the rule from F5.5i): after the change, F5.5h's world group (an UNTOUCHED pass) within 15 % of the
+     control's 0.59 / 0.69 / 0.90 ms, and F5.5g's G2 within 15 % of 1.48 / 2.02 / 2.61 ms (no register-budget cost).
+  J2 (bit-equal): a new test, F55jHardSpread, on the woken pile AND the same pile sunk 4 cm into the floor (every body,
+     so HARD_APPLY fires): spread vs pass 25 over 60 ticks, 0 bodies differ and every counter equal (hardFires
+     included) at every rung; the sunk pile fires > 0 per tick. RED (a) the scramble: > 0 bodies differ on the sunk
+     pile at every rung; (b) a stub knob first (the spread flag set, pass 25 still run): the J3 guard fails.
+  J3 the hard_apply group, spread vs pass 25 (woken pile, profiled, one tick per submit): -40 to -65 % at every rung
+     (F5.5h's world group fell -45 to -66 % the same way). Guard in the test: <= 0.75 x.
+  J4 the tick (30 per submit, woken pile): -5 to -15 %.
+  J5 live (F5.5e's gate, CharacterTestbed, --hard-spread on|off, order B A A B): hard_apply -35 to -65 %, the awake
+     tick -5 to -15 %, every rung; the settle tick and awake-after-wake counts the same on vs off.
+  J6 the VoxFound GPU suite on a quiet GPU: 50 / 50 (49 + the new test).
