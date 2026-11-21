@@ -129,6 +129,15 @@ public:
         m_spreadScramble = scramble;
     }
     static constexpr uint32_t kChunkItems = 256, kMaxChunks = 16;   // F5.5h
+    /// F5.5j: HARD_APPLY's world items over more than one workgroup -- the body-body push applied and the chunk count
+    /// taken per awake body (F5.5h's chunks, at the pushed pose), each chunk's deepest point found by one workgroup,
+    /// then per body the chunks reduced in order (first on ties, as one workgroup reduces its threads). Bit-equal to
+    /// F5.5a3's one-workgroup-per-body pass (false, the control). scramble (tests only): only chunk 0 is reduced, the
+    /// red for the equality check. Needs the parallel world path. Default on.
+    void setHardSpread(bool on, bool scramble = false) {
+        m_hardSpread = on;
+        m_hardScramble = scramble;
+    }
     static constexpr int kProfMaxStamps = 64;
     static const char* profileName(int g);
     struct Profile {
@@ -184,6 +193,7 @@ private:
     bool m_worldSplit = false, m_splitQuiet = true;   // F5.5f
     bool m_worldOnce = true, m_onceScramble = false;   // F5.5g
     bool m_worldSpread = true, m_spreadScramble = false;   // F5.5h
+    bool m_hardSpread = true, m_hardScramble = false;   // F5.5j
     VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
     int m_pendingTicks = 0;
     bool m_pendingTimed = false;

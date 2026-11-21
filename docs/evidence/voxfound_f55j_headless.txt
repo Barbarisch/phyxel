@@ -44,3 +44,264 @@ no Wow.exe). F55eAwakePileProfile, F55gWorldOnce, F55hWorldSpread ==
 [body gpu]   H4 fallback bodies 0 over 60 ticks of 994 awake (0.000 % per tick)
 [       OK ] VoxFoundBodySimGpu.F55hWorldSpread (14898 ms)
 [  PASSED  ] 3 tests.
+== RED (09:49:09-09:49:27): the stub knob (setHardSpread sets a flag; pass 25 still runs), F55jHardSpread. No phyxel.exe / Wow.exe before or after ==
+[body gpu] F5.5j E/T 250 woken: 110 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 0 vs 0, candidates 474597 vs 474597); RED the scramble: 0 differ (hard fires 0)
+[body gpu] F5.5j E/T 250 sunk 4 cm: 110 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 866 vs 866, candidates 404797 vs 404797); RED the scramble: 0 differ (hard fires 866)
+J2 red: the chunk-0-only scramble must show in the bodies
+[body gpu]   J3 hard_apply group: spread 1.351 vs one group 1.384 ms (-2 %); J4 tick (30 per submit): spread 6.081 vs one group 6.037 ms (+1 %); the world group (untouched) 0.626 vs 0.624 ms
+J3: the hard_apply group must drop >= 25 %
+[body gpu] F5.5j E/T 650 woken: 282 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 0 vs 0, candidates 1283104 vs 1283104); RED the scramble: 0 differ (hard fires 0)
+[body gpu] F5.5j E/T 650 sunk 4 cm: 282 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 4779 vs 4779, candidates 1413873 vs 1413873); RED the scramble: 0 differ (hard fires 4779)
+J2 red: the chunk-0-only scramble must show in the bodies
+[body gpu]   J3 hard_apply group: spread 1.855 vs one group 1.887 ms (-2 %); J4 tick (30 per submit): spread 7.176 vs one group 7.154 ms (+0 %); the world group (untouched) 0.704 vs 0.697 ms
+J3: the hard_apply group must drop >= 25 %
+[body gpu] F5.5j E/T 2800 woken: 994 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 8 vs 8, candidates 4671558 vs 4671558); RED the scramble: 0 differ (hard fires 8)
+[body gpu] F5.5j E/T 2800 sunk 4 cm: 994 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 40571 vs 40571, candidates 4866101 vs 4866101); RED the scramble: 0 differ (hard fires 40571)
+J2 red: the chunk-0-only scramble must show in the bodies
+[body gpu]   J3 hard_apply group: spread 2.341 vs one group 2.403 ms (-3 %); J4 tick (30 per submit): spread 11.111 vs one group 11.125 ms (-0 %); the world group (untouched) 0.906 vs 0.888 ms
+J3: the hard_apply group must drop >= 25 %
+[  FAILED  ] VoxFoundBodySimGpu.F55jHardSpread (17994 ms)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VoxFoundBodySimGpu.F55jHardSpread
+ 1 FAILED TEST
+== THE DRIVER COMPILE (not predicted): the first lever build (its own chunk pass 35) -- the test process 100 % of one core, GPU idle, no output from 09:51:22; killed ~10:01. R1FreeFall alone on the same shader: no result in 120 s, then > 3.5 min (killed). The second form (the world chunk loop with a run-time mode): R1 > 5 min (killed). CONTROL: F5.5i committed shader + one no-op line (uncached), R1 10:13:37-10:14:34, 56.7 s (passed). The shipped form (pass 25 generalised, one worldItem site): R1 10:15:47-10:16:46, 59.2 s (passed). ==
+== GREEN (10:16:59-10:17:47, the shipped form; no phyxel.exe / Wow.exe before or after): F55gWorldOnce, F55hWorldSpread (J1 controls), F55jHardSpread ==
+[body gpu] F5.5g E/T 250: 110 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback threads 0 over 60 ticks; RED the scramble: 110 differ
+[body gpu]   G2 world group: once 1.473 vs twice 2.870 ms (-49 %); G3 tick (30 per submit): once 6.118 vs twice 7.608 ms (-20 %)
+[body gpu]   G4 fallback threads 0 of 211200 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 1.420 (97 %), copy -0.006 (-0 %) of the world group 1.465
+[body gpu] F5.5g E/T 650: 282 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback threads 0 over 60 ticks; RED the scramble: 276 differ
+[body gpu]   G2 world group: once 2.034 vs twice 3.959 ms (-49 %); G3 tick (30 per submit): once 7.266 vs twice 9.294 ms (-22 %)
+[body gpu]   G4 fallback threads 0 of 541440 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 2.009 (97 %), copy 0.019 (1 %) of the world group 2.074
+[body gpu] F5.5g E/T 2800: 994 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback threads 0 over 60 ticks; RED the scramble: 954 differ
+[body gpu]   G2 world group: once 2.684 vs twice 5.059 ms (-47 %); G3 tick (30 per submit): once 11.197 vs twice 13.660 ms (-18 %)
+[body gpu]   G4 fallback threads 0 of 1908480 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 2.609 (98 %), copy 0.018 (1 %) of the world group 2.657
+[       OK ] VoxFoundBodySimGpu.F55gWorldOnce (17122 ms)
+[body gpu] F5.5h E/T 250: 110 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 110 differ
+[body gpu]   H2 world group: spread 0.623 vs one group 1.480 ms (-58 %); H3 tick (30 per submit): spread 5.316 vs one group 6.110 ms (-13 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 110 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 650: 282 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 276 differ
+[body gpu]   H2 world group: spread 0.686 vs one group 2.004 ms (-66 %); H3 tick (30 per submit): spread 5.965 vs one group 7.188 ms (-17 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 282 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 2800: 994 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 954 differ
+[body gpu]   H2 world group: spread 0.911 vs one group 2.644 ms (-66 %); H3 tick (30 per submit): spread 9.599 vs one group 11.446 ms (-16 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 994 awake (0.000 % per tick)
+[       OK ] VoxFoundBodySimGpu.F55hWorldSpread (13289 ms)
+[body gpu] F5.5j E/T 250 woken: 110 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 0 vs 0, candidates 474597 vs 474597); RED the scramble: 0 differ (hard fires 0)
+[body gpu] F5.5j E/T 250 sunk 4 cm: 110 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 866 vs 866, candidates 404797 vs 404797); RED the scramble: 110 differ (hard fires 1407)
+[body gpu]   J3 hard_apply group: spread 0.640 vs one group 1.377 ms (-54 %); J4 tick (30 per submit): spread 5.419 vs one group 6.081 ms (-11 %); the world group (untouched) 0.684 vs 0.687 ms
+[body gpu] F5.5j E/T 650 woken: 282 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 0 vs 0, candidates 1283104 vs 1283104); RED the scramble: 0 differ (hard fires 0)
+[body gpu] F5.5j E/T 650 sunk 4 cm: 282 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 4779 vs 4779, candidates 1413873 vs 1413873); RED the scramble: 274 differ (hard fires 9850)
+[body gpu]   J3 hard_apply group: spread 0.638 vs one group 1.875 ms (-66 %); J4 tick (30 per submit): spread 5.908 vs one group 7.119 ms (-17 %); the world group (untouched) 0.689 vs 0.705 ms
+[body gpu] F5.5j E/T 2800 woken: 994 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 8 vs 8, candidates 4671558 vs 4671558); RED the scramble: 0 differ (hard fires 8)
+[body gpu] F5.5j E/T 2800 sunk 4 cm: 994 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 40571 vs 40571, candidates 4866101 vs 4866101); RED the scramble: 937 differ (hard fires 39878)
+[body gpu]   J3 hard_apply group: spread 0.811 vs one group 2.494 ms (-67 %); J4 tick (30 per submit): spread 9.661 vs one group 11.562 ms (-16 %); the world group (untouched) 0.890 vs 0.868 ms
+[       OK ] VoxFoundBodySimGpu.F55jHardSpread (16746 ms)
+[  PASSED  ] 3 tests.
+== QUIET SUITE (10:17:58-10:23:52; a watcher every 10 s, 35 samples: no phyxel.exe, no Wow.exe): --gtest_filter='VoxFound*' ==
+[       OK ] VoxFoundFaceBuilderGpu.HandRigsEqualTheReference (415 ms)
+[       OK ] VoxFoundFaceBuilderGpu.RandomContentAtAwkwardSizesEqualsTheReference (161 ms)
+[       OK ] VoxFoundFaceBuilderGpu.GeneratedTerrainEqualsTheReference (4380 ms)
+[       OK ] VoxFoundFaceBuilderGpu.OverflowRegrowsAndStaysExact (247 ms)
+[       OK ] VoxFoundFaceBuilderGpu.RefusesGridsThatAreNotOneChunk (103 ms)
+[       OK ] VoxFoundFaceBuilderGpu.CardsAndSprigsEqualTheReference (167 ms)
+[       OK ] VoxFoundFaceBuilderGpu.ForestWithFloraEqualsTheReference (12611 ms)
+[       OK ] VoxFoundFaceBuilderGpu.UniformBlockSkipSkipsAndStaysExact (155 ms)
+[       OK ] VoxFoundFaceBuilderGpu.UniformBlockSkipTiming (829 ms)
+[       OK ] VoxFoundFaceBuilderGpu.ChunksAreInvisible (2445 ms)
+[       OK ] VoxFoundFaceBuilderGpu.RefusesNeighboursOfTheWrongSize (105 ms)
+[       OK ] VoxFoundFaceBuilderGpu.ClusterCullEqualsTheReference (190 ms)
+[       OK ] VoxFoundFaceBuilderGpu.ClusterCullDropsDirectionGroupsLikeTheReference (110 ms)
+[       OK ] VoxFoundFaceBuilderGpu.ClusterCullPicksLevelsLikeTheReference (108 ms)
+[       OK ] VoxFoundFaceBuilderGpu.CompactedCommandsDrawTheSameFacesAsPerClusterCommands (128 ms)
+[       OK ] VoxFoundFaceBuilderGpu.RowsDeltaEqualsTheCpuPlan (466 ms)
+[       OK ] VoxFoundFaceBuilderGpu.PartialUpdateEqualsAFullUpload (922 ms)
+[       OK ] VoxFoundFaceBuilderGpu.SeveralUpdatesInOneCommandBuffer (131 ms)
+[       OK ] VoxFoundLodBuilderGpu.RandomContentEqualsTheReference (124 ms)
+[       OK ] VoxFoundLodBuilderGpu.ThinSurfaceTakesTheNeighbourStep (107 ms)
+[       OK ] VoxFoundLodBuilderGpu.EngineForestAreaEqualsTheReference (1663 ms)
+[       OK ] VoxFoundLodBuilderGpu.RefusesWhatItCannotBuild (131 ms)
+[       OK ] VoxFoundFractureGpu.EveryLabRigEqualsTheReference (266 ms)
+[       OK ] VoxFoundFractureGpu.RandomHitsAndRepeatedBlowsEqualTheReference (707 ms)
+[       OK ] VoxFoundFractureGpu.CostPerBreakOnALargeWall (384 ms)
+[body gpu] R1 free fall: worst vs closed form 7.556e-05 m, vs reference 7.556e-05 m
+[       OK ] VoxFoundBodySimGpu.R1FreeFall (63756 ms)
+[body gpu] R2 flat drop: rest y 0.24985 (penetration 0.15 mm), drift 0.000 mm, late speed 0.0000, asleep by 3 s 1, worst vs reference 0.324 mm
+[       OK ] VoxFoundBodySimGpu.R2FlatDrop (422 ms)
+[body gpu] R3 slab: vertical axis 1 (0.00 deg off), centre y 0.2499 (half-height 0.2500), asleep 1
+[body gpu] R3b slab: vertical axis 2 (0.03 deg off), centre y 0.1249 (half-height 0.1250), asleep 1
+[       OK ] VoxFoundBodySimGpu.R3SlabsRestFlat (320 ms)
+[body gpu] R4 slide: 0.2382 m (Coulomb 0.2548), rise 0.00 mm, tilt 0.00 deg, worst vs reference 0.161 mm
+[       OK ] VoxFoundBodySimGpu.R4FrictionSlide (259 ms)
+[body gpu] R5 stack of 5: worst move 1.92 mm, 5 / 5 asleep, colours 4
+[       OK ] VoxFoundBodySimGpu.R5Stack (218 ms)
+[body gpu] R6 head-on, 8 iterations: |P| / (m v) 4.67e-02, overlap 0.37 mm, after |v| 0.0522 / 0.0493
+[body gpu] R6 head-on, 32 iterations: |P| / (m v) 6.60e-03, overlap 0.46 mm, after |v| 0.0000 / 0.0000
+[       OK ] VoxFoundBodySimGpu.R6HeadOn (364 ms)
+[body gpu] A3/A4 large wall E/T 250, per-colour: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.002 m, 1.728 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.040/0.039 world 0.107/0.005 pairs 0.155/0.002 prefix+scatter 0.008/0.007 sort 0.096/0.001 colour 0.073/0.039 primal 0.914/0.303 dual 0.021/0.012 hard_body 0.140/0.042 hard_apply 0.099/0.003 finish 0.004/0.003 warm 0.006/0.004 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000 | total 1.668 / 0.464
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 250, fused: 105 bodies (0 awake at 5 s), colours 13, max contacts 2970, lowest corner -0.002 m, 2.114 ms / tick device; scratch 34.4 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.004 aabb 0.040/0.039 world 0.104/0.005 pairs 0.161/0.002 prefix+scatter 0.008/0.007 sort 0.099/0.002 colour 0.047/0.003 primal 1.261/0.020 dual 0.026/0.019 hard_body 0.143/0.042 hard_apply 0.112/0.003 finish 0.004/0.003 warm 0.008/0.004 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000 | total 2.016 / 0.154
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 0.8 ms / tick fused
+[body gpu] A3/A4 large wall E/T 650, per-colour: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.000 m, 3.133 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.004/0.003 aabb 0.043/0.042 world 0.128/0.006 pairs 0.258/0.003 prefix+scatter 0.016/0.015 sort 0.248/0.001 colour 0.118/0.039 primal 1.878/0.304 dual 0.033/0.015 hard_body 0.273/0.046 hard_apply 0.121/0.004 finish 0.004/0.003 warm 0.010/0.004 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000 | total 3.134 / 0.485
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 650, fused: 293 bodies (0 awake at 5 s), colours 17, max contacts 8558, lowest corner -0.000 m, 4.580 ms / tick device; scratch 96.0 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.043/0.042 world 0.119/0.005 pairs 0.263/0.003 prefix+scatter 0.018/0.015 sort 0.289/0.001 colour 0.130/0.003 primal 3.328/0.019 dual 0.036/0.021 hard_body 0.289/0.046 hard_apply 0.122/0.004 finish 0.005/0.003 warm 0.006/0.004 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000 | total 4.652 / 0.170
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 1.5 ms / tick fused
+[body gpu] A3/A4 large wall E/T 2800, per-colour: 1025 bodies (3 awake at 5 s), colours 20, max contacts 30046, lowest corner -0.005 m, 5.856 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.044/0.041 world 0.171/0.025 pairs 0.725/0.268 prefix+scatter 0.048/0.045 sort 0.288/0.003 colour 0.205/0.040 primal 3.370/0.335 dual 0.047/0.021 hard_body 0.852/0.305 hard_apply 0.182/0.024 finish 0.004/0.003 warm 0.008/0.005 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000 | total 5.946 / 1.120
+[body gpu]   bodies through the ground: 0
+[body gpu] A3/A4 large wall E/T 2800, fused: 1025 bodies (3 awake at 5 s), colours 20, max contacts 30046, lowest corner -0.005 m, 10.653 ms / tick device; scratch 335.9 MB
+[body gpu]   profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.043/0.041 world 0.178/0.025 pairs 0.642/0.269 prefix+scatter 0.048/0.045 sort 0.277/0.003 colour 0.208/0.005 primal 7.946/0.064 dual 0.048/0.028 hard_body 0.799/0.304 hard_apply 0.170/0.024 finish 0.004/0.003 warm 0.008/0.005 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000 | total 10.375 / 0.820
+[body gpu]   bodies through the ground: 0
+[body gpu]   A4 predicted <= 3.0 ms / tick fused
+[       OK ] VoxFoundBodySimGpu.F55aLadder (18849 ms)
+[body gpu] T1 ground 1x1x4 at 5 m/s: lowest corner -0.0002 m, pos (1.812536, 0.062314, 1.999996), asleep 1
+[body gpu] T1 ground 1x1x4 at 15 m/s: lowest corner -0.0000 m, pos (2.098484, 0.062400, 2.078750), asleep 1
+[body gpu] T1 ground 1x1x4 at 30 m/s: lowest corner -0.0001 m, pos (2.537241, 0.062379, 2.494205), asleep 1
+[body gpu] T1 ground 1x1x4 at 60 m/s: lowest corner -0.0002 m, pos (3.576131, 0.062330, 2.798191), asleep 1
+[body gpu] T1 ground 2x2x2 at 5 m/s: lowest corner -0.0001 m, pos (1.874992, 0.124883, 1.874993), asleep 1
+[body gpu] T1 ground 2x2x2 at 15 m/s: lowest corner -0.0016 m, pos (1.878719, 0.124811, 1.888150), asleep 1
+[body gpu] T1 ground 2x2x2 at 30 m/s: lowest corner -0.0001 m, pos (1.869795, 0.124887, 1.859823), asleep 1
+[body gpu] T1 ground 2x2x2 at 60 m/s: lowest corner -0.0002 m, pos (1.404861, 0.124835, 1.933737), asleep 1
+[body gpu] T2 slab 2x2x2 at 30 m/s: lowest corner 1.1249 m, pos (2.042442, 1.249895, 2.042476), asleep 1
+[       OK ] VoxFoundBodySimGpu.F55TunnellingFastPiecesStop (504 ms)
+[body gpu] E1 blast: 21 bodies x 600 ticks, 10115 asleep samples, max asleepTicks 536, 0 mismatches
+[body gpu] E1 large wall E/T 250: 105 bodies x 300 ticks, 27632 asleep samples, max asleepTicks 270, 0 mismatches
+[       OK ] VoxFoundBodySimGpu.F55bAsleepTicksFollowTheRule (1091 ms)
+[body gpu] E2 blast: 21 bodies, 257 batches, 0 of 5397 samples differ async vs sync, 0 counter sets differ; 0.439 / 0.432 ms per tick device (sync / async); 961335 polls not ready
+[body gpu] E2 large wall E/T 2800: 1025 bodies, 52 batches, 0 of 53300 samples differ async vs sync, 0 counter sets differ; 5.570 / 5.573 ms per tick device (sync / async); 2192024 polls not ready
+[       OK ] VoxFoundBodySimGpu.F55bAsyncEqualsSync (3621 ms)
+[body gpu] E3 blast, budget 8: 28 bodies -> 8 (20 baked) in 225 passes; ledger broken after 0 passes; 0 overwritten; 0 awake at the end; 0 body samples below the floor; 14 reloads, 7.90 ms mean, 8.79 max (world 88 x 34 x 67 = 200464 cells)
+[body gpu] E3 large wall E/T 650, budget 64: 306 bodies -> 64 (242 baked) in 225 passes; ledger broken after 0 passes; 0 overwritten; 0 awake at the end; 0 body samples below the floor; 1 reloads, 19.30 ms mean, 19.30 max (world 320 x 146 x 68 = 3176960 cells)
+[       OK ] VoxFoundBodySimGpu.F55bGpuRestConservesAndReloads (3167 ms)
+[body gpu] H5 blast bake 0: 4 baked, 205 cells, edit 0.018 ms (CPU side 0.018)
+[body gpu] H5 blast bake 1: 4 baked, 50 cells, edit 0.008 ms (CPU side 0.007)
+[body gpu] H5 blast bake 2: 4 baked, 43 cells, edit 0.008 ms (CPU side 0.008)
+[body gpu] F55c H5 blast: 28 bodies, 3 bakes (12 bodies, 298 cells), 0 of 720 samples differ edit vs reload, 0 counter sets differ; edit max 0.019 ms, reload max 7.638 ms (world 200464 cells)
+[body gpu] H5 large wall E/T 650 bake 0: 32 baked, 3989 cells, edit 0.132 ms (CPU side 0.132)
+[body gpu] H5 large wall E/T 650 bake 1: 32 baked, 4194 cells, edit 0.108 ms (CPU side 0.108)
+[body gpu] H5 large wall E/T 650 bake 2: 32 baked, 2914 cells, edit 0.088 ms (CPU side 0.088)
+[body gpu] F55c H5 large wall E/T 650: 306 bodies, 3 bakes (96 bodies, 11097 cells), 0 of 8712 samples differ edit vs reload, 0 counter sets differ; edit max 0.135 ms, reload max 27.708 ms (world 3176960 cells)
+[body gpu] H5 large wall E/T 2800 bake 0: 64 baked, 9610 cells, edit 0.331 ms (CPU side 0.330)
+[body gpu] H5 large wall E/T 2800 bake 1: 64 baked, 9534 cells, edit 0.342 ms (CPU side 0.342)
+[body gpu] H5 large wall E/T 2800 bake 2: 64 baked, 9228 cells, edit 0.340 ms (CPU side 0.340)
+[body gpu] F55c H5 large wall E/T 2800: 979 bodies, 3 bakes (192 bodies, 28372 cells), 0 of 30636 samples differ edit vs reload, 0 counter sets differ; edit max 0.348 ms, reload max 46.519 ms (world 3176960 cells)
+[       OK ] VoxFoundBodySimGpu.F55cEditEqualsReload (7515 ms)
+[body gpu] F5.5e E/T 250 falling (ticks 1-120): awake at 120 0, candidates 3913 capped 3137 pairs 136 per tick; profile sum 1.602: world 0.178 pairs 0.241 sort 0.215 colour 0.110 primal 0.439 hard_body 0.162 hard_apply 0.167
+[body gpu] F5.5e large wall E/T 250 (the lab's grid 256x146x68): 110 bodies, settled in 180 ticks; asleep 0.161 ms/tick; red (CPU-only wake) awake 0, 0.161 ms
+[body gpu]   shape: corners 31115 (max 867 per body), world-box cells 28143 (max 1014), pairs 770 (GPU pairs tested 543 per tick), pair corners 411288 (max 1687)
+[body gpu]   E1 30/submit 6.188 ms/tick (awake after 30 110, contacts 3089, colours 14); woken tick 1 awake 110; E2 1/submit median 5.397 max 10.250; E4 fused 5.960 vs per-colour 6.001
+[body gpu]   woken pile per tick: candidates 15820, capped 12727, hard fires 0.0
+[body gpu]   E3 profile (30 ticks, mean/min ms, sum 5.959): integrate 0.004/0.004 aabb 0.038/0.038 world 0.704/0.557 pairs 0.984/0.787 prefix+scatter 0.011/0.010 sort 0.911/0.741 colour 0.401/0.374 primal 1.735/1.426 dual 0.033/0.030 hard_body 0.481/0.392 hard_apply 0.646/0.512 finish 0.004/0.003 warm 0.006/0.005 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000
+[body gpu]   E6 the biggest tenth awake (11 bodies, 7829 corners, awake after 30 11): 2.897 ms/tick; the other 99 awake (23286 corners, awake after 30 99): 5.327 ms/tick; all awake 6.188
+[body gpu] F5.5e E/T 650 falling (ticks 1-120): awake at 120 15, candidates 11107 capped 8796 pairs 435 per tick; profile sum 2.702: world 0.195 pairs 0.453 sort 0.381 colour 0.194 primal 0.832 hard_body 0.332 hard_apply 0.188
+[body gpu] F5.5e large wall E/T 650 (the lab's grid 256x146x68): 282 bodies, settled in 420 ticks; asleep 0.164 ms/tick; red (CPU-only wake) awake 0, 0.165 ms
+[body gpu]   shape: corners 87205 (max 815 per body), world-box cells 84674 (max 1014), pairs 1845 (GPU pairs tested 1343 per tick), pair corners 1093415 (max 1584)
+[body gpu]   E1 30/submit 6.714 ms/tick (awake after 30 282, contacts 8007, colours 14); woken tick 1 awake 282; E2 1/submit median 6.088 max 10.799; E4 fused 8.593 vs per-colour 6.601
+[body gpu]   woken pile per tick: candidates 42770, capped 34763, hard fires 0.0
+[body gpu]   E3 profile (30 ticks, mean/min ms, sum 6.585): integrate 0.004/0.004 aabb 0.037/0.036 world 0.831/0.557 pairs 1.257/0.999 prefix+scatter 0.018/0.017 sort 0.935/0.754 colour 0.403/0.398 primal 1.652/1.384 dual 0.053/0.041 hard_body 0.649/0.573 hard_apply 0.733/0.506 finish 0.004/0.003 warm 0.008/0.006 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000
+[body gpu]   E6 the biggest tenth awake (29 bodies, 20397 corners, awake after 30 29): 2.691 ms/tick; the other 253 awake (66808 corners, awake after 30 253): 6.168 ms/tick; all awake 6.714
+[body gpu] F5.5e E/T 2800 falling (ticks 1-120): awake at 120 108, candidates 39513 capped 31020 pairs 1731 per tick; profile sum 5.156: world 0.271 pairs 1.018 sort 0.613 colour 0.362 primal 1.350 dual 0.068 hard_body 1.108 hard_apply 0.258
+[body gpu] F5.5e large wall E/T 2800 (the lab's grid 256x146x68): 994 bodies, settled in 360 ticks; asleep 0.209 ms/tick; red (CPU-only wake) awake 0, 0.209 ms
+[body gpu]   shape: corners 313392 (max 906 per body), world-box cells 305358 (max 1176), pairs 6757 (GPU pairs tested 4985 per tick), pair corners 4182115 (max 1742)
+[body gpu]   E1 30/submit 10.682 ms/tick (awake after 30 994, contacts 29360, colours 19); woken tick 1 awake 994; E2 1/submit median 10.965 max 12.899; E4 fused 21.448 vs per-colour 11.223
+[body gpu]   woken pile per tick: candidates 155675, capped 126314, hard fires 0.2
+[body gpu]   E3 profile (30 ticks, mean/min ms, sum 10.968): integrate 0.004/0.004 aabb 0.043/0.039 world 1.043/0.744 pairs 2.800/2.244 prefix+scatter 0.050/0.049 sort 1.257/0.980 colour 0.770/0.615 primal 2.267/1.899 dual 0.106/0.096 hard_body 1.672/1.318 hard_apply 0.935/0.672 finish 0.004/0.003 warm 0.016/0.014 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000
+[body gpu]   E6 the biggest tenth awake (100 bodies, 74494 corners, awake after 30 100): 5.076 ms/tick; the other 894 awake (238898 corners, awake after 30 894): 10.013 ms/tick; all awake 10.682
+[       OK ] VoxFoundBodySimGpu.F55eAwakePileProfile (7907 ms)
+[body gpu] F5.5f E/T 250: 110 bodies; split (quiet) vs off over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597); RED the loud split: 0 differ, counters differ (candidates 692153)
+[body gpu]   F1 world group: split on 1.795 (+ awake list 0.003) vs off 1.517 ms (1.18 x); hard_apply 0.619
+[body gpu]   F2/F3 copies: w_count 1.445, w_write 1.424, w_bucket 1.613, w_spread 1.731 ms -> count 1.445 (81 %), write -0.021 (-1 %), buckets 0.189 (11 %), spread 0.118 (7 %), emit 0.064 (4 %) of the world group 1.795
+[body gpu]   F4 per body (last tick, 110 awake): world candidates max 290, mean 33.1 (max 8.8 x mean); items max 2915; over the cap (8): 33 bodies (30 %)
+[body gpu] F5.5f E/T 650: 282 bodies; split (quiet) vs off over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104); RED the loud split: 0 differ, counters differ (candidates 1655686)
+[body gpu]   F1 world group: split on 2.291 (+ awake list 0.003) vs off 2.109 ms (1.09 x); hard_apply 0.759
+[body gpu]   F2/F3 copies: w_count 2.100, w_write 2.064, w_bucket 2.244, w_spread 2.291 ms -> count 2.100 (92 %), write -0.036 (-2 %), buckets 0.180 (8 %), spread 0.047 (2 %), emit -0.000 (-0 %) of the world group 2.291
+[body gpu]   F4 per body (last tick, 282 awake): world candidates max 281, mean 22.0 (max 12.7 x mean); items max 2863; over the cap (8): 58 bodies (21 %)
+[body gpu] F5.5f E/T 2800: 994 bodies; split (quiet) vs off over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558); RED the loud split: 0 differ, counters differ (candidates 5319888)
+[body gpu]   F1 world group: split on 2.996 (+ awake list 0.003) vs off 2.481 ms (1.21 x); hard_apply 0.829
+[body gpu]   F2/F3 copies: w_count 2.812, w_write 2.866, w_bucket 2.910, w_spread 2.999 ms -> count 2.812 (94 %), write 0.054 (2 %), buckets 0.043 (1 %), spread 0.089 (3 %), emit -0.003 (-0 %) of the world group 2.996
+[body gpu]   F4 per body (last tick, 994 awake): world candidates max 360, mean 10.9 (max 33.0 x mean); items max 3338; over the cap (8): 137 bodies (14 %)
+[       OK ] VoxFoundBodySimGpu.F55fWorldSplit (9869 ms)
+[body gpu] F5.5g E/T 250: 110 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback threads 0 over 60 ticks; RED the scramble: 110 differ
+[body gpu]   G2 world group: once 1.563 vs twice 2.986 ms (-48 %); G3 tick (30 per submit): once 7.022 vs twice 8.703 ms (-19 %)
+[body gpu]   G4 fallback threads 0 of 211200 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 1.434 (84 %), copy 0.020 (1 %) of the world group 1.712
+[body gpu] F5.5g E/T 650: 282 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback threads 0 over 60 ticks; RED the scramble: 276 differ
+[body gpu]   G2 world group: once 2.148 vs twice 4.161 ms (-48 %); G3 tick (30 per submit): once 8.342 vs twice 10.447 ms (-20 %)
+[body gpu]   G4 fallback threads 0 of 541440 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 1.996 (86 %), copy -0.018 (-1 %) of the world group 2.326
+[body gpu] F5.5g E/T 2800: 994 bodies; once vs twice over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback threads 0 over 60 ticks; RED the scramble: 954 differ
+[body gpu]   G2 world group: once 2.835 vs twice 5.403 ms (-48 %); G3 tick (30 per submit): once 12.898 vs twice 15.920 ms (-19 %)
+[body gpu]   G4 fallback threads 0 of 1908480 (body, thread) slots over 30 ticks (0.000 %); split: tests+stage 2.735 (93 %), copy 0.022 (1 %) of the world group 2.954
+[       OK ] VoxFoundBodySimGpu.F55gWorldOnce (19450 ms)
+[body gpu] F5.5h E/T 250: 110 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 474597 vs 474597, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 110 differ
+[body gpu]   H2 world group: spread 0.681 vs one group 1.545 ms (-56 %); H3 tick (30 per submit): spread 5.890 vs one group 6.916 ms (-15 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 110 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 650: 282 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 1283104 vs 1283104, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 276 differ
+[body gpu]   H2 world group: spread 0.782 vs one group 2.091 ms (-63 %); H3 tick (30 per submit): spread 6.530 vs one group 8.195 ms (-20 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 282 awake (0.000 % per tick)
+[body gpu] F5.5h E/T 2800: 994 bodies; spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (candidates 4671558 vs 4671558, deep 0 vs 0); fallback bodies 0 over 60 ticks; RED the scramble: 954 differ
+[body gpu]   H2 world group: spread 0.964 vs one group 2.603 ms (-63 %); H3 tick (30 per submit): spread 10.619 vs one group 12.654 ms (-16 %)
+[body gpu]   H4 fallback bodies 0 over 60 ticks of 994 awake (0.000 % per tick)
+[       OK ] VoxFoundBodySimGpu.F55hWorldSpread (14841 ms)
+[body gpu] F5.5j E/T 250 woken: 110 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 0 vs 0, candidates 474597 vs 474597); RED the scramble: 0 differ (hard fires 0)
+[body gpu] F5.5j E/T 250 sunk 4 cm: 110 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 866 vs 866, candidates 404797 vs 404797); RED the scramble: 110 differ (hard fires 1407)
+[body gpu]   J3 hard_apply group: spread 0.640 vs one group 1.520 ms (-58 %); J4 tick (30 per submit): spread 6.294 vs one group 7.222 ms (-13 %); the world group (untouched) 0.673 vs 0.701 ms
+[body gpu] F5.5j E/T 650 woken: 282 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 0 vs 0, candidates 1283104 vs 1283104); RED the scramble: 0 differ (hard fires 0)
+[body gpu] F5.5j E/T 650 sunk 4 cm: 282 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 4779 vs 4779, candidates 1413873 vs 1413873); RED the scramble: 274 differ (hard fires 9850)
+[body gpu]   J3 hard_apply group: spread 0.727 vs one group 2.010 ms (-64 %); J4 tick (30 per submit): spread 6.656 vs one group 7.977 ms (-17 %); the world group (untouched) 0.789 vs 0.796 ms
+[body gpu] F5.5j E/T 2800 woken: 994 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 8 vs 8, candidates 4671558 vs 4671558); RED the scramble: 0 differ (hard fires 8)
+[body gpu] F5.5j E/T 2800 sunk 4 cm: 994 bodies; hard spread vs one group per body over 60 ticks: 0 bodies differ, counters equal (hard fires 40571 vs 40571, candidates 4866101 vs 4866101); RED the scramble: 937 differ (hard fires 39878)
+[body gpu]   J3 hard_apply group: spread 0.946 vs one group 2.509 ms (-62 %); J4 tick (30 per submit): spread 10.732 vs one group 12.491 ms (-14 %); the world group (untouched) 0.999 vs 1.102 ms
+[       OK ] VoxFoundBodySimGpu.F55jHardSpread (18944 ms)
+[body gpu] R7 lintel E/T 30: 4 bodies, 4 asleep at 10 s, max penetration 5.44 mm, max contacts 34, capped 4787, hard-contact fires 150, colours 3, 0.269 ms / tick device
+[       OK ] VoxFoundBodySimGpuPile.R7Lintel (373 ms)
+[body gpu] R8 stone wall E/T 30: 7 bodies, 7 asleep at 10 s, max penetration 0.92 mm, max contacts 128, capped 12164, hard-contact fires 0, colours 4, 0.241 ms / tick device
+[body gpu] R8 stone wall E/T 80: 21 bodies, 21 asleep at 10 s, max penetration 0.63 mm, max contacts 461, capped 35512, hard-contact fires 0, colours 8, 0.284 ms / tick device
+[       OK ] VoxFoundBodySimGpuPile.R8BrokenWalls (600 ms)
+[body gpu] R8b stone wall E/T 80, 8000 N s: 21 bodies, 21 asleep at 15 s, max penetration 5.70 mm, max contacts 366, capped 25600, hard-contact fires 211, colours 8, 0.335 ms / tick device
+[body gpu] G3: 0 of 630 bodies differ between two runs
+[       OK ] VoxFoundBodySimGpuPile.R8bBlastAndDeterminism (955 ms)
+[body gpu] A1 R8b per-colour path: 21 bodies, 21 asleep at 15 s, max penetration 5.62 mm, max contacts 366, capped 32668, hard-contact fires 237, colours 8, 0.636 ms / tick device
+[body gpu] A1 R8b fused path: 21 bodies, 21 asleep at 15 s, max penetration 5.62 mm, max contacts 366, capped 32668, hard-contact fires 237, colours 8, 0.510 ms / tick device
+[body gpu] A1: 0 of 630 samples differ fused vs per-colour (worst 0 m); all asleep 0.1226 ms / tick fused
+[       OK ] VoxFoundBodySimGpuPile.F55aFusedEqualsPerColour (1556 ms)
+[body gpu] B1 R8b blast: 21 bodies; 0 of 630 samples differ parallel vs serial; candidates 41396 / 41396, capped 25600 / 25600, pairs 2333 / 2333, hard 211 / 211, deep 0 / 0, max contacts 366 / 366
+[body gpu] B3 R8b blast: 0.352 ms / tick parallel, 5.582 serial; awake at the end 0; all-asleep tail 0.1501 ms / tick
+[       OK ] VoxFoundBodySimGpuNarrow.F55a2BlastBitEqual (5663 ms)
+[body gpu] B1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ parallel vs serial; candidates 497026 / 497026, capped 392246 / 392246, pairs 22340 / 22340, hard 44 / 44, deep 9 / 9, max contacts 2970 / 2970
+[body gpu] B3 large wall E/T 250: 1.117 ms / tick parallel, 41.010 serial; awake at the end 0; all-asleep tail 0.1619 ms / tick
+[body gpu] B1 large wall E/T 650: 293 bodies; 0 of 2930 samples differ parallel vs serial; candidates 1357910 / 1357910, capped 1078125 / 1078125, pairs 52917 / 52917, hard 168 / 168, deep 2 / 2, max contacts 8595 / 8595
+[body gpu] B3 large wall E/T 650: 1.358 ms / tick parallel, 60.969 serial; awake at the end 0; all-asleep tail 0.1965 ms / tick
+[body gpu] B1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ parallel vs serial; candidates 4918887 / 4918887, capped 3734817 / 3734817, pairs 249407 / 249407, hard 2127 / 2127, deep 32 / 32, max contacts 30188 / 30188
+[body gpu] B3 large wall E/T 2800: 3.737 ms / tick parallel, 109.707 serial; awake at the end 10; all-asleep tail 1.2484 ms / tick
+[body gpu]   B3 profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.044/0.041 world 0.168/0.025 pairs 0.732/0.305 prefix+scatter 0.052/0.045 sort 0.337/0.007 colour 0.252/0.021 primal 0.935/0.200 dual 0.050/0.028 hard_body 0.845/0.334 hard_apply 0.155/0.024 finish 0.004/0.003 warm 0.008/0.005 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000
+[       OK ] VoxFoundBodySimGpuNarrow.F55a2Ladder (67703 ms)
+[body gpu] C1 R8b blast: 21 bodies; 0 of 630 samples differ parallel vs serial; candidates 41396 / 41396, capped 25600 / 25600, pairs 2333 / 2333, hard 211 / 211, deep 0 / 0, max contacts 366 / 366
+[body gpu] C3 R8b blast: 0.358 ms / tick parallel, 3.517 serial; awake at the end 0; all-asleep tail 0.1238 ms / tick
+[body gpu] C1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ parallel vs serial; candidates 497026 / 497026, capped 392246 / 392246, pairs 22340 / 22340, hard 44 / 44, deep 9 / 9, max contacts 2970 / 2970
+[body gpu] C3 large wall E/T 250: 1.028 ms / tick parallel, 7.170 serial; awake at the end 0; all-asleep tail 0.1658 ms / tick
+[body gpu] C1 large wall E/T 650: 293 bodies; 0 of 2930 samples differ parallel vs serial; candidates 1357910 / 1357910, capped 1078125 / 1078125, pairs 52917 / 52917, hard 168 / 168, deep 2 / 2, max contacts 8595 / 8595
+[body gpu] C3 large wall E/T 650: 1.407 ms / tick parallel, 7.735 serial; awake at the end 0; all-asleep tail 0.2151 ms / tick
+[body gpu] C1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ parallel vs serial; candidates 4918887 / 4918887, capped 3734817 / 3734817, pairs 249407 / 249407, hard 2127 / 2127, deep 32 / 32, max contacts 30188 / 30188
+[body gpu] C3 large wall E/T 2800: 3.677 ms / tick parallel, 13.290 serial; awake at the end 10; all-asleep tail 1.2121 ms / tick
+[body gpu]   C3 profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.044/0.041 world 0.161/0.025 pairs 0.714/0.304 prefix+scatter 0.052/0.045 sort 0.328/0.006 colour 0.255/0.022 primal 0.912/0.197 dual 0.053/0.028 hard_body 0.855/0.335 hard_apply 0.158/0.024 finish 0.007/0.003 warm 0.008/0.006 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000
+[       OK ] VoxFoundBodySimGpuNarrow.F55a3WorldBitEqual (16301 ms)
+[body gpu] D1 R8b blast: 21 bodies; 0 of 630 samples differ between two parallel-primal runs; vs the serial primal: worst sample 2.2596 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 R8b blast: 0.359 ms / tick parallel primal, 0.507 serial primal; awake at the end 0; tail 0.1627 ms / tick
+[body gpu] E1 R8b blast: 0 of 630 samples differ, one-workgroup form vs indirect form; 0.354 vs 0.370 ms / tick
+[body gpu] D2 R8b blast: lowest corner -0.0018 m, max penetration 5.70 mm
+[body gpu] D1 large wall E/T 250: 105 bodies; 0 of 1050 samples differ between two parallel-primal runs; vs the serial primal: worst sample 8.1985 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 250: 1.045 ms / tick parallel primal, 2.123 serial primal; awake at the end 0; tail 0.2529 ms / tick
+[body gpu] E1 large wall E/T 250: 0 of 1050 samples differ, one-workgroup form vs indirect form; 1.041 vs 1.043 ms / tick
+[body gpu] D2 large wall E/T 250: lowest corner -0.0001 m, max penetration 6.84 mm
+[body gpu] D1 large wall E/T 2800: 1025 bodies; 0 of 10250 samples differ between two parallel-primal runs; vs the serial primal: worst sample 7.3684 m apart (reassociated sums, chaotic piles)
+[body gpu] D3 large wall E/T 2800: 3.663 ms / tick parallel primal, 6.973 serial primal; awake at the end 10; tail 1.2516 ms / tick
+[body gpu] E1 large wall E/T 2800: 0 of 10250 samples differ, one-workgroup form vs indirect form; 4.780 vs 3.515 ms / tick
+[body gpu] D2 large wall E/T 2800: lowest corner -0.0065 m, max penetration 8.50 mm
+[body gpu]   D3 profile (300 ticks, mean / min ms): integrate 0.005/0.004 aabb 0.047/0.041 world 0.198/0.026 pairs 0.823/0.304 prefix+scatter 0.055/0.044 sort 0.383/0.006 colour 0.266/0.022 primal 1.067/0.198 dual 0.061/0.029 hard_body 0.956/0.335 hard_apply 0.193/0.024 finish 0.007/0.003 warm 0.010/0.005 awake_list 0.000/0.000 w_count 0.000/0.000 w_write 0.000/0.000 w_bucket 0.000/0.000 w_spread 0.000/0.000
+[       OK ] VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost (63091 ms)
+[  PASSED  ] 50 tests.

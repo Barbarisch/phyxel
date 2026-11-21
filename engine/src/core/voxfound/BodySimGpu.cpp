@@ -36,7 +36,8 @@ enum : uint32_t {
     K_WORLD_PAR, K_HARD_APPLY_PAR,                                  // F5.5a3: the world test in parallel
     K_COLOUR_COUNT, K_COLOUR_PREFIX, K_COLOUR_SCATTER, K_PRIMAL_SUB,    // F5.5a4: the primal in parallel
     K_PRIMAL_ONE,   // 29 / 30 run on the primal pipeline (voxfound_bodies_primal.comp)
-    K_WORLD_UNITS, K_WORLD_CHUNKS, K_WORLD_FINISH   // F5.5h: 31-33, a big body's world items over many workgroups
+    K_WORLD_UNITS, K_WORLD_CHUNKS, K_WORLD_FINISH,  // F5.5h: 31-33, a big body's world items over many workgroups
+    K_HARD_UNITS, K_HARD_CHUNKS, K_HARD_FINISH      // F5.5j: 34-36, HARD_APPLY's world items over many workgroups
 };
 constexpr uint32_t kFusedGroup = 1024;
 
@@ -698,7 +699,14 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
         run(K_HARD_BODY, 0, m_nb);
     }
     stamp(G_HARDB);
-    if (m_worldPar) perPair(K_HARD_APPLY_PAR);   // F5.5a3
+    if (m_worldPar && m_hardSpread) {   // F5.5j: push + units (one group), chunks, finish (arg = the scramble)
+        BodyPC pc{K_HARD_UNITS, 0, parity, 0};
+        m_pipe->pushConstants(cmd, &pc, sizeof(pc));
+        m_pipe->dispatch(cmd, 1);
+        barrier(cmd);
+        perPair(K_HARD_CHUNKS);
+        run(K_HARD_FINISH, m_hardScramble ? 1u : 0u, m_nb);
+    } else if (m_worldPar) perPair(K_HARD_APPLY_PAR);   // F5.5a3
     else run(K_HARD_APPLY, 0, m_nb);
     stamp(G_HARDA);
     run(K_FINISH, 0, m_nb);

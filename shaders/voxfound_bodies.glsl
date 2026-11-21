@@ -9,6 +9,7 @@
 //   F5.5a2, the narrowphase in parallel: 19 AWAKE_LIST  20 BROAD(arg 0: contact pairs, 1: hard pairs)  21 NARROW
 //   (workgroup per pair)  22 HARD_NARROW (workgroup per pair)  23 HARD_BODY from the stored pair results
 //   F5.5a3: 24 WORLD and 25 HARD_APPLY one workgroup per awake body
+//   F5.5h: 31 WORLD_UNITS 32 WORLD_CHUNKS 33 WORLD_FINISH; F5.5j: 34 HARD_UNITS 35 HARD_CHUNKS 36 HARD_FINISH
 //   F5.5a4: 26 COLOUR_COUNT  27 COLOUR_PREFIX  28 COLOUR_SCATTER; in voxfound_bodies_primal.comp (VF_PRIMAL, 256):
 //   29 PRIMAL (indirect per colour, a 32-thread group per body)  30 PRIMAL (every colour, one workgroup)
 // GPU differences: candidates go to a per-worker scratch (worker = body i; its pairs j > i reuse it); a world surface
@@ -1069,16 +1070,34 @@ void worldFinish() {
     }
 }
 // pass 25: HARD_APPLY for the awake bodies: the summed body-body push (one thread), then the deepest world point
-// (reduced in serial order, first on ties) at the pushed pose
-void hardApplyPar() {
+// (reduced in serial order, first on ties) at the pushed pose.
+// F5.5j, pass 35 (spread): the same loop over HARD_APPLY's chunks (pass 34 applied the pushes and wrote the prefix):
+// one chunk's deepest point into scratch[slot * kScratch + chunk].n (scratch is dead after the emits); pass 36 reduces
+// the chunks. One function, one worldItem site at a constant mode: a separate chunk pass, or the world pass's chunk loop
+// with a run-time mode, made the driver's pipeline compile run for minutes (F5.5j's record).
+void hardApplyPar(bool spread) {
     uint lid = gl_LocalInvocationID.x, g = gl_WorkGroupID.x, G = gl_NumWorkGroups.x;
-    uint na = state[S_NAWAKE];
-    for (uint idx = g; idx < na; idx += G) {
+    uint na = state[S_NAWAKE], scr = prm[P_SCRATCH];
+    uint U = spread ? state[sUnit(na)] : na;
+    for (uint u = g; u < U; u += G) {
+        uint idx = u, k = 0u;
+        if (spread) {   // the last awake slot whose first chunk <= u
+            uint lo2 = 0u, hi2 = na;
+            while (hi2 - lo2 > 1u) {
+                uint mid = (lo2 + hi2) / 2u;
+                if (state[sUnit(mid)] <= u) lo2 = mid;
+                else hi2 = mid;
+            }
+            idx = lo2;
+            k = u - state[sUnit(idx)];
+        }
         uint ai = aux[idx];
         if (lid == 0u) {
-            vec3 push = pushes[ai].xyz;
-            float pl = length(push);
-            if (pl > 0.0) pushOut(ai, push / pl, pl);
+            if (!spread) {
+                vec3 push = pushes[ai].xyz;
+                float pl = length(push);
+                if (pl > 0.0) pushOut(ai, push / pl, pl);
+            }
             gwA = bodies[ai];
         }
         memoryBarrierShared();
@@ -1087,8 +1106,13 @@ void hardApplyPar() {
         mat3 R = qmat(A.quat), Rt = transpose(R);
         ivec3 cl, nc;
         vec3 lo, hi;
-        uint L = A.meta.y + worldBox(A, cl, nc, lo, hi);
-        uint per = (L + 63u) / 64u, q0 = min(L, lid * per), q1 = min(L, q0 + per);
+        uint L = A.meta.y + worldBox(A, cl, nc, lo, hi), c0 = 0u, c1 = L;
+        if (spread) {
+            uint cs = chunkSize(L);
+            c0 = k * cs;
+            c1 = min(L, c0 + cs);
+        }
+        uint n = c1 - c0, per = (n + 63u) / 64u, q0 = min(c1, c0 + lid * per), q1 = min(c1, q0 + per);
         gMode = 1u; gDeepPen = 0.0; gDeepN = vec3(0.0);
         for (uint q = q0; q < q1; ++q) worldItem(ai, A, R, Rt, q, cl, nc, lo, hi);
         gwDeep[lid] = vec4(gDeepN, gDeepPen);
@@ -1098,13 +1122,50 @@ void hardApplyPar() {
             vec4 d = vec4(0.0);
             for (uint t2 = 0u; t2 < 64u; ++t2)
                 if (gwDeep[t2].w > d.w) d = gwDeep[t2];
-            if (d.w > pf(P_HARD)) {
+            if (spread) scratch[idx * scr + k].n = d;
+            else if (d.w > pf(P_HARD)) {
                 pushOut(ai, d.xyz, d.w);
                 atomicAdd(state[S_HARD], 1u);
             }
         }
         memoryBarrierShared();
         barrier();
+    }
+}
+// F5.5j, pass 34 (one workgroup): per awake slot the summed body-body push applied (pass 25's thread 0), then its chunk
+// count at the pushed pose (F5.5h's rule) into a prefix (sUnit: the world pass is done with it). The world test reads
+// only the body's own pose, so applying every push first changes nothing.
+void hardUnits() {
+    uint lid = gl_LocalInvocationID.x, na = state[S_NAWAKE];
+    for (uint idx = lid; idx < na; idx += 64u) {
+        uint ai = aux[idx];
+        vec3 push = pushes[ai].xyz;
+        float pl = length(push);
+        if (pl > 0.0) pushOut(ai, push / pl, pl);
+        state[sUnit(idx + 1u)] = chunkCount(bodyItems(bodies[ai]));
+    }
+    memoryBarrierBuffer();
+    barrier();
+    if (lid == 0u) {
+        uint s = 0u;
+        state[sUnit(0u)] = 0u;
+        for (uint idx = 0u; idx < na; ++idx) { s += state[sUnit(idx + 1u)]; state[sUnit(idx + 1u)] = s; }
+    }
+}
+// F5.5j, pass 36 (one thread per awake slot): the chunks reduced in order (strict >: the first on ties, as pass 25);
+// deeper than P_HARD -> pushed out. scramble (tests only): chunk 0 alone
+void hardFinish(uint idx, bool scramble) {
+    if (idx >= state[S_NAWAKE]) return;
+    uint ai = aux[idx], scr = prm[P_SCRATCH], u0 = state[sUnit(idx)], nch = state[sUnit(idx + 1u)] - u0;
+    if (scramble) nch = min(nch, 1u);
+    vec4 d = vec4(0.0);
+    for (uint k = 0u; k < nch; ++k) {
+        vec4 c = scratch[idx * scr + k].n;
+        if (c.w > d.w) d = c;
+    }
+    if (d.w > pf(P_HARD)) {
+        pushOut(ai, d.xyz, d.w);
+        atomicAdd(state[S_HARD], 1u);
     }
 }
 
@@ -1355,7 +1416,8 @@ void main() {
     if (pc.pass == 31u) { worldUnits(); return; }    // F5.5h
     if (pc.pass == 32u) { worldChunks(); return; }
     if (pc.pass == 33u) { worldFinish(); return; }
-    if (pc.pass == 25u) { hardApplyPar(); return; }
+    if (pc.pass == 25u || pc.pass == 35u) { hardApplyPar(pc.pass == 35u); return; }   // F5.5j: 35 = spread (one site)
+    if (pc.pass == 34u) { hardUnits(); return; }          // F5.5j
 #ifdef VF_PRIMAL
     if (pc.pass == 29u) {   // PRIMAL arg = colour (indirect): workgroup w's 32-thread group g takes body 8 w + g
         uint k = gl_WorkGroupID.x * 8u + (gl_LocalInvocationID.x >> 5u), n = aux[auxCol() + pc.arg];
@@ -1380,6 +1442,7 @@ void main() {
 #endif
     uint t = gl_GlobalInvocationID.x;
     if (t >= pc.n) return;
+    if (pc.pass == 36u) { hardFinish(t, pc.arg != 0u); return; }   // F5.5j
     float dt = pf(P_DT);
 
     if (pc.pass == 0u) {   // INTEGRATE

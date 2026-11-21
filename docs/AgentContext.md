@@ -623,8 +623,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       test is the control); before any device timing check `Get-Process phyxel` for OTHER engines AND keep checking
       during the run (one started mid-session at 07:18 and was missed); the editor links python 3.12 -- put
       %APPDATA%\uv\python\cpython-3.12.13-windows-x86_64-none first on PATH or it hangs at startup with no port.
-      NEXT: F5.5j (HARD_APPLY's world items not tested a third time -- 21-26 % of the live awake tick, leads or second
-      at every rung; pairs lead at 994) with its prediction BEFORE code. Owed: an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
+      F5.5j done: HARD_APPLY's items spread over chunks (setHardSpread, bit-equal; the third test stays -- reuse at the
+      post-solve pose is not bit-equal, a cull not provably safe): hard_apply -53-67 %, the tick -11-18 %; suite 50/50.
+      RULES: the tests load shaders/ from the repo root (NOT build/shaders); a new shader costs a DRIVER compile of
+      ~1 min uncached, and a fourth inlined worldItem / a run-time gMode at the world chunk loop made it > 5-10 min (the
+      test looks hung: one core busy, GPU idle) -- keep one worldItem site per mode and TIME the compile.
+      NEXT: F5.5k (the pairs group split -- 26 % of the live tick at 994, leads there; the primal leads at 110/282) as a
+      measure before its lever, with its prediction BEFORE code. Owed: the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
       the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
       5 ms); region-vs-area edge pixels.
       Then item 8 (direction culling). (The depth prepass is NOT a plan item -- don't substitute it.)

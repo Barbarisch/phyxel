@@ -1676,3 +1676,110 @@ TEST_F(VoxFoundBodySimGpu, F55hWorldSpread) {
         EXPECT_LE(w1, 0.75 * w0) << "H2: the world group must drop >= 25 %";
     }
 }
+
+// docs/VoxelFoundationPlan.md F5.5j (prediction: docs/evidence/voxfound_f55_prediction.txt J1-J6): HARD_APPLY's world
+// items over more than one workgroup -- the push + chunk counts, a workgroup per chunk's deepest point, then per body the
+// chunks reduced in order; bit-equal to F5.5a3's one-workgroup-per-body pass. The woken pile barely fires HARD_APPLY, so
+// the equality is also checked on the same pile sunk 4 cm into the floor (every body), where it fires.
+TEST_F(VoxFoundBodySimGpu, F55jHardSpread) {
+    struct Run {
+        std::vector<SimBody> bodies;
+        BodySimGpuStats stats;
+        BodySimGpu::Profile prof;
+        double tickMs = 0.0;
+    };
+    for (const float e : {250.0f, 650.0f, 2800.0f}) {
+        SCOPED_TRACE(e);
+        LabPile pile = labLargeWall(e);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef mirror(pile.world, pile.mats, prm);
+        for (const Body& b : pile.bodies) mirror.add(b, b.vel, b.angVel);
+        std::string err;
+        ASSERT_TRUE(gpu.load(pile.world, pile.mats, mirror.bodies(), mirror.params(), &err)) << err;
+        int settleTicks = 0;
+        do {
+            step(60);
+            if (HasFatalFailure()) return;
+            settleTicks += 60;
+        } while (gpu.stats().awake > 0 && settleTicks < 6000);
+        ASSERT_EQ(gpu.stats().awake, 0u);
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        std::vector<SimBody> woken = mirror.bodies();
+        for (SimBody& b : woken) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        std::vector<SimBody> sunk = woken;
+        for (SimBody& b : sunk) b.pos.y -= 0.04;
+        const size_t nb = woken.size();
+        // mode: 0 = F5.5a3's pass (one workgroup per body), 1 = spread, 2 = spread + the scramble (test only)
+        auto runFor = [&](const std::vector<SimBody>& from, int ticks, int mode, bool profile, int perSubmit) {
+            Run r;
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, from, &werr)) << werr;
+            gpu.setHardSpread(mode != 0, mode == 2);
+            gpu.setProfile(profile);
+            step(ticks, perSubmit);
+            r.tickMs = std::max(0.0, gpu.lastGpuMs()) / ticks;
+            gpu.setProfile(false);
+            gpu.setHardSpread(true);
+            r.stats = gpu.stats();
+            r.prof = gpu.profile();
+            r.bodies = from;
+            EXPECT_TRUE(gpu.read(r.bodies, &werr)) << werr;
+            return r;
+        };
+        auto differ = [](const Run& a, const Run& b) {
+            size_t n = 0;
+            for (size_t i = 0; i < a.bodies.size(); ++i)
+                if (a.bodies[i].pos != b.bodies[i].pos || a.bodies[i].quat != b.bodies[i].quat ||
+                    a.bodies[i].vel != b.bodies[i].vel || a.bodies[i].angVel != b.bodies[i].angVel ||
+                    a.bodies[i].asleep != b.bodies[i].asleep)
+                    ++n;
+            return n;
+        };
+        auto sameCounters = [](const BodySimGpuStats& a, const BodySimGpuStats& b) {
+            return a.contacts == b.contacts && a.candidates == b.candidates && a.capped == b.capped &&
+                   a.deepPoints == b.deepPoints && a.pairsTested == b.pairsTested && a.hardFires == b.hardFires &&
+                   a.scratchOverflow == b.scratchOverflow && a.awake == b.awake;
+        };
+        // J2: bit-equal over 60 ticks on the woken and the sunk pile; the scramble's red on the sunk pile
+        for (int which = 0; which < 2; ++which) {
+            const std::vector<SimBody>& from = which == 0 ? woken : sunk;
+            const Run one = runFor(from, 60, 0, false, 30);
+            const Run spr = runFor(from, 60, 1, false, 30);
+            const Run scr = runFor(from, 60, 2, false, 30);
+            const size_t dSpr = differ(one, spr), dScr = differ(one, scr);
+            std::printf("[body gpu] F5.5j E/T %.0f %s: %zu bodies; hard spread vs one group per body over 60 ticks: %zu "
+                        "bodies differ, counters %s (hard fires %llu vs %llu, candidates %llu vs %llu); RED the scramble: "
+                        "%zu differ (hard fires %llu)\n", e, which == 0 ? "woken" : "sunk 4 cm", nb, dSpr,
+                        sameCounters(one.stats, spr.stats) ? "equal" : "DIFFER", (unsigned long long)spr.stats.hardFires,
+                        (unsigned long long)one.stats.hardFires, (unsigned long long)spr.stats.candidates,
+                        (unsigned long long)one.stats.candidates, dScr, (unsigned long long)scr.stats.hardFires);
+            EXPECT_EQ(dSpr, 0u) << "J2: the hard spread changed the simulation";
+            EXPECT_TRUE(sameCounters(one.stats, spr.stats)) << "J2: the hard spread changed a counter";
+            if (which == 1) {
+                EXPECT_GT(one.stats.hardFires, 0u) << "J2: the sunk pile must fire HARD_APPLY";
+                EXPECT_GT(dScr, 0u) << "J2 red: the chunk-0-only scramble must show in the bodies";
+            }
+        }
+        // J3/J4: the hard_apply group (profiled, one tick per submit) and the tick (unprofiled, 30 per submit), alternated
+        auto mean = [](const BodySimGpu::Profile& p, int g) { return p.sumMs[g] / std::max(1, p.ticks); };
+        const int G_WORLD = 2, G_HARDA = 10;
+        std::vector<double> hOn, hOff, tOn, tOff, wOn, wOff;
+        for (int rep = 0; rep < 3; ++rep) {
+            const Run a = runFor(woken, 30, 0, true, 1);
+            const Run b = runFor(woken, 30, 1, true, 1);
+            hOff.push_back(mean(a.prof, G_HARDA));
+            hOn.push_back(mean(b.prof, G_HARDA));
+            wOff.push_back(mean(a.prof, G_WORLD));
+            wOn.push_back(mean(b.prof, G_WORLD));
+            tOff.push_back(runFor(woken, 30, 0, false, 30).tickMs);
+            tOn.push_back(runFor(woken, 30, 1, false, 30).tickMs);
+        }
+        const double h1 = medianOf(hOn), h0 = medianOf(hOff), t1 = medianOf(tOn), t0 = medianOf(tOff);
+        std::printf("[body gpu]   J3 hard_apply group: spread %.3f vs one group %.3f ms (%+.0f %%); J4 tick (30 per "
+                    "submit): spread %.3f vs one group %.3f ms (%+.0f %%); the world group (untouched) %.3f vs %.3f ms\n",
+                    h1, h0, 100.0 * (h1 / h0 - 1.0), t1, t0, 100.0 * (t1 / t0 - 1.0), medianOf(wOn), medianOf(wOff));
+        EXPECT_LE(h1, 0.75 * h0) << "J3: the hard_apply group must drop >= 25 %";
+    }
+}

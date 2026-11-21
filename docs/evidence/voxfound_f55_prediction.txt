@@ -1091,3 +1091,40 @@ THE LEVER: BodySimGpu::setHardSpread (default on; needs the parallel world path)
   J5 live (F5.5e's gate, CharacterTestbed, --hard-spread on|off, order B A A B): hard_apply -35 to -65 %, the awake
      tick -5 to -15 %, every rung; the settle tick and awake-after-wake counts the same on vs off.
   J6 the VoxFound GPU suite on a quiet GPU: 50 / 50 (49 + the new test).
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5j RESULTS (2026-11-21; after the runs, the prediction above untouched). Release. World of Warcraft not running in
+any check; no other phyxel.exe in any check (the suite's watcher: 35 samples, every 10 s). Evidence:
+voxfound_f55j_headless.txt (every run, in order), voxfound_f55j_live.jsonl (F5.5e's gate --hard-spread, CharacterTestbed,
+two rounds B A A B: off, on, on, off).
+  RED (b) as predicted: the stub knob (flag set, pass 25 still run) -- J3's guard failed at every rung (hard_apply -2 /
+     -2 / -3 %) and the scramble moved 0 bodies. The sunk pile fires: 866 / 4,779 / 40,571 hard pushes in 60 ticks.
+  FOUND ON THE WAY (not predicted): the driver's pipeline compile. The first build of the lever (its own chunk pass,
+     a fourth inlined worldItem) never finished compiling: > 10 min, the test process at 100 % of one core with the GPU
+     idle, killed; a second form (the world pass's chunk loop with a run-time mode) > 5 min, killed. The control: a
+     fresh compile (a no-op line added, so not cached) of F5.5i's committed shader takes 57 s, and the shipped form
+     (pass 25 generalised: one worldItem site at a constant mode, pass 35 = the same function with a run-time flag)
+     59 s. So a first launch already waits about a minute per new shader, uncached -- owed, its own measure.
+     (Also learned: the tests load shaders/ from the repo root, not build/shaders.)
+  J1 PASS: the untouched passes after the change vs the control -- F5.5g's G2 once 1.47 / 2.03 / 2.68 vs 1.48 / 2.02 /
+     2.61 ms; F5.5h's H2 spread 0.62 / 0.69 / 0.91 vs 0.59 / 0.69 / 0.90 ms (<= 5 %).
+  J2 PASS: woken pile and sunk pile, spread vs pass 25 over 60 ticks: 0 bodies differ and every counter equal at every
+     rung (hard fires 0 / 0 / 8 woken, 866 / 4,779 / 40,571 sunk). RED (a) the chunk-0-only scramble on the sunk pile:
+     110 / 274 / 937 bodies differ (woken: 0, as expected -- it fires 0-8 times).
+  J3 hard_apply group, spread vs pass 25: 0.640 vs 1.377, 0.638 vs 1.875, 0.811 vs 2.494 ms = -54 / -66 / -67 %
+     (-40 to -65: PASS, MISSED high, MISSED high -- narrowly, as F5.5h's world group at the same rungs).
+  J4 the tick (30 per submit): -11 / -17 / -16 % (5-15: PASS, MISSED high, MISSED high).
+  J5 live: ROUND 1 MISSED as measured -- hard_apply -22 / -50 / -62 %, the tick +45 / +33 / -0 %; but in its "on" runs
+     the groups the lever cannot touch grew too (primal 1.36 -> 2.21 ms at 110: it runs before HARD_APPLY on the same
+     pipeline in both modes) and the engine's own frame rose 5.8 -> 8.8 ms, so round 1's tick measured the shared GPU,
+     not the lever. ROUND 2 (stated as a follow-up after round 1, same engine, same order): hard_apply 1.42 / 1.99 / 2.43
+     -> 0.66 / 0.72 / 0.89 ms = -53 / -64 / -63 % (PASS), the tick 6.49 / 7.50 / 11.40 -> 5.62 / 6.15 / 9.84 ms = -13 /
+     -18 / -14 % (5-15: PASS, MISSED high, PASS); hard_apply's share of the live tick 21-26 % -> 9-12 %. Settle tick 600
+     and every body awake after the wake in all 24 records.
+  J6 PASS: the VoxFound GPU suite 50 / 50 on a quiet GPU (the 49 + F55jHardSpread). VoxFound CPU not re-run (no CPU
+     code changed).
+CONCLUSION: HARD_APPLY's items are still tested a third time (at the post-solve pose: reuse is not bit-equal and a cull is
+not provably safe), but no longer on the busiest body's one workgroup: the group -53 to -67 %, bit-equal, the tick -11
+to -18 %. Live round 2 at 994 now: pairs 2.53-2.60 (26 %), primal 2.0, hard_body 1.5-1.8, world 1.0-1.1, sort 1.0,
+hard_apply 0.9 ms; at 110 / 282 the primal leads (1.5-1.6). Next: the pairs group, split before choosing a lever (as
+F5.5f did for the world group), with its prediction. Lesson: a driver compile is a cost of a shader change -- time it.
