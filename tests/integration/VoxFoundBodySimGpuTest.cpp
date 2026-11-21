@@ -1991,3 +1991,133 @@ TEST_F(VoxFoundBodySimGpu, F55lPairsOnce) {
         EXPECT_LE(p1, 0.80 * p0) << "L3: the pairs group must drop >= 20 %";
     }
 }
+
+
+// docs/VoxelFoundationPlan.md F5.5m (prediction: docs/evidence/voxfound_f55_prediction.txt M1-M6): the primal split --
+// one iteration's primal as four quiet copies (floor / sum / tree / solve), the write the rest; a measure, no lever
+TEST_F(VoxFoundBodySimGpu, F55mPrimalSplit) {
+    struct Run {
+        std::vector<SimBody> bodies;
+        BodySimGpuStats stats;
+        BodySimGpu::Profile prof;
+        bool fused = false;
+    };
+    for (const float e : {250.0f, 650.0f, 2800.0f}) {
+        SCOPED_TRACE(e);
+        LabPile pile = labLargeWall(e);
+        BodySimParams prm;
+        prm.groundBelow = true;
+        BodySimRef mirror(pile.world, pile.mats, prm);
+        for (const Body& b : pile.bodies) mirror.add(b, b.vel, b.angVel);
+        std::string err;
+        ASSERT_TRUE(gpu.load(pile.world, pile.mats, mirror.bodies(), mirror.params(), &err)) << err;
+        int settleTicks = 0;
+        do {
+            step(60);
+            if (HasFatalFailure()) return;
+            settleTicks += 60;
+        } while (gpu.stats().awake > 0 && settleTicks < 6000);
+        ASSERT_EQ(gpu.stats().awake, 0u);
+        sync(mirror);
+        if (HasFatalFailure()) return;
+        std::vector<SimBody> woken = mirror.bodies();
+        for (SimBody& b : woken) b.asleep = false, b.slowTicks = 0, b.asleepTicks = 0;
+        const size_t nb = woken.size();
+        // the path follows the awake count the previous call ended with: one woken call first, so every run below
+        // takes the form the woken pile takes
+        {
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
+            step(1, 1);
+        }
+        auto runFor = [&](int ticks, bool split, bool quiet, bool profile) {
+            Run r;
+            std::string werr;
+            EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
+            gpu.setPrimalSplit(split, quiet);
+            gpu.setProfile(profile);
+            step(ticks, 1);
+            r.fused = gpu.fusedThisStep();
+            gpu.setProfile(false);
+            gpu.setPrimalSplit(false);
+            r.stats = gpu.stats();
+            r.prof = gpu.profile();
+            r.bodies = woken;
+            EXPECT_TRUE(gpu.read(r.bodies, &werr)) << werr;
+            return r;
+        };
+        auto differ = [](const Run& a, const Run& b) {
+            size_t n = 0;
+            for (size_t i = 0; i < a.bodies.size(); ++i)
+                if (a.bodies[i].pos != b.bodies[i].pos || a.bodies[i].quat != b.bodies[i].quat ||
+                    a.bodies[i].vel != b.bodies[i].vel || a.bodies[i].angVel != b.bodies[i].angVel ||
+                    a.bodies[i].asleep != b.bodies[i].asleep)
+                    ++n;
+            return n;
+        };
+        auto sameCounters = [](const BodySimGpuStats& a, const BodySimGpuStats& b) {
+            return a.contacts == b.contacts && a.candidates == b.candidates && a.capped == b.capped &&
+                   a.deepPoints == b.deepPoints && a.pairsTested == b.pairsTested && a.hardFires == b.hardFires &&
+                   a.scratchOverflow == b.scratchOverflow && a.awake == b.awake && a.colours == b.colours;
+        };
+        // M1: the instrument -- bit-equal, and its red (profiled: the copies run only with the profile on)
+        const Run off = runFor(60, false, true, true);
+        const Run on = runFor(60, true, true, true);
+        const Run loud = runFor(60, true, false, true);
+        const size_t dOn = differ(off, on), dLoud = differ(off, loud);
+        std::printf("[body gpu] F5.5m E/T %.0f: %zu bodies, form %s, colours %u; primal split (quiet) vs off over 60 ticks: "
+                    "%zu bodies differ, counters %s, quiet NaN %u; RED the loud copy: %zu differ\n", e, nb,
+                    on.fused ? "one workgroup" : "indirect per colour slot", on.stats.colours, dOn,
+                    sameCounters(off.stats, on.stats) ? "equal" : "DIFFER", on.stats.primalQuietNan, dLoud);
+        EXPECT_EQ(dOn, 0u) << "M1: the split changed the simulation";
+        EXPECT_TRUE(sameCounters(off.stats, on.stats)) << "M1: the split changed a counter";
+        EXPECT_EQ(on.stats.primalQuietNan, 0u) << "M1: a quiet copy produced a NaN";
+        EXPECT_GT(dLoud, 0u) << "M1 red: the loud copy must show in the bodies";
+        EXPECT_EQ(on.fused, off.fused) << "the same form with and without the split";
+        // M1/M3-M6: 30 profiled ticks, split on / off alternated x 3 (medians)
+        auto mean = [](const BodySimGpu::Profile& p, int g) { return p.sumMs[g] / std::max(1, p.ticks); };
+        const int G_WORLD = 2, G_PAIRS = 3, G_SORT = 5, G_PRIMAL = 7, G_HARDB = 9, G_HARDA = 10;
+        const int G_FLOOR = 22, G_SUM = 23, G_RED = 24, G_SOLVE = 25;
+        std::vector<double> pOn, pOff, fl, su, re, so, wOn, wOff, paOn, paOff, sOn, sOff, hbOn, hbOff, haOn, haOff;
+        for (int rep = 0; rep < 3; ++rep) {
+            const Run a = runFor(30, true, true, true);
+            const Run b = runFor(30, false, true, true);
+            EXPECT_EQ(a.prof.ticks, 30);
+            pOn.push_back(mean(a.prof, G_PRIMAL));
+            pOff.push_back(mean(b.prof, G_PRIMAL));
+            fl.push_back(mean(a.prof, G_FLOOR));
+            su.push_back(mean(a.prof, G_SUM));
+            re.push_back(mean(a.prof, G_RED));
+            so.push_back(mean(a.prof, G_SOLVE));
+            wOn.push_back(mean(a.prof, G_WORLD));
+            wOff.push_back(mean(b.prof, G_WORLD));
+            paOn.push_back(mean(a.prof, G_PAIRS));
+            paOff.push_back(mean(b.prof, G_PAIRS));
+            sOn.push_back(mean(a.prof, G_SORT));
+            sOff.push_back(mean(b.prof, G_SORT));
+            hbOn.push_back(mean(a.prof, G_HARDB));
+            hbOff.push_back(mean(b.prof, G_HARDB));
+            haOn.push_back(mean(a.prof, G_HARDA));
+            haOff.push_back(mean(b.prof, G_HARDA));
+        }
+        const double p1 = medianOf(pOn), p0 = medianOf(pOff), it = p0 / 8.0;
+        const double f = medianOf(fl), s = medianOf(su), r = medianOf(re), v = medianOf(so);
+        // each copy runs the stages before it again, so a stage's own cost is the difference
+        const double cSum = s - f, cRed = r - s, cSolve = v - r, cWrite = it - v;
+        auto pct = [&](double x) { return 100.0 * x / std::max(1e-9, it); };
+        std::printf("[body gpu]   M1 the primal group: split on %.3f vs off %.3f ms (%+.1f %%)\n", p1, p0,
+                    100.0 * (p1 / p0 - 1.0));
+        std::printf("[body gpu]   M3-M5 one iteration (the group / 8) %.4f ms; copies q_floor %.4f q_sum %.4f q_red %.4f "
+                    "q_solve %.4f -> floor %.4f (%.0f %%), sums %.4f (%.0f %%), tree %.4f (%.0f %%), solve %.4f (%.0f %%), "
+                    "write %.4f (%.0f %%); floor x 8 = %.3f ms; q_solve x 8 / the group = %.2f\n", it, f, s, r, v, f,
+                    pct(f), cSum, pct(cSum), cRed, pct(cRed), cSolve, pct(cSolve), cWrite, pct(cWrite), 8.0 * f,
+                    8.0 * v / std::max(1e-9, p0));
+        std::printf("[body gpu]   M6 untouched groups on vs off: world %.3f / %.3f, pairs %.3f / %.3f, sort %.3f / %.3f, "
+                    "hard_body %.3f / %.3f, hard_apply %.3f / %.3f ms\n", medianOf(wOn), medianOf(wOff), medianOf(paOn),
+                    medianOf(paOff), medianOf(sOn), medianOf(sOff), medianOf(hbOn), medianOf(hbOff), medianOf(haOn),
+                    medianOf(haOff));
+        EXPECT_GT(f, 0.0) << "the floor copy ran";
+        EXPECT_GT(s, f) << "the sums copy does more than the floor";
+        EXPECT_GT(v, s) << "the solve copy does more than the sums";
+    }
+}

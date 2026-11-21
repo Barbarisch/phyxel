@@ -117,6 +117,7 @@ const uint S_CAND = 0, S_CAPPED = 1, S_DEEP = 2, S_PAIRS = 3, S_HARD = 4, S_OVF_
            S_NHPAIRS = 13, S_NAWAKE = 14, S_OVF_PAIRS = 15, S_NCONS = 16,
            S_DG_MAXCAND = 17, S_DG_MAXITEMS = 18, S_DG_OVERCAP = 19, S_DG_SUMCAND = 20, S_REDO = 21, S_SPREAD_FB = 22,   // F5.5f: the split's w_count
            S_PREDO = 23,   // F5.5l: NARROW threads past the stage (re-tested)
+           S_PQNAN = 24,   // F5.5m: NaN results in the primal split's quiet copies
            S_BODY = 32;
 const uint STATIC = 0xFFFFFFFFu, UNC = 0xFFFFFFFFu, NOCOL = 0xFFFFFFFEu;
 const float INF = 1e30;
@@ -1290,8 +1291,10 @@ void primal(uint i, uint c) {
 // thread of the workgroup calls it (it has barriers); `has` says whether this group has a body. Both dispatch forms
 // (29 indirect per colour, 30 one workgroup for every colour) call this, so they compute the same numbers.
 // Deterministic, but NOT bit-equal to primal() (the sum is reassociated).
+// F5.5m: stop (uniform) 0 = the real pass; 2 / 3 / 4 return after the sums / the tree / the solve (stop 1 never gets
+// here); a quiet copy writes no body and counts a NaN result in S_PQNAN (which also keeps its work); loud, 4 writes.
 shared float gpRed[256 * 42];
-void primalVG(uint i, bool has) {
+void primalVG(uint i, bool has, uint stop, bool loud) {
     uint lid = gl_LocalInvocationID.x, l = lid & 31u;
     uint r = lid * 42u;
     if (has) {
@@ -1326,7 +1329,14 @@ void primalVG(uint i, bool has) {
         }
         for (int q = 0; q < 36; ++q) gpRed[r + uint(q)] = lhs[q];
         for (int q = 0; q < 6; ++q) gpRed[r + 36u + uint(q)] = rhs[q];
+        if (stop == 2u) {
+            float g = 0.0;
+            for (int q = 0; q < 36; ++q) g += lhs[q];
+            for (int q = 0; q < 6; ++q) g += rhs[q];
+            if (isnan(g)) atomicAdd(state[S_PQNAN], 1u);
+        }
     }
+    if (stop == 2u) return;
     memoryBarrierShared();
     barrier();
     for (uint off = 16u; off > 0u; off >>= 1u) {
@@ -1334,6 +1344,14 @@ void primalVG(uint i, bool has) {
             for (uint q = 0u; q < 42u; ++q) gpRed[r + q] += gpRed[r + off * 42u + q];
         memoryBarrierShared();
         barrier();
+    }
+    if (stop == 3u) {
+        if (has && l == 0u) {
+            float g = 0.0;
+            for (uint q = 0u; q < 42u; ++q) g += gpRed[r + q];
+            if (isnan(g)) atomicAdd(state[S_PQNAN], 1u);
+        }
+        return;
     }
     if (has && l == 0u) {
         uint r0 = r;
@@ -1359,6 +1377,10 @@ void primalVG(uint i, bool has) {
         float d[6];
         solve6(lhs, rhs, d);
         vec3 dAng = vec3(d[3], d[4], d[5]);
+        if (stop == 4u && !loud) {
+            if (isnan(d[0] + d[1] + d[2] + d[3] + d[4] + d[5])) atomicAdd(state[S_PQNAN], 1u);
+            return;
+        }
         bodies[i].pos.xyz = b.pos.xyz + vec3(d[0], d[1], d[2]);
         bodies[i].quat = qintegrate(b.quat, dAng);
         bodies[i].cumAng.xyz = b.cumAng.xyz + dAng;
@@ -1445,10 +1467,14 @@ void main() {
     if (pc.pass == 25u || pc.pass == 35u) { hardApplyPar(pc.pass == 35u); return; }   // F5.5j: 35 = spread (one site)
     if (pc.pass == 34u) { hardUnits(); return; }          // F5.5j
 #ifdef VF_PRIMAL
+    // F5.5m: pc.n bits 0-2 = the split's stop (0 = the real pass; 1 = return at once), bit 3 = loud
+    uint qStop = pc.n & 7u;
+    bool qLoud = (pc.n & 8u) != 0u;
+    if ((pc.pass == 29u || pc.pass == 30u) && qStop == 1u) return;
     if (pc.pass == 29u) {   // PRIMAL arg = colour (indirect): workgroup w's 32-thread group g takes body 8 w + g
         uint k = gl_WorkGroupID.x * 8u + (gl_LocalInvocationID.x >> 5u), n = aux[auxCol() + pc.arg];
         bool has = k < n;
-        primalVG(has ? aux[auxCol() + 192u + aux[auxCol() + 32u + pc.arg] + k] : 0u, has);
+        primalVG(has ? aux[auxCol() + 192u + aux[auxCol() + 32u + pc.arg] + k] : 0u, has, qStop, qLoud);
         return;
     }
     if (pc.pass == 30u) {   // PRIMAL, every colour used in order, one workgroup (the form for few awake bodies)
@@ -1458,7 +1484,7 @@ void main() {
             for (uint b8 = 0u; b8 < n; b8 += 8u) {
                 uint k = b8 + g8;
                 bool has = k < n;
-                primalVG(has ? aux[auxCol() + 192u + o + k] : 0u, has);
+                primalVG(has ? aux[auxCol() + 192u + o + k] : 0u, has, qStop, qLoud);
             }
             memoryBarrierBuffer();
             barrier();

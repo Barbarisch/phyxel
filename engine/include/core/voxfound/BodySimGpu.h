@@ -34,6 +34,7 @@ struct BodySimGpuStats {
     uint32_t dgMaxCand = 0, dgMaxItems = 0, dgOverCap = 0, dgSumCand = 0;
     uint32_t worldRedo = 0;   // F5.5g (summed): world-pass threads with more than kStage candidates (re-tested)
     uint32_t pairRedo = 0;    // F5.5l (summed): NARROW threads with more than kStage candidates (re-tested)
+    uint32_t primalQuietNan = 0;   // F5.5m (summed): NaN results in the primal split's quiet copies (expected 0)
     uint32_t spreadFallback = 0;   // F5.5h (summed): awake bodies whose chunks overflowed (F5.5g's pass instead)
     uint32_t awake = 0;                       // after the last tick
 };
@@ -104,8 +105,9 @@ public:
     bool fusedThisStep() const { return m_fused; }
     /// F5.5a: a per-pass device-time profile (timestamps between the pass groups; forces one tick per submit, so it
     /// measures each tick on its own). Reset by setProfile(true).
-    static constexpr int kProfGroups = 22;   // F5.5f: + awake_list, w_count, w_write, w_bucket, w_spread (split on);
-                                             // F5.5k: + p_broad, p_count, p_write, p_cap (the pairs split on)
+    static constexpr int kProfGroups = 26;   // F5.5f: + awake_list, w_count, w_write, w_bucket, w_spread (split on);
+                                             // F5.5k: + p_broad, p_count, p_write, p_cap (the pairs split on);
+                                             // F5.5m: + q_floor, q_sum, q_red, q_solve (the primal split on)
     /// F5.5f: with the profile on, the world pass is also dispatched as four diagnostic copies, each stopping after one
     /// more stage (count, write, bucket winners, spread picks) and timed as its own group; they write only scratch,
     /// which the real pass rewrites, and (quiet) none of the counters. A measure: costs time, changes no result.
@@ -120,6 +122,15 @@ public:
     void setPairsSplit(bool on, bool quiet = true) {
         m_pairsSplit = on;
         m_pairsQuiet = quiet;
+    }
+    /// F5.5m: with the profile on (the parallel primal), once per tick before iteration 0, four diagnostic copies of ONE
+    /// iteration's primal in the form the tick uses (indirect per colour slot, or one workgroup), each stopping after
+    /// one more stage and timed as its own group: q_floor (the dispatches and barriers only), q_sum (+ each body's
+    /// strided constraint sums), q_red (+ the shared tree), q_solve (+ lane 0's 6x6 solve). Quiet copies write no body
+    /// (a NaN result counts in primalQuietNan); loud (the red), q_solve writes the bodies. A measure: costs time.
+    void setPrimalSplit(bool on, bool quiet = true) {
+        m_primalSplit = on;
+        m_primalQuiet = quiet;
     }
     /// F5.5g: the world pass tests each item once -- each thread stages its candidates (kStage, past the bodies'
     /// scratch) and copies them to its serial offset after the scan; a thread with more re-tests its own items. Bit-equal
@@ -213,6 +224,7 @@ private:
     bool m_worldSpread = true, m_spreadScramble = false;   // F5.5h
     bool m_hardSpread = true, m_hardScramble = false;   // F5.5j
     bool m_pairsSplit = false, m_pairsQuiet = true;     // F5.5k
+    bool m_primalSplit = false, m_primalQuiet = true;   // F5.5m
     bool m_pairsOnce = true, m_pairsOnceScramble = false;   // F5.5l
     VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;    // F5.5b: the step in flight (stepBegin)
     int m_pendingTicks = 0;

@@ -167,7 +167,8 @@ const char* BodySimGpu::profileName(int g) {
                                              "sort",      "colour",    "primal",     "dual",   "hard_body",
                                              "hard_apply", "finish",   "warm",      "awake_list", "w_count",
                                              "w_write",    "w_bucket", "w_spread", "p_broad",  "p_count",
-                                             "p_write",    "p_cap"};
+                                             "p_write",    "p_cap",    "q_floor",  "q_sum",
+                                             "q_red",      "q_solve"};
     return g >= 0 && g < kProfGroups ? names[g] : "?";
 }
 
@@ -556,7 +557,8 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
     };
     const bool prof = m_profile && m_profQueries;
     enum { G_INT, G_AABB, G_WORLD, G_PAIRS, G_PREFIX, G_SORT, G_COLOUR, G_PRIMAL, G_DUAL, G_HARDB, G_HARDA, G_FIN, G_WARM,
-           G_AWAKE_LIST, G_W_COUNT, G_W_WRITE, G_W_BUCKET, G_W_SPREAD, G_P_BROAD, G_P_COUNT, G_P_WRITE, G_P_CAP };
+           G_AWAKE_LIST, G_W_COUNT, G_W_WRITE, G_W_BUCKET, G_W_SPREAD, G_P_BROAD, G_P_COUNT, G_P_WRITE, G_P_CAP,
+           G_Q_FLOOR, G_Q_SUM, G_Q_RED, G_Q_SOLVE };
     auto stamp = [&](int g) {   // closes the time since the previous stamp into group g
         if (!prof || m_profStamp >= uint32_t(kProfMaxStamps)) return;
         vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_profQueries, m_profStamp++);
@@ -664,6 +666,27 @@ void BodySimGpu::recordTick(VkCommandBuffer cmd) {
         run(K_COLOUR_SCATTER, 0, m_nb);
         stamp(G_COLOUR);
         const VkDeviceSize args = (2ull * m_nb + 8ull * m_maxPairs + 96ull) * 4;
+        if (prof && m_primalSplit) {   // F5.5m: one iteration's primal as four copies (pc.n: stop 1-4, bit 3 = loud)
+            m_pipePrimal->bind(cmd);
+            for (uint32_t stop = 1; stop <= 4; ++stop) {
+                const uint32_t n = stop | (m_primalQuiet ? 0u : 8u);
+                if (m_fused) {
+                    BodyPC pc{K_PRIMAL_ONE, 0, parity, n};
+                    m_pipePrimal->pushConstants(cmd, &pc, sizeof(pc));
+                    m_pipePrimal->dispatch(cmd, 1);
+                    barrier(cmd);
+                } else {
+                    for (uint32_t c = 0; c < kMaxColours; ++c) {
+                        BodyPC pc{K_PRIMAL_SUB, c, parity, n};
+                        m_pipePrimal->pushConstants(cmd, &pc, sizeof(pc));
+                        vkCmdDispatchIndirect(cmd, m_aux.buf, args + 12ull * c);
+                        barrier(cmd);
+                    }
+                }
+                stamp(G_Q_FLOOR + int(stop) - 1);
+            }
+            m_pipe->bind(cmd);
+        }
         for (uint32_t it = 0; it < m_iterations; ++it) {
             m_pipePrimal->bind(cmd);
             if (m_fused) {   // few awake: every colour in one workgroup (the same numbers)
@@ -744,7 +767,7 @@ bool BodySimGpu::step(int ticks, std::string* err, int ticksPerSubmit) {
                 if (first) {   // the summed counters start at 0 for this call
                     recordEdit(cmd);   // F5.5c: a staged edit first
                     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);
-                    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 3 * 4, 0);   // F5.5g S_REDO, h S_SPREAD_FB, l S_PREDO
+                    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 4 * 4, 0);   // F5.5g S_REDO, h, l S_PREDO, m S_PQNAN
                     barrier(cmd);
                 }
                 for (int t = 0; t < n; ++t) recordTick(cmd);
@@ -797,6 +820,7 @@ void BodySimGpu::unpackCounters() {
     m_stats.worldRedo = s[21];   // F5.5g: S_REDO
     m_stats.spreadFallback = s[22];   // F5.5h: S_SPREAD_FB
     m_stats.pairRedo = s[23];         // F5.5l: S_PREDO
+    m_stats.primalQuietNan = s[24];   // F5.5m: S_PQNAN
     m_lastAwake = m_stats.awake;
 }
 
@@ -880,7 +904,7 @@ bool BodySimGpu::stepBegin(int ticks, std::string* err) {
     }
     recordEdit(cmd);   // F5.5c: a staged edit first
     vkCmdFillBuffer(cmd, m_state.buf, 0, 16 * 4, 0);   // the summed counters start at 0 for this call (as step())
-    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 3 * 4, 0);   // F5.5g S_REDO, h S_SPREAD_FB, l S_PREDO
+    vkCmdFillBuffer(cmd, m_state.buf, 21 * 4, 4 * 4, 0);   // F5.5g S_REDO, h S_SPREAD_FB, l S_PREDO, m S_PQNAN
     barrier(cmd);
     for (int t = 0; t < ticks; ++t) recordTick(cmd);
     recordCounters(cmd);

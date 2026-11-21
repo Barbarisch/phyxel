@@ -638,7 +638,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F5.5l's owed measures done: a quiet suite 52/52; the reload A/B (setPairsOnce off vs on, alone, 8 each)
       16.67 vs 16.86 ms -- the lever does not move it; inside the suite it reads 1.5-3 ms higher either way (the
       guard, <= 20, stays; a suite fail is read against this). VF_PAIRS_ONCE=0|1 env hook in that test.
-      NEXT: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
+      F5.5m done (a measure): setPrimalSplit -- one primal iteration is sums 32-41 %, the shared tree 29-43 %, the
+      solve 11-24 %, the 32-slot dispatch floor <= 10 % (MISSED my >= 40 %).
+      NEXT: F5.5n (the primal's sums + tree: symmetric terms, a one-barrier reduction; deterministic, not bit-equal),
+      prediction BEFORE code. WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
       the ticks per step cap; the plan cost (19.6 / 121 ms at 916); the CPU reference's remove (warm-start re-key,
