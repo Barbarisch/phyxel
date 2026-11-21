@@ -3014,3 +3014,30 @@ TEST(SettlementMapTest, AFordWhoseRampDoesNotFitIsNotForded) {
         }
     }
 }
+
+// The audit of O38 (h) (pm_chain596.txt): the fallback. Six creeks 20 cells apart across a flat town's main street,
+// each ford with a ramp of 12 - no place on the main street is clear of one. The market stays (level, dry) and the
+// map SAYS it stands on a ramp; with ramps of 2 there are clear places and the note does not say so. (A
+// characterisation of code already written, not red-before-green.)
+TEST(SettlementMapTest, AMarketWithNoPlaceOffARampStaysAndSaysSo) {
+    ASSERT_TRUE(rigs().programOk);
+    const std::function<bool(int, int)> creeks = [](int x, int) { return x >= 20 && x <= 120 && x % 20 == 0; };
+    for (const int ramp : {12, 2}) {
+        SettlementMapInput in = inputFor("town", 140, 60, flatHeight, creeks, 7u);
+        ASSERT_NE(in.tier, nullptr);
+        in.fordAt = creeks;
+        in.fordRampCellsAt = [creeks, ramp](int x, int z) { return creeks(x, z) ? ramp : 0; };
+        const SettlementMap m = planSettlementMap(in);
+        bool has = false; Rect mk{0, 0, 0, 0};
+        for (const auto& a : m.areas) if (a.landuse == "market") { has = true; mk = a.rect; }
+        int crossingCells = 0;
+        for (const auto& c : m.crossings) crossingCells += static_cast<int>(c.cells.size());
+        std::printf("[ O38h ] six creeks, ramp %d: %s%zu lots of %d, %d crossing cells; market %s[%d,%d,%d,%d]; note: %s; ford note: %s\n", ramp,
+                    m.ok() ? "" : ("REFUSED (" + m.refusal + ") ").c_str(), m.lots.size(), m.targetLots, crossingCells, has ? "" : "NONE ", mk.x, mk.z, mk.w, mk.d, m.marketNote.c_str(), m.fordNote.c_str());
+        ASSERT_TRUE(has) << "ramp " << ramp << ": no market";
+        ASSERT_GT(crossingCells, 0) << "ramp " << ramp << ": nothing forded - the rig measures nothing";
+        const bool says = m.marketNote.find("on a ford's ramp") != std::string::npos;
+        if (ramp == 12) EXPECT_TRUE(says) << "the market stands on a ramp and the map does not say so: " << m.marketNote;
+        else EXPECT_FALSE(says) << "a clear place was on offer: " << m.marketNote;
+    }
+}

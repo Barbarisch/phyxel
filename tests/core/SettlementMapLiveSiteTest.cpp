@@ -3734,3 +3734,65 @@ TEST(SettlementMapLiveSiteTest, O39_AHouseTheResidentsCannotReachRefusesTheBuild
         EXPECT_GE(ng3.value("cannot_be_reached", 0), 1);
     }
 }
+
+// The audit of O38 (h) (pm_chain596.txt): the market's PAVED SURFACE, measured in the built world right after the ways
+// unit (before a prop stands on it) - the creek city with the rule, and the control (the planner not told the ramps).
+TEST(SettlementMapLiveSiteTest, TheCreekCitysMarketIsPavedOffAFordsRamp) {
+    const int px = -1200, pz = -1040;
+    struct Read { bool ok = false; int span = -1, worstStep = -1, cells = 0; glm::ivec4 rect{0}; std::string gate; int placed = -1; };
+    const auto build = [&](bool told) {
+        Read r;
+        LiveSiteRig rig;
+        rig.recipeKey = "citylab-A fords"; rig.worldSeed = 7001u;
+        rig.recipeFn = [px, pz] { WorldRecipe rr = cityLabRecipe(false, px, pz, 0.0f, 0.0f); rr.worldforge.settlementFords = true; return rr; };
+        if (!rig.setUp(0, 24)) { ADD_FAILURE() << rig.why; return r; }
+        std::map<std::pair<int, int>, int> paved;   // world cell -> the top right after the ways unit
+        const int ox = -1280, oz = -1120;   // this rig's site origin (the creek city test prints it; the map's origin is checked below)
+        g_afterUnit = [&rig, &paved, ox, oz](const std::string& label) {
+            if (label != "grading + paving ways") return;
+            for (int lz = 50; lz <= 110; ++lz) for (int lx = 55; lx <= 115; ++lx) {
+                const int wx = ox + lx, wz = oz + lz;
+                int y = 250;
+                while (y <= 420 && !rig.solidMicro(wx * 9 + 4, y, wz * 9 + 4)) ++y;
+                if (y > 420) continue;
+                while (rig.solidMicro(wx * 9 + 4, y + 1, wz * 9 + 4)) ++y;
+                paved[{wx, wz}] = y;
+            }
+        };
+        nlohmann::json ov{{"nav_gate", true}};
+        if (!told) ov["ford_ramp_told"] = false;
+        const auto out = realize(rig, /*legacyLayout=*/false, ov);
+        g_afterUnit = nullptr;
+        if (out.contains("plan_error")) { ADD_FAILURE() << out["plan_error"].dump(); return r; }
+        r.gate = out.value("gate", std::string("?"));
+        const Core::SettlementMap sm = Core::SettlementMap::fromJson(out.value("map", nlohmann::json::object()));
+        if (sm.originX != ox || sm.originZ != oz) { ADD_FAILURE() << "the site's origin is " << sm.originX << "," << sm.originZ << ", not the one the reading assumed"; return r; }
+        for (const auto& a : sm.areas) {
+            if (a.landuse != "market") continue;
+            r.rect = glm::ivec4(a.rect.x, a.rect.z, a.rect.w, a.rect.d);
+            int lo = INT_MAX, hi = INT_MIN, worst = 0;
+            for (int z = a.rect.z; z < a.rect.z1(); ++z) for (int x = a.rect.x; x < a.rect.x1(); ++x) {
+                const auto it = paved.find({sm.originX + x, sm.originZ + z});
+                if (it == paved.end()) continue;
+                ++r.cells; lo = std::min(lo, it->second); hi = std::max(hi, it->second);
+                for (const auto& d : {std::pair<int, int>{1, 0}, std::pair<int, int>{0, 1}}) {
+                    if (x + d.first >= a.rect.x1() || z + d.second >= a.rect.z1()) continue;
+                    const auto jt = paved.find({sm.originX + x + d.first, sm.originZ + z + d.second});
+                    if (jt != paved.end()) worst = std::max(worst, std::abs(jt->second - it->second));
+                }
+            }
+            if (r.cells > 0) { r.ok = true; r.span = hi - lo; r.worstStep = worst; }
+        }
+        std::printf("[ O38h ] the creek city, %s: gate %s; the market [%d,%d,%d,%d], %d of its cells read after the ways unit: span %d micro, worst step between adjacent cells %d micro%s",
+                    told ? "the planner told the fords' ramps" : "CONTROL (not told)", r.gate.c_str(), r.rect.x, r.rect.y, r.rect.z, r.rect.w, r.cells, r.span, r.worstStep, chr10().c_str());
+        return r;
+    };
+    const Read rule = build(true), control = build(false);
+    ASSERT_TRUE(rule.ok) << "no market, or none of its cells was read";
+    ASSERT_TRUE(control.ok);
+    EXPECT_EQ(rule.cells, rule.rect.z * rule.rect.w) << "every cell of the market is read";
+    EXPECT_EQ(rule.gate, "passed");
+    EXPECT_LE(rule.span, 9) << "the market's paving spans more than a cube";
+    EXPECT_LE(rule.worstStep, 4) << "a step in the market's paving over the walker's step-up";
+    EXPECT_GT(control.span, rule.span) << "the control's paving is no less level: the measure does not tell the rule from its absence";
+}

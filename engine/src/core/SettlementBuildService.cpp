@@ -589,7 +589,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 if (p.value("ford", false)) {
                     // O38 (h) (pm_chain587.txt): the cells of ramp a ford needs each side - the gully's depth (the natural
                     // ground's cube top less the live one) over the ways' grade (the walker's step-up a cell; x 9: cubes to micro)
-                    mi.fordRampCellsAt = [mapGen, terrainTopAt, ox, oz](int x, int z) {
+                    // ("ford_ramp_told": false - the control of the live test: the planner is not told the ramps)
+                    if (p.value("ford_ramp_told", true)) mi.fordRampCellsAt = [mapGen, terrainTopAt, ox, oz](int x, int z) {
                         const int depth = static_cast<int>(std::floor(mapGen->naturalGroundAt(ox + x, oz + z))) - terrainTopAt(ox + x, oz + z);
                         const int step = std::max(1, Core::AgentBox{}.maxStepUpMicro);
                         return depth > 0 ? (depth * 9 + step - 1) / step : 0;

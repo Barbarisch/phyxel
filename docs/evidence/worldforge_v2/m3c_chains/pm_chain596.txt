@@ -1,0 +1,48 @@
+pm_chain596 - the audit of O38 (h): a built-world measure of the market's paving, and the fallback's test.
+Written 2026-11-21 17:47, before any edit. Release.
+
+WHY: the audit said the unit test of O38 (h) proves the plumbing only, and that on the creek city the one sign of a
+  level square is a prop count. Owed: the paved surface itself, measured, with and without the rule; and a test of
+  the fallback (every level place on a ramp).
+WHAT IS ADDED
+  engine: a build parameter "ford_ramp_told" (default true). False = the planner is NOT told the fords' ramps - the
+    control arm of the live test, as nav_gate false is for the refusal. Nothing else changes.
+  live test SettlementMapLiveSiteTest.TheCreekCitysMarketIsPavedOffAFordsRamp: the creek city built twice in its own
+    rigs (the rule; the control). In each, right after the ways unit (before any prop stands on the square) the
+    paved top of every cell of a block round the site's middle is read; over the market's own rect: the SPAN
+    (highest less lowest top) and the WORST STEP between 4-adjacent cells.
+      asserted, the rule: span <= 9 micro (one cube - the planner's own level rule, kMarketRelief) and worst step <= 4
+        (the walker's step-up).
+      asserted, the control: its span is GREATER than the rule's - else the measure does not tell the two apart.
+  unit test SettlementMapTest.AMarketWithNoPlaceOffARampStaysAndSaysSo: a flat town 140 x 60, six creeks 20 cells
+    apart, each with a ramp of 12 (every place on the main street is within 12 of one): asserted a market exists,
+    the note says it stands on a ford's ramp, and with ramps of 2 the note does not.
+PREDICTIONS
+  chain 596 (both tests + the parameter): the unit test GREEN at once if the fallback is right (no red is possible
+    for it - it tests code already written; said here: this is a characterisation, not red-before-green).
+    the live test - GUESSES: the rule: span 0 to 4, worst step 0 to 1. The control: span 3 to 9 (the dressing's
+    "widest ground span under a prop 3 micro" before the rule suggests a few micro of slope), so the control > rule
+    assertion holds. If the control's span is NOT greater, the stall's return was not about the paving's slope and
+    I do not know what it was about.
+  chain 596: VOID - my live test did not compile (a field name). Re-run as chain 597, same predictions.
+RESULTS (written 2026-11-21 17:50)
+  chain 597 (exe 17:48:38; the two new tests): both pass.
+    live, the creek city built twice: "the planner told the fords' ramps: gate passed; the market [82,64,16,16], 256 of
+      its cells read after the ways unit: span 9 micro, worst step between adjacent cells 4 micro"; "CONTROL (not
+      told): gate passed; the market [79,64,16,16], 256 of its cells ... span 18 micro, worst step ... 4 micro".
+      The measure tells the two apart: the control's square spans TWO cubes, the rule's one. MY GUESS of the rule's
+      span (0 to 4) was WRONG: 9 - the square is still not flat, it is at the planner's own bound (one cube);
+      the control's 18 is above my guess (3 to 9).
+    unit, the fallback: "six creeks, ramp 12: ... market [64,24,12,12]; note: the market stands on a ford's ramp: no
+      dry, level place along the main street is clear of one"; "ramp 2: ... note: " (none). As the code says; a
+      characterisation, not red-before-green.
+  WHAT MAY BE SAID: on the creek city the rule halves the market's paved span (18 -> 9 micro), measured on the built
+    paving with a control. NOT: that the market is level (9 micro, at the bound), nor anything on another site.
+  NEXT: the full sets (chains 598 / 599) on this exe's source: PREDICTION unit 412 / 0, live 44 / 0, lines as 595's.
+RESULTS (written 2026-11-21 18:11)
+  chains 598 / 599 (the exe of chain 597, 17:48:38): unit set 412 ok / 0 failed, the 82 M5a / M5b prints identical to
+    chain 555's; live 44 ok / 0 failed (43 + the new test). Against chain 595 the record lines differ ONLY by the new
+    test's own two builds of the creek city: its lot lines once more with the rule, and once with the control's
+    plan (the market at 79: the lots of the plan before O38 h). No other build's line moved.
+    The new test again: rule span 9 / step 4; control span 18 / step 4.
+  NOT MEASURED: one site; the square's span is AT the bound, not under it; the audit's responses not re-audited.
