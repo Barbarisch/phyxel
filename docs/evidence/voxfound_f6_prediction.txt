@@ -166,3 +166,30 @@ F6.4 RESULTS (2026-11-21; the prediction above untouched). Release, CPU. Evidenc
   The stated risk (tuned at 1/3 and 1/9 m) did not show on this scene.
 CONCLUSION: fast-moving water leaves the cells as particles and writes back into the world's voxels, conserved and
 level. Next F6.5: live.
+
+---------------------------------------------------------------------------------------------------------------------
+F6.5 PREDICTION -- live (2026-11-21, before any code). The bodies lab (POST /api/debug/voxfound_bodies, CharacterTestbed).
+CONTROL: the lab today keeps the crumbs as a count (crumbMat, in the ledger); nothing in its world holds fill.
+THE CHANGE (editor/src/VoxFoundBodiesLab.cpp): with the rig, {"rubble":bool} (default true): F6.3's crumbsToPowder into
+lab.world through a WorldFluid (F6.2, CPU reference, on the main thread), stepped at 60 Hz on the bodies' accumulator
+while running (<= 4 ticks a frame); {"pour":{"lo":[x,y,z],"size":[x,y,z],"material":"water"|"sand"}} (lab voxels; fills
+the empty open voxels of the box with full cells). Drawn by a display rule from world position only: a voxel holding
+at least half a cell shows as its material (rubble as its world material; water as Glass, a STAND-IN: the lab has no
+water material) -- written into the region preview with RegionEdit::applyCells for the voxels whose drawn material
+changed, after each step. The ledger: per material world + bodies + rubble units / 256 (exact by construction); water
+reported on its own. A bake (rest on) over fill calls wallsChanged (MatSim traps it, in the ledger). Not here: bodies
+and fill do not touch each other (the bodies see only solid voxels; rubble falls through where a body is) -- stated.
+  V1: the ledger exact at every rest call ({"ledger_every":true}) and in every status: stone_wall and brick_wall (each
+      at an energy that makes crumbs), running 20 s, rest on.
+  V2: drawn = the rule: every lab voxel's region material (RegionEdit::voxelAt) equals the world's solid or the
+      display rule -- 0 mismatches after the rubble rests and after a pour; {"verify":true} 0 differences (the
+      incremental chunks equal a full rebuild).
+  V3: the rubble rests (WorldFluid quiet) within 10 s of running; screenshots at one stated pose before the run and
+      after rest show the change (the pile in frame).
+  V4: 1 m^3 of water poured beside the wall pools and rests within 20 s; its units exact; a screenshot at the pose.
+  V5: cost on the small rigs: the fluid step + display edit on the main thread p95 <= 4 ms per frame while moving,
+      < 0.1 ms once quiet. STRESS: large_wall E/T 650 -- PREDICTED OVER (the CPU reference over a box of ~2.5 M cells:
+      tens of ms per tick while the rubble moves). Recorded as the scaling issue that brings the GPU WorldFluid; not
+      tuned here.
+RED: the display edit off (a stub: the fill steps but nothing is written to the preview) -- V2's check counts
+mismatches > 0 after the rubble moves.
