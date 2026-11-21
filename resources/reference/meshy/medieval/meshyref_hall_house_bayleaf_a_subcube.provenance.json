@@ -3,15 +3,7 @@
   "source": "meshy",
   "prompt": null,
   "image": "resources/reference/meshy/medieval/source_images/bayleaf_2565922_cc-by-sa-2.0_paul-gillett.jpg",
-  "meshy": {
-    "mode": "image-to-3d",
-    "task_ids": [
-      "01a2004e-b474-77e6-81c6-d7bdb63fce7f"
-    ],
-    "image": "resources/reference/meshy/medieval/source_images/bayleaf_2565922_cc-by-sa-2.0_paul-gillett.jpg",
-    "ai_model": "latest",
-    "consumed_credits": 30
-  },
+  "meshy": null,
   "input_file": "resources/reference/meshy/medieval/hall_house_bayleaf_a.meshy.glb",
   "input_sha256": "118adf4de7cc3f167554eb7c8e878e5db112df219c538eccfdb6989f88e522df",
   "input_faces": 28567,
@@ -19,18 +11,49 @@
   "kind": "building",
   "tier": "subcube",
   "cells_per_metre": 3,
+  "era": "medieval",
+  "note": "image-to-3D 2026-11-21 (ledger line 2). Source: commons.wikimedia.org/wiki/File:Bayleaf_farmhouse_-_geograph.org.uk_-_2565922.jpg, Paul Gillett, CC BY-SA 2.0. Bayleaf, Wealden hall house 1405-30, re-erected at the Weald & Downland Living Museum. People in the photo: two detached figures dropped by the island filter, one touching the front wall remains.",
   "size_m": 14.0,
+  "size_basis": "NOMINAL - no sourced overall dimension for Bayleaf (medieval.md D17); proportions only",
   "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 3,
+    "largest_component_voxels": 6076,
+    "dropped_components": 2,
+    "dropped_voxels": 84,
+    "dropped_component_voxels": [
+      59,
+      25
+    ],
+    "dropped_faces": 1335,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      14.0,
+      7.5928,
+      9.4161
+    ],
+    "extent_m_kept": [
+      14.0,
+      7.5757,
+      6.0526
+    ],
+    "components_after": 1
+  },
   "uniform_scale_applied": 7.364680896521825,
   "extent_m": [
     14.0,
     7.6667,
-    9.6667
+    6.3333
   ],
   "extent_cells": [
     42,
     23,
-    29
+    19
   ],
   "fill": "shell",
   "compact": "none",
@@ -39,13 +62,13 @@
   "color_metric": "chroma",
   "candidate_materials": "building (construction materials; roof clusters -> roof family)",
   "voxels": {
-    "surface": 6160,
+    "surface": 6060,
     "interior": 0,
-    "total": 6160
+    "total": 6060
   },
   "primitives": {
     "C": 0,
-    "S": 6160,
+    "S": 6060,
     "M": 0,
     "V": 0
   },
@@ -53,86 +76,86 @@
     {
       "id": 0,
       "rgb": [
-        98,
-        80,
-        64
+        86,
+        68,
+        53
       ],
-      "tint": "#625040",
+      "tint": "#564435",
       "material": "WoodShingle",
-      "how": "nearest roof colour (chroma distance 28)",
+      "how": "nearest roof colour (chroma distance 31)",
       "role": "roof",
-      "surface_voxels": 2554,
-      "voxels": 2554
+      "surface_voxels": 1817,
+      "voxels": 1817
     },
     {
       "id": 1,
       "rgb": [
-        79,
-        58,
-        43
+        57,
+        40,
+        28
       ],
-      "tint": "#4f3a2b",
-      "material": "WoodShingle",
-      "how": "nearest roof colour (chroma distance 31)",
-      "role": "roof",
-      "surface_voxels": 1157,
-      "voxels": 1157
+      "tint": "#39281c",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 16)",
+      "role": "wall",
+      "surface_voxels": 1476,
+      "voxels": 1476
     },
     {
       "id": 2,
       "rgb": [
-        52,
-        37,
-        26
+        103,
+        90,
+        76
       ],
-      "tint": "#34251a",
-      "material": "LogSpruce",
-      "how": "nearest wall colour (chroma distance 19)",
-      "role": "wall",
-      "surface_voxels": 1052,
-      "voxels": 1052
+      "tint": "#675a4c",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 24)",
+      "role": "roof",
+      "surface_voxels": 1415,
+      "voxels": 1415
     },
     {
       "id": 3,
       "rgb": [
-        124,
-        109,
-        94
+        230,
+        229,
+        226
       ],
-      "tint": "#7c6d5e",
-      "material": "StoneBricks",
-      "how": "nearest wall colour (chroma distance 17)",
+      "tint": "#e6e5e2",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 48) WEAK - no close material, use --map",
       "role": "wall",
-      "surface_voxels": 793,
-      "voxels": 793
+      "surface_voxels": 505,
+      "voxels": 505
     },
     {
       "id": 4,
       "rgb": [
-        233,
-        232,
-        230
+        133,
+        122,
+        108
       ],
-      "tint": "#e9e8e6",
-      "material": "Cobblestone",
-      "how": "nearest wall colour (chroma distance 50) WEAK - no close material, use --map",
+      "tint": "#857a6c",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 11)",
       "role": "wall",
-      "surface_voxels": 519,
-      "voxels": 519
+      "surface_voxels": 470,
+      "voxels": 470
     },
     {
       "id": 5,
       "rgb": [
-        168,
-        158,
-        147
+        133,
+        81,
+        51
       ],
-      "tint": "#a89e93",
-      "material": "Cobblestone",
-      "how": "nearest wall colour (chroma distance 14)",
-      "role": "wall",
-      "surface_voxels": 85,
-      "voxels": 85
+      "tint": "#855133",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 23)",
+      "role": "roof",
+      "surface_voxels": 377,
+      "voxels": 377
     }
   ],
   "tool": "tools/meshy_import.py",
@@ -147,9 +170,9 @@
       "reference",
       "do-not-place"
     ],
-    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
-    "model": "latest",
-    "created": "2026-11-21T22:53:07.756051+00:00",
+    "method": "tools/meshy_import.py (source: meshy)",
+    "model": "meshy",
+    "created": "2026-11-21T23:01:27.220882+00:00",
     "version": 1,
     "prompt": "image: resources/reference/meshy/medieval/source_images/bayleaf_2565922_cc-by-sa-2.0_paul-gillett.jpg"
   }

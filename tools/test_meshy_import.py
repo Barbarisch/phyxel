@@ -709,6 +709,237 @@ def test_also_tier_and_default_reduce():
 
 
 # --------------------------------------------------------------------------
+# stray pieces (islands), era / note / size basis
+# --------------------------------------------------------------------------
+
+FIGURE = (0, 200, 0)       # a colour no part of the house has
+FIG_X0, FIG_Z0 = HOUSE_W + 1.0, -1.5      # figure A beside the +x wall, B in front of z = 0
+
+
+def _house_polys(b):
+    W, D, E, R = HOUSE_W, HOUSE_D, HOUSE_EAVES, HOUSE_RIDGE
+    wins = [(zc - 0.5, zc + 0.5, y0, y0 + 1.0, WINDOW)
+            for zc in (1.5, 4.0, 6.5) for y0 in (0.9, 3.6)]
+    _wall_patches(b, lambda u, v: (0.0, v, u), D, E, wins)
+    _wall_patches(b, lambda u, v: (W, v, u), D, E, wins)
+    _wall_patches(b, lambda u, v: (u, v, 0.0), W, E, [])
+    _wall_patches(b, lambda u, v: (u, v, D), W, E, [(2.5, 3.5, 0.0, 2.0, DOOR)])
+    b.poly([(0, E, 0), (W, E, 0), (W / 2, R, 0)], WALL)
+    b.poly([(0, E, D), (W, E, D), (W / 2, R, D)], WALL)
+    b.poly([(0, E, 0), (W / 2, R, 0), (W / 2, R, D), (0, E, D)], ROOF)
+    b.poly([(W, E, 0), (W / 2, R, 0), (W / 2, R, D), (W, E, D)], ROOF)
+    b.poly([(0, 0, 0), (W, 0, 0), (W, 0, D), (0, 0, D)], WALL)
+
+
+def _box(b, x0, y0, z0, dx, dy, dz, colour):
+    x1, y1, z1 = x0 + dx, y0 + dy, z0 + dz
+    for q in ([(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)],
+              [(x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)],
+              [(x0, y0, z0), (x0, y0, z1), (x0, y1, z1), (x0, y1, z0)],
+              [(x1, y0, z0), (x1, y0, z1), (x1, y1, z1), (x1, y1, z0)],
+              [(x0, y0, z0), (x1, y0, z0), (x1, y0, z1), (x0, y0, z1)],
+              [(x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)]):
+        b.poly(q, colour)
+
+
+def make_house_with_figures(path, touching=False):
+    """The fixture house plus two 'figures' (0.5 x 1.7 x 0.3 m boxes) in the SAME
+    mesh: A stands 1 m off the +x wall, B 1.2 m in front of the z = 0 wall. With
+    touching=True figure A stands against the +x wall instead (connected)."""
+    b = _Builder()
+    _house_polys(b)
+    _box(b, HOUSE_W if touching else FIG_X0, 0.0, 3.0, 0.5, 1.7, 0.3, FIGURE)
+    _box(b, 2.0, 0.0, FIG_Z0, 0.5, 1.7, 0.3, FIGURE)
+    b.mesh().export(path)
+
+
+def _figure_voxels(r):
+    """Voxels of the result whose cluster colour is the figures' green."""
+    ids = [c["id"] for c in r["clusters"] if c["coloured"]
+           and sum((a - b) ** 2 for a, b in zip(c["rgb"], FIGURE)) < 40 ** 2]
+    return int(sum((r["grid"] == i).sum() for i in ids))
+
+
+@noted
+def test_islands_dropped_for_buildings():
+    v = 1 / 9
+    p = os.path.join(MESH_DIR, "house_figures.glb")
+    os.makedirs(MESH_DIR, exist_ok=True)
+    make_house_with_figures(p)
+
+    def imp(tag, **kw):
+        kw.setdefault("size", HOUSE_RIDGE)
+        return mi.import_mesh(p, "house_fig_" + tag, kind="building", out_dir=OUT_DIR,
+                              log=lambda *a: None, **kw)
+    plain = run("house", "micro", kind="building", tier="micro", size=HOUSE_RIDGE)
+    r = imp("drop")
+    m, isl = r["massing"], r["provenance"]["islands"]
+    # the footprint is the HOUSE's, the figures are gone, and it says what it dropped
+    assert abs(m["footprint_w_x_m"] - HOUSE_W) <= v and abs(m["footprint_d_z_m"] - HOUSE_D) <= v, m
+    assert r["dims_cells"] == plain["dims_cells"], (r["dims_cells"], plain["dims_cells"])
+    assert _figure_voxels(r) == 0
+    assert isl["applied"] and isl["connectivity"] == 26 and isl["min_fraction"] == 0.05
+    assert isl["components"] == 3 and isl["dropped_components"] == 2, isl
+    assert isl["dropped_voxels"] == sum(isl["dropped_component_voxels"]) > 100, isl
+    assert isl["components_after"] == 1 and isl["kept_detached_components"] == 0
+    assert m["islands_dropped"].startswith("2 components"), m["islands_dropped"]
+    # the massing is computed AFTER the filter: it equals the plain house's
+    for k in ("footprint_w_x_m", "footprint_d_z_m", "footprint_area_m2", "eaves_height_m",
+              "ridge_height_m", "roof_pitch_deg_rise_over_run", "storey_count_guess"):
+        assert m[k] == plain["massing"][k], (k, m[k], plain["massing"][k])
+    on_disk = json.load(open(r["files"]["provenance"], encoding="utf-8"))["islands"]
+    assert on_disk["dropped_components"] == 2 and on_disk["dropped_voxels"] == isl["dropped_voxels"]
+    assert_file_consistent(r, "micro")
+    assert_size(r["files"]["voxel"], "micro", HOUSE_EXT)
+
+    # CONTROL: --keep-islands -> the figures are in the grid and the footprint is wider
+    k = imp("keep", keep_islands=True)
+    km = k["massing"]
+    assert _figure_voxels(k) > 100
+    assert km["footprint_w_x_m"] >= FIG_X0 + 0.5 - v and km["footprint_d_z_m"] >= HOUSE_D - FIG_Z0 - v, km
+    assert k["provenance"]["islands"] == {"applied": False, "reason": "--keep-islands"}
+    # CONTROL: a threshold below the figures' share keeps them (the fraction is what decides)
+    share = max(isl["dropped_component_voxels"]) / isl["largest_component_voxels"]
+    f = imp("lowfrac", island_fraction=share / 4)
+    assert f["provenance"]["islands"]["dropped_components"] == 0 and _figure_voxels(f) > 100
+    assert f["provenance"]["islands"]["kept_detached_components"] == 2
+
+    # --size is the BUILDING's: figure A widens x; with --size-axis x the kept house is
+    # HOUSE_W wide and full height, the control is squeezed to HOUSE_W including the figure
+    rx = imp("sx", size=HOUSE_W, size_axis="x")
+    kx = imp("sx_keep", size=HOUSE_W, size_axis="x", keep_islands=True)
+    assert abs(rx["massing"]["ridge_height_m"] - HOUSE_RIDGE) <= v, rx["massing"]["ridge_height_m"]
+    squeezed = HOUSE_RIDGE * HOUSE_W / (FIG_X0 + 0.5)
+    assert abs(kx["massing"]["top_height_m"] - squeezed) <= v, kx["massing"]["top_height_m"]
+
+    # the subcube tier too (figures are thinner than a voxel there)
+    s = imp("sub", tier="subcube")
+    assert s["provenance"]["islands"]["dropped_components"] == 2 and _figure_voxels(s) == 0
+    assert_size(s["files"]["voxel"], "subcube", HOUSE_EXT)
+
+    # LIMIT (documented, not fixed): a figure TOUCHING the wall is one component with it
+    pt = os.path.join(MESH_DIR, "house_figures_touching.glb")
+    make_house_with_figures(pt, touching=True)
+    t = mi.import_mesh(pt, "house_fig_touch", kind="building", size=HOUSE_RIDGE,
+                       out_dir=OUT_DIR, log=lambda *a: None)
+    ti = t["provenance"]["islands"]
+    assert ti["components"] == 2 and ti["dropped_components"] == 1, ti
+    assert _figure_voxels(t) > 50 and t["massing"]["footprint_w_x_m"] >= HOUSE_W + 0.5 - v
+
+    # props are not filtered (the barrel's parts are one piece anyway; the key is absent)
+    assert run("barrel", "micro", kind="prop", tier="micro", size=0.9)["provenance"]["islands"] is None
+    return (f"dropped {isl['dropped_components']} of {isl['components']} components / "
+            f"{isl['dropped_voxels']} voxels (sizes {isl['dropped_component_voxels']}, largest "
+            f"{isl['largest_component_voxels']}); footprint {m['footprint_w_x_m']} x "
+            f"{m['footprint_d_z_m']} m vs kept-islands control {km['footprint_w_x_m']} x "
+            f"{km['footprint_d_z_m']} m; touching figure stays ({_figure_voxels(t)} voxels)")
+
+
+@noted
+def test_cli_era_note_size_basis_and_console():
+    import contextlib
+    import io
+    p = os.path.join(MESH_DIR, "house_figures.glb")
+    os.makedirs(MESH_DIR, exist_ok=True)
+    make_house_with_figures(p)
+    ref = _fresh("cli_ref")
+    out = os.path.join(ref, "medieval", "sub")
+
+    def cli(*extra):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = mi.main([p, "--kind", "building", "--size", str(HOUSE_RIDGE), "--no-reduce",
+                          "--no-library-check", "--ref-root", ref, *extra])
+        assert rc == 0, buf.getvalue()[-400:]
+        return buf.getvalue()
+
+    def prov(d, stem):
+        return json.load(open(os.path.join(d, stem + ".provenance.json"), encoding="utf-8"))
+
+    # era inferred from --out = <ref root>/<era>/...; no basis given -> NOT STATED, printed
+    txt = cli("--name", "cli_a", "--out", out)
+    a = prov(out, "meshyref_cli_a")
+    assert a["era"] == "medieval" and a["note"] is None and a["size_basis"] == "NOT STATED"
+    assert "SIZE BASIS: NOT STATED" in txt
+    line = [ln for ln in txt.splitlines() if ln.strip().startswith("islands:")]
+    assert len(line) == 1 and "dropped 2 components" in line[0] and "26-connected" in line[0], line
+    assert f"/ {a['islands']['dropped_voxels']} voxels" in line[0]
+    mass = json.load(open(os.path.join(out, "meshyref_cli_a.massing.json"), encoding="utf-8"))
+    assert mass["size_basis"] == "NOT STATED" and mass["size_m"] == HOUSE_RIDGE
+    assert "# size basis:   NOT STATED" in open(os.path.join(out, "meshyref_cli_a.voxel"),
+                                                 encoding="utf-8").read(2000)
+    # explicit --era wins over the folder; --note and --size-basis are stored and printed
+    txt = cli("--name", "cli_b", "--out", out, "--era", "Roman", "--also-tier", "subcube",
+              "--note", "CC BY-SA 2.0, A. Author, https://example.invalid/p",
+              "--size-basis", "fixture value, not a survey")
+    b = prov(out, "meshyref_cli_b")
+    assert b["era"] == "roman" and b["note"].startswith("CC BY-SA 2.0")
+    assert b["size_basis"] == "fixture value, not a survey"
+    assert "SIZE BASIS: fixture value, not a survey" in txt and "CC BY-SA 2.0" in txt
+    assert prov(out, "meshyref_cli_b_subcube")["size_basis"] == b["size_basis"]   # extra tier too
+    # outside any reference folder: no era
+    other = _fresh("cli_other")
+    cli("--name", "cli_c", "--out", other)
+    assert prov(other, "meshyref_cli_c")["era"] is None
+    # --keep-islands on the command line
+    txt = cli("--name", "cli_d", "--out", other, "--keep-islands")
+    assert "islands: filter OFF" in txt
+    assert prov(other, "meshyref_cli_d")["islands"]["applied"] is False
+    txt = cli("--name", "cli_e", "--out", other, "--island-fraction", "0.0001")
+    assert "dropped 0 components" in txt
+    assert mi.infer_era(os.path.join(ref, "edo")) is None                 # not the default root
+    assert mi.infer_era(os.path.join(mi.MESHY_REF_ROOT, "edo", "x")) == "edo"
+    assert mi.infer_era(mi.MESHY_REF_ROOT) is None
+    return [ln.strip() for ln in txt.splitlines() if "islands:" in ln][0][:110]
+
+
+@noted
+def test_generation_era_note_and_relative_paths():
+    """A single (non-batch) generation: era read from the output folder, the note and
+    the size basis in ledger + provenance, a local image stored repo-relative."""
+    d = _fresh("gen_meta")
+    ledger = os.path.join(d, "ledger.jsonl")
+    out = os.path.join(mi.MESHY_REF_ROOT, "medieval")          # scratch root (see SAFETY)
+    import shutil
+    shutil.rmtree(out, ignore_errors=True)
+    # an image INSIDE the repository, given by absolute path (read only)
+    png = sorted(f for f in os.listdir(mi.TEXTURE_SRC) if f.lower().endswith(".png"))[0]
+    img_abs = os.path.join(mi.TEXTURE_SRC, png)
+    img_rel = "resources/textures/source/" + png
+    spec = {"kind": "prop", "size": 0.9, "note": "author X, CC0, https://example.invalid/i",
+            "size_basis": "fixture"}
+    with stubbed(FakeMeshy(5000)):
+        r = mi.generate_and_import("image-to-3d", img_abs, "gen_meta_a", out, spec, None, 591,
+                                   ledger, log=lambda *a: None)
+    e = _ledger_lines(ledger)[-1]
+    assert e["era"] == "medieval", e["era"]                    # was null before
+    assert e["note"] == spec["note"] and e["size_basis"] == "fixture" and e["size_m"] == 0.9
+    assert e["image"] == img_rel, e["image"]
+    prov = r["provenance"]
+    assert prov["era"] == "medieval" and prov["note"] == spec["note"]
+    assert prov["image"] == img_rel and prov["meshy"]["image"] == img_rel
+    assert prov["catalog_intent"]["prompt"] == "image: " + img_rel
+    on_disk = open(r["files"]["provenance"], encoding="utf-8").read()
+    root = os.path.abspath(mi.ROOT)
+    assert root not in on_disk and root.replace(os.sep, "/") not in on_disk \
+        and json.dumps(root)[1:-1] not in on_disk, "absolute repo path in provenance"
+    assert img_rel in open(r["files"]["voxel"], encoding="utf-8").read(3000)
+    # an explicit era wins; with neither, and an output folder elsewhere, era stays None
+    with stubbed(FakeMeshy(5000)):
+        mi.generate_and_import("text-to-3d", "p", "gen_meta_b", out,
+                               {"kind": "prop", "size": 0.9, "default_material": "Wood"},
+                               None, 591, ledger, era="norse", log=lambda *a: None)
+        mi.generate_and_import("text-to-3d", "p", "gen_meta_c", os.path.join(d, "x"),
+                               {"kind": "prop", "size": 0.9}, None, 591, ledger,
+                               log=lambda *a: None)
+    a, b = _ledger_lines(ledger)[-2:]
+    assert a["era"] == "norse" and b["era"] is None and b["size_basis"] == "NOT STATED"
+    assert mi.rel_ref("https://example.invalid/a.jpg") == "https://example.invalid/a.jpg"
+    assert mi.rel_ref(None) is None
+    return f"ledger era {e['era']!r}, image {e['image']!r}"
+
+
+# --------------------------------------------------------------------------
 # API path with the network replaced by a stub (no request leaves this process)
 # --------------------------------------------------------------------------
 
@@ -919,7 +1150,8 @@ def test_batch_resumable_and_stops_at_floor():
     doc = {"defaults": {"era": "roman", "kind": "building", "size_axis": "y", "preview": False},
            "entries": [
                {"name": "house_a", "size": HOUSE_RIDGE, "prompt": "synthetic house a",
-                "also_tier": ["subcube"]},
+                "also_tier": ["subcube"], "note": "entry note a",
+                "size_basis": "fixture ridge height"},
                {"name": "house_b", "size": HOUSE_RIDGE, "prompt": "synthetic house b",
                 "map": {"0": "StoneBricks"}},
                {"era": "medieval", "name": "barrel_c", "kind": "prop", "tier": "micro",
@@ -957,6 +1189,17 @@ def test_batch_resumable_and_stops_at_floor():
     prov_b = json.load(open(os.path.join(ref, "roman", "meshyref_house_b.provenance.json"),
                             encoding="utf-8"))
     assert prov_b["clusters"][0]["material"] == "StoneBricks"      # the manifest's map
+    # per-entry note / size_basis / era reach the provenance (both tiers) and the ledger
+    for stem in ("meshyref_house_a", "meshyref_house_a_subcube"):
+        pa = json.load(open(os.path.join(ref, "roman", stem + ".provenance.json"),
+                            encoding="utf-8"))
+        assert (pa["era"], pa["note"], pa["size_basis"]) == \
+            ("roman", "entry note a", "fixture ridge height"), stem
+    assert (prov_b["era"], prov_b["note"], prov_b["size_basis"]) == ("roman", None, "NOT STATED")
+    la, lb = _ledger_lines(ledger)
+    assert (la["era"], la["note"], la["size_basis"]) == ("roman", "entry note a",
+                                                         "fixture ridge height")
+    assert lb["note"] is None and lb["size_basis"] == "NOT STATED"
     assert [x["credits"] for x in _ledger_lines(ledger)] == [30, 30]
 
     # resume with more credits: the finished entries are skipped, not regenerated
@@ -971,6 +1214,9 @@ def test_batch_resumable_and_stops_at_floor():
     assert os.path.exists(os.path.join(ref, "medieval", "meshy_barrel_c.voxel"))
     lines = _ledger_lines(ledger)
     assert len(lines) == 4 and lines[2]["era"] == "medieval" and "image" in lines[2]
+    pc = json.load(open(os.path.join(ref, "medieval", "meshy_barrel_c.provenance.json"),
+                        encoding="utf-8"))
+    assert pc["era"] == "medieval" and pc["islands"] is None       # the entry's own era
     # a third run does nothing at all
     with stubbed(FakeMeshy(5000)) as fake:
         s = mi.run_batch(manifest, ref, 591, ledger, log=quiet)
@@ -989,7 +1235,8 @@ def test_batch_resumable_and_stops_at_floor():
     # malformed manifests are refused before any balance read
     for bad, needle in (({"name": "x", "size": 1, "prompt": "p", "image": "i.png"}, "exactly one"),
                         ({"name": "x", "prompt": "p"}, "'size'"),
-                        ({"name": "x", "size": 1, "prompt": "p", "sizee": 2}, "unknown keys")):
+                        ({"name": "x", "size": 1, "prompt": "p", "sizee": 2}, "unknown keys"),
+                        ({"name": "x", "size": 1, "prompt": "p", "notes": "n"}, "unknown keys")):
         doc["entries"] = [bad]
         write()
         with stubbed(FakeMeshy(5000)) as fake:
@@ -1028,6 +1275,9 @@ TESTS = [
     test_massing_timber_frame,
     test_reduce_glb,
     test_also_tier_and_default_reduce,
+    test_islands_dropped_for_buildings,
+    test_cli_era_note_size_basis_and_console,
+    test_generation_era_note_and_relative_paths,
     test_api_key_loading,
     test_credit_estimates,
     test_generation_ledger_and_budget_floor,

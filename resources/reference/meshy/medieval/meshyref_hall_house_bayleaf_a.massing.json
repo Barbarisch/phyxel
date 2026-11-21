@@ -1,10 +1,14 @@
 {
   "_note": "EVERY NUMBER HERE IS MEASURED FROM THE MODEL'S VOXELS at the --size the importer was given. None of it is a real-world source; a dimension typed into engine data still needs its own citation (grounding-auditor).",
+  "size_m": 14.0,
+  "size_axis": "x",
+  "size_basis": "NOMINAL - no sourced overall dimension for Bayleaf (medieval.md D17); proportions only",
+  "islands_dropped": "2 components, 811 voxels",
   "voxel_pitch_m": 0.11111,
   "footprint_w_x_m": 14.0,
-  "footprint_d_z_m": 9.444,
-  "footprint_area_m2": 86.025,
-  "footprint_fill_ratio": 0.651,
+  "footprint_d_z_m": 6.111,
+  "footprint_area_m2": 84.543,
+  "footprint_fill_ratio": 0.988,
   "eaves_height_m": 3.889,
   "eaves_method": "top of the highest layer (above 30% of the ridge height) whose silhouette extent across the roof-pitch axis is >= 97% of the widest such layer: the height above which the building only narrows. With an overhanging roof this is the roof's lower edge, not the top of the wall. No pitch axis -> equals the ridge.",
   "eaves_height_95pct_layer_m": 4.111,
@@ -14,7 +18,7 @@
   "top_height_m": 7.667,
   "roof_span_across_pitch_axis_m": 6.0,
   "roof_pitch_deg_rise_over_run": 50.7,
-  "roof_pitch_deg_mean_gradient": 46.7,
+  "roof_pitch_deg_mean_gradient": 46.4,
   "roof_pitch_axis": "z",
   "roof_pitch_method": "axis = the horizontal axis along which the silhouette narrows in the top 30% of the height (null if neither does); rise/run = (ridge - eaves) / (half the roof span at the eaves), assumes a symmetric roof; mean gradient = atan of the mean column-top step along that axis between eaves and ridge",
   "long_facades": {
@@ -22,7 +26,7 @@
       "opening_rows_m": [
         [
           1.222,
-          3.889
+          2.333
         ]
       ],
       "wall_cluster": 4,

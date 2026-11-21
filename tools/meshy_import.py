@@ -13,15 +13,18 @@ WHAT IS TESTED AND WHAT IS NOT
     the massing report, the preview, the file round trip, `--register` against
     a scratch library, the reduced GLB, `--also-tier`, the building material
     set, the ledger / budget floor / key loading / batch logic (network
-    functions replaced by a stub).
-  RUN ONCE FOR REAL (2026-11-21, by the main session, 30 credits):
+    functions replaced by a stub), the stray-piece (island) filter for
+    buildings, era / note / size basis in provenance and ledger.
+  RUN FOR REAL, ONCE EACH (2026-11-21, by the main session, 30 credits each;
+  resources/reference/meshy/ledger.jsonl):
     `--text` text-to-3D preview + refine with the request bodies of that date
-    (no remesh parameters). See docs/MeshyImport.md "First real result".
+    (no remesh parameters), and `--image-to-3d` with the default parameters
+    (should_remesh, topology, target_polycount 30000, enable_pbr false).
   NOT TESTED:
-    * the request parameters added after that run (should_remesh, topology,
-      target_polycount, enable_pbr, texture_resolution, remove_lighting, ...):
-      names and ranges are from the Meshy docs, never sent to the service.
-    * `--image-to-3d` and `--batch` against the service; GET /openapi/v1/balance.
+    * the request parameters neither run used (texture_resolution 4k/8k,
+      geometry_resolution, texture_prompt, remove_lighting, quad topology,
+      meshy-6-lite ...): names and ranges are from the Meshy docs only.
+    * `--batch` against the service.
     * anything in the engine: no template made by this tool has been spawned
       or looked at.  Tint appearance in particular is unverified.
 
@@ -36,6 +39,9 @@ PIPELINE
      (colour table: materials.json `physics.colorTint`, the same table
      vox_import.py uses; `--color-table texture` measures the mean colour of
      each material's side texture instead); `--map` / `--map-file` override
+  3b. `--kind building`: 26-connected voxel components smaller than
+     `--island-fraction` (0.05) of the largest are dropped and the kept
+     triangles voxelized again (`--keep-islands` turns this off)
   5. `--fill solid` (default for item/prop) flood-fills the interior;
      `--fill shell` (default for `--kind building`) keeps the surface only
   6. write <out>/<stem>.voxel + <stem>.provenance.json (+ .massing.json for
@@ -326,11 +332,21 @@ def bary_lattice(n):
 # voxelization
 # --------------------------------------------------------------------------
 
-def voxelize(parts, res, size, size_axis, log=print):
+def voxelize(parts, res, size, size_axis, log=print, face_keep=None):
     """Surface-voxelize. Returns dict(dims, lin (S,), rgb (S,3) uint8, has (S,) bool,
-    scale, extent_m).  lin = (x*dy + y)*dz + z of each surface SAMPLE."""
-    lo = np.min([p.bounds[0] for p in parts], axis=0)
-    hi = np.max([p.bounds[1] for p in parts], axis=0)
+    scale, extent_m, face_lin).  lin = (x*dy + y)*dz + z of each surface SAMPLE;
+    face_lin[i][f] = the voxel of one sample of face f of part i (-1 = face not used).
+    face_keep: per part a bool array over its faces; only those faces are sampled
+    AND only they set the bounding box and the scale (the island filter's second
+    pass). The box is that of the triangles, not of unreferenced vertices."""
+    tris = [np.asarray(p.triangles, dtype=np.float64) for p in parts]
+    sels = [np.arange(len(t)) if face_keep is None else np.nonzero(face_keep[i])[0]
+            for i, t in enumerate(tris)]
+    used = [t[s].reshape(-1, 3) for t, s in zip(tris, sels) if len(s)]
+    if not used:
+        raise ImportError_("no faces left to voxelize")
+    lo = np.min([u.min(axis=0) for u in used], axis=0)
+    hi = np.max([u.max(axis=0) for u in used], axis=0)
     ext = hi - lo
     if size_axis == "longest":
         ax = int(np.argmax(ext))
@@ -348,10 +364,14 @@ def voxelize(parts, res, size, size_axis, log=print):
             f"{MAX_GRID_CELLS:,} cap; use a coarser --tier or a smaller --size")
     step = pitch / 2.0   # lattice spacing; covering radius step/sqrt(3) < half a voxel
 
-    lins, rgbs, hass = [], [], []
+    lins, rgbs, hass, face_lin = [], [], [], []
     total = 0
-    for part in parts:
-        tri = (np.asarray(part.triangles, dtype=np.float64) - lo) * scale   # (F,3,3)
+    for part, tri_all, sel in zip(parts, tris, sels):
+        fl = np.full(len(tri_all), -1, np.int64)
+        face_lin.append(fl)
+        if not len(sel):
+            continue
+        tri = (tri_all[sel] - lo) * scale                                   # (F,3,3)
         col = PartColour(part)
         e = np.max(np.linalg.norm(tri - np.roll(tri, 1, axis=1), axis=2), axis=1)
         n = np.maximum(1, np.ceil(e / step)).astype(np.int64)
@@ -368,8 +388,10 @@ def voxelize(parts, res, size, size_axis, log=print):
                         f"more than {MAX_SAMPLES:,} surface samples needed; use a coarser "
                         f"--tier or a smaller --size")
                 ijk = np.clip(np.floor(pts / pitch).astype(np.int64), 0, dims - 1)
-                lins.append((ijk[:, 0] * dims[1] + ijk[:, 1]) * dims[2] + ijk[:, 2])
-                c = col.sample(fi, B)
+                lin = (ijk[:, 0] * dims[1] + ijk[:, 1]) * dims[2] + ijk[:, 2]
+                lins.append(lin)
+                fl[sel[fi]] = lin.reshape(len(fi), len(B))[:, 0]
+                c = col.sample(sel[fi], B)
                 if c is None:
                     rgbs.append(np.zeros((len(pts), 3), np.uint8))
                     hass.append(np.zeros(len(pts), bool))
@@ -380,7 +402,59 @@ def voxelize(parts, res, size, size_axis, log=print):
         "dims": dims, "lin": np.concatenate(lins), "rgb": np.concatenate(rgbs),
         "has": np.concatenate(hass), "scale": float(scale),
         "extent_m": [float(v) for v in ext_m], "size_axis": "xyz"[ax],
+        "face_lin": face_lin,
     }
+
+
+DEFAULT_ISLAND_FRACTION = 0.05
+
+
+def find_islands(vox, min_fraction=DEFAULT_ISLAND_FRACTION):
+    """Stray pieces (people in front of a photographed building come out of
+    image-to-3D as separate blobs beside it). Labels the occupied voxels into
+    26-CONNECTED components - face, edge or corner contact counts. 26 and not 6
+    because a surface voxelization of a thin sloped or diagonal part (a roof plane,
+    a brace) is only guaranteed to touch along edges and corners at the coarse
+    tiers; face connectivity would split the building's own roof into pieces and
+    could then drop them. 26 errs on the side of KEEPING geometry.
+    Keeps the largest component; a component not connected to it is dropped when
+    its voxel count is below min_fraction of the largest's, and kept otherwise (a
+    detached outbuilding). Returns (face_keep per part, report). Every sample of
+    one triangle lies in one component (samples are closer than half a voxel), so
+    the decision is made per triangle and the caller re-voxelizes the kept ones -
+    the bounding box, and with it the --size scale, is then the building's."""
+    from scipy import ndimage
+    if not 0.0 <= min_fraction <= 1.0:
+        raise ImportError_("--island-fraction must be between 0 and 1")
+    dims = tuple(int(d) for d in vox["dims"])
+    occ = np.zeros(int(np.prod(dims)), bool)
+    occ[vox["lin"]] = True
+    lab, n = ndimage.label(occ.reshape(dims), structure=np.ones((3, 3, 3), bool))
+    lab = lab.ravel()
+    sizes = np.bincount(lab, minlength=n + 1)[1:]
+    largest = int(sizes.argmax())
+    drop = sizes < min_fraction * sizes[largest]
+    drop[largest] = False
+    drop_lab = np.r_[False, drop]
+    face_keep = [(fl < 0) | ~drop_lab[lab[np.maximum(fl, 0)]] for fl in vox["face_lin"]]
+    detached = ~drop
+    detached[largest] = False
+    report = {
+        "applied": True,
+        "connectivity": 26,
+        "min_fraction": min_fraction,
+        "components": int(n),
+        "largest_component_voxels": int(sizes[largest]),
+        "dropped_components": int(drop.sum()),
+        "dropped_voxels": int(sizes[drop].sum()),
+        "dropped_component_voxels": [int(v) for v in np.sort(sizes[drop])[::-1][:20]],
+        "dropped_faces": int(sum(int((~k).sum()) for k in face_keep)),
+        "kept_detached_components": int(detached.sum()),
+        "kept_detached_voxels": int(sizes[detached].sum()),
+        "counted_on": "surface voxels of the first pass (before the fill, at the scale "
+                      "that included the stray pieces)",
+    }
+    return face_keep, report
 
 
 def cluster_colours(rgb, k, merge_dist, seed=0):
@@ -1213,8 +1287,8 @@ def meshy_text_to_3d(prompt, dest_glb, params=None, log=print, ids_out=None):
 
 
 def meshy_image_to_3d(image, dest_glb, params=None, log=print, ids_out=None):
-    """NEVER RUN against the service. `image` is a public URL or a local
-    JPG/PNG/WebP (sent as a data URI)."""
+    """`image` is a public URL or a local JPG/PNG/WebP (sent as a data URI).
+    Run once against the service (2026-11-21, local JPG, default parameters)."""
     p = {**gen_defaults(), **(params or {})}
     ids = ids_out if ids_out is not None else []
     if re.match(r"^https?://", image):
@@ -1252,6 +1326,29 @@ def repo_rel(path):
     return ap if rel.startswith("..") else rel.replace(os.sep, "/")
 
 
+def rel_ref(s):
+    """A prompt-side reference (image path or URL) as it is stored: URLs and None
+    unchanged, a local path repo-relative when it is inside the repository."""
+    if not s or re.match(r"^[a-z][a-z0-9+.-]*://", s) or s.startswith("data:"):
+        return s
+    return repo_rel(s)
+
+
+def infer_era(out_dir, ref_root=None):
+    """The <era> of an output folder <ref root>/<era>/..., else None."""
+    for root in (ref_root, MESHY_REF_ROOT):
+        if not root or not out_dir:
+            continue
+        try:
+            rel = os.path.relpath(os.path.abspath(out_dir), os.path.abspath(root))
+        except ValueError:                       # another drive
+            continue
+        first = rel.replace(os.sep, "/").split("/")[0]
+        if first not in (".", "..", ""):
+            return first
+    return None
+
+
 def append_ledger(entry, ledger_path=None):
     ledger_path = ledger_path or LEDGER_PATH
     os.makedirs(os.path.dirname(ledger_path), exist_ok=True)
@@ -1276,7 +1373,8 @@ def generate(mode, source_text, dest_glb, params=None, budget_floor=DEFAULT_BUDG
         "when": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "mode": mode + (" (preview + refine)" if mode == "text-to-3d" and p["texture"] else ""),
         **(ledger_extra or {}),
-        ("prompt" if mode == "text-to-3d" else "image"): source_text,
+        ("prompt" if mode == "text-to-3d" else "image"):
+            source_text if mode == "text-to-3d" else rel_ref(source_text),
         "ai_model": p["ai_model"],
         "params": {k: v for k, v in p.items() if k != "ai_model"},
         "estimated_credits": est,
@@ -1606,7 +1704,9 @@ def import_mesh(input_path, name, kind="prop", tier=None, size=None, size_axis="
                 exclude_materials=None, emit="tint", compact=None, out_dir=None,
                 up="y", preview=False, source="local-mesh", prompt=None, image=None,
                 meshy_info=None, stem_prefix=True, check_library=True,
-                all_materials=False, color_metric=None, log=print):
+                all_materials=False, color_metric=None, keep_islands=False,
+                island_fraction=DEFAULT_ISLAND_FRACTION, era=None, note=None,
+                size_basis=None, log=print):
     """Run the whole offline import. Returns a result dict (paths, counts, clusters,
     massing). Raises ImportError_ on a refusal."""
     if size is None or size <= 0:
@@ -1660,8 +1760,26 @@ def import_mesh(input_path, name, kind="prop", tier=None, size=None, size_axis="
 
     parts = load_parts(input_path, up=up)
     n_faces = sum(len(p.faces) for p in parts)
+    image = rel_ref(image)
+    size_basis = (size_basis or "").strip() or "NOT STATED"
     vox = voxelize(parts, res, size, size_axis, log=log)
+    # stray pieces (buildings only): decided on the first pass, then the kept
+    # triangles are voxelized again so the box and the scale are the building's
+    islands = None
+    if kind == "building":
+        if keep_islands:
+            islands = {"applied": False, "reason": "--keep-islands"}
+        else:
+            face_keep, islands = find_islands(vox, island_fraction)
+            islands["extent_m_with_islands"] = [round(v, 4) for v in vox["extent_m"]]
+            if islands["dropped_components"]:
+                vox = voxelize(parts, res, size, size_axis, log=log, face_keep=face_keep)
+            islands["extent_m_kept"] = [round(v, 4) for v in vox["extent_m"]]
     grid, cl = build_label_grid(vox, clusters, merge_dist)
+    if islands and islands["applied"]:
+        from scipy import ndimage
+        islands["components_after"] = int(ndimage.label(
+            grid >= 0, structure=np.ones((3, 3, 3), bool))[1])
     n_surface = int((grid >= 0).sum())
     if n_surface == 0:
         raise ImportError_("voxelization produced no voxels")
@@ -1685,7 +1803,15 @@ def import_mesh(input_path, name, kind="prop", tier=None, size=None, size_axis="
     mats_used = sorted({c["material"] for c in cl if c["voxels"]})
     today = datetime.date.today().isoformat()
 
-    massing = massing_report(grid, res, cl, geo) if kind == "building" else None
+    massing = None
+    if kind == "building":          # computed on the grid AFTER the island filter
+        m = massing_report(grid, res, cl, geo)
+        massing = {"_note": m.pop("_note"), "size_m": size, "size_axis": vox["size_axis"],
+                   "size_basis": size_basis,
+                   "islands_dropped": (f"{islands['dropped_components']} components, "
+                                       f"{islands['dropped_voxels']} voxels"
+                                       if islands["applied"] else "filter off (--keep-islands)"),
+                   **m}
 
     src_desc = {"meshy": "Meshy AI mesh", "local-mesh": "local mesh"}[source]
     header = [
@@ -1699,6 +1825,7 @@ def import_mesh(input_path, name, kind="prop", tier=None, size=None, size_axis="
         f"# bounds:       {dims[0] * pitch:.3f}W x {dims[1] * pitch:.3f}H x "
         f"{dims[2] * pitch:.3f}D m  ({dims[0]}x{dims[1]}x{dims[2]} cells at 1/{res} m; "
         f"requested {size} m along {vox['size_axis']})",
+        f"# size basis:   {size_basis}",
         f"# primitives:   {counts['C']} C + {counts['S']} S + {counts['M']} M + {counts['V']} V"
         f"  ({n_surface + n_interior} voxels: {n_surface} surface + {n_interior} interior, "
         f"fill={fill})",
@@ -1764,8 +1891,12 @@ def import_mesh(input_path, name, kind="prop", tier=None, size=None, size_axis="
         "kind": kind,
         "tier": tier,
         "cells_per_metre": res,
+        "era": era,
+        "note": note,
         "size_m": size,
+        "size_basis": size_basis,
         "size_axis": vox["size_axis"],
+        "islands": islands,
         "uniform_scale_applied": vox["scale"],
         "extent_m": [round(d * pitch, 4) for d in dims],
         "extent_cells": dims,
@@ -1868,7 +1999,8 @@ def register(voxel_path, library_root=None, log=print):
 IMPORT_KEYS = ("kind", "tier", "size", "size_axis", "fill", "clusters", "merge_dist",
                "map_overrides", "default_material", "color_table", "only_materials",
                "exclude_materials", "emit", "compact", "up", "preview", "check_library",
-               "all_materials", "color_metric")
+               "all_materials", "color_metric", "keep_islands", "island_fraction",
+               "era", "note", "size_basis")
 
 
 def import_all(input_path, name, out_dir, spec, source="local-mesh", prompt=None,
@@ -1917,9 +2049,16 @@ def generate_and_import(mode, source_text, name, out_dir, spec, gen_params=None,
                         log=print):
     """One paid generation + its import, with exactly one ledger line."""
     glb = os.path.join(out_dir, sanitize_stem(name) + ".meshy.glb")
-    extra = {"name": sanitize_stem(name), "era": era, "kind": spec.get("kind", "prop")}
+    era = era or spec.get("era") or infer_era(out_dir)
+    spec = dict(spec, era=era)
+    extra = {"name": sanitize_stem(name), "era": era, "kind": spec.get("kind", "prop"),
+             "size_m": spec.get("size"),
+             "size_basis": (spec.get("size_basis") or "").strip() or "NOT STATED",
+             "note": spec.get("note")}
     info, entry = generate(mode, source_text, glb, gen_params, budget_floor, ledger_path,
                            ledger_extra=extra, log=log)
+    if info.get("image"):
+        info["image"] = rel_ref(info["image"])
     try:
         r = import_all(glb, name, out_dir, spec, source="meshy",
                        prompt=source_text if mode == "text-to-3d" else None,
@@ -1937,7 +2076,7 @@ def generate_and_import(mode, source_text, name, out_dir, spec, gen_params=None,
 
 MANIFEST_KEYS = {"era", "name", "kind", "tier", "size", "size_axis", "prompt", "image",
                  "map", "default_material", "also_tier", "clusters", "preview", "reduce",
-                 "note"} | set(gen_defaults())
+                 "note", "size_basis", "keep_islands", "island_fraction"} | set(gen_defaults())
 
 
 def _manifest_entries(manifest_path):
@@ -2006,7 +2145,10 @@ def run_batch(manifest_path, ref_root=None, budget_floor=DEFAULT_BUDGET_FLOOR,
                 "size_axis": e.get("size_axis", "y"), "map_overrides": e.get("map") or {},
                 "default_material": e.get("default_material"),
                 "also_tier": e.get("also_tier") or [], "clusters": e.get("clusters"),
-                "preview": e.get("preview", True), "reduce": e.get("reduce")}
+                "preview": e.get("preview", True), "reduce": e.get("reduce"),
+                "note": e.get("note"), "size_basis": e.get("size_basis"),
+                "keep_islands": e.get("keep_islands"),
+                "island_fraction": e.get("island_fraction")}
         log(f"[batch] {era}/{name}: generating ({mode}, estimated {est} credits)")
         try:
             r = generate_and_import(mode, e.get("prompt") or e["image"], name, out_dir, spec,
@@ -2052,13 +2194,26 @@ def print_result(r):
     print(f"  voxels {v['total']} ({v['surface']} surface + {v['interior']} interior, "
           f"fill={p['fill']});  lines C={r['counts']['C']} S={r['counts']['S']} "
           f"M={r['counts']['M']} V={r['counts']['V']}")
+    isl = p.get("islands")
+    if isl and isl["applied"]:
+        print(f"  islands: {isl['components']} components ({isl['connectivity']}-connected); "
+              f"dropped {isl['dropped_components']} components / {isl['dropped_voxels']} "
+              f"voxels smaller than {isl['min_fraction']:g} of the largest "
+              f"({isl['largest_component_voxels']} voxels); kept detached: "
+              f"{isl['kept_detached_components']}; extent with them "
+              f"{isl['extent_m_with_islands']} m -> kept {isl['extent_m_kept']} m")
+    elif isl:
+        print("  islands: filter OFF (--keep-islands) - stray pieces count in every number")
+    if p.get("era") or p.get("note"):
+        print(f"  era: {p.get('era')}  note: {p.get('note')}")
     print(f"  candidates: {p['candidate_materials']}; metric {p['color_metric']}")
     print("  clusters (id  colour   voxels  role  material  how):")
     for c in r["clusters"]:
         print(f"    {c['id']}  {c['tint'] or '(none) '}  {c['voxels']:>8}  "
               f"{c.get('role', '-'):<4}  {c['material']:<12} {c['how']}")
     if r["massing"]:
-        print("  massing - MEASURED FROM THE MODEL, not a real-world source:")
+        print(f"  massing - MEASURED FROM THE MODEL at --size {p['size_m']} m along "
+              f"{p['size_axis']} (SIZE BASIS: {p['size_basis']}), not a real-world source:")
         for k, val in r["massing"].items():
             if not k.startswith("_") and not k.endswith("_method"):
                 print(f"    {k}: {val}")
@@ -2138,6 +2293,20 @@ def main(argv=None):
                     help="where the mesh came from (the tool cannot tell from a file)")
     ap.add_argument("--prompt", help="the Meshy text prompt (provenance)")
     ap.add_argument("--image", help="the reference image path/URL (provenance)")
+    ap.add_argument("--size-basis", default="NOT STATED",
+                    help="where --size comes from (free text: a cited survey, 'nominal', "
+                         "...); stored in provenance and printed with the massing report. "
+                         "Default: NOT STATED")
+    ap.add_argument("--note", help="free text stored in provenance and the ledger "
+                                   "(source URL, author, licence, ...)")
+    ap.add_argument("--keep-islands", action="store_true",
+                    help="--kind building: keep detached stray pieces (default: drop "
+                         "26-connected components smaller than --island-fraction of the "
+                         "largest - people standing in front of a photographed building)")
+    ap.add_argument("--island-fraction", type=float, default=DEFAULT_ISLAND_FRACTION,
+                    help="--kind building: a detached component with fewer voxels than "
+                         "this fraction of the largest one is dropped (default "
+                         f"{DEFAULT_ISLAND_FRACTION})")
     ap.add_argument("--no-library-check", action="store_true",
                     help="skip the unique-stem check against resources/templates")
     # reduced copy
@@ -2152,8 +2321,7 @@ def main(argv=None):
     # Meshy API
     ap.add_argument("--text", help="generate with Meshy text-to-3D from this prompt (BILLED)")
     ap.add_argument("--image-to-3d", dest="image_to_3d",
-                    help="generate with Meshy image-to-3D from this image/URL (BILLED; "
-                         "never run against the service)")
+                    help="generate with Meshy image-to-3D from this image/URL (BILLED)")
     ap.add_argument("--batch", metavar="MANIFEST",
                     help="generate every entry of a manifest (see "
                          "tools/meshy_manifest.example.json) into "
@@ -2161,8 +2329,10 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true",
                     help="with --batch: list what would be generated and the estimated "
                          "credits; no request is made")
-    ap.add_argument("--era", help="era folder under resources/reference/meshy/ for a "
-                                  "single --text / --image-to-3d generation")
+    ap.add_argument("--era", help="era, stored in provenance and the ledger; for a single "
+                                  "--text / --image-to-3d generation also the output "
+                                  "folder resources/reference/meshy/<era>/. Default: read "
+                                  "from --out when it is .../reference/meshy/<era>/...")
     ap.add_argument("--ai-model", default="latest",
                     help="Meshy ai_model: " + ", ".join(MESHY_AI_MODELS) + " (default "
                          "latest = Meshy 7.1; meshy-6-lite costs a quarter for the mesh)")
@@ -2254,6 +2424,10 @@ def main(argv=None):
             "preview": args.preview, "check_library": not args.no_library_check,
             "also_tier": args.also_tier, "reduce": args.reduce,
             "reduce_texture": args.reduce_texture, "reduce_faces": args.reduce_faces,
+            "keep_islands": args.keep_islands, "island_fraction": args.island_fraction,
+            "era": (sanitize_stem(args.era) if args.era
+                    else infer_era(out_dir, ref_root)),
+            "note": args.note, "size_basis": args.size_basis,
         }
         if spec["size"] is None or spec["size"] <= 0:      # before any credit is spent
             raise ImportError_("--size (metres; 1 engine cube = 1 m) is required and must "
@@ -2268,7 +2442,8 @@ def main(argv=None):
                    "remove_lighting": args.remove_lighting}
             mode = "text-to-3d" if args.text else "image-to-3d"
             r = generate_and_import(mode, args.text or args.image_to_3d, args.name, out_dir,
-                                    spec, gen, args.budget_floor, args.ledger, era=args.era)
+                                    spec, gen, args.budget_floor, args.ledger,
+                                    era=spec["era"])
         else:
             name = args.name or os.path.splitext(os.path.basename(args.input))[0]
             r = import_all(args.input, name, out_dir, spec, source=args.source,

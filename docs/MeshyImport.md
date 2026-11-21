@@ -1,9 +1,9 @@
 # Meshy import — mesh to voxel template (`tools/meshy_import.py`)
 
 **Status (2026-11-21).** The offline path (mesh → voxels → materials → files) is self-tested on
-synthetic meshes and has been run on one real Meshy mesh. The Meshy API path has been called
-**once** for real (text-to-3D, preview + refine, 30 credits). The request parameters added since
-that call, image-to-3D and the batch have **not** been sent to the service. Nothing this tool
+synthetic meshes and has been run on two real Meshy meshes. The Meshy API path has been called
+**twice** for real (`resources/reference/meshy/ledger.jsonl`: one text-to-3D preview + refine, one
+image-to-3D; 30 credits each). The batch has **not** been run against the service. Nothing this tool
 produced has been spawned in the engine. Specified by [`WorldForgeV2Plan.md`](WorldForgeV2Plan.md)
 §14; library rules in [`AssetLibrary.md`](AssetLibrary.md); the item format in
 [`FineVoxelItems.md`](FineVoxelItems.md).
@@ -18,7 +18,7 @@ on request, and a reduced copy of the mesh that is small enough to commit.
 
 | | State |
 |---|---|
-| Local GLB / OBJ → voxels at `fine`, `micro`, `subcube` | tested, synthetic meshes (`tools/test_meshy_import.py`, 21 checks) |
+| Local GLB / OBJ → voxels at `fine`, `micro`, `subcube` | tested, synthetic meshes (`tools/test_meshy_import.py`, 24 checks) |
 | Size: voxel bounding box = requested size within one voxel, all three axes | tested, with two red controls (wrong expectation; wrong `--size`) |
 | Solid vs shell fill; fill volume against the analytic volume | tested (barrel, 1.2 cm voxels: 0.274 m³ vs 0.259 m³) |
 | Vertex-colour, textured (UV + image) and colourless meshes | tested, synthetic |
@@ -27,11 +27,14 @@ on request, and a reduced copy of the mesh that is small enough to commit.
 | Massing report | tested on a synthetic gabled house, a blank-walled control and a timber-framed variant; one real model recorded below (no known truth) |
 | Reduced GLB (`--reduce`) | tested: loads back, extent kept, face budget met, texture downscaled, voxelizes to the same clusters; run on the real 45 MB mesh |
 | `--also-tier` | tested |
+| Stray-piece (island) filter for buildings | tested: a house with two detached figures → footprint and massing equal the plain house's, 2 components reported in the console and in provenance; controls: `--keep-islands` (footprint wider), a lower `--island-fraction` (figures kept), a figure touching the wall (stays — the limit); re-run offline on the real Bayleaf mesh |
+| `--era` (given or read from `--out`), `--note`, `--size-basis` in provenance, massing file, console and ledger; repo-relative image path | tested (ledger through the stub); each shown failing with the new code disabled |
 | Ledger, budget floor, key loading, batch resume / stop / failure, request bodies | tested **with the three network functions replaced by a stub** — proves the bookkeeping, not that the service accepts the requests |
 | `--register` | tested against a scratch library only, never the repository's |
 | `lint_voxel_detail.py` on the outputs | run, no problems |
-| **Meshy API, text-to-3D** | run once (2026-11-21) with the request bodies of that date; **the parameters added afterwards (`should_remesh`, `topology`, `target_polycount`, `enable_pbr`, …) have never been sent** |
-| **Meshy API, image-to-3D; `--batch`; `GET /openapi/v1/balance` from this tool** | **NOT run against the service** |
+| **Meshy API, text-to-3D** | run once (2026-11-21) with the request bodies of that date (no remesh parameters) |
+| **Meshy API, image-to-3D** | run once (2026-11-21, a local JPG, default parameters — the ledger's second line). Options neither run used (4k/8k texture, `geometry_resolution`, `texture_prompt`, `remove_lighting`, `quad`, `meshy-6-lite`) have never been sent |
+| **`--batch` against the service** | **NOT run** |
 | **In the engine** (spawn, screenshot, tint appearance, physics) | **NOT tested** |
 | `asset_index.py --validate` over the real library with an imported template in it | NOT run |
 
@@ -60,6 +63,42 @@ template in the library already has it. The tool prints the size of every file i
 `--size` is required. It is the real extent in metres (1 engine cube = 1 m) along `--size-axis`
 (`y` = height by default; `x`, `z`, `longest`). The mesh is scaled uniformly. The tool does not
 infer a scale from the file, and it checks `--size` before any credit is spent.
+
+`--size-basis "<text>"` says where that number comes from (a cited survey, "nominal", …). It is
+stored in the provenance and massing files, in the `.voxel` header and in the ledger, and printed
+in the massing report's header line. The default is the literal **`NOT STATED`**, so a nominal
+size cannot pass for a sourced one. The tool does not check the text.
+
+`--era <name>` and `--note "<text>"` (source URL, author, licence, …) are stored in the provenance
+file and the ledger line. Without `--era` the era is read from `--out` when that folder is
+`resources/reference/meshy/<era>/…`; otherwise it is `null`. Local paths inside the repository
+(the input mesh, a reference image) are stored relative to its root; a file outside the repository
+keeps its absolute path.
+
+### Stray pieces (`--kind building`)
+
+Image-to-3D turns people standing in front of a photographed building into separate blobs beside
+it; they widened the first Bayleaf footprint from about 6.1 m to 9.4 m. For `--kind building` the
+tool therefore (default **on**; `--keep-islands` turns it off):
+
+1. labels the occupied voxels into **26-connected** components (face, edge or corner contact).
+   26 rather than face connectivity because the surface voxels of a thin sloped part — a roof
+   plane, a brace — are only sure to touch along edges and corners at the coarse tiers; face
+   connectivity could split the building's own roof off and drop it. 26 errs towards keeping;
+2. keeps the largest component, and drops every other component whose voxel count is below
+   `--island-fraction` (default **0.05**) of the largest's. A larger detached piece (an
+   outbuilding) is kept and counted as `kept_detached_components`;
+3. voxelizes the kept triangles again, so the bounding box — and with it the `--size` scale — is
+   the building's, not the building's plus a bystander;
+4. clusters colours, assigns roof / wall roles and computes the massing report **after** that.
+
+The console prints an `islands:` line and the provenance file has an `islands` object
+(`components`, `dropped_components`, `dropped_voxels`, the dropped sizes, `min_fraction`,
+`connectivity`, the extent with and without them). The counts are surface voxels of the first
+pass. Items and props are not filtered.
+
+**Limit: a figure that touches the wall is part of the building's component and stays.** Nothing
+automatic is done about it; crop the source image, or edit the mesh, before importing.
 
 ### Tiers
 
@@ -139,6 +178,7 @@ header says so, tags it `reference, do-not-place`, and writes `<stem>.massing.js
 
 | Field | How it is measured |
 |---|---|
+| `size_m`, `size_axis`, `size_basis`, `islands_dropped` | the `--size` given, its stated basis (`NOT STATED` unless `--size-basis` was passed), and what the stray-piece filter removed before anything below was measured |
 | `footprint_w_x_m`, `footprint_d_z_m`, `footprint_area_m2` | voxel bounding box and occupied columns |
 | `roof_pitch_axis` | the horizontal axis along which the silhouette narrows in the top 30 % of the height; `null` when neither narrows (flat roof) |
 | `eaves_height_m` | top of the highest layer whose silhouette extent across the pitch axis is ≥ 97 % of the widest layer (searched above 30 % of the ridge height): the height above which the building only narrows. With an overhanging roof this is the roof's lower edge, not the top of the wall |
@@ -181,6 +221,28 @@ Read with care:
   eaves, so the row heights are not window heights.
 - At the subcube tier the same model reads eaves 10.0 m, ridge 15.667 m, 41.8° / 43.2°, and 2
   storeys from one facade but 1 from the other.
+
+### Recorded case: the Bayleaf hall house, before and after the stray-piece filter
+
+`resources/reference/meshy/medieval/hall_house_bayleaf_a.meshy.glb` (image-to-3D from a photograph
+with visitors in it), `--kind building --size 14 --size-axis longest`, micro tier. "Before" is the
+committed `meshyref_hall_house_bayleaf_a.massing.json`; "after" is an offline re-run to a scratch
+folder (2026-11-21, no API call; the committed files were not rewritten).
+
+| | Before | After |
+|---|---|---|
+| grid | 126 × 69 × 85 cells | 126 × 69 × 55 cells |
+| footprint | 14.0 × 9.444 m | 14.0 × 6.111 m |
+| footprint fill ratio | 0.651 | 0.988 |
+| footprint area | 86.025 m² | 84.543 m² |
+| eaves / ridge / top | 3.889 / 7.556 / 7.667 m | 3.889 / 7.556 / 7.667 m |
+| roof pitch | 50.7° / 46.7° | 50.7° / 46.4° |
+| components | — | 3 found, 2 dropped (811 voxels of 80,271), 0 kept detached |
+
+The two figures standing clear of the house are gone from the side and top silhouettes. **One
+figure-shaped blob against the front wall, right of the door, is still there** (the limit above;
+read off the preview image, not measured). The subcube tier drops the same two
+components (84 voxels) and reads 14.0 × 6.333 m. 14 m is a nominal size (`size_basis`: NOT STATED).
 
 ## The reduced GLB (`--reduce`)
 
@@ -312,8 +374,10 @@ first use). A generation that fails after the balance check is ledgered too, wit
 ```
 
 `credits` is the balance difference; `consumed_credits_reported` is the sum of the tasks'
-`consumed_credits`. An image generation has `"image"` in place of `"prompt"`. Paths inside the
-repository are written relative to its root. The first line of the existing ledger was written by
+`consumed_credits`. An image generation has `"image"` in place of `"prompt"`. Each line also has
+`"size_m"`, `"size_basis"` and `"note"`, and `"era"` is the `--era` given or the one read from the
+output folder (the Bayleaf line has `"era": null` because it predates that). Paths inside the
+repository, the image included, are written relative to its root. The first line of the existing ledger was written by
 hand after the first real call (the tool had no ledger then) and has fewer fields.
 
 ### Batch
@@ -323,15 +387,34 @@ python tools/meshy_import.py --batch tools/meshy_manifest.example.json --dry-run
 python tools/meshy_import.py --batch my_manifest.json --yes-spend-credits
 ```
 
-A manifest is `{"defaults": {...}, "entries": [...]}` (or a bare list). Each entry has `era`,
-`name`, `kind`, `size`, and exactly one of `prompt` or `image` (a URL, or a path relative to the
-manifest or to the repository root); optional `tier`, `size_axis`, `also_tier`, `map` (the material
-overrides), `default_material`, `clusters`, `preview`, `reduce`, `note`, and the generation
-parameters under the field names in the table above (`ai_model`, `should_remesh`,
-`target_polycount`, `topology`, `geometry_resolution`, `texture`, `texture_resolution`,
-`enable_pbr`, `texture_prompt`, `remove_lighting`). Unknown keys are refused. Example:
+A manifest is `{"defaults": {...}, "entries": [...]}` (or a bare list). `defaults` holds any of the
+entry fields; an entry's own value wins. Unknown keys are refused before any request. Example:
 [`tools/meshy_manifest.example.json`](../tools/meshy_manifest.example.json) — its sizes are
 placeholders, not sourced dimensions.
+
+| Field | Required | Type | Meaning |
+|---|---|---|---|
+| `era` | yes | string | output folder `resources/reference/meshy/<era>/`; stored in provenance and ledger |
+| `name` | yes | string | template name; `era` + `name` must be unique in the manifest |
+| `kind` | yes | `item` / `prop` / `building` | as `--kind` |
+| `size` | yes | number > 0 | metres along `size_axis` |
+| `prompt` | one of the two | string (≤ 800 characters) | text-to-3D |
+| `image` | one of the two | URL, or a path relative to the manifest or the repository root | image-to-3D |
+| `size_axis` | no | `x` / `y` / `z` / `longest` | default `y` |
+| `size_basis` | no | string | where `size` comes from; default `NOT STATED` |
+| `note` | no | string | source URL, author, licence, …; stored in provenance and ledger |
+| `tier` | no | `fine` / `micro` / `subcube` | default by `kind` |
+| `also_tier` | no | list of tiers | extra stamps `<stem>_<tier>.voxel` |
+| `map` | no | object `{"<cluster id>" or "#rrggbb": "Material"}` | material overrides |
+| `default_material` | no | string | for geometry without colour |
+| `clusters` | no | integer | k-means cluster count (default 6) |
+| `preview` | no | boolean | default `true` in a batch |
+| `reduce` | no | boolean | reduced GLB; default on for buildings |
+| `keep_islands`, `island_fraction` | no | boolean, number 0–1 | the stray-piece filter (buildings); defaults `false`, 0.05 |
+| `ai_model`, `texture`, `should_remesh`, `topology`, `target_polycount`, `geometry_resolution`, `texture_resolution`, `enable_pbr`, `texture_prompt`, `remove_lighting` | no | as in the parameter table above | generation parameters |
+
+`also_tier`, `map`, `note`, `size_basis` and a per-entry `era` are exercised by the self-test
+(through the stub).
 
 - Output goes to `resources/reference/meshy/<era>/`.
 - One generation at a time, in manifest order.
@@ -352,8 +435,8 @@ the street**, a low stone plinth, limewashed wattle-and-daub walls, a red tegula
 timber **portico**. Meshy returned a **two-storey half-timbered house with its long side to the
 front** and no portico — a north-European late-medieval house type. Text-to-3D did not follow the
 period brief. It is of no use as a Roman reference, and it was imported at a size (24 m) chosen for
-the building that was asked for. **Image-to-3D from sourced reference images is the route to try
-next**; it has not been run.
+the building that was asked for. Image-to-3D from a sourced reference image was run next (the
+Bayleaf hall house, recorded above).
 
 What the run did establish: the endpoints, authentication, polling and download work; without
 `should_remesh` the download is 45 MB with 1.3 M faces; nearest-colour mapping over all materials
@@ -388,6 +471,9 @@ stone.
   texture splits one material into several clusters; use `--map`.
 - Glass, emissive parts and metal are identified by colour only; for buildings `Glass` is
   override-only.
+- The stray-piece filter removes only pieces that are **not connected** to the building (26-
+  connectivity) and smaller than `--island-fraction` of it. A figure touching a wall, a ground
+  slab that joins a figure to the building, and people painted into the texture all stay.
 - The roof / wall split needs a pitched roof; a flat roof is matched against the wall list.
 - The storey guess needs openings drawn in a colour different from the wall, and reads the two
   long facades only.
@@ -401,7 +487,7 @@ python -m pytest tools/test_meshy_import.py -q
 ```
 
 It builds synthetic meshes with `trimesh` (a gabled house with painted windows and a door, the same
-house with a timber frame, a barrel with hoops, a colourless 2 cm board as OBJ, a UV-textured cube,
+house with a timber frame, the same house with two detached "figures", a barrel with hoops, a colourless 2 cm board as OBJ, a UV-textured cube,
 a 20,480-face textured sphere), runs the tool on them and checks the written files. The API tests
 replace `_meshy_create`, `_meshy_get` and `_meshy_download` — the only three functions that touch
 the network — with a stub, point the tool's base URL at a closed local port, and use a scratch
