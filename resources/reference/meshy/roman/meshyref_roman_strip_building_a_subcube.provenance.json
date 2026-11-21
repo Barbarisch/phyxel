@@ -1,0 +1,148 @@
+{
+  "stem": "meshyref_roman_strip_building_a_subcube",
+  "source": "meshy",
+  "prompt": "see ledger.jsonl line 1 (text-to-3d, 2026-11-21)",
+  "image": null,
+  "meshy": null,
+  "input_file": "resources/reference/meshy/roman/roman_strip_building_a.meshy.glb",
+  "input_sha256": "9bafd6e2260e662db2661b53f0f1d4f07b55986540879c8c379883a2fabcda68",
+  "input_faces": 1343508,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "size_m": 24.0,
+  "size_axis": "x",
+  "uniform_scale_applied": 12.61180485668887,
+  "extent_m": [
+    24.0,
+    15.6667,
+    13.3333
+  ],
+  "extent_cells": [
+    72,
+    47,
+    40
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 14709,
+    "interior": 0,
+    "total": 14709
+  },
+  "primitives": {
+    "C": 0,
+    "S": 14709,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        228,
+        223,
+        209
+      ],
+      "tint": "#e4dfd1",
+      "material": "Sandstone",
+      "how": "override",
+      "role": "wall",
+      "surface_voxels": 3761,
+      "voxels": 3761
+    },
+    {
+      "id": 1,
+      "rgb": [
+        136,
+        45,
+        17
+      ],
+      "tint": "#882d11",
+      "material": "ClayTile",
+      "how": "nearest roof colour (chroma distance 27)",
+      "role": "roof",
+      "surface_voxels": 3628,
+      "voxels": 3628
+    },
+    {
+      "id": 2,
+      "rgb": [
+        176,
+        152,
+        128
+      ],
+      "tint": "#b09880",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 12)",
+      "role": "wall",
+      "surface_voxels": 2905,
+      "voxels": 2905
+    },
+    {
+      "id": 3,
+      "rgb": [
+        172,
+        78,
+        46
+      ],
+      "tint": "#ac4e2e",
+      "material": "ClayTile",
+      "how": "nearest roof colour (chroma distance 15)",
+      "role": "roof",
+      "surface_voxels": 2117,
+      "voxels": 2117
+    },
+    {
+      "id": 4,
+      "rgb": [
+        108,
+        92,
+        77
+      ],
+      "tint": "#6c5c4d",
+      "material": "LogSpruce",
+      "how": "override",
+      "role": "wall",
+      "surface_voxels": 1827,
+      "voxels": 1827
+    },
+    {
+      "id": 5,
+      "rgb": [
+        49,
+        35,
+        25
+      ],
+      "tint": "#312319",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 21)",
+      "role": "wall",
+      "surface_voxels": 471,
+      "voxels": 471
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Roman Strip Building A Subcube",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 24.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy)",
+    "model": "meshy",
+    "created": "2026-11-21T22:51:08.627518+00:00",
+    "version": 1,
+    "prompt": "see ledger.jsonl line 1 (text-to-3d, 2026-11-21)"
+  }
+}

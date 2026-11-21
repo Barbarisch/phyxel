@@ -1,0 +1,52 @@
+{
+  "_comment": [
+    "Example manifest for: python tools/meshy_import.py --batch <this file> --yes-spend-credits",
+    "List it first, without spending: python tools/meshy_import.py --batch <this file> --dry-run",
+    "Each entry is ONE paid generation (text: preview + refine = 30 credits with ai_model latest;",
+    "image: 30). Output: resources/reference/meshy/<era>/ . An entry whose",
+    "<stem>.provenance.json already exists is skipped, so a stopped batch can be re-run.",
+    "The batch stops when the next generation would leave fewer than --budget-floor credits (591).",
+    "Per entry: era, name, kind (building|prop|item), size (metres along size_axis: x|y|z|longest),",
+    "and exactly one of prompt (<= 800 characters) or image (URL, or a path relative to this file",
+    "or to the repository root). Optional: tier, also_tier, map, default_material, clusters,",
+    "preview, reduce, note, and the generation parameters ai_model, should_remesh,",
+    "target_polycount, topology, geometry_resolution, texture, texture_resolution, enable_pbr,",
+    "texture_prompt, remove_lighting. 'defaults' is merged under every entry.",
+    "THE SIZES BELOW ARE PLACEHOLDERS that show the format; they are not sourced dimensions.",
+    "A size typed into a real manifest needs its own citation (grounding-auditor)."
+  ],
+  "defaults": {
+    "kind": "building",
+    "tier": "micro",
+    "also_tier": ["subcube"],
+    "size_axis": "longest",
+    "ai_model": "latest",
+    "target_polycount": 30000,
+    "preview": true
+  },
+  "entries": [
+    {
+      "era": "roman",
+      "name": "example_strip_building_from_image",
+      "size": 10.0,
+      "image": "docs/reference_images/roman/example_strip_building.jpg",
+      "note": "image-to-3D from a sourced reference image; this path is an example and does not exist"
+    },
+    {
+      "era": "roman",
+      "name": "example_strip_building_from_text",
+      "size": 10.0,
+      "prompt": "Single-storey Roman strip building, gable end to the street, timber portico, red clay tile roof, plain flat ground, no people, no vegetation",
+      "map": {"#882d11": "ClayTile"}
+    },
+    {
+      "era": "roman",
+      "name": "example_amphora",
+      "kind": "prop",
+      "also_tier": [],
+      "size": 1.0,
+      "size_axis": "y",
+      "prompt": "Roman transport amphora, plain fired clay, standing upright"
+    }
+  ]
+}

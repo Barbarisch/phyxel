@@ -1,0 +1,189 @@
+{
+  "stem": "meshyref_hall_house_bayleaf_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/bayleaf_2565922_cc-by-sa-2.0_paul-gillett.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2004e-b474-77e6-81c6-d7bdb63fce7f"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/bayleaf_2565922_cc-by-sa-2.0_paul-gillett.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/hall_house_bayleaf_a.meshy.glb",
+  "input_sha256": "118adf4de7cc3f167554eb7c8e878e5db112df219c538eccfdb6989f88e522df",
+  "input_faces": 28567,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "size_m": 14.0,
+  "size_axis": "x",
+  "uniform_scale_applied": 7.364680896521825,
+  "extent_m": [
+    14.0,
+    7.6667,
+    9.4444
+  ],
+  "extent_cells": [
+    126,
+    69,
+    85
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 80271,
+    "interior": 0,
+    "total": 80271
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 80271,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        102,
+        84,
+        68
+      ],
+      "tint": "#665444",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 27)",
+      "role": "roof",
+      "surface_voxels": 22202,
+      "voxels": 22202
+    },
+    {
+      "id": 1,
+      "rgb": [
+        84,
+        66,
+        50
+      ],
+      "tint": "#544232",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 31)",
+      "role": "roof",
+      "surface_voxels": 20437,
+      "voxels": 20437
+    },
+    {
+      "id": 2,
+      "rgb": [
+        54,
+        40,
+        29
+      ],
+      "tint": "#36281d",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 19)",
+      "role": "wall",
+      "surface_voxels": 18882,
+      "voxels": 18882
+    },
+    {
+      "id": 3,
+      "rgb": [
+        126,
+        112,
+        97
+      ],
+      "tint": "#7e7061",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 15)",
+      "role": "wall",
+      "surface_voxels": 8889,
+      "voxels": 8889
+    },
+    {
+      "id": 4,
+      "rgb": [
+        234,
+        233,
+        231
+      ],
+      "tint": "#eae9e7",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 50) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 8472,
+      "voxels": 8472
+    },
+    {
+      "id": 5,
+      "rgb": [
+        171,
+        162,
+        152
+      ],
+      "tint": "#aba298",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 15)",
+      "role": "wall",
+      "surface_voxels": 1389,
+      "voxels": 1389
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Hall House Bayleaf A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 14.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T22:53:07.302859+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/bayleaf_2565922_cc-by-sa-2.0_paul-gillett.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_hall_house_bayleaf_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "hall_house_bayleaf_a.meshy.reduced.glb",
+    "bytes_before": 5584976,
+    "bytes_after": 1489332,
+    "faces_before": 28567,
+    "faces_after": 28567,
+    "vertices_after": 50907,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 298593
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

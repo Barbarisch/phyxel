@@ -1,0 +1,156 @@
+{
+  "stem": "meshyref_hall_house_bayleaf_a_subcube",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/bayleaf_2565922_cc-by-sa-2.0_paul-gillett.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2004e-b474-77e6-81c6-d7bdb63fce7f"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/bayleaf_2565922_cc-by-sa-2.0_paul-gillett.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/hall_house_bayleaf_a.meshy.glb",
+  "input_sha256": "118adf4de7cc3f167554eb7c8e878e5db112df219c538eccfdb6989f88e522df",
+  "input_faces": 28567,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "size_m": 14.0,
+  "size_axis": "x",
+  "uniform_scale_applied": 7.364680896521825,
+  "extent_m": [
+    14.0,
+    7.6667,
+    9.6667
+  ],
+  "extent_cells": [
+    42,
+    23,
+    29
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 6160,
+    "interior": 0,
+    "total": 6160
+  },
+  "primitives": {
+    "C": 0,
+    "S": 6160,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        98,
+        80,
+        64
+      ],
+      "tint": "#625040",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 28)",
+      "role": "roof",
+      "surface_voxels": 2554,
+      "voxels": 2554
+    },
+    {
+      "id": 1,
+      "rgb": [
+        79,
+        58,
+        43
+      ],
+      "tint": "#4f3a2b",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 31)",
+      "role": "roof",
+      "surface_voxels": 1157,
+      "voxels": 1157
+    },
+    {
+      "id": 2,
+      "rgb": [
+        52,
+        37,
+        26
+      ],
+      "tint": "#34251a",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 19)",
+      "role": "wall",
+      "surface_voxels": 1052,
+      "voxels": 1052
+    },
+    {
+      "id": 3,
+      "rgb": [
+        124,
+        109,
+        94
+      ],
+      "tint": "#7c6d5e",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 17)",
+      "role": "wall",
+      "surface_voxels": 793,
+      "voxels": 793
+    },
+    {
+      "id": 4,
+      "rgb": [
+        233,
+        232,
+        230
+      ],
+      "tint": "#e9e8e6",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 50) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 519,
+      "voxels": 519
+    },
+    {
+      "id": 5,
+      "rgb": [
+        168,
+        158,
+        147
+      ],
+      "tint": "#a89e93",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 14)",
+      "role": "wall",
+      "surface_voxels": 85,
+      "voxels": 85
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Hall House Bayleaf A Subcube",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 14.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T22:53:07.756051+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/bayleaf_2565922_cc-by-sa-2.0_paul-gillett.jpg"
+  }
+}

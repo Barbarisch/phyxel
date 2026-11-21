@@ -1,0 +1,181 @@
+{
+  "stem": "meshyref_roman_strip_building_a",
+  "source": "meshy",
+  "prompt": "see ledger.jsonl line 1 (text-to-3d, 2026-11-21)",
+  "image": null,
+  "meshy": null,
+  "input_file": "resources/reference/meshy/roman/roman_strip_building_a.meshy.glb",
+  "input_sha256": "9bafd6e2260e662db2661b53f0f1d4f07b55986540879c8c379883a2fabcda68",
+  "input_faces": 1343508,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "size_m": 24.0,
+  "size_axis": "x",
+  "uniform_scale_applied": 12.61180485668887,
+  "extent_m": [
+    24.0,
+    15.5556,
+    13.2222
+  ],
+  "extent_cells": [
+    216,
+    140,
+    119
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 136936,
+    "interior": 0,
+    "total": 136936
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 136936,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        228,
+        224,
+        209
+      ],
+      "tint": "#e4e0d1",
+      "material": "Sandstone",
+      "how": "override",
+      "role": "wall",
+      "surface_voxels": 33523,
+      "voxels": 33523
+    },
+    {
+      "id": 1,
+      "rgb": [
+        136,
+        45,
+        17
+      ],
+      "tint": "#882d11",
+      "material": "ClayTile",
+      "how": "nearest roof colour (chroma distance 27)",
+      "role": "roof",
+      "surface_voxels": 27823,
+      "voxels": 27823
+    },
+    {
+      "id": 2,
+      "rgb": [
+        175,
+        149,
+        125
+      ],
+      "tint": "#af957d",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 11)",
+      "role": "wall",
+      "surface_voxels": 26359,
+      "voxels": 26359
+    },
+    {
+      "id": 3,
+      "rgb": [
+        172,
+        77,
+        45
+      ],
+      "tint": "#ac4d2d",
+      "material": "ClayTile",
+      "how": "nearest roof colour (chroma distance 16)",
+      "role": "roof",
+      "surface_voxels": 25863,
+      "voxels": 25863
+    },
+    {
+      "id": 4,
+      "rgb": [
+        108,
+        93,
+        78
+      ],
+      "tint": "#6c5d4e",
+      "material": "LogSpruce",
+      "how": "override",
+      "role": "wall",
+      "surface_voxels": 18636,
+      "voxels": 18636
+    },
+    {
+      "id": 5,
+      "rgb": [
+        50,
+        37,
+        27
+      ],
+      "tint": "#32251b",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 21)",
+      "role": "wall",
+      "surface_voxels": 4732,
+      "voxels": 4732
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Roman Strip Building A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 24.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy)",
+    "model": "meshy",
+    "created": "2026-11-21T22:51:04.981099+00:00",
+    "version": 1,
+    "prompt": "see ledger.jsonl line 1 (text-to-3d, 2026-11-21)"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_roman_strip_building_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "roman_strip_building_a.meshy.reduced.glb",
+    "bytes_before": 45024596,
+    "bytes_after": 1702932,
+    "faces_before": 1343508,
+    "faces_after": 49382,
+    "vertices_after": 48778,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 429886
+      }
+    ],
+    "decimation": "vertex clustering, cell 0.01740 source units",
+    "normals": "dropped"
+  }
+}

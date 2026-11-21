@@ -299,3 +299,9 @@ crashes/
 
 # Machine-local tool config (API keys, credit logs) - never committed
 tools/*.local.json
+
+# Meshy raw downloads (tens of MB each): kept on the Meshy account (task ids in *.provenance.json and ledger.jsonl);
+# the repo keeps the reduced copy (*.meshy.reduced.glb), the voxel stamps, massing, previews and provenance.
+resources/reference/meshy/**/*.meshy.glb
+resources/reference/meshy/**/meshyref_*.voxel
+!resources/reference/meshy/**/meshyref_*_subcube.voxel
