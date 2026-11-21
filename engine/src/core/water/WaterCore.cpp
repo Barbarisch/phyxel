@@ -185,6 +185,23 @@ WaterGrid::WaterGrid(const GridSpec& spec) : m_spec(spec) {
     m_w.assign(static_cast<size_t>(nx()) * ny() * (nz() + 1), 0.0f);
 }
 
+bool WaterGrid::clearStep(size_t& cursor, size_t maxElems) {
+    size_t left = maxElems, base = 0;
+    auto run = [&](auto& v, auto value) {   // false: the slice's budget is spent
+        const size_t n = v.size();
+        if (left > 0 && cursor < base + n) {
+            const size_t from = cursor - base, k = std::min(n - from, left);
+            std::fill(v.begin() + static_cast<std::ptrdiff_t>(from), v.begin() + static_cast<std::ptrdiff_t>(from + k), value);
+            cursor += k; left -= k;
+        }
+        base += n;
+        return left > 0;
+    };
+    run(m_f, 0.0f) && run(m_s, 0.0f) && run(m_q, 0.0f) && run(m_occ, Occ::Air) && run(m_kind, CellKind::Empty) && run(m_u, 0.0f) && run(m_v, 0.0f) && run(m_w, 0.0f);
+    const size_t total = m_f.size() + m_s.size() + m_q.size() + m_occ.size() + m_kind.size() + m_u.size() + m_v.size() + m_w.size();
+    return cursor >= total;
+}
+
 void WaterGrid::fillBox(const glm::ivec3& lo, const glm::ivec3& hi, float fill) {
     for (int z = std::max(0, lo.z); z <= std::min(nz() - 1, hi.z); ++z)
         for (int y = std::max(0, lo.y); y <= std::min(ny() - 1, hi.y); ++y)

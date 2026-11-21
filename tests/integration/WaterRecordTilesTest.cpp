@@ -1493,7 +1493,7 @@ TEST_F(WaterRecordTilesTest, ASplashIntoARetiringPatchWakesItAtOnce) {
 // ~60: the red, the spare off) and its buffers part <= 2 ms; S2 the record after both returns the same as with the spare off, column
 // by column, within the noise floor of two spare-off runs (the control) + 1e-4 m; S3 books exact; S4 the spare given back when the
 // viewer leaves (no slept box within memoryM): held 0 after.
-struct SpareRun { long allocFirst = -1, allocSecond = -1, adopted = 0, kept = 0, released = 0; double buffersMsSecond = -1.0, books = 0.0;
+struct SpareRun { long allocFirst = -1, allocSecond = -1, adopted = 0, kept = 0, released = 0, gridAdopted = 0, adoptQueued = 0; double buffersMsSecond = -1.0, gridMsSecond = -1.0, books = 0.0;
                   int sleeps = 0; bool heldAfterLeave = true; std::map<std::pair<int, int>, double> cols; };
 static SpareRun runSpare(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool spareOn) {
     using M = WaterCoreManager;
@@ -1523,7 +1523,8 @@ static SpareRun runSpare(VkDevice device, VkPhysicalDevice pd, VkQueue queue, ui
         const std::vector<int> ids = mgr.wakeSleptNear(c, 2.0f);
         if (ids.empty()) { ADD_FAILURE() << "splash " << splash << " woke nothing"; return o; }
         (splash == 0 ? o.allocFirst : o.allocSecond) = mgr.keptMemoryStats().buffersAllocated - a0;
-        if (splash == 1) o.buffersMsSecond = mgr.sleptWakeStats().gpuBuffersMs;
+        if (splash == 1) { o.buffersMsSecond = mgr.sleptWakeStats().gpuBuffersMs; o.gridMsSecond = mgr.sleptWakeStats().allocMs; }
+        o.adoptQueued = std::max(o.adoptQueued, mgr.sleptWakeStats().adoptQueuedColumns);
         mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
         bool live = true; int after = -1;
         for (int k = 0; k < 60 * 90 && after < 60; ++k) {
@@ -1535,7 +1536,7 @@ static SpareRun runSpare(VkDevice device, VkPhysicalDevice pd, VkQueue queue, ui
         }
     }
     const auto km = mgr.keptMemoryStats();
-    o.adopted = km.patchSpareAdopted; o.kept = km.patchSpareKept;
+    o.adopted = km.patchSpareAdopted; o.kept = km.patchSpareKept; o.gridAdopted = km.gridSpareAdopted;
     o.books = record.total() + mgr.totalMass() - placed;
     for (const auto& [k, v] : record.cols) { double m = 0.0; for (const auto& r : v) m += static_cast<double>(r.topY - r.bottomY); o.cols[k] = m; }
     mgr.setViewPoint(glm::vec3(5000.0f, 10.0f, 5000.0f));   // S4: the viewer leaves
@@ -1561,6 +1562,8 @@ TEST_F(WaterRecordTilesTest, ASecondPatchTakesTheFirstPatchsBuffers) {
         std::printf("  spare %-3s buffers allocated: first patch %ld, second %ld (its buffers %.2f ms) | spare kept %ld adopted %ld released %ld, held after leaving %d | sleeps %d | books %+.6f m^3\n",
                     r == &on ? "on" : "off", r->allocFirst, r->allocSecond, r->buffersMsSecond, r->kept, r->adopted, r->released, int(r->heldAfterLeave), r->sleeps, r->books);
     std::printf("  the record, column by column: on vs off %.6f m (the control, off vs off: %.6f m)\n", d, floor);
+    std::printf("  the host grid: spare on - adopted %ld, the second create's grid %.2f ms; spare off - adopted %ld, %.2f ms\n",
+                on.gridAdopted, on.gridMsSecond, off.gridAdopted, off.gridMsSecond);
     ASSERT_GE(on.sleeps, 2) << "the rig never reached the second return";
     EXPECT_EQ(on.adopted, 1) << "S1: the second patch did not take the spare";
     EXPECT_LE(on.allocSecond, 4) << "S1: the second patch allocated its buffers";
@@ -1570,6 +1573,17 @@ TEST_F(WaterRecordTilesTest, ASecondPatchTakesTheFirstPatchsBuffers) {
     EXPECT_LE(d, floor + 1e-4) << "S2: the record differs with the spare";
     EXPECT_LT(std::abs(on.books), 1e-3) << "S3";
     EXPECT_FALSE(on.heldAfterLeave) << "S4: the spare stayed held with no slept box near the viewer";
+    // S5 (58.2, written before the build): the patch's host grid kept with its buffers and cleared a slice a frame - the second
+    // create's grid part (live 11.1-11.2 ms, the ~90 MB allocation) <= 2 ms; RED before: no grid adopted
+    EXPECT_EQ(on.gridAdopted, 1) << "S5: the second patch did not take the first patch's grid";
+    EXPECT_LE(on.gridMsSecond, 2.0) << "S5: the second create's grid part";
+    EXPECT_EQ(off.gridAdopted, 0);
+    EXPECT_GT(off.gridMsSecond, 2.0) << "S5 CONTROL: with the spare off the grid is allocated (the metric sees the allocation)";
+    // S6 (58.2, written before the build): a patch's adopt queued every recorded column of the patch one by one for the surface upload
+    // (~130k entries of 68 B, sorted again in the next step; adopt's mark + queue 7.5-8.6 ms live) - its rows are copied as runs
+    // now; RED before: the patch's whole recorded area
+    std::printf("  adopt: surface columns queued one by one, the most of both splashes: %ld\n", on.adoptQueued);
+    EXPECT_EQ(on.adoptQueued, 0) << "S6: adopt queued its columns one by one";
 }
 
 TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {

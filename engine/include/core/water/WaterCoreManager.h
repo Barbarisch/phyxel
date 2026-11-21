@@ -741,6 +741,7 @@ public:
                             /// and the seed's (span read, occupancy read again, seed); cells = the box's
                             double allocMs = 0.0, occMs = 0.0, solidsMs = 0.0, gpuMs = 0.0, spanReadMs = 0.0, seedOccMs = 0.0, seedMs = 0.0; long cells = 0;
                             double gpuOccCopyMs = 0.0, gpuCreateVolumeMs = 0.0, gpuUploadMs = 0.0;
+                            long adoptQueuedColumns = 0;   ///< 58.2: surface columns a patch's adopt queued one by one
                             /// 39.3 item 5: createVolume's own parts (WaterCoreGpu::CreateSplit)
                             double gpuBuffersMs = 0.0, gpuPipelinesMs = 0.0, gpuFillMs = 0.0; int gpuPipelines = 0, gpuPipelinesReused = 0;
                             /// 51.3d: a patch wake's own parts - the pool sizing's span reads, create, adopting the record's tiles, the first tile's wake
@@ -754,7 +755,9 @@ public:
                              bool lastWakeHit = false; double lastSleepFreeMs = 0.0, maxPumpMs = 0.0;
                              // 58 item 1 (D9's cut): the patch spare - held now, kept / adopted / given back (far from any slept box, OOM, reset)
                              bool patchSpareHeld = false; unsigned long long patchSpareBytes = 0; long patchSpareKept = 0, patchSpareAdopted = 0,
-                             patchSpareReleased = 0; bool lastPatchAdopted = false; };
+                             patchSpareReleased = 0; bool lastPatchAdopted = false;
+                             // 58 item 1: the patch's host grid kept with its buffers - kept / adopted, cleared and held now
+                             long gridSpareKept = 0, gridSpareAdopted = 0; bool gridSpareHeld = false, gridSpareClear = false; };
     KeptMemoryStats keptMemoryStats() const;
     /// 58 item 1 (D9's cut; the owner 2026-11-20: "obviously we cant have stutter"): ONE patch's GPU buffers kept, still allocated,
     /// when it goes back to the record, for the next patch anywhere (a create takes each kept buffer big enough for what it asks;
@@ -1145,6 +1148,9 @@ private:
     struct KeptEntry { glm::ivec3 lo{0}, hi{0}; int handle = 0; };   ///< L3 (41): a slept box's kept GPU set (WaterCoreGpu handle)
     std::vector<KeptEntry> m_kept;
     int m_patchSpare = 0;       ///< 58 item 1: the kept patch set's handle (0 = none)
+    std::unique_ptr<WaterGrid> m_gridSpare;   ///< 58 item 1: the last patch's host grid, cleared a slice a frame for the next patch
+    size_t m_gridSpareCursor = 0; bool m_gridSpareClear = false, m_gridForCreate = false;
+    static constexpr size_t kGridClearPerFrame = size_t(2) << 20;   ///< elements a frame (~8 MB of floats, ~1 ms)
     void releasePatchSpare();
     int m_adoptForCreate = 0;   ///< L3 (41): set by wakeSlept around its create: the kept set the new volume takes its buffers from
     size_t m_slotsForCreate = 0;   ///< L3 (41): ... and the slot count to start at (the set's); 51.3b: a patch's estimate

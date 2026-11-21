@@ -63,6 +63,35 @@ int frontX(const WaterGrid& g, int z, double minColumnMass) {
 
 } // namespace
 
+// 58.2: a kept patch grid, cleared a slice a call and moved to a new origin, equals a new grid of that spec - every array, every element
+TEST(WaterCoreTest, AGridClearedInSlicesEqualsANewOne) {
+    GridSpec spec; spec.origin = glm::ivec3(3, -2, 5); spec.dims = glm::ivec3(13, 7, 11); spec.h = 1.0f / 9.0f;
+    WaterGrid used(spec);
+    for (int z = 0; z < spec.dims.z; ++z) for (int y = 0; y < spec.dims.y; ++y) for (int x = 0; x < spec.dims.x; ++x) {
+        used.f(x, y, z) = 0.5f + 0.01f * static_cast<float>(x); used.occ(x, y, z) = (x + z) % 3 ? Occ::Solid : Occ::Unknown;
+        used.u(x, y, z) = 1.0f; used.v(x, y, z) = -2.0f; used.w(x, y, z) = 3.0f;
+    }
+    for (auto& v : used.sData()) v = 0.25f;
+    for (auto& v : used.qData()) v = 0.75f;
+    used.classify(0.5f);   // kinds set too
+    size_t cursor = 0; int calls = 0;
+    while (!used.clearStep(cursor, 97)) ++calls;   // an odd slice: the slices cross every array boundary
+    used.rebase(glm::ivec3(-40, 8, 12));
+    GridSpec moved = spec; moved.origin = glm::ivec3(-40, 8, 12);
+    const WaterGrid fresh(moved);
+    EXPECT_GT(calls, 10) << "the clear was not sliced";
+    EXPECT_EQ(used.spec().origin, fresh.spec().origin);
+    EXPECT_EQ(used.fData(), fresh.fData());
+    EXPECT_EQ(used.sData(), fresh.sData());
+    EXPECT_EQ(used.qData(), fresh.qData());
+    EXPECT_EQ(used.occData(), fresh.occData());
+    EXPECT_EQ(used.uData(), const_cast<WaterGrid&>(fresh).uData());
+    EXPECT_EQ(used.vData(), const_cast<WaterGrid&>(fresh).vData());
+    EXPECT_EQ(used.wData(), const_cast<WaterGrid&>(fresh).wData());
+    for (int z = 0; z < spec.dims.z; ++z) for (int y = 0; y < spec.dims.y; ++y) for (int x = 0; x < spec.dims.x; ++x)
+        ASSERT_EQ(used.kind(x, y, z), CellKind::Empty);
+}
+
 // P1 — mass is the truth: transport never creates or destroys fill, whatever the velocity field.
 TEST(WaterCoreTest, ConservationUnderArbitraryVelocity) {
     Tank t(16, 8, 16);

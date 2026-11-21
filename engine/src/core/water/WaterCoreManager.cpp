@@ -84,8 +84,17 @@ std::unique_ptr<WaterCoreManager::Av> WaterCoreManager::buildCpu(const glm::ivec
     av->id = m_nextId++;
     av->h = h; av->per = per; av->minVoxel = lo; av->maxVoxel = hi; av->transport = transport;
     GridSpec spec; spec.origin = lo * per; spec.dims = dims; spec.h = h;
-    av->grid = std::make_unique<WaterGrid>(spec);
+    auto ca = PClock::now();   // 58: the allocation's parts
+    auto caLap = [&](const char* n) { const auto t = PClock::now(); WaterHostProfile::add(n, std::chrono::duration<double, std::milli>(t - ca).count()); ca = t; };
+    if (m_gridForCreate && m_gridSpare && m_gridSpare->spec().dims == spec.dims && m_gridSpare->spec().h == spec.h) {
+        // 58 item 1: the last patch's grid - cleared already (paced), or the rest of it now
+        while (!m_gridSpareClear) m_gridSpareClear = m_gridSpare->clearStep(m_gridSpareCursor, kGridClearPerFrame);
+        av->grid = std::move(m_gridSpare); av->grid->rebase(spec.origin);
+        m_gridSpareClear = false; m_gridSpareCursor = 0; ++m_keptMem.gridSpareAdopted;
+    } else av->grid = std::make_unique<WaterGrid>(spec);
+    caLap("create.0 grid");
     av->occCache.assign(cells, Occ::Air);
+    caLap("create.1 occupancy cache");
     Av* raw = av.get();
     SolidQuery q = [raw](const glm::ivec3& cellWorld) -> Occ {
         const glm::ivec3 c = cellWorld - raw->grid->spec().origin;
@@ -95,6 +104,7 @@ std::unique_ptr<WaterCoreManager::Av> WaterCoreManager::buildCpu(const glm::ivec
     // 39 (A2f): no first refreshSolids - refreshOccupancy below writes the grid's occupancy, and a new grid has no water or velocity
     // for the solid cells and faces to clear (WaterWakeSame pins the volume cell for cell)
     av->solver = std::make_unique<WaterSolver>(*av->grid, q, SolverParams{}, false);
+    caLap("create.2 solver");
     av->solver->setPondFriction(m_pondFriction);   // 24.7: the session's setting, not just the default
     av->solver->setVolumeCorrection(m_vcTime, m_vcBand);   // 26.21: likewise
     if (transport == "flip") av->solver->setTransport(std::make_unique<FlipTransport>());   // empty until water is placed
@@ -472,8 +482,9 @@ void WaterCoreManager::updateKeptMemory(double freeBudgetMs) {
             for (const SleptVolume& sv : m_slept)
                 if (sv.partialWake && WaterLocality::horizontalDistanceToBox(m_view, glm::vec2(sv.lo.x, sv.lo.z), glm::vec2(sv.hi.x + 1, sv.hi.z + 1)) <= L.memoryM) { near = true; break; }
         }
-        if (!near) releasePatchSpare();
+        if (!near) { releasePatchSpare(); m_gridSpare.reset(); }
     }
+    if (!s_patchSpare.on) m_gridSpare.reset();
     // orphans: a kept set whose box no longer sleeps (re-slept, loaded over, forgotten) - nothing will ever adopt it
     for (size_t i = m_kept.size(); i-- > 0;) {
         bool slept = false;
@@ -495,6 +506,7 @@ void WaterCoreManager::updateKeptMemory(double freeBudgetMs) {
     }
     if (freeBudgetMs != 0.0) { m_gpu->pumpRelease(freeBudgetMs); m_keptMem.maxPumpMs = std::max(m_keptMem.maxPumpMs, m_gpu->keptStats().lastFreeMs); }
     if (freeBudgetMs != 0.0) m_gpu->pumpKeptClear(kKeptFreeMsPerFrame);   // 58 item 1: kept host memory cleared ahead of its adoption
+    if (freeBudgetMs != 0.0 && m_gridSpare && !m_gridSpareClear) m_gridSpareClear = m_gridSpare->clearStep(m_gridSpareCursor, kGridClearPerFrame);   // 58
 }
 
 void WaterCoreManager::releasePatchSpare() {
@@ -507,6 +519,7 @@ WaterCoreManager::KeptMemoryStats WaterCoreManager::keptMemoryStats() const {
     KeptMemoryStats s = m_keptMem;
     s.ponds = m_kept.size();
     s.patchSpareHeld = m_patchSpare != 0;
+    s.gridSpareHeld = m_gridSpare != nullptr; s.gridSpareClear = m_gridSpareClear;
     s.patchSpareBytes = m_patchSpare && m_gpu ? m_gpu->keptHeldBytes(m_patchSpare) : 0;
     if (m_gpu) {
         const auto g = m_gpu->keptStats();
@@ -1835,7 +1848,9 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
         m_keptMem.lastPatchAdopted = true; ++m_keptMem.patchSpareAdopted;
         if (m_slotsForCreate) m_slotsForCreate = std::max(m_slotsForCreate, m_gpu->keptSlots(m_adoptForCreate));   // the kept pool fits whole
     }
+    m_gridForCreate = s_patchSpare.on;   // 58 item 1: the last patch's host grid, if its dims fit
     const int id = create(lo, hi, sv.cellSize, sv.transport.empty() ? "eulerian" : sv.transport, &err, sv.backend.empty() ? "auto" : sv.backend, sv.sweeps);
+    m_gridForCreate = false;
     if (m_adoptForCreate && m_gpu) m_gpu->releaseKept(m_adoptForCreate);   // not taken (a refusal): given up (no-op if taken)
     m_adoptForCreate = 0;
     m_createKeepsSlept = false; m_slotsForCreate = 0;
@@ -1856,8 +1871,10 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
             f.cols.assign(static_cast<size_t>(f.nx) * f.nz, SurfaceColumn{});
         }
         lapMs();
+        const size_t q0 = av->gpuVol ? av->gpuVol->surfPending.size() : 0;
         adoptRecordedTiles(*av);
         m_sleptWake.patchAdoptMs = lapMs();
+        m_sleptWake.adoptQueuedColumns = av->gpuVol ? static_cast<long>(av->gpuVol->surfPending.size() - q0) : 0;   // 58.2
         auto fd = [](int v, int b) { return v >= 0 ? v / b : -((-v + b - 1) / b); };
         woke = wakeTile(*av, fd(static_cast<int>(std::floor(c.x)), kRecordTile), fd(static_cast<int>(std::floor(c.z)), kRecordTile), 'M');
     }
@@ -2227,7 +2244,7 @@ WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
     m_pool.clear();
     m_dropletDraw.clear(); m_particleDraw.clear();
     if (m_gpu) for (const KeptEntry& k : m_kept) m_gpu->releaseKept(k.handle);
-    releasePatchSpare();   // 58 item 1
+    releasePatchSpare(); m_gridSpare.reset(); m_gridSpareClear = false;   // 58 item 1
     out.kept = static_cast<int>(m_kept.size());
     m_kept.clear();
     out.slept = static_cast<int>(m_slept.size());
@@ -2410,6 +2427,8 @@ void WaterCoreManager::adoptRecordedTiles(Av& av) {
     const int tz0 = floorDivI(av.minVoxel.z, kTileVoxels), tz1 = floorDivI(av.maxVoxel.z, kTileVoxels);
     const bool fieldOk = av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz;
     std::vector<std::pair<glm::ivec2, glm::ivec2>> rects;   // 51.3d: every tile's columns in one residency pass + one submission
+    auto ta = std::chrono::steady_clock::now();   // 58: adopt's parts
+    auto taLap = [&](const char* n) { const auto t = std::chrono::steady_clock::now(); WaterHostProfile::add(n, std::chrono::duration<double, std::milli>(t - ta).count()); ta = t; };
     for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
         glm::ivec2 bLo, bHi;
         if (!tileBricks(av, tx, tz, bLo, bHi)) continue;
@@ -2424,11 +2443,25 @@ void WaterCoreManager::adoptRecordedTiles(Av& av) {
         av.recordedTileList.push_back({tx, tz});
         av.recordedM3 += m;
     }
+    taLap("adopt.1 span reads");
     m_gpu->setColumnsRecorded(vol, rects);
-    if (fieldOk) for (size_t i = av.recordedTileList.size() - rects.size(); i < av.recordedTileList.size(); ++i) {
+    taLap("adopt.2 GPU columns recorded");
+    if (fieldOk) for (size_t i = av.recordedTileList.size() - rects.size(); i < av.recordedTileList.size(); ++i)
         markRecordedColumns(av, av.recordedTileList[i].first, av.recordedTileList[i].second);
-        queueTileSurface(av, av.recordedTileList[i].first, av.recordedTileList[i].second);
+    taLap("adopt.3a mark");
+    // 58.2: the marked tiles' rows copied as runs (queueTileSurface one column at a time was 130k entries for a patch, sorted again
+    // in its first step)
+    if (fieldOk && av.gpuVol && m_gpu && WaterCoreGpu::s_gpuSurface) {
+        const WaterSurfaceField& f = av.field;
+        const glm::ivec3 so = av.grid->spec().origin;
+        for (size_t i = av.recordedTileList.size() - rects.size(); i < av.recordedTileList.size(); ++i) {
+            const int tx = av.recordedTileList[i].first, tz = av.recordedTileList[i].second;
+            const int x0 = std::max(0, tx * kTileVoxels * av.per - so.x), x1 = std::min(f.nx - 1, (tx + 1) * kTileVoxels * av.per - 1 - so.x);
+            const int z0 = std::max(0, tz * kTileVoxels * av.per - so.z), z1 = std::min(f.nz - 1, (tz + 1) * kTileVoxels * av.per - 1 - so.z);
+            if (x1 >= x0 && z1 >= z0) m_gpu->queueSurfaceRows(*av.gpuVol, f, x0, z0, x1 + 1, z1 + 1);
+        }
     }
+    taLap("adopt.3b queue surface rows");
     av.field.version = (1ull << 62) + (++m_fieldBumps);
 }
 
@@ -3967,7 +4000,10 @@ void WaterCoreManager::switchRetiring(Retiring& r) {
         int h = 0;
         if (r.av->isPatch && s_patchSpare.on && !s_handoverFreesAtOnceForTest && !s_locality.testKeepMemoryOff && s_locality.memoryM > 0.0f) {
             h = m_gpu->keepVolume(r.av->gpuVol);   // 0 = not keepable: destroyed as by destroyVolume
-            if (h) { releasePatchSpare(); m_patchSpare = h; ++m_keptMem.patchSpareKept; }
+            if (h) {
+                releasePatchSpare(); m_patchSpare = h; ++m_keptMem.patchSpareKept;
+                if (r.av->grid) { m_gridSpare = std::move(r.av->grid); m_gridSpareCursor = 0; m_gridSpareClear = false; ++m_keptMem.gridSpareKept; }   // 58: its host grid too
+            }
         } else m_gpu->destroyVolume(r.av->gpuVol, !s_handoverFreesAtOnceForTest);
         r.av->gpuVol = nullptr;
     }

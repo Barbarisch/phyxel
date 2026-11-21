@@ -390,6 +390,7 @@ public:
         uint32_t meshListCap = 0;
         uint64_t serial = 0;             ///< unique per volume (WaterCoreGpu lifetime) - the renderer's descriptor sets are keyed by it
         std::vector<std::pair<uint32_t, Core::Water::SurfaceColumn>> surfPending;   ///< host writes for the next call (later ones win)
+        std::vector<std::pair<uint32_t, uint32_t>> surfRows;   ///< 58.2: column runs (first, count) already written into surfUp for the next call
         bool solidTopDirty = true;       ///< hostSolidTop changed - re-sent to solidTopD
         bool meshFullNext = true;        ///< the next mesh pass covers every column (host writes, a template)
         bool meshValid = false;          ///< the device field and mesh are whole (false: the first call, the switch was off - the next call builds them whole)
@@ -791,6 +792,10 @@ public:
     /// 29 S1: host writes into the device's surface field - the columns [x0, x1) x [z0, z1) of `field` (the volume's own lattice), sent
     /// in the next call's command buffer before its surface pass (a recorded tile's marks, a woken tile's seed)
     void queueSurfaceColumns(Volume& vol, const Core::Water::WaterSurfaceField& field, int x0, int z0, int x1, int z1);
+    /// 58.2: the same for a whole rectangle, copied row by row into the upload buffer now (no per-column entries, no sort at the step).
+    /// Only for a volume with nothing queued one by one (a patch's adopt, right after its create); otherwise it falls back to
+    /// queueSurfaceColumns (the order of writes kept: later ones win)
+    void queueSurfaceRows(Volume& vol, const Core::Water::WaterSurfaceField& field, int x0, int z0, int x1, int z1);
     /// 29 S1: the next call starts the device field from the dry template (an upload, the first call, the switch turned on) - the
     /// host's own writes (the recorded tiles' marks) must be queued again for it
     bool surfaceTemplatePending(const Volume& vol) const { return s_gpuSurface && vol.bricked && !vol.meshValid; }

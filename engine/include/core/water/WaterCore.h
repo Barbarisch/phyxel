@@ -44,6 +44,11 @@ enum class CellKind : uint8_t { Empty = 0, Surface = 1, Liquid = 2 };
 class WaterGrid {
 public:
     explicit WaterGrid(const GridSpec& spec);
+    /// 58 item 1: a kept grid back to a new grid's state, a slice a call (`cursor` counts elements over all its arrays, from 0); true
+    /// when it is clear. Paced so the clearing never lands in one frame (allocating a patch's ~90 MB grid was 11 ms of its wake frame)
+    bool clearStep(size_t& cursor, size_t maxElems);
+    /// 58 item 1: a CLEARED grid re-used for a volume of the same dims and cell size elsewhere - only the origin moves
+    void rebase(const glm::ivec3& origin) { m_spec.origin = origin; }
 
     const GridSpec& spec() const { return m_spec; }
     int nx() const { return m_spec.dims.x; }

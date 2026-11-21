@@ -15077,6 +15077,27 @@ discovery fails after the build (MSB3073); `phyxel.exe` links - unrelated, logge
 host work a frame); the wake frame (create 33 ms, adopt 8, wake tile 13); the five frames after the wake (~70 ms each); the sleep
 frame's GPU read (H3); `retiring` 9 ms; then the trace re-run against the 2x-median gate.
 
+### 58.2 Item 1, the wake frame: the patch's host grid and its adopt (2026-11-21). Status: BUILT, not signed off; the gate NOT met
+
+**Measured first** (the 58.1 rig, new host phases `create.0-2`, `adopt.1-3`): a warm patch wake (the GPU spare taken) was
+create 30.6 ms = the host grid's allocation 11.1-11.2 (~90 MB at 3.5 M cells: f, s, q, u, v, w + occupancy and kind; the
+occupancy cache and the solver under 0.5) + occupancy 7.1 + the GPU upload 12.1-12.5 + seed 4.4; adopt 7.9-15.9 (of it
+`mark + queue surface` 7.5-8.6: every recorded column of the patch queued one by one for the surface upload, 129,600 entries of
+68 B, sorted again in the first step); the wake tile 7.2-8.7.
+
+| # | fix | test (red -> green) | live after |
+|---|---|---|---|
+| 6 | the patch's host grid kept with its GPU buffers when it returns (D9's spare), cleared a slice a frame (`WaterGrid::clearStep`, 2 M elements ~1 ms a frame) and moved to the new patch's origin (`rebase`) when its dims match; dropped with the spare (no slept box near, reset) | `ASecondPatchTakesTheFirstPatchsBuffers` S5: the second create's grid 12.98 -> 0.53 ms, adopted 1 (the control, spare off: 11.2-12.2 ms, 0 adopted; S2 the record identical, books exact); `WaterCoreTest.AGridClearedInSlicesEqualsANewOne` (every array equal to a new grid, the slices crossing every array boundary). The fix was written before the test; its red is the spare-off control run of the same test | `create.0 grid` 11.1 -> 0.5 ms; create 30.6 -> 20.1-20.6 ms |
+| 7 | adopt copies the marked tiles' rows straight into the surface upload buffer as runs (`queueSurfaceRows`); the step merges runs and column writes into disjoint copy regions | S6: columns queued one by one by a patch's adopt 129,600 -> 0; every hand-over test 0 holes / 0 doubles | adopt 8.9-10.0 -> 3.0-3.5 ms |
+
+**Whole frame, live:** the warm wake frame 94-101 -> 79-85 ms (run to run); the cold first wake (no spare yet: buffers 46 ms,
+pipelines 15 ms) 121-168 ms; late frames <= 31.5 ms; the sleep window's worst 31-32 ms. **Not measured:** the GPU's own time
+per frame; the median frame (the gate's reference) in these runs.
+
+**What the warm wake frame still holds:** create 20 (occupancy 7, the GPU upload 12: host 5, residency 4, clear 2.7), the wake
+tile 7 (its upload 5.3), adopt 3, the first step ~18 (`gpu.08 record the commands` 6-12, `mgr.2 record / wake tiles` 15 - the
+margin's tile wakes), the ripple layers 7-13, takeMotion 3. The cold first wake also pays the buffers and pipelines once a session.
+
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
 **Was: "0a. Where things stand, and what is next (2026-10-14)"**

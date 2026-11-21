@@ -2100,6 +2100,20 @@ void WaterCoreGpu::queueSurfaceColumns(Volume& vol, const Core::Water::WaterSurf
     }
 }
 
+void WaterCoreGpu::queueSurfaceRows(Volume& vol, const Core::Water::WaterSurfaceField& field, int x0, int z0, int x1, int z1) {
+    if (!vol.bricked || field.nx != vol.spec.dims.x || field.nz != vol.spec.dims.z || field.cols.size() != vol.dColumns) return;
+    if (!vol.surfPending.empty() || !vol.surfUp.mapped) { queueSurfaceColumns(vol, field, x0, z0, x1, z1); return; }
+    x0 = std::max(x0, 0); z0 = std::max(z0, 0); x1 = std::min(x1, field.nx); z1 = std::min(z1, field.nz);
+    if (x1 <= x0 || z1 <= z0) return;
+    settle(vol);   // the upload buffer is written now: no earlier call may still be reading it
+    auto* rec = static_cast<Core::Water::SurfaceColumn*>(vol.surfUp.mapped);
+    for (int z = z0; z < z1; ++z) {
+        const uint32_t c = static_cast<uint32_t>(x0 + field.nx * z), n = static_cast<uint32_t>(x1 - x0);
+        std::memcpy(rec + c, field.cols.data() + c, n * sizeof(Core::Water::SurfaceColumn));
+        vol.surfRows.push_back({c, n});
+    }
+}
+
 WaterCoreGpu::SurfaceView WaterCoreGpu::surfaceView(const Volume& vol) const {
     SurfaceView v;
     if (!s_gpuSurface || !vol.bricked || !vol.meshValid) return v;
@@ -3198,21 +3212,28 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         if (!surfPartial) {   // as the host's full read: every column not holding water is dry over its solid top (a recorded one kept)
             mp.mode = 4; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, denseCols);
         }
-        if (!vol.surfPending.empty()) {
+        if (!vol.surfPending.empty() || !vol.surfRows.empty()) {
             auto* rec = static_cast<Core::Water::SurfaceColumn*>(vol.surfUp.mapped);
-            std::vector<uint32_t> cols; cols.reserve(vol.surfPending.size());
-            for (const auto& [c, r] : vol.surfPending) if (c < vol.dColumns) { rec[c] = r; cols.push_back(c); }   // later writes win
-            std::sort(cols.begin(), cols.end()); cols.erase(std::unique(cols.begin(), cols.end()), cols.end());
+            // 58.2: runs (first, count) - the rows queueSurfaceRows wrote already, then each column write (later ones win: written
+            // after the rows), merged into disjoint regions (one copy's regions may not overlap)
+            std::vector<std::pair<uint32_t, uint32_t>> runs; runs.reserve(vol.surfPending.size() + vol.surfRows.size());
+            const uint32_t nCols = static_cast<uint32_t>(vol.dColumns);
+            for (const auto& rw : vol.surfRows) if (rw.first < nCols) runs.push_back({rw.first, std::min<uint32_t>(rw.second, nCols - rw.first)});
+            for (const auto& [c, r] : vol.surfPending) if (c < vol.dColumns) { rec[c] = r; runs.push_back({c, 1u}); }
+            std::sort(runs.begin(), runs.end());
             std::vector<VkBufferCopy> regions;
             const VkDeviceSize R = sizeof(Core::Water::SurfaceColumn);
-            for (size_t i = 0; i < cols.size();) {   // runs of consecutive columns, one region each
-                size_t j = i + 1; while (j < cols.size() && cols[j] == cols[j - 1] + 1) ++j;
-                regions.push_back({cols[i] * R, cols[i] * R, (j - i) * R});
+            for (size_t i = 0; i < runs.size();) {   // overlapping or touching runs joined, one region each
+                const uint32_t a = runs[i].first;
+                uint32_t e = runs[i].first + runs[i].second;
+                size_t j = i + 1;
+                while (j < runs.size() && runs[j].first <= e) { e = std::max(e, runs[j].first + runs[j].second); ++j; }
+                if (e > a) regions.push_back({a * R, a * R, (e - a) * R});
                 i = j;
             }
-            vkCmdCopyBuffer(cmd, vol.surfUp.buf, vol.surfDense.buf, static_cast<uint32_t>(regions.size()), regions.data());
+            if (!regions.empty()) vkCmdCopyBuffer(cmd, vol.surfUp.buf, vol.surfDense.buf, static_cast<uint32_t>(regions.size()), regions.data());
             barrier(cmd);
-            vol.surfPending.clear();
+            vol.surfPending.clear(); vol.surfRows.clear();
             meshFull = true;
         }
     }
