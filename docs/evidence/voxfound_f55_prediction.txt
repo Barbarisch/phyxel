@@ -1294,3 +1294,34 @@ this checkout.
 CONCLUSION: the reload guard's in-suite readings (18.4-21.3 ms) sit 1.5-3 ms above its alone readings (16.1-18.6) on
 either side of the lever: the suite's GPU/driver state, not F5.5l. The guard stays as F5.5b set it (one max sample,
 <= 20); a fail inside the suite is read against this A/B, not re-run away. F5.5l is closed; next F5.5m.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5m PREDICTION -- the primal split (a measure, no lever). 2026-11-21, written after its control and before any code.
+CONTROL (16:41:13-16:42:23, HEAD 3a430a5c's build + the VF_PAIRS_ONCE hook, quiet: 7 watcher samples, 0 non-quiet;
+evidence voxfound_f55m_headless.txt): F5.5e's E3, every body awake, 30 profiled ticks: the primal group 1.456 / 1.422 /
+1.987 ms at 110 / 282 / 994 bodies (14 / 14 / 19 colours), of a profile sum 5.04 / 5.50 / 8.90. It does not follow the
+count from 110 to 282. F5.5l's L3/L4 and F5.5a4's tests pass on this build.
+WHAT RUNS (BodySimGpu.cpp recordTick): 8 iterations; each, when > 128 bodies were awake at the call's start, 32 indirect
+dispatches (one per colour slot 0-31, used or not; an empty colour is a 0-group dispatch) each followed by a barrier;
+when <= 128, one dispatch of one workgroup that walks every used colour in batches of 8 bodies. Each body: its 32
+lanes sum its constraints' terms strided, a 5-level shared tree adds the 42 partials (a barrier per level), lane 0 adds
+the inertial terms and solves the 6x6, then writes the body.
+THE INSTRUMENT (bit-equal by construction, as F5.5f/k): BodySimGpu::setPrimalSplit(on, quiet = true). With the profile
+on, after the colouring and once per tick (before iteration 0), four quiet copies of ONE iteration's primal in the form
+this tick uses, each its own profile group (kProfGroups 22 -> 26): q_floor (every dispatch and barrier; each group
+returns at once), q_sum (+ the strided sums into shared), q_red (+ the tree), q_solve (+ lane 0's terms and the 6x6
+solve, not written). One real iteration = the primal group / 8; the write = that - q_solve. Quiet copies write no body;
+a NaN in a quiet result counts in state word 24 (S_PQNAN -> stats.primalQuietNan; keeps the compiler from dropping the
+work; expected 0). RED: the loud copy (q_solve writes the bodies) must change the simulation.
+  M1: split on (quiet) vs off over 60 ticks: 0 bodies differ and every counter equal, every rung; the loud copy: > 0
+      bodies differ. The real primal group with the split on within 5 % of off. primalQuietNan 0.
+  M2: the form: one workgroup at 110 (fusedThisStep), indirect at 282 and 994.
+  M3: indirect (282, 994): the floor dominates -- q_floor x 8 >= 40 % of the primal group (predicted 40-75 % at 282,
+      25-55 % at 994): 13-18 of the 32 colour slots are empty yet pay a dispatch and a barrier, 8 times a tick.
+  M4: one workgroup (110): q_floor x 8 <= 5 %; the work is serial batches: q_sum <= 35 %, the tree 20-45 %, the solve
+      20-45 % of one iteration.
+  M5: q_solve x 8 = 0.85-1.10 x the primal group (the write <= 15 %).
+  M6: the untouched groups (world, pairs, sort, hard_body, hard_apply) within 5 % of off.
+WHAT IT DECIDES: M3 holding -> F5.5n's lever is the empty colour slots (only the used colours dispatched, or every
+colour in one dispatch per iteration), with its own prediction. M4's leader at 110 -> the one-workgroup form's lever
+(the tree or the solve), after. Neither is built here.
