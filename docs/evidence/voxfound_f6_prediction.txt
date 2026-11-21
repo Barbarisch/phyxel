@@ -72,3 +72,27 @@ RISK, stated: the re-create may not be bit-equal (the sleep marks and the increm
 "everything awake"); sleep = dense and the incremental head = the full pass say it should be. If W2 fails there, the
 growth carries the marks over instead -- measured, not assumed.
 RED: a stub growth (the box never grows: the box face acts as a wall) -- W2 and W3 fail.
+
+F6.2 RESULTS (2026-11-21; the prediction above untouched). Release, CPU. Evidence voxfound_f6_headless.txt.
+  RED as predicted: the stub (the box never grows) -- the dam break differs from one box at tick 100 (voxel (0,2,14):
+     256 vs 255 units) and the broken wall at tick 400; the mixed scene stays equal WITHOUT growth (its fill never
+     reaches a box face: it tests the box's placement, not growth -- recorded, not counted for W3).
+  GREEN run 1 -- W2 MISSED, the stated risk: with growth, still different at tick 100. A diagnostic (pressure off on
+     both sides) was EQUAL through 4 grows: the head field is state carried across ticks, and a box re-made from the
+     cells restarts it. The fix the prediction named: the growth carries the route / max pointers (re-indexed by world
+     cell) and the head words (shifted if the floor moves) into the new box, every block awake (adoptSteppedFrom);
+     a growth never shrinks the box.
+  GREEN run 2:
+  W1 PASS: the world ledger exact after every step call (every 100 ticks), every scene.
+  W2 PASS: equal to one box over the whole grid, every voxel, every 100 ticks: the dam break (2,000 ticks), the mixed
+     scene (1,500), the broken wall (1,500); the comparator's red (one tick more) differs.
+  W3 PASS: the dam break's box grew 4 times (to the whole 64 x 24 x 24 grid); the broken wall's 3 times.
+  W4 PASS: the wall broken below 1 m at tick 300: 0 -> 4,962 wet voxels past it, equal to the one-box run.
+  W5 PASS: a flat pool quiet at tick 6; the next 100 ticks evaluated 0 blocks.
+  W6 PASS: fill in a solid voxel, over FULL, a non-fluid material, a wrong-sized channel refused at attach (nothing
+     attached); a solid / over-FULL / outside setFill refused.
+  Regression: 138 / 138 pass (17:50:59-18:04:52) (VoxFound CPU, MatSimLattice8, WorldFluid; VoxelGrid gained a member).
+  Known gap (owed): a box holding contents trapped under a newly built wall does not grow (grid.fill holds open voxels
+     only); stated in the code.
+CONCLUSION: liquid and powder live in the world's grid; the box around them is invisible (equal to one box over the
+world) once the pressure state is carried. Next F6.3: crumbs are powder.

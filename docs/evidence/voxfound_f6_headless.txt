@@ -74,3 +74,69 @@ F6 headless evidence (docs/evidence/voxfound_f6_prediction.txt). Release: build/
 [MatSimGpuParity] U-tube lattice 8, cpm 4: 3000 ticks identical
 [       OK ] MatSimGpuParity.WorldLatticeEighths (26091 ms)
 [  PASSED  ] 11 tests.
+== F6.2 RED (the box never grows) ==
+[----------] 5 tests from WorldFluid
+[ RUN      ] WorldFluid.DamBreakEqualsOneBoxAndGrows
+[WorldFluid] dam break: 2000 ticks, the box grew 0 times (now 24 x 24 x 24 at (0,0,0)); tick 100: voxel (0,2,14): world mat 1 fill 256, one box mat 1 fill 255
+[  FAILED  ] WorldFluid.DamBreakEqualsOneBoxAndGrows (566 ms)
+[ RUN      ] WorldFluid.MixedSceneEqualsOneBox
+[WorldFluid] mixed scene: 1500 ticks, 0 grows; equal
+[       OK ] WorldFluid.MixedSceneEqualsOneBox (12672 ms)
+[ RUN      ] WorldFluid.WallBrokenMidRunEqualsOneBox
+[WorldFluid] wall broken at tick 300: wet voxels past it 0 -> 1192, 0 grows; tick 400: voxel (0,5,18): world mat 1 fill 256, one box mat 1 fill 250
+[  FAILED  ] WorldFluid.WallBrokenMidRunEqualsOneBox (920 ms)
+[ RUN      ] WorldFluid.SettledWorldEvaluatesNothing
+[WorldFluid] pool quiet at tick 6; the next 100 ticks evaluated 0 blocks
+[       OK ] WorldFluid.SettledWorldEvaluatesNothing (15 ms)
+[ RUN      ] WorldFluid.RefusesBadFill
+[       OK ] WorldFluid.RefusesBadFill (0 ms)
+[----------] 5 tests from WorldFluid (14176 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] WorldFluid.DamBreakEqualsOneBoxAndGrows
+[  FAILED  ] WorldFluid.WallBrokenMidRunEqualsOneBox
+== F6.2 GREEN run 1 (growth, the head field restarted: W2 missed) ==
+[----------] 5 tests from WorldFluid
+[ RUN      ] WorldFluid.DamBreakEqualsOneBoxAndGrows
+[WorldFluid] dam break: 2000 ticks, the box grew 2 times (now 50 x 24 x 24 at (0,0,0)); tick 100: voxel (0,2,14): world mat 1 fill 256, one box mat 1 fill 255
+[  FAILED  ] WorldFluid.DamBreakEqualsOneBoxAndGrows (661 ms)
+[ RUN      ] WorldFluid.MixedSceneEqualsOneBox
+[WorldFluid] mixed scene: 1500 ticks, 0 grows; equal
+[       OK ] WorldFluid.MixedSceneEqualsOneBox (12717 ms)
+[ RUN      ] WorldFluid.WallBrokenMidRunEqualsOneBox
+[WorldFluid] wall broken at tick 300: wet voxels past it 0 -> 1490, 2 grows; tick 400: voxel (0,1,1): world mat 1 fill 220, one box mat 1 fill 256
+[  FAILED  ] WorldFluid.WallBrokenMidRunEqualsOneBox (1026 ms)
+[ RUN      ] WorldFluid.SettledWorldEvaluatesNothing
+[WorldFluid] pool quiet at tick 6; the next 100 ticks evaluated 0 blocks
+[       OK ] WorldFluid.SettledWorldEvaluatesNothing (15 ms)
+[ RUN      ] WorldFluid.RefusesBadFill
+[       OK ] WorldFluid.RefusesBadFill (0 ms)
+[----------] 5 tests from WorldFluid (14422 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] WorldFluid.DamBreakEqualsOneBoxAndGrows
+[  FAILED  ] WorldFluid.WallBrokenMidRunEqualsOneBox
+== F6.2 GREEN run 2 (the pressure state carried over) + the pressure-off diagnostic ==
+[----------] 5 tests from WorldFluid
+[ RUN      ] WorldFluid.DamBreakEqualsOneBoxAndGrows
+[WorldFluid] dam break: 2000 ticks, the box grew 4 times (now 64 x 24 x 24 at (0,0,0)); equal to one box over the grid every 100 ticks
+[       OK ] WorldFluid.DamBreakEqualsOneBoxAndGrows (16113 ms)
+[ RUN      ] WorldFluid.MixedSceneEqualsOneBox
+[WorldFluid] mixed scene: 1500 ticks, 0 grows; equal
+[       OK ] WorldFluid.MixedSceneEqualsOneBox (12529 ms)
+[ RUN      ] WorldFluid.WallBrokenMidRunEqualsOneBox
+[WorldFluid] wall broken at tick 300: wet voxels past it 0 -> 4962, 3 grows; equal
+[       OK ] WorldFluid.WallBrokenMidRunEqualsOneBox (12959 ms)
+[ RUN      ] WorldFluid.SettledWorldEvaluatesNothing
+[WorldFluid] pool quiet at tick 6; the next 100 ticks evaluated 0 blocks
+[       OK ] WorldFluid.SettledWorldEvaluatesNothing (15 ms)
+[ RUN      ] WorldFluid.RefusesBadFill
+[       OK ] WorldFluid.RefusesBadFill (0 ms)
+[----------] 5 tests from WorldFluid (41618 ms total)
+[----------] 1 test from WorldFluidDiag
+[ RUN      ] WorldFluidDiag.DamBreakPressureOff
+[WorldFluidDiag] pressure off: 4 grows; equal
+[       OK ] WorldFluidDiag.DamBreakPressureOff (3661 ms)
+[----------] 1 test from WorldFluidDiag (3661 ms total)
+[  PASSED  ] 6 tests.
+== F6.2 regression: 138 / 138 pass (17:50:59-18:04:52) ==

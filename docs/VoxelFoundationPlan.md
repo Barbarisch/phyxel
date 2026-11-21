@@ -3007,6 +3007,14 @@ dense, a one-voxel diagonal wall watertight, sand at repose (0.676 vs 0.675), a 
 bit-equal to the CPU with no GPU change. The old lattice's 33 CPU + 10 GPU tests pass unchanged. Red: a stub, all 7 fail.
 Evidence `voxfound_f6_prediction.txt`, `voxfound_f6_headless.txt`.
 
+**F6.2, the fill channel in the world (2026-11-21, CPU reference).** `VoxelGrid::fill` holds liquid and powder in open
+voxels (one MatSim cell each); `VoxFound::WorldFluid` steps it in a box around the fill (+ 2 blocks), growing it before
+fill reaches a face, writing back after every call; `wallsChanged()` / `setFill()` take edits. **The box is invisible:**
+equal, voxel for voxel, to one box over the whole grid (dam break with 4 grows, a mixed scene, a wall broken mid-run);
+the ledger exact; a settled world evaluates nothing. Found on the way: MatSim's head field is state carried across
+ticks, so a re-made box ran differently (equal with pressure off) -- the growth now carries the pointers and head words
+over. Owed: a box holding trapped contents does not grow; the GPU path and the store's codec come with F6.5.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

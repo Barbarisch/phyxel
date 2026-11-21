@@ -175,6 +175,9 @@ public:
     uint64_t trappedUnits() const;
     uint64_t unknownCells() const { return unknownCells_; }
     uint64_t tick() const { return tick_; }
+    /// F6.2: set the tick counter (a box re-created around the same world carries its tick over: every choice hashes
+    /// the world cell and the tick, so the same tick gives the same run).
+    void setTick(uint64_t t) { tick_ = t; bumpGen(); }
     /// 6l: bumped by every change to the state a device copy holds (cells, marks, head/pointers, config, box).
     /// Equal generations = no change in between: the hybrid lab skips re-uploading a device CA that is current.
     uint64_t generation() const { return gen_; }

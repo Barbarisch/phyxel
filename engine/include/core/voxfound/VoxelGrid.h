@@ -25,6 +25,9 @@ struct VoxelGrid {
     std::vector<uint16_t> part;
     std::vector<uint8_t> fixed;
     std::vector<uint8_t> damage;      // optional (empty = none): accumulated damage toward breaking (§3.1)
+    // F6.2 (optional, empty = no fluid anywhere): liquid / powder in an OPEN voxel (mat == 0) as one MatSim cell,
+    // material << 24 | units (FULL = 256 units at 1/8 m). WorldFluid steps it.
+    std::vector<uint32_t> fill;
 
     void resize(glm::ivec3 d) {
         dim = d;
@@ -33,6 +36,7 @@ struct VoxelGrid {
         part.assign(n, 0);
         fixed.assign(n, 0);
         damage.clear();
+        fill.clear();
     }
     size_t size() const { return size_t(dim.x) * size_t(dim.y) * size_t(dim.z); }
     bool in(glm::ivec3 p) const {
