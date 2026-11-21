@@ -118,7 +118,7 @@ std::unique_ptr<WaterCoreManager::Av> WaterCoreManager::buildCpu(const glm::ivec
     const int autoSweeps = static_cast<int>(std::lround(1.5 * longest));
     av->gpuSweeps = gpuSweeps > 0 ? std::clamp(gpuSweeps, kGpuSweepsMin, kGpuSweepsMax) : std::clamp(autoSweeps, kGpuSweepsMin, kGpuSweepsAutoMax);   // 26.23
     const auto pc1 = PClock::now();
-    refreshOccupancy(*av);
+    if (!m_createSkipsOccupancy) refreshOccupancy(*av);   // 58.3: a staged patch reads it a band of rows a stage
     const auto pc2 = PClock::now();
     // 39 (A2f step 1a): the refreshSolids that stood here asked the query again for every cell (19 ms on an 8 m pit) for the
     // occupancy refreshOccupancy has just mirrored into the grid, then cleared water and velocities a new grid does not have yet -
@@ -363,11 +363,26 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
     }
     if (!av.occDirty) return;
     const auto tOcc = std::chrono::steady_clock::now();   // 26.18: measured - it runs on every world change
-    const WaterGrid& g = *av.grid;
+    readOccupancyRows(av, 0, occupancyRows(av));
+    finishOccupancyRead(av);
+    av.occRefreshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tOcc).count();
+    ++av.occFullRefreshes; av.occCellsResampled = static_cast<long>(av.occCache.size()); av.occCellsChanged = -1;   // -1: not compared
+}
+
+bool WaterCoreManager::occupancyByCube(const Av& av) const {
     // 51.3: at 1/9 m a cell IS a micro cell and a world cube is 9 x 9 x 9 of them - with the cube query, a uniform cube (empty, solid,
     // or in a chunk not resident) is asked once, a mixed one cell by cell. The volume's grid starts on a cube (its box is in voxels).
+    return m_cubeState && !s_cubeOccupancyOffForTest && av.per == kMicroPerVoxel && av.h <= 1.0f / kMicroPerVoxel + 1e-6f;
+}
+
+int WaterCoreManager::occupancyRows(const Av& av) const {
+    return occupancyByCube(av) ? (av.grid->nz() + av.per - 1) / av.per : av.grid->nz();
+}
+
+void WaterCoreManager::readOccupancyRows(Av& av, int r0, int r1) {
+    const WaterGrid& g = *av.grid;
     const int per = av.per;
-    const bool byCube = m_cubeState && !s_cubeOccupancyOffForTest && per == kMicroPerVoxel && av.h <= 1.0f / kMicroPerVoxel + 1e-6f;
+    const bool byCube = occupancyByCube(av);
     auto slab = [&](int z0, int z1) {
         if (byCube) {   // z0, z1 in cube rows
             const glm::ivec3 o = g.spec().origin;   // cells = micro units, a multiple of per
@@ -388,22 +403,25 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
                     av.occCache[g.idx(x, y, z)] = sampleOccupancy(av, glm::ivec3(x, y, z));
     };
     // 39 (A2f step 1b): split by z slabs over the workers (each cell its own slot - the same result); a small box stays on this thread
-    const int rows = byCube ? (g.nz() + per - 1) / per : g.nz();
-    const int workers = (m_occThreads > 1 && g.cellCount() >= 32768) ? std::min(m_occThreads, rows) : 1;
-    if (workers == 1) slab(0, rows);
+    const int rows = r1 - r0;
+    if (rows <= 0) return;
+    const size_t cellsPerRow = g.cellCount() / static_cast<size_t>(std::max(1, occupancyRows(av)));
+    const int workers = (m_occThreads > 1 && cellsPerRow * static_cast<size_t>(rows) >= 32768) ? std::min(m_occThreads, rows) : 1;
+    if (workers == 1) slab(r0, r1);
     else {
         std::vector<std::thread> pool;
-        for (int i = 1; i < workers; ++i) pool.emplace_back(slab, rows * i / workers, rows * (i + 1) / workers);
-        slab(0, rows / workers);
+        for (int i = 1; i < workers; ++i) pool.emplace_back(slab, r0 + rows * i / workers, r0 + rows * (i + 1) / workers);
+        slab(r0, r0 + rows / workers);
         for (auto& t : pool) t.join();
     }
+}
+
+void WaterCoreManager::finishOccupancyRead(Av& av) {
     av.occDirty = false;
-    // the GPU reads occupancy from the grid, and so does the Phase F surface extraction: mirror the cache
-    for (int z = 0; z < av.grid->nz(); ++z) for (int y = 0; y < av.grid->ny(); ++y) for (int x = 0; x < av.grid->nx(); ++x)
-        av.grid->occ(x, y, z) = av.occCache[av.grid->idx(x, y, z)];
+    // the GPU reads occupancy from the grid, and so does the Phase F surface extraction: mirror the cache (58.3: one copy - the cache
+    // is in the grid's idx() order; cell by cell it was a single-threaded walk of the box)
+    std::copy(av.occCache.begin(), av.occCache.end(), av.grid->occData().begin());
     if (av.gpuVol) av.gpuDirty = true;
-    av.occRefreshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tOcc).count();
-    ++av.occFullRefreshes; av.occCellsResampled = static_cast<long>(av.occCache.size()); av.occCellsChanged = -1;   // -1: not compared
 }
 
 void WaterCoreManager::refreshOccupancyLocal(Av& av, const std::vector<SolidsChangeBox>& boxes) {
@@ -535,6 +553,7 @@ void WaterCoreManager::update(float dt) {
     { const auto t = UClock::now(); checkRecordResidency(); pre.residency = ums(t); }   // 32.4: before the realtime return - a harness that steps by hand still follows residency
     { const auto t = UClock::now(); updateKeptMemory(); pre.kept = ums(t); }            // L3 (41): kept memory follows the viewer; the given-up part freed a little each frame
     { const auto t = UClock::now(); stepRetiring(); pre.retiring = ums(t); }            // 57.8: a returning patch's tiles, a few a frame (a sleep at this frame's end starts next frame)
+    pumpPatchJobs(0);   // 58.3: patches building over frames, a stage or more a frame under s_wakeBudgetMs
     if (!m_realtime) return;
     m_updateCpu = pre;
     ++WaterHostProfile::frames;   // 27.28
@@ -1782,6 +1801,14 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
             return av->id;
         }
     }
+    // 58.3: a patch of this pond still building - a disturbance inside it is its own (a push is held by addImpulse, a body brings its
+    // deadline forward in wakeSleptTouching); one elsewhere in the pond finishes it first (never two patches of one pond in flight)
+    for (const PatchJob& pj : m_patchJobs) {
+        if (pj.parentLo != sv.lo || pj.parentHi != sv.hi) continue;
+        if (c.x >= pj.lo.x && c.x < pj.hi.x + 1 && c.z >= pj.lo.z && c.z < pj.hi.z + 1) return 0;
+        pumpPatchJobs(1);
+        return wakePatch(i, c);   // the pond's patch is live now: the rules below place this one beside (or merge with) it
+    }
     // amendment B: never two live patches over the same water - an overlapping one merges (written back, the union woken), or past
     // kPatchMaxM the new box is clipped off it
     for (bool again = true; again;) {
@@ -1816,6 +1843,8 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
     auto tp = std::chrono::steady_clock::now();   // 51.3d: the wake's parts
     auto lapMs = [&tp]() { const auto n = std::chrono::steady_clock::now(); const double ms = std::chrono::duration<double, std::milli>(n - tp).count(); tp = n; return ms; };
     size_t slots = 0;
+    float recordTop = static_cast<float>(hi.y + 1);   // 58.3: the highest recorded water near c (a body's deadline is to it)
+    bool topSeen = false;
     if (m_spanReader && sv.cellSize > 0.0f && !s_patchPoolUnsizedForTest) {
         const int T = kRecordTile, per = std::max(1, static_cast<int>(std::lround(1.0f / sv.cellSize))), by = std::max(1, WaterCoreGpu::s_brickHeight);
         const float reach = WaterCoreGpu::s_disturbanceRadiusM + 2.0f;
@@ -1828,6 +1857,7 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
             std::vector<ColumnRuns> runs;
             m_spanReader(tLo, tHi, runs);
             for (const auto& col : runs) for (const auto& r : col.runs) {
+                recordTop = topSeen ? std::max(recordTop, r.topY) : r.topY; topSeen = true;
                 const double run = std::floor(r.topY * per / by) - std::floor(r.bottomY * per / by) + 1.0;
                 bricks += run + 2.0;   // the run's bricks + a halo brick each side (tall cells come on 2 s in: the whole depth is stored first)
             }
@@ -1840,6 +1870,15 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
     }
     m_lastPatchSlots = slots;
     m_sleptWake.patchSizeMs = lapMs();
+    {   // 58.3: built over frames - only a GPU fill patch (what `auto` makes when the device is up)
+        const bool gpuFill = (sv.backend.empty() || sv.backend == "auto" || sv.backend == "gpu") && (sv.transport.empty() || sv.transport == "eulerian") && gpuReady();
+        if (s_patchPace && gpuFill) {
+            PatchJob pj; pj.parentLo = sv.lo; pj.parentHi = sv.hi; pj.lo = lo; pj.hi = hi; pj.sv = sv; pj.centre = c; pj.slots = slots; pj.top = recordTop;
+            m_patchJobs.push_back(std::move(pj));
+            ++m_patchPaced.started;
+            return 0;   // no id this call: the patch goes live in a later frame (water_av_list shows it then)
+        }
+    }
     m_createKeepsSlept = true; m_slotsForCreate = slots;
     // 58 item 1 (D9's cut): the last patch's buffers, kept at its return, taken here (each buffer that fits; the rest allocated)
     m_keptMem.lastPatchAdopted = false;
@@ -1856,25 +1895,11 @@ int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
     m_createKeepsSlept = false; m_slotsForCreate = 0;
     m_sleptWake.patchCreateMs = lapMs();
     if (!id) { ++m_sleptWake.refused; m_sleptWake.lastError = err; return 0; }
-    setPartialWake(id, true);
-    setTallBand(id, sv.tallBandM);
-    setRecordTiles(id, true);
     bool woke = false;
     for (auto& av : m_avs) if (av->id == id) {
-        av->isPatch = true; av->patchParentLo = sv.lo; av->patchParentHi = sv.hi;
-        av->noSleepBefore = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kWokenNoSleepS;
-        if (av->gpuVol && m_gpu) m_gpu->noteDisturbance(*av->gpuVol, c);
-        {   // 51.3: the patch's field sized now - every column is a recorded tile's (adopt marks it the record's) or a woken tile's
-            // (wakeTile writes its seed), so the field is whole before the first read and the CPU fallback is skipped (surfaceFields)
-            WaterSurfaceField& f = av->field;
-            f.origin = av->grid->spec().origin; f.nx = av->grid->nx(); f.nz = av->grid->nz(); f.h = av->h; f.source = av->id;
-            f.cols.assign(static_cast<size_t>(f.nx) * f.nz, SurfaceColumn{});
-        }
         lapMs();
-        const size_t q0 = av->gpuVol ? av->gpuVol->surfPending.size() : 0;
-        adoptRecordedTiles(*av);
+        patchSettle(*av, sv, c);
         m_sleptWake.patchAdoptMs = lapMs();
-        m_sleptWake.adoptQueuedColumns = av->gpuVol ? static_cast<long>(av->gpuVol->surfPending.size() - q0) : 0;   // 58.2
         auto fd = [](int v, int b) { return v >= 0 ? v / b : -((-v + b - 1) / b); };
         woke = wakeTile(*av, fd(static_cast<int>(std::floor(c.x)), kRecordTile), fd(static_cast<int>(std::floor(c.z)), kRecordTile), 'M');
     }
@@ -2075,6 +2100,163 @@ void WaterCoreManager::pumpWakeJobs() {
     }
 }
 
+void WaterCoreManager::patchSettle(Av& av, const SleptVolume& sv, const glm::vec3& c) {
+    setPartialWake(av.id, true);
+    setTallBand(av.id, sv.tallBandM);
+    setRecordTiles(av.id, true);
+    av.isPatch = true; av.patchParentLo = sv.lo; av.patchParentHi = sv.hi;
+    av.noSleepBefore = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kWokenNoSleepS;
+    if (av.gpuVol && m_gpu) m_gpu->noteDisturbance(*av.gpuVol, c);
+    {   // 51.3: the patch's field sized now - every column is a recorded tile's (adopt marks it the record's) or a woken tile's
+        // (wakeTile writes its seed), so the field is whole before the first read and the CPU fallback is skipped (surfaceFields)
+        WaterSurfaceField& f = av.field;
+        f.origin = av.grid->spec().origin; f.nx = av.grid->nx(); f.nz = av.grid->nz(); f.h = av.h; f.source = av.id;
+        f.cols.assign(static_cast<size_t>(f.nx) * f.nz, SurfaceColumn{});
+    }
+    const size_t q0 = av.gpuVol ? av.gpuVol->surfPending.size() : 0;
+    adoptRecordedTiles(av);
+    m_sleptWake.adoptQueuedColumns = av.gpuVol ? static_cast<long>(av.gpuVol->surfPending.size() - q0) : 0;   // 58.2
+}
+
+void WaterCoreManager::endPatchJob(PatchJob& j) {
+    if (j.av && j.av->gpuVol && m_gpu) { m_gpu->destroyVolume(j.av->gpuVol); j.av->gpuVol = nullptr; }
+    j.av.reset();
+}
+
+bool WaterCoreManager::holdForPatchJobs(const PatchHeld& h) {
+    bool any = false;
+    for (PatchJob& j : m_patchJobs) {
+        if (j.stage > 5) continue;   // adopted (stage 6): the live volume takes it
+        const glm::vec3 q = glm::clamp(h.at, glm::vec3(j.lo), glm::vec3(j.hi) + glm::vec3(1.0f));   // the sphere touches the box
+        if (glm::dot(q - h.at, q - h.at) > h.radius * h.radius) continue;
+        j.held.push_back(h); ++m_patchPaced.held; any = true;
+    }
+    return any;
+}
+
+bool WaterCoreManager::runPatchStage(PatchJob& j) {
+    if (sleptIndex(j.parentLo, j.parentHi) < 0) { ++m_patchPaced.cancelled; endPatchJob(j); return false; }   // the pond was replaced or loaded over
+    std::string err;
+    const std::string transport = j.sv.transport.empty() ? "eulerian" : j.sv.transport, backend = j.sv.backend.empty() ? "auto" : j.sv.backend;
+    auto refuse = [&]() { ++m_patchPaced.refused; ++m_sleptWake.refused; m_sleptWake.lastError = err; endPatchJob(j); return false; };
+    switch (j.stage) {
+    case 0:   // create's CPU part: the grid (the last patch's, when its dims fit), the solver - the occupancy read is the next stage's
+        m_createKeepsSlept = true; m_gridForCreate = s_patchSpare.on; m_createSkipsOccupancy = true;
+        j.av = buildCpu(j.lo, j.hi, j.sv.cellSize, transport, &err, backend, j.sv.sweeps, 0, -1, true);
+        m_gridForCreate = false; m_createKeepsSlept = false; m_createSkipsOccupancy = false;
+        if (!j.av) return refuse();
+        if (m_revision) j.av->occRevision = m_revision();   // read from here: a change during the read is re-read after adopt (refreshOccupancy)
+        break;
+    case 1: {   // the occupancy read, kPatchOccRowsPerStage cube rows a stage (the whole 60 m box was 7-13 ms in one)
+        const int rows = occupancyRows(*j.av), r1 = std::min(rows, j.occRow + kPatchOccRowsPerStage);
+        readOccupancyRows(*j.av, j.occRow, r1);
+        j.occRow = r1;
+        if (r1 < rows) return true;   // the same stage: the next band next (this frame while the budget lasts)
+        finishOccupancyRead(*j.av);
+        break;
+    }
+    case 2: {   // the GPU volume, on the last patch's buffers where they are kept (D9's spare); its upload left to the next stages
+        m_keptMem.lastPatchAdopted = false;
+        size_t slots = j.slots;
+        if (m_patchSpare && s_patchSpare.on && m_gpu) {
+            m_adoptForCreate = m_patchSpare; m_patchSpare = 0;
+            m_keptMem.lastPatchAdopted = true; ++m_keptMem.patchSpareAdopted;
+            if (slots) slots = std::max(slots, m_gpu->keptSlots(m_adoptForCreate));
+        }
+        m_slotsForCreate = slots; m_createLeavesUploadToStep = true; m_createKeepsSlept = true;
+        const bool ok = buildGpu(*j.av, &err);
+        m_createLeavesUploadToStep = false; m_createKeepsSlept = false; m_slotsForCreate = 0;
+        if (m_adoptForCreate && m_gpu) m_gpu->releaseKept(m_adoptForCreate);   // not taken: given up (no-op if taken)
+        m_adoptForCreate = 0;
+        if (!ok) return refuse();
+        break;
+    }
+    case 3:   // the upload's host work into staging (the grid is new or the cleared spare: no water, no velocity - not scanned)
+        m_gpu->uploadPrepare(*j.av->gpuVol, *j.av->grid, true);
+        break;
+    case 4:   // its copies and fills
+        m_gpu->uploadSubmit(*j.av->gpuVol);
+        j.av->uploadedAtStep = j.av->stepCount; ++j.av->gpuUploads; j.av->gpuDirty = false;
+        break;
+    case 5: {   // adopted: every tile the record's (the record keeps drawing them), the settings - the volume is live but holds no water
+        m_createKeepsSlept = true;   // the parent pond stays slept; no draw tile goes stale (refreshBoxes)
+        j.id = adopt(std::move(j.av), true);
+        m_createKeepsSlept = false;
+        Av* av = nullptr;
+        for (auto& a : m_avs) if (a->id == j.id) av = a.get();
+        if (!av) { ++m_patchPaced.cancelled; return false; }
+        patchSettle(*av, j.sv, j.centre);
+        break;
+    }
+    default: {   // live: the disturbance's own tile, then every tile the held pushes reach (wakeRecordedNear's rule), ONE A STAGE (a
+        // tile is ~5 ms: the pushes' four at once were 30 ms of one frame, the first build); then the pushes, into cells
+        Av* av = nullptr;
+        for (auto& a : m_avs) if (a->id == j.id) av = a.get();
+        if (!av) { ++m_patchPaced.cancelled; return false; }
+        auto fd = [](int v, int b) { return v >= 0 ? v / b : -((-v + b - 1) / b); };
+        if (!j.listed) {
+            j.listed = true;
+            j.toWake.push_back({fd(static_cast<int>(std::floor(j.centre.x)), kRecordTile), fd(static_cast<int>(std::floor(j.centre.z)), kRecordTile)});
+            for (const PatchHeld& h : j.held) {
+                const float r = h.radius + s_writeWakeReachM;
+                for (int tz = fd(static_cast<int>(std::floor(h.at.z - r)), kRecordTile); tz <= fd(static_cast<int>(std::floor(h.at.z + r)), kRecordTile); ++tz)
+                    for (int tx = fd(static_cast<int>(std::floor(h.at.x - r)), kRecordTile); tx <= fd(static_cast<int>(std::floor(h.at.x + r)), kRecordTile); ++tx)
+                        if (std::find(j.toWake.begin(), j.toWake.end(), std::make_pair(tx, tz)) == j.toWake.end()) j.toWake.push_back({tx, tz});
+            }
+        }
+        if (!j.toWake.empty()) {
+            const std::pair<int, int> t = j.toWake.front();
+            j.toWake.erase(j.toWake.begin());
+            const bool recorded = std::find(av->recordedTileList.begin(), av->recordedTileList.end(), t) != av->recordedTileList.end();
+            const bool woke = recorded && wakeTile(*av, t.first, t.second, j.first ? 'M' : 'W');
+            if (woke) ++m_patchPaced.tilesWoken;
+            if (j.first && recorded && !woke) { destroy(j.id); ++m_sleptWake.wokenEmpty; ++m_patchPaced.empty; return false; }   // dry ground at the pond's edge
+            j.first = false;
+            return true;   // the same stage: the next tile next (this frame while the budget lasts)
+        }
+        ++m_sleptWake.woken; ++m_patchesWoken; ++m_patchPaced.live;
+        if (j.forced) ++m_patchPaced.forced;
+        for (const PatchHeld& h : j.held) {
+            if (h.kind == 0) addImpulse(h.at, h.radius, h.speed, h.dir); else addRadialImpulse(h.at, h.radius, h.speed, h.upBias);
+            ++m_patchPaced.applied;
+        }
+        m_patchPaced.lastFrames = j.frames;
+        return false;
+    }
+    }
+    ++j.stage;
+    return true;
+}
+
+void WaterCoreManager::pumpPatchJobs(int mode) {
+    // mode 0: a frame's pump (at least one stage a job, more while s_wakeBudgetMs lasts; a due job every stage); 1: every job to live
+    // now (a second disturbance elsewhere in its pond); 2: due jobs only (a body nearly at the water - the touch pump)
+    if (m_patchJobs.empty()) return;
+    using JClock = std::chrono::steady_clock;
+    const auto t0 = JClock::now();
+    bool ranOne = false;
+    for (size_t k = 0; k < m_patchJobs.size();) {
+        PatchJob& j = m_patchJobs[k];
+        const bool due = mode == 1 || m_physTicks >= j.dueTick;
+        if (mode == 2 && !due) { ++k; continue; }
+        if (due) j.forced = true;
+        if (mode == 0) ++j.frames;
+        bool alive = true;
+        while (alive && (due || !ranOne || std::chrono::duration<double, std::milli>(JClock::now() - t0).count() < s_wakeBudgetMs)) {
+            const auto ts = JClock::now();
+            const int stage = j.stage;
+            alive = runPatchStage(j);
+            const double ms = std::chrono::duration<double, std::milli>(JClock::now() - ts).count();
+            j.ms += ms; ++m_patchPaced.stages; ranOne = true;
+            if (ms > m_patchPaced.maxStageMs) { m_patchPaced.maxStageMs = ms; m_patchPaced.maxStage = stage; }
+            m_patchPaced.stageMaxMs[std::min(stage, 6)] = std::max(m_patchPaced.stageMaxMs[std::min(stage, 6)], ms);
+        }
+        if (!alive) { m_patchPaced.lastJobMs = j.ms; m_patchJobs.erase(m_patchJobs.begin() + static_cast<long>(k)); continue; }
+        ++k;
+    }
+    if (ranOne) m_patchPaced.maxFrameMs = std::max(m_patchPaced.maxFrameMs, std::chrono::duration<double, std::milli>(JClock::now() - t0).count());
+}
+
 std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSolid>& bodies, const std::vector<MovingSolid>* inBoxes) {
     std::vector<int> ids;
     for (WakeJob& j : m_jobs) { dueFromBodies(j, bodies); if (inBoxes) dueFromBodies(j, *inBoxes); }   // 42.3: the deadline only comes forward
@@ -2113,6 +2295,20 @@ std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSol
             ++m_paced.immediate;   // no time to pace (a body at the water) or not paceable: today's wake
         }
         const int id = wakeSlept(i); if (id) ids.push_back(id);
+    }
+    // 58.3: a patch building where a body is falling (made this call or before) is due at half the body's time to the water (L4's
+    // rule; with no physics clock, now) - and every due job is finished here, before the body can reach the water
+    if (!m_patchJobs.empty()) {
+        auto dueFrom = [&](const std::vector<MovingSolid>& bs) {
+            for (PatchJob& j : m_patchJobs) {
+                const glm::vec3 lo(j.lo), hi = glm::vec3(j.hi) + glm::vec3(1.0f);
+                for (const MovingSolid& b : bs)
+                    if (glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi)))
+                        j.dueTick = std::min(j.dueTick, m_physTickS > 0.0 ? m_physTicks + static_cast<uint64_t>(std::floor(0.5 * secondsToWater(b, j.top) / m_physTickS)) : 0ull);
+            }
+        };
+        dueFrom(bodies); if (inBoxes) dueFrom(*inBoxes);
+        pumpPatchJobs(2);
     }
     pumpWakeJobs();   // a job that goes live returns no id here (it is not this frame's touch); water_av_list shows it
     return ids;
@@ -2232,6 +2428,8 @@ WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
     if (s_resetWorldOffForTest) return out;
     for (WakeJob& j : m_jobs) { endWakeJob(j); ++out.jobs; }   // half-built volumes and the kept sets they took
     m_jobs.clear();
+    for (PatchJob& j : m_patchJobs) { endPatchJob(j); ++out.jobs; }   // 58.3: patches half built (an adopted one goes with the volumes below)
+    m_patchJobs.clear();
     // 58 (found reading 57.8's code): a patch handing back to the record belongs to the world being left - its held tiles are
     // dropped (never switched into the next world's record) and its volume freed, paced
     for (Retiring& r : m_retiring) { if (r.av && r.av->gpuVol && m_gpu) m_gpu->destroyVolume(r.av->gpuVol, true); if (r.av) r.av->gpuVol = nullptr; ++out.volumes; }
@@ -2674,6 +2872,8 @@ bool WaterCoreManager::addImpulse(const glm::vec3& world, float radius, float de
     // upload, the next download overwrote it, a sleeping volume was skipped). Now: the current state
     // first, the write, then upload + wake - the placeBox discipline.
     bool any = false;
+    {   PatchHeld h; h.kind = 0; h.at = world; h.radius = radius; h.speed = deltaSpeed; h.dir = dir;   // 58.3: a patch still building keeps it
+        any = holdForPatchJobs(h); }
     for (auto& av : m_avs) {
         if (!sphereTouchesBox(world, radius, av->minVoxel, av->maxVoxel)) continue;
         wakeRecordedNear(*av, world, radius);   // §27 W1b: into cells, not into the record's empty ones
@@ -2728,6 +2928,8 @@ WaterCoreManager::MomentumReport WaterCoreManager::applyMomentum(const std::vect
 
 WaterCoreManager::KickReport WaterCoreManager::addRadialImpulse(const glm::vec3& centre, float reach, float speedAtCentre, float upBias) {
     KickReport rep;
+    {   PatchHeld h; h.kind = 1; h.at = centre; h.radius = reach; h.speed = speedAtCentre; h.upBias = upBias;   // 58.3: held for its live frame
+        holdForPatchJobs(h); }
     for (auto& av : m_avs) {
         if (!sphereTouchesBox(centre, reach, av->minVoxel, av->maxVoxel)) continue;
         if (av->gpuVol && m_gpu && !s_writesRoundTripForTest && !av->gpuDirty) {   // 27.23 W1d.2: on the device (its face count is the device's)

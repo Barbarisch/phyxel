@@ -711,7 +711,7 @@ public:
     /// L4 (42): upload in two halves, for a wake paced over frames - the host work into staging (max speed, host occupancy,
     /// residency, clear, scatter, tables), then the copies and fills (one submit, waited). upload() is exactly the two in a row;
     /// nothing may touch the volume's staging between them.
-    void uploadPrepare(Volume& vol, const WaterGrid& g);
+    void uploadPrepare(Volume& vol, const WaterGrid& g, bool knownEmpty = false);   ///< 58.3 knownEmpty: no water, no velocity in g (not scanned)
     void uploadSubmit(Volume& vol);
     /// docs/WaterCore.md 20 (M1): the fields of the bodies in this volume for the next `frameSeconds` - s and
     /// the wake from WaterSolver::updateSolidFields, `fresh` its fresh-body marks. The rates (q and the

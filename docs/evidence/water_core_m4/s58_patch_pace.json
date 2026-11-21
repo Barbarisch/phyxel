@@ -1,0 +1,94 @@
+{
+ "bench": "WaterBench_Creek",
+ "push": {
+  "x": 34.0,
+  "y": 17.9,
+  "z": 32.0,
+  "radius": 2.0,
+  "strength": 8.0,
+  "dx": 0.0,
+  "dy": -1.0,
+  "dz": 0.0
+ },
+ "camera": {
+  "x": 38.0,
+  "y": 24,
+  "z": 50.0,
+  "yaw": -90.0,
+  "pitch": -30.0
+ },
+ "takes": [
+  {
+   "mode": "now",
+   "push": {
+    "strength": 8.0,
+    "success": true,
+    "woken": [
+     4
+    ]
+   },
+   "worst_frame_ms_push_window": 66.61129742860794,
+   "patch_paced": {
+    "applied": 0,
+    "building": 0,
+    "cancelled": 0,
+    "empty": 0,
+    "forced": 0,
+    "held": 0,
+    "last_frames": 0,
+    "last_job_ms": 0.0,
+    "live": 0,
+    "max_frame_ms": 0.0,
+    "max_stage": -1,
+    "max_stage_ms": 0.0,
+    "refused": 0,
+    "stages": 0,
+    "started": 0
+   },
+   "back_in_record_s": 21.1
+  },
+  {
+   "mode": "staged",
+   "push": {
+    "strength": 8.0,
+    "success": true,
+    "woken": []
+   },
+   "worst_frame_ms_push_window": 36.57950088381767,
+   "patch_paced": {
+    "applied": 1,
+    "building": 0,
+    "cancelled": 0,
+    "empty": 0,
+    "forced": 0,
+    "held": 1,
+    "last_frames": 10,
+    "last_job_ms": 39.9829,
+    "live": 1,
+    "max_frame_ms": 6.1332,
+    "max_stage": 6,
+    "max_stage_ms": 6.1327,
+    "refused": 0,
+    "stages": 14,
+    "started": 1
+   },
+   "back_in_record_s": 22.0
+  }
+ ],
+ "record_lake": {
+  "box": [
+   4,
+   16,
+   2,
+   63,
+   18,
+   61
+  ],
+  "m3": 7200.0,
+  "slept_boxes": 1,
+  "success": true,
+  "unwritten_columns": 0
+ },
+ "warmup_back_s": 29.8,
+ "patch_pace_restored": false
+}

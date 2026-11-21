@@ -117,6 +117,7 @@ def main():
     ap.add_argument("--windows", action="store_true")
     ap.add_argument("--trace", action="store_true")
     ap.add_argument("--spare", type=int, default=None, help="58 item 1: water_locality patch_spare (1 on, 0 off; omitted = unchanged)")
+    ap.add_argument("--patch-pace", type=int, default=None, help="58.3: water_coupling patch_pace (1 a patch built over frames, 0 at once; omitted = unchanged)")
     ap.add_argument("--out", default=str(pathlib.Path(__file__).resolve().parent.parent / "docs" / "evidence" / "water_core_m4" / "s57_patch_sleep_split.json"))
     a = ap.parse_args()
     if P.foreign(): raise SystemExit(f"other phyxel processes share the GPU: {P.foreign()}")
@@ -125,12 +126,18 @@ def main():
         api.post("/api/entity/spawn", {"type": "animated", "position": {"x": 2.0, "y": P.TOP + 1.2, "z": 0.0}, "id": "player"})
     api.debug("water_av_realtime", {"on": True})
     if a.spare is not None: print("patch_spare", api.debug("water_locality", {"patch_spare": bool(a.spare)}).get("patch_spare"), flush=True)
+    if a.patch_pace is not None: print("patch_pace", api.debug("water_coupling", {"patch_pace": bool(a.patch_pace)}).get("slept", {}).get("patch_pace"), flush=True)
     out = []
     try:
         P.destroy_all(api); P.clear_record(api); P.lay_bed(api)
         time.sleep(30.0)   # the far skin's re-read of the clear (57.4 item 2) done before the first run
         if a.handover is not None: api.debug("water_av_record_draw", {"handover_tiles_per_frame": a.handover})
-        for k in range(a.runs): out.append(trace_run(api, k) if a.trace else one(api, k, a.handover, a.windows))
+        for k in range(a.runs):
+            api.debug("water_coupling", {"patch_pace_reset": True})
+            out.append(trace_run(api, k) if a.trace else one(api, k, a.handover, a.windows))
+            pp = api.debug("water_coupling", {}).get("slept", {})   # 58.3: the staged patch's counters for this run
+            out[-1]["patch_pace"] = pp.get("patch_pace"); out[-1]["patch_paced"] = pp.get("patch_paced")
+            print("  patch_paced", pp.get("patch_paced"), flush=True)
     finally:
         P.destroy_all(api)
         pathlib.Path(a.out).write_text(json.dumps(out, indent=1), encoding="utf-8")

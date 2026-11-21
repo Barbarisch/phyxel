@@ -735,6 +735,17 @@ public:
     struct PacedStats { long started = 0, live = 0, forcedByDeadline = 0, immediate = 0, rebuilt = 0, cancelled = 0, stages = 0;
                         double maxStageMs = 0.0, lastJobMs = 0.0; int building = 0; double lastDueS = 0.0; };
     PacedStats pacedStats() const { PacedStats s = m_paced; s.building = static_cast<int>(m_jobs.size()); return s; }
+    /// 58.3 (WaterCore §58 item 1): a PATCH wake built over frames too - create's CPU part, the GPU volume, the upload's host part,
+    /// its submit, adopt, then live (the disturbance's tile woken, the held pushes applied), one stage at least a frame under
+    /// s_wakeBudgetMs. A push or a blast while it builds is HELD and applied when it goes live (it is late by the stages); a body
+    /// gives lead time (L4's deadline: due at half its time to the water - then every stage at once). OFF by default: the owner
+    /// judges the delay from a clip (2026-11-21: "we need to test everything"). Echoed by water_locality {patch_pace}.
+    static inline bool s_patchPace = false;
+    struct PatchPaceStats { long started = 0, live = 0, forced = 0, held = 0, applied = 0, empty = 0, refused = 0, cancelled = 0, stages = 0;
+                            double maxStageMs = 0.0, lastJobMs = 0.0, maxFrameMs = 0.0; int maxStage = -1, lastFrames = 0, building = 0;
+                            double stageMaxMs[7] = {0, 0, 0, 0, 0, 0, 0}; long tilesWoken = 0; };   ///< stageMaxMs: 0 cpu, 1 occupancy rows, 2 gpu, 3 prepare, 4 submit, 5 adopt, 6 a tile / the pushes   ///< maxFrameMs: the most one frame's pump spent
+    PatchPaceStats patchPaceStats() const { PatchPaceStats s = m_patchPaced; s.building = static_cast<int>(m_patchJobs.size()); return s; }
+    void resetPatchPaceStats() { m_patchPaced = PatchPaceStats{}; }
     std::vector<int> wakeSleptNear(const glm::vec3& centre, float radius);
     struct SleptWakeStats { long woken = 0, wokenEmpty = 0, refused = 0, deferredNotResident = 0; double lastMs = 0.0, maxMs = 0.0; std::string lastError;
                             /// A2f: the last wake's parts, ms - create's (grid + solver allocation, occupancy read, solids, GPU create + upload)
@@ -1211,6 +1222,26 @@ private:
     void pumpWakeJobs();
     bool runWakeStage(WakeJob& j);   ///< false = the job ended (refused, empty, deferred, cancelled, or live)
     void endWakeJob(WakeJob& j);     ///< frees a job's half-built volume
+    // 58.3: a patch built over frames (s_patchPace). One staging job per parent pond at a time (a second disturbance elsewhere in the
+    // same pond finishes it first), so no two patches over the same water are ever in flight; the record is read at adopt and at the
+    // tile wake (stages 4-5), never earlier, so a record changed while it built is read as it is then
+    struct PatchHeld { int kind = 0; glm::vec3 at{0.0f}, dir{0.0f}; float radius = 0.0f, speed = 0.0f, upBias = 0.0f; };   ///< 0 impulse, 1 radial
+    struct PatchJob { glm::ivec3 parentLo{0}, parentHi{0}, lo{0}, hi{0}; SleptVolume sv; glm::vec3 centre{0.0f}; size_t slots = 0;
+                      std::unique_ptr<Av> av; int id = 0, stage = 0, frames = 0; uint64_t dueTick = ~0ull; float top = 0.0f; double ms = 0.0;
+                      bool forced = false, listed = false, first = true; int occRow = 0; std::vector<PatchHeld> held; std::vector<std::pair<int, int>> toWake; };
+    std::vector<PatchJob> m_patchJobs;
+    PatchPaceStats m_patchPaced;
+    void pumpPatchJobs(int mode = 0);   ///< 0 a frame's pump, 1 every job to live now, 2 due jobs only
+    bool runPatchStage(PatchJob& j);   ///< false = the job ended (live, empty, refused, cancelled)
+    void endPatchJob(PatchJob& j);
+    bool holdForPatchJobs(const PatchHeld& h);   ///< a push into a box still building: kept for its live frame
+    void patchSettle(Av& av, const SleptVolume& sv, const glm::vec3& c);   ///< wakePatch's settings + adopt of the recorded tiles
+    bool m_createSkipsOccupancy = false;   ///< 58.3: buildCpu leaves the occupancy read to the staged patch (a band of rows a stage)
+    static constexpr int kPatchOccRowsPerStage = 12;   ///< 58.3: cube rows (1 m) of a patch's occupancy read per stage
+    bool occupancyByCube(const Av& av) const;
+    int occupancyRows(const Av& av) const;              ///< the read's rows: cube rows (1 m) or cell rows
+    void readOccupancyRows(Av& av, int r0, int r1);     ///< rows [r0, r1) of the box into occCache (threaded)
+    void finishOccupancyRead(Av& av);                   ///< the cache mirrored into the grid, occDirty cleared
     long sleptIndex(const glm::ivec3& lo, const glm::ivec3& hi) const;
     std::unique_ptr<RippleGpu> m_rgpu;   // 25.34 (declared after m_gpu: torn down first)
     bool m_rgpuOn = true;

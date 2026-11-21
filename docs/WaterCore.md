@@ -15105,7 +15105,10 @@ margin's tile wakes), the ripple layers 7-13, takeMotion 3. The cold first wake 
 `s_wakeBudgetMs`; the record draws the box until the patch is live; the disturbance held and applied then). Unresolved:
 1. **The owner's call:** an instant push or a blast (no lead time, unlike a falling body) would wait 3-4 frames (50-70 ms at 60 fps)
    before the water answers, against today's one ~80 ms frozen frame. A cheap answer during the stages (the ripple layer on the
-   record) is the alternative to put beside it. ASKED 2026-11-21, not answered.
+   record) is the alternative to put beside it. ASKED 2026-11-21; the owner, verbatim: "i have no idea if that delay is ok. i cant
+   predict the future. we need to test everything. you know this". **So: built behind a switch (default off) and shown - a clip of
+   the same push and blast, immediate vs staged (and the cheap ripple during the stages), for the owner to judge in motion.** The
+   question was mine to answer by building, not theirs to predict.
 2. The first live frame (~18 ms of step, the ripple layers 7-13, takeMotion 3) is not touched by staging: its own plan.
 3. The rule for a record that changes between stages (a second patch of the same lake) must be written down.
 4. 18 integration call sites take the patch id from `wakeSleptNear` at once: a test switch or a pump, named in the commit.
@@ -15129,6 +15132,39 @@ totals; the split is clear).
 - **Left in a tile wake** (~4.8 ms): the seed's slot uploads 1.3, its submit-and-wait 1.1-1.4, the settle before it 0.7, the seed
   surface 1.3, occupancy 0.6-0.8. **Not measured:** the GPU's own time per frame; the median frame.
 - Tests: water unit 322 / 322; integration water 99 / 101 (the known two).
+
+**The staged patch wake BUILT behind a switch (default OFF) and shown** (the owner's answer above; the design check's items 3-4
+settled in the build, 2 and 5 still open). `water_coupling {patch_pace: true}`; counters `slept.patch_paced`.
+- **Stages** (`WaterCoreManager::runPatchStage`, one or more a frame under `s_wakeBudgetMs`, pumped from `update`): 0 create's CPU
+  part (grid from the spare, solver; no occupancy), 1 the occupancy read 12 cube rows a stage (`readOccupancyRows`, factored out of
+  `refreshOccupancy`; its revision taken at the start, so a change during the read is re-read after adopt by the existing local
+  refresh), 2 the GPU volume (the spare's buffers), 3 the upload's host part (`uploadPrepare(..., knownEmpty)`: a new / cleared grid
+  holds no water or velocity - those scans skipped), 4 its submit, 5 adopt (every tile the record's - the record keeps drawing), 6 the
+  disturbance's tile, then each tile the held pushes reach (`wakeRecordedNear`'s rule), ONE A STAGE, then the pushes.
+- **Item 3 (the record changing between stages):** one staging job per parent pond; a disturbance elsewhere in the pond finishes it
+  first (`pumpPatchJobs(1)`); the record is read only at adopt and the tile wakes. **Item 4 (tests pinning immediate ids):** the
+  switch is off by default; nothing changes for them.
+- A push / blast into a building patch is HELD (`holdForPatchJobs`) and applied at the end; a body makes the job due at half its time
+  to the water (L4's rule; with no physics clock, now) and every stage then runs at once.
+- Found on the way (a fix): `refreshOccupancy` mirrored the cache into the grid cell by cell on one thread; now one copy (same order).
+- **Test** `WaterRecordTilesTest.APatchBuiltOverFramesKeepsEachFrameShort` (57.8's 60 m lake, the spare warm, a push at the centre;
+  the code was written before the test - its red is the immediate run): immediate 61-79 ms in the splash call (the red, > 10 ms);
+  staged: the call 0.2 ms, **the worst frame of wake work 6.6-7.8 ms** (a tile wake), stages cpu 0.5 / occupancy rows 2.2-2.3 / gpu
+  1.2-1.6 / prepare 5.5-5.7 / submit 0.5-0.6 / adopt 3.8-3.9 / a tile 6.6-7.8; adopted in 6 frames, **the push applied in frame 11**;
+  held 1 applied 1; 0 holes / 0 doubles over the box for 60 frames; books -2.3e-5 m^3; the record after the return 0.054 mm from the
+  immediate run's (floor 0: the push lands frames later - within the 0.1 mm bound). First run of the test: P1 was "<= 1/2 the
+  immediate call" and passed at 30.6 ms (the held push's four tile wakes in one stage) - too loose; tightened to 10 ms, then the
+  tiles were spread. Before the occupancy / prepare split the worst stages were 13.2 and 13.5 ms.
+- **Live** (`tools/water_patch_pace_clip.py`, Creek, the warm second push, `s58_patch_pace.json`): the worst frame in the push's
+  1.5 s - at once **66.6 ms**, staged **36.6 ms** (its stages <= 6.1 ms; the push waited **10 frames**). The rest of the 36.6 is the
+  patch's first live frames (design-check item 2: the first step, the ripple layers), not the build. **Not measured:** the median
+  frame (the gate), the GPU time per frame.
+- **Clip for the owner:** `s58_patch_pace_side_by_side_view.mp4` (left at once, right staged, the viewport only; the two takes are
+  not frame-synced - each push lands ~2 s into its take). Look at it: the owner's call is whether the 10-frame wait reads.
+- Tests: water unit 322 / 322; integration water 100 / 102 (the known two).
+- Not done: the cheap ripple on the record while it builds (the alternative); pre-warming the spare (item 5); the first live frame
+  (item 2); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
+  the water's, logged here only).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 

@@ -1564,7 +1564,9 @@ int WaterCoreGpu::partitionSlots(VkCommandBuffer cmd, Volume& vol) {
     return static_cast<int>(k);
 }
 
-void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
+void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g, bool knownEmpty) {
+    // 58.3: knownEmpty - a new grid (or the cleared spare) holds no water and no velocity: the scans of f, u, v, w are skipped (the
+    // same staging; the speed is 0, no brick holds water, nothing is unstored)
     using UClock = std::chrono::steady_clock;   // 39.8: the parts' times (m_lastUploadSplit)
     const auto u0 = UClock::now();
     UClock::time_point u2, u3, u4, u5, u6;
@@ -1580,7 +1582,7 @@ void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
     WaterGrid& gm = const_cast<WaterGrid&>(g);
     auto* st = static_cast<char*>(vol.staging.mapped);
     float mx = 0.0f;
-    {   // 39.10: per range, then the largest (a max of |v| is the same in any order); 5.6 ms on an 8 m pit on one thread
+    if (!knownEmpty) {   // 39.10: per range, then the largest (a max of |v| is the same in any order); 5.6 ms on an 8 m pit on one thread
         // one set of workers for all three lattices (a set per lattice cost the small pond more than it saved)
         const int parts = g.cellCount() >= 32768 ? m_hostThreads : 1;
         const std::vector<float>* lats[3] = {&gm.uData(), &gm.vData(), &gm.wData()};
@@ -1619,7 +1621,7 @@ void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
         // not known yet; a ring of 8 cells is more than any one tick moves at the CFL the step will use)
         std::vector<char> need(vol.mapCount, vol.sparse ? 0 : 1);
         if (vol.sparse) {
-            needFromDenseFill(vol, gm.fData(), need, kB);
+            if (!knownEmpty) needFromDenseFill(vol, gm.fData(), need, kB);
             for (const std::vector<int>* list : {&vol.sourceCells, &vol.boundaryCells}) for (int c : *list) {   // 54.2: + the boundaries' cells
                 if (c < 0 || static_cast<size_t>(c) >= vol.dCells) continue;
                 glm::ivec3 b; int dist[6];
@@ -1661,7 +1663,7 @@ void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
         {   auto rms = [](UClock::time_point a, UClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
             m_lastResidencySplit = {rms(u2, ur1), rms(ur1, ur2), rms(ur2, ur3), rms(ur3, u3)}; }
         vol.unstoredM3 = 0.0;   // water in a brick the capacity could not store: counted (createVolume refuses this up front)
-        {   // 51.3d: a linear scan of the fills; a cell's coordinates only where it holds water
+        if (!knownEmpty) {   // 51.3d: a linear scan of the fills; a cell's coordinates only where it holds water
             const std::vector<float>& fd = g.fData();
             const size_t nx = static_cast<size_t>(g.nx()), nxy = nx * static_cast<size_t>(g.ny());
             for (size_t i = 0; i < fd.size(); ++i)

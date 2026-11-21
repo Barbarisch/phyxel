@@ -14866,6 +14866,10 @@ void Application::registerWaterCommands() {
             if (cmd.params.contains("wake_budget_ms") && cmd.params["wake_budget_ms"].is_number() && cmd.params["wake_budget_ms"].get<double>() >= 0.0)
                 M::s_wakeBudgetMs = std::clamp(cmd.params["wake_budget_ms"].get<double>(), M::kWakeBudgetMsMin, M::kWakeBudgetMsMax);
             if (cmd.params.contains("test_pace_late") && cmd.params["test_pace_late"].is_boolean()) M::s_paceLateForTest = cmd.params["test_pace_late"].get<bool>();   // 42.4 item 2 TEST
+            // 58.3: patch_pace (bool) builds a patch over frames (under the same budget); a push meanwhile is held. Off by default until
+            // the owner has seen it. patch_pace_reset (bool) zeroes its counters
+            if (cmd.params.contains("patch_pace") && cmd.params["patch_pace"].is_boolean()) M::s_patchPace = cmd.params["patch_pace"].get<bool>();
+            if (cmd.params.value("patch_pace_reset", false) && waterCore) waterCore->resetPatchPaceStats();
         }
         if (cmd.params.value("dump_window", false) && debrisRuntime && debrisRuntime->gpu() && !debrisRuntime->gpu()->wetBodies().empty()) {
             // 31 DEBUG: the first wet body's pressure window - its centre column (and one 1 m off it), p per cell bottom-up
@@ -14923,6 +14927,12 @@ void Application::registerWaterCommands() {
                      s["paced"] = {{"started", ps.started}, {"live", ps.live}, {"forced_by_deadline", ps.forcedByDeadline}, {"immediate", ps.immediate},
                                    {"rebuilt", ps.rebuilt}, {"cancelled", ps.cancelled}, {"stages", ps.stages}, {"max_stage_ms", ps.maxStageMs},
                                    {"last_job_ms", ps.lastJobMs}, {"building", ps.building}, {"last_due_s", ps.lastDueS}}; }
+                 {   const auto pp = waterCore->patchPaceStats();   // 58.3
+                     s["patch_pace"] = Core::Water::WaterCoreManager::s_patchPace;
+                     s["patch_paced"] = {{"started", pp.started}, {"live", pp.live}, {"forced", pp.forced}, {"held", pp.held}, {"applied", pp.applied},
+                                         {"empty", pp.empty}, {"refused", pp.refused}, {"cancelled", pp.cancelled}, {"stages", pp.stages},
+                                         {"max_stage_ms", pp.maxStageMs}, {"max_stage", pp.maxStage}, {"max_frame_ms", pp.maxFrameMs}, {"last_job_ms", pp.lastJobMs},
+                                         {"last_frames", pp.lastFrames}, {"building", pp.building}}; }
                  nlohmann::json boxes = nlohmann::json::array();
                  for (const auto& v : waterCore->sleptVolumes()) boxes.push_back({v.lo.x, v.lo.y, v.lo.z, v.hi.x, v.hi.y, v.hi.z});
                  const auto& ws = waterCore->sleptWakeStats();

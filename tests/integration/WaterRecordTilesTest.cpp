@@ -1586,6 +1586,108 @@ TEST_F(WaterRecordTilesTest, ASecondPatchTakesTheFirstPatchsBuffers) {
     EXPECT_EQ(on.adoptQueued, 0) << "S6: adopt queued its columns one by one";
 }
 
+// 58.3 - a patch built over frames (s_patchPace). The owner (2026-11-20): "obviously we cant have stutter"; and on the delay a push
+// then waits (2026-11-21): "i have no idea if that delay is ok ... we need to test everything" - so it is built behind a switch and
+// shown. 57.8's rig (a 60 m lake 2 m deep in the record, the spare on): a warm-up splash and return (the spare and the pipelines
+// warm, as live after the first splash), then the measured splash - a push at the centre - and its return. Predictions, written
+// before the run: P1 the staged wake's worst frame of wake work <= 10 ms (first run: <= 1/2 - it passed at 30.6 ms, the held push's
+// four tile wakes in one stage: too loose to see it; tightened before the fix), and the immediate wake
+// (the red) > 10 ms; P2 live within 8 frames; P3 the push held once and applied once; P4 0 holes and 0 doubles over the box every
+// frame from the splash for 60 frames (the record draws until the patch is live); P5 books exact; P6 the record after the return the
+// same as the immediate run's, column by column, within the noise floor of two immediate runs + 1e-4 m.
+// The code was written before this test; its red is the immediate run of the same test.
+struct PacedPatchRun { double wakeCallMs = 0.0, maxFrameMs = 0.0, maxStageMs = 0.0, books = 0.0; int maxStage = -1, frames = 0, pushFrame = 0, holes = 0, doubles = 0, sleeps = 0;
+                       long held = 0, applied = 0, live = 0; std::map<std::pair<int, int>, double> cols; };
+static PacedPatchRun runPacedPatch(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool paced) {
+    using M = WaterCoreManager;
+    struct Restore { M::RecordDraw d; float m; bool sp, pp; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_patchSpare.on = sp; M::s_patchPace = pp; } }
+        restore{M::s_recordDraw, M::s_locality.drawM, M::s_patchSpare.on, M::s_patchPace};
+    M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_patchSpare.on = true; M::s_patchPace = false;
+    PacedPatchRun o;
+    WaterCoreManager mgr([](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; });
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 60;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    const double placed = record.total();
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", M::s_tallBandDefault}};
+    if (!mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump())) { ADD_FAILURE() << "loadSlept"; return o; }
+    const glm::vec3 c(30.0f, 1.9f, 30.0f);
+    mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, 10.0f));
+    for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }
+    std::vector<glm::vec2> pts;
+    for (float z = c.z - 12.0f; z <= c.z + 12.0f; z += 2.0f) for (float x = c.x - 12.0f; x <= c.x + 12.0f; x += 2.0f) pts.push_back({x + 0.55f, z + 0.55f});
+    for (int splash = 0; splash < 2; ++splash) {
+        const bool measured = splash == 1;
+        M::s_patchPace = measured && paced;
+        mgr.resetPatchPaceStats();
+        const auto t0 = std::chrono::steady_clock::now();
+        const std::vector<int> ids = mgr.wakeSleptNear(c, 2.0f);
+        mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        const double callMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        if (!M::s_patchPace && ids.empty()) { ADD_FAILURE() << "splash " << splash << " woke nothing"; return o; }
+        if (measured) o.wakeCallMs = callMs;
+        bool live = false, wasLive = false; int after = -1;
+        for (int k = 0; k < 60 * 90 && after < 60; ++k) {
+            mgr.update(1.0f / 60.0f); mgr.surfaceFields();
+            const bool any = !mgr.list().empty();
+            if (any && !live) { live = true; if (measured) o.frames = k + 1; }
+            if (wasLive && !any) ++o.sleeps;
+            wasLive = any;
+            if (measured && k < 60) {
+                int miss = 0, twice = 0;
+                for (const glm::vec2& p : pts) { const int n = mgr.drawnClaimsAtWorld(p.x, p.y); if (n == 0) ++miss; else if (n > 1) ++twice; }
+                if (miss) { ++o.holes; if (o.holes <= 2) std::printf("    frame %d: %d of %zu points draw no water\n", k, miss, pts.size()); }
+                if (twice) { ++o.doubles; if (o.doubles <= 2) std::printf("    frame %d: %d of %zu points drawn twice\n", k, twice, pts.size()); }
+            }
+            if (live && !any && mgr.retiringCount() == 0) ++after;
+        }
+        if (measured) {
+            const auto ps = mgr.patchPaceStats();
+            o.maxFrameMs = ps.maxFrameMs; o.maxStageMs = ps.maxStageMs; o.maxStage = ps.maxStage;
+            o.held = ps.held; o.applied = ps.applied; o.live = ps.live; o.pushFrame = ps.lastFrames;
+            if (paced) std::printf("    staged, the worst of each stage (ms): cpu %.2f occupancy rows %.2f gpu %.2f prepare %.2f submit %.2f adopt %.2f tile/pushes %.2f | tiles woken %ld\n",
+                                   ps.stageMaxMs[0], ps.stageMaxMs[1], ps.stageMaxMs[2], ps.stageMaxMs[3], ps.stageMaxMs[4], ps.stageMaxMs[5], ps.stageMaxMs[6], ps.tilesWoken);
+        }
+    }
+    o.books = record.total() + mgr.totalMass() - placed;
+    for (const auto& [k, v] : record.cols) { double m = 0.0; for (const auto& r : v) m += static_cast<double>(r.topY - r.bottomY); o.cols[k] = m; }
+    return o;
+}
+
+TEST_F(WaterRecordTilesTest, APatchBuiltOverFramesKeepsEachFrameShort) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const PacedPatchRun im = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, false);
+    const PacedPatchRun im2 = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, false);
+    const PacedPatchRun st = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, true);
+    auto maxDiff = [](const PacedPatchRun& a, const PacedPatchRun& b) {
+        double d = 0.0;
+        for (const auto& [k, m] : a.cols) { auto it = b.cols.find(k); d = std::max(d, std::abs(m - (it == b.cols.end() ? 0.0 : it->second))); }
+        for (const auto& [k, m] : b.cols) if (!a.cols.count(k)) d = std::max(d, std::abs(m));
+        return d;
+    };
+    const double floor = maxDiff(im, im2), d = maxDiff(st, im);
+    for (const PacedPatchRun* r : {&im, &im2, &st})
+        std::printf("  %-10s the splash call %.2f ms | staged: worst frame %.2f ms, worst stage %.2f ms (stage %d), live in %d frames, the push applied in frame %d, held %ld applied %ld live %ld | holes %d doubles %d (60 frames) | sleeps %d | books %+.6f m^3\n",
+                    r == &st ? "STAGED" : "immediate", r->wakeCallMs, r->maxFrameMs, r->maxStageMs, r->maxStage, r->frames, r->pushFrame, r->held, r->applied, r->live, r->holes, r->doubles, r->sleeps, r->books);
+    std::printf("  the record after the return, column by column: staged vs immediate %.6f m (the control, immediate vs immediate: %.6f m)\n", d, floor);
+    ASSERT_GE(st.sleeps, 2) << "the staged run never returned twice";
+    EXPECT_GT(im.wakeCallMs, 10.0) << "P1 RED: the immediate wake's one call must be the stall the metric sees";
+    EXPECT_LE(st.maxFrameMs, 10.0) << "P1: a frame of the staged wake";
+    EXPECT_LT(st.wakeCallMs, 2.0) << "P1: the splash call itself (it only queues the job)";
+    EXPECT_EQ(st.live, 1); EXPECT_LE(st.frames, 8) << "P2";
+    EXPECT_EQ(st.held, 1) << "P3: the push not held"; EXPECT_EQ(st.applied, 1) << "P3: the held push not applied";
+    EXPECT_EQ(st.holes, 0) << "P4"; EXPECT_EQ(st.doubles, 0) << "P4";
+    EXPECT_EQ(im.holes, 0); EXPECT_EQ(im.doubles, 0);
+    EXPECT_LT(std::abs(st.books), 1e-3) << "P5";
+    EXPECT_LE(d, floor + 1e-4) << "P6: the record differs when the patch is staged";
+}
+
 TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     // the baseline is a lake LARGER than a patch (60 m): past the patch's size the cost may not grow with the lake. (A 30 m lake is
