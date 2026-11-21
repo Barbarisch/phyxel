@@ -1260,3 +1260,21 @@ after it exited, with a watcher that also lists other test processes (every 5 s)
   OWED before the next lever: a quiet VoxFound suite (WoW closed, no other session's tests) with the full watcher.
   RULE (AgentContext): a "quiet" watcher lists phyxel.exe, Wow.exe AND any phyxel_integration_tests.exe outside this
      checkout.
+
+---------------------------------------------------------------------------------------------------------------------
+F5.5l OWED MEASURES -- PREDICTION (2026-11-21, written before the runs and before the test hook below exists).
+  Q1, a quiet VoxFound GPU suite (HEAD e78ed72f, no code change; a watcher every 10 s listing phyxel.exe, Wow.exe and
+     any phyxel_integration_tests.exe outside this checkout): 52 / 52 PREDICTED, with F55bGpuRestConservesAndReloads's
+     E/T 650 reload max 19-21 ms -- i.e. the guard may fail again; a fail is recorded as a number, not re-run away.
+  Q2, the reload guard A/B. F5.5l did not touch load() (git diff 4a380d41..HEAD: BodySimGpu.cpp changes recordTick's
+     NARROW dispatch and the counter fills only; the per-thread stage it uses is F5.5g's, already allocated). What it
+     changes before each reload is the pairs pass, which setPairsOnce switches at run time -- so the A/B is the knob,
+     alternated in one build (B A A B x 4 = 8 runs each of F55bGpuRestConservesAndReloads alone, quiet), via a
+     test-only env hook VF_PAIRS_ONCE=0|1 read by that test (unset = the default, on). This replaces the HEAD vs HEAD~1
+     wording in AgentContext (HEAD~1 = 88606e55 has the same code; the meaningful pair is lever off vs on); the only
+     part not covered is the shader binary (+2.4 KB), which load() does not read.
+     PREDICTED: the E/T 650 reload max differs by < 0.5 ms between off and on (medians of 8); both <= 20 alone. If so,
+     the in-suite 19.3-21.3 ms is the suite's GPU/driver state, not F5.5l, and the guard (one max sample, a limit set
+     at F5.5b) runs at its limit inside the suite -- that is then a decision for the guard's owner test, made with the
+     numbers, not by loosening it here. If on is >= 0.5 ms slower: F5.5l moved the reload, and it is looked into
+     before F5.5m.
