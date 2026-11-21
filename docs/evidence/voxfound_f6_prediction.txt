@@ -46,3 +46,29 @@ F6.1 RESULTS (2026-11-21; the prediction above untouched). Release. Evidence vox
      correctness only, no timing claimed.)
 CONCLUSION: MatSim runs on the world's 1/8 m lattice with occupancy from a VoxFound grid, every invariant held, CPU and
 GPU. Next F6.2: the fill channel in the world.
+
+---------------------------------------------------------------------------------------------------------------------
+F6.2 PREDICTION -- the fill channel in the world (2026-11-21, before any code). CPU reference only (the GPU and the
+store's codec follow when F6.5 wires it live; broad strokes).
+CONTROL: F6.1's MatSim on a VoxelGrid: a box the caller creates and owns; nothing in the world holds liquid.
+THE CHANGE:
+  - VoxelGrid gets an optional `fill` channel: one MatSim cell (material << 24 | units, FULL 256 at 1/8 m) per voxel,
+    allowed only where mat == 0 (a voxel is solid OR holds fill). Empty vector = no fluid anywhere.
+  - VoxFound::WorldFluid (the CPU reference): it owns no state the world doesn't. step(n): if the world holds fill, a
+    MatSim box (lattice 8, 8 cells/m) covers the fill's bounding box + a margin of 16 voxels (two 8^3 blocks), clamped
+    to the grid; it is stepped and written back into grid.fill after every call. Before each tick, fill within 4 voxels
+    of a box face that is not the grid's face grows the box (written back, re-created with the tick carried over and
+    every block awake). A world edit calls wallsChanged() (resolidify). MatSimCore gets setTick() for the carry-over.
+  W1: the world ledger (per-material sum of grid.fill) is exact after every step call -- a dam break that has to grow the
+      box several times, 2,000 ticks.
+  W2: invisible: the growing box equals ONE box over the whole grid, bit for bit (every voxel's fill, every 100 ticks),
+      on the dam break and on a sand + water scene with a wall. The comparator's red: a one-tick shift differs.
+  W3: the box did grow (>= 2 times on the dam break) -- otherwise W2 proved nothing.
+  W4: an edit: a wall broken mid-run (voxels set to air + wallsChanged()) lets the water through; equals the whole-grid
+      run given the same edit at the same tick.
+  W5: a settled world costs nothing: once quiet, step(100) evaluates 0 blocks.
+  W6: refusals, no partial state: fill in a solid voxel, fill units over FULL, an unknown material -> refused at attach.
+RISK, stated: the re-create may not be bit-equal (the sleep marks and the incremental head field restart from
+"everything awake"); sleep = dense and the incremental head = the full pass say it should be. If W2 fails there, the
+growth carries the marks over instead -- measured, not assumed.
+RED: a stub growth (the box never grows: the box face acts as a wall) -- W2 and W3 fail.
