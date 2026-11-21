@@ -414,7 +414,8 @@ public:
     /// tile's cells from the GPU, 1 the runs (+ the jump measurement when on), 2 the span read + write + body credit, 3 the GPU
     /// recorded flags, 4 the record tiles drawn + the field marked. Wake: 0 span read, 1 occupancy refresh + copy, 2 seed + surface
     /// patch, 3 the GPU seed upload, 4 the span clear + body debit, 5 the record tiles drawn.
-    struct TilePhases { double rec[5]{}, recMax[5]{}, wake[6]{}, wakeMax[6]{}; long recN = 0, wakeN = 0; double build[4]{}; };   // build: the last record tile built - span read + owned, occupancy, surface, sea marks + owned (57.7)
+    struct TilePhases { double rec[5]{}, recMax[5]{}, wake[6]{}, wakeMax[6]{}; long recN = 0, wakeN = 0; double build[4]{};
+                        long askWaitMaxCalls = 0, askWaitedWakes = 0; };   // 58.3: calls from the margin's first ask for a tile to its wake (worst), wakes that waited >= 1 call   // build: the last record tile built - span read + owned, occupancy, surface, sea marks + owned (57.7)
     static inline TilePhases s_tilePhases;
     /// §50 W1g measurement: every tile record ('R') and wake - 'M' the awake water's margin reached it, 'L' a droplet landed on it,
     /// 'W' a write (push, placed water, a body) - with the seconds since the tile last recorded (or woke, for 'R'; -1 = never) and
@@ -459,6 +460,11 @@ public:
     WaterCoreGpu::ResidencySplit gpuResidencySplit() const { return m_gpu ? m_gpu->lastResidencySplit() : WaterCoreGpu::ResidencySplit{}; }
     WaterCoreGpu::GrowSplit gpuGrowSplit() const { return m_gpu ? m_gpu->lastGrowSplit() : WaterCoreGpu::GrowSplit{}; }   // L3 (41)
     const WaterGrid* gridForTest(int id) const { for (const auto& av : m_avs) if (av->id == id) return av->grid.get(); return nullptr; }
+    /// 58.3 TEST: WaterCoreGpu::scatterParityForTest on a volume (withGrid: the upload's form, f / u / v / w too)
+    bool scatterParityForTest(int id, bool withGrid, long& differ, long& compared) {
+        for (auto& av : m_avs) if (av->id == id && av->gpuVol && m_gpu) { m_gpu->settle(*av->gpuVol); return m_gpu->scatterParityForTest(*av->gpuVol, withGrid ? av->grid.get() : nullptr, differ, compared); }
+        return false;
+    }
     /// 51.9 TEST: a GPU volume's device fills (f, fPrev, dense cells) and its brick map - the seed parity test compares two runs
     bool deviceStateForTest(int id, std::vector<float>& f, std::vector<float>& fPrev, std::vector<int>& map) {
         for (auto& av : m_avs) if (av->id == id && av->gpuVol && m_gpu) {
@@ -1081,6 +1087,7 @@ private:
         std::vector<std::pair<int, int>> recordedTileList;   ///< tile (x, z) indices in the record now
         std::vector<std::pair<int, int>> pendingTileWakes;   ///< tiles whose wake 51.3's pace held back - woken at a later call (51.11: landings no longer wake tiles)
         int tileWakeCap = 0;   ///< 58.3: > 0 - at most this many tile wakes a call (a staged patch's tiles: one a call); 0 = s_tileWakesPerCall
+        std::map<std::pair<int, int>, uint64_t> tileAskedAt;   ///< 58.3 measurement: the call a queued tile was first asked for
         std::map<std::pair<int, int>, double> tileChangedAt;   ///< §50 W1g measurement: when each tile last recorded or woke (steady s)
         std::map<std::pair<int, int>, float> tileFrozenSeconds;   ///< s each tile has had every stored column frozen (counted here: a
                                                              ///< body whose columns all froze is asleep and runs no call to count them)

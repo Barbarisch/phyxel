@@ -15205,8 +15205,31 @@ settled in the build, 2 and 5 still open). `water_coupling {patch_pace: true}`; 
     frames per path, staged <= immediate + 2 ms (two more runs, ~30 s). The worst frame after a push is 22-53 ms in this rig in
     BOTH paths, run to run: item 2.
   - Tests: `WaterRecordTilesTest` 25 / 25.
+**Item 2, the first live frames, measured (2026-11-21; `DiagPatchLife`, the 200 m lake, now after the staged build).** Two kinds of
+slow frame, nothing else over ~10 ms: (a) **margin tile wakes** as the waves spread - 2 a call (`s_tileWakesPerCall`), ~7.5 ms each,
+frames 15-22 ms in the first 0.3 s; (b) **the GPU at its busiest** (~0.8-0.95 s after the push) - the host waits 6-15 ms on the
+previous call's fence (GPU time; no host cut touches it). Median 3.4 ms, max 22.4 over 4 s.
+- **(a) cut, a fix:** a tile wake's seed split further (`seed.2a-2c`, `TileGpuMs::seedFresh / seedTouched`): `scatterSlots` was 2.9
+  ms of it (~1,140 new slots, a per-cell walk recomputing the brick-to-volume position with bounds checks per cell). Now by rows of
+  8 (`scatterSlots`; the old walk kept as `scatterSlotsPerCell`, the reference). **Test** `ScatterByRowsWritesTheSameStagingAsByCells`
+  (13 x 3 x 11 m, partial bricks at every edge, walls, a raised bed, water stepped; every stored slot both ways, with and without the
+  grid): 0 of 6.2 M / 11.2 M bytes differ; RED (a row one cell short) 775,490 / 1,396,802. Written with the change, its red the
+  control. Result: scatter 2.9 -> **0.9 ms**, the seed's host part 4.8 -> 2.7; a one-tile frame's wake 8.5 -> 6.6 ms, a two-tile
+  frame's 15-19 -> 11-14; the rig's worst frame 22.4 -> 18.8 ms.
+- **Tried and REJECTED: one tile wake a call** (`s_tileWakesPerCall` 1). The worst frame 20.9 -> 14.9 ms, but a tile the margin asks
+  for then waits longer (worst 2 -> 7 calls), and a recorded column is a WALL to the water. New measure,
+  `WaterCoreGpu::s_movingAtRecorded` (calls in which a moving brick column is beside a recorded one; 57.8's 60 m rig,
+  `DISABLED_DiagTileWakePacing`): 2 a call 5 calls / 59 columns; **1 a call 11 / 181**; RED (no margin wakes) 1,228 / 70,351. A wider
+  ask (`WaterCoreGpu::s_recordAskMargin`, built, default 2 = today's rule: a recorded column asks when moving water is within N
+  columns) does not rescue it (1 a call, ask 3: 10 / 122). The first check written was the record after the return: the red differed
+  by only 6.8e-5 m (the water settles level after it reflects) - blind to it; the count replaced it.
+- **Logged (not this step):** at today's 2 a call the waves already reach recorded columns (5 calls / 59 columns in the rig). Ask
+  margin 3 cuts it to 2 / 18 with the same 15 tiles woken and the record 3.4e-5 m from today's - a candidate fix, not shipped, not
+  seen in a clip.
+- Left in a tile wake (~6 ms): the seed's host part 2.7 (nearest-wet walk 0.6, residency 0.6, scatter 0.9, fills 0.4), its
+  submit-and-wait 0.9, the occupancy copy into the tile grid 0.9, the seed surface 1.1. (b) not touched.
 - Not done: the cheap ripple on the record while it builds (the alternative); pre-warming the spare (item 5); the first live frame
-  (item 2); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
+  (item 2, (a) partly, (b)); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
   the water's, logged here only).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)

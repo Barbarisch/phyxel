@@ -616,13 +616,27 @@ public:
     /// 51.9 TEST ONLY (the parity control): a tile seed walks the WHOLE brick map for its bricks' need and the tile's cells three times
     /// (the path before 51.9); off = the need over the seed's own bricks only, one cell walk. Both leave the same device state.
     static inline bool s_seedWholeMapForTest = false;
+    /// 58.3 item 1: scatterSlots walks a brick's cells a row of 8 at a time (the per-cell walk, 2.9 ms of a live tile wake's ~1,140 new
+    /// slots, is kept as the reference). TEST ONLY: the row walk one cell short in x (the parity test's red)
+    static inline bool s_scatterRowShortForTest = false;
+    /// 58.3 measurement (updatePartialWake): calls in which a MOVING brick column was beside (Chebyshev 1) a column still recorded -
+    /// a wall to it: the wave reached the record before the margin's tile wake did - and the column count summed over them
+    struct MovingAtRecorded { long calls = 0, columns = 0; };
+    /// 58.3: a recorded brick column asks for its tile's seed when moving water is within this many columns (Chebyshev; below the
+    /// awake margin kPartialWakeMargin it is that margin - today's rule). Wider: the ask runs ahead, so paced tile wakes are not late
+    static inline int s_recordAskMargin = kPartialWakeMargin;
+    static inline MovingAtRecorded s_movingAtRecorded;
+    /// 58.3 TEST: every stored slot of vol scattered by the per-cell walk and by the row walk (with grid g, or occupancy and bodies
+    /// only when g is null); the staging bytes each writes over those slots compared. hostOcc / hostSolid given a pattern for the
+    /// run when the volume has none (restored). Returns false when the volume has no slots
+    bool scatterParityForTest(Volume& vol, const WaterGrid* g, long& differ, long& compared);
     /// 51.9 TEST ONLY (the red control of the parity test): the narrowed brick range one brick short in x - the seed's cells in its
     /// last brick column are neither marked nor written (the off-by-one a narrowed range can have)
     static inline bool s_seedNarrowShortForTest = false;
     /// 27.19 measurement (ms, last call): a tile wake's seed upload / a record's cell read, split into the wait for the call in
     /// flight (settle), the host work, and the blocking submission
     struct TileGpuMs { double seedSettle = 0, seedHost = 0, seedSubmit = 0, readSettle = 0, readSubmit = 0, readHost = 0; double seedPart[5]{};
-                       double seedSettleMax = 0, seedHostMax = 0, seedSubmitMax = 0, seedPartMax[5]{}; long seedGrows = 0, seeds = 0; };   // 51.9b: maxima since a reset + pool grows in a seed   // seedPart: flags+need, residency, fresh uploads, fills, tables
+                       double seedSettleMax = 0, seedHostMax = 0, seedSubmitMax = 0, seedPartMax[5]{}; long seedGrows = 0, seeds = 0; int seedFresh = 0, seedTouched = 0; };   // seedFresh / seedTouched: the last seed's new slots / slots written   // 51.9b: maxima since a reset + pool grows in a seed   // seedPart: flags+need, residency, fresh uploads, fills, tables
     static inline TileGpuMs s_tileGpuMs;
     /// 28 (the launch count): dispatches / barriers recorded since the last reset (step() resets at its start, reports at its end)
     mutable long m_dispatchCount = 0, m_barrierCount = 0;
@@ -887,6 +901,7 @@ private:
     long haloShortAfterCall(const Volume& vol) const;   ///< from the staging water record: bricks within 4 cells of water not stored
     void writeTablesToStaging(Volume& vol) const;
     void scatterSlots(Volume& vol, const std::vector<int>& slots, const WaterGrid* g) const;   ///< staging <- grid / host copies
+    void scatterSlotsPerCell(Volume& vol, const std::vector<int>& slots, const WaterGrid* g) const;   ///< 58.3: the reference (the walk before)
     /// 44.2 step 1(a): the pending bodies' box into staging and its copies into `cmd` (the call in flight settled); clears the pending
     void recordSolidUpload(VkCommandBuffer cmd, Volume& vol);
     /// the same in a call of its own (a step that returns without recording, or the sync control)

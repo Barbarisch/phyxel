@@ -487,6 +487,46 @@ TEST_F(WaterRecordTilesTest, TallCellsRecordAndWakeWithTheBooksExact) {
     WaterCoreGpu::s_seedSkipsTallCollapseForTest = false;
 }
 
+// 58.3 item 1 - scatterSlots by rows of 8 writes the SAME staging bytes as the per-cell walk it replaced (2.9 ms of a live tile
+// wake). A 13 x 3 x 11 m volume (not a whole number of bricks: partial bricks at every edge) with walls and a raised bed (the
+// occupancy varies), water placed and stepped (the grid's f / u / v / w non-zero), bodies' floats given a pattern by the hook; every
+// stored slot scattered both ways, with the grid (an upload's form) and without (a seed's). Prediction: 0 bytes differ. RED: the
+// row walk one cell short in x (s_scatterRowShortForTest) must differ.
+TEST_F(WaterRecordTilesTest, ScatterByRowsWritesTheSameStagingAsByCells) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto state = [](const glm::ivec3& m) -> int {   // the ground, a wall at micro x 40-44, a raised bed under micro z < 20
+        if (m.y < 0) return 1;
+        if (m.x >= 40 && m.x <= 44 && m.y < 14) return 1;
+        if (m.z < 20 && m.y < 5) return 1;
+        return 0;
+    };
+    WaterCoreManager mgr(state);
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(12, 2, 10), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    ASSERT_TRUE(id) << err;
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(12, 1, 10), 1.0f, nullptr);
+    AvRecord rec;
+    mgr.addImpulse(glm::vec3(8.0f, 1.5f, 6.0f), 1.0f, 2.0f, glm::vec3(1.0f, -1.0f, 0.0f));
+    for (int k = 0; k < 20; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+    long d[4] = {0, 0, 0, 0}, n[4] = {0, 0, 0, 0};
+    ASSERT_TRUE(mgr.scatterParityForTest(id, false, d[0], n[0]));
+    ASSERT_TRUE(mgr.scatterParityForTest(id, true, d[1], n[1]));
+    WaterCoreGpu::s_scatterRowShortForTest = true;
+    mgr.scatterParityForTest(id, false, d[2], n[2]);
+    mgr.scatterParityForTest(id, true, d[3], n[3]);
+    WaterCoreGpu::s_scatterRowShortForTest = false;
+    std::printf("  bytes differing: occupancy + bodies %ld of %ld, with the grid %ld of %ld | RED (a row one cell short): %ld of %ld, %ld of %ld\n",
+                d[0], n[0], d[1], n[1], d[2], n[2], d[3], n[3]);
+    EXPECT_GT(n[0], 0); EXPECT_GT(n[1], n[0]);
+    EXPECT_EQ(d[0], 0) << "the row walk's occupancy / bodies differ";
+    EXPECT_EQ(d[1], 0) << "the row walk's fills / faces differ";
+    EXPECT_GT(d[2], 0) << "RED: a row one cell short went unseen";
+    EXPECT_GT(d[3], 0) << "RED: a row one cell short went unseen (with the grid)";
+    mgr.destroy(id);
+}
+
 // 51.9 - a tile wake's seed over its own bricks (not the whole brick map) and one walk of its cells leaves the SAME device state.
 // A 24 x 24 m pond (3 x 3 tiles) 2 voxels deep, every tile recorded; then two touches wake the centre tile (1, 1) and the corner
 // tile (0, 0) (its halo clipped by the box); one call later the device's f, fPrev (dense) and the brick map are compared with the
@@ -1261,6 +1301,8 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchLife) {
     WaterCoreManager::s_drawStaleOnAnyBoxForTest = env("P_OLDSTALE", 0) != 0;   // the control: the rule before 51.3b
     struct RestoreUnsized { ~RestoreUnsized() { WaterCoreManager::s_patchPoolUnsizedForTest = false; } } restoreUnsized;
     WaterCoreManager::s_patchPoolUnsizedForTest = env("P_UNSIZED", 0) != 0;   // the control: the pool from 510 slots
+    struct RestoreCap { int c = WaterCoreManager::s_tileWakesPerCall; ~RestoreCap() { WaterCoreManager::s_tileWakesPerCall = c; } } restoreCap;
+    WaterCoreManager::s_tileWakesPerCall = static_cast<int>(env("P_TILECAP", WaterCoreManager::s_tileWakesPerCall));   // 58.3: tile wakes a call
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr(state);
     mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
@@ -1316,8 +1358,11 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchLife) {
         std::printf("\n");
         if (woke > 0) {
             const auto& G = WaterCoreGpu::s_tileGpuMs;
-            std::printf("      last seed: settle %.1f host %.1f (flags+need %.1f residency %.1f fresh %.1f fills %.1f tables %.1f) submit+wait %.1f\n",
-                        G.seedSettle, G.seedHost, G.seedPart[0], G.seedPart[1], G.seedPart[2], G.seedPart[3], G.seedPart[4], G.seedSubmit);
+            std::printf("      last seed: settle %.1f host %.1f (flags+need %.1f residency %.1f fresh %.1f fills %.1f tables %.1f) submit+wait %.1f | %d new slots, %d written\n",
+                        G.seedSettle, G.seedHost, G.seedPart[0], G.seedPart[1], G.seedPart[2], G.seedPart[3], G.seedPart[4], G.seedSubmit, G.seedFresh, G.seedTouched);
+            std::printf("      this frame's seed / wake parts (summed):");
+            for (const auto& [key, v] : WaterHostProfile::ms) if (key.find("seed") != std::string::npos || key.find("wake") != std::string::npos || key.find("tile") != std::string::npos) std::printf(" %s %.2f;", key.c_str(), v);
+            std::printf("\n");
         }
     }
     std::vector<double> s = frames; std::sort(s.begin(), s.end());
@@ -1329,6 +1374,8 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchLife) {
     const auto& P = WaterCoreManager::s_tilePhases;
     std::printf("  wake laps max: span read %.1f | occupancy %.1f | seed + surface %.1f | seedColumns %.1f | record clear %.1f | record surfaces %.1f\n",
                 P.wakeMax[0], P.wakeMax[1], P.wakeMax[2], P.wakeMax[3], P.wakeMax[4], P.wakeMax[5]);
+    std::printf("  tile wakes a call %d: the worst wait from the margin's ask to the wake %ld calls; %ld wakes waited >= 1 call\n",
+                WaterCoreManager::s_tileWakesPerCall, P.askWaitMaxCalls, P.askWaitedWakes);
     for (int id : ids) mgr.destroy(id);
 }
 
@@ -1572,6 +1619,91 @@ static SpareRun runSpare(VkDevice device, VkPhysicalDevice pd, VkQueue queue, ui
     o.heldAfterLeave = mgr.keptMemoryStats().patchSpareHeld;
     o.released = mgr.keptMemoryStats().patchSpareReleased;
     return o;
+}
+
+// 58.3 item 1 - one margin tile wake a call (s_tileWakesPerCall 2 -> 1: a tile wake is ~6 ms, two in a frame 11-14 ms). A tile the
+// margin asks for then waits more calls (DiagPatchLife, 200 m lake: worst 2 -> 4) - the margin runs 2 brick columns ahead of moving
+// water, and a column still recorded is a WALL to it, so a wave reaching one before its wake would reflect. 57.8's rig (a 60 m lake
+// 2 m deep in the record, a push at its centre, the live path until the patch is back in the record). THE CHECK: calls in which a
+// moving brick column sits beside a recorded one (WaterCoreGpu::s_movingAtRecorded) - 1 a call no more than 2 a call. Also the record
+// column by column within the noise floor of two runs at 2 + 1e-4 m (P6's bound), books exact. CONTROL: tiles woken after the first.
+// RED: no margin wakes (s_noMarginWakeForTest) - the waves meet recorded walls - must show in the check. First written with the
+// record as the check: the red differed by only 6.8e-5 m (the water settles back level after it reflects) - blind; so the count.
+struct TileCapRun { std::map<std::pair<int, int>, double> cols; long tilesWoken = 0, waitMax = 0, atRecordCalls = 0, atRecordCols = 0; double books = 0.0; int sleeps = 0; };
+static TileCapRun runTileCap(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, int cap, bool noMargin, int askMargin = WaterCoreGpu::kPartialWakeMargin) {
+    using M = WaterCoreManager;
+    struct Restore { M::RecordDraw d; float m; int c, a; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_tileWakesPerCall = c; M::s_noMarginWakeForTest = false; WaterCoreGpu::s_recordAskMargin = a; } }
+        restore{M::s_recordDraw, M::s_locality.drawM, M::s_tileWakesPerCall, WaterCoreGpu::s_recordAskMargin};
+    M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_tileWakesPerCall = cap; M::s_noMarginWakeForTest = noMargin;
+    WaterCoreGpu::s_recordAskMargin = askMargin;
+    M::s_tilePhases = {}; WaterCoreGpu::s_movingAtRecorded = {};
+    TileCapRun o;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 60;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    const double placed = record.total();
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", M::s_tallBandDefault}};
+    if (!mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump())) { ADD_FAILURE() << "loadSlept"; return o; }
+    const glm::vec3 c(30.0f, 1.9f, 30.0f);
+    mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, 10.0f));
+    for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }
+    const std::vector<int> ids = wakeNearLive(mgr, c, 2.0f);
+    if (ids.empty()) { ADD_FAILURE() << "the splash woke nothing"; return o; }
+    mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    bool live = true; int after = -1;
+    for (int k = 0; k < 60 * 90 && after < 60; ++k) {
+        mgr.update(1.0f / 60.0f); mgr.surfaceFields();
+        for (const AvRecord& r : mgr.list()) o.tilesWoken = std::max(o.tilesWoken, r.tilesWoken);
+        const bool empty = mgr.list().empty();
+        if (live && empty) ++o.sleeps;
+        live = !empty;
+        if (empty && mgr.retiringCount() == 0 && o.sleeps > 0) ++after;
+    }
+    o.waitMax = M::s_tilePhases.askWaitMaxCalls;
+    o.atRecordCalls = WaterCoreGpu::s_movingAtRecorded.calls; o.atRecordCols = WaterCoreGpu::s_movingAtRecorded.columns;
+    o.books = record.total() + mgr.totalMass() - placed;
+    for (const auto& [k, v] : record.cols) { double m = 0.0; for (const auto& r : v) m += static_cast<double>(r.topY - r.bottomY); o.cols[k] = m; }
+    return o;
+}
+
+// MEASURED 2026-11-21 (WaterCore 58.3), so a DIAGNOSTIC, not a gate: 1 a call REJECTED - moving water beside a recorded column 11
+// calls (181 columns) vs 5 (59) at 2 a call, 10 (122) even with the ask margin 3; 2 a call with ask margin 3: 2 (18), the same 15
+// tiles woken, the record 3.4e-5 m from shipped (logged, not shipped: not this step). RED 1,228 (70,351).
+TEST_F(WaterRecordTilesTest, DISABLED_DiagTileWakePacing) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const TileCapRun two = runTileCap(device, physicalDevice, queue, queueFamilyIndex, 2, false);
+    const TileCapRun two2 = runTileCap(device, physicalDevice, queue, queueFamilyIndex, 2, false);
+    const TileCapRun one = runTileCap(device, physicalDevice, queue, queueFamilyIndex, 1, false);
+    const TileCapRun red = runTileCap(device, physicalDevice, queue, queueFamilyIndex, 1, true);
+    for (const auto& [cap, ask] : std::vector<std::pair<int, int>>{{1, 3}, {1, 4}, {2, 3}, {2, 4}}) {   // 58.3: the ask run ahead of the wall
+        const TileCapRun r = runTileCap(device, physicalDevice, queue, queueFamilyIndex, cap, false, ask);
+        double dd = 0.0;
+        for (const auto& [k, m] : r.cols) { auto it = two.cols.find(k); dd = std::max(dd, std::abs(m - (it == two.cols.end() ? 0.0 : it->second))); }
+        std::printf("  %d a call, ask margin %d:   tiles woken %ld, worst wait %ld calls | moving beside a recorded column: %ld calls (%ld columns) | record vs shipped %.6f m | books %+.6f\n",
+                    cap, ask, r.tilesWoken, r.waitMax, r.atRecordCalls, r.atRecordCols, dd, r.books);
+    }
+    auto maxDiff = [](const TileCapRun& a, const TileCapRun& b) {
+        double d = 0.0;
+        for (const auto& [k, m] : a.cols) { auto it = b.cols.find(k); d = std::max(d, std::abs(m - (it == b.cols.end() ? 0.0 : it->second))); }
+        for (const auto& [k, m] : b.cols) if (!a.cols.count(k)) d = std::max(d, std::abs(m));
+        return d;
+    };
+    const double floor = maxDiff(two, two2), d = maxDiff(one, two), dRed = maxDiff(red, two);
+    for (const TileCapRun* r : {&two, &two2, &one, &red})
+        std::printf("  %-26s tiles woken %ld, the worst wait from ask to wake %ld calls | moving beside a recorded column: %ld calls (%ld columns) | sleeps %d | books %+.6f m^3\n",
+                    r == &red ? "RED (no margin wakes)" : (r == &one ? "1 a call" : "2 a call (shipped before)"), r->tilesWoken, r->waitMax, r->atRecordCalls, r->atRecordCols, r->sleeps, r->books);
+    std::printf("  the record, column by column: 1 vs 2 a call %.6f m (the floor, 2 vs 2: %.6f m) | RED vs 2 a call %.6f m\n", d, floor, dRed);
+    ASSERT_GE(one.sleeps, 1); ASSERT_GE(two.sleeps, 1);
+    EXPECT_GT(two.tilesWoken, 1) << "CONTROL: the rig never reached a margin tile wake";
+    EXPECT_GT(red.atRecordCols, two.atRecordCols) << "RED: waves meeting recorded walls must show in the count";
 }
 
 TEST_F(WaterRecordTilesTest, ASecondPatchTakesTheFirstPatchsBuffers) {

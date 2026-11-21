@@ -1197,8 +1197,11 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     if (vol.capacity != capBefore) ++s_tileGpuMs.seedGrows;   // 51.9b measurement
     const std::vector<int> fresh = applyResidency(vol, need);
     part(1);
+    sq = std::chrono::steady_clock::now();   // 58.3 item 1: the fresh part (2.3 ms of a live tile wake), split
     VkCommandBuffer cmd = beginCommands();
-    if (!fresh.empty()) { scatterSlots(vol, fresh, nullptr); recordSlotUploads(cmd, vol, fresh, true); }
+    sLap("seed.2a begin commands");
+    s_tileGpuMs.seedFresh = static_cast<int>(fresh.size());
+    if (!fresh.empty()) { scatterSlots(vol, fresh, nullptr); sLap("seed.2b scatter occupancy + bodies"); recordSlotUploads(cmd, vol, fresh, true); sLap("seed.2c slot fills + copies"); }
     barrier(cmd);
     part(2);
     auto* sf = reinterpret_cast<float*>(static_cast<char*>(vol.staging.mapped));
@@ -1255,6 +1258,7 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     }
     }
     vol.seedUnplacedM3 += unplaced;
+    s_tileGpuMs.seedTouched = static_cast<int>(touched.size());
     std::sort(touched.begin(), touched.end());
     for (size_t a = 0; a < touched.size();) {
         size_t e = a + 1;
@@ -1333,6 +1337,18 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
     const int restTicks = (s_columnRestTicks > 0 ? s_columnRestTicks : params.restTicks);   // 27.14 (1/60 s ticks)
     const long restUnits = static_cast<long>(restTicks) * kQuietUnitsPerTick;   // 27.26: in quiet units
     for (size_t c = 0; c < nc; ++c) { moving[c] = vol.colQuiet[c] < restUnits && !(anyRec && vol.colRecorded[c]); nMoving += moving[c]; }
+    if (anyRec) {   // 58.3 measurement: moving water beside a column still recorded (a wall to it) - the margin's wake came too late
+        long touching = 0;
+        for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+            if (!moving[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]) continue;
+            bool at = false;
+            for (int z = std::max(0, bz - 1); z <= std::min(vol.bn.z - 1, bz + 1) && !at; ++z)
+                for (int x = std::max(0, bx - 1); x <= std::min(vol.bn.x - 1, bx + 1); ++x)
+                    if (vol.colRecorded[static_cast<size_t>(x) + static_cast<size_t>(vol.bn.x) * z]) { at = true; break; }
+            touching += at;
+        }
+        if (touching) { ++s_movingAtRecorded.calls; s_movingAtRecorded.columns += touching; }
+    }
     for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
         if (!moving[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]) continue;
         for (int x = std::max(0, bx - M); x <= std::min(vol.bn.x - 1, bx + M); ++x) rowGrown[static_cast<size_t>(x) + static_cast<size_t>(vol.bn.x) * bz] = 1;
@@ -1359,10 +1375,41 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
             if (!inside) awake[ci] = 0;
         }
     }
+    // 58.3: a RECORDED column is asked for its seed when moving water is within s_recordAskMargin columns (>= the awake margin): the
+    // ask runs ahead of the wall, so the tile wakes paced (s_tileWakesPerCall a call) still land before the wave does. The same
+    // disturbance disc bounds it (beyond it nothing wakes)
+    std::vector<char> ask;
+    const int MA = std::max(M, s_recordAskMargin);
+    if (anyRec && MA > M) {
+        std::vector<char> grown(nc, 0);
+        ask.assign(nc, 0);
+        for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+            if (!moving[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]) continue;
+            for (int x = std::max(0, bx - MA); x <= std::min(vol.bn.x - 1, bx + MA); ++x) grown[static_cast<size_t>(x) + static_cast<size_t>(vol.bn.x) * bz] = 1;
+        }
+        for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+            if (!grown[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]) continue;
+            for (int z = std::max(0, bz - MA); z <= std::min(vol.bn.z - 1, bz + MA); ++z) ask[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * z] = 1;
+        }
+        if (s_disturbanceRadiusM > 0.0f && !vol.discCentres.empty() && vol.sourceCount == 0 && params.bedManning <= 0.0f) {
+            const float rCells = std::max(s_disturbanceRadiusM, s_disturbanceBandM + 2.0f) / vol.spec.h;
+            for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+                const size_t ci = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
+                if (!ask[ci]) continue;
+                const float x0 = bx * 8.0f - vol.o.x, z0 = bz * 8.0f - vol.o.z;
+                bool inside = false;
+                for (const glm::vec2& c : vol.discCentres) {
+                    const float dx = std::max({x0 - c.x, 0.0f, c.x - (x0 + 8.0f)}), dz = std::max({z0 - c.y, 0.0f, c.y - (z0 + 8.0f)});
+                    if (dx * dx + dz * dz <= rCells * rCells) { inside = true; break; }
+                }
+                if (!inside) ask[ci] = 0;
+            }
+        }
+    }
     bool changed = false; int nFrozen = 0, nAwake = 0;
     for (size_t c = 0; c < nc; ++c) {
         if (anyRec && vol.colRecorded[c] && !s_recordedOpenForTest) {   // stays frozen (no cells) until its seed lands; the margin reaching it asks for one
-            if (awake[c]) wantSeed(c);
+            if (awake[c] || (!ask.empty() && ask[c])) wantSeed(c);
             if (!vol.colFrozen[c]) { vol.colFrozen[c] = 1; changed = true; }
             continue;
         }
@@ -1398,7 +1445,85 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
 
 // staging <- the given slots' cells: fills and faces from `g` (when given), occupancy (out-of-box cells are Solid, as the
 // dense grid's out-of-bounds), the bodies' fields. Storage indices ARE the staging offsets (regions sized by storage).
+// 58.3 item 1: a brick's cells a row of 8 at a time - the y / z bounds and the dense row once a row, the bodies' 4 floats copied
+// whole where in range. The per-cell walk below (its reference, scatterSlotsPerCell) was 2.9 ms of a live tile wake (~1,140 new
+// slots, occupancy and bodies only). Same bytes: WaterRecordTilesTest.ScatterByRowsWritesTheSameStagingAsByCells
 void WaterCoreGpu::scatterSlots(Volume& vol, const std::vector<int>& slots, const WaterGrid* g) const {
+    char* st = static_cast<char*>(vol.staging.mapped);
+    auto* sf = reinterpret_cast<float*>(st); auto* su = reinterpret_cast<float*>(st + vol.offU);
+    auto* sv = reinterpret_cast<float*>(st + vol.offV); auto* sw = reinterpret_cast<float*>(st + vol.offW);
+    auto* so = reinterpret_cast<uint32_t*>(st + vol.offOcc); auto* ss = reinterpret_cast<float*>(st + vol.offSolid);
+    const glm::ivec3 n = vol.spec.dims;
+    const size_t occN = vol.hostOcc.size(), solN = vol.hostSolid.size();
+    const uint32_t* ho = vol.hostOcc.data();
+    const float* hs = vol.hostSolid.data();
+    const int nx = s_scatterRowShortForTest ? 7 : 8;
+    forRanges(static_cast<int>(slots.size()), slots.size() >= 64 ? m_hostThreads : 1, [&](int s0, int s1) {
+    for (int si = s0; si < s1; ++si) {
+        const int slot = slots[static_cast<size_t>(si)];
+        const int packed = vol.slotBrick[static_cast<size_t>(slot)];
+        const glm::ivec3 b(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
+        const int x0 = b.x * 8 - vol.o.x;
+        for (int ly = 0; ly < vol.by; ++ly) for (int lz = 0; lz < 8; ++lz) {
+            const int cy = b.y * vol.by + ly - vol.o.y, cz = b.z * 8 + lz - vol.o.z;
+            const bool yzIn = cy >= 0 && cz >= 0 && cy < n.y && cz < n.z;
+            const size_t rowD = yzIn ? static_cast<size_t>(n.x) * (cy + static_cast<size_t>(n.y) * cz) : 0;
+            const size_t i0 = static_cast<size_t>(slot) * vol.bc + 8 * lz + 64 * ly;
+            for (int lx = 0; lx < nx; ++lx) {
+                const int cx = x0 + lx;
+                const size_t i = i0 + lx;
+                const bool in = yzIn && cx >= 0 && cx < n.x;
+                const size_t d = in ? static_cast<size_t>(cx) + rowD : 0;
+                so[i] = in ? (d < occN ? ho[d] : 0u) : 1u;
+                if (in && d * 4 + 3 < solN) std::memcpy(ss + i * 4, hs + d * 4, 4 * sizeof(float));
+                else for (int k = 0; k < 4; ++k) ss[i * 4 + k] = (in && d * 4 + k < solN) ? hs[d * 4 + k] : 0.0f;
+                if (g) {
+                    WaterGrid& gm = const_cast<WaterGrid&>(*g);
+                    sf[i] = in ? g->f(cx, cy, cz) : 0.0f;
+                    const bool cyz = yzIn, cxz = cx >= 0 && cx < n.x && cz >= 0 && cz < n.z, cxy = cx >= 0 && cx < n.x && cy >= 0 && cy < n.y;
+                    su[i] = (cyz && cx >= 0 && cx <= n.x) ? gm.u(cx, cy, cz) : 0.0f;
+                    sv[i] = (cxz && cy >= 0 && cy <= n.y) ? gm.v(cx, cy, cz) : 0.0f;
+                    sw[i] = (cxy && cz >= 0 && cz <= n.z) ? gm.w(cx, cy, cz) : 0.0f;
+                }
+            }
+        }
+    }
+    });
+}
+
+bool WaterCoreGpu::scatterParityForTest(Volume& vol, const WaterGrid* g, long& differ, long& compared) {
+    differ = compared = 0;
+    std::vector<int> slots;
+    for (size_t s = kFirstSlot; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) slots.push_back(static_cast<int>(s));
+    if (slots.empty() || !vol.staging.mapped) return false;
+    const size_t cells = static_cast<size_t>(vol.spec.dims.x) * vol.spec.dims.y * vol.spec.dims.z;
+    const std::vector<uint32_t> occKeep = vol.hostOcc; const std::vector<float> solKeep = vol.hostSolid;
+    if (vol.hostOcc.size() != cells) { vol.hostOcc.resize(cells); for (size_t i = 0; i < cells; ++i) vol.hostOcc[i] = static_cast<uint32_t>(i * 2654435761u >> 28); }
+    if (vol.hostSolid.size() != cells * 4) { vol.hostSolid.resize(cells * 4); for (size_t i = 0; i < cells * 4; ++i) vol.hostSolid[i] = static_cast<float>(i % 977) * 0.001f; }
+    char* st = static_cast<char*>(vol.staging.mapped);
+    // the byte ranges either walk writes over these slots: occ (4 B), solid (16 B), and with a grid f, u, v, w (4 B each)
+    std::vector<std::pair<size_t, size_t>> ranges;   // (offset, bytes per cell)
+    ranges.push_back({vol.offOcc, 4}); ranges.push_back({vol.offSolid, 16});
+    if (g) { ranges.push_back({0, 4}); ranges.push_back({vol.offU, 4}); ranges.push_back({vol.offV, 4}); ranges.push_back({vol.offW, 4}); }
+    auto snapshot = [&]() {
+        std::vector<unsigned char> out;
+        for (int s : slots) for (const auto& [off, per] : ranges) {
+            const unsigned char* p = reinterpret_cast<const unsigned char*>(st + off + static_cast<size_t>(s) * vol.bc * per);
+            out.insert(out.end(), p, p + vol.bc * per);
+        }
+        return out;
+    };
+    auto poison = [&]() { for (int s : slots) for (const auto& [off, per] : ranges) std::memset(st + off + static_cast<size_t>(s) * vol.bc * per, 0xAB, vol.bc * per); };
+    poison(); scatterSlotsPerCell(vol, slots, g); const std::vector<unsigned char> ref = snapshot();
+    poison(); scatterSlots(vol, slots, g);        const std::vector<unsigned char> now = snapshot();
+    vol.hostOcc = occKeep; vol.hostSolid = solKeep;
+    compared = static_cast<long>(ref.size());
+    for (size_t i = 0; i < ref.size() && i < now.size(); ++i) differ += ref[i] != now[i];
+    if (ref.size() != now.size()) differ = -1;
+    return true;
+}
+
+void WaterCoreGpu::scatterSlotsPerCell(Volume& vol, const std::vector<int>& slots, const WaterGrid* g) const {
     char* st = static_cast<char*>(vol.staging.mapped);
     auto* sf = reinterpret_cast<float*>(st); auto* su = reinterpret_cast<float*>(st + vol.offU);
     auto* sv = reinterpret_cast<float*>(st + vol.offV); auto* sw = reinterpret_cast<float*>(st + vol.offW);

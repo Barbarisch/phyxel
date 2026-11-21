@@ -2535,6 +2535,7 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds, bool stepFollows) 
         for (int c : wakes) {
             const std::pair<int, int> t{floorDivI(c % vol.bn.x + offX, kTileBricks), floorDivI(c / vol.bn.x + offZ, kTileBricks)};
             if (std::find(av.pendingTileWakes.begin(), av.pendingTileWakes.end(), t) == av.pendingTileWakes.end()) av.pendingTileWakes.push_back(t);
+            av.tileAskedAt.emplace(t, m_gpu->callsSubmitted(vol));   // 58.3 measurement
         }
     } else if (!wakes.empty() || !av.pendingTileWakes.empty()) {
         std::set<std::pair<int, int>> tiles(av.pendingTileWakes.begin(), av.pendingTileWakes.end());   // + the wakes 51.3's pace held back
@@ -2556,10 +2557,18 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds, bool stepFollows) 
         std::sort(order.begin(), order.end());
         av.pendingTileWakes.clear();
         int woke = 0;
+        const uint64_t callNow = m_gpu->callsSubmitted(vol);
         for (const auto& [d2, t] : order) {
+            av.tileAskedAt.emplace(t, callNow);   // 58.3 measurement: the first ask (kept while it waits)
             const int cap = av.tileWakeCap > 0 ? std::min(av.tileWakeCap, std::max(1, s_tileWakesPerCall)) : std::max(1, s_tileWakesPerCall);
             if (woke >= cap) { av.pendingTileWakes.push_back(t); continue; }
-            if (wakeTile(av, t.first, t.second, deferredTiles.count(t) ? 'L' : 'M')) ++woke;
+            if (wakeTile(av, t.first, t.second, deferredTiles.count(t) ? 'L' : 'M')) {
+                ++woke;
+                const long waited = static_cast<long>(callNow - av.tileAskedAt[t]);
+                s_tilePhases.askWaitMaxCalls = std::max(s_tilePhases.askWaitMaxCalls, waited);
+                if (waited > 0) ++s_tilePhases.askWaitedWakes;
+            }
+            av.tileAskedAt.erase(t);
         }
     }
     if (!av.recordTiles || !vol.partialWake || !m_spanWriter || !m_spanReader) return;
