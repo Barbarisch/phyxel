@@ -738,9 +738,9 @@ public:
     /// 58.3 (WaterCore §58 item 1): a PATCH wake built over frames too - create's CPU part, the GPU volume, the upload's host part,
     /// its submit, adopt, then live (the disturbance's tile woken, the held pushes applied), one stage at least a frame under
     /// s_wakeBudgetMs. A push or a blast while it builds is HELD and applied when it goes live (it is late by the stages); a body
-    /// gives lead time (L4's deadline: due at half its time to the water - then every stage at once). OFF by default: the owner
-    /// judges the delay from a clip (2026-11-21: "we need to test everything"). Echoed by water_locality {patch_pace}.
-    static inline bool s_patchPace = false;
+    /// gives lead time (L4's deadline: due at half its time to the water - then every stage at once). ON by default since the owner
+    /// watched the clip (2026-11-21): "basically left and right look identical to me". Echoed by water_coupling {patch_pace}.
+    static inline bool s_patchPace = true;
     struct PatchPaceStats { long started = 0, live = 0, forced = 0, held = 0, applied = 0, empty = 0, refused = 0, cancelled = 0, stages = 0;
                             double maxStageMs = 0.0, lastJobMs = 0.0, maxFrameMs = 0.0; int maxStage = -1, lastFrames = 0, building = 0;
                             double stageMaxMs[7] = {0, 0, 0, 0, 0, 0, 0}; long tilesWoken = 0; };   ///< stageMaxMs: 0 cpu, 1 occupancy rows, 2 gpu, 3 prepare, 4 submit, 5 adopt, 6 a tile / the pushes   ///< maxFrameMs: the most one frame's pump spent

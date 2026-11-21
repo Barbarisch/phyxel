@@ -15185,6 +15185,26 @@ settled in the build, 2 and 5 still open). `water_coupling {patch_pace: true}`; 
   **Open (logged, not tested):** a write into a LIVE awake patch's recorded tile (`wakeRecordedNear`, at the API call) in a frame with
   no water tick may leave that tile undrawn for one frame (the record lets it go; the next tick's call carries it) - P7's metric on
   a second push into a live patch at 120 fps would show it.
+- **The owner on the re-recorded clip (2026-11-21), verbatim: "ok. watched the clip. basically left and right look identical to
+  me".** So the staged wake's wait (9-10 frames on a push) does not read. **`s_patchPace` is ON by default since.** A clip cannot
+  show the stutter itself (the recording paces its frames) - the owner judged the wait, not the hitch; the hitch is measured (the
+  worst frame round a push 34 ms staged vs 65 ms at once, the gate ~7 ms: NOT met).
+  - Design-check item 4 (tests taking the patch id at once), as predicted: 9 integration tests failed with the default on. Fixed on
+    the shipped path, not by pinning the old one: `wakeNearLive` (the test file) runs the frames as live until the staged patch is
+    live and returns its id; the fly-in test (51.7, holes / doubles / books every frame) now flies through the staged build itself
+    with the push held; T3 (a splash into a retiring patch) - the retire is finished by the staged wake's first stage (`buildCpu`'s
+    `finishRetiringOverlapping`), the frame after the splash, before the new patch reads the record (57.8's rule), so the check moved
+    from the call to that frame. Only the two DISABLED diagnostics of the one-frame wake's parts pin it off.
+  - Found on the way (a fix): the staged path never filled the wake's split (`sleptWakeStats`: alloc, buffers, pipelines) - S1's
+    grid check read a stale 14.75 ms; now copied after stage 2 (where `buildGpu` writes `m_createSplit`): 0.59 ms with the spare,
+    13.3 without.
+  - P8 restated twice more. It missed at 120 fps (53.1 vs 48.6 + 2 ms) in a run where the two identical immediate runs' worst
+    frames differed by 6.3 ms; restated as immediate + 2 ms + that spread - which then missed in the full water suite (staged 36.0
+    vs 23.5 + 2 + 1.2) while the SAME run's immediate at 120 fps read 41.9 against staged 23.5: a 12-18 ms spike lands on one run
+    of either path. A cost the staging adds comes back every run, a spike does not - so P8 is now the lower of TWO runs' worst
+    frames per path, staged <= immediate + 2 ms (two more runs, ~30 s). The worst frame after a push is 22-53 ms in this rig in
+    BOTH paths, run to run: item 2.
+  - Tests: `WaterRecordTilesTest` 25 / 25.
 - Not done: the cheap ripple on the record while it builds (the alternative); pre-warming the spare (item 5); the first live frame
   (item 2); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
   the water's, logged here only).

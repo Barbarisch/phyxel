@@ -2171,6 +2171,11 @@ bool WaterCoreManager::runPatchStage(PatchJob& j) {
         if (m_adoptForCreate && m_gpu) m_gpu->releaseKept(m_adoptForCreate);   // not taken: given up (no-op if taken)
         m_adoptForCreate = 0;
         if (!ok) return refuse();
+        // the wake's split (A2f) as the one-frame wake fills it - m_createSplit is written by buildGpu (stage 0's CPU part timed from
+        // its own clock marks), so it is read here, not after stage 0
+        m_sleptWake.allocMs = m_createSplit.allocMs; m_sleptWake.cells = m_createSplit.cells;
+        if (m_gpu) { const auto& cs = m_gpu->lastCreateSplit(); m_sleptWake.gpuBuffersMs = cs.buffersMs; m_sleptWake.gpuPipelinesMs = cs.pipelinesMs;
+                     m_sleptWake.gpuFillMs = cs.fillMs; m_sleptWake.gpuPipelines = cs.pipelines; m_sleptWake.gpuPipelinesReused = cs.pipelinesReused; }
         break;
     }
     case 3:   // the upload's host work into staging (the grid is new or the cleared spare: no water, no velocity - not scanned)
