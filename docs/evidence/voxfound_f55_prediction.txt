@@ -1239,3 +1239,24 @@ two rounds B A A B: off, on, on, off).
 CONCLUSION: each pair corner is tested once, bit-equal: the pairs group -37 to -43 %, the tick -6 to -9 %. Live now
 (round 2, once on): the primal leads at every rung (1.4-1.8 ms); at 994 the pairs group 1.63-1.67 (BROAD about 0.47 of
 it) and hard_body 1.4-1.5 follow. Next: the primal, split before its lever, with its own prediction.
+
+F5.5l ADDENDUM (2026-11-21, after commit 88606e55 -- a correction to its conditions). The watchers above (and every
+"no phyxel.exe" check in F5.5k and F5.5l) looked for phyxel.exe and Wow.exe only, NOT for another session's
+phyxel_integration_tests.exe. One from G:\Github\phyxel was found running after the commit (started 14:01:33, the last
+13 s of F5.5l's suite 2); whether one overlapped any earlier run (F5.5k's or F5.5l's) is unknown. What was re-run
+after it exited, with a watcher that also lists other test processes (every 5 s):
+  GREEN RE-RUN (14:17:58-14:18:28, quiet: no other process in any sample): L3 the pairs group -39 / -39 / -36 %, L4 the
+     tick -7 / -9 / -9 %, F5.5g's G2 once 1.55 / 2.08 / 2.64 ms (L1). F5.5l's headline numbers hold on a quiet GPU.
+  SUITE 3 (14:18:28-14:23:36): NOT quiet -- the other session's tests from 14:20:24 and World of Warcraft from 14:23:00.
+     49 / 52. Quiet part: F55bGpuRestConservesAndReloads's reload guard failed again (20.97 ms vs <= 20, 14:19:19).
+     In-suite reloads so far: F5.5j 19.30, F5.5k 19.68, F5.5l 21.27 / 19.39 / 20.97 ms; alone 16.7-18.2. A ~1 ms shift
+     since F5.5l or noise at a guard already at its limit -- not decided here: owed as an alternated measure (HEAD vs
+     HEAD~1), the guard unchanged. Contended part (void): F55kPairsSplit's "cp > cnt" (14:20:34) and F55a4's primal cost
+     guard (2.12 vs <= 1.6 ms, 14:22:31).
+  F55kPairsSplit's "cp > cnt" was thin since F5.5l regardless (in once mode the write copy is ~0, so p_cap - p_count is
+     the cap alone, 4-16 %): the test now measures the two-test pass it was written for (setPairsOnce(false) in its
+     runs, as F5.5f's test pins its pass). Run under load (WoW + the other session's tests, 14:24:32): bit-equal, the
+     loud red differs; its timings void.
+  OWED before the next lever: a quiet VoxFound suite (WoW closed, no other session's tests) with the full watcher.
+  RULE (AgentContext): a "quiet" watcher lists phyxel.exe, Wow.exe AND any phyxel_integration_tests.exe outside this
+     checkout.

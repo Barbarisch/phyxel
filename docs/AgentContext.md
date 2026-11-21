@@ -633,6 +633,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F5.5l done: setPairsOnce (NARROW stages its candidates in the count, bit-equal): the pairs group -37-43 %, the
       tick -6-9 %; suite 52/52 on the re-run (first run 51/52: F55bGpuRestConservesAndReloads's one-sample reload
       guard 21.3 ms vs 20 -- it runs within ~1 ms of its limit inside the suite).
+      RULE: a "quiet" watcher lists phyxel.exe, Wow.exe AND any phyxel_integration_tests.exe outside this checkout
+      (another session runs its suite on the same GPU; F5.5k/l's watchers missed it).
+      FIRST: a quiet VoxFound suite (owed from F5.5l: suite 3 was contended) and the reload guard as an alternated
+      measure (HEAD vs HEAD~1; in-suite 19.3-21.3 ms vs <= 20).
       NEXT: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

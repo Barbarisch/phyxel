@@ -1821,10 +1821,12 @@ TEST_F(VoxFoundBodySimGpu, F55kPairsSplit) {
             std::string werr;
             EXPECT_TRUE(gpu.edit({}, {}, woken, &werr)) << werr;
             gpu.setPairsSplit(split, quiet);
+            gpu.setPairsOnce(false);   // F5.5l: the split measures the two-test pass (F5.5k's record; once, the write is ~0)
             gpu.setProfile(true);
             step(ticks, 1);
             gpu.setProfile(false);
             gpu.setPairsSplit(false);
+            gpu.setPairsOnce(true);
             r.stats = gpu.stats();
             r.prof = gpu.profile();
             r.bodies = woken;

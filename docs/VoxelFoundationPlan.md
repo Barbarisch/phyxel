@@ -2940,6 +2940,11 @@ then again to write, then the cap and the emit).
 - **Suite:** 51/52 as first run -- `F55bGpuRestConservesAndReloads`'s one-sample reload guard at 21.3 ms against 20
   (an upload path this change does not touch; 19.7 in F5.5k's suite, 16.7-18.2 alone); the re-run 52/52. The guard's
   margin inside the suite is owed.
+- **Corrected after the commit:** the watchers missed another session's test process (one overlapped the last 13 s of
+  the re-run; earlier overlap unknown). A quiet green re-run confirmed L3 (-39 / -39 / -36 %) and L4 (-7 / -9 / -9 %).
+  A third suite was contended (other tests, then WoW); its quiet part failed the reload guard again (21.0 ms), owed as
+  an alternated measure. F5.5k's split test now pins the two-test pass (its `cp > cnt` was thin in the once mode). A
+  quiet suite is owed before the next lever.
 - **What leads live now:** the primal at every rung (1.4-1.8 ms); at 994 the pairs group 1.6-1.7 (BROAD about 0.5 of
   it) and hard_body 1.4-1.5 follow.
 
