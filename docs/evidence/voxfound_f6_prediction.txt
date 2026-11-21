@@ -1,0 +1,25 @@
+F6 predictions (docs/VoxelFoundationPlan.md section 9e). Each written before its code.
+
+---------------------------------------------------------------------------------------------------------------------
+F6.1 PREDICTION -- MatSim on the 1/8 m lattice (2026-11-21, before any code).
+CONTROL: MatSimCore today accepts 1, 3, 9 cells per metre only (fullUnits 186,624 / 6,912 / 256; occupancy read at
+1/9 m "micro" coordinates, solidCell k = 9 / cpm); its CPU tests (MatSimCoreTest, 39 incl. disabled diagnostics) and
+its GPU parity (MatSimGpuParityTest) pass on this branch -- re-run first, as the control.
+THE CHANGE: a lattice parameter, Config::lattice = 9 (default: the old lab, unchanged) or 8 (the world's). On 8: cells
+per metre 1, 2, 4, 8; FULL(1/8 m) = 256, (1/4) 2,048, (1/2) 16,384, (1 m) 131,072 -- nesting by 8, so a split is exact
+by halving; the occupancy function is read at 1/8 m world-voxel coordinates. An adapter makes that function from a
+VoxFound VoxelGrid (a voxel's material != 0 = solid; outside the grid = unknown). The remap code is already generic in
+the ratio. The GPU port takes FULL and the solid mask from the core, so it should need no change.
+  E0: the old lattice is untouched -- MatSimCoreTest and MatSimGpuParityTest green, unchanged.
+  E1: fullUnits on 8 as above; 3, 9 refused on 8, 2, 4, 8 refused on 9.
+  E2: the ledger exact every tick: a dam break of water / sand / snow / gravel at 1, 2, 4, 8 cells/m (3,000 ticks at 8,
+      10,000 otherwise), occupancy from a VoxelGrid.
+  E3: the remap 1 -> 2 -> 4 -> 8 -> 4 -> 2 -> 1 exact (the ledger, trapped contents included) on a VoxelGrid with a
+      pillar and a 1/8 m shelf; a split is bottom-up.
+  E4: two runs bit-identical; sleep = dense on a stepped room.
+  E5: watertight: a one-voxel-thick diagonal wall in a VoxelGrid holds water and sand at every size (0 units through).
+  E6: a sand pile stands at repose (34 deg) within the CPU test's own tolerance at 1/8.
+  E7: a U-tube's arms level at 1/2, 1/4 (and 1/8 within its tick budget), tolerance max(0.25 / cpm, 0.03) m as today.
+  E8: the GPU steps a 1/8 m box bit-equal to the CPU (the parity test's dam break and U-tube, on the 8 lattice).
+RED: a stub knob -- lattice 8 accepted but ignored (FULL and the occupancy stay on 9): E1 fails, E3's 1/2 refused.
+Not in F6.1: the fill channel in the world (F6.2), crumbs (F6.3), particles (F6.4), anything live (F6.5).

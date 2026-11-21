@@ -1834,7 +1834,9 @@ Every rig is checked for:
 and the shared tree are 60-80 % of it, the dispatch floor <= 10 %. F5.5n, a lean primal: slower, rejected. **F5 CLOSED
 2026-11-21 by the owner's decision at ~8.1-8.8 ms per tick for ~1,000 awake (2 ms proposal MISSED, recorded); next
 F6** | 100 → 1,000 bodies; conservation; pop measured | body cost at 1,000 above budget with no lever left |
-| **F6** | MatSim on the world grid (liquids, powders, crumbs) | MatSim's tests on world voxels | — |
+| **F6** | MatSim on the world grid (liquids, powders, crumbs). **Started 2026-11-21 (§9e), broad strokes: F6.1 the 1/8 m
+lattice, F6.2 the fill channel in the world, F6.3 crumbs as powder, F6.4 particles write back, F6.5 live** | MatSim's
+tests on world voxels | — |
 | **F7** | Move the consumers over (§7), default switched | full test suite green; L4 live checks | — |
 | **F8** | Scale and stress: a whole town, 100 simultaneous breaks, 1,000 edit/break cycles, crossing chunk borders | invariants hold at every step | — |
 
@@ -2980,6 +2982,24 @@ broad strokes first -- move on to F6-F8 and take scaling issues as they bite.
   the CPU reference's remove; the ticks-per-step cap.
 - **Levers measured and left** (if bodies become the bottleneck): the primal's sums and tree (60-80 % of it, F5.5m),
   BROAD (~0.5 ms at 994), the dispatch floor (<= 10 %).
+
+## 9e. F6: MatSim on the world grid
+
+**The approach (the owner, 2026-11-21): broad strokes first, then fine-tune.** Each step has its prediction before the
+code and its red, but no lever ladders: a scaling problem is taken when it bites. Steps (the plan's section 5):
+- **F6.1, MatSim on the 1/8 m lattice.** The cell sizes become 1, 1/2, 1/4, 1/8 m (a lattice parameter; 1/9 stays the
+  default until F7 moves the consumers). Fill units nest by 8. Occupancy comes from a VoxFound `VoxelGrid` (1/8 m
+  voxels). MatSim's invariants re-run there: exact ledger, exact remap, determinism, sleep = dense, repose, a U-tube
+  levels, watertight walls, the GPU bit-equal to the CPU.
+- **F6.2, the fill channel in the world.** Liquid and powder live in world voxels (`VoxelGrid` + the store get a fill
+  channel); MatSim steps the awake blocks of the world, not a separate box; the world's edits wake it.
+- **F6.3, crumbs are powder.** F4/F5's crumbs enter the simulation as powder voxels: break a wall, the rubble slides
+  into piles; conservation exact from the wall through the bodies and the crumbs to the piles.
+- **F6.4, the particles write back.** MatSim's fast-motion particles (the hybrid) settle into world voxels.
+- **F6.5, live.** The lab in the engine: a wall breaks, rubble piles, water pours and pools against the pile, seen and
+  measured (L4). Exit: MatSim's tests pass on world voxels; the live scene runs.
+
+**F6.1 (2026-11-21).** Prediction: `voxfound_f6_prediction.txt`.
 
 ## 10. Performance tiers
 
