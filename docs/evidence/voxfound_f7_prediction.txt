@@ -299,3 +299,34 @@ voxfound_f73_ab_occstub.json.
      claimed no cost) -- recorded as a miss of F7.3b's prediction by omission. Levers if it bites (the switch is not
      the default yet): GI-2 cube-cell marching inside mixed cubes, fewer mixed cubes (cubes of one material at the
      surface), probe refresh rate.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.5 PREDICTION -- destruction on the switched world (plan section 7 step 5: "Destruction (section 6) replaces
+DamageSystem's carving"; 2026-11-22, before any code).
+CONTROL: DamageSystem::applyDamage (blasts, spells, chops; POST apply_damage) carves today's chunks (spheres / ellipsoids
+of removed cubes, pieces as GPU debris). With the world switched it carves the HIDDEN old world; the drawn region never
+changes. The section 6 chain exists on lab rigs only (the bodies lab: F4.1 fracture -> F5.1 extraction -> BodySimGpu
+bodies, F6.3 crumbs -> rubble, F5.4 rest / bake). Re-run first: apply_damage on the switched world -> 0 region voxels
+change.
+THE CHANGE (broad strokes):
+  - the bodies lab's rig "world": a window of the switched region (a cube of side max(8 m, 4 x radius) around the hit,
+    clipped to the region) copied into the lab's grid -- materials = the region's palette indices (the lab's material
+    table built per palette name: Log* / Wood* / *Planks -> Wood, Glass -> Glass, *Brick* -> Bricks, everything else
+    Stone -- stated: soil fractures as stone), the window's side and bottom faces FIXED (held by the world beyond),
+    part ids 0 (the store has none; owed since F7.2) -- then F4.1 + F5.1 as on any rig; the removed voxels written into
+    the region with RegionEdit::applyCells (incremental, at the window's world origin) -- NOT a rebuild of the region;
+    the bodies simulated (BodySimGpu) in the window grid; the crumbs rubble (F6.5); rest / bake back into the region
+    through the same applyCells path; each edit bumps the light occupancy revisions (F7.3b).
+  - DamageSystem::setDestructionOverride(fn): when set and fn handles the event, applyDamage does not carve. The world
+    switch sets it to the world rig (E/T = the event's energy -- a stated unit mapping; the radius sizes the window only:
+    fracture decides the extent).
+  W1: conservation: the window's per-material ledger (solid + bodies + rubble units / 256) exact at every rest call
+      while running (20 s) and after the bake.
+  W2: drawn = world: every voxel of the window in the region (RegionEdit::voxelAt) equals the lab grid (solid voxels;
+      rubble by F6.5's rule) after the break and after the bake; outside the window: a 4,096-voxel sample unchanged.
+  W3: the hit makes pieces, not a sphere: bodies > 0 at E/T 400 on the gate scene's ground; the reads follow (the hit
+      column's top cube drops); screenshots before / after at a stated pose.
+  W4: the pieces come to rest and bake back into the region (rest on): bodies baked > 0 within 20 s.
+  W5: apply_damage on the switched world runs the world rig (bodies > 0) and does not touch today's chunks (the old
+      chunk at the hit unchanged); switch off -> today's carving again.
+RED: the override set but ignored (a stub) -> today's carving runs on the hidden chunks, the region unchanged.
