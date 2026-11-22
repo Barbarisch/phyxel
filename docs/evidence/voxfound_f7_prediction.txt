@@ -405,3 +405,25 @@ blast, its forced bake).
 CONCLUSION: the switched world now saves and comes back exactly (store hash per chunk) through the engine's own
 save_world. Costs: every edited chunk is rewritten per save, and loading the whole saved region takes ~0.7 s at the
 switch. Next F7.6b: undo.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.6b PREDICTION -- undo / redo on the switched world (plan section 7 step 6, "snapshots / undo"; 2026-11-22, before
+any code).
+CONTROL: the engine's undo (POST /api/undo, /api/redo, the MCP tools) restores SnapshotManager region snapshots captured
+from TODAY's chunks (captureRegionAllLevels). On the switched world an edit changes the region store, not today's
+chunks: undo either answers "Nothing to undo" or restores today's hidden chunks -- the region keeps the edit. Re-run
+first: switch on, brush-break (F7.4 edit_action), POST /api/undo -> the region's store hashes stay the edited ones.
+THE CHANGE: Core::VoxFound::EditHistory (header, unit-tested): per edit the box [lo, hi] and its materials before and
+after (dense bytes; edits over 16 M voxels are not recorded, said in the response); undo / redo write back only the
+voxels that differ from the stored side through RegionEdit::applyCells (the exact incremental path), depth 20 as today's
+stack, a new edit clears redo. With the switch on, every region edit (handleVoxFoundEdit: the player's brushes, the
+preview's edit API) records; /api/undo and /api/redo use this history first (today's stack when it is empty).
+F7.5's blasts are NOT recorded (stated: bodies and rubble change the window over time; undo of physics is out of scope).
+  U1: brush-break then undo -> all 32 region chunk store hashes = the pre-edit ones; redo -> = the edited ones.
+  U2: depth: 20 alternating brush edits (breaks and places, overlapping) then 20 undos -> the pre-edit hashes at every
+      step equal the hashes recorded before that edit (all 20 steps); a 21st undo answers nothing to undo (region
+      unchanged); a new edit after 3 undos clears redo.
+  U3: cost: an undo / redo of a size-8 brush <= 2x the edit's own wall time (same incremental rebuild), <= 10 ms.
+  Unit: EditHistory -- capture / undo / redo cell lists exact on a synthetic grid; depth cap; redo cleared; a box over
+  the limit not recorded.
+RED: undo_stub (the history recorded but /api/undo ignores it) -> U1 fails as the control (hashes stay edited).
