@@ -688,3 +688,22 @@ artifact: WorldGenerator Perlin s7 + flora (the 1/8 m region), edits through the
      the new box (applyCells clips them).
 CONCLUSION: the switched world now follows the camera -- edits carried exactly, the world a function of position --
 but each shift is a multi-second hitch. Next: F7.9c, shifts that keep the staying chunks and build in the background.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.9c PREDICTION -- shifts that keep the staying chunks and build the entering ones in the background (2026-11-22,
+before any code).
+CONTROL: F7.9b's shift regenerates the whole region on the main thread: one 4.5-7.2 s frame per shift.
+THE CHANGE: {"stream_bg":true} (default): when the camera leaves the inner chunks, only the ENTERING chunks are
+generated, on a background thread (a copy of the region's generator, recipe applied); then one entering chunk per
+frame is prepared on the main thread (its palette mapped into the region's, its 1 m margin overwritten from edited
+region chunks inside the new box, cut + border, faces on the GPU, its store / lists); then one frame swaps: leaving
+edited chunks kept (codec v3), leaving chunks dropped (RegionEdit::rebox), entering inserted, a full assemble, the
+switch rebound (reads, physics, occupancy, the stream cache / world.db loads). Staying chunks are never regenerated.
+Coarse LOD levels are dropped by a background shift (stated).
+  H1 (exact): from the gate box, an edit touching the +x face of chunk (257,1,3), then a +1-chunk background shift: every
+     chunk's voxels (hash_by_name) and face / sprig counts equal a fresh build of the new box (flora open) with the same
+     edit made through the same API.
+  H2 (frame cost): the worst main-thread slice of a background shift <= 250 ms (a chunk's prepare or the swap), vs
+     F7.9b's 4.5-7.2 s; start-to-swap latency <= 6 s.
+  H3 (walk): the 256 m walk (16 m steps, 1.5 s apart): the camera always inside the region with ground under it.
+RED: stream_bg false -> F7.9b's synchronous rebuild (the multi-second frame).
