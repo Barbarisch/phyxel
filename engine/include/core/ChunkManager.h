@@ -29,6 +29,7 @@ namespace Physics {
 namespace Phyxel {
     class WorldStorage; // Forward declaration
     class GpuParticlePhysics; // Forward declaration for height map updates
+    namespace Core::VoxFound { class WorldReads; }   // F7.1
 }
 
 namespace Phyxel {
@@ -391,6 +392,11 @@ public:
     /// Static sub-voxel occupancy at world MICRO coords (cube*9 + 0..8). See
     /// ChunkVoxelQuerySystem::occupiedMicro — the NavGraph's Partial-cube sampler.
     bool occupiedMicro(const glm::ivec3& micro) const;
+    /// docs/VoxelFoundationPlan.md F7.1: when set, hasVoxelAt / subVoxelFloor / getVoxelTypeAt / occupiedMicro answer
+    /// from the new store (1/8 m voxels; the old semantics restated, WorldReads.h) instead of the old chunks -- the
+    /// consumers are unchanged. nullptr = the old chunks (the default). Not owned; must outlive its use.
+    void setVoxFoundReads(const Core::VoxFound::WorldReads* reads) { m_voxFoundReads = reads; }
+    const Core::VoxFound::WorldReads* voxFoundReads() const { return m_voxFoundReads; }
 
     // Perform occlusion culling across chunks (check cube neighbors across chunk boundaries)
     void performOcclusionCulling();
@@ -453,6 +459,7 @@ public:
     std::shared_mutex& chunkAccessMutex() const { return m_chunkAccessMutex; }
     
 private:
+    const Core::VoxFound::WorldReads* m_voxFoundReads = nullptr;   // F7.1
     size_t m_borderRippleCount = 0;   // see borderRippleCount()
 
     // Memory management helper

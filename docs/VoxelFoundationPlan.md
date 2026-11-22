@@ -3044,6 +3044,14 @@ The plan's section 7 order, in broad strokes (the owner, 2026-11-21): F7.1 the r
 generators writing it, F7.3 drawing behind a switch, F7.4 editing, F7.5 destruction, F7.6 saving / LOD / undo / the
 voxel API, F7.7 deleting the old cube / subcube / microcube paths. Predictions: `voxfound_f7_prediction.txt`.
 
+**F7.1, the read interfaces on the new store (2026-11-21).** `VoxFound::WorldReads` answers `getVoxelTypeAt`,
+`hasVoxelAt`, `subVoxelFloor` and `occupiedMicro` from BlockStores (one per engine chunk; one 8^3 block = one old cube)
+with the old semantics on 1/8 m voxels (WorldReads.h); `ChunkManager::setVoxFoundReads` routes the four to it, the
+consumers unchanged; `NPCManager::buildNavGrid` takes its bounds from the routed chunks. Equal to the brute-force rule on
+every cube and micro cell; NPCs path through a framed door of new-store voxels with no old chunks loaded (the wall
+without a door blocks). MISSED narrowly: typeAt 50-52 ns (<= 50). Not yet: queryAABB (physics), stateAtMicro /
+phxOccupancySolid (lighting), the other chunkMap walkers.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

@@ -651,8 +651,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F6.5 done (live, bodies lab): rubble + pour, ledger exact, drawn = the rule; MISSED cost (CPU reference on the
       main thread: 4.1 ms/frame even quiet, 25-250 ms on the large wall) and water on an open floor (a 1 cm film, not
       drawn). F6 DONE in broad strokes.
-      NEXT: F7 (move the consumers over, plan section 7) in broad strokes -- first a plan of the consumers and their
-      order, with the owner; the fluid cost (GPU WorldFluid, skip quiet boxes) taken when it bites there.
+      F7 started (plan 9f, section 7's order). F7.1 done: VoxFound::WorldReads + ChunkManager::setVoxFoundReads (the
+      four reads routed to the new store, old semantics on 1/8 m); nav works unchanged on it. WorldReads.Cost is RED
+      (typeAt 50-52 ns vs <= 50, the owner's call).
+      NEXT: F7.2 (generators write the new store through a bulk-write API), prediction BEFORE code. Broad strokes.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

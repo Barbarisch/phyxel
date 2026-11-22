@@ -349,6 +349,21 @@ bool BlockStore::blockSolidAny(glm::ivec3 b) const {
     return any != 0;
 }
 
+int BlockStore::blockSolidCount(glm::ivec3 b) const {
+    if (b.x < 0 || b.y < 0 || b.z < 0 || b.x >= m_nb.x || b.y >= m_nb.y || b.z >= m_nb.z) return 0;
+    const uint64_t e = m_dir[blockIndex(b)];
+    if (!(e & kDetailed)) return (e & 0xFF) != 0 ? 512 : 0;
+    const Detailed& d = m_pool[uint32_t(e & 0xFFFFFFFFull)];
+    int n = 0;
+    for (uint64_t w : d.solid) {   // C++17 has no std::popcount: the constant-time SWAR count
+        w = w - ((w >> 1) & 0x5555555555555555ull);
+        w = (w & 0x3333333333333333ull) + ((w >> 2) & 0x3333333333333333ull);
+        w = (w + (w >> 4)) & 0x0F0F0F0F0F0F0F0Full;
+        n += int((w * 0x0101010101010101ull) >> 56);
+    }
+    return n;
+}
+
 void BlockStore::collapse(double slack) {
     // 1. changed detailed blocks that are uniform again return to one directory entry
     for (uint32_t bi : m_changed) {

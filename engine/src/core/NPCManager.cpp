@@ -2,6 +2,7 @@
 #include "core/NavGrid.h"
 #include "core/AStarPathfinder.h"
 #include "core/ChunkManager.h"
+#include "core/voxfound/WorldReads.h"
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include <chrono>
@@ -451,15 +452,19 @@ void NPCManager::buildNavGrid() {
         return;
     }
 
-    // Determine XZ bounds from all loaded chunk origins
-    if (m_chunkManager->chunkMap.empty()) {
+    // Determine XZ bounds from all loaded chunk origins (F7.1: the new store's chunks when the reads are routed to it)
+    std::vector<glm::ivec3> coords;
+    if (const auto* reads = m_chunkManager->voxFoundReads()) coords = reads->chunks();
+    else
+        for (const auto& [coord, chunk] : m_chunkManager->chunkMap) coords.push_back(coord);
+    if (coords.empty()) {
         LOG_WARN("NPCManager", "Cannot build NavGrid: no chunks loaded");
         return;
     }
 
     glm::ivec2 minXZ(std::numeric_limits<int>::max());
     glm::ivec2 maxXZ(std::numeric_limits<int>::min());
-    for (const auto& [coord, chunk] : m_chunkManager->chunkMap) {
+    for (const glm::ivec3& coord : coords) {
         glm::ivec3 origin = ChunkManager::chunkCoordToOrigin(coord);
         minXZ.x = std::min(minXZ.x, origin.x);
         minXZ.y = std::min(minXZ.y, origin.z);

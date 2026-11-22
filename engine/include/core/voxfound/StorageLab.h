@@ -158,6 +158,9 @@ public:
     void set(glm::ivec3 p, uint8_t material);
     uint8_t get(glm::ivec3 p) const;             // out of range reads air
     bool blockSolidAny(glm::ivec3 block) const;  // §3.2 solidity summary: any solid voxel in this block
+    /// F7.1: solid voxels in block b, 0..512 (a uniform entry: 0 or 512; a detailed block: its mask's popcount).
+    /// Out of range reads 0.
+    int blockSolidCount(glm::ivec3 block) const;
     /// slack (F3.2b, the edit path): keep free pool slots for reuse until they exceed this fraction of the pool;
     /// 0 = compact and shrink every time (F1's behaviour, what memoryBytes() is measured after).
     void collapse(double slack = 0.0);

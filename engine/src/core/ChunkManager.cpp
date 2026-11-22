@@ -1,5 +1,6 @@
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
+#include "core/voxfound/WorldReads.h"
 #include "core/WorldGenerator.h"
 #include <climits>
 #include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
@@ -783,18 +784,22 @@ VoxelLocation ChunkManager::resolveGlobalPositionWithSubcube(const glm::ivec3& w
 }
 
 bool ChunkManager::hasVoxelAt(const glm::ivec3& worldPos) const {
+    if (m_voxFoundReads) return m_voxFoundReads->hasVoxelAt(worldPos);   // F7.1
     return m_voxelQuerySystem.hasVoxelAt(worldPos);
 }
 
 float ChunkManager::subVoxelFloor(const glm::ivec3& worldPos) const {
+    if (m_voxFoundReads) return m_voxFoundReads->subVoxelFloor(worldPos);   // F7.1
     return m_voxelQuerySystem.subVoxelFloor(worldPos);
 }
 
 VoxelLocation::Type ChunkManager::getVoxelTypeAt(const glm::ivec3& worldPos) const {
+    if (m_voxFoundReads) return m_voxFoundReads->typeAt(worldPos);   // F7.1
     return m_voxelQuerySystem.getVoxelTypeAt(worldPos);
 }
 
 bool ChunkManager::occupiedMicro(const glm::ivec3& micro) const {
+    if (m_voxFoundReads) return m_voxFoundReads->occupiedMicro(micro);   // F7.1
     return m_voxelQuerySystem.occupiedMicro(micro);
 }
 

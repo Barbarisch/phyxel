@@ -1,0 +1,135 @@
+F7 headless evidence (docs/evidence/voxfound_f7_prediction.txt). Release, build/tests/Release/phyxel_tests.exe. Worlds: hand-built 1/8 m content written into BlockStores by the tests.
+== F7.1 CONTROL: NavGraphMicroTest* ==
+[  PASSED  ] 17 tests.
+== F7.1 RED (a stub WorldReads) ==
+Note: Google Test filter = WorldReads.*
+[----------] 5 tests from WorldReads
+[ RUN      ] WorldReads.TypeAndFloorEqualTheRuleOnEveryCube
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(169): error: Failed
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(169): error: Failed
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(169): error: Failed
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(169): error: Failed
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(169): error: Failed
+[WorldReads] 98304 cubes (empty 97395, cube 216, subdivided 693; 108 platforms): 909 differ from the rule
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(175): error: Expected equality of these values:
+[  FAILED  ] WorldReads.TypeAndFloorEqualTheRuleOnEveryCube (3208 ms)
+[ RUN      ] WorldReads.SubVoxelFloorCases
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(191): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(191): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(191): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(191): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(191): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(191): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(191): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(192): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(193): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(194): error: Expected equality of these values:
+[  FAILED  ] WorldReads.SubVoxelFloorCases (0 ms)
+[ RUN      ] WorldReads.OccupiedMicroSamplesTheVoxelUnderTheCentre
+[WorldReads] occupiedMicro: 46656 micro cells (25764 solid), 25764 differ
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(215): error: Expected equality of these values:
+[  FAILED  ] WorldReads.OccupiedMicroSamplesTheVoxelUnderTheCentre (6 ms)
+[ RUN      ] WorldReads.NavigationPathsThroughAFramedDoorOfNewStoreVoxels
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(253): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(254): error: Value of: cm.occupiedMicro({10 * 9 + 6, 16 * 9 + 4, 3 * 9 + 4})
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(262): error: Value of: p.found
+[  FAILED  ] WorldReads.NavigationPathsThroughAFramedDoorOfNewStoreVoxels (146 ms)
+[ RUN      ] WorldReads.Cost
+[WorldReads] typeAt 3.2 ns per call (1048576 calls); subVoxelFloor on detailed blocks 100 ns (0 calls)
+[       OK ] WorldReads.Cost (361 ms)
+[----------] 5 tests from WorldReads (3723 ms total)
+[  PASSED  ] 1 test.
+[  FAILED  ] 4 tests, listed below:
+[  FAILED  ] WorldReads.TypeAndFloorEqualTheRuleOnEveryCube
+[  FAILED  ] WorldReads.SubVoxelFloorCases
+[  FAILED  ] WorldReads.OccupiedMicroSamplesTheVoxelUnderTheCentre
+[  FAILED  ] WorldReads.NavigationPathsThroughAFramedDoorOfNewStoreVoxels
+== F7.1 GREEN run 1 (the per-bit popcount) ==
+Note: Google Test filter = WorldReads.*
+[----------] 5 tests from WorldReads
+[ RUN      ] WorldReads.TypeAndFloorEqualTheRuleOnEveryCube
+[WorldReads] 98304 cubes (empty 97395, cube 216, subdivided 693; 108 platforms): 0 differ from the rule
+[       OK ] WorldReads.TypeAndFloorEqualTheRuleOnEveryCube (3159 ms)
+[ RUN      ] WorldReads.SubVoxelFloorCases
+[       OK ] WorldReads.SubVoxelFloorCases (0 ms)
+[ RUN      ] WorldReads.OccupiedMicroSamplesTheVoxelUnderTheCentre
+[WorldReads] occupiedMicro: 46656 micro cells (25764 solid), 0 differ
+[       OK ] WorldReads.OccupiedMicroSamplesTheVoxelUnderTheCentre (8 ms)
+[ RUN      ] WorldReads.NavigationPathsThroughAFramedDoorOfNewStoreVoxels
+[WorldReads] door: a path of 16 nodes through (10, 15)
+[       OK ] WorldReads.NavigationPathsThroughAFramedDoorOfNewStoreVoxels (385 ms)
+[ RUN      ] WorldReads.Cost
+[WorldReads] typeAt 158.2 ns per call (1048576 calls); subVoxelFloor on detailed blocks 515 ns (100000 calls)
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(316): error: Expected: (typeNs) <= (50.0), actual: 158.16831588745117 vs 50
+[  FAILED  ] WorldReads.Cost (785 ms)
+[----------] 5 tests from WorldReads (4338 ms total)
+[  PASSED  ] 4 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] WorldReads.Cost
+== F7.1 GREEN run 2 (the SWAR count) + NavGraphMicroTest + store tests ==
+Note: Google Test filter = WorldReads.*:NavGraphMicroTest*:VoxFound*Store*:VoxFoundStorage*
+[----------] 17 tests from NavGraphMicroTest
+[ RUN      ] NavGraphMicroTest.FramedDoorIsPassableAtMicroResolution
+[       OK ] NavGraphMicroTest.FramedDoorIsPassableAtMicroResolution (262 ms)
+[ RUN      ] NavGraphMicroTest.StandingHeightsAreExactMicro
+[       OK ] NavGraphMicroTest.StandingHeightsAreExactMicro (130 ms)
+[ RUN      ] NavGraphMicroTest.SealedWallBlocks
+[       OK ] NavGraphMicroTest.SealedWallBlocks (127 ms)
+[ RUN      ] NavGraphMicroTest.DoorTooLowBlocks
+[       OK ] NavGraphMicroTest.DoorTooLowBlocks (128 ms)
+[ RUN      ] NavGraphMicroTest.DoorTooNarrowBlocks
+[       OK ] NavGraphMicroTest.DoorTooNarrowBlocks (130 ms)
+[ RUN      ] NavGraphMicroTest.WindowIsNotADoor
+[       OK ] NavGraphMicroTest.WindowIsNotADoor (125 ms)
+[ RUN      ] NavGraphMicroTest.StepAtTheOuterWallFaceWithASlabFlushToIt
+[       OK ] NavGraphMicroTest.StepAtTheOuterWallFaceWithASlabFlushToIt (258 ms)
+[ RUN      ] NavGraphMicroTest.ThinWallAtCellEdgeBlocksTheCrossing
+[       OK ] NavGraphMicroTest.ThinWallAtCellEdgeBlocksTheCrossing (125 ms)
+[ RUN      ] NavGraphMicroTest.SmoothingNeverShortcutsThroughAWall
+[       OK ] NavGraphMicroTest.SmoothingNeverShortcutsThroughAWall (127 ms)
+[ RUN      ] NavGraphMicroTest.ArrivalRadiusIsTightAtTheDoorAndLooseOnOpenGround
+[       OK ] NavGraphMicroTest.ArrivalRadiusIsTightAtTheDoorAndLooseOnOpenGround (124 ms)
+[ RUN      ] NavGraphMicroTest.RebuildColumnReSweepsNeighbourEdges
+[       OK ] NavGraphMicroTest.RebuildColumnReSweepsNeighbourEdges (126 ms)
+[ RUN      ] NavGraphMicroTest.ChunkManagerMicroSamplerSeesJambsAndReveal
+[       OK ] NavGraphMicroTest.ChunkManagerMicroSamplerSeesJambsAndReveal (3 ms)
+[ RUN      ] NavGraphMicroTest.RuntimeCompositePathsThroughAFramedDoorOfRealVoxels
+[       OK ] NavGraphMicroTest.RuntimeCompositePathsThroughAFramedDoorOfRealVoxels (85 ms)
+[ RUN      ] NavGraphMicroTest.OverheadPropBoxDoesNotEatDoorHeadroom
+[       OK ] NavGraphMicroTest.OverheadPropBoxDoesNotEatDoorHeadroom (77 ms)
+[ RUN      ] NavGraphMicroTest.RuntimeOracleAgreesWithTraversalProbeOnARealizedHouse
+[       OK ] NavGraphMicroTest.RuntimeOracleAgreesWithTraversalProbeOnARealizedHouse (3684 ms)
+[ RUN      ] NavGraphMicroTest.AnNpcBesideATallTrunkStaysOnTheGround
+[       OK ] NavGraphMicroTest.AnNpcBesideATallTrunkStaysOnTheGround (3036 ms)
+[ RUN      ] NavGraphMicroTest.BuildIsIdenticalForAnyThreadCount
+[       OK ] NavGraphMicroTest.BuildIsIdenticalForAnyThreadCount (2232 ms)
+[----------] 17 tests from NavGraphMicroTest (10787 ms total)
+[----------] 5 tests from WorldReads
+[ RUN      ] WorldReads.TypeAndFloorEqualTheRuleOnEveryCube
+[WorldReads] 98304 cubes (empty 97395, cube 216, subdivided 693; 108 platforms): 0 differ from the rule
+[       OK ] WorldReads.TypeAndFloorEqualTheRuleOnEveryCube (3566 ms)
+[ RUN      ] WorldReads.SubVoxelFloorCases
+[       OK ] WorldReads.SubVoxelFloorCases (0 ms)
+[ RUN      ] WorldReads.OccupiedMicroSamplesTheVoxelUnderTheCentre
+[WorldReads] occupiedMicro: 46656 micro cells (25764 solid), 0 differ
+[       OK ] WorldReads.OccupiedMicroSamplesTheVoxelUnderTheCentre (6 ms)
+[ RUN      ] WorldReads.NavigationPathsThroughAFramedDoorOfNewStoreVoxels
+[WorldReads] door: a path of 16 nodes through (10, 15)
+[       OK ] WorldReads.NavigationPathsThroughAFramedDoorOfNewStoreVoxels (350 ms)
+[ RUN      ] WorldReads.Cost
+[WorldReads] typeAt 52.5 ns per call (1048576 calls), of which the test's store lookup alone 12.1 ns; subVoxelFloor on detailed blocks 332 ns (100000 calls)
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(325): error: Expected: (typeNs) <= (50.0), actual: 52.463912963867188 vs 50
+[  FAILED  ] WorldReads.Cost (516 ms)
+[----------] 5 tests from WorldReads (4440 ms total)
+[  PASSED  ] 40 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] WorldReads.Cost
+== F7.1 cost, 3 more runs: typeAt 50.2 / 51.0 / 52.1 ns (store lookup 12.6 / 12.2 / 12.2), subVoxelFloor 345 / 401 / 395 ns ==
+== F7.1 regression: *Chunk*:*NavGrid*:*NavGraph*:*NPC*:WorldReads.* ==
+[WorldReads] 98304 cubes (empty 97395, cube 216, subdivided 693; 108 platforms): 0 differ from the rule
+[WorldReads] occupiedMicro: 46656 micro cells (25764 solid), 0 differ
+[WorldReads] door: a path of 16 nodes through (10, 15)
+[WorldReads] typeAt 51.5 ns per call (1048576 calls), of which the test's store lookup alone 12.5 ns; subVoxelFloor on detailed blocks 412 ns (100000 calls)
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(325): error: Expected: (typeNs) <= (50.0), actual: 51.524925231933594 vs 50
+[  FAILED  ] WorldReads.Cost (506 ms)
+[  PASSED  ] 354 tests.

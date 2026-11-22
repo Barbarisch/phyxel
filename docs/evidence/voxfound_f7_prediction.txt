@@ -32,3 +32,23 @@ one 8^3 block = one old 1 m cube), with the OLD semantics restated on 1/8 m voxe
 RED: a stub WorldReads (every query empty) -- R1-R3 and N1 fail.
 Not here: queryAABB (physics occupancy: the physics step), stateAtMicro / phxOccupancySolid (lighting: the drawing step),
 the generators writing the new store (F7.2), anything live.
+
+F7.1 RESULTS (2026-11-21; the prediction above untouched). Release, CPU. Evidence voxfound_f7_headless.txt.
+  CONTROL: NavGraphMicroTest 17 / 17 on the old chunks (before any code).
+  RED as predicted: a stub WorldReads (every query empty) -- R1 (909 cubes differ), R2, R3 (25,764 micro cells differ)
+     and N1 fail.
+  R1 PASS: 98,304 cubes in two chunks (one at negative x) and a chunk the store lacks (97,395 empty, 216 cube incl.
+     full DETAILED blocks, 693 subdivided, 108 platforms): 0 differ from the rule (type, hasVoxelAt, floor).
+  R2 PASS: slabs 1-7 layers = k/8; a slab + a voxel above, no bottom layer, full -> -1; empty and a missing chunk -> 0.
+  R3 PASS: 46,656 micro cells across two chunk borders, 0 differ from the voxel under the centre (computed in double).
+  N1 PASS: a ChunkManager with NO old chunks routed to the new store: NPCManager::buildNavGrid + NavGraph (micro mode)
+     path through the framed door of 1/8 m voxels at (10, 15) (16 nodes); TEETH: the wall without a reveal blocks;
+     control: not routed -> no nav.
+  R6 MISSED narrowly: typeAt 50.2-52.5 ns per call (<= 50; 4 runs, 1 M random cubes), of which the test's store lookup
+     (a std::function over a std::map) 12 ns; subVoxelFloor on detailed blocks 332-401 ns (<= 2,000 PASS). The first
+     green measured 145-158 ns: my C++17 popcount looped once per set bit (up to 512 per full block) where the design
+     said O(1) -- replaced by the constant-time SWAR count (a defect of my implementation, fixed, both numbers kept).
+     The guard stays as written; WorldReads.Cost is RED in the suite until the owner decides.
+  Regression: the editor builds; *Chunk* / *NavGrid* / *NavGraph* / *NPC* / WorldReads 354 pass, WorldReads.Cost red.
+CONCLUSION: the engine's four voxel reads answer from the new store with the old semantics on 1/8 m voxels, and
+navigation runs unchanged on it. Next F7.2: the generators write the new store.
