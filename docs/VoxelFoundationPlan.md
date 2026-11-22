@@ -3137,6 +3137,12 @@ save_world writes them. Edits survive shifts exactly; a 256 m walk stays on the 
 makes a chunk's trees depend on the region box -- streaming requires `"open"`. A shift is a 4.5-7.2 s hitch (the whole
 region regenerated): next, keep the staying chunks and build the entering ones in the background.
 
+**F7.9c, background incremental shifts (2026-11-22).** `{"stream_bg":true}` (default): only the entering slab is
+generated (4 threads, off the main thread), one entering chunk is prepared per frame, and one frame swaps it in
+(`RegionEdit::rebox` / `makeChunk` / `insertChunk`; staying chunks never regenerated; the axis recentred alone).
+Exact against a fresh build with the same edit (32/32 chunks: voxels, faces, sprigs); a 256 m walk at sprint speed stays
+on the world. MISSED narrowly: a 278 ms prepare slice (<= 250); coarse LOD levels are dropped by a shift.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

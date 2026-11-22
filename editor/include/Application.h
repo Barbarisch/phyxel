@@ -111,6 +111,7 @@
 #include "core/voxfound/EditHistory.h"
 #include "physics/VoxelOccupancyGrid.h"
 #include <set>
+#include "core/WorldGenerator.h"
 #include "core/voxfound/BodyDraw.h"       // F5.3 bodies lab
 #include "core/voxfound/BodySim.h"
 #include "core/voxfound/BodySimGpu.h"   // F5.5b: the GPU solver live in the bodies lab
@@ -345,7 +346,27 @@ private:
     std::map<std::tuple<int, int, int>, std::vector<uint8_t>> voxFoundStreamCache;
     nlohmann::json voxFoundRegionRequest;   // the last editable region build's request
     bool voxFoundStreamOn = false, voxFoundStreamStub = false;
-    bool voxFoundSwitchLoadSaved = true;   // the last switch-on's load_saved (a shift reuses it)
+    bool voxFoundSwitchLoadSaved = true;
+    // F7.9c: background shifts -- the entering chunks generated off-thread, prepared one per frame, swapped in one
+    struct VoxFoundStreamJob {
+        glm::ivec3 lo{0}, hi{0};
+        std::vector<glm::ivec3> entering;
+        std::vector<Core::VoxFound::VoxelArea> areas;
+        std::vector<Core::VoxFound::RegionEdit::Chunk> ready;
+        std::thread worker;
+        std::atomic<bool> done{false};
+        std::string error;
+        size_t prepared = 0;
+        double genMs = 0.0, maxSliceMs = 0.0, swapMs = 0.0;
+        std::chrono::steady_clock::time_point start;
+    };
+    std::unique_ptr<VoxFoundStreamJob> voxFoundStreamJob;
+    std::shared_ptr<WorldGenerator> voxFoundRegionGen;   // a copy of the region build's generator (recipe applied)
+    bool voxFoundStreamBg = true;
+    double voxFoundStreamMaxSliceMs = 0.0;
+    nlohmann::json voxFoundStreamLastBg;
+    void voxFoundStreamBgTick(glm::ivec3 newLo);
+    nlohmann::json voxFoundStreamSwap();   // the last switch-on's load_saved (a shift reuses it)
     size_t voxFoundStreamShifts = 0;
     double voxFoundStreamLastMs = 0.0, voxFoundStreamMaxMs = 0.0;
     nlohmann::json voxFoundStreamShift(glm::ivec3 newLo);

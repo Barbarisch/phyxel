@@ -707,3 +707,24 @@ Coarse LOD levels are dropped by a background shift (stated).
      F7.9b's 4.5-7.2 s; start-to-swap latency <= 6 s.
   H3 (walk): the 256 m walk (16 m steps, 1.5 s apart): the camera always inside the region with ground under it.
 RED: stream_bg false -> F7.9b's synchronous rebuild (the multi-second frame).
+
+F7.9c RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); flora_window open,
+load_saved false. Evidence: voxfound_f79c_live.jsonl; tools/voxfound_f79c_live.py. Every artifact: WorldGenerator
+Perlin s7 + flora (open window), edits through the engine's voxel API.
+  CONTROL = F7.9b's record (4.5-7.2 s per shift, one frame). RED (stream_bg false): one shift 7.3 s in one frame.
+  GREEN run 1 (kept, labelled): the shift recentred z as well as x (14 entering chunks, a box the reference did not
+     build) -- the 24 comparable chunks were exact; one background generator thread: latency 6.3-9.5 s and the walk fell
+     behind. Two changes: recentre only the axis the camera left the inner chunks on (8 entering), and generate on 4
+     threads (F7.9a's best). Run 2 is the record.
+  H1 PASS: after a +1 background shift with an edit on chunk (257,1,3)'s +x face (the entering chunk's border), all 32
+     chunks' voxels (by name), faces and sprigs equal a fresh build of the new box with the same edit.
+  H2 MISSED narrowly: the worst main-thread slice 278 ms (one entering chunk's prepare: margin, cut, border, GPU faces,
+     store), <= 250 predicted; the swap frame 2.6-58 ms; start-to-swap latency 2.4-4.7 s (<= 6). Lever: split the
+     prepare (store / blocking off-thread; the GPU faces alone on the main thread).
+  H3 PASS: the 256 m walk at ~10.7 m/s (16 m per 1.5 s, a sprint): 17 / 17 steps with the camera inside the region and
+     ground under it; 8 background shifts.
+  Not here, stated: coarse LOD levels are dropped by a background shift; an edit to a kept chunk between an entering
+     chunk's prepare and the swap is not seen by that chunk's border.
+CONCLUSION: the switched world streams at sprint speed without a multi-second freeze -- the staying chunks are kept,
+the entering slab is generated on 4 threads in the background, one chunk is prepared per frame (~0.26-0.28 s, the
+remaining hitch) and the swap costs a frame. Next: F7.7, deleting the old cube / subcube / microcube paths.

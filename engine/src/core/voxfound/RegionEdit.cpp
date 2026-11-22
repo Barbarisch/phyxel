@@ -59,6 +59,34 @@ SprigParams RegionEdit::sprigParams(size_t i) const {
 }
 
 void RegionEdit::addChunk(const RegionChunk& rc, const std::vector<PackedFace>& builderOut) {
+    m_chunks.push_back(makeChunk(rc, builderOut));
+}
+
+void RegionEdit::rebox(glm::ivec3 chunkLo, glm::ivec3 chunkHi) {   // F7.9c
+    m_chunks.erase(std::remove_if(m_chunks.begin(), m_chunks.end(),
+                                  [&](const Chunk& c) {
+                                      return glm::any(glm::lessThan(c.chunk, chunkLo)) ||
+                                             glm::any(glm::greaterThan(c.chunk, chunkHi));
+                                  }),
+                   m_chunks.end());
+    m_lo = chunkLo;
+    m_hi = chunkHi;
+    m_pool.reset();
+    m_in.clear();
+    m_assembledRevision = ~0ull;
+    static uint64_t reboxes = 0;
+    m_generation = (uint64_t(1) << 40) + ++reboxes;   // fresh resident keys (begin's counter stays below)
+}
+
+SprigParams RegionEdit::sprigParamsFor(glm::ivec3 originVoxel) const {
+    SprigParams sp;
+    sp.cards = m_cards;
+    sp.worldOriginVoxel = originVoxel;
+    sp.threshold24 = m_threshold24;
+    return sp;
+}
+
+RegionEdit::Chunk RegionEdit::makeChunk(const RegionChunk& rc, const std::vector<PackedFace>& builderOut) const {
     Chunk c;
     c.chunk = rc.chunk;
     c.originVoxel = rc.originVoxel;
@@ -69,7 +97,7 @@ void RegionEdit::addChunk(const RegionChunk& rc, const std::vector<PackedFace>& 
     c.blocking = blockBlocking(c.store, m_seeThrough);
     c.conn.rebuild(c.store.dim() / 8, c.blocking);   // F3.5b: the flood, keeping its labels
     c.connect = c.conn.connect();
-    m_chunks.push_back(std::move(c));
+    return c;
 }
 
 void RegionEdit::replaceFaces(size_t i, const std::vector<PackedFace>& builderOut) {

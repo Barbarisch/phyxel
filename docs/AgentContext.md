@@ -683,7 +683,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F7.9a done: generation 1.4 -> 9.6 chunks/s (4 workers, exact); sprint budget 15/s MISSED (levers recorded).
       F7.9b done: stream:true recentres the region on the camera; edits carried exactly (stream cache + F7.6a load);
       streaming needs flora_window:"open". A shift = 4.5-7.2 s hitch (full rebuild).
-      NEXT: F7.9c (incremental + background shifts), then F7.7 (delete the old paths), then F7's exit.
+      F7.9c done: background incremental shifts (4-thread generation, one chunk prepared per frame, a one-frame swap);
+      exact vs a fresh build; sprint-speed walk stays on the world; worst slice 278 ms.
+      NEXT: F7.7 (delete the old cube / subcube / microcube paths), then F7's exit (default switched, the suite).
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

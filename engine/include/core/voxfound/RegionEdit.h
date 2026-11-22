@@ -78,6 +78,16 @@ public:
     /// Adds a chunk as the region build made it (call in the build's chunk order): its grid, border and the GPU
     /// builder's output (faces + sprigs, any order).
     void addChunk(const RegionChunk& rc, const std::vector<PackedFace>& builderOut);
+    /// F7.9c: addChunk's chunk without adding it (prepared off the swap frame), then inserted; rebox drops the chunks
+    /// outside [lo, hi] and makes that the box (the pool and the resident keys start over); sprigParamsFor = the
+    /// sprig parameters of a chunk at originVoxel; indexOf = the chunk's index or -1.
+    Chunk makeChunk(const RegionChunk& rc, const std::vector<PackedFace>& builderOut) const;
+    void insertChunk(Chunk&& c) { m_chunks.push_back(std::move(c)); }
+    void rebox(glm::ivec3 chunkLo, glm::ivec3 chunkHi);
+    SprigParams sprigParamsFor(glm::ivec3 originVoxel) const;
+    int indexOf(glm::ivec3 chunk) const { return index(chunk); }
+    glm::ivec3 chunkLo() const { return m_lo; }
+    glm::ivec3 chunkHi() const { return m_hi; }
     /// Replaces chunk i's faces and sprigs by a full builder output (the A/B reference for the incremental lists).
     void replaceFaces(size_t i, const std::vector<PackedFace>& builderOut);
 

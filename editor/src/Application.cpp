@@ -13427,7 +13427,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     uint64_t hn = 1469598103934665603ull;
                     for (uint8_t v : g.mat) hn = (hn ^ nameKey[v]) * 1099511628211ull;
                     rows.push_back({{"chunk", {c.chunk.x, c.chunk.y, c.chunk.z}}, {"hash", std::to_string(h)},
-                                    {"hash_by_name", std::to_string(hn)}, {"edited", c.edited}});
+                                    {"hash_by_name", std::to_string(hn)}, {"edited", c.edited},
+                                    {"faces", c.faces.size()}, {"sprigs", c.sprigs.size()}});
                 }
             }
             response = {{"cleared", cleared}, {"chunks", rows},
@@ -13608,6 +13609,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 voxFoundStreamOn = want;
             }
             if (cmd.params.contains("stream_stub")) voxFoundStreamStub = cmd.params["stream_stub"].get<bool>();
+            if (cmd.params.contains("stream_bg")) voxFoundStreamBg = cmd.params["stream_bg"].get<bool>();   // F7.9c
             nlohmann::json shift;
             if (cmd.params.contains("stream_shift")) {
                 const auto& s = cmd.params["stream_shift"];
@@ -13617,7 +13619,9 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"stream", voxFoundStreamOn}, {"stream_stub", voxFoundStreamStub}, {"shifts", voxFoundStreamShifts},
                         {"last_shift_ms", voxFoundStreamLastMs}, {"max_shift_ms", voxFoundStreamMaxMs},
                         {"cached_chunks", voxFoundStreamCache.size()}, {"region", rg},
-                        {"switched", voxFoundWorldReads != nullptr}};
+                        {"switched", voxFoundWorldReads != nullptr}, {"stream_bg", voxFoundStreamBg},
+                        {"job_pending", voxFoundStreamJob != nullptr}, {"max_slice_ms", voxFoundStreamMaxSliceMs},
+                        {"last_bg", voxFoundStreamLastBg}, {"faces", voxFoundPreview.liveFaces()}};
             if (!shift.is_null()) response["shift"] = shift;
             return;
         }
@@ -14538,6 +14542,10 @@ nlohmann::json Application::voxFoundStreamShift(glm::ivec3 newLo) {
 
 void Application::voxFoundStreamTick() {
     if (!voxFoundStreamOn || voxFoundStreamStub || !voxFoundWorldReads || !camera || voxFoundRegionRequest.is_null()) return;
+    if (voxFoundStreamJob) {   // F7.9c: a background shift in flight finishes first
+        voxFoundStreamBgTick(voxFoundStreamJob->lo);
+        return;
+    }
     const auto& rg = voxFoundRegionRequest["region"];
     const glm::ivec3 a(rg["from"][0].get<int>(), rg["from"][1].get<int>(), rg["from"][2].get<int>());
     const glm::ivec3 b(rg["to"][0].get<int>(), rg["to"][1].get<int>(), rg["to"][2].get<int>());
@@ -14548,9 +14556,183 @@ void Application::voxFoundStreamTick() {
     const bool inside = fc.x >= lo.x + 1 && fc.x <= hi.x - 1 && fc.z >= lo.z + 1 && fc.z <= hi.z - 1;
     if (inside) return;
     const glm::ivec3 size = hi - lo + 1;
-    const glm::ivec3 newLo(fc.x - size.x / 2, lo.y, fc.z - size.z / 2);
+    // F7.9c: recentre only the axis the camera left the inner chunks on (one slab enters, not two)
+    const bool inX = fc.x >= lo.x + 1 && fc.x <= hi.x - 1, inZ = fc.z >= lo.z + 1 && fc.z <= hi.z - 1;
+    const glm::ivec3 newLo(inX ? lo.x : fc.x - size.x / 2, lo.y, inZ ? lo.z : fc.z - size.z / 2);
     if (newLo == lo) return;
-    voxFoundStreamShift(newLo);
+    if (voxFoundStreamBg) voxFoundStreamBgTick(newLo);   // F7.9c
+    else voxFoundStreamShift(newLo);
+}
+
+// F7.9c: one step of a background shift per call (from the frame tick; a pending job keeps stepping even when the
+// camera's chunk is back inside).
+void Application::voxFoundStreamBgTick(glm::ivec3 newLo) {
+    using namespace Core::VoxFound;
+    auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    if (!voxFoundStreamJob) {
+        if (!voxFoundRegionGen) return;
+        auto job = std::make_unique<VoxFoundStreamJob>();
+        const glm::ivec3 size = voxFoundEdit.chunkHi() - voxFoundEdit.chunkLo();
+        job->lo = newLo;
+        job->hi = newLo + size;
+        for (int x = job->lo.x; x <= job->hi.x; ++x)
+            for (int y = job->lo.y; y <= job->hi.y; ++y)
+                for (int z = job->lo.z; z <= job->hi.z; ++z)
+                    if (voxFoundEdit.indexOf({x, y, z}) < 0) job->entering.push_back({x, y, z});
+        job->areas.resize(job->entering.size());
+        job->start = std::chrono::steady_clock::now();
+        const bool flora = voxFoundRegionRequest.value("flora", false);
+        auto* raw = job.get();
+        job->worker = std::thread([raw, flora, base = std::make_shared<WorldGenerator>(*voxFoundRegionGen)]() {
+            const auto t0 = std::chrono::steady_clock::now();
+            // F7.9c: 4 generators in parallel (F7.9a's measured best), each a copy
+            std::atomic<size_t> next{0};
+            std::mutex errMu;
+            auto work = [&]() {
+                WorldGenerator g(*base);
+                try {
+                    const std::string dir = "resources/templates_g8/nature";
+                    for (size_t k; (k = next.fetch_add(1)) < raw->entering.size();) {
+                        raw->areas[k] = buildTerrainArea(g, raw->entering[k] * kChunkM - 1, glm::ivec3(kChunkM + 2));
+                        if (flora) stampFlora(raw->areas[k], g, dir, 24, nullptr);
+                    }
+                } catch (const std::exception& e) {
+                    std::lock_guard<std::mutex> lk(errMu);
+                    raw->error = e.what();
+                }
+            };
+            std::vector<std::thread> ts;
+            for (int t = 0; t < 4; ++t) ts.emplace_back(work);
+            for (auto& t : ts) t.join();
+            raw->genMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            raw->done = true;
+        });
+        voxFoundStreamJob = std::move(job);
+        return;
+    }
+    VoxFoundStreamJob& job = *voxFoundStreamJob;
+    if (!job.done) return;
+    if (job.worker.joinable()) job.worker.join();
+    if (!job.error.empty()) {
+        voxFoundStreamLastBg = {{"error", job.error}};
+        voxFoundStreamJob.reset();
+        return;
+    }
+    const auto t0 = std::chrono::steady_clock::now();
+    if (job.prepared < job.entering.size()) {   // one entering chunk per frame
+        const size_t k = job.prepared++;
+        VoxelArea& a = job.areas[k];
+        uint8_t remap[256] = {};
+        for (size_t m = 1; m < a.palette.size() && m < 256; ++m) {
+            std::string err;
+            const int id = voxFoundMaterial(a.palette[m], &err);
+            if (id < 0) {
+                voxFoundStreamLastBg = {{"error", "palette: " + err}};
+                voxFoundStreamJob.reset();
+                return;
+            }
+            remap[m] = uint8_t(id);
+        }
+        for (uint8_t& v : a.grid.mat) v = remap[v];
+        // the 1 m margin inside edited region chunks of the new box: their voxels, not the generator's
+        const glm::ivec3 c = job.entering[k], o = a.originVoxel, d = a.grid.dim;
+        const int N = kChunkM * kVoxelsPerM;
+        for (int dx = -1; dx <= 1; ++dx)
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dz = -1; dz <= 1; ++dz) {
+                    const glm::ivec3 nc = c + glm::ivec3(dx, dy, dz);
+                    if ((dx | dy | dz) == 0 || glm::any(glm::lessThan(nc, job.lo)) || glm::any(glm::greaterThan(nc, job.hi)))
+                        continue;
+                    const int ni = voxFoundEdit.indexOf(nc);
+                    if (ni < 0 || !voxFoundEdit.chunk(size_t(ni)).edited) continue;
+                    const glm::ivec3 nlo = glm::max(nc * N - o, glm::ivec3(0)), nhi = glm::min((nc + 1) * N - o, d);
+                    for (int x = nlo.x; x < nhi.x; ++x)
+                        for (int y = nlo.y; y < nhi.y; ++y)
+                            for (int z = nlo.z; z < nhi.z; ++z)
+                                a.grid.mat[a.grid.idx({x, y, z})] = voxFoundEdit.voxelAt(o + glm::ivec3(x, y, z));
+                }
+        RegionChunk rc;
+        rc.chunk = c;
+        rc.originVoxel = c * N;
+        const glm::ivec3 off(kVoxelsPerM), inner(N);
+        rc.grid = subGrid(a.grid, off, inner);
+        rc.border = neighboursOf(a.grid, off, inner, Outside::Air);
+        rc.area = &a.grid;
+        rc.areaMarginVoxels = kVoxelsPerM;
+        std::vector<PackedFace> out;
+        std::string err;
+        const bool leafCards = voxFoundRegionRequest.value("leaves", std::string("cards")) != "voxels";
+        SprigParams sp = voxFoundEdit.sprigParamsFor(rc.originVoxel);
+        if (!voxFoundBuilder || !voxFoundBuilder->build(rc.grid, Edges(rc.border), out, &err, leafCards ? &sp : nullptr)) {
+            voxFoundStreamLastBg = {{"error", "faces: " + err}};
+            voxFoundStreamJob.reset();
+            return;
+        }
+        job.ready.push_back(voxFoundEdit.makeChunk(rc, out));
+        a = VoxelArea{};   // free the area
+        job.maxSliceMs = std::max(job.maxSliceMs, ms(t0, std::chrono::steady_clock::now()));
+        voxFoundStreamMaxSliceMs = std::max(voxFoundStreamMaxSliceMs, job.maxSliceMs);
+        return;
+    }
+    voxFoundStreamLastBg = voxFoundStreamSwap();
+    voxFoundStreamJob.reset();
+}
+
+// F7.9c: the swap frame -- leaving edited chunks kept, the box moved, entering chunks inserted, the drawn lists
+// assembled whole, the switch rebound.
+nlohmann::json Application::voxFoundStreamSwap() {
+    using namespace Core::VoxFound;
+    auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    VoxFoundStreamJob& job = *voxFoundStreamJob;
+    const auto t0 = std::chrono::steady_clock::now();
+    size_t kept = 0;
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+        const auto& c = voxFoundEdit.chunk(i);
+        const bool leaving = glm::any(glm::lessThan(c.chunk, job.lo)) || glm::any(glm::greaterThan(c.chunk, job.hi));
+        if (!leaving || !c.edited) continue;
+        std::string err;
+        std::vector<uint8_t> blob = c.store.encodeV3(voxFoundPalette, &err);
+        if (!blob.empty()) voxFoundStreamCache[{c.chunk.x, c.chunk.y, c.chunk.z}] = std::move(blob), ++kept;
+    }
+    Core::APICommand cmd;
+    nlohmann::json r;
+    cmd.params = {{"world_switch", false}};
+    handleVoxFoundPreview(cmd, r);
+    voxFoundEdit.rebox(job.lo, job.hi);
+    for (auto& c : job.ready) voxFoundEdit.insertChunk(std::move(c));
+    if (voxFoundBuilder) voxFoundBuilder->dropResident();
+    // the preview: one entry per chunk in the store's order; level 0 only (coarse levels dropped: stated)
+    voxFoundPreview.chunks.assign(voxFoundEdit.chunkCount(), PreviewChunk{});
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+        voxFoundPreview.chunks[i].originMetres = glm::dvec3(voxFoundEdit.chunk(i).originVoxel) / double(kVoxelsPerM);
+        voxFoundPreview.chunks[i].chunk = voxFoundEdit.chunk(i).chunk;
+    }
+    voxFoundPreview.levels.resize(1);
+    voxFoundPreview.levelsAlt.clear();
+    voxFoundPreview.lodFirst.clear();
+    voxFoundPreview.lodCount.clear();
+    voxFoundPreview.lodClusters.clear();
+    voxFoundPreview.lodClustersDir.clear();
+    voxFoundPreview.lodOn = false;
+    voxFoundLodEditLevels = 0;
+    voxFoundLodDirty.clear();
+    voxFoundPreview.anchorMetres = glm::dvec3(job.lo * kChunkM);
+    voxFoundPreview.originMetres = glm::dvec3(job.lo * kChunkM);
+    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+    for (const glm::ivec3& c : job.entering) ++voxFoundOccRevision[{c.x, c.y, c.z}];
+    voxFoundRegionRequest["region"] = {{"from", {job.lo.x, job.lo.y, job.lo.z}}, {"to", {job.hi.x, job.hi.y, job.hi.z}}};
+    nlohmann::json on;
+    cmd.params = {{"world_switch", true}, {"load_saved", voxFoundSwitchLoadSaved}};
+    handleVoxFoundPreview(cmd, on);
+    const auto t1 = std::chrono::steady_clock::now();
+    job.swapMs = ms(t0, t1);
+    voxFoundStreamMaxSliceMs = std::max(voxFoundStreamMaxSliceMs, job.swapMs);
+    voxFoundStreamLastMs = ms(job.start, t1);
+    voxFoundStreamMaxMs = std::max(voxFoundStreamMaxMs, voxFoundStreamLastMs);
+    ++voxFoundStreamShifts;
+    return {{"to", {job.lo.x, job.lo.y, job.lo.z}}, {"entering", job.entering.size()}, {"kept_leaving", kept},
+            {"gen_ms", job.genMs}, {"max_prepare_ms", job.maxSliceMs}, {"swap_ms", job.swapMs},
+            {"latency_ms", voxFoundStreamLastMs}, {"loaded", on.value("loaded", nlohmann::json())}};
 }
 
 // F7.8 (docs/VoxelFoundationPlan.md section 7 step 1, queryAABB): while switched, every region chunk's static terrain
@@ -14929,6 +15111,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                             (hi.z + 1) * kChunkM - 1 - 8);
     const bool leafCards = cmd.params.value("leaves", std::string("cards")) != "voxels";
     const double sprigsPerM2 = cmd.params.value("sprigs_per_m2", kSprigsPerM2);
+    if (cmd.params.value("editable", false)) voxFoundRegionGen = std::make_shared<WorldGenerator>(gen);   // F7.9c
 
     std::vector<PackedFace> sprigRecs;
     std::vector<PreviewChunk> chunks;
