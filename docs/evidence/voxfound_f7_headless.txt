@@ -133,3 +133,53 @@ G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(325): error: Expected
 G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(325): error: Expected: (typeNs) <= (50.0), actual: 51.524925231933594 vs 50
 [  FAILED  ] WorldReads.Cost (506 ms)
 [  PASSED  ] 354 tests.
+== F7.2 CONTROL: NavGraphMicroTest* ==
+[  PASSED  ] 17 tests.
+== F7.2 RED (fillBox / paint write nothing; G4 as first written) ==
+Note: Google Test filter = WorldStore.*
+[----------] 4 tests from WorldStore
+[ RUN      ] WorldStore.BulkWritesEqualADenseReferenceAcrossChunks
+G:\Github\phyxel-matsimb-lab\tests\core\WorldStoreTest.cpp(122): error: Expected: (s) != (nullptr), actual: NULL vs (nullptr)
+[  FAILED  ] WorldStore.BulkWritesEqualADenseReferenceAcrossChunks (60 ms)
+[ RUN      ] WorldStore.RealizedBuildingPaintedAndPathableOnTheNewStore
+[WorldStore] hall house (grid 8): 111440 canvas cells, 111440 differ, 0 extra voxels; chunks 0
+G:\Github\phyxel-matsimb-lab\tests\core\WorldStoreTest.cpp(170): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldStoreTest.cpp(172): error: Expected: (ws.chunks().size()) >= (2u), actual: 0 vs 2
+G:\Github\phyxel-matsimb-lab\tests\core\WorldStoreTest.cpp(181): error: Expected: (npc.getNavGraph()) != (nullptr), actual: NULL vs (nullptr)
+[  FAILED  ] WorldStore.RealizedBuildingPaintedAndPathableOnTheNewStore (157 ms)
+[ RUN      ] WorldStore.GeneratedTerrainEqualsTheRegionChunks
+[WorldStore] generated terrain: 4 chunks, 67108864 solid voxels, 0 differ; palette 2
+[       OK ] WorldStore.GeneratedTerrainEqualsTheRegionChunks (12711 ms)
+[ RUN      ] WorldStore.Refusals
+[       OK ] WorldStore.Refusals (0 ms)
+[----------] 4 tests from WorldStore (12930 ms total)
+[  PASSED  ] 2 tests.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] WorldStore.BulkWritesEqualADenseReferenceAcrossChunks
+[  FAILED  ] WorldStore.RealizedBuildingPaintedAndPathableOnTheNewStore
+== F7.2 GREEN (G4 on the surface chunk row) ==
+Note: Google Test filter = WorldStore.*
+[----------] 4 tests from WorldStore
+[ RUN      ] WorldStore.BulkWritesEqualADenseReferenceAcrossChunks
+[WorldStore] 997901 voxels checked against the dense reference: 0 differ; a covered block uniform: 1
+[       OK ] WorldStore.BulkWritesEqualADenseReferenceAcrossChunks (82 ms)
+[ RUN      ] WorldStore.RealizedBuildingPaintedAndPathableOnTheNewStore
+[WorldStore] hall house (grid 8): 111440 canvas cells, 0 differ, 0 extra voxels; chunks 4
+[WorldStore] service -> solar on the new store: found (13 nodes); floor top 3 cells
+[       OK ] WorldStore.RealizedBuildingPaintedAndPathableOnTheNewStore (496 ms)
+[ RUN      ] WorldStore.GeneratedTerrainEqualsTheRegionChunks
+[WorldStore] generated terrain: 4 chunks, 37949662 solid voxels, 0 differ; palette 4
+[       OK ] WorldStore.GeneratedTerrainEqualsTheRegionChunks (10220 ms)
+[ RUN      ] WorldStore.Refusals
+[       OK ] WorldStore.Refusals (0 ms)
+[----------] 4 tests from WorldStore (10800 ms total)
+[  PASSED  ] 4 tests.
+== F7.2 regression: WorldStore.* + WorldReads.* + NavGraphMicroTest* + VoxFoundStorageLab* ==
+G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(325): error: Expected: (typeNs) <= (50.0), actual: 57.942295074462891 vs 50
+[  FAILED  ] WorldReads.Cost (561 ms)
+[WorldStore] 997901 voxels checked against the dense reference: 0 differ; a covered block uniform: 1
+[WorldStore] hall house (grid 8): 111440 canvas cells, 0 differ, 0 extra voxels; chunks 4
+[WorldStore] service -> solar on the new store: found (13 nodes); floor top 3 cells
+[WorldStore] generated terrain: 4 chunks, 37949662 solid voxels, 0 differ; palette 4
+[  PASSED  ] 43 tests.
+[  FAILED  ] WorldReads.Cost (561 ms)

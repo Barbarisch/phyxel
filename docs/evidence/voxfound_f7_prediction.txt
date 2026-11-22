@@ -77,3 +77,25 @@ stored here (owed: fracture needs them, F7.5).
       out (voxel for voxel, materials by name).
   G5: refusals: a 9 canvas, a 256th material.
 RED: a stub paint / fillBox (nothing written) -- G1-G3 fail.
+
+F7.2 RESULTS (2026-11-21; the prediction above untouched). Release, CPU. Evidence voxfound_f7_headless.txt.
+  CONTROL: NavGraphMicroTest 17 / 17 (the realized-house test on the 9 grid, canvas only) before any code.
+  RED as predicted: a stub fillBox / paint (nothing written) -- G1 and G2/G3 fail (111,440 canvas cells differ, 0
+     chunks). G4 passes under the stub (fromRegion does not write through them) -- and showed G4 as first written was
+     WEAK: chunk row y 0 is all underground (67,108,864 of 67,108,864 voxels solid). Fixed before green: G4 takes the
+     chunk row holding the surface (gen.sampleSurface) and asserts the chunks hold air and ground.
+  G1 PASS: 997,901 voxels (boxes across x / y / z = 0 and an 8-chunk corner, a carve, 2,000 painted cells) equal the
+     dense reference; a block the box covers stays one uniform entry.
+  G2 PASS: the hall house realized on the 1/8 m grid (111,440 cells) painted at cube (-6, 16, 3) -- across the chunk
+     border at x = 0, 4 chunks -- equals the canvas cell for cell, 0 extra voxels.
+  G3 PASS: on the new store (a ChunkManager with no old chunks, routed): NPCs walk service -> solar (13 nodes); TEETH:
+     the interior doors dropped -> no path.
+  G4 PASS: Perlin seed 7, chunks (0..1, surface row, 0..1): 4 chunks, 37,949,662 of 67,108,864 voxels solid, 0 differ
+     from forEachRegionChunk's grids (materials by name).
+  G5 PASS: a 9 canvas refused (nothing written); the 256th material refused; a batch with one bad cell writes nothing.
+  Regression: WorldStore / WorldReads / NavGraphMicroTest / VoxFoundStorageLab 43 pass; WorldReads.Cost red (F7.1).
+  Owed: part ids (no part channel in the BlockStore; F7.5 fracture), carving a building's interior from terrain it is
+  placed in (paint writes the canvas's solid cells only), the settlement / furniture / item placers (they still place
+  through ChunkManager's cube calls).
+CONCLUSION: the world can be generated into the new store -- terrain, flora, and a realized building -- and the
+engine's consumers read it. Next F7.3: drawing it behind a switch.

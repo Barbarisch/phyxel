@@ -3052,6 +3052,13 @@ every cube and micro cell; NPCs path through a framed door of new-store voxels w
 without a door blocks). MISSED narrowly: typeAt 50-52 ns (<= 50). Not yet: queryAABB (physics), stateAtMicro /
 phxOccupancySolid (lighting), the other chunkMap walkers.
 
+**F7.2, the generators write the new store (2026-11-21).** `VoxFound::WorldStore`: a BlockStore per engine chunk + one
+palette, with bulk writes -- `fillBox` (covered blocks as one entry), `paint`, `paintCanvas` (the realizer's 1/8 m
+canvas; 1/9 m refused), `fromRegion` (terrain + flora through F2's `forEachRegionChunk`) -- and `reads()` for F7.1.
+Exact against dense references across chunk borders; the hall house realized at 1/8 m painted cell for cell across a
+chunk border; NPCs walk between its rooms on the new store (sealed doors block); generated surface chunks voxel for
+voxel. Owed: part ids, carving a building's interior from terrain, the settlement / furniture / item placers.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:
