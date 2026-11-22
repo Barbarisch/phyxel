@@ -908,3 +908,21 @@ region holds a Leaf* or Log* voxel (uniform blocks answered from the block direc
   Y2: the canopy unit's frame <= 2 s (37 s).
   Y3: today's world still untouched by the settlement (0 / 315 sampled cubes).
 RED: tree_stub (the hook not set) -> the control (the Leaf cube survives).
+
+F7.14 RESULTS (2026-11-22; the prediction above untouched, except the Leaf cube's position -- see the control).
+Release; VoxFoundGate (port 8120). Evidence: voxfound_f714_live.jsonl; tools/voxfound_f714_live.py. Every artifact:
+WorldGenerator Perlin s7 + flora; the village by the ENGINE's SettlementBuildService; the Leaf cube placed through the
+voxel API (a test probe, hand-placed, stated).
+  CONTROL (the F7.13 editor), two spots discarded first (kept, labelled): the predicted (8166, 45, 98) and then
+     (8190, 50, 114) were removed by the PARCEL CLEARING, not the sweep -- it clears each column up to
+     max(groundTopAt, g + 12) and groundTopAt counts the floating cube itself. At (8134, 50, 100) (inside the sweep's
+     bounds, outside every plot's clearing): the cube survives (512 voxels), the canopy pass "0 found", a 28 s frame.
+  RED as predicted (tree_stub): the cube survives; the canopy frame 35 s; job 41 s.
+  Y1 PASS: the cube is found and cleared by the orphaned-canopy pass (11 cells found, 967 voxels cleared; the region
+     there air afterwards).
+  Y2 PASS: no stutter line for the canopy unit at all; the whole settlement job 6.6 s (41 s red, 34-37 s control).
+  Y3 PASS: today's world untouched (0 / 315).
+  Found on the way: the parcel clearing's ceiling follows any solid in the column (a floating object raises it) -- on
+     both worlds; logged, not changed.
+CONCLUSION: tree matter on the switched world is the region's (Leaf* / Log* in the cube's block), which makes the
+canopy sweep both correct and fast; every DamageSystem tree check (felling, vegetation gates) reads it too.

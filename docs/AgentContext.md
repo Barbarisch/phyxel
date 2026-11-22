@@ -692,7 +692,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       wells, pads) still old-grid.
       F7.13 done: ChunkManager write hook -- StructureGenerator::place/removeVoxels + settlement clears write the region
       (centre-sampled), today's world untouched. Owed: streets live, undo > 16 M, canopy sweep 37 s frame.
-      NEXT: the canopy sweep cost, then furnish, the chunkMap walkers, F7.7, F7's exit.
+      F7.14 done: tree-matter reads from the region (ChunkManager::setVoxFoundTreeCell): canopy sweep correct, job 41 -> 6.6 s.
+      NEXT: furnish on the switched world, the chunkMap walkers, F7.7, F7's exit.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

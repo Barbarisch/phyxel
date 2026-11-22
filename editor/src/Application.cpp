@@ -13599,6 +13599,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"struct_stub", voxFoundStructStub}};
             return;
         }
+        if (cmd.params.contains("tree_stub")) {   // F7.14 (tests): tree-matter reads not routed (the red)
+            voxFoundTreeStub = cmd.params["tree_stub"].get<bool>();
+            response = {{"tree_stub", voxFoundTreeStub}};
+            return;
+        }
         if (cmd.params.contains("writer_stub")) {   // F7.13 (tests): the old-grid writers not routed (the red)
             voxFoundWriterStub = cmd.params["writer_stub"].get<bool>();
             response = {{"writer_stub", voxFoundWriterStub}};
@@ -13882,6 +13887,24 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     });
                 else
                     chunkManager->setVoxFoundClearBoxes(nullptr);
+                if (on && !voxFoundTreeStub)   // F7.14: tree matter = a Leaf* / Log* voxel in the cube's block
+                    chunkManager->setVoxFoundTreeCell([this](const glm::ivec3& cube) -> bool {
+                        const glm::ivec3 c(cube.x >> 5, cube.y >> 5, cube.z >> 5);
+                        const Core::VoxFound::BlockStore* st = voxFoundEdit.chunkStore(c);
+                        if (!st) return false;
+                        auto veg = [this](uint8_t m) {
+                            return m && m < voxFoundPalette.size() &&
+                                   (voxFoundPalette[m].rfind("Leaf", 0) == 0 || voxFoundPalette[m].rfind("Log", 0) == 0);
+                        };
+                        const glm::ivec3 b(cube.x & 31, cube.y & 31, cube.z & 31);   // the cube's block in the chunk
+                        uint8_t u = 0;
+                        if (st->uniformBlock(b, u)) return veg(u);
+                        for (int k = 0; k < 512; ++k)
+                            if (veg(st->get(b * 8 + glm::ivec3(k >> 6, (k >> 3) & 7, k & 7)))) return true;
+                        return false;
+                    });
+                else
+                    chunkManager->setVoxFoundTreeCell(nullptr);
             }
             if (on) {
                 voxFoundWorldEditor = makeRegionWorldEditor(*this);   // F7.4

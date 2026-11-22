@@ -666,6 +666,7 @@ static CellTreeScan scanCellTree(ChunkManager* cm, const glm::ivec3& wp) {
 }
 // TREE cell = contains trunk (Log*) or canopy (Leaf*) material (Phase 2 tree-object flood).
 static bool isTreeCell(ChunkManager* cm, const glm::ivec3& wp) {
+    if (cm && cm->voxFoundTreeCell()) return cm->voxFoundTreeCell()(wp);   // F7.14: the switched world answers
     CellTreeScan s = scanCellTree(cm, wp);
     return s.log || s.leaf;
 }

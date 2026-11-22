@@ -3170,6 +3170,10 @@ settlement's five clear loops) write the region; thirds / ninths become 1/8 m vo
 this settlement mode lays no streets; the clearing exceeds the 16 M undo limit; the clearing cost 35 s -> 2 s as one
 masked edit; the orphaned-canopy sweep is a 37 s frame on the switched world (next lever).
 
+**F7.14, tree matter from the switched world (2026-11-22).** `ChunkManager::setVoxFoundTreeCell`: DamageSystem's tree
+checks ask the region (a Leaf* / Log* voxel in the cube's block) instead of scanning today's chunks. The canopy sweep
+now finds the region's orphans (a floating leaf cube swept) and the village job takes 6.6 s (41 s).
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

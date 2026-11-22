@@ -409,6 +409,11 @@ public:
     using VoxFoundClearBoxesFn =
         std::function<size_t(const std::vector<std::pair<glm::ivec3, glm::ivec3>>& boxes, const std::string& label)>;
     void setVoxFoundClearBoxes(VoxFoundClearBoxesFn fn) { m_voxFoundClearBoxes = std::move(fn); }
+    /// F7.14: tree matter on the switched world -- is cube `cube` (world cube coords) tree matter there (a Leaf* /
+    /// Log* voxel in its 8^3 block)? Empty = today's chunks answer (DamageSystem's cell scan).
+    using VoxFoundTreeCellFn = std::function<bool(const glm::ivec3& cube)>;
+    void setVoxFoundTreeCell(VoxFoundTreeCellFn fn) { m_voxFoundTreeCell = std::move(fn); }
+    const VoxFoundTreeCellFn& voxFoundTreeCell() const { return m_voxFoundTreeCell; }
     const VoxFoundWriteFn& voxFoundWrite() const { return m_voxFoundWrite; }
     /// F7.13: clear whole cubes grouped by chunk (chunk-local cells) -- the old loop (clearCellsBulk + markChunkDirty),
     /// or, with the write hook, air over each cube's 8^3 voxels. Returns the cells cleared (old) / voxels changed (new).
@@ -477,7 +482,8 @@ public:
 private:
     const Core::VoxFound::WorldReads* m_voxFoundReads = nullptr;
     VoxFoundWriteFn m_voxFoundWrite;   // F7.13
-    VoxFoundClearBoxesFn m_voxFoundClearBoxes;   // F7.1
+    VoxFoundClearBoxesFn m_voxFoundClearBoxes;
+    VoxFoundTreeCellFn m_voxFoundTreeCell;   // F7.14   // F7.1
     size_t m_borderRippleCount = 0;   // see borderRippleCount()
 
     // Memory management helper
