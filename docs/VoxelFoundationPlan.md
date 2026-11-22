@@ -3131,6 +3131,12 @@ on worker threads (a generator copy each), in order. Exact (unit + all 32 gate h
 workers (the gate request 26.5 -> 6.1 s); more workers are slower (allocation). MISSED: >= 10 narrowly, the 15/s sprint
 budget (levers: buffer reuse, no part/fixed channels for terrain, a flora template cache, GPU generation).
 
+**F7.9b, the switched world streams (2026-11-22).** `{"stream":true}`: when the camera leaves the region's inner chunks,
+the region is rebuilt around it -- edited chunks kept in memory (codec v3) and loaded back through F7.6a's exact path;
+save_world writes them. Edits survive shifts exactly; a 256 m walk stays on the world. Found: `flora_window:"bounded"`
+makes a chunk's trees depend on the region box -- streaming requires `"open"`. A shift is a 4.5-7.2 s hitch (the whole
+region regenerated): next, keep the staying chunks and build the entering ones in the background.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

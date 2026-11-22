@@ -3875,6 +3875,7 @@ void Application::update(float deltaTime) {
 
     stepVoxFoundBodies(deltaTime);   // F5.3 bodies lab (its own run switch; inert without a rig)
     if (!voxFoundLodDirty.empty()) voxFoundLodRefresh(1);   // F7.6d: one dirty chunk's coarse levels per frame
+    voxFoundStreamTick();                                   // F7.9b: the switched world follows the camera
 
     // Skip simulation when paused (API commands and jobs still process)
     if (gamePaused) return;
@@ -13416,8 +13417,17 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     const Core::VoxFound::VoxelGrid g = voxFoundEdit.dense(i);
                     uint64_t h = 1469598103934665603ull;
                     for (uint8_t v : g.mat) h = (h ^ v) * 1099511628211ull;
+                    // F7.9b: the same voxels by material NAME (palette order differs between region builds)
+                    std::vector<uint64_t> nameKey(256, 0);   // FNV-1a of each palette name (air 0): order-free
+                    for (size_t m = 1; m < voxFoundPalette.size() && m < 256; ++m) {
+                        uint64_t k = 1469598103934665603ull;
+                        for (char ch : voxFoundPalette[m]) k = (k ^ uint8_t(ch)) * 1099511628211ull;
+                        nameKey[m] = k;
+                    }
+                    uint64_t hn = 1469598103934665603ull;
+                    for (uint8_t v : g.mat) hn = (hn ^ nameKey[v]) * 1099511628211ull;
                     rows.push_back({{"chunk", {c.chunk.x, c.chunk.y, c.chunk.z}}, {"hash", std::to_string(h)},
-                                    {"edited", c.edited}});
+                                    {"hash_by_name", std::to_string(hn)}, {"edited", c.edited}});
                 }
             }
             response = {{"cleared", cleared}, {"chunks", rows},
@@ -13583,6 +13593,34 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("stream") || cmd.params.contains("stream_stub") || cmd.params.value("stream_status", false) ||
+            cmd.params.contains("stream_shift")) {   // F7.9b
+            if (cmd.params.contains("stream")) {
+                const bool want = cmd.params["stream"].get<bool>();
+                // F7.9b: "bounded" planting depends on the region box (trees rooted outside it are dropped), so a moving
+                // region would change the world under the player -- streaming needs the open window
+                if (want && voxFoundRegionRequest.value("flora", false) &&
+                    voxFoundRegionRequest.value("flora_window", std::string("bounded")) != "open") {
+                    response = {{"error", "stream needs a region built with flora_window:\"open\" (bounded planting "
+                                          "depends on the region box)"}};
+                    return;
+                }
+                voxFoundStreamOn = want;
+            }
+            if (cmd.params.contains("stream_stub")) voxFoundStreamStub = cmd.params["stream_stub"].get<bool>();
+            nlohmann::json shift;
+            if (cmd.params.contains("stream_shift")) {
+                const auto& s = cmd.params["stream_shift"];
+                shift = voxFoundStreamShift(glm::ivec3(s[0].get<int>(), s[1].get<int>(), s[2].get<int>()));
+            }
+            const auto& rg = voxFoundRegionRequest.is_null() ? nlohmann::json() : voxFoundRegionRequest["region"];
+            response = {{"stream", voxFoundStreamOn}, {"stream_stub", voxFoundStreamStub}, {"shifts", voxFoundStreamShifts},
+                        {"last_shift_ms", voxFoundStreamLastMs}, {"max_shift_ms", voxFoundStreamMaxMs},
+                        {"cached_chunks", voxFoundStreamCache.size()}, {"region", rg},
+                        {"switched", voxFoundWorldReads != nullptr}};
+            if (!shift.is_null()) response["shift"] = shift;
+            return;
+        }
         if (cmd.params.contains("phys_stub")) {   // F7.8 (tests): the switch sets no physics overrides (the red)
             voxFoundPhysStub = cmd.params["phys_stub"].get<bool>();
             response = {{"phys_stub", voxFoundPhysStub}};
@@ -13720,9 +13758,10 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             renderCoordinator->setVoxFoundOccupancy(nullptr);   // F7.3b
             DamageSystem::setDestructionOverride(nullptr);       // F7.5
             nlohmann::json loadReport;
-            if (on && cmd.params.value("load_saved", true)) {   // F7.6a: the world as it was saved (F3.3's blobs)
+            if (on) voxFoundSwitchLoadSaved = cmd.params.value("load_saved", true);   // F7.9b: a shift reuses it
+            if (on && (voxFoundSwitchLoadSaved || !voxFoundStreamCache.empty())) {   // F7.6a / F7.9b
                 const auto t0 = std::chrono::steady_clock::now();
-                loadReport = loadVoxFoundSaved();
+                loadReport = loadVoxFoundSaved(voxFoundSwitchLoadSaved);   // false: the stream cache only
                 loadReport["wall_ms"] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             }
             voxFoundPhysSwitch(on);   // F7.8: the physics occupancy follows the switch
@@ -14147,17 +14186,28 @@ void Application::handleVoxFoundSave(nlohmann::json& response) {
         rows.push_back({{"chunk", {c.chunk.x, c.chunk.y, c.chunk.z}}, {"bytes", blob.size()}, {"blob_hash", std::to_string(bh)},
                         {"store_bytes", c.store.memoryBytes()}, {"encode_ms", ms(t0, t1)}});
     }
-    response = {{"saved_chunks", saved}, {"region_chunks", voxFoundEdit.chunkCount()}, {"bytes", bytes},
+    size_t savedCache = 0;   // F7.9b: edited chunks outside the region (they left it while streaming)
+    for (const auto& [k, blob] : voxFoundStreamCache) {
+        const glm::ivec3 c(std::get<0>(k), std::get<1>(k), std::get<2>(k));
+        if (!ws->saveVoxFoundBlob(c, blob)) {
+            response = {{"error", "world.db write failed"}, {"chunk", {c.x, c.y, c.z}}};
+            return;
+        }
+        ++savedCache;
+        bytes += blob.size();
+    }
+    response = {{"saved_chunks", saved}, {"saved_from_stream_cache", savedCache}, {"region_chunks", voxFoundEdit.chunkCount()}, {"bytes", bytes},
                 {"encode_ms", encodeMs}, {"write_ms", writeMs}, {"chunks", rows}, {"codec", "PXF3 v1"}};
 }
 
 // F3.3: every saved chunk (world.db voxfound_chunk_blobs) inside the editable region wins over the generator: decoded,
 // its materials mapped to the region palette by name, and written through RegionEdit::loadChunk (the exact incremental
 // rebuild; the neighbours' border planes follow). Then the drawn lists are assembled from the store.
-nlohmann::json Application::loadVoxFoundSaved() {
+nlohmann::json Application::loadVoxFoundSaved(bool fromDb) {
     using namespace Core::VoxFound;
     auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
-    if (!ws || !ws->getDb()) return {{"error", "no world storage (world.db) open"}};
+    if ((!ws || !ws->getDb()) && voxFoundStreamCache.empty()) return {{"error", "no world storage (world.db) open"}};
+    size_t fromCache = 0;
     auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
     size_t loaded = 0, voxels = 0, bytes = 0;
     double decodeMs = 0.0, writeMs = 0.0;
@@ -14165,7 +14215,14 @@ nlohmann::json Application::loadVoxFoundSaved() {
     for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
         const glm::ivec3 cc = voxFoundEdit.chunk(i).chunk;
         std::vector<uint8_t> blob;
-        if (!ws->loadVoxFoundBlob(cc, blob)) continue;
+        auto cit = voxFoundStreamCache.find({cc.x, cc.y, cc.z});   // F7.9b: a chunk that left the region edited wins
+        if (cit != voxFoundStreamCache.end()) {
+            blob = std::move(cit->second);
+            voxFoundStreamCache.erase(cit);
+            ++fromCache;
+        } else if (!fromDb || !ws || !ws->getDb() || !ws->loadVoxFoundBlob(cc, blob)) {
+            continue;
+        }
         BlockStore saved;
         std::vector<std::string> names;
         std::string err;
@@ -14198,7 +14255,7 @@ nlohmann::json Application::loadVoxFoundSaved() {
         bytes += blob.size();
     }
     if (loaded) voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
-    return {{"loaded_chunks", loaded}, {"bytes", bytes}, {"voxels_written", voxels}, {"decode_ms", decodeMs},
+    return {{"loaded_chunks", loaded}, {"from_stream_cache", fromCache}, {"bytes", bytes}, {"voxels_written", voxels}, {"decode_ms", decodeMs},
             {"load_rebuild_ms", writeMs}, {"errors", errors}};
 }
 
@@ -14422,6 +14479,78 @@ nlohmann::json Application::voxFoundLodCheck() {
     }
     return {{"chunks", chunks}, {"mismatched_by_level", bad}, {"faces_by_level", total},
             {"dirty", voxFoundLodDirty.size()}};
+}
+
+// F7.9b: the switched world streams. A shift keeps every edited region chunk (codec v3, F3.3) in voxFoundStreamCache,
+// switches off, rebuilds the region at the new box with the same request (F7.9a's worker generation), and switches on
+// -- which loads the cache, then world.db, through F7.6a's exact path. Broad strokes: the whole region is regenerated
+// (kept chunks included) and the shift is synchronous (one hitch); the levers are a kept-chunk reuse and a background
+// build. Bodies in flight (the F7.5 world rig) are not carried across a shift.
+nlohmann::json Application::voxFoundStreamShift(glm::ivec3 newLo) {
+    using namespace Core::VoxFound;
+    if (voxFoundRegionRequest.is_null() || !voxFoundRegionRequest.contains("region"))
+        return {{"error", "no editable region request to shift"}};
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto& rg = voxFoundRegionRequest["region"];
+    const glm::ivec3 a(rg["from"][0].get<int>(), rg["from"][1].get<int>(), rg["from"][2].get<int>());
+    const glm::ivec3 b(rg["to"][0].get<int>(), rg["to"][1].get<int>(), rg["to"][2].get<int>());
+    const glm::ivec3 size = glm::max(a, b) - glm::min(a, b);
+    size_t cached = 0;
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+        const auto& c = voxFoundEdit.chunk(i);
+        if (!c.edited) continue;
+        std::string err;
+        std::vector<uint8_t> blob = c.store.encodeV3(voxFoundPalette, &err);
+        if (blob.empty()) return {{"error", "encode: " + err}};
+        voxFoundStreamCache[{c.chunk.x, c.chunk.y, c.chunk.z}] = std::move(blob);
+        ++cached;
+    }
+    const bool wasOn = voxFoundWorldReads != nullptr;
+    Core::APICommand c;
+    nlohmann::json r;
+    if (wasOn) {
+        c.params = {{"world_switch", false}};
+        handleVoxFoundPreview(c, r);
+    }
+    const auto t1 = std::chrono::steady_clock::now();
+    nlohmann::json req = voxFoundRegionRequest;
+    const glm::ivec3 hi = newLo + size;
+    req["region"] = {{"from", {newLo.x, newLo.y, newLo.z}}, {"to", {hi.x, hi.y, hi.z}}};
+    c.params = req;
+    nlohmann::json built;
+    handleVoxFoundPreview(c, built);
+    if (built.contains("error")) return {{"error", built["error"]}, {"stage", "build"}};
+    const auto t2 = std::chrono::steady_clock::now();
+    nlohmann::json on;
+    if (wasOn) {
+        c.params = {{"world_switch", true}, {"load_saved", voxFoundSwitchLoadSaved}};
+        handleVoxFoundPreview(c, on);
+    }
+    const auto t3 = std::chrono::steady_clock::now();
+    auto ms = [](auto x, auto y) { return std::chrono::duration<double, std::milli>(y - x).count(); };
+    voxFoundStreamLastMs = ms(t0, t3);
+    voxFoundStreamMaxMs = std::max(voxFoundStreamMaxMs, voxFoundStreamLastMs);
+    ++voxFoundStreamShifts;
+    return {{"to", {newLo.x, newLo.y, newLo.z}}, {"cached", cached}, {"off_ms", ms(t0, t1)}, {"build_ms", ms(t1, t2)},
+            {"generate_ms", built.value("generate_ms", 0.0)}, {"switch_on_ms", ms(t2, t3)}, {"wall_ms", ms(t0, t3)},
+            {"loaded", on.value("loaded", nlohmann::json())}};
+}
+
+void Application::voxFoundStreamTick() {
+    if (!voxFoundStreamOn || voxFoundStreamStub || !voxFoundWorldReads || !camera || voxFoundRegionRequest.is_null()) return;
+    const auto& rg = voxFoundRegionRequest["region"];
+    const glm::ivec3 a(rg["from"][0].get<int>(), rg["from"][1].get<int>(), rg["from"][2].get<int>());
+    const glm::ivec3 b(rg["to"][0].get<int>(), rg["to"][1].get<int>(), rg["to"][2].get<int>());
+    const glm::ivec3 lo = glm::min(a, b), hi = glm::max(a, b);
+    const glm::vec3 p = camera->getPosition();
+    const glm::ivec3 fc(int(std::floor(p.x / 32.0f)), 0, int(std::floor(p.z / 32.0f)));
+    // the focus must stay on the region's inner chunks (one chunk of margin each side in x and z)
+    const bool inside = fc.x >= lo.x + 1 && fc.x <= hi.x - 1 && fc.z >= lo.z + 1 && fc.z <= hi.z - 1;
+    if (inside) return;
+    const glm::ivec3 size = hi - lo + 1;
+    const glm::ivec3 newLo(fc.x - size.x / 2, lo.y, fc.z - size.z / 2);
+    if (newLo == lo) return;
+    voxFoundStreamShift(newLo);
 }
 
 // F7.8 (docs/VoxelFoundationPlan.md section 7 step 1, queryAABB): while switched, every region chunk's static terrain
@@ -14774,6 +14903,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     const glm::ivec3 a = vec3Of("from"), b = vec3Of("to");
     const glm::ivec3 lo = glm::min(a, b), hi = glm::max(a, b);
     const glm::ivec3 nC = hi - lo + 1;
+    if (cmd.params.value("editable", false)) voxFoundRegionRequest = cmd.params;   // F7.9b: what a shift rebuilds
     const int count = nC.x * nC.y * nC.z;
     if (count > 256) {
         response = {{"error", "region over 256 chunks"}, {"chunks", count}};

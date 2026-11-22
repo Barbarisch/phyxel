@@ -340,6 +340,16 @@ private:
     // set as VoxelDynamicsWorld overrides while switched
     std::vector<std::unique_ptr<Physics::VoxelOccupancyGrid>> voxFoundPhysGrids;
     bool voxFoundPhysStub = false;                                      // F7.8 (tests): no overrides (the red)
+    // F7.9b: the switched world follows the focus (the camera): when it leaves the region's inner chunks the region is
+    // rebuilt around it; edited chunks that leave are kept (codec v3, by chunk) and load back when they re-enter
+    std::map<std::tuple<int, int, int>, std::vector<uint8_t>> voxFoundStreamCache;
+    nlohmann::json voxFoundRegionRequest;   // the last editable region build's request
+    bool voxFoundStreamOn = false, voxFoundStreamStub = false;
+    bool voxFoundSwitchLoadSaved = true;   // the last switch-on's load_saved (a shift reuses it)
+    size_t voxFoundStreamShifts = 0;
+    double voxFoundStreamLastMs = 0.0, voxFoundStreamMaxMs = 0.0;
+    nlohmann::json voxFoundStreamShift(glm::ivec3 newLo);
+    void voxFoundStreamTick();
     void voxFoundPhysSwitch(bool on);
     double voxFoundLodMaxChunkMs = 0.0, voxFoundLodLastSelectMs = 0.0, voxFoundLodSumChunkMs = 0.0;
     size_t voxFoundLodRefreshed = 0;
@@ -826,7 +836,7 @@ private:
     /// new); -1 + `err` for an unknown material or a full palette. "air" / "" = 0.
     int voxFoundMaterial(const std::string& name, std::string* err);
     void handleVoxFoundSave(nlohmann::json& response);   // F3.3: the edited chunks, codec v3, world.db
-    nlohmann::json loadVoxFoundSaved();                  // F3.3: saved chunks into the editable region
+    nlohmann::json loadVoxFoundSaved(bool fromDb = true);   // F7.9b: false = the stream cache only                  // F3.3: saved chunks into the editable region
     void registerSettlementCommands();   // build_settlement: compose a settlement (subdivide+populate+build each)
     void registerWorldForgeCommands();   // worldforge_*: world-scale plan preview/apply/status/map (docs/WorldForge.md)
     void registerDoorCommands();

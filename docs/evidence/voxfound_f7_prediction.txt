@@ -661,3 +661,30 @@ load through F7.6a's exact path). save_world also writes the kept chunks. Bodies
      a big hitch, stated; the levers: build only the entering chunks and build them off the main thread.
   T4: save_world after the walk writes the kept chunks (saved_from_stream_cache >= 1 when an edited chunk has left).
 RED: stream_stub -> the control's behaviour (no shift; the camera leaves the region).
+
+F7.9b RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); the world.db backed up and
+restored around every run (T4 writes it). Evidence: voxfound_f79b_live.jsonl; tools/voxfound_f79b_live.py. Every
+artifact: WorldGenerator Perlin s7 + flora (the 1/8 m region), edits through the engine's voxel API.
+  CONTROL (the F7.9a editor): switched, the camera 3 chunks east -> chunk (258, 3), outside the region (254..257); the
+     pick down from the camera hits nothing.
+  RED as predicted: stream_stub + stream on -> no shift, the camera outside the region, nothing under it.
+  GREEN run 1 FOUND (the world, not the code): the default flora_window "bounded" plants only trees rooted inside the
+     region's window, so a chunk's trees depend on where the region is -- the shifted region's chunk A came out
+     164,174 voxels different from the same chunk built in the first box (the load overwrote them with the old box's).
+     A moving region would change the world under the player. Fixed by policy: stream refuses a region not built with
+     flora_window "open" (planting by world position only). Also, store hashes compare material ids, and each build's
+     palette order differs: store_hash now also gives hash_by_name (per-name keys; run 2 used sorted ranks, which shift
+     when an edit adds a material -- a hash defect, kept and labelled). Run 3 is the record.
+  T1 PASS: chunk A (edited, kept) after a +2-chunk shift = its edited voxels; the 31 others = a fresh build of the new
+     box; shifted back: A and B (B had left the region) = their edited voxels, the 30 others = the first build; each
+     load wrote exactly the edit (512 voxels).
+  T2 PASS: stream on, the camera walks +x 256 m in 16 m steps: 17 / 17 steps inside the region with ground under the
+     camera; 7 shifts on the walk (9 in all).
+  T3 MET as stated, a big hitch: a shift 4.5-7.2 s (the whole 32-chunk region regenerated, ~4 s of it generation) --
+     unplayable at walking speed; the levers: keep the chunks that stay (generate only the entering slab: 8 of 32),
+     and build off the main thread.
+  T4 PASS: save_world wrote the 2 kept chunks (saved_from_stream_cache 2).
+  Not here, stated: bodies in flight (F7.5's world rig), the coarse levels (rebuilt by the build), undo entries outside
+     the new box (applyCells clips them).
+CONCLUSION: the switched world now follows the camera -- edits carried exactly, the world a function of position --
+but each shift is a multi-second hitch. Next: F7.9c, shifts that keep the staying chunks and build in the background.
