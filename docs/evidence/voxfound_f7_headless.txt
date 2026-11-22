@@ -183,3 +183,19 @@ G:\Github\phyxel-matsimb-lab\tests\core\WorldReadsTest.cpp(325): error: Expected
 [WorldStore] generated terrain: 4 chunks, 37949662 solid voxels, 0 differ; palette 4
 [  PASSED  ] 43 tests.
 [  FAILED  ] WorldReads.Cost (561 ms)
+== F7.4 E1 RED (setWorldEditor stubbed) ==
+Note: Google Test filter = WorldEditorRouting.*
+[----------] 1 test from WorldEditorRouting
+[ RUN      ] WorldEditorRouting.HoverBreakAndPlaceGoToTheEditor
+G:\Github\phyxel-matsimb-lab\tests\core\WorldEditorRoutingTest.cpp(61): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldEditorRoutingTest.cpp(62): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldEditorRoutingTest.cpp(63): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\WorldEditorRoutingTest.cpp(64): error: Value of: vis.hasHoveredCube()
+G:\Github\phyxel-matsimb-lab\tests\core\WorldEditorRoutingTest.cpp(72): error: Expected equality of these values:
+[  FAILED  ] WorldEditorRouting.HoverBreakAndPlaceGoToTheEditor (1 ms)
+[----------] 1 test from WorldEditorRouting (1 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] WorldEditorRouting.HoverBreakAndPlaceGoToTheEditor
+== F7.4 E1 GREEN + related (WorldEditorRouting, *VoxelInteraction*, *Placement*, *Destruction*, AudioSystem*) ==
+[  PASSED  ] 45 tests.
