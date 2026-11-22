@@ -15277,11 +15277,25 @@ holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run print
   a retiring patch) checks the retire finished when the new patch goes live (57.8's rule: before it reads the record), not the
   frame after the splash (a cold stage 0 waits frames). `ASecondPatchTakesTheFirstPatchsBuffers`: its spare-off runs are the old
   path's controls, so they run the cold part at once (`s_patchColdAtOnceForTest`), and S5 counts the LAST patch's grid (the worker's
-  grid is adopted through the same slot). Run while another program held the GPU at 53-100 %: P8 at 120 fps and P7's red control
+  grid is adopted through the same slot). Idle re-run (2026-11-22): water unit 322 / 322, integration 103 / 105 (the known two) -
+  merged. Run while another program held the GPU at 53-100 %: P8 at 120 fps and P7's red control
   (both depend on how many stages a frame's wall-time budget fits) failed in that run - as in the run before this change under the
   same load; to re-run idle.
-- Not done: the cheap ripple on the record while it builds (the alternative); pre-warming the spare (item 5); the first live frame
-  (item 2, (a) partly, (b)); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
+- **Live after the cold path (2026-11-22, idle GPU, `s58_trace_after_cold.json`):** the first patch's worst stage 30.1 -> 4.3 ms
+  (its push waited 24 frames); the totals barely moved - over 15 ms 26 / 27 frames a run (was 30 / 27), max 33.5 / 35.0 ms. The
+  largest group now: 10-12 frames in a row of 20-35 ms right after the patch goes live (water 15-28 ms each).
+- **That first second split** (`s58_windows_after_cold.json`, then `gpu.08` split into `gpu.08a-d`, `s58_windows_gpu08.json`): tile
+  wakes ~14 in 0.3 s (81-85 ms in all), the GPU step up to 13 ms a call - **5.4-5.5 of it `gpu.08d`, the host's surface writes**:
+  `queueSurfaceColumns` queued one 68-byte entry a column (a woken tile its whole seed surface), sorted and merged in the next call.
+  **Fix:** with no call in flight the rectangle goes straight into the mapped upload buffer as rows (`queueSurfaceRows`, 58.2's
+  path for adopt); in flight, a column at a time as before; a direct write first lands any queued columns (later writes win, as
+  before). TEST ONLY `s_surfaceWritesAsColumnsForTest`. **Test:** `TheDeviceMeshIsTheHostMesh` (the GPU mesh against the host's
+  every 10 ticks through records and seeds) - 0 of 90 checks off, its red (no ring) 76 off; `WaterRecordTilesTest` 28 / 28.
+  **Live: not yet measured cleanly** - the run (`s58_windows_surfrows.json`) shows `gpu.08d` gone and the GPU step's worst 13 ->
+  4.3-5.4 ms, but another engine (not this session's) held the GPU at 55-80 % through it: fence waits 45-49 ms, tile wakes 16-22 -
+  that run's other numbers are not this change's.
+- Not done: the cheap ripple on the record while it builds (the alternative); the first live second's tile wakes (~6 ms each) and
+  `up.1` (host occupancy + solid tops, 3-8 ms); the tile records (group 3); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
   the water's, logged here only).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)

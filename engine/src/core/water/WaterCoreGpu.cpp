@@ -2397,6 +2397,10 @@ bool WaterCoreGpu::readSurface(const Volume& vol, float* out, bool keep) const {
 
 void WaterCoreGpu::queueSurfaceColumns(Volume& vol, const Core::Water::WaterSurfaceField& field, int x0, int z0, int x1, int z1) {
     if (!vol.bricked || field.nx != vol.spec.dims.x || field.nz != vol.spec.dims.z || field.cols.size() != vol.dColumns) return;
+    // 58.3 item 1: with no call in flight the rectangle goes straight into the upload buffer as rows (queueSurfaceRows) - one entry a
+    // column (68 B each, sorted and merged in the next call) was 5.4-5.5 ms of a patch's first calls live (gpu.08d), a woken tile
+    // queuing its whole seed surface. In flight (the buffer may still be read), queued a column at a time as before
+    if (vol.surfUp.mapped && !vol.inFlight && !s_surfaceWritesAsColumnsForTest) { queueSurfaceRows(vol, field, x0, z0, x1, z1); return; }
     x0 = std::max(x0, 0); z0 = std::max(z0, 0); x1 = std::min(x1, field.nx); z1 = std::min(z1, field.nz);
     for (int z = z0; z < z1; ++z) for (int x = x0; x < x1; ++x) {
         const uint32_t c = static_cast<uint32_t>(x + field.nx * z);
@@ -2406,11 +2410,18 @@ void WaterCoreGpu::queueSurfaceColumns(Volume& vol, const Core::Water::WaterSurf
 
 void WaterCoreGpu::queueSurfaceRows(Volume& vol, const Core::Water::WaterSurfaceField& field, int x0, int z0, int x1, int z1) {
     if (!vol.bricked || field.nx != vol.spec.dims.x || field.nz != vol.spec.dims.z || field.cols.size() != vol.dColumns) return;
-    if (!vol.surfPending.empty() || !vol.surfUp.mapped) { queueSurfaceColumns(vol, field, x0, z0, x1, z1); return; }
+    if (!vol.surfUp.mapped || (s_surfaceWritesAsColumnsForTest && !vol.surfPending.empty())) {   // the 58.2 rule (the reference path)
+        x0 = std::max(x0, 0); z0 = std::max(z0, 0); x1 = std::min(x1, field.nx); z1 = std::min(z1, field.nz);
+        for (int z = z0; z < z1; ++z) for (int x = x0; x < x1; ++x) { const uint32_t c = static_cast<uint32_t>(x + field.nx * z); vol.surfPending.push_back({c, field.cols[c]}); }
+        return;
+    }
     x0 = std::max(x0, 0); z0 = std::max(z0, 0); x1 = std::min(x1, field.nx); z1 = std::min(z1, field.nz);
     if (x1 <= x0 || z1 <= z0) return;
     settle(vol);   // the upload buffer is written now: no earlier call may still be reading it
     auto* rec = static_cast<Core::Water::SurfaceColumn*>(vol.surfUp.mapped);
+    // 58.3: column writes queued earlier (while a call was in flight) land first - this write is later and must win
+    for (const auto& [c, r] : vol.surfPending) if (c < vol.dColumns) { rec[c] = r; vol.surfRows.push_back({c, 1u}); }
+    vol.surfPending.clear();
     for (int z = z0; z < z1; ++z) {
         const uint32_t c = static_cast<uint32_t>(x0 + field.nx * z), n = static_cast<uint32_t>(x1 - x0);
         std::memcpy(rec + c, field.cols.data() + c, n * sizeof(Core::Water::SurfaceColumn));
@@ -3446,6 +3457,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         vol.solidRatesPending = false;
     }
     const bool capture = s_stageCapture && ticks == 1 && n == 1;   // 26.10 test hook
+    WaterHostProfile::lap("gpu.08a momentum + fills", hp);   // 58.3: gpu.08 split (6.1 ms live in a patch's first calls)
     const double swellT0 = vol.swellTime;   // 55.4: this call's ticks run at swellT0 + t dt; the clock then runs on
     vol.swellTime = swellT0 + static_cast<double>(ticks) * dt;
     if (capture && !vol.stageCap.buf && !createBuffer(vol.stageCap, kStages * vol.cells * sizeof(float), true, nullptr)) vol.stageCap = Buffer{};
@@ -3479,6 +3491,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         barrier(cmd);
     }
     if (!capture) std::swap(capBuf, vol.stageCap);   // the capture buffer is back in place (only the recording needed it hidden)
+    WaterHostProfile::lap("gpu.08b the substeps", hp);
     vol.slotsUsed = fullSlots; vol.colCount = fullCols;   // 26.31 step 2: every stored brick from here
     fillPushBricks(vol, push);
     push.setFrozenOn(0);   // 26.31: the record, the reductions and the surface cover every stored brick (a frozen column is still drawn and weighed)
@@ -3491,6 +3504,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     recordReductions(cmd, vol, push);
     copy(cmd, vol.out, vol.staging, kOutSlots * 16, 0, vol.offOut);
     stamp(cmd, vol, TsReduce);
+    WaterHostProfile::lap("gpu.08c record + reductions", hp);
     // Phase F: the surface field rides the same submission (one float per sub-column of top/bottom/
     // solid - never the grid), so the renderer sees every step's surface
     push.param0 = WaterGrid::kSurfaceMinDepth / vol.spec.h; push.iparam = vol.spec.origin.y;
@@ -3546,6 +3560,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
             meshFull = true;
         }
     }
+    WaterHostProfile::lap("gpu.08d host surface writes", hp);
     dispatch(cmd, *vol.pipes[Surface], push, colsSurf);
     stamp(cmd, vol, TsSurfaceKernel);
     if (gpuSurf) {   // 29 S1: the mesh - the covered columns and a ring round them (or every column), then the extras list

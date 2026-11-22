@@ -621,6 +621,8 @@ public:
     /// 58.3 item 1: scatterSlots walks a brick's cells a row of 8 at a time (the per-cell walk, 2.9 ms of a live tile wake's ~1,140 new
     /// slots, is kept as the reference). TEST ONLY: the row walk one cell short in x (the parity test's red)
     static inline bool s_scatterRowShortForTest = false;
+    /// 58.3 item 1: TEST ONLY - host surface writes queued a column at a time as before (queueSurfaceColumns) - the reference path
+    static inline bool s_surfaceWritesAsColumnsForTest = false;
     /// 58.3 measurement (updatePartialWake): calls in which a MOVING brick column was beside (Chebyshev 1) a column still recorded -
     /// a wall to it: the wave reached the record before the margin's tile wake did - and the column count summed over them
     struct MovingAtRecorded { long calls = 0, columns = 0; };
