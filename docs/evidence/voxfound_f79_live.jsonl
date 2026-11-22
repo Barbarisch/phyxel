@@ -1,0 +1,1 @@
+{"mode": "control (the F7.8 editor, 2026-11-22)", "region32_flora": {"chunks": 32, "generate_ms": 22996.8, "build_wall_ms": 2772.0, "request_wall_s": 25.9}, "region8_noflora": {"chunks": 8, "generate_ms": 4382, "per_chunk_ms": 548}, "region8_flora": {"chunks": 8, "generate_ms": 5304, "per_chunk_ms": 663}}

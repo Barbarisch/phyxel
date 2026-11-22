@@ -602,3 +602,22 @@ first control run read null for every drop, void, kept and labelled).
 CONCLUSION: the switched world is solid where it is drawn: VoxelDynamicsWorld (contacts, overlapsTerrain,
 anyStaticSolidInAABB) reads the region's stores through per-chunk overrides; the character stands in pits, on pillars,
 and falls when an edit removes its floor. Section 7 step 1 is complete for physics.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.9a PREDICTION -- the generation rate (2026-11-22, before any code). Why now: F7's exit is "default switched", and a
+switched world bigger than one region must stream; section 3.5a sets the budget (a 10 m/s sprint brings in ~15 chunks
+per second) and F1's stop condition is "generation too slow to keep up with a sprint" -- never measured until now.
+CONTROL (measured on the F7.8 editor, voxfound_f79_live.jsonl): the gate region (32 chunks, flora) generates in 23.0 s
+(0.72 s per chunk) + 2.8 s of face building = 25.9 s per request; 8 chunks without flora 548 ms per chunk, with flora
+663. That is ~1.4 chunks per second, a tenth of the budget.
+THE CHANGE (two levers, broad strokes): (1) buildTerrainArea asks the generator for a material once per (metre column,
+surface metre, metre) instead of once per voxel (a string per voxel through a map today); (2) forEachRegionChunk
+generates chunk areas (terrain + flora) on worker threads, one WorldGenerator copy each (as ChunkStreamingManager's
+workers), handing them to the caller in the same order.
+  G1 (exact): the new buildTerrainArea equals the old (kept as the reference) voxel for voxel and palette for palette
+     (unit, 3 places / 2 seeds); the gate region's 32 store hashes and 477,858 faces unchanged live.
+  G2: terrain alone <= 200 ms per chunk on one thread (548).
+  G3: the gate region's generation with workers >= 10 chunks per second (32 chunks in <= 3.2 s, flora on); the
+     section 3.5a budget of 15 per second probably MISSED with flora (stated); the serial face build stays (~85 ms per
+     chunk), so the request wall >= 5.9 s.
+RED: {"gen_threads":1} + {"gen_legacy":true} reproduce the control's numbers.
