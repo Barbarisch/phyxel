@@ -728,3 +728,20 @@ Perlin s7 + flora (open window), edits through the engine's voxel API.
 CONCLUSION: the switched world streams at sprint speed without a multi-second freeze -- the staying chunks are kept,
 the entering slab is generated on 4 threads in the background, one chunk is prepared per frame (~0.26-0.28 s, the
 remaining hitch) and the swap costs a frame. Next: F7.7, deleting the old cube / subcube / microcube paths.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.10 PREDICTION -- template placement on the switched world (F7's owed "other placers", the first: spawn_template;
+2026-11-22, before any code).
+CONTROL: with the switch on, POST /api/template/spawn (spawn_template, static) writes today's hidden chunks (C/S/M
+template, ObjectTemplateManager -> chunkMap); the region is unchanged. Re-run first: a barrel at open ground.
+THE CHANGE: with the switch on, a static spawn_template paints the template's 1/8 m version (resources/templates_g8,
+found by stem or relative path; FC step 4 generated them) into the region as one edit (EditHistory: undoable):
+position = metres (its min corner at floor(position * 8)), rotation = quarter turns about +Y, snap (default true) =
+the template's lowest layer on the region's ground under its footprint (the highest solid voxel + 1). Unknown
+materials refused. Seat / building templates are not seated (stated: the structure seater is old-grid code).
+  Q1: a barrel in open air: voxels placed = the template's cells; every placed cell's material = the template's (the
+      handler's verify: cells read back after the write); the GET /api/world/voxel sum over its cubes = the cells.
+  Q2: rotation 1: the same count; the footprint's x and z extents swap.
+  Q3: snap from 6 m above the ground: the template's lowest voxel = the ground's top voxel + 1 at its footprint.
+  Q4: one undo restores all 32 store hashes.
+RED: template_stub -> the control (today's chunks written, the region unchanged).
