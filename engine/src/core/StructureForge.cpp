@@ -164,6 +164,7 @@ const std::vector<std::string>& StructureForge::stageNames() {
 nlohmann::json StructureForge::run(const nlohmann::json& params,
                                    const StructureBuildService::Deps& deps) {
     Context ctx{params, deps};
+    if (deps.canvasSink) LOG_INFO("StructureBuild", "canvas sink set: the shell goes to the new store (F7.11)");
 
     using StageFn = StageReport (*)(Context&);
     static const std::pair<const char*, StageFn> kStages[] = {

@@ -13599,6 +13599,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"struct_stub", voxFoundStructStub}};
             return;
         }
+        if (cmd.params.value("struct_log", false)) {   // F7.12: the new-store placements so far ({"log_clear":true} empties)
+            response = {{"placements", voxFoundCanvasLog}};
+            if (cmd.params.value("log_clear", false)) voxFoundCanvasLog = nlohmann::json::array();
+            return;
+        }
         if (cmd.params.contains("struct_check")) {   // F7.11 W3: solid voxels above the floor in a box (no canvas cells)
             const auto& sc = cmd.params["struct_check"];
             const glm::ivec3 lo(sc["lo"][0].get<int>(), sc["lo"][1].get<int>(), sc["lo"][2].get<int>());
@@ -14689,12 +14694,16 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
             }
     nlohmann::json r = voxFoundPaintCells("build_structure", cells);
     r["success"] = r.value("error", std::string()).empty() && r.value("verify_bad", size_t(1)) == 0;
+    if (r.value("error", std::string()).empty()) r.erase("error");   // F7.12: callers read any "error" key as a refusal
     r["world"] = "voxfound";
     r["canvas_cells"] = occ.size();
     r["excavated"] = excavated;
     r["cleared_tree_voxels"] = clearedTrees;
     r["floor_y_voxel"] = groundTop + 1;
     r["origin"] = {origin.x, origin.y, origin.z};
+    nlohmann::json logged = r;   // F7.12: kept for struct_log (without the bulky samples)
+    logged.erase("verify_samples");
+    voxFoundCanvasLog.push_back(logged);
     return r;
 }
 
@@ -18017,6 +18026,10 @@ void Application::registerSettlementCommands() {
                            .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
             };
 
+        if (voxFoundWorldReads && !voxFoundStructStub)   // F7.12: each house's 1/8 m shell into the switched world
+            deps.canvasSink = [this](const Core::MicroCanvas& c, int floorTop, int ox, int oz) {
+                return voxFoundPlaceCanvas(c, floorTop, ox, oz);
+            };
         auto plan = Core::SettlementBuildService::plan(cmd.params, deps);
         if (!plan.ok()) { r = plan.error; return; }
 
@@ -18038,7 +18051,8 @@ void Application::registerSettlementCommands() {
             mainThreadJobs->seal(jobId);
             r = {{"success", true}, {"job_id", jobId}, {"async", true},
                  {"settlement", plan.settlement}, {"program", plan.program},
-                 {"queued_builds", plan.queuedBuilds}};
+                 {"queued_builds", plan.queuedBuilds},
+                 {"new_store", static_cast<bool>(deps.canvasSink)}};   // F7.12: houses go to the switched world
         } else {
             for (auto& u : plan.units)
                 if (u.run) u.run();

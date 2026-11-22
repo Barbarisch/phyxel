@@ -31,6 +31,7 @@
 // This is the seam that keeps the job system out of the engine service.
 // ============================================================================
 
+#include "core/MicroCanvas.h"
 #include <functional>
 #include <memory>
 #include <string>
@@ -87,6 +88,10 @@ public:
         /// Forwarded to every building: designer anchors (transition-trigger regions)
         /// the furnisher must keep clear - see StructureBuildService::Deps::keepClear.
         std::vector<KeepClearBox> keepClear;
+        /// docs/VoxelFoundationPlan.md F7.12: forwarded to every building (StructureBuildService::Deps::canvasSink):
+        /// the switched world takes each house's 1/8 m shell. The settlement's own writers (streets, paving,
+        /// fences, the pad) do not use it yet.
+        std::function<nlohmann::json(const MicroCanvas& canvas, int floorTopCell, int originX, int originZ)> canvasSink;
     };
 
     /// One deferred phase of the build. `label` is the progress name shown to the user.

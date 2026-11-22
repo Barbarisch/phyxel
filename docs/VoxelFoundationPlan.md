@@ -3158,6 +3158,11 @@ realizes the shell on the 1/8 m grid and, after validate_realized, the editor's 
 one undoable edit. Live: a hall house, 121,826 cells exact, a character stands on its floor, undo exact. Found: region
 trees are voxels the old vegetation gate never sees. Not yet: furnish / emit (furniture, items, lights, nav), settlements.
 
+**F7.12, settlement houses on the switched world (2026-11-22).** `SettlementBuildService::Deps::canvasSink` is forwarded to
+every house: a 2 x 2 village's four houses land in the region (exact, standable, one undo each). Found: a success
+response with an empty "error" key made the settlement re-roll every lot. Not yet: the settlement's own ground works
+(clearing, streets, paving, fences, wells, pads) still write today's chunks.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

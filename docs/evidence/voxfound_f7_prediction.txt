@@ -825,3 +825,26 @@ getChunkAtFast sites) are NOT routed yet: they still write today's hidden chunks
   V2: each house's floor is on the region's ground: a character dropped inside each house rests on its floor (+-0.125 m).
   V3: undo removes the houses one by one: as many undo entries as houses, then the region's hashes = the start.
 RED: struct_stub -> the control.
+
+F7.12 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); flora_window open,
+load_saved false. Evidence: voxfound_f712_live.jsonl, voxfound_f712_village.png (oblique, canopy in the way) and
+voxfound_f712_village_top.png (straight down from 95 m); tools/voxfound_f712_live.py. Every artifact: WorldGenerator
+Perlin s7 + flora (the region); the settlement is the ENGINE's SettlementBuildService (POST /api/settlement/build, 2 x 2
+plots: three longhouses and a croft, async job) with each house from StructureForge -- never hand-placed.
+  CONTROL (the F7.11 editor, before the code): 4 houses + 6 streets into today's hidden chunks, the region unchanged,
+     0 undo entries.
+  RED as predicted (struct_stub): the same.
+  Void runs, MY defects (kept, labelled): green runs 0-2 sent {"struct_log":true,"clear":true} -- the preview handles
+     "clear" first and tore the region and the switch down before the settlement (first mislabelled as stale builds;
+     a log line added to StructureForge::run while chasing it stays). The flag is now "log_clear".
+  GREEN run 3 FOUND: every lot built twice -- the sink's success response carried "error":"" and SettlementBuildService
+     reads any "error" key as a refusal, re-rolling each lot onto the first house. Fixed (no empty error key). Run 4 is
+     the record.
+  V1 PASS: 4 new-store placements for 4 lots (4 undo entries): 137,791 / 129,596 / 109,541 / 67,437 canvas cells, 0
+     read-back mismatches, 0 clipped; 8 region chunks changed.
+  V2 PASS: a character dropped in each house rests on its floor: 26.75 / 26.125 / 26.375 / 25.5 m = the floors.
+  V3 PASS: 4 undos -> 32 / 32 store hashes back to the start.
+  Not here, stated: the settlement's own writers -- parcel clearing, streets, plaza paving, fences, wells, terrace pads
+     (~6 getChunkAtFast sites) -- still write today's hidden chunks (no streets in the top view); furnish / emit as F7.11.
+CONCLUSION: the engine's settlement generator places its houses on the switched world, exact and standable; its
+ground works are the next writers to move.

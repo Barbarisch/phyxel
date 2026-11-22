@@ -82,6 +82,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     const auto addPointLight                         = deps.addPointLight;   // M5
     const auto keepClear                             = deps.keepClear;       // designer anchors
     ItemPropManager* const itemPropManager           = deps.itemProps;       // M3c signs/tableware
+    const auto canvasSink                            = deps.canvasSink;      // F7.12: the switched world
 
         const auto& p = params;
         const int W = p.value("width", 52), D = p.value("depth", 36);
@@ -549,7 +550,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             const std::string ph = "building " + std::to_string(i + 1) + "/" +
                                    std::to_string(buildings.size());
             buildingUnits.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager,
-                                          locationRegistry, npcManager, pushUndo, addPointLight, keepClear,
+                                          locationRegistry, npcManager, pushUndo, addPointLight, keepClear, canvasSink,
                                           itemPropManager, bp, bp2, seatInUnit,
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
                                           lotIndex = static_cast<int>(i),
@@ -573,6 +574,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 deps.addPointLight = addPointLight;   // M5: light settlement interiors too
                 deps.itemProps     = itemPropManager; // M3c: sign items + tableware in settlements
                 deps.keepClear     = keepClear;       // designer anchors stay furniture-free
+                deps.canvasSink    = canvasSink;      // F7.12: each house into the switched world
                 auto recordDoor = [&](const nlohmann::json& res, const nlohmann::json& prog, int w, int d) {
                     const int x = prog["position"].value("x", 0), z = prog["position"].value("z", 0);
                     if (!res.contains("locations") || !res["locations"].is_array()) return;
