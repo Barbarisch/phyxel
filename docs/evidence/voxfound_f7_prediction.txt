@@ -848,3 +848,22 @@ plots: three longhouses and a croft, async job) with each house from StructureFo
      (~6 getChunkAtFast sites) -- still write today's hidden chunks (no streets in the top view); furnish / emit as F7.11.
 CONCLUSION: the engine's settlement generator places its houses on the switched world, exact and standable; its
 ground works are the next writers to move.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.13 PREDICTION -- the old-grid writers on the switched world: a writer seam (2026-11-22, before any code).
+CONTROL: F7.12's settlement on the switched world still clears parcels, lays streets and paving, sweeps the road band
+and clears orphaned canopy in today's hidden chunks (Chunk::clearCellsBulk, StructureGenerator::place); the top view
+shows no streets.
+THE CHANGE: ChunkManager gets a VoxFound write hook (set by the editor while switched). StructureGenerator::place
+converts its cube / subcube / microcube placements to 1/8 m voxels by CENTRE SAMPLING (a voxel belongs to the box its
+centre lies in -- VoxFound::placementVoxels, header + unit test) and writes them through the hook; a new
+ChunkManager::clearCubesBulk (the settlement's five clear loops move onto it, unchanged without the hook) writes air.
+The hook = voxFoundPaintCells (each call one undo entry). Every StructureGenerator::place caller moves with it.
+  X1 (unit): centre sampling partitions a cube: its 27 subcubes cover each of its 512 voxels exactly once, its 729
+     microcubes too; a lone subcube = 2-3 voxels per axis; a cube = its 8^3 block.
+  X2: the F7.12 village with the hook: today's hidden world untouched (300 sampled cubes over the settlement equal
+     before / after, switch off); the region gains the ground works (the hook's cells by label: clearing, street,
+     sweep, canopy > 0).
+  X3 (L4): a character dropped on a street point rests on the region's street surface (its top solid voxel + 1).
+  X4: undoing every entry restores all 32 store hashes.
+RED: writer_stub (the hook not set) -> F7.12's behaviour (today's chunks get the ground works).
