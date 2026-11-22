@@ -1011,3 +1011,20 @@ DamageSystem route and StructureForge (hall_house).
      today's world (F7.7 and the exit's second half).
 CONCLUSION: a project can boot straight into the switched world, edit it, build on it, save and come back -- the plan's
 "default switched" for an opting-in project.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.17 PREDICTION -- the water sim's solids on the switched world (2026-11-22, before any code). Project: VoxFoundWater
+= a copy of WaterBench_Coast (Perlin s20260804, streaming, the CA sea at 16) with the F7.16 boot (load_saved false).
+CONTROL: WaterManager samples its solid mask from ChunkManager::subVoxelFloor (routed to the switched world since
+F7.1) only at its init / recentre, and hears of edits only through today's voxel-change callback. The boot switches
+AFTER the water sim initialised, so its mask is today's terrain, and region edits never reach it. Re-run first: inside
+the sim region, clear a 3 x 3 x 3-cube pit in the switched land; the probe reports the pit cells "solid" (today's
+ground); water placed into the pit is not held there.
+THE CHANGE: the world switch (on and off) resyncs the sim's solid mask; every region edit (voxFoundLodMark's call sites:
+brushes, the voxel API, undo, bodies lab, saved-chunk loads, the writer hooks) resyncs the sim cells under its box.
+  K1: after the boot, the sim's solidity = the region's on sampled uniform cubes (full -> solid, empty -> open): 0
+      mismatches of >= 500 sampled.
+  K2: the dug pit's cells read open in the sim (27 / 27) right after the clear.
+  K3: water placed in the pit stays in it: after 5 s the pit's bottom layer holds mass > 0 and the probe's mass sum in
+      the pit >= half the placed amount.
+RED: water_sync_stub (the resyncs skipped) -> the control.
