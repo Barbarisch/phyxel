@@ -13948,7 +13948,9 @@ void Application::registerWaterCommands() {
             const auto& u = m_waterUpdateAtMax;
             r["app_water_cpu_ms_worst_frame"]["in_update"] = {{"residency", u.residency}, {"kept", u.kept}, {"retiring", u.retiring}, {"occupancy", u.occupancy},
                 {"step", u.step}, {"step_call", u.stepCall}, {"births", u.births}, {"droplets", u.droplets}, {"ripples", u.ripples}, {"sleep", u.sleep}}; }
-        if (cmd.params.value("reset", false)) { P::reset(); m_waterCpuAtMax = WaterCpuMs{}; m_waterUpdateAtMax = {}; }
+        {   const auto& ms = Core::Water::WaterCoreManager::s_motionScanMax;   // 58.3: the largest host motion scan since the reset
+            r["motion_scan_max"] = {{"fields", ms.fields}, {"volume_fields", ms.volumeFields}, {"cols", ms.cols}}; }
+        if (cmd.params.value("reset", false)) { P::reset(); m_waterCpuAtMax = WaterCpuMs{}; m_waterUpdateAtMax = {}; Core::Water::WaterCoreManager::s_motionScanMax = {}; }
     });
     reg.on("water_av_record_draw", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         using M = Core::Water::WaterCoreManager;
@@ -13966,7 +13968,8 @@ void Application::registerWaterCommands() {
              {"build_ms_last_call", s.buildMsLastCall}, {"build_ms_max", s.buildMsMax}, {"build_ms_on_sleep_last", s.buildMsOnSleepLast},
              {"revision", waterCore->recordRevision()}, {"handover_tiles_per_frame", M::s_recordDraw.handoverTilesPerFrame},
              {"retiring", s.retiring}, {"handover_frames_last", s.handoverFramesLast}, {"handover_tiles_max_per_frame", s.handoverTilesMaxPerFrame},
-             {"handovers", s.handovers}, {"sleep_tiles_built", s.sleepTilesBuilt}};
+             {"handovers", s.handovers}, {"sleep_tiles_built", s.sleepTilesBuilt},
+             {"occ_staled_by_place", s.occStaledByPlace}, {"occ_all_stale", s.occAllStale}};   // 58.3
     });
     // 51.4 S3: the far skin - recorded water beyond the record tiles (draw_m) drawn as coarse fields on clipmap rings. Omitted =
     // unchanged. on (default ON - owner 2026-11-11, 51.4g); far_m its reach (m) - by default it FOLLOWS the far terrain's reach

@@ -15294,8 +15294,43 @@ holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run print
   **Live: not yet measured cleanly** - the run (`s58_windows_surfrows.json`) shows `gpu.08d` gone and the GPU step's worst 13 ->
   4.3-5.4 ms, but another engine (not this session's) held the GPU at 55-80 % through it: fence waits 45-49 ms, tile wakes 16-22 -
   that run's other numbers are not this change's.
-- Not done: the cheap ripple on the record while it builds (the alternative); the first live second's tile wakes (~6 ms each) and
-  `up.1` (host occupancy + solid tops, 3-8 ms); the tile records (group 3); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
+- Merged after the full suite (67e3a112: unit 322 / 322, integration 103 / 105 - the known two).
+- **52.5's periodic freeze (item 1's list), reproduced and split (2026-11-22, `tools/water_freeze_probe.py`, WaterBench_RiverCarve at
+  the W4 clip's pose, camera still, 160 s):** frames of 1.2-3.3 s every 20-40 s, and around each the record draw's `pending` jumped
+  to 127 of 135 (`s58_freeze_probe.json`) - 5 s of 50-60 ms water frames each time (`surf.6 record tiles' surfaces` 11-14 ms a call).
+  **The water's part, a fix:** a record tile stored the WORLD's occupancy revision (`m_revision()`), so any chunk streamed, remeshed
+  or edited anywhere staled every tile in range. Now `refreshRecordTiles` asks the pool where solids changed since the last revision
+  it saw (`m_changes`, 26.19's query the volumes' local refresh uses) and stales only tiles a changed box touches; no list = every
+  tile, as before (`RecordDrawStats::occStaledByPlace / occAllStale`, echoed by `water_av_record_draw`). TEST ONLY
+  `s_recordOccAllStaleForTest`. **Test** `AnOccupancyChangeStalesOnlyTheRecordTilesItTouches` (CPU, a 64 m recorded lake, 136
+  tiles): a far change 0 rebuilt / 0 pending; a change in tile (1, 1) 1 rebuilt; after both every tile equal to a fresh build (0
+  columns differ); RED (every tile stale) 4 rebuilt + 132 pending for each. **Live** (`s58_freeze_probe_fixed.json`): `pending`
+  stays 0 after the first build (435 tiles staled by place, 1 revision with no list); no more seconds of water frames.
+  **The rest is not the water** (`s58_freeze_probe_recorder.json`, the engine's frame recorder): the 0.6-3.0 s frames are the chunk
+  mesher - `Dirty Chunk Flush` (render) 0.55-2.54 s and `Dirty Chunks` (update, budgeted by `kDirtyChunkBudgetMs`) 0.59-2.95 s, while
+  the world streams in round the still camera (resident chunks 591 -> 685, ~48 pending generation); the water's scope 0-36 ms in
+  them. **Logged, not this plan's (one line, the rule in §0a):** the chunk mesher overruns its budget by seconds on a streaming
+  generated world. Found on the way: the build's copy of `phyxel.exe` to the repo root fails while an engine from it runs (MSB3073)
+  - a stale root binary ran one probe (its new fields read null); and a stopped queued Creek job had already launched its engine,
+  which ran beside two probes (killed, Creek restored).
+- **The squares' open item closed (a defect found by its own test).** P7's red control in the staged rig fired only by chance (8 in
+  some runs, 0 in others; budget 0: 0; budget huge: 0) - the squares need one interleaving of stages and ticks. Replaced by a direct
+  test, `ASleepingPatchsWokenTileIsDrawnByTheNextCall`: a patch woken with no push (it sleeps at once), a second recorded tile of its
+  box woken BETWEEN frames (as an API write's `wakeRecordedNear` does; hook `wakeTileAtForTest`), 10 frames at 120 fps. It found the
+  logged open item real and worse: **10 of 10 frames drawn by nobody** - a sleeping volume takes `update`'s asleep branch, which never
+  steps, so the surface-only call never ran (the staged path escaped only because its last stage marks the volume awake). **Fix:** a
+  volume with host surface writes queued takes the stepping branch (`WaterCoreGpu::step` then submits the surface-only call). After:
+  1 of 10 (the frame before the first tick), both runs; RED (surface-only call off) 10 of 10. TEST ONLY
+  `s_surfQueuedStaysAsleepForTest`, `s_tileWakeWithoutCallForTest`.
+- P8 restated a fourth time: with another checkout's engine on the GPU the two immediate runs at 120 fps read 20.05 / 23.15 ms - its
+  +2 ms bound sat inside the measured noise; the tolerance is now + 2 ms + the spread of the two immediate runs at that frame rate.
+  P7's red control read 0 in a loaded full-suite run and 8 alone (it depends on how many stages a frame's wall-time budget fits).
+- Also built (a fix): a woken tile's occupancy copied a row at a time (`wakeTile`; per cell through `idx()` it was ~0.9 ms - now the
+  lap 0.6 with `refreshOccupancy`); the host motion scan counted (`MotionStats::hostCols`, `water_av_host_phases.motion_scan_max`)
+  for the next split - not yet measured live.
+- Not done: the cheap ripple on the record while it builds (the alternative); the first live second's tile wakes (~6 ms each); the
+  host motion scan (`motion.1`, 3.5-3.9 ms); the tile records (group 3); the live re-measure of the surface rows on an idle GPU; the
+  build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
   the water's, logged here only).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)

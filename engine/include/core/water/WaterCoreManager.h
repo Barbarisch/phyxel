@@ -612,7 +612,10 @@ public:
     static constexpr int kRecordDrawSourceBit = 0x40000000;
     static bool isRecordDrawField(const WaterSurfaceField& f) { return f.source >= 0 && (f.source & kRecordDrawSourceBit) != 0; }
     struct RecordDrawStats { int tiles = 0, wetTiles = 0, builtLastCall = 0, pending = 0; double buildMsLastCall = 0.0, buildMsMax = 0.0, buildMsOnSleepLast = 0.0;
-                             int retiring = 0, handoverFramesLast = 0, handoverTilesMaxPerFrame = 0; long sleepTilesBuilt = 0, handovers = 0; };   // 57.8
+                             int retiring = 0, handoverFramesLast = 0, handoverTilesMaxPerFrame = 0; long sleepTilesBuilt = 0, handovers = 0;   // 57.8
+                             long occStaledByPlace = 0, occAllStale = 0; };   ///< 58.3: tiles an occupancy change staled where it happened; revisions with no change list (every tile stale)
+    /// 58.3 item 1: TEST ONLY - every record tile stale at any occupancy revision (the rule before; 52.5's periodic freeze)
+    static inline bool s_recordOccAllStaleForTest = false;
     const RecordDrawStats& recordDrawStats() const { return m_recordStats; }
     void setSpanRevisionQuery(std::function<uint64_t()> q) { m_spanRevision = std::move(q); }
     /// The wet record tiles drawn by the pond surface (inclusive voxel boxes) and their revision - the span sheet's mask.
@@ -788,6 +791,11 @@ public:
     /// 58.3 item 1: TEST ONLY - a staged patch with no spare builds its grid, pipelines and buffers in one stage as before (the red:
     /// the session's first patch, 30 ms in the GPU stage + 12 ms in the CPU stage, live)
     static inline bool s_patchColdAtOnceForTest = false;
+    /// 58.3: TEST ONLY - the asleep branch wakes the GPU's margin tiles at once with no call following (the rule before the squares
+    /// fix's second part); with WaterCoreGpu::s_surfaceOnlyOffForTest, P7's deterministic red
+    static inline bool s_tileWakeWithoutCallForTest = false;
+    /// 58.3: TEST ONLY - a sleeping volume with host surface writes queued keeps the asleep branch (no step, no surface-only call)
+    static inline bool s_surfQueuedStaysAsleepForTest = false;
     /// L3 (41): how long a frame may spend freeing given-up kept buffers (ms); 41.4 item 3
     static constexpr double kKeptFreeMsPerFrame = 1.0;
     /// L3 (41): the release rule run now (also run by update) - orphans, beyond memoryM, over the cap; then the paced free
@@ -826,6 +834,8 @@ public:
     /// and write back as before (the parity's reference and the cost's red)
     static inline bool s_sleepReadsAllForTest = false;
     long sleepsAllRecorded() const { return m_sleepsAllRecorded; }
+    /// 58.3 TEST: wake the recorded tile holding world (x, z) of volume id now, between frames (as an API write's wakeRecordedNear does)
+    bool wakeTileAtForTest(int id, float x, float z);
     long sleepsByTiles() const { return m_sleepsByTiles; }
     int lastSleepTiles() const { return m_lastSleepTiles; }
     int lastSleepLiveTiles() const { return m_lastSleepLiveTiles; }
@@ -1045,7 +1055,10 @@ public:
     /// visible; 5 mm tripped forever on the floaters' own stirring (live: 0-2 columns per sample, 20 s).
     std::vector<std::pair<glm::vec3, float>> takeMotion(float moveM = 0.015f);
     /// The last takeMotion(): largest per-column rise/fall (m) and surface flow (m/s), columns over each bar.
-    struct MotionStats { float maxRise = 0.0f, maxFlow = 0.0f; int riseCols = 0, flowCols = 0, spheres = 0; float lastRadius = 0.0f; };
+    struct MotionStats { float maxRise = 0.0f, maxFlow = 0.0f; int riseCols = 0, flowCols = 0, spheres = 0; float lastRadius = 0.0f;
+                         int hostFields = 0, hostVolumeFields = 0; long hostCols = 0; };   ///< 58.3: what the host scanned this call (fields, of them a volume's, columns)
+    struct MotionScanMax { int fields = 0, volumeFields = 0; long cols = 0; };   ///< 58.3: the most one takeMotion scanned on the host since a reset
+    static inline MotionScanMax s_motionScanMax;
     const MotionStats& motionStats() const { return m_motionStats; }
     /// 26.30 step 3: the last update()'s CPU by part (ms): occupancy refresh, the volumes' steps, droplets, ripples
     struct UpdateCpu { double occupancy = 0, step = 0, droplets = 0, ripples = 0, sleep = 0;
@@ -1321,6 +1334,7 @@ private:
     long m_worldResets = 0;   // A2i (47)
     long m_patchesWoken = 0;  // 51 S2
     long m_sleepsAllRecorded = 0;   // 58.3: sleeps that read no grid (every tile recorded)
+    uint64_t m_recordOccSeen = ~0ull;   // 58.3: the occupancy revision the record tiles were last checked at
     long m_sleepsByTiles = 0;       // 58.3: sleeps that read only the tiles still in cells
     int m_lastSleepTiles = 0, m_lastSleepLiveTiles = 0;   // 58.3: the last GPU volume's sleep - its tiles, those still in cells
     int m_nextId = 1;

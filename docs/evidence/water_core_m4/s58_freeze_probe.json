@@ -1,0 +1,5131 @@
+{
+ "pose": {
+  "x": -2224.0,
+  "y": 93.0,
+  "z": -1349.5,
+  "yaw": 180.0,
+  "pitch": -12.0
+ },
+ "rows": [
+  {
+   "t": 3.7,
+   "frame_ms_max": 0.0,
+   "fps": 10.248831046893587,
+   "pending": 103,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 4,
+   "top": [
+    [
+     0.36,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 20.8646
+  },
+  {
+   "t": 3.9,
+   "frame_ms_max": 143.1439071893692,
+   "fps": 6.985976697401945,
+   "pending": 87,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 4,
+   "top": [
+    [
+     0.38,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 20.445
+  },
+  {
+   "t": 4.1,
+   "frame_ms_max": 142.85820722579956,
+   "fps": 6.999947846324397,
+   "pending": 71,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 4,
+   "top": [
+    [
+     0.39,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 20.8299
+  },
+  {
+   "t": 4.4,
+   "frame_ms_max": 148.64739775657654,
+   "fps": 6.7273293383688415,
+   "pending": 55,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 4,
+   "top": [
+    [
+     0.34,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 16.1596
+  },
+  {
+   "t": 5.1,
+   "frame_ms_max": 148.40030670166016,
+   "fps": 13.452161232223594,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 0,
+   "top": [
+    [
+     0.4,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 21.9494
+  },
+  {
+   "t": 6.2,
+   "frame_ms_max": 147.77259528636932,
+   "fps": 6.76715461389911,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 8,
+   "built_last": 4,
+   "top": [
+    [
+     9.73,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     9.72,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.7,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 44.0788
+  },
+  {
+   "t": 7.1,
+   "frame_ms_max": 417.16820001602173,
+   "fps": 2.397114640956799,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 8,
+   "built_last": 4,
+   "top": [
+    [
+     13.25,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     13.25,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.81,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 59.1703
+  },
+  {
+   "t": 8.2,
+   "frame_ms_max": 112.03370243310928,
+   "fps": 14.20983309145223,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 8,
+   "built_last": 4,
+   "top": [
+    [
+     13.0,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     13.0,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     2.49,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 61.6856
+  },
+  {
+   "t": 9.2,
+   "frame_ms_max": 153.5883992910385,
+   "fps": 16.435744909296346,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 16,
+   "built_last": 4,
+   "top": [
+    [
+     11.6,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     11.59,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.31,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 60.5694
+  },
+  {
+   "t": 10.1,
+   "frame_ms_max": 114.65659737586975,
+   "fps": 11.130528009110236,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 23,
+   "built_last": 4,
+   "top": [
+    [
+     9.57,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     9.5,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.49,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 54.8861
+  },
+  {
+   "t": 11.1,
+   "frame_ms_max": 78.71480286121368,
+   "fps": 19.463243328447863,
+   "pending": 111,
+   "tiles": 135,
+   "wet": 73,
+   "built_last": 4,
+   "top": [
+    [
+     14.27,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.22,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.3,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 67.0691
+  },
+  {
+   "t": 12.1,
+   "frame_ms_max": 99.85339641571045,
+   "fps": 17.727793588035663,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 73,
+   "built_last": 4,
+   "top": [
+    [
+     12.0,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.1,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.28,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 63.9249
+  },
+  {
+   "t": 13.1,
+   "frame_ms_max": 133.40790569782257,
+   "fps": 13.03174441813519,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 73,
+   "built_last": 4,
+   "top": [
+    [
+     10.07,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.07,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.99,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 53.3367
+  },
+  {
+   "t": 14.1,
+   "frame_ms_max": 106.91720247268677,
+   "fps": 14.602633762639755,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 73,
+   "built_last": 4,
+   "top": [
+    [
+     9.57,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     9.57,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 57.7449
+  },
+  {
+   "t": 15.1,
+   "frame_ms_max": 110.65319925546646,
+   "fps": 15.354024591107235,
+   "pending": 31,
+   "tiles": 135,
+   "wet": 73,
+   "built_last": 4,
+   "top": [
+    [
+     9.36,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     9.35,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 51.3373
+  },
+  {
+   "t": 16.1,
+   "frame_ms_max": 89.21760320663452,
+   "fps": 13.76005974070737,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.65,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.18,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.57,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 56.8517
+  },
+  {
+   "t": 17.1,
+   "frame_ms_max": 97.75479882955551,
+   "fps": 11.630368131385351,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     20.15,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.46,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.76,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 53.4774
+  },
+  {
+   "t": 18.1,
+   "frame_ms_max": 117.50800162553787,
+   "fps": 8.510058771884273,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.33,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     13.18,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.55,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 58.3451
+  },
+  {
+   "t": 19.1,
+   "frame_ms_max": 107.66419768333435,
+   "fps": 12.78657902824546,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.32,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.98,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.12,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 51.6829
+  },
+  {
+   "t": 20.1,
+   "frame_ms_max": 138.0445957183838,
+   "fps": 14.237044330230768,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.3,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     11.29,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.45,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 48.6774
+  },
+  {
+   "t": 21.1,
+   "frame_ms_max": 80.09850233793259,
+   "fps": 18.716287747924067,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.9,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.89,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.48,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 52.6764
+  },
+  {
+   "t": 22.2,
+   "frame_ms_max": 89.38030153512955,
+   "fps": 44.44720968331075,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.85,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.84,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.6,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 50.1705
+  },
+  {
+   "t": 23.0,
+   "frame_ms_max": 107.82430320978165,
+   "fps": 41.20500049657441,
+   "pending": 15,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.81,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.62,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.79,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 53.7351
+  },
+  {
+   "t": 24.1,
+   "frame_ms_max": 155.53410351276398,
+   "fps": 6.429458089350382,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.54,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     11.53,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.46,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 51.3452
+  },
+  {
+   "t": 25.1,
+   "frame_ms_max": 97.14929759502411,
+   "fps": 47.37989393353588,
+   "pending": 87,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.28,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 45.9705
+  },
+  {
+   "t": 26.1,
+   "frame_ms_max": 133.49549472332,
+   "fps": 34.06273097403942,
+   "pending": 79,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.11,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.1,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.83,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 46.7032
+  },
+  {
+   "t": 27.1,
+   "frame_ms_max": 86.90749853849411,
+   "fps": 15.96164004049107,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     9.75,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     9.42,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.42,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 44.7363
+  },
+  {
+   "t": 28.1,
+   "frame_ms_max": 54.20380085706711,
+   "fps": 25.635635473505193,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.16,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     9.34,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.47,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 41.8567
+  },
+  {
+   "t": 29.1,
+   "frame_ms_max": 139.14519548416138,
+   "fps": 21.14366078390244,
+   "pending": 111,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     9.46,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     9.45,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.38,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 42.1518
+  },
+  {
+   "t": 30.1,
+   "frame_ms_max": 97.89849817752838,
+   "fps": 34.199609775897926,
+   "pending": 95,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     9.96,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     9.63,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.67,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 44.9534
+  },
+  {
+   "t": 31.1,
+   "frame_ms_max": 150.63439309597015,
+   "fps": 32.61567936266397,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.43,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     11.42,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.65,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 44.9757
+  },
+  {
+   "t": 32.1,
+   "frame_ms_max": 113.91309648752213,
+   "fps": 22.32053104538751,
+   "pending": 79,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.63,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.62,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.97,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 47.2149
+  },
+  {
+   "t": 33.3,
+   "frame_ms_max": 59.629399329423904,
+   "fps": 24.650030583488515,
+   "pending": 31,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.56,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.55,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.75,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 50.467
+  },
+  {
+   "t": 34.2,
+   "frame_ms_max": 318.00609827041626,
+   "fps": 40.653215117363835,
+   "pending": 103,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.97,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     11.59,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     2.03,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 53.1257
+  },
+  {
+   "t": 35.1,
+   "frame_ms_max": 213.99030089378357,
+   "fps": 24.435180045466733,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     9.41,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     9.4,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.6,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 42.4613
+  },
+  {
+   "t": 36.0,
+   "frame_ms_max": 88.71559798717499,
+   "fps": 22.985545850877763,
+   "pending": 79,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.33,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.1,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.84,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 47.1136
+  },
+  {
+   "t": 37.1,
+   "frame_ms_max": 177.72459983825684,
+   "fps": 22.10775315490077,
+   "pending": 47,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.16,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.52,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.52,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 43.6385
+  },
+  {
+   "t": 38.2,
+   "frame_ms_max": 100.80710053443909,
+   "fps": 21.98725202695851,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.34,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.33,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.69,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 47.2555
+  },
+  {
+   "t": 39.1,
+   "frame_ms_max": 314.27648663520813,
+   "fps": 26.176502865724185,
+   "pending": 87,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     9.86,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     9.85,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.4,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 43.2306
+  },
+  {
+   "t": 40.1,
+   "frame_ms_max": 269.7983980178833,
+   "fps": 19.712978753185126,
+   "pending": 71,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.65,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.45,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.45,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 48.3566
+  },
+  {
+   "t": 41.1,
+   "frame_ms_max": 104.00819778442383,
+   "fps": 21.228808179635262,
+   "pending": 7,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.45,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.44,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.75,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 41.8455
+  },
+  {
+   "t": 42.1,
+   "frame_ms_max": 56.06359988451004,
+   "fps": 19.304498159411082,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.54,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.705
+  },
+  {
+   "t": 43.1,
+   "frame_ms_max": 52.04689875245094,
+   "fps": 20.500415643722345,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.27,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.424
+  },
+  {
+   "t": 44.2,
+   "frame_ms_max": 275.03418922424316,
+   "fps": 3.635911603646744,
+   "pending": 111,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.33,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.28,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.58,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 49.0786
+  },
+  {
+   "t": 45.1,
+   "frame_ms_max": 379.1097104549408,
+   "fps": 11.188322867686882,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.28,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     11.8,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.98,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 54.4895
+  },
+  {
+   "t": 46.1,
+   "frame_ms_max": 155.5251032114029,
+   "fps": 14.289265537204354,
+   "pending": 55,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.06,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     11.85,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.96,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 55.535
+  },
+  {
+   "t": 47.1,
+   "frame_ms_max": 93.40149909257889,
+   "fps": 21.47803241122279,
+   "pending": 63,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.07,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.72,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.7,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 50.0237
+  },
+  {
+   "t": 48.1,
+   "frame_ms_max": 54.3970987200737,
+   "fps": 21.095755872926333,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     7.83,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     7.79,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.64,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 14.9796
+  },
+  {
+   "t": 49.1,
+   "frame_ms_max": 54.11960184574127,
+   "fps": 21.448043583954924,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.48,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.6561
+  },
+  {
+   "t": 50.1,
+   "frame_ms_max": 56.91169947385788,
+   "fps": 21.561250522293268,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.81,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.0441
+  },
+  {
+   "t": 51.1,
+   "frame_ms_max": 53.69359999895096,
+   "fps": 21.46632207801098,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.23,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.4489
+  },
+  {
+   "t": 52.1,
+   "frame_ms_max": 52.79120057821274,
+   "fps": 22.225630732496956,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3226
+  },
+  {
+   "t": 53.1,
+   "frame_ms_max": 50.68270117044449,
+   "fps": 19.90437935642752,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.6995
+  },
+  {
+   "t": 54.1,
+   "frame_ms_max": 53.180500864982605,
+   "fps": 19.663440354539794,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.6204
+  },
+  {
+   "t": 55.1,
+   "frame_ms_max": 53.915999829769135,
+   "fps": 18.873301363577625,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.12,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.11,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9427
+  },
+  {
+   "t": 56.3,
+   "frame_ms_max": 58.5361011326313,
+   "fps": 19.181377485452053,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     10.75,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.75,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 54.1233
+  },
+  {
+   "t": 57.2,
+   "frame_ms_max": 298.06190729141235,
+   "fps": 21.344809026166757,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.68,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.65,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     2.45,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 62.0669
+  },
+  {
+   "t": 58.1,
+   "frame_ms_max": 132.31730461120605,
+   "fps": 27.458950097801917,
+   "pending": 87,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.67,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     11.24,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.67,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 55.5808
+  },
+  {
+   "t": 59.1,
+   "frame_ms_max": 134.90070402622223,
+   "fps": 21.488601218396457,
+   "pending": 63,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.61,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     2.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 58.0199
+  },
+  {
+   "t": 60.1,
+   "frame_ms_max": 102.77219861745834,
+   "fps": 18.95123807108656,
+   "pending": 15,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.94,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.55,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     2.14,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 50.8989
+  },
+  {
+   "t": 61.2,
+   "frame_ms_max": 148.5711932182312,
+   "fps": 20.433851100138373,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.58,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     9.51,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.97,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 46.6931
+  },
+  {
+   "t": 62.1,
+   "frame_ms_max": 121.52320146560669,
+   "fps": 20.90340266962868,
+   "pending": 55,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.19,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     11.19,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.79,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 52.1632
+  },
+  {
+   "t": 63.1,
+   "frame_ms_max": 60.143500566482544,
+   "fps": 17.57302470169901,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     7.92,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     7.91,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     2.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 16.1684
+  },
+  {
+   "t": 64.1,
+   "frame_ms_max": 62.62580305337906,
+   "fps": 15.967859113082362,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.52,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.799
+  },
+  {
+   "t": 65.1,
+   "frame_ms_max": 60.537099838256836,
+   "fps": 19.488429220825704,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.95,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.1306
+  },
+  {
+   "t": 66.1,
+   "frame_ms_max": 62.74200230836868,
+   "fps": 18.395168822251378,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.53,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.7528
+  },
+  {
+   "t": 67.1,
+   "frame_ms_max": 59.271201491355896,
+   "fps": 18.66385401621038,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3453
+  },
+  {
+   "t": 68.1,
+   "frame_ms_max": 66.23320281505585,
+   "fps": 17.61847505985979,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.7892
+  },
+  {
+   "t": 69.1,
+   "frame_ms_max": 59.92459878325462,
+   "fps": 17.650661174555527,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.02,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3015
+  },
+  {
+   "t": 70.1,
+   "frame_ms_max": 61.857301741838455,
+   "fps": 16.758952931043396,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.6986
+  },
+  {
+   "t": 71.2,
+   "frame_ms_max": 733.4842085838318,
+   "fps": 16.546374427911008,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.92,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     13.91,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.07,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 58.8379
+  },
+  {
+   "t": 72.2,
+   "frame_ms_max": 116.90010130405426,
+   "fps": 8.554312518506933,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     13.01,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.39,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 25.0676
+  },
+  {
+   "t": 73.1,
+   "frame_ms_max": 957.6495885848999,
+   "fps": 29.02867316690407,
+   "pending": 71,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.55,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     13.55,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.83,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 27.1776
+  },
+  {
+   "t": 74.1,
+   "frame_ms_max": 58.13800171017647,
+   "fps": 19.57632881029637,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     8.53,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     7.97,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.69,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 15.407
+  },
+  {
+   "t": 75.1,
+   "frame_ms_max": 63.082098960876465,
+   "fps": 20.747963930518033,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.38,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.5512
+  },
+  {
+   "t": 76.1,
+   "frame_ms_max": 61.897099018096924,
+   "fps": 18.187175656035688,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.56,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.7311
+  },
+  {
+   "t": 77.1,
+   "frame_ms_max": 62.566399574279785,
+   "fps": 15.983019748687708,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.26,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.4291
+  },
+  {
+   "t": 78.1,
+   "frame_ms_max": 64.95150178670883,
+   "fps": 16.88801191315776,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.89,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.0845
+  },
+  {
+   "t": 79.1,
+   "frame_ms_max": 61.70929968357086,
+   "fps": 17.104074870780618,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8194
+  },
+  {
+   "t": 80.5,
+   "frame_ms_max": 65.47919660806656,
+   "fps": 15.987849886056946,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     12.59,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     12.58,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 58.0746
+  },
+  {
+   "t": 82.0,
+   "frame_ms_max": 676.9002079963684,
+   "fps": 9.644792144456167,
+   "pending": 111,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     14.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.56,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     2.67,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 56.7884
+  },
+  {
+   "t": 83.4,
+   "frame_ms_max": 1358.441948890686,
+   "fps": 0.736137455720215,
+   "pending": 95,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.86,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.86,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.9,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.9498
+  },
+  {
+   "t": 83.5,
+   "frame_ms_max": 1203.8401365280151,
+   "fps": 44.9521021081744,
+   "pending": 63,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.23,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     12.22,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.8,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 20.9429
+  },
+  {
+   "t": 84.1,
+   "frame_ms_max": 82.41380006074905,
+   "fps": 17.982376918715385,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     29.76,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     9.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.73,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 35.0326
+  },
+  {
+   "t": 85.1,
+   "frame_ms_max": 61.39209866523743,
+   "fps": 17.604115408721242,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.65,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.8317
+  },
+  {
+   "t": 86.1,
+   "frame_ms_max": 65.78999757766724,
+   "fps": 17.019248865522705,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.8,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.9518
+  },
+  {
+   "t": 87.1,
+   "frame_ms_max": 65.48070162534714,
+   "fps": 17.662508388418846,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.62,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.8367
+  },
+  {
+   "t": 88.1,
+   "frame_ms_max": 65.62899798154831,
+   "fps": 18.671870542844925,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.84,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.0516
+  },
+  {
+   "t": 89.1,
+   "frame_ms_max": 69.64480131864548,
+   "fps": 16.897314720457825,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4454
+  },
+  {
+   "t": 90.1,
+   "frame_ms_max": 67.39030033349991,
+   "fps": 17.703877910028563,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.42,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.5971
+  },
+  {
+   "t": 91.1,
+   "frame_ms_max": 66.01150333881378,
+   "fps": 17.145982139235727,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.76,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.9517
+  },
+  {
+   "t": 92.1,
+   "frame_ms_max": 66.7795017361641,
+   "fps": 17.337663559798287,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9874
+  },
+  {
+   "t": 93.1,
+   "frame_ms_max": 66.34759902954102,
+   "fps": 17.64259637901334,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3413
+  },
+  {
+   "t": 94.1,
+   "frame_ms_max": 66.25449657440186,
+   "fps": 15.670714672343184,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.7983
+  },
+  {
+   "t": 95.1,
+   "frame_ms_max": 64.37160074710846,
+   "fps": 18.723611477787657,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.06,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.2776
+  },
+  {
+   "t": 96.1,
+   "frame_ms_max": 68.21610033512115,
+   "fps": 17.116136905908114,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8713
+  },
+  {
+   "t": 97.1,
+   "frame_ms_max": 64.89019840955734,
+   "fps": 16.774442974895713,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3954
+  },
+  {
+   "t": 98.1,
+   "frame_ms_max": 66.65369868278503,
+   "fps": 15.002918364052837,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.06,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9353
+  },
+  {
+   "t": 99.1,
+   "frame_ms_max": 65.97959995269775,
+   "fps": 17.270799251225732,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4112
+  },
+  {
+   "t": 100.1,
+   "frame_ms_max": 65.46500325202942,
+   "fps": 17.560156426982786,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ]
+   ],
+   "worst_water_block": 0.2775
+  },
+  {
+   "t": 101.1,
+   "frame_ms_max": 64.11410123109818,
+   "fps": 17.353729676627776,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9055
+  },
+  {
+   "t": 102.1,
+   "frame_ms_max": 66.2849023938179,
+   "fps": 15.256414634129706,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3599
+  },
+  {
+   "t": 103.1,
+   "frame_ms_max": 70.91840356588364,
+   "fps": 15.601937639550314,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.0544
+  },
+  {
+   "t": 104.1,
+   "frame_ms_max": 62.356799840927124,
+   "fps": 17.452371915274856,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.2865
+  },
+  {
+   "t": 107.7,
+   "frame_ms_max": 66.5758028626442,
+   "fps": 16.49802913312157,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.9,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     11.74,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 53.7149
+  },
+  {
+   "t": 107.9,
+   "frame_ms_max": 3198.5363960266113,
+   "fps": 0.3126429954782607,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.72,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     11.19,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.5,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 53.3015
+  },
+  {
+   "t": 110.1,
+   "frame_ms_max": 62.60550022125244,
+   "fps": 15.97303745622871,
+   "pending": 111,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.64,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.63,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.16,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 19.9594
+  },
+  {
+   "t": 111.6,
+   "frame_ms_max": 2193.3610439300537,
+   "fps": 23.271724523449972,
+   "pending": 95,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.2,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     11.19,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.53,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 24.4581
+  },
+  {
+   "t": 112.0,
+   "frame_ms_max": 1492.745041847229,
+   "fps": 27.577915144593877,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.45,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.48,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.61,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 60.2103
+  },
+  {
+   "t": 112.1,
+   "frame_ms_max": 329.39431071281433,
+   "fps": 13.142710989027776,
+   "pending": 111,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.2,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     13.19,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     2.09,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 25.4878
+  },
+  {
+   "t": 112.2,
+   "frame_ms_max": 35.12829914689064,
+   "fps": 30.854483429802162,
+   "pending": 95,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.96,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     11.95,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     2.58,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 26.4444
+  },
+  {
+   "t": 112.3,
+   "frame_ms_max": 49.72099885344505,
+   "fps": 22.43304328554211,
+   "pending": 79,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.81,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     11.8,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.4,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 19.7486
+  },
+  {
+   "t": 113.5,
+   "frame_ms_max": 102.27719694375992,
+   "fps": 21.921459025025708,
+   "pending": 87,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.88,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.73,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.69,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 56.1093
+  },
+  {
+   "t": 114.2,
+   "frame_ms_max": 289.8271977901459,
+   "fps": 5.1584363961943,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     14.21,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.98,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.88,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 62.1201
+  },
+  {
+   "t": 115.1,
+   "frame_ms_max": 196.22549414634705,
+   "fps": 8.277330159994706,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.13,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     13.12,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     2.38,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 57.9303
+  },
+  {
+   "t": 116.1,
+   "frame_ms_max": 143.36900413036346,
+   "fps": 17.51095797207619,
+   "pending": 23,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.98,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.78,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.82,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 59.8715
+  },
+  {
+   "t": 117.2,
+   "frame_ms_max": 142.6578015089035,
+   "fps": 20.297314567804076,
+   "pending": 15,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.19,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     12.18,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     2.24,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 48.1672
+  },
+  {
+   "t": 118.1,
+   "frame_ms_max": 129.60940599441528,
+   "fps": 18.476808713954764,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     6.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     6.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     2.29,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 11.0092
+  },
+  {
+   "t": 119.1,
+   "frame_ms_max": 61.9002990424633,
+   "fps": 17.694166409319983,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.93,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.0447
+  },
+  {
+   "t": 120.1,
+   "frame_ms_max": 66.78300350904465,
+   "fps": 18.44103156386703,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.57,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.905
+  },
+  {
+   "t": 121.8,
+   "frame_ms_max": 58.28860029578209,
+   "fps": 17.15601326718361,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     14.5,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     14.5,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     2.16,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 58.6557
+  },
+  {
+   "t": 124.0,
+   "frame_ms_max": 1323.9556550979614,
+   "fps": 0.7553123068355402,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.62,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.95,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     2.32,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 25.3283
+  },
+  {
+   "t": 124.7,
+   "frame_ms_max": 2177.7002811431885,
+   "fps": 0.4592000141888432,
+   "pending": 103,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.59,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.58,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.79,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.1721
+  },
+  {
+   "t": 124.8,
+   "frame_ms_max": 690.1854872703552,
+   "fps": 1.4488858697318365,
+   "pending": 87,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     7.1,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     7.09,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.21,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 13.5977
+  },
+  {
+   "t": 125.1,
+   "frame_ms_max": 60.45889854431152,
+   "fps": 16.879460165051015,
+   "pending": 39,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     10.44,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.44,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.7,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 18.087
+  },
+  {
+   "t": 126.1,
+   "frame_ms_max": 64.52430039644241,
+   "fps": 16.564601063055157,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     7.0,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     7.0,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.95,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 11.0021
+  },
+  {
+   "t": 127.1,
+   "frame_ms_max": 65.98319858312607,
+   "fps": 17.96748194837896,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.69,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.9029
+  },
+  {
+   "t": 128.1,
+   "frame_ms_max": 67.6271989941597,
+   "fps": 15.634625819165985,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.92,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.1071
+  },
+  {
+   "t": 129.1,
+   "frame_ms_max": 66.54030084609985,
+   "fps": 15.997414053266498,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.6,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.8675
+  },
+  {
+   "t": 130.1,
+   "frame_ms_max": 70.0611025094986,
+   "fps": 16.40979855903831,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.77,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.5128
+  },
+  {
+   "t": 131.1,
+   "frame_ms_max": 72.9421004652977,
+   "fps": 17.0371972409479,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3496
+  },
+  {
+   "t": 132.1,
+   "frame_ms_max": 66.41290336847305,
+   "fps": 15.193204757539085,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.13,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.2809
+  },
+  {
+   "t": 133.1,
+   "frame_ms_max": 67.80330091714859,
+   "fps": 15.650114328690613,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3513
+  },
+  {
+   "t": 134.1,
+   "frame_ms_max": 66.92849844694138,
+   "fps": 16.67689509524859,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.344
+  },
+  {
+   "t": 135.1,
+   "frame_ms_max": 68.66589933633804,
+   "fps": 17.324957525899457,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8306
+  },
+  {
+   "t": 136.1,
+   "frame_ms_max": 69.54360008239746,
+   "fps": 16.780240638375066,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3261
+  },
+  {
+   "t": 137.2,
+   "frame_ms_max": 66.36089831590652,
+   "fps": 16.774977588927978,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8665
+  },
+  {
+   "t": 138.1,
+   "frame_ms_max": 68.81739944219589,
+   "fps": 15.596464230306342,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4114
+  },
+  {
+   "t": 139.1,
+   "frame_ms_max": 68.11659783124924,
+   "fps": 14.680709721841671,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9006
+  },
+  {
+   "t": 140.1,
+   "frame_ms_max": 69.13640350103378,
+   "fps": 16.844829038155527,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.03,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3057
+  },
+  {
+   "t": 141.1,
+   "frame_ms_max": 63.88779729604721,
+   "fps": 15.65244134754151,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8911
+  },
+  {
+   "t": 142.1,
+   "frame_ms_max": 70.82069665193558,
+   "fps": 16.04454007204266,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3601
+  },
+  {
+   "t": 143.1,
+   "frame_ms_max": 68.23469698429108,
+   "fps": 15.900677253318236,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9694
+  },
+  {
+   "t": 144.1,
+   "frame_ms_max": 66.00090116262436,
+   "fps": 16.18890511720148,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.45
+  },
+  {
+   "t": 145.1,
+   "frame_ms_max": 69.75769996643066,
+   "fps": 14.702746662413439,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9188
+  },
+  {
+   "t": 146.1,
+   "frame_ms_max": 70.07790356874466,
+   "fps": 15.890748602846626,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3953
+  },
+  {
+   "t": 147.1,
+   "frame_ms_max": 70.55030018091202,
+   "fps": 14.718024544930978,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9092
+  },
+  {
+   "t": 149.7,
+   "frame_ms_max": 67.26670265197754,
+   "fps": 14.866196209642833,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     10.71,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     10.71,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 50.3864
+  },
+  {
+   "t": 150.0,
+   "frame_ms_max": 1588.3369445800781,
+   "fps": 0.629589334563,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.33,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     13.33,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.77,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 62.6225
+  },
+  {
+   "t": 150.8,
+   "frame_ms_max": 146.1174041032791,
+   "fps": 7.860924756053606,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.09,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     12.09,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.64,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 24.5774
+  },
+  {
+   "t": 151.1,
+   "frame_ms_max": 785.0964069366455,
+   "fps": 1.2737289219063976,
+   "pending": 127,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.22,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     11.4,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.62,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 59.2739
+  },
+  {
+   "t": 154.0,
+   "frame_ms_max": 139.2018049955368,
+   "fps": 7.183814894009907,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     13.24,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     13.23,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.6,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 60.5974
+  },
+  {
+   "t": 154.1,
+   "frame_ms_max": 2808.858871459961,
+   "fps": 0.35601646282792054,
+   "pending": 119,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     12.83,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     12.35,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.46,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 25.7354
+  },
+  {
+   "t": 154.3,
+   "frame_ms_max": 57.59260058403015,
+   "fps": 22.84153311793311,
+   "pending": 103,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 4,
+   "top": [
+    [
+     11.65,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     11.64,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.61,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 24.8568
+  },
+  {
+   "t": 155.1,
+   "frame_ms_max": 133.23229551315308,
+   "fps": 21.425985233667237,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     12.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     12.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     2.07,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 19.7639
+  },
+  {
+   "t": 156.1,
+   "frame_ms_max": 67.85000115633011,
+   "fps": 15.938717905449336,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.37,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.09,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.5302
+  },
+  {
+   "t": 157.1,
+   "frame_ms_max": 67.39290058612823,
+   "fps": 19.020337949029535,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.06,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.3082
+  },
+  {
+   "t": 158.1,
+   "frame_ms_max": 63.1197988986969,
+   "fps": 16.674531110944223,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     2.73,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.9375
+  },
+  {
+   "t": 159.1,
+   "frame_ms_max": 68.53000074625015,
+   "fps": 17.410349903107726,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.99,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.1563
+  },
+  {
+   "t": 160.1,
+   "frame_ms_max": 65.1284009218216,
+   "fps": 15.354284549383816,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "top": [
+    [
+     1.98,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.1476
+  }
+ ]
+}

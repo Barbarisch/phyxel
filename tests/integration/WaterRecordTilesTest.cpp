@@ -487,6 +487,105 @@ TEST_F(WaterRecordTilesTest, TallCellsRecordAndWakeWithTheBooksExact) {
     WaterCoreGpu::s_seedSkipsTallCollapseForTest = false;
 }
 
+static std::vector<int> wakeNearLive(WaterCoreManager& mgr, const glm::vec3& c, float radius, bool fields = true, int* frames = nullptr);   // below
+
+// 58.3 - the squares the owner saw ("squares of non rendered water"), the mechanism tested directly (P7's red in the staged rig fired
+// only by chance, see there). A tile a sleeping patch takes from the record is drawn by the patch's GPU mesh once a call carries its
+// seed; the record lets it go at the wake. A 60 m lake in the record, a patch woken with no push (it sleeps at once - nothing moves),
+// then a second recorded tile of its box woken BETWEEN frames (as an API write's wakeRecordedNear does); 10 frames at 120 fps (every
+// other one has no water tick). Prediction: the first frame with a tick submits a surface-only call (the fix) - at most 2 frames with
+// a seed drawn by nobody (the one before that tick), then 0. RED: s_surfaceOnlyOffForTest - the sleeping patch never submits, the
+// tile is drawn by nobody every frame (10).
+TEST_F(WaterRecordTilesTest, ASleepingPatchsWokenTileIsDrawnByTheNextCall) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto run = [&](bool red, int& undrawn, bool& asleepBefore, bool& woke) {
+        using M = WaterCoreManager;
+        struct Restore { M::RecordDraw d; float m; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; WaterCoreGpu::s_surfaceOnlyOffForTest = false; } } restore{M::s_recordDraw, M::s_locality.drawM};
+        M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f;
+        undrawn = 0; asleepBefore = false; woke = false;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { ADD_FAILURE() << err; return; }
+        mgr.setDroplets(false);
+        mgr.setRealtime(true);
+        FakeRecord record; record.install(mgr);
+        const int W = 60;
+        for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+        nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                              {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", M::s_tallBandDefault}};
+        if (!mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump())) { ADD_FAILURE() << "loadSlept"; return; }
+        const glm::vec3 c(28.0f, 1.9f, 28.0f);
+        mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, 10.0f));
+        for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 120.0f); mgr.surfaceFields(); }
+        const std::vector<int> ids = wakeNearLive(mgr, c, 2.0f);
+        if (ids.empty()) { ADD_FAILURE() << "no patch"; return; }
+        for (int k = 0; k < 240; ++k) { mgr.update(1.0f / 120.0f); mgr.surfaceFields(); const AvRecord* r = mgr.find(ids[0]); if (r && r->asleep && k > 20) { asleepBefore = true; break; } }
+        WaterCoreGpu::s_surfaceOnlyOffForTest = red;
+        woke = mgr.wakeTileAtForTest(ids[0], c.x + 8.0f, c.z);   // the next tile in x, recorded since the patch woke empty
+        for (int k = 0; k < 10; ++k) { mgr.update(1.0f / 120.0f); mgr.surfaceFields(); if (mgr.seedsUndrawn() > 0) ++undrawn; }
+    };
+    int u = 0, uRed = 0; bool a = false, aRed = false, w = false, wRed = false;
+    run(false, u, a, w); run(true, uRed, aRed, wRed);
+    std::printf("  a sleeping patch (asleep %d / %d), a tile woken between frames (woke %d / %d): frames drawn by nobody - fix %d of 10 | RED (no surface-only call) %d of 10\n",
+                int(a), int(aRed), int(w), int(wRed), u, uRed);
+    ASSERT_TRUE(a && aRed) << "the patch never slept - the rig does not reach the case";
+    ASSERT_TRUE(w && wRed) << "the tile was not recorded / not woken";
+    EXPECT_LE(u, 2) << "the woken tile stayed undrawn past the next tick";
+    EXPECT_GE(uRed, 9) << "RED: without the surface-only call the tile must stay undrawn";
+}
+
+// 58.3 item 1 - 52.5's periodic freeze: "at 80 s and 120 s, the camera still, the frame rate fell to ~0.6 fps (> 1 s) as
+// record_pending jumped to 131". Reproduced (2026-11-22, RiverCarve, tools/water_freeze_probe.py): pending 127 of 135 again every
+// 20-40 s, 5 s of 50-60 ms water frames each time - a record tile stored the WORLD's occupancy revision, so any chunk change anywhere
+// staled every tile in range. Now the pool's change list says where (26.19's query): only tiles a changed box touches go stale.
+// CPU only (record tiles build from the spans). A 64 m lake 2 m deep in the record, the viewer at its centre, every tile built; then
+// (a) a solid cube far away, (b) one on the bed inside tile (1, 1). Predictions: (a) 0 tiles rebuilt, 0 pending; (b) 1 tile rebuilt
+// (the one it touches), 0 pending; after both every tile equal to a fresh build (a tile missed would differ - the cube changes its
+// occupancy). RED: s_recordOccAllStaleForTest (every tile stale): (a) rebuilds kRecordBuildsPerCall and leaves the rest pending.
+TEST_F(WaterRecordTilesTest, AnOccupancyChangeStalesOnlyTheRecordTilesItTouches) {
+    using M = WaterCoreManager;
+    struct Res { int tiles = 0, builtFar = 0, pendingFar = 0, builtNear = 0, pendingNear = 0; long differ = -1; };
+    auto run = [&](bool allStale) {
+        Res o;
+        struct Restore { M::RecordDraw d; float m; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_recordOccAllStaleForTest = false; } } restore{M::s_recordDraw, M::s_locality.drawM};
+        M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_recordOccAllStaleForTest = allStale;
+        uint64_t rev = 1;
+        std::vector<std::pair<uint64_t, std::vector<SolidsChangeBox>>> packs;
+        std::set<std::tuple<int, int, int>> added;
+        auto fd = [](int a) { return a >= 0 ? a / 9 : -((-a + 8) / 9); };
+        M mgr([&](const glm::ivec3& m) { return (m.y < 0 || added.count({fd(m.x), fd(m.y), fd(m.z)})) ? 1 : 0; }, [&]() { return rev; });
+        mgr.setSolidsChangesQuery([&](uint64_t since, std::vector<SolidsChangeBox>& out) { for (const auto& [r, b] : packs) if (r > since) out.insert(out.end(), b.begin(), b.end()); return true; });
+        FakeRecord record; record.install(mgr);
+        const int W = 64;
+        for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+        mgr.setViewPoint(glm::vec3(32.0f, 6.0f, 32.0f));
+        for (int k = 0; k < 400; ++k) { mgr.surfaceFields(); if (k > 0 && mgr.recordDrawStats().pending == 0) break; }
+        o.tiles = mgr.recordDrawStats().tiles;
+        auto change = [&](int x, int y, int z) { added.insert({x, y, z}); packs.push_back({++rev, {SolidsChangeBox{glm::ivec3(x, y, z), glm::ivec3(x, y, z)}}}); };
+        change(5000, 0, 5000);   // (a) far away
+        mgr.surfaceFields();
+        o.builtFar = mgr.recordDrawStats().builtLastCall; o.pendingFar = mgr.recordDrawStats().pending;
+        for (int k = 0; k < 400 && mgr.recordDrawStats().pending > 0; ++k) mgr.surfaceFields();
+        change(12, 0, 12);       // (b) on the bed inside tile (1, 1)
+        mgr.surfaceFields();
+        o.builtNear = mgr.recordDrawStats().builtLastCall; o.pendingNear = mgr.recordDrawStats().pending;
+        for (int k = 0; k < 400 && mgr.recordDrawStats().pending > 0; ++k) mgr.surfaceFields();
+        o.differ = mgr.recordTilesDifferFromFreshForTest(glm::ivec3(0, 0, 0), glm::ivec3(W - 1, 2, W - 1));
+        return o;
+    };
+    const Res now = run(false), red = run(true);
+    for (const Res* r : {&now, &red})
+        std::printf("  %-28s %d tiles | a far change: %d rebuilt, %d pending | a change in tile (1, 1): %d rebuilt, %d pending | tiles vs fresh: %ld columns differ\n",
+                    r == &now ? "staled where it changed" : "RED: every tile stale", r->tiles, r->builtFar, r->pendingFar, r->builtNear, r->pendingNear, r->differ);
+    ASSERT_GT(now.tiles, 20);
+    EXPECT_EQ(now.builtFar, 0); EXPECT_EQ(now.pendingFar, 0);
+    EXPECT_EQ(now.builtNear, 1); EXPECT_EQ(now.pendingNear, 0);
+    EXPECT_EQ(now.differ, 0) << "a record tile drew stale occupancy";
+    EXPECT_GT(red.builtFar + red.pendingFar, now.tiles / 2) << "RED: the old rule's every-tile rebuild must show";
+}
+
 // 58.3 item 1 - scatterSlots by rows of 8 writes the SAME staging bytes as the per-cell walk it replaced (2.9 ms of a live tile
 // wake). A 13 x 3 x 11 m volume (not a whole number of bricks: partial bricks at every edge) with walls and a raised bed (the
 // occupancy varies), water placed and stepped (the grid's f / u / v / w non-zero), bodies' floats given a pattern by the hook; every
@@ -987,7 +1086,7 @@ static void runSplashCost(VulkanTestFixture&, VkDevice device, VkPhysicalDevice 
 // 58.3: the shipped wake builds a patch over frames (s_patchPace ON since the owner's clip, 2026-11-21) - wakeSleptNear returns no id
 // and the patch goes live some frames later. A rig that needs the live patch's id runs those frames as live (update, surfaceFields)
 // until it is live; *frames gets how many. Its first frames are then the staged path's, not the one-frame wake's
-static std::vector<int> wakeNearLive(WaterCoreManager& mgr, const glm::vec3& c, float radius, bool fields = true, int* frames = nullptr) {
+static std::vector<int> wakeNearLive(WaterCoreManager& mgr, const glm::vec3& c, float radius, bool fields, int* frames) {
     std::vector<int> ids = mgr.wakeSleptNear(c, radius);
     if (frames) *frames = 0;
     if (!ids.empty() || mgr.patchPaceStats().building == 0) return ids;
@@ -1939,9 +2038,10 @@ struct PacedPatchRun { double wakeCallMs = 0.0, maxUpdateMs = 0.0, maxFrameMs = 
 static PacedPatchRun runPacedPatch(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool paced, float frameS = 1.0f / 60.0f, bool surfaceOnlyOff = false) {
     using M = WaterCoreManager;
     struct Restore { M::RecordDraw d; float m; bool sp, pp; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_patchSpare.on = sp; M::s_patchPace = pp;
-                                                                          WaterCoreGpu::s_surfaceOnlyOffForTest = false; } }
+                                                                          WaterCoreGpu::s_surfaceOnlyOffForTest = false; M::s_tileWakeWithoutCallForTest = false; } }
         restore{M::s_recordDraw, M::s_locality.drawM, M::s_patchSpare.on, M::s_patchPace};
     WaterCoreGpu::s_surfaceOnlyOffForTest = surfaceOnlyOff;
+    M::s_tileWakeWithoutCallForTest = surfaceOnlyOff;   // 58.3: the red is the whole pre-fix rule - both parts of the squares fix off
     M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_patchSpare.on = true; M::s_patchPace = false;
     PacedPatchRun o;
     WaterCoreManager mgr([](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; });
@@ -2013,8 +2113,9 @@ TEST_F(WaterRecordTilesTest, APatchBuiltOverFramesKeepsEachFrameShort) {
     // ~130 fps) no frame may leave a woken tile drawn by nobody. Written before the fix; RED expected on the first staged build
     const PacedPatchRun st120 = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, true, 1.0f / 120.0f);
     const PacedPatchRun im120 = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, false, 1.0f / 120.0f);
-    // P7's RED CONTROL: the asleep volume's surface-only call off (the pre-fix behaviour) - the metric must see the undrawn tiles
-    const PacedPatchRun red120 = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, true, 1.0f / 120.0f, true);
+    // P7's red control moved (2026-11-22) to ASleepingPatchsWokenTileIsDrawnByTheNextCall: here, the pre-fix rule (surface-only call off,
+    // and / or tile wakes with no call) read 8 in some runs and 0 in others - the squares need one interleaving of stages and ticks,
+    // which the pump's wall-time budget makes by chance (budget 0: 0; budget huge: 0; shipped: 0 or 8). A red that fires by chance is no red
     std::printf("  at 120 fps: frames with a woken tile drawn by nobody - staged %d, immediate %d (the first 120 frames after the push)\n", st120.undrawn, im120.undrawn);
     auto maxDiff = [](const PacedPatchRun& a, const PacedPatchRun& b) {
         double d = 0.0;
@@ -2049,15 +2150,17 @@ TEST_F(WaterRecordTilesTest, APatchBuiltOverFramesKeepsEachFrameShort) {
     const PacedPatchRun st2 = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, true);
     const PacedPatchRun st120b = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, true, 1.0f / 120.0f);
     const PacedPatchRun im120b = runPacedPatch(device, physicalDevice, queue, queueFamilyIndex, false, 1.0f / 120.0f);
+    // ... and a fourth time (2026-11-22): with another checkout's engine on the GPU the two IMMEDIATE runs at 120 fps read 20.05 /
+    // 23.15 ms - the +2 ms bound sat inside the measured noise. The tolerance is now + 2 ms + the spread of the two immediate runs
+    // (each frame rate's own)
     const double s60 = std::min(st.maxUpdateMs, st2.maxUpdateMs), i60 = std::min(im.maxUpdateMs, im2.maxUpdateMs);
     const double s120 = std::min(st120.maxUpdateMs, st120b.maxUpdateMs), i120 = std::min(im120.maxUpdateMs, im120b.maxUpdateMs);
-    std::printf("  the worst update + surfaceFields, 120 frames after the push (two runs each): staged %.2f / %.2f ms, immediate %.2f / %.2f | 120 fps: staged %.2f / %.2f, immediate %.2f / %.2f\n",
-                st.maxUpdateMs, st2.maxUpdateMs, im.maxUpdateMs, im2.maxUpdateMs, st120.maxUpdateMs, st120b.maxUpdateMs, im120.maxUpdateMs, im120b.maxUpdateMs);
-    EXPECT_LE(s60, i60 + 2.0) << "P8"; EXPECT_LE(s120, i120 + 2.0) << "P8 at 120 fps";
+    const double n60 = std::abs(im.maxUpdateMs - im2.maxUpdateMs), n120 = std::abs(im120.maxUpdateMs - im120b.maxUpdateMs);
+    std::printf("  the worst update + surfaceFields, 120 frames after the push (two runs each): staged %.2f / %.2f ms, immediate %.2f / %.2f (spread %.2f) | 120 fps: staged %.2f / %.2f, immediate %.2f / %.2f (spread %.2f)\n",
+                st.maxUpdateMs, st2.maxUpdateMs, im.maxUpdateMs, im2.maxUpdateMs, n60, st120.maxUpdateMs, st120b.maxUpdateMs, im120.maxUpdateMs, im120b.maxUpdateMs, n120);
+    EXPECT_LE(s60, i60 + 2.0 + n60) << "P8"; EXPECT_LE(s120, i120 + 2.0 + n120) << "P8 at 120 fps";
     EXPECT_EQ(st.undrawn, 0) << "P7 at 60 fps";
     EXPECT_EQ(im120.undrawn, 0) << "P7: the shipped path at 120 fps";
-    std::printf("  P7 RED CONTROL (no surface-only call): frames with a woken tile drawn by nobody %d\n", red120.undrawn);
-    EXPECT_GT(red120.undrawn, 0) << "P7 RED: the metric must see the squares with the fix off";
 }
 
 TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {

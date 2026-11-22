@@ -573,7 +573,11 @@ void WaterCoreManager::update(float dt) {
             if (av->gpuVol && m_gpu) m_gpu->setDroplets(*av->gpuVol, m_dstats.on);
             // 58.3: a volume with tile wakes queued steps (its wakes run in stepGpu, right before the call that carries their seed) - in
             // the asleep branch a tile was woken with no call after it: drawn by nobody until something woke the volume
-            if (!av->gpuLast.asleep || (av->gpuVol && !av->gpuVol->asleep) || !av->pendingTileWakes.empty()) {
+            // ... and a volume with host surface writes queued (a tile woken BETWEEN frames - an API write's wakeRecordedNear, a test's
+            // hook): asleep it never stepped, so the surface-only call never ran and the tile stayed drawn by nobody
+            // (ASleepingPatchsWokenTileIsDrawnByTheNextCall: 10 of 10 frames before this)
+            const bool surfQueued = av->gpuVol && (!av->gpuVol->surfPending.empty() || !av->gpuVol->surfRows.empty()) && !s_surfQueuedStaysAsleepForTest;
+            if (!av->gpuLast.asleep || (av->gpuVol && !av->gpuVol->asleep) || !av->pendingTileWakes.empty() || surfQueued) {
                 { const auto tc = UClock::now(); stepGpu(*av, ticks, tickDt); m_updateCpu.stepCall += ums(tc); }
                 ++av->stepCount;
                 { const auto tb = UClock::now(); collectBirths(*av, ticks * tickDt); m_updateCpu.births += ums(tb); }
@@ -2551,7 +2555,7 @@ WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
     m_recordCols.clear(); ++m_recordGen;
     m_recordChanged.clear(); m_resGlobalSeen = 0;
     out.recordTiles = static_cast<int>(m_recordTiles.size());
-    m_recordTiles.clear(); m_recordBoxes.clear(); ++m_recordRevision;
+    m_recordTiles.clear(); m_recordBoxes.clear(); ++m_recordRevision; m_recordOccSeen = ~0ull;
     m_skin.clear();   // 51.4: no summary of another world answers here (the editor replaces the generator source)
     m_fields.clear();   // no pointer into a destroyed volume or tile survives
     m_motionSeen.clear(); m_motionPrevTops.clear(); ++m_fieldBumps;
@@ -2599,6 +2603,15 @@ bool WaterCoreManager::tileBricks(const Av& av, int tx, int tz, glm::ivec2& bLo,
     return bHi.x >= bLo.x && bHi.y >= bLo.y;
 }
 
+bool WaterCoreManager::wakeTileAtForTest(int id, float x, float z) {
+    for (auto& a : m_avs) if (a->id == id && a->gpuVol && m_gpu) {
+        const std::pair<int, int> t(floorDivI(static_cast<int>(std::floor(x)), kTileVoxels), floorDivI(static_cast<int>(std::floor(z)), kTileVoxels));
+        if (std::find(a->recordedTileList.begin(), a->recordedTileList.end(), t) == a->recordedTileList.end()) return false;
+        return wakeTile(*a, t.first, t.second, 'T');
+    }
+    return false;
+}
+
 bool WaterCoreManager::columnRecorded(const Av& av, int wx, int wz) const {
     if (!av.gpuVol || av.recordedTileList.empty()) return false;
     const std::pair<int, int> t(floorDivI(wx, kTileVoxels), floorDivI(wz, kTileVoxels));
@@ -2612,7 +2625,7 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds, bool stepFollows) 
     const int offX = (so.x - vol.o.x) / 8, offZ = (so.z - vol.o.z) / 8;
     // 1. wakes first (a recorded tile the awake margin or a wake box reached) - even with recording off, nothing stays stranded
     const std::vector<int> wakes = m_gpu->takeRecordedWakes(vol);
-    if (!stepFollows) {   // 58.3: no call after this one - a tile woken here is drawn by nobody until one runs; queued, the volume steps next tick
+    if (!stepFollows && !s_tileWakeWithoutCallForTest) {   // 58.3: no call after this one - a tile woken here is drawn by nobody until one runs; queued, the volume steps next tick
         for (int c : wakes) {
             const std::pair<int, int> t{floorDivI(c % vol.bn.x + offX, kTileBricks), floorDivI(c / vol.bn.x + offZ, kTileBricks)};
             if (std::find(av.pendingTileWakes.begin(), av.pendingTileWakes.end(), t) == av.pendingTileWakes.end()) av.pendingTileWakes.push_back(t);
@@ -2903,7 +2916,11 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz, char cause) {
     if (x1 < x0 || z1 < z0) return false;
     WaterGrid g(GridSpec{so + glm::ivec3(x0, 0, z0), glm::ivec3(x1 - x0 + 1, n.y, z1 - z0 + 1), av.h});
     refreshOccupancy(av);
-    for (int z = z0; z <= z1; ++z) for (int y = 0; y < n.y; ++y) for (int x = x0; x <= x1; ++x) g.occ(x - x0, y, z - z0) = av.occCache[av.grid->idx(x, y, z)];
+    // 58.3: a row at a time (both grids are x-fastest: idx(x0..x1, y, z) is one run) - a per-cell idx() was ~0.9 ms of a tile wake
+    for (int z = z0; z <= z1; ++z) for (int y = 0; y < n.y; ++y) {
+        const size_t src = av.grid->idx(x0, y, z);
+        std::copy(av.occCache.begin() + static_cast<long>(src), av.occCache.begin() + static_cast<long>(src) + (x1 - x0 + 1), g.occData().begin() + static_cast<long>(g.idx(0, y, z - z0)));
+    }
     lap(P.wake, P.wakeMax, 1);
     seedGridFromRuns(g, runs);   // 27.9: level-filled into the air cells
     {   // the volume draws the woken tile at once from the seed (the GPU's surface replaces it at the next collected call)
@@ -3264,6 +3281,24 @@ void WaterCoreManager::refreshRecordTiles() {
     for (auto it = m_recordTiles.begin(); it != m_recordTiles.end();) {
         if (!inRange(it->first.first, it->first.second)) { changed |= it->second.wet; it = m_recordTiles.erase(it); } else ++it;
     }
+    // 58.3 item 1 (52.5's periodic freeze): the occupancy revision is the WORLD's - any chunk streamed, remeshed or edited anywhere
+    // moved it, and every tile in range went stale at once (RiverCarve live: pending 127 of 135, 5 s of 50-60 ms water frames, again
+    // every ~20-40 s with the camera still). The pool says where solids changed since a revision (m_changes, the volumes' 26.19
+    // local refresh): a tile current at the last revision seen and outside every changed box is current at this one. No list (none
+    // installed, history gone): every tile stale, as before
+    if (orv != m_recordOccSeen) {
+        std::vector<SolidsChangeBox> boxes;
+        if (m_recordOccSeen != ~0ull && m_changes && !s_recordOccAllStaleForTest && m_changes(m_recordOccSeen, boxes)) {
+            for (auto& [key, t] : m_recordTiles) {
+                if (t.occRev != m_recordOccSeen) continue;   // stale already, or built at another revision: its own test below
+                bool hit = false;
+                for (const SolidsChangeBox& b : boxes)
+                    if (b.lo.x <= key.first * T + T - 1 && b.hi.x >= key.first * T && b.lo.z <= key.second * T + T - 1 && b.hi.z >= key.second * T) { hit = true; break; }
+                if (!hit) t.occRev = orv; else ++m_recordStats.occStaledByPlace;
+            }
+        } else ++m_recordStats.occAllStale;
+        m_recordOccSeen = orv;
+    }
     const auto t0 = std::chrono::steady_clock::now();
     // stale tiles, nearest first (a stale tile keeps drawing its last field until it is rebuilt - late, never blank)
     std::vector<std::pair<float, std::pair<int, int>>> stale;
@@ -3545,6 +3580,8 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
             m_motionStats.maxFlow = std::max(m_motionStats.maxFlow, seen.maxFlow); m_motionStats.flowCols += seen.flowCols;
             continue;
         }
+        ++m_motionStats.hostFields; m_motionStats.hostCols += static_cast<long>(f.cols.size());   // 58.3 measurement
+        if ((f.source & kRecordDrawSourceBit) == 0) ++m_motionStats.hostVolumeFields;
         const float maxFlowBefore = m_motionStats.maxFlow; const int flowColsBefore = m_motionStats.flowCols;
         m_motionStats.maxFlow = 0.0f;
         std::vector<float>& prev = m_motionPrevTops[fi];
@@ -3580,6 +3617,7 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
         const float r = 0.5f * glm::length(glm::vec3(hi.x - lo.x, yHi - yLo, hi.y - lo.y)) + f.h;
         out.push_back({c, r}); ++m_motionStats.spheres; m_motionStats.lastRadius = r;
     }
+    if (m_motionStats.hostCols > s_motionScanMax.cols) s_motionScanMax = {m_motionStats.hostFields, m_motionStats.hostVolumeFields, m_motionStats.hostCols};
     return out;
 }
 

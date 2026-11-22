@@ -101,7 +101,7 @@ def one(api, k, handover=None, windows=False):
                          # 58: each phase's total in the window (many small calls) and the worst water block's split
                          "totals_ms": {n: round(v.get("ms_per_frame", 0.0) * fr, 1) for n, v in sorted(hpr.get("phases", {}).items()) if v.get("ms_per_frame", 0.0) * fr >= 5.0},
                          "calls": {n: round(v.get("calls_per_frame", 0.0) * fr) for n, v in sorted(hpr.get("phases", {}).items()) if v.get("ms_per_frame", 0.0) * fr >= 5.0},
-                         "frames": fr, "worst_water_block": hpr.get("app_water_cpu_ms_worst_frame")})
+                         "frames": fr, "worst_water_block": hpr.get("app_water_cpu_ms_worst_frame"), "motion_scan_max": hpr.get("motion_scan_max")})
             api.debug("water_av_host_phases", {"reset": True})
         if slept_at is not None and time.time() - t0 > slept_at + 3: break
         time.sleep(0.5)

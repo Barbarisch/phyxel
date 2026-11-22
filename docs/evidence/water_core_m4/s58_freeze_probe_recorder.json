@@ -1,0 +1,6154 @@
+{
+ "pose": {
+  "x": -2224.0,
+  "y": 93.0,
+  "z": -1349.5,
+  "yaw": 180.0,
+  "pitch": -12.0
+ },
+ "rows": [
+  {
+   "t": 3.5,
+   "frame_ms_max": 18.82459968328476,
+   "fps": 74.19608313562533,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 0,
+   "occ_staled_by_place": 0,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.4,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 12.2789
+  },
+  {
+   "t": 3.5,
+   "frame_ms_max": 15.19909966737032,
+   "fps": 66.52209340225292,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 0,
+   "occ_staled_by_place": 0,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.33,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 12.8426
+  },
+  {
+   "t": 3.6,
+   "frame_ms_max": 16.5484007447958,
+   "fps": 60.42880006483307,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 0,
+   "occ_staled_by_place": 0,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.37,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 11.7448
+  },
+  {
+   "t": 4.1,
+   "frame_ms_max": 21.16749994456768,
+   "fps": 48.3404707747158,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 0,
+   "occ_staled_by_place": 0,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.39,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 18.177
+  },
+  {
+   "t": 5.1,
+   "frame_ms_max": 24.36389960348606,
+   "fps": 46.188523048624894,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 0,
+   "built_last": 0,
+   "occ_staled_by_place": 0,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.34,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.4689
+  },
+  {
+   "t": 6.5,
+   "frame_ms_max": 69.17530298233032,
+   "fps": 15.467162779720457,
+   "pending": 20,
+   "tiles": 135,
+   "wet": 56,
+   "built_last": 4,
+   "occ_staled_by_place": 124,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     11.45,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     10.48,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.28,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 53.3014
+  },
+  {
+   "t": 7.1,
+   "frame_ms_max": 382.0286989212036,
+   "fps": 15.228766449036778,
+   "pending": 72,
+   "tiles": 135,
+   "wet": 62,
+   "built_last": 4,
+   "occ_staled_by_place": 256,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     9.29,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     9.09,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.34,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 44.976
+  },
+  {
+   "t": 8.2,
+   "frame_ms_max": 101.67290270328522,
+   "fps": 16.361604654176357,
+   "pending": 35,
+   "tiles": 135,
+   "wet": 71,
+   "built_last": 4,
+   "occ_staled_by_place": 339,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     8.78,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     8.77,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.4,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 44.4879
+  },
+  {
+   "t": 9.1,
+   "frame_ms_max": 116.8064996600151,
+   "fps": 18.678111970232525,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 371,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     6.24,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     4.96,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     1.66,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 43.3702
+  },
+  {
+   "t": 10.1,
+   "frame_ms_max": 73.56449961662292,
+   "fps": 22.058839853349458,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 387,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     3.82,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     3.82,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 31.7068
+  },
+  {
+   "t": 11.1,
+   "frame_ms_max": 69.72780078649521,
+   "fps": 35.54658245022646,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 402,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     5.1,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     5.09,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     1.13,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 44.9246
+  },
+  {
+   "t": 12.0,
+   "frame_ms_max": 56.96690082550049,
+   "fps": 23.30497019632452,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 419,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.03,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 34.3183
+  },
+  {
+   "t": 13.1,
+   "frame_ms_max": 69.79720294475555,
+   "fps": 15.839325952222534,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 424,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 35.1762
+  },
+  {
+   "t": 14.0,
+   "frame_ms_max": 89.26499634981155,
+   "fps": 11.202599461060876,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 425,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 34.875
+  },
+  {
+   "t": 15.1,
+   "frame_ms_max": 83.4892988204956,
+   "fps": 26.431882249898948,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 425,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.44,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 36.463
+  },
+  {
+   "t": 16.1,
+   "frame_ms_max": 79.05460149049759,
+   "fps": 13.271699081130393,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 425,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.75,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 37.2531
+  },
+  {
+   "t": 17.1,
+   "frame_ms_max": 93.13909709453583,
+   "fps": 27.121955182140187,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 426,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.34,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 41.8904
+  },
+  {
+   "t": 18.1,
+   "frame_ms_max": 88.53109925985336,
+   "fps": 16.219889447412896,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.42,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 28.8795
+  },
+  {
+   "t": 19.1,
+   "frame_ms_max": 85.21140366792679,
+   "fps": 37.95282524219477,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.49,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 28.8494
+  },
+  {
+   "t": 20.1,
+   "frame_ms_max": 111.43500357866287,
+   "fps": 41.50721104131533,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.74,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 25.1469
+  },
+  {
+   "t": 21.1,
+   "frame_ms_max": 73.75510036945343,
+   "fps": 182.93574693937006,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.34,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 23.3661
+  },
+  {
+   "t": 22.1,
+   "frame_ms_max": 55.70460110902786,
+   "fps": 27.01374026780928,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.41,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 21.9866
+  },
+  {
+   "t": 23.0,
+   "frame_ms_max": 93.24900060892105,
+   "fps": 67.53197716140765,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.07,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.7153
+  },
+  {
+   "t": 24.1,
+   "frame_ms_max": 119.27670240402222,
+   "fps": 72.31599045172464,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.07,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 21.6817
+  },
+  {
+   "t": 25.0,
+   "frame_ms_max": 81.68140053749084,
+   "fps": 72.72885932915676,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.2,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 21.7699
+  },
+  {
+   "t": 26.1,
+   "frame_ms_max": 58.121901005506516,
+   "fps": 61.52331595292392,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.2036
+  },
+  {
+   "t": 27.1,
+   "frame_ms_max": 103.20980101823807,
+   "fps": 59.4629275243984,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 19.1854
+  },
+  {
+   "t": 28.1,
+   "frame_ms_max": 102.54090279340744,
+   "fps": 67.16458121790657,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 19.7807
+  },
+  {
+   "t": 29.1,
+   "frame_ms_max": 73.48120212554932,
+   "fps": 59.30037582503398,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.4451
+  },
+  {
+   "t": 30.1,
+   "frame_ms_max": 78.34950089454651,
+   "fps": 63.32921794971607,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.5592
+  },
+  {
+   "t": 31.0,
+   "frame_ms_max": 233.08290541172028,
+   "fps": 16.25186531211175,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 20.6558
+  },
+  {
+   "t": 32.0,
+   "frame_ms_max": 46.446699649095535,
+   "fps": 59.71147108496917,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "surf.5 rest"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ]
+   ],
+   "worst_water_block": 23.0481
+  },
+  {
+   "t": 33.2,
+   "frame_ms_max": 134.36950743198395,
+   "fps": 22.11655450149617,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 19.033
+  },
+  {
+   "t": 34.0,
+   "frame_ms_max": 146.33849263191223,
+   "fps": 61.26963076799121,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.6715
+  },
+  {
+   "t": 35.0,
+   "frame_ms_max": 54.57640066742897,
+   "fps": 57.41220151844198,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.4494
+  },
+  {
+   "t": 36.2,
+   "frame_ms_max": 245.96570432186127,
+   "fps": 7.625984741408718,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.06,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.06,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 24.4223
+  },
+  {
+   "t": 37.1,
+   "frame_ms_max": 165.92350602149963,
+   "fps": 55.36271005506872,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 24.8722
+  },
+  {
+   "t": 38.1,
+   "frame_ms_max": 100.68230330944061,
+   "fps": 13.360750245404166,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 24.4623
+  },
+  {
+   "t": 39.1,
+   "frame_ms_max": 75.95819979906082,
+   "fps": 55.04001325378737,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.18,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 23.1831
+  },
+  {
+   "t": 40.1,
+   "frame_ms_max": 19.98000033199787,
+   "fps": 52.49729769477538,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4323
+  },
+  {
+   "t": 41.0,
+   "frame_ms_max": 20.17980068922043,
+   "fps": 55.85780946242399,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.6212
+  },
+  {
+   "t": 42.1,
+   "frame_ms_max": 292.60000586509705,
+   "fps": 3.41763492807669,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 23.1391
+  },
+  {
+   "t": 43.1,
+   "frame_ms_max": 126.45980715751648,
+   "fps": 53.66851116143591,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "surf.5 rest"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ]
+   ],
+   "worst_water_block": 21.6473
+  },
+  {
+   "t": 44.1,
+   "frame_ms_max": 55.52950128912926,
+   "fps": 55.23763367223305,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 26.0214
+  },
+  {
+   "t": 45.1,
+   "frame_ms_max": 83.35959911346436,
+   "fps": 50.32383365220569,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 28.1838
+  },
+  {
+   "t": 46.1,
+   "frame_ms_max": 106.63720220327377,
+   "fps": 22.304401404925216,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 28.8037
+  },
+  {
+   "t": 47.1,
+   "frame_ms_max": 20.947299897670746,
+   "fps": 57.412864600532814,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.7256
+  },
+  {
+   "t": 48.1,
+   "frame_ms_max": 21.29640057682991,
+   "fps": 54.62122891909729,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4532
+  },
+  {
+   "t": 49.0,
+   "frame_ms_max": 21.524500101804733,
+   "fps": 56.090595660281316,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.6717
+  },
+  {
+   "t": 50.1,
+   "frame_ms_max": 21.651500836014748,
+   "fps": 51.28678748675967,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4628
+  },
+  {
+   "t": 51.0,
+   "frame_ms_max": 251.62899494171143,
+   "fps": 220.6093145197784,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 48.3029
+  },
+  {
+   "t": 52.1,
+   "frame_ms_max": 105.59400171041489,
+   "fps": 11.815624195871187,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 29.3611
+  },
+  {
+   "t": 53.0,
+   "frame_ms_max": 109.38219726085663,
+   "fps": 51.66864026736337,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 28.7298
+  },
+  {
+   "t": 54.1,
+   "frame_ms_max": 121.42360210418701,
+   "fps": 8.235631151363425,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 25.191
+  },
+  {
+   "t": 55.0,
+   "frame_ms_max": 111.39679700136185,
+   "fps": 48.32809071014276,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ]
+   ],
+   "worst_water_block": 28.716
+  },
+  {
+   "t": 56.1,
+   "frame_ms_max": 22.211499512195587,
+   "fps": 51.591069850540194,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.16,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.827
+  },
+  {
+   "t": 57.1,
+   "frame_ms_max": 22.445300593972206,
+   "fps": 47.959332141952665,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.17,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.5121
+  },
+  {
+   "t": 58.1,
+   "frame_ms_max": 22.581499069929123,
+   "fps": 52.81866779163702,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.08,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.07,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.5877
+  },
+  {
+   "t": 59.1,
+   "frame_ms_max": 22.49000035226345,
+   "fps": 48.86606314248838,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.6365
+  },
+  {
+   "t": 60.1,
+   "frame_ms_max": 22.876400500535965,
+   "fps": 48.39942934440868,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8996
+  },
+  {
+   "t": 61.0,
+   "frame_ms_max": 22.203899919986725,
+   "fps": 47.65921557149727,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.03,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.447
+  },
+  {
+   "t": 62.1,
+   "frame_ms_max": 23.119699209928513,
+   "fps": 47.5160951460241,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.6385
+  },
+  {
+   "t": 63.1,
+   "frame_ms_max": 23.472800850868225,
+   "fps": 51.79924692608024,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4642
+  },
+  {
+   "t": 64.1,
+   "frame_ms_max": 24.839000776410103,
+   "fps": 45.99837142034628,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.7373
+  },
+  {
+   "t": 65.1,
+   "frame_ms_max": 23.768499493598938,
+   "fps": 45.06859267478583,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.09
+  },
+  {
+   "t": 66.1,
+   "frame_ms_max": 24.179400876164436,
+   "fps": 47.651948141859435,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.265
+  },
+  {
+   "t": 67.1,
+   "frame_ms_max": 24.16360005736351,
+   "fps": 48.97975025998809,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.5197
+  },
+  {
+   "t": 68.1,
+   "frame_ms_max": 23.715699091553688,
+   "fps": 46.72635082502718,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.4189
+  },
+  {
+   "t": 69.1,
+   "frame_ms_max": 25.528300553560257,
+   "fps": 42.242752327765494,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.658
+  },
+  {
+   "t": 70.1,
+   "frame_ms_max": 24.581000208854675,
+   "fps": 43.860612261637456,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.843
+  },
+  {
+   "t": 71.0,
+   "frame_ms_max": 25.602400302886963,
+   "fps": 43.31404456336126,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8315
+  },
+  {
+   "t": 72.4,
+   "frame_ms_max": 24.243399500846863,
+   "fps": 48.01874701934914,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 16.6779
+  },
+  {
+   "t": 73.1,
+   "frame_ms_max": 590.7449722290039,
+   "fps": 19.696245066408448,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 27.517
+  },
+  {
+   "t": 74.1,
+   "frame_ms_max": 783.4774851799011,
+   "fps": 31.869261159386877,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.7836
+  },
+  {
+   "t": 76.9,
+   "frame_ms_max": 690.6548142433167,
+   "fps": 48.830746500576744,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 23.3718
+  },
+  {
+   "t": 77.0,
+   "frame_ms_max": 992.8023219108582,
+   "fps": 124.95626631208104,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 29.0857
+  },
+  {
+   "t": 77.1,
+   "frame_ms_max": 102.31950134038925,
+   "fps": 25.698748586468312,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.17,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 29.1818
+  },
+  {
+   "t": 80.5,
+   "frame_ms_max": 58.14860016107559,
+   "fps": 48.65967128244078,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     2.59,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.06,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 30.1118
+  },
+  {
+   "t": 80.7,
+   "frame_ms_max": 2585.6611728668213,
+   "fps": 0.3867482756417237,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.4,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 29.0648
+  },
+  {
+   "t": 82.4,
+   "frame_ms_max": 171.76949977874756,
+   "fps": 5.821755324944635,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.33,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 28.47
+  },
+  {
+   "t": 82.5,
+   "frame_ms_max": 1606.5162420272827,
+   "fps": 18.421091147652582,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     4.36,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 38.7047
+  },
+  {
+   "t": 83.5,
+   "frame_ms_max": 56.98530003428459,
+   "fps": 17.548385274770173,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.38,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.514
+  },
+  {
+   "t": 83.6,
+   "frame_ms_max": 992.4356937408447,
+   "fps": 128.17226674812457,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.31,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.4401
+  },
+  {
+   "t": 84.2,
+   "frame_ms_max": 66.41809642314911,
+   "fps": 56.507713262917825,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.66,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 19.6336
+  },
+  {
+   "t": 85.1,
+   "frame_ms_max": 273.60451221466064,
+   "fps": 37.852263122523325,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     2.65,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 31.9845
+  },
+  {
+   "t": 86.2,
+   "frame_ms_max": 79.39130067825317,
+   "fps": 45.28411242843369,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.69,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 32.9106
+  },
+  {
+   "t": 87.1,
+   "frame_ms_max": 167.01780259609222,
+   "fps": 42.92471824580062,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.56,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 32.4063
+  },
+  {
+   "t": 88.1,
+   "frame_ms_max": 82.87650346755981,
+   "fps": 43.38695796094009,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.56,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 32.1967
+  },
+  {
+   "t": 89.1,
+   "frame_ms_max": 123.42780083417892,
+   "fps": 44.026096941877896,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     2.09,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.2876
+  },
+  {
+   "t": 90.1,
+   "frame_ms_max": 27.455799281597137,
+   "fps": 41.33717586883802,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.71,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.19,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.09,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.0142
+  },
+  {
+   "t": 91.1,
+   "frame_ms_max": 28.50390039384365,
+   "fps": 41.8166850057837,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     3.22,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 3.4924
+  },
+  {
+   "t": 92.0,
+   "frame_ms_max": 27.46010012924671,
+   "fps": 42.41871619266773,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.66,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.08,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.08,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.8863
+  },
+  {
+   "t": 93.1,
+   "frame_ms_max": 28.71610037982464,
+   "fps": 43.72750837355073,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.06,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9084
+  },
+  {
+   "t": 94.1,
+   "frame_ms_max": 28.505299240350723,
+   "fps": 42.66867074842551,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4603
+  },
+  {
+   "t": 95.1,
+   "frame_ms_max": 28.20730023086071,
+   "fps": 41.41249737831344,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.18,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.18,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.12,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.309
+  },
+  {
+   "t": 96.1,
+   "frame_ms_max": 27.250200510025024,
+   "fps": 42.10721207231884,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.9512
+  },
+  {
+   "t": 97.1,
+   "frame_ms_max": 27.644900605082512,
+   "fps": 38.61033744415347,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3202
+  },
+  {
+   "t": 98.1,
+   "frame_ms_max": 29.954899102449417,
+   "fps": 42.5332823339385,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8794
+  },
+  {
+   "t": 99.0,
+   "frame_ms_max": 27.17600017786026,
+   "fps": 43.81583490010566,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3327
+  },
+  {
+   "t": 100.1,
+   "frame_ms_max": 28.69980037212372,
+   "fps": 43.53201288533068,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.0762
+  },
+  {
+   "t": 101.0,
+   "frame_ms_max": 28.36490049958229,
+   "fps": 37.12227983666971,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.19,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.18,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3188
+  },
+  {
+   "t": 102.1,
+   "frame_ms_max": 27.20480039715767,
+   "fps": 42.85720425609704,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.06,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8524
+  },
+  {
+   "t": 103.0,
+   "frame_ms_max": 28.792599216103554,
+   "fps": 40.25408247922798,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3364
+  },
+  {
+   "t": 104.1,
+   "frame_ms_max": 29.705800116062164,
+   "fps": 39.9077331387568,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8976
+  },
+  {
+   "t": 105.1,
+   "frame_ms_max": 27.68309973180294,
+   "fps": 44.75835075257545,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4604
+  },
+  {
+   "t": 106.1,
+   "frame_ms_max": 27.051100507378578,
+   "fps": 43.38827636815036,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.889
+  },
+  {
+   "t": 107.3,
+   "frame_ms_max": 26.831500232219696,
+   "fps": 43.72215601242757,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 30.6972
+  },
+  {
+   "t": 109.5,
+   "frame_ms_max": 1102.5002002716064,
+   "fps": 0.9070293136941335,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3296
+  },
+  {
+   "t": 109.6,
+   "frame_ms_max": 1542.5877571105957,
+   "fps": 1.6372037540539226,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.769
+  },
+  {
+   "t": 110.0,
+   "frame_ms_max": 29.66739982366562,
+   "fps": 41.86149837975762,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.2663
+  },
+  {
+   "t": 111.1,
+   "frame_ms_max": 29.688000679016113,
+   "fps": 37.46174334028926,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.2742
+  },
+  {
+   "t": 112.0,
+   "frame_ms_max": 30.793700367212296,
+   "fps": 37.94116052390331,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.03,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.725
+  },
+  {
+   "t": 113.1,
+   "frame_ms_max": 28.591400012373924,
+   "fps": 41.69185633709782,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3029
+  },
+  {
+   "t": 114.1,
+   "frame_ms_max": 27.859900146722794,
+   "fps": 41.43514866523587,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.08,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.07,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8271
+  },
+  {
+   "t": 115.1,
+   "frame_ms_max": 27.85930037498474,
+   "fps": 40.67421732360968,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3052
+  },
+  {
+   "t": 116.0,
+   "frame_ms_max": 27.780700474977493,
+   "fps": 40.74465069416132,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.6855
+  },
+  {
+   "t": 117.1,
+   "frame_ms_max": 27.87349931895733,
+   "fps": 41.97870878412001,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.12,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4188
+  },
+  {
+   "t": 118.1,
+   "frame_ms_max": 29.854699969291687,
+   "fps": 39.52834889851001,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8118
+  },
+  {
+   "t": 119.0,
+   "frame_ms_max": 29.1593000292778,
+   "fps": 41.70646010505408,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.05,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3071
+  },
+  {
+   "t": 120.1,
+   "frame_ms_max": 28.033999726176262,
+   "fps": 40.54952699348279,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.19,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.19,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.012
+  },
+  {
+   "t": 121.0,
+   "frame_ms_max": 28.234099969267845,
+   "fps": 41.16496744310297,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3058
+  },
+  {
+   "t": 122.0,
+   "frame_ms_max": 28.649600222706795,
+   "fps": 38.87057605130007,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8754
+  },
+  {
+   "t": 123.0,
+   "frame_ms_max": 30.777299776673317,
+   "fps": 42.158337359100756,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3272
+  },
+  {
+   "t": 124.1,
+   "frame_ms_max": 30.668700113892555,
+   "fps": 37.618309793230324,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.06,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.0841
+  },
+  {
+   "t": 125.0,
+   "frame_ms_max": 29.587099328637123,
+   "fps": 38.007927797307445,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.5252
+  },
+  {
+   "t": 126.9,
+   "frame_ms_max": 27.07109972834587,
+   "fps": 45.233928447152806,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.16,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 25.236
+  },
+  {
+   "t": 127.6,
+   "frame_ms_max": 1354.0842533111572,
+   "fps": 14.317539645652497,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 19.9258
+  },
+  {
+   "t": 130.1,
+   "frame_ms_max": 599.8982787132263,
+   "fps": 15.172273901370637,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 28.6311
+  },
+  {
+   "t": 130.3,
+   "frame_ms_max": 2313.892364501953,
+   "fps": 151.26305066685148,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.1483
+  },
+  {
+   "t": 130.4,
+   "frame_ms_max": 121.03129923343658,
+   "fps": 8.262325582998749,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.1929
+  },
+  {
+   "t": 131.0,
+   "frame_ms_max": 59.04759839177132,
+   "fps": 38.96751693861452,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3703
+  },
+  {
+   "t": 132.1,
+   "frame_ms_max": 30.64519912004471,
+   "fps": 40.706667209552734,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3551
+  },
+  {
+   "t": 133.1,
+   "frame_ms_max": 28.141599148511887,
+   "fps": 41.668748949299214,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8716
+  },
+  {
+   "t": 134.1,
+   "frame_ms_max": 28.21210026741028,
+   "fps": 39.959881053181896,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.06,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.4043
+  },
+  {
+   "t": 135.1,
+   "frame_ms_max": 42.89789870381355,
+   "fps": 32.67237189198558,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.1808
+  },
+  {
+   "t": 136.1,
+   "frame_ms_max": 31.24699927866459,
+   "fps": 40.812827583637954,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ]
+   ],
+   "worst_water_block": 0.2701
+  },
+  {
+   "t": 137.1,
+   "frame_ms_max": 55.48910051584244,
+   "fps": 36.898326715581646,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.7912
+  },
+  {
+   "t": 138.0,
+   "frame_ms_max": 68.30529868602753,
+   "fps": 41.67361357672436,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3912
+  },
+  {
+   "t": 139.0,
+   "frame_ms_max": 31.76179900765419,
+   "fps": 37.57237479512184,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8092
+  },
+  {
+   "t": 140.0,
+   "frame_ms_max": 31.838200986385345,
+   "fps": 38.171436648370545,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.2934
+  },
+  {
+   "t": 141.1,
+   "frame_ms_max": 31.538400799036026,
+   "fps": 40.35642706975268,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8426
+  },
+  {
+   "t": 142.1,
+   "frame_ms_max": 30.616899952292442,
+   "fps": 41.02177114082386,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.3248
+  },
+  {
+   "t": 143.1,
+   "frame_ms_max": 29.580699279904366,
+   "fps": 40.18953299762637,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.05,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 0.8943
+  },
+  {
+   "t": 146.0,
+   "frame_ms_max": 27.958499267697334,
+   "fps": 35.76729889631019,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 27.1498
+  },
+  {
+   "t": 147.6,
+   "frame_ms_max": 2581.6264152526855,
+   "fps": 0.3873527145879167,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.6172
+  },
+  {
+   "t": 147.9,
+   "frame_ms_max": 1523.260235786438,
+   "fps": 0.6564866439145993,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.53,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 32.6364
+  },
+  {
+   "t": 147.9,
+   "frame_ms_max": 149.72659945487976,
+   "fps": 6.678839989960173,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.15,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 22.7981
+  },
+  {
+   "t": 148.1,
+   "frame_ms_max": 30.915699899196625,
+   "fps": 32.34602494074495,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.66,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.7835
+  },
+  {
+   "t": 152.6,
+   "frame_ms_max": 60.205601155757904,
+   "fps": 39.817477296726665,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.64,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 33.5433
+  },
+  {
+   "t": 152.7,
+   "frame_ms_max": 3007.6656341552734,
+   "fps": 0.3324837670264693,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.7,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 31.9294
+  },
+  {
+   "t": 152.8,
+   "frame_ms_max": 91.58830344676971,
+   "fps": 18.967377945958734,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.3,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.4037
+  },
+  {
+   "t": 153.0,
+   "frame_ms_max": 54.53610047698021,
+   "fps": 18.336477878943725,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.25,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.4789
+  },
+  {
+   "t": 153.1,
+   "frame_ms_max": 144.69820261001587,
+   "fps": 6.910935878693361,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.55,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.6684
+  },
+  {
+   "t": 156.7,
+   "frame_ms_max": 109.76500064134598,
+   "fps": 162.05091448347773,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     2.06,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.7022
+  },
+  {
+   "t": 158.1,
+   "frame_ms_max": 2961.8725776672363,
+   "fps": 0.3376242474237692,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.62,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.8675
+  },
+  {
+   "t": 158.2,
+   "frame_ms_max": 1351.73499584198,
+   "fps": 125.92714149017479,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.49,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.03,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.03,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.9241
+  },
+  {
+   "t": 158.3,
+   "frame_ms_max": 62.74610012769699,
+   "fps": 15.93724546967639,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.19,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.02,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.02,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.3175
+  },
+  {
+   "t": 158.4,
+   "frame_ms_max": 53.776200860738754,
+   "fps": 18.595586597678118,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.9,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.0,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.305
+  },
+  {
+   "t": 159.0,
+   "frame_ms_max": 28.96770089864731,
+   "fps": 38.88145922367574,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     2.17,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.06,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.06,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 2.3211
+  },
+  {
+   "t": 160.0,
+   "frame_ms_max": 32.50160068273544,
+   "fps": 37.28393984189197,
+   "pending": 0,
+   "tiles": 135,
+   "wet": 86,
+   "built_last": 0,
+   "occ_staled_by_place": 427,
+   "occ_all_stale": 1,
+   "top": [
+    [
+     1.48,
+     "ripples.2 masks + layers"
+    ],
+    [
+     0.04,
+     "ripples.1 surfaceFields (= surf.*)"
+    ],
+    [
+     0.04,
+     "surf.6 record tiles' surfaces"
+    ],
+    [
+     0.01,
+     "ripples.3 the river layer"
+    ],
+    [
+     0.0,
+     "surf.5 rest"
+    ]
+   ],
+   "worst_water_block": 1.6609
+  }
+ ],
+ "recorder_slow": [
+  {
+   "row": 139,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 161,
+    "frame_ms": 382.014892578125,
+    "gpu_resolved": true,
+    "gpu_serial": 161,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 40,
+     "pending_remesh": 5,
+     "resident_chunks": 36
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 381.88,
+    "Frame/update": 368.14,
+    "Frame/update/Update": 368.14,
+    "Frame/update/Update/Water": 36.12,
+    "Frame/update/Update/Dirty Chunks": 10.13,
+    "Frame/render": 13.32,
+    "Frame Interval": 382.01,
+    "drawFrame": 13.3,
+    "drawFrame/Dirty Chunk Flush": 7.77
+   }
+  },
+  {
+   "row": 2720,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 2742,
+    "frame_ms": 590.7343139648438,
+    "gpu_resolved": true,
+    "gpu_serial": 2742,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 591
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 590.71,
+    "Frame/render": 588.36,
+    "Frame Interval": 590.73,
+    "drawFrame": 588.33,
+    "drawFrame/Light Occupancy": 34.09,
+    "drawFrame/Dirty Chunk Flush": 548.74
+   }
+  },
+  {
+   "row": 2723,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 2745,
+    "frame_ms": 624.4193115234375,
+    "gpu_resolved": true,
+    "gpu_serial": 2745,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 45,
+     "pending_remesh": 2,
+     "resident_chunks": 597
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 624.26,
+    "Frame/update": 591.62,
+    "Frame/update/Update": 591.62,
+    "Frame/update/Update/Dirty Chunks": 589.4,
+    "Frame/render": 32.24,
+    "Frame Interval": 624.42,
+    "drawFrame": 32.22,
+    "drawFrame/Light Occupancy": 26.55
+   }
+  },
+  {
+   "row": 2726,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 2748,
+    "frame_ms": 783.6077880859375,
+    "gpu_resolved": true,
+    "gpu_serial": 2748,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 597
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 783.45,
+    "Frame/update": 779.7,
+    "Frame/update/Update": 779.7,
+    "Frame/update/Update/Dirty Chunks": 777.7,
+    "Frame Interval": 783.61
+   }
+  },
+  {
+   "row": 2741,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 2763,
+    "frame_ms": 690.656982421875,
+    "gpu_resolved": true,
+    "gpu_serial": 2763,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 47,
+     "pending_remesh": 0,
+     "resident_chunks": 598
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 690.63,
+    "Frame/render": 688.34,
+    "Frame Interval": 690.66,
+    "drawFrame": 688.32,
+    "drawFrame/Light Occupancy": 32.74,
+    "drawFrame/Dirty Chunk Flush": 650.34
+   }
+  },
+  {
+   "row": 2743,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 2765,
+    "frame_ms": 855.2564697265625,
+    "gpu_resolved": true,
+    "gpu_serial": 2765,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 598
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 855.07,
+    "Frame/update": 849.91,
+    "Frame/update/Update": 849.91,
+    "Frame/update/Update/Dirty Chunks": 847.7,
+    "Frame Interval": 855.26
+   }
+  },
+  {
+   "row": 2745,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 2767,
+    "frame_ms": 992.9465942382812,
+    "gpu_resolved": true,
+    "gpu_serial": 2767,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 598
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 992.77,
+    "Frame/render": 990.18,
+    "Frame Interval": 992.95,
+    "drawFrame": 990.15,
+    "drawFrame/Dirty Chunk Flush": 985.77
+   }
+  },
+  {
+   "row": 2778,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 2800,
+    "frame_ms": 2585.656005859375,
+    "gpu_resolved": true,
+    "gpu_serial": 2800,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 602
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 2585.63,
+    "Frame/render": 2583.28,
+    "Frame Interval": 2585.66,
+    "drawFrame": 2583.25,
+    "drawFrame/Light Occupancy": 36.08,
+    "drawFrame/Dirty Chunk Flush": 2542.1
+   }
+  },
+  {
+   "row": 2783,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 2805,
+    "frame_ms": 1606.493896484375,
+    "gpu_resolved": true,
+    "gpu_serial": 2805,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 44,
+     "pending_remesh": 3,
+     "resident_chunks": 615
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 1606.32,
+    "Frame/update": 1542.74,
+    "Frame/update/Update": 1542.74,
+    "Frame/update/Update/Dirty Chunks": 1538.81,
+    "Frame/render": 63.06,
+    "Frame Interval": 1606.49,
+    "drawFrame": 63.04,
+    "drawFrame/Light Occupancy": 58.13
+   }
+  },
+  {
+   "row": 2786,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 2808,
+    "frame_ms": 992.4343872070312,
+    "gpu_resolved": true,
+    "gpu_serial": 2808,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 615
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 992.28,
+    "Frame/update": 10.82,
+    "Frame/update/Update": 10.82,
+    "Frame/update/Update/Dirty Chunks": 5.14,
+    "Frame/render": 980.99,
+    "Frame Interval": 992.43,
+    "drawFrame": 980.96,
+    "drawFrame/Dirty Chunk Flush": 971.98,
+    "drawFrame/Record": 8.01,
+    "drawFrame/Record/Scene Pass": 6.9
+   }
+  },
+  {
+   "row": 3648,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 3670,
+    "frame_ms": 1102.4932861328125,
+    "gpu_resolved": true,
+    "gpu_serial": 3670,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 645
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 1102.47,
+    "Frame/render": 1099.9,
+    "Frame Interval": 1102.49,
+    "drawFrame": 1099.88,
+    "drawFrame/Light Occupancy": 40.26,
+    "drawFrame/Dirty Chunk Flush": 1054.58
+   }
+  },
+  {
+   "row": 3650,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 3672,
+    "frame_ms": 1542.5621337890625,
+    "gpu_resolved": true,
+    "gpu_serial": 3672,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 645
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 1542.4,
+    "Frame/update": 1539.14,
+    "Frame/update/Update": 1539.14,
+    "Frame/update/Update/Dirty Chunks": 1536.85,
+    "Frame Interval": 1542.56
+   }
+  },
+  {
+   "row": 3652,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 3674,
+    "frame_ms": 610.9047241210938,
+    "gpu_resolved": true,
+    "gpu_serial": 3674,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 645
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 610.77,
+    "Frame/update": 7.42,
+    "Frame/update/Update": 7.42,
+    "Frame/update/Update/Dirty Chunks": 5.15,
+    "Frame/render": 602.93,
+    "Frame Interval": 610.9,
+    "drawFrame": 602.9,
+    "drawFrame/Dirty Chunk Flush": 599.82
+   }
+  },
+  {
+   "row": 4297,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 4319,
+    "frame_ms": 1354.0875244140625,
+    "gpu_resolved": true,
+    "gpu_serial": 4319,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 47,
+     "pending_remesh": 0,
+     "resident_chunks": 646
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 1354.06,
+    "Frame/render": 1350.84,
+    "Frame Interval": 1354.09,
+    "drawFrame": 1350.82,
+    "drawFrame/Light Occupancy": 40.71,
+    "drawFrame/Dirty Chunk Flush": 1305.99
+   }
+  },
+  {
+   "row": 4302,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 4324,
+    "frame_ms": 600.051513671875,
+    "gpu_resolved": true,
+    "gpu_serial": 4324,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 655
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 599.87,
+    "Frame/update": 12.45,
+    "Frame/update/Update": 12.45,
+    "Frame/update/Update/Dirty Chunks": 10.7,
+    "Frame/render": 586.81,
+    "Frame Interval": 600.05,
+    "drawFrame": 586.78,
+    "drawFrame/Dirty Chunk Flush": 584.19
+   }
+  },
+  {
+   "row": 4306,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 4328,
+    "frame_ms": 2314.04052734375,
+    "gpu_resolved": true,
+    "gpu_serial": 4328,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 663
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 2313.86,
+    "Frame/update": 6.88,
+    "Frame/update/Update": 6.88,
+    "Frame/render": 2306.53,
+    "Frame Interval": 2314.04,
+    "drawFrame": 2306.5,
+    "drawFrame/Dirty Chunk Flush": 2303.18
+   }
+  },
+  {
+   "row": 4811,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 4833,
+    "frame_ms": 2581.625,
+    "gpu_resolved": true,
+    "gpu_serial": 4833,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 47,
+     "pending_remesh": 0,
+     "resident_chunks": 664
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 2581.6,
+    "Frame/render": 2579.68,
+    "Frame Interval": 2581.62,
+    "drawFrame": 2579.66,
+    "drawFrame/Light Occupancy": 43.42,
+    "drawFrame/Dirty Chunk Flush": 2531.79
+   }
+  },
+  {
+   "row": 4813,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 4835,
+    "frame_ms": 1523.27392578125,
+    "gpu_resolved": true,
+    "gpu_serial": 4835,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 48,
+     "pending_remesh": 0,
+     "resident_chunks": 667
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 1523.09,
+    "Frame/update": 35.99,
+    "Frame/update/Update": 35.99,
+    "Frame/update/Update/Water": 22.62,
+    "Frame/update/Update/Dirty Chunks": 11.34,
+    "Frame/render": 1486.63,
+    "Frame Interval": 1523.27,
+    "drawFrame": 1486.61,
+    "drawFrame/Dirty Chunk Flush": 1481.63
+   }
+  },
+  {
+   "row": 4822,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 4844,
+    "frame_ms": 3007.50439453125,
+    "gpu_resolved": true,
+    "gpu_serial": 4844,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 45,
+     "pending_remesh": 3,
+     "resident_chunks": 684
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 3007.48,
+    "Frame/update": 2957.16,
+    "Frame/update/Update": 2957.16,
+    "Frame/update/Update/Dirty Chunks": 2954.03,
+    "Frame/render": 49.86,
+    "Frame Interval": 3007.5,
+    "drawFrame": 49.83,
+    "drawFrame/Light Occupancy": 44.67
+   }
+  },
+  {
+   "row": 4823,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 4845,
+    "frame_ms": 1475.5224609375,
+    "gpu_resolved": true,
+    "gpu_serial": 4845,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 45,
+     "pending_remesh": 2,
+     "resident_chunks": 684
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 1475.33,
+    "Frame/update": 35.81,
+    "Frame/update/Update": 35.81,
+    "Frame/update/Update/Water": 33.55,
+    "Frame/render": 1439.02,
+    "Frame Interval": 1475.52,
+    "drawFrame": 1439.0,
+    "drawFrame/Dirty Chunk Flush": 1433.4
+   }
+  },
+  {
+   "row": 4851,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 4873,
+    "frame_ms": 2961.864501953125,
+    "gpu_resolved": true,
+    "gpu_serial": 4873,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 44,
+     "pending_remesh": 0,
+     "resident_chunks": 685
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 2961.85,
+    "Frame/update": 2957.88,
+    "Frame/update/Update": 2957.88,
+    "Frame/update/Update/Dirty Chunks": 2954.99,
+    "Frame Interval": 2961.86
+   }
+  },
+  {
+   "row": 4853,
+   "frame": {
+    "camera": [
+     -2224.0,
+     93.0,
+     -1349.5,
+     180.0,
+     -12.0
+    ],
+    "frame": 4875,
+    "frame_ms": 1351.8970947265625,
+    "gpu_resolved": true,
+    "gpu_serial": 4875,
+    "path_progress": -1.0,
+    "streaming": {
+     "camera_chunk_resident": true,
+     "pending_generation": 44,
+     "pending_remesh": 0,
+     "resident_chunks": 685
+    }
+   },
+   "phases_over_5ms": {
+    "Frame": 1351.71,
+    "Frame/update": 8.78,
+    "Frame/update/Update": 8.78,
+    "Frame/render": 1342.41,
+    "Frame Interval": 1351.9,
+    "drawFrame": 1342.39,
+    "drawFrame/Dirty Chunk Flush": 1339.41
+   }
+  }
+ ]
+}
