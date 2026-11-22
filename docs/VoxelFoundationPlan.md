@@ -3080,7 +3080,10 @@ engine's reads sample them); `RenderCoordinator::setVoxFoundOccupancy` feeds the
 edit revisions) instead of today's. Found first: with today's chunks feeding it, almost the whole switched ground was
 black in ambient (today's 1/9 m ground sits above the 1/8 m one). Now: equal to the reads' sampling on every micro cell;
 ground ambient 1.1 -> 33.5, an edited hole 55.9; GI off 0 px changed; the switch off restores today's pool.
-LightingPipeline.md R8 + section 9 updated.
+LightingPipeline.md R8 + section 9 updated. **Cost (measured after, quiet):** the switch itself costs nothing on the GPU
+(the A/B with today's occupancy: every pose within noise -- F7.3's D5 PASS); the new occupancy costs +5.9 / +7.2 / +9.8
+ms at the three ground poses (GI on; the probe field now traces the drawn ground) -- the price of the right ambient,
+not predicted; levers left if it bites (the switch is not the default yet).
 
 ## 10. Performance tiers
 

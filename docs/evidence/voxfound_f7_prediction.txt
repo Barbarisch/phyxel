@@ -279,3 +279,23 @@ Perlin s7 + flora (the 1/8 m region), edited through VoxelInteractionSystem's ow
 CONCLUSION: with the switch on, what blocks light is the new store -- the same voxels the engine reads and draws; the
 switched ground and edited holes get their ambient. Section 7 step 3 (drawing, section 4) now covers lighting's
 occupancy too. Still owed from F7.3: D5 (cost) and the F55c timing re-run on a quiet GPU.
+
+F7.3 / F7.3b OWED MEASURES -- ADDENDUM (2026-11-22, 00:50-01:26; quiet: watchers 127 + 85 samples, no other process).
+Release, the VoxFoundGate project (port 8120), the F7.3b build (commit 24e7e825), the region rebuilt first. Evidence:
+voxfound_f73_d5.jsonl, voxfound_f73_d5b.jsonl, voxfound_f7_headless.txt (F55c); configs voxfound_f73_ab_config.json,
+voxfound_f73_ab_occstub.json.
+  F55c re-run (quiet): VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild PASSES (352 s) -- its per-pass timing guard
+     holds on a quiet GPU; the two 3.38 ms readings were contention.
+  D5 as first run (A = F2.19's B unrouted, B = the switch; perf_harness 8 pairs x 240 GPU frames x 5 poses): the
+     overviews equal (+0.028 [+0.014, +0.034] / -0.010 [-0.014, +0.010] ms) but the ground poses SLOWER: +9.80
+     [+9.69, +9.81] / +7.17 [+7.08, +7.22] / +5.87 [+5.82, +5.95] ms (forest_floor_open 39.1 -> 48.9, east_low 37.9 ->
+     45.1, canopy_close 19.9 -> 25.8). This build's switch also carries F7.3b's occupancy.
+  ATTRIBUTION (stated before it ran: the switch with TODAY's occupancy, occ_stub, vs the same A): every pose within
+     noise -- -0.007 / +0.000 / -0.024 / +0.012 / -0.027 ms, every CI includes 0.
+  => D5 PASS for F7.3's switch (routing + drawing cost nothing on the GPU). The ground-pose cost is F7.3b's: the
+     probe field (GI, the ground poses' leading cost since F2.19) now traces the drawn 1/8 m ground through the
+     occupancy -- 75,381 mixed cubes vs 58,295 -- where before it saw that ground as buried. It is the price of the
+     switched world's ambient being right (1.1 -> 33.5 in view 7), measured, NOT predicted by F7.3b (its prediction
+     claimed no cost) -- recorded as a miss of F7.3b's prediction by omission. Levers if it bites (the switch is not
+     the default yet): GI-2 cube-cell marching inside mixed cubes, fewer mixed cubes (cubes of one material at the
+     surface), probe refresh rate.

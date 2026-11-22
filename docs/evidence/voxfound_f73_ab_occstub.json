@@ -1,0 +1,6 @@
+{"A": [["POST", "/api/debug/voxfound_preview", {"world_switch": false}],
+       ["POST", "/api/debug/voxfound_preview", {"hide_world": true, "show_preview": true}]],
+ "B": [["POST", "/api/debug/voxfound_preview", {"world_switch": false}],
+       ["POST", "/api/debug/voxfound_preview", {"occ_stub": true}],
+       ["POST", "/api/debug/voxfound_preview", {"world_switch": true}],
+       ["POST", "/api/debug/voxfound_preview", {"occ_stub": false}]]}

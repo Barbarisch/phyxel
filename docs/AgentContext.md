@@ -665,7 +665,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       black (GI probes trace today's hidden chunks).
       F7.3b done: the light occupancy from the new store when switched (VoxFound::lightOccupancyOf +
       RenderCoordinator::setVoxFoundOccupancy); the switched ground's ambient was ~0 before (today's ground above it).
-      OWED FIRST on a quiet GPU: F7.3's D5 + the F55c timing re-run (scratchpad f73_owed.ps1 pattern).
+      F7.3's owed measures done (quiet): the switch costs 0 on the GPU; F7.3b's occupancy +5.9-9.8 ms at the ground
+      poses (GI probes now trace the drawn ground; a lever if it bites); F55c's timing guard passes quiet.
       NEXT: F7.5 (destruction, section 6: break the switched world with the fracture path) -- prediction BEFORE code.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload

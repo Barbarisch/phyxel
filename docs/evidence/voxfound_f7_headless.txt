@@ -215,3 +215,5 @@ G:\Github\phyxel-matsimb-lab\tests\core\LightOccupancyFromStoreTest.cpp(89): err
 == F7.3b O1 GREEN + occupancy tests (LightOccupancyFromStore.*:*LightOccupancy*:*Occupancy*) ==
 [LightOccupancyFromStore] cubes: 142 solid, 297 mixed, 0 wrong; micro: 373248 checked (209997 solid), 0 differ from WorldReads::occupiedMicro
 [  PASSED  ] 79 tests.
+== F7.3 owed: F55cRegionEditEqualsFullRebuild re-run, quiet (01:05:42-01:11:34) ==
+[       OK ] VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild (352037 ms)
