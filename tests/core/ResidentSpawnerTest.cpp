@@ -214,3 +214,84 @@ TEST(ResidentSpawnerTest, AResidentSpawnedBeforeTheTavernLearnsOfIt) {
     EXPECT_EQ(socialPlace(h.spawned["res_smithy_b"]), "tavern_a");
     EXPECT_EQ(h.despawnCalls, 2) << "only the two residents spawned before the first tavern were ever re-planned";
 }
+
+// O39 (p) (pm_chain605.txt): a plan change reaches the LIVE resident where it stands - no despawn - and a resident the
+// spawner adopts is given its plan. RED (the spawner as it stood): it never calls the hook.
+namespace {
+struct ReplanHarness : Harness {
+    int replanCalls = 0;
+    bool replanWorks = true;
+    std::map<std::string, ResidentPlan> last;   // the plan each resident carries now (spawned with, or re-planned to)
+    ReplanHarness() {
+        ResidentSpawner::Hooks h;
+        h.groundReady = [this](const glm::vec3&) { return ready; };
+        h.exists = [this](const std::string& n) { return alive.count(n) > 0; };
+        h.spawn = [this](const ResidentPlan& p) { ++spawnCalls; alive.insert(p.name); spawned[p.name] = p; last[p.name] = p; return true; };
+        h.despawn = [this](const std::string& n) { ++despawnCalls; alive.erase(n); };
+        h.replan = [this](const ResidentPlan& p) { ++replanCalls; if (!replanWorks || !alive.count(p.name)) return false; last[p.name] = p; return true; };
+        spawner.setHooks(std::move(h));
+    }
+};
+}  // namespace
+
+TEST(ResidentSpawnerTest, AResidentIsRePlannedWhereItStands) {
+    ReplanHarness h;
+    h.registry.addLocation(makeLoc("home_a", LocationType::Home, 10, 10));
+    h.registry.addLocation(makeLoc("smithy_a", LocationType::Work, 20, 10));
+    h.tick();
+    ASSERT_EQ(h.spawner.activeCount(), 2);
+    EXPECT_EQ(socialPlace(h.last["res_home_a"]), "home_a");
+    h.registry.addLocation(makeLoc("tavern_a", LocationType::Tavern, 30, 10));
+    h.tick();
+    std::printf("[ O39p ] after the tavern: spawns %d, despawns %d, replans %d; res_home_a's evening: %s, res_smithy_a's: %s\n", h.spawnCalls, h.despawnCalls, h.replanCalls,
+                socialPlace(h.last["res_home_a"]).c_str(), socialPlace(h.last["res_smithy_a"]).c_str());
+    EXPECT_EQ(h.despawnCalls, 0) << "a resident was despawned to change its plan";
+    EXPECT_EQ(h.replanCalls, 2);
+    EXPECT_EQ(h.spawnCalls, 3) << "home, smithy, and the tavern's own keeper";
+    EXPECT_EQ(socialPlace(h.last["res_home_a"]), "tavern_a");
+    EXPECT_EQ(socialPlace(h.last["res_smithy_a"]), "tavern_a");
+    // CONTROLS: buildings that change nobody's evening re-plan nobody
+    h.tick(); h.tick();
+    h.registry.addLocation(makeLoc("home_far", LocationType::Home, 900, 10));
+    h.tick();
+    h.registry.addLocation(makeLoc("smithy_b", LocationType::Work, 25, 12));
+    h.tick();
+    h.registry.addLocation(makeLoc("tavern_b", LocationType::Tavern, 35, 12));
+    h.tick();
+    EXPECT_EQ(h.replanCalls, 2) << "a building that changes nobody's evening re-planned somebody";
+    EXPECT_EQ(h.despawnCalls, 0);
+}
+
+TEST(ResidentSpawnerTest, AnAdoptedResidentIsGivenItsPlan) {
+    ReplanHarness h;
+    h.registry.addLocation(makeLoc("home_a", LocationType::Home, 10, 10));
+    h.alive.insert("res_home_a");   // it exists before the spawner sees it (the build's own spawn, or loaded with the world)
+    h.tick();
+    std::printf("[ O39p ] adoption: spawns %d, replans %d, active %d; its evening: %s\n", h.spawnCalls, h.replanCalls, h.spawner.activeCount(),
+                h.last.count("res_home_a") ? socialPlace(h.last["res_home_a"]).c_str() : "(no plan given)");
+    EXPECT_EQ(h.spawnCalls, 0);
+    EXPECT_EQ(h.spawner.activeCount(), 1);
+    EXPECT_EQ(h.replanCalls, 1) << "an adopted resident was not given its plan";
+    ASSERT_TRUE(h.last.count("res_home_a"));
+    EXPECT_EQ(socialPlace(h.last["res_home_a"]), "home_a");
+    h.tick(); h.tick();
+    EXPECT_EQ(h.replanCalls, 1) << "steady state re-planned";
+    h.registry.addLocation(makeLoc("tavern_a", LocationType::Tavern, 30, 10));
+    h.tick();
+    EXPECT_EQ(h.replanCalls, 2) << "an adopted resident did not learn of the tavern";
+    EXPECT_EQ(socialPlace(h.last["res_home_a"]), "tavern_a");
+    EXPECT_EQ(h.despawnCalls, 0);
+}
+
+TEST(ResidentSpawnerTest, AReplanThatFailsFallsBackToARespawn) {
+    ReplanHarness h;
+    h.replanWorks = false;
+    h.registry.addLocation(makeLoc("home_a", LocationType::Home, 10, 10));
+    h.tick();
+    h.registry.addLocation(makeLoc("tavern_a", LocationType::Tavern, 30, 10));
+    h.tick();
+    std::printf("[ O39p ] replan refused: spawns %d, despawns %d; its evening: %s\n", h.spawnCalls, h.despawnCalls, socialPlace(h.last["res_home_a"]).c_str());
+    EXPECT_EQ(h.despawnCalls, 1);
+    EXPECT_EQ(h.spawnCalls, 3) << "home, the tavern's keeper, and home again";
+    EXPECT_EQ(socialPlace(h.last["res_home_a"]), "tavern_a");
+}

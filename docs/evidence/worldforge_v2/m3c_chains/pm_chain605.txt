@@ -1,0 +1,35 @@
+pm_chain605 - O39 (p): a resident is re-planned IN PLACE, and an adopted resident gets its plan.
+Written 2026-11-21 18:43, before any edit. Release. Headless L2 (ResidentSpawnerTest).
+
+WHAT IS OPEN (the plan's O39 row): (p1) when a resident's plan changes it is despawned and spawned again at its door -
+  in play it vanishes and reappears; (p2) a resident the spawner ADOPTS (an NPC of the plan's name that already
+  exists - the build's own spawn, or one loaded with the world) carries no plan key, so it is never re-planned and
+  keeps whatever schedule it came with.
+THE RULE: a new hook, replan(plan) -> the live NPC takes the plan's schedule where it stands (true if it did).
+  - a plan change: replan first; only where there is no hook or it answers false, the old despawn-and-respawn.
+  - an adoption: replan at once, and the key is kept, so a later change reaches it too.
+  The engine's hook sets the schedule on the NPC's ScheduledBehavior. No number.
+THE TESTS (ResidentSpawnerTest):
+  AResidentIsRePlannedWhereItStands - home + smithy, then the tavern: asserted 0 despawns, 2 replans, each resident's
+    LAST plan sends it to the tavern; the controls of the existing test (far house, nearby smithy, second tavern)
+    re-plan nobody.
+  AnAdoptedResidentIsGivenItsPlan - a resident that exists before the spawner sees it: asserted 1 replan at adoption
+    (0 spawns), and when the tavern is built later, a second replan to the tavern, 0 despawns.
+  AReplanThatFailsFallsBackToARespawn - the hook answers false: the old path (1 despawn, 1 spawn more).
+  The existing AResidentSpawnedBeforeTheTavernLearnsOfIt keeps its harness (no hook) and its assertions: the fallback.
+PREDICTIONS
+  chain 605 (the tests + the hook field, spawner unchanged): RED - replans 0 on the first two; the third passes
+    (it IS today's behaviour).
+  chain 606 (the spawner): green; the resident / NPC suites otherwise unchanged. Full sets: unit 417 / 0, live 44 / 0.
+NOT COVERED BY THIS (said before): whether a live NPC that takes a new schedule mid-walk drops its old route at once -
+  ScheduledBehavior::setSchedule only replaces the schedule; that is an engine (L4) question.
+RESULTS
+  chain 605 (RED; the tests + the hook field, spawner unchanged; exe 18:43:27): as predicted - "after the tavern: spawns 5, despawns 2, replans 0"; "adoption: spawns 0, replans 0, active 1; its evening: (no plan given)"; the fallback test passes ("replan refused: spawns 3, despawns 1"). 10 ok / 2 failed.
+  chains 606 / 607 (the spawner; one build, exe 18:44:18): unit set 417 ok / 0 failed - "after the tavern: spawns 3,
+    despawns 0, replans 2; res_home_a's evening: tavern_a, res_smithy_a's: tavern_a"; "adoption: spawns 0, replans 1,
+    active 1; its evening: home_a"; "replan refused: spawns 3, despawns 1". The 82 M5a / M5b prints identical to
+    chain 555's. Live 44 ok / 0 failed, every record line identical to chain 604's. As predicted.
+  WHAT THIS IS: L2 on the spawner with stub hooks. NOT SHOWN: the engine's own hook (ScheduledBehavior::setSchedule on a
+    live NPC) has not run - whether a resident mid-walk drops its old route at once is an L4 question; an adopted
+    NPC whose behaviour is not a ScheduledBehavior answers false and is left alone (never despawned for it: it had no
+    key). Not audited.

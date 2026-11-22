@@ -64,6 +64,9 @@ public:
         std::function<bool(const ResidentPlan& plan)> spawn;
         std::function<void(const std::string& name)> despawn;
         std::function<bool(const std::string& name)> exists;
+        /// O39 (p) (pm_chain605.txt): the LIVE resident takes this plan's schedule where it stands (true if it did).
+        /// Null or false = the spawner falls back to despawn-and-respawn.
+        std::function<bool(const ResidentPlan& plan)> replan;
     };
     void setHooks(Hooks h) { m_hooks = std::move(h); }
 

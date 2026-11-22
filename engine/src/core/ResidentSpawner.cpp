@@ -44,6 +44,16 @@ void ResidentSpawner::configure(LocationRegistry* locations, NPCManager* npcs,
             sb->setSchedule(pl.schedule);
         return true;
     };
+    // O39 (p) (pm_chain605.txt): the live resident takes a new plan's schedule where it stands
+    m_hooks.replan = [npcs](const ResidentPlan& pl) {
+        if (!npcs) return false;
+        auto* npc = npcs->getNPC(pl.name);
+        if (!npc) return false;
+        auto* sb = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior());
+        if (!sb) return false;
+        sb->setSchedule(pl.schedule);
+        return true;
+    };
 }
 
 uint64_t ResidentSpawner::registryFingerprint() const {
@@ -140,16 +150,28 @@ void ResidentSpawner::update(float dt) {
         if (ready && m_hooks.despawn) {
             const auto ip = m_activePlan.find(pl.name);
             if (ip != m_activePlan.end() && !ip->second.empty() && ip->second != planKey(pl) && m_active.count(pl.name)) {
-                m_hooks.despawn(pl.name);
-                m_active.erase(pl.name);
-                m_activePlan.erase(ip);
-                LOG_INFO_FMT("Resident", "resident re-planned (its schedule changed; despawned, spawned again at its door): " << pl.name);
+                // O39 (p) (pm_chain605.txt): where it stands, if the live resident can take the schedule; the old
+                // despawn-and-respawn only where it cannot.
+                if (m_hooks.replan && m_hooks.replan(pl)) {
+                    ip->second = planKey(pl);
+                    LOG_INFO_FMT("Resident", "resident re-planned where it stands (its schedule changed): " << pl.name);
+                } else {
+                    m_hooks.despawn(pl.name);
+                    m_active.erase(pl.name);
+                    m_activePlan.erase(ip);
+                    LOG_INFO_FMT("Resident", "resident re-planned (its schedule changed; despawned, spawned again at its door): " << pl.name);
+                }
             }
         }
         const auto it = m_active.find(pl.name);
         if (ready && it == m_active.end()) {
             if (m_hooks.exists && m_hooks.exists(pl.name)) {
                 m_active.emplace(pl.name, pl.spawnPos);   // adopt the build's own spawn
+                // O39 (p): and give it its plan - an adopted resident carried no key and was never re-planned
+                if (m_hooks.replan && m_hooks.replan(pl)) {
+                    m_activePlan[pl.name] = planKey(pl);
+                    LOG_INFO_FMT("Resident", "resident adopted and given its plan: " << pl.name);
+                }
             } else if (m_hooks.spawn(pl)) {
                 m_active.emplace(pl.name, pl.spawnPos);
                 m_activePlan[pl.name] = planKey(pl);
