@@ -672,7 +672,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F7.6a done: save_world saves the switched region (codec v3), the switch loads it (load_saved:false skips) --
       an edited world comes back hash-exact. MISSED save 208 ms / load 713 ms (31 chunks: all "edited" = differ from
       the generator). The gate world.db holds F3.3's saved edits: gate comparisons with F2.19 pass load_saved:false.
-      NEXT: F7.6b (undo on the switched world), then F7.6c (the voxel API), F7.6d (LOD). Prediction BEFORE code.
+      F7.6b done: EditHistory -- switched region edits record box before/after; /api/undo|redo use it first; exact per
+      chunk hash, 20 deep, ~0.3 ms. Blasts not recorded.
+      NEXT: F7.6c (the voxel API on the switched world: place/remove/fill/query in voxel coords, cube/subcube = brush
+      sizes), then F7.6d (LOD). Prediction BEFORE code.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

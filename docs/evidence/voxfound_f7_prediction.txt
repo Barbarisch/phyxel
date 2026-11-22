@@ -427,3 +427,26 @@ F7.5's blasts are NOT recorded (stated: bodies and rubble change the window over
   Unit: EditHistory -- capture / undo / redo cell lists exact on a synthetic grid; depth cap; redo cleared; a box over
   the limit not recorded.
 RED: undo_stub (the history recorded but /api/undo ignores it) -> U1 fails as the control (hashes stay edited).
+
+F7.6b RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); the region built with
+load_saved:false (the generator's). Evidence: voxfound_f76b_live.jsonl; tools/voxfound_f76b_live.py; unit
+tests/core/EditHistoryTest.cpp. Every artifact: WorldGenerator Perlin s7 + flora (the 1/8 m region), edited through
+VoxelInteractionSystem (edit_action) and the preview edit API.
+  ORDER, stated: the code was built once before the control ran; the change was then stashed, the pre-change editor
+     rebuilt and the control run on it, then the change restored and rebuilt for red / green.
+  CONTROL (the pre-change editor): brush break (321 voxels, chunk 254,0,2), POST /api/undo -> "Nothing to undo"; 31/32
+     chunks = pre-edit (the edit kept).
+  RED as predicted: undo_stub -> the same ("Nothing to undo", 31/32).
+  Unit: VoxFoundEditHistory 4/4 (12 overlapping edits undone / redone exact at every step; only differing cells
+     returned; depth cap 20 + redo cleared; over 16 M voxels not recorded).
+  U1 PASS: undo -> 32/32 chunk hashes = pre-edit; redo -> 32/32 = edited (321 voxels each way).
+  U2 PASS (run 2): 25 overlapping size-8 edits (all recorded, 512 voxels each) -> depth 20 (the cap); 20 undos each
+     exact vs the state before that edit (20/20); the 21st "Nothing to undo" and the world = after edit 5 (the dropped
+     oldest stay); 3 redos = after edit 8; a new edit then clears redo ("Nothing to redo"). Run 1 was a SCRIPT defect
+     (5 of its edits changed nothing, were rightly not recorded, and shifted its stepwise comparison) -- kept, labelled.
+  U3 PASS: undo / redo wall 0.27-0.35 ms vs the edits' 0.21-0.27 ms (<= 1.6x, <= 10 ms).
+  Not here, stated: F7.5's blasts are not in the history; the engine's own undo for today's chunks still answers when
+     the switched history is empty.
+CONCLUSION: the switched world has undo / redo through the engine's /api/undo and /api/redo (and the MCP tools), exact
+per chunk store, at the cost of an edit. Next F7.6c: the voxel API (place / remove / fill / query in voxel coordinates;
+cube and subcube as brush sizes) on the switched world -- its edits then record here too.

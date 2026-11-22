@@ -13580,6 +13580,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("undo_stub")) {   // F7.6b (tests): /api/undo ignores the history (the red)
+            voxFoundUndoStub = cmd.params["undo_stub"].get<bool>();
+            response = {{"undo_stub", voxFoundUndoStub}};
+            return;
+        }
         if (cmd.params.contains("save_stub")) {   // F7.6a (tests): save_world skips the switched region (the red)
             voxFoundSaveStub = cmd.params["save_stub"].get<bool>();
             response = {{"save_stub", voxFoundSaveStub}};
@@ -14187,6 +14192,33 @@ size_t Application::voxFoundBrush(const glm::ivec3& voxel, int size, const std::
 
 std::unique_ptr<IWorldEditor> makeRegionWorldEditor(Application& app) { return std::make_unique<RegionWorldEditor>(app); }
 
+// F7.6b: undo / redo on the switched world -- the history's differing cells written back through applyCells (the exact
+// incremental path), then the light occupancy, the resident device copies and the drawn lists as an edit does.
+bool Application::voxFoundUndoRedo(bool undo, nlohmann::json& r) {
+    using namespace Core::VoxFound;
+    if (!voxFoundWorldReads || voxFoundUndoStub || voxFoundEdit.empty()) return false;
+    if (undo ? !voxFoundHistory.canUndo() : !voxFoundHistory.canRedo()) return false;   // today's stack answers
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto read = [this](glm::ivec3 p) { return voxFoundEdit.voxelAt(p); };
+    std::string label;
+    const EditHistory::Cells cells = undo ? voxFoundHistory.undo(read, &label) : voxFoundHistory.redo(read, &label);
+    RegionEdit::Stats st;
+    std::string err;
+    if (!cells.empty()) st = voxFoundEdit.applyCells(cells, nullptr, &err);
+    voxFoundOccBump(st.rebuilt);
+    if (voxFoundBuilder)
+        for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
+    const auto t1 = std::chrono::steady_clock::now();
+    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &st.changed);
+    const auto t2 = std::chrono::steady_clock::now();
+    auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    r = {{"success", err.empty()}, {"world", "voxfound"}, {"operation", label}, {"voxels_restored", cells.size()},
+         {"voxels_changed", st.voxelsChanged}, {"chunks_rebuilt", st.rebuilt.size()}, {"error", err},
+         {"rebuild_ms", ms(t0, t1)}, {"assemble_ms", ms(t1, t2)}, {"wall_ms", ms(t0, t2)},
+         {"undo_depth", voxFoundHistory.undoDepth()}, {"redo_depth", voxFoundHistory.redoDepth()}};
+    return true;
+}
+
 void Application::voxFoundOccBump(const std::vector<size_t>& rebuiltChunks) {   // F7.3b / F7.5
     for (size_t i : rebuiltChunks) {
         const auto& rc = voxFoundEdit.chunk(i).chunk;
@@ -14294,6 +14326,11 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     voxFoundEdit.setLegacyBorder(ej.value("legacy_border", false));   // F3.5a A/B: F3.5's border handling
     voxFoundEdit.setLegacyConnect(ej.value("legacy_connect", false));   // F3.5b A/B: F3.5a's flood
     FaceBuilderGpu* rowsGpu = ej.value("device", false) ? voxFoundBuilder.get() : nullptr;
+    // F7.6b: on the switched world every edit is recorded (the box before / after) for undo
+    const auto readVoxel = [this](glm::ivec3 p) { return voxFoundEdit.voxelAt(p); };
+    const bool recording = voxFoundWorldReads && !ej.value("no_undo", false);
+    bool recordedPending = false;
+    if (recording) recordedPending = voxFoundHistory.begin(brush + ":" + matName, lo, hi, readVoxel);
     RegionEdit::Stats st;
     if (brush == "brush")
         voxFoundEdit.brush(lo, brushSize, mat, st, rowsGpu, &rowsErr);   // F3.2b (size checked above)
@@ -14302,6 +14339,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     else
         st = voxFoundEdit.applyBox(lo, hi, mat, rowsGpu, &rowsErr);   // F3.2b: covered blocks written whole
     voxFoundOccBump(st.rebuilt);   // F7.3b: the switched light occupancy repacks these chunks
+    const bool recorded = recordedPending && voxFoundHistory.commit(readVoxel);   // F7.6b
     // the CPU executor changed these chunks' voxels behind any resident device copy: forget them (a later device edit
     // would otherwise re-mesh stale voxels next to its own box -- 12 face mismatches, live, before this)
     if (!ej.value("device", false) && voxFoundBuilder)
@@ -14327,6 +14365,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
                 {"sprig_ms", st.sprigMs}, {"connect_ms", st.connectMs}, {"rebuild_ms", ms(t0, t1)},
                 {"assemble_ms", ms(t1, t2)}, {"faces", voxFoundPreview.liveFaces()},
                 {"connect_floods", st.connectFloods}, {"blocks_filled", st.blocksFilled}, {"brush_size", brushSize}, {"assemble_bytes", voxFoundPreview.lastCopyBytes},
+                {"undo", recording ? (recorded ? "recorded" : (recordedPending ? "no_change" : "too_large")) : "off"},
                 {"legacy", voxFoundEdit.legacyF31()}, {"legacy_border", voxFoundEdit.legacyBorder()},
                 {"chunks_changed", st.changed.size()}, {"legacy_connect", voxFoundEdit.legacyConnect()},
                 {"connect_bytes", voxFoundEdit.connectBytes()},
@@ -18081,6 +18120,7 @@ void Application::registerSnapshotCommands() {
     });
 
     reg.on("undo", [this, noCMSnap, clearRegion](const Core::APICommand&, nlohmann::json& r) {
+        if (voxFoundUndoRedo(true, r)) return;   // F7.6b: the switched world's history first
         if (!chunkManager || !snapshotManager) return noCMSnap(r);
         if (!snapshotManager->canUndo()) { r = {{"error", "Nothing to undo"}, {"undo_depth", 0}}; return; }
         Core::RegionSnapshot before = snapshotManager->popUndo();
@@ -18098,6 +18138,7 @@ void Application::registerSnapshotCommands() {
     });
 
     reg.on("redo", [this, noCMSnap, clearRegion](const Core::APICommand&, nlohmann::json& r) {
+        if (voxFoundUndoRedo(false, r)) return;   // F7.6b
         if (!chunkManager || !snapshotManager) return noCMSnap(r);
         if (!snapshotManager->canRedo()) { r = {{"error", "Nothing to redo"}, {"redo_depth", 0}}; return; }
         Core::RegionSnapshot redoSnap = snapshotManager->popRedo();
@@ -18127,7 +18168,9 @@ void Application::registerSnapshotCommands() {
                                {"voxel_count", e.voxelCount}});
             return arr;
         };
-        r = {{"can_undo", snapshotManager->canUndo()}, {"can_redo", snapshotManager->canRedo()},
+        r = {{"voxfound", {{"undo_depth", voxFoundHistory.undoDepth()}, {"redo_depth", voxFoundHistory.redoDepth()},
+                           {"switched", voxFoundWorldReads != nullptr}}},   // F7.6b
+             {"can_undo", snapshotManager->canUndo()}, {"can_redo", snapshotManager->canRedo()},
              {"undo_depth", snapshotManager->undoDepth()}, {"redo_depth", snapshotManager->redoDepth()},
              {"undo_stack", toArr(undoEntries)}, {"redo_stack", toArr(redoEntries)}};
     });

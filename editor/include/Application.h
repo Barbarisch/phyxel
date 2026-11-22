@@ -108,6 +108,7 @@
 #include "core/voxfound/LodBuilderGpu.h"
 #include "core/voxfound/Preview.h"
 #include "core/voxfound/RegionEdit.h"
+#include "core/voxfound/EditHistory.h"
 #include "core/voxfound/BodyDraw.h"       // F5.3 bodies lab
 #include "core/voxfound/BodySim.h"
 #include "core/voxfound/BodySimGpu.h"   // F5.5b: the GPU solver live in the bodies lab
@@ -323,6 +324,10 @@ private:
     bool voxFoundOccStub = false;
     bool voxFoundDamageStub = false;                                    // F7.5 (tests): the destruction override ignored
     bool voxFoundSaveStub = false;                                      // F7.6a (tests): save_world skips the region
+    Core::VoxFound::EditHistory voxFoundHistory;                        // F7.6b: undo / redo of switched-world edits
+    bool voxFoundUndoStub = false;                                      // F7.6b (tests): /api/undo ignores the history
+    /// F7.6b: undo (true) / redo (false) the switched world's last edit; false when the history has none
+    bool voxFoundUndoRedo(bool undo, nlohmann::json& r);
     // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)
     struct VoxFoundBodiesLab {
         Core::VoxFound::VoxelGrid world;                    // what stays in the world (the sim holds a reference)

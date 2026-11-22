@@ -3098,6 +3098,12 @@ bake) comes back after a relaunch with every chunk's store hash equal. MISSED: e
 is rewritten per save (31 chunks, 208 ms), and loading the whole saved region at the switch takes ~0.7 s. Found: the
 gate scene's world.db holds F3.3's saved test edits -- comparisons with F2.19 must pass `load_saved:false`.
 
+**F7.6b, undo / redo on the switched world (2026-11-22).** `Core::VoxFound::EditHistory`: per edit the box's materials
+before and after; undo / redo write back only the differing voxels through `RegionEdit::applyCells`. Every switched
+region edit records; `/api/undo` and `/api/redo` use it first. Live: 32/32 chunk hashes exact after undo and redo, 20
+steps deep exact at every step, the cap and redo-clearing as today's stack, ~0.3 ms per undo (an edit's cost). Blasts
+are not recorded (stated).
+
 ## 10. Performance tiers
 
 The knobs that scale cost:
