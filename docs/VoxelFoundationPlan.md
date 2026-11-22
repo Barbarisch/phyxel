@@ -3038,6 +3038,12 @@ the rule (0 mismatched voxels; the red, the edit off, 63), the rubble piles at t
 wall (the CPU reference over 536 k cells). **F6 is done in broad strokes**; the cost is the scaling issue to take when
 it bites (the GPU WorldFluid; skipping quiet boxes), and a contained pour + drawing thin water are owed.
 
+## 9f. F7: moving the engine over
+
+The plan's section 7 order, in broad strokes (the owner, 2026-11-21): F7.1 the read interfaces on the new store, F7.2
+generators writing it, F7.3 drawing behind a switch, F7.4 editing, F7.5 destruction, F7.6 saving / LOD / undo / the
+voxel API, F7.7 deleting the old cube / subcube / microcube paths. Predictions: `voxfound_f7_prediction.txt`.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

@@ -1,0 +1,34 @@
+F7 predictions (docs/VoxelFoundationPlan.md section 9f: moving the engine over, the plan's section 7 order). Broad
+strokes (the owner, 2026-11-21): each step its prediction before code and its red; scaling issues taken as they bite.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.1 PREDICTION -- the read interfaces on the new store (2026-11-21, before any code).
+CONTROL: ChunkManager::hasVoxelAt / getVoxelTypeAt / subVoxelFloor / occupiedMicro answer from the old chunks (cubes,
+1/3 m subcubes, 1/9 m microcubes) through ChunkVoxelQuerySystem; 28 engine/editor files call them (NavGrid, NavGraph,
+NPCManager, spawners, structures, water, the character). NavGraphMicroTest's door world (real subcubes/microcubes) is
+the consumer check that passes today -- re-run first.
+THE CHANGE: VoxFound::WorldReads answers the four on the new store (BlockStore per engine chunk, 256^3 voxels = 32 m;
+one 8^3 block = one old 1 m cube), with the OLD semantics restated on 1/8 m voxels:
+  - getVoxelTypeAt(cube): its block has no solid voxel -> EMPTY, all 512 -> CUBE, else SUBDIVIDED (O(1): the directory
+    entry, or a detailed block's solid-mask popcount -- BlockStore::blockSolidCount, new); hasVoxelAt = not EMPTY.
+  - subVoxelFloor(cube): empty -> 0; full -> solid (-1); else full horizontal voxel layers from the bottom, all content
+    in them -> layers / 8, otherwise solid (-1) -- the old rule with 8 layers instead of 3.
+  - occupiedMicro(micro 1/9 m): the 1/8 m voxel under the micro cell's centre is solid (1/9 and 1/8 m content can't
+    coincide; a stated sampling).
+  - a chunk the store does not have reads empty / 0 / false (as an unloaded chunk today).
+  ChunkManager::setVoxFoundReads(reads): when set, the four route to it (consumers unchanged); NPCManager::buildNavGrid
+  takes its bounds from the reads' chunk list when routed (a chunkMap walker, plan section 7 step 7, done for nav now).
+  R1: every cube of a chunk of mixed content (uniform air / solid blocks, detailed blocks: full, partial, one voxel,
+      slabs, random) -- getVoxelTypeAt / hasVoxelAt equal the brute-force rule on a dense VoxelGrid of the same content,
+      including negative chunk coordinates and a chunk the store lacks.
+  R2: subVoxelFloor: slabs of 1..7 layers = k/8; a slab with a voxel above, a block with no bottom layer, a full block ->
+      -1; empty -> 0; and equal to the brute-force rule on every cube of R1's chunk.
+  R3: occupiedMicro equals the dense voxel under each micro centre for every micro cell of a 4 x 4 x 4 m area.
+  N1: navigation unchanged: NavGraphMicroTest's framed door rebuilt in 1/8 m voxels (wall 5 voxels thick, jambs one
+      voxel, the reveal 6 voxels = 0.75 m wide x 2 m tall, the lintel above) in the new store; a ChunkManager with NO old
+      chunks routed to it; NPCManager::buildNavGrid -> the path crosses the wall through the door; TEETH: the same wall
+      without the reveal blocks. Control: the same ChunkManager not routed -> no nav (no chunks).
+  R6: cost: getVoxelTypeAt <= 50 ns per call, subVoxelFloor on a detailed block <= 2 us (CPU, Release).
+RED: a stub WorldReads (every query empty) -- R1-R3 and N1 fail.
+Not here: queryAABB (physics occupancy: the physics step), stateAtMicro / phxOccupancySolid (lighting: the drawing step),
+the generators writing the new store (F7.2), anything live.
