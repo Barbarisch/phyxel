@@ -994,22 +994,38 @@ void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& 
 // §27 W1b: a tile's cells read back - only the bricks of its columns cross (a whole-volume download sent 1.9 M cells for a 46 x 28 m
 // pond: 105 ms at a sleep, 27.8). The fills of stored bricks; ground and absent bricks hold none. Occupancy from the host copy.
 bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi, WaterGrid& out) {
-    if (!vol.bricked) return false;
+    std::vector<WaterGrid> outs;
+    if (!readColumnsMulti(vol, {{bLo, bHi}}, outs) || outs.empty()) return false;
+    out = std::move(outs.front());
+    return true;
+}
+
+// 58.3: several brick rectangles in ONE settle and ONE submission (a patch's sleep reads only its tiles still in cells); each
+// rectangle's grid as readColumns makes it. False (nothing read) if any rectangle is outside the volume
+bool WaterCoreGpu::readColumnsMulti(Volume& vol, const std::vector<std::pair<glm::ivec2, glm::ivec2>>& rects, std::vector<WaterGrid>& outs) {
+    outs.clear();
+    if (!vol.bricked || rects.empty()) return false;
     const auto tr0 = std::chrono::steady_clock::now();
     settle(vol);
     s_tileGpuMs.readSettle = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tr0).count();
-    const glm::ivec2 lo = glm::max(bLo, glm::ivec2(0)), hi = glm::min(bHi, glm::ivec2(vol.bn.x - 1, vol.bn.z - 1));
-    if (hi.x < lo.x || hi.y < lo.y) return false;
     const glm::ivec3 n = vol.spec.dims;
-    const int x0 = std::max(0, lo.x * kB - vol.o.x), x1 = std::min(n.x - 1, hi.x * kB + kB - 1 - vol.o.x);
-    const int z0 = std::max(0, lo.y * kB - vol.o.z), z1 = std::min(n.z - 1, hi.y * kB + kB - 1 - vol.o.z);
-    if (x1 < x0 || z1 < z0) return false;
+    struct R { glm::ivec2 lo, hi; int x0, x1, z0, z1; };
+    std::vector<R> rs;
     std::vector<int> slots;
-    for (int bz = lo.y; bz <= hi.y; ++bz) for (int by = 0; by < vol.bn.y; ++by) for (int bx = lo.x; bx <= hi.x; ++bx) {
-        const int s = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)];
-        if (s >= kFirstSlot) slots.push_back(s);
+    for (const auto& [bLo, bHi] : rects) {
+        R r; r.lo = glm::max(bLo, glm::ivec2(0)); r.hi = glm::min(bHi, glm::ivec2(vol.bn.x - 1, vol.bn.z - 1));
+        if (r.hi.x < r.lo.x || r.hi.y < r.lo.y) return false;
+        r.x0 = std::max(0, r.lo.x * kB - vol.o.x); r.x1 = std::min(n.x - 1, r.hi.x * kB + kB - 1 - vol.o.x);
+        r.z0 = std::max(0, r.lo.y * kB - vol.o.z); r.z1 = std::min(n.z - 1, r.hi.y * kB + kB - 1 - vol.o.z);
+        if (r.x1 < r.x0 || r.z1 < r.z0) return false;
+        rs.push_back(r);
+        for (int bz = r.lo.y; bz <= r.hi.y; ++bz) for (int by = 0; by < vol.bn.y; ++by) for (int bx = r.lo.x; bx <= r.hi.x; ++bx) {
+            const int s = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)];
+            if (s >= kFirstSlot) slots.push_back(s);
+        }
     }
     std::sort(slots.begin(), slots.end());
+    slots.erase(std::unique(slots.begin(), slots.end()), slots.end());
     if (!slots.empty()) {
         VkCommandBuffer cmd = beginCommands();
         for (size_t a = 0; a < slots.size();) {
@@ -1024,13 +1040,30 @@ bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::iv
         s_tileGpuMs.readSubmit = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ts).count();
     }
     const auto th = std::chrono::steady_clock::now();
-    out = WaterGrid(GridSpec{vol.spec.origin + glm::ivec3(x0, 0, z0), glm::ivec3(x1 - x0 + 1, n.y, z1 - z0 + 1), vol.spec.h});
     const float* sf = reinterpret_cast<const float*>(vol.staging.mapped);
-    for (int z = z0; z <= z1; ++z) for (int y = 0; y < n.y; ++y) for (int x = x0; x <= x1; ++x) {
-        const long i = storageIndex(vol, x, y, z);
-        out.f(x - x0, y, z - z0) = i >= static_cast<long>(kFirstSlot * vol.bc) ? sf[i] : 0.0f;
-        const size_t d = static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z);
-        out.occ(x - x0, y, z - z0) = d < vol.hostOcc.size() ? static_cast<Occ>(vol.hostOcc[d]) : Occ::Solid;
+    for (const R& r : rs) {
+    const int x0 = r.x0, x1 = r.x1, z0 = r.z0, z1 = r.z1;
+    outs.emplace_back(GridSpec{vol.spec.origin + glm::ivec3(x0, 0, z0), glm::ivec3(x1 - x0 + 1, n.y, z1 - z0 + 1), vol.spec.h});
+    WaterGrid& out = outs.back();
+    // 58.3: by rows - storageIndex's rule (outside the brick box or slot 0 -> 0; the ground sentinel, slot 1 -> 0) with the y / z
+    // brick and the dense row once a row and the slot once a brick (a per-cell storageIndex was 2.5 ms a tile of a patch's sleep)
+    const size_t occN = vol.hostOcc.size();
+    for (int z = z0; z <= z1; ++z) for (int y = 0; y < n.y; ++y) {
+        const int qy = y + vol.o.y, qz = z + vol.o.z;   // >= 0: the cells are inside the volume, its offset >= 0
+        const int byq = qy / vol.by, bzq = qz >> 3;
+        const bool rowOut = byq >= vol.bn.y || bzq >= vol.bn.z;
+        const size_t rowMap = rowOut ? 0 : static_cast<size_t>(vol.bn.x) * (byq + static_cast<size_t>(vol.bn.y) * bzq);
+        const long inBrick = 8 * (qz & 7) + 64 * (qy & (vol.by - 1));
+        const size_t rowD = static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z);
+        int lastB = -1, lastSlot = 0;
+        for (int x = x0; x <= x1; ++x) {
+            const int qx = x + vol.o.x, bx = qx >> 3;
+            if (!rowOut && bx < vol.bn.x && bx != lastB) { lastB = bx; lastSlot = vol.map[static_cast<size_t>(bx) + rowMap]; }
+            const bool stored = !rowOut && bx < vol.bn.x && lastSlot >= static_cast<int>(kFirstSlot);
+            out.f(x - x0, y, z - z0) = stored ? sf[static_cast<long>(lastSlot) * static_cast<long>(vol.bc) + (qx & 7) + inBrick] : 0.0f;
+            const size_t d = static_cast<size_t>(x) + rowD;
+            out.occ(x - x0, y, z - z0) = d < occN ? static_cast<Occ>(vol.hostOcc[d]) : Occ::Solid;
+        }
     }
     // 27.22 TC4: a tall cell is its column's water from the bed up - spread back into cells for the record (as download does)
     if (vol.tallActive && vol.tallH.size() == vol.dColumns && vol.tallY >= 0 && vol.tallY < n.y) {
@@ -1041,6 +1074,7 @@ bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::iv
             const float share = out.f(x - x0, T, z - z0) / static_cast<float>(Hc);
             for (int y = std::max(0, T - Hc + 1); y <= T; ++y) out.f(x - x0, y, z - z0) = share;
         }
+    }
     }
     s_tileGpuMs.readHost = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - th).count();
     return true;

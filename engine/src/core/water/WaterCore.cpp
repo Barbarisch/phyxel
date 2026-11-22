@@ -25,8 +25,18 @@ namespace Water {
 // ── Phase D write-back (docs/WaterCore.md 16.2) ─────────────────────────────────────────────
 WriteBackStats columnRunsFromGrid(const WaterGrid& grid, const std::function<bool(int, int)>& held,
                                   std::vector<ColumnRuns>& out) {
+    return columnRunsFromGrids({&grid}, held, out);
+}
+
+WriteBackStats columnRunsFromGrids(const std::vector<const WaterGrid*>& grids, const std::function<bool(int, int)>& held,
+                                   std::vector<ColumnRuns>& out) {
     out.clear();
     WriteBackStats st;
+    std::vector<std::pair<size_t, double>> films;   // A11: (column in `out`, m^3) of the film-only columns
+    std::vector<double> area;                        // m^2 each column of `out` covers (1 when aligned)
+    for (const WaterGrid* gp : grids) {
+    if (!gp) continue;
+    const WaterGrid& grid = *gp;
     const GridSpec& sp = grid.spec();
     const float h = sp.h;
     const int per = std::max(1, static_cast<int>(std::lround(1.0f / h)));
@@ -39,8 +49,6 @@ WriteBackStats columnRunsFromGrid(const WaterGrid& grid, const std::function<boo
     const int vz0 = static_cast<int>(std::floor(static_cast<float>(sp.origin.z) / per));
     const int vz1 = static_cast<int>(std::floor(static_cast<float>(sp.origin.z + sp.dims.z - 1) / per));
     std::vector<float> layer(static_cast<size_t>(grid.ny()));
-    std::vector<std::pair<size_t, double>> films;   // A11: (column in `out`, m^3) of the film-only columns
-    std::vector<double> area;                        // m^2 each column of `out` covers (1 when aligned)
     for (int vz = vz0; vz <= vz1; ++vz)
         for (int vx = vx0; vx <= vx1; ++vx) {
             ColumnRuns col; col.x = vx; col.z = vz;
@@ -104,6 +112,7 @@ WriteBackStats columnRunsFromGrid(const WaterGrid& grid, const std::function<boo
             area.resize(out.size() + 1, 0.0); area[out.size()] = static_cast<double>(nsub) * h * h;
             out.push_back(std::move(col));
         }
+    }   // grids
     // A11 (44.8): a film-only column's water joins the nearest column with a run - nearest by squared
     // distance, ties by the lower z then x, so the choice is a function of the columns alone (not of
     // the order they were visited in). A box with no run anywhere keeps it as residue.

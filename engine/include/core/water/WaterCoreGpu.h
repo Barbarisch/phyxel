@@ -583,6 +583,8 @@ public:
     /// (spec in world cells: origin = the columns' first cell, every y of the volume; occupancy from the host copy, Solid where
     /// unknown). Settles the call in flight. False when the volume is not bricked.
     bool readColumns(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi, WaterGrid& out);
+    /// 58.3: several brick rectangles in one settle and one submission; one grid each (as readColumns)
+    bool readColumnsMulti(Volume& vol, const std::vector<std::pair<glm::ivec2, glm::ivec2>>& rects, std::vector<WaterGrid>& outs);
     /// 27.22 TALL CELLS: from the next call, the cell at grid y `tallY` of every column with heights[x + nx z] > 1 holds that column's
     /// water from tallY - H + 1 up (gathered exactly), and the bricks under the tall layer's brick read the ground sentinel. `tallY`
     /// must be the bottom cell of a brick ((tallY + o.y) % brick height == 0) and every column of height H open (no solid) from

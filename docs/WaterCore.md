@@ -15248,6 +15248,16 @@ holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run print
      the same frames. 14 records and 14 wakes in the run.
   4. **The sleep (t ~27 s), 30-32 ms:** `sleep.2` the GPU grid read 19 ms (H3), `sleep.4` runs from the grid 7-8, held columns 3.5.
   5. ~30 ms frames with the water's host block at 1.3-3.4 ms (the trace): not attributed - the trace has no water GPU column.
+- **Group 4 cut, a fix (the sleep reads only its tiles still in cells).** Measured first in 57.8's 60 m rig: the sleep's whole-grid
+  read 39-44 ms and the runs from it 9-12 ms; at the sleep **10 of the patch's 25 tiles were still in cells** (I first assumed every
+  tile was recorded by then and wrote the test for "no read at all" - it read `live 10`, so the design changed). Now: the tiles in
+  cells read in ONE submission (`WaterCoreGpu::readColumnsMulti`; `readColumns` is its one-rectangle case) by rows (a per-cell
+  `storageIndex` was 2.5 ms a tile), their runs with ONE film join over all of them (`columnRunsFromGrids` - A11's join looks across
+  columns, so per tile it would differ; `columnRunsFromGrid` is its one-grid case); every tile recorded: no read. The recorded
+  columns' runs were dropped by the filter anyway. **Test** `ASleepReadsOnlyItsTilesStillInCells`: the record column by column
+  IDENTICAL to the old whole read's (`s_sleepReadsAllForTest`, 0 m); 0 holes / 0 doubles; books -1.1e-5 m^3; read + runs **56 -> 24
+  ms** (read 44 -> 17.8, runs 12 -> 6.3; prediction "under half" met on the second build - the first, per-cell, was 29 vs 25 for half).
+  Left in the read: 16 ms host for 10 tiles - each tile a full `WaterGrid` (faces too) allocated and its occupancy copied.
 - Not done: the cheap ripple on the record while it builds (the alternative); pre-warming the spare (item 5); the first live frame
   (item 2, (a) partly, (b)); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
   the water's, logged here only).

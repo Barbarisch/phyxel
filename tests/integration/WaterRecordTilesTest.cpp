@@ -1706,6 +1706,85 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagTileWakePacing) {
     EXPECT_GT(red.atRecordCols, two.atRecordCols) << "RED: waves meeting recorded walls must show in the count";
 }
 
+// 58.3 item 1 (H3) - a patch's sleep reads back only its tiles still in cells. Live (Creek, 2026-11-21) the sleep frame was 30-32 ms,
+// 19 of it the whole-grid read and 7-8 the runs from it; the recorded tiles' runs were then all dropped by the recorded-column
+// filter. First written for "every tile recorded at the sleep" (no read at all) - WRONG: this rig sleeps with 10 of its 25 tiles in
+// cells (measured), so: those tiles read in one submission, their runs with ONE film join over them (columnRunsFromGrids). 57.8's rig
+// (a 60 m lake 2 m deep in the record, a push at its centre, the live path until the patch is back). Predictions: the sleep reads by
+// tiles (sleepsByTiles 1); the record column by column IDENTICAL to the old whole-grid read's (s_sleepReadsAllForTest - the
+// reference; 0 m, both deterministic); its read + runs under half the old's; books exact; 0 holes / 0 doubles every frame over the
+// box. RED: the old read's cost (the metric sees it: 39-42 + 9-12 ms here).
+struct SleepReadRun { std::map<std::pair<int, int>, double> cols; long allRecorded = 0, byTiles = 0; double readMs = 0.0, runsMs = 0.0, books = 0.0; int sleeps = 0, holes = 0, doubles = 0; };
+static SleepReadRun runSleepRead(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool readAll) {
+    using M = WaterCoreManager;
+    struct Restore { M::RecordDraw d; float m; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_sleepReadsAllForTest = false; } } restore{M::s_recordDraw, M::s_locality.drawM};
+    M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_sleepReadsAllForTest = readAll;
+    SleepReadRun o;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 60;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    const double placed = record.total();
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", M::s_tallBandDefault}};
+    if (!mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump())) { ADD_FAILURE() << "loadSlept"; return o; }
+    const glm::vec3 c(30.0f, 1.9f, 30.0f);
+    mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, 10.0f));
+    for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }
+    const std::vector<int> ids = wakeNearLive(mgr, c, 2.0f);
+    if (ids.empty()) { ADD_FAILURE() << "the splash woke nothing"; return o; }
+    glm::ivec3 lo(0), hi(0);
+    if (const AvRecord* r = mgr.find(ids[0])) { lo = r->minVoxel; hi = r->maxVoxel; }
+    std::vector<glm::vec2> pts;
+    for (int z = lo.z; z <= hi.z; z += 2) for (int x = lo.x; x <= hi.x; x += 2) pts.push_back({x + 0.55f, z + 0.55f});
+    mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    WaterHostProfile::reset();
+    bool live = true; int after = -1;
+    for (int k = 0; k < 60 * 90 && after < 60; ++k) {
+        mgr.update(1.0f / 60.0f); mgr.surfaceFields();
+        const bool empty = mgr.list().empty();
+        if (live && empty) ++o.sleeps;
+        live = !empty;
+        if (empty && mgr.retiringCount() == 0 && o.sleeps > 0) ++after;
+        int miss = 0, twice = 0;
+        for (const glm::vec2& p : pts) { const int n = mgr.drawnClaimsAtWorld(p.x, p.y); if (n == 0) ++miss; else if (n > 1) ++twice; }
+        if (miss) ++o.holes;
+        if (twice) ++o.doubles;
+    }
+    o.allRecorded = mgr.sleepsAllRecorded(); o.byTiles = mgr.sleepsByTiles();
+    std::printf("    at the sleep: %d tiles in the box, %d still in cells | the last read: settle %.2f submit+wait %.2f host %.2f ms\n", mgr.lastSleepTiles(), mgr.lastSleepLiveTiles(),
+                WaterCoreGpu::s_tileGpuMs.readSettle, WaterCoreGpu::s_tileGpuMs.readSubmit, WaterCoreGpu::s_tileGpuMs.readHost);
+    o.readMs = WaterHostProfile::maxMs["sleep.2 read the GPU grid"]; o.runsMs = WaterHostProfile::maxMs["sleep.4 runs from the grid"];
+    o.books = record.total() + mgr.totalMass() - placed;
+    for (const auto& [k, v] : record.cols) { double m = 0.0; for (const auto& r : v) m += static_cast<double>(r.topY - r.bottomY); o.cols[k] = m; }
+    return o;
+}
+
+TEST_F(WaterRecordTilesTest, ASleepReadsOnlyItsTilesStillInCells) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const SleepReadRun now = runSleepRead(device, physicalDevice, queue, queueFamilyIndex, false);
+    const SleepReadRun old = runSleepRead(device, physicalDevice, queue, queueFamilyIndex, true);
+    double d = 0.0;
+    for (const auto& [k, m] : now.cols) { auto it = old.cols.find(k); d = std::max(d, std::abs(m - (it == old.cols.end() ? 0.0 : it->second))); }
+    for (const SleepReadRun* r : {&now, &old})
+        std::printf("  %-28s sleeps %d (by tiles %ld, every tile recorded %ld) | sleep.2 grid read %.2f ms, sleep.4 runs %.2f ms | holes %d doubles %d frames | books %+.6f m^3\n",
+                    r == &now ? "the tiles in cells only" : "RED: the old whole read", r->sleeps, r->byTiles, r->allRecorded, r->readMs, r->runsMs, r->holes, r->doubles, r->books);
+    std::printf("  the record, column by column: now vs the old read %.8f m\n", d);
+    ASSERT_GE(now.sleeps, 1); ASSERT_GE(old.sleeps, 1);
+    EXPECT_GE(now.byTiles + now.allRecorded, 1) << "the sleep did not take the tile path";
+    EXPECT_LT(now.readMs + now.runsMs, 0.5 * (old.readMs + old.runsMs)) << "the sleep's read + runs not under half the whole read's";
+    EXPECT_GT(old.readMs + old.runsMs, 10.0) << "RED: the old read's cost must show";
+    EXPECT_EQ(d, 0.0) << "the record differs from the old read's";
+    EXPECT_LT(std::abs(now.books), 1e-3);
+    EXPECT_EQ(now.holes, 0); EXPECT_EQ(now.doubles, 0);
+}
+
 TEST_F(WaterRecordTilesTest, ASecondPatchTakesTheFirstPatchsBuffers) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     const SpareRun on = runSpare(device, physicalDevice, queue, queueFamilyIndex, true);

@@ -685,9 +685,35 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     if (!av) { rec.error = "no such volume"; return rec; }
     if (!m_spanWriter) { rec.error = "no span writer installed (the application owns the chunks)"; return rec; }
     auto hs = WaterHostProfile::Clock::now();   // 57.7: the sleep frame, by part (a patch's return to the record read 255 ms, untimed)
-    refreshOccupancy(*av);
+    // 58.3 item 1 (H3): a GPU volume with tiles already recorded holds cells only in the others (a recorded column's bricks are
+    // freed) - so only those are read back (one submission) and turned into runs. The whole-grid read was 19 ms live (39 in the 60 m
+    // rig) and the runs from it 7-8 ms, for a patch with 10 of its 25 tiles still in cells; the recorded columns' runs were then all
+    // dropped by the filter below. Every tile recorded: nothing read at all
+    bool allRecorded = false, byTiles = false;
+    std::vector<std::pair<int, int>> liveTiles;
+    if (av->gpuVol && av->gpuVol->bricked && av->gpuVol->sparse && av->backend == "gpu" && !av->recordedTileList.empty() && !s_sleepReadsAllForTest) {
+        auto fd = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+        int tiles = 0;
+        for (int tz = fd(av->minVoxel.z, kRecordTile); tz <= fd(av->maxVoxel.z, kRecordTile); ++tz)
+            for (int tx = fd(av->minVoxel.x, kRecordTile); tx <= fd(av->maxVoxel.x, kRecordTile); ++tx) {
+                ++tiles;
+                if (std::find(av->recordedTileList.begin(), av->recordedTileList.end(), std::make_pair(tx, tz)) == av->recordedTileList.end()) liveTiles.push_back({tx, tz});
+            }
+        allRecorded = liveTiles.empty();
+        byTiles = !allRecorded;
+        m_lastSleepTiles = tiles; m_lastSleepLiveTiles = static_cast<int>(liveTiles.size());
+    }
+    if (allRecorded) ++m_sleepsAllRecorded;
+    if (!allRecorded) refreshOccupancy(*av);
     WaterHostProfile::lap("sleep.1 occupancy refresh", hs);
-    syncFromGpu(*av, false);   // forced: never the rate-limited mirror, or the record is a second old
+    std::vector<WaterGrid> tileGrids;
+    if (byTiles) {
+        std::vector<std::pair<glm::ivec2, glm::ivec2>> rects;
+        for (const auto& [tx, tz] : liveTiles) { glm::ivec2 bLo, bHi; if (tileBricks(*av, tx, tz, bLo, bHi)) rects.push_back({bLo, bHi}); }
+        if (rects.empty() || !m_gpu->readColumnsMulti(*av->gpuVol, rects, tileGrids)) { byTiles = false; tileGrids.clear(); }
+        else ++m_sleepsByTiles;
+    }
+    if (!allRecorded && !byTiles) syncFromGpu(*av, false);   // forced: never the rate-limited mirror, or the record is a second old
     WaterHostProfile::lap("sleep.2 read the GPU grid", hs);
     m_pool.drop(id);   // 51.11: droplets in flight carry no water - nothing to land before the write-back
     if (!isAsleep(*av) && !force) {
@@ -698,12 +724,25 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     // held columns: any Unknown occupancy in the column's cells (the 5.1 hold boundary)
     std::vector<uint8_t> heldCol(static_cast<size_t>((av->maxVoxel.x - av->minVoxel.x + 1) * (av->maxVoxel.z - av->minVoxel.z + 1)), 0);
     const int cw = av->maxVoxel.x - av->minVoxel.x + 1;
-    for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
-        if (av->occCache[av->grid->idx(x, y, z)] == Occ::Unknown) heldCol[static_cast<size_t>((z / av->per) * cw + (x / av->per))] = 1;
+    if (byTiles) {   // 58.3: only the tiles read (their cells, the same occupancy cache)
+        const glm::ivec3 go = av->grid->spec().origin;
+        for (const WaterGrid& tg : tileGrids) {
+            const glm::ivec3 o = tg.spec().origin - go;
+            for (int z = 0; z < tg.nz(); ++z) for (int y = 0; y < tg.ny(); ++y) for (int x = 0; x < tg.nx(); ++x)
+                if (av->occCache[av->grid->idx(x + o.x, y + o.y, z + o.z)] == Occ::Unknown) heldCol[static_cast<size_t>(((z + o.z) / av->per) * cw + ((x + o.x) / av->per))] = 1;
+        }
+    } else if (!allRecorded)
+        for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
+            if (av->occCache[av->grid->idx(x, y, z)] == Occ::Unknown) heldCol[static_cast<size_t>((z / av->per) * cw + (x / av->per))] = 1;
     auto held = [&](int vx, int vz) { return heldCol[static_cast<size_t>((vz - av->minVoxel.z) * cw + (vx - av->minVoxel.x))] != 0; };
     WaterHostProfile::lap("sleep.3 held columns", hs);
     std::vector<ColumnRuns> runs;
-    const WriteBackStats st = columnRunsFromGrid(*av->grid, held, runs);
+    WriteBackStats st;
+    if (byTiles) {
+        std::vector<const WaterGrid*> ptrs;
+        for (const WaterGrid& tg : tileGrids) ptrs.push_back(&tg);
+        st = columnRunsFromGrids(ptrs, held, runs);
+    } else if (!allRecorded) st = columnRunsFromGrid(*av->grid, held, runs);
     WaterHostProfile::lap("sleep.4 runs from the grid", hs);
     // §27 W1b: a recorded tile's columns are already in the record (the volume holds no cells there) - writing the grid's empty
     // columns over them would erase that water

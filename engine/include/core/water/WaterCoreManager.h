@@ -817,6 +817,13 @@ public:
     /// TEST ONLY (51.3c control): a sleeping patch's record draw tiles are built BEFORE it is destroyed (its woken columns still its
     /// own - the tiles built dry there; the order before 51.3c)
     static inline bool s_patchSleepDrawFirstForTest = false;
+    /// 58.3 item 1 (H3): a sleep with every tile of the box recorded reads no grid back (the volume holds no cells). TEST ONLY: read
+    /// and write back as before (the parity's reference and the cost's red)
+    static inline bool s_sleepReadsAllForTest = false;
+    long sleepsAllRecorded() const { return m_sleepsAllRecorded; }
+    long sleepsByTiles() const { return m_sleepsByTiles; }
+    int lastSleepTiles() const { return m_lastSleepTiles; }
+    int lastSleepLiveTiles() const { return m_lastSleepLiveTiles; }
     /// TEST ONLY (57.8 controls): HeldOff - a retiring patch's tiles go live as they are built (beside its still-drawn surface: points
     /// drawn twice); GhostOff - the patch stops drawing at its write-back (its box's tiles not built yet: holes); GhostOwns - the
     /// tiles are built with the retiring patch still an owner of its columns (built dry: 51.3c's defect, and T4's red)
@@ -1305,6 +1312,9 @@ private:
     std::vector<WriteBackRecord> m_autoSlept;
     long m_worldResets = 0;   // A2i (47)
     long m_patchesWoken = 0;  // 51 S2
+    long m_sleepsAllRecorded = 0;   // 58.3: sleeps that read no grid (every tile recorded)
+    long m_sleepsByTiles = 0;       // 58.3: sleeps that read only the tiles still in cells
+    int m_lastSleepTiles = 0, m_lastSleepLiveTiles = 0;   // 58.3: the last GPU volume's sleep - its tiles, those still in cells
     int m_nextId = 1;
     uint64_t m_avRevision = 0;
     std::vector<std::pair<glm::ivec3, glm::ivec3>> m_boxes;   // mirrors m_avs (16.4)

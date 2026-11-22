@@ -396,6 +396,10 @@ struct WriteBackStats {
 /// voxel-aligned (every WaterCoreManager volume is).
 WriteBackStats columnRunsFromGrid(const WaterGrid& grid, const std::function<bool(int, int)>& held,
                                   std::vector<ColumnRuns>& out);
+/// 58.3: the same over several grids of one volume (disjoint voxel columns - e.g. its tiles still in cells): every grid's columns,
+/// then ONE film join (A11) over all of them, so the result equals one grid covering them all whose other columns are dry
+WriteBackStats columnRunsFromGrids(const std::vector<const WaterGrid*>& grids, const std::function<bool(int, int)>& held,
+                                   std::vector<ColumnRuns>& out);
 /// The inverse: set every cell of `grid` from the runs (replace, not add; columns absent from
 /// `runs` are cleared; runs are clipped to the grid's box). §27.8: each run is LEVEL-FILLED into the
 /// voxel column's AIR cells (grid.occ) from its bottom up - still water is level, so this is the shape
