@@ -926,3 +926,20 @@ voxel API (a test probe, hand-placed, stated).
      both worlds; logged, not changed.
 CONCLUSION: tree matter on the switched world is the region's (Leaf* / Log* in the cube's block), which makes the
 canopy sweep both correct and fast; every DamageSystem tree check (felling, vegetation gates) reads it too.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.15 PREDICTION -- furnished buildings on the switched world (2026-11-22, code written before this file, not built
+or run; the control runs on the F7.14 editor).
+CONTROL: on the switched world build_structure takes F7.11's sink: the exact 1/8 m shell, furnish / emit skipped -- no
+furniture, items or lights. Re-run first with {"furnish":true}: no fixtures.
+THE CHANGE (broad strokes; furnishing ON the 1/8 m grid is FC's unfinished "furniture placement in C++"): with
+{"furnish":true} the editor sets no sink, the WHOLE pipeline runs (1/9 m shell, pad, excavation, furniture, items,
+lights, locations, nav) and every voxel write goes through the F7.13 hook: StructureGenerator::place / removeVoxels and
+now ObjectTemplateManager's static stamps (spawnTemplate / spawnTemplateMicro: furniture, clutter) -- centre-sampled
+into the region. Item props and lights are not voxels (kinematic / light records): they run as today.
+  Z1: the furnished hall house reports the same fixture plan as the same request on an unswitched editor (count and
+      types; the furnisher's plan is program-driven).
+  Z2: today's hidden world untouched (sampled cubes over the footprint equal before / after).
+  Z3: >= 90 % of the static fixtures have region voxels at their reported cube.
+  Z4: a character inside rests on a floor (within 1/8 m of a region surface).
+RED: the default request (no furnish) -> no fixtures (the control).
