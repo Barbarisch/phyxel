@@ -218,3 +218,31 @@ the live runs (functional results only; the action costs below are CPU wall time
      solidity masks) is the fix -- it bites as soon as the switched world is edited.
 CONCLUSION: the player's hover, break and place edit the new store (brushes 8 / 2 / 1), exactly as F3's edit path,
 and the engine's reads follow each edit. Next: the light occupancy from the new store (section 4.4), then F7.5.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.3b PREDICTION -- the light occupancy from the new store when switched (plan section 4.4, part of section 7 step 3:
+drawing; 2026-11-22, before any code).
+CONTROL: F7.3 / F7.4 -- with the switch on, the light occupancy (the micro-resolution pool the probe field, the light
+visibility walk and debris read; LightingPipeline.md D / F, R8) is still packed from today's HIDDEN chunks
+(RenderCoordinator's residency pass over chunkMap). F7.4 found the consequence: a hole edited into the switched world
+renders black (view 11: its faces are drawn; GI off: they show). Re-run first: the hole at F7.4's pose, debug view 7
+(ambient) with tonemap curve 0 -- the mean grey inside the hole's screen box, and on open ground beside it.
+THE CHANGE: VoxFound::lightOccupancyOf(BlockStore) -> ChunkLightOccupancy: per 1 m cube (one 8^3 block) empty / solid
+from blockSolidCount 0 / 512, else mixed with its 9^3 micro bits = the 1/8 m voxel under each micro cell's centre (the
+same sampling as F7.1's occupiedMicro: what the NPCs read is what blocks light). RenderCoordinator::
+setVoxFoundOccupancy(source): while set, the residency pass offers the source's chunks (with the source's per-chunk
+revision) instead of chunkMap's -- today's chunks drop out of the pool exactly as unloaded chunks do. The world switch
+sets it; each brush bumps the revision of the chunks it rebuilt. Off by default (the switch off = today's pool,
+unchanged). LightingPipeline.md section 0 (the occupancy row / R8 note) + section 9 in the same commit; lighting_doc_check.
+  O1 (unit): lightOccupancyOf equals the rule on every cube of F7.1's mixed content (solid / mixed flags), and through
+     packOccupancyPool + packedPoolSolidAt every micro cell of a 4 x 4 x 4 m area equals WorldReads::occupiedMicro.
+  O2 (live, the gate scene, switch on): the pool holds the region's 32 chunks and none of today's (stats; residency
+     settles within 2 s at 24 chunks per frame).
+  O3 (live): the edited hole is LIT: in view 7 (ambient, curve 0) its mean grey >= 25 % of the open ground's beside it
+     (the control: ~0, black); and after placing the cube back the ambient there returns to within 5 % of before.
+  O4 (live): the switch off restores today's pool (the chunk count and the old chunks' revisions); the default
+     (never switched) never calls the new path.
+  O5: the pixels move: the switch with the new occupancy vs F2.19's B at the 5 poses (curve 0, wind 0, GI ON this time
+     -- the change is in the ambient) -- recorded, not predicted to 0 (1/8 m occupancy vs 1/9 m changes probe
+     ambient everywhere); GI off: 0 px (the change touches only occupancy readers).
+RED: the override set but the residency pass ignoring it (a stub) -> O2 shows today's chunks, O3 stays black.
