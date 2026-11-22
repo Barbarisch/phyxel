@@ -642,3 +642,22 @@ tests/core/TerrainGenRateTest.cpp. Every artifact: WorldGenerator Perlin s7 + fl
      (re-read from disk per chunk today); generation on the GPU (section 3.5a), which also removes the upload.
 CONCLUSION: generation is 7x faster at the default (1.4 -> 9.6 chunks/s), exact; still under the sprint budget.
 Next F7.9b: the switched world streams -- chunks join and leave the region around the player.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.9b PREDICTION -- the switched world streams (2026-11-22; code written, not built or run; the control runs on the
+F7.9a editor).
+CONTROL: the switched world is one fixed region (here 4 x 2 x 4 chunks, 128 m); a camera that walks off it reaches
+chunks nothing draws or reads (the switch hides today's world). Re-run first: switch on, move the camera 3 chunks east
+(+96 m) -> its chunk is outside the region; the region's box unchanged; the region pick under the camera hits nothing.
+THE CHANGE (broad strokes): {"stream":true} -- each frame, if the camera's chunk leaves the region's inner chunks (one
+chunk of margin in x and z), the region is shifted to centre on it: edited chunks kept in memory (codec v3), switch off,
+the region rebuilt at the new box from the same request (F7.9a's generation), switch on (the kept chunks, then world.db,
+load through F7.6a's exact path). save_world also writes the kept chunks. Bodies in flight are not carried.
+  T1 (edits survive): edit chunk A (stays) and chunk B (leaves on a +2-chunk shift); after the shift A's store hash =
+     its edited hash; after shifting back B's = its edited hash; every other chunk = the generator's (a fresh build).
+  T2 (streaming walk): with stream on, the camera walks +x 8 chunks (256 m) in 16 m steps; after every step the camera's
+     chunk is inside the region, the region's pick straight down from the camera hits ground; >= 3 shifts.
+  T3 (cost): a shift = one hitch of ~the region build: <= 8 s for the 32-chunk region (F7.9a: 6.1 s per request) --
+     a big hitch, stated; the levers: build only the entering chunks and build them off the main thread.
+  T4: save_world after the walk writes the kept chunks (saved_from_stream_cache >= 1 when an edited chunk has left).
+RED: stream_stub -> the control's behaviour (no shift; the camera leaves the region).
