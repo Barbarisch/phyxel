@@ -326,6 +326,12 @@ private:
     bool voxFoundSaveStub = false;                                      // F7.6a (tests): save_world skips the region
     Core::VoxFound::EditHistory voxFoundHistory;                        // F7.6b: undo / redo of switched-world edits
     bool voxFoundUndoStub = false;                                      // F7.6b (tests): /api/undo ignores the history
+    bool voxFoundApiStub = false;                                       // F7.6c (tests): the voxel API not routed
+    /// F7.6c: place_voxel / remove_voxel / place_subcube / fill_region / clear_region on the switched world (false:
+    /// not switched -- today's path answers)
+    bool voxFoundApiEdit(const std::string& action, const nlohmann::json& params, nlohmann::json& response);
+    /// F7.6c: GET /api/world/voxel on the switched world -- the 8^3 block of cube (x, y, z)
+    nlohmann::json voxFoundQuery(int x, int y, int z) const;
     /// F7.6b: undo (true) / redo (false) the switched world's last edit; false when the history has none
     bool voxFoundUndoRedo(bool undo, nlohmann::json& r);
     // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)

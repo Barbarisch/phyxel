@@ -3104,6 +3104,13 @@ region edit records; `/api/undo` and `/api/redo` use it first. Live: 32/32 chunk
 steps deep exact at every step, the cap and redo-clearing as today's stack, ~0.3 ms per undo (an edit's cost). Blasts
 are not recorded (stated).
 
+**F7.6c, the voxel API on the switched world (2026-11-22).** `place_voxel`, `remove_voxel`, `place_subcube`,
+`fill_region` (hollow, replace) and `clear_region` route to the region edit path, JSON unchanged: metres are cubes = the
+size-8 brush, a subcube the size-2 brush, `"units":"voxel"` (+ `"size"`) the 1/8 m grid; `GET /api/world/voxel` answers
+from the region (solid voxels of the block, its material). Live: exact voxel counts (512 / 24,576 / 22,528 / the
+replace:false air count to the voxel), every call one undo entry back to the start hashes. Not routed: the batch place,
+copy / paste / named snapshots.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

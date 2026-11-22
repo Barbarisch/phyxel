@@ -474,3 +474,26 @@ GET /api/world/voxel answers from the region (solid voxels of the 8^3 block, the
   A3: voxel units: place size 1 -> 1 voxel; size 2 -> 8; place_subcube -> 8 voxels inside the cube's expected 2^3 cell.
   A4: every routed call is one undo entry: undoing all of them in order returns the 32 store hashes to the start.
 RED: api_stub (routing off) -> the control's behaviour (region unchanged).
+
+F7.6c RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); the region built with
+load_saved:false. Evidence: voxfound_f76c_live.jsonl; tools/voxfound_f76c_live.py. Every artifact: WorldGenerator Perlin
+s7 + flora (the 1/8 m region), edited through the engine's voxel HTTP API (/api/world/voxel, /voxel/remove, /subcube,
+/fill, /clear).
+  CONTROL (the pre-change editor, run BEFORE the code was written): place_voxel Stone at (8132, 30, 68) on the switched
+     world -> success, 0 region chunks changed; GET /api/world/voxel reports today's Stone cube (today's hidden chunks
+     edited).
+  RED as predicted: api_stub -> the same (0 region chunks changed, today's cube placed).
+  A1 PASS: place_voxel (8132, 28, 68) -> 512 voxels (the size-8 brush, voxels 65056-65063 / 224-231 / 544-551), the
+     region's column top 27 -> 28, GET: Stone, 512 solid; remove_voxel -> 512 back, GET: 0 solid.
+  A2 PASS: fill 4x3x4 cubes of air -> 24,576 (= 48 x 512), GET sum 24,576; clear -> 0; hollow + replace -> 22,528
+     (= 44 x 512); replace:false over a box cutting the terrain (22,051 solid before) -> 2,525 placed = 24,576 - 22,051
+     exactly, after 24,576 solid. fill / clear stay async (async_id polled), 2.7-7.5 ms per call.
+  A3 PASS: units voxel size 1 -> 1 voxel at the given voxel; size 2 -> 8 (its aligned 2^3 cell); place_subcube
+     (sx 2, sy 0, sz 1) -> 8 voxels at cube offsets x 6-7, y 0-1, z 4-5 (the stated mapping), GET: Bricks, 8 solid.
+  A4 PASS: the 10 routed calls = 10 undo entries; 10 undos -> 32/32 store hashes = the start.
+  today's chunks untouched: with the switch off GET (8132, 30, 68) answers "exists": false as before.
+  Not routed (stated): place_voxels_batch, copy / paste / named snapshots. The query runs on the HTTP thread unsynchronised
+     with main-thread edits, as today's handler does (stated).
+CONCLUSION: the engine's voxel API edits the switched world with its JSON shape unchanged: metres = cubes = the size-8
+brush, subcubes the size-2 brush, "units":"voxel" for the 1/8 m grid; every call undoable. Next F7.6d: LOD tiers 2/3
+(a block mip pyramid).

@@ -937,6 +937,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // so "is this voxel damaged, and how close to breaking?" could only be answered by
     // photographing a surface and guessing (docs/VoxelDamageVisualization.md §6).
     apiServer->setVoxelQueryHandler([this](int x, int y, int z) -> nlohmann::json {
+        if (voxFoundWorldReads && !voxFoundApiStub && !voxFoundEdit.empty()) return voxFoundQuery(x, y, z);   // F7.6c
         nlohmann::json result;
         result["position"] = {{"x", x}, {"y", y}, {"z", z}};
         if (!chunkManager) {
@@ -13580,6 +13581,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("api_stub")) {   // F7.6c (tests): the voxel API not routed (the red)
+            voxFoundApiStub = cmd.params["api_stub"].get<bool>();
+            response = {{"api_stub", voxFoundApiStub}};
+            return;
+        }
         if (cmd.params.contains("undo_stub")) {   // F7.6b (tests): /api/undo ignores the history (the red)
             voxFoundUndoStub = cmd.params["undo_stub"].get<bool>();
             response = {{"undo_stub", voxFoundUndoStub}};
@@ -14192,6 +14198,84 @@ size_t Application::voxFoundBrush(const glm::ivec3& voxel, int size, const std::
 
 std::unique_ptr<IWorldEditor> makeRegionWorldEditor(Application& app) { return std::make_unique<RegionWorldEditor>(app); }
 
+// F7.6c (docs/VoxelFoundationPlan.md section 7 step 6, section 12): the voxel API on the switched world. The JSON keeps
+// its shape: x/y/z are metres (today's cube coordinates) -> a cube is the size-8 brush, a subcube (sx, sy, sz thirds)
+// the size-2 brush at x*8 + floor((s + 0.5) * 8 / 3) (F7.4's mapping); "units":"voxel" = 1/8 m voxels (+ "size").
+bool Application::voxFoundApiEdit(const std::string& action, const nlohmann::json& p, nlohmann::json& response) {
+    if (!voxFoundWorldReads || voxFoundApiStub || voxFoundEdit.empty()) return false;
+    const bool vu = p.value("units", std::string("cube")) == "voxel";
+    const glm::ivec3 at(p.value("x", 0), p.value("y", 0), p.value("z", 0));
+    const std::string material = p.value("material", std::string("Default"));
+    nlohmann::json ej;
+    if (action == "place_voxel" || action == "remove_voxel") {
+        const int size = vu ? p.value("size", 1) : 8;
+        const glm::ivec3 v = vu ? at : at * 8;
+        ej = {{"brush", {{"at", {v.x, v.y, v.z}}, {"size", size}}},
+              {"material", action == "remove_voxel" ? std::string("air") : material}};
+    } else if (action == "place_subcube") {
+        const glm::vec3 s(p.value("sx", 0), p.value("sy", 0), p.value("sz", 0));
+        const glm::ivec3 v = at * 8 + glm::ivec3(glm::floor((s + 0.5f) * 8.0f / 3.0f));
+        ej = {{"brush", {{"at", {v.x, v.y, v.z}}, {"size", 2}}}, {"material", material}};
+    } else {   // fill_region / clear_region
+        const glm::ivec3 a(p.value("x1", 0), p.value("y1", 0), p.value("z1", 0));
+        const glm::ivec3 b(p.value("x2", 0), p.value("y2", 0), p.value("z2", 0));
+        glm::ivec3 lo = glm::min(a, b), hi = glm::max(a, b);
+        if (!vu) lo *= 8, hi = hi * 8 + 7;
+        ej = {{"lo", {lo.x, lo.y, lo.z}}, {"hi", {hi.x, hi.y, hi.z}},
+              {"material", action == "clear_region" ? std::string("air") : material}};
+        if (action == "fill_region") {
+            if (p.value("hollow", false)) ej["hollow"] = vu ? 1 : 8;
+            if (!p.value("replace", false)) ej["only_air"] = true;
+        }
+    }
+    nlohmann::json r;
+    try {
+        handleVoxFoundEdit(ej, r);
+    } catch (const std::exception& e) {
+        r = {{"error", e.what()}};
+    }
+    if (r.contains("error")) {
+        response = {{"success", false}, {"world", "voxfound"}, {"error", r["error"]}};
+        return true;
+    }
+    const size_t changed = r.value("voxels_changed", size_t(0));
+    response = {{"success", true}, {"world", "voxfound"}, {"units", vu ? "voxel" : "cube"},
+                {"position", {{"x", at.x}, {"y", at.y}, {"z", at.z}}}, {"voxels_changed", changed},
+                {"lo", r["lo"]}, {"hi", r["hi"]}, {"undo", r["undo"]}, {"brush", r["brush"]},
+                {"wall_ms", r.value("rebuild_ms", 0.0) + r.value("assemble_ms", 0.0)}};
+    if (action == "fill_region") response["placed"] = changed;
+    if (action == "clear_region") response["removed"] = changed;
+    if (changed && npcManager && action != "fill_region" && action != "clear_region") {
+        auto fd = [](int c) { return c >= 0 ? c / 8 : -((-c + 7) / 8); };
+        npcManager->onVoxelChanged(vu ? glm::ivec3(fd(at.x), fd(at.y), fd(at.z)) : at);
+    }
+    return true;
+}
+
+// F7.6c: the cube (x, y, z) on the switched world -- its 8^3 block's solid voxels and their most common material.
+// NOTE: called on the HTTP thread like today's handler (which reads ChunkManager there too); not synchronised with
+// edits on the main thread -- the same pre-existing pattern, stated.
+nlohmann::json Application::voxFoundQuery(int x, int y, int z) const {
+    std::vector<size_t> count(256, 0);
+    size_t solid = 0;
+    for (int i = 0; i < 8; ++i)
+        for (int j = 0; j < 8; ++j)
+            for (int k = 0; k < 8; ++k) {
+                const uint8_t m = voxFoundEdit.voxelAt(glm::ivec3(x * 8 + i, y * 8 + j, z * 8 + k));
+                if (m) ++count[m], ++solid;
+            }
+    nlohmann::json r = {{"position", {{"x", x}, {"y", y}, {"z", z}}}, {"world", "voxfound"}, {"exists", solid > 0}};
+    nlohmann::json vf = {{"solid_voxels", solid}};
+    if (solid) {
+        const size_t best = size_t(std::max_element(count.begin() + 1, count.end()) - count.begin());
+        const std::string name = best < voxFoundPalette.size() ? voxFoundPalette[best] : std::string();
+        r["material"] = name;
+        vf["material"] = name;
+    }
+    r["voxfound"] = vf;
+    return r;
+}
+
 // F7.6b: undo / redo on the switched world -- the history's differing cells written back through applyCells (the exact
 // incremental path), then the light occupancy, the resident device copies and the drawn lists as an edit does.
 bool Application::voxFoundUndoRedo(bool undo, nlohmann::json& r) {
@@ -14305,6 +14389,19 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
         const glm::ivec3 a = ivec(ej.at("lo")), b = ivec(ej.at("hi"));
         lo = glm::min(a, b);
         hi = glm::max(a, b);
+        // F7.6c: {"hollow":t} a shell t voxels thick; {"only_air":true} only air voxels change (fill_region's
+        // replace:false) -- both through the masked path (apply with inside)
+        const int shell = ej.value("hollow", 0);
+        const bool onlyAir = ej.value("only_air", false);
+        if (shell > 0 || onlyAir) {
+            const glm::ivec3 ilo = lo + shell, ihi = hi - shell;
+            inside = [this, ilo, ihi, shell, onlyAir](glm::ivec3 p) {
+                if (shell > 0 && glm::all(glm::greaterThanEqual(p, ilo)) && glm::all(glm::lessThanEqual(p, ihi)))
+                    return false;
+                return !onlyAir || voxFoundEdit.voxelAt(p) == 0;
+            };
+            brush = "masked_box";
+        }
     }
     // the material: air, a palette entry, or a new palette entry (its textures and card / see-through sets added)
     const std::string matName = ej.value("material", std::string("air"));
@@ -14334,7 +14431,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
     RegionEdit::Stats st;
     if (brush == "brush")
         voxFoundEdit.brush(lo, brushSize, mat, st, rowsGpu, &rowsErr);   // F3.2b (size checked above)
-    else if (brush == "sphere")
+    else if (brush == "sphere" || brush == "masked_box")   // F7.6c: the masked box
         st = voxFoundEdit.apply(lo, hi, inside, mat, rowsGpu, &rowsErr);
     else
         st = voxFoundEdit.applyBox(lo, hi, mat, rowsGpu, &rowsErr);   // F3.2b: covered blocks written whole
@@ -19958,6 +20055,10 @@ void Application::processAPICommands() {
                     }
                 }
 
+            } else if ((cmd.action == "place_voxel" || cmd.action == "remove_voxel" || cmd.action == "place_subcube" ||
+                        cmd.action == "fill_region" || cmd.action == "clear_region") &&
+                       voxFoundApiEdit(cmd.action, cmd.params, response)) {
+                // docs/VoxelFoundationPlan.md F7.6c: routed to the switched world (response set)
             } else if (cmd.action == "place_voxel") {
                 int x = cmd.params.value("x", 0);
                 int y = cmd.params.value("y", 0);
