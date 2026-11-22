@@ -497,3 +497,30 @@ s7 + flora (the 1/8 m region), edited through the engine's voxel HTTP API (/api/
 CONCLUSION: the engine's voxel API edits the switched world with its JSON shape unchanged: metres = cubes = the size-8
 brush, subcubes the size-2 brush, "units":"voxel" for the 1/8 m grid; every call undoable. Next F7.6d: LOD tiers 2/3
 (a block mip pyramid).
+
+---------------------------------------------------------------------------------------------------------------------
+F7.6d PREDICTION -- LOD tiers 2/3 on the switched world (plan section 7 step 6: "LOD tiers 2/3 (a block mip pyramid)";
+2026-11-22, before any code).
+CONTROL: the pyramid exists (F2.13-F2.14h: levels 1/4 m .. 16 m, selection by size on screen, default off) but only for
+a static region: voxfound_preview refuses {"editable":true} with {"lod_levels":n} ("editable is level 0 only ... owed"),
+so the switched world (always editable) has no coarse levels; and RegionEdit::assemble, after any edit that cannot be
+written in place, falls back to selectLevel(0) -- a drawn coarse level or the size-on-screen selection is silently
+dropped. Re-run first: a region with editable + lod_levels 3 -> the refusal.
+THE CHANGE: editable regions build coarse levels 1..3 (the default variant only: one pyramid, leaves as cards, no leaf
+mass; levels 4-7 (region pyramid), lod_split_cards, lod_leaf_fill, lod_sprig_level and alternates stay refused with
+editable -- owed). Every region edit (brush, voxel API, undo, the bodies lab's break / bake, a saved-chunk load) marks
+dirty the chunks whose 1 m-margin area meets the edit's box; Application::update refreshes one dirty chunk per frame
+(its area = the store + 1 m margin, outside the region extended from the nearest region voxel; LodBuilderGpu levels;
+FaceBuilderGpu meshes each level's cut; the chunk's ranges and clusters spliced into Preview::levels[k]) and re-selects
+when none are left ({"lod_refresh":0} flushes now). assemble re-selects what was drawn (the LOD selection, or the drawn
+level) instead of level 0.
+  D1 (the refresh path = the build's): at no edits, refreshing every chunk reproduces the build's coarse faces exactly
+     (as multisets per chunk and level) for the chunks not on the region's x/z sides (8 of 32); the side chunks differ
+     only through the 1 m margin beyond the region (the build's is the generator's): <= 1 % of their coarse faces.
+  D2 (kept current): after a fill (4x4x4 cubes in air), a brush break and an undo, the dirty chunks drain and every
+     chunk's coarse levels equal a fresh refresh of the store (lod_check: 0 mismatched faces, all levels).
+  D3 (visible): drawing level 3 (1 m) for the whole region (lod_draw 3) at a stated pose, the fill appears: >= 1 % of
+     the crop's pixels change, and the drawn level is still 3 after the edit; with lod_auto on, lodOn and the
+     selection survive the edit.
+  D4 (cost): a chunk refresh <= 50 ms (one frame hitch, amortised one chunk per frame), the re-select <= 20 ms.
+RED: lod_stub (edits mark nothing dirty) -> D2 fails (stale chunks mismatch) and D3's fill is missing at level 3.
