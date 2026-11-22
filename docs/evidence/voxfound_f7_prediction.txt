@@ -52,3 +52,28 @@ F7.1 RESULTS (2026-11-21; the prediction above untouched). Release, CPU. Evidenc
   Regression: the editor builds; *Chunk* / *NavGrid* / *NavGraph* / *NPC* / WorldReads 354 pass, WorldReads.Cost red.
 CONCLUSION: the engine's four voxel reads answer from the new store with the old semantics on 1/8 m voxels, and
 navigation runs unchanged on it. Next F7.2: the generators write the new store.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.2 PREDICTION -- the generators write the new store (2026-11-21, before any code).
+CONTROL: terrain + flora already reach new-store chunks (F2's forEachRegionChunk -> RegionChunk grids -> RegionEdit's
+BlockStores, the preview); structures realize on a 1/8 m MicroCanvas (StructureRealizer::realizeShell with
+StructureGrid::foundation(), FC step 3a) but nothing writes that canvas into a world store -- they place through
+ChunkManager's cube / subcube / microcube calls (1/9 m). NavGraphMicroTest's realized-house test (grid 9, canvas only)
+passes today.
+THE CHANGE: VoxFound::WorldStore -- the world in the new store: a BlockStore per engine chunk (256^3 voxels) + one shared
+palette (material names; 0 = air), with bulk writes: fillBox(lo, hi, name) (whole blocks written as one directory
+entry), paint(cells), paintCanvas(canvas, originVoxel) (an 8-cells-per-metre MicroCanvas: its solid cells; a 9 canvas
+is refused -- 1/9 m content needs conversion, plan 7a), and fromRegion(generator, chunkLo, chunkHi, flora) through F2's
+forEachRegionChunk. reads() gives F7.1's WorldReads over it. Part ids: the BlockStore has no part channel -- not
+stored here (owed: fracture needs them, F7.5).
+  G1: writes are exact and chunks invisible: fillBox / paint across chunk borders (negative coordinates included) equal
+      a dense reference voxel for voxel; a fillBox of whole blocks leaves them uniform (no detailed block).
+  G2: a realized building (the hall house, grid 8) painted at an origin that straddles a chunk border equals the canvas
+      cell for cell (every canvas cell's material at origin + cell; nothing else written).
+  G3: navigation in a generated building: the house painted on ground in the store, a ChunkManager routed to it (no
+      old chunks): NPCManager::buildNavGrid + NavGraph path service -> solar through the interior door; TEETH: the
+      interior doors dropped -> no path.
+  G4: terrain: fromRegion over a 2 x 1 x 2-chunk generated area equals the RegionChunk grids forEachRegionChunk hands
+      out (voxel for voxel, materials by name).
+  G5: refusals: a 9 canvas, a 256th material.
+RED: a stub paint / fillBox (nothing written) -- G1-G3 fail.
