@@ -246,3 +246,36 @@ unchanged). LightingPipeline.md section 0 (the occupancy row / R8 note) + sectio
      -- the change is in the ambient) -- recorded, not predicted to 0 (1/8 m occupancy vs 1/9 m changes probe
      ambient everywhere); GI off: 0 px (the change touches only occupancy readers).
 RED: the override set but the residency pass ignoring it (a stub) -> O2 shows today's chunks, O3 stays black.
+
+F7.3b RESULTS (2026-11-22; the prediction above untouched). Release; the VoxFoundGate project (port 8120); the other
+session's integration tests running throughout (functional + pixel results; no timing claims). Evidence:
+voxfound_f7_headless.txt (O1), voxfound_f73b_live.jsonl (control / red / green), voxfound_f73b_*_ambient.png,
+voxfound_f73b_pix.json (O4 / O5); tools/voxfound_f73b_live.py, tools/voxfound_f73b_pix.py. Every artifact: WorldGenerator
+Perlin s7 + flora (the 1/8 m region), edited through VoxelInteractionSystem's own calls.
+  CONTROL (before any code): at F7.4's pose, debug view 7 (ambient), tonemap curve 0: the hole 1.16, the open ground
+     1.14 (of 255) -- not just the hole: almost the WHOLE switched region is black in ambient (today's 1/9 m ground
+     sits above the 1/8 m ground in most places, so the probes see the drawn surface as buried). Direct sun hid it in
+     shaded captures.
+  RED as predicted: occ_stub (the source set, the pass ignoring it): from_new_store false, the pool = today's chunks
+     (58,295 mixed cubes), hole 1.16 / ground 1.14.
+  A void run, discarded: the first red / green ran on the PREVIOUS exe (the editor build had failed on a namespace;
+     the launch picked up the stale binary); its records were removed from the evidence. The script now checks the
+     build answers the new knob before running.
+  O1 PASS (unit; the red: a stub returning an empty blob -> 142 cubes and 209,997 micro cells wrong): 142 solid / 297
+     mixed cubes equal the rule, mixed indices ascending; through packOccupancyPool + packedPoolSolidAt all 373,248
+     micro cells of the content equal WorldReads::occupiedMicro (0 differ). Occupancy unit tests 79 / 79.
+  O2 PASS: from_new_store true, 32 region chunks resident, 75,381 mixed cubes, 0 dropped, 0 backlog.
+  O3 PASS (first half): the hole 55.94, the open ground 33.48 (was 1.16 / 1.14). The second half ("after placing back
+     within 5 % of before") NOT TESTED as stated: the script captured no pre-break value, and the placed cube stands
+     above the ground (a whole-cell brush in a surface cell) -- its box reads 20.58.
+  O4 PASS: the switch off: from_new_store false, the pool back to today's (58,295 mixed cubes, 32 chunks).
+  O5 (recorded): the switch with the new occupancy vs F2.19's B (today's occupancy) at the 5 poses, curve 0, wind 0:
+     GI OFF 0 px at every pose (the change reaches only occupancy readers); GI ON 0 % at overview_south / top_down
+     (the probe grid around a camera 70-140 m up does not reach the ground: open-sky fallback), 38.9 / 9.06 / 23.02 %
+     at forest_floor_open / east_low / canopy_close (the probe ambient now from the drawn ground); switch vs switch
+     again 0-102 px (probe refresh).
+  LightingPipeline.md: R8 note on the occupancy's source + section 9 line; lighting_doc_check ok (fingerprint unchanged:
+     no shader changed).
+CONCLUSION: with the switch on, what blocks light is the new store -- the same voxels the engine reads and draws; the
+switched ground and edited holes get their ambient. Section 7 step 3 (drawing, section 4) now covers lighting's
+occupancy too. Still owed from F7.3: D5 (cost) and the F55c timing re-run on a quiet GPU.

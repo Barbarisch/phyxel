@@ -13580,6 +13580,22 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("occ_stub")) {   // F7.3b (tests): the next switch-on sets the source but the pass ignores it
+            voxFoundOccStub = cmd.params["occ_stub"].get<bool>();
+            response = {{"occ_stub", voxFoundOccStub}};
+            return;
+        }
+        if (cmd.params.value("occupancy_stats", false)) {   // F7.3b: what the light occupancy pool holds
+            const auto st = renderCoordinator->lightOccupancyStats();
+            response["occupancy"] = {{"from_new_store", renderCoordinator->voxFoundOccupancyActive()},
+                                     {"resident_chunks", st.residentChunks}, {"mixed_cubes", st.mixedCubes},
+                                     {"loaded_chunks", renderCoordinator->lightOccupancyLoadedChunks()},
+                                     {"out_of_box", renderCoordinator->lightOccupancyOutOfBoxChunks()},
+                                     {"residency_backlog", renderCoordinator->lightOccupancyResidencyBacklog()},
+                                     {"edit_backlog", renderCoordinator->lightOccupancyEditBacklog()},
+                                     {"dropped", st.droppedChunks}, {"pack_ms", st.lastPackMs}};
+            return;
+        }
         if (cmd.params.contains("edit_stub") || cmd.params.contains("edit_verify")) {
             if (cmd.params.contains("edit_stub")) voxFoundEditStub = cmd.params["edit_stub"].get<bool>();
             if (cmd.params.contains("edit_verify")) voxFoundEditVerify = cmd.params["edit_verify"].get<bool>();
@@ -13633,9 +13649,17 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             voxFoundWorldReads.reset();
             if (voxelInteractionSystem) voxelInteractionSystem->setWorldEditor(nullptr);   // F7.4
             voxFoundWorldEditor.reset();
+            renderCoordinator->setVoxFoundOccupancy(nullptr);   // F7.3b
             if (on) {
                 voxFoundWorldEditor = makeRegionWorldEditor(*this);   // F7.4
                 if (voxelInteractionSystem && !voxFoundEditStub) voxelInteractionSystem->setWorldEditor(voxFoundWorldEditor.get());
+                voxFoundOccSource.chunks = [this] { return voxFoundEdit.chunkCoords(); };   // F7.3b
+                voxFoundOccSource.storeOf = [this](glm::ivec3 c) { return voxFoundEdit.chunkStore(c); };
+                voxFoundOccSource.revisionOf = [this](glm::ivec3 c) {
+                    auto it = voxFoundOccRevision.find({c.x, c.y, c.z});
+                    return 1u + (it == voxFoundOccRevision.end() ? 0u : it->second);   // never 0 (today's revisions start there)
+                };
+                renderCoordinator->setVoxFoundOccupancy(&voxFoundOccSource, voxFoundOccStub);
                 voxFoundWorldReads = std::make_unique<WorldReads>(
                     [this](glm::ivec3 c) { return voxFoundEdit.chunkStore(c); }, voxFoundEdit.chunkCoords());
                 if (chunkManager && !voxFoundWorldSwitchStub) chunkManager->setVoxFoundReads(voxFoundWorldReads.get());
@@ -14219,6 +14243,10 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
         st = voxFoundEdit.apply(lo, hi, inside, mat, rowsGpu, &rowsErr);
     else
         st = voxFoundEdit.applyBox(lo, hi, mat, rowsGpu, &rowsErr);   // F3.2b: covered blocks written whole
+    for (size_t i : st.rebuilt) {   // F7.3b: the switched light occupancy repacks these chunks
+        const auto& rc = voxFoundEdit.chunk(i).chunk;
+        ++voxFoundOccRevision[{rc.x, rc.y, rc.z}];
+    }
     // the CPU executor changed these chunks' voxels behind any resident device copy: forget them (a later device edit
     // would otherwise re-mesh stale voxels next to its own box -- 12 face mismatches, live, before this)
     if (!ej.value("device", false) && voxFoundBuilder)

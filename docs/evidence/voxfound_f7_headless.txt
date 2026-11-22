@@ -199,3 +199,19 @@ G:\Github\phyxel-matsimb-lab\tests\core\WorldEditorRoutingTest.cpp(72): error: E
 [  FAILED  ] WorldEditorRouting.HoverBreakAndPlaceGoToTheEditor
 == F7.4 E1 GREEN + related (WorldEditorRouting, *VoxelInteraction*, *Placement*, *Destruction*, AudioSystem*) ==
 [  PASSED  ] 45 tests.
+== F7.3b O1 RED (lightOccupancyOf stubbed: an empty blob) ==
+Note: Google Test filter = LightOccupancyFromStore.*
+[----------] 1 test from LightOccupancyFromStore
+[ RUN      ] LightOccupancyFromStore.EqualsTheRuleAndTheReadsSampling
+[LightOccupancyFromStore] cubes: 142 solid, 0 mixed, 142 wrong; micro: 373248 checked (209997 solid), 209997 differ from WorldReads::occupiedMicro
+G:\Github\phyxel-matsimb-lab\tests\core\LightOccupancyFromStoreTest.cpp(86): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\LightOccupancyFromStoreTest.cpp(87): error: Expected equality of these values:
+G:\Github\phyxel-matsimb-lab\tests\core\LightOccupancyFromStoreTest.cpp(89): error: Expected: (mixed) > (0u), actual: 0 vs 0
+[  FAILED  ] LightOccupancyFromStore.EqualsTheRuleAndTheReadsSampling (24 ms)
+[----------] 1 test from LightOccupancyFromStore (24 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] LightOccupancyFromStore.EqualsTheRuleAndTheReadsSampling
+== F7.3b O1 GREEN + occupancy tests (LightOccupancyFromStore.*:*LightOccupancy*:*Occupancy*) ==
+[LightOccupancyFromStore] cubes: 142 solid, 297 mixed, 0 wrong; micro: 373248 checked (209997 solid), 0 differ from WorldReads::occupiedMicro
+[  PASSED  ] 79 tests.

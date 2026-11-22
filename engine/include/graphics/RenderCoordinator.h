@@ -40,6 +40,7 @@
 
 // Forward declarations
 namespace Phyxel {
+namespace Core::VoxFound { class BlockStore; }   // F7.3b
     namespace UI { 
         class WindowManager;
         class ImGuiRenderer;
@@ -356,6 +357,21 @@ public:
     }
     bool lightOccupancyReady() const { return m_lightOccupancy && m_lightOccupancy->ready(); }
     size_t lightOccupancyLoadedChunks() const { return m_lightOccLoadedChunks; }
+    /// docs/VoxelFoundationPlan.md F7.3b (section 4.4): while set, the light occupancy is fed from the new store -- the
+    /// source's chunks (engine chunk coords), each chunk's BlockStore, and a per-chunk revision (bumped by every edit)
+    /// -- instead of chunkMap; today's chunks drop out of the pool as unloaded chunks do. nullptr = chunkMap (default).
+    /// Setting or clearing it re-offers every chunk. Not owned. `stub` (tests): set but ignored (the red).
+    struct VoxFoundOccupancySource {
+        std::function<std::vector<glm::ivec3>()> chunks;
+        std::function<const Core::VoxFound::BlockStore*(glm::ivec3)> storeOf;
+        std::function<uint32_t(glm::ivec3)> revisionOf;
+    };
+    void setVoxFoundOccupancy(const VoxFoundOccupancySource* src, bool stub = false) {
+        m_voxFoundOcc = src;
+        m_voxFoundOccStub = stub;
+        m_lightOccRevisions.clear();
+    }
+    bool voxFoundOccupancyActive() const { return m_voxFoundOcc && !m_voxFoundOccStub; }
     /// The position actually used to centre the box last frame — NOT re-read from the camera here,
     /// so "the box did not follow" and "the camera did not move" stay distinguishable.
     glm::vec3 lightOccupancyCentreSource() const { return m_lightOccCentreSource; }
@@ -1198,6 +1214,8 @@ private:
         }
     };
     std::unordered_map<glm::ivec3, uint32_t, LightOccOriginHash> m_lightOccRevisions;
+    const VoxFoundOccupancySource* m_voxFoundOcc = nullptr;   // F7.3b
+    bool m_voxFoundOccStub = false;
     size_t m_lightOccLoadedChunks = 0;   ///< chunks resident in ChunkManager last scan
     size_t m_lightOccOutOfBox = 0;       ///< loaded but outside the directory box -> NOT occluding
     size_t m_lightOccEditBacklog = 0;      ///< edited resident chunks still waiting for a repack

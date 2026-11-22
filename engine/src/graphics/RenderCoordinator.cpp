@@ -1,6 +1,7 @@
 #include <chrono>
 #include "graphics/DepthConvention.h"
 #include "graphics/RenderCoordinator.h"
+#include "core/voxfound/LightOccupancyFromStore.h"
 #include "core/ItemEffectSystem.h"
 
 #include "utils/CapsuleOcclusion.h"   // G-147: camera-inside-own-body test
@@ -897,6 +898,32 @@ void RenderCoordinator::updateLightOccupancy() {
     // behind newly streamed ones while GPU debris collided with its stale, still-solid cells.
     std::vector<RepackCandidate> changed;
     std::vector<std::pair<Chunk*, uint32_t>> changedChunks;   // parallel to `changed`
+    if (voxFoundOccupancyActive()) {   // F7.3b: the new store's chunks instead of chunkMap
+        const std::vector<glm::ivec3> cs = m_voxFoundOcc->chunks();
+        m_lightOccLoadedChunks = cs.size();
+        std::vector<std::pair<glm::ivec3, uint32_t>> vfChanged;   // parallel to `changed`: chunk coord, revision
+        for (const glm::ivec3& c : cs) {
+            const glm::ivec3 origin = c * 32;
+            if (PackedOccupancyPool::directoryIndex(origin, m_lightOccupancy->boxMinChunk()) < 0) {
+                ++m_lightOccOutOfBox;
+                continue;
+            }
+            seen.insert(origin);
+            const uint32_t rev = m_voxFoundOcc->revisionOf(c);
+            const auto it = m_lightOccRevisions.find(origin);
+            if (it != m_lightOccRevisions.end() && it->second == rev) continue;
+            changed.push_back({origin, it != m_lightOccRevisions.end()});
+            vfChanged.push_back({c, rev});
+        }
+        const RepackPlan plan = chooseRepackOrder(changed, budget);
+        for (const size_t i : plan.order) {
+            if (const Core::VoxFound::BlockStore* st = m_voxFoundOcc->storeOf(vfChanged[i].first))
+                m_lightOccupancy->setChunk(changed[i].origin, Core::VoxFound::lightOccupancyOf(*st));
+            m_lightOccRevisions[changed[i].origin] = vfChanged[i].second;
+        }
+        m_lightOccEditBacklog = plan.editBacklog;
+        m_lightOccResidencyBacklog = plan.residencyBacklog;
+    } else
     for (auto& [coord, chunk] : chunkManager->chunkMap) {
         if (!chunk) continue;
         const glm::ivec3 origin = chunk->getWorldOrigin();
@@ -915,14 +942,16 @@ void RenderCoordinator::updateLightOccupancy() {
         changed.push_back({origin, it != m_lightOccRevisions.end()});
         changedChunks.push_back({chunk, rev});
     }
-    const RepackPlan plan = chooseRepackOrder(changed, budget);
-    for (const size_t i : plan.order) {
-        m_lightOccupancy->setChunk(changed[i].origin,
-                                   buildLightOccupancy(changedChunks[i].first->getOccupancyGrid()));
-        m_lightOccRevisions[changed[i].origin] = changedChunks[i].second;
+    if (!voxFoundOccupancyActive()) {
+        const RepackPlan plan = chooseRepackOrder(changed, budget);
+        for (const size_t i : plan.order) {
+            m_lightOccupancy->setChunk(changed[i].origin,
+                                       buildLightOccupancy(changedChunks[i].first->getOccupancyGrid()));
+            m_lightOccRevisions[changed[i].origin] = changedChunks[i].second;
+        }
+        m_lightOccEditBacklog      = plan.editBacklog;
+        m_lightOccResidencyBacklog = plan.residencyBacklog;
     }
-    m_lightOccEditBacklog      = plan.editBacklog;
-    m_lightOccResidencyBacklog = plan.residencyBacklog;
 
     // Drop chunks that have unloaded. Without this their geometry would keep occluding light in
     // air the player can now walk through.

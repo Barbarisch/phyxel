@@ -663,8 +663,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F7.4 done: IWorldEditor + VoxelInteractionSystem::setWorldEditor (the switch sets the region's): break / place
       edit the new store (8/2/1 voxel brushes), reads follow, 0.44-0.68 ms per action. FOUND: an edited hole renders
       black (GI probes trace today's hidden chunks).
-      NEXT: section 4.4 -- the light occupancy (GI probe field + light visibility) built from the new store's block
-      solidity when switched; then F7.5 (destruction). Prediction BEFORE code.
+      F7.3b done: the light occupancy from the new store when switched (VoxFound::lightOccupancyOf +
+      RenderCoordinator::setVoxFoundOccupancy); the switched ground's ambient was ~0 before (today's ground above it).
+      OWED FIRST on a quiet GPU: F7.3's D5 + the F55c timing re-run (scratchpad f73_owed.ps1 pattern).
+      NEXT: F7.5 (destruction, section 6: break the switched world with the fracture path) -- prediction BEFORE code.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

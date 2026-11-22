@@ -316,6 +316,11 @@ private:
     bool voxFoundEditStub = false;                                      // tests: switched, editor not set (the red)
     bool voxFoundEditVerify = false;                                    // F7.4: the player's brushes verified (edit_verify)
     nlohmann::json voxFoundLastEdit;                                    // the last brush's edit response
+    // F7.3b: the switched world's light occupancy source (RenderCoordinator::setVoxFoundOccupancy) + per-chunk edit
+    // revisions (bumped by every handleVoxFoundEdit for the chunks it rebuilt)
+    Graphics::RenderCoordinator::VoxFoundOccupancySource voxFoundOccSource;
+    std::map<std::tuple<int, int, int>, uint32_t> voxFoundOccRevision;
+    bool voxFoundOccStub = false;
     // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)
     struct VoxFoundBodiesLab {
         Core::VoxFound::VoxelGrid world;                    // what stays in the world (the sim holds a reference)

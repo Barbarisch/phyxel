@@ -3074,6 +3074,14 @@ break and place a cube, a subcube, a micro -- every edit verified equal to a ful
 0.44-0.68 ms per action. **Found:** an edited hole renders black -- the ambient probe field still traces today's hidden
 chunks (section 4.4's occupancy from block masks is owed; it bites as soon as the switched world is edited).
 
+**F7.3b, the light occupancy from the new store (2026-11-22, section 4.4).** `VoxFound::lightOccupancyOf` builds the
+lighting pool's chunk blob from a BlockStore (cube solid / empty from its block; mixed cubes' micro bits sampled as the
+engine's reads sample them); `RenderCoordinator::setVoxFoundOccupancy` feeds the switched region's chunks (per-chunk
+edit revisions) instead of today's. Found first: with today's chunks feeding it, almost the whole switched ground was
+black in ambient (today's 1/9 m ground sits above the 1/8 m one). Now: equal to the reads' sampling on every micro cell;
+ground ambient 1.1 -> 33.5, an edited hole 55.9; GI off 0 px changed; the switch off restores today's pool.
+LightingPipeline.md R8 + section 9 updated.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:
