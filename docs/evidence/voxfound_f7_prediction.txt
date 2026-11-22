@@ -811,3 +811,17 @@ stories 1), its shell realized on the 1/8 m grid -- never hand-placed.
      (the old-grid place / furnish / emit stages); settlements.
 CONCLUSION: the engine's structure generator builds on the switched world -- realized at 1/8 m, seated on the region's
 ground, excavated, one undoable edit, standable. Next: settlements through the same sink, then the furnish stage.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.12 PREDICTION -- settlements on the switched world, buildings first (2026-11-22, before any code).
+CONTROL: with the switch on, POST /api/settlement/build (a 2 x 2 plot village, hall_house) builds every house, road,
+fence and plaza into today's hidden chunks; the region is unchanged.
+THE CHANGE: SettlementBuildService::Deps forwards a canvasSink to each building's StructureBuildService::Deps; with the
+switch on the editor sets it (F7.11's voxFoundPlaceCanvas). Each house is realized at 1/8 m and painted into the region
+as its own undoable edit. The settlement's own writers (streets, plaza paving, fences, wells, the terrain pad: ~6
+getChunkAtFast sites) are NOT routed yet: they still write today's hidden chunks (stated; the next increment).
+  V1: every built house of the plan lands in the region: one new-store place per house, 0 read-back mismatches, 0
+      clipped; the region chunks under the plots change.
+  V2: each house's floor is on the region's ground: a character dropped inside each house rests on its floor (+-0.125 m).
+  V3: undo removes the houses one by one: as many undo entries as houses, then the region's hashes = the start.
+RED: struct_stub -> the control.
